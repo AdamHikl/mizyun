@@ -1,0 +1,28 @@
+{
+  "name": "mizyun",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A modular AI-ready fitness and nutrition app for iOS and Android.",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @mizyun/api --filter @mizyun/mobile dev",
+    "dev:api": "pnpm --filter @mizyun/api dev",
+    "dev:mobile": "pnpm --filter @mizyun/mobile start",
+    "build": "pnpm -r --if-present build",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "pnpm format:check && pnpm typecheck && pnpm test"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "prettier": "^3.6.2",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}

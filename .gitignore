@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Builds and caches
+dist/
+coverage/
+.turbo/
+.expo/
+.eslintcache
+*.tsbuildinfo
+
+# Native generated projects (Expo CNG)
+apps/mobile/android/
+apps/mobile/ios/
+
+# Editors and operating systems
+.DS_Store
+.idea/
+.vscode/
+
+# Supabase local state
+supabase/.branches/
+supabase/.temp/

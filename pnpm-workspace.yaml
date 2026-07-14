@@ -1,0 +1,8 @@
+packages:
+  - apps/*
+  - packages/*
+  - packages/providers/*
+  - packages/adapters/*
+
+onlyBuiltDependencies:
+  - esbuild
