@@ -11,10 +11,11 @@ apps/
 packages/
   core/                Pure domain primitives and calculations
   contracts/           Shared, versioned request/response schemas
+  identity/            Provider-neutral authentication ports
   memory/              Provider-neutral memory policy and storage ports
   agent-runtime/       Provider-neutral orchestration and agent ports
   providers/           Future model-provider plug-ins
-  adapters/            Future database, storage, and device adapters
+  adapters/            Supabase and future infrastructure adapters
 supabase/
   migrations/          Database, RLS, and private-storage definitions
 docs/
@@ -28,6 +29,8 @@ docs/
 3. Copy `.env.example` to `.env` and keep `AGENT_PROVIDER=disabled`.
 4. Start the API with `pnpm dev:api`.
 5. Start the mobile app with `pnpm dev:mobile`.
+
+Authentication is intentionally inactive until the Supabase URL and publishable key are set in `.env`. Native sessions are encrypted with SecureStore; user-owned database records are isolated with row-level security.
 
 The application must not call an AI service yet. Complete [the pre-testing checklist](docs/BEFORE_TESTING.md) before enabling an agent provider.
 

@@ -10,10 +10,14 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@mizyun/adapter-supabase-server": "workspace:*",
     "@mizyun/agent-runtime": "workspace:*",
     "@mizyun/contracts": "workspace:*",
+    "@mizyun/core": "workspace:*",
+    "@mizyun/identity": "workspace:*",
     "@mizyun/memory": "workspace:*",
-    "fastify": "^5.0.0"
+    "fastify": "^5.0.0",
+    "fastify-plugin": "^5.0.1"
   },
   "devDependencies": {
     "tsx": "^4.20.3",

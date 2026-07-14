@@ -1,0 +1,30 @@
+{
+  "name": "@mizyun/adapter-supabase-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./chunked-storage": "./src/chunked-storage.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@mizyun/core": "workspace:*",
+    "@mizyun/identity": "workspace:*",
+    "@supabase/supabase-js": "^2.57.0",
+    "react-native-url-polyfill": "^2.0.0"
+  },
+  "peerDependencies": {
+    "expo-secure-store": "~57.0.0",
+    "react-native": ">=0.86.0"
+  },
+  "devDependencies": {
+    "expo-secure-store": "~57.0.0",
+    "react-native": "0.86.0",
+    "typescript": "~6.0.3",
+    "vitest": "^3.2.4"
+  }
+}
