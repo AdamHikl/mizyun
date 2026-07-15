@@ -47,11 +47,15 @@ docs/
 
 ## Local setup
 
-1. Install Node.js 22.11 or newer and pnpm 10.
+1. Install Node.js 22.13 or newer, pnpm 10, and a running Docker-compatible container runtime.
 2. Run `pnpm install`.
-3. Copy `.env.example` to `.env` and keep `AGENT_PROVIDER=disabled`.
-4. Start the API with `pnpm dev:api`.
-5. Start the mobile app with `pnpm dev:mobile`.
+3. Start the local backend with `pnpm db:start`.
+4. Copy `.env.example` to `.env`, copy the local publishable key shown by `pnpm db:status`, and keep `AGENT_PROVIDER=disabled`.
+5. Verify migrations and ownership policies with `pnpm db:verify`.
+6. Start the API with `pnpm dev:api`.
+7. Start the mobile app with `pnpm dev:mobile`.
+
+Local Supabase Studio is available at `http://127.0.0.1:54323` and confirmation messages at `http://127.0.0.1:54324` while the stack is running. Do not expose the local stack to a public network.
 
 Authentication is intentionally inactive until the Supabase URL and publishable key are set in `.env`. Native sessions are encrypted with SecureStore; user-owned database records are isolated with row-level security.
 

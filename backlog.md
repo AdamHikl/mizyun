@@ -9,20 +9,21 @@
 
 ## Now — Phase 1
 
-| ID       | Priority | Status   | Work item                                               | Done when                                                   |
-| -------- | -------- | -------- | ------------------------------------------------------- | ----------------------------------------------------------- |
-| BE-001   | P0       | research | Choose local/hosted Supabase development workflow       | Official guidance reviewed and ADR accepted                 |
-| BE-002   | P0       | blocked  | Configure development Supabase project                  | Waiting on BE-001; local secrets documented and untracked   |
-| BE-003   | P0       | blocked  | Apply and validate all migrations                       | Fresh database reaches expected schema without manual edits |
-| SEC-001  | P0       | blocked  | Add automated RLS isolation tests                       | Two-user select/insert/update/delete cases fail closed      |
-| SEC-002  | P0       | blocked  | Add private-media storage isolation tests               | Cross-user upload/read/delete/sign attempts fail            |
-| CFG-001  | P1       | ready    | Add validated API and mobile configuration modules      | Missing/invalid config produces typed, actionable states    |
-| API-001  | P1       | ready    | Create provider-neutral authenticated mobile API client | Tokens attach/refresh; 401 and network errors normalize     |
-| AUTH-001 | P1       | blocked  | Test real sign-up/sign-in/session restore               | Waiting on BE-002; verified in iOS simulator                |
-| AUTH-002 | P1       | ready    | Add account/settings screen with sign-out               | Signed-in user can explicitly end the session               |
-| AUTH-003 | P1       | blocked  | Implement password recovery and confirmation flows      | Waiting on BE-002; deep-link/error states verified          |
-| OPS-001  | P1       | ready    | Establish safe structured API logging/error baseline    | Request IDs present; sensitive bodies/tokens excluded       |
-| AND-001  | P1       | research | Configure and verify Android emulator                   | Clean Android Metro/runtime launch documented               |
+| ID       | Priority | Status   | Work item                                               | Done when                                                  |
+| -------- | -------- | -------- | ------------------------------------------------------- | ---------------------------------------------------------- |
+| BE-001   | P0       | done     | Choose local/hosted Supabase development workflow       | ADR-0003: local-first with separate hosted integration     |
+| TOOL-001 | P0       | blocked  | Start the installed Docker Desktop runtime              | App exists; sandbox launch fails and engine is unavailable |
+| BE-002   | P0       | blocked  | Configure development Supabase project                  | Local config committed; runtime and hosted project remain  |
+| BE-003   | P0       | blocked  | Apply and validate all migrations                       | Tests exist; waiting on TOOL-001 for clean reset           |
+| SEC-001  | P0       | blocked  | Add automated RLS isolation tests                       | pgTAP suite written; waiting on TOOL-001 to execute/fix    |
+| SEC-002  | P0       | blocked  | Add private-media storage isolation tests               | Path tests written; signed-URL API test remains            |
+| CFG-001  | P1       | ready    | Add validated API and mobile configuration modules      | Missing/invalid config produces typed, actionable states   |
+| API-001  | P1       | ready    | Create provider-neutral authenticated mobile API client | Tokens attach/refresh; 401 and network errors normalize    |
+| AUTH-001 | P1       | blocked  | Test real sign-up/sign-in/session restore               | Waiting on BE-002; verified in iOS simulator               |
+| AUTH-002 | P1       | ready    | Add account/settings screen with sign-out               | Signed-in user can explicitly end the session              |
+| AUTH-003 | P1       | blocked  | Implement password recovery and confirmation flows      | Waiting on BE-002; deep-link/error states verified         |
+| OPS-001  | P1       | ready    | Establish safe structured API logging/error baseline    | Request IDs present; sensitive bodies/tokens excluded      |
+| AND-001  | P1       | research | Configure and verify Android emulator                   | Clean Android Metro/runtime launch documented              |
 
 ## Next — Phases 2–5
 

@@ -77,13 +77,39 @@ Metro resolving TypeScript source exported directly from a pnpm workspace packag
 - Fixed the mobile adapter import.
 - Added `@mizyun/mobile bundle:check` to `pnpm check`.
 
+## 2026-07-15 — Local-first Supabase development and policy testing
+
+### Scope
+
+Supabase CLI 2.109.1, local stack configuration, migrations, environment promotion, pgTAP policy testing, mobile Auth redirects, and private Storage access.
+
+### Primary sources
+
+- Local development: https://supabase.com/docs/guides/local-development
+- CLI getting started: https://supabase.com/docs/guides/local-development/cli/getting-started
+- Local schema migrations: https://supabase.com/docs/guides/local-development/overview
+- Managing environments: https://supabase.com/docs/guides/deployment/managing-environments
+- Database migrations: https://supabase.com/docs/guides/deployment/database-migrations
+- Database/RLS testing: https://supabase.com/docs/guides/local-development/testing/overview
+- Native mobile deep linking: https://supabase.com/docs/guides/auth/native-mobile-deep-linking
+- Redirect URLs: https://supabase.com/docs/guides/auth/redirect-urls
+- Storage access control: https://supabase.com/docs/guides/storage/security/access-control
+
+### Findings used
+
+- Supabase recommends local CLI development backed by a Docker-compatible runtime, followed by deployment of committed migrations to linked environments.
+- `supabase db reset` recreates the local database from committed migrations and is the reproducibility gate.
+- pgTAP tests run through `supabase test db` and can exercise RLS with authenticated roles and synthetic JWT subjects.
+- Native confirmation/recovery flows require a registered custom application scheme and an allowed redirect URL.
+- Storage denies operations by default; per-operation policies must constrain the bucket and user-owned path.
+- Production wildcard redirects are discouraged; the development `mizyun://**` wildcard will be replaced by exact hosted redirect paths before release.
+
+### Result
+
+- ADR-0003 selected local-first Supabase development.
+- Supabase CLI 2.109.1 is pinned as a development dependency.
+- Local config and initial schema/RLS/Storage pgTAP suites were added.
+
 ## Next required research
 
-Before Phase 1 implementation, review and add a dated entry for:
-
-- current Supabase CLI and local-development workflow;
-- migration deployment and environment linking;
-- Auth redirect/email confirmation/password recovery for Expo;
-- RLS testing approaches and current Supabase test helpers;
-- private Storage policy/signing behavior;
-- secret/environment management for local development and CI.
+Before implementing authenticated mobile deep-link handling, review the exact Expo SDK 57 Linking/AuthSession guidance together with the current Supabase PKCE recovery flow.

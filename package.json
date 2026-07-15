@@ -11,6 +11,13 @@
     "dev": "pnpm --parallel --filter @mizyun/api --filter @mizyun/mobile dev",
     "dev:api": "pnpm --filter @mizyun/api dev",
     "dev:mobile": "pnpm --filter @mizyun/mobile start",
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:status": "supabase status",
+    "db:reset": "supabase db reset --local",
+    "db:lint": "supabase db lint --local --level warning --fail-on error",
+    "db:test": "supabase test db --local supabase/tests/database",
+    "db:verify": "pnpm db:reset && pnpm db:lint && pnpm db:test",
     "build": "pnpm -r --if-present build",
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test",
@@ -21,6 +28,7 @@
   "devDependencies": {
     "@types/node": "^24.0.0",
     "prettier": "^3.6.2",
+    "supabase": "2.109.1",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"

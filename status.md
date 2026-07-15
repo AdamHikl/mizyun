@@ -5,7 +5,7 @@
 ## Snapshot
 
 - **Roadmap phase:** Phase 1 — backend environment and authenticated data boundary
-- **Next work package:** P1.1 Supabase development project
+- **Active work package:** P1.1 Supabase development project
 - **Branch:** `main`
 - **Latest verified executable-code commit:** `1914505` (`fix: verify Expo workspace bundling`)
 - **Remote:** `https://github.com/AdamHikl/mizyun`
@@ -13,7 +13,8 @@
 - **Backend credentials:** not configured
 - **iOS simulator:** working; currently renders the intentional “Mizyun is ready / Supabase public configuration has not been provided” state
 - **Android emulator/device:** not yet configured or verified
-- **Repository state at this handoff:** intended clean after the project-documentation commit; verify with `git status --short`
+- **Local Supabase:** CLI/config/test scaffolding added; execution blocked because installed Docker Desktop cannot be launched from the Codex sandbox
+- **Repository state at this handoff:** Supabase development changes in progress
 
 ## What works
 
@@ -27,11 +28,13 @@
 - All current user-owned tables have Row Level Security policies and user indexes.
 - AI orchestration and memory ports exist, with deliberately disabled and in-memory implementations only.
 - `pnpm check` runs formatting, all type checks, the real iOS bundle smoke test, and unit/API tests.
+- Supabase CLI 2.109.1, local configuration, and initial pgTAP schema/isolation suites are present.
 
 ## What is intentionally not working yet
 
 - Account creation and sign-in cannot reach a real backend until a Supabase development project is configured.
 - Database migrations have not been applied to a verified development Supabase environment.
+- The database pgTAP suites have not executed because Docker Desktop is installed but its engine is not running and sandbox launch attempts fail.
 - The mobile app has no authenticated API client or feature repositories yet.
 - Profile onboarding, goals, food logging, workout tracking, progress uploads, and activity sync are not implemented.
 - Persistent memory and conversations are not wired to PostgreSQL.
@@ -40,7 +43,7 @@
 
 ## Verification baseline
 
-Last full verification before these documentation changes:
+Current standard verification after the local-backend scaffolding:
 
 ```text
 pnpm check
@@ -52,23 +55,24 @@ pnpm check
 
 After changing code or executable configuration, run `pnpm check` again and replace this baseline with the new evidence.
 
+Database verification remains pending: `pnpm db:start` reaches the Docker-engine check, but `pnpm db:verify` cannot run until Docker Desktop is started outside the Codex sandbox.
+
 ## Next work package
 
 ### P1.1 — Supabase development environment
 
-1. Research current official Supabase CLI, local development, Auth redirect, migration, RLS test, and Storage guidance.
-2. Decide whether the first workflow uses local Supabase, a hosted development project, or both.
-3. Record that durable workflow in a new ADR.
-4. Install/configure only the required tooling and keep secrets out of Git.
-5. Apply every migration from a clean database.
-6. Create two test users and prove row/storage isolation.
-7. Populate the public mobile URL/key and server URL/public key locally.
-8. Exercise sign-up, confirmation, sign-in, restoration, `/v1/me`, and sign-out in the simulator.
+1. Start the installed Docker Desktop application outside the Codex sandbox.
+2. Run `pnpm db:start`, then `pnpm db:verify`.
+3. Fix every migration, lint, or pgTAP failure; do not weaken isolation assertions.
+4. Copy the local publishable key from `pnpm db:status` into the untracked `.env`.
+5. Exercise sign-up, confirmation, sign-in, restoration, `/v1/me`, and sign-out in the simulator.
+6. Create/link a separate hosted development project only when physical-device or real-email integration needs it.
 
 Do not enable an AI provider during this work package.
 
 ## Known constraints and risks
 
+- Docker Desktop and its CLI are installed, but Launch Services/direct launch fail from the Codex sandbox; the user must open Docker Desktop once.
 - The Codex sandbox may not be able to control Apple's CoreSimulator service even when Simulator works when launched by the user.
 - Model-provider privacy and retention terms are intentionally unevaluated; AI must remain disabled.
 - Schema existence is not evidence that migrations or RLS policies work against a real Supabase environment; integration tests are still required.
@@ -81,6 +85,8 @@ Do not enable an AI provider during this work package.
 cd /Users/adam/Documents/mizyun
 pnpm install
 pnpm check
+pnpm db:start
+pnpm db:verify
 pnpm dev:api
 pnpm dev:mobile
 ```
@@ -95,6 +101,8 @@ The local `.env` should be created from `.env.example` and must not be committed
 
 ## Recent decisions and commits
 
+- ADR-0003 — local-first Supabase development with migration and pgTAP gates.
+- `089150e` — established the project roadmap and session-continuity system.
 - `1914505` — fixed Metro workspace source resolution and added iOS bundle verification.
 - `759fe1c` — added provider-neutral authentication and Supabase adapters.
 - `4d527f9` — established the modular monolith, schemas, and disabled AI foundation.
@@ -103,7 +111,7 @@ The local `.env` should be created from `.env.example` and must not be committed
 
 ## Open decisions
 
-- Local Supabase versus hosted development workflow and how CI applies/tests migrations.
+- Hosted development project creation and the eventual CI environment-promotion implementation.
 - Whether direct client-to-Supabase repositories or API-only repositories should own each data operation; sensitive/AI operations will remain server-side.
 - First deterministic energy formula and versioning strategy.
 - Workout draft/offline synchronization strategy.
@@ -112,4 +120,4 @@ The local `.env` should be created from `.env.example` and must not be committed
 
 ## Handoff note
 
-The next session should begin with `AGENTS.md`, `goals.md`, `plan.md`, and this file, then inspect the working tree. Follow `docs/SESSION_GUIDE.md` before starting P1.1.
+The next session should begin with `AGENTS.md`, `goals.md`, `plan.md`, and this file, then inspect the working tree. Follow `docs/SESSION_GUIDE.md` and resume P1.1 at the Docker/database verification step.
