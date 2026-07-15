@@ -110,6 +110,31 @@ Supabase CLI 2.109.1, local stack configuration, migrations, environment promoti
 - Supabase CLI 2.109.1 is pinned as a development dependency.
 - Local config and initial schema/RLS/Storage pgTAP suites were added.
 
+## 2026-07-15 — Supabase Data API grants and local port exposure
+
+### Scope
+
+Supabase CLI 2.109.1 table privileges after the April 2026 Data API security change, plus local Docker network binding behavior on Docker Desktop for macOS.
+
+### Primary sources
+
+- Data API grant breaking change: https://supabase.com/changelog/45329-breaking-change-tables-not-exposed-to-data-and-graphql-api-automatically
+- Securing the API: https://supabase.com/docs/guides/api/securing-your-api
+- Secure data: https://supabase.com/docs/guides/database/secure-data
+- Local development and loopback-network guidance: https://supabase.com/docs/guides/local-development
+
+### Findings used
+
+- New public tables are no longer automatically granted to Data API roles. Table privileges and RLS are distinct layers and both must be configured.
+- Mizyun now grants authenticated CRUD only on user-facing tables; `memory_provider_refs` remains unavailable to `anon` and `authenticated` clients.
+- A clean reset, lint, and 55 pgTAP assertions pass with the explicit grants.
+- The official loopback Docker-network recipe was attempted. On this machine the network carried the documented `127.0.0.1` option, but Supabase containers still published API, database, Studio, and Mailpit on `0.0.0.0`/`::`. This is measured local behavior, not a claim about all Docker installations.
+
+### Result
+
+- Added an explicit authenticated-table-grants migration and a negative privilege test for internal memory-provider references.
+- Did not retain the ineffective loopback wrapper. Until binding is resolved, run the local stack only on a trusted network and stop it when unused.
+
 ## Next required research
 
 Before implementing authenticated mobile deep-link handling, review the exact Expo SDK 57 Linking/AuthSession guidance together with the current Supabase PKCE recovery flow.

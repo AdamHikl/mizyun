@@ -14,7 +14,7 @@
 
 🚧 **Phase 1 — Provision the private backend and prove authenticated user isolation end to end.**
 
-The application foundation and provider-neutral authentication code exist. The iOS simulator currently shows the intended configuration-required screen because no Supabase project credentials have been added. AI remains deliberately disabled.
+The application foundation and provider-neutral authentication code exist. The local Supabase stack now resets cleanly and passes its schema/RLS test suite. The next work package is validated mobile/API environment composition; AI remains deliberately disabled.
 
 ## Dependency sequence
 
@@ -67,6 +67,7 @@ Create the first development Supabase environment and prove that a real user can
    - Research the current Supabase CLI, local-development, migration, Auth, RLS-testing, and private-storage guidance.
    - Decide local-first versus hosted-development workflow and record it in an ADR.
    - Link the project, apply migrations, configure allowed redirect URLs, and document secret handling.
+   - Local development, migrations, linting, and policy tests are verified; hosted linking is deferred until reachable-device or real-email testing requires it.
 2. **P1.2 Mobile/API environment composition**
    - Add validated configuration loaders instead of reading environment variables ad hoc.
    - Add a provider-neutral authenticated API client that supplies and refreshes the bearer token.

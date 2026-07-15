@@ -55,7 +55,7 @@ docs/
 6. Start the API with `pnpm dev:api`.
 7. Start the mobile app with `pnpm dev:mobile`.
 
-Local Supabase Studio is available at `http://127.0.0.1:54323` and confirmation messages at `http://127.0.0.1:54324` while the stack is running. Do not expose the local stack to a public network.
+Local Supabase Studio is available at `http://127.0.0.1:54323` and confirmation messages at `http://127.0.0.1:54324` while the stack is running. The current CLI/Docker Desktop combination publishes local ports on all host interfaces despite its localhost URLs, so use only on a trusted network and run `pnpm db:stop` when finished. Do not expose the stack to a public network.
 
 Authentication is intentionally inactive until the Supabase URL and publishable key are set in `.env`. Native sessions are encrypted with SecureStore; user-owned database records are isolated with row-level security.
 

@@ -14,6 +14,7 @@ Use the pinned Supabase CLI and a Docker-compatible local stack as the canonical
 - Commit `supabase/config.toml`, migrations, and pgTAP tests.
 - Apply schema changes through forward migration files and verify them with a clean local `db reset`.
 - Keep normal fixtures synthetic and local.
+- Grant the `authenticated` Data API role only the CRUD privileges required by user-facing tables; retain internal provider-reference tables for server-side access only. RLS remains a separate, mandatory ownership boundary.
 - Use a separate hosted development project only for integration that genuinely requires a reachable service, such as physical-device and real-email redirect testing.
 - Never edit hosted schemas directly through the Dashboard once linked; deploy committed migrations.
 - Add staging/production deployment through CI before external beta. Remote access tokens and database passwords will live in encrypted CI secrets, not repository files.
@@ -31,6 +32,9 @@ Local Auth requires email confirmation and permits the registered `mizyun://` ap
 - Native mobile deep links: https://supabase.com/docs/guides/auth/native-mobile-deep-linking
 - Redirect URLs: https://supabase.com/docs/guides/auth/redirect-urls
 - Storage access control: https://supabase.com/docs/guides/storage/security/access-control
+- API security: https://supabase.com/docs/guides/api/securing-your-api
+- Secure data: https://supabase.com/docs/guides/database/secure-data
+- Data API grant change: https://supabase.com/changelog/45329-breaking-change-tables-not-exposed-to-data-and-graphql-api-automatically
 
 ## Consequences
 
@@ -39,3 +43,4 @@ Local Auth requires email confirmation and permits the registered `mizyun://` ap
 - RLS and Storage policy tests can run locally and later in CI without a shared database.
 - Physical-device integration may still need a hosted development project or explicit LAN/tunnel configuration.
 - Local confirmation emails are inspected through the local SMTP viewer rather than delivered externally.
+- New public tables are not assumed to be Data API-accessible; every migration must make role grants explicit and test them independently from RLS.

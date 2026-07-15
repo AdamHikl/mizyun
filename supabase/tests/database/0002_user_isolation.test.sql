@@ -90,9 +90,15 @@ from unnest(array[
   'conversations',
   'messages',
   'memory_items',
-  'memory_provider_refs',
   'media_assets'
 ]) as table_name;
+
+select throws_ok(
+  $$select * from public.memory_provider_refs$$,
+  '42501',
+  'permission denied for table memory_provider_refs',
+  'authenticated clients cannot access internal memory provider references'
+);
 
 select results_eq(
   $$select count(*) from storage.objects where bucket_id = 'private-media'$$,
@@ -112,6 +118,8 @@ select is_empty(
 
 select throws_ok(
   $$insert into public.goals (user_id, kind) values ('10000000-0000-4000-8000-000000000002', 'cross-owner')$$,
+  '42501',
+  'new row violates row-level security policy for table "goals"',
   'user A cannot insert a record owned by user B'
 );
 
@@ -122,6 +130,8 @@ select lives_ok(
 
 select throws_ok(
   $$insert into storage.objects (bucket_id, name) values ('private-media', '10000000-0000-4000-8000-000000000002/cross-owner.jpg')$$,
+  '42501',
+  'new row violates row-level security policy for table "objects"',
   'user A cannot insert into user B storage path'
 );
 

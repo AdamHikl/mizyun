@@ -5,45 +5,44 @@
 ## Snapshot
 
 - **Roadmap phase:** Phase 1 — backend environment and authenticated data boundary
-- **Active work package:** P1.1 Supabase development project
+- **Completed work package:** P1.1 local Supabase development environment
+- **Next active work package:** CFG-001 / P1.2 validated mobile and API environment composition
 - **Branch:** `main`
-- **Latest backend-scaffold commit:** `a1ce66d` (`chore: add local Supabase development workflow`); standard app gate passed, database gate pending
 - **Remote:** `https://github.com/AdamHikl/mizyun`
-- **AI provider:** intentionally disabled
-- **Backend credentials:** not configured
-- **iOS simulator:** working; currently renders the intentional “Mizyun is ready / Supabase public configuration has not been provided” state
-- **Android emulator/device:** not yet configured or verified
-- **Local Supabase:** CLI/config/test scaffolding added; execution blocked because installed Docker Desktop cannot be launched from the Codex sandbox
-- **Repository state at this handoff:** intended clean after this status update; verify with `git status --short`
+- **Repository:** `/Users/adam/Documents/mizyun`
+- **AI provider:** intentionally disabled; do not enable it during Phase 1
+- **Hosted Supabase:** intentionally not created or linked yet
+- **iOS simulator:** working; last verified screen is the intentional configuration-required state
+- **Android emulator/device:** not configured or verified
+- **Local Supabase:** Docker runtime works; migrations, lint, and database tests pass
 
-## What works
+## Delivered and verified
 
-- Expo SDK 57 application starts in the iOS simulator.
-- Metro exports a complete iOS Hermes bundle from the pnpm workspace.
-- Mobile auth composition safely detects missing provider configuration.
-- Supabase auth adapters exist behind provider-neutral interfaces.
-- Native session storage uses chunked Expo SecureStore values.
-- Fastify supports protected bearer-token routes and `/v1/me`.
-- Database migrations define profiles, goals, body measurements, food entries, exercises, workouts, sets, conversations, messages, memories, and private media.
-- All current user-owned tables have Row Level Security policies and user indexes.
-- AI orchestration and memory ports exist, with deliberately disabled and in-memory implementations only.
-- `pnpm check` runs formatting, all type checks, the real iOS bundle smoke test, and unit/API tests.
-- Supabase CLI 2.109.1, local configuration, and initial pgTAP schema/isolation suites are present.
+- Expo SDK 57 application starts and exports a complete iOS Hermes bundle from the pnpm workspace.
+- Mobile authentication is behind provider-neutral interfaces and safely detects missing configuration.
+- Native sessions use chunked Expo SecureStore storage.
+- Fastify has bearer-token protection and `/v1/me`.
+- Committed migrations define profiles, goals, body measurements, food entries, exercises, workouts, workout sets, conversations, messages, user-managed memories, internal provider references, and private media.
+- User-facing tables receive explicit `authenticated` CRUD grants; `memory_provider_refs` is server/internal-only.
+- RLS ownership policies and user indexes cover all current user-owned tables.
+- Private-media policies constrain operations to the authenticated user's path.
+- Clean local database reset and lint pass.
+- Both pgTAP files pass: **55 assertions total**, including cross-user row access, mutation, storage-path isolation, and denial of client access to internal provider references.
+- AI orchestration and memory ports exist only with disabled/in-memory implementations. No model API is configured.
+- Cross-session sources of truth exist: `goals.md`, `plan.md`, `status.md`, `backlog.md`, requirements, quality gates, research log, and ADRs.
 
-## What is intentionally not working yet
+## Verification evidence
 
-- Account creation and sign-in cannot reach a real backend until a Supabase development project is configured.
-- Database migrations have not been applied to a verified development Supabase environment.
-- The database pgTAP suites have not executed because Docker Desktop is installed but its engine is not running and sandbox launch attempts fail.
-- The mobile app has no authenticated API client or feature repositories yet.
-- Profile onboarding, goals, food logging, workout tracking, progress uploads, and activity sync are not implemented.
-- Persistent memory and conversations are not wired to PostgreSQL.
-- No model API or image analysis is enabled.
-- Android has not completed an emulator bundle/runtime pass.
+Database gate after the explicit-grant migration:
 
-## Verification baseline
+```text
+pnpm db:verify
+  clean migration reset: passed
+  database lint: passed (no schema errors)
+  pgTAP: passed (2 files, 55 assertions)
+```
 
-Current standard verification after the local-backend scaffolding:
+The current standard application gate passed:
 
 ```text
 pnpm check
@@ -53,33 +52,47 @@ pnpm check
   tests: passed (15 total)
 ```
 
-After changing code or executable configuration, run `pnpm check` again and replace this baseline with the new evidence.
+Run `pnpm check` again after any new executable change and update this evidence if counts change.
 
-Database verification remains pending: `pnpm db:start` reaches the Docker-engine check, but `pnpm db:verify` cannot run until Docker Desktop is started outside the Codex sandbox.
+## Important unresolved issue
 
-## Next work package
+Supabase CLI 2.109.1 reports localhost URLs, but Docker Desktop currently publishes API `54321`, database `54322`, Studio `54323`, and Mailpit `54324` on `0.0.0.0` and IPv6 `::`.
 
-### P1.1 — Supabase development environment
+The official custom-network recipe was tested with `com.docker.network.bridge.host_binding_ipv4=127.0.0.1`; Docker confirmed that option on the network, but the generated Supabase containers still published on all interfaces. The experimental wrapper was removed because it did not provide the promised protection.
 
-1. Start the installed Docker Desktop application outside the Codex sandbox.
-2. Run `pnpm db:start`, then `pnpm db:verify`.
-3. Fix every migration, lint, or pgTAP failure; do not weaken isolation assertions.
-4. Copy the local publishable key from `pnpm db:status` into the untracked `.env`.
-5. Exercise sign-up, confirmation, sign-in, restoration, `/v1/me`, and sign-out in the simulator.
-6. Create/link a separate hosted development project only when physical-device or real-email integration needs it.
+Until this is resolved:
 
-Do not enable an AI provider during this work package.
+- use the local stack only on a trusted network;
+- do not put real user data or secrets into it;
+- run `pnpm db:stop` when it is not actively needed;
+- do not claim the stack is loopback-only based solely on its displayed URLs.
 
-## Known constraints and risks
+## Not implemented yet
 
-- Docker Desktop and its CLI are installed, but Launch Services/direct launch fail from the Codex sandbox; the user must open Docker Desktop once.
-- The Codex sandbox may not be able to control Apple's CoreSimulator service even when Simulator works when launched by the user.
-- Model-provider privacy and retention terms are intentionally unevaluated; AI must remain disabled.
-- Schema existence is not evidence that migrations or RLS policies work against a real Supabase environment; integration tests are still required.
-- Energy expenditure, body-change advice, and photo interpretation require careful safety/evaluation work before implementation.
-- The active Node runtime observed during setup was newer than the minimum supported version; CI should eventually pin and test the supported version explicitly.
+- A validated, shared environment configuration layer for the API and mobile app.
+- Local `.env` public configuration and a real simulator authentication lifecycle.
+- Authenticated mobile API client, token refresh/error normalization, account/settings UI, recovery, and confirmation deep links.
+- Signed-URL API isolation test for private media. Storage path policy tests already pass.
+- Profile onboarding, goals UI, food logging, workouts, progress uploads, device steps, or health-platform sync.
+- PostgreSQL-backed feature repositories, conversations, or durable memory adapter.
+- Any model provider or photo analysis.
+- Android emulator/runtime verification.
 
-## Local commands
+## Next exact work package
+
+### CFG-001 / P1.2 — validated environment composition
+
+1. Read `AGENTS.md`, `goals.md`, `plan.md`, this file, and the relevant Phase 1 requirements/ADRs.
+2. Inspect `git status --short` and `git log -10 --oneline` before editing.
+3. Research current Expo SDK 57 environment-variable behavior and Fastify/Node configuration validation using primary sources; log findings in `docs/RESEARCH_LOG.md`.
+4. Implement typed configuration ports/loaders so mobile and API composition roots receive validated values instead of reading environment variables ad hoc.
+5. Preserve the current safe missing-configuration UI state.
+6. Add tests for missing, malformed, public, and server-only values. Ensure no privileged key can enter an Expo bundle.
+7. Run focused tests, `pnpm check`, `git diff --check`, then update this handoff.
+
+After CFG-001, implement API-001 and exercise AUTH-001 against local Supabase in the iOS simulator. Hosted Supabase remains deferred until physical-device or real-email testing requires it.
+
+## Commands
 
 ```bash
 cd /Users/adam/Documents/mizyun
@@ -87,38 +100,20 @@ pnpm install
 pnpm check
 pnpm db:start
 pnpm db:verify
+pnpm db:stop
 pnpm dev:api
 pnpm dev:mobile
 ```
 
-If Metro cache behavior is suspicious:
+Create `.env` from `.env.example` only when beginning real local authentication. Use the public URL/publishable key from `pnpm db:status`; never place a secret or service-role key in an `EXPO_PUBLIC_` variable. Do not commit `.env`.
 
-```bash
-pnpm --filter @mizyun/mobile exec expo start --clear
-```
+## Durable decisions
 
-The local `.env` should be created from `.env.example` and must not be committed.
-
-## Recent decisions and commits
-
-- `a1ce66d` — added the pinned local Supabase workflow and initial database isolation suites.
-- ADR-0003 — local-first Supabase development with migration and pgTAP gates.
-- `089150e` — established the project roadmap and session-continuity system.
-- `1914505` — fixed Metro workspace source resolution and added iOS bundle verification.
-- `759fe1c` — added provider-neutral authentication and Supabase adapters.
-- `4d527f9` — established the modular monolith, schemas, and disabled AI foundation.
-- ADR-0002 — provider-neutral identity boundary.
 - ADR-0001 — modular monolith with ports and adapters.
-
-## Open decisions
-
-- Hosted development project creation and the eventual CI environment-promotion implementation.
-- Whether direct client-to-Supabase repositories or API-only repositories should own each data operation; sensitive/AI operations will remain server-side.
-- First deterministic energy formula and versioning strategy.
-- Workout draft/offline synchronization strategy.
-- HealthKit/Health Connect scope and source-deduplication design.
-- Initial model and memory provider selection, deferred until the AI checklist is complete.
+- ADR-0002 — provider-neutral identity boundary.
+- ADR-0003 — local-first Supabase development, migration/pgTAP gates, and explicit Data API grants.
+- `docs/BEFORE_TESTING.md` — mandatory checklist before enabling an AI provider.
 
 ## Handoff note
 
-The next session should begin with `AGENTS.md`, `goals.md`, `plan.md`, and this file, then inspect the working tree. Follow `docs/SESSION_GUIDE.md` and resume P1.1 at the Docker/database verification step.
+The repository documents are the handoff. Start with `AGENTS.md`, then follow the source-of-truth order in `docs/SESSION_GUIDE.md`. The active item is CFG-001; do not reopen P1.1 unless database verification regresses or the documented port-exposure issue is being addressed deliberately.
