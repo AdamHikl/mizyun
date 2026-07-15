@@ -20,7 +20,7 @@ import {
   type SignUpResult,
 } from "@mizyun/identity";
 
-import { ChunkedStorage, type StringStorage } from "./chunked-storage.js";
+import { ChunkedStorage, type StringStorage } from "./chunked-storage";
 
 const secureStorePrimitive: StringStorage = {
   getItem: (key) => SecureStore.getItemAsync(key),

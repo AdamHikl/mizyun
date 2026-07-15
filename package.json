@@ -16,7 +16,7 @@
     "test": "pnpm -r --if-present test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "pnpm format:check && pnpm typecheck && pnpm test"
+    "check": "pnpm format:check && pnpm typecheck && pnpm --filter @mizyun/mobile bundle:check && pnpm test"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

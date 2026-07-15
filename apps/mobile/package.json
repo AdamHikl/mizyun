@@ -39,6 +39,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
+    "bundle:check": "EXPO_NO_TELEMETRY=1 expo export --platform ios --clear --output-dir dist/bundle-check",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },

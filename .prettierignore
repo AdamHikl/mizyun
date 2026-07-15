@@ -1,0 +1,4 @@
+apps/mobile/expo-env.d.ts
+apps/mobile/dist/
+apps/mobile/ios/
+apps/mobile/android/
