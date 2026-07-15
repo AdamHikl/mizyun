@@ -7,14 +7,14 @@
 - **Roadmap phase:** Phase 1 — backend environment and authenticated data boundary
 - **Active work package:** P1.1 Supabase development project
 - **Branch:** `main`
-- **Latest verified executable-code commit:** `1914505` (`fix: verify Expo workspace bundling`)
+- **Latest backend-scaffold commit:** `a1ce66d` (`chore: add local Supabase development workflow`); standard app gate passed, database gate pending
 - **Remote:** `https://github.com/AdamHikl/mizyun`
 - **AI provider:** intentionally disabled
 - **Backend credentials:** not configured
 - **iOS simulator:** working; currently renders the intentional “Mizyun is ready / Supabase public configuration has not been provided” state
 - **Android emulator/device:** not yet configured or verified
 - **Local Supabase:** CLI/config/test scaffolding added; execution blocked because installed Docker Desktop cannot be launched from the Codex sandbox
-- **Repository state at this handoff:** Supabase development changes in progress
+- **Repository state at this handoff:** intended clean after this status update; verify with `git status --short`
 
 ## What works
 
@@ -101,6 +101,7 @@ The local `.env` should be created from `.env.example` and must not be committed
 
 ## Recent decisions and commits
 
+- `a1ce66d` — added the pinned local Supabase workflow and initial database isolation suites.
 - ADR-0003 — local-first Supabase development with migration and pgTAP gates.
 - `089150e` — established the project roadmap and session-continuity system.
 - `1914505` — fixed Metro workspace source resolution and added iOS bundle verification.
