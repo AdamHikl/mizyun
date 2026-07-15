@@ -1,8 +1,16 @@
+import { formatConfigIssue, loadServerConfig } from "@mizyun/config";
+
 import { buildApp } from "./app.js";
 
-const host = process.env.API_HOST ?? "127.0.0.1";
-const parsedPort = Number.parseInt(process.env.API_PORT ?? "4000", 10);
-const port = Number.isSafeInteger(parsedPort) ? parsedPort : 4000;
+const configResult = loadServerConfig();
+if (!configResult.ok) {
+  for (const issue of configResult.error) {
+    // eslint-disable-next-line no-console
+    console.error(`[config] ${formatConfigIssue(issue)}`);
+  }
+  process.exit(1);
+}
+const { host, port } = configResult.value;
 
 const app = buildApp();
 

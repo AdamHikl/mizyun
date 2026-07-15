@@ -5,6 +5,7 @@ import {
   DisabledAgentProvider,
 } from "@mizyun/agent-runtime";
 import { createSupabaseAccessTokenVerifier } from "@mizyun/adapter-supabase-server";
+import { loadServerConfig, type ServerConfig } from "@mizyun/config";
 import {
   RejectingAccessTokenVerifier,
   type AccessTokenVerifier,
@@ -21,28 +22,49 @@ export interface AppDependencies {
   readonly tokenVerifier: AccessTokenVerifier;
 }
 
-const defaultTokenVerifier = (): AccessTokenVerifier => {
-  const url = process.env.SUPABASE_URL;
-  const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
-  return url && publishableKey
-    ? createSupabaseAccessTokenVerifier({ url, publishableKey })
-    : new RejectingAccessTokenVerifier();
+const tokenVerifierFromConfig = (config: ServerConfig): AccessTokenVerifier => {
+  if (config.supabase.configured && config.supabaseConfig) {
+    return createSupabaseAccessTokenVerifier(config.supabaseConfig);
+  }
+  return new RejectingAccessTokenVerifier();
 };
 
-const defaultDependencies = (): AppDependencies => ({
-  agent: new AgentOrchestrator({
-    provider: new DisabledAgentProvider(),
-    memories: new InMemoryMemoryStore(),
-  }),
-  tokenVerifier: defaultTokenVerifier(),
-});
+const defaultDependencies = (): AppDependencies => {
+  const result = loadServerConfig();
+  // `server.ts` already exits if this fails, but we re-read here so the
+  // composition root can be exercised by tests with an injected env.
+  const config: ServerConfig = result.ok
+    ? result.value
+    : {
+        host: "127.0.0.1",
+        port: 4000,
+        env: "development",
+        supabase: { configured: false, provider: "supabase", reason: "" },
+        supabaseConfig: null,
+        agentProvider: "disabled",
+      };
+  return {
+    agent: new AgentOrchestrator({
+      provider: new DisabledAgentProvider(),
+      memories: new InMemoryMemoryStore(),
+    }),
+    tokenVerifier: tokenVerifierFromConfig(config),
+  };
+};
 
 export const buildApp = (
   dependencies: AppDependencies = defaultDependencies(),
 ): FastifyInstance => {
+  // Logger is configured from the validated NODE_ENV rather than reading
+  // `process.env` directly. The composition root is responsible for exiting
+  // the process on invalid configuration before `buildApp` runs; tests
+  // pass an explicit `dependencies` so the env is never read here.
+  const configResult = loadServerConfig();
+  const env = configResult.ok ? configResult.value.env : "development";
+
   const app = Fastify({
     logger:
-      process.env.NODE_ENV === "test"
+      env === "test"
         ? false
         : { redact: ["req.headers.authorization", "req.headers.cookie"] },
     requestIdHeader: "x-request-id",

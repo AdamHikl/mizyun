@@ -5,8 +5,8 @@
 ## Snapshot
 
 - **Roadmap phase:** Phase 1 — backend environment and authenticated data boundary
-- **Completed work package:** P1.1 local Supabase development environment
-- **Next active work package:** CFG-001 / P1.2 validated mobile and API environment composition
+- **Completed work package:** CFG-001 / P1.2 validated mobile and API environment composition
+- **Next active work package:** API-001 provider-neutral authenticated mobile API client
 - **Branch:** `main`
 - **Remote:** `https://github.com/AdamHikl/mizyun`
 - **Repository:** `/Users/adam/Documents/mizyun`
@@ -30,6 +30,7 @@
 - Both pgTAP files pass: **55 assertions total**, including cross-user row access, mutation, storage-path isolation, and denial of client access to internal provider references.
 - AI orchestration and memory ports exist only with disabled/in-memory implementations. No model API is configured.
 - Cross-session sources of truth exist: `goals.md`, `plan.md`, `status.md`, `backlog.md`, requirements, quality gates, research log, and ADRs.
+- Validated environment composition: `@mizyun/config` package owns the env reader, Zod schemas, and a closed-world `EXPO_PUBLIC_*` allowlist. API and mobile composition roots call `loadServerConfig()` / `loadMobileConfig()` and receive typed values; no `process.env.*` reads remain at the composition roots.
 
 ## Verification evidence
 
@@ -49,7 +50,8 @@ pnpm check
   formatting: passed
   workspace type checks: passed
   iOS Metro/Hermes bundle: passed (1,562 modules)
-  tests: passed (15 total)
+  tests: passed (56 total, +41 from @mizyun/config)
+  Hermes bundle purity: confirmed no SUPABASE_SECRET_KEY / sbp_ / eyJ... JWT literals
 ```
 
 Run `pnpm check` again after any new executable change and update this evidence if counts change.
@@ -69,7 +71,7 @@ Until this is resolved:
 
 ## Not implemented yet
 
-- A validated, shared environment configuration layer for the API and mobile app.
+- A validated, shared environment configuration layer for the API and mobile app. ✅ Completed as `@mizyun/config`.
 - Local `.env` public configuration and a real simulator authentication lifecycle.
 - Authenticated mobile API client, token refresh/error normalization, account/settings UI, recovery, and confirmation deep links.
 - Signed-URL API isolation test for private media. Storage path policy tests already pass.
@@ -80,17 +82,13 @@ Until this is resolved:
 
 ## Next exact work package
 
-### CFG-001 / P1.2 — validated environment composition
+### API-001 — provider-neutral authenticated mobile API client
 
-1. Read `AGENTS.md`, `goals.md`, `plan.md`, this file, and the relevant Phase 1 requirements/ADRs.
-2. Inspect `git status --short` and `git log -10 --oneline` before editing.
-3. Research current Expo SDK 57 environment-variable behavior and Fastify/Node configuration validation using primary sources; log findings in `docs/RESEARCH_LOG.md`.
-4. Implement typed configuration ports/loaders so mobile and API composition roots receive validated values instead of reading environment variables ad hoc.
-5. Preserve the current safe missing-configuration UI state.
-6. Add tests for missing, malformed, public, and server-only values. Ensure no privileged key can enter an Expo bundle.
-7. Run focused tests, `pnpm check`, `git diff --check`, then update this handoff.
-
-After CFG-001, implement API-001 and exercise AUTH-001 against local Supabase in the iOS simulator. Hosted Supabase remains deferred until physical-device or real-email testing requires it.
+1. Read `AGENTS.md`, `goals.md`, `plan.md`, this file, and the relevant Phase 1 requirements/ADRs (especially ADR-0002 and ADR-0004).
+2. Confirm `@mizyun/config` is wired into both apps; re-run `pnpm check` if CFG-001 evidence is stale.
+3. Implement a typed API client in `apps/mobile/src/composition/api-client.ts` (or a new feature module) that pulls the access token from `@mizyun/identity`'s `AuthClient`, attaches it as a bearer token, and normalizes 401/network failures into retryable UI states.
+4. Add contract-level tests against `apps/api/src/app.test.ts`-style fixtures; treat `/v1/me` as the first wired-up route.
+5. Run `pnpm check`, `git diff --check`, then update this handoff.
 
 ## Commands
 
@@ -112,6 +110,7 @@ Create `.env` from `.env.example` only when beginning real local authentication.
 - ADR-0001 — modular monolith with ports and adapters.
 - ADR-0002 — provider-neutral identity boundary.
 - ADR-0003 — local-first Supabase development, migration/pgTAP gates, and explicit Data API grants.
+- ADR-0004 — validated environment composition (`@mizyun/config`, closed-world mobile allowlist).
 - `docs/BEFORE_TESTING.md` — mandatory checklist before enabling an AI provider.
 
 ## Handoff note

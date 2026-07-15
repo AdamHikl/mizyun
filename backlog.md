@@ -17,7 +17,7 @@
 | BE-003   | P0       | done     | Apply and validate all migrations                       | Clean reset and database lint pass                       |
 | SEC-001  | P0       | done     | Add automated RLS isolation tests                       | All current pgTAP schema/RLS assertions pass             |
 | SEC-002  | P0       | ready    | Complete private-media isolation tests                  | Path tests pass; signed-URL API test remains             |
-| CFG-001  | P1       | active   | Add validated API and mobile configuration modules      | Missing/invalid config produces typed, actionable states |
+| CFG-001  | P1       | done     | Add validated API and mobile configuration modules      | Missing/invalid config produces typed, actionable states |
 | API-001  | P1       | ready    | Create provider-neutral authenticated mobile API client | Tokens attach/refresh; 401 and network errors normalize  |
 | AUTH-001 | P1       | ready    | Test real sign-up/sign-in/session restore               | Verified against local Supabase in iOS simulator         |
 | AUTH-002 | P1       | ready    | Add account/settings screen with sign-out               | Signed-in user can explicitly end the session            |
