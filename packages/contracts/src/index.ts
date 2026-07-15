@@ -43,3 +43,22 @@ export const coachResponseSchema = z.object({
 });
 
 export type CoachResponse = z.infer<typeof coachResponseSchema>;
+
+/**
+ * Wire schema for the verified principal returned by `/v1/me`. Decoupled
+ * from `@mizyun/identity`'s runtime `AuthPrincipal` interface so a future
+ * change to either side does not silently break the other.
+ */
+export const authPrincipalSchema = z.object({
+  userId: z.string().uuid(),
+  email: z.string().email().optional(),
+  role: z.string().optional(),
+});
+
+export type AuthPrincipalWire = z.infer<typeof authPrincipalSchema>;
+
+export const meResponseSchema = z.object({
+  user: authPrincipalSchema,
+});
+
+export type MeResponse = z.infer<typeof meResponseSchema>;

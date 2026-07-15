@@ -44,11 +44,11 @@ The server loader uses `baseServerSchema.transform(...)` to compute the final `S
 
 Three server-key categories are modelled:
 
-| Category | Examples | Missing | Malformed |
-|---|---|---|---|
-| Required-with-default | `API_HOST` (`127.0.0.1`), `API_PORT` (`4000`), `NODE_ENV` (`"development"`), `AGENT_PROVIDER` (`"disabled"`) | Schema default fills it | `err([out_of_range])` |
-| Required-or-absent pair | `SUPABASE_URL` + `SUPABASE_PUBLISHABLE_KEY` | `ok({ supabase: configured: false, reason })` | `err([malformed])` |
-| Future required-when-feature-on | `SUPABASE_SECRET_KEY` iff `AGENT_PROVIDER !== "disabled"` | Deferred to Phase 7 | — |
+| Category                        | Examples                                                                                                     | Missing                                       | Malformed             |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------- | --------------------- |
+| Required-with-default           | `API_HOST` (`127.0.0.1`), `API_PORT` (`4000`), `NODE_ENV` (`"development"`), `AGENT_PROVIDER` (`"disabled"`) | Schema default fills it                       | `err([out_of_range])` |
+| Required-or-absent pair         | `SUPABASE_URL` + `SUPABASE_PUBLISHABLE_KEY`                                                                  | `ok({ supabase: configured: false, reason })` | `err([malformed])`    |
+| Future required-when-feature-on | `SUPABASE_SECRET_KEY` iff `AGENT_PROVIDER !== "disabled"`                                                    | Deferred to Phase 7                           | —                     |
 
 The loader is pure: it reads `process.env` only when no `env` argument is passed, and never calls `process.exit`. The composition root owns process lifecycle.
 

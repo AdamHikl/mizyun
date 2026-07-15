@@ -1,0 +1,67 @@
+import type { z } from "zod";
+
+/**
+ * Typed failure envelope for every API request. Mirrors the discriminated
+ * unions used elsewhere in the codebase (`AuthConfigurationStatus`,
+ * `AgentProviderStatus`) so feature code can `switch (error.kind)` without
+ * reading human-readable strings.
+ *
+ * `not_configured` is reserved for `DisabledApiClient`. `parse_error`
+ * surfaces the rare case of a 4xx/5xx body that does not match the wire
+ * `apiErrorSchema` — the structural mismatch is preserved instead of
+ * swallowed. `validation_error` is the contract-violation case (200 OK
+ * with a body that does not match the route's Zod schema) and is the
+ * boundary the QUALITY_GATES "validated at trust boundaries" rule points to.
+ */
+export type ApiError =
+  | { readonly kind: "not_configured"; readonly reason: string }
+  | { readonly kind: "no_session" }
+  | { readonly kind: "session_expired" }
+  | {
+      readonly kind: "http_error";
+      readonly status: number;
+      readonly code: string;
+      readonly message: string;
+      readonly requestId?: string;
+    }
+  | {
+      readonly kind: "validation_error";
+      readonly issues: readonly z.ZodIssue[];
+    }
+  | { readonly kind: "parse_error"; readonly cause: unknown }
+  | { readonly kind: "network_error"; readonly cause: unknown };
+
+/**
+ * Provider-neutral status of the API client. Mirrors `AuthConfigurationStatus`
+ * so the mobile composition root can render the same "not configured" UI
+ * surface for both clients.
+ */
+export type ApiConfigurationStatus =
+  | { readonly configured: true; readonly baseUrl: string }
+  | { readonly configured: false; readonly reason: string };
+
+/**
+ * Per-request options. The schema is optional so a caller can omit it for
+ * endpoints whose response shape is not yet in `@mizyun/contracts`. A
+ * `RequestOptions` value is always passed by value; the client does not
+ * hold a reference beyond a single request.
+ */
+export interface RequestOptions<TBody = unknown> {
+  readonly method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  /** Relative path beginning with `/`, e.g. `/v1/me`. */
+  readonly path: string;
+  /** JSON-serialized by the client. Omit for body-less requests. */
+  readonly body?: TBody;
+  /**
+   * Optional Zod schema. When present, the 2xx response body is parsed
+   * with `safeParse` and a failure surfaces as `kind: "validation_error"`.
+   */
+  readonly schema?: z.ZodTypeAny;
+  /** Caller-controlled cancellation. Forwarded to `fetch`. */
+  readonly signal?: AbortSignal;
+  /**
+   * Extra request headers. Caller-provided `Authorization` is intentionally
+   * ignored — the bearer token is the client's responsibility.
+   */
+  readonly headers?: Readonly<Record<string, string>>;
+}

@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "dependencies": {
     "@mizyun/adapter-supabase-mobile": "workspace:*",
+    "@mizyun/api-client": "workspace:*",
     "@mizyun/config": "workspace:*",
     "@mizyun/contracts": "workspace:*",
     "@mizyun/identity": "workspace:*",

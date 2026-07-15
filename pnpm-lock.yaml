@@ -74,6 +74,9 @@ importers:
       "@mizyun/adapter-supabase-mobile":
         specifier: workspace:*
         version: link:../../packages/adapters/supabase-mobile
+      "@mizyun/api-client":
+        specifier: workspace:*
+        version: link:../../packages/api-client
       "@mizyun/config":
         specifier: workspace:*
         version: link:../../packages/config
@@ -218,6 +221,28 @@ importers:
       "@mizyun/memory":
         specifier: workspace:*
         version: link:../memory
+    devDependencies:
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@24.13.3)(lightningcss@1.32.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0)
+
+  packages/api-client:
+    dependencies:
+      "@mizyun/contracts":
+        specifier: workspace:*
+        version: link:../contracts
+      "@mizyun/core":
+        specifier: workspace:*
+        version: link:../core
+      "@mizyun/identity":
+        specifier: workspace:*
+        version: link:../identity
+      zod:
+        specifier: ^3.25.67
+        version: 3.25.76
     devDependencies:
       typescript:
         specifier: ^5.8.3
@@ -7418,7 +7443,9 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - "@babel/core"
+      - bufferutil
       - supports-color
+      - utf-8-validate
 
   "@react-native/normalize-colors@0.74.89": {}
 

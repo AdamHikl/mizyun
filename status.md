@@ -5,8 +5,8 @@
 ## Snapshot
 
 - **Roadmap phase:** Phase 1 — backend environment and authenticated data boundary
-- **Completed work package:** CFG-001 / P1.2 validated mobile and API environment composition
-- **Next active work package:** API-001 provider-neutral authenticated mobile API client
+- **Completed work package:** API-001 provider-neutral authenticated mobile API client
+- **Next active work package:** AUTH-001 test real sign-up/sign-in/session restore
 - **Branch:** `main`
 - **Remote:** `https://github.com/AdamHikl/mizyun`
 - **Repository:** `/Users/adam/Documents/mizyun`
@@ -31,6 +31,7 @@
 - AI orchestration and memory ports exist only with disabled/in-memory implementations. No model API is configured.
 - Cross-session sources of truth exist: `goals.md`, `plan.md`, `status.md`, `backlog.md`, requirements, quality gates, research log, and ADRs.
 - Validated environment composition: `@mizyun/config` package owns the env reader, Zod schemas, and a closed-world `EXPO_PUBLIC_*` allowlist. API and mobile composition roots call `loadServerConfig()` / `loadMobileConfig()` and receive typed values; no `process.env.*` reads remain at the composition roots.
+- Authenticated transport: `@mizyun/api-client` package owns the typed `ApiClient` interface, an `HttpApiClient` that attaches the bearer token from `authClient.getSession()` and normalizes 401/network errors into a discriminated `ApiError` union, and a `DisabledApiClient` for when `EXPO_PUBLIC_API_URL` is absent. The mobile composition root selects the right one based on `loadMobileConfig().apiUrl`.
 
 ## Verification evidence
 
@@ -50,7 +51,7 @@ pnpm check
   formatting: passed
   workspace type checks: passed
   iOS Metro/Hermes bundle: passed (1,562 modules)
-  tests: passed (56 total, +41 from @mizyun/config)
+  tests: passed (93 total, +37 from @mizyun/api-client, @mizyun/contracts, and mobile composition)
   Hermes bundle purity: confirmed no SUPABASE_SECRET_KEY / sbp_ / eyJ... JWT literals
 ```
 
@@ -72,8 +73,9 @@ Until this is resolved:
 ## Not implemented yet
 
 - A validated, shared environment configuration layer for the API and mobile app. ✅ Completed as `@mizyun/config`.
+- Authenticated mobile API client. ✅ Completed as `@mizyun/api-client`.
 - Local `.env` public configuration and a real simulator authentication lifecycle.
-- Authenticated mobile API client, token refresh/error normalization, account/settings UI, recovery, and confirmation deep links.
+- Account/settings UI with sign-out, password recovery, and confirmation deep-link flows.
 - Signed-URL API isolation test for private media. Storage path policy tests already pass.
 - Profile onboarding, goals UI, food logging, workouts, progress uploads, device steps, or health-platform sync.
 - PostgreSQL-backed feature repositories, conversations, or durable memory adapter.
@@ -82,12 +84,12 @@ Until this is resolved:
 
 ## Next exact work package
 
-### API-001 — provider-neutral authenticated mobile API client
+### AUTH-001 — exercise real sign-up/sign-in/session restore
 
-1. Read `AGENTS.md`, `goals.md`, `plan.md`, this file, and the relevant Phase 1 requirements/ADRs (especially ADR-0002 and ADR-0004).
-2. Confirm `@mizyun/config` is wired into both apps; re-run `pnpm check` if CFG-001 evidence is stale.
-3. Implement a typed API client in `apps/mobile/src/composition/api-client.ts` (or a new feature module) that pulls the access token from `@mizyun/identity`'s `AuthClient`, attaches it as a bearer token, and normalizes 401/network failures into retryable UI states.
-4. Add contract-level tests against `apps/api/src/app.test.ts`-style fixtures; treat `/v1/me` as the first wired-up route.
+1. Read `AGENTS.md`, `goals.md`, `plan.md`, this file, and the relevant Phase 1 requirements/ADRs (especially ADR-0002, ADR-0004, ADR-0005).
+2. Confirm `pnpm db:start` is running and `EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` / `EXPO_PUBLIC_API_URL` are populated in `apps/mobile/.env`.
+3. Drive the existing `AuthScreen` end-to-end in the iOS simulator: create a user, confirm the email via the local Mailpit viewer (`http://127.0.0.1:54324`), sign in, observe the dashboard, refresh the app and confirm the session survives, then sign out and confirm the next protected call fails.
+4. Add an integration test that wires `HttpApiClient` to a Fastify instance with a real (Supabase-verified) token and asserts `/v1/me` returns the same principal.
 5. Run `pnpm check`, `git diff --check`, then update this handoff.
 
 ## Commands
@@ -111,6 +113,7 @@ Create `.env` from `.env.example` only when beginning real local authentication.
 - ADR-0002 — provider-neutral identity boundary.
 - ADR-0003 — local-first Supabase development, migration/pgTAP gates, and explicit Data API grants.
 - ADR-0004 — validated environment composition (`@mizyun/config`, closed-world mobile allowlist).
+- ADR-0005 — provider-neutral authenticated transport (`@mizyun/api-client`, `Result<T, ApiError>` envelope).
 - `docs/BEFORE_TESTING.md` — mandatory checklist before enabling an AI provider.
 
 ## Handoff note
