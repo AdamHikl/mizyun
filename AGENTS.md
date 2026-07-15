@@ -1,8 +1,16 @@
 # Mizyun engineering instructions
 
+## Session continuity
+
+Before starting implementation, read `goals.md`, `plan.md`, and `status.md` completely, then inspect `backlog.md` and the relevant requirements/ADR files. Follow `docs/SESSION_GUIDE.md` for start, research, verification, and handoff procedures.
+
+At the end of every development session, update `status.md` with evidence, the next exact action, and any blocker. Update `backlog.md` when work is discovered, started, blocked, or completed. Change `plan.md` only when sequencing or phase status changes, and change `goals.md` only when product direction changes.
+
 ## Research before implementation
 
 Before starting a new segment, check the current official documentation for every platform or service materially affected by that segment. Prefer primary sources. Record architectural decisions and links in `docs/adr/` when they influence a durable design choice.
+
+Record dated primary sources and implementation consequences in `docs/RESEARCH_LOG.md`, even when no ADR is required.
 
 ## Module boundaries
 
@@ -28,3 +36,5 @@ New features should be vertical modules with explicit public exports. Do not imp
 ## Verification
 
 Run `pnpm check` before committing. Provider integration tests remain disabled until every item in `docs/BEFORE_TESTING.md` is complete.
+
+Use `docs/QUALITY_GATES.md` as the definition of done for implementation, data, mobile, calculation, media, and AI changes.

@@ -2,6 +2,25 @@
 
 Mizyun is a modular fitness and nutrition application designed for Android and iOS. The foundation intentionally separates domain rules, memory, AI orchestration, infrastructure, and UI so any one of them can evolve without forcing changes through the others.
 
+## Project navigation
+
+Start here in a new development session:
+
+1. [`AGENTS.md`](AGENTS.md) — mandatory engineering and safety rules
+2. [`goals.md`](goals.md) — product mission, MVP, non-goals, and principles
+3. [`plan.md`](plan.md) — ordered phases, dependencies, and exit criteria
+4. [`status.md`](status.md) — current implementation snapshot and next exact action
+5. [`backlog.md`](backlog.md) — executable work items and dependencies
+
+Supporting sources of truth:
+
+- [`docs/PRODUCT_REQUIREMENTS.md`](docs/PRODUCT_REQUIREMENTS.md) — stable behavioral requirement IDs
+- [`docs/QUALITY_GATES.md`](docs/QUALITY_GATES.md) — definition of done and release gates
+- [`docs/SESSION_GUIDE.md`](docs/SESSION_GUIDE.md) — start/research/handoff workflow
+- [`docs/RESEARCH_LOG.md`](docs/RESEARCH_LOG.md) — primary sources reviewed by segment
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and [`docs/adr/`](docs/adr/) — module boundaries and durable decisions
+- [`docs/BEFORE_TESTING.md`](docs/BEFORE_TESTING.md) — mandatory gate before enabling AI
+
 ## Repository layout
 
 ```text
@@ -20,6 +39,10 @@ supabase/
   migrations/          Database, RLS, and private-storage definitions
 docs/
   adr/                 Architecture decision records
+  PRODUCT_REQUIREMENTS.md  Stable behavioral requirements
+  QUALITY_GATES.md     Definition of done and release criteria
+  RESEARCH_LOG.md      Dated primary-source research
+  SESSION_GUIDE.md     Cross-session continuity procedure
 ```
 
 ## Local setup
