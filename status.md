@@ -5,8 +5,8 @@
 ## Snapshot
 
 - **Roadmap phase:** Phase 1 — backend environment and authenticated data boundary
-- **Completed work package:** AUTH-003 implement password recovery and confirmation deep-link flows
-- **Next active work package:** OPS-001 establish safe structured API logging/error baseline
+- **Completed work package:** OPS-001 establish safe structured API logging/error baseline
+- **Next active work package:** AND-001 configure and verify Android emulator
 - **Branch:** `main`
 - **Remote:** `https://github.com/AdamHikl/mizyun`
 - **Repository:** `/Users/adam/Documents/mizyun`
@@ -35,6 +35,7 @@
 - End-to-end auth verified: the `apps/api/src/auth.e2e.test.ts` opt-in suite exercised the full GoTrue sign-up → Mailpit confirm → password sign-in → `/v1/me` round-trip through `HttpApiClient` against a real local Supabase stack. Server-side `/v1/me` schema enforcement confirmed via `app.inject` (rejects non-UUID principals with 500). Manual simulator checklist lives at `docs/AUTH_VERIFICATION.md`.
 - Account/settings UI: the new **Account** tab (`apps/mobile/src/app/settings.tsx`) loads the verified principal from `/v1/me` via the production `HttpApiClient` and exposes an explicit sign-out wired through `useAuth().signOut()`. The screen renders the disabled-auth and disabled-api placeholder when `.env` is incomplete, and a typed `reducePrincipalState` reducer covers every `ApiError` variant in `apps/mobile/src/features/settings/principal-state.test.ts` (12 vitest cases).
 - Recovery and confirmation deep-link flows: `@mizyun/identity` exposes a `DeepLinkPayload` union, a `parseDeepLinkFragment` helper, and three new `AuthClient` methods (`consumeDeepLink`, `updatePassword`, `requestPasswordRecovery`). The Supabase mobile adapter implements them via `supabase.auth.setSession`, `updateUser`, and `resetPasswordForEmail`. A top-level `DeepLinkBridge` in `_layout.tsx` consumes `Linking.getInitialURL` and `Linking.addEventListener("url", ...)` so cold-start and warm-start deep links both reach the auth boundary. The SessionGate shows a new `ResetPasswordScreen` when `recoveryState === true`. Opt-in e2e suite exercises the full recovery round-trip against the running local Supabase: 4/4 tests pass.
+- Safe API logging baseline: `apps/api/src/logging.ts` centralises the pino redact list (Authorization, cookie, body.password/email/token/access_token/refresh_token/session, response set-cookie), request/response serializers that include headers and cookies so the redaction is observable, and a `safeErrorSerializer` that strips `error.cause` and `error.errors` chains. `apps/api/src/errors.ts` owns the `apiErrorSchema` envelope via `sendApiError` and `internalErrorBody` helpers plus a typed `ApiErrorCode` union. Both the global error handler and the authentication plugin now route through these helpers. 10 logging tests + 5 envelope tests pass; runtime tests assert no Bearer token / throw-token / downstream cause secret ever reaches the log line, and the pino censor string `[Redacted]` does.
 
 ## Verification evidence
 
@@ -61,6 +62,8 @@ pnpm check
     - 404 surface → kind: "parse_error" (no fabrication)
   AUTH-003 e2e (against running local Supabase): +1 test
     - recovery email → Mailpit → /auth/v1/verify 303 redirect → fragment parse → /v1/me via HttpApiClient → password rotation → old-password rejection
+  OPS-001 logging: 10/10 passed (redact list, serializers, runtime redaction against captured pino stream)
+  OPS-001 error envelope: 5/5 passed (apiErrorSchema shape, request-id propagation, x-request-id passthrough)
   Hermes bundle purity: confirmed no SUPABASE_SECRET_KEY / sbp_ / eyJ... JWT literals
   AUTH-002 settings reducer: 12/12 passed (every ApiError variant + success + disabled states)
   AUTH-003 deep-link parser: 9/9 passed (every kind + invalid shapes)
@@ -95,13 +98,13 @@ Until this is resolved:
 
 ## Next exact work package
 
-### OPS-001 — safe structured API logging/error baseline
+### AND-001 — Android emulator configuration and verification
 
 1. Read `AGENTS.md`, `goals.md`, `plan.md`, this file, and `docs/QUALITY_GATES.md`.
-2. Audit the Fastify `apps/api` for any sensitive payload logging (request body, response body, Authorization header). Replace with structured logs that include a stable request ID, the route path, the verified principal's user ID (not email), the status code, and a stable error code.
-3. Ensure all 4xx/5xx responses share the same `apiErrorSchema` envelope already defined in `@mizyun/contracts`, including the optional `requestId`.
-4. Add a vitest suite that exercises the structured logger with a request ID and asserts no token/email literals appear in log lines.
-5. Document the policy in `docs/RESEARCH_LOG.md` (or a new `docs/LOGGING_POLICY.md`) and reference it from `QUALITY_GATES.md`.
+2. Verify the Android emulator (or a physical Android device) can boot the Expo SDK 57 app at parity with the iOS simulator.
+3. Run the AUTH-001 / AUTH-002 / AUTH-003 manual paths on Android and capture any platform-specific deltas (permission dialogs, deep-link handler registration, SecureStore availability, deep-link intent filters).
+4. Update `docs/AUTH_VERIFICATION.md` (or a new `docs/ANDROID_VERIFICATION.md`) with the Android-specific steps and any Android-only configuration changes (e.g. `intentFilters` in `app.json`).
+5. Run `pnpm check`, `git diff --check`, then update this handoff.
 
 ## Commands
 

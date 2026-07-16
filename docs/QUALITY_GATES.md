@@ -13,6 +13,7 @@
 - [ ] Unit tests cover business rules and important failures.
 - [ ] Integration/contract tests cover new adapter or transport behavior.
 - [ ] Sensitive values are absent from source, fixtures, logs, screenshots, and mobile bundles.
+- [ ] API log lines satisfy [`docs/LOGGING_POLICY.md`](./LOGGING_POLICY.md): redact list covers any new credential or PII field, every 4xx/5xx response carries the `apiErrorSchema` envelope with a stable request ID.
 - [ ] Documentation and `status.md` reflect the resulting state.
 - [ ] `pnpm check` passes before commit.
 

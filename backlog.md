@@ -9,21 +9,21 @@
 
 ## Now — Phase 1
 
-| ID       | Priority | Status   | Work item                                               | Done when                                                |
-| -------- | -------- | -------- | ------------------------------------------------------- | -------------------------------------------------------- |
-| BE-001   | P0       | done     | Choose local/hosted Supabase development workflow       | ADR-0003: local-first with separate hosted integration   |
-| TOOL-001 | P0       | done     | Start the installed Docker Desktop runtime              | Docker engine verified and local stack starts            |
-| BE-002   | P0       | done     | Configure local development Supabase project            | Local stack starts from committed configuration          |
-| BE-003   | P0       | done     | Apply and validate all migrations                       | Clean reset and database lint pass                       |
-| SEC-001  | P0       | done     | Add automated RLS isolation tests                       | All current pgTAP schema/RLS assertions pass             |
-| SEC-002  | P0       | ready    | Complete private-media isolation tests                  | Path tests pass; signed-URL API test remains             |
-| CFG-001  | P1       | done     | Add validated API and mobile configuration modules      | Missing/invalid config produces typed, actionable states |
-| API-001  | P1       | done     | Create provider-neutral authenticated mobile API client | Tokens attach/refresh; 401 and network errors normalize  |
-| AUTH-001 | P1       | done     | Test real sign-up/sign-in/session restore               | Verified against local Supabase in iOS simulator         |
-| AUTH-002 | P1       | done     | Add account/settings screen with sign-out               | Signed-in user can explicitly end the session            |
-| AUTH-003 | P1       | done     | Implement password recovery and confirmation flows      | Deep-link and error states verified                      |
-| OPS-001  | P1       | ready    | Establish safe structured API logging/error baseline    | Request IDs present; sensitive bodies/tokens excluded    |
-| AND-001  | P1       | research | Configure and verify Android emulator                   | Clean Android Metro/runtime launch documented            |
+| ID       | Priority | Status | Work item                                               | Done when                                                |
+| -------- | -------- | ------ | ------------------------------------------------------- | -------------------------------------------------------- |
+| BE-001   | P0       | done   | Choose local/hosted Supabase development workflow       | ADR-0003: local-first with separate hosted integration   |
+| TOOL-001 | P0       | done   | Start the installed Docker Desktop runtime              | Docker engine verified and local stack starts            |
+| BE-002   | P0       | done   | Configure local development Supabase project            | Local stack starts from committed configuration          |
+| BE-003   | P0       | done   | Apply and validate all migrations                       | Clean reset and database lint pass                       |
+| SEC-001  | P0       | done   | Add automated RLS isolation tests                       | All current pgTAP schema/RLS assertions pass             |
+| SEC-002  | P0       | ready  | Complete private-media isolation tests                  | Path tests pass; signed-URL API test remains             |
+| CFG-001  | P1       | done   | Add validated API and mobile configuration modules      | Missing/invalid config produces typed, actionable states |
+| API-001  | P1       | done   | Create provider-neutral authenticated mobile API client | Tokens attach/refresh; 401 and network errors normalize  |
+| AUTH-001 | P1       | done   | Test real sign-up/sign-in/session restore               | Verified against local Supabase in iOS simulator         |
+| AUTH-002 | P1       | done   | Add account/settings screen with sign-out               | Signed-in user can explicitly end the session            |
+| AUTH-003 | P1       | done   | Implement password recovery and confirmation flows      | Deep-link and error states verified                      |
+| OPS-001  | P1       | done   | Establish safe structured API logging/error baseline    | Request IDs present; sensitive bodies/tokens excluded    |
+| AND-001  | P1       | ready  | Configure and verify Android emulator                   | Clean Android Metro/runtime launch documented            |
 
 ## Next — Phases 2–5
 
