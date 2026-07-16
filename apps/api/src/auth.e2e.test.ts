@@ -609,5 +609,152 @@ describe.skipIf(!runE2E)(
 
       await app.close();
     }, 90_000);
+
+    it("SEC-002: signed URLs are scoped to the verified owner and reject other users", async () => {
+      // Set up two confirmed users (A and B) and a storage object
+      // uploaded by A under `/private-media/<userA>/<file>`.
+      const a = await signUpConfirmedUser("sec002-a-");
+      const b = await signUpConfirmedUser("sec002-b-");
+      createdUserIds.push(a.id, b.id);
+
+      const aObjectPath = `${a.id}/a-photo.jpg`;
+      const upload = await fetch(
+        `${SUPABASE_URL}/storage/v1/object/private-media/${encodeURIComponent(aObjectPath)}`,
+        {
+          method: "POST",
+          headers: {
+            apikey: ANON_KEY,
+            authorization: `Bearer ${a.accessToken}`,
+            "content-type": "image/jpeg",
+          },
+          // Minimal valid JPEG header; the test only asserts the
+          // signed-URL contract, not the bytes themselves.
+          body: new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0]),
+        },
+      );
+      expect(upload.ok).toBe(true);
+
+      // A can sign their own path → 200 with a `signedURL` field whose
+      // payload is a JWS that encodes the bucket + object path.
+      const ownSigned = await fetch(
+        `${SUPABASE_URL}/storage/v1/object/sign/private-media/${encodeURIComponent(aObjectPath)}`,
+        {
+          method: "POST",
+          headers: {
+            apikey: ANON_KEY,
+            authorization: `Bearer ${a.accessToken}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ expiresIn: 60 }),
+        },
+      );
+      expect(ownSigned.ok).toBe(true);
+      const ownBody = (await ownSigned.json()) as { signedURL?: string };
+      expect(typeof ownBody.signedURL).toBe("string");
+      expect(ownBody.signedURL ?? "").toMatch(/token=/);
+      expect(ownBody.signedURL ?? "").toContain(
+        encodeURIComponent(aObjectPath),
+      );
+
+      // B cannot sign a path inside A's folder — Storage's signed-URL
+      // route runs the same ownership predicate as direct object
+      // access, so the request is rejected with a non-2xx response and
+      // no `signedURL` is returned. We accept either a 400 (signature
+      // path mismatch) or a 404 (object not visible) — both are safe
+      // outcomes as long as no URL leaks.
+      const crossSigned = await fetch(
+        `${SUPABASE_URL}/storage/v1/object/sign/private-media/${encodeURIComponent(aObjectPath)}`,
+        {
+          method: "POST",
+          headers: {
+            apikey: ANON_KEY,
+            authorization: `Bearer ${b.accessToken}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ expiresIn: 60 }),
+        },
+      );
+      expect(crossSigned.ok).toBe(false);
+      const crossBody = await crossSigned.text();
+      expect(crossBody).not.toMatch(/signedURL/);
+
+      // B cannot enumerate A's objects by guessing paths. A 404 is the
+      // expected response; the signed-URL contract must never confirm
+      // the existence of an object to a non-owner.
+      const ghostSigned = await fetch(
+        `${SUPABASE_URL}/storage/v1/object/sign/private-media/${encodeURIComponent(`${a.id}/ghost.jpg`)}`,
+        {
+          method: "POST",
+          headers: {
+            apikey: ANON_KEY,
+            authorization: `Bearer ${b.accessToken}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ expiresIn: 60 }),
+        },
+      );
+      expect(ghostSigned.ok).toBe(false);
+
+      // The same path the way it would be served by the Storage API
+      // itself: a non-existent bucket prefix. Storage rejects with a
+      // 400 or 404 — both are acceptable as long as no URL is returned.
+      const badBucketSigned = await fetch(
+        `${SUPABASE_URL}/storage/v1/object/sign/no-such-bucket/x.jpg`,
+        {
+          method: "POST",
+          headers: {
+            apikey: ANON_KEY,
+            authorization: `Bearer ${a.accessToken}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ expiresIn: 60 }),
+        },
+      );
+      expect(badBucketSigned.ok).toBe(false);
+      expect(await badBucketSigned.text()).not.toMatch(/signedURL/);
+    }, 90_000);
   },
 );
+
+/**
+ * Helper used by the SEC-002 signed-URL isolation test: sign up a fresh
+ * user, wait for the Mailpit confirmation email, consume it, and
+ * exchange the credentials for an access token. Returns the user id
+ * plus the access token so the test can drive storage requests with
+ * a verified owner principal.
+ */
+const signUpConfirmedUser = async (
+  prefix: string,
+): Promise<{ readonly id: string; readonly accessToken: string }> => {
+  const email = `${prefix}${Date.now()}-${Math.random().toString(36).slice(2, 6)}@example.com`;
+  const password = `${prefix}${Date.now()}-password`;
+
+  const signedUp = await signup(email, password);
+
+  // Wait for the confirmation email.
+  const signupSentAt = Date.now();
+  let messageId: string | null = null;
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const messages = await listMailpitMessages();
+    const match = messages.find(
+      (m) =>
+        m.Subject.toLowerCase().includes("confirm") &&
+        Date.parse(m.Created) >= signupSentAt - 1000,
+    );
+    if (match) {
+      messageId = match.ID;
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  expect(messageId).not.toBeNull();
+  if (!messageId) throw new Error("confirmation email not received");
+  const message = await getMailpitMessage(messageId);
+  const link = extractConfirmationLink(message.Text);
+  expect(link).not.toBeNull();
+  if (!link) throw new Error("confirmation link not parsed");
+  await confirmEmail(link);
+
+  const tokens = await signIn(email, password);
+  return { id: signedUp.id, accessToken: tokens.access_token };
+};

@@ -5,7 +5,7 @@
 ## Snapshot
 
 - **Roadmap phase:** Phase 1 — backend environment and authenticated data boundary
-- **Completed work package:** OPS-001 establish safe structured API logging/error baseline
+- **Completed work package:** SEC-002 complete private-media isolation tests
 - **Next active work package:** AND-001 configure and verify Android emulator
 - **Branch:** `main`
 - **Remote:** `https://github.com/AdamHikl/mizyun`
@@ -36,6 +36,7 @@
 - Account/settings UI: the new **Account** tab (`apps/mobile/src/app/settings.tsx`) loads the verified principal from `/v1/me` via the production `HttpApiClient` and exposes an explicit sign-out wired through `useAuth().signOut()`. The screen renders the disabled-auth and disabled-api placeholder when `.env` is incomplete, and a typed `reducePrincipalState` reducer covers every `ApiError` variant in `apps/mobile/src/features/settings/principal-state.test.ts` (12 vitest cases).
 - Recovery and confirmation deep-link flows: `@mizyun/identity` exposes a `DeepLinkPayload` union, a `parseDeepLinkFragment` helper, and three new `AuthClient` methods (`consumeDeepLink`, `updatePassword`, `requestPasswordRecovery`). The Supabase mobile adapter implements them via `supabase.auth.setSession`, `updateUser`, and `resetPasswordForEmail`. A top-level `DeepLinkBridge` in `_layout.tsx` consumes `Linking.getInitialURL` and `Linking.addEventListener("url", ...)` so cold-start and warm-start deep links both reach the auth boundary. The SessionGate shows a new `ResetPasswordScreen` when `recoveryState === true`. Opt-in e2e suite exercises the full recovery round-trip against the running local Supabase: 4/4 tests pass.
 - Safe API logging baseline: `apps/api/src/logging.ts` centralises the pino redact list (Authorization, cookie, body.password/email/token/access_token/refresh_token/session, response set-cookie), request/response serializers that include headers and cookies so the redaction is observable, and a `safeErrorSerializer` that strips `error.cause` and `error.errors` chains. `apps/api/src/errors.ts` owns the `apiErrorSchema` envelope via `sendApiError` and `internalErrorBody` helpers plus a typed `ApiErrorCode` union. Both the global error handler and the authentication plugin now route through these helpers. 10 logging tests + 5 envelope tests pass; runtime tests assert no Bearer token / throw-token / downstream cause secret ever reaches the log line, and the pino censor string `[Redacted]` does.
+- Private-media signed-URL isolation (SEC-002): the opt-in `apps/api/src/auth.e2e.test.ts` suite gained a `SEC-002: signed URLs are scoped to the verified owner and reject other users` case. It signs up two confirmed users (A and B), uploads an object under `/private-media/<userA>/a-photo.jpg`, then asserts that (i) A can sign their own path, (ii) B cannot sign A's path, (iii) B cannot enumerate a guessed path inside A's folder, and (iv) a non-existent bucket is rejected. No `signedURL` ever appears in a cross-user response body.
 
 ## Verification evidence
 
