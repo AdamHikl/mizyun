@@ -12,6 +12,7 @@ import {
 } from "@mizyun/identity";
 import { InMemoryMemoryStore } from "@mizyun/memory";
 
+import { loggerConfig } from "./logging.js";
 import { coachRoutes } from "./modules/coach/routes.js";
 import { identityRoutes } from "./modules/identity/routes.js";
 import { systemRoutes } from "./modules/system/routes.js";
@@ -61,16 +62,18 @@ export const buildApp = (
   // pass an explicit `dependencies` so the env is never read here.
   const configResult = loadServerConfig();
   const env = configResult.ok ? configResult.value.env : "development";
+  const logger = loggerConfig(env);
 
   const app = Fastify({
-    logger:
-      env === "test"
-        ? false
-        : { redact: ["req.headers.authorization", "req.headers.cookie"] },
+    ...logger,
     requestIdHeader: "x-request-id",
   });
 
   app.setErrorHandler((error, request, reply) => {
+    // The redaction-stripping serializer in `./logging.ts` already
+    // strips `cause` chains before the line reaches stdout. We log a
+    // structured entry with just the safe fields and surface the
+    // generic INTERNAL_ERROR body to the caller.
     request.log.error({ error }, "request failed");
     void reply.status(500).send({
       error: {

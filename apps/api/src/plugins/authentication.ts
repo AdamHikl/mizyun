@@ -3,6 +3,8 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 
 import type { AccessTokenVerifier, AuthPrincipal } from "@mizyun/identity";
 
+import { sendApiError } from "../errors.js";
+
 declare module "fastify" {
   interface FastifyRequest {
     principal: AuthPrincipal | null;
@@ -34,13 +36,13 @@ const authentication: FastifyPluginAsync<AuthenticationPluginOptions> = async (
   app.decorate("authenticate", async (request, reply) => {
     const token = bearerToken(request.headers.authorization);
     if (!token) {
-      await reply.status(401).send({
-        error: {
-          code: "AUTHENTICATION_REQUIRED",
-          message: "A valid bearer token is required.",
-          requestId: request.id,
-        },
-      });
+      await sendApiError(
+        reply,
+        request,
+        401,
+        "AUTHENTICATION_REQUIRED",
+        "A valid bearer token is required.",
+      );
       return;
     }
 
@@ -48,24 +50,24 @@ const authentication: FastifyPluginAsync<AuthenticationPluginOptions> = async (
       request.principal = await options.tokenVerifier.verify(token);
     } catch (error) {
       request.log.error({ error }, "token verification unavailable");
-      await reply.status(503).send({
-        error: {
-          code: "AUTHENTICATION_UNAVAILABLE",
-          message: "Authentication is temporarily unavailable.",
-          requestId: request.id,
-        },
-      });
+      await sendApiError(
+        reply,
+        request,
+        503,
+        "AUTHENTICATION_UNAVAILABLE",
+        "Authentication is temporarily unavailable.",
+      );
       return;
     }
 
     if (!request.principal) {
-      await reply.status(401).send({
-        error: {
-          code: "INVALID_ACCESS_TOKEN",
-          message: "The access token is invalid or expired.",
-          requestId: request.id,
-        },
-      });
+      await sendApiError(
+        reply,
+        request,
+        401,
+        "INVALID_ACCESS_TOKEN",
+        "The access token is invalid or expired.",
+      );
     }
   });
 };

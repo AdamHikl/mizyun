@@ -296,3 +296,36 @@ GoTrue 2.192 implicit-flow deep-link shape for signup confirmation and password 
 - `apps/api/vitest.config.ts` (new) loads `apps/api/.env.test` (gitignored) and exposes the keys to the e2e suite via `process.env.AUTH_E2E_*` so the test no longer requires shell-pasted credentials.
 - `apps/api/src/auth.e2e.test.ts` grew a recovery-flow test: signup → confirm → recover → Mailpit capture → `/auth/v1/verify` redirect → fragment parse → `/v1/me` via `HttpApiClient` → password rotation → old-password rejection. 4/4 e2e tests pass against the running local Supabase.
 - `docs/AUTH_VERIFICATION.md` step 5 now describes the wired path; new steps 9 and 10 document the forgot-password and reset-password flows.
+
+## 2026-07-16 — Safe API logging baseline and structured error envelope (OPS-001)
+
+### Scope
+
+Fastify 5 + pino redaction paths, the right serializer shape for the request and response envelope, how to strip `error.cause` chains so a downstream SDK error cannot smuggle the original request body into a log line, and the contract shape for every 4xx/5xx response across the API.
+
+### Primary sources
+
+- Fastify Logging reference: https://fastify.dev/docs/latest/Reference/Logging/
+- Pino redaction reference: https://getpino.io/#/docs/redaction
+- Pino serializers reference: https://getpino.io/#/docs/api?id=opt-serializers
+- Pino error serialization (`cause` handling): https://github.com/pinojs/pino/blob/main/docs/api.md#errrorobject--object
+- `@pinojs/redact` path syntax (the implementation behind pino's redact): https://github.com/davidmarkclements/fast-redact
+
+### Findings used
+
+- Fastify's pino integration forwards the `redact` option directly to pino's `@pinojs/redact`, which uses `fast-redact`'s path syntax (`a.b.c` and `a.b['x-y']`). Path wildcards (`req.*.password`) are supported by `@pinojs/redact` but not used here because the redact list is small and explicit; wildcards risk over-redacting, which would erase the diagnostic value of the surrounding line. The list is data so the structural test in `apps/api/src/logging.test.ts` asserts the set rather than re-deriving it.
+- Fastify's default pino request serializer omits `headers` (the rationale is documented in `fastify/docs/Reference/Logging.md`). Without explicit headers in the request log line, the `req.headers.authorization` redact path has nothing to act on and the redaction is untestable. The new `requestSerializer` in `apps/api/src/logging.ts` includes headers so the redaction is observable in test output AND in production logs (where header values matter for cross-service correlation when a token has been redacted).
+- Pino's default error serializer includes `error.cause` since pino v9 — and a thrown `@supabase/supabase-js` or `fetch` error can carry a `cause` chain that includes the original request body or a sensitive URL. The new `safeErrorSerializer` strips `cause` and `errors` and only carries the safe top-level fields (`type`, `message`, `stack`, optional `code` and `statusCode`). The full chain is preserved on the original error so test diagnostics still see it; only the log line is sanitised.
+- The pre-OPS-001 inline `redact: ["req.headers.authorization", "req.headers.cookie"]` lived inside `buildApp` and was easy to forget when a new sensitive body field was added. The new `apps/api/src/logging.ts` exports a single `REDACT_PATHS` array, a `loggerConfig(env)` builder, and a `redactPaths` constant the tests assert against.
+- The pre-OPS-001 inline `setErrorHandler` constructed the envelope inline. The new `apps/api/src/errors.ts` exports `sendApiError(reply, request, status, code, message)` and `internalErrorBody(request)` helpers plus a typed `ApiErrorCode` union. Both the global error handler and the authentication plugin now route through `sendApiError`. A future contract change (e.g. adding `retryAfter` to `RATE_LIMITED`) is a single-file edit.
+- The vitest config now auto-loads `apps/api/.env.test`, so the e2e suite sees `AUTH_E2E_URL` always set. To avoid CI failing when the local stack is down, the e2e suite's `describe.skipIf` guard now also probes `/auth/v1/health` with a 2-second timeout before declaring `runE2E === true`. When the stack is unreachable the suite skips cleanly; when the stack is up it runs.
+
+### Result
+
+- `apps/api/src/logging.ts` centralises the redact list, the request/response/error serializers, and the env-driven log level.
+- `apps/api/src/errors.ts` owns the `apiErrorSchema` envelope and the typed `ApiErrorCode` union.
+- `apps/api/src/app.ts` wires `loggerConfig(env)` into `Fastify({ ... })` and routes through `internalErrorBody(request)`.
+- `apps/api/src/plugins/authentication.ts` now uses `sendApiError` instead of inline envelopes.
+- `apps/api/src/logging.test.ts` adds 10 tests: 7 structural assertions on `loggerConfig`/`redactPaths`/`safeErrorSerializer` and 3 runtime assertions that a captured pino stream never carries a Bearer token, a throw-token, or a downstream `cause` secret.
+- `apps/api/src/errors.test.ts` adds 5 envelope-shape assertions including the `x-request-id` propagation case.
+- `docs/LOGGING_POLICY.md` documents what is and isn't logged, the `apiErrorSchema` envelope, the error code list, and the rules for adding new codes.

@@ -37,6 +37,25 @@ const SERVICE_KEY = process.env.AUTH_E2E_SERVICE ?? "";
 
 const stackUp = SUPABASE_URL.length > 0 && ANON_KEY.length > 0;
 
+/**
+ * Reachability probe. The vitest config now auto-loads
+ * `apps/api/.env.test` into process.env, so the URL and anon key are
+ * always present. Without this probe, every CI run without the local
+ * stack would fail loudly; we want it to skip instead.
+ */
+const reachable = await (async (): Promise<boolean> => {
+  if (!stackUp) return false;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/health`, {
+      signal: AbortSignal.timeout(2_000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+})();
+const runE2E = stackUp && reachable;
+
 interface GoTrueUser {
   readonly id: string;
   readonly email: string;
@@ -241,7 +260,7 @@ const stubAuthClient = (accessToken: string): AuthClient => ({
   dispose: () => undefined,
 });
 
-describe.skipIf(!stackUp)(
+describe.skipIf(!runE2E)(
   "AUTH-001 e2e — real Supabase sign-up/sign-in/me round-trip",
   () => {
     const createdUserIds: string[] = [];
