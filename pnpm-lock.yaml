@@ -34,6 +34,9 @@ importers:
       "@mizyun/agent-runtime":
         specifier: workspace:*
         version: link:../../packages/agent-runtime
+      "@mizyun/api-client":
+        specifier: workspace:*
+        version: link:../../packages/api-client
       "@mizyun/config":
         specifier: workspace:*
         version: link:../../packages/config
@@ -7443,9 +7446,7 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - "@babel/core"
-      - bufferutil
       - supports-color
-      - utf-8-validate
 
   "@react-native/normalize-colors@0.74.89": {}
 

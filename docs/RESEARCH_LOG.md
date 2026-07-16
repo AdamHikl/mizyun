@@ -195,3 +195,38 @@ React Native `fetch` polyfills in Expo SDK 57, Vitest configuration for Expo pro
 - ADR-0005 selected a single `@mizyun/api-client` package with a `Result<T, ApiError>` return type and a discriminated-union envelope mirroring `AuthConfigurationStatus` / `AgentProviderStatus`.
 - Added `apps/mobile/vitest.config.ts` and three stub modules under `apps/mobile/vitest/` so mobile tests can run without the native runtime.
 - Added `authPrincipalSchema` and `meResponseSchema` to `@mizyun/contracts`; updated `apps/api/src/modules/identity/routes.ts` to validate the `/v1/me` response server-side.
+
+## 2026-07-15 — Local Supabase GoTrue + Mailpit programmatic auth flow
+
+### Scope
+
+Direct GoTrue 2.192 REST API, Mailpit HTTP API for inbox inspection, and the lifecycle of an authenticated request against `HttpApiClient` → Fastify → `/v1/me`. Required to build the AUTH-001 opt-in end-to-end test that exercises the same code path the iOS simulator drives.
+
+### Primary sources
+
+- GoTrue REST API: https://supabase.com/docs/reference/api/auth
+- Supabase GoTrue sign-up: https://supabase.com/docs/guides/auth/server-side/nextjs
+- Mailpit HTTP API: https://github.com/axllent/mailpit/blob/develop/docs/API.md
+- Supabase admin API (for test-user cleanup): https://supabase.com/docs/reference/api/admin
+
+### Findings used
+
+- GoTrue 2.192's `POST /auth/v1/signup` returns the user object **flat** at the top level (`{ id, email, role, ... }`) when email confirmation is required, *not* wrapped in `{ user, session }`. There is no `session` field until the user confirms and re-authenticates. This shape is the same one the supabase-js mobile SDK expects from `auth.signUp`, so the programmatic e2e test mirrors it directly.
+- The confirmation email lands in Mailpit at `http://127.0.0.1:54324/api/v1/messages` (note: not `:8025`; Mailpit v1.30 listens on the Supabase-injected port). The body is the rendered Text/HTML; the confirmation URL is wrapped in a parens-prefixed bracket in Text, e.g. `Confirm email address ( http://127.0.0.1:54321/auth/v1/verify?token=... )`.
+- `GET /auth/v1/verify?token=...&type=signup` returns a `302` redirect to the configured `redirect_to` deep link (`mizyun://auth/callback#access_token=...`). Fetching the URL confirms the email; following the redirect is not required.
+- `POST /auth/v1/token?grant_type=password` returns `{ access_token, refresh_token, expires_in, user }` with `user.email_confirmed_at` set. The access token is a JWE encrypted with the local JWT secret; the supabase-js SDK's `auth.getClaims` decrypts it transparently on the server-side adapter, and `/auth/v1/user` accepts the same token to verify identity.
+- The simplest end-to-end test boundary uses `/auth/v1/user` as a stand-in for `getClaims` (it returns the verified user for a valid token, 401 for an invalid one). This keeps the e2e test agnostic of the JWE-format details that `SupabaseAccessTokenVerifier` handles in production.
+- `DELETE /auth/v1/admin/users/{id}` requires the `service_role` JWT and runs against the local GoTrue admin endpoint. Test users are cleaned up in `afterAll` (best-effort) so a failing test does not leak rows into the local DB.
+- The Mailpit message body contains the verification token as a query string on the link. There is no need to parse JWE; the e2e test only needs the link URL itself to confirm.
+
+### Result
+
+- `apps/api/src/auth.e2e.test.ts` is now guarded by `describe.skipIf(!process.env.AUTH_E2E_URL)` and runs only when the local stack is up.
+- 3 e2e tests pass against the running stack: full sign-up → confirm → sign-in → `/v1/me` round-trip via `HttpApiClient`; 401 surface as `kind: "session_expired"`; 404 surface as `kind: "parse_error"`.
+- `docs/AUTH_VERIFICATION.md` documents the manual iOS simulator checklist for the same flow.
+- The mobile and API packages remain agnostic of the e2e harness; the test uses Node 22's built-in `fetch` to drive GoTrue/Mailpit directly.
+
+### Followup notes
+
+- For future e2e runs, write `apps/api/.env.test` (gitignored) holding the local keys and have vitest load it via `dotenv-cli` or a setup file. Avoid pasting live credentials into the command line, which leaks them into shell transcripts.
+- `AUTH_E2E_MAILPIT` defaults to `http://127.0.0.1:54324` so the test works without explicit Mailpit configuration when running on the standard local stack.

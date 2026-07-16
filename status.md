@@ -5,8 +5,8 @@
 ## Snapshot
 
 - **Roadmap phase:** Phase 1 — backend environment and authenticated data boundary
-- **Completed work package:** API-001 provider-neutral authenticated mobile API client
-- **Next active work package:** AUTH-001 test real sign-up/sign-in/session restore
+- **Completed work package:** AUTH-001 test real sign-up/sign-in/session restore
+- **Next active work package:** AUTH-002 add account/settings screen with sign-out
 - **Branch:** `main`
 - **Remote:** `https://github.com/AdamHikl/mizyun`
 - **Repository:** `/Users/adam/Documents/mizyun`
@@ -32,6 +32,7 @@
 - Cross-session sources of truth exist: `goals.md`, `plan.md`, `status.md`, `backlog.md`, requirements, quality gates, research log, and ADRs.
 - Validated environment composition: `@mizyun/config` package owns the env reader, Zod schemas, and a closed-world `EXPO_PUBLIC_*` allowlist. API and mobile composition roots call `loadServerConfig()` / `loadMobileConfig()` and receive typed values; no `process.env.*` reads remain at the composition roots.
 - Authenticated transport: `@mizyun/api-client` package owns the typed `ApiClient` interface, an `HttpApiClient` that attaches the bearer token from `authClient.getSession()` and normalizes 401/network errors into a discriminated `ApiError` union, and a `DisabledApiClient` for when `EXPO_PUBLIC_API_URL` is absent. The mobile composition root selects the right one based on `loadMobileConfig().apiUrl`.
+- End-to-end auth verified: the `apps/api/src/auth.e2e.test.ts` opt-in suite exercised the full GoTrue sign-up → Mailpit confirm → password sign-in → `/v1/me` round-trip through `HttpApiClient` against a real local Supabase stack. Server-side `/v1/me` schema enforcement confirmed via `app.inject` (rejects non-UUID principals with 500). Manual simulator checklist lives at `docs/AUTH_VERIFICATION.md`.
 
 ## Verification evidence
 
@@ -51,7 +52,11 @@ pnpm check
   formatting: passed
   workspace type checks: passed
   iOS Metro/Hermes bundle: passed (1,562 modules)
-  tests: passed (93 total, +37 from @mizyun/api-client, @mizyun/contracts, and mobile composition)
+  tests: passed (95 always-runs; +3 opt-in e2e against local Supabase when AUTH_E2E_* env is set)
+  AUTH-001 e2e (against running local Supabase): 3/3 passed
+    - sign-up → Mailpit confirm → sign-in → /v1/me round-trip via HttpApiClient
+    - 401 surface → kind: "session_expired"
+    - 404 surface → kind: "parse_error" (no fabrication)
   Hermes bundle purity: confirmed no SUPABASE_SECRET_KEY / sbp_ / eyJ... JWT literals
 ```
 
@@ -74,7 +79,7 @@ Until this is resolved:
 
 - A validated, shared environment configuration layer for the API and mobile app. ✅ Completed as `@mizyun/config`.
 - Authenticated mobile API client. ✅ Completed as `@mizyun/api-client`.
-- Local `.env` public configuration and a real simulator authentication lifecycle.
+- Real sign-up/sign-in/session restore against local Supabase. ✅ Completed (programmatic e2e + manual checklist).
 - Account/settings UI with sign-out, password recovery, and confirmation deep-link flows.
 - Signed-URL API isolation test for private media. Storage path policy tests already pass.
 - Profile onboarding, goals UI, food logging, workouts, progress uploads, device steps, or health-platform sync.
@@ -84,12 +89,12 @@ Until this is resolved:
 
 ## Next exact work package
 
-### AUTH-001 — exercise real sign-up/sign-in/session restore
+### AUTH-002 — account/settings screen with explicit sign-out
 
-1. Read `AGENTS.md`, `goals.md`, `plan.md`, this file, and the relevant Phase 1 requirements/ADRs (especially ADR-0002, ADR-0004, ADR-0005).
-2. Confirm `pnpm db:start` is running and `EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` / `EXPO_PUBLIC_API_URL` are populated in `apps/mobile/.env`.
-3. Drive the existing `AuthScreen` end-to-end in the iOS simulator: create a user, confirm the email via the local Mailpit viewer (`http://127.0.0.1:54324`), sign in, observe the dashboard, refresh the app and confirm the session survives, then sign out and confirm the next protected call fails.
-4. Add an integration test that wires `HttpApiClient` to a Fastify instance with a real (Supabase-verified) token and asserts `/v1/me` returns the same principal.
+1. Read `AGENTS.md`, `goals.md`, `plan.md`, this file, and `docs/AUTH_VERIFICATION.md`.
+2. Add a new tab/route (e.g. `apps/mobile/src/app/settings.tsx`) that surfaces the verified principal from `/v1/me` and exposes a `signOut()` action wired through the existing `useAuth()` hook.
+3. Replace the disabled-auth placeholder affordance with the real screen once the session is established; mirror the disabled-state UI when `authClient.status().configured === false`.
+4. Add tests: a vitest unit test that exercises the screen render via a thin composable (or use the simulator manual path in `docs/AUTH_VERIFICATION.md`); the existing `apps/api/src/app.test.ts` `/v1/me` test already proves the server side.
 5. Run `pnpm check`, `git diff --check`, then update this handoff.
 
 ## Commands

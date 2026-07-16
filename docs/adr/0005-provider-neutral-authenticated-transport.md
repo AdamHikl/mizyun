@@ -7,7 +7,7 @@
 
 The Mizyun backend (`apps/api`, Fastify) and mobile app (`apps/mobile`, Expo SDK 57) have an authenticated identity boundary (ADR-0002) and a validated environment composition (ADR-0004), but no shared transport seam. The mobile app currently has zero `fetch` calls; feature code cannot reach the API without a per-screen hand-rolled client that re-implements token attachment, 401 handling, and response validation.
 
-The intended outcome of API-001 is *Tokens attach/refresh; 401 and network errors normalize.* Beyond that, the architecture rules in `AGENTS.md` and `ARCHITECTURE.md` require the seam to be replaceable: a future web client (or different auth source) must swap in without changing feature code.
+The intended outcome of API-001 is _Tokens attach/refresh; 401 and network errors normalize._ Beyond that, the architecture rules in `AGENTS.md` and `ARCHITECTURE.md` require the seam to be replaceable: a future web client (or different auth source) must swap in without changing feature code.
 
 ## Decision
 

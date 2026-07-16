@@ -91,4 +91,37 @@ describe("API foundation", () => {
       },
     });
   });
+
+  it("/v1/me response body is validated by meResponseSchema (rejects non-UUID principals)", async () => {
+    // This test exercises the server-side contract enforcement added in
+    // API-001: the `/v1/me` route parses its output through `meResponseSchema`,
+    // so a verifier that returns a non-UUID principal should cause a parse
+    // failure rather than a successful response with garbage data.
+    const tokenVerifier: AccessTokenVerifier = {
+      verify: async () => ({
+        userId: "not-a-uuid" as unknown as UserId,
+      }),
+    };
+    const app = buildApp({
+      tokenVerifier,
+      agent: new AgentOrchestrator({
+        provider: new DisabledAgentProvider(),
+        memories: new InMemoryMemoryStore(),
+      }),
+    });
+    apps.push(app);
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/me",
+      headers: { authorization: "Bearer any-token" },
+    });
+
+    // The schema parse throws; the global error handler returns 500 with
+    // a normalised `apiErrorSchema` body — the contract surface is
+    // intentional even on this internal-violation path.
+    expect(response.statusCode).toBe(500);
+    const body = response.json();
+    expect(body.error?.code).toBe("INTERNAL_ERROR");
+  });
 });
