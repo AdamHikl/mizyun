@@ -211,7 +211,7 @@ Direct GoTrue 2.192 REST API, Mailpit HTTP API for inbox inspection, and the lif
 
 ### Findings used
 
-- GoTrue 2.192's `POST /auth/v1/signup` returns the user object **flat** at the top level (`{ id, email, role, ... }`) when email confirmation is required, *not* wrapped in `{ user, session }`. There is no `session` field until the user confirms and re-authenticates. This shape is the same one the supabase-js mobile SDK expects from `auth.signUp`, so the programmatic e2e test mirrors it directly.
+- GoTrue 2.192's `POST /auth/v1/signup` returns the user object **flat** at the top level (`{ id, email, role, ... }`) when email confirmation is required, _not_ wrapped in `{ user, session }`. There is no `session` field until the user confirms and re-authenticates. This shape is the same one the supabase-js mobile SDK expects from `auth.signUp`, so the programmatic e2e test mirrors it directly.
 - The confirmation email lands in Mailpit at `http://127.0.0.1:54324/api/v1/messages` (note: not `:8025`; Mailpit v1.30 listens on the Supabase-injected port). The body is the rendered Text/HTML; the confirmation URL is wrapped in a parens-prefixed bracket in Text, e.g. `Confirm email address ( http://127.0.0.1:54321/auth/v1/verify?token=... )`.
 - `GET /auth/v1/verify?token=...&type=signup` returns a `302` redirect to the configured `redirect_to` deep link (`mizyun://auth/callback#access_token=...`). Fetching the URL confirms the email; following the redirect is not required.
 - `POST /auth/v1/token?grant_type=password` returns `{ access_token, refresh_token, expires_in, user }` with `user.email_confirmed_at` set. The access token is a JWE encrypted with the local JWT secret; the supabase-js SDK's `auth.getClaims` decrypts it transparently on the server-side adapter, and `/auth/v1/user` accepts the same token to verify identity.
@@ -230,3 +230,31 @@ Direct GoTrue 2.192 REST API, Mailpit HTTP API for inbox inspection, and the lif
 
 - For future e2e runs, write `apps/api/.env.test` (gitignored) holding the local keys and have vitest load it via `dotenv-cli` or a setup file. Avoid pasting live credentials into the command line, which leaks them into shell transcripts.
 - `AUTH_E2E_MAILPIT` defaults to `http://127.0.0.1:54324` so the test works without explicit Mailpit configuration when running on the standard local stack.
+
+## 2026-07-16 — Account/settings surface and SDK 57 third-tab integration
+
+### Scope
+
+How Expo SDK 57's `expo-router/unstable-native-tabs` adds a third tab without breaking the file-based `app/<name>.tsx` schema; how `expo-symbols` exposes SF Symbols on iOS and Material Symbols on Android; how the verified principal flows from `/v1/me` through `@mizyun/api-client` into a settings UI that mirrors the disabled-auth and disabled-api states.
+
+### Primary sources
+
+- expo-router `NativeTabs` SDK 57 reference: https://docs.expo.dev/versions/v57.0.0/sdk/router/native-tabs.md
+- expo-router overview and `app/` file-based routing: https://docs.expo.dev/versions/v57.0.0/sdk/router/
+- expo-symbols SDK 57 reference: https://docs.expo.dev/versions/v57.0.0/sdk/symbols/
+- React Native testing guidance for the iOS simulator (manual `apps/mobile/src/features/settings/settings-screen.tsx`): https://docs.expo.dev/guides/testing-unit-tests/
+
+### Findings used
+
+- A new top-level tab is added by writing `apps/mobile/src/app/<name>.tsx` that re-exports the screen component. expo-router picks it up automatically; the type-safe `router.d.ts` under `.expo/types/` is regenerated on the next `expo start` (or `npx expo customize`) so a `TabTrigger href="/<name>"` typechecks. Until the regeneration runs, TypeScript fails with TS2322 because `/<name>` is not yet in the literal union — running `pnpm exec expo customize tsconfig.json` (which invokes the same generator) is sufficient for the gate.
+- `NativeTabs.Trigger.Icon` accepts both an SF Symbol string via `sf="person.crop.circle"` and an image source via `src={require(...)}`. The existing tab icons are 24×24 PNGs with `renderingMode: "template"`, so generating a gear silhouette by hand (`scripts/render-settings-icon.ts`) keeps the asset pipeline dependency-free. `expo-symbols` is installed but not yet used at the tab level — left for a follow-up that swaps the PNG for `sf="person.crop.circle"`.
+- The settings screen uses the production `HttpApiClient` (`apiClient.request({ path: "/v1/me", schema: meResponseSchema })`) instead of a one-off fetch so the rendered UI exercises the same bearer-token-attachment path that `apps/api/src/auth.e2e.test.ts` exercises. The screen's render branches are driven by a pure reducer (`reducePrincipalState` in `principal-state.ts`) which maps every `ApiError` variant to a render state — this is what the 12 new vitest cases assert. The reducer is the only test surface for the screen; rendering it through React Native testing-library was deliberately out of scope per the AUTH-002 plan.
+- The disabled-auth and disabled-api states both short-circuit before any network call so the screen renders the same safe placeholder as `AuthSetupScreen` when `.env` is incomplete. This preserves the existing `useAuth()` contract: the disabled surface is uniform across the app, not screen-specific.
+
+### Result
+
+- `apps/mobile/src/app/settings.tsx` is a one-liner route that re-exports the screen.
+- `apps/mobile/src/features/settings/settings-screen.tsx` is the screen, `apps/mobile/src/features/settings/principal-state.ts` is the pure reducer, `apps/mobile/src/features/settings/principal-state.test.ts` is the 12-case vitest suite.
+- `apps/mobile/src/components/app-tabs.tsx` (iOS/Android) and `apps/mobile/src/components/app-tabs.web.tsx` (web) each grew a third tab trigger with the `Account` label and the new `settings.png` icon.
+- `scripts/render-settings-icon.ts` writes `apps/mobile/assets/images/tabIcons/settings{,@2x,@3x}.png` deterministically with no external image tool. Re-run only when the icon changes.
+- `docs/AUTH_VERIFICATION.md` step 8 now points to the real sign-out button instead of the AuthContext workaround.

@@ -106,11 +106,11 @@ Expected: the simulator lands directly on the dashboard — not on AuthScreen. T
 
 ## Step 8 — Sign out
 
-1. In the dashboard, tap the user/settings affordance (this is the AUTH-002 work — for now, the sign-out path is wired through the AuthContext's `signOut()` callback. Verify it via a programmatic call to `authClient.signOut()` from the dev menu, or by reloading with the SecureStore value cleared).
+1. In the simulator, switch to the new **Account** tab (the third tab in the bottom bar; the gear icon).
+2. The card at the top shows the verified principal loaded from `/v1/me` through the real `HttpApiClient` (proves the bearer-token round-trip in the rendered UI, not just in the e2e test).
+3. Tap **Sign out** in the second card.
 
-When AUTH-002 lands, this step is replaced by tapping the sign-out button on the account screen.
-
-Expected: the simulator returns to AuthScreen. The next `GET /v1/me` returns 401 because the Supabase session is gone.
+Expected: the simulator returns to AuthScreen. The next `GET /v1/me` returns 401 because the Supabase session is gone. The card on the Account tab surfaces `SESSION EXPIRED` if you navigate back after sign-out (or any protected call from feature code).
 
 ## Step 9 — Bundle purity (defensive)
 

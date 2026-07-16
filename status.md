@@ -5,8 +5,8 @@
 ## Snapshot
 
 - **Roadmap phase:** Phase 1 — backend environment and authenticated data boundary
-- **Completed work package:** AUTH-001 test real sign-up/sign-in/session restore
-- **Next active work package:** AUTH-002 add account/settings screen with sign-out
+- **Completed work package:** AUTH-002 add account/settings screen with sign-out
+- **Next active work package:** AUTH-003 implement password recovery and confirmation flows
 - **Branch:** `main`
 - **Remote:** `https://github.com/AdamHikl/mizyun`
 - **Repository:** `/Users/adam/Documents/mizyun`
@@ -33,6 +33,7 @@
 - Validated environment composition: `@mizyun/config` package owns the env reader, Zod schemas, and a closed-world `EXPO_PUBLIC_*` allowlist. API and mobile composition roots call `loadServerConfig()` / `loadMobileConfig()` and receive typed values; no `process.env.*` reads remain at the composition roots.
 - Authenticated transport: `@mizyun/api-client` package owns the typed `ApiClient` interface, an `HttpApiClient` that attaches the bearer token from `authClient.getSession()` and normalizes 401/network errors into a discriminated `ApiError` union, and a `DisabledApiClient` for when `EXPO_PUBLIC_API_URL` is absent. The mobile composition root selects the right one based on `loadMobileConfig().apiUrl`.
 - End-to-end auth verified: the `apps/api/src/auth.e2e.test.ts` opt-in suite exercised the full GoTrue sign-up → Mailpit confirm → password sign-in → `/v1/me` round-trip through `HttpApiClient` against a real local Supabase stack. Server-side `/v1/me` schema enforcement confirmed via `app.inject` (rejects non-UUID principals with 500). Manual simulator checklist lives at `docs/AUTH_VERIFICATION.md`.
+- Account/settings UI: the new **Account** tab (`apps/mobile/src/app/settings.tsx`) loads the verified principal from `/v1/me` via the production `HttpApiClient` and exposes an explicit sign-out wired through `useAuth().signOut()`. The screen renders the disabled-auth and disabled-api placeholder when `.env` is incomplete, and a typed `reducePrincipalState` reducer covers every `ApiError` variant in `apps/mobile/src/features/settings/principal-state.test.ts` (12 vitest cases).
 
 ## Verification evidence
 
@@ -58,6 +59,7 @@ pnpm check
     - 401 surface → kind: "session_expired"
     - 404 surface → kind: "parse_error" (no fabrication)
   Hermes bundle purity: confirmed no SUPABASE_SECRET_KEY / sbp_ / eyJ... JWT literals
+  AUTH-002 settings reducer: 12/12 passed (every ApiError variant + success + disabled states)
 ```
 
 Run `pnpm check` again after any new executable change and update this evidence if counts change.
@@ -80,7 +82,7 @@ Until this is resolved:
 - A validated, shared environment configuration layer for the API and mobile app. ✅ Completed as `@mizyun/config`.
 - Authenticated mobile API client. ✅ Completed as `@mizyun/api-client`.
 - Real sign-up/sign-in/session restore against local Supabase. ✅ Completed (programmatic e2e + manual checklist).
-- Account/settings UI with sign-out, password recovery, and confirmation deep-link flows.
+- Account/settings UI with sign-out, password recovery, and confirmation deep-link flows. ✅ Sign-out done as AUTH-002.
 - Signed-URL API isolation test for private media. Storage path policy tests already pass.
 - Profile onboarding, goals UI, food logging, workouts, progress uploads, device steps, or health-platform sync.
 - PostgreSQL-backed feature repositories, conversations, or durable memory adapter.
@@ -89,13 +91,13 @@ Until this is resolved:
 
 ## Next exact work package
 
-### AUTH-002 — account/settings screen with explicit sign-out
+### AUTH-003 — password recovery and confirmation deep-link flows
 
-1. Read `AGENTS.md`, `goals.md`, `plan.md`, this file, and `docs/AUTH_VERIFICATION.md`.
-2. Add a new tab/route (e.g. `apps/mobile/src/app/settings.tsx`) that surfaces the verified principal from `/v1/me` and exposes a `signOut()` action wired through the existing `useAuth()` hook.
-3. Replace the disabled-auth placeholder affordance with the real screen once the session is established; mirror the disabled-state UI when `authClient.status().configured === false`.
-4. Add tests: a vitest unit test that exercises the screen render via a thin composable (or use the simulator manual path in `docs/AUTH_VERIFICATION.md`); the existing `apps/api/src/app.test.ts` `/v1/me` test already proves the server side.
-5. Run `pnpm check`, `git diff --check`, then update this handoff.
+1. Read `AGENTS.md`, `goals.md`, `plan.md`, this file, and `docs/AUTH_VERIFICATION.md` (in particular the deep-link checklist).
+2. Wire the GoTrue `recovery` flow so a `mizyun://auth/callback` link lands in Expo Router with `type=recovery` and surfaces a "set new password" screen; verify the password-update path against the local Supabase GoTrue endpoint.
+3. Wire the email confirmation deep link so signing in lands directly in the dashboard rather than the AuthScreen after the user clicks the Mailpit confirmation link.
+4. Add tests: extend the AUTH-001 opt-in e2e to cover the recovery and confirmation URL round-trips, plus a vitest for any new pure reducer logic on the mobile side.
+5. Update `docs/AUTH_VERIFICATION.md` to replace step 5's "redirect is not navigated" note with the wired path.
 
 ## Commands
 
