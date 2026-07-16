@@ -121,6 +121,69 @@ const confirmEmail = async (link: string): Promise<void> => {
   expect([200, 302, 303]).toContain(response.status);
 };
 
+/**
+ * Issue a GoTrue password-recovery email. The local SMTP relay delivers
+ * the email to Mailpit; the recovery link is captured via
+ * `extractConfirmationLink`.
+ */
+const requestPasswordRecovery = async (email: string): Promise<void> => {
+  const response = await fetch(`${SUPABASE_URL}/auth/v1/recover`, {
+    method: "POST",
+    headers: {
+      apikey: ANON_KEY,
+      authorization: `Bearer ${ANON_KEY}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ email }),
+  });
+  if (!response.ok) {
+    throw new Error(
+      `recover failed: ${response.status} ${await response.text()}`,
+    );
+  }
+};
+
+/**
+ * Consume a recovery link and return the deep-link payload the
+ * mobile client would see. The /verify endpoint replies with a 303
+ * redirect to `redirect_to` (e.g. `mizyun://auth/callback`) carrying
+ * the access/refresh tokens in the URL fragment. We mirror what
+ * `parseDeepLinkFragment` produces so the test exercises the same
+ * shape the deep-link consumer will receive.
+ */
+interface ConsumedRecoveryPayload {
+  readonly kind: "recovery";
+  readonly accessToken: string;
+  readonly refreshToken: string;
+}
+
+const consumeRecoveryLink = async (
+  link: string,
+): Promise<ConsumedRecoveryPayload> => {
+  const response = await fetch(link, {
+    headers: { apikey: ANON_KEY, authorization: `Bearer ${ANON_KEY}` },
+    redirect: "manual",
+  });
+  expect(response.status).toBe(303);
+  const location = response.headers.get("location");
+  expect(location).not.toBeNull();
+  if (!location) throw new Error("recovery link did not redirect");
+  const hashIndex = location.indexOf("#");
+  expect(hashIndex).toBeGreaterThan(-1);
+  const fragment = location.slice(hashIndex + 1);
+  const params = new URLSearchParams(fragment);
+  const accessToken = params.get("access_token");
+  const refreshToken = params.get("refresh_token");
+  const type = params.get("type");
+  expect(accessToken).not.toBeNull();
+  expect(refreshToken).not.toBeNull();
+  expect(type).toBe("recovery");
+  if (!accessToken || !refreshToken) {
+    throw new Error("recovery link missing tokens");
+  }
+  return { kind: "recovery", accessToken, refreshToken };
+};
+
 const signIn = async (
   email: string,
   password: string,
@@ -171,6 +234,9 @@ const stubAuthClient = (accessToken: string): AuthClient => ({
   signInWithPassword: () => Promise.reject(new Error("unused")),
   signUpWithPassword: () => Promise.reject(new Error("unused")),
   signOut: () => Promise.resolve(),
+  consumeDeepLink: () => Promise.reject(new Error("unused")),
+  updatePassword: () => Promise.reject(new Error("unused")),
+  requestPasswordRecovery: () => Promise.reject(new Error("unused")),
   subscribe: () => () => undefined,
   dispose: () => undefined,
 });
@@ -374,5 +440,155 @@ describe.skipIf(!stackUp)(
         expect(parsed.success).toBe(true);
       }
     }, 30_000);
+
+    it("round-trips the recovery flow: email → Mailpit → setSession → /v1/me", async () => {
+      // Step A — sign-up + confirm so the recovery flow has a real user
+      const testEmail = `auth-e2e-recovery-${Date.now()}@example.com`;
+      const testPassword = `auth-e2e-recovery-${Date.now()}-password`;
+      const newPassword = `${testPassword}-rotated`;
+
+      const signedUp = await signup(testEmail, testPassword);
+      createdUserIds.push(signedUp.id);
+
+      // Wait for signup confirmation email and confirm
+      const signupSentAt = Date.now();
+      let messageId: string | null = null;
+      for (let attempt = 0; attempt < 20; attempt++) {
+        const messages = await listMailpitMessages();
+        const match = messages.find(
+          (m) =>
+            m.Subject.toLowerCase().includes("confirm") &&
+            Date.parse(m.Created) >= signupSentAt - 1000,
+        );
+        if (match) {
+          messageId = match.ID;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+      expect(messageId).not.toBeNull();
+      if (!messageId) throw new Error("signup confirmation not received");
+      const signupMessage = await getMailpitMessage(messageId);
+      const signupLink = extractConfirmationLink(signupMessage.Text);
+      expect(signupLink).not.toBeNull();
+      if (!signupLink) throw new Error("signup confirmation link not parsed");
+      await confirmEmail(signupLink);
+
+      // Step B — request password recovery
+      const recoverySentAt = Date.now();
+      await requestPasswordRecovery(testEmail);
+
+      let recoveryMessageId: string | null = null;
+      for (let attempt = 0; attempt < 20; attempt++) {
+        const messages = await listMailpitMessages();
+        const match = messages.find(
+          (m) =>
+            m.Subject.toLowerCase().includes("reset") &&
+            Date.parse(m.Created) >= recoverySentAt - 1000,
+        );
+        if (match) {
+          recoveryMessageId = match.ID;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+      expect(recoveryMessageId).not.toBeNull();
+      if (!recoveryMessageId) throw new Error("recovery email not received");
+      const recoveryMessage = await getMailpitMessage(recoveryMessageId);
+      const recoveryLink = extractConfirmationLink(recoveryMessage.Text);
+      expect(recoveryLink).not.toBeNull();
+      if (!recoveryLink) throw new Error("recovery link not parsed");
+
+      // Step C — consume the recovery link and parse the deep-link payload
+      const payload = await consumeRecoveryLink(recoveryLink);
+      expect(payload.kind).toBe("recovery");
+      expect(payload.accessToken.length).toBeGreaterThan(0);
+
+      // Step D — drive `/v1/me` through the real HttpApiClient using the
+      // recovery-issued session. The session is valid until the user
+      // rotates the password.
+      const app = buildApp({
+        tokenVerifier: {
+          verify: async (token) => {
+            const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+              headers: { apikey: ANON_KEY, authorization: `Bearer ${token}` },
+            });
+            if (!response.ok) return null;
+            const user = (await response.json()) as GoTrueUser;
+            return {
+              userId: user.id as never,
+              email: user.email,
+              role: user.role,
+            };
+          },
+        },
+        agent: new AgentOrchestrator({
+          provider: new DisabledAgentProvider(),
+          memories: new InMemoryMemoryStore(),
+        }),
+      });
+      await app.listen({ host: "127.0.0.1", port: 0 });
+      const address = app.server.address();
+      if (typeof address !== "object" || address === null) {
+        throw new Error("Fastify test app did not bind");
+      }
+      const port = address.port;
+      const liveClient = new HttpApiClient({
+        baseUrl: `http://127.0.0.1:${port}`,
+        authClient: stubAuthClient(payload.accessToken),
+      });
+      const meResult = await liveClient.request<MeResponse>({
+        method: "GET",
+        path: "/v1/me",
+        schema: meResponseSchema,
+      });
+      expect(meResult.ok).toBe(true);
+      if (meResult.ok) {
+        expect(meResult.value.user.userId).toBe(signedUp.id);
+        expect(meResult.value.user.email).toBe(testEmail);
+      }
+
+      // Step E — rotate the password using the same access token. This
+      // is the call `ResetPasswordScreen` will issue; we exercise it
+      // here directly against GoTrue so the test is independent of the
+      // mobile UI.
+      const updateResponse = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+        method: "PUT",
+        headers: {
+          apikey: ANON_KEY,
+          authorization: `Bearer ${payload.accessToken}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ password: newPassword }),
+      });
+      expect(updateResponse.ok).toBe(true);
+
+      // Step F — sign in with the new password to prove rotation landed
+      const tokens = await signIn(testEmail, newPassword);
+      expect(tokens.access_token.length).toBeGreaterThan(0);
+      expect(tokens.user.id).toBe(signedUp.id);
+
+      // The old password must no longer work — sign-in either errors
+      // or returns a different user. Either way, the new password is
+      // the only valid one.
+      const oldSignIn = await fetch(
+        `${SUPABASE_URL}/auth/v1/token?grant_type=password`,
+        {
+          method: "POST",
+          headers: {
+            apikey: ANON_KEY,
+            authorization: `Bearer ${ANON_KEY}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            email: testEmail,
+            password: testPassword,
+          }),
+        },
+      );
+      expect(oldSignIn.ok).toBe(false);
+
+      await app.close();
+    }, 90_000);
   },
 );

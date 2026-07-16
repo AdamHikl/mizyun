@@ -82,9 +82,9 @@ Expected: the UI shows the confirmation hint and no error. The user row appears 
 
 1. Open `http://127.0.0.1:54324` in a browser.
 2. Open the email titled "Confirm your email address".
-3. Click the "Confirm email address" link. This redirects to `mizyun://auth/callback#access_token=...`.
+3. Click the "Confirm email address" link. This redirects GoTrue's `/auth/v1/verify?type=signup&token=...` endpoint, which then 303-redirects to `mizyun://auth/callback#access_token=...&type=signup`.
 
-Expected: GoTrue marks the user as `email_confirmed_at = NOW()`. The deep link lands in Expo Router; without AUTH-003 wired up, it will not navigate anywhere yet — that is fine for this verification step.
+Expected: GoTrue marks the user as `email_confirmed_at = NOW()`. The deep link reaches the mobile app via the top-level `DeepLinkBridge` in `_layout.tsx`, the `parseDeepLinkFragment` helper in `@mizyun/identity` parses the URL fragment, and `authClient.consumeDeepLink` calls `supabase.auth.setSession`. The AuthContext subscription fires `SIGNED_IN`; the SessionGate swaps the AuthScreen for the regular tabs.
 
 ## Step 6 — Sign in
 
@@ -112,7 +112,25 @@ Expected: the simulator lands directly on the dashboard — not on AuthScreen. T
 
 Expected: the simulator returns to AuthScreen. The next `GET /v1/me` returns 401 because the Supabase session is gone. The card on the Account tab surfaces `SESSION EXPIRED` if you navigate back after sign-out (or any protected call from feature code).
 
-## Step 9 — Bundle purity (defensive)
+## Step 9 — Password recovery
+
+1. From the AuthScreen, tap **Forgot password?**.
+2. Enter the email of an existing account.
+3. Tap **Send reset link**.
+
+Expected: the screen shows "If an account exists for this email, a reset link is on its way." (no enumeration). GoTrue queues a recovery email to Mailpit.
+
+## Step 10 — Reset the password
+
+1. Open `http://127.0.0.1:54324` in a browser.
+2. Open the email titled "Reset your password".
+3. Click the "Reset password" link. GoTrue 303-redirects to `mizyun://auth/callback#access_token=...&type=recovery`.
+4. The mobile app receives the link. `parseDeepLinkFragment` returns `kind: "recovery"`. The AuthContext sets `recoveryState = true` and the SessionGate shows the ResetPasswordScreen.
+5. Enter a new password (≥ 8 characters), confirm, and tap **Save new password**.
+
+Expected: `authClient.updatePassword({ password })` succeeds. The SessionGate falls back to rendering the regular tabs. Sign out and sign back in with the new password to prove rotation landed.
+
+## Step 11 — Bundle purity (defensive)
 
 ```bash
 pnpm --filter @mizyun/mobile bundle:check
@@ -121,7 +139,7 @@ pnpm --filter @mizyun/config test -- mobile-public
 
 Expected: the bundle exports; the bundle-purity vitest asserts the generated `.hbc` does not contain `SUPABASE_SECRET_KEY`, `sbp_`, or `eyJ...` JWT literals.
 
-## Step 10 — Tear down
+## Step 12 — Tear down
 
 ```bash
 pnpm db:stop

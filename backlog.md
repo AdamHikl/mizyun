@@ -21,7 +21,7 @@
 | API-001  | P1       | done     | Create provider-neutral authenticated mobile API client | Tokens attach/refresh; 401 and network errors normalize  |
 | AUTH-001 | P1       | done     | Test real sign-up/sign-in/session restore               | Verified against local Supabase in iOS simulator         |
 | AUTH-002 | P1       | done     | Add account/settings screen with sign-out               | Signed-in user can explicitly end the session            |
-| AUTH-003 | P1       | ready    | Implement password recovery and confirmation flows      | Deep-link and error states verified                      |
+| AUTH-003 | P1       | done     | Implement password recovery and confirmation flows      | Deep-link and error states verified                      |
 | OPS-001  | P1       | ready    | Establish safe structured API logging/error baseline    | Request IDs present; sensitive bodies/tokens excluded    |
 | AND-001  | P1       | research | Configure and verify Android emulator                   | Clean Android Metro/runtime launch documented            |
 

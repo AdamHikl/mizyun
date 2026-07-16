@@ -258,3 +258,41 @@ How Expo SDK 57's `expo-router/unstable-native-tabs` adds a third tab without br
 - `apps/mobile/src/components/app-tabs.tsx` (iOS/Android) and `apps/mobile/src/components/app-tabs.web.tsx` (web) each grew a third tab trigger with the `Account` label and the new `settings.png` icon.
 - `scripts/render-settings-icon.ts` writes `apps/mobile/assets/images/tabIcons/settings{,@2x,@3x}.png` deterministically with no external image tool. Re-run only when the icon changes.
 - `docs/AUTH_VERIFICATION.md` step 8 now points to the real sign-out button instead of the AuthContext workaround.
+
+## 2026-07-16 — Password recovery, email confirmation, and deep-link consumption
+
+### Scope
+
+GoTrue 2.192 implicit-flow deep-link shape for signup confirmation and password recovery; React Native `Linking` API and cold/warm-start handling; Supabase JS SDK methods (`setSession`, `updateUser`, `resetPasswordForEmail`) for the recovery round-trip; the boundary between `@mizyun/identity` (provider-neutral) and `@mizyun/adapter-supabase-mobile` (provider-specific).
+
+### Primary sources
+
+- Supabase recovery / update-password flow: https://supabase.com/docs/guides/auth/auth-password-reset
+- Supabase redirect URLs and native deep links: https://supabase.com/docs/guides/auth/native-mobile-deep-linking
+- Supabase JS `resetPasswordForEmail` reference: https://supabase.com/docs/reference/javascript/auth-resetpasswordforemail
+- Supabase JS `updateUser` reference: https://supabase.com/docs/reference/javascript/auth-updateuser
+- Supabase implicit flow documentation: https://supabase.com/docs/guides/auth/sessions/implicit-flow
+- React Native `Linking` API: https://reactnative.dev/docs/linking
+
+### Findings used
+
+- GoTrue 2.192's recovery and signup emails both surface a verification URL of the shape `http://<host>/auth/v1/verify?token=<token>&type=<signup|recovery>&redirect_to=<scheme>://<path>`. The `/verify` endpoint replies with a `303 See Other` whose `Location` header is `<redirect_to>#access_token=<jwt>&refresh_token=<token>&expires_in=3600&expires_at=<unix>&token_type=bearer&type=<...>`. Confirmed by a direct Node fetch against the local GoTrue instance (Mailpit captured both the signup and recovery messages; the redirect was inspected with `redirect: "manual"`).
+- The GoTrue implicit flow puts the access/refresh tokens in the URL fragment, not the query string. React Native's `Linking.getInitialURL` and `Linking.addEventListener("url", ...)` preserve the fragment, so a provider-agnostic `parseDeepLinkFragment(rawUrl)` parser can recover both tokens plus the `type` discriminator. The fragment is required to be non-empty AND must contain both `access_token` and `refresh_token`; missing either returns `null` so the deep-link consumer does not misfire on unrelated URLs.
+- `supabase.auth.setSession({ access_token, refresh_token })` is the canonical way to consume the implicit-flow callback. It persists the session to SecureStore, fires `SIGNED_IN`, and (when the `type=recovery`) also fires `PASSWORD_RECOVERY`. The mobile adapter subscribes to `onAuthStateChange` so it knows when to flip its recovery flag — this is reliable even on cold start because the SDK replays its internal state after `setSession`.
+- `supabase.auth.updateUser({ password })` succeeds without re-authentication only when the SDK is in the `PASSWORD_RECOVERY` state. Calling it outside that state throws a `user_from_another_tenant` / `auth` error that surfaces as `IdentityError` `AUTH_NOT_IN_RECOVERY` in the boundary. The adapter tracks a `#inRecovery` boolean so feature code can branch without re-parsing SDK events.
+- `supabase.auth.resetPasswordForEmail(email, { redirectTo: "mizyun://auth/callback" })` posts to `/auth/v1/recover` with the explicit redirect. The local `additional_redirect_urls = ["mizyun://**"]` in `supabase/config.toml` (already set in CFG-001) covers the wildcard for the local stack.
+- For the boundary itself, `@mizyun/identity` exposes a discriminated `DeepLinkPayload` union (recovery, signup, magiclink, email_change, unknown), a `parseDeepLinkFragment` helper, and three new `AuthClient` methods (`consumeDeepLink`, `updatePassword`, `requestPasswordRecovery`). The provider-specific Supabase mobile adapter implements them; the `DisabledAuthClient` rejects each with `AUTH_NOT_CONFIGURED`. This keeps the boundary provider-neutral — a future Auth0 / Clerk adapter would only need to implement the same shape.
+- The mobile `DeepLinkBridge` (mounted inside `AuthProvider`) handles both cold-start and warm-start URLs. The `Linking` subscription is torn down in the `useEffect` cleanup, and the `consumeDeepLink` call routes the parsed payload through the AuthContext so the SessionGate renders the `ResetPasswordScreen` when `recoveryState === true`.
+- Vitest stubs needed updating across `apps/api/src/auth.e2e.test.ts`, `packages/api-client/src/{api-client,http-api-client}.test.ts`, and `apps/mobile/src/composition/api-client.test.ts` to add the three new `AuthClient` methods so the typed stubs still satisfy the interface.
+
+### Result
+
+- `packages/identity/src/index.ts` exports `DeepLinkPayload`, `parseDeepLinkFragment`, and the three new methods on `AuthClient`. The `DisabledAuthClient` rejects each with `AUTH_NOT_CONFIGURED`.
+- `packages/adapters/supabase-mobile/src/index.ts` implements `consumeDeepLink` via `client.auth.setSession`, `updatePassword` via `client.auth.updateUser` (guarded by the `#inRecovery` flag), and `requestPasswordRecovery` via `client.auth.resetPasswordForEmail`. The `PASSWORD_RECOVERY` event listener auto-sets `#inRecovery` so cold-start deep links work.
+- `apps/mobile/src/app/_layout.tsx` mounts a `DeepLinkBridge` component that subscribes to `Linking.getInitialURL` and `Linking.addEventListener("url", ...)` and forwards parsed payloads to `useAuth().consumeDeepLink`.
+- `apps/mobile/src/features/auth/auth-context.tsx` exposes `recoveryState`, `consumeDeepLink`, and `clearRecoveryState`. The `SessionGate` renders `ResetPasswordScreen` when `recoveryState === true`.
+- `apps/mobile/src/features/auth/reset-password-screen.tsx` is the new screen that drives `authClient.updatePassword({ password })`.
+- `apps/mobile/src/features/auth/auth-screen.tsx` gained a "Forgot password?" link and a `mode: "forgot"` flow that calls `authClient.requestPasswordRecovery`.
+- `apps/api/vitest.config.ts` (new) loads `apps/api/.env.test` (gitignored) and exposes the keys to the e2e suite via `process.env.AUTH_E2E_*` so the test no longer requires shell-pasted credentials.
+- `apps/api/src/auth.e2e.test.ts` grew a recovery-flow test: signup → confirm → recover → Mailpit capture → `/auth/v1/verify` redirect → fragment parse → `/v1/me` via `HttpApiClient` → password rotation → old-password rejection. 4/4 e2e tests pass against the running local Supabase.
+- `docs/AUTH_VERIFICATION.md` step 5 now describes the wired path; new steps 9 and 10 document the forgot-password and reset-password flows.

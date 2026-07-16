@@ -16,6 +16,7 @@ import {
   type AuthConfigurationStatus,
   type AuthSession,
   type AuthStateListener,
+  type DeepLinkPayload,
   type PasswordCredentials,
   type SignUpResult,
 } from "@mizyun/identity";
@@ -79,6 +80,11 @@ export interface SupabaseMobileConfiguration {
 
 export class SupabaseMobileAuthClient implements AuthClient {
   readonly #disposers: Array<() => void> = [];
+  // Set to true when the last deep link delivered was a `kind:
+  // "recovery"` payload, and cleared after `updatePassword` succeeds.
+  // The AuthContext reads this to decide whether to show the
+  // reset-password screen in place of the AuthScreen.
+  #inRecovery = false;
 
   constructor(private readonly client: SupabaseClient) {
     if (Platform.OS !== "web") {
@@ -88,10 +94,29 @@ export class SupabaseMobileAuthClient implements AuthClient {
       });
       this.#disposers.push(() => subscription.remove());
     }
+    // The Supabase SDK fires PASSWORD_RECOVERY as soon as the implicit
+    // flow lands and `setSession` consumes the tokens. We listen once
+    // here so the recovery flag is set even when the deep link is
+    // delivered before the AuthContext has subscribed (cold-start).
+    this.#disposers.push(
+      this.client.auth.onAuthStateChange((event) => {
+        if (event === "PASSWORD_RECOVERY") this.#inRecovery = true;
+      }).data.subscription.unsubscribe,
+    );
   }
 
   status(): AuthConfigurationStatus {
     return { configured: true, provider: "supabase" };
+  }
+
+  /**
+   * Whether the client is currently in the recovery state (a `kind:
+   * "recovery"` deep link has been consumed and `updatePassword` has
+   * not yet succeeded). Surfaced via the AuthContext so the router can
+   * swap the AuthScreen for the reset-password screen.
+   */
+  isInRecoveryState(): boolean {
+    return this.#inRecovery;
   }
 
   async getSession(): Promise<AuthSession | null> {
@@ -126,6 +151,48 @@ export class SupabaseMobileAuthClient implements AuthClient {
 
   async signOut(): Promise<void> {
     const { error } = await this.client.auth.signOut();
+    if (error) throw asIdentityError(error);
+    this.#inRecovery = false;
+  }
+
+  async consumeDeepLink(payload: DeepLinkPayload): Promise<AuthSession> {
+    if (payload.kind === "recovery") this.#inRecovery = true;
+    const { data, error } = await this.client.auth.setSession({
+      access_token: payload.accessToken,
+      refresh_token: payload.refreshToken,
+    });
+    if (error) throw asIdentityError(error);
+    const session = toAuthSession(data.session);
+    if (!session) {
+      throw new IdentityError(
+        "AUTH_SESSION_MISSING",
+        "Deep-link payload did not produce a session.",
+      );
+    }
+    return session;
+  }
+
+  async updatePassword(newPassword: { password: string }): Promise<void> {
+    if (!this.#inRecovery) {
+      throw new IdentityError(
+        "AUTH_NOT_IN_RECOVERY",
+        "updatePassword is only valid after a recovery deep link is consumed.",
+      );
+    }
+    const { error } = await this.client.auth.updateUser({
+      password: newPassword.password,
+    });
+    if (error) throw asIdentityError(error);
+    this.#inRecovery = false;
+  }
+
+  async requestPasswordRecovery(email: { email: string }): Promise<void> {
+    const { error } = await this.client.auth.resetPasswordForEmail(
+      email.email,
+      {
+        redirectTo: "mizyun://auth/callback",
+      },
+    );
     if (error) throw asIdentityError(error);
   }
 

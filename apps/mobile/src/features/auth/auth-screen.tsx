@@ -13,7 +13,7 @@ import { authClient } from "@/composition/auth-client";
 export function AuthScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
+  const [mode, setMode] = useState<"sign-in" | "sign-up" | "forgot">("sign-in");
   const [message, setMessage] = useState<string>();
   const [busy, setBusy] = useState(false);
 
@@ -21,6 +21,14 @@ export function AuthScreen() {
     setBusy(true);
     setMessage(undefined);
     try {
+      if (mode === "forgot") {
+        await authClient.requestPasswordRecovery({ email });
+        setMessage(
+          "If an account exists for this email, a reset link is on its way.",
+        );
+        setMode("sign-in");
+        return;
+      }
       if (mode === "sign-in")
         await authClient.signInWithPassword({ email, password });
       else {
@@ -37,12 +45,17 @@ export function AuthScreen() {
     }
   };
 
+  const title =
+    mode === "forgot"
+      ? "Reset your password"
+      : mode === "sign-in"
+        ? "Welcome back"
+        : "Create your space";
+
   return (
     <View style={styles.container}>
       <Text style={styles.eyebrow}>YOUR PRIVATE FITNESS SPACE</Text>
-      <Text style={styles.title}>
-        {mode === "sign-in" ? "Welcome back" : "Create your space"}
-      </Text>
+      <Text style={styles.title}>{title}</Text>
       <TextInput
         autoCapitalize="none"
         autoComplete="email"
@@ -52,19 +65,23 @@ export function AuthScreen() {
         onChangeText={setEmail}
         style={styles.input}
       />
-      <TextInput
-        autoCapitalize="none"
-        autoComplete={mode === "sign-in" ? "current-password" : "new-password"}
-        placeholder="Password"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-        style={styles.input}
-      />
+      {mode !== "forgot" ? (
+        <TextInput
+          autoCapitalize="none"
+          autoComplete={
+            mode === "sign-in" ? "current-password" : "new-password"
+          }
+          placeholder="Password"
+          secureTextEntry
+          value={password}
+          onChangeText={setPassword}
+          style={styles.input}
+        />
+      ) : null}
       {message ? <Text style={styles.message}>{message}</Text> : null}
       <Pressable
         accessibilityRole="button"
-        disabled={busy || !email || password.length < 6}
+        disabled={busy || !email || (mode !== "forgot" && password.length < 6)}
         onPress={submit}
         style={styles.primary}
       >
@@ -72,17 +89,36 @@ export function AuthScreen() {
           <ActivityIndicator color="#fff" />
         ) : (
           <Text style={styles.primaryText}>
-            {mode === "sign-in" ? "Sign in" : "Create account"}
+            {mode === "forgot"
+              ? "Send reset link"
+              : mode === "sign-in"
+                ? "Sign in"
+                : "Create account"}
           </Text>
         )}
       </Pressable>
+      {mode === "sign-in" ? (
+        <Pressable onPress={() => setMode("forgot")}>
+          <Text style={styles.switch}>Forgot password?</Text>
+        </Pressable>
+      ) : null}
       <Pressable
-        onPress={() => setMode(mode === "sign-in" ? "sign-up" : "sign-in")}
+        onPress={() =>
+          setMode(
+            mode === "sign-in"
+              ? "sign-up"
+              : mode === "sign-up"
+                ? "sign-in"
+                : "sign-in",
+          )
+        }
       >
         <Text style={styles.switch}>
           {mode === "sign-in"
             ? "New here? Create an account"
-            : "Already have an account? Sign in"}
+            : mode === "sign-up"
+              ? "Already have an account? Sign in"
+              : "Back to sign in"}
         </Text>
       </Pressable>
     </View>

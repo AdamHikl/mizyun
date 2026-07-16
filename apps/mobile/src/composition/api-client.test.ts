@@ -15,6 +15,9 @@ const buildAuthClient = (): AuthClient => ({
   signInWithPassword: () => Promise.reject(new Error("unused")),
   signUpWithPassword: () => Promise.reject(new Error("unused")),
   signOut: () => Promise.resolve(),
+  consumeDeepLink: () => Promise.reject(new Error("unused")),
+  updatePassword: () => Promise.reject(new Error("unused")),
+  requestPasswordRecovery: () => Promise.reject(new Error("unused")),
   subscribe: () => () => undefined,
   dispose: () => undefined,
 });

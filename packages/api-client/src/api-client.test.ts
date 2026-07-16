@@ -92,6 +92,10 @@ describe("DisabledApiClient", () => {
         Promise.reject(new Error("should not be called")),
       signUpWithPassword: () =>
         Promise.reject(new Error("should not be called")),
+      consumeDeepLink: () => Promise.reject(new Error("should not be called")),
+      updatePassword: () => Promise.reject(new Error("should not be called")),
+      requestPasswordRecovery: () =>
+        Promise.reject(new Error("should not be called")),
       subscribe: () => () => undefined,
       dispose: () => undefined,
     };
