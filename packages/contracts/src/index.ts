@@ -361,6 +361,36 @@ export {
 } from "./workout";
 
 export {
+  exerciseRecentSetsQuerySchema,
+  exerciseRecentSetsResponseSchema,
+  workoutSetCreateSchema,
+  workoutSetListResponseSchema,
+  workoutSetResponseSchema,
+  workoutSetSchema,
+  type ExerciseRecentSetsQuery,
+  type ExerciseRecentSetsResponse,
+  type WorkoutSet,
+  type WorkoutSetCreate,
+  type WorkoutSetListResponse,
+  type WorkoutSetResponse,
+} from "./workout-set";
+
+export {
+  accountDeleteChallengeResponseSchema,
+  accountDeleteResponseSchema,
+  accountDeleteSchema,
+  accountExportResponseSchema,
+  accountExportSchema,
+  conversationStubSchema,
+  privateMediaStubSchema,
+  type AccountDeleteBody,
+  type AccountDeleteChallengeResponse,
+  type AccountDeleteResponse,
+  type AccountExport,
+  type AccountExportResponse,
+} from "./account";
+
+export {
   bodyMeasurementCreateSchema,
   bodyMeasurementListQuerySchema,
   bodyMeasurementListResponseSchema,

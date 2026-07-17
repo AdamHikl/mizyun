@@ -8,6 +8,7 @@ import { createSupabaseAccessTokenVerifier } from "@mizyun/adapter-supabase-serv
 import {
   DEFAULT_TIMEZONE,
   DEFAULT_UNIT_SYSTEM,
+  type AccountRepository,
   type BodyMeasurementRepository,
   type ExerciseRepository,
   type FoodEntryRepository,
@@ -15,6 +16,7 @@ import {
   type ProfileRepository,
   type UserId,
   type WorkoutRepository,
+  type WorkoutSetRepository,
 } from "@mizyun/core";
 import { loadServerConfig, type ServerConfig } from "@mizyun/config";
 import {
@@ -23,8 +25,10 @@ import {
 } from "@mizyun/identity";
 import { InMemoryMemoryStore } from "@mizyun/memory";
 
+import { InMemoryAccountRepository } from "./account-repository.js";
 import { InMemoryGoalRepository } from "./goal-repository.js";
 import { loggerConfig } from "./logging.js";
+import { accountRoutes } from "./modules/account/routes.js";
 import { bodyMeasurementsRoutes } from "./modules/body-measurements/routes.js";
 import { coachRoutes } from "./modules/coach/routes.js";
 import { exercisesRoutes } from "./modules/exercises/routes.js";
@@ -34,12 +38,14 @@ import { identityRoutes } from "./modules/identity/routes.js";
 import { profileRoutes } from "./modules/profile/routes.js";
 import { systemRoutes } from "./modules/system/routes.js";
 import { workoutsRoutes } from "./modules/workouts/routes.js";
+import { workoutSetsRoutes } from "./modules/workout-sets/routes.js";
 import { authenticationPlugin } from "./plugins/authentication.js";
 import { InMemoryBodyMeasurementRepository } from "./body-measurement-repository.js";
 import { InMemoryExerciseRepository } from "./exercise-repository.js";
 import { InMemoryFoodEntryRepository } from "./food-entry-repository.js";
 import { InMemoryProfileRepository } from "./profile-repository.js";
 import { InMemoryWorkoutRepository } from "./workout-repository.js";
+import { InMemoryWorkoutSetRepository } from "./workout-set-repository.js";
 
 export interface AppDependencies {
   readonly agent: AgentOrchestrator;
@@ -55,7 +61,9 @@ export interface AppDependencies {
   readonly foodEntryRepository?: FoodEntryRepository;
   readonly exerciseRepository?: ExerciseRepository;
   readonly workoutRepository?: WorkoutRepository;
+  readonly workoutSetRepository?: WorkoutSetRepository;
   readonly bodyMeasurementRepository?: BodyMeasurementRepository;
+  readonly accountRepository?: AccountRepository;
 }
 
 const tokenVerifierFromConfig = (config: ServerConfig): AccessTokenVerifier => {
@@ -96,6 +104,7 @@ const defaultDependencies = (): AppDependencies => {
     foodEntryRepository: new InMemoryFoodEntryRepository(),
     exerciseRepository: new InMemoryExerciseRepository(),
     workoutRepository: new InMemoryWorkoutRepository(),
+    workoutSetRepository: new InMemoryWorkoutSetRepository(),
     bodyMeasurementRepository: new InMemoryBodyMeasurementRepository(),
   };
 };
@@ -137,6 +146,41 @@ export const buildApp = (
     });
   });
 
+  // Resolve every per-feature repository once so the
+  // account-deletion orchestrator can see the same instances the
+  // per-feature routes use. Tests that pass a custom dependency
+  // for any single repo see it reflected here.
+  const profileRepository =
+    dependencies.profileRepository ??
+    new InMemoryProfileRepository({
+      defaultTimezone: DEFAULT_TIMEZONE,
+      defaultUnitSystem: DEFAULT_UNIT_SYSTEM,
+    });
+  const goalRepository =
+    dependencies.goalRepository ?? new InMemoryGoalRepository();
+  const foodEntryRepository =
+    dependencies.foodEntryRepository ?? new InMemoryFoodEntryRepository();
+  const exerciseRepository =
+    dependencies.exerciseRepository ?? new InMemoryExerciseRepository();
+  const workoutRepository =
+    dependencies.workoutRepository ?? new InMemoryWorkoutRepository();
+  const workoutSetRepository =
+    dependencies.workoutSetRepository ?? new InMemoryWorkoutSetRepository();
+  const bodyMeasurementRepository =
+    dependencies.bodyMeasurementRepository ??
+    new InMemoryBodyMeasurementRepository();
+  const accountRepository =
+    dependencies.accountRepository ??
+    new InMemoryAccountRepository({
+      profileRepository,
+      goalRepository,
+      foodEntryRepository,
+      exerciseRepository,
+      workoutRepository,
+      workoutSetRepository,
+      bodyMeasurementRepository,
+    });
+
   void app.register(authenticationPlugin, {
     tokenVerifier: dependencies.tokenVerifier,
   });
@@ -144,37 +188,37 @@ export const buildApp = (
   void app.register(identityRoutes, { prefix: "/v1" });
   void app.register(profileRoutes, {
     prefix: "/v1/profile",
-    profileRepository:
-      dependencies.profileRepository ??
-      new InMemoryProfileRepository({
-        defaultTimezone: DEFAULT_TIMEZONE,
-        defaultUnitSystem: DEFAULT_UNIT_SYSTEM,
-      }),
+    profileRepository,
   });
   void app.register(goalsRoutes, {
     prefix: "/v1/goals",
-    goalRepository: dependencies.goalRepository ?? new InMemoryGoalRepository(),
+    goalRepository,
   });
   void app.register(foodEntriesRoutes, {
     prefix: "/v1/food-entries",
-    foodEntryRepository:
-      dependencies.foodEntryRepository ?? new InMemoryFoodEntryRepository(),
+    foodEntryRepository,
   });
   void app.register(exercisesRoutes, {
     prefix: "/v1/exercises",
-    exerciseRepository:
-      dependencies.exerciseRepository ?? new InMemoryExerciseRepository(),
+    exerciseRepository,
   });
   void app.register(workoutsRoutes, {
     prefix: "/v1/workouts",
-    workoutRepository:
-      dependencies.workoutRepository ?? new InMemoryWorkoutRepository(),
+    workoutRepository,
   });
   void app.register(bodyMeasurementsRoutes, {
     prefix: "/v1/body-measurements",
-    bodyMeasurementRepository:
-      dependencies.bodyMeasurementRepository ??
-      new InMemoryBodyMeasurementRepository(),
+    bodyMeasurementRepository,
+  });
+  void app.register(workoutSetsRoutes, {
+    prefix: "/v1",
+    workoutSetRepository,
+    workoutRepository,
+    exerciseRepository,
+  });
+  void app.register(accountRoutes, {
+    prefix: "/v1",
+    accountRepository,
   });
   void app.register(coachRoutes, {
     prefix: "/v1/coach",

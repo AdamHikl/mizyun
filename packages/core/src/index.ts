@@ -107,6 +107,30 @@ export {
 } from "./workout";
 
 export {
+  MAX_DISTANCE_METERS,
+  MAX_DURATION_SECONDS,
+  MAX_LOAD_KG,
+  MAX_PERCEIVED_EXERTION,
+  MAX_REPETITIONS,
+  MAX_SEQUENCE,
+  MIN_PERCEIVED_EXERTION,
+  summariseExerciseSets,
+  validateWorkoutSetCreate,
+  type ExerciseRecentSetsSummary,
+  type StoredWorkoutSet,
+  type WorkoutSetCore,
+  type WorkoutSetRepository,
+  type WorkoutSetValidationError,
+} from "./workout-set";
+
+export {
+  type AccountDeletionError,
+  type AccountExport,
+  type AccountRepository,
+  type StoredConversationStub,
+} from "./account";
+
+export {
   BODY_WEIGHT_KG_MAX,
   BODY_WEIGHT_KG_MIN,
   validateBodyMeasurementCreate,
