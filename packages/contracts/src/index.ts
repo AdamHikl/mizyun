@@ -341,3 +341,37 @@ export {
   type ExercisePatch,
   type ExerciseResponse,
 } from "./exercise";
+
+export {
+  workoutCreateSchema,
+  workoutListQuerySchema,
+  workoutListResponseSchema,
+  workoutPatchSchema,
+  workoutResponseSchema,
+  workoutSchema,
+  workoutSchemaBase,
+  workoutSourceSchema,
+  type Workout,
+  type WorkoutCreate,
+  type WorkoutListQuery,
+  type WorkoutListResponse,
+  type WorkoutPatch,
+  type WorkoutResponse,
+  type WorkoutSource,
+} from "./workout";
+
+export {
+  bodyMeasurementCreateSchema,
+  bodyMeasurementListQuerySchema,
+  bodyMeasurementListResponseSchema,
+  bodyMeasurementResponseSchema,
+  bodyMeasurementSchema,
+  bodyMeasurementSourceSchema,
+  weightKgSchema,
+  type BodyMeasurement,
+  type BodyMeasurementCreate,
+  type BodyMeasurementListQuery,
+  type BodyMeasurementListResponse,
+  type BodyMeasurementResponse,
+  type BodyMeasurementSource,
+} from "./body-measurement";

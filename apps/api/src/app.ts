@@ -8,11 +8,13 @@ import { createSupabaseAccessTokenVerifier } from "@mizyun/adapter-supabase-serv
 import {
   DEFAULT_TIMEZONE,
   DEFAULT_UNIT_SYSTEM,
+  type BodyMeasurementRepository,
   type ExerciseRepository,
   type FoodEntryRepository,
   type GoalRepository,
   type ProfileRepository,
   type UserId,
+  type WorkoutRepository,
 } from "@mizyun/core";
 import { loadServerConfig, type ServerConfig } from "@mizyun/config";
 import {
@@ -23,6 +25,7 @@ import { InMemoryMemoryStore } from "@mizyun/memory";
 
 import { InMemoryGoalRepository } from "./goal-repository.js";
 import { loggerConfig } from "./logging.js";
+import { bodyMeasurementsRoutes } from "./modules/body-measurements/routes.js";
 import { coachRoutes } from "./modules/coach/routes.js";
 import { exercisesRoutes } from "./modules/exercises/routes.js";
 import { foodEntriesRoutes } from "./modules/food-entries/routes.js";
@@ -30,10 +33,13 @@ import { goalsRoutes } from "./modules/goals/routes.js";
 import { identityRoutes } from "./modules/identity/routes.js";
 import { profileRoutes } from "./modules/profile/routes.js";
 import { systemRoutes } from "./modules/system/routes.js";
+import { workoutsRoutes } from "./modules/workouts/routes.js";
 import { authenticationPlugin } from "./plugins/authentication.js";
+import { InMemoryBodyMeasurementRepository } from "./body-measurement-repository.js";
 import { InMemoryExerciseRepository } from "./exercise-repository.js";
 import { InMemoryFoodEntryRepository } from "./food-entry-repository.js";
 import { InMemoryProfileRepository } from "./profile-repository.js";
+import { InMemoryWorkoutRepository } from "./workout-repository.js";
 
 export interface AppDependencies {
   readonly agent: AgentOrchestrator;
@@ -48,6 +54,8 @@ export interface AppDependencies {
   readonly goalRepository?: GoalRepository;
   readonly foodEntryRepository?: FoodEntryRepository;
   readonly exerciseRepository?: ExerciseRepository;
+  readonly workoutRepository?: WorkoutRepository;
+  readonly bodyMeasurementRepository?: BodyMeasurementRepository;
 }
 
 const tokenVerifierFromConfig = (config: ServerConfig): AccessTokenVerifier => {
@@ -87,6 +95,8 @@ const defaultDependencies = (): AppDependencies => {
     goalRepository: new InMemoryGoalRepository(),
     foodEntryRepository: new InMemoryFoodEntryRepository(),
     exerciseRepository: new InMemoryExerciseRepository(),
+    workoutRepository: new InMemoryWorkoutRepository(),
+    bodyMeasurementRepository: new InMemoryBodyMeasurementRepository(),
   };
 };
 
@@ -154,6 +164,17 @@ export const buildApp = (
     prefix: "/v1/exercises",
     exerciseRepository:
       dependencies.exerciseRepository ?? new InMemoryExerciseRepository(),
+  });
+  void app.register(workoutsRoutes, {
+    prefix: "/v1/workouts",
+    workoutRepository:
+      dependencies.workoutRepository ?? new InMemoryWorkoutRepository(),
+  });
+  void app.register(bodyMeasurementsRoutes, {
+    prefix: "/v1/body-measurements",
+    bodyMeasurementRepository:
+      dependencies.bodyMeasurementRepository ??
+      new InMemoryBodyMeasurementRepository(),
   });
   void app.register(coachRoutes, {
     prefix: "/v1/coach",

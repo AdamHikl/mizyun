@@ -91,3 +91,28 @@ export {
   type ExerciseValidationError,
   type StoredExercise,
 } from "./exercise";
+
+export {
+  NOTES_MAX,
+  WORKOUT_NAME_MAX,
+  applyWorkoutPatch,
+  validateWorkoutCreate,
+  validateWorkoutPatch,
+  type StoredWorkout,
+  type WorkoutCore,
+  type WorkoutPatch,
+  type WorkoutRepository,
+  type WorkoutSource,
+  type WorkoutValidationError,
+} from "./workout";
+
+export {
+  BODY_WEIGHT_KG_MAX,
+  BODY_WEIGHT_KG_MIN,
+  validateBodyMeasurementCreate,
+  type BodyMeasurementCore,
+  type BodyMeasurementRepository,
+  type BodyMeasurementSource,
+  type BodyMeasurementValidationError,
+  type StoredBodyMeasurement,
+} from "./body-measurement";
