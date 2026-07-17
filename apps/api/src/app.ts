@@ -8,6 +8,7 @@ import { createSupabaseAccessTokenVerifier } from "@mizyun/adapter-supabase-serv
 import {
   DEFAULT_TIMEZONE,
   DEFAULT_UNIT_SYSTEM,
+  type GoalRepository,
   type ProfileRepository,
   type UserId,
 } from "@mizyun/core";
@@ -18,8 +19,10 @@ import {
 } from "@mizyun/identity";
 import { InMemoryMemoryStore } from "@mizyun/memory";
 
+import { InMemoryGoalRepository } from "./goal-repository.js";
 import { loggerConfig } from "./logging.js";
 import { coachRoutes } from "./modules/coach/routes.js";
+import { goalsRoutes } from "./modules/goals/routes.js";
 import { identityRoutes } from "./modules/identity/routes.js";
 import { profileRoutes } from "./modules/profile/routes.js";
 import { systemRoutes } from "./modules/system/routes.js";
@@ -36,6 +39,7 @@ export interface AppDependencies {
    * adapter (landed in a follow-up segment).
    */
   readonly profileRepository?: ProfileRepository;
+  readonly goalRepository?: GoalRepository;
 }
 
 const tokenVerifierFromConfig = (config: ServerConfig): AccessTokenVerifier => {
@@ -72,6 +76,7 @@ const defaultDependencies = (): AppDependencies => {
       defaultTimezone: DEFAULT_TIMEZONE,
       defaultUnitSystem: DEFAULT_UNIT_SYSTEM,
     }),
+    goalRepository: new InMemoryGoalRepository(),
   };
 };
 
@@ -125,6 +130,10 @@ export const buildApp = (
         defaultTimezone: DEFAULT_TIMEZONE,
         defaultUnitSystem: DEFAULT_UNIT_SYSTEM,
       }),
+  });
+  void app.register(goalsRoutes, {
+    prefix: "/v1/goals",
+    goalRepository: dependencies.goalRepository ?? new InMemoryGoalRepository(),
   });
   void app.register(coachRoutes, {
     prefix: "/v1/coach",

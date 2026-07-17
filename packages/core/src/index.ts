@@ -39,3 +39,23 @@ export {
   type StoredProfile,
   type UnitSystem,
 } from "./profile";
+
+export {
+  ALLOWED_STATUS_TRANSITIONS,
+  BODY_FAT_PERCENT_MAX,
+  BODY_FAT_PERCENT_MIN,
+  WEIGHT_KG_MAX,
+  WEIGHT_KG_MIN,
+  applyGoalPatch,
+  validateGoalCreate,
+  validateGoalPatch,
+  type GoalCore,
+  type GoalKind,
+  type GoalPace,
+  type GoalPatch,
+  type GoalRepository,
+  type GoalStatus,
+  type GoalTarget,
+  type GoalValidationError,
+  type StoredGoal,
+} from "./goal";

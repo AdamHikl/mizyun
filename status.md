@@ -5,8 +5,8 @@
 ## Snapshot
 
 - **Roadmap phase:** Phase 2 — onboarding, profile, and goals
-- **Completed work package:** PROF-001 profile domain/repository/API slice
-- **Next active work package:** GOAL-001 goal model, validation, and history
+- **Completed work package:** GOAL-001 goal model, validation, and history
+- **Next active work package:** UX-001 new-user onboarding flow
 - **Branch:** `main`
 - **Remote:** `https://github.com/AdamHikl/mizyun`
 - **Repository:** `/Users/adam/Documents/mizyun`
@@ -38,6 +38,7 @@
 - Safe API logging baseline: `apps/api/src/logging.ts` centralises the pino redact list (Authorization, cookie, body.password/email/token/access_token/refresh_token/session, response set-cookie), request/response serializers that include headers and cookies so the redaction is observable, and a `safeErrorSerializer` that strips `error.cause` and `error.errors` chains. `apps/api/src/errors.ts` owns the `apiErrorSchema` envelope via `sendApiError` and `internalErrorBody` helpers plus a typed `ApiErrorCode` union. Both the global error handler and the authentication plugin now route through these helpers. 10 logging tests + 5 envelope tests pass; runtime tests assert no Bearer token / throw-token / downstream cause secret ever reaches the log line, and the pino censor string `[Redacted]` does.
 - Private-media signed-URL isolation (SEC-002): the opt-in `apps/api/src/auth.e2e.test.ts` suite gained a `SEC-002: signed URLs are scoped to the verified owner and reject other users` case. It signs up two confirmed users (A and B), uploads an object under `/private-media/<userA>/a-photo.jpg`, then asserts that (i) A can sign their own path, (ii) B cannot sign A's path, (iii) B cannot enumerate a guessed path inside A's folder, and (iv) a non-existent bucket is rejected. No `signedURL` ever appears in a cross-user response body.
 - Profile vertical slice (PROF-001): the new `/v1/profile` API route is live. `GET /v1/profile` returns the verified user's profile (auto-creating a default row on first read so the trigger-vs-client race is absorbed). `PUT /v1/profile` accepts a partial patch parsed through `profilePatchSchema`, validated by the domain layer in `@mizyun/core`, and applied via `applyProfilePatch`. All four profile fields (displayName, unitSystem, timezone, birthYear, heightCm) are bounded; nullable fields clear when the patch sets them to `null`. 14 core domain tests + 10 API route tests cover every branch of the patch lifecycle. The `ProfileRepository` port has one in-memory implementation today; the Supabase adapter is the next segment.
+- Goal vertical slice (GOAL-001): the new `/v1/goals` API surface is live. `GET /v1/goals/active` returns the user's current active goal (404 if none). `GET /v1/goals/history` returns the full chronological record newest-first. `POST /v1/goals` creates a new active goal with server-generated `id`, `status` (always `active`), and audit timestamps; rejects unknown fields via `goalCreateSchema.strict()`. `PUT /v1/goals/:id` applies a partial patch with status-transition rules (draft → active/archived, active → completed/archived; completed and archived are terminal). All five patchable fields (`status`, `pace`, `target`, `targetDate`, `reviewDate`) are validated by the domain layer in `@mizyun/core`. 25 core domain tests + 14 API route tests cover every branch including cross-user isolation. The `GoalRepository` port has one in-memory implementation today; the SQL partial-unique-index adapter lands in a follow-up segment.
 
 ## Verification evidence
 
@@ -100,14 +101,14 @@ Until this is resolved:
 
 ## Next exact work package
 
-### GOAL-001 — goal model, validation, and history
+### UX-001 — new-user onboarding flow
 
 1. Read `AGENTS.md`, `goals.md`, `plan.md`, this file, and `docs/QUALITY_GATES.md`.
-2. Add `public.goals` schema (already migrated) wire contract in `@mizyun/contracts` and domain rules in `@mizyun/core`: the closed `goal_kind` enum, the `goal_target` value range per kind, the `pace_preference` enum, and the active-goal predicate (only one primary goal at a time).
-3. Add the `GoalRepository` port (in `@mizyun/core`) and an in-memory implementation. Add `GET /v1/goals` and `POST /v1/goals` routes that close-over the verified principal.
-4. Add a `goal_history` table or table-like view for the chronological record (a goal change must not destroy the previous one — `update_at`-scoped soft history).
-5. Tests: 14+ domain cases, 8+ route cases (auto-create default, patch, history append), and an isolation pgTAP case that proves user B cannot see user A's history rows.
-6. Update `docs/AUTH_VERIFICATION.md` (or a new `docs/PROFILE_GOAL_VERIFICATION.md`) with the manual iOS path: sign up → land on dashboard → tap the Goals tab → set a primary goal → confirm it persists across restart.
+2. Survey the existing iOS auth surface (AUTH-001 / AUTH-002 / AUTH-003) and the new `/v1/profile` + `/v1/goals` routes. Decide which fields are required on the first screen (display name, units, timezone) vs deferrable (height, birth year, primary goal).
+3. Add an `onboarding` route group in `apps/mobile/src/app/` with a sequence of small screens. Each screen validates locally, defers the API write until the user taps Continue on the final screen, and falls back to a retry state when the network drops.
+4. Wire the onboarding flow into the SessionGate: a user with no `profile.displayName` (or with a flag column on the profile row) sees the onboarding flow instead of the dashboard; once complete, the flow is skipped.
+5. Tests: vitest cases for each onboarding screen's validation; one api test that proves the combined profile + goal write succeeds end-to-end via the real Fastify test instance.
+6. Update `docs/AUTH_VERIFICATION.md` with the onboarding path so the iOS simulator manual verification covers it.
 7. Run `pnpm check`, `git diff --check`, then update this handoff.
 
 ## Commands

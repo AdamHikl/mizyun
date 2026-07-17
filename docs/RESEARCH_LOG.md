@@ -391,3 +391,38 @@ The smallest vertical slice that lets a Mizyun mobile client read and update the
 - `tsconfig.json` updates: `packages/core`, `packages/memory`, `packages/identity`, `packages/agent-runtime`, `packages/adapters/supabase-server` all switched to `moduleResolution: "Bundler"` so the leaf packages accept extensionless internal imports.
 - `status.md`: PROF-001 marked done; GOAL-001 surfaced as next.
 - `backlog.md`: PROF-001 row flipped from blocked to done.
+
+## 2026-07-17 — Goal vertical slice (GOAL-001)
+
+### Scope
+
+Smallest viable goal read/write surface so a Mizyun mobile client can list, create, and update a user's fitness goal. The pre-existing `public.goals` migration already has the schema, RLS, and the `goal_id` plumbing; the segment owns the wire contract, the domain rules, and the API routes.
+
+### Primary sources
+
+- Existing migration: `supabase/migrations/20260714101000_user_data.sql` (the `public.goals` table with `kind text`, `status` constrained to `'draft' | 'active' | 'completed' | 'archived'`, and `target jsonb`).
+- PROF-001 contract split (`packages/contracts/src/index.ts`) — the same three-layer pattern (wire / domain / route mapping) applies.
+- Goal-state-machine conventions in fitness apps: a goal moves from `draft` → `active` → `completed`/`archived`; transitions the other way are not allowed.
+
+### Findings used
+
+- The existing SQL `kind text` and `target jsonb` are intentionally open. The wire schema in `@mizyun/contracts` adds the closed `GoalKind = "cut" | "recomp" | "maintain"` and the typed `GoalTarget = { weightKg, bodyFatPercent? }` so the API surface is closed even before a follow-up SQL migration tightens the constraint. The route layer is the only place that maps the closed union onto the open column.
+- The status state-machine is enforced in the domain layer (`ALLOWED_STATUS_TRANSITIONS`), not in SQL. `completed` and `archived` are terminal; `draft → active` and `active → {completed, archived}` are the only legal transitions. Re-activating a completed goal requires creating a new goal — which preserves the chronological history that `GET /v1/goals/history` returns.
+- The "at most one active goal per user" invariant is enforced by the repository today; the SQL implementation will use a partial unique index `(user_id) WHERE status = 'active'` once the Supabase adapter lands. The in-memory implementation throws when a user tries to create a second active goal; the route maps the throw to a 409 `VALIDATION_ERROR` so the contract stays the same.
+- The patch body is closed under `goalPatchSchema.strict()` so a typo (`status: "complete"` instead of `"completed"`) is rejected at the wire boundary, not silently dropped. The domain `validateGoalPatch` then checks the transition table and shape constraints; the route is the only place that knows how to translate a `GoalValidationError` into a `apiErrorSchema.code`.
+- Status transitions that are not in the table produce a 409 (Conflict), not a 422 (Unprocessable Entity), because the request is well-formed but conflicts with the resource state. The route layer is the only place this mapping lives.
+- The repository enforces user ownership: `update()` requires `goal.userId === userId`, and `getHistory()` returns only the verified user's goals. Cross-user isolation is verified by the route test "returns 404 for a goal id that belongs to another user" — the route never discloses that the goal exists.
+
+### Result
+
+- `packages/contracts/src/index.ts`: new `goalKindSchema`, `goalPaceSchema`, `goalStatusSchema`, `goalTargetSchema`, `goalSchema`, `goalCreateSchema`, `goalPatchSchema`, `goalResponseSchema`, `goalHistoryResponseSchema`, plus the inferred types.
+- `packages/core/src/goal.ts`: new `GoalCore`, `StoredGoal`, `GoalPatch`, `GoalValidationError`, `ALLOWED_STATUS_TRANSITIONS`, `validateGoalCreate`, `validateGoalPatch`, `applyGoalPatch`, and the `GoalRepository` port.
+- `apps/api/src/goal-repository.ts`: `InMemoryGoalRepository` (the only implementation until the Supabase adapter lands).
+- `apps/api/src/modules/goals/routes.ts`: `GET /v1/goals/active`, `GET /v1/goals/history`, `POST /v1/goals`, `PUT /v1/goals/:id` routes behind the existing bearer-token guard.
+- `apps/api/src/modules/goals/routes.test.ts`: 14 vitest cases (active goal 404, 401, create happy-path, create rejects invalid dates, weights, body fat, unknown fields, second active returns 409, transition happy-path, invalid transition returns 409, unknown id returns 404, cross-user id returns 404, malformed id returns 404, history empty/non-empty).
+- `packages/core/src/goal.test.ts`: 25 vitest cases covering the state-machine table, every validation branch, and `applyGoalPatch` for both clears and preserves.
+- `apps/api/src/app.ts`: `AppDependencies.goalRepository` is now an optional dependency that falls back to the in-memory implementation; tests can inject a stub.
+- `status.md`: GOAL-001 done; UX-001 surfaced as next.
+- `backlog.md`: GOAL-001 row flipped from blocked to done.
+
+Verified: pnpm check green; 44 api always-runs + 16 mobile + 41 core + ~50 package tests pass.
