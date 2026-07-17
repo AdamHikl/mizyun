@@ -22,3 +22,20 @@ export interface Clock {
 export const systemClock: Clock = {
   now: () => new Date(),
 };
+
+export {
+  applyProfilePatch,
+  validateProfilePatch,
+  HEIGHT_CM_MIN,
+  HEIGHT_CM_MAX,
+  BIRTH_YEAR_MIN,
+  DEFAULT_TIMEZONE,
+  DEFAULT_UNIT_SYSTEM,
+  DISPLAY_NAME_MAX,
+  type ProfileCore,
+  type ProfilePatch,
+  type ProfileRepository,
+  type ProfileValidationError,
+  type StoredProfile,
+  type UnitSystem,
+} from "./profile";

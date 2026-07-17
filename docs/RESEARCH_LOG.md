@@ -356,3 +356,38 @@ Supabase Storage signed-URL contract, the local CLI's signed-URL endpoint shape,
 - New `SEC-002: signed URLs are scoped to the verified owner and reject other users` test in the same file: A signs up + confirms + uploads `/private-media/<userA>/a-photo.jpg`, B signs up + confirms. The test asserts A can sign, B cannot sign A's path, B cannot enumerate a guessed path under A's folder, and a non-existent bucket is rejected with no `signedURL` returned.
 - Verified locally: 5/5 e2e tests pass against the running local Supabase (the new SEC-002 case included).
 - `status.md` and `backlog.md` updated.
+
+## 2026-07-17 — Profile domain slice (PROF-001)
+
+### Scope
+
+The smallest vertical slice that lets a Mizyun mobile client read and update the verified user's profile. The pre-existing `public.profiles` migration already has the schema, RLS, and an `on_auth_user_created` trigger that creates the row, so this segment owns the wire contract, the domain rules, and the API route — the Supabase adapter and the mobile UI land in the next segment.
+
+### Primary sources
+
+- Existing migration: `supabase/migrations/20260714100000_foundation.sql` (the `public.profiles` table and its RLS policies).
+- Trigger: `supabase/migrations/20260714104000_auth_profile_trigger.sql`.
+- Existing API conventions: `apps/api/src/modules/identity/routes.ts` (parses its response through the wire Zod schema before returning, mirroring the pattern below) and `apps/api/src/plugins/authentication.ts` (the bearer-token guard and the `apiErrorSchema` envelope).
+
+### Findings used
+
+- The profile schema already exists in Postgres with the right shape (`display_name`, `unit_system` as a closed enum, `timezone`, `birth_year`, `height_cm`, audit timestamps). The new wire contract in `@mizyun/contracts` mirrors those constraints at the API boundary so the producer can re-parse its own response and fail closed on shape drift, the same way `/v1/me` already does.
+- The schema is split across three layers on purpose. `@mizyun/contracts` owns the wire shape (Zod, ISO timestamps, nullable fields). `@mizyun/core` owns the domain types and the validation rules (`HEIGHT_CM_MIN`, `BIRTH_YEAR_MIN`, the closed `UnitSystem` union). The route in `apps/api/src/modules/profile/routes.ts` is the only place that knows how to translate a domain `ProfileValidationError` into a wire `apiErrorSchema` body. A future contributor adding a new field must touch the three layers in that order.
+- `exactOptionalPropertyTypes: true` plus Zod's `.optional()` produces `T | undefined` in the inferred type, not `T | undefined` assignable to `T?`. To make the route pass the parsed Zod body directly to `applyProfilePatch` without a cast, the domain `ProfilePatch` declares every field as `T | undefined` explicitly. This keeps the boundary clean under strict TS without runtime casts.
+- `ProfileRepository` is a port (`@mizyun/core`). The in-memory implementation in `apps/api/src/profile-repository.ts` is the only implementation for now. The Supabase adapter is intentionally deferred to a follow-up segment because it needs a verified RLS story for the profile row that the existing path tests already cover — the port lets the route ship before the adapter exists.
+- The route reads the verified principal via `request.principal` (set by the existing `authenticationPlugin`) and uses the principal's `userId` as the only acceptable storage key. The repository defensively checks `next.userId === userId` in `update()` so a future bug that produces a mismatch fails closed with an error rather than writing to another user's row.
+- The `auto-create on first read` policy absorbs the trigger-vs-client race. If a client polls `/v1/profile` before GoTrue's `on_auth_user_created` trigger fires, `getOrCreate` returns a default profile. The SQL trigger will eventually write the same default row, and the `unique (id)` constraint makes the race idempotent at the storage layer.
+- For Metro / iOS bundle: `packages/core/src/index.ts` exports `./profile` (extensionless) and `packages/core/tsconfig.json` uses `moduleResolution: "Bundler"`. The other leaf packages (`memory`, `identity`, `agent-runtime`, `adapters/supabase-server`) were also flipped to `Bundler` because they import types from `@mizyun/core` and would otherwise force a `.js` extension that Metro cannot resolve. This matches the precedent set by `@mizyun/config` in CFG-001.
+
+### Result
+
+- `packages/contracts/src/index.ts`: new `profileSchema`, `profileResponseSchema`, `profilePatchSchema`, `unitSystemSchema`, plus the inferred types.
+- `packages/core/src/profile.ts`: new `ProfileCore`, `StoredProfile`, `ProfilePatch`, `ProfileValidationError`, `ProfileRepository` port, and the `validateProfilePatch` / `applyProfilePatch` pure helpers.
+- `apps/api/src/profile-repository.ts`: `InMemoryProfileRepository` (the only implementation until the Supabase adapter lands).
+- `apps/api/src/modules/profile/routes.ts`: `GET /v1/profile` (auto-create) and `PUT /v1/profile` (partial update via `profilePatchSchema`, validated by `validateProfilePatch`, applied via `applyProfilePatch`).
+- `apps/api/src/modules/profile/routes.test.ts`: 10 vitest cases (GET happy path, GET 401 without token, GET 401 invalid token, GET isolation, PUT single-field patch, PUT empty patch, PUT out-of-range height, PUT unknown field, PUT invalid unit system, PUT clear-nullable).
+- `packages/core/src/profile.test.ts`: 14 vitest cases (validateProfilePatch across all branches, applyProfilePatch across clears and preserves).
+- `apps/api/src/app.ts`: `AppDependencies.profileRepository` is now an optional dependency that falls back to the in-memory implementation; tests can inject a stub.
+- `tsconfig.json` updates: `packages/core`, `packages/memory`, `packages/identity`, `packages/agent-runtime`, `packages/adapters/supabase-server` all switched to `moduleResolution: "Bundler"` so the leaf packages accept extensionless internal imports.
+- `status.md`: PROF-001 marked done; GOAL-001 surfaced as next.
+- `backlog.md`: PROF-001 row flipped from blocked to done.

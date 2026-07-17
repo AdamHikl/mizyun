@@ -5,6 +5,12 @@ import {
   DisabledAgentProvider,
 } from "@mizyun/agent-runtime";
 import { createSupabaseAccessTokenVerifier } from "@mizyun/adapter-supabase-server";
+import {
+  DEFAULT_TIMEZONE,
+  DEFAULT_UNIT_SYSTEM,
+  type ProfileRepository,
+  type UserId,
+} from "@mizyun/core";
 import { loadServerConfig, type ServerConfig } from "@mizyun/config";
 import {
   RejectingAccessTokenVerifier,
@@ -15,12 +21,21 @@ import { InMemoryMemoryStore } from "@mizyun/memory";
 import { loggerConfig } from "./logging.js";
 import { coachRoutes } from "./modules/coach/routes.js";
 import { identityRoutes } from "./modules/identity/routes.js";
+import { profileRoutes } from "./modules/profile/routes.js";
 import { systemRoutes } from "./modules/system/routes.js";
 import { authenticationPlugin } from "./plugins/authentication.js";
+import { InMemoryProfileRepository } from "./profile-repository.js";
 
 export interface AppDependencies {
   readonly agent: AgentOrchestrator;
   readonly tokenVerifier: AccessTokenVerifier;
+  /**
+   * Optional. When omitted, `buildApp` falls back to the in-memory
+   * implementation. Tests that need to exercise the route layer in
+   * isolation may pass a stub; production wiring supplies the Supabase
+   * adapter (landed in a follow-up segment).
+   */
+  readonly profileRepository?: ProfileRepository;
 }
 
 const tokenVerifierFromConfig = (config: ServerConfig): AccessTokenVerifier => {
@@ -50,8 +65,21 @@ const defaultDependencies = (): AppDependencies => {
       memories: new InMemoryMemoryStore(),
     }),
     tokenVerifier: tokenVerifierFromConfig(config),
+    // Default profile repository: in-memory. The Supabase adapter lands
+    // in a follow-up segment once we have a verified RLS story for the
+    // profile row.
+    profileRepository: new InMemoryProfileRepository({
+      defaultTimezone: DEFAULT_TIMEZONE,
+      defaultUnitSystem: DEFAULT_UNIT_SYSTEM,
+    }),
   };
 };
+
+/**
+ * Re-export `UserId` so app composition root callers can cast string
+ * principals without importing the upstream type.
+ */
+export type { UserId };
 
 export const buildApp = (
   dependencies: AppDependencies = defaultDependencies(),
@@ -89,6 +117,15 @@ export const buildApp = (
   });
   void app.register(systemRoutes, { prefix: "/v1" });
   void app.register(identityRoutes, { prefix: "/v1" });
+  void app.register(profileRoutes, {
+    prefix: "/v1/profile",
+    profileRepository:
+      dependencies.profileRepository ??
+      new InMemoryProfileRepository({
+        defaultTimezone: DEFAULT_TIMEZONE,
+        defaultUnitSystem: DEFAULT_UNIT_SYSTEM,
+      }),
+  });
   void app.register(coachRoutes, {
     prefix: "/v1/coach",
     agent: dependencies.agent,

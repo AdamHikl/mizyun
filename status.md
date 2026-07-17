@@ -4,9 +4,9 @@
 
 ## Snapshot
 
-- **Roadmap phase:** Phase 1 — backend environment and authenticated data boundary
-- **Completed work package:** SEC-002 complete private-media isolation tests
-- **Next active work package:** AND-001 configure and verify Android emulator
+- **Roadmap phase:** Phase 2 — onboarding, profile, and goals
+- **Completed work package:** PROF-001 profile domain/repository/API slice
+- **Next active work package:** GOAL-001 goal model, validation, and history
 - **Branch:** `main`
 - **Remote:** `https://github.com/AdamHikl/mizyun`
 - **Repository:** `/Users/adam/Documents/mizyun`
@@ -37,6 +37,7 @@
 - Recovery and confirmation deep-link flows: `@mizyun/identity` exposes a `DeepLinkPayload` union, a `parseDeepLinkFragment` helper, and three new `AuthClient` methods (`consumeDeepLink`, `updatePassword`, `requestPasswordRecovery`). The Supabase mobile adapter implements them via `supabase.auth.setSession`, `updateUser`, and `resetPasswordForEmail`. A top-level `DeepLinkBridge` in `_layout.tsx` consumes `Linking.getInitialURL` and `Linking.addEventListener("url", ...)` so cold-start and warm-start deep links both reach the auth boundary. The SessionGate shows a new `ResetPasswordScreen` when `recoveryState === true`. Opt-in e2e suite exercises the full recovery round-trip against the running local Supabase: 4/4 tests pass.
 - Safe API logging baseline: `apps/api/src/logging.ts` centralises the pino redact list (Authorization, cookie, body.password/email/token/access_token/refresh_token/session, response set-cookie), request/response serializers that include headers and cookies so the redaction is observable, and a `safeErrorSerializer` that strips `error.cause` and `error.errors` chains. `apps/api/src/errors.ts` owns the `apiErrorSchema` envelope via `sendApiError` and `internalErrorBody` helpers plus a typed `ApiErrorCode` union. Both the global error handler and the authentication plugin now route through these helpers. 10 logging tests + 5 envelope tests pass; runtime tests assert no Bearer token / throw-token / downstream cause secret ever reaches the log line, and the pino censor string `[Redacted]` does.
 - Private-media signed-URL isolation (SEC-002): the opt-in `apps/api/src/auth.e2e.test.ts` suite gained a `SEC-002: signed URLs are scoped to the verified owner and reject other users` case. It signs up two confirmed users (A and B), uploads an object under `/private-media/<userA>/a-photo.jpg`, then asserts that (i) A can sign their own path, (ii) B cannot sign A's path, (iii) B cannot enumerate a guessed path inside A's folder, and (iv) a non-existent bucket is rejected. No `signedURL` ever appears in a cross-user response body.
+- Profile vertical slice (PROF-001): the new `/v1/profile` API route is live. `GET /v1/profile` returns the verified user's profile (auto-creating a default row on first read so the trigger-vs-client race is absorbed). `PUT /v1/profile` accepts a partial patch parsed through `profilePatchSchema`, validated by the domain layer in `@mizyun/core`, and applied via `applyProfilePatch`. All four profile fields (displayName, unitSystem, timezone, birthYear, heightCm) are bounded; nullable fields clear when the patch sets them to `null`. 14 core domain tests + 10 API route tests cover every branch of the patch lifecycle. The `ProfileRepository` port has one in-memory implementation today; the Supabase adapter is the next segment.
 
 ## Verification evidence
 
@@ -99,13 +100,15 @@ Until this is resolved:
 
 ## Next exact work package
 
-### AND-001 — Android emulator configuration and verification
+### GOAL-001 — goal model, validation, and history
 
 1. Read `AGENTS.md`, `goals.md`, `plan.md`, this file, and `docs/QUALITY_GATES.md`.
-2. Verify the Android emulator (or a physical Android device) can boot the Expo SDK 57 app at parity with the iOS simulator.
-3. Run the AUTH-001 / AUTH-002 / AUTH-003 manual paths on Android and capture any platform-specific deltas (permission dialogs, deep-link handler registration, SecureStore availability, deep-link intent filters).
-4. Update `docs/AUTH_VERIFICATION.md` (or a new `docs/ANDROID_VERIFICATION.md`) with the Android-specific steps and any Android-only configuration changes (e.g. `intentFilters` in `app.json`).
-5. Run `pnpm check`, `git diff --check`, then update this handoff.
+2. Add `public.goals` schema (already migrated) wire contract in `@mizyun/contracts` and domain rules in `@mizyun/core`: the closed `goal_kind` enum, the `goal_target` value range per kind, the `pace_preference` enum, and the active-goal predicate (only one primary goal at a time).
+3. Add the `GoalRepository` port (in `@mizyun/core`) and an in-memory implementation. Add `GET /v1/goals` and `POST /v1/goals` routes that close-over the verified principal.
+4. Add a `goal_history` table or table-like view for the chronological record (a goal change must not destroy the previous one — `update_at`-scoped soft history).
+5. Tests: 14+ domain cases, 8+ route cases (auto-create default, patch, history append), and an isolation pgTAP case that proves user B cannot see user A's history rows.
+6. Update `docs/AUTH_VERIFICATION.md` (or a new `docs/PROFILE_GOAL_VERIFICATION.md`) with the manual iOS path: sign up → land on dashboard → tap the Goals tab → set a primary goal → confirm it persists across restart.
+7. Run `pnpm check`, `git diff --check`, then update this handoff.
 
 ## Commands
 

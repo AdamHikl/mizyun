@@ -29,7 +29,7 @@
 
 | ID        | Priority | Status   | Work item                                    | Dependency                 |
 | --------- | -------- | -------- | -------------------------------------------- | -------------------------- |
-| PROF-001  | P1       | blocked  | Profile domain/repository/API slice          | Phase 1 isolation baseline |
+| PROF-001  | P1       | done     | Profile domain/repository/API slice          | Phase 1 isolation baseline |
 | GOAL-001  | P1       | blocked  | Goal model, validation, and history          | PROF-001                   |
 | UX-001    | P1       | blocked  | New-user onboarding flow                     | PROF-001, GOAL-001         |
 | NUT-001   | P1       | blocked  | Manual food CRUD vertical slice              | Phase 1 repositories       |
