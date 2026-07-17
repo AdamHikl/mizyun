@@ -85,6 +85,15 @@ export class InMemoryProfileRepository implements ProfileRepository {
     this.#byUser.set(profile.userId, profile);
   }
 
+  /**
+   * Test-only helper that drops a profile by user id. Used by the
+   * DATA-001 account deletion path. Production uses the SQL FK
+   * cascade (`auth.users` delete) instead.
+   */
+  async deleteForTest(userId: UserId): Promise<void> {
+    this.#byUser.delete(userId);
+  }
+
   /** Test-only helper: current clock snapshot. */
   __now(): Date {
     return this.#clock.now();

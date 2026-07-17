@@ -1,12 +1,12 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-07-15**.
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-07-17**.
 
 ## Snapshot
 
 - **Roadmap phase:** Phase 2 — onboarding, profile, and goals
-- **Completed work package:** UX-001 new-user onboarding flow
-- **Next active work package:** NUT-001 manual food CRUD vertical slice
+- **Completed work package:** DATA-001 export + deletion lifecycle
+- **Next active work package:** ENG-001 energy-formula research (or MEDIA-001 upload/sign/delete adapter)
 - **Branch:** `main`
 - **Remote:** `https://github.com/AdamHikl/mizyun`
 - **Repository:** `/Users/adam/Documents/mizyun`
@@ -40,6 +40,12 @@
 - Profile vertical slice (PROF-001): the new `/v1/profile` API route is live. `GET /v1/profile` returns the verified user's profile (auto-creating a default row on first read so the trigger-vs-client race is absorbed). `PUT /v1/profile` accepts a partial patch parsed through `profilePatchSchema`, validated by the domain layer in `@mizyun/core`, and applied via `applyProfilePatch`. All four profile fields (displayName, unitSystem, timezone, birthYear, heightCm) are bounded; nullable fields clear when the patch sets them to `null`. 14 core domain tests + 10 API route tests cover every branch of the patch lifecycle. The `ProfileRepository` port has one in-memory implementation today; the Supabase adapter is the next segment.
 - Goal vertical slice (GOAL-001): the new `/v1/goals` API surface is live. `GET /v1/goals/active` returns the user's current active goal (404 if none). `GET /v1/goals/history` returns the full chronological record newest-first. `POST /v1/goals` creates a new active goal with server-generated `id`, `status` (always `active`), and audit timestamps; rejects unknown fields via `goalCreateSchema.strict()`. `PUT /v1/goals/:id` applies a partial patch with status-transition rules (draft → active/archived, active → completed/archived; completed and archived are terminal). All five patchable fields (`status`, `pace`, `target`, `targetDate`, `reviewDate`) are validated by the domain layer in `@mizyun/core`. 25 core domain tests + 14 API route tests cover every branch including cross-user isolation. The `GoalRepository` port has one in-memory implementation today; the SQL partial-unique-index adapter lands in a follow-up segment.
 - Onboarding flow (UX-001): the new `OnboardingScreen` walks a fresh user through welcome → displayName → units → primaryGoal in four steps. The wizard reducer (`apps/mobile/src/features/onboarding/onboarding-state.ts`) is pure and vitest-covered (23 cases); the submit function (`submit-onboarding.ts`) sequences a `PUT /v1/profile` then a `POST /v1/goals` through `apiClient` and humanises every `ApiError.kind` into a retryable message (8 vitest cases). The `AuthContext` now carries `profile` and `refreshProfile()` so the `SessionGate` routes any user with `profile.displayName === null` into the wizard, and flips back to the regular tabs once `refreshProfile()` returns the freshly-set displayName.
+- Manual food CRUD + daily summary (NUT-001, NUT-002): `/v1/food-entries` covers create / list / get / patch / delete with `from`/`to`/`limit` range filtering. `/v1/food-entries/summary?date=` returns a single-day aggregate, `?from=&to=` returns a per-day array. Numeric totals are nullable when any entry on the day has a null for the field — the UI prompts to backfill rather than report a misleading zero. 33 core + 38 API tests.
+- Custom exercise CRUD (EX-001): `/v1/exercises` covers the standard CRUD. List returns sorted by name (case-insensitive) for a stable picker. 22 core + 24 API tests.
+- Workout sessions (WO-001): `/v1/workouts` covers CRUD with the same `from`/`to`/`limit` filter shape as food entries. An in-flight workout has `completedAt: null`; setting `completedAt: null` re-opens a finished workout. The schema rejects `completedAt < startedAt`. 26 core + 22 API tests.
+- Body measurements (BODY-001): `/v1/body-measurements` is append-only — POST + GET (list with range filter) + GET-by-id + DELETE. No PUT. `weightKg` is bounded to `[30, 250]`; the open `measurements` JSONB blob accepts arbitrary attributes (waist_cm, chest_cm, etc.). 10 core + 19 API tests.
+- Workout sets + previous-performance (WO-002): `/v1/workouts/:workoutId/sets` covers POST/GET/DELETE for sets; the route server-generates `sequence` when the client omits it. `/v1/exercises/:exerciseId/recent-sets` returns the user's recent sets plus a summary block (best load, last session volume, total set count). Sets are immutable observations. 21 core + 16 API tests.
+- Account export + deletion (DATA-001): `/v1/account/export` returns a single JSON envelope covering every Phase 2 feature (profile, goals, food entries, exercises, workouts, workout sets, body measurements; `conversations` and `privateMedia` reserved for the CONV-* / MEDIA-* segments). `/v1/account/delete/request` issues a 5-minute opaque confirmation token; `/v1/account` accepts it and orchestrates a children-before-parents cascade across every per-feature repository. The token is single-use (retry returns 409 with `confirmation_token_missing`). 10 API tests cover the read path, the request/confirm flow, mismatched tokens, expired challenges, and the cascade effect on the partition. Research log: `docs/RESEARCH_LOG.md` `2026-07-17 — DATA-001 export + deletion lifecycle`.
 
 ## Verification evidence
 

@@ -458,3 +458,40 @@ Smallest viable mobile onboarding sequence so a fresh Mizyun user can set a disp
 - `status.md` / `backlog.md` — UX-001 done; NUT-001 surfaced as next.
 
 Verified: pnpm check green; 47 mobile + 44 api always-runs + ~70 package tests pass.
+
+## 2026-07-17 — DATA-001 export + deletion lifecycle
+
+### Question
+
+How should Mizyun expose the AUTH-04 export and full account-deletion lifecycle, given that every Phase 2 feature now owns user data and the production storage layer is SQL with FK cascades?
+
+### Decisions
+
+- **Two-step deletion (POST then DELETE).** A POST `/v1/account/delete/request` issues a short-lived (5 min) opaque confirmation token; a DELETE `/v1/account` confirms. A misclick without a valid token returns 409 with the typed `AccountDeletionError` (`confirmation_token_missing` / `_expired` / `_mismatch`). The two-step shape is the documented safety mechanism; a single DELETE button is too easy to misclick.
+- **Single export envelope.** `GET /v1/account/export` returns one JSON document: `{ userId, generatedAt, profile, goals, foodEntries, exercises, workouts, workoutSets, bodyMeasurements, conversations, privateMedia }`. Every Phase 2 feature is represented; `conversations` and `privateMedia` carry empty arrays until the CONV-* / MEDIA-* segments land so the envelope shape is stable.
+- **`AccountRepository` port in `@mizyun/core`.** It owns `exportForUser`, `issueDeletionChallenge`, and `deleteUser`. The port is pure (no SDK, no transport). Adapters implement it; the in-memory adapter orchestrates the per-feature repositories.
+- **Children-before-parents deletion order.** workout_sets → workouts → exercises → food_entries → body_measurements → goals → profile. SQL cascades through the migration's `ON DELETE CASCADE` clauses; the Supabase adapter (future) deletes `auth.users` last. The in-memory adapter walks each partition and deletes every row.
+- **GoalRepository `delete` + ProfileRepository `deleteForTest`.** Goal deletion was previously not exposed; the in-memory adapter now supports it for the cascade path. Profile cleanup uses a test-only `deleteForTest`; a future segment promotes both to the public port.
+- **Token is consumed before deletion.** A retry of the same DELETE returns `confirmation_token_missing`, so a transient network error cannot accidentally trigger two cascades.
+- **Auto-create profile is preserved.** The export endpoint auto-creates a default profile on read (existing behaviour). After deletion, the next export creates a fresh default profile — the partition entry is gone. Test asserts `displayName === null` rather than row absence.
+
+### Files
+
+- `packages/core/src/account.ts`, `packages/core/src/account.test.ts` (read-side + port tests).
+- `packages/contracts/src/account.ts` — `accountExportSchema`, `accountDeleteSchema`, `accountDeleteResponseSchema`, `accountDeleteChallengeResponseSchema`.
+- `apps/api/src/account-repository.ts` — `InMemoryAccountRepository`.
+- `apps/api/src/modules/account/routes.ts` — `GET /account/export`, `POST /account/delete/request`, `DELETE /account`.
+- `apps/api/src/goal-repository.ts` — `delete` method added.
+- `apps/api/src/profile-repository.ts` — `deleteForTest` helper added.
+- `apps/api/src/app.ts` — per-feature repositories resolved once, then passed into a default `InMemoryAccountRepository`.
+- `apps/api/src/modules/account/routes.test.ts` — 10 vitest cases.
+
+### What's deliberately not in DATA-001
+
+- **Wiping `auth.users`.** The Supabase admin call to delete the user identity lives behind the hosted Supabase integration (not yet wired). When that lands, the SQL cascades take over; the in-memory adapter orchestrates the same logical order.
+- **GDPR export of conversations + memories + private-media bytes.** The envelope reserves slots (`conversations`, `privateMedia`) but the per-feature list endpoints are not yet public. A dedicated CONV-* / MEM-* / MEDIA-* segment fills them.
+- **Audit log of the deletion event.** A future segment writes a one-way hash of the deletion request to a tamper-evident log so a user can prove "yes I asked for this on date X" without retaining identifiable content.
+
+### Verified
+
+pnpm check green: 47 mobile + 173 api + 153 core + ~110 package tests. Backlog row DATA-001 flipped to `done` with the open follow-ups above.

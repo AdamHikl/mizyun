@@ -32,17 +32,17 @@
 | PROF-001  | P1       | done     | Profile domain/repository/API slice          | Phase 1 isolation baseline |
 | GOAL-001  | P1       | done     | Goal model, validation, and history          | PROF-001                   |
 | UX-001    | P1       | done     | New-user onboarding flow                     | PROF-001, GOAL-001         |
-| NUT-001   | P1       | blocked  | Manual food CRUD vertical slice              | Phase 1 repositories       |
-| NUT-002   | P1       | blocked  | Daily macro/calorie summary                  | NUT-001                    |
+| NUT-001   | P1       | done     | Manual food CRUD vertical slice              | Phase 1 repositories       |
+| NUT-002   | P1       | done     | Daily macro/calorie summary                  | NUT-001                    |
 | ENG-001   | P1       | research | Select/version deterministic energy formulas | Profile/goal requirements  |
 | ENG-002   | P1       | blocked  | Energy target and balance engine             | ENG-001, NUT-002           |
-| EX-001    | P1       | blocked  | Custom exercise CRUD                         | Phase 1 repositories       |
-| WO-001    | P1       | blocked  | Workout templates and sessions               | EX-001                     |
-| WO-002    | P1       | blocked  | Set logging and previous-performance view    | WO-001                     |
-| BODY-001  | P1       | blocked  | Weight/measurement tracking and trends       | Profile vertical slice     |
+| EX-001    | P1       | done     | Custom exercise CRUD                         | Phase 1 repositories       |
+| WO-001    | P1       | done     | Workout templates and sessions               | EX-001                     |
+| WO-002    | P1       | done     | Set logging and previous-performance view    | WO-001                     |
+| BODY-001  | P1       | done     | Weight/measurement tracking and trends       | Profile vertical slice     |
 | MEDIA-001 | P0       | blocked  | Private upload/sign/delete adapter           | SEC-002                    |
 | MEDIA-002 | P1       | blocked  | Progress photo timeline/comparison           | MEDIA-001                  |
-| DATA-001  | P0       | research | Define export/account deletion lifecycle     | Stable repositories/media  |
+| DATA-001  | P0       | done     | Define export/account deletion lifecycle     | Stable repositories/media  |
 
 ## Later — Phases 6–9
 

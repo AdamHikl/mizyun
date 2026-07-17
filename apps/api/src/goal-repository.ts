@@ -73,6 +73,27 @@ export class InMemoryGoalRepository implements GoalRepository {
     return goal;
   }
 
+  /**
+   * Hard-delete a goal. The route layer never exposes this; the
+   * DATA-001 account-deletion path uses it to clean up after a
+   * user wipes their account. SQL cascades through the
+   * `auth.users` FK instead.
+   */
+  async delete(id: string): Promise<boolean> {
+    // Walk the user's partitions because the index is keyed by
+    // user. Real SQL looks up by id alone (the `(id, user_id)`
+    // unique constraint is fast enough).
+    for (const [userId, list] of this.#byUser.entries()) {
+      const idx = list.findIndex((g) => g.id === id);
+      if (idx >= 0) {
+        const next = list.filter((g) => g.id !== id);
+        this.#byUser.set(userId, next);
+        return true;
+      }
+    }
+    return false;
+  }
+
   /** Test-only helper that pre-seeds a goal for a user. */
   __seedForTest(goal: StoredGoal): void {
     const list = this.#byUser.get(goal.userId) ?? [];
