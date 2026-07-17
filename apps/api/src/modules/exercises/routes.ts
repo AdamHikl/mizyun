@@ -1,0 +1,362 @@
+import type { FastifyPluginAsync } from "fastify";
+import {
+  applyExercisePatch,
+  validateExerciseCreate,
+  validateExercisePatch,
+  type ExercisePatch,
+  type ExerciseRepository,
+  type ExerciseValidationError,
+  type StoredExercise,
+} from "@mizyun/core";
+import {
+  exerciseCreateSchema,
+  exerciseListQuerySchema,
+  exerciseListResponseSchema,
+  exercisePatchSchema,
+  exerciseResponseSchema,
+  type ExerciseListResponse,
+  type ExerciseResponse,
+} from "@mizyun/contracts";
+
+import { sendApiError } from "../../errors.js";
+
+interface ExercisesRoutesOptions {
+  readonly exerciseRepository: ExerciseRepository;
+}
+
+const GENERIC_UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const DEFAULT_LIMIT = 50;
+const MAX_LIMIT = 200;
+
+/**
+ * Map a domain validation failure to the wire contract. Each
+ * `ExerciseValidationError` variant becomes a stable `code` and a
+ * human-readable message. The route is the only place this mapping
+ * lives; new error variants must be added here.
+ */
+const validationErrorToApi = (
+  error: ExerciseValidationError,
+  requestId: string,
+): {
+  status: number;
+  code: "VALIDATION_ERROR";
+  message: string;
+  requestId: string;
+} => {
+  switch (error.kind) {
+    case "empty_patch":
+      return {
+        status: 400,
+        code: "VALIDATION_ERROR",
+        message: "At least one exercise field must be present.",
+        requestId,
+      };
+    case "name_empty":
+      return {
+        status: 422,
+        code: "VALIDATION_ERROR",
+        message: "name cannot be blank.",
+        requestId,
+      };
+    case "name_too_long":
+      return {
+        status: 422,
+        code: "VALIDATION_ERROR",
+        message: `name must be at most ${error.max} characters.`,
+        requestId,
+      };
+    case "instructions_too_long":
+      return {
+        status: 422,
+        code: "VALIDATION_ERROR",
+        message: `instructions must be at most ${error.max} characters.`,
+        requestId,
+      };
+    case "metadata_must_be_object":
+      return {
+        status: 422,
+        code: "VALIDATION_ERROR",
+        message: "metadata must be a JSON object.",
+        requestId,
+      };
+  }
+};
+
+/**
+ * Convert a `StoredExercise` (`Date` timestamps, branded UserId,
+ * default-empty `metadata`) into the wire shape. The shape is parsed
+ * through the Zod contract at the producer side so any future drift
+ * is caught at the boundary.
+ */
+const toWire = (exercise: StoredExercise): ExerciseResponse =>
+  exerciseResponseSchema.parse({
+    exercise: {
+      id: exercise.id,
+      userId: exercise.userId,
+      name: exercise.name,
+      instructions: exercise.instructions,
+      metadata: { ...exercise.metadata },
+      createdAt: exercise.createdAt.toISOString(),
+      updatedAt: exercise.updatedAt.toISOString(),
+    },
+  });
+
+const listToWire = (
+  exercises: ReadonlyArray<StoredExercise>,
+): ExerciseListResponse =>
+  exerciseListResponseSchema.parse({
+    exercises: exercises.map((e) => toWire(e).exercise),
+  });
+
+export const exercisesRoutes: FastifyPluginAsync<
+  ExercisesRoutesOptions
+> = async (app, options) => {
+  // GET /v1/exercises — return the verified user's exercises,
+  // sorted by name (case-insensitive) for a stable picker
+  // experience. `limit` caps the page size.
+  app.get(
+    "/",
+    { preHandler: app.authenticate },
+    async (request, reply): Promise<ExerciseListResponse | void> => {
+      const principal = request.principal;
+      if (!principal) {
+        throw new Error("principal missing after authentication");
+      }
+      const parsed = exerciseListQuerySchema.safeParse(request.query);
+      if (!parsed.success) {
+        await sendApiError(
+          reply,
+          request,
+          422,
+          "VALIDATION_ERROR",
+          `Invalid exercise query: ${parsed.error.issues.map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`).join("; ")}`,
+        );
+        return;
+      }
+      const limit = parsed.data.limit ?? DEFAULT_LIMIT;
+      const cappedLimit = Math.min(MAX_LIMIT, Math.max(1, limit));
+      const exercises = await options.exerciseRepository.list(
+        principal.userId,
+        { limit: cappedLimit },
+      );
+      return listToWire(exercises);
+    },
+  );
+
+  // POST /v1/exercises — create a new exercise. The route
+  // server-generates `id`, `userId`, and audit timestamps.
+  app.post(
+    "/",
+    { preHandler: app.authenticate },
+    async (request, reply): Promise<ExerciseResponse | void> => {
+      const principal = request.principal;
+      if (!principal) {
+        throw new Error("principal missing after authentication");
+      }
+      const body = request.body as unknown;
+      const parsed = exerciseCreateSchema.safeParse(body);
+      if (!parsed.success) {
+        await sendApiError(
+          reply,
+          request,
+          422,
+          "VALIDATION_ERROR",
+          `Invalid exercise create: ${parsed.error.issues.map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`).join("; ")}`,
+        );
+        return;
+      }
+      const validation = validateExerciseCreate({
+        name: parsed.data.name,
+        ...(parsed.data.instructions !== undefined
+          ? { instructions: parsed.data.instructions }
+          : {}),
+        ...(parsed.data.metadata !== undefined
+          ? { metadata: parsed.data.metadata }
+          : {}),
+      });
+      if (validation !== null) {
+        const apiError = validationErrorToApi(validation, request.id);
+        await sendApiError(
+          reply,
+          request,
+          apiError.status,
+          apiError.code,
+          apiError.message,
+        );
+        return;
+      }
+      const now = new Date();
+      const id = crypto.randomUUID();
+      const stored: StoredExercise = {
+        id,
+        userId: principal.userId,
+        name: parsed.data.name,
+        instructions: parsed.data.instructions ?? null,
+        metadata: parsed.data.metadata ? { ...parsed.data.metadata } : {},
+        createdAt: now,
+        updatedAt: now,
+      };
+      const saved = await options.exerciseRepository.create(
+        principal.userId,
+        stored,
+      );
+      return toWire(saved);
+    },
+  );
+
+  // GET /v1/exercises/:id — fetch a single exercise by id. The
+  // route enforces the ownership check after the repository
+  // returns so a missing id is indistinguishable from a wrong
+  // owner (no enumeration).
+  app.get(
+    "/:id",
+    { preHandler: app.authenticate },
+    async (request, reply): Promise<ExerciseResponse | void> => {
+      const principal = request.principal;
+      if (!principal) {
+        throw new Error("principal missing after authentication");
+      }
+      const { id } = request.params as { id?: string };
+      if (typeof id !== "string" || !GENERIC_UUID.test(id)) {
+        await sendApiError(
+          reply,
+          request,
+          404,
+          "NOT_FOUND",
+          "Exercise id must be a UUID.",
+        );
+        return;
+      }
+      const stored = await options.exerciseRepository.getById(id);
+      if (stored === null || stored.userId !== principal.userId) {
+        await sendApiError(
+          reply,
+          request,
+          404,
+          "NOT_FOUND",
+          "No exercise with that id exists for this user.",
+        );
+        return;
+      }
+      return toWire(stored);
+    },
+  );
+
+  // PUT /v1/exercises/:id — partial update. Body is parsed by
+  // Zod; domain validation runs after parsing so the rejection
+  // reason carries the typed `ExerciseValidationError` shape,
+  // not a Zod issue list.
+  app.put(
+    "/:id",
+    { preHandler: app.authenticate },
+    async (request, reply): Promise<ExerciseResponse | void> => {
+      const principal = request.principal;
+      if (!principal) {
+        throw new Error("principal missing after authentication");
+      }
+      const { id } = request.params as { id?: string };
+      if (typeof id !== "string" || !GENERIC_UUID.test(id)) {
+        await sendApiError(
+          reply,
+          request,
+          404,
+          "NOT_FOUND",
+          "Exercise id must be a UUID.",
+        );
+        return;
+      }
+      const body = request.body as unknown;
+      const parsed = exercisePatchSchema.safeParse(body);
+      if (!parsed.success) {
+        await sendApiError(
+          reply,
+          request,
+          422,
+          "VALIDATION_ERROR",
+          `Invalid exercise patch: ${parsed.error.issues.map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`).join("; ")}`,
+        );
+        return;
+      }
+      const stored = await options.exerciseRepository.getById(id);
+      if (stored === null || stored.userId !== principal.userId) {
+        await sendApiError(
+          reply,
+          request,
+          404,
+          "NOT_FOUND",
+          "No exercise with that id exists for this user.",
+        );
+        return;
+      }
+      const patch: ExercisePatch = {
+        ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
+        ...(parsed.data.instructions !== undefined
+          ? {
+              instructions:
+                parsed.data.instructions === null
+                  ? null
+                  : parsed.data.instructions,
+            }
+          : {}),
+        ...(parsed.data.metadata !== undefined
+          ? { metadata: parsed.data.metadata }
+          : {}),
+      };
+      const validation = validateExercisePatch(patch);
+      if (validation !== null) {
+        const apiError = validationErrorToApi(validation, request.id);
+        await sendApiError(
+          reply,
+          request,
+          apiError.status,
+          apiError.code,
+          apiError.message,
+        );
+        return;
+      }
+      const next = applyExercisePatch(stored, patch, new Date());
+      const saved = await options.exerciseRepository.update(next);
+      return toWire(saved);
+    },
+  );
+
+  // DELETE /v1/exercises/:id — remove the exercise. The route
+  // enforces the ownership check before deleting so a missing id
+  // is indistinguishable from a wrong owner (no enumeration).
+  app.delete(
+    "/:id",
+    { preHandler: app.authenticate },
+    async (request, reply): Promise<void> => {
+      const principal = request.principal;
+      if (!principal) {
+        throw new Error("principal missing after authentication");
+      }
+      const { id } = request.params as { id?: string };
+      if (typeof id !== "string" || !GENERIC_UUID.test(id)) {
+        await sendApiError(
+          reply,
+          request,
+          404,
+          "NOT_FOUND",
+          "Exercise id must be a UUID.",
+        );
+        return;
+      }
+      const stored = await options.exerciseRepository.getById(id);
+      if (stored === null || stored.userId !== principal.userId) {
+        await sendApiError(
+          reply,
+          request,
+          404,
+          "NOT_FOUND",
+          "No exercise with that id exists for this user.",
+        );
+        return;
+      }
+      await options.exerciseRepository.delete(id);
+      void reply.status(204).send();
+    },
+  );
+};

@@ -78,3 +78,16 @@ export {
   type FoodSource,
   type StoredFoodEntry,
 } from "./food-entry";
+
+export {
+  EXERCISE_NAME_MAX,
+  INSTRUCTIONS_MAX,
+  applyExercisePatch,
+  validateExerciseCreate,
+  validateExercisePatch,
+  type ExerciseCore,
+  type ExercisePatch,
+  type ExerciseRepository,
+  type ExerciseValidationError,
+  type StoredExercise,
+} from "./exercise";

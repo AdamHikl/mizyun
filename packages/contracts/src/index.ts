@@ -326,3 +326,18 @@ export {
   type FoodEntrySummaryQuery,
   type FoodSource,
 } from "./food-entry";
+
+export {
+  exerciseCreateSchema,
+  exerciseListQuerySchema,
+  exerciseListResponseSchema,
+  exercisePatchSchema,
+  exerciseResponseSchema,
+  exerciseSchema,
+  type Exercise,
+  type ExerciseCreate,
+  type ExerciseListQuery,
+  type ExerciseListResponse,
+  type ExercisePatch,
+  type ExerciseResponse,
+} from "./exercise";
