@@ -1,17 +1,26 @@
 import { defineConfig } from "vitest/config";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
 
 /**
  * Vitest configuration for the mobile app. The default behavior would
  * pull `react-native`, `expo-secure-store`, and the Supabase mobile
  * adapter into the test bundle; those modules are not loadable outside
  * Metro. Aliasing them to empty stubs keeps composition-root tests
- * focused on selection logic without taking a runtime dependency on the
- * native runtime.
+ * focused on selection logic without taking a runtime dependency on
+ * the native runtime.
  *
  * Mirrors the React Native testing recommendations documented at
  * https://docs.expo.dev/guides/testing-unit-tests/ and the broader Expo
  * SDK 57 testing guidance.
+ *
+ * The workspace alias maps `@mizyun/*` imports to the package source
+ * so the test runner can resolve the workspace packages without a
+ * build step. The same alias is configured in `apps/mobile/tsconfig.json`
+ * for the typechecker.
  */
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+
 export default defineConfig({
   test: {
     environment: "node",
@@ -35,6 +44,29 @@ export default defineConfig({
         find: /^react-native-url-polyfill(\/.*)?$/,
         replacement: new URL("./vitest/url-polyfill-stub.ts", import.meta.url)
           .pathname,
+      },
+      // Workspace package alias — `@mizyun/core` resolves to
+      // `<repoRoot>/packages/core/src/index.ts`. Each package is
+      // listed explicitly so the alias is easy to audit.
+      {
+        find: /^@mizyun\/config$/,
+        replacement: resolve(repoRoot, "packages/config/src/index.ts"),
+      },
+      {
+        find: /^@mizyun\/contracts$/,
+        replacement: resolve(repoRoot, "packages/contracts/src/index.ts"),
+      },
+      {
+        find: /^@mizyun\/identity$/,
+        replacement: resolve(repoRoot, "packages/identity/src/index.ts"),
+      },
+      {
+        find: /^@mizyun\/core$/,
+        replacement: resolve(repoRoot, "packages/core/src/index.ts"),
+      },
+      {
+        find: /^@mizyun\/api-client$/,
+        replacement: resolve(repoRoot, "packages/api-client/src/index.ts"),
       },
     ],
   },

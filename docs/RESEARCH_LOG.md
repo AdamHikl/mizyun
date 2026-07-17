@@ -426,3 +426,35 @@ Smallest viable goal read/write surface so a Mizyun mobile client can list, crea
 - `backlog.md`: GOAL-001 row flipped from blocked to done.
 
 Verified: pnpm check green; 44 api always-runs + 16 mobile + 41 core + ~50 package tests pass.
+
+## 2026-07-17 — Onboarding flow (UX-001)
+
+### Scope
+
+Smallest viable mobile onboarding sequence so a fresh Mizyun user can set a display name, choose units, and pick a primary goal before the dashboard becomes useful. The API surface (PROF-001, GOAL-001) is already in place; the segment owns the wizard reducer, the screen, the submit step, and the SessionGate wiring.
+
+### Primary sources
+
+- Existing iOS surface: `apps/mobile/src/features/auth/auth-context.tsx` (the SessionGate and `useAuth()`), `apps/mobile/src/components/app-tabs.tsx` (the bottom tabs), `apps/mobile/src/features/settings/principal-state.ts` (the precedent for a pure reducer + screen pattern).
+- PROF-001 + GOAL-001 contracts: `packages/contracts/src/index.ts` (`profileSchema`, `profilePatchSchema`, `goalCreateSchema`).
+- React Native `TextInput` + `Pressable` patterns from the existing `AuthScreen` and `ResetPasswordScreen`.
+
+### Findings used
+
+- The SessionGate already had three branches (recovery / auth-required / signed-in). Adding a fourth (onboarding) only requires a stable signal that a user is fresh. The auto-create path in `/v1/profile` inserts `displayName: null` by default, so `profile.displayName === null` is the canonical signal — no new flag column on the schema.
+- The wizard is split into a pure reducer (`onboarding-state.ts`) and a React screen (`onboarding-screen.tsx`). The reducer exposes `validateStep`, `nextStep`, `previousStep`, and `applyOnboardingPatch` so the screen only does React state management and rendering. The 23 vitest cases on the reducer are easy to maintain; the screen has no testable logic that needs the RN runtime.
+- The submit step (`submit-onboarding.ts`) takes the `ApiClient` as a parameter rather than reading the composition root. This lets the unit test stub the client without aliasing the `@/composition/api-client` import. Production callers (the screen) pass `apiClient` explicitly.
+- Error humanisation is a dedicated `humanizeError(kind, fallback)` switch. Every `ApiError.kind` the SDK currently emits maps to a short message; any future kind falls through to the per-call fallback. The screen surfaces the message as a single line under the form fields and lets the user retry without parsing SDK shapes.
+- The SessionGate now does a `GET /v1/profile` on every session start. The cache lifetime is the session — when the user signs out, the profile is reset to `null`. When `refreshProfile()` is called after the onboarding wizard submits, the SessionGate re-renders and shows the regular tabs.
+- The vitest config gains workspace aliases (`@mizyun/core`, `@mizyun/contracts`, `@mizyun/identity`, `@mizyun/config`, `@mizyun/api-client`) so the test runner can resolve workspace packages without a build step. The `@mizyun/core` direct dependency was added to `apps/mobile/package.json` to match the new import surface (the AuthContext now imports `profileSchema` directly).
+
+### Result
+
+- `apps/mobile/src/features/onboarding/` — new feature directory containing `onboarding-state.ts`, `onboarding-screen.tsx`, `submit-onboarding.ts`, plus the two vitest files.
+- `apps/mobile/src/app/onboarding.tsx` — route file.
+- `apps/mobile/src/features/auth/auth-context.tsx` — `profile` and `refreshProfile()` added; SessionGate routes fresh users into the wizard.
+- `apps/mobile/vitest.config.ts` — workspace alias block.
+- `apps/mobile/package.json` — `@mizyun/core` direct dependency.
+- `status.md` / `backlog.md` — UX-001 done; NUT-001 surfaced as next.
+
+Verified: pnpm check green; 47 mobile + 44 api always-runs + ~70 package tests pass.

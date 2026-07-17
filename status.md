@@ -5,8 +5,8 @@
 ## Snapshot
 
 - **Roadmap phase:** Phase 2 — onboarding, profile, and goals
-- **Completed work package:** GOAL-001 goal model, validation, and history
-- **Next active work package:** UX-001 new-user onboarding flow
+- **Completed work package:** UX-001 new-user onboarding flow
+- **Next active work package:** NUT-001 manual food CRUD vertical slice
 - **Branch:** `main`
 - **Remote:** `https://github.com/AdamHikl/mizyun`
 - **Repository:** `/Users/adam/Documents/mizyun`
@@ -39,6 +39,7 @@
 - Private-media signed-URL isolation (SEC-002): the opt-in `apps/api/src/auth.e2e.test.ts` suite gained a `SEC-002: signed URLs are scoped to the verified owner and reject other users` case. It signs up two confirmed users (A and B), uploads an object under `/private-media/<userA>/a-photo.jpg`, then asserts that (i) A can sign their own path, (ii) B cannot sign A's path, (iii) B cannot enumerate a guessed path inside A's folder, and (iv) a non-existent bucket is rejected. No `signedURL` ever appears in a cross-user response body.
 - Profile vertical slice (PROF-001): the new `/v1/profile` API route is live. `GET /v1/profile` returns the verified user's profile (auto-creating a default row on first read so the trigger-vs-client race is absorbed). `PUT /v1/profile` accepts a partial patch parsed through `profilePatchSchema`, validated by the domain layer in `@mizyun/core`, and applied via `applyProfilePatch`. All four profile fields (displayName, unitSystem, timezone, birthYear, heightCm) are bounded; nullable fields clear when the patch sets them to `null`. 14 core domain tests + 10 API route tests cover every branch of the patch lifecycle. The `ProfileRepository` port has one in-memory implementation today; the Supabase adapter is the next segment.
 - Goal vertical slice (GOAL-001): the new `/v1/goals` API surface is live. `GET /v1/goals/active` returns the user's current active goal (404 if none). `GET /v1/goals/history` returns the full chronological record newest-first. `POST /v1/goals` creates a new active goal with server-generated `id`, `status` (always `active`), and audit timestamps; rejects unknown fields via `goalCreateSchema.strict()`. `PUT /v1/goals/:id` applies a partial patch with status-transition rules (draft → active/archived, active → completed/archived; completed and archived are terminal). All five patchable fields (`status`, `pace`, `target`, `targetDate`, `reviewDate`) are validated by the domain layer in `@mizyun/core`. 25 core domain tests + 14 API route tests cover every branch including cross-user isolation. The `GoalRepository` port has one in-memory implementation today; the SQL partial-unique-index adapter lands in a follow-up segment.
+- Onboarding flow (UX-001): the new `OnboardingScreen` walks a fresh user through welcome → displayName → units → primaryGoal in four steps. The wizard reducer (`apps/mobile/src/features/onboarding/onboarding-state.ts`) is pure and vitest-covered (23 cases); the submit function (`submit-onboarding.ts`) sequences a `PUT /v1/profile` then a `POST /v1/goals` through `apiClient` and humanises every `ApiError.kind` into a retryable message (8 vitest cases). The `AuthContext` now carries `profile` and `refreshProfile()` so the `SessionGate` routes any user with `profile.displayName === null` into the wizard, and flips back to the regular tabs once `refreshProfile()` returns the freshly-set displayName.
 
 ## Verification evidence
 
