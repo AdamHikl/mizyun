@@ -1,0 +1,538 @@
+import type { FastifyPluginAsync } from "fastify";
+import {
+  applyFoodEntryPatch,
+  summariseFoodEntries,
+  validateFoodEntryCreate,
+  validateFoodEntryPatch,
+  type DailyFoodSummary,
+  type FoodEntryPatch,
+  type FoodEntryRepository,
+  type FoodEntryValidationError,
+  type FoodSource,
+  type StoredFoodEntry,
+} from "@mizyun/core";
+import {
+  dailyFoodSummaryListResponseSchema,
+  dailyFoodSummaryResponseSchema,
+  foodEntryCreateSchema,
+  foodEntryListQuerySchema,
+  foodEntryListResponseSchema,
+  foodEntryPatchSchema,
+  foodEntryResponseSchema,
+  foodEntrySummaryQuerySchema,
+  type DailyFoodSummaryListResponse,
+  type DailyFoodSummaryResponse,
+  type FoodEntryListResponse,
+  type FoodEntryResponse,
+} from "@mizyun/contracts";
+
+import { sendApiError } from "../../errors.js";
+
+interface FoodEntriesRoutesOptions {
+  readonly foodEntryRepository: FoodEntryRepository;
+}
+
+const GENERIC_UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const DEFAULT_LIMIT = 50;
+const MAX_LIMIT = 200;
+
+/**
+ * Translate an ISO `YYYY-MM-DD` (UTC midnight) date filter into the
+ * inclusive instant bounds the repository expects. `from` is the
+ * start of the day in UTC; `to` is the end of the day in UTC. Both
+ * are inclusive, matching the SQL `BETWEEN` semantics.
+ */
+const isoDateToStartOfDay = (iso: string): Date => {
+  const parts = iso.split("-").map((part) => Number.parseInt(part, 10));
+  // The Zod `isoDateSchema` only accepts `YYYY-MM-DD`, so all three
+  // parts are guaranteed to be present and finite. The `as number`
+  // strips `| undefined` from `noUncheckedIndexedAccess`.
+  const [year, month, day] = parts as [number, number, number];
+  return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+};
+
+const isoDateToEndOfDay = (iso: string): Date => {
+  const parts = iso.split("-").map((part) => Number.parseInt(part, 10));
+  const [year, month, day] = parts as [number, number, number];
+  return new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+};
+
+/**
+ * Map a domain validation failure to the wire contract. Each
+ * `FoodEntryValidationError` variant becomes a stable `code` and a
+ * human-readable message. The route is the only place this mapping
+ * lives; new error variants must be added here.
+ */
+const validationErrorToApi = (
+  error: FoodEntryValidationError,
+  requestId: string,
+): {
+  status: number;
+  code: "VALIDATION_ERROR";
+  message: string;
+  requestId: string;
+} => {
+  switch (error.kind) {
+    case "empty_patch":
+      return {
+        status: 400,
+        code: "VALIDATION_ERROR",
+        message: "At least one food entry field must be present.",
+        requestId,
+      };
+    case "name_empty":
+      return {
+        status: 422,
+        code: "VALIDATION_ERROR",
+        message: "name cannot be blank.",
+        requestId,
+      };
+    case "name_too_long":
+      return {
+        status: 422,
+        code: "VALIDATION_ERROR",
+        message: `name must be at most ${error.max} characters.`,
+        requestId,
+      };
+    case "calories_out_of_range":
+      return {
+        status: 422,
+        code: "VALIDATION_ERROR",
+        message: `caloriesKcal must be between ${error.min} and ${error.max}.`,
+        requestId,
+      };
+    case "macro_out_of_range":
+      return {
+        status: 422,
+        code: "VALIDATION_ERROR",
+        message: `${error.field} must be between ${error.min} and ${error.max}.`,
+        requestId,
+      };
+    case "details_must_be_object":
+      return {
+        status: 422,
+        code: "VALIDATION_ERROR",
+        message: "details must be a JSON object.",
+        requestId,
+      };
+  }
+};
+
+/**
+ * Convert a `StoredFoodEntry` (`Date` timestamps, branded UserId,
+ * default-empty `details`) into the wire shape. The shape is parsed
+ * through the Zod contract at the producer side so any future drift
+ * is caught at the boundary.
+ */
+const toWire = (entry: StoredFoodEntry): FoodEntryResponse =>
+  foodEntryResponseSchema.parse({
+    foodEntry: {
+      id: entry.id,
+      userId: entry.userId,
+      name: entry.name,
+      consumedAt: entry.consumedAt.toISOString(),
+      caloriesKcal: entry.caloriesKcal,
+      proteinG: entry.proteinG,
+      carbohydrateG: entry.carbohydrateG,
+      fatG: entry.fatG,
+      source: entry.source,
+      confidence: entry.confidence,
+      confirmedByUser: entry.confirmedByUser,
+      details: { ...entry.details },
+      createdAt: entry.createdAt.toISOString(),
+      updatedAt: entry.updatedAt.toISOString(),
+    },
+  });
+
+const listToWire = (
+  entries: ReadonlyArray<StoredFoodEntry>,
+): FoodEntryListResponse =>
+  foodEntryListResponseSchema.parse({
+    foodEntries: entries.map((e) => toWire(e).foodEntry),
+  });
+
+export const foodEntriesRoutes: FastifyPluginAsync<
+  FoodEntriesRoutesOptions
+> = async (app, options) => {
+  // GET /v1/food-entries — return the verified user's food entries,
+  // newest-first. `from` and `to` are optional inclusive date
+  // filters in `YYYY-MM-DD` (UTC); `limit` caps the page size.
+  app.get(
+    "/",
+    { preHandler: app.authenticate },
+    async (request, reply): Promise<FoodEntryListResponse | void> => {
+      const principal = request.principal;
+      if (!principal) {
+        throw new Error("principal missing after authentication");
+      }
+      const parsed = foodEntryListQuerySchema.safeParse(request.query);
+      if (!parsed.success) {
+        await sendApiError(
+          reply,
+          request,
+          422,
+          "VALIDATION_ERROR",
+          `Invalid food entry query: ${parsed.error.issues.map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`).join("; ")}`,
+        );
+        return;
+      }
+      const from = parsed.data.from
+        ? isoDateToStartOfDay(parsed.data.from)
+        : null;
+      const to = parsed.data.to ? isoDateToEndOfDay(parsed.data.to) : null;
+      const limit = parsed.data.limit ?? DEFAULT_LIMIT;
+      // The Zod schema caps `limit` at MAX_LIMIT; default below.
+      const cappedLimit = Math.min(MAX_LIMIT, Math.max(1, limit));
+      const entries = await options.foodEntryRepository.list(principal.userId, {
+        from,
+        to,
+        limit: cappedLimit,
+      });
+      return listToWire(entries);
+    },
+  );
+
+  // POST /v1/food-entries — create a new manual food entry. The
+  // route server-generates `id`, `userId`, audit timestamps,
+  // `source` (always "manual" in v1), `confirmedByUser` (always
+  // true for user-created entries), and `confidence` (always null
+  // for manual). `consumedAt` defaults to now when omitted.
+  app.post(
+    "/",
+    { preHandler: app.authenticate },
+    async (request, reply): Promise<FoodEntryResponse | void> => {
+      const principal = request.principal;
+      if (!principal) {
+        throw new Error("principal missing after authentication");
+      }
+      const body = request.body as unknown;
+      const parsed = foodEntryCreateSchema.safeParse(body);
+      if (!parsed.success) {
+        await sendApiError(
+          reply,
+          request,
+          422,
+          "VALIDATION_ERROR",
+          `Invalid food entry create: ${parsed.error.issues.map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`).join("; ")}`,
+        );
+        return;
+      }
+      const consumedAt = parsed.data.consumedAt
+        ? new Date(parsed.data.consumedAt)
+        : new Date();
+      const validation = validateFoodEntryCreate({
+        name: parsed.data.name,
+        consumedAt,
+        ...(parsed.data.caloriesKcal !== undefined
+          ? { caloriesKcal: parsed.data.caloriesKcal }
+          : {}),
+        ...(parsed.data.proteinG !== undefined
+          ? { proteinG: parsed.data.proteinG }
+          : {}),
+        ...(parsed.data.carbohydrateG !== undefined
+          ? { carbohydrateG: parsed.data.carbohydrateG }
+          : {}),
+        ...(parsed.data.fatG !== undefined ? { fatG: parsed.data.fatG } : {}),
+        ...(parsed.data.details !== undefined
+          ? { details: parsed.data.details }
+          : {}),
+      });
+      if (validation !== null) {
+        const apiError = validationErrorToApi(validation, request.id);
+        await sendApiError(
+          reply,
+          request,
+          apiError.status,
+          apiError.code,
+          apiError.message,
+        );
+        return;
+      }
+      const now = new Date();
+      const id = crypto.randomUUID();
+      const stored: StoredFoodEntry = {
+        id,
+        userId: principal.userId,
+        source: "manual" as FoodSource,
+        confidence: null,
+        confirmedByUser: true,
+        name: parsed.data.name,
+        consumedAt,
+        caloriesKcal: parsed.data.caloriesKcal ?? null,
+        proteinG: parsed.data.proteinG ?? null,
+        carbohydrateG: parsed.data.carbohydrateG ?? null,
+        fatG: parsed.data.fatG ?? null,
+        details: parsed.data.details ? { ...parsed.data.details } : {},
+        createdAt: now,
+        updatedAt: now,
+      };
+      const saved = await options.foodEntryRepository.create(
+        principal.userId,
+        stored,
+      );
+      return toWire(saved);
+    },
+  );
+
+  // GET /v1/food-entries/:id — fetch a single entry by id. The
+  // route enforces the ownership check after the repository
+  // returns so a missing id is indistinguishable from a wrong
+  // owner (no enumeration).
+  app.get(
+    "/:id",
+    { preHandler: app.authenticate },
+    async (request, reply): Promise<FoodEntryResponse | void> => {
+      const principal = request.principal;
+      if (!principal) {
+        throw new Error("principal missing after authentication");
+      }
+      const { id } = request.params as { id?: string };
+      if (typeof id !== "string" || !GENERIC_UUID.test(id)) {
+        await sendApiError(
+          reply,
+          request,
+          404,
+          "NOT_FOUND",
+          "Food entry id must be a UUID.",
+        );
+        return;
+      }
+      const stored = await options.foodEntryRepository.getById(id);
+      if (stored === null || stored.userId !== principal.userId) {
+        await sendApiError(
+          reply,
+          request,
+          404,
+          "NOT_FOUND",
+          "No food entry with that id exists for this user.",
+        );
+        return;
+      }
+      return toWire(stored);
+    },
+  );
+
+  // PUT /v1/food-entries/:id — partial update. Body is parsed by
+  // Zod; domain validation runs after parsing so the rejection
+  // reason carries the typed `FoodEntryValidationError` shape,
+  // not a Zod issue list.
+  app.put(
+    "/:id",
+    { preHandler: app.authenticate },
+    async (request, reply): Promise<FoodEntryResponse | void> => {
+      const principal = request.principal;
+      if (!principal) {
+        throw new Error("principal missing after authentication");
+      }
+      const { id } = request.params as { id?: string };
+      if (typeof id !== "string" || !GENERIC_UUID.test(id)) {
+        await sendApiError(
+          reply,
+          request,
+          404,
+          "NOT_FOUND",
+          "Food entry id must be a UUID.",
+        );
+        return;
+      }
+      const body = request.body as unknown;
+      const parsed = foodEntryPatchSchema.safeParse(body);
+      if (!parsed.success) {
+        await sendApiError(
+          reply,
+          request,
+          422,
+          "VALIDATION_ERROR",
+          `Invalid food entry patch: ${parsed.error.issues.map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`).join("; ")}`,
+        );
+        return;
+      }
+      const stored = await options.foodEntryRepository.getById(id);
+      if (stored === null || stored.userId !== principal.userId) {
+        await sendApiError(
+          reply,
+          request,
+          404,
+          "NOT_FOUND",
+          "No food entry with that id exists for this user.",
+        );
+        return;
+      }
+      const patch: FoodEntryPatch = {
+        ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
+        ...(parsed.data.consumedAt !== undefined
+          ? { consumedAt: new Date(parsed.data.consumedAt) }
+          : {}),
+        ...(parsed.data.caloriesKcal !== undefined
+          ? {
+              caloriesKcal:
+                parsed.data.caloriesKcal === null
+                  ? null
+                  : parsed.data.caloriesKcal,
+            }
+          : {}),
+        ...(parsed.data.proteinG !== undefined
+          ? {
+              proteinG:
+                parsed.data.proteinG === null ? null : parsed.data.proteinG,
+            }
+          : {}),
+        ...(parsed.data.carbohydrateG !== undefined
+          ? {
+              carbohydrateG:
+                parsed.data.carbohydrateG === null
+                  ? null
+                  : parsed.data.carbohydrateG,
+            }
+          : {}),
+        ...(parsed.data.fatG !== undefined
+          ? {
+              fatG: parsed.data.fatG === null ? null : parsed.data.fatG,
+            }
+          : {}),
+        ...(parsed.data.details !== undefined
+          ? { details: parsed.data.details }
+          : {}),
+      };
+      const validation = validateFoodEntryPatch(patch);
+      if (validation !== null) {
+        const apiError = validationErrorToApi(validation, request.id);
+        await sendApiError(
+          reply,
+          request,
+          apiError.status,
+          apiError.code,
+          apiError.message,
+        );
+        return;
+      }
+      const next = applyFoodEntryPatch(stored, patch, new Date());
+      const saved = await options.foodEntryRepository.update(next);
+      return toWire(saved);
+    },
+  );
+
+  // DELETE /v1/food-entries/:id — remove the entry. The route
+  // enforces the ownership check before deleting so a missing id
+  // is indistinguishable from a wrong owner (no enumeration).
+  app.delete(
+    "/:id",
+    { preHandler: app.authenticate },
+    async (request, reply): Promise<void> => {
+      const principal = request.principal;
+      if (!principal) {
+        throw new Error("principal missing after authentication");
+      }
+      const { id } = request.params as { id?: string };
+      if (typeof id !== "string" || !GENERIC_UUID.test(id)) {
+        await sendApiError(
+          reply,
+          request,
+          404,
+          "NOT_FOUND",
+          "Food entry id must be a UUID.",
+        );
+        return;
+      }
+      const stored = await options.foodEntryRepository.getById(id);
+      if (stored === null || stored.userId !== principal.userId) {
+        await sendApiError(
+          reply,
+          request,
+          404,
+          "NOT_FOUND",
+          "No food entry with that id exists for this user.",
+        );
+        return;
+      }
+      await options.foodEntryRepository.delete(id);
+      void reply.status(204).send();
+    },
+  );
+
+  // GET /v1/food-entries/summary — daily summary aggregation.
+  // Two shapes share the route:
+  //   - `?date=YYYY-MM-DD` returns a single day's summary object
+  //     (`{ summary: { ... } }`). The summary is present even when
+  //     the user logged nothing on that day, so the UI can render
+  //     a "today" card without special-casing the empty case.
+  //   - `?from=YYYY-MM-DD&to=YYYY-MM-DD` returns an array of
+  //     per-day summaries (`{ summaries: [{...}, ...] }`) ordered
+  //     oldest-first. Days with zero entries are omitted.
+  //
+  // The route uses the same `list(from, to, limit)` plumbing as the
+  // list endpoint so the in-memory and SQL adapters stay aligned.
+  app.get(
+    "/summary",
+    { preHandler: app.authenticate },
+    async (
+      request,
+      reply,
+    ): Promise<
+      DailyFoodSummaryResponse | DailyFoodSummaryListResponse | void
+    > => {
+      const principal = request.principal;
+      if (!principal) {
+        throw new Error("principal missing after authentication");
+      }
+      const parsed = foodEntrySummaryQuerySchema.safeParse(request.query);
+      if (!parsed.success) {
+        await sendApiError(
+          reply,
+          request,
+          422,
+          "VALIDATION_ERROR",
+          `Invalid summary query: ${parsed.error.issues.map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`).join("; ")}`,
+        );
+        return;
+      }
+      const DEFAULT_RANGE_LIMIT = 92;
+      const MAX_RANGE_LIMIT = 366;
+      if (parsed.data.date !== undefined) {
+        // Single-day shape: always present, including zero-entry days.
+        const from = isoDateToStartOfDay(parsed.data.date);
+        const to = isoDateToEndOfDay(parsed.data.date);
+        const entries = await options.foodEntryRepository.list(
+          principal.userId,
+          { from, to, limit: MAX_RANGE_LIMIT },
+        );
+        const summaries = summariseFoodEntries(entries, {
+          from: parsed.data.date,
+          to: parsed.data.date,
+        });
+        const empty: DailyFoodSummary = {
+          date: parsed.data.date,
+          entryCount: 0,
+          caloriesKcal: null,
+          proteinG: null,
+          carbohydrateG: null,
+          fatG: null,
+        };
+        const summary = summaries[0] ?? empty;
+        return dailyFoodSummaryResponseSchema.parse({ summary });
+      }
+      const from = parsed.data.from
+        ? isoDateToStartOfDay(parsed.data.from)
+        : null;
+      const to = parsed.data.to ? isoDateToEndOfDay(parsed.data.to) : null;
+      const limit = parsed.data.limit ?? DEFAULT_RANGE_LIMIT;
+      const cappedLimit = Math.min(MAX_RANGE_LIMIT, Math.max(1, limit));
+      const entries = await options.foodEntryRepository.list(principal.userId, {
+        from,
+        to,
+        limit: cappedLimit * 50 /* headroom */,
+      });
+      // The repo paginates by row count, not by calendar day; we
+      // re-slice the resulting summaries by day count after
+      // aggregation so a user who logged 50 entries on day 1 doesn't
+      // push every subsequent day off the page.
+      const summaries = summariseFoodEntries(entries, {
+        from: parsed.data.from as string,
+        to: parsed.data.to as string,
+      }).slice(0, cappedLimit);
+      return dailyFoodSummaryListResponseSchema.parse({ summaries });
+    },
+  );
+};

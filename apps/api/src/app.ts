@@ -8,6 +8,7 @@ import { createSupabaseAccessTokenVerifier } from "@mizyun/adapter-supabase-serv
 import {
   DEFAULT_TIMEZONE,
   DEFAULT_UNIT_SYSTEM,
+  type FoodEntryRepository,
   type GoalRepository,
   type ProfileRepository,
   type UserId,
@@ -22,11 +23,13 @@ import { InMemoryMemoryStore } from "@mizyun/memory";
 import { InMemoryGoalRepository } from "./goal-repository.js";
 import { loggerConfig } from "./logging.js";
 import { coachRoutes } from "./modules/coach/routes.js";
+import { foodEntriesRoutes } from "./modules/food-entries/routes.js";
 import { goalsRoutes } from "./modules/goals/routes.js";
 import { identityRoutes } from "./modules/identity/routes.js";
 import { profileRoutes } from "./modules/profile/routes.js";
 import { systemRoutes } from "./modules/system/routes.js";
 import { authenticationPlugin } from "./plugins/authentication.js";
+import { InMemoryFoodEntryRepository } from "./food-entry-repository.js";
 import { InMemoryProfileRepository } from "./profile-repository.js";
 
 export interface AppDependencies {
@@ -40,6 +43,7 @@ export interface AppDependencies {
    */
   readonly profileRepository?: ProfileRepository;
   readonly goalRepository?: GoalRepository;
+  readonly foodEntryRepository?: FoodEntryRepository;
 }
 
 const tokenVerifierFromConfig = (config: ServerConfig): AccessTokenVerifier => {
@@ -77,6 +81,7 @@ const defaultDependencies = (): AppDependencies => {
       defaultUnitSystem: DEFAULT_UNIT_SYSTEM,
     }),
     goalRepository: new InMemoryGoalRepository(),
+    foodEntryRepository: new InMemoryFoodEntryRepository(),
   };
 };
 
@@ -134,6 +139,11 @@ export const buildApp = (
   void app.register(goalsRoutes, {
     prefix: "/v1/goals",
     goalRepository: dependencies.goalRepository ?? new InMemoryGoalRepository(),
+  });
+  void app.register(foodEntriesRoutes, {
+    prefix: "/v1/food-entries",
+    foodEntryRepository:
+      dependencies.foodEntryRepository ?? new InMemoryFoodEntryRepository(),
   });
   void app.register(coachRoutes, {
     prefix: "/v1/coach",

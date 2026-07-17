@@ -59,3 +59,22 @@ export {
   type GoalValidationError,
   type StoredGoal,
 } from "./goal";
+
+export {
+  CALORIES_MAX,
+  CALORIES_MIN,
+  FOOD_NAME_MAX,
+  MACRO_MAX,
+  MACRO_MIN,
+  applyFoodEntryPatch,
+  summariseFoodEntries,
+  validateFoodEntryCreate,
+  validateFoodEntryPatch,
+  type DailyFoodSummary,
+  type FoodEntryCore,
+  type FoodEntryPatch,
+  type FoodEntryRepository,
+  type FoodEntryValidationError,
+  type FoodSource,
+  type StoredFoodEntry,
+} from "./food-entry";

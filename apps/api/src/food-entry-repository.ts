@@ -1,0 +1,110 @@
+import type {
+  FoodEntryRepository,
+  StoredFoodEntry,
+  UserId,
+} from "@mizyun/core";
+
+/**
+ * In-memory implementation of the `FoodEntryRepository` port.
+ *
+ * Used by `apps/api` until the Supabase adapter lands. Behaviour:
+ *   - `create` stores the entry under the user's tenant partition;
+ *     the timestamp-based sort key is `consumedAt`.
+ *   - `list` filters by tenant, inclusive bounds on `consumedAt`,
+ *     newest-first, capped at `limit`.
+ *   - `getById` is tenant-blind: it returns the entry regardless of
+ *     who owns it. The route is the owner of the cross-user access
+ *     check (it must compare the returned `userId` to the
+ *     authenticated principal before returning the body).
+ *   - `update` rejects ids the repository does not know about; the
+ *     route is responsible for the ownership check.
+ *   - `delete` returns `true` when a row was removed, `false` when
+ *     the id was unknown.
+ *
+ * The repository deliberately does not enforce RLS — the SQL
+ * policies on `public.food_entries` are the source of truth. Tests
+ * that exercise isolation should use the e2e suite against a real
+ * Supabase stack, not this in-memory implementation.
+ */
+export class InMemoryFoodEntryRepository implements FoodEntryRepository {
+  readonly #byUser = new Map<UserId, StoredFoodEntry[]>();
+  readonly #byId = new Map<string, StoredFoodEntry>();
+
+  async create(
+    userId: UserId,
+    entry: StoredFoodEntry,
+  ): Promise<StoredFoodEntry> {
+    if (entry.userId !== userId) {
+      throw new Error("food entry create userId mismatch");
+    }
+    if (this.#byId.has(entry.id)) {
+      throw new Error(`food entry id collision ${entry.id}`);
+    }
+    const list = this.#byUser.get(userId) ?? [];
+    this.#byUser.set(userId, [...list, entry]);
+    this.#byId.set(entry.id, entry);
+    return entry;
+  }
+
+  async list(
+    userId: UserId,
+    options: {
+      readonly from: Date | null;
+      readonly to: Date | null;
+      readonly limit: number;
+    },
+  ): Promise<ReadonlyArray<StoredFoodEntry>> {
+    const list = this.#byUser.get(userId) ?? [];
+    const fromMs = options.from?.getTime() ?? Number.NEGATIVE_INFINITY;
+    const toMs = options.to?.getTime() ?? Number.POSITIVE_INFINITY;
+    const filtered = list.filter((entry) => {
+      const ms = entry.consumedAt.getTime();
+      return ms >= fromMs && ms <= toMs;
+    });
+    return [...filtered]
+      .sort((a, b) => b.consumedAt.getTime() - a.consumedAt.getTime())
+      .slice(0, Math.max(0, options.limit));
+  }
+
+  async getById(id: string): Promise<StoredFoodEntry | null> {
+    return this.#byId.get(id) ?? null;
+  }
+
+  async update(entry: StoredFoodEntry): Promise<StoredFoodEntry> {
+    const existing = this.#byId.get(entry.id);
+    if (existing === undefined) {
+      throw new Error(`food entry ${entry.id} does not exist`);
+    }
+    const owner = existing.userId;
+    const list = this.#byUser.get(owner) ?? [];
+    const idx = list.findIndex((e) => e.id === entry.id);
+    if (idx < 0) {
+      throw new Error(`food entry ${entry.id} missing from owner partition`);
+    }
+    const next = [...list];
+    next[idx] = entry;
+    this.#byUser.set(owner, next);
+    this.#byId.set(entry.id, entry);
+    return entry;
+  }
+
+  async delete(id: string): Promise<boolean> {
+    const existing = this.#byId.get(id);
+    if (existing === undefined) return false;
+    const owner = existing.userId;
+    const list = this.#byUser.get(owner) ?? [];
+    this.#byUser.set(
+      owner,
+      list.filter((entry) => entry.id !== id),
+    );
+    this.#byId.delete(id);
+    return true;
+  }
+
+  /** Test-only helper that pre-seeds an entry for a user. */
+  __seedForTest(entry: StoredFoodEntry): void {
+    const list = this.#byUser.get(entry.userId) ?? [];
+    this.#byUser.set(entry.userId, [...list, entry]);
+    this.#byId.set(entry.id, entry);
+  }
+}

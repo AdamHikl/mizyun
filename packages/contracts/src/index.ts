@@ -301,3 +301,28 @@ export const goalPatchSchema = z
   );
 
 export type GoalPatch = z.infer<typeof goalPatchSchema>;
+
+export {
+  foodEntryCreateSchema,
+  foodEntryListQuerySchema,
+  foodEntryListResponseSchema,
+  foodEntryPatchSchema,
+  foodEntryResponseSchema,
+  foodEntrySchema,
+  foodEntrySummaryQuerySchema,
+  foodSourceSchema,
+  dailyFoodSummaryListResponseSchema,
+  dailyFoodSummaryResponseSchema,
+  dailyFoodSummarySchema,
+  type DailyFoodSummary,
+  type DailyFoodSummaryListResponse,
+  type DailyFoodSummaryResponse,
+  type FoodEntry,
+  type FoodEntryCreate,
+  type FoodEntryListQuery,
+  type FoodEntryListResponse,
+  type FoodEntryPatch,
+  type FoodEntryResponse,
+  type FoodEntrySummaryQuery,
+  type FoodSource,
+} from "./food-entry";
