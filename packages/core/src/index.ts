@@ -154,12 +154,15 @@ export {
   MEDIA_MAX_DIMENSION,
   MEDIA_MIN_DIMENSION,
   MEDIA_PURPOSES,
+  buildMediaTimeline,
   buildObjectPath,
+  compareMediaAssets,
   validateMediaAssetCreate,
   type MediaAssetCore,
   type MediaAssetRepository,
   type MediaAssetValidationError,
   type MediaPurpose,
+  type MediaTimelineDayBucket,
   type StoredMediaAsset,
 } from "./media-asset";
 

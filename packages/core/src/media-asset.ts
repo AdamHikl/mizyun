@@ -208,3 +208,113 @@ export interface MediaAssetRepository {
    */
   softDelete(id: string, now: Date): Promise<StoredMediaAsset | null>;
 }
+
+/**
+ * Convert a stored asset's `createdAt` (a UTC Date) to the
+ * `YYYY-MM-DD` calendar day it belongs to. The conversion is in
+ * UTC because the wire contract promises UTC and the SQL
+ * column is `timestamptz`. The UI is responsible for
+ * re-bucketing into the user's timezone when it wants a
+ * "their day" view.
+ */
+const isoDateOf = (instant: Date): string => {
+  const y = instant.getUTCFullYear();
+  const m = (instant.getUTCMonth() + 1).toString().padStart(2, "0");
+  const d = instant.getUTCDate().toString().padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+/**
+ * A timeline bucket: assets captured on the same UTC day,
+ * newest-first within the day.
+ */
+export interface MediaTimelineDayBucket {
+  readonly date: string;
+  readonly entryCount: number;
+  readonly entries: ReadonlyArray<StoredMediaAsset>;
+}
+
+/**
+ * Aggregate a flat list of stored media assets into per-day
+ * buckets. Pure: same inputs, same outputs. The caller is
+ * responsible for:
+ *   - filtering by purpose and ownership before invoking;
+ *   - filtering out `deletedAt !== null` assets (already
+ *     dropped by `MediaAssetRepository.list`, but the domain
+ *     function defensively filters again).
+ *
+ * Days with zero entries are NOT included; the UI can render
+ * a dense series client-side if needed.
+ */
+export const buildMediaTimeline = (
+  assets: ReadonlyArray<StoredMediaAsset>,
+  options: { readonly from: string; readonly to: string },
+): ReadonlyArray<MediaTimelineDayBucket> => {
+  const buckets = new Map<
+    string,
+    {
+      readonly date: string;
+      entries: StoredMediaAsset[];
+    }
+  >();
+
+  for (const asset of assets) {
+    if (asset.deletedAt !== null) continue;
+    const date = isoDateOf(asset.createdAt);
+    if (date < options.from || date > options.to) continue;
+    const existing = buckets.get(date);
+    if (existing === undefined) {
+      buckets.set(date, { date, entries: [asset] });
+    } else {
+      existing.entries.push(asset);
+    }
+  }
+
+  // Sort bucket keys ascending (calendar order) and entries
+  // within each bucket newest-first.
+  const orderedDates = [...buckets.keys()].sort((a, b) =>
+    a < b ? -1 : a > b ? 1 : 0,
+  );
+  return orderedDates.map((date) => {
+    const bucket = buckets.get(date);
+    if (bucket === undefined) {
+      // Unreachable: we just got the key from the map.
+      return { date, entryCount: 0, entries: [] };
+    }
+    const entries = [...bucket.entries].sort(
+      (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
+    );
+    return { date, entryCount: entries.length, entries };
+  });
+};
+
+/**
+ * Compare two stored assets by absolute day distance. Returns
+ * `daysBetween` (always non-negative integer) and `direction`
+ * (`a_before_b` when `a` is the older asset, `a_after_b` when
+ * `b` is the older). The day resolution matches the UI's
+ * calendar-day framing; sub-day differences are reported as 0.
+ *
+ * Pure. The route layer owns the ownership + URL-signing
+ * enforcement.
+ */
+export const compareMediaAssets = (
+  assetA: StoredMediaAsset,
+  assetB: StoredMediaAsset,
+): {
+  readonly daysBetween: number;
+  readonly direction: "a_before_b" | "a_after_b";
+} => {
+  const aMs = assetA.createdAt.getTime();
+  const bMs = assetB.createdAt.getTime();
+  const day = 24 * 60 * 60 * 1000;
+  // Round to the nearest midnight UTC so the day count is
+  // calendar-aligned regardless of the hour-of-day the user
+  // shot the photo.
+  const aMidnight = Math.floor(aMs / day) * day;
+  const bMidnight = Math.floor(bMs / day) * day;
+  const diff = Math.abs(aMidnight - bMidnight) / day;
+  const direction: "a_before_b" | "a_after_b" =
+    aMidnight <= bMidnight ? "a_before_b" : "a_after_b";
+  return { daysBetween: Math.round(diff), direction };
+};

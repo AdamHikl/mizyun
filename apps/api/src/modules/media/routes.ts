@@ -1,6 +1,8 @@
 import type { FastifyPluginAsync } from "fastify";
 import {
+  buildMediaTimeline,
   buildObjectPath,
+  compareMediaAssets,
   validateMediaAssetCreate,
   type MediaAssetRepository,
   type MediaAssetValidationError,
@@ -10,14 +12,20 @@ import {
 import {
   mediaAssetListResponseSchema,
   mediaAssetResponseSchema,
+  mediaCompareRequestSchema,
+  mediaCompareResponseSchema,
   mediaListQuerySchema,
   mediaSignRequestSchema,
   mediaSignResponseSchema,
+  mediaTimelineQuerySchema,
+  mediaTimelineResponseSchema,
   mediaUploadUrlRequestSchema,
   mediaUploadUrlResponseSchema,
   type MediaAssetListResponse,
   type MediaAssetResponse,
+  type MediaCompareResponse,
   type MediaSignResponse,
+  type MediaTimelineResponse,
   type MediaUploadUrlResponse,
 } from "@mizyun/contracts";
 
@@ -115,6 +123,31 @@ const listToWire = (
   mediaAssetListResponseSchema.parse({
     assets: assets.map((a) => toWire(a).asset),
   });
+
+/**
+ * Pure conversion of a `StoredMediaAsset` to the wire shape
+ * (`mediaAssetSchema`). The parse-side Zod schema requires
+ * `createdAt` and `updatedAt` as ISO strings; the in-memory
+ * repository uses `Date` instances. Centralising the conversion
+ * here so every endpoint that embeds an asset uses the same
+ * shape.
+ */
+const toWireAsset = (
+  asset: StoredMediaAsset,
+): import("@mizyun/contracts").MediaAsset => ({
+  id: asset.id,
+  userId: asset.userId,
+  bucketId: asset.bucketId,
+  objectPath: asset.objectPath,
+  purpose: asset.purpose,
+  mimeType: asset.mimeType,
+  byteSize: asset.byteSize,
+  width: asset.width,
+  height: asset.height,
+  metadata: { ...asset.metadata },
+  createdAt: asset.createdAt.toISOString(),
+  deletedAt: asset.deletedAt === null ? null : asset.deletedAt.toISOString(),
+});
 
 export const mediaRoutes: FastifyPluginAsync<MediaRoutesOptions> = async (
   app,
@@ -335,6 +368,227 @@ export const mediaRoutes: FastifyPluginAsync<MediaRoutesOptions> = async (
       }
       await options.mediaStorage.remove(options.bucketId, asset.objectPath);
       void reply.status(204).send();
+    },
+  );
+
+  // GET /v1/media/timeline — return the user's assets in
+  // per-day buckets, oldest-first. Each entry carries a
+  // short-lived signed download URL so the UI can render
+  // thumbnails without a second round-trip. The default
+  // `purpose` is `progress` (BODY-04); callers filter to a
+  // different purpose explicitly when needed.
+  app.get(
+    "/media/timeline",
+    { preHandler: app.authenticate },
+    async (request, reply): Promise<MediaTimelineResponse | void> => {
+      const principal = request.principal;
+      if (!principal) {
+        throw new Error("principal missing after authentication");
+      }
+      const parsed = mediaTimelineQuerySchema.safeParse(request.query);
+      if (!parsed.success) {
+        await sendApiError(
+          reply,
+          request,
+          422,
+          "VALIDATION_ERROR",
+          `Invalid media timeline query: ${parsed.error.issues.map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`).join("; ")}`,
+        );
+        return;
+      }
+      const purpose = parsed.data.purpose ?? "progress";
+      const limit = Math.min(
+        MAX_LIMIT,
+        Math.max(1, parsed.data.limit ?? DEFAULT_LIMIT),
+      );
+      // The list repo doesn't expose a date-range filter today
+      // (the SQL query has no `from`/`to` predicate), so we pull
+      // a generous page and bucket client-side. A future segment
+      // adds `from`/`to` to the repository when the SQL adapter
+      // lands and the index on `(user_id, created_at desc)` can
+      // serve the predicate cheaply.
+      const all = await options.mediaAssetRepository.list(principal.userId, {
+        purpose,
+        limit: MAX_LIMIT,
+      });
+      // Default window: last 365 days when no bounds supplied.
+      const now = new Date();
+      const oneYearMs = 365 * 24 * 60 * 60 * 1000;
+      const defaultFrom = new Date(now.getTime() - oneYearMs);
+      const fromIso = parsed.data.from
+        ? parsed.data.from
+        : `${defaultFrom.getUTCFullYear()}-${(defaultFrom.getUTCMonth() + 1)
+            .toString()
+            .padStart(
+              2,
+              "0",
+            )}-${defaultFrom.getUTCDate().toString().padStart(2, "0")}`;
+      const toIso = parsed.data.to
+        ? parsed.data.to
+        : `${now.getUTCFullYear()}-${(now.getUTCMonth() + 1)
+            .toString()
+            .padStart(2, "0")}-${now.getUTCDate().toString().padStart(2, "0")}`;
+
+      const filtered = all.filter((asset) => {
+        const ms = asset.createdAt.getTime();
+        const fromMs = Date.parse(`${fromIso}T00:00:00Z`);
+        const toMs = Date.parse(`${toIso}T23:59:59.999Z`);
+        return ms >= fromMs && ms <= toMs;
+      });
+
+      let buckets;
+      try {
+        buckets = buildMediaTimeline(filtered, {
+          from: fromIso,
+          to: toIso,
+        });
+      } catch (e) {
+        // buildMediaTimeline is pure; this catch is defensive
+        // (the function doesn't throw today but a future
+        // re-shape shouldn't crash the route).
+        throw e;
+      }
+      // After bucketing, cap the total entry count by trimming
+      // the oldest buckets first. The newest days are the ones
+      // the UI surfaces first.
+      let remaining = limit;
+      const trimmed: Array<{
+        date: string;
+        entryCount: number;
+        entries: Array<{
+          asset: StoredMediaAsset;
+          signedUrl: string;
+          signedUrlExpiresAt: string;
+        }>;
+      }> = [];
+      for (const bucket of buckets) {
+        if (remaining <= 0) break;
+        const kept = bucket.entries.slice(0, remaining);
+        if (kept.length === 0) continue;
+        const entries: Array<{
+          asset: StoredMediaAsset;
+          signedUrl: string;
+          signedUrlExpiresAt: string;
+        }> = [];
+        for (const asset of kept) {
+          const signed = await options.mediaStorage.signDownloadUrl(
+            options.bucketId,
+            asset.objectPath,
+            { ttlSeconds: SIGNED_URL_TTL_SECONDS, now },
+          );
+          entries.push({
+            asset,
+            signedUrl: signed.url,
+            signedUrlExpiresAt: signed.expiresAt.toISOString(),
+          });
+        }
+        trimmed.push({
+          date: bucket.date,
+          entryCount: entries.length,
+          entries,
+        });
+        remaining -= entries.length;
+      }
+      try {
+        return mediaTimelineResponseSchema.parse({
+          buckets: trimmed.map((bucket) => ({
+            date: bucket.date,
+            entryCount: bucket.entryCount,
+            entries: bucket.entries.map((entry) => ({
+              asset: toWireAsset(entry.asset),
+              signedUrl: entry.signedUrl,
+              signedUrlExpiresAt: entry.signedUrlExpiresAt,
+            })),
+          })),
+          signedUrlTtlSeconds: SIGNED_URL_TTL_SECONDS,
+        });
+      } catch (e) {
+        // The parse is a self-check on data we just constructed;
+        // if it ever throws, the in-memory repos are returning
+        // shapes that don't match the wire contract — that is
+        // a bug, not a 5xx-worthy runtime condition, so we
+        // re-throw and let the global handler surface it.
+        throw e;
+      }
+    },
+  );
+
+  // POST /v1/media/compare — return two assets side-by-side with
+  // a relative-time delta. Ownership of both ids is enforced; a
+  // missing or cross-user id returns 404. The two sides are
+  // returned in the order the caller requested (so the UI can
+  // render "before/after" with `a` on the left).
+  app.post(
+    "/media/compare",
+    { preHandler: app.authenticate },
+    async (request, reply): Promise<MediaCompareResponse | void> => {
+      const principal = request.principal;
+      if (!principal) {
+        throw new Error("principal missing after authentication");
+      }
+      const body = request.body as unknown;
+      const parsed = mediaCompareRequestSchema.safeParse(body);
+      if (!parsed.success) {
+        await sendApiError(
+          reply,
+          request,
+          422,
+          "VALIDATION_ERROR",
+          `Invalid media compare request: ${parsed.error.issues.map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`).join("; ")}`,
+        );
+        return;
+      }
+      const [a, b] = await Promise.all([
+        options.mediaAssetRepository.getById(parsed.data.assetIdA),
+        options.mediaAssetRepository.getById(parsed.data.assetIdB),
+      ]);
+      if (
+        a === null ||
+        b === null ||
+        a.userId !== principal.userId ||
+        b.userId !== principal.userId ||
+        a.deletedAt !== null ||
+        b.deletedAt !== null
+      ) {
+        await sendApiError(
+          reply,
+          request,
+          404,
+          "NOT_FOUND",
+          "Both asset ids must belong to this user and not be deleted.",
+        );
+        return;
+      }
+      const ttl =
+        parsed.data.urlTtlSeconds && parsed.data.urlTtlSeconds > 0
+          ? parsed.data.urlTtlSeconds
+          : SIGNED_URL_TTL_SECONDS;
+      const now = new Date();
+      const [signedA, signedB] = await Promise.all([
+        options.mediaStorage.signDownloadUrl(options.bucketId, a.objectPath, {
+          ttlSeconds: ttl,
+          now,
+        }),
+        options.mediaStorage.signDownloadUrl(options.bucketId, b.objectPath, {
+          ttlSeconds: ttl,
+          now,
+        }),
+      ]);
+      const { daysBetween, direction } = compareMediaAssets(a, b);
+      return mediaCompareResponseSchema.parse({
+        sideA: {
+          asset: toWireAsset(a),
+          signedUrl: signedA.url,
+          signedUrlExpiresAt: signedA.expiresAt.toISOString(),
+        },
+        sideB: {
+          asset: toWireAsset(b),
+          signedUrl: signedB.url,
+          signedUrlExpiresAt: signedB.expiresAt.toISOString(),
+        },
+        daysBetween,
+        direction,
+      });
     },
   );
 };

@@ -119,3 +119,116 @@ export const mediaListQuerySchema = z
   .strict();
 
 export type MediaListQuery = z.infer<typeof mediaListQuerySchema>;
+
+/**
+ * A timeline entry: an asset plus its short-lived signed
+ * download URL. The route issues a fresh URL per entry so the
+ * UI can render a thumbnail strip without a second round-trip.
+ *
+ * The URL is valid for `URL_TTL_SECONDS`; the client re-fetches
+ * the timeline when it expires.
+ */
+const urlTtlSeconds = z.number().int().gte(0).lte(3600);
+
+export const mediaTimelineEntrySchema = z.object({
+  asset: mediaAssetSchema,
+  signedUrl: z.string(),
+  signedUrlExpiresAt: z.string().datetime(),
+});
+
+export type MediaTimelineEntry = z.infer<typeof mediaTimelineEntrySchema>;
+
+/**
+ * A timeline bucket groups the assets for one calendar day.
+ * The bucket key is the UTC calendar day; the UI uses the entry
+ * count as a "you took 4 photos on this day" label.
+ */
+export const mediaTimelineBucketSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD"),
+  entryCount: z.number().int().gte(0).lte(200),
+  entries: z.array(mediaTimelineEntrySchema),
+});
+
+export type MediaTimelineBucket = z.infer<typeof mediaTimelineBucketSchema>;
+
+export const mediaTimelineResponseSchema = z.object({
+  buckets: z.array(mediaTimelineBucketSchema),
+  /**
+   * Bounded URL TTL echoed in the response so the client can
+   * use the field for its own cache-control. Keeps the wire
+   * stable when the route's default TTL changes.
+   */
+  signedUrlTtlSeconds: urlTtlSeconds,
+});
+
+export type MediaTimelineResponse = z.infer<typeof mediaTimelineResponseSchema>;
+
+/**
+ * Query string for `GET /v1/media/timeline`. The default
+ * `purpose` is `progress` because that's BODY-04's narrowly-
+ * scoped use case; callers filter to a different purpose
+ * explicitly when needed. `from`/`to` are inclusive
+ * `YYYY-MM-DD` (UTC) bounds on `createdAt`.
+ */
+export const mediaTimelineQuerySchema = z
+  .object({
+    purpose: mediaPurposeSchema.optional(),
+    from: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD")
+      .optional(),
+    to: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD")
+      .optional(),
+    limit: z.coerce.number().int().gte(1).lte(200).optional(),
+  })
+  .strict()
+  .refine(
+    (query) =>
+      query.from === undefined ||
+      query.to === undefined ||
+      query.from <= query.to,
+    { message: "from must be on or before to", path: ["from"] },
+  );
+
+export type MediaTimelineQuery = z.infer<typeof mediaTimelineQuerySchema>;
+
+/**
+ * Body for `POST /v1/media/compare`. Both asset ids must
+ * belong to the user; the route returns 404 if either is
+ * missing or cross-user. The response carries a per-side
+ * signed URL plus the relative-time delta ("b is N days after
+ * a") the UI renders in the photo-compare view.
+ */
+export const mediaCompareRequestSchema = z
+  .object({
+    assetIdA: z.string().uuid(),
+    assetIdB: z.string().uuid(),
+    urlTtlSeconds: urlTtlSeconds.optional(),
+  })
+  .strict()
+  .refine((body) => body.assetIdA !== body.assetIdB, {
+    message: "assetIdA and assetIdB must differ",
+    path: ["assetIdB"],
+  });
+
+export type MediaCompareRequest = z.infer<typeof mediaCompareRequestSchema>;
+
+export const mediaCompareSideSchema = z.object({
+  asset: mediaAssetSchema,
+  signedUrl: z.string(),
+  signedUrlExpiresAt: z.string().datetime(),
+});
+
+export type MediaCompareSide = z.infer<typeof mediaCompareSideSchema>;
+
+export const mediaCompareResponseSchema = z.object({
+  sideA: mediaCompareSideSchema,
+  sideB: mediaCompareSideSchema,
+  daysBetween: z.number(),
+  /** "before" when `a` is older, "after" when `b` is older. */
+  direction: z.enum(["a_before_b", "a_after_b"]),
+});
+
+export type MediaCompareResponse = z.infer<typeof mediaCompareResponseSchema>;

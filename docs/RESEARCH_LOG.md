@@ -575,3 +575,36 @@ pnpm check green: 47 mobile + 209 api + ~190 core + ~110 package tests. 15 new m
 - **Media complete-upload hook.** Today the asset row is recorded when the upload URL is issued; the eventual landing of bytes is implicit (the client trusts the storage). A `POST /v1/media/:id/complete` hook that confirms the byte presence + dimensions will land with the Supabase storage adapter.
 - **Profile migration.** When the SQL adapter lands, add `activity_level text check (activity_level in (...))` and `sex_at_birth text check (sex_at_birth in ('male','female'))` to the profiles table. Backfill existing rows to `NULL`.
 - **Storage RLS test against local Supabase.** The pgTAP test for `storage.objects` policies was added in SEC-002. A more thorough test that walks a real PUT-through-the-storage-SDK flow lands with the Supabase media adapter.
+
+## 2026-07-17 — MEDIA-002 progress photo timeline + compare
+
+### Question
+
+How should Mizyun expose the BODY-04 timeline view and the BODY-05 two-photo compare without re-introducing storage-layer concerns or breaking the asset-ownership boundary?
+
+### Decisions
+
+- **Per-day bucketing, oldest-first.** `buildMediaTimeline(entries, { from, to })` is a pure function that groups entries by UTC calendar day, drops soft-deleted assets, and orders days ascending. Days with zero entries are omitted so the wire shape stays sparse.
+- **Per-entry signed download URL.** Each timeline entry carries a short-lived signed URL so the UI can render thumbnails in a single round-trip. The `signedUrlTtlSeconds` is echoed in the response envelope so the client can use it for its own cache-control without re-fetching.
+- **`compareMediaAssets` snaps to UTC midnight** before computing the day distance. Two photos taken at 23:30 UTC on day N and 00:30 UTC on day N+1 are reported as 1 day apart (one calendar day), not 0 — the calendar framing is what the user expects from a "before/after" photo compare. The `direction` (`a_before_b` / `a_after_b`) tells the UI which side is older.
+- **Ownership enforcement at the route layer.** `POST /v1/media/compare` returns 404 indistinguishably for cross-user ids, missing ids, and soft-deleted ids — the client can't enumerate.
+- **Date-range filter via repo pagination, not a new query.** The repository's `list()` doesn't expose `from`/`to` predicates today (the SQL query has no such filter; the index on `(user_id, created_at desc)` doesn't serve it directly). The route pulls a generous page (cap `MAX_LIMIT = 200`) and buckets client-side. A future segment that lands the SQL adapter adds the predicate and the index already covers it cheaply.
+- **`toWireAsset` helper.** A single pure conversion of `StoredMediaAsset` → wire shape (`MediaAsset`). Zod's `mediaAssetSchema.parse` requires ISO strings; the in-memory repository uses `Date` instances. The helper centralises the conversion so every endpoint that embeds an asset uses the same shape and Zod never sees a Date.
+- **No new endpoints for media processing / annotation.** BODY-06 (no body-fat claims from photos) is a product-side guardrail, not a code one. The endpoint surface here deliberately stays read-only.
+
+### Files
+
+- `packages/contracts/src/media-asset.ts` — `mediaTimelineEntrySchema`, `mediaTimelineBucketSchema`, `mediaTimelineResponseSchema`, `mediaTimelineQuerySchema`, `mediaCompareRequestSchema`, `mediaCompareResponseSchema`, `mediaCompareSideSchema`.
+- `packages/core/src/media-asset.ts` — `buildMediaTimeline`, `compareMediaAssets`, `MediaTimelineDayBucket` type.
+- `apps/api/src/modules/media/routes.ts` — `GET /v1/media/timeline`, `POST /v1/media/compare`; `toWireAsset` helper.
+- 7 new core tests (timeline grouping, soft-delete filter, range filter, day-ordering; compare zero-day / absolute / direction / sub-day) + 7 new API tests (timeline per-day bucketing, default purpose, soft-delete omission, cross-user isolation, from>to rejection, signedUrlTtl echo; compare before/after direction, cross-user 404, soft-deleted 404, same-id 422 rejection, unknown field 422, 401).
+
+### Verified
+
+pnpm check green: 47 mobile + 223 api + 207 core + ~110 package tests. Backlog row MEDIA-002 flipped from blocked to done.
+
+### Open follow-ups
+
+- **SQL repository date-range filter.** When the Supabase adapter lands, add `from`/`to` to `MediaAssetRepository.list` and a SQL query that uses the existing `(user_id, created_at desc)` index.
+- **Reverse-chronological default.** Today the route returns oldest-first days; a UI setting could flip it to newest-first. The current shape is calendar-coherent (which BODY-04 asks for).
+- **Image dimensions in timeline entries.** A future segment adds width/height to the timeline entry for the layout-reserving UI; today the asset already carries them in the embedded `asset` object.
