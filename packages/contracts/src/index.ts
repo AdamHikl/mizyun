@@ -104,6 +104,28 @@ export const profileSchema = z.object({
     .nullable()
     .optional(),
   heightCm: z.number().gte(50).lte(260).multipleOf(0.01).nullable().optional(),
+  /**
+   * Self-reported activity level. Mirrors the canonical
+   * energy-engine multipliers in `@mizyun/core`. Nullable so
+   * existing users don't lose data on migration; the energy
+   * route treats null as "ask me again" and prompts the UI.
+   */
+  activityLevel: z
+    .enum([
+      "sedentary",
+      "lightly_active",
+      "moderately_active",
+      "very_active",
+      "extra_active",
+    ])
+    .nullable()
+    .optional(),
+  /**
+   * Self-reported sex at birth. Nullable by design — the
+   * user owns the field; the energy engine refuses to
+   * fabricate a number without it (ENG-06).
+   */
+  sexAtBirth: z.enum(["male", "female"]).nullable().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
@@ -133,6 +155,8 @@ export const profilePatchSchema = z
     timezone: profileSchema.shape.timezone.optional(),
     birthYear: profileSchema.shape.birthYear.optional(),
     heightCm: profileSchema.shape.heightCm.optional(),
+    activityLevel: profileSchema.shape.activityLevel.optional(),
+    sexAtBirth: profileSchema.shape.sexAtBirth.optional(),
   })
   .strict()
   .refine(
@@ -141,7 +165,9 @@ export const profilePatchSchema = z
       patch.unitSystem !== undefined ||
       patch.timezone !== undefined ||
       patch.birthYear !== undefined ||
-      patch.heightCm !== undefined,
+      patch.heightCm !== undefined ||
+      patch.activityLevel !== undefined ||
+      patch.sexAtBirth !== undefined,
     { message: "at least one field must be present" },
   );
 
@@ -401,6 +427,26 @@ export {
   type EnergySummaryQuery,
   type EnergySummaryResponse,
 } from "./energy";
+
+export {
+  mediaAssetListResponseSchema,
+  mediaAssetResponseSchema,
+  mediaAssetSchema,
+  mediaListQuerySchema,
+  mediaPurposeSchema,
+  mediaSignRequestSchema,
+  mediaSignResponseSchema,
+  mediaUploadUrlRequestSchema,
+  mediaUploadUrlResponseSchema,
+  type MediaAsset,
+  type MediaAssetListResponse,
+  type MediaAssetResponse,
+  type MediaListQuery,
+  type MediaSignRequest,
+  type MediaSignResponse,
+  type MediaUploadUrlRequest,
+  type MediaUploadUrlResponse,
+} from "./media-asset";
 
 export {
   bodyMeasurementCreateSchema,

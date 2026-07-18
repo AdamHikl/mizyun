@@ -91,6 +91,8 @@ const seedProfile = (
     timezone: "UTC",
     birthYear: 1990,
     heightCm: 175,
+    activityLevel: null,
+    sexAtBirth: null,
     createdAt: new Date("2026-01-01T00:00:00Z"),
     updatedAt: new Date("2026-01-01T00:00:00Z"),
     ...overrides,
@@ -397,5 +399,105 @@ describe("GET /v1/energy/summary", () => {
     // balance = consumed (800) - dailyTarget (calculated). Just
     // assert it's a number.
     expect(typeof response.json().summary.balanceKcal).toBe("number");
+  });
+
+  it("prefers profile.activityLevel over the query string (PROF-001 follow-up)", async () => {
+    const {
+      app,
+      profileRepository,
+      goalRepository,
+      bodyMeasurementRepository,
+    } = build(tokenVerifierFor({ userId: userA }));
+    seedProfile(profileRepository, { activityLevel: "extra_active" });
+    seedMeasurement(bodyMeasurementRepository);
+    seedGoal(goalRepository);
+    // The query string says moderately_active; profile says
+    // extra_active. The route should use the profile value.
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/energy/summary?activityLevel=moderately_active&sexAtBirth=male",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(response.json().summary.activityMultiplier).toBe(2.0);
+    expect(response.json().summary.inputs.activityLevel).toBe("extra_active");
+  });
+
+  it("falls back to the query string when profile values are null", async () => {
+    const {
+      app,
+      profileRepository,
+      goalRepository,
+      bodyMeasurementRepository,
+    } = build(tokenVerifierFor({ userId: userA }));
+    seedProfile(profileRepository, {
+      activityLevel: null,
+      sexAtBirth: null,
+    });
+    seedMeasurement(bodyMeasurementRepository);
+    seedGoal(goalRepository);
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/energy/summary?activityLevel=lightly_active&sexAtBirth=male",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(response.json().summary.activityMultiplier).toBe(1.5);
+    expect(response.json().summary.inputs.activityLevel).toBe("lightly_active");
+  });
+
+  it("prefers profile.sexAtBirth over the query string", async () => {
+    const {
+      app,
+      profileRepository,
+      goalRepository,
+      bodyMeasurementRepository,
+    } = build(tokenVerifierFor({ userId: userA }));
+    seedProfile(profileRepository, { sexAtBirth: "female" });
+    seedMeasurement(bodyMeasurementRepository);
+    seedGoal(goalRepository);
+    // The query string says male; profile says female. The
+    // female formula subtracts 161; the male formula adds 5.
+    // Both produce different BMRs for the same body.
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/energy/summary?activityLevel=lightly_active&sexAtBirth=male",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(response.json().summary.inputs.sexAtBirth).toBe("female");
+  });
+
+  it("round-trips activityLevel through PUT /v1/profile so the energy route reads it", async () => {
+    const {
+      app,
+      profileRepository,
+      goalRepository,
+      bodyMeasurementRepository,
+    } = build(tokenVerifierFor({ userId: userA }));
+    // Pre-seed a fully-specified profile so the energy
+    // summary can be complete after the activityLevel patch.
+    seedProfile(profileRepository, {
+      heightCm: 175,
+      birthYear: 1990,
+      sexAtBirth: "male",
+    });
+    seedMeasurement(bodyMeasurementRepository, { weightKg: 70 });
+    seedGoal(goalRepository);
+    // Set activityLevel on the profile.
+    await app.inject({
+      method: "PUT",
+      url: "/v1/profile",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: { activityLevel: "very_active" },
+    });
+    // The energy summary should pick it up without a query param.
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/energy/summary",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(response.json().summary.activityMultiplier).toBe(1.75);
+    expect(response.json().summary.complete).toBe(true);
   });
 });

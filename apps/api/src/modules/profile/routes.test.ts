@@ -102,6 +102,8 @@ describe("GET /v1/profile", () => {
       timezone: "America/Los_Angeles",
       birthYear: 1990,
       heightCm: 180,
+      activityLevel: null,
+      sexAtBirth: null,
       createdAt: new Date("2026-01-01T00:00:00Z"),
       updatedAt: new Date("2026-01-01T00:00:00Z"),
     });
@@ -235,5 +237,102 @@ describe("PUT /v1/profile", () => {
     });
     expect(clear.statusCode).toBe(200);
     expect(clear.json().profile.displayName).toBeNull();
+  });
+
+  it("accepts an activityLevel patch and echoes it back", async () => {
+    const { app } = build(tokenVerifierFor({ userId: userA }));
+    const response = await app.inject({
+      method: "PUT",
+      url: "/v1/profile",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: { activityLevel: "moderately_active" },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().profile.activityLevel).toBe("moderately_active");
+  });
+
+  it("accepts a sexAtBirth patch and echoes it back", async () => {
+    const { app } = build(tokenVerifierFor({ userId: userA }));
+    const response = await app.inject({
+      method: "PUT",
+      url: "/v1/profile",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: { sexAtBirth: "female" },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().profile.sexAtBirth).toBe("female");
+  });
+
+  it("rejects an invalid activityLevel with a 422", async () => {
+    const { app } = build(tokenVerifierFor({ userId: userA }));
+    const response = await app.inject({
+      method: "PUT",
+      url: "/v1/profile",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: { activityLevel: "vigorously_active" },
+    });
+    expect(response.statusCode).toBe(422);
+  });
+
+  it("rejects an invalid sexAtBirth with a 422", async () => {
+    const { app } = build(tokenVerifierFor({ userId: userA }));
+    const response = await app.inject({
+      method: "PUT",
+      url: "/v1/profile",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: { sexAtBirth: "other" },
+    });
+    expect(response.statusCode).toBe(422);
+  });
+
+  it("clears activityLevel and sexAtBirth when the patch sets null", async () => {
+    const { app } = build(tokenVerifierFor({ userId: userA }));
+    // Set them first.
+    await app.inject({
+      method: "PUT",
+      url: "/v1/profile",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: { activityLevel: "moderately_active", sexAtBirth: "male" },
+    });
+    // Clear them.
+    const cleared = await app.inject({
+      method: "PUT",
+      url: "/v1/profile",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: { activityLevel: null, sexAtBirth: null },
+    });
+    expect(cleared.statusCode).toBe(200);
+    expect(cleared.json().profile.activityLevel).toBeNull();
+    expect(cleared.json().profile.sexAtBirth).toBeNull();
+  });
+
+  it("includes the new fields in the auto-create default shape", async () => {
+    const { app } = build(tokenVerifierFor({ userId: userA }));
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/profile",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().profile.activityLevel).toBeNull();
+    expect(response.json().profile.sexAtBirth).toBeNull();
   });
 });

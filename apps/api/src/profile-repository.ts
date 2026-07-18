@@ -54,6 +54,8 @@ export class InMemoryProfileRepository implements ProfileRepository {
       timezone: this.#defaultTimezone,
       birthYear: null,
       heightCm: null,
+      activityLevel: null,
+      sexAtBirth: null,
       createdAt: now,
       updatedAt: now,
     };

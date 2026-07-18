@@ -13,6 +13,7 @@ import {
   type ExerciseRepository,
   type FoodEntryRepository,
   type GoalRepository,
+  type MediaAssetRepository,
   type ProfileRepository,
   type UserId,
   type WorkoutRepository,
@@ -28,6 +29,7 @@ import { InMemoryMemoryStore } from "@mizyun/memory";
 import { InMemoryAccountRepository } from "./account-repository.js";
 import { InMemoryGoalRepository } from "./goal-repository.js";
 import { loggerConfig } from "./logging.js";
+import { InMemoryMediaStorage } from "./media-storage.js";
 import { accountRoutes } from "./modules/account/routes.js";
 import { bodyMeasurementsRoutes } from "./modules/body-measurements/routes.js";
 import { coachRoutes } from "./modules/coach/routes.js";
@@ -36,6 +38,7 @@ import { exercisesRoutes } from "./modules/exercises/routes.js";
 import { foodEntriesRoutes } from "./modules/food-entries/routes.js";
 import { goalsRoutes } from "./modules/goals/routes.js";
 import { identityRoutes } from "./modules/identity/routes.js";
+import { mediaRoutes } from "./modules/media/routes.js";
 import { profileRoutes } from "./modules/profile/routes.js";
 import { systemRoutes } from "./modules/system/routes.js";
 import { workoutsRoutes } from "./modules/workouts/routes.js";
@@ -44,6 +47,7 @@ import { authenticationPlugin } from "./plugins/authentication.js";
 import { InMemoryBodyMeasurementRepository } from "./body-measurement-repository.js";
 import { InMemoryExerciseRepository } from "./exercise-repository.js";
 import { InMemoryFoodEntryRepository } from "./food-entry-repository.js";
+import { InMemoryMediaAssetRepository } from "./media-asset-repository.js";
 import { InMemoryProfileRepository } from "./profile-repository.js";
 import { InMemoryWorkoutRepository } from "./workout-repository.js";
 import { InMemoryWorkoutSetRepository } from "./workout-set-repository.js";
@@ -65,6 +69,7 @@ export interface AppDependencies {
   readonly workoutSetRepository?: WorkoutSetRepository;
   readonly bodyMeasurementRepository?: BodyMeasurementRepository;
   readonly accountRepository?: AccountRepository;
+  readonly mediaAssetRepository?: MediaAssetRepository;
 }
 
 const tokenVerifierFromConfig = (config: ServerConfig): AccessTokenVerifier => {
@@ -181,6 +186,13 @@ export const buildApp = (
       workoutSetRepository,
       bodyMeasurementRepository,
     });
+  const mediaAssetRepository =
+    dependencies.mediaAssetRepository ?? new InMemoryMediaAssetRepository();
+  // The bucket id matches the SQL migration; a Supabase swap
+  // reads the same id from `storage.buckets`. The local
+  // composition root hard-codes it for now.
+  const mediaStorage = new InMemoryMediaStorage();
+  const MEDIA_BUCKET_ID = "private-media";
 
   void app.register(authenticationPlugin, {
     tokenVerifier: dependencies.tokenVerifier,
@@ -229,6 +241,12 @@ export const buildApp = (
     workoutRepository,
     workoutSetRepository,
     foodEntryRepository,
+  });
+  void app.register(mediaRoutes, {
+    prefix: "/v1",
+    mediaAssetRepository,
+    mediaStorage,
+    bucketId: MEDIA_BUCKET_ID,
   });
   void app.register(coachRoutes, {
     prefix: "/v1/coach",

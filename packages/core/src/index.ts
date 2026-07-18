@@ -149,6 +149,21 @@ export {
 } from "./energy";
 
 export {
+  MEDIA_ALLOWED_MIME_TYPES,
+  MEDIA_MAX_BYTE_SIZE,
+  MEDIA_MAX_DIMENSION,
+  MEDIA_MIN_DIMENSION,
+  MEDIA_PURPOSES,
+  buildObjectPath,
+  validateMediaAssetCreate,
+  type MediaAssetCore,
+  type MediaAssetRepository,
+  type MediaAssetValidationError,
+  type MediaPurpose,
+  type StoredMediaAsset,
+} from "./media-asset";
+
+export {
   BODY_WEIGHT_KG_MAX,
   BODY_WEIGHT_KG_MIN,
   validateBodyMeasurementCreate,

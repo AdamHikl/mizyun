@@ -87,6 +87,20 @@ const validationErrorToApi = (
         message: `birthYear must be between ${error.min} and ${error.max}.`,
         requestId,
       };
+    case "invalid_activity_level":
+      return {
+        status: 422,
+        code: "VALIDATION_ERROR",
+        message: `activityLevel '${error.value}' is not a valid activity category.`,
+        requestId,
+      };
+    case "invalid_sex_at_birth":
+      return {
+        status: 422,
+        code: "VALIDATION_ERROR",
+        message: `sexAtBirth '${error.value}' must be 'male' or 'female'.`,
+        requestId,
+      };
   }
 };
 
@@ -103,6 +117,14 @@ const toWire = (stored: {
   timezone: string;
   birthYear: number | null;
   heightCm: number | null;
+  activityLevel:
+    | "sedentary"
+    | "lightly_active"
+    | "moderately_active"
+    | "very_active"
+    | "extra_active"
+    | null;
+  sexAtBirth: "male" | "female" | null;
   createdAt: Date;
   updatedAt: Date;
 }): ProfileResponse =>
@@ -114,6 +136,8 @@ const toWire = (stored: {
       timezone: stored.timezone,
       birthYear: stored.birthYear,
       heightCm: stored.heightCm,
+      activityLevel: stored.activityLevel,
+      sexAtBirth: stored.sexAtBirth,
       createdAt: stored.createdAt.toISOString(),
       updatedAt: stored.updatedAt.toISOString(),
     },

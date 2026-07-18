@@ -213,6 +213,8 @@ describe("DELETE /v1/account", () => {
       timezone: "UTC",
       birthYear: 1990,
       heightCm: 180,
+      activityLevel: null,
+      sexAtBirth: null,
       createdAt: new Date("2026-07-10T08:00:00Z"),
       updatedAt: new Date("2026-07-10T08:00:00Z"),
     });

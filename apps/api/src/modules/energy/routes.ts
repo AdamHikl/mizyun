@@ -173,13 +173,22 @@ const computeRouteSummary = async (
     now,
   );
 
+  // Profile values win over query-string overrides — the
+  // PROFILE-001 follow-up promotes activityLevel and
+  // sexAtBirth to profile fields. The query string remains
+  // useful as a preview override (e.g. "what if I picked
+  // 'extra_active'?").
+  const activityLevel: ActivityLevel | null =
+    profile.activityLevel ?? query.activityLevel;
+  const sexAtBirth: SexAtBirth | null = profile.sexAtBirth ?? query.sexAtBirth;
+
   const result = computeEnergy(
     {
       profile,
       latestBodyMeasurement: latestMeasurement,
       activeGoal,
-      activityLevel: query.activityLevel,
-      sexAtBirth: query.sexAtBirth,
+      activityLevel,
+      sexAtBirth,
       recentWorkouts,
       recentWorkoutsDayCount: distinctDayCount(recentWorkouts),
       consumedKcalToday,

@@ -11,6 +11,22 @@ import type { UserId } from "./index.js";
 /** Closed set of unit systems. Mirrors the SQL check constraint. */
 export type UnitSystem = "metric" | "imperial";
 
+/**
+ * Closed activity-level category. Mirrors the energy engine's
+ * `ActivityLevel` so the profile carries the same vocabulary the
+ * route consumes. A future segment moves the energy types here
+ * and re-exports; the alias keeps the two in sync today.
+ */
+export type ProfileActivityLevel =
+  | "sedentary"
+  | "lightly_active"
+  | "moderately_active"
+  | "very_active"
+  | "extra_active";
+
+/** Closed biological-sex category. */
+export type ProfileSexAtBirth = "male" | "female";
+
 /** Plausible adult height range, in centimetres. Stored canonical. */
 export const HEIGHT_CM_MIN = 50;
 export const HEIGHT_CM_MAX = 260;
@@ -36,6 +52,8 @@ export interface ProfileCore {
   readonly timezone: string;
   readonly birthYear: number | null;
   readonly heightCm: number | null;
+  readonly activityLevel: ProfileActivityLevel | null;
+  readonly sexAtBirth: ProfileSexAtBirth | null;
 }
 
 /**
@@ -67,6 +85,8 @@ export type ProfilePatch = {
   readonly timezone?: string | undefined;
   readonly birthYear?: number | null | undefined;
   readonly heightCm?: number | null | undefined;
+  readonly activityLevel?: ProfileActivityLevel | null | undefined;
+  readonly sexAtBirth?: ProfileSexAtBirth | null | undefined;
 };
 
 /**
@@ -89,10 +109,22 @@ export type ProfileValidationError =
       readonly min: number;
       readonly max: number;
     }
-  | { readonly kind: "invalid_unit_system"; readonly value: string };
+  | { readonly kind: "invalid_unit_system"; readonly value: string }
+  | { readonly kind: "invalid_activity_level"; readonly value: string }
+  | { readonly kind: "invalid_sex_at_birth"; readonly value: string };
 
 const TIMEZONE_PATTERN = /^[A-Za-z][A-Za-z0-9_+\-/]*$/;
 const MAX_BIRTH_YEAR = () => new Date().getUTCFullYear();
+
+const ACTIVITY_LEVEL_VALUES = [
+  "sedentary",
+  "lightly_active",
+  "moderately_active",
+  "very_active",
+  "extra_active",
+] as const;
+
+const SEX_AT_BIRTH_VALUES = ["male", "female"] as const;
 
 const isBlank = (value: string): boolean => value.trim().length === 0;
 
@@ -118,6 +150,26 @@ const validateUnitSystem = (
   if (value === undefined) return null;
   if (value !== "metric" && value !== "imperial") {
     return { kind: "invalid_unit_system", value };
+  }
+  return null;
+};
+
+const validateActivityLevel = (
+  value: ProfileActivityLevel | null | undefined,
+): ProfileValidationError | null => {
+  if (value === undefined || value === null) return null;
+  if (!(ACTIVITY_LEVEL_VALUES as ReadonlyArray<string>).includes(value)) {
+    return { kind: "invalid_activity_level", value };
+  }
+  return null;
+};
+
+const validateSexAtBirth = (
+  value: ProfileSexAtBirth | null | undefined,
+): ProfileValidationError | null => {
+  if (value === undefined || value === null) return null;
+  if (!(SEX_AT_BIRTH_VALUES as ReadonlyArray<string>).includes(value)) {
+    return { kind: "invalid_sex_at_birth", value };
   }
   return null;
 };
@@ -181,6 +233,10 @@ export const validateProfilePatch = (
   if (e4 !== null) errors.push(e4);
   const e5 = validateHeightCm(patch.heightCm);
   if (e5 !== null) errors.push(e5);
+  const e6 = validateActivityLevel(patch.activityLevel);
+  if (e6 !== null) errors.push(e6);
+  const e7 = validateSexAtBirth(patch.sexAtBirth);
+  if (e7 !== null) errors.push(e7);
 
   if (errors.length === 0) {
     // Empty patch is still rejected because it has no effect.
@@ -189,7 +245,9 @@ export const validateProfilePatch = (
       patch.unitSystem !== undefined ||
       patch.timezone !== undefined ||
       patch.birthYear !== undefined ||
-      patch.heightCm !== undefined;
+      patch.heightCm !== undefined ||
+      patch.activityLevel !== undefined ||
+      patch.sexAtBirth !== undefined;
     return anyTouched ? null : { kind: "empty_patch" };
   }
   return errors[0] as ProfileValidationError;
@@ -215,6 +273,12 @@ export const applyProfilePatch = (
   timezone: patch.timezone === undefined ? stored.timezone : patch.timezone,
   birthYear: patch.birthYear === undefined ? stored.birthYear : patch.birthYear,
   heightCm: patch.heightCm === undefined ? stored.heightCm : patch.heightCm,
+  activityLevel:
+    patch.activityLevel === undefined
+      ? stored.activityLevel
+      : patch.activityLevel,
+  sexAtBirth:
+    patch.sexAtBirth === undefined ? stored.sexAtBirth : patch.sexAtBirth,
   createdAt: stored.createdAt,
   updatedAt: now,
 });

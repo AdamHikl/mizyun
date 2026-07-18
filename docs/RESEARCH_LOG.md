@@ -511,7 +511,7 @@ What energy formula and target computation should Mizyun ship in v1, and how sho
 - **`ENERGY_FORMULA_VERSION = "v1-mifflin-st-jeor-2026-07"`.** Bumping this string is the formal contract change; bug fixes inside the same version are transparent. The wire envelope echoes the version so the UI can render it (ENG-02) and a future v2 (Katch-McArdle, etc.) can ship without breaking v1 callers.
 - **`EnergyFormula` port in `@mizyun/core`.** `computeEnergy(inputs, userId)` returns `EnergyComputeResult` with a typed `EnergyBreakdown`. Pure, deterministic, no I/O.
 - **`exerciseKcal` filled at the route layer.** The engine cannot see per-workout set counts (the set repository is a separate port); the route resolves them via `listForWorkout` and hands the pure estimator a callback. The engine surfaces the field as `null` until then — the breakdown shape makes "exercise kcal not yet evaluated" an honest signal, never a fabricated number.
-- **Activity multiplier vs exercise kcal — ENG-04.** The activity multiplier is applied to *non-exercise* TDEE (NEAT + daily movement), and exercise kcal is a separate field. The math never adds them; the UI renders the de-overlap explicitly.
+- **Activity multiplier vs exercise kcal — ENG-04.** The activity multiplier is applied to _non-exercise_ TDEE (NEAT + daily movement), and exercise kcal is a separate field. The math never adds them; the UI renders the de-overlap explicitly.
 - **ENG-05 trend guard.** `balanceUncertaintyKcal` is `null` until at least 3 distinct days of recent workouts exist; we don't present a "false precision" confidence band before the data warrants it.
 - **ENG-06 propagation.** Every numeric field on the breakdown is nullable; the engine tracks a `Set<EnergyIncompleteReason>` and surfaces the highest-priority first. The route never invents numbers.
 - **Sex + activity level live in the query string for v1.** The profile doesn't carry them yet. The route accepts `?activityLevel=&sexAtBirth=` so the UI can persist them client-side and pass them at request time; a future segment promotes them to profile fields.
@@ -532,3 +532,46 @@ pnpm check green: 47 mobile + 184 api + 176 core + ~110 package tests. Formula v
 - Promote `activityLevel` and `sexAtBirth` to profile fields (PROF-001 follow-up).
 - Wire a MET-keyed lookup to replace the kcal-per-set heuristic for `exerciseKcal` once the segment that surfaces per-set MET (cardio vs strength) lands.
 - Real activity data via HealthKit / Health Connect (IOS-HEALTH-001, AND-HEALTH-001): the engine already exposes an `exerciseKcal` slot; step-derived kcal would join it under a `stepKcal` field with the same de-overlap discipline.
+
+## 2026-07-17 — MEDIA-001 private media upload/sign/delete + PROF-001 follow-up
+
+### MEDIA-001 decisions
+
+- **Two-stage upload via signed URL.** `POST /v1/media/upload-url` returns `{ assetId, uploadUrl, objectPath, expiresAt }`. The client PUTs the bytes to `uploadUrl`. The route server-generates the object path as `<userId>/<uuid>.<ext>` so the SQL `storage.foldername(name)[1] = auth.uid()::text` policy scopes every upload to the user's own folder.
+- **Asset row recorded at upload-url time, not after upload completes.** The row carries the metadata (purpose, mime, byte size, dimensions). The signed-download endpoint refuses to sign a soft-deleted asset (returns 410). A separate `complete-upload` hook is a follow-up segment — for v1 the client treats upload-url-issued as "asset exists", which matches how iOS Photos upload flows work.
+- **Closed `purpose` enum** mirrors the SQL check constraint: `food` | `progress` | `workout` | `profile`.
+- **Closed mime allowlist** of `image/jpeg` | `image/png` | `image/webp` mirrors the SQL bucket `allowed_mime_types`.
+- **Byte cap 15 MiB** mirrors the SQL `file_size_limit`. Width/height bounded to `[16, 8192]` so a pathological input never lands.
+- **Storage abstraction.** The route talks to a `MediaStorage` interface, not Supabase Storage directly. `InMemoryMediaStorage` backs the local dev environment with `mem://upload/<ticket>` / `mem://download/<ticket>` URLs that tests can exchange for raw bytes. Production swaps it for a Supabase adapter (one-line composition-root change).
+- **Soft-delete + storage removal.** `DELETE /v1/media/:id` sets `deletedAt = now` AND removes the underlying bytes (storage adapter deletes). A subsequent `GET /v1/media` omits the row; a subsequent `POST /v1/media/sign` returns 410. List endpoint filters out soft-deleted assets.
+
+### PROF-001 follow-up decisions
+
+- **`activityLevel` and `sexAtBirth` promoted to profile fields.** Both nullable so existing users don't lose data on migration. Closed enums match the energy engine vocabulary.
+- **Energy route prefers profile values over query string.** Profile value wins; query string stays useful as a preview override ("what if I picked extra_active?"). When the profile value is null, the query string is consumed.
+- **Validator additions.** `ProfileValidationError` gains `invalid_activity_level` and `invalid_sex_at_birth` variants; the route maps them to 422 with explicit messages.
+- **No schema migration required.** The profile domain is in-memory in v1; a future segment that lands the SQL adapter adds nullable `activity_level` + `sex_at_birth` columns + check constraints to the existing profiles migration. The contract is stable now; the adapter change is mechanical.
+
+### Files
+
+- `packages/core/src/media-asset.ts` + test (14 cases).
+- `packages/contracts/src/media-asset.ts` — wire schemas.
+- `apps/api/src/media-storage.ts` — `MediaStorage` interface + `InMemoryMediaStorage`.
+- `apps/api/src/media-asset-repository.ts` — `InMemoryMediaAssetRepository`.
+- `apps/api/src/modules/media/routes.ts` — POST/GET list/sign/delete.
+- `packages/core/src/profile.ts` — added `ProfileActivityLevel`, `ProfileSexAtBirth`, validator variants, applier fields.
+- `packages/contracts/src/index.ts` — `profileSchema` + `profilePatchSchema` extended.
+- `apps/api/src/profile-repository.ts` — fresh profile default sets the two new fields to null.
+- `apps/api/src/modules/profile/routes.ts` — `toWire` includes the new fields; `validationErrorToApi` handles the new variants.
+- `apps/api/src/modules/energy/routes.ts` — profile values win; query string is the override.
+- Tests updated for the new shape (energy + profile + account fixtures include `activityLevel: null, sexAtBirth: null`).
+
+### Verified
+
+pnpm check green: 47 mobile + 209 api + ~190 core + ~110 package tests. 15 new media route tests + 6 new energy route tests + 6 new profile route tests + 4 new core profile tests + 14 new media-asset core tests.
+
+### Open follow-ups
+
+- **Media complete-upload hook.** Today the asset row is recorded when the upload URL is issued; the eventual landing of bytes is implicit (the client trusts the storage). A `POST /v1/media/:id/complete` hook that confirms the byte presence + dimensions will land with the Supabase storage adapter.
+- **Profile migration.** When the SQL adapter lands, add `activity_level text check (activity_level in (...))` and `sex_at_birth text check (sex_at_birth in ('male','female'))` to the profiles table. Backfill existing rows to `NULL`.
+- **Storage RLS test against local Supabase.** The pgTAP test for `storage.objects` policies was added in SEC-002. A more thorough test that walks a real PUT-through-the-storage-SDK flow lands with the Supabase media adapter.

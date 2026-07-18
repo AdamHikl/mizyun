@@ -15,6 +15,8 @@ const baseStored = (overrides: Partial<StoredProfile> = {}): StoredProfile => ({
   timezone: "UTC",
   birthYear: 1990,
   heightCm: 170,
+  activityLevel: null,
+  sexAtBirth: null,
   createdAt: new Date("2026-01-01T00:00:00Z"),
   updatedAt: new Date("2026-01-01T00:00:00Z"),
   ...overrides,
@@ -139,5 +141,69 @@ describe("applyProfilePatch", () => {
     );
     expect(next.userId).toBe(stored.userId);
     expect(next.createdAt).toEqual(stored.createdAt);
+  });
+
+  it("accepts activityLevel and sexAtBirth patches", () => {
+    expect(
+      validateProfilePatch({
+        activityLevel: "moderately_active",
+        sexAtBirth: "female",
+      }),
+    ).toBeNull();
+  });
+
+  it("accepts null activityLevel and null sexAtBirth (clearing)", () => {
+    expect(
+      validateProfilePatch({
+        activityLevel: null,
+        sexAtBirth: null,
+      }),
+    ).toBeNull();
+  });
+
+  it("rejects an invalid activityLevel value", () => {
+    expect(
+      validateProfilePatch({
+        // Deliberately invalid; cast to bypass the type narrowing
+        // so the validator's run-time reject path is exercised.
+        activityLevel: "vigorously_active" as unknown as never,
+      }),
+    ).toEqual({
+      kind: "invalid_activity_level",
+      value: "vigorously_active",
+    });
+  });
+
+  it("rejects an invalid sexAtBirth value", () => {
+    expect(
+      validateProfilePatch({
+        sexAtBirth: "other" as unknown as never,
+      }),
+    ).toEqual({ kind: "invalid_sex_at_birth", value: "other" });
+  });
+
+  it("applies activityLevel and sexAtBirth via applyProfilePatch", () => {
+    const stored = baseStored();
+    const next = applyProfilePatch(
+      stored,
+      { activityLevel: "very_active", sexAtBirth: "male" },
+      new Date("2026-08-01T00:00:00Z"),
+    );
+    expect(next.activityLevel).toBe("very_active");
+    expect(next.sexAtBirth).toBe("male");
+  });
+
+  it("clears activityLevel and sexAtBirth when the patch sets null", () => {
+    const stored = baseStored({
+      activityLevel: "moderately_active",
+      sexAtBirth: "female",
+    });
+    const next = applyProfilePatch(
+      stored,
+      { activityLevel: null, sexAtBirth: null },
+      new Date("2026-08-01T00:00:00Z"),
+    );
+    expect(next.activityLevel).toBeNull();
+    expect(next.sexAtBirth).toBeNull();
   });
 });
