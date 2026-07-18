@@ -5,8 +5,8 @@
 ## Snapshot
 
 - **Roadmap phase:** Phase 2 — onboarding, profile, and goals
-- **Completed work package:** DATA-001 export + deletion lifecycle
-- **Next active work package:** ENG-001 energy-formula research (or MEDIA-001 upload/sign/delete adapter)
+- **Completed work package:** ENG-001 + ENG-002 energy engine + summary endpoint
+- **Next active work package:** MEDIA-001 upload/sign/delete adapter (P0) or CONV-*/MEM-* segments
 - **Branch:** `main`
 - **Remote:** `https://github.com/AdamHikl/mizyun`
 - **Repository:** `/Users/adam/Documents/mizyun`
@@ -46,6 +46,7 @@
 - Body measurements (BODY-001): `/v1/body-measurements` is append-only — POST + GET (list with range filter) + GET-by-id + DELETE. No PUT. `weightKg` is bounded to `[30, 250]`; the open `measurements` JSONB blob accepts arbitrary attributes (waist_cm, chest_cm, etc.). 10 core + 19 API tests.
 - Workout sets + previous-performance (WO-002): `/v1/workouts/:workoutId/sets` covers POST/GET/DELETE for sets; the route server-generates `sequence` when the client omits it. `/v1/exercises/:exerciseId/recent-sets` returns the user's recent sets plus a summary block (best load, last session volume, total set count). Sets are immutable observations. 21 core + 16 API tests.
 - Account export + deletion (DATA-001): `/v1/account/export` returns a single JSON envelope covering every Phase 2 feature (profile, goals, food entries, exercises, workouts, workout sets, body measurements; `conversations` and `privateMedia` reserved for the CONV-* / MEDIA-* segments). `/v1/account/delete/request` issues a 5-minute opaque confirmation token; `/v1/account` accepts it and orchestrates a children-before-parents cascade across every per-feature repository. The token is single-use (retry returns 409 with `confirmation_token_missing`). 10 API tests cover the read path, the request/confirm flow, mismatched tokens, expired challenges, and the cascade effect on the partition. Research log: `docs/RESEARCH_LOG.md` `2026-07-17 — DATA-001 export + deletion lifecycle`.
+- Energy engine + summary endpoint (ENG-001, ENG-002): Mifflin-St Jeor BMR + Penman-style activity multipliers + `(kind, pace)` goal adjustment. The `EnergyFormula` port in `@mizyun/core` is pure and versioned (`ENERGY_FORMULA_VERSION = "v1-mifflin-st-jeor-2026-07"`); `computeEnergy(inputs, userId)` returns a typed `EnergyBreakdown` with every numeric field nullable so missing inputs surface as null with a typed `EnergyIncompleteReason` (ENG-06). Activity multiplier is applied to non-exercise TDEE so exercise kcal does not double-count (ENG-04); the route fills `exerciseKcal` from the workout-set repository and computes today's `balanceKcal` from the food summary (ENG-03). Trend-based `balanceUncertaintyKcal` is null until ≥3 distinct days of workouts exist (ENG-05). `GET /v1/energy/summary?activityLevel=&sexAtBirth=` returns the breakdown; the UI renders the audit page from the `inputs` echo (ENG-02). 23 core tests + 11 API tests.
 
 ## Verification evidence
 

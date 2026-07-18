@@ -1,0 +1,401 @@
+import { afterEach, describe, expect, it } from "vitest";
+
+import {
+  AgentOrchestrator,
+  DisabledAgentProvider,
+} from "@mizyun/agent-runtime";
+import {
+  type BodyMeasurementSource,
+  type FoodSource,
+  type StoredBodyMeasurement,
+  type StoredFoodEntry,
+  type StoredGoal,
+  type StoredProfile,
+  type StoredWorkout,
+  type UserId,
+  type WorkoutSource,
+  ENERGY_FORMULA_VERSION,
+} from "@mizyun/core";
+import type { AccessTokenVerifier } from "@mizyun/identity";
+import { InMemoryMemoryStore } from "@mizyun/memory";
+
+import { buildApp } from "../../app.js";
+import { InMemoryBodyMeasurementRepository } from "../../body-measurement-repository.js";
+import { InMemoryFoodEntryRepository } from "../../food-entry-repository.js";
+import { InMemoryGoalRepository } from "../../goal-repository.js";
+import { InMemoryProfileRepository } from "../../profile-repository.js";
+import { InMemoryWorkoutRepository } from "../../workout-repository.js";
+import { InMemoryWorkoutSetRepository } from "../../workout-set-repository.js";
+
+const userA: UserId = "00000000-0000-4000-8000-000000000001" as UserId;
+const userB: UserId = "00000000-0000-4000-8000-000000000002" as UserId;
+
+const apps: ReturnType<typeof buildApp>[] = [];
+
+afterEach(async () => {
+  await Promise.all(apps.splice(0).map((app) => app.close()));
+});
+
+const tokenVerifierFor = (
+  principal: { readonly userId: UserId } | null,
+): AccessTokenVerifier => ({
+  verify: async (token) =>
+    token === "valid"
+      ? { userId: principal!.userId, role: "authenticated" }
+      : null,
+});
+
+const build = (verifier: AccessTokenVerifier) => {
+  const profileRepository = new InMemoryProfileRepository({
+    defaultTimezone: "UTC",
+    defaultUnitSystem: "metric",
+  });
+  const goalRepository = new InMemoryGoalRepository();
+  const bodyMeasurementRepository = new InMemoryBodyMeasurementRepository();
+  const workoutRepository = new InMemoryWorkoutRepository();
+  const workoutSetRepository = new InMemoryWorkoutSetRepository();
+  const foodEntryRepository = new InMemoryFoodEntryRepository();
+  const app = buildApp({
+    tokenVerifier: verifier,
+    agent: new AgentOrchestrator({
+      provider: new DisabledAgentProvider(),
+      memories: new InMemoryMemoryStore(),
+    }),
+    profileRepository,
+    goalRepository,
+    bodyMeasurementRepository,
+    workoutRepository,
+    workoutSetRepository,
+    foodEntryRepository,
+  });
+  apps.push(app);
+  return {
+    app,
+    profileRepository,
+    goalRepository,
+    bodyMeasurementRepository,
+    workoutRepository,
+    workoutSetRepository,
+    foodEntryRepository,
+  };
+};
+
+const seedProfile = (
+  repo: InMemoryProfileRepository,
+  overrides: Partial<StoredProfile> = {},
+): StoredProfile => {
+  const profile: StoredProfile = {
+    userId: userA,
+    displayName: "Tester",
+    unitSystem: "metric",
+    timezone: "UTC",
+    birthYear: 1990,
+    heightCm: 175,
+    createdAt: new Date("2026-01-01T00:00:00Z"),
+    updatedAt: new Date("2026-01-01T00:00:00Z"),
+    ...overrides,
+  };
+  repo.__seedForTest(profile);
+  return profile;
+};
+
+const seedMeasurement = (
+  repo: InMemoryBodyMeasurementRepository,
+  overrides: Partial<StoredBodyMeasurement> = {},
+): StoredBodyMeasurement => {
+  const m: StoredBodyMeasurement = {
+    id: "00000000-0000-4000-8000-00000000a001",
+    userId: userA,
+    measuredAt: new Date("2026-07-15T08:00:00Z"),
+    weightKg: 70,
+    measurements: {},
+    source: "manual" as BodyMeasurementSource,
+    createdAt: new Date("2026-07-15T08:00:00Z"),
+    ...overrides,
+  };
+  repo.__seedForTest(m);
+  return m;
+};
+
+const seedGoal = (
+  repo: InMemoryGoalRepository,
+  overrides: Partial<StoredGoal> = {},
+): StoredGoal => {
+  const goal: StoredGoal = {
+    id: "00000000-0000-4000-8000-00000000b001",
+    userId: userA,
+    kind: "cut",
+    status: "active",
+    pace: "steady",
+    target: { weightKg: 78 },
+    startsOn: "2026-01-01",
+    targetDate: "2026-04-01",
+    createdAt: new Date("2026-01-01T00:00:00Z"),
+    updatedAt: new Date("2026-01-01T00:00:00Z"),
+    ...overrides,
+  };
+  repo.__seedForTest(goal);
+  return goal;
+};
+
+const seedWorkout = (
+  repo: InMemoryWorkoutRepository,
+  overrides: Partial<StoredWorkout> = {},
+): StoredWorkout => {
+  const w: StoredWorkout = {
+    id: "00000000-0000-4000-8000-00000000c001",
+    userId: userA,
+    name: "Leg day",
+    startedAt: new Date("2026-07-15T08:00:00Z"),
+    completedAt: new Date("2026-07-15T09:00:00Z"),
+    notes: null,
+    source: "manual" as WorkoutSource,
+    details: {},
+    createdAt: new Date("2026-07-15T08:00:00Z"),
+    updatedAt: new Date("2026-07-15T08:00:00Z"),
+    ...overrides,
+  };
+  repo.__seedForTest(w);
+  return w;
+};
+
+const seedFoodEntry = (
+  repo: InMemoryFoodEntryRepository,
+  overrides: Partial<StoredFoodEntry> = {},
+): StoredFoodEntry => {
+  const e: StoredFoodEntry = {
+    id: "00000000-0000-4000-8000-00000000e001",
+    userId: userA,
+    source: "manual" as FoodSource,
+    confidence: null,
+    confirmedByUser: true,
+    name: "Toast",
+    consumedAt: new Date("2026-07-15T08:00:00Z"),
+    caloriesKcal: 200,
+    proteinG: 5,
+    carbohydrateG: 30,
+    fatG: 4,
+    details: {},
+    createdAt: new Date("2026-07-15T08:00:00Z"),
+    updatedAt: new Date("2026-07-15T08:00:00Z"),
+    ...overrides,
+  };
+  repo.__seedForTest(e);
+  return e;
+};
+
+describe("GET /v1/energy/summary", () => {
+  it("returns a complete breakdown for a fully-specified user", async () => {
+    const {
+      app,
+      profileRepository,
+      goalRepository,
+      bodyMeasurementRepository,
+    } = build(tokenVerifierFor({ userId: userA }));
+    seedProfile(profileRepository);
+    seedMeasurement(bodyMeasurementRepository);
+    seedGoal(goalRepository);
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/energy/summary?activityLevel=moderately_active&sexAtBirth=male",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(response.statusCode).toBe(200);
+    const body = response.json().summary;
+    expect(body.formulaVersion).toBe(ENERGY_FORMULA_VERSION);
+    expect(body.complete).toBe(true);
+    expect(body.incompleteReason).toBeNull();
+    expect(body.ageYears).toBeGreaterThan(0);
+    expect(body.bmrKcal).toBeGreaterThan(0);
+    expect(body.activityMultiplier).toBe(1.6);
+    expect(body.tdeeKcal).toBeGreaterThan(0);
+    expect(body.goalAdjustmentKcal).toBe(-500);
+    expect(body.dailyTargetKcal).toBeGreaterThan(0);
+  });
+
+  it("echoes the formula version so the UI can render it (ENG-02)", async () => {
+    const {
+      app,
+      profileRepository,
+      goalRepository,
+      bodyMeasurementRepository,
+    } = build(tokenVerifierFor({ userId: userA }));
+    seedProfile(profileRepository);
+    seedMeasurement(bodyMeasurementRepository);
+    seedGoal(goalRepository);
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/energy/summary?activityLevel=lightly_active&sexAtBirth=male",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(response.json().summary.formulaVersion).toBe(ENERGY_FORMULA_VERSION);
+  });
+
+  it("reports incompleteReason 'no_active_goal' when the user has no goal", async () => {
+    const { app, profileRepository, bodyMeasurementRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    seedProfile(profileRepository);
+    seedMeasurement(bodyMeasurementRepository);
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/energy/summary?activityLevel=lightly_active&sexAtBirth=male",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(response.json().summary.complete).toBe(false);
+    expect(response.json().summary.incompleteReason).toBe("no_active_goal");
+    expect(response.json().summary.goalAdjustmentKcal).toBeNull();
+    expect(response.json().summary.dailyTargetKcal).toBeNull();
+  });
+
+  it("reports incompleteReason 'activity_unset' when activityLevel is omitted", async () => {
+    const {
+      app,
+      profileRepository,
+      goalRepository,
+      bodyMeasurementRepository,
+    } = build(tokenVerifierFor({ userId: userA }));
+    seedProfile(profileRepository);
+    seedMeasurement(bodyMeasurementRepository);
+    seedGoal(goalRepository);
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/energy/summary?sexAtBirth=male",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(response.json().summary.complete).toBe(false);
+    expect(response.json().summary.incompleteReason).toBe("activity_unset");
+  });
+
+  it("reports incompleteReason 'sex_missing' when sexAtBirth is omitted", async () => {
+    const {
+      app,
+      profileRepository,
+      goalRepository,
+      bodyMeasurementRepository,
+    } = build(tokenVerifierFor({ userId: userA }));
+    seedProfile(profileRepository);
+    seedMeasurement(bodyMeasurementRepository);
+    seedGoal(goalRepository);
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/energy/summary?activityLevel=lightly_active",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(response.json().summary.complete).toBe(false);
+    expect(response.json().summary.incompleteReason).toBe("sex_missing");
+  });
+
+  it("echoes inputs in the breakdown so the UI can render the audit trail", async () => {
+    const {
+      app,
+      profileRepository,
+      goalRepository,
+      bodyMeasurementRepository,
+    } = build(tokenVerifierFor({ userId: userA }));
+    seedProfile(profileRepository);
+    seedMeasurement(bodyMeasurementRepository);
+    seedGoal(goalRepository);
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/energy/summary?activityLevel=sedentary&sexAtBirth=female",
+      headers: { authorization: "Bearer valid" },
+    });
+    const inputs = response.json().summary.inputs;
+    expect(inputs.weightKg).toBe(70);
+    expect(inputs.heightCm).toBe(175);
+    expect(inputs.birthYear).toBe(1990);
+    expect(inputs.sexAtBirth).toBe("female");
+    expect(inputs.activityLevel).toBe("sedentary");
+    expect(inputs.goalKind).toBe("cut");
+    expect(inputs.goalPace).toBe("steady");
+  });
+
+  it("never returns another user's data", async () => {
+    const { app, profileRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    seedProfile(profileRepository, { userId: userB, displayName: "Other" });
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/energy/summary?activityLevel=lightly_active&sexAtBirth=male",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(response.json().summary.userId).toBe(userA);
+    expect(response.json().summary.inputs.weightKg).toBeNull();
+  });
+
+  it("returns 401 without a bearer token", async () => {
+    const { app } = build(tokenVerifierFor({ userId: userA }));
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/energy/summary?activityLevel=lightly_active&sexAtBirth=male",
+    });
+    expect(response.statusCode).toBe(401);
+  });
+
+  it("rejects an unknown query param with a 422", async () => {
+    const { app } = build(tokenVerifierFor({ userId: userA }));
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/energy/summary?mystery=x",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(response.statusCode).toBe(422);
+  });
+
+  it("returns balanceKcal null when today's consumption is missing", async () => {
+    const {
+      app,
+      profileRepository,
+      goalRepository,
+      bodyMeasurementRepository,
+    } = build(tokenVerifierFor({ userId: userA }));
+    seedProfile(profileRepository);
+    seedMeasurement(bodyMeasurementRepository);
+    seedGoal(goalRepository);
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/energy/summary?activityLevel=lightly_active&sexAtBirth=male",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(response.json().summary.balanceKcal).toBeNull();
+  });
+
+  it("returns balanceKcal when today's consumption is available", async () => {
+    const {
+      app,
+      profileRepository,
+      goalRepository,
+      bodyMeasurementRepository,
+      foodEntryRepository,
+    } = build(tokenVerifierFor({ userId: userA }));
+    seedProfile(profileRepository);
+    seedMeasurement(bodyMeasurementRepository);
+    seedGoal(goalRepository);
+    // Seed entries consumed "today" (UTC) so the route's
+    // now-window picks them up.
+    const today = new Date();
+    const isoToday = `${today.getUTCFullYear()}-${(today.getUTCMonth() + 1)
+      .toString()
+      .padStart(2, "0")}-${today.getUTCDate().toString().padStart(2, "0")}`;
+    seedFoodEntry(foodEntryRepository, {
+      consumedAt: new Date(`${isoToday}T08:00:00Z`),
+      caloriesKcal: 500,
+    });
+    seedFoodEntry(foodEntryRepository, {
+      id: "00000000-0000-4000-8000-00000000e002",
+      consumedAt: new Date(`${isoToday}T18:00:00Z`),
+      caloriesKcal: 300,
+    });
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/energy/summary?activityLevel=lightly_active&sexAtBirth=male",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(response.json().summary.balanceKcal).not.toBeNull();
+    // balance = consumed (800) - dailyTarget (calculated). Just
+    // assert it's a number.
+    expect(typeof response.json().summary.balanceKcal).toBe("number");
+  });
+});

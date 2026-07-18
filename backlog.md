@@ -34,8 +34,8 @@
 | UX-001    | P1       | done     | New-user onboarding flow                     | PROF-001, GOAL-001         |
 | NUT-001   | P1       | done     | Manual food CRUD vertical slice              | Phase 1 repositories       |
 | NUT-002   | P1       | done     | Daily macro/calorie summary                  | NUT-001                    |
-| ENG-001   | P1       | research | Select/version deterministic energy formulas | Profile/goal requirements  |
-| ENG-002   | P1       | blocked  | Energy target and balance engine             | ENG-001, NUT-002           |
+| ENG-001   | P1       | done     | Select/version deterministic energy formulas | Profile/goal requirements  |
+| ENG-002   | P1       | done     | Energy target and balance engine             | ENG-001, NUT-002           |
 | EX-001    | P1       | done     | Custom exercise CRUD                         | Phase 1 repositories       |
 | WO-001    | P1       | done     | Workout templates and sessions               | EX-001                     |
 | WO-002    | P1       | done     | Set logging and previous-performance view    | WO-001                     |

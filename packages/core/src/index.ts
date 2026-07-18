@@ -131,6 +131,24 @@ export {
 } from "./account";
 
 export {
+  ACTIVITY_MULTIPLIERS,
+  CURRENT_YEAR_REF,
+  ENERGY_FORMULA_VERSION,
+  ageFromBirthYear,
+  computeEnergy,
+  estimateExerciseKcal,
+  mifflinStJeorBmr,
+  mifflinStJeorFormula,
+  type ActivityLevel,
+  type EnergyBreakdown,
+  type EnergyComputeResult,
+  type EnergyFormula,
+  type EnergyIncompleteReason,
+  type EnergyInputs,
+  type SexAtBirth,
+} from "./energy";
+
+export {
   BODY_WEIGHT_KG_MAX,
   BODY_WEIGHT_KG_MIN,
   validateBodyMeasurementCreate,

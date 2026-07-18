@@ -391,6 +391,18 @@ export {
 } from "./account";
 
 export {
+  activityLevelSchema,
+  energyIncompleteReasonSchema,
+  energySummaryQuerySchema,
+  energySummaryResponseSchema,
+  energySummarySchema,
+  sexAtBirthSchema,
+  type EnergySummary,
+  type EnergySummaryQuery,
+  type EnergySummaryResponse,
+} from "./energy";
+
+export {
   bodyMeasurementCreateSchema,
   bodyMeasurementListQuerySchema,
   bodyMeasurementListResponseSchema,

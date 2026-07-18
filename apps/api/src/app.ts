@@ -31,6 +31,7 @@ import { loggerConfig } from "./logging.js";
 import { accountRoutes } from "./modules/account/routes.js";
 import { bodyMeasurementsRoutes } from "./modules/body-measurements/routes.js";
 import { coachRoutes } from "./modules/coach/routes.js";
+import { energyRoutes } from "./modules/energy/routes.js";
 import { exercisesRoutes } from "./modules/exercises/routes.js";
 import { foodEntriesRoutes } from "./modules/food-entries/routes.js";
 import { goalsRoutes } from "./modules/goals/routes.js";
@@ -219,6 +220,15 @@ export const buildApp = (
   void app.register(accountRoutes, {
     prefix: "/v1",
     accountRepository,
+  });
+  void app.register(energyRoutes, {
+    prefix: "/v1",
+    profileRepository,
+    goalRepository,
+    bodyMeasurementRepository,
+    workoutRepository,
+    workoutSetRepository,
+    foodEntryRepository,
   });
   void app.register(coachRoutes, {
     prefix: "/v1/coach",

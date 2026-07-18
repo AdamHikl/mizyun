@@ -495,3 +495,40 @@ How should Mizyun expose the AUTH-04 export and full account-deletion lifecycle,
 ### Verified
 
 pnpm check green: 47 mobile + 173 api + 153 core + ~110 package tests. Backlog row DATA-001 flipped to `done` with the open follow-ups above.
+
+## 2026-07-17 — ENG-001 formula selection + ENG-002 summary
+
+### Question
+
+What energy formula and target computation should Mizyun ship in v1, and how should the wire surface expose the audit trail so ENG-01..06 all hold?
+
+### Decisions
+
+- **Mifflin-St Jeor (1990) BMR.** Standard clinical formula, deterministic, well-cited. Both sexes supported.
+- **Penman-style activity multipliers.** 1.40 sedentary / 1.50 lightly_active / 1.60 moderately_active / 1.75 very_active / 2.00 extra_active. A static table owned by the formula version.
+- **Goal-adjustment table** keyed by `(kind, pace)`. Steady cut = −500, gradual cut = −300, aggressive cut = −750, steady recomp = −250, gradual recomp = 0, aggressive recomp = −500, maintain = 0 across all paces.
+- **Sex-at-floor safety gate.** Below 1200 kcal/day for women or 1500 for men the engine refuses to fabricate a number and surfaces `below_safety_floor` as the incompleteReason (ENG-06).
+- **`ENERGY_FORMULA_VERSION = "v1-mifflin-st-jeor-2026-07"`.** Bumping this string is the formal contract change; bug fixes inside the same version are transparent. The wire envelope echoes the version so the UI can render it (ENG-02) and a future v2 (Katch-McArdle, etc.) can ship without breaking v1 callers.
+- **`EnergyFormula` port in `@mizyun/core`.** `computeEnergy(inputs, userId)` returns `EnergyComputeResult` with a typed `EnergyBreakdown`. Pure, deterministic, no I/O.
+- **`exerciseKcal` filled at the route layer.** The engine cannot see per-workout set counts (the set repository is a separate port); the route resolves them via `listForWorkout` and hands the pure estimator a callback. The engine surfaces the field as `null` until then — the breakdown shape makes "exercise kcal not yet evaluated" an honest signal, never a fabricated number.
+- **Activity multiplier vs exercise kcal — ENG-04.** The activity multiplier is applied to *non-exercise* TDEE (NEAT + daily movement), and exercise kcal is a separate field. The math never adds them; the UI renders the de-overlap explicitly.
+- **ENG-05 trend guard.** `balanceUncertaintyKcal` is `null` until at least 3 distinct days of recent workouts exist; we don't present a "false precision" confidence band before the data warrants it.
+- **ENG-06 propagation.** Every numeric field on the breakdown is nullable; the engine tracks a `Set<EnergyIncompleteReason>` and surfaces the highest-priority first. The route never invents numbers.
+- **Sex + activity level live in the query string for v1.** The profile doesn't carry them yet. The route accepts `?activityLevel=&sexAtBirth=` so the UI can persist them client-side and pass them at request time; a future segment promotes them to profile fields.
+
+### Files
+
+- `packages/core/src/energy.ts`, `packages/core/src/energy.test.ts` (23 cases).
+- `packages/contracts/src/energy.ts` — `energySummarySchema`, `energySummaryResponseSchema`, `energySummaryQuerySchema`.
+- `apps/api/src/modules/energy/routes.ts`, `apps/api/src/modules/energy/routes.test.ts` (11 cases).
+- `apps/api/src/app.ts` — energy routes registered.
+
+### Verified
+
+pnpm check green: 47 mobile + 184 api + 176 core + ~110 package tests. Formula version echoed in the route response, the math is deterministic across multiple invocations (test asserts `a.bmrKcal === b.bmrKcal` for the same inputs).
+
+### Open follow-ups
+
+- Promote `activityLevel` and `sexAtBirth` to profile fields (PROF-001 follow-up).
+- Wire a MET-keyed lookup to replace the kcal-per-set heuristic for `exerciseKcal` once the segment that surfaces per-set MET (cardio vs strength) lands.
+- Real activity data via HealthKit / Health Connect (IOS-HEALTH-001, AND-HEALTH-001): the engine already exposes an `exerciseKcal` slot; step-derived kcal would join it under a `stepKcal` field with the same de-overlap discipline.
