@@ -189,6 +189,7 @@ export const foodEntriesRoutes: FastifyPluginAsync<
         from,
         to,
         limit: cappedLimit,
+        accessToken: principal.accessToken,
       });
       return listToWire(entries);
     },
@@ -271,6 +272,7 @@ export const foodEntriesRoutes: FastifyPluginAsync<
       const saved = await options.foodEntryRepository.create(
         principal.userId,
         stored,
+        { accessToken: principal.accessToken },
       );
       return toWire(saved);
     },
@@ -299,7 +301,9 @@ export const foodEntriesRoutes: FastifyPluginAsync<
         );
         return;
       }
-      const stored = await options.foodEntryRepository.getById(id);
+      const stored = await options.foodEntryRepository.getById(id, {
+        accessToken: principal.accessToken,
+      });
       if (stored === null || stored.userId !== principal.userId) {
         await sendApiError(
           reply,
@@ -349,7 +353,9 @@ export const foodEntriesRoutes: FastifyPluginAsync<
         );
         return;
       }
-      const stored = await options.foodEntryRepository.getById(id);
+      const stored = await options.foodEntryRepository.getById(id, {
+        accessToken: principal.accessToken,
+      });
       if (stored === null || stored.userId !== principal.userId) {
         await sendApiError(
           reply,
@@ -409,7 +415,9 @@ export const foodEntriesRoutes: FastifyPluginAsync<
         return;
       }
       const next = applyFoodEntryPatch(stored, patch, new Date());
-      const saved = await options.foodEntryRepository.update(next);
+      const saved = await options.foodEntryRepository.update(next, {
+        accessToken: principal.accessToken,
+      });
       return toWire(saved);
     },
   );
@@ -436,7 +444,9 @@ export const foodEntriesRoutes: FastifyPluginAsync<
         );
         return;
       }
-      const stored = await options.foodEntryRepository.getById(id);
+      const stored = await options.foodEntryRepository.getById(id, {
+        accessToken: principal.accessToken,
+      });
       if (stored === null || stored.userId !== principal.userId) {
         await sendApiError(
           reply,
@@ -447,7 +457,9 @@ export const foodEntriesRoutes: FastifyPluginAsync<
         );
         return;
       }
-      await options.foodEntryRepository.delete(id);
+      await options.foodEntryRepository.delete(id, {
+        accessToken: principal.accessToken,
+      });
       void reply.status(204).send();
     },
   );
@@ -496,7 +508,12 @@ export const foodEntriesRoutes: FastifyPluginAsync<
         const to = isoDateToEndOfDay(parsed.data.date);
         const entries = await options.foodEntryRepository.list(
           principal.userId,
-          { from, to, limit: MAX_RANGE_LIMIT },
+          {
+            from,
+            to,
+            limit: MAX_RANGE_LIMIT,
+            accessToken: principal.accessToken,
+          },
         );
         const summaries = summariseFoodEntries(entries, {
           from: parsed.data.date,
@@ -523,6 +540,7 @@ export const foodEntriesRoutes: FastifyPluginAsync<
         from,
         to,
         limit: cappedLimit * 50 /* headroom */,
+        accessToken: principal.accessToken,
       });
       // The repo paginates by row count, not by calendar day; we
       // re-slice the resulting summaries by day count after

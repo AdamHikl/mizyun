@@ -51,6 +51,22 @@ import { InMemoryMediaAssetRepository } from "./media-asset-repository.js";
 import { InMemoryProfileRepository } from "./profile-repository.js";
 import { InMemoryWorkoutRepository } from "./workout-repository.js";
 import { InMemoryWorkoutSetRepository } from "./workout-set-repository.js";
+import {
+  SupabaseProfileRepository,
+  SupabaseGoalRepository,
+  SupabaseFoodEntryRepository,
+  type RepositorySupabaseClient,
+} from "@mizyun/adapter-supabase-server";
+
+export interface SupabasePersistenceOptions {
+  /**
+   * Factory producing a per-request Supabase client bound to the
+   * verified user's access token. Each call returns a fresh client
+   * (no cross-request state). PERSIST-001 keeps the factory at the
+   * composition-root boundary; the per-feature adapters consume it.
+   */
+  readonly clientFor: (accessToken: string) => RepositorySupabaseClient;
+}
 
 export interface AppDependencies {
   readonly agent: AgentOrchestrator;
@@ -59,7 +75,8 @@ export interface AppDependencies {
    * Optional. When omitted, `buildApp` falls back to the in-memory
    * implementation. Tests that need to exercise the route layer in
    * isolation may pass a stub; production wiring supplies the Supabase
-   * adapter (landed in a follow-up segment).
+   * adapter (PERSIST-001 for profile/goal/food; PERSIST-002 for the
+   * rest in a follow-up segment).
    */
   readonly profileRepository?: ProfileRepository;
   readonly goalRepository?: GoalRepository;
@@ -70,6 +87,12 @@ export interface AppDependencies {
   readonly bodyMeasurementRepository?: BodyMeasurementRepository;
   readonly accountRepository?: AccountRepository;
   readonly mediaAssetRepository?: MediaAssetRepository;
+  /**
+   * When provided, the per-feature adapters swap to the Supabase
+   * implementations. In-memory remains the default so the standard
+   * `pnpm check` gate is green without Docker. PERSIST-001.
+   */
+  readonly supabasePersistence?: SupabasePersistenceOptions;
 }
 
 const tokenVerifierFromConfig = (config: ServerConfig): AccessTokenVerifier => {
@@ -156,16 +179,30 @@ export const buildApp = (
   // account-deletion orchestrator can see the same instances the
   // per-feature routes use. Tests that pass a custom dependency
   // for any single repo see it reflected here.
+  //
+  // PERSIST-001: when `dependencies.supabasePersistence` is set, the
+  // per-feature adapters swap to the Supabase implementations. An
+  // explicit `dependencies.profileRepository` (etc.) still wins so
+  // a test can override a single repo without flipping the others.
+  const sp = dependencies.supabasePersistence;
   const profileRepository =
     dependencies.profileRepository ??
-    new InMemoryProfileRepository({
-      defaultTimezone: DEFAULT_TIMEZONE,
-      defaultUnitSystem: DEFAULT_UNIT_SYSTEM,
-    });
+    (sp
+      ? new SupabaseProfileRepository({ clientFor: sp.clientFor })
+      : new InMemoryProfileRepository({
+          defaultTimezone: DEFAULT_TIMEZONE,
+          defaultUnitSystem: DEFAULT_UNIT_SYSTEM,
+        }));
   const goalRepository =
-    dependencies.goalRepository ?? new InMemoryGoalRepository();
+    dependencies.goalRepository ??
+    (sp
+      ? new SupabaseGoalRepository({ clientFor: sp.clientFor })
+      : new InMemoryGoalRepository());
   const foodEntryRepository =
-    dependencies.foodEntryRepository ?? new InMemoryFoodEntryRepository();
+    dependencies.foodEntryRepository ??
+    (sp
+      ? new SupabaseFoodEntryRepository({ clientFor: sp.clientFor })
+      : new InMemoryFoodEntryRepository());
   const exerciseRepository =
     dependencies.exerciseRepository ?? new InMemoryExerciseRepository();
   const workoutRepository =

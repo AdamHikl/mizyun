@@ -29,7 +29,11 @@ export class InMemoryGoalRepository implements GoalRepository {
     this.#clock = options.clock ?? { now: () => new Date() };
   }
 
-  async getActive(userId: UserId): Promise<StoredGoal | null> {
+  async getActive(
+    userId: UserId,
+    options: { readonly accessToken: string },
+  ): Promise<StoredGoal | null> {
+    void options.accessToken;
     const list = this.#byUser.get(userId) ?? [];
     const active = list.filter((g) => g.status === "active");
     if (active.length === 0) return null;
@@ -39,14 +43,23 @@ export class InMemoryGoalRepository implements GoalRepository {
     return active.reduce((a, b) => (a.updatedAt > b.updatedAt ? a : b));
   }
 
-  async getHistory(userId: UserId): Promise<ReadonlyArray<StoredGoal>> {
+  async getHistory(
+    userId: UserId,
+    options: { readonly accessToken: string },
+  ): Promise<ReadonlyArray<StoredGoal>> {
+    void options.accessToken;
     const list = this.#byUser.get(userId) ?? [];
     return [...list].sort(
       (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime(),
     );
   }
 
-  async create(userId: UserId, goal: StoredGoal): Promise<StoredGoal> {
+  async create(
+    userId: UserId,
+    goal: StoredGoal,
+    options: { readonly accessToken: string },
+  ): Promise<StoredGoal> {
+    void options.accessToken;
     if (goal.userId !== userId) {
       throw new Error("goal create userId mismatch");
     }
@@ -58,7 +71,12 @@ export class InMemoryGoalRepository implements GoalRepository {
     return goal;
   }
 
-  async update(userId: UserId, goal: StoredGoal): Promise<StoredGoal> {
+  async update(
+    userId: UserId,
+    goal: StoredGoal,
+    options: { readonly accessToken: string },
+  ): Promise<StoredGoal> {
+    void options.accessToken;
     if (goal.userId !== userId) {
       throw new Error("goal update userId mismatch");
     }

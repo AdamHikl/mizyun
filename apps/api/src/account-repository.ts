@@ -77,12 +77,20 @@ export class InMemoryAccountRepository implements AccountRepository {
   async exportForUser(userId: UserId): Promise<AccountExport> {
     const profile = await this.#profileRepository.getOrCreate(userId, {
       now: this.#clock.now(),
+      // The account-export path doesn't carry an end-user
+      // access token; the in-memory adapter ignores it. The
+      // Supabase adapter would need the service-role key at
+      // this layer (DATA-001+PERSIST-002 follow-up).
+      accessToken: "",
     });
-    const goals = await this.#goalRepository.getHistory(userId);
+    const goals = await this.#goalRepository.getHistory(userId, {
+      accessToken: "",
+    });
     const foodEntries = await this.#foodEntryRepository.list(userId, {
       from: null,
       to: null,
       limit: 10_000,
+      accessToken: "",
     });
     const exercises = await this.#exerciseRepository.list(userId, {
       limit: 10_000,
@@ -200,9 +208,10 @@ export class InMemoryAccountRepository implements AccountRepository {
       from: null,
       to: null,
       limit: 10_000,
+      accessToken: "",
     });
     for (const f of foodEntries) {
-      await this.#foodEntryRepository.delete(f.id);
+      await this.#foodEntryRepository.delete(f.id, { accessToken: "" });
     }
     const bodyMeasurements = await this.#bodyMeasurementRepository.list(
       userId,
@@ -211,7 +220,9 @@ export class InMemoryAccountRepository implements AccountRepository {
     for (const m of bodyMeasurements) {
       await this.#bodyMeasurementRepository.delete(m.id);
     }
-    const goals = await this.#goalRepository.getHistory(userId);
+    const goals = await this.#goalRepository.getHistory(userId, {
+      accessToken: "",
+    });
     for (const g of goals) {
       // The GoalRepository does not expose `delete` on its public
       // port (v1 has no per-row delete endpoint); the in-memory

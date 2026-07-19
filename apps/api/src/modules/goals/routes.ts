@@ -145,7 +145,9 @@ export const goalsRoutes: FastifyPluginAsync<GoalsRoutesOptions> = async (
       if (!principal) {
         throw new Error("principal missing after authentication");
       }
-      const active = await options.goalRepository.getActive(principal.userId);
+      const active = await options.goalRepository.getActive(principal.userId, {
+        accessToken: principal.accessToken,
+      });
       if (active === null) {
         await sendApiError(
           reply,
@@ -170,7 +172,10 @@ export const goalsRoutes: FastifyPluginAsync<GoalsRoutesOptions> = async (
       if (!principal) {
         throw new Error("principal missing after authentication");
       }
-      const history = await options.goalRepository.getHistory(principal.userId);
+      const history = await options.goalRepository.getHistory(
+        principal.userId,
+        { accessToken: principal.accessToken },
+      );
       return historyToWire(history);
     },
   );
@@ -241,6 +246,7 @@ export const goalsRoutes: FastifyPluginAsync<GoalsRoutesOptions> = async (
         const saved = await options.goalRepository.create(
           principal.userId,
           stored,
+          { accessToken: principal.accessToken },
         );
         return toWire(saved);
       } catch (cause) {
@@ -287,7 +293,10 @@ export const goalsRoutes: FastifyPluginAsync<GoalsRoutesOptions> = async (
         );
         return;
       }
-      const history = await options.goalRepository.getHistory(principal.userId);
+      const history = await options.goalRepository.getHistory(
+        principal.userId,
+        { accessToken: principal.accessToken },
+      );
       const stored = history.find((g) => g.id === id);
       if (stored === undefined) {
         await sendApiError(
@@ -331,7 +340,9 @@ export const goalsRoutes: FastifyPluginAsync<GoalsRoutesOptions> = async (
         return;
       }
       const next = applyGoalPatch(stored, parsed.data, new Date());
-      const saved = await options.goalRepository.update(principal.userId, next);
+      const saved = await options.goalRepository.update(principal.userId, next, {
+        accessToken: principal.accessToken,
+      });
       return toWire(saved);
     },
   );

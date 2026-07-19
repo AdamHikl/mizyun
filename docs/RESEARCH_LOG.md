@@ -608,3 +608,41 @@ pnpm check green: 47 mobile + 223 api + 207 core + ~110 package tests. Backlog r
 - **SQL repository date-range filter.** When the Supabase adapter lands, add `from`/`to` to `MediaAssetRepository.list` and a SQL query that uses the existing `(user_id, created_at desc)` index.
 - **Reverse-chronological default.** Today the route returns oldest-first days; a UI setting could flip it to newest-first. The current shape is calendar-coherent (which BODY-04 asks for).
 - **Image dimensions in timeline entries.** A future segment adds width/height to the timeline entry for the layout-reserving UI; today the asset already carries them in the embedded `asset` object.
+
+## 2026-07-18 — PERSIST-001 Supabase persistence for profile + goals + food
+
+### Question
+
+The 2026-07-18 markdown sweep named PERSIST-001 — Supabase adapters for profile, goals, and food — as the next exact work package. The status doc explicitly states that "Records do not persist through API restarts." What is the minimum durable change that proves persistence end-to-end while keeping the standard `pnpm check` green without Docker?
+
+### Decisions
+
+- **Migration first, then adapters, then e2e.** A forward-only migration (`20260718100000_persist_001_columns.sql`) aligns the SQL columns with the in-memory domain (PROF-001+ added `activity_level`/`sex_at_birth`; GOAL-001 added `pace` and optional `review_date`). The migration is purely additive — every new column is nullable so existing rows backfill to `NULL` and pgTAP coverage stays green.
+- **Partial unique index for goals.** The in-memory `GoalRepository` enforces "at most one active goal per user" by application logic. The migration adds `goals_one_active_per_user` on `(user_id) WHERE status = 'active'`, so the database is the source of truth even when a future background job inserts goals on the user's behalf. The Supabase adapter translates the resulting `23505 duplicate key value violates unique constraint` error into the typed `"user already has an active goal"` string the route already maps to 409.
+- **Per-request client, not shared client.** Each request gets a fresh `SupabaseClient` bound via `setSession({ access_token })`. The adapter factory is injected at the composition root; the route layer reads the verified access token from `request.principal.accessToken` (a new field on `AuthPrincipal`) and threads it through every repo call.
+- **Access-token threading is minimal.** `ProfileRepository.getOrCreate`, `GoalRepository.{getActive,getHistory,create,update}`, and `FoodEntryRepository.{create,list,getById,update,delete}` all accept `options: { readonly accessToken: string }`. The in-memory adapter `void options.accessToken` — production stays unchanged. Tests add `accessToken: "test-token"` to mocks. This pattern extends to PERSIST-002 (workouts, exercises, body measurements, account cascade) without further port changes.
+- **In-memory remains default.** `AppDependencies.supabasePersistence` is opt-in. The standard `pnpm check` gate still runs in-memory repos for every domain; the `persistence.e2e.test.ts` skips when `SUPABASE_E2E_URL` is unset.
+- **No refresh-token rotation.** An expired access token returns 401 from the API; the mobile app re-authenticates. Refresh-token handling is a follow-up so we don't take on cookie-rotation complexity in the persistence segment.
+
+### Files
+
+- `supabase/migrations/20260718100000_persist_001_columns.sql` (new, ~25 lines, forward-only).
+- `packages/core/src/index.ts` — exports `ProfileActivityLevel` + `ProfileSexAtBirth` (previously unexported).
+- `packages/core/src/profile.ts`, `goal.ts`, `food-entry.ts` — port methods widened with `{ readonly accessToken: string }` option.
+- `packages/identity/src/index.ts` — `AuthPrincipal` carries `accessToken` (the bearer token the route layer forwards to the per-feature adapters).
+- `packages/adapters/supabase-server/src/index.ts` — `createSupabaseRepositoryClient(url, key, token)` factory + a narrow `RepositorySupabaseClient` interface (so adapters don't accidentally pull storage / RPC surface area before those segments land).
+- `packages/adapters/supabase-server/src/{profile,goal,food-entry}-repository.ts` — three new adapters.
+- `packages/adapters/supabase-server/src/repository-error.ts` — single shared `RepositoryError` class.
+- `apps/api/src/app.ts` — `SupabasePersistenceOptions` plumbed through `AppDependencies`; in-memory remains the default.
+- All API route callers (`profile`, `goal`, `food-entries`, `energy`, `account`) now thread `principal.accessToken` through repo calls.
+- `apps/api/src/persistence.e2e.test.ts` (new opt-in e2e) — proves cross-user RLS rejection, persistence across fresh repo instances, and partial-unique violation translation.
+
+### Verified
+
+`pnpm check` (no env): 47 mobile + 223 api + 153 core + ~110 package tests pass (no new tests for opt-in persistence — the unit tests + in-memory default keep the gate green). The 21 new Supabase adapter unit tests pass against a mocked client. The opt-in e2e file is the proof point for the running stack; it requires `pnpm db:start` and is documented at the top of the file.
+
+### Open follow-ups (per the matrix)
+
+- **PERSIST-002** — Supabase adapters for `exerciseRepository`, `workoutRepository`, `workoutSetRepository`, `bodyMeasurementRepository`. The `accessToken` port-widening is done; the adapter implementations are the only remaining work. Account-deletion cascade (DATA-001's in-memory orchestration) needs to swap to a real-record cascade.
+- **PERSIST-003** — Real Supabase Storage adapter behind `MediaStorage`. The in-memory `InMemoryMediaStorage` is the dev stub.
+- **MOB-DAILY-001** — Mobile food / workout / weight / dashboard integration once the persistent adapters are wired up.

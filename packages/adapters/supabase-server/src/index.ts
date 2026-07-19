@@ -32,6 +32,7 @@ export class SupabaseAccessTokenVerifier implements AccessTokenVerifier {
 
     return {
       userId: subject as UserId,
+      accessToken,
       ...(typeof email === "string" ? { email } : {}),
       ...(typeof role === "string" ? { role } : {}),
     };
@@ -56,3 +57,144 @@ export const createSupabaseAccessTokenVerifier = (
 
   return new SupabaseAccessTokenVerifier(client);
 };
+
+/**
+ * Public subset of the Supabase client that the per-feature
+ * repository adapters consume. The interface is intentionally
+ * narrow so the adapters don't reach for accidental surface
+ * area (raw RPC, storage SDK, etc.) before those segments land.
+ */
+export interface RepositorySupabaseClient {
+  from<T extends Record<string, unknown>>(table: string): RepositoryTableBuilder<T>;
+  auth: {
+    /**
+     * Bind the verified user's access token to the client so
+     * PostgREST queries run under RLS for that principal.
+     * Refresh-token rotation is not handled in PERSIST-001; an
+     * expired token returns 401 from the API and the mobile app
+     * re-authenticates.
+     */
+    setSession(options: {
+      readonly access_token: string;
+    }): Promise<{
+      readonly data: { readonly user: { readonly id: string } | null };
+      readonly error: unknown;
+    }>;
+  };
+}
+
+/**
+ * PostgREST fluent-builder surface for a single table. `select`,
+ * `insert`, `update`, and `delete` each open a query chain;
+ * terminal methods (`single`, `maybeSingle`, plain `await`)
+ * execute it.
+ */
+export interface RepositoryTableBuilder<T> {
+  select(columns?: string): RepositoryQueryBuilder<T>;
+  insert(
+    row: Partial<T> | ReadonlyArray<Partial<T>>,
+  ): RepositoryQueryBuilder<T>;
+  update(row: Partial<T>): RepositoryQueryBuilder<T>;
+  delete(): RepositoryQueryBuilder<T>;
+}
+
+/**
+ * Awaits the query as a list of rows. Single-row callers chain
+ * `.single()` or `.maybeSingle()` instead of `await`ing.
+ */
+export interface RepositoryListResult<T> {
+  readonly data: ReadonlyArray<T>;
+  readonly error: { readonly code?: string; readonly message: string } | null;
+}
+
+export interface RepositorySingleResult<T> {
+  readonly data: T | null;
+  readonly error: { readonly code?: string; readonly message: string } | null;
+}
+
+/**
+ * Chainable filter / ordering / limit methods. Every method
+ * returns a new builder so adapters can compose freely. The
+ * terminal method (`single`/`maybeSingle`/`then`) produces
+ * a result the adapter maps to Mizyun's `apiErrorCode` union.
+ */
+export interface RepositoryQueryBuilder<T> {
+  eq(column: keyof T & string, value: unknown): RepositoryQueryBuilder<T>;
+  gte(column: keyof T & string, value: string): RepositoryQueryBuilder<T>;
+  lte(column: keyof T & string, value: string): RepositoryQueryBuilder<T>;
+  gt(column: keyof T & string, value: string): RepositoryQueryBuilder<T>;
+  lt(column: keyof T & string, value: string): RepositoryQueryBuilder<T>;
+  in(column: keyof T & string, values: ReadonlyArray<unknown>): RepositoryQueryBuilder<T>;
+  is(column: keyof T & string, value: unknown): RepositoryQueryBuilder<T>;
+  order(
+    column: keyof T & string,
+    options?: { readonly ascending?: boolean; readonly nullsFirst?: boolean },
+  ): RepositoryQueryBuilder<T>;
+  limit(count: number): RepositoryQueryBuilder<T>;
+  range(from: number, to: number): RepositoryQueryBuilder<T>;
+  /** Append an extra filter to the chain. */
+  match(criteria: Partial<T>): RepositoryQueryBuilder<T>;
+  /**
+   * PostgREST allows `.select(columns?)` after `.insert(...)` /
+   * `.update(...)` / `.delete()` to return the affected rows.
+   * We mirror that on the builder so adapters can write
+   * `insert(...).select('*').single()`.
+   */
+  select(columns?: string): RepositoryQueryBuilder<T>;
+  /** Switch the chain to single-row mode. */
+  single(): Promise<RepositorySingleResult<T>>;
+  /** Switch to optional single-row mode (no rows → null data, no error). */
+  maybeSingle(): Promise<RepositorySingleResult<T>>;
+  /** Promise/Await support. Adapters prefer the typed terminals above. */
+  then<TResult>(
+    resolve: (value: RepositoryListResult<T>) => TResult | PromiseLike<TResult>,
+  ): PromiseLike<TResult>;
+}
+
+/**
+ * Construct a per-request Supabase client bound to the verified
+ * user's access token. RLS is the security boundary; the
+ * adapter never escalates to the service role for table
+ * operations.
+ *
+ * Each request gets its own client instance so concurrent
+ * requests cannot share a session.
+ */
+export const createSupabaseRepositoryClient = (
+  configuration: SupabaseServerConfiguration,
+  accessToken: string,
+): RepositorySupabaseClient => {
+  if (!accessToken) {
+    throw new Error(
+      "createSupabaseRepositoryClient requires a non-empty access token",
+    );
+  }
+  const raw = createClient(configuration.url, configuration.publishableKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: false,
+    },
+  });
+  // The cast narrows the surface area the adapters see; the
+  // underlying Supabase JS client retains its real typing. We
+  // own both ends.
+  const client = raw as unknown as RepositorySupabaseClient;
+  // setSession is async; we don't await here because the
+  // adapter kick-off path doesn't have a void to await on. The
+  // Supabase client buffers the auth header for the very next
+  // query and resolves as PostgREST receives the request.
+  void client.auth.setSession({ access_token: accessToken });
+  return client;
+};
+
+export {
+  SupabaseProfileRepository,
+} from "./profile-repository.js";
+export {
+  SupabaseGoalRepository,
+} from "./goal-repository.js";
+export {
+  SupabaseFoodEntryRepository,
+} from "./food-entry-repository.js";
+export { RepositoryError } from "./repository-error.js";

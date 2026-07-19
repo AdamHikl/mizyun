@@ -20,6 +20,7 @@ describe("SupabaseAccessTokenVerifier", () => {
       userId: "00000000-0000-4000-8000-000000000001",
       email: "person@example.com",
       role: "authenticated",
+      accessToken: "signed-token",
     });
     expect(getClaims).toHaveBeenCalledWith("signed-token");
   });

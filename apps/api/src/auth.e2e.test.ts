@@ -337,6 +337,7 @@ describe.skipIf(!runE2E)(
               userId: user.id as never,
               email: user.email,
               role: user.role,
+              accessToken: token,
             };
           },
         },
@@ -379,6 +380,7 @@ describe.skipIf(!runE2E)(
               ? ((await response.json()) as GoTrueUser) && {
                   userId: ((await response.json()) as GoTrueUser).id as never,
                   email: ((await response.json()) as GoTrueUser).email,
+                  accessToken: token,
                 }
               : null;
           },
@@ -538,6 +540,7 @@ describe.skipIf(!runE2E)(
               userId: user.id as never,
               email: user.email,
               role: user.role,
+              accessToken: token,
             };
           },
         },

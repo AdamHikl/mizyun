@@ -65,6 +65,7 @@ describe("API foundation", () => {
           ? {
               userId: "00000000-0000-4000-8000-000000000001" as UserId,
               email: "person@example.com",
+              accessToken: "test-token",
             }
           : null,
     };
@@ -100,6 +101,7 @@ describe("API foundation", () => {
     const tokenVerifier: AccessTokenVerifier = {
       verify: async () => ({
         userId: "not-a-uuid" as unknown as UserId,
+        accessToken: "test-token",
       }),
     };
     const app = buildApp({

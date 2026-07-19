@@ -81,6 +81,7 @@ const fetchTodayConsumedKcal = async (
   repo: FoodEntryRepository,
   userId: UserId,
   now: Date,
+  accessToken: string,
 ): Promise<number | null> => {
   const y = now.getUTCFullYear();
   const m = (now.getUTCMonth() + 1).toString().padStart(2, "0");
@@ -88,7 +89,12 @@ const fetchTodayConsumedKcal = async (
   const dateIso = `${y}-${m}-${d}`;
   const from = isoDateToStartOfDay(dateIso);
   const to = isoDateToEndOfDay(dateIso);
-  const entries = await repo.list(userId, { from, to, limit: 500 });
+  const entries = await repo.list(userId, {
+    from,
+    to,
+    limit: 500,
+    accessToken,
+  });
   // Match the daily summary's null-propagation rule: a single
   // null in any field taints the day's `caloriesKcal`.
   const calories = entries
@@ -150,18 +156,24 @@ const distinctDayCount = (
 const computeRouteSummary = async (
   options: EnergyRoutesOptions,
   userId: UserId,
+  accessToken: string,
   query: {
     readonly activityLevel: ActivityLevel | null;
     readonly sexAtBirth: SexAtBirth | null;
   },
   now: Date,
 ): Promise<EnergyBreakdown> => {
-  const profile = await options.profileRepository.getOrCreate(userId, { now });
+  const profile = await options.profileRepository.getOrCreate(userId, {
+    now,
+    accessToken,
+  });
   const latestMeasurement = await fetchLatestMeasurement(
     options.bodyMeasurementRepository,
     userId,
   );
-  const activeGoal = await options.goalRepository.getActive(userId);
+  const activeGoal = await options.goalRepository.getActive(userId, {
+    accessToken,
+  });
   const recentWorkouts = await fetchRecentWorkouts(
     options.workoutRepository,
     userId,
@@ -171,6 +183,7 @@ const computeRouteSummary = async (
     options.foodEntryRepository,
     userId,
     now,
+    accessToken,
   );
 
   // Profile values win over query-string overrides — the
@@ -304,6 +317,7 @@ export const energyRoutes: FastifyPluginAsync<EnergyRoutesOptions> = async (
       const breakdown = await computeRouteSummary(
         options,
         principal.userId,
+        principal.accessToken,
         {
           activityLevel: parsed.data.activityLevel ?? null,
           sexAtBirth: parsed.data.sexAtBirth ?? null,

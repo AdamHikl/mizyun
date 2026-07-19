@@ -33,7 +33,9 @@ export class InMemoryFoodEntryRepository implements FoodEntryRepository {
   async create(
     userId: UserId,
     entry: StoredFoodEntry,
+    options: { readonly accessToken: string },
   ): Promise<StoredFoodEntry> {
+    void options.accessToken;
     if (entry.userId !== userId) {
       throw new Error("food entry create userId mismatch");
     }
@@ -52,8 +54,10 @@ export class InMemoryFoodEntryRepository implements FoodEntryRepository {
       readonly from: Date | null;
       readonly to: Date | null;
       readonly limit: number;
+      readonly accessToken: string;
     },
   ): Promise<ReadonlyArray<StoredFoodEntry>> {
+    void options.accessToken;
     const list = this.#byUser.get(userId) ?? [];
     const fromMs = options.from?.getTime() ?? Number.NEGATIVE_INFINITY;
     const toMs = options.to?.getTime() ?? Number.POSITIVE_INFINITY;
@@ -66,11 +70,19 @@ export class InMemoryFoodEntryRepository implements FoodEntryRepository {
       .slice(0, Math.max(0, options.limit));
   }
 
-  async getById(id: string): Promise<StoredFoodEntry | null> {
+  async getById(
+    id: string,
+    options: { readonly accessToken: string },
+  ): Promise<StoredFoodEntry | null> {
+    void options.accessToken;
     return this.#byId.get(id) ?? null;
   }
 
-  async update(entry: StoredFoodEntry): Promise<StoredFoodEntry> {
+  async update(
+    entry: StoredFoodEntry,
+    options: { readonly accessToken: string },
+  ): Promise<StoredFoodEntry> {
+    void options.accessToken;
     const existing = this.#byId.get(entry.id);
     if (existing === undefined) {
       throw new Error(`food entry ${entry.id} does not exist`);
@@ -88,7 +100,11 @@ export class InMemoryFoodEntryRepository implements FoodEntryRepository {
     return entry;
   }
 
-  async delete(id: string): Promise<boolean> {
+  async delete(
+    id: string,
+    options: { readonly accessToken: string },
+  ): Promise<boolean> {
+    void options.accessToken;
     const existing = this.#byId.get(id);
     if (existing === undefined) return false;
     const owner = existing.userId;

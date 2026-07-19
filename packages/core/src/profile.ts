@@ -293,9 +293,19 @@ export const applyProfilePatch = (
  * The implementation is responsible for the idempotent create.
  */
 export interface ProfileRepository {
+  /**
+   * `accessToken` is the verified principal's bearer token. The
+   * in-memory adapter ignores it; the Supabase adapter uses it
+   * to construct a per-request client bound to the user's RLS
+   * session. PERSIST-001.
+   */
   getOrCreate(
     userId: UserId,
-    defaults: { readonly now: Date },
+    defaults: { readonly now: Date; readonly accessToken: string },
   ): Promise<StoredProfile>;
-  update(userId: UserId, next: StoredProfile): Promise<StoredProfile>;
+  update(
+    userId: UserId,
+    next: StoredProfile,
+    options: { readonly accessToken: string },
+  ): Promise<StoredProfile>;
 }

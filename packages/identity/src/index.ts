@@ -15,6 +15,14 @@ export interface AuthPrincipal {
   readonly userId: UserId;
   readonly email?: string;
   readonly role?: string;
+  /**
+   * The verified bearer token. Surfaced so downstream
+   * repositories (e.g. PERSIST-001 Supabase adapters) can
+   * construct a per-request client bound to the user's RLS
+   * session. The auth plugin verifies the token once; the
+   * adapter reuses it for PostgREST queries.
+   */
+  readonly accessToken: string;
 }
 
 export type AuthConfigurationStatus =

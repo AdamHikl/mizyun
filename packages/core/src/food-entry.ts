@@ -305,6 +305,12 @@ export const applyFoodEntryPatch = (
  */
 export interface FoodEntryRepository {
   /**
+   * `accessToken` is the verified principal's bearer token. The
+   * in-memory adapter ignores it; the Supabase adapter uses it
+   * to construct a per-request client bound to the user's RLS
+   * session. PERSIST-001.
+   */
+  /**
    * Insert a new food entry. The repository assigns the audit
    * timestamps and any server-generated fields before returning the
    * stored shape. (In the in-memory implementation the route
@@ -312,7 +318,11 @@ export interface FoodEntryRepository {
    * would handle it. Both honour the contract: the route passes a
    * `StoredFoodEntry` with all fields filled in.)
    */
-  create(userId: UserId, entry: StoredFoodEntry): Promise<StoredFoodEntry>;
+  create(
+    userId: UserId,
+    entry: StoredFoodEntry,
+    options: { readonly accessToken: string },
+  ): Promise<StoredFoodEntry>;
   /**
    * Return the most-recent entries for a user, optionally bounded
    * by `from`/`to`. Newest-first. `limit` caps the page size;
@@ -327,6 +337,7 @@ export interface FoodEntryRepository {
       readonly from: Date | null;
       readonly to: Date | null;
       readonly limit: number;
+      readonly accessToken: string;
     },
   ): Promise<ReadonlyArray<StoredFoodEntry>>;
   /**
@@ -334,18 +345,27 @@ export interface FoodEntryRepository {
    * with that id for any user. The route is responsible for the
    * ownership check (it filters on `userId` after the call).
    */
-  getById(id: string): Promise<StoredFoodEntry | null>;
+  getById(
+    id: string,
+    options: { readonly accessToken: string },
+  ): Promise<StoredFoodEntry | null>;
   /**
    * Apply a patch to an existing food entry. Returns the new stored
    * shape. Throws if the entry id does not exist.
    */
-  update(entry: StoredFoodEntry): Promise<StoredFoodEntry>;
+  update(
+    entry: StoredFoodEntry,
+    options: { readonly accessToken: string },
+  ): Promise<StoredFoodEntry>;
   /**
    * Permanently remove a food entry. Returns `true` when the entry
    * existed and was removed, `false` otherwise. The route is the
    * owner of the 404 decision (no idempotency-200 on miss).
    */
-  delete(id: string): Promise<boolean>;
+  delete(
+    id: string,
+    options: { readonly accessToken: string },
+  ): Promise<boolean>;
 }
 
 /**

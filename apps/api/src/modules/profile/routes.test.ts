@@ -29,6 +29,7 @@ const tokenVerifierFor = (
           userId: principal!.userId,
           ...(principal!.email ? { email: principal!.email } : {}),
           role: "authenticated",
+          accessToken: "test-token",
         }
       : null,
 });

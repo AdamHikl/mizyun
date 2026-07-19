@@ -248,18 +248,24 @@ export const applyGoalPatch = (
  */
 export interface GoalRepository {
   /**
-   * Return the user's currently-active goal, or `null` if no goal
-   * has been created yet. The repository is responsible for the
-   * "only one active goal per user" invariant — the SQL implementation
-   * will use a partial unique index on `(user_id) WHERE status = 'active'`.
+   * `accessToken` is the verified principal's bearer token. The
+   * in-memory adapter ignores it; the Supabase adapter uses it
+   * to construct a per-request client bound to the user's RLS
+   * session. PERSIST-001.
    */
-  getActive(userId: UserId): Promise<StoredGoal | null>;
+  getActive(
+    userId: UserId,
+    options: { readonly accessToken: string },
+  ): Promise<StoredGoal | null>;
   /**
    * Return the full goal history (newest first), including draft,
    * active, completed, and archived goals. Empty array if the user
    * has never created a goal.
    */
-  getHistory(userId: UserId): Promise<ReadonlyArray<StoredGoal>>;
+  getHistory(
+    userId: UserId,
+    options: { readonly accessToken: string },
+  ): Promise<ReadonlyArray<StoredGoal>>;
   /**
    * Insert a new goal. The repository must ensure the user does
    * not already have an active goal of the same kind (or any kind,
@@ -267,12 +273,20 @@ export interface GoalRepository {
    * allow at most one active goal; the SQL implementation will use
    * the partial unique index.
    */
-  create(userId: UserId, goal: StoredGoal): Promise<StoredGoal>;
+  create(
+    userId: UserId,
+    goal: StoredGoal,
+    options: { readonly accessToken: string },
+  ): Promise<StoredGoal>;
   /**
    * Apply a patch to an existing goal. Returns the new stored shape.
    * Throws if the goal id does not belong to the user.
    */
-  update(userId: UserId, goal: StoredGoal): Promise<StoredGoal>;
+  update(
+    userId: UserId,
+    goal: StoredGoal,
+    options: { readonly accessToken: string },
+  ): Promise<StoredGoal>;
 }
 
 /** Validate an ISO `YYYY-MM-DD` date. */

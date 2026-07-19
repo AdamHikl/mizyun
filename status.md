@@ -1,132 +1,146 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-07-17**.
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-07-18**.
 
-## Snapshot
+## Executive snapshot
 
-- **Roadmap phase:** Phase 2 — onboarding, profile, and goals
-- **Completed work package:** MEDIA-002 progress photo timeline + compare
-- **Next active work package:** CONV-* / MEM-* segments or AND-001 Android emulator
-- **Branch:** `main`
-- **Remote:** `https://github.com/AdamHikl/mizyun`
-- **Repository:** `/Users/adam/Documents/mizyun`
-- **AI provider:** intentionally disabled; do not enable it during Phase 1
-- **Hosted Supabase:** intentionally not created or linked yet
-- **iOS simulator:** working; last verified screen is the intentional configuration-required state
-- **Android emulator/device:** not configured or verified
-- **Local Supabase:** Docker runtime works; migrations, lint, and database tests pass
+- **Product stage:** technical pre-alpha; the architecture and domain/API foundation are strong, but this is not yet a customer-usable tracking beta.
+- **Roadmap position:** Phases 2–5 have substantial domain and route coverage; persistent adapters and mobile product workflows are the active integration gap.
+- **Latest completed work package:** PERSIST-001 — Supabase adapters for profile, goals, and food entries (real persistence via RLS, partial-unique index enforces "one active goal per user").
+- **Next exact work package:** PERSIST-002 — Supabase adapters for training, body, and account export/deletion cascade against real records.
+- **Branch:** `main`, clean working tree.
+- **Remote:** `https://github.com/AdamHikl/mizyun`.
+- **Remote state:** local `main` is **9 commits ahead of `origin/main`**. Push these commits before relying on GitHub as the backup/source of truth.
+- **AI provider:** intentionally disabled. No Mistral or other model API is configured.
+- **Hosted Supabase:** not created or linked.
+- **iOS:** bundle quality gate passes; prior simulator authentication work is documented.
+- **Android:** emulator/device runtime has not been configured or verified.
 
-## Delivered and verified
+## What is genuinely delivered
 
-- Expo SDK 57 application starts and exports a complete iOS Hermes bundle from the pnpm workspace.
-- Mobile authentication is behind provider-neutral interfaces and safely detects missing configuration.
-- Native sessions use chunked Expo SecureStore storage.
-- Fastify has bearer-token protection and `/v1/me`.
-- Committed migrations define profiles, goals, body measurements, food entries, exercises, workouts, workout sets, conversations, messages, user-managed memories, internal provider references, and private media.
-- User-facing tables receive explicit `authenticated` CRUD grants; `memory_provider_refs` is server/internal-only.
-- RLS ownership policies and user indexes cover all current user-owned tables.
-- Private-media policies constrain operations to the authenticated user's path.
-- Clean local database reset and lint pass.
-- Both pgTAP files pass: **55 assertions total**, including cross-user row access, mutation, storage-path isolation, and denial of client access to internal provider references.
-- AI orchestration and memory ports exist only with disabled/in-memory implementations. No model API is configured.
-- Cross-session sources of truth exist: `goals.md`, `plan.md`, `status.md`, `backlog.md`, requirements, quality gates, research log, and ADRs.
-- Validated environment composition: `@mizyun/config` package owns the env reader, Zod schemas, and a closed-world `EXPO_PUBLIC_*` allowlist. API and mobile composition roots call `loadServerConfig()` / `loadMobileConfig()` and receive typed values; no `process.env.*` reads remain at the composition roots.
-- Authenticated transport: `@mizyun/api-client` package owns the typed `ApiClient` interface, an `HttpApiClient` that attaches the bearer token from `authClient.getSession()` and normalizes 401/network errors into a discriminated `ApiError` union, and a `DisabledApiClient` for when `EXPO_PUBLIC_API_URL` is absent. The mobile composition root selects the right one based on `loadMobileConfig().apiUrl`.
-- End-to-end auth verified: the `apps/api/src/auth.e2e.test.ts` opt-in suite exercised the full GoTrue sign-up → Mailpit confirm → password sign-in → `/v1/me` round-trip through `HttpApiClient` against a real local Supabase stack. Server-side `/v1/me` schema enforcement confirmed via `app.inject` (rejects non-UUID principals with 500). Manual simulator checklist lives at `docs/AUTH_VERIFICATION.md`.
-- Account/settings UI: the new **Account** tab (`apps/mobile/src/app/settings.tsx`) loads the verified principal from `/v1/me` via the production `HttpApiClient` and exposes an explicit sign-out wired through `useAuth().signOut()`. The screen renders the disabled-auth and disabled-api placeholder when `.env` is incomplete, and a typed `reducePrincipalState` reducer covers every `ApiError` variant in `apps/mobile/src/features/settings/principal-state.test.ts` (12 vitest cases).
-- Recovery and confirmation deep-link flows: `@mizyun/identity` exposes a `DeepLinkPayload` union, a `parseDeepLinkFragment` helper, and three new `AuthClient` methods (`consumeDeepLink`, `updatePassword`, `requestPasswordRecovery`). The Supabase mobile adapter implements them via `supabase.auth.setSession`, `updateUser`, and `resetPasswordForEmail`. A top-level `DeepLinkBridge` in `_layout.tsx` consumes `Linking.getInitialURL` and `Linking.addEventListener("url", ...)` so cold-start and warm-start deep links both reach the auth boundary. The SessionGate shows a new `ResetPasswordScreen` when `recoveryState === true`. Opt-in e2e suite exercises the full recovery round-trip against the running local Supabase: 4/4 tests pass.
-- Safe API logging baseline: `apps/api/src/logging.ts` centralises the pino redact list (Authorization, cookie, body.password/email/token/access_token/refresh_token/session, response set-cookie), request/response serializers that include headers and cookies so the redaction is observable, and a `safeErrorSerializer` that strips `error.cause` and `error.errors` chains. `apps/api/src/errors.ts` owns the `apiErrorSchema` envelope via `sendApiError` and `internalErrorBody` helpers plus a typed `ApiErrorCode` union. Both the global error handler and the authentication plugin now route through these helpers. 10 logging tests + 5 envelope tests pass; runtime tests assert no Bearer token / throw-token / downstream cause secret ever reaches the log line, and the pino censor string `[Redacted]` does.
-- Private-media signed-URL isolation (SEC-002): the opt-in `apps/api/src/auth.e2e.test.ts` suite gained a `SEC-002: signed URLs are scoped to the verified owner and reject other users` case. It signs up two confirmed users (A and B), uploads an object under `/private-media/<userA>/a-photo.jpg`, then asserts that (i) A can sign their own path, (ii) B cannot sign A's path, (iii) B cannot enumerate a guessed path inside A's folder, and (iv) a non-existent bucket is rejected. No `signedURL` ever appears in a cross-user response body.
-- Profile vertical slice (PROF-001): the new `/v1/profile` API route is live. `GET /v1/profile` returns the verified user's profile (auto-creating a default row on first read so the trigger-vs-client race is absorbed). `PUT /v1/profile` accepts a partial patch parsed through `profilePatchSchema`, validated by the domain layer in `@mizyun/core`, and applied via `applyProfilePatch`. All four profile fields (displayName, unitSystem, timezone, birthYear, heightCm) are bounded; nullable fields clear when the patch sets them to `null`. 14 core domain tests + 10 API route tests cover every branch of the patch lifecycle. The `ProfileRepository` port has one in-memory implementation today; the Supabase adapter is the next segment.
-- Goal vertical slice (GOAL-001): the new `/v1/goals` API surface is live. `GET /v1/goals/active` returns the user's current active goal (404 if none). `GET /v1/goals/history` returns the full chronological record newest-first. `POST /v1/goals` creates a new active goal with server-generated `id`, `status` (always `active`), and audit timestamps; rejects unknown fields via `goalCreateSchema.strict()`. `PUT /v1/goals/:id` applies a partial patch with status-transition rules (draft → active/archived, active → completed/archived; completed and archived are terminal). All five patchable fields (`status`, `pace`, `target`, `targetDate`, `reviewDate`) are validated by the domain layer in `@mizyun/core`. 25 core domain tests + 14 API route tests cover every branch including cross-user isolation. The `GoalRepository` port has one in-memory implementation today; the SQL partial-unique-index adapter lands in a follow-up segment.
-- Onboarding flow (UX-001): the new `OnboardingScreen` walks a fresh user through welcome → displayName → units → primaryGoal in four steps. The wizard reducer (`apps/mobile/src/features/onboarding/onboarding-state.ts`) is pure and vitest-covered (23 cases); the submit function (`submit-onboarding.ts`) sequences a `PUT /v1/profile` then a `POST /v1/goals` through `apiClient` and humanises every `ApiError.kind` into a retryable message (8 vitest cases). The `AuthContext` now carries `profile` and `refreshProfile()` so the `SessionGate` routes any user with `profile.displayName === null` into the wizard, and flips back to the regular tabs once `refreshProfile()` returns the freshly-set displayName.
-- Manual food CRUD + daily summary (NUT-001, NUT-002): `/v1/food-entries` covers create / list / get / patch / delete with `from`/`to`/`limit` range filtering. `/v1/food-entries/summary?date=` returns a single-day aggregate, `?from=&to=` returns a per-day array. Numeric totals are nullable when any entry on the day has a null for the field — the UI prompts to backfill rather than report a misleading zero. 33 core + 38 API tests.
-- Custom exercise CRUD (EX-001): `/v1/exercises` covers the standard CRUD. List returns sorted by name (case-insensitive) for a stable picker. 22 core + 24 API tests.
-- Workout sessions (WO-001): `/v1/workouts` covers CRUD with the same `from`/`to`/`limit` filter shape as food entries. An in-flight workout has `completedAt: null`; setting `completedAt: null` re-opens a finished workout. The schema rejects `completedAt < startedAt`. 26 core + 22 API tests.
-- Body measurements (BODY-001): `/v1/body-measurements` is append-only — POST + GET (list with range filter) + GET-by-id + DELETE. No PUT. `weightKg` is bounded to `[30, 250]`; the open `measurements` JSONB blob accepts arbitrary attributes (waist_cm, chest_cm, etc.). 10 core + 19 API tests.
-- Workout sets + previous-performance (WO-002): `/v1/workouts/:workoutId/sets` covers POST/GET/DELETE for sets; the route server-generates `sequence` when the client omits it. `/v1/exercises/:exerciseId/recent-sets` returns the user's recent sets plus a summary block (best load, last session volume, total set count). Sets are immutable observations. 21 core + 16 API tests.
-- Account export + deletion (DATA-001): `/v1/account/export` returns a single JSON envelope covering every Phase 2 feature (profile, goals, food entries, exercises, workouts, workout sets, body measurements; `conversations` and `privateMedia` reserved for the CONV-* / MEDIA-* segments). `/v1/account/delete/request` issues a 5-minute opaque confirmation token; `/v1/account` accepts it and orchestrates a children-before-parents cascade across every per-feature repository. The token is single-use (retry returns 409 with `confirmation_token_missing`). 10 API tests cover the read path, the request/confirm flow, mismatched tokens, expired challenges, and the cascade effect on the partition. Research log: `docs/RESEARCH_LOG.md` `2026-07-17 — DATA-001 export + deletion lifecycle`.
-- Energy engine + summary endpoint (ENG-001, ENG-002): Mifflin-St Jeor BMR + Penman-style activity multipliers + `(kind, pace)` goal adjustment. The `EnergyFormula` port in `@mizyun/core` is pure and versioned (`ENERGY_FORMULA_VERSION = "v1-mifflin-st-jeor-2026-07"`); `computeEnergy(inputs, userId)` returns a typed `EnergyBreakdown` with every numeric field nullable so missing inputs surface as null with a typed `EnergyIncompleteReason` (ENG-06). Activity multiplier is applied to non-exercise TDEE so exercise kcal does not double-count (ENG-04); the route fills `exerciseKcal` from the workout-set repository and computes today's `balanceKcal` from the food summary (ENG-03). Trend-based `balanceUncertaintyKcal` is null until ≥3 distinct days of workouts exist (ENG-05). `GET /v1/energy/summary?activityLevel=&sexAtBirth=` returns the breakdown; the UI renders the audit page from the `inputs` echo (ENG-02). 23 core tests + 11 API tests.
-- Private media (MEDIA-001): `POST /v1/media/upload-url` issues a short-lived signed upload URL and records the asset row in one round-trip; the route server-generates `<userId>/<uuid>.<ext>` so the SQL storage policy scopes every upload to the user's own folder. `GET /v1/media` lists non-deleted assets newest-first with optional `purpose` filter. `POST /v1/media/sign` issues a short-lived signed download URL (returns 404 for cross-user ids, 410 for soft-deleted). `DELETE /v1/media/:id` soft-deletes the row AND removes the underlying storage bytes. The route talks to a `MediaStorage` interface (`InMemoryMediaStorage` for v1, Supabase adapter deferred); the asset metadata is bounded (mime allowlist, 15 MiB cap, dimensions `[16, 8192]`, closed `purpose` enum). 14 core tests + 15 API tests.
-- Progress photo timeline + compare (MEDIA-002): `GET /v1/media/timeline?from=&to=&purpose=` returns per-day buckets oldest-first; each entry carries a short-lived signed download URL so the UI can render thumbnails in a single round-trip. Default `purpose=progress`. `POST /v1/media/compare?assetIdA&assetIdB` returns the two assets side-by-side with `daysBetween` and `direction` (`a_before_b` / `a_after_b`); both ids are ownership-checked and soft-delete-checked (404 for any failure mode). Day distance is calendar-aligned (UTC midnight); a photo at 23:30Z on day N and one at 00:30Z on day N+1 are reported as 1 day apart. 7 new core tests + 7 new API tests.
-- Profile follow-up (PROF-001+): `activityLevel` and `sexAtBirth` promoted to nullable profile fields. Both surface in the wire envelope; the energy route prefers profile values over the query string (which remains as a preview override). Validator additions: `invalid_activity_level` and `invalid_sex_at_birth` mapped to 422 with explicit messages. 6 new core profile tests + 6 new profile route tests + 4 new energy route tests.
+### Architecture and platform foundation
 
-## Verification evidence
+- Expo SDK 57 mobile app and Fastify API in a pnpm TypeScript monorepo.
+- Explicit boundaries for core rules, contracts, identity, API transport, memory, agent orchestration, model providers, and infrastructure adapters.
+- Provider-neutral mobile authentication with chunked Expo SecureStore session persistence.
+- Validated API/mobile configuration and a provider-neutral authenticated `HttpApiClient`.
+- Fastify bearer-token verification, safe structured errors, request IDs, and sensitive-log redaction.
+- Forward-only Supabase migrations for profiles, goals, food, workouts, measurements, conversations, memories, and private media.
+- RLS policies, ownership indexes, private-storage path policies, and pgTAP two-user isolation coverage.
+- AI and memory interfaces are replaceable; the only runtime provider is the safe disabled provider.
 
-Database gate after the explicit-grant migration:
+### Domain and API behavior
 
-```text
-pnpm db:verify
-  clean migration reset: passed
-  database lint: passed (no schema errors)
-  pgTAP: passed (2 files, 55 assertions)
-```
+The following behavior exists as tested pure domain logic and Fastify routes:
 
-The current standard application gate passed:
+- profile and active-goal/history lifecycle;
+- new-user onboarding submission for display name, units, and primary goal;
+- manual food CRUD and daily/range calorie/macro summaries;
+- custom exercise CRUD;
+- workout sessions, set observations, and recent-performance summaries;
+- weight and body-measurement observations;
+- deterministic, versioned energy target and balance calculations;
+- account data export and two-step application-data deletion orchestration;
+- private-media metadata, signed upload/download abstractions, deletion, timeline, and selected-photo comparison.
+
+The calculation layer correctly treats missing data as incomplete, separates deterministic output from future AI explanation, and avoids silently turning uncertain estimates into facts.
+
+- Persistent repositories (PERSIST-001): three per-feature ports in `@mizyun/core` (`ProfileRepository`, `GoalRepository`, `FoodEntryRepository`) accept an `accessToken` and have Supabase adapters in `@mizyun/adapter-supabase-server` (`SupabaseProfileRepository`, `SupabaseGoalRepository`, `SupabaseFoodEntryRepository`) that bind the token via `setSession` so every PostgREST query runs under the verified principal's RLS. A forward-only migration (`20260718100000_persist_001_columns.sql`) adds `activity_level` + `sex_at_birth` to `public.profiles`, `pace` + `review_date` to `public.goals`, and a partial unique index `goals_one_active_per_user` that enforces "at most one active goal per user" at the database. The API composition root wires the Supabase adapters when `supabasePersistence` is provided; in-memory remains the default so the standard `pnpm check` gate stays green without Docker. 21 mocked-client adapter unit tests + 1 opt-in real-Stack e2e file (`persistence.e2e.test.ts`, `describe.skipIf` guarded by `SUPABASE_E2E_URL`) prove cross-user RLS rejection, persistence across fresh repo instances, and partial-unique violation translation.
+
+### Mobile surfaces
+
+The mobile app currently includes:
+
+- configuration-required, authentication, confirmation/recovery, and session-loading states;
+- an onboarding wizard connected to the profile/goal endpoints;
+- an Account tab with verified-principal display and sign-out;
+- a Home dashboard shell;
+- a Coach setup screen explaining that the model provider is disabled.
+
+## Critical implementation distinction
+
+Most tracking functionality is **not yet usable from the mobile app**:
+
+- the Home metrics are static placeholders;
+- the quick-add meal/workout/weight/photo buttons do not navigate or submit data;
+- there are no mobile food, workout, set, measurement, energy-review, photo-upload, or trend screens;
+- the Coach screen is a provider-not-connected placeholder;
+- there is no HealthKit/Health Connect step synchronization;
+- there is no billing, paywall, product analytics, crash reporting, or community functionality.
+
+More importantly, the production API composition root currently selects in-memory repositories for profile, goals, food, exercises, workouts, sets, measurements, media metadata, memory, and media bytes. The SQL schema is present and protected, but these features are not wired to PostgreSQL/Supabase. Tracking records therefore disappear when the API process restarts. Authentication is the principal feature currently backed by Supabase at runtime.
+
+Do not describe NUT-_, WO-_, BODY-_, ENG-_, MEDIA-* or DATA-001 as customer-complete. They are verified domain/API slices awaiting persistent adapters and mobile integration.
+
+## Verification evidence — 2026-07-18
+
+The complete standard gate was run from the local repository:
 
 ```text
 pnpm check
   formatting: passed
-  workspace type checks: passed
-  iOS Metro/Hermes bundle: passed (1,562 modules)
-  tests: passed (95 always-runs; +3 opt-in e2e against local Supabase when AUTH_E2E_* env is set)
-  AUTH-001 e2e (against running local Supabase): 3/3 passed
-    - sign-up → Mailpit confirm → sign-in → /v1/me round-trip via HttpApiClient
-    - 401 surface → kind: "session_expired"
-    - 404 surface → kind: "parse_error" (no fabrication)
-  AUTH-003 e2e (against running local Supabase): +1 test
-    - recovery email → Mailpit → /auth/v1/verify 303 redirect → fragment parse → /v1/me via HttpApiClient → password rotation → old-password rejection
-  OPS-001 logging: 10/10 passed (redact list, serializers, runtime redaction against captured pino stream)
-  OPS-001 error envelope: 5/5 passed (apiErrorSchema shape, request-id propagation, x-request-id passthrough)
-  Hermes bundle purity: confirmed no SUPABASE_SECRET_KEY / sbp_ / eyJ... JWT literals
-  AUTH-002 settings reducer: 12/12 passed (every ApiError variant + success + disabled states)
-  AUTH-003 deep-link parser: 9/9 passed (every kind + invalid shapes)
+  workspace TypeScript checks: passed
+  iOS Expo/Metro/Hermes export: passed (1,610 modules, 4.4 MB bundle)
+  tests: 572 passed
+  opt-in Supabase auth/storage e2e: 5 skipped because AUTH_E2E_* credentials were not enabled
 ```
 
-Run `pnpm check` again after any new executable change and update this evidence if counts change.
+The previous recorded database gate remains:
 
-## Important unresolved issue
+```text
+pnpm db:verify
+  clean migration reset: passed
+  database lint: passed
+  pgTAP: 55 assertions passed
+```
 
-Supabase CLI 2.109.1 reports localhost URLs, but Docker Desktop currently publishes API `54321`, database `54322`, Studio `54323`, and Mailpit `54324` on `0.0.0.0` and IPv6 `::`.
+Re-run the database and opt-in e2e gates whenever persistent adapters or hosted configuration change.
 
-The official custom-network recipe was tested with `com.docker.network.bridge.host_binding_ipv4=127.0.0.1`; Docker confirmed that option on the network, but the generated Supabase containers still published on all interfaces. The experimental wrapper was removed because it did not provide the promised protection.
+## Business-plan alignment
 
-Until this is resolved:
+### Strong alignment
 
-- use the local stack only on a trusted network;
-- do not put real user data or secrets into it;
-- run `pnpm db:stop` when it is not actively needed;
-- do not claim the stack is loopback-only based solely on its displayed URLs.
+- The domain model covers the intended unified record: nutrition, training, weight, photos, goals, energy, conversations, and memories.
+- Deterministic calculations, visible uncertainty, RLS, private media, and user-controlled memory support a trustworthy EU-first positioning.
+- Provider-neutral ports make Mistral and future model/memory providers replaceable without rewriting feature logic.
+- The technical foundation can support the premium AI layer after the manual product loop and safety evaluation exist.
 
-## Not implemented yet
+### Gaps blocking early customers
 
-- A validated, shared environment configuration layer for the API and mobile app. ✅ Completed as `@mizyun/config`.
-- Authenticated mobile API client. ✅ Completed as `@mizyun/api-client`.
-- Real sign-up/sign-in/session restore against local Supabase. ✅ Completed (programmatic e2e + manual checklist).
-- Account/settings UI with sign-out, password recovery, and confirmation deep-link flows. ✅ Sign-out done as AUTH-002. ✅ Recovery + confirmation done as AUTH-003.
-- Signed-URL API isolation test for private media. Storage path policy tests already pass.
-- Profile onboarding, goals UI, food logging, workouts, progress uploads, device steps, or health-platform sync.
-- PostgreSQL-backed feature repositories, conversations, or durable memory adapter.
-- Any model provider or photo analysis.
-- Android emulator/runtime verification.
+- The core promise of low-effort tracking cannot yet be tested because users cannot complete tracking journeys in the mobile UI.
+- Records do not persist through API restarts.
+- There is no usable progress dashboard or weekly review.
+- Photo capture/upload and AI-assisted calorie drafts do not exist end to end.
+- The memory-aware coach is only an interface and disabled implementation.
+- Android has not been verified.
+- There is no activation/retention instrumentation or subscription system, so the freemium/premium hypothesis cannot yet be measured.
 
-## Next exact work package
+## Productization sequence
 
-### UX-001 — new-user onboarding flow
+Do not start Mistral/chatbot implementation merely because the provider boundary exists. Follow this sequence unless `plan.md` is deliberately changed:
 
-1. Read `AGENTS.md`, `goals.md`, `plan.md`, this file, and `docs/QUALITY_GATES.md`.
-2. Survey the existing iOS auth surface (AUTH-001 / AUTH-002 / AUTH-003) and the new `/v1/profile` + `/v1/goals` routes. Decide which fields are required on the first screen (display name, units, timezone) vs deferrable (height, birth year, primary goal).
-3. Add an `onboarding` route group in `apps/mobile/src/app/` with a sequence of small screens. Each screen validates locally, defers the API write until the user taps Continue on the final screen, and falls back to a retry state when the network drops.
-4. Wire the onboarding flow into the SessionGate: a user with no `profile.displayName` (or with a flag column on the profile row) sees the onboarding flow instead of the dashboard; once complete, the flow is skipped.
-5. Tests: vitest cases for each onboarding screen's validation; one api test that proves the combined profile + goal write succeeds end-to-end via the real Fastify test instance.
-6. Update `docs/AUTH_VERIFICATION.md` with the onboarding path so the iOS simulator manual verification covers it.
-7. Run `pnpm check`, `git diff --check`, then update this handoff.
+1. **PERSIST-001:** implement Supabase-backed profile, goal, and food repositories; prove persistence and RLS end to end.
+2. **PERSIST-002 / PERSIST-003:** persist training/body/account records and replace in-memory media storage; prove real export and deletion.
+3. **MOB-DAILY-001:** build the smallest persistent mobile daily loop: baseline weight, manual meal, workout/set, and real dashboard totals.
+4. **AND-001:** verify the same loop in an Android emulator, not just an iOS bundle.
+5. **OBS-001:** add consent-respecting product analytics for activation, logging time/taps, retention, failures, and AI cost readiness.
+6. **MEDIA-MOB-001:** add real progress-photo selection/capture, upload, timeline, comparison, and deletion UI.
+7. **ALPHA-001:** run founder dogfooding and a 10–30-person design-partner beta; fix friction and data-loss issues.
+8. **AI-001 / MEM-001:** complete `docs/BEFORE_TESTING.md`, then add one evaluated Mistral text/vision adapter and user-visible memory controls.
+9. **BILL-001:** test premium packaging and subscription billing only after the paid value and provider unit economics are measurable.
+10. Community sharing remains post-MVP and must not delay the private self-service loop.
+
+## Known operational risks
+
+- The newest nine commits are local-only until pushed.
+- Supabase CLI 2.109.1 reports localhost URLs while Docker Desktop publishes local services on `0.0.0.0` and IPv6 `::`. Use the stack only on a trusted network, never with real user data, and stop it when unused.
+- Account deletion currently orchestrates application repositories; release-grade deletion must also remove the real auth identity, storage bytes, conversations, memories, provider references, and any processor-held data.
+- The documentation previously contained contradictory phase/next-action statements. This file and `docs/BUSINESS_ALIGNMENT.md` now describe the audited state; keep them synchronized with executable changes.
 
 ## Commands
 
 ```bash
 cd /Users/adam/Documents/mizyun
-pnpm install
 pnpm check
 pnpm db:start
 pnpm db:verify
@@ -135,17 +149,8 @@ pnpm dev:api
 pnpm dev:mobile
 ```
 
-Create `.env` from `.env.example` only when beginning real local authentication. Use the public URL/publishable key from `pnpm db:status`; never place a secret or service-role key in an `EXPO_PUBLIC_` variable. Do not commit `.env`.
-
-## Durable decisions
-
-- ADR-0001 — modular monolith with ports and adapters.
-- ADR-0002 — provider-neutral identity boundary.
-- ADR-0003 — local-first Supabase development, migration/pgTAP gates, and explicit Data API grants.
-- ADR-0004 — validated environment composition (`@mizyun/config`, closed-world mobile allowlist).
-- ADR-0005 — provider-neutral authenticated transport (`@mizyun/api-client`, `Result<T, ApiError>` envelope).
-- `docs/BEFORE_TESTING.md` — mandatory checklist before enabling an AI provider.
+Never put a service-role or model secret in an `EXPO_PUBLIC_` variable. AI remains gated by `docs/BEFORE_TESTING.md`.
 
 ## Handoff note
 
-The repository documents are the handoff. Start with `AGENTS.md`, then follow the source-of-truth order in `docs/SESSION_GUIDE.md`. The active item is CFG-001; do not reopen P1.1 unless database verification regresses or the documented port-exposure issue is being addressed deliberately.
+Read `AGENTS.md`, `goals.md`, `plan.md`, this file, `backlog.md`, and `docs/BUSINESS_ALIGNMENT.md` before implementation. The next development session should start with PERSIST-001, not conversations or AI. Before new work, push or otherwise back up the nine local commits after confirming the intended remote.

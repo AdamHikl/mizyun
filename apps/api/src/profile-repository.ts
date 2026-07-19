@@ -42,8 +42,9 @@ export class InMemoryProfileRepository implements ProfileRepository {
 
   async getOrCreate(
     userId: UserId,
-    options: { readonly now: Date },
+    options: { readonly now: Date; readonly accessToken: string },
   ): Promise<StoredProfile> {
+    void options.accessToken;
     const existing = this.#byUser.get(userId);
     if (existing) return existing;
     const now = options.now;
@@ -63,7 +64,12 @@ export class InMemoryProfileRepository implements ProfileRepository {
     return profile;
   }
 
-  async update(userId: UserId, next: StoredProfile): Promise<StoredProfile> {
+  async update(
+    userId: UserId,
+    next: StoredProfile,
+    options: { readonly accessToken: string },
+  ): Promise<StoredProfile> {
+    void options.accessToken;
     if (next.userId !== userId) {
       // Defensive: the route layer should already match the URL
       // principal to the storage key. If a future bug ever produces
