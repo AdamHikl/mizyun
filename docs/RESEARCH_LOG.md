@@ -646,3 +646,38 @@ The 2026-07-18 markdown sweep named PERSIST-001 — Supabase adapters for profil
 - **PERSIST-002** — Supabase adapters for `exerciseRepository`, `workoutRepository`, `workoutSetRepository`, `bodyMeasurementRepository`. The `accessToken` port-widening is done; the adapter implementations are the only remaining work. Account-deletion cascade (DATA-001's in-memory orchestration) needs to swap to a real-record cascade.
 - **PERSIST-003** — Real Supabase Storage adapter behind `MediaStorage`. The in-memory `InMemoryMediaStorage` is the dev stub.
 - **MOB-DAILY-001** — Mobile food / workout / weight / dashboard integration once the persistent adapters are wired up.
+
+## 2026-07-18 — PERSIST-002 Supabase adapters for training, body, account
+
+### Question
+
+PERSIST-001 closed the persistence gap for profile, goals, and food. What's the minimum change to close the same gap for exercises, workouts, workout sets, body measurements, and the account-export/deletion cascade?
+
+### Decisions
+
+- **Port widening, then adapter per feature.** The same `accessToken` pattern from PERSIST-001 propagates through four more ports: `ExerciseRepository`, `WorkoutRepository`, `WorkoutSetRepository`, `BodyMeasurementRepository`. Each port method now accepts `{ readonly accessToken: string }` (or no extra args for delete/getById). The in-memory adapters `void options.accessToken` so production semantics stay unchanged.
+- **SQL FK cascade replaces in-memory cascade.** `public.workout_sets.workout_id` references `public.workouts(id, user_id) ON DELETE CASCADE`, so when the user deletes a workout, the database drops its sets atomically. The Supabase workout-set adapter's `deleteAllForWorkout` is a documented no-op (returns 0); the in-memory adapter continues to walk the sets explicitly because the dev environment has no SQL.
+- **No partial unique index for sets.** The SQL schema already has `unique (workout_id, sequence)`, which the adapter translates to a typed 409 via `INSERT 23505 → "workout set sequence collision: workout=X sequence=Y"`. The route already maps that message to 409 with `kind: "validation_error"`.
+- **Body measurements are append-only in the API.** The migration gave us `created_at` + `measured_at`. The adapter sorts by `measured_at` descending; the in-memory adapter does the same. No new invariants.
+- **Account cascade uses `accessToken: ""`.** Today's `InMemoryAccountRepository.exportForUser` and `deleteUser` run from inside the API composition root, which doesn't carry an end-user token. The Supabase-adapter-based cascade (PERSIST-002 follow-up) will need the service-role key at the composition root; the in-memory cascade continues to work as before.
+- **No schema migration for PERSIST-002.** The migration in PERSIST-001 covered `activity_level` + `sex_at_birth` (profile) and `pace` + `review_date` (goal); the four new tables (exercises, workouts, workout_sets, body_measurements) already match the domain shape from day one. The `workout_sets` row's `source` column is `manual` only — the SQL CHECK constraint matches the domain enum.
+
+### Files
+
+- `packages/core/src/{exercise,workout,workout-set,body-measurement}.ts` — four ports widened with `{ readonly accessToken: string }` in their options bag.
+- `apps/api/src/{exercise,workout,workout-set,body-measurement}-repository.ts` — in-memory adapters `void options.accessToken`; production semantics unchanged.
+- All API route callers (`/v1/exercises`, `/v1/workouts`, `/v1/workouts/:id/sets`, `/v1/body-measurements`, `/v1/energy/summary`, `/v1/account/export`, `/v1/account/delete`) thread `principal.accessToken` through repo calls. Test mocks now include `accessToken: "test-token"`.
+- `apps/api/src/account-repository.ts` — export + deletion cascade now passes `accessToken: ""` to every per-feature adapter (the in-memory adapters ignore it).
+- `packages/adapters/supabase-server/src/{exercise,workout,workout-set,body-measurement}-repository.ts` — four new Supabase adapters; re-exported from `packages/adapters/supabase-server/src/index.ts`.
+- `packages/adapters/supabase-server/src/{exercise,workout,workout-set,body-measurement}-repository.test.ts` — 18 new mocked-client unit tests (3-7 each).
+- `apps/api/src/persistence.e2e.test.ts` — 3 new opt-in e2e tests (exercises persistence + RLS, workouts+sets cascade via FK, body-measurements isolation).
+
+### Verified
+
+`pnpm check` (no env): 47 mobile + 223 api + 190 core + ~110 package tests pass. The opt-in e2e file is the proof point for the running stack.
+
+### Open follow-ups
+
+- **Hosted Supabase adapter swap.** When the production composition root picks Supabase adapters for real, the `AppDependencies.supabasePersistence` option flips the seven per-feature adapters + the in-memory account cascade. The service-role key handling lands when DATA-002 ships.
+- **PERSIST-003** — Real Supabase Storage adapter behind `MediaStorage` (replacing `InMemoryMediaStorage`).
+- **Mobile daily loop.** The data layer is now durable; MOB-DAILY-001 becomes the next exact work package (manual food / workout / weight / dashboard on the iOS simulator against real persisted records).

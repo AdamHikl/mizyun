@@ -183,6 +183,7 @@ export const workoutsRoutes: FastifyPluginAsync<WorkoutsRoutesOptions> = async (
         from,
         to,
         limit: cappedLimit,
+        accessToken: principal.accessToken,
       });
       return listToWire(workouts);
     },
@@ -262,6 +263,7 @@ export const workoutsRoutes: FastifyPluginAsync<WorkoutsRoutesOptions> = async (
       const saved = await options.workoutRepository.create(
         principal.userId,
         stored,
+        { accessToken: principal.accessToken },
       );
       return toWire(saved);
     },
@@ -290,7 +292,9 @@ export const workoutsRoutes: FastifyPluginAsync<WorkoutsRoutesOptions> = async (
         );
         return;
       }
-      const stored = await options.workoutRepository.getById(id);
+      const stored = await options.workoutRepository.getById(id, {
+        accessToken: principal.accessToken,
+      });
       if (stored === null || stored.userId !== principal.userId) {
         await sendApiError(
           reply,
@@ -339,7 +343,9 @@ export const workoutsRoutes: FastifyPluginAsync<WorkoutsRoutesOptions> = async (
         );
         return;
       }
-      const stored = await options.workoutRepository.getById(id);
+      const stored = await options.workoutRepository.getById(id, {
+        accessToken: principal.accessToken,
+      });
       if (stored === null || stored.userId !== principal.userId) {
         await sendApiError(
           reply,
@@ -383,7 +389,9 @@ export const workoutsRoutes: FastifyPluginAsync<WorkoutsRoutesOptions> = async (
         return;
       }
       const next = applyWorkoutPatch(stored, patch, new Date());
-      const saved = await options.workoutRepository.update(next);
+      const saved = await options.workoutRepository.update(next, {
+        accessToken: principal.accessToken,
+      });
       return toWire(saved);
     },
   );
@@ -410,7 +418,9 @@ export const workoutsRoutes: FastifyPluginAsync<WorkoutsRoutesOptions> = async (
         );
         return;
       }
-      const stored = await options.workoutRepository.getById(id);
+      const stored = await options.workoutRepository.getById(id, {
+        accessToken: principal.accessToken,
+      });
       if (stored === null || stored.userId !== principal.userId) {
         await sendApiError(
           reply,
@@ -421,7 +431,9 @@ export const workoutsRoutes: FastifyPluginAsync<WorkoutsRoutesOptions> = async (
         );
         return;
       }
-      await options.workoutRepository.delete(id);
+      await options.workoutRepository.delete(id, {
+        accessToken: principal.accessToken,
+      });
       void reply.status(204).send();
     },
   );

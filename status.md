@@ -6,8 +6,8 @@
 
 - **Product stage:** technical pre-alpha; the architecture and domain/API foundation are strong, but this is not yet a customer-usable tracking beta.
 - **Roadmap position:** Phases 2–5 have substantial domain and route coverage; persistent adapters and mobile product workflows are the active integration gap.
-- **Latest completed work package:** PERSIST-001 — Supabase adapters for profile, goals, and food entries (real persistence via RLS, partial-unique index enforces "one active goal per user").
-- **Next exact work package:** PERSIST-002 — Supabase adapters for training, body, and account export/deletion cascade against real records.
+- **Latest completed work package:** PERSIST-002 — Supabase adapters for training (exercises, workouts, workout sets), body measurements, and the account-export/deletion cascade against real records. Every Phase 2 feature is now backed by a Supabase implementation; the standard gate remains in-memory by default.
+- **Next exact work package:** PERSIST-003 — Real Supabase Storage adapter behind `MediaStorage` (replacing the local `InMemoryMediaStorage`).
 - **Branch:** `main`, clean working tree.
 - **Remote:** `https://github.com/AdamHikl/mizyun`.
 - **Remote state:** local `main` is **9 commits ahead of `origin/main`**. Push these commits before relying on GitHub as the backup/source of truth.
@@ -46,6 +46,8 @@ The following behavior exists as tested pure domain logic and Fastify routes:
 The calculation layer correctly treats missing data as incomplete, separates deterministic output from future AI explanation, and avoids silently turning uncertain estimates into facts.
 
 - Persistent repositories (PERSIST-001): three per-feature ports in `@mizyun/core` (`ProfileRepository`, `GoalRepository`, `FoodEntryRepository`) accept an `accessToken` and have Supabase adapters in `@mizyun/adapter-supabase-server` (`SupabaseProfileRepository`, `SupabaseGoalRepository`, `SupabaseFoodEntryRepository`) that bind the token via `setSession` so every PostgREST query runs under the verified principal's RLS. A forward-only migration (`20260718100000_persist_001_columns.sql`) adds `activity_level` + `sex_at_birth` to `public.profiles`, `pace` + `review_date` to `public.goals`, and a partial unique index `goals_one_active_per_user` that enforces "at most one active goal per user" at the database. The API composition root wires the Supabase adapters when `supabasePersistence` is provided; in-memory remains the default so the standard `pnpm check` gate stays green without Docker. 21 mocked-client adapter unit tests + 1 opt-in real-Stack e2e file (`persistence.e2e.test.ts`, `describe.skipIf` guarded by `SUPABASE_E2E_URL`) prove cross-user RLS rejection, persistence across fresh repo instances, and partial-unique violation translation.
+
+- Persistent training + body + account cascade (PERSIST-002): the remaining four ports (`ExerciseRepository`, `WorkoutRepository`, `WorkoutSetRepository`, `BodyMeasurementRepository`) are widened with `{ readonly accessToken: string }` and now have Supabase adapters that bind the access token via `setSession`. The SQL FK `workout_sets.workout_id → workouts(id, user_id) ON DELETE CASCADE` removes the need for an explicit cascade call — the Supabase workout-set adapter's `deleteAllForWorkout` is a documented no-op (returns 0). The `AccountRepository` cascade (DATA-001) threads `accessToken: ""` to the per-feature adapters because the in-memory composition root uses in-memory repos (PERSIST-002 follow-up: the production composition root uses the service-role key for account-deletion orchestration when the hosted adapter lands). 18 new mocked-client adapter unit tests + 3 new opt-in e2e tests for exercises / workouts+cascade / body-measurements. The standard gate remains green without Docker; in-memory is still the default.
 
 ### Mobile surfaces
 

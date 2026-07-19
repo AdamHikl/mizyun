@@ -55,6 +55,10 @@ import {
   SupabaseProfileRepository,
   SupabaseGoalRepository,
   SupabaseFoodEntryRepository,
+  SupabaseExerciseRepository,
+  SupabaseWorkoutRepository,
+  SupabaseWorkoutSetRepository,
+  SupabaseBodyMeasurementRepository,
   type RepositorySupabaseClient,
 } from "@mizyun/adapter-supabase-server";
 
@@ -204,14 +208,25 @@ export const buildApp = (
       ? new SupabaseFoodEntryRepository({ clientFor: sp.clientFor })
       : new InMemoryFoodEntryRepository());
   const exerciseRepository =
-    dependencies.exerciseRepository ?? new InMemoryExerciseRepository();
+    dependencies.exerciseRepository ??
+    (sp
+      ? new SupabaseExerciseRepository({ clientFor: sp.clientFor })
+      : new InMemoryExerciseRepository());
   const workoutRepository =
-    dependencies.workoutRepository ?? new InMemoryWorkoutRepository();
+    dependencies.workoutRepository ??
+    (sp
+      ? new SupabaseWorkoutRepository({ clientFor: sp.clientFor })
+      : new InMemoryWorkoutRepository());
   const workoutSetRepository =
-    dependencies.workoutSetRepository ?? new InMemoryWorkoutSetRepository();
+    dependencies.workoutSetRepository ??
+    (sp
+      ? new SupabaseWorkoutSetRepository({ clientFor: sp.clientFor })
+      : new InMemoryWorkoutSetRepository());
   const bodyMeasurementRepository =
     dependencies.bodyMeasurementRepository ??
-    new InMemoryBodyMeasurementRepository();
+    (sp
+      ? new SupabaseBodyMeasurementRepository({ clientFor: sp.clientFor })
+      : new InMemoryBodyMeasurementRepository());
   const accountRepository =
     dependencies.accountRepository ??
     new InMemoryAccountRepository({

@@ -29,7 +29,9 @@ export class InMemoryWorkoutSetRepository implements WorkoutSetRepository {
   async create(
     userId: UserId,
     set: StoredWorkoutSet,
+    options: { readonly accessToken: string },
   ): Promise<StoredWorkoutSet> {
+    void options.accessToken;
     if (set.userId !== userId) {
       throw new Error("workout set create userId mismatch");
     }
@@ -49,7 +51,9 @@ export class InMemoryWorkoutSetRepository implements WorkoutSetRepository {
 
   async listForWorkout(
     workoutId: string,
+    options: { readonly accessToken: string },
   ): Promise<ReadonlyArray<StoredWorkoutSet>> {
+    void options.accessToken;
     const list = this.#byWorkout.get(workoutId) ?? [];
     return [...list].sort((a, b) => a.sequence - b.sequence);
   }
@@ -58,7 +62,9 @@ export class InMemoryWorkoutSetRepository implements WorkoutSetRepository {
     userId: UserId,
     exerciseId: string,
     limit: number,
+    options: { readonly accessToken: string },
   ): Promise<ReadonlyArray<StoredWorkoutSet>> {
+    void options.accessToken;
     const all = [...this.#byId.values()].filter(
       (s) => s.userId === userId && s.exerciseId === exerciseId,
     );
@@ -67,11 +73,19 @@ export class InMemoryWorkoutSetRepository implements WorkoutSetRepository {
       .slice(0, Math.max(0, limit));
   }
 
-  async getById(id: string): Promise<StoredWorkoutSet | null> {
+  async getById(
+    id: string,
+    options: { readonly accessToken: string },
+  ): Promise<StoredWorkoutSet | null> {
+    void options.accessToken;
     return this.#byId.get(id) ?? null;
   }
 
-  async delete(id: string): Promise<boolean> {
+  async delete(
+    id: string,
+    options: { readonly accessToken: string },
+  ): Promise<boolean> {
+    void options.accessToken;
     const existing = this.#byId.get(id);
     if (existing === undefined) return false;
     this.#byId.delete(id);
@@ -83,7 +97,11 @@ export class InMemoryWorkoutSetRepository implements WorkoutSetRepository {
     return true;
   }
 
-  async deleteAllForWorkout(workoutId: string): Promise<number> {
+  async deleteAllForWorkout(
+    workoutId: string,
+    options: { readonly accessToken: string },
+  ): Promise<number> {
+    void options.accessToken;
     const list = this.#byWorkout.get(workoutId) ?? [];
     for (const s of list) {
       this.#byId.delete(s.id);

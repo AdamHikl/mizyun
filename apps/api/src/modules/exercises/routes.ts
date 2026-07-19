@@ -139,7 +139,7 @@ export const exercisesRoutes: FastifyPluginAsync<
       const cappedLimit = Math.min(MAX_LIMIT, Math.max(1, limit));
       const exercises = await options.exerciseRepository.list(
         principal.userId,
-        { limit: cappedLimit },
+        { limit: cappedLimit, accessToken: principal.accessToken },
       );
       return listToWire(exercises);
     },
@@ -201,6 +201,7 @@ export const exercisesRoutes: FastifyPluginAsync<
       const saved = await options.exerciseRepository.create(
         principal.userId,
         stored,
+        { accessToken: principal.accessToken },
       );
       return toWire(saved);
     },
@@ -229,7 +230,9 @@ export const exercisesRoutes: FastifyPluginAsync<
         );
         return;
       }
-      const stored = await options.exerciseRepository.getById(id);
+      const stored = await options.exerciseRepository.getById(id, {
+        accessToken: principal.accessToken,
+      });
       if (stored === null || stored.userId !== principal.userId) {
         await sendApiError(
           reply,
@@ -279,7 +282,9 @@ export const exercisesRoutes: FastifyPluginAsync<
         );
         return;
       }
-      const stored = await options.exerciseRepository.getById(id);
+      const stored = await options.exerciseRepository.getById(id, {
+        accessToken: principal.accessToken,
+      });
       if (stored === null || stored.userId !== principal.userId) {
         await sendApiError(
           reply,
@@ -317,7 +322,9 @@ export const exercisesRoutes: FastifyPluginAsync<
         return;
       }
       const next = applyExercisePatch(stored, patch, new Date());
-      const saved = await options.exerciseRepository.update(next);
+      const saved = await options.exerciseRepository.update(next, {
+        accessToken: principal.accessToken,
+      });
       return toWire(saved);
     },
   );
@@ -344,7 +351,9 @@ export const exercisesRoutes: FastifyPluginAsync<
         );
         return;
       }
-      const stored = await options.exerciseRepository.getById(id);
+      const stored = await options.exerciseRepository.getById(id, {
+        accessToken: principal.accessToken,
+      });
       if (stored === null || stored.userId !== principal.userId) {
         await sendApiError(
           reply,
@@ -355,7 +364,9 @@ export const exercisesRoutes: FastifyPluginAsync<
         );
         return;
       }
-      await options.exerciseRepository.delete(id);
+      await options.exerciseRepository.delete(id, {
+        accessToken: principal.accessToken,
+      });
       void reply.status(204).send();
     },
   );

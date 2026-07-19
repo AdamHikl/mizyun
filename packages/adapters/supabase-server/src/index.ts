@@ -65,7 +65,9 @@ export const createSupabaseAccessTokenVerifier = (
  * area (raw RPC, storage SDK, etc.) before those segments land.
  */
 export interface RepositorySupabaseClient {
-  from<T extends Record<string, unknown>>(table: string): RepositoryTableBuilder<T>;
+  from<T extends Record<string, unknown>>(
+    table: string,
+  ): RepositoryTableBuilder<T>;
   auth: {
     /**
      * Bind the verified user's access token to the client so
@@ -74,9 +76,7 @@ export interface RepositorySupabaseClient {
      * expired token returns 401 from the API and the mobile app
      * re-authenticates.
      */
-    setSession(options: {
-      readonly access_token: string;
-    }): Promise<{
+    setSession(options: { readonly access_token: string }): Promise<{
       readonly data: { readonly user: { readonly id: string } | null };
       readonly error: unknown;
     }>;
@@ -124,7 +124,10 @@ export interface RepositoryQueryBuilder<T> {
   lte(column: keyof T & string, value: string): RepositoryQueryBuilder<T>;
   gt(column: keyof T & string, value: string): RepositoryQueryBuilder<T>;
   lt(column: keyof T & string, value: string): RepositoryQueryBuilder<T>;
-  in(column: keyof T & string, values: ReadonlyArray<unknown>): RepositoryQueryBuilder<T>;
+  in(
+    column: keyof T & string,
+    values: ReadonlyArray<unknown>,
+  ): RepositoryQueryBuilder<T>;
   is(column: keyof T & string, value: unknown): RepositoryQueryBuilder<T>;
   order(
     column: keyof T & string,
@@ -188,13 +191,12 @@ export const createSupabaseRepositoryClient = (
   return client;
 };
 
-export {
-  SupabaseProfileRepository,
-} from "./profile-repository.js";
-export {
-  SupabaseGoalRepository,
-} from "./goal-repository.js";
-export {
-  SupabaseFoodEntryRepository,
-} from "./food-entry-repository.js";
+export { SupabaseProfileRepository } from "./profile-repository.js";
+export { SupabaseGoalRepository } from "./goal-repository.js";
+export { SupabaseFoodEntryRepository } from "./food-entry-repository.js";
 export { RepositoryError } from "./repository-error.js";
+
+export { SupabaseExerciseRepository } from "./exercise-repository.js";
+export { SupabaseWorkoutRepository } from "./workout-repository.js";
+export { SupabaseWorkoutSetRepository } from "./workout-set-repository.js";
+export { SupabaseBodyMeasurementRepository } from "./body-measurement-repository.js";

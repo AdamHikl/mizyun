@@ -178,12 +178,16 @@ export const applyExercisePatch = (
  */
 export interface ExerciseRepository {
   /**
-   * Insert a new exercise. The repository assigns the audit
-   * timestamps before returning the stored shape. (The in-memory
-   * implementation takes them from the route; the SQL default +
-   * trigger would handle it. Both honour the contract.)
+   * `accessToken` is the verified principal's bearer token. The
+   * in-memory adapter ignores it; the Supabase adapter uses it
+   * to construct a per-request client bound to the user's RLS
+   * session. PERSIST-002.
    */
-  create(userId: UserId, exercise: StoredExercise): Promise<StoredExercise>;
+  create(
+    userId: UserId,
+    exercise: StoredExercise,
+    options: { readonly accessToken: string },
+  ): Promise<StoredExercise>;
   /**
    * Return every exercise the user has created, ordered by name
    * (case-insensitive) for a stable picker experience. `limit`
@@ -191,23 +195,32 @@ export interface ExerciseRepository {
    */
   list(
     userId: UserId,
-    options: { readonly limit: number },
+    options: { readonly limit: number; readonly accessToken: string },
   ): Promise<ReadonlyArray<StoredExercise>>;
   /**
    * Return the stored exercise by id, or `null` when no exercise
    * exists with that id for any user. The route is responsible
    * for the ownership check (it filters on `userId` after the call).
    */
-  getById(id: string): Promise<StoredExercise | null>;
+  getById(
+    id: string,
+    options: { readonly accessToken: string },
+  ): Promise<StoredExercise | null>;
   /**
    * Apply a patch to an existing exercise. Returns the new stored
    * shape. Throws if the exercise id does not exist.
    */
-  update(exercise: StoredExercise): Promise<StoredExercise>;
+  update(
+    exercise: StoredExercise,
+    options: { readonly accessToken: string },
+  ): Promise<StoredExercise>;
   /**
    * Permanently remove an exercise. Returns `true` when the row
    * existed and was removed, `false` otherwise. The route is the
    * owner of the 404 decision (no idempotency-200 on miss).
    */
-  delete(id: string): Promise<boolean>;
+  delete(
+    id: string,
+    options: { readonly accessToken: string },
+  ): Promise<boolean>;
 }

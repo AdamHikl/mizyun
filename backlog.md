@@ -32,7 +32,7 @@ These items convert the tested domain/API foundation into the low-friction produ
 | ID            | Priority | Status  | Work item                                             | Done when                                                                   |
 | ------------- | -------- | ------- | ----------------------------------------------------- | --------------------------------------------------------------------------- |
 | PERSIST-001   | P0       | done    | Supabase repositories for profile, goals, and food    | Production composition persists records across API restarts with RLS        |
-| PERSIST-002   | P0       | blocked | Supabase repositories for training, body, and account | Same persistence/isolation/export/deletion proof as PERSIST-001             |
+| PERSIST-002   | P0       | done    | Supabase repositories for training, body, and account | Same persistence/isolation/export/deletion proof as PERSIST-001             |
 | PERSIST-003   | P0       | blocked | Real Supabase private-media storage adapter           | Mobile-compatible signed upload/download/delete works against real storage  |
 | MOB-DAILY-001 | P1       | blocked | Persistent mobile daily-loop integration              | All MOB-ONB/NUT/WO/BODY/DASH child journeys pass together on stored data    |
 | MOB-ONB-001   | P1       | blocked | Complete activation and baseline weight               | New user reaches a useful dashboard with the minimum energy inputs          |

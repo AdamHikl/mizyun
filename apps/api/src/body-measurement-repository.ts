@@ -32,7 +32,9 @@ export class InMemoryBodyMeasurementRepository implements BodyMeasurementReposit
   async create(
     userId: UserId,
     measurement: StoredBodyMeasurement,
+    options: { readonly accessToken: string },
   ): Promise<StoredBodyMeasurement> {
+    void options.accessToken;
     if (measurement.userId !== userId) {
       throw new Error("body measurement create userId mismatch");
     }
@@ -51,8 +53,10 @@ export class InMemoryBodyMeasurementRepository implements BodyMeasurementReposit
       readonly from: Date | null;
       readonly to: Date | null;
       readonly limit: number;
+      readonly accessToken: string;
     },
   ): Promise<ReadonlyArray<StoredBodyMeasurement>> {
+    void options.accessToken;
     const list = this.#byUser.get(userId) ?? [];
     const fromMs = options.from?.getTime() ?? Number.NEGATIVE_INFINITY;
     const toMs = options.to?.getTime() ?? Number.POSITIVE_INFINITY;
@@ -65,11 +69,19 @@ export class InMemoryBodyMeasurementRepository implements BodyMeasurementReposit
       .slice(0, Math.max(0, options.limit));
   }
 
-  async getById(id: string): Promise<StoredBodyMeasurement | null> {
+  async getById(
+    id: string,
+    options: { readonly accessToken: string },
+  ): Promise<StoredBodyMeasurement | null> {
+    void options.accessToken;
     return this.#byId.get(id) ?? null;
   }
 
-  async delete(id: string): Promise<boolean> {
+  async delete(
+    id: string,
+    options: { readonly accessToken: string },
+  ): Promise<boolean> {
+    void options.accessToken;
     const existing = this.#byId.get(id);
     if (existing === undefined) return false;
     const owner = existing.userId;

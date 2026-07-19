@@ -94,15 +94,19 @@ export class InMemoryAccountRepository implements AccountRepository {
     });
     const exercises = await this.#exerciseRepository.list(userId, {
       limit: 10_000,
+      accessToken: "",
     });
     const workouts = await this.#workoutRepository.list(userId, {
       from: null,
       to: null,
       limit: 10_000,
+      accessToken: "",
     });
     const workoutSets: import("@mizyun/core").StoredWorkoutSet[] = [];
     for (const w of workouts) {
-      const sets = await this.#workoutSetRepository.listForWorkout(w.id);
+      const sets = await this.#workoutSetRepository.listForWorkout(w.id, {
+        accessToken: "",
+      });
       workoutSets.push(...sets);
     }
     const bodyMeasurements = await this.#bodyMeasurementRepository.list(
@@ -111,6 +115,7 @@ export class InMemoryAccountRepository implements AccountRepository {
         from: null,
         to: null,
         limit: 10_000,
+        accessToken: "",
       },
     );
     return {
@@ -191,18 +196,22 @@ export class InMemoryAccountRepository implements AccountRepository {
       from: null,
       to: null,
       limit: 10_000,
+      accessToken: "",
     });
     for (const w of workouts) {
-      await this.#workoutSetRepository.deleteAllForWorkout(w.id);
+      await this.#workoutSetRepository.deleteAllForWorkout(w.id, {
+        accessToken: "",
+      });
     }
     for (const w of workouts) {
-      await this.#workoutRepository.delete(w.id);
+      await this.#workoutRepository.delete(w.id, { accessToken: "" });
     }
     const exercises = await this.#exerciseRepository.list(userId, {
       limit: 10_000,
+      accessToken: "",
     });
     for (const e of exercises) {
-      await this.#exerciseRepository.delete(e.id);
+      await this.#exerciseRepository.delete(e.id, { accessToken: "" });
     }
     const foodEntries = await this.#foodEntryRepository.list(userId, {
       from: null,
@@ -215,10 +224,12 @@ export class InMemoryAccountRepository implements AccountRepository {
     }
     const bodyMeasurements = await this.#bodyMeasurementRepository.list(
       userId,
-      { from: null, to: null, limit: 10_000 },
+      { from: null, to: null, limit: 10_000, accessToken: "" },
     );
     for (const m of bodyMeasurements) {
-      await this.#bodyMeasurementRepository.delete(m.id);
+      await this.#bodyMeasurementRepository.delete(m.id, {
+        accessToken: "",
+      });
     }
     const goals = await this.#goalRepository.getHistory(userId, {
       accessToken: "",

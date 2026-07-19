@@ -27,7 +27,9 @@ export class InMemoryExerciseRepository implements ExerciseRepository {
   async create(
     userId: UserId,
     exercise: StoredExercise,
+    options: { readonly accessToken: string },
   ): Promise<StoredExercise> {
+    void options.accessToken;
     if (exercise.userId !== userId) {
       throw new Error("exercise create userId mismatch");
     }
@@ -42,8 +44,9 @@ export class InMemoryExerciseRepository implements ExerciseRepository {
 
   async list(
     userId: UserId,
-    options: { readonly limit: number },
+    options: { readonly limit: number; readonly accessToken: string },
   ): Promise<ReadonlyArray<StoredExercise>> {
+    void options.accessToken;
     const list = this.#byUser.get(userId) ?? [];
     return [...list]
       .sort((a, b) =>
@@ -56,11 +59,19 @@ export class InMemoryExerciseRepository implements ExerciseRepository {
       .slice(0, Math.max(0, options.limit));
   }
 
-  async getById(id: string): Promise<StoredExercise | null> {
+  async getById(
+    id: string,
+    options: { readonly accessToken: string },
+  ): Promise<StoredExercise | null> {
+    void options.accessToken;
     return this.#byId.get(id) ?? null;
   }
 
-  async update(exercise: StoredExercise): Promise<StoredExercise> {
+  async update(
+    exercise: StoredExercise,
+    options: { readonly accessToken: string },
+  ): Promise<StoredExercise> {
+    void options.accessToken;
     const existing = this.#byId.get(exercise.id);
     if (existing === undefined) {
       throw new Error(`exercise ${exercise.id} does not exist`);
@@ -78,7 +89,11 @@ export class InMemoryExerciseRepository implements ExerciseRepository {
     return exercise;
   }
 
-  async delete(id: string): Promise<boolean> {
+  async delete(
+    id: string,
+    options: { readonly accessToken: string },
+  ): Promise<boolean> {
+    void options.accessToken;
     const existing = this.#byId.get(id);
     if (existing === undefined) return false;
     const owner = existing.userId;

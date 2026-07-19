@@ -15,14 +15,21 @@
  *   SUPABASE_E2E_SERVICE=$(pnpm db:status --output json | jq -r .service) \
  *   pnpm --filter @mizyun/api test src/persistence.e2e.test.ts
  */
-import { AgentOrchestrator, DisabledAgentProvider } from "@mizyun/agent-runtime";
+import {
+  AgentOrchestrator,
+  DisabledAgentProvider,
+} from "@mizyun/agent-runtime";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
+  SupabaseBodyMeasurementRepository,
+  SupabaseExerciseRepository,
   SupabaseFoodEntryRepository,
   SupabaseGoalRepository,
   SupabaseProfileRepository,
+  SupabaseWorkoutRepository,
+  SupabaseWorkoutSetRepository,
   type RepositorySupabaseClient,
 } from "@mizyun/adapter-supabase-server";
 import { InMemoryMemoryStore } from "@mizyun/memory";
@@ -68,7 +75,10 @@ interface TestUser {
  * `apps/api/src/auth.e2e.test.ts` helpers. Pulled in here so the
  * test is self-contained.
  */
-const signUp = async (email: string, password: string): Promise<{ id: string }> => {
+const signUp = async (
+  email: string,
+  password: string,
+): Promise<{ id: string }> => {
   const response = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
     method: "POST",
     headers: {
@@ -180,7 +190,9 @@ describeIfE2E("PERSIST-001 Supabase adapters (opt-in e2e)", () => {
       clientFor: (token) => clientFor(token || userA.accessToken),
     });
     const created = await repo1.getOrCreate(
-      userA.id as unknown as Parameters<SupabaseProfileRepository["getOrCreate"]>[0],
+      userA.id as unknown as Parameters<
+        SupabaseProfileRepository["getOrCreate"]
+      >[0],
       { now: new Date(), accessToken: userA.accessToken },
     );
     expect(created.userId).toBe(userA.id);
@@ -199,7 +211,9 @@ describeIfE2E("PERSIST-001 Supabase adapters (opt-in e2e)", () => {
       clientFor: (token) => clientFor(token || userA.accessToken),
     });
     const read = await repo2.getOrCreate(
-      userA.id as unknown as Parameters<SupabaseProfileRepository["getOrCreate"]>[0],
+      userA.id as unknown as Parameters<
+        SupabaseProfileRepository["getOrCreate"]
+      >[0],
       { now: new Date(), accessToken: userA.accessToken },
     );
     expect(read.displayName).toBe("Persisted Adam");
@@ -211,7 +225,9 @@ describeIfE2E("PERSIST-001 Supabase adapters (opt-in e2e)", () => {
     });
     await expect(
       repoB.getOrCreate(
-        userA.id as unknown as Parameters<SupabaseProfileRepository["getOrCreate"]>[0],
+        userA.id as unknown as Parameters<
+          SupabaseProfileRepository["getOrCreate"]
+        >[0],
         { now: new Date(), accessToken: userB.accessToken },
       ),
     ).rejects.toThrow();
@@ -225,7 +241,9 @@ describeIfE2E("PERSIST-001 Supabase adapters (opt-in e2e)", () => {
       userA.id as unknown as Parameters<SupabaseGoalRepository["create"]>[0],
       {
         id: "00000000-0000-4000-8000-ca0000000001",
-        userId: userA.id as unknown as Parameters<SupabaseGoalRepository["create"]>[1]["userId"],
+        userId: userA.id as unknown as Parameters<
+          SupabaseGoalRepository["create"]
+        >[1]["userId"],
         kind: "cut",
         status: "active",
         pace: "steady",
@@ -243,7 +261,9 @@ describeIfE2E("PERSIST-001 Supabase adapters (opt-in e2e)", () => {
         userA.id as unknown as Parameters<SupabaseGoalRepository["create"]>[0],
         {
           id: "00000000-0000-4000-8000-ca0000000002",
-          userId: userA.id as unknown as Parameters<SupabaseGoalRepository["create"]>[1]["userId"],
+          userId: userA.id as unknown as Parameters<
+            SupabaseGoalRepository["create"]
+          >[1]["userId"],
           kind: "recomp",
           status: "active",
           pace: "gradual",
@@ -263,10 +283,14 @@ describeIfE2E("PERSIST-001 Supabase adapters (opt-in e2e)", () => {
       clientFor: () => clientFor(userA.accessToken),
     });
     await repoA.create(
-      userA.id as unknown as Parameters<SupabaseFoodEntryRepository["create"]>[0],
+      userA.id as unknown as Parameters<
+        SupabaseFoodEntryRepository["create"]
+      >[0],
       {
         id: "00000000-0000-4000-8000-fa0000000001",
-        userId: userA.id as unknown as Parameters<SupabaseFoodEntryRepository["create"]>[1]["userId"],
+        userId: userA.id as unknown as Parameters<
+          SupabaseFoodEntryRepository["create"]
+        >[1]["userId"],
         source: "manual",
         confidence: null,
         confirmedByUser: true,
@@ -300,6 +324,145 @@ describeIfE2E("PERSIST-001 Supabase adapters (opt-in e2e)", () => {
       {
         from: new Date("2026-07-17T00:00:00Z"),
         to: new Date("2026-07-17T23:59:59Z"),
+        limit: 50,
+        accessToken: userB.accessToken,
+      },
+    );
+    expect(bList).toEqual([]);
+  }, 60_000);
+
+  it("exercises: persists, lists, and respects RLS isolation", async () => {
+    const repoA = new SupabaseExerciseRepository({
+      clientFor: () => clientFor(userA.accessToken),
+    });
+    await repoA.create(
+      userA.id as unknown as Parameters<
+        SupabaseExerciseRepository["create"]
+      >[0],
+      {
+        id: "00000000-0000-4000-8000-00000000ca01",
+        userId: userA.id as unknown as Parameters<
+          SupabaseExerciseRepository["create"]
+        >[1]["userId"],
+        name: "Back squat",
+        instructions: null,
+        metadata: {},
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      { accessToken: userA.accessToken },
+    );
+    const repoB = new SupabaseExerciseRepository({
+      clientFor: () => clientFor(userB.accessToken),
+    });
+    const aList = await repoA.list(
+      userA.id as unknown as Parameters<SupabaseExerciseRepository["list"]>[0],
+      { limit: 50, accessToken: userA.accessToken },
+    );
+    expect(aList).toHaveLength(1);
+    const bList = await repoB.list(
+      userB.id as unknown as Parameters<SupabaseExerciseRepository["list"]>[0],
+      { limit: 50, accessToken: userB.accessToken },
+    );
+    expect(bList).toEqual([]);
+  }, 60_000);
+
+  it("workouts + sets: cascade-delete on workout removal (FK)", async () => {
+    const workoutRepoA = new SupabaseWorkoutRepository({
+      clientFor: () => clientFor(userA.accessToken),
+    });
+    const setRepoA = new SupabaseWorkoutSetRepository({
+      clientFor: () => clientFor(userA.accessToken),
+    });
+    const workoutId = "00000000-0000-4000-8000-00000000ba01";
+    const exerciseId = "00000000-0000-4000-8000-00000000ca01";
+    await workoutRepoA.create(
+      userA.id as unknown as Parameters<SupabaseWorkoutRepository["create"]>[0],
+      {
+        id: workoutId,
+        userId: userA.id as unknown as Parameters<
+          SupabaseWorkoutRepository["create"]
+        >[1]["userId"],
+        name: "Leg day",
+        startedAt: new Date("2026-07-15T08:00:00Z"),
+        completedAt: new Date("2026-07-15T09:00:00Z"),
+        notes: null,
+        source: "manual",
+        details: {},
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      { accessToken: userA.accessToken },
+    );
+    await setRepoA.create(
+      userA.id as unknown as Parameters<
+        SupabaseWorkoutSetRepository["create"]
+      >[0],
+      {
+        id: "00000000-0000-4000-8000-00000000da01",
+        userId: userA.id as unknown as Parameters<
+          SupabaseWorkoutSetRepository["create"]
+        >[1]["userId"],
+        workoutId,
+        exerciseId,
+        sequence: 1,
+        repetitions: 8,
+        loadKg: 60,
+        durationSeconds: null,
+        distanceMeters: null,
+        perceivedExertion: 7.5,
+        completedAt: new Date(),
+        createdAt: new Date(),
+      },
+      { accessToken: userA.accessToken },
+    );
+    // Verify the set is visible.
+    const setsBefore = await setRepoA.listForWorkout(workoutId, {
+      accessToken: userA.accessToken,
+    });
+    expect(setsBefore).toHaveLength(1);
+    // Delete the workout — SQL FK ON DELETE CASCADE drops the set.
+    const removed = await workoutRepoA.delete(workoutId, {
+      accessToken: userA.accessToken,
+    });
+    expect(removed).toBe(true);
+    const setsAfter = await setRepoA.listForWorkout(workoutId, {
+      accessToken: userA.accessToken,
+    });
+    expect(setsAfter).toEqual([]);
+  }, 60_000);
+
+  it("body measurements: append-only with delete", async () => {
+    const repoA = new SupabaseBodyMeasurementRepository({
+      clientFor: () => clientFor(userA.accessToken),
+    });
+    await repoA.create(
+      userA.id as unknown as Parameters<
+        SupabaseBodyMeasurementRepository["create"]
+      >[0],
+      {
+        id: "00000000-0000-4000-8000-00000000aa01",
+        userId: userA.id as unknown as Parameters<
+          SupabaseBodyMeasurementRepository["create"]
+        >[1]["userId"],
+        measuredAt: new Date("2026-07-15T08:00:00Z"),
+        weightKg: 70,
+        measurements: {},
+        source: "manual",
+        createdAt: new Date("2026-07-15T08:00:00Z"),
+      },
+      { accessToken: userA.accessToken },
+    );
+    const repoB = new SupabaseBodyMeasurementRepository({
+      clientFor: () => clientFor(userB.accessToken),
+    });
+    const bList = await repoB.list(
+      userB.id as unknown as Parameters<
+        SupabaseBodyMeasurementRepository["list"]
+      >[0],
+      {
+        from: null,
+        to: null,
         limit: 50,
         accessToken: userB.accessToken,
       },

@@ -139,7 +139,12 @@ export const bodyMeasurementsRoutes: FastifyPluginAsync<
       const cappedLimit = Math.min(MAX_LIMIT, Math.max(1, limit));
       const measurements = await options.bodyMeasurementRepository.list(
         principal.userId,
-        { from, to, limit: cappedLimit },
+        {
+          from,
+          to,
+          limit: cappedLimit,
+          accessToken: principal.accessToken,
+        },
       );
       return listToWire(measurements);
     },
@@ -207,6 +212,7 @@ export const bodyMeasurementsRoutes: FastifyPluginAsync<
       const saved = await options.bodyMeasurementRepository.create(
         principal.userId,
         stored,
+        { accessToken: principal.accessToken },
       );
       return toWire(saved);
     },
@@ -235,7 +241,9 @@ export const bodyMeasurementsRoutes: FastifyPluginAsync<
         );
         return;
       }
-      const stored = await options.bodyMeasurementRepository.getById(id);
+      const stored = await options.bodyMeasurementRepository.getById(id, {
+        accessToken: principal.accessToken,
+      });
       if (stored === null || stored.userId !== principal.userId) {
         await sendApiError(
           reply,
@@ -273,7 +281,9 @@ export const bodyMeasurementsRoutes: FastifyPluginAsync<
         );
         return;
       }
-      const stored = await options.bodyMeasurementRepository.getById(id);
+      const stored = await options.bodyMeasurementRepository.getById(id, {
+        accessToken: principal.accessToken,
+      });
       if (stored === null || stored.userId !== principal.userId) {
         await sendApiError(
           reply,
@@ -284,7 +294,9 @@ export const bodyMeasurementsRoutes: FastifyPluginAsync<
         );
         return;
       }
-      await options.bodyMeasurementRepository.delete(id);
+      await options.bodyMeasurementRepository.delete(id, {
+        accessToken: principal.accessToken,
+      });
       void reply.status(204).send();
     },
   );

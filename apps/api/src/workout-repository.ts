@@ -25,7 +25,12 @@ export class InMemoryWorkoutRepository implements WorkoutRepository {
   readonly #byUser = new Map<UserId, StoredWorkout[]>();
   readonly #byId = new Map<string, StoredWorkout>();
 
-  async create(userId: UserId, workout: StoredWorkout): Promise<StoredWorkout> {
+  async create(
+    userId: UserId,
+    workout: StoredWorkout,
+    options: { readonly accessToken: string },
+  ): Promise<StoredWorkout> {
+    void options.accessToken;
     if (workout.userId !== userId) {
       throw new Error("workout create userId mismatch");
     }
@@ -44,8 +49,10 @@ export class InMemoryWorkoutRepository implements WorkoutRepository {
       readonly from: Date | null;
       readonly to: Date | null;
       readonly limit: number;
+      readonly accessToken: string;
     },
   ): Promise<ReadonlyArray<StoredWorkout>> {
+    void options.accessToken;
     const list = this.#byUser.get(userId) ?? [];
     const fromMs = options.from?.getTime() ?? Number.NEGATIVE_INFINITY;
     const toMs = options.to?.getTime() ?? Number.POSITIVE_INFINITY;
@@ -58,11 +65,19 @@ export class InMemoryWorkoutRepository implements WorkoutRepository {
       .slice(0, Math.max(0, options.limit));
   }
 
-  async getById(id: string): Promise<StoredWorkout | null> {
+  async getById(
+    id: string,
+    options: { readonly accessToken: string },
+  ): Promise<StoredWorkout | null> {
+    void options.accessToken;
     return this.#byId.get(id) ?? null;
   }
 
-  async update(workout: StoredWorkout): Promise<StoredWorkout> {
+  async update(
+    workout: StoredWorkout,
+    options: { readonly accessToken: string },
+  ): Promise<StoredWorkout> {
+    void options.accessToken;
     const existing = this.#byId.get(workout.id);
     if (existing === undefined) {
       throw new Error(`workout ${workout.id} does not exist`);
@@ -80,7 +95,11 @@ export class InMemoryWorkoutRepository implements WorkoutRepository {
     return workout;
   }
 
-  async delete(id: string): Promise<boolean> {
+  async delete(
+    id: string,
+    options: { readonly accessToken: string },
+  ): Promise<boolean> {
+    void options.accessToken;
     const existing = this.#byId.get(id);
     if (existing === undefined) return false;
     const owner = existing.userId;

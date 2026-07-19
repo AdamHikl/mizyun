@@ -42,6 +42,7 @@ const MIN_OBSERVATIONS_FOR_BALANCE = 3;
 const fetchLatestMeasurement = async (
   repo: BodyMeasurementRepository,
   userId: UserId,
+  accessToken: string,
 ): Promise<
   Awaited<ReturnType<BodyMeasurementRepository["list"]>>[number] | null
 > => {
@@ -49,6 +50,7 @@ const fetchLatestMeasurement = async (
     from: null,
     to: null,
     limit: 1,
+    accessToken,
   });
   return list[0] ?? null;
 };
@@ -115,6 +117,7 @@ const fetchRecentWorkouts = async (
   repo: WorkoutRepository,
   userId: UserId,
   now: Date,
+  accessToken: string,
 ): Promise<Awaited<ReturnType<WorkoutRepository["list"]>>> => {
   const y = now.getUTCFullYear();
   const m = (now.getUTCMonth() + 1).toString().padStart(2, "0");
@@ -126,6 +129,7 @@ const fetchRecentWorkouts = async (
     from,
     to,
     limit: 100,
+    accessToken,
   });
 };
 
@@ -170,6 +174,7 @@ const computeRouteSummary = async (
   const latestMeasurement = await fetchLatestMeasurement(
     options.bodyMeasurementRepository,
     userId,
+    accessToken,
   );
   const activeGoal = await options.goalRepository.getActive(userId, {
     accessToken,
@@ -178,6 +183,7 @@ const computeRouteSummary = async (
     options.workoutRepository,
     userId,
     now,
+    accessToken,
   );
   const consumedKcalToday = await fetchTodayConsumedKcal(
     options.foodEntryRepository,
@@ -223,7 +229,9 @@ const computeRouteSummary = async (
   // estimator can stay synchronous.
   const setCountMap = new Map<string, number>();
   for (const w of recentWorkouts) {
-    const sets = await options.workoutSetRepository.listForWorkout(w.id);
+    const sets = await options.workoutSetRepository.listForWorkout(w.id, {
+      accessToken,
+    });
     setCountMap.set(w.id, sets.length);
   }
   const exerciseKcal = estimateExerciseKcal(

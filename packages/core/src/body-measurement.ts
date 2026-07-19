@@ -131,14 +131,15 @@ export const validateBodyMeasurementCreate = (create: {
  */
 export interface BodyMeasurementRepository {
   /**
-   * Insert a new body measurement. The repository assigns `id`
-   * and `createdAt` before returning the stored shape. (The
-   * in-memory implementation takes them from the route; the SQL
-   * default would handle it. Both honour the contract.)
+   * `accessToken` is the verified principal's bearer token. The
+   * in-memory adapter ignores it; the Supabase adapter uses it
+   * to construct a per-request client bound to the user's RLS
+   * session. PERSIST-002.
    */
   create(
     userId: UserId,
     measurement: StoredBodyMeasurement,
+    options: { readonly accessToken: string },
   ): Promise<StoredBodyMeasurement>;
   /**
    * Return the user's measurements, bounded by `measuredAt`,
@@ -150,6 +151,7 @@ export interface BodyMeasurementRepository {
       readonly from: Date | null;
       readonly to: Date | null;
       readonly limit: number;
+      readonly accessToken: string;
     },
   ): Promise<ReadonlyArray<StoredBodyMeasurement>>;
   /**
@@ -157,7 +159,10 @@ export interface BodyMeasurementRepository {
    * measurement exists with that id for any user. The route is
    * responsible for the ownership check.
    */
-  getById(id: string): Promise<StoredBodyMeasurement | null>;
+  getById(
+    id: string,
+    options: { readonly accessToken: string },
+  ): Promise<StoredBodyMeasurement | null>;
   /**
    * Permanently remove a measurement. Returns `true` when the row
    * existed and was removed, `false` otherwise. Removal is rare
@@ -165,5 +170,8 @@ export interface BodyMeasurementRepository {
    * data-correctness case where the user accidentally recorded a
    * measurement on the wrong day.
    */
-  delete(id: string): Promise<boolean>;
+  delete(
+    id: string,
+    options: { readonly accessToken: string },
+  ): Promise<boolean>;
 }

@@ -138,7 +138,9 @@ const nextSequence = async (
   workoutSetRepository: WorkoutSetRepository,
   workoutId: string,
 ): Promise<number> => {
-  const existing = await workoutSetRepository.listForWorkout(workoutId);
+  const existing = await workoutSetRepository.listForWorkout(workoutId, {
+    accessToken: "test-token",
+  });
   if (existing.length === 0) return 1;
   const max = existing.reduce((m, s) => (s.sequence > m ? s.sequence : m), 0);
   return max + 1;
@@ -153,7 +155,9 @@ const assertOwnedExercise = async (
   userId: UserId,
   exerciseId: string,
 ): Promise<boolean> => {
-  const exercise = await exerciseRepository.getById(exerciseId);
+  const exercise = await exerciseRepository.getById(exerciseId, {
+    accessToken: "test-token",
+  });
   if (exercise === null) return false;
   return exercise.userId === userId;
 };
@@ -166,7 +170,9 @@ const assertOwnedWorkout = async (
   userId: UserId,
   workoutId: string,
 ): Promise<boolean> => {
-  const workout = await workoutRepository.getById(workoutId);
+  const workout = await workoutRepository.getById(workoutId, {
+    accessToken: "test-token",
+  });
   if (workout === null) return false;
   return workout.userId === userId;
 };
@@ -298,6 +304,7 @@ export const workoutSetsRoutes: FastifyPluginAsync<
         const saved = await options.workoutSetRepository.create(
           principal.userId,
           stored,
+          { accessToken: principal.accessToken },
         );
         return toWire(saved);
       } catch (cause) {
@@ -348,7 +355,10 @@ export const workoutSetsRoutes: FastifyPluginAsync<
         );
         return;
       }
-      const sets = await options.workoutSetRepository.listForWorkout(workoutId);
+      const sets = await options.workoutSetRepository.listForWorkout(
+        workoutId,
+        { accessToken: principal.accessToken },
+      );
       return listToWire(sets);
     },
   );
@@ -406,7 +416,9 @@ export const workoutSetsRoutes: FastifyPluginAsync<
         );
         return;
       }
-      const existing = await options.workoutSetRepository.getById(setId);
+      const existing = await options.workoutSetRepository.getById(setId, {
+        accessToken: principal.accessToken,
+      });
       if (
         existing === null ||
         existing.userId !== principal.userId ||
@@ -421,7 +433,9 @@ export const workoutSetsRoutes: FastifyPluginAsync<
         );
         return;
       }
-      await options.workoutSetRepository.delete(setId);
+      await options.workoutSetRepository.delete(setId, {
+        accessToken: principal.accessToken,
+      });
       void reply.status(204).send();
     },
   );
@@ -482,6 +496,7 @@ export const workoutSetsRoutes: FastifyPluginAsync<
         principal.userId,
         exerciseId,
         cappedLimit,
+        { accessToken: principal.accessToken },
       );
       const summary = summariseExerciseSets(sets);
       return exerciseRecentSetsResponseSchema.parse({
