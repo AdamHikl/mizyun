@@ -1,5 +1,14 @@
-import type { ApiClient } from "@mizyun/api-client";
-import type { ProfilePatch } from "@mizyun/contracts";
+import type { ApiClient, ApiError } from "@mizyun/api-client";
+import {
+  bodyMeasurementCreateSchema,
+  bodyMeasurementListResponseSchema,
+  bodyMeasurementResponseSchema,
+  goalResponseSchema,
+  profileResponseSchema,
+  type BodyMeasurementListResponse,
+  type ProfilePatch,
+} from "@mizyun/contracts";
+import { displayWeightToKilograms } from "@/lib/weight-units";
 
 import type { OnboardingForm } from "./onboarding-state";
 
@@ -11,14 +20,11 @@ export type SubmitOnboardingResult =
     };
 
 /**
- * Apply the wizard's final form to the API: a `PUT /v1/profile`
- * patch with displayName and unitSystem, followed by a
- * `POST /v1/goals` for the chosen primary goal. The two calls run
- * sequentially because the goal create depends on the verified user
- * (which the auth client already carries). If the profile write
- * succeeds and the goal create fails, we surface the goal error
- * rather than rolling the profile back — the user can fix the goal
- * from the dashboard without re-running onboarding.
+ * Apply the wizard in a retry-safe sequence. Goal and baseline measurement are
+ * ensured first; the profile display name is written last because SessionGate
+ * uses it as the onboarding completion marker. A retry reads existing goal and
+ * measurement authority before creating anything, avoiding duplicate records
+ * after a partial network failure.
  *
  * The result shape is intentionally minimal: success or a single
  * human-readable message. The screen layer turns the failure into a
@@ -31,6 +37,99 @@ export const submitOnboarding = async (
   form: OnboardingForm,
   client: ApiClient,
 ): Promise<SubmitOnboardingResult> => {
+  const baselineDisplay = Number(form.baselineWeight.trim());
+  const goalDisplay = Number(form.goalWeight.trim());
+  if (
+    form.goalKind === null ||
+    !Number.isFinite(baselineDisplay) ||
+    !Number.isFinite(goalDisplay)
+  ) {
+    return { ok: false, message: "Please review your goal and weight values." };
+  }
+  const baselineWeightKg = displayWeightToKilograms(
+    baselineDisplay,
+    form.unitSystem,
+  );
+  const goalWeightKg = displayWeightToKilograms(goalDisplay, form.unitSystem);
+
+  const activeGoal = await client.request({
+    method: "GET",
+    path: "/v1/goals/active",
+    schema: goalResponseSchema,
+  });
+  if (!activeGoal.ok && !isNotFound(activeGoal.error)) {
+    return {
+      ok: false,
+      message: humanizeError(
+        activeGoal.error.kind,
+        "Could not check your goal.",
+      ),
+    };
+  }
+  if (!activeGoal.ok) {
+    const goalResult = await client.request({
+      method: "POST",
+      path: "/v1/goals",
+      body: {
+        kind: form.goalKind,
+        pace: "steady",
+        target: { weightKg: goalWeightKg },
+        startsOn: form.goalStartDate,
+        targetDate: form.goalTargetDate,
+      },
+      schema: goalResponseSchema,
+    });
+    if (!goalResult.ok) {
+      return {
+        ok: false,
+        message: humanizeError(
+          goalResult.error.kind,
+          "Could not save your goal.",
+        ),
+      };
+    }
+  }
+
+  const measurementsResult = await client.request<BodyMeasurementListResponse>({
+    method: "GET",
+    path: "/v1/body-measurements?limit=200",
+    schema: bodyMeasurementListResponseSchema,
+  });
+  if (!measurementsResult.ok) {
+    return {
+      ok: false,
+      message: humanizeError(
+        measurementsResult.error.kind,
+        "Could not check your starting weight.",
+      ),
+    };
+  }
+  const hasConfirmedWeight = measurementsResult.value.bodyMeasurements.some(
+    (measurement) => measurement.weightKg !== null,
+  );
+  if (!hasConfirmedWeight) {
+    const baselinePayload = bodyMeasurementCreateSchema.parse({
+      weightKg: baselineWeightKg,
+      measuredAt: new Date().toISOString(),
+      measurements: { context: "onboarding_baseline" },
+    });
+    const baselineResult = await client.request({
+      method: "POST",
+      path: "/v1/body-measurements",
+      body: baselinePayload,
+      schema: bodyMeasurementResponseSchema,
+    });
+    if (!baselineResult.ok) {
+      return {
+        ok: false,
+        message: humanizeError(
+          baselineResult.error.kind,
+          "Could not save your starting weight.",
+        ),
+      };
+    }
+  }
+
   const profilePatch: ProfilePatch = {
     displayName: form.displayName.trim(),
     unitSystem: form.unitSystem,
@@ -39,6 +138,7 @@ export const submitOnboarding = async (
     method: "PUT",
     path: "/v1/profile",
     body: profilePatch,
+    schema: profileResponseSchema,
   });
   if (!profileResult.ok) {
     return {
@@ -50,34 +150,11 @@ export const submitOnboarding = async (
     };
   }
 
-  if (form.goalKind === null || form.goalWeightKg === null) {
-    // The route validator prevents this branch; treat it as a hard
-    // success because the profile write went through.
-    return { ok: true };
-  }
-
-  const goalResult = await client.request({
-    method: "POST",
-    path: "/v1/goals",
-    body: {
-      kind: form.goalKind,
-      pace: "steady",
-      target: { weightKg: form.goalWeightKg },
-      startsOn: form.goalStartDate,
-      targetDate: form.goalTargetDate,
-    },
-  });
-  if (!goalResult.ok) {
-    return {
-      ok: false,
-      message: humanizeError(
-        goalResult.error.kind,
-        "Could not save your goal.",
-      ),
-    };
-  }
   return { ok: true };
 };
+
+const isNotFound = (error: ApiError): boolean =>
+  error.kind === "http_error" && error.status === 404;
 
 const humanizeError = (kind: string, fallback: string): string => {
   switch (kind) {

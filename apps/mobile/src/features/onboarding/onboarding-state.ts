@@ -14,20 +14,22 @@
  * knows how to roll back).
  */
 export type OnboardingStep =
-  "welcome" | "displayName" | "units" | "primaryGoal";
+  "welcome" | "displayName" | "units" | "baselineWeight" | "primaryGoal";
 
 export const ONBOARDING_STEPS: ReadonlyArray<OnboardingStep> = [
   "welcome",
   "displayName",
   "units",
+  "baselineWeight",
   "primaryGoal",
 ];
 
 export interface OnboardingForm {
   readonly displayName: string;
   readonly unitSystem: "metric" | "imperial";
+  readonly baselineWeight: string;
   readonly goalKind: "cut" | "recomp" | "maintain" | null;
-  readonly goalWeightKg: number | null;
+  readonly goalWeight: string;
   readonly goalStartDate: string;
   readonly goalTargetDate: string;
 }
@@ -45,8 +47,9 @@ export const freshOnboardingForm = (now: Date): OnboardingForm => {
   return {
     displayName: "",
     unitSystem: "metric",
+    baselineWeight: "",
     goalKind: null,
-    goalWeightKg: null,
+    goalWeight: "",
     goalStartDate: today,
     goalTargetDate: ninetyDays,
   };
@@ -74,15 +77,30 @@ export const validateDisplayName = (form: OnboardingForm): string | null => {
 
 export const validateUnits = (_form: OnboardingForm): string | null => null;
 
-export const validatePrimaryGoal = (form: OnboardingForm): string | null => {
-  if (form.goalKind === null) return "Choose a goal kind.";
-  if (form.goalWeightKg === null) return "Enter your goal weight.";
-  if (!Number.isFinite(form.goalWeightKg))
-    return "Goal weight must be a number.";
-  if (form.goalWeightKg < 30 || form.goalWeightKg > 250) {
-    return "Goal weight must be between 30 and 250 kg.";
+const validateWeight = (
+  raw: string,
+  unitSystem: OnboardingForm["unitSystem"],
+  label: string,
+): string | null => {
+  const value = Number(raw.trim());
+  if (raw.trim().length === 0) return `Enter your ${label.toLowerCase()}.`;
+  if (!Number.isFinite(value) || value <= 0)
+    return `${label} must be a positive number.`;
+  const kilograms = unitSystem === "imperial" ? value / 2.204_622_621_8 : value;
+  if (kilograms < 30 || kilograms > 250) {
+    return unitSystem === "imperial"
+      ? `${label} must be between 66.1 and 551.2 lb.`
+      : `${label} must be between 30 and 250 kg.`;
   }
   return null;
+};
+
+export const validateBaselineWeight = (form: OnboardingForm): string | null =>
+  validateWeight(form.baselineWeight, form.unitSystem, "Baseline weight");
+
+export const validatePrimaryGoal = (form: OnboardingForm): string | null => {
+  if (form.goalKind === null) return "Choose a goal kind.";
+  return validateWeight(form.goalWeight, form.unitSystem, "Goal weight");
 };
 
 export const validateStep = (
@@ -96,6 +114,8 @@ export const validateStep = (
       return validateDisplayName(form);
     case "units":
       return validateUnits(form);
+    case "baselineWeight":
+      return validateBaselineWeight(form);
     case "primaryGoal":
       return validatePrimaryGoal(form);
   }
@@ -124,8 +144,9 @@ export const previousStep = (step: OnboardingStep): OnboardingStep | null => {
 export type OnboardingPatch =
   | { readonly field: "displayName"; readonly value: string }
   | { readonly field: "unitSystem"; readonly value: "metric" | "imperial" }
+  | { readonly field: "baselineWeight"; readonly value: string }
   | { readonly field: "goalKind"; readonly value: OnboardingForm["goalKind"] }
-  | { readonly field: "goalWeightKg"; readonly value: number | null }
+  | { readonly field: "goalWeight"; readonly value: string }
   | { readonly field: "goalStartDate"; readonly value: string }
   | { readonly field: "goalTargetDate"; readonly value: string };
 
@@ -137,11 +158,20 @@ export const applyOnboardingPatch = (
     case "displayName":
       return { ...form, displayName: patch.value };
     case "unitSystem":
-      return { ...form, unitSystem: patch.value };
+      return patch.value === form.unitSystem
+        ? form
+        : {
+            ...form,
+            unitSystem: patch.value,
+            baselineWeight: "",
+            goalWeight: "",
+          };
+    case "baselineWeight":
+      return { ...form, baselineWeight: patch.value };
     case "goalKind":
       return { ...form, goalKind: patch.value };
-    case "goalWeightKg":
-      return { ...form, goalWeightKg: patch.value };
+    case "goalWeight":
+      return { ...form, goalWeight: patch.value };
     case "goalStartDate":
       return { ...form, goalStartDate: patch.value };
     case "goalTargetDate":

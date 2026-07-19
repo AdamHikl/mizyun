@@ -716,3 +716,17 @@ PERSIST-001 closed the persistence gap for profile, goals, and food. What's the 
 - Expo SDK 57 is paired with React Native 0.86. The 0.86 release reports no breaking application-code changes from 0.85; the nutrition screen uses the stable cross-platform `Alert` API for an explicit destructive-delete confirmation and keeps the destructive operation behind a second user action.
 - MDN documents that `getTimezoneOffset()` returns UTC-minus-local minutes and varies with the date in DST regions. The mobile client therefore negates the value and sends an explicit positive-east `utcOffsetMinutes`; contracts bound it to the civil range, repositories query the corresponding UTC instants, and core groups those instants into the requested local date. ADR-0007 records the API semantics and the historical/DST limitation of a single offset snapshot.
 - ADR-0006 records the durable navigation hierarchy; ADR-0007 records local-day query semantics. The remaining lifecycle behavior fits the existing NUT-01/NUT-02 architecture.
+
+## 2026-07-19 — MOB-ONB-001 baseline-weight activation
+
+### Primary sources
+
+- Expo SDK 57, **SDK reference** (accessed 2026-07-19): https://docs.expo.dev/versions/v57.0.0/
+- React Native 0.86, **TextInput** (accessed 2026-07-19): https://reactnative.dev/docs/0.86/textinput
+- React Native 0.86, **Accessibility** (accessed 2026-07-19): https://reactnative.dev/docs/0.86/accessibility
+
+### Verified findings and implementation consequences
+
+- The installed Expo 57 line uses React Native 0.86. The onboarding weight fields stay on the existing React Native `TextInput` surface, use `decimal-pad`, expose explicit accessibility labels, and present validation errors with the alert role; no new native dependency or permission is required.
+- Display units are presentation state. Metric and imperial strings are converted once at the mobile/API boundary and rounded to the body-measurement contract's three-decimal canonical kilogram precision. Changing units after entering weights clears both display strings so the same digits cannot silently acquire a different physical meaning.
+- Onboarding spans three independent authorities (active goal, baseline measurement, and profile). ADR-0008 records the retry-safe commit protocol: ensure goal, ensure a confirmed weight, and write the profile display name last as the existing SessionGate completion marker.

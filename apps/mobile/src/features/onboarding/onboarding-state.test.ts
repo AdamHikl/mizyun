@@ -8,6 +8,7 @@ import {
   previousStep,
   stepIndex,
   validatePrimaryGoal,
+  validateBaselineWeight,
   validateDisplayName,
   validateStep,
   type OnboardingForm,
@@ -31,6 +32,7 @@ describe("freshOnboardingForm", () => {
 
   it("starts with an empty display name", () => {
     expect(fresh().displayName).toBe("");
+    expect(fresh().baselineWeight).toBe("");
   });
 });
 
@@ -62,20 +64,20 @@ describe("validatePrimaryGoal", () => {
     const form: OnboardingForm = {
       ...fresh(),
       goalKind: "cut",
-      goalWeightKg: null,
+      goalWeight: "",
     };
     expect(validatePrimaryGoal(form)).toMatch(/goal weight/i);
   });
 
   it("rejects an out-of-range weight", () => {
     expect(
-      validatePrimaryGoal({ ...fresh(), goalKind: "cut", goalWeightKg: 5 }),
+      validatePrimaryGoal({ ...fresh(), goalKind: "cut", goalWeight: "5" }),
     ).toMatch(/30 and 250/);
     expect(
       validatePrimaryGoal({
         ...fresh(),
         goalKind: "cut",
-        goalWeightKg: 500,
+        goalWeight: "500",
       }),
     ).toMatch(/30 and 250/);
   });
@@ -86,10 +88,35 @@ describe("validatePrimaryGoal", () => {
         validatePrimaryGoal({
           ...fresh(),
           goalKind: kind,
-          goalWeightKg: 75,
+          goalWeight: "75",
         }),
       ).toBeNull();
     }
+  });
+});
+
+describe("validateBaselineWeight", () => {
+  it("accepts equivalent metric and imperial baseline values", () => {
+    expect(
+      validateBaselineWeight({ ...fresh(), baselineWeight: "72.5" }),
+    ).toBeNull();
+    expect(
+      validateBaselineWeight({
+        ...fresh(),
+        unitSystem: "imperial",
+        baselineWeight: "160",
+      }),
+    ).toBeNull();
+  });
+
+  it("uses the selected display unit in range errors", () => {
+    expect(
+      validateBaselineWeight({
+        ...fresh(),
+        unitSystem: "imperial",
+        baselineWeight: "20",
+      }),
+    ).toMatch(/lb/);
   });
 });
 
@@ -101,16 +128,18 @@ describe("validateStep", () => {
 
   it("routes displayName and primaryGoal to their dedicated validators", () => {
     expect(validateStep("displayName", fresh())).toMatch(/blank/i);
+    expect(validateStep("baselineWeight", fresh())).toMatch(/baseline/i);
     expect(validateStep("primaryGoal", fresh())).toMatch(/goal kind/i);
   });
 });
 
 describe("ONBOARDING_STEPS ordering", () => {
-  it("exposes the four steps in the documented order", () => {
+  it("exposes the five screens in the documented order", () => {
     expect(ONBOARDING_STEPS).toEqual([
       "welcome",
       "displayName",
       "units",
+      "baselineWeight",
       "primaryGoal",
     ]);
   });
@@ -119,13 +148,15 @@ describe("ONBOARDING_STEPS ordering", () => {
     expect(stepIndex("welcome")).toBe(0);
     expect(stepIndex("displayName")).toBe(1);
     expect(stepIndex("units")).toBe(2);
-    expect(stepIndex("primaryGoal")).toBe(3);
+    expect(stepIndex("baselineWeight")).toBe(3);
+    expect(stepIndex("primaryGoal")).toBe(4);
   });
 
   it("advances to the next step", () => {
     expect(nextStep("welcome")).toBe("displayName");
     expect(nextStep("displayName")).toBe("units");
-    expect(nextStep("units")).toBe("primaryGoal");
+    expect(nextStep("units")).toBe("baselineWeight");
+    expect(nextStep("baselineWeight")).toBe("primaryGoal");
     expect(nextStep("primaryGoal")).toBeNull();
   });
 
@@ -133,7 +164,8 @@ describe("ONBOARDING_STEPS ordering", () => {
     expect(previousStep("welcome")).toBeNull();
     expect(previousStep("displayName")).toBe("welcome");
     expect(previousStep("units")).toBe("displayName");
-    expect(previousStep("primaryGoal")).toBe("units");
+    expect(previousStep("baselineWeight")).toBe("units");
+    expect(previousStep("primaryGoal")).toBe("baselineWeight");
   });
 });
 
@@ -147,11 +179,16 @@ describe("applyOnboardingPatch", () => {
   });
 
   it("updates the unit system", () => {
-    const next = applyOnboardingPatch(fresh(), {
-      field: "unitSystem",
-      value: "imperial",
-    });
+    const next = applyOnboardingPatch(
+      { ...fresh(), baselineWeight: "72", goalWeight: "68" },
+      {
+        field: "unitSystem",
+        value: "imperial",
+      },
+    );
     expect(next.unitSystem).toBe("imperial");
+    expect(next.baselineWeight).toBe("");
+    expect(next.goalWeight).toBe("");
   });
 
   it("updates the goal kind, including null", () => {
@@ -167,17 +204,17 @@ describe("applyOnboardingPatch", () => {
     expect(cleared.goalKind).toBeNull();
   });
 
-  it("updates the goal weight, including null", () => {
+  it("updates the baseline and goal display weights", () => {
     const set = applyOnboardingPatch(fresh(), {
-      field: "goalWeightKg",
-      value: 78,
+      field: "baselineWeight",
+      value: "72.5",
     });
-    expect(set.goalWeightKg).toBe(78);
-    const cleared = applyOnboardingPatch(set, {
-      field: "goalWeightKg",
-      value: null,
+    expect(set.baselineWeight).toBe("72.5");
+    const goal = applyOnboardingPatch(set, {
+      field: "goalWeight",
+      value: "78",
     });
-    expect(cleared.goalWeightKg).toBeNull();
+    expect(goal.goalWeight).toBe("78");
   });
 
   it("updates the dates", () => {

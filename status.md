@@ -5,9 +5,9 @@
 ## Executive snapshot
 
 - **Product stage:** technical pre-alpha; the architecture and domain/API foundation are strong, but this is not yet a customer-usable tracking beta.
-- **Roadmap position:** MOB-DAILY-001 is active. MOB-NUT-001 is complete; activation, full workout/set logging, body trends, energy state, and persistent-device acceptance remain.
-- **Latest verified implementation slice:** MOB-NUT-001 — daily local-time meal list and totals with create, edit, copy, confirmed delete, refreshed server authority, and recoverable encrypted drafts.
-- **Next exact action:** MOB-ONB-001 — collect baseline weight during activation, then verify the authenticated iOS journey against persistent Supabase data.
+- **Roadmap position:** MOB-DAILY-001 is active. MOB-NUT-001 and MOB-ONB-001 are complete; full workout/set logging, body trends, energy state, and persistent-device acceptance remain.
+- **Latest verified implementation slice:** MOB-ONB-001 — unit-aware baseline weight plus retry-safe goal/measurement/profile activation sequencing.
+- **Next exact action:** MOB-WO-001 — add exercise selection, recoverable workout/set logging, completion, and previous-performance context.
 - **Branch:** `main`; the coherent documentation, persistence, and mobile productization changes are included in the MOB-NUT-001 handoff commit.
 - **Remote:** `https://github.com/AdamHikl/mizyun`.
 - **Remote state:** this handoff is pushed to `origin/main`; verify with `git status --branch --short` before the next segment.
@@ -55,6 +55,7 @@ The mobile app currently includes:
 
 - configuration-required, authentication, confirmation/recovery, and session-loading states;
 - an onboarding wizard connected to the profile/goal endpoints;
+- onboarding baseline weight in metric or imperial units, persisted before the profile completion marker with retry-safe discovery of partial prior writes;
 - an Account tab with verified-principal display and sign-out;
 - a Home dashboard that reads today's confirmed calorie/macro summary, latest weight, and the current local calendar week's workout count from the API;
 - dashboard routes to create a manual meal, a minimal completed workout record, or a weight observation;
@@ -68,7 +69,7 @@ The first create paths are usable, but most tracking lifecycle behavior is **not
 
 - food entries now have a complete manual mobile lifecycle for today's local calendar day; multi-day history remains deferred;
 - the workout form creates a minimal completed session only; exercise selection, sets, active-workout recovery, and previous performance are absent;
-- weight has create/latest-value behavior only; baseline activation, history, and labeled trend are absent;
+- weight has activation/create/latest-value behavior; history and a labeled trend are absent;
 - the dashboard does not yet show deterministic energy state or a weekly review;
 - progress-photo capture/upload/timeline/compare remains absent;
 - the Coach screen is a provider-not-connected placeholder;
@@ -87,8 +88,8 @@ The complete standard gate was run from the local repository:
 pnpm check
   formatting: passed
   workspace TypeScript checks: passed
-  iOS Expo/Metro/Hermes export: passed (1,629 modules, 4.5 MB bundle)
-  tests: 640 passed
+  iOS Expo/Metro/Hermes export: passed (1,630 modules, 4.5 MB bundle)
+  tests: 644 passed
   opt-in Supabase persistence/auth e2e: 12 skipped because local e2e credentials were not enabled
 ```
 
@@ -101,7 +102,7 @@ pnpm db:verify
   pgTAP: 55 assertions passed
 ```
 
-The full `pnpm check` gate passed after MOB-NUT-001: formatting, all workspace TypeScript checks, the iOS bundle (1,629 modules, 4.5 MB), and 640 tests. Twelve opt-in Supabase persistence/auth e2e tests were skipped because local e2e credentials were not enabled. No simulator/device acceptance was run in this session. Re-run the database and opt-in e2e gates whenever persistent adapters or hosted configuration change.
+The full `pnpm check` gate passed after MOB-ONB-001: formatting, all workspace TypeScript checks, the iOS bundle (1,630 modules, 4.5 MB), and 644 tests. Twelve opt-in Supabase persistence/auth e2e tests were skipped because local e2e credentials were not enabled. No simulator/device acceptance was run in this session. Re-run the database and opt-in e2e gates whenever persistent adapters or hosted configuration change.
 
 ## Business-plan alignment
 
@@ -160,4 +161,4 @@ Never put a service-role or model secret in an `EXPO_PUBLIC_` variable. AI remai
 
 ## Handoff note
 
-Read `AGENTS.md`, `goals.md`, `docs/BUSINESS_ALIGNMENT.md`, `plan.md`, this file, and `backlog.md` before implementation. Continue MOB-DAILY-001 with MOB-ONB-001: collect baseline weight during activation and land the user on a useful dashboard. Then run authenticated simulator acceptance against persistent Supabase data. Do not start AI.
+Read `AGENTS.md`, `goals.md`, `docs/BUSINESS_ALIGNMENT.md`, `plan.md`, this file, and `backlog.md` before implementation. Continue MOB-DAILY-001 with MOB-WO-001: add exercise selection, recoverable workout/set logging, completion, and previous performance. Do not start AI.

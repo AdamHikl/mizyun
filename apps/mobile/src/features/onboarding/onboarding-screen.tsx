@@ -14,6 +14,7 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { apiClient } from "@/composition/api-client";
 import { MaxContentWidth, Spacing } from "@/constants/theme";
+import { weightUnitLabel } from "@/lib/weight-units";
 
 import {
   applyOnboardingPatch,
@@ -168,6 +169,16 @@ function StepBody({ step, form, onPatch, error }: StepBodyProps) {
           onChange={(value) => onPatch({ field: "unitSystem", value })}
         />
       );
+    case "baselineWeight":
+      return (
+        <WeightBody
+          label={`Current weight (${weightUnitLabel(form.unitSystem)})`}
+          value={form.baselineWeight}
+          onChange={(value) => onPatch({ field: "baselineWeight", value })}
+          error={error}
+          supportingText="This becomes your first confirmed measurement and gives future trends a real starting point."
+        />
+      );
     case "primaryGoal":
       return <PrimaryGoalBody form={form} onPatch={onPatch} error={error} />;
   }
@@ -178,8 +189,8 @@ function WelcomeBody() {
     <View style={styles.body}>
       <ThemedText style={styles.paragraph}>
         Mizyun tracks your daily energy, training, and weight against a single
-        primary goal so the math stays honest. Set up your goal in three short
-        steps.
+        primary goal so the math stays honest. Set up your starting point in
+        four short steps.
       </ThemedText>
       <ThemedText type="small" themeColor="textSecondary">
         You can change anything later from the Account tab.
@@ -246,6 +257,44 @@ function UnitsBody({ value, onChange }: UnitsBodyProps) {
   );
 }
 
+interface WeightBodyProps {
+  readonly label: string;
+  readonly value: string;
+  readonly onChange: (next: string) => void;
+  readonly error: string | null;
+  readonly supportingText: string;
+}
+
+function WeightBody({
+  label,
+  value,
+  onChange,
+  error,
+  supportingText,
+}: WeightBodyProps) {
+  return (
+    <View style={styles.body}>
+      <ThemedText type="small" themeColor="textSecondary">
+        {supportingText}
+      </ThemedText>
+      <ThemedText style={styles.label}>{label}</ThemedText>
+      <TextInput
+        accessibilityLabel={label}
+        keyboardType="decimal-pad"
+        placeholder="72.5"
+        value={value}
+        onChangeText={onChange}
+        style={styles.input}
+      />
+      {error ? (
+        <ThemedText accessibilityRole="alert" style={styles.fieldError}>
+          {error}
+        </ThemedText>
+      ) : null}
+    </View>
+  );
+}
+
 interface UnitChoiceProps {
   readonly label: string;
   readonly selected: boolean;
@@ -293,19 +342,14 @@ function PrimaryGoalBody({ form, onPatch, error }: PrimaryGoalBodyProps) {
       </View>
 
       <ThemedText style={[styles.label, styles.labelGap]}>
-        Goal weight (kg)
+        Goal weight ({weightUnitLabel(form.unitSystem)})
       </ThemedText>
       <TextInput
+        accessibilityLabel={`Goal weight (${weightUnitLabel(form.unitSystem)})`}
         keyboardType="decimal-pad"
         placeholder="78.0"
-        value={form.goalWeightKg === null ? "" : String(form.goalWeightKg)}
-        onChangeText={(text) => {
-          const parsed = Number(text);
-          onPatch({
-            field: "goalWeightKg",
-            value: text.trim() === "" || Number.isNaN(parsed) ? null : parsed,
-          });
-        }}
+        value={form.goalWeight}
+        onChangeText={(value) => onPatch({ field: "goalWeight", value })}
         style={styles.input}
       />
       {error ? (
@@ -343,6 +387,8 @@ const titleFor = (step: OnboardingStep): string => {
       return "What should we call you?";
     case "units":
       return "Pick your units";
+    case "baselineWeight":
+      return "Add your starting point";
     case "primaryGoal":
       return "Set a primary goal";
   }
@@ -356,6 +402,8 @@ const subtitleFor = (step: OnboardingStep): string => {
       return "Shown on the dashboard and in coach messages.";
     case "units":
       return "Stored as kilograms; displayed in your choice.";
+    case "baselineWeight":
+      return "A confirmed baseline makes progress measurable.";
     case "primaryGoal":
       return "Drives the energy model until you change it.";
   }

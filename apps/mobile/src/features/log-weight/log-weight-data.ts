@@ -8,6 +8,7 @@ import {
 import type { ApiClient, ApiError } from "@mizyun/api-client";
 import { apiClient } from "@/composition/api-client";
 import type { Result } from "@mizyun/core";
+import { displayWeightToKilograms } from "@/lib/weight-units";
 
 /**
  * Pure submit reducer for the log-weight form. The screen wires
@@ -22,8 +23,6 @@ export interface LogWeightForm {
   readonly weight: number | null;
   readonly unitSystem: "metric" | "imperial";
 }
-
-const POUNDS_PER_KILOGRAM = 2.204_622_621_8;
 
 const humanize = (result: Result<unknown, ApiError>): string => {
   if (!result.ok) {
@@ -63,13 +62,7 @@ export const submitLogWeightWith = async (
   if (form.weight === null || form.weight <= 0) {
     return { ok: false, message: "Enter a positive weight first." };
   }
-  const unroundedWeightKg =
-    form.unitSystem === "imperial"
-      ? form.weight / POUNDS_PER_KILOGRAM
-      : form.weight;
-  // The wire contract mirrors numeric(6, 3), so display-unit
-  // conversion rounds only at the canonical storage boundary.
-  const weightKg = Math.round(unroundedWeightKg * 1_000) / 1_000;
+  const weightKg = displayWeightToKilograms(form.weight, form.unitSystem);
   const measuredAt = now().toISOString();
   const payload: BodyMeasurementCreate = {
     weightKg,

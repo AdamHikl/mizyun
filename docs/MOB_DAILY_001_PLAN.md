@@ -52,11 +52,13 @@ The 2026-07-18 sweep named MOB-DAILY-001 as the next exact work package. Status 
 - Metric and imperial weight entry produce the same canonical kilogram meaning.
 - `pnpm check` must pass before the slice is handed off.
 
-MOB-NUT-001 is complete: the Home stack now includes an authoritative daily meal list and totals, create/edit/copy/delete behavior, explicit delete confirmation, focus-driven refresh, recoverable user-scoped edit drafts, and local-day API boundaries. MOB-DAILY-001 remains active after this slice. Its parent definition of done still requires baseline weight in activation, exercise/set logging with previous performance, labeled weight history/trend, energy state, and simulator/device acceptance against persistent storage.
+MOB-NUT-001 is complete: the Home stack now includes an authoritative daily meal list and totals, create/edit/copy/delete behavior, explicit delete confirmation, focus-driven refresh, recoverable user-scoped edit drafts, and local-day API boundaries.
+
+MOB-ONB-001 is complete: onboarding collects a metric or imperial baseline, converts only at the canonical API boundary, ensures active-goal and confirmed-measurement authority before committing the profile completion marker, and safely resumes after partial failure without duplicate creates. MOB-DAILY-001 remains active; workout/set logging is the next slice.
 
 ## Open follow-ups (per the matrix)
 
-- MOB-ONB-001 — complete activation with baseline weight.
+- MOB-WO-001 — exercise selection, active workout/set recovery, completion, and previous performance.
 - MOB-DASH-001 — the trend views (week/month) and the energy-summary card from ENG-002.
 - MEDIA-MOB-001 — the photo capture + upload flow against PERSIST-003.
 - AND-001 — verify the same loop on Android (deferred).

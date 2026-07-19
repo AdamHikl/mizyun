@@ -35,9 +35,9 @@ These items convert the tested domain/API foundation into the low-friction produ
 | PERSIST-002   | P0       | done    | Supabase repositories for training, body, and account | Same persistence/isolation/export/deletion proof as PERSIST-001             |
 | PERSIST-003   | P0       | blocked | Real Supabase private-media storage adapter           | Mobile-compatible signed upload/download/delete works against real storage  |
 | MOB-DAILY-001 | P1       | active  | Persistent mobile daily-loop integration              | All MOB-ONB/NUT/WO/BODY/DASH child journeys pass together on stored data    |
-| MOB-ONB-001   | P1       | ready   | Complete activation and baseline weight               | New user reaches a useful dashboard with the minimum energy inputs          |
+| MOB-ONB-001   | P1       | done    | Complete activation and baseline weight               | New user reaches a useful dashboard with the minimum energy inputs          |
 | MOB-NUT-001   | P1       | done    | Manual food logging and daily totals UI               | User can create/edit/delete food and see stored calorie/macro totals        |
-| MOB-WO-001    | P1       | ready   | Exercise, workout, and set logging UI                 | User completes a workout and sees previous performance                      |
+| MOB-WO-001    | P1       | active  | Exercise, workout, and set logging UI                 | User completes a workout and sees previous performance                      |
 | MOB-BODY-001  | P1       | ready   | Weight/measurement entry and trend UI                 | User records weight and sees raw history plus a labeled trend               |
 | MOB-DASH-001  | P1       | ready   | Replace dashboard placeholders with real summaries    | Calories, weight, training, and energy state come from persisted records    |
 | MEDIA-MOB-001 | P1       | blocked | Progress-photo capture/upload/timeline/compare UI     | Private photo lifecycle is usable and deletable from mobile                 |
