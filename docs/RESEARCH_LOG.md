@@ -748,3 +748,20 @@ PERSIST-001 closed the persistence gap for profile, goals, and food. What's the 
 - Previous performance must not include the active workout. The recent-sets query now accepts a validated `excludeWorkoutId`, filters that session before calculating best load and last-session volume, and preserves the existing behavior for callers that omit it.
 - Supabase-backed ownership checks require the verified bearer token. Workout-set route helpers now thread `principal.accessToken` rather than a test literal through every repository read; in-memory tests continue to pass, while production RLS receives the real authenticated session.
 - ADR-0009 records the durable authority and recovery split for the active workout workflow.
+
+## 2026-07-19 — MOB-BODY-001 raw history and labeled weight trend
+
+### Primary sources
+
+- NIST/SEMATECH, **Single Exponential Smoothing** (accessed 2026-07-19): https://www.itl.nist.gov/div898/handbook/pmc/section4/pmc431.htm
+- NIST/SEMATECH, **Least Squares** (accessed 2026-07-19): https://www.itl.nist.gov/div898/handbook/pmd/section1/pmd141.htm
+- Expo SDK 57, **Router API** (accessed 2026-07-19): https://docs.expo.dev/versions/v57.0.0/sdk/router/
+- React Native 0.86, **Alert** (accessed 2026-07-19): https://reactnative.dev/docs/0.86/alert
+
+### Verified findings and implementation consequences
+
+- Exponential smoothing recursively combines prior smooth state and the current observation. Mizyun makes its weighting time-aware: elapsed days determine the alpha for a documented seven-day half-life, so irregular weigh-ins are not treated as equally spaced daily samples.
+- Least-squares regression provides a deterministic slope. Mizyun reports the slope as kilograms (or converted pounds) per week over the newest 28 days, and withholds it until at least three confirmed weights span seven days. The UI labels both the window and smoother instead of presenting the interpretation as a raw fact.
+- Raw measurements remain visible beside a small raw-reading chart. Deletion is reserved for corrections and uses an explicit destructive Alert; the trend recalculates only after the API confirms removal.
+- Weight, waist, and chest entry accepts the selected display units, rejects any invalid nonblank field rather than silently dropping it, and converts to canonical kilograms/centimeters only at the API boundary.
+- ADR-0010 records the trend formula, evidence threshold, and presentation boundary.

@@ -95,6 +95,11 @@ const actions = [
     path: "/log-weight" as Href,
     hint: "Just today's reading",
   },
+  {
+    label: "Weight history",
+    path: "/body" as Href,
+    hint: "Raw readings and trend",
+  },
 ] as const;
 
 export function DashboardScreen() {

@@ -9,6 +9,7 @@ import type { ApiClient, ApiError } from "@mizyun/api-client";
 import { apiClient } from "@/composition/api-client";
 import type { Result } from "@mizyun/core";
 import { displayWeightToKilograms } from "@/lib/weight-units";
+import { displayLengthToCentimeters } from "@/lib/length-units";
 
 /**
  * Pure submit reducer for the log-weight form. The screen wires
@@ -20,7 +21,9 @@ export type LogWeightResult =
   | { readonly ok: false; readonly message: string };
 
 export interface LogWeightForm {
-  readonly weight: number | null;
+  readonly weight: string;
+  readonly waist: string;
+  readonly chest: string;
   readonly unitSystem: "metric" | "imperial";
 }
 
@@ -59,13 +62,39 @@ export const submitLogWeightWith = async (
   client: ApiClient,
   now: () => Date = () => new Date(),
 ): Promise<LogWeightResult> => {
-  if (form.weight === null || form.weight <= 0) {
-    return { ok: false, message: "Enter a positive weight first." };
+  const weight = parseOptionalPositive(form.weight);
+  const waist = parseOptionalPositive(form.waist);
+  const chest = parseOptionalPositive(form.chest);
+  if ([weight, waist, chest].some((value) => value === "invalid")) {
+    return { ok: false, message: "Measurements must be positive numbers." };
   }
-  const weightKg = displayWeightToKilograms(form.weight, form.unitSystem);
+  const values = [weight, waist, chest];
+  if (values.every((value) => value === null)) {
+    return { ok: false, message: "Enter a weight or body measurement first." };
+  }
+  const weightKg =
+    typeof weight !== "number"
+      ? null
+      : displayWeightToKilograms(weight, form.unitSystem);
   const measuredAt = now().toISOString();
   const payload: BodyMeasurementCreate = {
-    weightKg,
+    ...(weightKg !== null ? { weightKg } : {}),
+    ...(typeof waist === "number" || typeof chest === "number"
+      ? {
+          measurements: {
+            ...(typeof waist === "number"
+              ? {
+                  waist_cm: displayLengthToCentimeters(waist, form.unitSystem),
+                }
+              : {}),
+            ...(typeof chest === "number"
+              ? {
+                  chest_cm: displayLengthToCentimeters(chest, form.unitSystem),
+                }
+              : {}),
+          },
+        }
+      : {}),
     measuredAt,
   };
   const parsed = bodyMeasurementCreateSchema.safeParse(payload);
@@ -85,4 +114,10 @@ export const submitLogWeightWith = async (
     return { ok: false, message: humanize(result) };
   }
   return { ok: true, id: result.value.bodyMeasurement.id };
+};
+
+const parseOptionalPositive = (raw: string): number | null | "invalid" => {
+  if (raw.trim().length === 0) return null;
+  const value = Number(raw.trim());
+  return Number.isFinite(value) && value > 0 ? value : "invalid";
 };

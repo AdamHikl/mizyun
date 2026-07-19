@@ -171,10 +171,12 @@ export {
 export {
   BODY_WEIGHT_KG_MAX,
   BODY_WEIGHT_KG_MIN,
+  summariseWeightTrend,
   validateBodyMeasurementCreate,
   type BodyMeasurementCore,
   type BodyMeasurementRepository,
   type BodyMeasurementSource,
   type BodyMeasurementValidationError,
   type StoredBodyMeasurement,
+  type WeightTrendSummary,
 } from "./body-measurement";

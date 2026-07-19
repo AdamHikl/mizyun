@@ -14,6 +14,7 @@ import { ThemedView } from "@/components/themed-view";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
+import { lengthUnitLabel } from "@/lib/length-units";
 import {
   clearLoggingDraft,
   loadLoggingDraft,
@@ -22,17 +23,12 @@ import {
 
 import { submitLogWeight } from "./log-weight-data";
 
-const parseNumber = (raw: string): number | null => {
-  const trimmed = raw.trim();
-  if (trimmed.length === 0) return null;
-  const n = Number(trimmed);
-  return Number.isFinite(n) && n > 0 ? n : null;
-};
-
 export function LogWeightScreen() {
   const { profile, session } = useAuth();
   const theme = useTheme();
   const [weight, setWeight] = useState("");
+  const [waist, setWaist] = useState("");
+  const [chest, setChest] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draftLoaded, setDraftLoaded] = useState(false);
@@ -47,6 +43,8 @@ export function LogWeightScreen() {
       if (!active) return;
       if (draft !== null && draft.unitSystem === unitSystem) {
         setWeight(draft.weight);
+        setWaist(draft.waist ?? "");
+        setChest(draft.chest ?? "");
       }
       setDraftLoaded(true);
     });
@@ -57,14 +55,21 @@ export function LogWeightScreen() {
 
   useEffect(() => {
     if (!draftLoaded || userId === null) return;
-    void saveLoggingDraft(userId, "weight", { weight, unitSystem });
-  }, [draftLoaded, unitSystem, userId, weight]);
+    void saveLoggingDraft(userId, "weight", {
+      weight,
+      waist,
+      chest,
+      unitSystem,
+    });
+  }, [chest, draftLoaded, unitSystem, userId, waist, weight]);
 
   const onSubmit = useCallback(async () => {
     setSubmitting(true);
     setError(null);
     const result = await submitLogWeight({
-      weight: parseNumber(weight),
+      weight,
+      waist,
+      chest,
       unitSystem,
     });
     setSubmitting(false);
@@ -74,7 +79,7 @@ export function LogWeightScreen() {
       return;
     }
     setError(result.message);
-  }, [unitSystem, userId, weight]);
+  }, [chest, unitSystem, userId, waist, weight]);
 
   return (
     <ThemedView style={styles.page}>
@@ -84,10 +89,10 @@ export function LogWeightScreen() {
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
         >
-          <ThemedText type="subtitle">Today's reading.</ThemedText>
+          <ThemedText type="subtitle">Today's measurement.</ThemedText>
           <ThemedText themeColor="textSecondary" type="small">
-            Enter the value shown on your scale. Mizyun stores a metric value
-            without changing what you see.
+            Weight is optional when you only want to record a body measurement.
+            Mizyun stores canonical metric values without changing what you see.
           </ThemedText>
 
           <Field
@@ -97,6 +102,24 @@ export function LogWeightScreen() {
             placeholder="72.5"
             keyboardType="numeric"
             autoFocus
+            inputColor={theme.text}
+          />
+
+          <Field
+            label={`Waist (${lengthUnitLabel(unitSystem)}, optional)`}
+            value={waist}
+            onChangeText={setWaist}
+            placeholder="81"
+            keyboardType="numeric"
+            inputColor={theme.text}
+          />
+
+          <Field
+            label={`Chest (${lengthUnitLabel(unitSystem)}, optional)`}
+            value={chest}
+            onChangeText={setChest}
+            placeholder="100"
+            keyboardType="numeric"
             inputColor={theme.text}
           />
 
@@ -124,7 +147,7 @@ export function LogWeightScreen() {
             ]}
           >
             <ThemedText type="smallBold">
-              {submitting ? "Saving…" : "Save weight"}
+              {submitting ? "Saving…" : "Save measurement"}
             </ThemedText>
           </Pressable>
         </ScrollView>
@@ -195,6 +218,8 @@ const styles = StyleSheet.create({
 
 interface WeightDraft {
   readonly weight: string;
+  readonly waist?: string;
+  readonly chest?: string;
   readonly unitSystem: "metric" | "imperial";
 }
 

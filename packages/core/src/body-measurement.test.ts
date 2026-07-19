@@ -5,6 +5,7 @@ import {
   BODY_WEIGHT_KG_MAX,
   BODY_WEIGHT_KG_MIN,
   validateBodyMeasurementCreate,
+  summariseWeightTrend,
 } from "./body-measurement.js";
 
 const baseCreate = {
@@ -93,5 +94,58 @@ describe("validateBodyMeasurementCreate", () => {
     // test guards that the domain layer never accidentally
     // rejects a Date input.
     expect(validateBodyMeasurementCreate({ weightKg: 70 })).toBeNull();
+  });
+});
+
+describe("summariseWeightTrend", () => {
+  it("returns an honest empty state", () => {
+    expect(summariseWeightTrend([])).toMatchObject({
+      status: "insufficient",
+      latestWeightKg: null,
+      observationCount: 0,
+    });
+  });
+
+  it("keeps a single raw weight but withholds a weekly rate", () => {
+    expect(
+      summariseWeightTrend([
+        { measuredAt: new Date("2026-07-01T08:00:00Z"), weightKg: 80 },
+      ]),
+    ).toMatchObject({
+      status: "insufficient",
+      latestWeightKg: 80,
+      smoothedWeightKg: 80,
+      weeklyChangeKg: null,
+    });
+  });
+
+  it("calculates a weekly regression rate across irregular observations", () => {
+    const summary = summariseWeightTrend([
+      { measuredAt: new Date("2026-07-01T08:00:00Z"), weightKg: 80 },
+      { measuredAt: new Date("2026-07-04T08:00:00Z"), weightKg: 79.7 },
+      { measuredAt: new Date("2026-07-11T08:00:00Z"), weightKg: 79 },
+    ]);
+    expect(summary.status).toBe("ready");
+    expect(summary.weeklyChangeKg).toBeCloseTo(-0.7, 3);
+    expect(summary.smoothedWeightKg).toBeGreaterThan(79);
+    expect(summary.smoothedWeightKg).toBeLessThan(80);
+  });
+
+  it("uses only the newest 28 days for the reported rate", () => {
+    const summary = summariseWeightTrend([
+      { measuredAt: new Date("2026-05-01T08:00:00Z"), weightKg: 100 },
+      { measuredAt: new Date("2026-07-01T08:00:00Z"), weightKg: 80 },
+      { measuredAt: new Date("2026-07-08T08:00:00Z"), weightKg: 79.5 },
+      { measuredAt: new Date("2026-07-15T08:00:00Z"), weightKg: 79 },
+    ]);
+    expect(summary.weeklyChangeKg).toBe(-0.5);
+  });
+
+  it("ignores measurement-only observations", () => {
+    expect(
+      summariseWeightTrend([
+        { measuredAt: new Date("2026-07-01T08:00:00Z"), weightKg: null },
+      ]).observationCount,
+    ).toBe(0);
   });
 });
