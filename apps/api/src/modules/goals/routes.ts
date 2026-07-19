@@ -340,9 +340,13 @@ export const goalsRoutes: FastifyPluginAsync<GoalsRoutesOptions> = async (
         return;
       }
       const next = applyGoalPatch(stored, parsed.data, new Date());
-      const saved = await options.goalRepository.update(principal.userId, next, {
-        accessToken: principal.accessToken,
-      });
+      const saved = await options.goalRepository.update(
+        principal.userId,
+        next,
+        {
+          accessToken: principal.accessToken,
+        },
+      );
       return toWire(saved);
     },
   );

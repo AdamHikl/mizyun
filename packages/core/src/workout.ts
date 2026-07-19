@@ -235,12 +235,16 @@ export const applyWorkoutPatch = (
  */
 export interface WorkoutRepository {
   /**
-   * Insert a new workout. The repository assigns the audit
-   * timestamps before returning the stored shape. (The in-memory
-   * implementation takes them from the route; the SQL default +
-   * trigger would handle it. Both honour the contract.)
+   * `accessToken` is the verified principal's bearer token. The
+   * in-memory adapter ignores it; the Supabase adapter uses it
+   * to construct a per-request client bound to the user's RLS
+   * session. PERSIST-002.
    */
-  create(userId: UserId, workout: StoredWorkout): Promise<StoredWorkout>;
+  create(
+    userId: UserId,
+    workout: StoredWorkout,
+    options: { readonly accessToken: string },
+  ): Promise<StoredWorkout>;
   /**
    * Return the user's workouts, bounded by `startedAt`, newest-first.
    * `limit` caps the page size.
@@ -251,6 +255,7 @@ export interface WorkoutRepository {
       readonly from: Date | null;
       readonly to: Date | null;
       readonly limit: number;
+      readonly accessToken: string;
     },
   ): Promise<ReadonlyArray<StoredWorkout>>;
   /**
@@ -258,15 +263,24 @@ export interface WorkoutRepository {
    * exists with that id for any user. The route is responsible
    * for the ownership check.
    */
-  getById(id: string): Promise<StoredWorkout | null>;
+  getById(
+    id: string,
+    options: { readonly accessToken: string },
+  ): Promise<StoredWorkout | null>;
   /**
    * Apply a patch to an existing workout. Returns the new stored
    * shape. Throws if the workout id does not exist.
    */
-  update(workout: StoredWorkout): Promise<StoredWorkout>;
+  update(
+    workout: StoredWorkout,
+    options: { readonly accessToken: string },
+  ): Promise<StoredWorkout>;
   /**
    * Permanently remove a workout. Returns `true` when the row
    * existed and was removed, `false` otherwise.
    */
-  delete(id: string): Promise<boolean>;
+  delete(
+    id: string,
+    options: { readonly accessToken: string },
+  ): Promise<boolean>;
 }

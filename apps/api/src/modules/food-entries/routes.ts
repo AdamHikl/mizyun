@@ -39,25 +39,24 @@ const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
 
 /**
- * Translate an ISO `YYYY-MM-DD` (UTC midnight) date filter into the
- * inclusive instant bounds the repository expects. `from` is the
- * start of the day in UTC; `to` is the end of the day in UTC. Both
- * are inclusive, matching the SQL `BETWEEN` semantics.
+ * Translate a local ISO date and UTC offset into the inclusive instants the
+ * repository expects. Offsets are positive east of UTC.
  */
-const isoDateToStartOfDay = (iso: string): Date => {
+const isoDateToStartOfDay = (iso: string, utcOffsetMinutes = 0): Date => {
   const parts = iso.split("-").map((part) => Number.parseInt(part, 10));
   // The Zod `isoDateSchema` only accepts `YYYY-MM-DD`, so all three
   // parts are guaranteed to be present and finite. The `as number`
   // strips `| undefined` from `noUncheckedIndexedAccess`.
   const [year, month, day] = parts as [number, number, number];
-  return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+  return new Date(
+    Date.UTC(year, month - 1, day, 0, 0, 0, 0) - utcOffsetMinutes * 60_000,
+  );
 };
 
-const isoDateToEndOfDay = (iso: string): Date => {
-  const parts = iso.split("-").map((part) => Number.parseInt(part, 10));
-  const [year, month, day] = parts as [number, number, number];
-  return new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
-};
+const isoDateToEndOfDay = (iso: string, utcOffsetMinutes = 0): Date =>
+  new Date(
+    isoDateToStartOfDay(iso, utcOffsetMinutes).getTime() + 86_400_000 - 1,
+  );
 
 /**
  * Map a domain validation failure to the wire contract. Each
@@ -179,9 +178,11 @@ export const foodEntriesRoutes: FastifyPluginAsync<
         return;
       }
       const from = parsed.data.from
-        ? isoDateToStartOfDay(parsed.data.from)
+        ? isoDateToStartOfDay(parsed.data.from, parsed.data.utcOffsetMinutes)
         : null;
-      const to = parsed.data.to ? isoDateToEndOfDay(parsed.data.to) : null;
+      const to = parsed.data.to
+        ? isoDateToEndOfDay(parsed.data.to, parsed.data.utcOffsetMinutes)
+        : null;
       const limit = parsed.data.limit ?? DEFAULT_LIMIT;
       // The Zod schema caps `limit` at MAX_LIMIT; default below.
       const cappedLimit = Math.min(MAX_LIMIT, Math.max(1, limit));
@@ -504,8 +505,14 @@ export const foodEntriesRoutes: FastifyPluginAsync<
       const MAX_RANGE_LIMIT = 366;
       if (parsed.data.date !== undefined) {
         // Single-day shape: always present, including zero-entry days.
-        const from = isoDateToStartOfDay(parsed.data.date);
-        const to = isoDateToEndOfDay(parsed.data.date);
+        const from = isoDateToStartOfDay(
+          parsed.data.date,
+          parsed.data.utcOffsetMinutes,
+        );
+        const to = isoDateToEndOfDay(
+          parsed.data.date,
+          parsed.data.utcOffsetMinutes,
+        );
         const entries = await options.foodEntryRepository.list(
           principal.userId,
           {
@@ -518,6 +525,9 @@ export const foodEntriesRoutes: FastifyPluginAsync<
         const summaries = summariseFoodEntries(entries, {
           from: parsed.data.date,
           to: parsed.data.date,
+          ...(parsed.data.utcOffsetMinutes !== undefined
+            ? { utcOffsetMinutes: parsed.data.utcOffsetMinutes }
+            : {}),
         });
         const empty: DailyFoodSummary = {
           date: parsed.data.date,
@@ -531,9 +541,11 @@ export const foodEntriesRoutes: FastifyPluginAsync<
         return dailyFoodSummaryResponseSchema.parse({ summary });
       }
       const from = parsed.data.from
-        ? isoDateToStartOfDay(parsed.data.from)
+        ? isoDateToStartOfDay(parsed.data.from, parsed.data.utcOffsetMinutes)
         : null;
-      const to = parsed.data.to ? isoDateToEndOfDay(parsed.data.to) : null;
+      const to = parsed.data.to
+        ? isoDateToEndOfDay(parsed.data.to, parsed.data.utcOffsetMinutes)
+        : null;
       const limit = parsed.data.limit ?? DEFAULT_RANGE_LIMIT;
       const cappedLimit = Math.min(MAX_RANGE_LIMIT, Math.max(1, limit));
       const entries = await options.foodEntryRepository.list(principal.userId, {
@@ -549,6 +561,9 @@ export const foodEntriesRoutes: FastifyPluginAsync<
       const summaries = summariseFoodEntries(entries, {
         from: parsed.data.from as string,
         to: parsed.data.to as string,
+        ...(parsed.data.utcOffsetMinutes !== undefined
+          ? { utcOffsetMinutes: parsed.data.utcOffsetMinutes }
+          : {}),
       }).slice(0, cappedLimit);
       return dailyFoodSummaryListResponseSchema.parse({ summaries });
     },

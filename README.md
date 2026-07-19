@@ -8,13 +8,15 @@ Start here in a new development session:
 
 1. [`AGENTS.md`](AGENTS.md) — mandatory engineering and safety rules
 2. [`goals.md`](goals.md) — product mission, MVP, non-goals, and principles
-3. [`plan.md`](plan.md) — ordered phases, dependencies, and exit criteria
-4. [`status.md`](status.md) — current implementation snapshot and next exact action
-5. [`backlog.md`](backlog.md) — executable work items and dependencies
+3. [`docs/BUSINESS_ALIGNMENT.md`](docs/BUSINESS_ALIGNMENT.md) — target customer, launch wedge, business model, validation ladder, and audited product gaps
+4. [`plan.md`](plan.md) — ordered phases, dependencies, and exit criteria
+5. [`status.md`](status.md) — current implementation snapshot and next exact action
+6. [`backlog.md`](backlog.md) — executable work items and dependencies
 
 Supporting sources of truth:
 
 - [`docs/PRODUCT_REQUIREMENTS.md`](docs/PRODUCT_REQUIREMENTS.md) — stable behavioral requirement IDs
+- [`docs/BUSINESS_ALIGNMENT.md`](docs/BUSINESS_ALIGNMENT.md) — bridge between product strategy and engineering priorities
 - [`docs/QUALITY_GATES.md`](docs/QUALITY_GATES.md) — definition of done and release gates
 - [`docs/SESSION_GUIDE.md`](docs/SESSION_GUIDE.md) — start/research/handoff workflow
 - [`docs/RESEARCH_LOG.md`](docs/RESEARCH_LOG.md) — primary sources reviewed by segment
@@ -39,6 +41,7 @@ supabase/
   migrations/          Database, RLS, and private-storage definitions
 docs/
   adr/                 Architecture decision records
+  BUSINESS_ALIGNMENT.md  Customer, business, and validation alignment
   PRODUCT_REQUIREMENTS.md  Stable behavioral requirements
   QUALITY_GATES.md     Definition of done and release criteria
   RESEARCH_LOG.md      Dated primary-source research

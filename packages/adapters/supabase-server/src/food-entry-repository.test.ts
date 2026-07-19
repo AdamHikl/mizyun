@@ -36,7 +36,7 @@ const fakeClient = (opts: {
   selectList?: RepositoryListResult<unknown>;
 }): RepositorySupabaseClient => {
   return {
-    from: () => {
+    from: (_t?: string) => {
       const builder = {
         select: vi.fn().mockReturnThis(),
         insert: vi.fn().mockReturnThis(),
@@ -47,13 +47,15 @@ const fakeClient = (opts: {
         limit: vi.fn().mockReturnThis(),
         gte: vi.fn().mockReturnThis(),
         lte: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue(opts.insertSingle ?? opts.updateSingle ?? null),
+        single: vi
+          .fn()
+          .mockResolvedValue(opts.insertSingle ?? opts.updateSingle ?? null),
         maybeSingle: vi.fn().mockResolvedValue(opts.selectMaybeSingle ?? null),
         then: (resolve: (v: RepositoryListResult<unknown>) => void) => {
           resolve(opts.selectList ?? { data: [], error: null });
         },
       };
-      return builder as unknown as ReturnType<RepositorySupabaseClient["from"]>;
+      return builder as unknown as never;
     },
     auth: {
       setSession: vi.fn().mockResolvedValue({
@@ -67,7 +69,8 @@ const fakeClient = (opts: {
 describe("SupabaseFoodEntryRepository.create", () => {
   it("returns the parsed stored entry", async () => {
     const repo = new SupabaseFoodEntryRepository({
-      clientFor: () => fakeClient({ insertSingle: { data: entryRow, error: null } }),
+      clientFor: () =>
+        fakeClient({ insertSingle: { data: entryRow, error: null } }),
     });
     const entry: StoredFoodEntry = {
       id: "00000000-0000-4000-8000-00000000e001",
@@ -165,19 +168,16 @@ describe("SupabaseFoodEntryRepository.list", () => {
     const repo = new SupabaseFoodEntryRepository({
       clientFor: () =>
         fakeClient({
-          selectList: { data: null, error: { message: "boom" } },
+          selectList: { data: [], error: { message: "boom" } },
         }),
     });
     await expect(
-      repo.list(
-        "00000000-0000-4000-8000-000000000001" as UserId,
-        {
-          from: null,
-          to: null,
-          limit: 50,
-          accessToken: "token",
-        },
-      ),
+      repo.list("00000000-0000-4000-8000-000000000001" as UserId, {
+        from: null,
+        to: null,
+        limit: 50,
+        accessToken: "token",
+      }),
     ).rejects.toBeInstanceOf(RepositoryError);
   });
 });
@@ -193,10 +193,9 @@ describe("SupabaseFoodEntryRepository.delete", () => {
           },
         }),
     });
-    const removed = await repo.delete(
-      "00000000-0000-4000-8000-00000000e001",
-      { accessToken: "token" },
-    );
+    const removed = await repo.delete("00000000-0000-4000-8000-00000000e001", {
+      accessToken: "token",
+    });
     expect(removed).toBe(true);
   });
 
@@ -204,10 +203,9 @@ describe("SupabaseFoodEntryRepository.delete", () => {
     const repo = new SupabaseFoodEntryRepository({
       clientFor: () => fakeClient({ selectList: { data: [], error: null } }),
     });
-    const removed = await repo.delete(
-      "00000000-0000-4000-8000-00000000e099",
-      { accessToken: "token" },
-    );
+    const removed = await repo.delete("00000000-0000-4000-8000-00000000e099", {
+      accessToken: "token",
+    });
     expect(removed).toBe(false);
   });
 });

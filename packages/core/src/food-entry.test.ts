@@ -336,6 +336,24 @@ describe("summariseFoodEntries", () => {
     ]);
   });
 
+  it("groups entries by the requested local-day offset", () => {
+    const summaries = summariseFoodEntries(
+      [
+        baseStored({
+          consumedAt: new Date("2026-07-09T22:30:00Z"),
+          caloriesKcal: 250,
+        }),
+      ],
+      {
+        from: "2026-07-10",
+        to: "2026-07-10",
+        utcOffsetMinutes: 120,
+      },
+    );
+    expect(summaries[0]?.date).toBe("2026-07-10");
+    expect(summaries[0]?.caloriesKcal).toBe(250);
+  });
+
   it("rounds totals to two decimal places", () => {
     const entries: StoredFoodEntry[] = [
       baseStored({

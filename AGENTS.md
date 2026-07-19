@@ -2,7 +2,7 @@
 
 ## Session continuity
 
-Before starting implementation, read `goals.md`, `plan.md`, and `status.md` completely, then inspect `backlog.md` and the relevant requirements/ADR files. Follow `docs/SESSION_GUIDE.md` for start, research, verification, and handoff procedures.
+Before starting implementation, read `goals.md`, `docs/BUSINESS_ALIGNMENT.md`, `plan.md`, and `status.md` completely, then inspect `backlog.md` and the relevant requirements/ADR files. Follow `docs/SESSION_GUIDE.md` for start, research, verification, and handoff procedures.
 
 At the end of every development session, update `status.md` with evidence, the next exact action, and any blocker. Update `backlog.md` when work is discovered, started, blocked, or completed. Change `plan.md` only when sequencing or phase status changes, and change `goals.md` only when product direction changes.
 

@@ -31,7 +31,7 @@ const fakeClient = (opts: {
   selectList?: RepositoryListResult<unknown>;
 }): RepositorySupabaseClient => {
   return {
-    from: () => {
+    from: (_t?: string) => {
       const builder = {
         select: vi.fn().mockReturnThis(),
         insert: vi.fn().mockReturnThis(),
@@ -40,13 +40,15 @@ const fakeClient = (opts: {
         eq: vi.fn().mockReturnThis(),
         order: vi.fn().mockReturnThis(),
         limit: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue(opts.insertSingle ?? opts.updateSingle ?? null),
+        single: vi
+          .fn()
+          .mockResolvedValue(opts.insertSingle ?? opts.updateSingle ?? null),
         maybeSingle: vi.fn().mockResolvedValue(opts.selectMaybeSingle ?? null),
         then: (resolve: (v: RepositoryListResult<unknown>) => void) => {
           resolve(opts.selectList ?? { data: [], error: null });
         },
       };
-      return builder as unknown as ReturnType<RepositorySupabaseClient["from"]>;
+      return builder as unknown as never;
     },
     auth: {
       setSession: vi.fn().mockResolvedValue({
@@ -60,7 +62,8 @@ const fakeClient = (opts: {
 describe("SupabaseGoalRepository.getActive", () => {
   it("returns the parsed stored goal", async () => {
     const repo = new SupabaseGoalRepository({
-      clientFor: () => fakeClient({ selectMaybeSingle: { data: goalRow, error: null } }),
+      clientFor: () =>
+        fakeClient({ selectMaybeSingle: { data: goalRow, error: null } }),
     });
     const active = await repo.getActive(
       "00000000-0000-4000-8000-000000000001" as UserId,
@@ -73,7 +76,8 @@ describe("SupabaseGoalRepository.getActive", () => {
 
   it("returns null when no active goal exists", async () => {
     const repo = new SupabaseGoalRepository({
-      clientFor: () => fakeClient({ selectMaybeSingle: { data: null, error: null } }),
+      clientFor: () =>
+        fakeClient({ selectMaybeSingle: { data: null, error: null } }),
     });
     const active = await repo.getActive(
       "00000000-0000-4000-8000-000000000001" as UserId,
@@ -124,11 +128,9 @@ describe("SupabaseGoalRepository.create", () => {
       updatedAt: new Date(),
     };
     await expect(
-      repo.create(
-        "00000000-0000-4000-8000-000000000001" as UserId,
-        stored,
-        { accessToken: "token" },
-      ),
+      repo.create("00000000-0000-4000-8000-000000000001" as UserId, stored, {
+        accessToken: "token",
+      }),
     ).rejects.toThrow("user already has an active goal");
   });
 
@@ -155,11 +157,9 @@ describe("SupabaseGoalRepository.create", () => {
       updatedAt: new Date(),
     };
     await expect(
-      repo.create(
-        "00000000-0000-4000-8000-000000000001" as UserId,
-        stored,
-        { accessToken: "token" },
-      ),
+      repo.create("00000000-0000-4000-8000-000000000001" as UserId, stored, {
+        accessToken: "token",
+      }),
     ).rejects.toThrow();
   });
 });

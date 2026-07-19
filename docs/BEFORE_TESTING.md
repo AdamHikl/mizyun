@@ -2,6 +2,8 @@
 
 > **AI integration is intentionally disabled.** Complete this checklist before testing any chatbot, image analysis, recommendation, or automatic-memory workflow.
 
+The current business preference is to evaluate Mistral first because Mizyun is pursuing an EU-first provider and privacy position. This is a provider hypothesis, not permission to connect an API: current commercial terms, EU processing/retention, DPA and deletion behavior, model quality, latency, vision capability, and measured unit economics must pass this checklist before selection.
+
 ## Model provider
 
 - [ ] Research current official provider documentation and data-retention terms.

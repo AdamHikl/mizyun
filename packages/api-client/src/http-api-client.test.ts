@@ -266,6 +266,31 @@ describe("HttpApiClient — non-2xx handling", () => {
 });
 
 describe("HttpApiClient — success handling", () => {
+  it("returns ok(undefined) for a 204 response without parsing JSON", async () => {
+    const json = vi.fn().mockRejectedValue(new Error("body is empty"));
+    const fetchMock = vi.fn().mockResolvedValue({
+      status: 204,
+      ok: true,
+      json,
+    } as unknown as Response);
+    const authClient = buildAuthClient({
+      getSession: () => Promise.resolve(buildSession()),
+    });
+
+    const client = new HttpApiClient({
+      baseUrl: "https://api.test",
+      authClient,
+      fetch: fetchMock as unknown as typeof fetch,
+    });
+    const result = await client.request<void>({
+      method: "DELETE",
+      path: "/v1/food-entries/entry-id",
+    });
+
+    expect(result).toEqual({ ok: true, value: undefined });
+    expect(json).not.toHaveBeenCalled();
+  });
+
   it("returns ok(value) for 2xx without a schema (parses JSON, passes through)", async () => {
     const body = { status: "ok", extra: 42 };
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, body));

@@ -19,14 +19,29 @@ The app should reduce logging effort without pretending estimates are exact. AI 
 
 ## Target user
 
-The first product is for an individual adult who:
+The first product is for a busy intermediate gym-goer who takes training seriously but does not want tracking to feel like a second job. The initial user:
 
+- already trains consistently enough to care about calories, macros, weight, exercises, and progressive overload;
 - has a concrete goal such as gaining muscle, losing fat, maintaining weight, improving strength, or building consistency;
+- currently fragments their record across memory, notes, spreadsheets, calorie apps, photos, and disposable chatbot conversations;
 - wants one place for food, workouts, measurements, progress photos, steps, and coaching context;
-- values fast logging and useful trends more than social features;
+- values fast capture and useful longitudinal trends more than exhaustive manual data entry or social features;
 - expects private data ownership and the ability to inspect or delete remembered information.
 
 Professional coaching teams, medical treatment, children, competitive judging, and social networks are outside the initial target.
+
+## Market position and launch wedge
+
+Mizyun is not initially trying to replace every calorie tracker, workout logger, social network, and personal trainer feature at once. The launch wedge is:
+
+1. capture a meal, workout, weight, or progress photo quickly;
+2. keep those records together in a persistent private timeline;
+3. show a clear daily dashboard and useful weekly progress review;
+4. let an AI coach explain the record and suggest a practical next action after the manual workflows and safety gates are proven.
+
+The product promise in market language is **less tracking, more progress**. The first differentiator is continuity across nutrition, training, body progress, and conversations rather than any single isolated logging feature.
+
+Community sharing, challenges, and broader network effects are potential post-MVP growth features. They must not delay proof that the private self-service product is useful and retainable.
 
 ## Primary outcomes
 
@@ -102,6 +117,24 @@ Targets will be finalized before external beta after instrumenting a consent-res
 - safety: unsafe recommendation rate, cross-user access failures, and unresolved deletion requests;
 - reliability: crash-free sessions, API availability, sync failure rate, and bundle/release-test success;
 - trust: memory corrections/deletions, recommendation feedback, and privacy-control usage.
+
+## Business model and validation milestones
+
+The intended business model is freemium self-service:
+
+- a useful free tier for core manual tracking and progress visibility;
+- a paid tier for higher-cost AI capabilities such as conversational coaching, photo/text-assisted drafts, deeper personalized reviews, and advanced memory-aware guidance;
+- an initial premium pricing hypothesis of roughly USD 15–20 per month, subject to measured model cost, willingness-to-pay interviews, retention, and competitive testing;
+- community features may later improve acquisition and retention, but are not required for the first paid product.
+
+Before hiring a larger team or scaling paid acquisition, the product should prove a staged funnel:
+
+1. **Private alpha:** the founder can use the complete daily loop with persistent data on iOS and Android.
+2. **Design-partner beta:** 10–30 target users complete onboarding and repeatedly log at least one core record.
+3. **Early paid validation:** 30–100 active customers, with paying users reported separately from free testers.
+4. **Pre-seed readiness:** credible activation, four- and twelve-week retention, conversion, churn, acquisition cost, AI cost per active user, gross margin, and qualitative evidence that Mizyun saves tracking time.
+
+The current engineering plan must prioritize measurable end-to-end user journeys over accumulating disconnected backend endpoints. A feature counts as product-usable only when it persists across restarts, is reachable in the mobile UI, handles failure states, and has acceptance evidence on both platforms.
 
 ## Non-negotiable release constraints
 

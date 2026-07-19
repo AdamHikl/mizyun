@@ -25,7 +25,11 @@ const tokenVerifierFor = (
 ): AccessTokenVerifier => ({
   verify: async (token) =>
     token === "valid"
-      ? { userId: principal!.userId, role: "authenticated", accessToken: "test-token" }
+      ? {
+          userId: principal!.userId,
+          role: "authenticated",
+          accessToken: "test-token",
+        }
       : null,
 });
 
@@ -175,6 +179,22 @@ describe("GET /v1/food-entries", () => {
     expect(ids).toContain("00000000-0000-4000-8000-00000000a002");
     expect(ids).toContain("00000000-0000-4000-8000-00000000a003");
     expect(ids).not.toContain("00000000-0000-4000-8000-00000000a001");
+  });
+
+  it("applies the caller's UTC offset to local-day list boundaries", async () => {
+    const { app, foodEntryRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    seedEntry(foodEntryRepository, {
+      consumedAt: new Date("2026-07-09T22:30:00Z"),
+    });
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/food-entries?from=2026-07-10&to=2026-07-10&utcOffsetMinutes=120",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().foodEntries).toHaveLength(1);
   });
 
   it("rejects `from > to` with a 422", async () => {
@@ -609,6 +629,27 @@ describe("GET /v1/food-entries/summary", () => {
       proteinG: 8,
       carbohydrateG: 40,
       fatG: 9,
+    });
+  });
+
+  it("aggregates the caller's local day around the UTC boundary", async () => {
+    const { app, foodEntryRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    seedEntry(foodEntryRepository, {
+      consumedAt: new Date("2026-07-09T22:30:00Z"),
+      caloriesKcal: 250,
+    });
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/food-entries/summary?date=2026-07-10&utcOffsetMinutes=120",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().summary).toMatchObject({
+      date: "2026-07-10",
+      entryCount: 1,
+      caloriesKcal: 250,
     });
   });
 

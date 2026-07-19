@@ -25,7 +25,11 @@ const tokenVerifierFor = (
 ): AccessTokenVerifier => ({
   verify: async (token) =>
     token === "valid"
-      ? { userId: principal!.userId, role: "authenticated", accessToken: "test-token" }
+      ? {
+          userId: principal!.userId,
+          role: "authenticated",
+          accessToken: "test-token",
+        }
       : null,
 });
 

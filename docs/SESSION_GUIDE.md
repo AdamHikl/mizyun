@@ -8,12 +8,13 @@ When documents appear inconsistent, use this order and repair the lower source d
 
 1. `AGENTS.md` — mandatory engineering and safety rules
 2. `goals.md` — stable product intent and non-negotiables
-3. accepted `docs/adr/` records — durable technical decisions
-4. `docs/PRODUCT_REQUIREMENTS.md` — required behavior
-5. `plan.md` — roadmap order and phase exit criteria
-6. `status.md` — current operational snapshot
-7. `backlog.md` — executable inventory
-8. code, migrations, tests, and Git history — actual implementation evidence
+3. `docs/BUSINESS_ALIGNMENT.md` — target customer, launch wedge, business model, and validation milestones
+4. accepted `docs/adr/` records — durable technical decisions
+5. `docs/PRODUCT_REQUIREMENTS.md` — required behavior
+6. `plan.md` — roadmap order and phase exit criteria
+7. `status.md` — current operational snapshot
+8. `backlog.md` — executable inventory
+9. code, migrations, tests, and Git history — actual implementation evidence
 
 Code is truth about what exists; it is not automatically truth about what should exist. If implementation conflicts with a higher-level safety rule, stop and correct or escalate the conflict.
 
@@ -22,6 +23,7 @@ Code is truth about what exists; it is not automatically truth about what should
 1. Read completely:
    - `AGENTS.md`
    - `goals.md`
+   - `docs/BUSINESS_ALIGNMENT.md`
    - `plan.md`
    - `status.md`
 2. Read `backlog.md` and the requirements/ADR files relevant to the active work package.

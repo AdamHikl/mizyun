@@ -34,12 +34,12 @@ These items convert the tested domain/API foundation into the low-friction produ
 | PERSIST-001   | P0       | done    | Supabase repositories for profile, goals, and food    | Production composition persists records across API restarts with RLS        |
 | PERSIST-002   | P0       | done    | Supabase repositories for training, body, and account | Same persistence/isolation/export/deletion proof as PERSIST-001             |
 | PERSIST-003   | P0       | blocked | Real Supabase private-media storage adapter           | Mobile-compatible signed upload/download/delete works against real storage  |
-| MOB-DAILY-001 | P1       | blocked | Persistent mobile daily-loop integration              | All MOB-ONB/NUT/WO/BODY/DASH child journeys pass together on stored data    |
-| MOB-ONB-001   | P1       | blocked | Complete activation and baseline weight               | New user reaches a useful dashboard with the minimum energy inputs          |
-| MOB-NUT-001   | P1       | blocked | Manual food logging and daily totals UI               | User can create/edit/delete food and see stored calorie/macro totals        |
-| MOB-WO-001    | P1       | blocked | Exercise, workout, and set logging UI                 | User completes a workout and sees previous performance                      |
-| MOB-BODY-001  | P1       | blocked | Weight/measurement entry and trend UI                 | User records weight and sees raw history plus a labeled trend               |
-| MOB-DASH-001  | P1       | blocked | Replace dashboard placeholders with real summaries    | Calories, weight, training, and energy state come from persisted records    |
+| MOB-DAILY-001 | P1       | active  | Persistent mobile daily-loop integration              | All MOB-ONB/NUT/WO/BODY/DASH child journeys pass together on stored data    |
+| MOB-ONB-001   | P1       | ready   | Complete activation and baseline weight               | New user reaches a useful dashboard with the minimum energy inputs          |
+| MOB-NUT-001   | P1       | done    | Manual food logging and daily totals UI               | User can create/edit/delete food and see stored calorie/macro totals        |
+| MOB-WO-001    | P1       | ready   | Exercise, workout, and set logging UI                 | User completes a workout and sees previous performance                      |
+| MOB-BODY-001  | P1       | ready   | Weight/measurement entry and trend UI                 | User records weight and sees raw history plus a labeled trend               |
+| MOB-DASH-001  | P1       | ready   | Replace dashboard placeholders with real summaries    | Calories, weight, training, and energy state come from persisted records    |
 | MEDIA-MOB-001 | P1       | blocked | Progress-photo capture/upload/timeline/compare UI     | Private photo lifecycle is usable and deletable from mobile                 |
 | OBS-001       | P1       | blocked | Privacy-safe product validation analytics             | Activation, logging efficiency, failures, and retention are measurable      |
 | ALPHA-001     | P0       | blocked | Founder week plus 10–30 design-partner alpha          | No open P0/P1 issue blocks repeated use; evidence and feedback are recorded |

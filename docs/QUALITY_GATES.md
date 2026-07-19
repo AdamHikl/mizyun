@@ -66,6 +66,15 @@
 - [ ] Memories can be reviewed, corrected, expired, and deleted.
 - [ ] Evaluation thresholds and known limitations are documented before release.
 
+## Analytics and billing changes
+
+- [ ] Every analytics event/property is reviewed against OBS-01 and documented without sensitive payloads.
+- [ ] Analytics consent/disable/failure states do not block core product use.
+- [ ] Development, sandbox, cancelled, expired, pending, grace-period, and restored entitlement states are tested.
+- [ ] Premium authorization is not trusted solely from a client-controlled value.
+- [ ] Existing records, export, and deletion remain available after premium expiry.
+- [ ] Store disclosures and privacy-policy statements match the enabled analytics and billing SDK behavior.
+
 ## Pre-merge gate
 
 Required automated evidence:
@@ -86,6 +95,7 @@ As the repository grows, `pnpm check` should remain the fast local gate. Longer 
 - [ ] iOS simulator/device and Android emulator/device matrices pass.
 - [ ] Crash/error reporting excludes sensitive payloads and has been tested.
 - [ ] Privacy policy, terms, consent, data-sharing, and retention screens match actual behavior.
+- [ ] If billing is enabled, purchase and restore succeed in both Apple and Google sandbox environments.
 - [ ] Backup/restore or migration recovery has been exercised.
 - [ ] Rollout monitoring and rollback criteria are documented.
 

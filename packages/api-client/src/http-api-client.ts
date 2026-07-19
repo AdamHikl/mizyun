@@ -103,6 +103,13 @@ export class HttpApiClient implements ApiClient {
       return err({ kind: "session_expired" });
     }
 
+    // RFC 9110 defines 204 as a successful response with no content.
+    // Do not call response.json(): Fetch rejects when an empty body is
+    // parsed, which would turn a successful DELETE into parse_error.
+    if (response.ok && response.status === 204) {
+      return ok(undefined as T);
+    }
+
     let parsedBody: unknown;
     try {
       parsedBody = await response.json();

@@ -35,6 +35,9 @@ const isoDateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "date must be in YYYY-MM-DD form");
 
+/** UTC offset in minutes, positive east of UTC (for example, UTC+2 = 120). */
+const utcOffsetMinutesSchema = z.coerce.number().int().gte(-840).lte(840);
+
 /**
  * Bounded numeric value for a macro field. We store macros in grams
  * with two decimal places, mirroring the SQL `numeric(8, 2)` shape.
@@ -144,6 +147,7 @@ export const foodEntryListQuerySchema = z
   .object({
     from: isoDateSchema.optional(),
     to: isoDateSchema.optional(),
+    utcOffsetMinutes: utcOffsetMinutesSchema.optional(),
     limit: z.coerce.number().int().gte(1).lte(200).optional(),
   })
   .strict()
@@ -215,6 +219,7 @@ export const foodEntrySummaryQuerySchema = z
     date: isoDateSchema.optional(),
     from: isoDateSchema.optional(),
     to: isoDateSchema.optional(),
+    utcOffsetMinutes: utcOffsetMinutesSchema.optional(),
     limit: z.coerce.number().int().gte(1).lte(366).optional(),
   })
   .strict()

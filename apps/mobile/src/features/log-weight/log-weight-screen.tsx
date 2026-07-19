@@ -1,0 +1,207 @@
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { router, Stack } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
+
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import { useAuth } from "@/features/auth/auth-context";
+import { useTheme } from "@/hooks/use-theme";
+import {
+  clearLoggingDraft,
+  loadLoggingDraft,
+  saveLoggingDraft,
+} from "@/features/logging-draft-storage";
+
+import { submitLogWeight } from "./log-weight-data";
+
+const parseNumber = (raw: string): number | null => {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return null;
+  const n = Number(trimmed);
+  return Number.isFinite(n) && n > 0 ? n : null;
+};
+
+export function LogWeightScreen() {
+  const { profile, session } = useAuth();
+  const theme = useTheme();
+  const [weight, setWeight] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [draftLoaded, setDraftLoaded] = useState(false);
+  const userId = session?.user.id ?? null;
+  const unitSystem = profile?.unitSystem ?? "metric";
+  const unitLabel = unitSystem === "imperial" ? "lb" : "kg";
+
+  useEffect(() => {
+    if (userId === null) return;
+    let active = true;
+    void loadLoggingDraft(userId, "weight", isWeightDraft).then((draft) => {
+      if (!active) return;
+      if (draft !== null && draft.unitSystem === unitSystem) {
+        setWeight(draft.weight);
+      }
+      setDraftLoaded(true);
+    });
+    return () => {
+      active = false;
+    };
+  }, [unitSystem, userId]);
+
+  useEffect(() => {
+    if (!draftLoaded || userId === null) return;
+    void saveLoggingDraft(userId, "weight", { weight, unitSystem });
+  }, [draftLoaded, unitSystem, userId, weight]);
+
+  const onSubmit = useCallback(async () => {
+    setSubmitting(true);
+    setError(null);
+    const result = await submitLogWeight({
+      weight: parseNumber(weight),
+      unitSystem,
+    });
+    setSubmitting(false);
+    if (result.ok) {
+      if (userId !== null) await clearLoggingDraft(userId, "weight");
+      router.back();
+      return;
+    }
+    setError(result.message);
+  }, [unitSystem, userId, weight]);
+
+  return (
+    <ThemedView style={styles.page}>
+      <Stack.Screen options={{ title: "Add weight" }} />
+      <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+        >
+          <ThemedText type="subtitle">Today's reading.</ThemedText>
+          <ThemedText themeColor="textSecondary" type="small">
+            Enter the value shown on your scale. Mizyun stores a metric value
+            without changing what you see.
+          </ThemedText>
+
+          <Field
+            label={`Weight (${unitLabel})`}
+            value={weight}
+            onChangeText={setWeight}
+            placeholder="72.5"
+            keyboardType="numeric"
+            autoFocus
+            inputColor={theme.text}
+          />
+
+          {error !== null ? (
+            <ThemedText
+              type="small"
+              themeColor="textSecondary"
+              style={styles.errorText}
+              accessibilityRole="alert"
+            >
+              {error}
+            </ThemedText>
+          ) : null}
+
+          <Pressable
+            accessibilityRole="button"
+            disabled={submitting}
+            accessibilityState={{ disabled: submitting, busy: submitting }}
+            onPress={() => {
+              void onSubmit();
+            }}
+            style={({ pressed }) => [
+              styles.submit,
+              (pressed || submitting) && styles.submitPressed,
+            ]}
+          >
+            <ThemedText type="smallBold">
+              {submitting ? "Saving…" : "Save weight"}
+            </ThemedText>
+          </Pressable>
+        </ScrollView>
+      </SafeAreaView>
+    </ThemedView>
+  );
+}
+
+function Field(props: {
+  readonly label: string;
+  readonly value: string;
+  readonly onChangeText: (next: string) => void;
+  readonly placeholder?: string;
+  readonly autoFocus?: boolean;
+  readonly keyboardType?: "default" | "numeric";
+  readonly inputColor: string;
+}) {
+  return (
+    <View style={styles.field}>
+      <ThemedText type="small" themeColor="textSecondary">
+        {props.label}
+      </ThemedText>
+      <TextInput
+        value={props.value}
+        onChangeText={props.onChangeText}
+        placeholder={props.placeholder}
+        placeholderTextColor="#8A8D91"
+        autoFocus={props.autoFocus === true}
+        keyboardType={props.keyboardType ?? "default"}
+        accessibilityLabel={props.label}
+        style={[styles.input, { color: props.inputColor }]}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  page: { flex: 1 },
+  safeArea: { flex: 1, alignItems: "center" },
+  content: {
+    width: "100%",
+    maxWidth: MaxContentWidth,
+    paddingHorizontal: Spacing.four,
+    paddingTop: Spacing.four,
+    paddingBottom: BottomTabInset + Spacing.six,
+    gap: Spacing.three,
+  },
+  field: { gap: Spacing.one },
+  input: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#8A8D91",
+    borderRadius: Spacing.two,
+    padding: Spacing.three,
+    fontSize: 16,
+  },
+  submit: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#1F1F23",
+    borderRadius: Spacing.three,
+    padding: Spacing.three,
+    alignItems: "center",
+    backgroundColor: "#1F1F23",
+    color: "#FFFFFF",
+  },
+  submitPressed: { opacity: 0.65 },
+  errorText: { marginTop: Spacing.one },
+});
+
+interface WeightDraft {
+  readonly weight: string;
+  readonly unitSystem: "metric" | "imperial";
+}
+
+const isWeightDraft = (value: unknown): value is WeightDraft =>
+  typeof value === "object" &&
+  value !== null &&
+  "weight" in value &&
+  typeof value.weight === "string" &&
+  "unitSystem" in value &&
+  (value.unitSystem === "metric" || value.unitSystem === "imperial");

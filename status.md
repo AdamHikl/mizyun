@@ -1,16 +1,16 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-07-18**.
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-07-19**.
 
 ## Executive snapshot
 
 - **Product stage:** technical pre-alpha; the architecture and domain/API foundation are strong, but this is not yet a customer-usable tracking beta.
-- **Roadmap position:** Phases 2–5 have substantial domain and route coverage; persistent adapters and mobile product workflows are the active integration gap.
-- **Latest completed work package:** PERSIST-002 — Supabase adapters for training (exercises, workouts, workout sets), body measurements, and the account-export/deletion cascade against real records. Every Phase 2 feature is now backed by a Supabase implementation; the standard gate remains in-memory by default.
-- **Next exact work package:** PERSIST-003 — Real Supabase Storage adapter behind `MediaStorage` (replacing the local `InMemoryMediaStorage`).
-- **Branch:** `main`, clean working tree.
+- **Roadmap position:** MOB-DAILY-001 is active. MOB-NUT-001 is complete; activation, full workout/set logging, body trends, energy state, and persistent-device acceptance remain.
+- **Latest verified implementation slice:** MOB-NUT-001 — daily local-time meal list and totals with create, edit, copy, confirmed delete, refreshed server authority, and recoverable encrypted drafts.
+- **Next exact action:** MOB-ONB-001 — collect baseline weight during activation, then verify the authenticated iOS journey against persistent Supabase data.
+- **Branch:** `main`; the coherent documentation, persistence, and mobile productization changes are included in the MOB-NUT-001 handoff commit.
 - **Remote:** `https://github.com/AdamHikl/mizyun`.
-- **Remote state:** local `main` is **9 commits ahead of `origin/main`**. Push these commits before relying on GitHub as the backup/source of truth.
+- **Remote state:** this handoff is pushed to `origin/main`; verify with `git status --branch --short` before the next segment.
 - **AI provider:** intentionally disabled. No Mistral or other model API is configured.
 - **Hosted Supabase:** not created or linked.
 - **iOS:** bundle quality gate passes; prior simulator authentication work is documented.
@@ -56,25 +56,30 @@ The mobile app currently includes:
 - configuration-required, authentication, confirmation/recovery, and session-loading states;
 - an onboarding wizard connected to the profile/goal endpoints;
 - an Account tab with verified-principal display and sign-out;
-- a Home dashboard shell;
+- a Home dashboard that reads today's confirmed calorie/macro summary, latest weight, and the current local calendar week's workout count from the API;
+- dashboard routes to create a manual meal, a minimal completed workout record, or a weight observation;
+- small encrypted, user-scoped logging drafts that survive app restart and are cleared only after the API confirms success;
+- metric/imperial weight entry and display with canonical kilograms at the API boundary;
 - a Coach setup screen explaining that the model provider is disabled.
 
 ## Critical implementation distinction
 
-Most tracking functionality is **not yet usable from the mobile app**:
+The first create paths are usable, but most tracking lifecycle behavior is **not yet available from the mobile app**:
 
-- the Home metrics are static placeholders;
-- the quick-add meal/workout/weight/photo buttons do not navigate or submit data;
-- there are no mobile food, workout, set, measurement, energy-review, photo-upload, or trend screens;
+- food entries now have a complete manual mobile lifecycle for today's local calendar day; multi-day history remains deferred;
+- the workout form creates a minimal completed session only; exercise selection, sets, active-workout recovery, and previous performance are absent;
+- weight has create/latest-value behavior only; baseline activation, history, and labeled trend are absent;
+- the dashboard does not yet show deterministic energy state or a weekly review;
+- progress-photo capture/upload/timeline/compare remains absent;
 - the Coach screen is a provider-not-connected placeholder;
 - there is no HealthKit/Health Connect step synchronization;
 - there is no billing, paywall, product analytics, crash reporting, or community functionality.
 
-More importantly, the production API composition root currently selects in-memory repositories for profile, goals, food, exercises, workouts, sets, measurements, media metadata, memory, and media bytes. The SQL schema is present and protected, but these features are not wired to PostgreSQL/Supabase. Tracking records therefore disappear when the API process restarts. Authentication is the principal feature currently backed by Supabase at runtime.
+The API can select Supabase-backed profile, goal, food, exercise, workout, workout-set, and body-measurement repositories through its persistence composition option, while the standard no-environment gate intentionally remains in-memory. Real private-media storage, hosted Supabase composition, authenticated simulator acceptance, and account deletion across every external resource remain incomplete.
 
 Do not describe NUT-_, WO-_, BODY-_, ENG-_, MEDIA-* or DATA-001 as customer-complete. They are verified domain/API slices awaiting persistent adapters and mobile integration.
 
-## Verification evidence — 2026-07-18
+## Verification evidence — 2026-07-19
 
 The complete standard gate was run from the local repository:
 
@@ -82,9 +87,9 @@ The complete standard gate was run from the local repository:
 pnpm check
   formatting: passed
   workspace TypeScript checks: passed
-  iOS Expo/Metro/Hermes export: passed (1,610 modules, 4.4 MB bundle)
-  tests: 572 passed
-  opt-in Supabase auth/storage e2e: 5 skipped because AUTH_E2E_* credentials were not enabled
+  iOS Expo/Metro/Hermes export: passed (1,629 modules, 4.5 MB bundle)
+  tests: 640 passed
+  opt-in Supabase persistence/auth e2e: 12 skipped because local e2e credentials were not enabled
 ```
 
 The previous recorded database gate remains:
@@ -96,7 +101,7 @@ pnpm db:verify
   pgTAP: 55 assertions passed
 ```
 
-Re-run the database and opt-in e2e gates whenever persistent adapters or hosted configuration change.
+The full `pnpm check` gate passed after MOB-NUT-001: formatting, all workspace TypeScript checks, the iOS bundle (1,629 modules, 4.5 MB), and 640 tests. Twelve opt-in Supabase persistence/auth e2e tests were skipped because local e2e credentials were not enabled. No simulator/device acceptance was run in this session. Re-run the database and opt-in e2e gates whenever persistent adapters or hosted configuration change.
 
 ## Business-plan alignment
 
@@ -109,8 +114,8 @@ Re-run the database and opt-in e2e gates whenever persistent adapters or hosted 
 
 ### Gaps blocking early customers
 
-- The core promise of low-effort tracking cannot yet be tested because users cannot complete tracking journeys in the mobile UI.
-- Records do not persist through API restarts.
+- The first low-effort create paths exist, but full meal/workout/weight lifecycles and authenticated simulator acceptance are incomplete.
+- Supabase repository adapters exist, but hosted composition and restart evidence are not yet part of the default runtime gate.
 - There is no usable progress dashboard or weekly review.
 - Photo capture/upload and AI-assisted calorie drafts do not exist end to end.
 - The memory-aware coach is only an interface and disabled implementation.
@@ -134,7 +139,7 @@ Do not start Mistral/chatbot implementation merely because the provider boundary
 
 ## Known operational risks
 
-- The newest nine commits are local-only until pushed.
+- Hosted Supabase composition and authenticated device acceptance are still outstanding; passing the in-memory gate alone does not prove the hosted journey.
 - Supabase CLI 2.109.1 reports localhost URLs while Docker Desktop publishes local services on `0.0.0.0` and IPv6 `::`. Use the stack only on a trusted network, never with real user data, and stop it when unused.
 - Account deletion currently orchestrates application repositories; release-grade deletion must also remove the real auth identity, storage bytes, conversations, memories, provider references, and any processor-held data.
 - The documentation previously contained contradictory phase/next-action statements. This file and `docs/BUSINESS_ALIGNMENT.md` now describe the audited state; keep them synchronized with executable changes.
@@ -155,4 +160,4 @@ Never put a service-role or model secret in an `EXPO_PUBLIC_` variable. AI remai
 
 ## Handoff note
 
-Read `AGENTS.md`, `goals.md`, `plan.md`, this file, `backlog.md`, and `docs/BUSINESS_ALIGNMENT.md` before implementation. The next development session should start with PERSIST-001, not conversations or AI. Before new work, push or otherwise back up the nine local commits after confirming the intended remote.
+Read `AGENTS.md`, `goals.md`, `docs/BUSINESS_ALIGNMENT.md`, `plan.md`, this file, and `backlog.md` before implementation. Continue MOB-DAILY-001 with MOB-ONB-001: collect baseline weight during activation and land the user on a useful dashboard. Then run authenticated simulator acceptance against persistent Supabase data. Do not start AI.

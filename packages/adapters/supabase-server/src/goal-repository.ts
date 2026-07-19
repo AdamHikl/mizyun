@@ -71,10 +71,7 @@ const fromRow = (row: GoalRow): StoredGoal => {
   };
 };
 
-const toInsertRow = (
-  userId: UserId,
-  goal: StoredGoal,
-): Partial<GoalRow> => ({
+const toInsertRow = (userId: UserId, goal: StoredGoal): Partial<GoalRow> => ({
   id: goal.id,
   user_id: userId,
   kind: goal.kind,
@@ -146,7 +143,9 @@ export class SupabaseGoalRepository implements GoalRepository {
         .select("*")
         .single();
       if (error || data === null) {
-        throw new RepositoryError(error?.message ?? "goal insert returned no row");
+        throw new RepositoryError(
+          error?.message ?? "goal insert returned no row",
+        );
       }
       return fromRow(data);
     } catch (cause) {
@@ -180,7 +179,9 @@ export class SupabaseGoalRepository implements GoalRepository {
       .select("*")
       .single();
     if (error || data === null) {
-      throw new RepositoryError(error?.message ?? "goal update returned no row");
+      throw new RepositoryError(
+        error?.message ?? "goal update returned no row",
+      );
     }
     return fromRow(data);
   }

@@ -6,32 +6,36 @@
 
 - ✅ Complete and verified
 - 🚧 Active or next work package
+- ◐ Partially implemented; domain/API work exists but exit criteria are not met
 - ⏳ Planned
 - ⛔ Blocked by an explicit dependency
 - 🔬 Requires research or evaluation before implementation
 
 ## Current focus
 
-🚧 **Phase 1 — Provision the private backend and prove authenticated user isolation end to end.**
+🚧 **Cross-phase productization checkpoint — turn the tested domain/API slices into one persistent mobile daily loop.**
 
-The application foundation and provider-neutral authentication code exist. The local Supabase stack now resets cleanly and passes its schema/RLS test suite. The next work package is validated mobile/API environment composition; AI remains deliberately disabled.
+Authentication, migrations, RLS, contracts, domain rules, and in-memory API routes exist. The immediate gap is not another domain model: feature repositories and media storage must be backed by Supabase, and the food/workout/weight/dashboard journeys must be reachable from the mobile app. AI remains deliberately disabled until the manual loop, privacy controls, evaluation data, and product instrumentation exist.
 
 ## Dependency sequence
 
 ```text
 Foundation
   → backend + authentication
-    → onboarding + goals
-      → manual nutrition + deterministic energy
-      → training tracking
-      → progress + media
-        → device activity
-          → evaluated AI + durable memory
-            → vision-assisted drafts
-              → beta hardening
+    → persistent Supabase feature repositories
+      → onboarding + baseline weight
+        → mobile manual nutrition + deterministic energy
+        → mobile workout + previous performance
+        → mobile progress + private media
+          → real dashboard + weekly review
+            → Android verification + product analytics
+              → founder alpha + 10–30 design partners
+                → evaluated Mistral AI + durable memory
+                  → vision-assisted drafts
+                    → subscription validation + beta hardening
 ```
 
-Nutrition, training, and progress can advance in parallel once identity and repositories are proven. AI and photo interpretation depend on confirmed manual workflows, privacy controls, and evaluation data.
+Nutrition, training, and progress can advance in parallel only after the production composition root persists them. AI and photo interpretation depend on confirmed manual workflows, privacy controls, product instrumentation, and evaluation data. Community sharing remains post-MVP.
 
 ## Phase 0 — Modular foundation ✅
 
@@ -55,7 +59,7 @@ Nutrition, training, and progress can advance in parallel once identity and repo
 - Simulator renders the setup state without credentials.
 - Foundation commits are pushed to `main`.
 
-## Phase 1 — Backend environment and authenticated data boundary 🚧
+## Phase 1 — Backend environment and authenticated data boundary ◐
 
 ### Objective
 
@@ -90,7 +94,7 @@ Create the first development Supabase environment and prove that a real user can
 - Migrations can be applied reproducibly from a clean environment.
 - No privileged key exists in Expo environment variables or a generated bundle.
 
-## Phase 2 — Onboarding, profile, and goals ⏳
+## Phase 2 — Onboarding, profile, and goals ◐
 
 ### Objective
 
@@ -113,7 +117,7 @@ Collect the minimum confirmed context required for useful calculations and guida
 - Invalid or unsafe target ranges receive clear validation.
 - User A cannot read or mutate user B's profile or goals.
 
-## Phase 3 — Manual nutrition and deterministic energy model ⏳
+## Phase 3 — Manual nutrition and deterministic energy model ◐
 
 ### Objective
 
@@ -137,7 +141,7 @@ Deliver a trustworthy daily intake and target experience before enabling food AI
 - Estimates are labeled and their assumptions are inspectable.
 - Editing or deleting an entry updates summaries correctly.
 
-## Phase 4 — Exercise library and workout tracking ⏳
+## Phase 4 — Exercise library and workout tracking ◐
 
 ### Objective
 
@@ -159,7 +163,7 @@ Make workout creation and progressive-overload tracking useful without AI.
 - Set ordering and edits remain consistent after synchronization.
 - Progress summaries correctly handle different exercise measurement types.
 
-## Phase 5 — Body progress and private media ⏳
+## Phase 5 — Body progress and private media ◐
 
 ### Objective
 
@@ -180,6 +184,55 @@ Show meaningful longitudinal progress while treating photos and measurements as 
 - Photos are private, signed access expires, and cross-user access tests fail closed.
 - Deleting a photo removes both metadata and storage object.
 - Weight trends handle irregular measurements and explain smoothing.
+
+## Productization checkpoint — Persistent manual alpha 🚧
+
+### Objective
+
+Prove the business-plan launch wedge before adding AI: a busy intermediate gym-goer can capture a meal, workout, weight, or progress photo quickly; the data survives restarts; and the dashboard turns it into a useful daily and weekly record.
+
+### Work packages
+
+1. **PERSIST-001 — Profile, goal, and food adapters**
+   - implement PostgreSQL/Supabase repositories behind the existing profile, goal, and food ports;
+   - select them only in the API composition root;
+   - prove two-user isolation and persistence across API restarts.
+2. **PERSIST-002 — Training, body, and account adapters**
+   - persist exercises, workouts, sets, and body measurements behind existing ports;
+   - prove cross-owner relationships cannot be created;
+   - make export and deletion operate on real persistent records.
+3. **PERSIST-003 — Private-media storage adapter**
+   - implement real Supabase signed upload/download/delete storage behind `MediaStorage`;
+   - persist media metadata and prove restart, isolation, expiry, and deletion behavior.
+4. **MOB-DAILY-001 — Core mobile capture loop**
+   - baseline weight during or immediately after onboarding;
+   - manual food create/edit/delete and daily totals;
+   - exercise selection, workout/set logging, and previous performance;
+   - weight entry and real dashboard totals;
+   - recoverable drafts for network interruption on critical logging actions.
+5. **MEDIA-MOB-001 — Progress-photo mobile loop**
+   - select/capture, validate, upload, timeline, compare, and delete;
+   - explicit consent and private-by-default messaging.
+6. **AND-001 — Android proof**
+   - run the same activation and daily loop in an Android emulator/device;
+   - record platform-specific defects instead of treating the iOS bundle as Android evidence.
+7. **OBS-001 — Product validation instrumentation**
+   - consent-respecting activation, time/taps-to-log, completion, retry/failure, retention, and feature-use events;
+   - no food text, health values, photo content, tokens, or message bodies in analytics;
+   - a founder dashboard or export sufficient to evaluate 10–30 design partners.
+8. **ALPHA-001 — Founder and design-partner validation**
+   - founder completes at least one continuous week without data loss;
+   - 10–30 target users test the loop before paid acquisition;
+   - prioritize repeated friction and retention failures over additional feature breadth.
+
+### Exit criteria
+
+- Records persist across API/mobile restarts and remain isolated by verified user ID.
+- A user can complete the activation, nutrition, workout, and progress journeys from mobile without direct API or database access.
+- Dashboard values come from stored records rather than constants.
+- The complete loop passes on both iOS and Android.
+- Logging efficiency, activation, and early retention can be measured without collecting sensitive payloads.
+- Known P0/P1 data-loss, privacy, and core-workflow failures are closed before AI or paid acquisition.
 
 ## Phase 6 — Steps, movement, and health-platform adapters 🔬
 
@@ -251,7 +304,7 @@ Reduce logging friction with vision-assisted drafts while preserving confirmatio
 - Evaluation results and known limitations are documented in-product and in the repository.
 - Images follow retention/deletion rules and are not sent to unapproved providers.
 
-## Phase 9 — Beta hardening and release ⏳
+## Phase 9 — Beta hardening, monetization, and release ⏳
 
 ### Scope
 
@@ -259,6 +312,9 @@ Reduce logging friction with vision-assisted drafts while preserving confirmatio
 - offline/error recovery for critical logging paths;
 - performance, battery, upload, and low-connectivity testing;
 - observability without sensitive payload logging;
+- consent-respecting product analytics for activation, logging efficiency, retention, conversion, churn, and feature use;
+- subscription/paywall implementation only after premium value, provider cost, and willingness to pay have been tested;
+- unit-economics reporting for AI cost per active/paying user and subscription gross margin;
 - privacy policy, terms, consent, retention, export, and account deletion;
 - Android emulator/device and iOS simulator/device test matrix;
 - store metadata, permission disclosures, signing, staged rollout, and rollback plan.
@@ -269,6 +325,8 @@ Reduce logging friction with vision-assisted drafts while preserving confirmatio
 - `docs/QUALITY_GATES.md` and `docs/BEFORE_TESTING.md` release gates pass.
 - A restore/recovery exercise and account-deletion test have succeeded.
 - TestFlight and internal Android builds complete the defined device matrix.
+- Free and premium entitlements fail safely and can be restored across supported platforms.
+- The team can measure the 30–100-customer validation funnel without logging sensitive content.
 
 ## Plan maintenance rules
 

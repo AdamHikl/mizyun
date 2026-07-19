@@ -118,6 +118,16 @@
 - **UX-02:** Tap targets, keyboards, loading, empty, error, and retry states are explicitly handled.
 - **UX-03:** Metric and imperial display choices produce equivalent stored meaning.
 - **UX-04:** iOS and Android are tested independently; success on one platform is not treated as proof for the other.
+- **UX-05:** Common meal, workout, weight, and photo actions are designed and measured for low time/tap cost rather than feature-count alone.
+
+### Product validation and monetization
+
+- **OBS-01:** Product analytics require an explicit classification of each event/property and must exclude food text, health values, photo contents/paths, message bodies, tokens, and other sensitive payloads.
+- **OBS-02:** The product can measure onboarding activation, first core record, logging completion/failure, logging time/taps, return use, and coarse feature adoption with consent-respecting identifiers.
+- **OBS-03:** Analytics failure or refusal of non-essential analytics does not block core tracking, export, privacy, or deletion workflows.
+- **BILL-01:** Free and premium entitlements are explicit, server-verifiable where required, and never inferred only from a client-controlled flag.
+- **BILL-02:** Purchase, pending, failed, cancelled, expired, grace-period, and restore states are recoverable and explained on both iOS and Android.
+- **BILL-03:** Losing a premium entitlement never prevents a user from accessing, exporting, or deleting their existing authoritative records.
 
 ## Core user journeys
 

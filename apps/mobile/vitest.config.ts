@@ -27,6 +27,13 @@ export default defineConfig({
   },
   resolve: {
     alias: [
+      // Path alias mirroring the Expo/Metro tsconfig `paths`.
+      // Tests resolve `@/...` to the local src directory the same
+      // way the app does.
+      {
+        find: /^@\/(.*)$/,
+        replacement: new URL("./src/$1", import.meta.url).pathname,
+      },
       {
         find: /^react-native$/,
         replacement: new URL("./vitest/react-native-stub.ts", import.meta.url)

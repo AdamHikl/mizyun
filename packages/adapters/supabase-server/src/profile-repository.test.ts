@@ -12,37 +12,40 @@ import type {
 
 /**
  * Build a mock RepositorySupabaseClient whose `from(table).select/insert/update`
- * chain returns the caller-controlled row(s) / error.
+ * chain returns the caller-controlled row(s) / error. The mock is
+ * typed against `unknown` because the real builder is generic in
+ * the row shape; tests cast at the boundary when they need to
+ * assert on a specific shape.
  */
 const fakeClient = (opts: {
   selectMaybeSingle?: RepositorySingleResult<unknown>;
   insertSingle?: RepositorySingleResult<unknown>;
   updateSingle?: RepositorySingleResult<unknown>;
-}): RepositorySupabaseClient => {
-  return {
-    from: () => {
-      const builder = {
-        select: vi.fn().mockReturnThis(),
-        insert: vi.fn().mockReturnThis(),
-        update: vi.fn().mockReturnThis(),
-        delete: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue(opts.insertSingle ?? opts.updateSingle ?? null),
-        maybeSingle: vi.fn().mockResolvedValue(opts.selectMaybeSingle ?? null),
-        then: (resolve: (v: RepositoryListResult<unknown>) => void) => {
-          resolve({ data: [], error: null });
-        },
-      };
-      return builder as unknown as ReturnType<RepositorySupabaseClient["from"]>;
-    },
-    auth: {
-      setSession: vi.fn().mockResolvedValue({
-        data: { user: { id: "00000000-0000-4000-8000-000000000001" } },
-        error: null,
-      }),
-    },
-  };
-};
+}): RepositorySupabaseClient => ({
+  from: (_t?: string) => {
+    const builder = {
+      select: vi.fn().mockReturnThis(),
+      insert: vi.fn().mockReturnThis(),
+      update: vi.fn().mockReturnThis(),
+      delete: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi
+        .fn()
+        .mockResolvedValue(opts.insertSingle ?? opts.updateSingle ?? null),
+      maybeSingle: vi.fn().mockResolvedValue(opts.selectMaybeSingle ?? null),
+      then: (resolve: (v: RepositoryListResult<unknown>) => void) => {
+        resolve({ data: [], error: null });
+      },
+    };
+    return builder as unknown as never;
+  },
+  auth: {
+    setSession: vi.fn().mockResolvedValue({
+      data: { user: { id: "00000000-0000-4000-8000-000000000001" } },
+      error: null,
+    }),
+  },
+});
 
 describe("SupabaseProfileRepository.getOrCreate", () => {
   it("returns the existing profile row when present", async () => {
@@ -153,7 +156,8 @@ describe("SupabaseProfileRepository.update", () => {
     const stored = await repo.update(
       "00000000-0000-4000-8000-000000000001" as StoredProfile["userId"],
       {
-        userId: "00000000-0000-4000-8000-000000000001" as StoredProfile["userId"],
+        userId:
+          "00000000-0000-4000-8000-000000000001" as StoredProfile["userId"],
         displayName: "Adam",
         unitSystem: "imperial",
         timezone: "UTC",
@@ -185,7 +189,8 @@ describe("SupabaseProfileRepository.update", () => {
       repo.update(
         "00000000-0000-4000-8000-000000000001" as StoredProfile["userId"],
         {
-          userId: "00000000-0000-4000-8000-000000000001" as StoredProfile["userId"],
+          userId:
+            "00000000-0000-4000-8000-000000000001" as StoredProfile["userId"],
           displayName: null,
           unitSystem: "metric",
           timezone: "UTC",

@@ -286,18 +286,25 @@ export const summariseExerciseSets = (
  */
 export interface WorkoutSetRepository {
   /**
-   * Insert a new set. The repository assigns `id` and `createdAt`
-   * and enforces the per-workout sequence uniqueness before
-   * returning the stored shape. Throws if `sequence` is already
-   * used for this workout.
+   * `accessToken` is the verified principal's bearer token. The
+   * in-memory adapter ignores it; the Supabase adapter uses it
+   * to construct a per-request client bound to the user's RLS
+   * session. PERSIST-002.
    */
-  create(userId: UserId, set: StoredWorkoutSet): Promise<StoredWorkoutSet>;
+  create(
+    userId: UserId,
+    set: StoredWorkoutSet,
+    options: { readonly accessToken: string },
+  ): Promise<StoredWorkoutSet>;
   /**
    * List every set for a workout, ordered by `sequence`
    * ascending. The route enforces ownership on the workout
    * before calling this.
    */
-  listForWorkout(workoutId: string): Promise<ReadonlyArray<StoredWorkoutSet>>;
+  listForWorkout(
+    workoutId: string,
+    options: { readonly accessToken: string },
+  ): Promise<ReadonlyArray<StoredWorkoutSet>>;
   /**
    * List the most-recent sets for an exercise across all
    * workouts, newest-first. Capped at `limit`. Used by the
@@ -307,17 +314,24 @@ export interface WorkoutSetRepository {
     userId: UserId,
     exerciseId: string,
     limit: number,
+    options: { readonly accessToken: string },
   ): Promise<ReadonlyArray<StoredWorkoutSet>>;
   /**
    * Return the stored set by id. The route enforces ownership
    * after the call.
    */
-  getById(id: string): Promise<StoredWorkoutSet | null>;
+  getById(
+    id: string,
+    options: { readonly accessToken: string },
+  ): Promise<StoredWorkoutSet | null>;
   /**
    * Permanently remove a set. Returns `true` when a row was
    * removed, `false` when the id was unknown.
    */
-  delete(id: string): Promise<boolean>;
+  delete(
+    id: string,
+    options: { readonly accessToken: string },
+  ): Promise<boolean>;
   /**
    * Cascade-delete every set belonging to a workout. Called by
    * the workout DELETE route so an in-memory test stub doesn't
@@ -325,5 +339,8 @@ export interface WorkoutSetRepository {
    * `ON DELETE CASCADE` instead; the in-memory implementation
    * must call this explicitly.
    */
-  deleteAllForWorkout(workoutId: string): Promise<number>;
+  deleteAllForWorkout(
+    workoutId: string,
+    options: { readonly accessToken: string },
+  ): Promise<number>;
 }

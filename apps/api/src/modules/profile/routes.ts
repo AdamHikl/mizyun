@@ -214,9 +214,13 @@ export const profileRoutes: FastifyPluginAsync<ProfileRoutesOptions> = async (
         { now: new Date(), accessToken: principal.accessToken },
       );
       const next = applyProfilePatch(stored, patch, new Date());
-      const saved = await options.profileRepository.update(principal.userId, next, {
-        accessToken: principal.accessToken,
-      });
+      const saved = await options.profileRepository.update(
+        principal.userId,
+        next,
+        {
+          accessToken: principal.accessToken,
+        },
+      );
       return toWire(saved);
     },
   );

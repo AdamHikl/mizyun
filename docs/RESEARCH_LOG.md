@@ -681,3 +681,38 @@ PERSIST-001 closed the persistence gap for profile, goals, and food. What's the 
 - **Hosted Supabase adapter swap.** When the production composition root picks Supabase adapters for real, the `AppDependencies.supabasePersistence` option flips the seven per-feature adapters + the in-memory account cascade. The service-role key handling lands when DATA-002 ships.
 - **PERSIST-003** — Real Supabase Storage adapter behind `MediaStorage` (replacing `InMemoryMediaStorage`).
 - **Mobile daily loop.** The data layer is now durable; MOB-DAILY-001 becomes the next exact work package (manual food / workout / weight / dashboard on the iOS simulator against real persisted records).
+
+## 2026-07-19 — MOB-DAILY-001 mobile routes and recoverable capture drafts
+
+### Primary sources
+
+- Expo Router, **Typed routes** (accessed 2026-07-19): https://docs.expo.dev/router/reference/typed-routes/
+- Expo SDK 57, **SDK reference** (accessed 2026-07-19): https://docs.expo.dev/versions/v57.0.0/
+- Expo SDK 57, **SecureStore** (accessed 2026-07-19): https://docs.expo.dev/versions/v57.0.0/sdk/securestore/
+
+### Verified findings and implementation consequences
+
+- Expo Router derives routes from files under the app directory and generates the typed route declaration when the development server starts. The three logging screens therefore remain route files under `apps/mobile/src/app/`; the dashboard uses absolute paths. A narrow `Href` assertion bridges a stale, ignored local `.expo/types/router.d.ts` until Expo regenerates it; no route registry or navigation framework is added.
+- The versioned SDK 57 reference matches the installed Expo 57 / React Native 0.86 / React 19.2 line. Its SecureStore reference recommends the 57.x package line and documents encrypted key/value storage intended to persist across app restarts and updates, but warns that large values may be rejected and it must not be the sole authority for irreplaceable data. Mizyun stores only small JSON form drafts, scopes keys by verified user ID and draft kind, catches native read/write/delete errors, and deletes a draft after the server confirms the authoritative record.
+- Android SecureStore data does not survive uninstall, while iOS Keychain data may survive reinstall with the same bundle ID. Drafts are therefore convenience recovery only, never authoritative records; malformed or unavailable draft storage fails open and does not block logging.
+- No ADR is required: this segment applies the existing Expo Router and encrypted native-session storage choices without changing module boundaries, provider strategy, or data authority.
+
+## 2026-07-19 — MOB-NUT-001 food lifecycle and empty-success transport
+
+### Primary sources
+
+- Expo SDK 57, **Router API** (accessed 2026-07-19): https://docs.expo.dev/versions/v57.0.0/sdk/router/
+- Expo SDK 57, **Router Stack API** (accessed 2026-07-19): https://docs.expo.dev/versions/v57.0.0/sdk/router/stack/
+- Expo SDK 57, **Router Native Tabs API** (accessed 2026-07-19): https://docs.expo.dev/versions/v57.0.0/sdk/router/native-tabs/
+- IETF, **RFC 9110 — HTTP Semantics** (accessed 2026-07-19): https://datatracker.ietf.org/doc/rfc9110/
+- React Native, **0.86 release** (accessed 2026-07-19): https://reactnative.dev/blog/2026/06/11/react-native-0.86
+- MDN Web Docs, **Date.prototype.getTimezoneOffset()** (accessed 2026-07-19): https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/getTimezoneOffset
+
+### Verified findings and implementation consequences
+
+- The versioned Expo Router API supports typed `Href` objects, imperative navigation, local search parameters, focus effects, and per-screen Stack configuration. MOB-NUT-001 therefore uses file routes for the daily list and edit form, passes only the entry ID as a route parameter, and re-fetches authoritative API data when a screen regains focus.
+- Expo Native Tabs uses declared triggers to define top-level tabs, and hidden triggers cannot be navigated to. Home-owned capture and detail routes therefore live in a nested `(home)` Stack rather than as undeclared Native Tabs siblings; ADR-0006 records this durable navigation hierarchy.
+- RFC 9110 defines 204 as a successful response with no response content. The shared HTTP client must return a successful `undefined` result for 204 before attempting JSON parsing; delete callers must not invent an empty JSON body solely to satisfy the client.
+- Expo SDK 57 is paired with React Native 0.86. The 0.86 release reports no breaking application-code changes from 0.85; the nutrition screen uses the stable cross-platform `Alert` API for an explicit destructive-delete confirmation and keeps the destructive operation behind a second user action.
+- MDN documents that `getTimezoneOffset()` returns UTC-minus-local minutes and varies with the date in DST regions. The mobile client therefore negates the value and sends an explicit positive-east `utcOffsetMinutes`; contracts bound it to the civil range, repositories query the corresponding UTC instants, and core groups those instants into the requested local date. ADR-0007 records the API semantics and the historical/DST limitation of a single offset snapshot.
+- ADR-0006 records the durable navigation hierarchy; ADR-0007 records local-day query semantics. The remaining lifecycle behavior fits the existing NUT-01/NUT-02 architecture.

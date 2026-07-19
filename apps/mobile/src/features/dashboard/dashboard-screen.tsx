@@ -1,24 +1,158 @@
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { router, useFocusEffect, type Href } from "expo-router";
+import { useCallback, useState } from "react";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import { apiClient } from "@/composition/api-client";
+import { useAuth } from "@/features/auth/auth-context";
 
-const metrics = [
-  { label: "Calories today", value: "—", detail: "Start with a meal" },
-  { label: "Current weight", value: "—", detail: "Add a measurement" },
-  { label: "Training", value: "0", detail: "workouts this week" },
-] as const;
+import {
+  fetchDailySummary,
+  fetchLatestWeight,
+  fetchWorkoutCountThisWeek,
+  type DailySummary,
+  type LatestWeight,
+} from "./dashboard-data";
+
+interface MetricsState {
+  readonly caloriesToday: number | null;
+  readonly macros: DailySummary | null;
+  readonly latestWeightKg: number | null;
+  readonly workoutsThisWeek: number | null;
+  readonly loading: boolean;
+  readonly hasError: boolean;
+}
+
+const EMPTY_METRICS: MetricsState = {
+  caloriesToday: null,
+  macros: null,
+  latestWeightKg: null,
+  workoutsThisWeek: null,
+  loading: true,
+  hasError: false,
+};
+
+const isoLocalDate = (now: Date): string => {
+  const y = now.getFullYear();
+  const m = (now.getMonth() + 1).toString().padStart(2, "0");
+  const d = now.getDate().toString().padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+const startOfLocalWeek = (now: Date): string => {
+  const start = new Date(now);
+  const mondayBasedDay = (start.getDay() + 6) % 7;
+  start.setDate(start.getDate() - mondayBasedDay);
+  return isoLocalDate(start);
+};
+
+const formatCalories = (kcal: number | null): string =>
+  kcal === null ? "—" : `${Math.round(kcal)} kcal`;
+
+const formatWeight = (
+  kg: number | null,
+  unitSystem: "metric" | "imperial",
+): string => {
+  if (kg === null) return "—";
+  return unitSystem === "imperial"
+    ? `${(kg * 2.204_622_621_8).toFixed(1)} lb`
+    : `${kg.toFixed(1)} kg`;
+};
+
+const formatCount = (n: number | null): string =>
+  n === null ? "—" : String(n);
+
+const caloriesDetail = (summary: DailySummary | null): string => {
+  if (summary === null) return "Start with a meal";
+  if (summary.entryCount === 0) return "No entries yet today";
+  const p = summary.proteinG ?? 0;
+  const c = summary.carbohydrateG ?? 0;
+  const f = summary.fatG ?? 0;
+  return `${p}P / ${c}C / ${f}F · ${summary.entryCount} ${summary.entryCount === 1 ? "entry" : "entries"}`;
+};
 
 const actions = [
-  "Log a meal",
-  "Start a workout",
-  "Add weight",
-  "Add progress photo",
+  {
+    label: "Log a meal",
+    path: "/log-meal" as Href,
+    hint: "What did you eat?",
+  },
+  {
+    label: "Today's meals",
+    path: "/nutrition" as Href,
+    hint: "Review or edit entries",
+  },
+  {
+    label: "Start a workout",
+    path: "/log-workout" as Href,
+    hint: "Name your session",
+  },
+  {
+    label: "Add weight",
+    path: "/log-weight" as Href,
+    hint: "Just today's reading",
+  },
 ] as const;
 
 export function DashboardScreen() {
+  const { profile, session } = useAuth();
+  const [metrics, setMetrics] = useState<MetricsState>(EMPTY_METRICS);
+  const userId = session?.user.id ?? null;
+  const accessToken = session?.accessToken ?? null;
+  const unitSystem = profile?.unitSystem ?? "metric";
+
+  // AuthSession carries the access token the API client reads on
+  // each request. When the session is null we render the
+  // placeholder UX (the SessionGate has already routed the user
+  // out of this screen).
+  const principal =
+    userId === null || accessToken === null
+      ? null
+      : {
+          userId,
+          accessToken,
+        };
+
+  const loadMetrics = useCallback(async (): Promise<void> => {
+    if (principal === null) {
+      setMetrics(EMPTY_METRICS);
+      return;
+    }
+    setMetrics((current) => ({ ...current, loading: true, hasError: false }));
+    const now = new Date();
+    const [summary, weight, count] = await Promise.all([
+      fetchDailySummary(apiClient, principal, {
+        date: isoLocalDate(now),
+        utcOffsetMinutes: -now.getTimezoneOffset(),
+      }),
+      fetchLatestWeight(apiClient, principal),
+      fetchWorkoutCountThisWeek(apiClient, principal, {
+        fromIsoDate: startOfLocalWeek(now),
+        toIsoDate: isoLocalDate(now),
+      }),
+    ]);
+    setMetrics({
+      caloriesToday: summary.value?.caloriesKcal ?? null,
+      macros: summary.value ?? null,
+      latestWeightKg: weight.value?.weightKg ?? null,
+      workoutsThisWeek: count.value,
+      loading: false,
+      hasError:
+        summary.error !== null || weight.error !== null || count.error !== null,
+    });
+  }, [accessToken, userId]);
+
+  // Re-fetch every time the screen gains focus so the user sees
+  // their entry as soon as they navigate back from the log form.
+  useFocusEffect(
+    useCallback(() => {
+      void loadMetrics();
+    }, [loadMetrics]),
+  );
+
   return (
     <ThemedView style={styles.page}>
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
@@ -38,34 +172,71 @@ export function DashboardScreen() {
           </View>
 
           <View style={styles.metrics}>
-            {metrics.map((metric) => (
-              <ThemedView
-                key={metric.label}
-                type="backgroundElement"
-                style={styles.metricCard}
-              >
-                <ThemedText type="small" themeColor="textSecondary">
-                  {metric.label}
-                </ThemedText>
-                <ThemedText type="subtitle">{metric.value}</ThemedText>
-                <ThemedText type="small">{metric.detail}</ThemedText>
-              </ThemedView>
-            ))}
+            <MetricCard
+              label="Calories today"
+              value={formatCalories(metrics.caloriesToday)}
+              detail={caloriesDetail(metrics.macros)}
+            />
+            <MetricCard
+              label="Current weight"
+              value={formatWeight(metrics.latestWeightKg, unitSystem)}
+              detail="Latest measurement"
+            />
+            <MetricCard
+              label="Training"
+              value={formatCount(metrics.workoutsThisWeek)}
+              detail="workouts this week"
+            />
           </View>
+
+          {metrics.loading ? (
+            <ThemedText type="small" themeColor="textSecondary">
+              Refreshing your dashboard…
+            </ThemedText>
+          ) : null}
+          {metrics.hasError ? (
+            <View style={styles.refreshError}>
+              <ThemedText
+                type="small"
+                themeColor="textSecondary"
+                accessibilityRole="alert"
+              >
+                Some dashboard values could not be refreshed.
+              </ThemedText>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Retry dashboard refresh"
+                onPress={() => {
+                  void loadMetrics();
+                }}
+              >
+                <ThemedText type="smallBold">Retry</ThemedText>
+              </Pressable>
+            </View>
+          ) : null}
 
           <View style={styles.section}>
             <ThemedText type="smallBold">Quick add</ThemedText>
             <View style={styles.actionGrid}>
               {actions.map((action) => (
                 <Pressable
-                  key={action}
+                  key={action.label}
                   accessibilityRole="button"
+                  accessibilityLabel={action.label}
+                  onPress={() => {
+                    void router.push(action.path);
+                  }}
                   style={({ pressed }) => [
                     styles.action,
                     pressed && styles.pressed,
                   ]}
                 >
-                  <ThemedText type="smallBold">{action}</ThemedText>
+                  <View style={styles.actionBody}>
+                    <ThemedText type="smallBold">{action.label}</ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      {action.hint}
+                    </ThemedText>
+                  </View>
                   <ThemedText themeColor="textSecondary">＋</ThemedText>
                 </Pressable>
               ))}
@@ -82,6 +253,22 @@ export function DashboardScreen() {
           </ThemedView>
         </ScrollView>
       </SafeAreaView>
+    </ThemedView>
+  );
+}
+
+function MetricCard(props: {
+  readonly label: string;
+  readonly value: string;
+  readonly detail: string;
+}) {
+  return (
+    <ThemedView type="backgroundElement" style={styles.metricCard}>
+      <ThemedText type="small" themeColor="textSecondary">
+        {props.label}
+      </ThemedText>
+      <ThemedText type="subtitle">{props.value}</ThemedText>
+      <ThemedText type="small">{props.detail}</ThemedText>
     </ThemedView>
   );
 }
@@ -122,5 +309,12 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.three,
     padding: Spacing.three,
     gap: Spacing.two,
+  },
+  actionBody: { flex: 1, gap: Spacing.one },
+  refreshError: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.three,
   },
 });

@@ -397,16 +397,15 @@ export interface DailyFoodSummary {
 const roundTo2 = (value: number): number => Math.round(value * 100) / 100;
 
 /**
- * Convert an entry's `consumedAt` (a UTC instant) to the
- * `YYYY-MM-DD` calendar day it belongs to. The conversion is in UTC
- * because the wire contract promises UTC and the SQL column is
- * `timestamptz`. The UI is responsible for re-bucketing into the
- * user's timezone if it needs a "their day" view.
+ * Convert an entry's UTC instant to the requested local calendar day.
+ * The offset is positive east of UTC; shifting the instant before reading
+ * UTC fields keeps this calculation deterministic and timezone-library free.
  */
-const isoDateOf = (instant: Date): string => {
-  const y = instant.getUTCFullYear();
-  const m = (instant.getUTCMonth() + 1).toString().padStart(2, "0");
-  const d = instant.getUTCDate().toString().padStart(2, "0");
+const isoDateOf = (instant: Date, utcOffsetMinutes: number): string => {
+  const shifted = new Date(instant.getTime() + utcOffsetMinutes * 60_000);
+  const y = shifted.getUTCFullYear();
+  const m = (shifted.getUTCMonth() + 1).toString().padStart(2, "0");
+  const d = shifted.getUTCDate().toString().padStart(2, "0");
   return `${y}-${m}-${d}`;
 };
 
@@ -440,7 +439,11 @@ const sumNullable = (values: ReadonlyArray<number | null>): number | null => {
  */
 export const summariseFoodEntries = (
   entries: ReadonlyArray<StoredFoodEntry>,
-  options: { readonly from: string; readonly to: string },
+  options: {
+    readonly from: string;
+    readonly to: string;
+    readonly utcOffsetMinutes?: number;
+  },
 ): ReadonlyArray<DailyFoodSummary> => {
   const buckets = new Map<
     string,
@@ -455,7 +458,7 @@ export const summariseFoodEntries = (
   >();
 
   for (const entry of entries) {
-    const date = isoDateOf(entry.consumedAt);
+    const date = isoDateOf(entry.consumedAt, options.utcOffsetMinutes ?? 0);
     if (date < options.from || date > options.to) continue;
     const existing = buckets.get(date);
     if (existing === undefined) {
