@@ -124,6 +124,7 @@ export type WorkoutSetCreate = z.infer<typeof workoutSetCreateSchema>;
 export const exerciseRecentSetsQuerySchema = z
   .object({
     limit: z.coerce.number().int().gte(1).lte(50).optional(),
+    excludeWorkoutId: z.string().uuid().optional(),
   })
   .strict();
 

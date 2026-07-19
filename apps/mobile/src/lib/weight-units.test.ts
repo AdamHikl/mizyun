@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   displayWeightToKilograms,
+  kilogramsToDisplayWeight,
   parseDisplayWeightToKilograms,
   weightUnitLabel,
 } from "./weight-units";
@@ -13,6 +14,7 @@ describe("weight unit boundaries", () => {
 
   it("converts pounds only at the storage boundary", () => {
     expect(displayWeightToKilograms(160, "imperial")).toBe(72.575);
+    expect(kilogramsToDisplayWeight(100, "imperial")).toBe(220.5);
   });
 
   it("rejects blank, non-numeric, and non-positive display values", () => {

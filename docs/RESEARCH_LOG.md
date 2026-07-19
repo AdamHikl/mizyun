@@ -730,3 +730,21 @@ PERSIST-001 closed the persistence gap for profile, goals, and food. What's the 
 - The installed Expo 57 line uses React Native 0.86. The onboarding weight fields stay on the existing React Native `TextInput` surface, use `decimal-pad`, expose explicit accessibility labels, and present validation errors with the alert role; no new native dependency or permission is required.
 - Display units are presentation state. Metric and imperial strings are converted once at the mobile/API boundary and rounded to the body-measurement contract's three-decimal canonical kilogram precision. Changing units after entering weights clears both display strings so the same digits cannot silently acquire a different physical meaning.
 - Onboarding spans three independent authorities (active goal, baseline measurement, and profile). ADR-0008 records the retry-safe commit protocol: ensure goal, ensure a confirmed weight, and write the profile display name last as the existing SessionGate completion marker.
+
+## 2026-07-19 — MOB-WO-001 recoverable workout and set logging
+
+### Primary sources
+
+- Expo SDK 57, **SecureStore** (accessed 2026-07-19): https://docs.expo.dev/versions/v57.0.0/sdk/securestore/
+- Expo SDK 57, **Router API** (accessed 2026-07-19): https://docs.expo.dev/versions/v57.0.0/sdk/router/
+- React Native 0.86, **Alert** (accessed 2026-07-19): https://reactnative.dev/docs/0.86/alert
+- React Native 0.86, **TextInput** (accessed 2026-07-19): https://reactnative.dev/docs/0.86/textinput
+
+### Verified findings and implementation consequences
+
+- SecureStore is appropriate for small encrypted recovery values but is not authoritative application storage. The workout screen therefore keeps only unsaved names and set-field strings in the user-scoped encrypted draft; an incomplete API workout and its saved sets are discovered again after restart.
+- React Native's cross-platform Alert API supports explicit cancel and destructive actions. Set deletion and workout abandonment require a second destructive confirmation; ordinary completion remains a direct, reversible-by-history action.
+- Workout load input uses the profile's display unit and converts once to contract-validated kilograms. Repetitions, duration, distance, and RPE retain their own measurement semantics and validation bounds.
+- Previous performance must not include the active workout. The recent-sets query now accepts a validated `excludeWorkoutId`, filters that session before calculating best load and last-session volume, and preserves the existing behavior for callers that omit it.
+- Supabase-backed ownership checks require the verified bearer token. Workout-set route helpers now thread `principal.accessToken` rather than a test literal through every repository read; in-memory tests continue to pass, while production RLS receives the real authenticated session.
+- ADR-0009 records the durable authority and recovery split for the active workout workflow.

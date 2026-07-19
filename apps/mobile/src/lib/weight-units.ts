@@ -14,6 +14,15 @@ export const displayWeightToKilograms = (
   return Math.round(kilograms * 1_000) / 1_000;
 };
 
+export const kilogramsToDisplayWeight = (
+  kilograms: number,
+  unitSystem: WeightUnitSystem,
+): number => {
+  const value =
+    unitSystem === "imperial" ? kilograms * POUNDS_PER_KILOGRAM : kilograms;
+  return Math.round(value * 10) / 10;
+};
+
 export const parseDisplayWeightToKilograms = (
   raw: string,
   unitSystem: WeightUnitSystem,

@@ -431,6 +431,35 @@ describe("GET /v1/exercises/:exerciseId/recent-sets", () => {
     });
   });
 
+  it("excludes the active workout from previous performance", async () => {
+    const { app, exerciseRepository, workoutSetRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    seedExercise(exerciseRepository);
+    seedSet(workoutSetRepository, {
+      id: "00000000-0000-4000-8000-00000000d001",
+      workoutId: "00000000-0000-4000-8000-00000000b099",
+      loadKg: 80,
+      repetitions: 5,
+    });
+    seedSet(workoutSetRepository, {
+      id: "00000000-0000-4000-8000-00000000d002",
+      workoutId: WORKOUT_ID,
+      loadKg: 120,
+      repetitions: 5,
+      createdAt: new Date("2026-07-12T08:00:00Z"),
+    });
+    const response = await app.inject({
+      method: "GET",
+      url: `/v1/exercises/${EXERCISE_ID}/recent-sets?excludeWorkoutId=${WORKOUT_ID}`,
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().sets).toHaveLength(1);
+    expect(response.json().sets[0].workoutId).not.toBe(WORKOUT_ID);
+    expect(response.json().summary.bestLoadKg).toBe(80);
+  });
+
   it("returns 404 for an exercise the user does not own", async () => {
     const { app, exerciseRepository } = build(
       tokenVerifierFor({ userId: userA }),

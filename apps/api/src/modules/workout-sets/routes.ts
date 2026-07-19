@@ -137,9 +137,10 @@ const listToWire = (
 const nextSequence = async (
   workoutSetRepository: WorkoutSetRepository,
   workoutId: string,
+  accessToken: string,
 ): Promise<number> => {
   const existing = await workoutSetRepository.listForWorkout(workoutId, {
-    accessToken: "test-token",
+    accessToken,
   });
   if (existing.length === 0) return 1;
   const max = existing.reduce((m, s) => (s.sequence > m ? s.sequence : m), 0);
@@ -154,9 +155,10 @@ const assertOwnedExercise = async (
   exerciseRepository: ExerciseRepository,
   userId: UserId,
   exerciseId: string,
+  accessToken: string,
 ): Promise<boolean> => {
   const exercise = await exerciseRepository.getById(exerciseId, {
-    accessToken: "test-token",
+    accessToken,
   });
   if (exercise === null) return false;
   return exercise.userId === userId;
@@ -169,9 +171,10 @@ const assertOwnedWorkout = async (
   workoutRepository: WorkoutRepository,
   userId: UserId,
   workoutId: string,
+  accessToken: string,
 ): Promise<boolean> => {
   const workout = await workoutRepository.getById(workoutId, {
-    accessToken: "test-token",
+    accessToken,
   });
   if (workout === null) return false;
   return workout.userId === userId;
@@ -208,6 +211,7 @@ export const workoutSetsRoutes: FastifyPluginAsync<
           options.workoutRepository,
           principal.userId,
           workoutId,
+          principal.accessToken,
         ))
       ) {
         await sendApiError(
@@ -236,6 +240,7 @@ export const workoutSetsRoutes: FastifyPluginAsync<
           options.exerciseRepository,
           principal.userId,
           parsed.data.exerciseId,
+          principal.accessToken,
         ))
       ) {
         await sendApiError(
@@ -249,7 +254,11 @@ export const workoutSetsRoutes: FastifyPluginAsync<
       }
       const sequence =
         parsed.data.sequence ??
-        (await nextSequence(options.workoutSetRepository, workoutId));
+        (await nextSequence(
+          options.workoutSetRepository,
+          workoutId,
+          principal.accessToken,
+        ));
       const completedAt =
         parsed.data.completedAt === null
           ? null
@@ -344,6 +353,7 @@ export const workoutSetsRoutes: FastifyPluginAsync<
           options.workoutRepository,
           principal.userId,
           workoutId,
+          principal.accessToken,
         ))
       ) {
         await sendApiError(
@@ -405,6 +415,7 @@ export const workoutSetsRoutes: FastifyPluginAsync<
           options.workoutRepository,
           principal.userId,
           workoutId,
+          principal.accessToken,
         ))
       ) {
         await sendApiError(
@@ -468,6 +479,7 @@ export const workoutSetsRoutes: FastifyPluginAsync<
           options.exerciseRepository,
           principal.userId,
           exerciseId,
+          principal.accessToken,
         ))
       ) {
         await sendApiError(
@@ -492,12 +504,18 @@ export const workoutSetsRoutes: FastifyPluginAsync<
       }
       const limit = parsed.data.limit ?? RECENT_SETS_DEFAULT_LIMIT;
       const cappedLimit = Math.min(RECENT_SETS_MAX_LIMIT, Math.max(1, limit));
-      const sets = await options.workoutSetRepository.recentForExercise(
-        principal.userId,
-        exerciseId,
-        cappedLimit,
-        { accessToken: principal.accessToken },
-      );
+      const requestedSets =
+        await options.workoutSetRepository.recentForExercise(
+          principal.userId,
+          exerciseId,
+          parsed.data.excludeWorkoutId === undefined
+            ? cappedLimit
+            : RECENT_SETS_MAX_LIMIT,
+          { accessToken: principal.accessToken },
+        );
+      const sets = requestedSets
+        .filter((set) => set.workoutId !== parsed.data.excludeWorkoutId)
+        .slice(0, cappedLimit);
       const summary = summariseExerciseSets(sets);
       return exerciseRecentSetsResponseSchema.parse({
         sets: sets.map((s) => toWire(s).workoutSet),

@@ -56,9 +56,11 @@ MOB-NUT-001 is complete: the Home stack now includes an authoritative daily meal
 
 MOB-ONB-001 is complete: onboarding collects a metric or imperial baseline, converts only at the canonical API boundary, ensures active-goal and confirmed-measurement authority before committing the profile completion marker, and safely resumes after partial failure without duplicate creates. MOB-DAILY-001 remains active; workout/set logging is the next slice.
 
+MOB-WO-001 is complete: the workout route now creates or selects custom exercises, starts a server-authoritative incomplete workout, recovers it with persisted sets, records rep/load/duration/distance/RPE observations, displays prior-session performance excluding the active session, supports confirmed set/workout deletion, and completes the session. Unsaved field text remains in a small encrypted user-scoped draft.
+
 ## Open follow-ups (per the matrix)
 
-- MOB-WO-001 — exercise selection, active workout/set recovery, completion, and previous performance.
+- MOB-BODY-001 — raw weight/measurement history and a clearly labeled smoothed trend.
 - MOB-DASH-001 — the trend views (week/month) and the energy-summary card from ENG-002.
 - MEDIA-MOB-001 — the photo capture + upload flow against PERSIST-003.
 - AND-001 — verify the same loop on Android (deferred).
