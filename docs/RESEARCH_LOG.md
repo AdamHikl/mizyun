@@ -802,3 +802,18 @@ PERSIST-001 closed the persistence gap for profile, goals, and food. What's the 
 - Supabase requires object deletion through the Storage API; deleting `storage.objects` metadata directly can orphan billable bytes. The adapter calls `remove`, and the route removes sensitive bytes before soft-deleting application metadata so a partial failure stays retryable without hiding retained photo bytes.
 - A clean-stack verification exposed two earlier persistence defects: authenticated repository clients could issue their first request as `anon` because `setSession` was not awaited, and the workout adapter's `source`/`details` fields had no SQL migration. PERSIST-003 fixes the synchronous Authorization binding and adds a forward-only workout-column migration before enabling production Supabase composition.
 - ADR-0012 records the user-JWT authority, upload expiry, deletion ordering, and production composition decisions.
+
+## 2026-07-21 — MEDIA-MOB-001 private progress-photo lifecycle
+
+### Primary sources
+
+- Expo SDK 57, **ImagePicker** (accessed 2026-07-21): https://docs.expo.dev/versions/v57.0.0/sdk/imagepicker/
+- Expo SDK 57, **ImageManipulator** (accessed 2026-07-21): https://docs.expo.dev/versions/v57.0.0/sdk/imagemanipulator/
+
+### Verified findings and implementation consequences
+
+- Expo SDK 57 recommends the `~57.0.5` package line for both ImagePicker and ImageManipulator. The app pins those compatible versions rather than selecting an unverified current release.
+- ImagePicker provides system camera and library launchers, camera permission requests, and `getPendingResultAsync()` for Android activity destruction. The progress-photo screen exposes camera and library actions, requests camera access only at the moment of use, disables microphone permission in the config plugin, and recovers or reports pending picker results without updating an unmounted screen.
+- Picker results expose file dimensions and optional metadata. Mizyun requests no EXIF, then uses ImageManipulator's contextual API to render a new JPEG with a 2,048-pixel longest-edge ceiling and 0.85 compression. Validation applies to the rendered artifact, and only that derivative is uploaded.
+- The mobile client performs a direct `PUT` to the API-issued one-time signed URL. A failed transfer triggers best-effort deletion of the already-created metadata entry; source files remain on the device and are never treated as authoritative measurements.
+- ADR-0013 records consent, normalization, metadata removal, direct upload, Android recovery, and destructive-delete boundaries.

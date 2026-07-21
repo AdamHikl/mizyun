@@ -171,6 +171,11 @@ const actions = [
     path: "/body" as Href,
     hint: "Raw readings and trend",
   },
+  {
+    label: "Progress photos",
+    path: "/progress-photos" as Href,
+    hint: "Private timeline and compare",
+  },
 ] as const;
 
 export function DashboardScreen() {

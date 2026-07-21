@@ -5,12 +5,12 @@
 ## Executive snapshot
 
 - **Product stage:** technical pre-alpha; the architecture and domain/API foundation are strong, but this is not yet a customer-usable tracking beta.
-- **Roadmap position:** MOB-DAILY-001 is active. Its activation, nutrition, workout, body, and dashboard children are complete at the implementation gate. PERSIST-003 is complete; MEDIA-MOB-001 is active, followed by persisted native-device acceptance.
-- **Latest verified implementation slice:** PERSIST-003 — user-JWT-scoped Supabase media metadata plus signed upload/download/delete storage, production composition, clean-migration proof, and real two-user persistence/isolation/deletion evidence.
-- **Next exact action:** MEDIA-MOB-001 — build progress-photo selection/capture, upload, timeline, compare, and confirmed deletion in the mobile Home stack.
+- **Roadmap position:** Every scoped MOB child (activation, nutrition, workout, body, dashboard, and progress photos) is complete at the implementation gate. MOB-DAILY-001 remains active until the combined persisted journeys pass on native iOS and Android.
+- **Latest verified implementation slice:** MEDIA-MOB-001 — consent-gated camera/library selection, bounded metadata-stripped JPEG preparation, signed upload, private timeline, two-photo comparison, Android picker-result recovery, and confirmed permanent deletion.
+- **Next exact action:** run the authenticated persisted daily and progress-photo acceptance journeys in an iOS simulator/device, record defects, then configure and repeat them on Android for AND-001.
 - **Branch:** `main`; each completed mobile/persistence slice is kept in a coherent local commit.
 - **Remote:** `https://github.com/AdamHikl/mizyun`.
-- **Remote state:** local `main` contains the completed unpushed MOB-ONB, MOB-WO, MOB-BODY, MOB-DASH, and PERSIST-003 slices; pushing them requires explicit user approval.
+- **Remote state:** local `main` contains the completed unpushed MOB-ONB, MOB-WO, MOB-BODY, MOB-DASH, PERSIST-003, and MEDIA-MOB slices; pushing them requires explicit user approval.
 - **AI provider:** intentionally disabled. No Mistral or other model API is configured.
 - **Hosted Supabase:** not created or linked.
 - **iOS:** bundle quality gate passes; prior simulator authentication work is documented.
@@ -65,17 +65,18 @@ The mobile app currently includes:
 - metric/imperial weight entry and display with canonical kilograms at the API boundary;
 - body progress history with raw readings, optional waist/chest measurements, confirmed correction deletion, and a labeled time-aware smoothed trend/rate;
 - a recoverable workout session with custom exercise creation, rep/load/duration/distance/RPE sets, prior performance, completion, and confirmed deletion;
+- a progress-photo route with explicit per-upload consent, camera/library selection, bounded metadata-stripped JPEG preparation, direct signed upload, private timeline, two-photo comparison, interrupted Android picker recovery, and confirmed permanent deletion;
 - a Coach setup screen explaining that the model provider is disabled.
 
 ## Critical implementation distinction
 
-The core manual tracking lifecycles are implemented, but release-grade acceptance and the media loop remain incomplete:
+The core manual tracking and private progress-photo lifecycles are implemented, but release-grade native acceptance remains incomplete:
 
 - food entries now have a complete manual mobile lifecycle for today's local calendar day; multi-day history remains deferred;
 - workout templates/reordering and broader progression summaries remain absent; the manual active-session/set/previous-performance loop is available;
 - body measurement activation, capture, raw history, and labeled trend are available; additional measurement kinds remain schema-extensible;
 - the dashboard shows deterministic energy state and calendar week/month reviews, but persisted native-device acceptance remains open;
-- progress-photo capture/upload/timeline/compare remains absent;
+- progress-photo capture/upload/timeline/compare/delete is implemented; real camera/library and signed-transfer acceptance on native iOS and Android remains open;
 - the Coach screen is a provider-not-connected placeholder;
 - there is no HealthKit/Health Connect step synchronization;
 - there is no billing, paywall, product analytics, crash reporting, or community functionality.
@@ -92,8 +93,8 @@ The complete standard gate was run from the local repository:
 pnpm check
   formatting: passed
   workspace TypeScript checks: passed
-  iOS Expo/Metro/Hermes export: passed (1,639 modules, 4.6 MB bundle)
-  tests: 685 passed
+  iOS Expo/Metro/Hermes export: passed (1,651 modules, 4.6 MB bundle)
+  tests: 689 passed
   opt-in Supabase persistence/auth e2e: 13 skipped because local e2e credentials were not enabled for the standard gate
 ```
 
@@ -106,7 +107,7 @@ pnpm db:verify
   pgTAP: 55 assertions passed
 ```
 
-PERSIST-003 passed `pnpm db:verify` on a clean reset: every migration applied, database lint reported no errors, and all 55 pgTAP assertions passed. The opt-in real-Supabase persistence suite passed all 8 tests, including fresh-repository media metadata visibility, two-user table/Storage isolation, direct signed PUT/download compatibility, and physical object deletion. The full `pnpm check` result above includes the final repository-wide gate. The prior Expo web interaction pass verified the energy-input route, validation, enabled save state, and week/month selector; authenticated native simulator/device acceptance remains open.
+PERSIST-003 passed `pnpm db:verify` on a clean reset: every migration applied, database lint reported no errors, and all 55 pgTAP assertions passed. The opt-in real-Supabase persistence suite passed all 8 tests, including fresh-repository media metadata visibility, two-user table/Storage isolation, direct signed PUT/download compatibility, and physical object deletion. MEDIA-MOB-001 passed 101 mobile tests (4 photo-specific), mobile typecheck, an iOS production export, and an authenticated Expo web interaction pass covering the private-by-default route and consent state. Web cannot prove camera/library, Android result recovery, or native signed transfer. The full `pnpm check` result above is the final repository-wide implementation gate; authenticated native simulator/device acceptance remains open.
 
 ## Business-plan alignment
 
@@ -121,7 +122,7 @@ PERSIST-003 passed `pnpm db:verify` on a clean reset: every migration applied, d
 
 - The manual meal/workout/weight lifecycles and dashboard review exist, but authenticated native simulator/device acceptance is incomplete.
 - Supabase repository and private Storage adapters have local restart/isolation evidence, but a hosted project is not yet deployed or accepted on native devices.
-- The progress dashboard and calendar review exist; progress-photo capture/upload/timeline/compare remains absent.
+- The progress dashboard, calendar review, and private photo lifecycle exist; native persisted acceptance remains open.
 - Photo capture/upload and AI-assisted calorie drafts do not exist end to end.
 - The memory-aware coach is only an interface and disabled implementation.
 - Android has not been verified.
@@ -136,7 +137,7 @@ Do not start Mistral/chatbot implementation merely because the provider boundary
 3. **MOB-DAILY-001:** build the smallest persistent mobile daily loop: baseline weight, manual meal, workout/set, and real dashboard totals.
 4. **AND-001:** verify the same loop in an Android emulator, not just an iOS bundle.
 5. **OBS-001:** add consent-respecting product analytics for activation, logging time/taps, retention, failures, and AI cost readiness.
-6. **MEDIA-MOB-001:** add real progress-photo selection/capture, upload, timeline, comparison, and deletion UI.
+6. **MEDIA-MOB-001:** add real progress-photo selection/capture, upload, timeline, comparison, and deletion UI. (Implementation gate complete.)
 7. **ALPHA-001:** run founder dogfooding and a 10–30-person design-partner beta; fix friction and data-loss issues.
 8. **AI-001 / MEM-001:** complete `docs/BEFORE_TESTING.md`, then add one evaluated Mistral text/vision adapter and user-visible memory controls.
 9. **BILL-001:** test premium packaging and subscription billing only after the paid value and provider unit economics are measurable.
@@ -144,7 +145,7 @@ Do not start Mistral/chatbot implementation merely because the provider boundary
 
 ## Known operational risks
 
-- Hosted Supabase deployment and authenticated native-device acceptance are still outstanding; local clean-stack proof does not prove the hosted journey.
+- Hosted Supabase deployment and authenticated native-device acceptance are still outstanding; local clean-stack, web-interaction, and bundle proof do not prove the hosted native journey.
 - Supabase CLI 2.109.1 reports localhost URLs while Docker Desktop publishes local services on `0.0.0.0` and IPv6 `::`. Use the stack only on a trusted network, never with real user data, and stop it when unused.
 - Account deletion currently orchestrates application repositories; release-grade deletion must also remove the real auth identity, storage bytes, conversations, memories, provider references, and any processor-held data.
 - The documentation previously contained contradictory phase/next-action statements. This file and `docs/BUSINESS_ALIGNMENT.md` now describe the audited state; keep them synchronized with executable changes.
@@ -165,4 +166,4 @@ Never put a service-role or model secret in an `EXPO_PUBLIC_` variable. AI remai
 
 ## Handoff note
 
-Read `AGENTS.md`, `goals.md`, `docs/BUSINESS_ALIGNMENT.md`, `plan.md`, this file, and `backlog.md` before implementation. Continue MEDIA-MOB-001 with the exact Expo SDK 57 ImagePicker/FileSystem documentation: add private progress-photo selection/capture, signed upload, timeline, compare, and confirmed deletion. Do not start AI.
+Read `AGENTS.md`, `goals.md`, `docs/BUSINESS_ALIGNMENT.md`, `plan.md`, this file, and `backlog.md` before implementation. Start the authenticated persisted iOS acceptance journey for onboarding, nutrition, workout, body, dashboard, and progress photos; record defects rather than weakening the gate. Then configure Android and repeat it for AND-001. The sandboxed simulator probe could not connect to CoreSimulatorService, and no `adb`, Android `emulator`, or `ANDROID_HOME` was available. Do not start AI.

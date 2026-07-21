@@ -1,12 +1,12 @@
 # Mizyun business and product alignment
 
-> Stable bridge between the business plan and engineering execution. Revisit after material customer research, pricing evidence, or product-positioning changes. Last audited: **2026-07-18**.
+> Stable bridge between the business plan and engineering execution. Revisit after material customer research, pricing evidence, or product-positioning changes. Last audited: **2026-07-21**.
 
 ## Executive verdict
 
 The repository supports the intended business **architecturally**, but not yet as a customer-ready product.
 
-Mizyun has a strong modular, privacy-conscious, provider-neutral foundation and unusually broad tested domain/API coverage for its stage. The app is still a technical pre-alpha because the feature data is not persisted by the production API composition, most tracking workflows have no mobile UI, Android is unverified, and the AI coach is disabled.
+Mizyun has a strong modular, privacy-conscious, provider-neutral foundation and unusually broad tested domain/API coverage for its stage. The manual tracking and private-photo surfaces now exist and the configured API composition uses persistent Supabase repositories and Storage, but the app remains a technical pre-alpha because authenticated native end-to-end acceptance, hosted deployment, product analytics, and Android proof are incomplete and the AI coach is disabled.
 
 The next business-critical milestone is not “add more backend endpoints” or “connect a chatbot.” It is a persistent, low-friction mobile daily loop that 10–30 target users can repeatedly use and that produces measurable activation and retention evidence.
 
@@ -48,14 +48,14 @@ Mizyun must remain a fitness/wellness product rather than claiming medical diagn
 
 | Business promise                   | Current implementation                                                                | Readiness                     | Principal gap                                                           |
 | ---------------------------------- | ------------------------------------------------------------------------------------- | ----------------------------- | ----------------------------------------------------------------------- |
-| Private personal workspace         | Supabase Auth, secure native sessions, schema, RLS, storage policies, isolation tests | Strong foundation             | Feature repositories are still in memory at runtime                     |
-| Low-friction calorie tracking      | Food domain rules, CRUD routes, daily/range summaries                                 | Backend prototype             | No persistent adapter or mobile logging screen; no text/photo draft     |
-| Weight and body progress           | Measurement routes and media timeline/compare routes                                  | Backend prototype             | No mobile entry/trend/photo workflow; media storage is in memory        |
-| Gym progress and exercise planning | Exercise/workout/set routes and recent-performance summary                            | Backend prototype             | No mobile routine/workout UI; templates and suggestions incomplete      |
-| Surplus/deficit guidance           | Versioned deterministic energy engine with incomplete/uncertainty states              | Strong calculation foundation | No real dashboard, step input, persistent records, or weekly review     |
+| Private personal workspace         | Supabase Auth, secure native sessions, RLS, persistent repositories, private Storage  | Local persistent proof        | Hosted deployment and native end-to-end acceptance remain open          |
+| Low-friction calorie tracking      | Persistent food CRUD, mobile daily lifecycle, and calorie/macro summaries             | Implementation complete       | Native acceptance, history breadth, and text/photo drafts remain open   |
+| Weight and body progress           | Persistent measurements, mobile raw/trend views, and private progress-photo lifecycle | Implementation complete       | Authenticated native photo/device acceptance remains open               |
+| Gym progress and exercise planning | Persistent workout/set routes, mobile active session, and previous performance        | Implementation complete       | Native acceptance, templates, and suggestions remain open               |
+| Surplus/deficit guidance           | Versioned deterministic engine, real mobile dashboard, and calendar reviews           | Implementation complete       | Native persisted acceptance and step input remain open                  |
 | AI trainer                         | Provider-neutral orchestrator and disabled provider                                   | Interface only                | No Mistral adapter, tools, conversation lifecycle, evaluation, or UI    |
 | Durable agent memory               | Memory port, in-memory search, and protected SQL schema                               | Interface/schema only         | No persistent adapter or user-visible review/correction controls        |
-| Photo analysis                     | Private-media domain/routes and explicit AI safety gate                               | Storage/API prototype         | No mobile upload or evaluated vision model                              |
+| Photo analysis                     | Private Storage plus consent-gated mobile upload/timeline/compare/delete              | Manual photo loop implemented | Native acceptance and any evaluated vision model remain open            |
 | Android and iPhone                 | Shared Expo app; iOS bundle passes                                                    | iOS technical proof only      | Android emulator/device not verified                                    |
 | Freemium/premium business          | Product hypothesis documented                                                         | Not implemented               | No analytics, entitlement model, paywall, subscription, or pricing test |
 | Community sharing                  | Explicitly excluded from MVP                                                          | Intentionally deferred        | Reconsider only after private product retention                         |
@@ -73,13 +73,12 @@ These choices support future fundraising and technical hiring because engineers 
 
 ## What currently blocks the business plan
 
-1. **No durable tracking product:** most feature records disappear when the API restarts.
-2. **No usable core loop:** the dashboard is static and quick-add actions do not lead to feature screens.
-3. **No retention evidence:** product analytics and feedback capture do not exist.
-4. **No cross-platform proof:** Android has not been exercised.
-5. **No paid value:** the AI, photo assistance, memory controls, billing, and entitlements are absent.
-6. **No production environment:** hosted backend, real email flows, monitoring, policies, and store-distributed builds are not ready.
-7. **Local-only work risk:** nine commits were ahead of GitHub at the audit; source backup must be kept current.
+1. **No native end-to-end proof:** the implemented manual and photo loops have not passed together against persistent storage on devices.
+2. **No retention evidence:** product analytics and feedback capture do not exist.
+3. **No cross-platform proof:** Android has not been exercised.
+4. **No paid value:** AI assistance, memory controls, billing, and entitlements are absent.
+5. **No production environment:** hosted backend, real email flows, monitoring, policies, and store-distributed builds are not ready.
+6. **Local-only work risk:** completed slices remain ahead of GitHub until an explicit push is authorized.
 
 ## Required execution order
 

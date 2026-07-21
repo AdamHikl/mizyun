@@ -62,8 +62,10 @@ MOB-BODY-001 is complete: measurement capture supports optional weight, waist, a
 
 MOB-DASH-001 is complete at the implementation gate: onboarding and the recovery editor capture every deterministic energy input; the dashboard shows the local-day energy target/balance with formula assumptions and incomplete reasons; and week/month reviews aggregate complete nutrition days plus completed workouts. Persisted native-device acceptance remains part of the MOB-DAILY-001 parent gate.
 
+MEDIA-MOB-001 is complete at the implementation gate: the Home stack supports consent-gated camera/library selection, metadata-stripped bounded JPEG preparation, signed upload, private timeline, two-photo comparison, interrupted Android picker recovery, and confirmed permanent deletion. Authenticated native acceptance remains open and is not implied by web interaction or bundle export.
+
 ## Open follow-ups (per the matrix)
 
-- MEDIA-MOB-001 — the photo capture + upload flow against PERSIST-003.
+- Authenticated persisted iOS and Android acceptance for MOB-DAILY-001 and MEDIA-MOB-001.
 - AND-001 — verify the same loop on Android (deferred).
 - OBS-001 — consent-respecting analytics once the loop is durable end-to-end.
