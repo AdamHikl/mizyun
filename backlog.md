@@ -45,6 +45,8 @@ These items convert the tested domain/API foundation into the low-friction produ
 | ALPHA-001     | P0       | blocked | Founder week plus 10–30 design-partner alpha          | No open P0/P1 issue blocks repeated use; evidence and feedback are recorded |
 | BILL-001      | P1       | blocked | Premium packaging and mobile subscription billing     | Paid value/cost is validated and entitlements restore safely                |
 
+Native acceptance evidence: the standalone iOS Release app passes real sign-in, new-user onboarding, baseline weight creation, and the persisted dashboard. The combined meal, workout, body, progress-photo, restart-persistence, and Android journeys remain open under `MOB-DAILY-001`.
+
 ## Implemented domain/API slices — not yet customer-complete
 
 `done` in this section means the scoped domain and Fastify route behavior is implemented and tested. It does not mean persistent production storage or a usable mobile workflow exists.

@@ -491,10 +491,11 @@ const subtitleFor = (step: OnboardingStep): string => {
 
 const styles = StyleSheet.create({
   page: { flex: 1 },
-  safeArea: { flex: 1, alignItems: "center" },
+  safeArea: { flex: 1 },
   content: {
     width: "100%",
     maxWidth: MaxContentWidth,
+    alignSelf: "center",
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.four,
     paddingBottom: Spacing.six,

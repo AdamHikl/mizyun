@@ -6,14 +6,14 @@
 
 - **Product stage:** technical pre-alpha; the architecture and domain/API foundation are strong, but this is not yet a customer-usable tracking beta.
 - **Roadmap position:** Every scoped MOB child (activation, nutrition, workout, body, dashboard, and progress photos) is complete at the implementation gate. MOB-DAILY-001 remains active until the combined persisted journeys pass on native iOS and Android.
-- **Latest verified implementation slice:** MEDIA-MOB-001 — consent-gated camera/library selection, bounded metadata-stripped JPEG preparation, signed upload, private timeline, two-photo comparison, Android picker-result recovery, and confirmed permanent deletion.
-- **Next exact action:** drive the authenticated persisted daily and progress-photo acceptance journeys through the now-launching iOS Release app, record defects, then configure and repeat them on Android for AND-001.
+- **Latest verified implementation slice:** native iOS MOB acceptance hardening — password sign-in now resolves the profile before protected content, and every bounded scroll screen remains reachable at 402-point iPhone width.
+- **Next exact action:** extend the passing disposable-account Maestro journey from onboarding/baseline/dashboard through persisted meal, workout, body, restart, and progress-photo acceptance; then configure and repeat it on Android for AND-001.
 - **Branch:** `main`; each completed mobile/persistence slice is kept in a coherent local commit.
 - **Remote:** `https://github.com/AdamHikl/mizyun`.
 - **Remote state:** local `main` contains the completed unpushed MOB-ONB, MOB-WO, MOB-BODY, MOB-DASH, PERSIST-003, and MEDIA-MOB slices; pushing them requires explicit user approval.
 - **AI provider:** intentionally disabled. No Mistral or other model API is configured.
 - **Hosted Supabase:** not created or linked.
-- **iOS:** bundle quality gate and a native Release simulator build/install/launch pass; authenticated workflow acceptance remains open.
+- **iOS:** native Release build/install/launch and disposable-account sign-in/onboarding/baseline/dashboard acceptance pass; the combined daily/photo journey remains open.
 - **Android:** emulator/device runtime has not been configured or verified.
 
 ## What is genuinely delivered
@@ -94,7 +94,7 @@ pnpm check
   formatting: passed
   workspace TypeScript checks: passed
   iOS Expo/Metro/Hermes export: passed (1,651 modules, 4.6 MB bundle)
-  tests: 689 passed
+  tests: 694 passed
   opt-in Supabase persistence/auth e2e: 13 skipped because local e2e credentials were not enabled for the standard gate
 ```
 
@@ -110,6 +110,8 @@ pnpm db:verify
 PERSIST-003 passed `pnpm db:verify` on a clean reset: every migration applied, database lint reported no errors, and all 55 pgTAP assertions passed. The opt-in real-Supabase persistence suite passed all 8 tests, including fresh-repository media metadata visibility, two-user table/Storage isolation, direct signed PUT/download compatibility, and physical object deletion. MEDIA-MOB-001 passed 101 mobile tests (4 photo-specific), mobile typecheck, an iOS production export, and an authenticated Expo web interaction pass covering the private-by-default route and consent state. Web cannot prove camera/library, Android result recovery, or native signed transfer. The full `pnpm check` result above is the final repository-wide implementation gate; authenticated native simulator/device acceptance remains open.
 
 The first native MEDIA-MOB Release launch exposed a binary mismatch: ImagePicker/ImageManipulator `57.0.5` had resolved under their package ranges while ExpoModulesCore remained `57.0.3`, and dyld rejected ImageManipulator's missing `AnyModule._decorateModule` symbol. Exact `57.0.2` pins, a regenerated CocoaPods graph, and a fresh Release build corrected it. The corrected app installed and launched successfully in an iPhone 17 Pro simulator and rendered the sign-in screen without a crash. This proves native startup, not the authenticated camera/library and persisted-data journeys.
+
+Maestro 2.7.0 then drove a disposable confirmed account through the standalone iOS Release app and found two P1 native defects. Password sign-in changed the session without loading `/v1/profile`, bypassing onboarding; the auth provider now reloads and gates on profile resolution for every session transition. Separately, centered safe-area containers allowed 800-point content to overflow a 402-point iPhone; all affected bounded scroll screens now stretch to the viewport and center only their content. After correction, the iPhone 17 Pro simulator passed sign-in, every onboarding step, persisted baseline creation, and the real dashboard with `80.0 kg`. The broader meal/workout/body/restart/photo journey is still being exercised and is not yet claimed complete.
 
 ## Business-plan alignment
 
@@ -168,4 +170,4 @@ Never put a service-role or model secret in an `EXPO_PUBLIC_` variable. AI remai
 
 ## Handoff note
 
-Read `AGENTS.md`, `goals.md`, `docs/BUSINESS_ALIGNMENT.md`, `plan.md`, this file, and `backlog.md` before implementation. Continue the authenticated persisted iOS acceptance journey for onboarding, nutrition, workout, body, dashboard, and progress photos; the corrected Release app now builds, installs, launches, and renders sign-in in the iPhone 17 Pro simulator. A safe simulator input driver is still required to automate the remaining interactions. Then configure Android and repeat the journey for AND-001; no `adb`, Android `emulator`, or `ANDROID_HOME` is currently available. Do not start AI.
+Read `AGENTS.md`, `goals.md`, `docs/BUSINESS_ALIGNMENT.md`, `plan.md`, this file, and `backlog.md` before implementation. Continue the Maestro-driven authenticated iOS acceptance journey from the now-passing sign-in/onboarding/baseline/dashboard boundary through meal, workout, body, restart, and progress photos. Then configure Android and repeat the journey for AND-001; no `adb`, Android `emulator`, or `ANDROID_HOME` is currently available. Do not start AI.

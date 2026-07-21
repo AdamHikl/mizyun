@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -18,6 +19,7 @@ import { AuthSetupScreen } from "./auth-setup-screen";
 import { LoadingScreen } from "./loading-screen";
 import { OnboardingScreen } from "@/features/onboarding/onboarding-screen";
 import { ResetPasswordScreen } from "./reset-password-screen";
+import { resolveSessionGateTarget } from "./session-gate-state";
 
 interface AuthContextValue {
   session: AuthSession | null;
@@ -28,11 +30,11 @@ interface AuthContextValue {
    */
   recoveryState: boolean;
   /**
-   * The verified user's profile, fetched once when the session is
-   * established. `null` while the profile is loading, after sign-out,
-   * or when the API is not configured. The SessionGate uses
-   * `profile.displayName === null` to detect a fresh user and route
-   * them into the onboarding flow.
+   * The verified user's profile, fetched whenever the session changes.
+   * `null` after sign-out, when the API is not configured, or when the
+   * profile request fails. The provider keeps the loading state outside
+   * the context so protected children never render against a session whose
+   * profile has not been resolved yet.
    */
   profile: Profile | null;
   /**
@@ -64,13 +66,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(false);
   const [recoveryState, setRecoveryState] = useState(false);
+  const profileRequestVersion = useRef(0);
   const configuration = authClient.status();
 
-  const loadProfile = useCallback(async (): Promise<void> => {
+  const fetchProfile = useCallback(async (): Promise<Profile | null> => {
     if (!apiConfiguration.configured) {
-      setProfile(null);
-      return;
+      return null;
     }
     const result = await apiClient.request<{ profile: Profile }>({
       method: "GET",
@@ -78,14 +81,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       schema: profileResponseSchema,
     });
     if (result.ok) {
-      setProfile(result.value.profile);
-    } else {
-      // A failing profile load is treated as "no profile yet" so the
-      // SessionGate can route the user into the onboarding flow. The
-      // network error surfaces on the screen itself.
-      setProfile(null);
+      return result.value.profile;
     }
+    // A failing profile load is treated as "no profile yet" so the
+    // SessionGate routes to onboarding after loading. Submission then
+    // surfaces the actionable API/network error without exposing protected
+    // dashboard children against unresolved profile state.
+    return null;
   }, []);
+
+  const applySession = useCallback(
+    (nextSession: AuthSession | null): void => {
+      const requestVersion = ++profileRequestVersion.current;
+      setSession(nextSession);
+      setProfile(null);
+      if (nextSession === null) {
+        setProfileLoading(false);
+        return;
+      }
+
+      setProfileLoading(true);
+      void fetchProfile()
+        .then((nextProfile) => {
+          if (profileRequestVersion.current === requestVersion) {
+            setProfile(nextProfile);
+          }
+        })
+        .finally(() => {
+          if (profileRequestVersion.current === requestVersion) {
+            setProfileLoading(false);
+          }
+        });
+    },
+    [fetchProfile],
+  );
 
   useEffect(() => {
     if (!configuration.configured) {
@@ -97,33 +126,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .getSession()
       .then((value) => {
         if (!active) return;
-        setSession(value);
-        return loadProfile();
+        applySession(value);
       })
       .finally(() => active && setLoading(false));
     const unsubscribe = authClient.subscribe(
-      (value) => active && setSession(value),
+      (value) => active && applySession(value),
     );
     return () => {
       active = false;
+      profileRequestVersion.current += 1;
       unsubscribe();
     };
-  }, [configuration.configured, loadProfile]);
+  }, [applySession, configuration.configured]);
 
   const consumeDeepLink = useCallback(
     async (payload: DeepLinkPayload): Promise<AuthSession> => {
       const next = await authClient.consumeDeepLink(payload);
-      setSession(next);
+      applySession(next);
       if (payload.kind === "recovery") setRecoveryState(true);
-      await loadProfile();
       return next;
     },
-    [loadProfile],
+    [applySession],
   );
 
   const refreshProfile = useCallback(async () => {
-    await loadProfile();
-  }, [loadProfile]);
+    const requestVersion = ++profileRequestVersion.current;
+    setProfileLoading(true);
+    const nextProfile = await fetchProfile();
+    if (profileRequestVersion.current === requestVersion) {
+      setProfile(nextProfile);
+      setProfileLoading(false);
+    }
+  }, [fetchProfile]);
 
   const clearRecoveryState = useCallback(() => setRecoveryState(false), []);
 
@@ -149,26 +183,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   if (!configuration.configured)
     return <AuthSetupScreen reason={configuration.reason} />;
-  if (loading) return <LoadingScreen />;
+  if (loading || profileLoading) return <LoadingScreen />;
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function SessionGate({ children }: { children: ReactNode }) {
   const context = useContext(AuthContext);
   if (!context) return null;
-  // Recovery takes precedence: the user is signed in (the deep link
-  // set the session), but the AuthScreen is not appropriate — we want
-  // the reset-password screen instead.
-  if (context.session && context.recoveryState) return <ResetPasswordScreen />;
-  if (!context.session) return <AuthScreen />;
-  // Onboarding: a fresh user has a profile row whose `displayName`
-  // is null (the auto-create path inserts the defaults). The SessionGate
-  // routes them through the wizard until `refreshProfile()` flips
-  // `profile.displayName` to a non-null value.
-  if (context.profile !== null && context.profile.displayName === null) {
-    return <OnboardingGate />;
+  const target = resolveSessionGateTarget({
+    hasSession: context.session !== null,
+    recoveryState: context.recoveryState,
+    profile: context.profile,
+  });
+  switch (target) {
+    case "recovery":
+      return <ResetPasswordScreen />;
+    case "auth":
+      return <AuthScreen />;
+    case "onboarding":
+      return <OnboardingGate />;
+    case "content":
+      return <>{children}</>;
   }
-  return <>{children}</>;
 }
 
 /**

@@ -817,3 +817,18 @@ PERSIST-001 closed the persistence gap for profile, goals, and food. What's the 
 - Picker results expose file dimensions and optional metadata. Mizyun requests no EXIF, then uses ImageManipulator's contextual API to render a new JPEG with a 2,048-pixel longest-edge ceiling and 0.85 compression. Validation applies to the rendered artifact, and only that derivative is uploaded.
 - The mobile client performs a direct `PUT` to the API-issued one-time signed URL. A failed transfer triggers best-effort deletion of the already-created metadata entry; source files remain on the device and are never treated as authoritative measurements.
 - ADR-0013 records consent, normalization, metadata removal, direct upload, Android recovery, and destructive-delete boundaries.
+
+## 2026-07-21 — Native iOS MOB acceptance harness and defects
+
+### Primary sources
+
+- Maestro, **React Native support** (accessed 2026-07-21): https://docs.maestro.dev/get-started/supported-platform/react-native
+- Maestro, **iOS support** (accessed 2026-07-21): https://docs.maestro.dev/get-started/supported-platform/ios
+- Maestro, **CLI installation** (accessed 2026-07-21): https://docs.maestro.dev/maestro-cli/how-to-install-maestro-cli
+
+### Verified findings and implementation consequences
+
+- Maestro 2.7.0 can drive Mizyun's standalone Release build through the iOS accessibility layer without adding an SDK to application code. Synthetic credentials remain runtime-only, and each local acceptance account is permanently deleted after its run.
+- A real password sign-in proved that the auth subscription updated the session without refreshing the profile. Fresh accounts therefore bypassed onboarding and rendered protected dashboard children. `AuthProvider` now resolves the profile on every session transition, holds a loading boundary during the request, invalidates stale requests, and routes unresolved/new profiles to onboarding.
+- Accessibility screenshots and hierarchy bounds proved that centered safe-area containers allowed `maxWidth: 800` scroll content to become 800 points wide on a 402-point iPhone. The affected mobile screens now stretch their safe area to the viewport and center only the bounded content container, preserving narrow-screen reachability and wide-screen limits.
+- The corrected Release build passed a disposable-account Maestro journey through sign-in, all onboarding inputs, the persisted 80 kg baseline, and the real dashboard. No ADR is required: the changes repair existing session-gating and responsive-layout intent without changing module boundaries, data formats, or provider strategy.
