@@ -27,9 +27,13 @@ import {
   SupabaseExerciseRepository,
   SupabaseFoodEntryRepository,
   SupabaseGoalRepository,
+  SupabaseMediaAssetRepository,
+  SupabaseMediaStorage,
   SupabaseProfileRepository,
   SupabaseWorkoutRepository,
   SupabaseWorkoutSetRepository,
+  createSupabaseRepositoryClient,
+  createSupabaseStorageClient,
   type RepositorySupabaseClient,
 } from "@mizyun/adapter-supabase-server";
 import { InMemoryMemoryStore } from "@mizyun/memory";
@@ -131,25 +135,23 @@ const deleteUser = async (userId: string): Promise<void> => {
  * access token is isolated — no cross-request state.
  */
 const clientFor = (accessToken: string): RepositorySupabaseClient => {
-  const raw = createClient(SUPABASE_URL, PUBLISHABLE_KEY, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-  const client = raw as unknown as RepositorySupabaseClient;
-  void client.auth.setSession({ access_token: accessToken });
-  return client;
+  return createSupabaseRepositoryClient(
+    { url: SUPABASE_URL, publishableKey: PUBLISHABLE_KEY },
+    accessToken,
+  );
 };
 
 describeIfE2E("PERSIST-001 Supabase adapters (opt-in e2e)", () => {
   const userA: TestUser = {
     id: "00000000-0000-4000-8000-aaaaaaaaaaaa",
     email: `persist-a-${Date.now()}@mizyun.test`,
-    password: "test-password-A",
+    password: "Test-password-A1!",
     accessToken: "",
   };
   const userB: TestUser = {
     id: "00000000-0000-4000-8000-bbbbbbbbbbbb",
     email: `persist-b-${Date.now()}@mizyun.test`,
-    password: "test-password-B",
+    password: "Test-password-B1!",
     accessToken: "",
   };
 
@@ -169,6 +171,18 @@ describeIfE2E("PERSIST-001 Supabase adapters (opt-in e2e)", () => {
     ]);
     userA.id = a.id;
     userB.id = b.id;
+    if (adminClient === null) {
+      throw new Error("SUPABASE_E2E_SERVICE is required to confirm test users");
+    }
+    const [confirmedA, confirmedB] = await Promise.all([
+      adminClient.auth.admin.updateUserById(userA.id, { email_confirm: true }),
+      adminClient.auth.admin.updateUserById(userB.id, { email_confirm: true }),
+    ]);
+    if (confirmedA.error || confirmedB.error) {
+      throw new Error(
+        `test user confirmation failed: ${confirmedA.error?.message ?? confirmedB.error?.message}`,
+      );
+    }
     const [sa, sb] = await Promise.all([
       signIn(userA.email, userA.password),
       signIn(userB.email, userB.password),
@@ -468,6 +482,111 @@ describeIfE2E("PERSIST-001 Supabase adapters (opt-in e2e)", () => {
       },
     );
     expect(bList).toEqual([]);
+  }, 60_000);
+
+  it("private media: persists metadata and enforces signed object isolation and deletion", async () => {
+    const repositoryA = new SupabaseMediaAssetRepository({ clientFor });
+    const repositoryB = new SupabaseMediaAssetRepository({ clientFor });
+    const storage = new SupabaseMediaStorage({
+      clientFor: (accessToken) =>
+        createSupabaseStorageClient(
+          { url: SUPABASE_URL, publishableKey: PUBLISHABLE_KEY },
+          accessToken,
+        ),
+    });
+    const assetId = crypto.randomUUID();
+    const objectPath = `${userA.id}/${assetId}.jpg`;
+    const createdAt = new Date("2026-07-21T08:00:00.000Z");
+    const stored = await repositoryA.create(
+      userA.id as unknown as Parameters<
+        SupabaseMediaAssetRepository["create"]
+      >[0],
+      {
+        id: assetId,
+        userId: userA.id as unknown as Parameters<
+          SupabaseMediaAssetRepository["create"]
+        >[1]["userId"],
+        bucketId: "private-media",
+        objectPath,
+        purpose: "progress",
+        mimeType: "image/jpeg",
+        byteSize: 4,
+        width: 16,
+        height: 16,
+        metadata: { capturedOn: "2026-07-21" },
+        createdAt,
+        deletedAt: null,
+      },
+      { accessToken: userA.accessToken },
+    );
+    expect(stored.objectPath).toBe(objectPath);
+
+    const upload = await storage.signUploadUrl("private-media", objectPath, {
+      ttlSeconds: 300,
+      now: createdAt,
+      accessToken: userA.accessToken,
+    });
+    const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
+    const uploadResponse = await fetch(upload.url, {
+      method: "PUT",
+      headers: {
+        "cache-control": "max-age=0",
+        "content-type": "image/jpeg",
+        "x-upsert": "false",
+      },
+      body: bytes,
+    });
+    expect(uploadResponse.status).toBeLessThan(300);
+
+    const freshRepositoryA = new SupabaseMediaAssetRepository({ clientFor });
+    const afterRestart = await freshRepositoryA.list(
+      userA.id as unknown as Parameters<
+        SupabaseMediaAssetRepository["list"]
+      >[0],
+      {
+        purpose: "progress",
+        limit: 20,
+        accessToken: userA.accessToken,
+      },
+    );
+    expect(afterRestart.some((asset) => asset.id === assetId)).toBe(true);
+    await expect(
+      repositoryB.getById(assetId, { accessToken: userB.accessToken }),
+    ).resolves.toBeNull();
+    await expect(
+      storage.signDownloadUrl("private-media", objectPath, {
+        ttlSeconds: 60,
+        now: createdAt,
+        accessToken: userB.accessToken,
+      }),
+    ).rejects.toThrow();
+
+    const download = await storage.signDownloadUrl(
+      "private-media",
+      objectPath,
+      {
+        ttlSeconds: 60,
+        now: createdAt,
+        accessToken: userA.accessToken,
+      },
+    );
+    const downloadResponse = await fetch(download.url);
+    expect(downloadResponse.status).toBe(200);
+    expect(new Uint8Array(await downloadResponse.arrayBuffer())).toEqual(bytes);
+
+    await storage.remove("private-media", objectPath, {
+      accessToken: userA.accessToken,
+    });
+    await freshRepositoryA.softDelete(assetId, new Date(), {
+      accessToken: userA.accessToken,
+    });
+    await expect(
+      storage.signDownloadUrl("private-media", objectPath, {
+        ttlSeconds: 60,
+        now: new Date(),
+        accessToken: userA.accessToken,
+      }),
+    ).rejects.toThrow();
   }, 60_000);
 });
 

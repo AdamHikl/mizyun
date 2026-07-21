@@ -783,3 +783,22 @@ PERSIST-001 closed the persistence gap for profile, goals, and food. What's the 
 - Supabase's React Native quickstart uses platform-specific persistent storage on native, browser storage on web, `processLock`, and foreground-controlled refresh outside web. Mizyun retains encrypted chunked SecureStore on native and validates the browser storage surface before use; SSR or partial shims fall back to per-process memory rather than throwing during route rendering.
 - React Native accessibility guidance recommends explicit labels for controls and state for selectable elements. Energy inputs expose labeled numeric fields, radio roles with selected state, alert-role validation, and a disabled/busy save action.
 - ADR-0011 records the durable temporal and completeness semantics: local energy-day bounds, per-date review offsets, completed-workout-only counts, and null propagation for incomplete calorie days.
+
+## 2026-07-21 — PERSIST-003 private media persistence
+
+### Primary sources
+
+- Supabase, **Storage access control** (accessed 2026-07-21): https://supabase.com/docs/guides/storage/security/access-control
+- Supabase, **Storage ownership** (accessed 2026-07-21): https://supabase.com/docs/guides/storage/security/ownership
+- Supabase JavaScript, **createSignedUploadUrl** (accessed 2026-07-21): https://supabase.com/docs/reference/javascript/file-buckets-createsigneduploadurl
+- Supabase JavaScript, **createSignedUrl** (accessed 2026-07-21): https://supabase.com/docs/reference/javascript/file-buckets-createsignedurl
+- Supabase, **Delete objects** (accessed 2026-07-21): https://supabase.com/docs/guides/storage/management/delete-objects
+
+### Verified findings and implementation consequences
+
+- Private Storage operations are governed by RLS on `storage.objects`; the service key bypasses those policies and objects created under it have no user owner. Normal media metadata, signing, and deletion therefore use the already-verified user's JWT, never service-role authority. The JWT is installed synchronously as the Supabase client's Authorization header so the first request cannot race an asynchronous session mutation.
+- `createSignedUploadUrl` requires `INSERT` permission and returns a one-time upload URL whose lifetime is fixed by Supabase at two hours. The adapter reports that actual expiry instead of echoing the API's five-minute download default. It disables upsert because object paths are server-generated UUIDs.
+- Signed downloads accept an explicit expiry and require `SELECT` permission. Mizyun continues to use short-lived download URLs and returns the calculated expiry beside each URL.
+- Supabase requires object deletion through the Storage API; deleting `storage.objects` metadata directly can orphan billable bytes. The adapter calls `remove`, and the route removes sensitive bytes before soft-deleting application metadata so a partial failure stays retryable without hiding retained photo bytes.
+- A clean-stack verification exposed two earlier persistence defects: authenticated repository clients could issue their first request as `anon` because `setSession` was not awaited, and the workout adapter's `source`/`details` fields had no SQL migration. PERSIST-003 fixes the synchronous Authorization binding and adds a forward-only workout-column migration before enabling production Supabase composition.
+- ADR-0012 records the user-JWT authority, upload expiry, deletion ordering, and production composition decisions.

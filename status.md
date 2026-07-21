@@ -5,12 +5,12 @@
 ## Executive snapshot
 
 - **Product stage:** technical pre-alpha; the architecture and domain/API foundation are strong, but this is not yet a customer-usable tracking beta.
-- **Roadmap position:** MOB-DAILY-001 is active. MOB-NUT-001, MOB-ONB-001, MOB-WO-001, MOB-BODY-001, and MOB-DASH-001 are complete at the implementation gate; persisted native-device acceptance and the progress-photo loop remain.
-- **Latest verified implementation slice:** MOB-DASH-001 — complete energy inputs, local-day deterministic energy state, transparent assumptions, and calendar week/month nutrition plus completed-workout reviews.
-- **Next exact action:** PERSIST-003 — implement and verify the real Supabase private-media storage adapter, then unblock MEDIA-MOB-001.
-- **Branch:** `main`; the coherent documentation, persistence, and mobile productization changes are included in the MOB-NUT-001 handoff commit.
+- **Roadmap position:** MOB-DAILY-001 is active. Its activation, nutrition, workout, body, and dashboard children are complete at the implementation gate. PERSIST-003 is complete; MEDIA-MOB-001 is active, followed by persisted native-device acceptance.
+- **Latest verified implementation slice:** PERSIST-003 — user-JWT-scoped Supabase media metadata plus signed upload/download/delete storage, production composition, clean-migration proof, and real two-user persistence/isolation/deletion evidence.
+- **Next exact action:** MEDIA-MOB-001 — build progress-photo selection/capture, upload, timeline, compare, and confirmed deletion in the mobile Home stack.
+- **Branch:** `main`; each completed mobile/persistence slice is kept in a coherent local commit.
 - **Remote:** `https://github.com/AdamHikl/mizyun`.
-- **Remote state:** local `main` is three commits ahead at `8c75660` before the pending MOB-DASH-001 commit; pushing these MOB slices requires explicit user approval.
+- **Remote state:** local `main` contains the completed unpushed MOB-ONB, MOB-WO, MOB-BODY, MOB-DASH, and PERSIST-003 slices; pushing them requires explicit user approval.
 - **AI provider:** intentionally disabled. No Mistral or other model API is configured.
 - **Hosted Supabase:** not created or linked.
 - **iOS:** bundle quality gate passes; prior simulator authentication work is documented.
@@ -42,6 +42,7 @@ The following behavior exists as tested pure domain logic and Fastify routes:
 - deterministic, versioned energy target and balance calculations;
 - account data export and two-step application-data deletion orchestration;
 - private-media metadata, signed upload/download abstractions, deletion, timeline, and selected-photo comparison.
+- Supabase-backed media metadata plus real private Storage signing/removal, with every operation bound to the verified user's JWT and selected by configured production composition.
 
 The calculation layer correctly treats missing data as incomplete, separates deterministic output from future AI explanation, and avoids silently turning uncertain estimates into facts.
 
@@ -79,7 +80,7 @@ The core manual tracking lifecycles are implemented, but release-grade acceptanc
 - there is no HealthKit/Health Connect step synchronization;
 - there is no billing, paywall, product analytics, crash reporting, or community functionality.
 
-The API can select Supabase-backed profile, goal, food, exercise, workout, workout-set, and body-measurement repositories through its persistence composition option, while the standard no-environment gate intentionally remains in-memory. Real private-media storage, hosted Supabase composition, authenticated simulator acceptance, and account deletion across every external resource remain incomplete.
+With validated Supabase server configuration, the API selects Supabase-backed profile, goal, food, exercise, workout, workout-set, body-measurement, and media-asset repositories plus private Storage. The standard no-environment gate intentionally remains in-memory. Hosted Supabase deployment, authenticated native-device acceptance, and account deletion across every external resource remain incomplete.
 
 Do not describe NUT-_, WO-_, BODY-_, ENG-_, MEDIA-* or DATA-001 as customer-complete. They are verified domain/API slices awaiting persistent adapters and mobile integration.
 
@@ -92,11 +93,11 @@ pnpm check
   formatting: passed
   workspace TypeScript checks: passed
   iOS Expo/Metro/Hermes export: passed (1,639 modules, 4.6 MB bundle)
-  tests: 677 passed
-  opt-in Supabase persistence/auth e2e: 12 skipped because local e2e credentials were not enabled
+  tests: 685 passed
+  opt-in Supabase persistence/auth e2e: 13 skipped because local e2e credentials were not enabled for the standard gate
 ```
 
-The previous recorded database gate remains:
+The current database gate is:
 
 ```text
 pnpm db:verify
@@ -105,7 +106,7 @@ pnpm db:verify
   pgTAP: 55 assertions passed
 ```
 
-The full `pnpm check` gate passed after MOB-DASH-001: formatting, all workspace TypeScript checks, the iOS bundle (1,639 modules, 4.6 MB), and 677 tests. Twelve opt-in Supabase persistence/auth e2e tests were skipped because local e2e credentials were not enabled. The focused gate included 97 mobile tests, 227 API tests, 13 contract tests, and 4 mobile-adapter tests. An Expo web interaction pass verified the energy-input route, validation, enabled save state, and week/month selector. Authenticated API persistence could not be exercised through Expo web because the local API returned 404 to CORS preflight requests; this does not substitute for native simulator/device acceptance. Re-run the database and opt-in e2e gates whenever persistent adapters or hosted configuration change.
+PERSIST-003 passed `pnpm db:verify` on a clean reset: every migration applied, database lint reported no errors, and all 55 pgTAP assertions passed. The opt-in real-Supabase persistence suite passed all 8 tests, including fresh-repository media metadata visibility, two-user table/Storage isolation, direct signed PUT/download compatibility, and physical object deletion. The full `pnpm check` result above includes the final repository-wide gate. The prior Expo web interaction pass verified the energy-input route, validation, enabled save state, and week/month selector; authenticated native simulator/device acceptance remains open.
 
 ## Business-plan alignment
 
@@ -119,7 +120,7 @@ The full `pnpm check` gate passed after MOB-DASH-001: formatting, all workspace 
 ### Gaps blocking early customers
 
 - The manual meal/workout/weight lifecycles and dashboard review exist, but authenticated native simulator/device acceptance is incomplete.
-- Supabase repository adapters exist, but hosted composition and restart evidence are not yet part of the default runtime gate.
+- Supabase repository and private Storage adapters have local restart/isolation evidence, but a hosted project is not yet deployed or accepted on native devices.
 - The progress dashboard and calendar review exist; progress-photo capture/upload/timeline/compare remains absent.
 - Photo capture/upload and AI-assisted calorie drafts do not exist end to end.
 - The memory-aware coach is only an interface and disabled implementation.
@@ -143,7 +144,7 @@ Do not start Mistral/chatbot implementation merely because the provider boundary
 
 ## Known operational risks
 
-- Hosted Supabase composition and authenticated device acceptance are still outstanding; passing the in-memory gate alone does not prove the hosted journey.
+- Hosted Supabase deployment and authenticated native-device acceptance are still outstanding; local clean-stack proof does not prove the hosted journey.
 - Supabase CLI 2.109.1 reports localhost URLs while Docker Desktop publishes local services on `0.0.0.0` and IPv6 `::`. Use the stack only on a trusted network, never with real user data, and stop it when unused.
 - Account deletion currently orchestrates application repositories; release-grade deletion must also remove the real auth identity, storage bytes, conversations, memories, provider references, and any processor-held data.
 - The documentation previously contained contradictory phase/next-action statements. This file and `docs/BUSINESS_ALIGNMENT.md` now describe the audited state; keep them synchronized with executable changes.
@@ -164,4 +165,4 @@ Never put a service-role or model secret in an `EXPO_PUBLIC_` variable. AI remai
 
 ## Handoff note
 
-Read `AGENTS.md`, `goals.md`, `docs/BUSINESS_ALIGNMENT.md`, `plan.md`, this file, and `backlog.md` before implementation. Continue with PERSIST-003: implement and verify the real Supabase private-media storage adapter, then build MEDIA-MOB-001. Do not start AI.
+Read `AGENTS.md`, `goals.md`, `docs/BUSINESS_ALIGNMENT.md`, `plan.md`, this file, and `backlog.md` before implementation. Continue MEDIA-MOB-001 with the exact Expo SDK 57 ImagePicker/FileSystem documentation: add private progress-photo selection/capture, signed upload, timeline, compare, and confirmed deletion. Do not start AI.

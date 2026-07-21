@@ -181,7 +181,11 @@ export interface MediaAssetRepository {
    * does NOT touch the object store here — that's the client's
    * job (after the route returns the signed upload URL).
    */
-  create(userId: UserId, asset: StoredMediaAsset): Promise<StoredMediaAsset>;
+  create(
+    userId: UserId,
+    asset: StoredMediaAsset,
+    options: { readonly accessToken: string },
+  ): Promise<StoredMediaAsset>;
   /**
    * List the user's non-deleted assets, newest-first. `purpose`
    * is an optional filter. `limit` caps the page size.
@@ -191,6 +195,7 @@ export interface MediaAssetRepository {
     options: {
       readonly purpose: MediaPurpose | null;
       readonly limit: number;
+      readonly accessToken: string;
     },
   ): Promise<ReadonlyArray<StoredMediaAsset>>;
   /**
@@ -199,14 +204,21 @@ export interface MediaAssetRepository {
    * `getById` so a follow-up signed-URL request can tell
    * "deleted" from "missing".
    */
-  getById(id: string): Promise<StoredMediaAsset | null>;
+  getById(
+    id: string,
+    options: { readonly accessToken: string },
+  ): Promise<StoredMediaAsset | null>;
   /**
    * Mark the asset deleted (sets `deletedAt = now`) AND returns
    * the row so the route can ask the storage layer to remove
    * the underlying bytes. Returns `null` when the id does not
    * exist.
    */
-  softDelete(id: string, now: Date): Promise<StoredMediaAsset | null>;
+  softDelete(
+    id: string,
+    now: Date,
+    options: { readonly accessToken: string },
+  ): Promise<StoredMediaAsset | null>;
 }
 
 /**

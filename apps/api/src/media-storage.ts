@@ -19,20 +19,32 @@ export interface MediaStorage {
   signUploadUrl(
     bucketId: string,
     objectPath: string,
-    options: { readonly ttlSeconds: number; readonly now: Date },
+    options: {
+      readonly ttlSeconds: number;
+      readonly now: Date;
+      readonly accessToken: string;
+    },
   ): Promise<{ readonly url: string; readonly expiresAt: Date }>;
   /** Issue a short-lived signed URL the client can GET bytes from. */
   signDownloadUrl(
     bucketId: string,
     objectPath: string,
-    options: { readonly ttlSeconds: number; readonly now: Date },
+    options: {
+      readonly ttlSeconds: number;
+      readonly now: Date;
+      readonly accessToken: string;
+    },
   ): Promise<{ readonly url: string; readonly expiresAt: Date }>;
   /**
    * Remove the underlying object. Idempotent: missing objects
    * return without error. Production implementations should also
    * revoke any outstanding signed URLs whose path matches.
    */
-  remove(bucketId: string, objectPath: string): Promise<void>;
+  remove(
+    bucketId: string,
+    objectPath: string,
+    options: { readonly accessToken: string },
+  ): Promise<void>;
 }
 
 interface UploadTicket {
@@ -68,7 +80,11 @@ export class InMemoryMediaStorage implements MediaStorage {
   async signUploadUrl(
     bucketId: string,
     objectPath: string,
-    options: { readonly ttlSeconds: number; readonly now: Date },
+    options: {
+      readonly ttlSeconds: number;
+      readonly now: Date;
+      readonly accessToken: string;
+    },
   ): Promise<{ readonly url: string; readonly expiresAt: Date }> {
     const ttl = options.ttlSeconds > 0 ? options.ttlSeconds : this.#ttlSeconds;
     const expiresAt = new Date(options.now.getTime() + ttl * 1000);
@@ -89,7 +105,11 @@ export class InMemoryMediaStorage implements MediaStorage {
   async signDownloadUrl(
     bucketId: string,
     objectPath: string,
-    options: { readonly ttlSeconds: number; readonly now: Date },
+    options: {
+      readonly ttlSeconds: number;
+      readonly now: Date;
+      readonly accessToken: string;
+    },
   ): Promise<{ readonly url: string; readonly expiresAt: Date }> {
     const ttl = options.ttlSeconds > 0 ? options.ttlSeconds : this.#ttlSeconds;
     const expiresAt = new Date(options.now.getTime() + ttl * 1000);
@@ -107,7 +127,11 @@ export class InMemoryMediaStorage implements MediaStorage {
     };
   }
 
-  async remove(bucketId: string, objectPath: string): Promise<void> {
+  async remove(
+    bucketId: string,
+    objectPath: string,
+    _options: { readonly accessToken: string },
+  ): Promise<void> {
     this.#bytes.delete(`${bucketId}/${objectPath}`);
     // Revoke any outstanding tickets whose path matches.
     for (const [id, t] of this.#uploadTickets) {

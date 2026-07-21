@@ -36,6 +36,7 @@ const tokenVerifierFor = (
 
 const build = (verifier: AccessTokenVerifier) => {
   const mediaAssetRepository = new InMemoryMediaAssetRepository();
+  const mediaStorage = new InMemoryMediaStorage();
   // The app composition root owns the storage. For tests we
   // re-create a fresh storage and inject it via the
   // `mediaStorage` dependency. The composition root needs to
@@ -48,6 +49,7 @@ const build = (verifier: AccessTokenVerifier) => {
       memories: new InMemoryMemoryStore(),
     }),
     mediaAssetRepository,
+    mediaStorage,
   });
   apps.push(app);
   return { app, mediaAssetRepository };
@@ -104,7 +106,9 @@ describe("POST /v1/media/upload-url", () => {
     expect(typeof body.expiresAt).toBe("string");
 
     // The asset is in the repository now.
-    const stored = await mediaAssetRepository.getById(body.assetId);
+    const stored = await mediaAssetRepository.getById(body.assetId, {
+      accessToken: "test-token",
+    });
     expect(stored).not.toBeNull();
     expect(stored?.userId).toBe(userA);
     expect(stored?.purpose).toBe("progress");
@@ -337,6 +341,7 @@ describe("DELETE /v1/media/:id", () => {
     expect(response.statusCode).toBe(204);
     const after = await mediaAssetRepository.getById(
       "00000000-0000-4000-8000-00000000a001",
+      { accessToken: "test-token" },
     );
     expect(after?.deletedAt).not.toBeNull();
     // A subsequent list omits it.

@@ -4,7 +4,11 @@ import {
   AgentOrchestrator,
   DisabledAgentProvider,
 } from "@mizyun/agent-runtime";
-import { createSupabaseAccessTokenVerifier } from "@mizyun/adapter-supabase-server";
+import {
+  createSupabaseAccessTokenVerifier,
+  createSupabaseRepositoryClient,
+  createSupabaseStorageClient,
+} from "@mizyun/adapter-supabase-server";
 import {
   DEFAULT_TIMEZONE,
   DEFAULT_UNIT_SYSTEM,
@@ -29,7 +33,7 @@ import { InMemoryMemoryStore } from "@mizyun/memory";
 import { InMemoryAccountRepository } from "./account-repository.js";
 import { InMemoryGoalRepository } from "./goal-repository.js";
 import { loggerConfig } from "./logging.js";
-import { InMemoryMediaStorage } from "./media-storage.js";
+import { InMemoryMediaStorage, type MediaStorage } from "./media-storage.js";
 import { accountRoutes } from "./modules/account/routes.js";
 import { bodyMeasurementsRoutes } from "./modules/body-measurements/routes.js";
 import { coachRoutes } from "./modules/coach/routes.js";
@@ -59,7 +63,10 @@ import {
   SupabaseWorkoutRepository,
   SupabaseWorkoutSetRepository,
   SupabaseBodyMeasurementRepository,
+  SupabaseMediaAssetRepository,
+  SupabaseMediaStorage,
   type RepositorySupabaseClient,
+  type StorageSupabaseClient,
 } from "@mizyun/adapter-supabase-server";
 
 export interface SupabasePersistenceOptions {
@@ -70,6 +77,7 @@ export interface SupabasePersistenceOptions {
    * composition-root boundary; the per-feature adapters consume it.
    */
   readonly clientFor: (accessToken: string) => RepositorySupabaseClient;
+  readonly storageClientFor: (accessToken: string) => StorageSupabaseClient;
 }
 
 export interface AppDependencies {
@@ -91,6 +99,7 @@ export interface AppDependencies {
   readonly bodyMeasurementRepository?: BodyMeasurementRepository;
   readonly accountRepository?: AccountRepository;
   readonly mediaAssetRepository?: MediaAssetRepository;
+  readonly mediaStorage?: MediaStorage;
   /**
    * When provided, the per-feature adapters swap to the Supabase
    * implementations. In-memory remains the default so the standard
@@ -120,12 +129,27 @@ const defaultDependencies = (): AppDependencies => {
         supabaseConfig: null,
         agentProvider: "disabled",
       };
-  return {
+  const base = {
     agent: new AgentOrchestrator({
       provider: new DisabledAgentProvider(),
       memories: new InMemoryMemoryStore(),
     }),
     tokenVerifier: tokenVerifierFromConfig(config),
+  };
+  if (config.supabase.configured && config.supabaseConfig) {
+    const supabaseConfig = config.supabaseConfig;
+    return {
+      ...base,
+      supabasePersistence: {
+        clientFor: (accessToken: string) =>
+          createSupabaseRepositoryClient(supabaseConfig, accessToken),
+        storageClientFor: (accessToken: string) =>
+          createSupabaseStorageClient(supabaseConfig, accessToken),
+      },
+    };
+  }
+  return {
+    ...base,
     // Default profile repository: in-memory. The Supabase adapter lands
     // in a follow-up segment once we have a verified RLS story for the
     // profile row.
@@ -239,11 +263,18 @@ export const buildApp = (
       bodyMeasurementRepository,
     });
   const mediaAssetRepository =
-    dependencies.mediaAssetRepository ?? new InMemoryMediaAssetRepository();
+    dependencies.mediaAssetRepository ??
+    (sp
+      ? new SupabaseMediaAssetRepository({ clientFor: sp.clientFor })
+      : new InMemoryMediaAssetRepository());
   // The bucket id matches the SQL migration; a Supabase swap
   // reads the same id from `storage.buckets`. The local
   // composition root hard-codes it for now.
-  const mediaStorage = new InMemoryMediaStorage();
+  const mediaStorage =
+    dependencies.mediaStorage ??
+    (sp
+      ? new SupabaseMediaStorage({ clientFor: sp.storageClientFor })
+      : new InMemoryMediaStorage());
   const MEDIA_BUCKET_ID = "private-media";
 
   void app.register(authenticationPlugin, {

@@ -219,12 +219,18 @@ export const mediaRoutes: FastifyPluginAsync<MediaRoutesOptions> = async (
         createdAt: now,
         deletedAt: null,
       };
-      await options.mediaAssetRepository.create(principal.userId, stored);
       const signed = await options.mediaStorage.signUploadUrl(
         options.bucketId,
         objectPath,
-        { ttlSeconds: SIGNED_URL_TTL_SECONDS, now },
+        {
+          ttlSeconds: SIGNED_URL_TTL_SECONDS,
+          now,
+          accessToken: principal.accessToken,
+        },
       );
+      await options.mediaAssetRepository.create(principal.userId, stored, {
+        accessToken: principal.accessToken,
+      });
       return mediaUploadUrlResponseSchema.parse({
         assetId: id,
         uploadUrl: signed.url,
@@ -262,6 +268,7 @@ export const mediaRoutes: FastifyPluginAsync<MediaRoutesOptions> = async (
       const assets = await options.mediaAssetRepository.list(principal.userId, {
         purpose: parsed.data.purpose ?? null,
         limit,
+        accessToken: principal.accessToken,
       });
       return listToWire(assets);
     },
@@ -292,6 +299,7 @@ export const mediaRoutes: FastifyPluginAsync<MediaRoutesOptions> = async (
       }
       const asset = await options.mediaAssetRepository.getById(
         parsed.data.assetId,
+        { accessToken: principal.accessToken },
       );
       if (asset === null || asset.userId !== principal.userId) {
         await sendApiError(
@@ -316,7 +324,11 @@ export const mediaRoutes: FastifyPluginAsync<MediaRoutesOptions> = async (
       const signed = await options.mediaStorage.signDownloadUrl(
         options.bucketId,
         asset.objectPath,
-        { ttlSeconds: SIGNED_URL_TTL_SECONDS, now: new Date() },
+        {
+          ttlSeconds: SIGNED_URL_TTL_SECONDS,
+          now: new Date(),
+          accessToken: principal.accessToken,
+        },
       );
       return mediaSignResponseSchema.parse({
         signedUrl: signed.url,
@@ -325,9 +337,10 @@ export const mediaRoutes: FastifyPluginAsync<MediaRoutesOptions> = async (
     },
   );
 
-  // DELETE /v1/media/:id — soft-delete the asset row AND remove
-  // the underlying storage bytes. Idempotent on a missing id
-  // (returns 204).
+  // DELETE /v1/media/:id — remove the sensitive bytes first, then
+  // soft-delete the metadata row. If the metadata update fails, a retry
+  // sees the row and repeats the idempotent object removal; this avoids
+  // leaving private bytes behind an already-hidden metadata row.
   app.delete(
     "/media/:id",
     { preHandler: app.authenticate },
@@ -347,7 +360,9 @@ export const mediaRoutes: FastifyPluginAsync<MediaRoutesOptions> = async (
         );
         return;
       }
-      const asset = await options.mediaAssetRepository.getById(id);
+      const asset = await options.mediaAssetRepository.getById(id, {
+        accessToken: principal.accessToken,
+      });
       if (asset === null || asset.userId !== principal.userId) {
         await sendApiError(
           reply,
@@ -359,14 +374,18 @@ export const mediaRoutes: FastifyPluginAsync<MediaRoutesOptions> = async (
         return;
       }
       const now = new Date();
-      const updated = await options.mediaAssetRepository.softDelete(id, now);
+      await options.mediaStorage.remove(options.bucketId, asset.objectPath, {
+        accessToken: principal.accessToken,
+      });
+      const updated = await options.mediaAssetRepository.softDelete(id, now, {
+        accessToken: principal.accessToken,
+      });
       if (updated === null) {
         // Race: someone else just deleted it. Return 204 — the
         // caller's intent (the asset is gone) holds.
         void reply.status(204).send();
         return;
       }
-      await options.mediaStorage.remove(options.bucketId, asset.objectPath);
       void reply.status(204).send();
     },
   );
@@ -410,6 +429,7 @@ export const mediaRoutes: FastifyPluginAsync<MediaRoutesOptions> = async (
       const all = await options.mediaAssetRepository.list(principal.userId, {
         purpose,
         limit: MAX_LIMIT,
+        accessToken: principal.accessToken,
       });
       // Default window: last 365 days when no bounds supplied.
       const now = new Date();
@@ -474,7 +494,11 @@ export const mediaRoutes: FastifyPluginAsync<MediaRoutesOptions> = async (
           const signed = await options.mediaStorage.signDownloadUrl(
             options.bucketId,
             asset.objectPath,
-            { ttlSeconds: SIGNED_URL_TTL_SECONDS, now },
+            {
+              ttlSeconds: SIGNED_URL_TTL_SECONDS,
+              now,
+              accessToken: principal.accessToken,
+            },
           );
           entries.push({
             asset,
@@ -539,8 +563,12 @@ export const mediaRoutes: FastifyPluginAsync<MediaRoutesOptions> = async (
         return;
       }
       const [a, b] = await Promise.all([
-        options.mediaAssetRepository.getById(parsed.data.assetIdA),
-        options.mediaAssetRepository.getById(parsed.data.assetIdB),
+        options.mediaAssetRepository.getById(parsed.data.assetIdA, {
+          accessToken: principal.accessToken,
+        }),
+        options.mediaAssetRepository.getById(parsed.data.assetIdB, {
+          accessToken: principal.accessToken,
+        }),
       ]);
       if (
         a === null ||
@@ -568,10 +596,12 @@ export const mediaRoutes: FastifyPluginAsync<MediaRoutesOptions> = async (
         options.mediaStorage.signDownloadUrl(options.bucketId, a.objectPath, {
           ttlSeconds: ttl,
           now,
+          accessToken: principal.accessToken,
         }),
         options.mediaStorage.signDownloadUrl(options.bucketId, b.objectPath, {
           ttlSeconds: ttl,
           now,
+          accessToken: principal.accessToken,
         }),
       ]);
       const { daysBetween, direction } = compareMediaAssets(a, b);

@@ -124,7 +124,7 @@ select throws_ok(
 );
 
 select lives_ok(
-  $$insert into public.goals (user_id, kind) values ('10000000-0000-4000-8000-000000000001', 'own-goal')$$,
+  $$insert into public.goals (user_id, kind, status) values ('10000000-0000-4000-8000-000000000001', 'own-goal', 'archived')$$,
   'user A can insert their own record'
 );
 

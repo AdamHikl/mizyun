@@ -178,17 +178,17 @@ export const createSupabaseRepositoryClient = (
       persistSession: false,
       detectSessionInUrl: false,
     },
+    global: {
+      // Bind the already-verified principal synchronously. Calling the async
+      // auth.setSession() and immediately issuing a query races the first
+      // PostgREST request, which can otherwise run with the anon key.
+      headers: { Authorization: `Bearer ${accessToken}` },
+    },
   });
   // The cast narrows the surface area the adapters see; the
   // underlying Supabase JS client retains its real typing. We
   // own both ends.
-  const client = raw as unknown as RepositorySupabaseClient;
-  // setSession is async; we don't await here because the
-  // adapter kick-off path doesn't have a void to await on. The
-  // Supabase client buffers the auth header for the very next
-  // query and resolves as PostgREST receives the request.
-  void client.auth.setSession({ access_token: accessToken });
-  return client;
+  return raw as unknown as RepositorySupabaseClient;
 };
 
 export { SupabaseProfileRepository } from "./profile-repository.js";
@@ -200,3 +200,10 @@ export { SupabaseExerciseRepository } from "./exercise-repository.js";
 export { SupabaseWorkoutRepository } from "./workout-repository.js";
 export { SupabaseWorkoutSetRepository } from "./workout-set-repository.js";
 export { SupabaseBodyMeasurementRepository } from "./body-measurement-repository.js";
+export { SupabaseMediaAssetRepository } from "./media-asset-repository.js";
+export {
+  SupabaseMediaStorage,
+  MediaStorageError,
+  createSupabaseStorageClient,
+  type StorageSupabaseClient,
+} from "./media-storage.js";

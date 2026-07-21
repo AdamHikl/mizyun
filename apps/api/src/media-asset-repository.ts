@@ -27,6 +27,7 @@ export class InMemoryMediaAssetRepository implements MediaAssetRepository {
   async create(
     userId: UserId,
     asset: StoredMediaAsset,
+    _options: { readonly accessToken: string },
   ): Promise<StoredMediaAsset> {
     if (asset.userId !== userId) {
       throw new Error("media asset create userId mismatch");
@@ -45,6 +46,7 @@ export class InMemoryMediaAssetRepository implements MediaAssetRepository {
     options: {
       readonly purpose: MediaPurpose | null;
       readonly limit: number;
+      readonly accessToken: string;
     },
   ): Promise<ReadonlyArray<StoredMediaAsset>> {
     const list = this.#byUser.get(userId) ?? [];
@@ -60,11 +62,18 @@ export class InMemoryMediaAssetRepository implements MediaAssetRepository {
       .slice(0, Math.max(0, options.limit));
   }
 
-  async getById(id: string): Promise<StoredMediaAsset | null> {
+  async getById(
+    id: string,
+    _options: { readonly accessToken: string },
+  ): Promise<StoredMediaAsset | null> {
     return this.#byId.get(id) ?? null;
   }
 
-  async softDelete(id: string, now: Date): Promise<StoredMediaAsset | null> {
+  async softDelete(
+    id: string,
+    now: Date,
+    _options: { readonly accessToken: string },
+  ): Promise<StoredMediaAsset | null> {
     const existing = this.#byId.get(id);
     if (existing === undefined) return null;
     const updated: StoredMediaAsset = { ...existing, deletedAt: now };
