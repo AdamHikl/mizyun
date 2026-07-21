@@ -812,7 +812,7 @@ PERSIST-001 closed the persistence gap for profile, goals, and food. What's the 
 
 ### Verified findings and implementation consequences
 
-- Expo SDK 57 recommends the `~57.0.5` package line for both ImagePicker and ImageManipulator. The app pins those compatible versions rather than selecting an unverified current release.
+- The current Expo SDK 57 references recommend the `~57.0.2` package line for both ImagePicker and ImageManipulator. A native Release build proved that the newer `57.0.5` binaries can resolve under a compatible range yet fail at launch against ExpoModulesCore `57.0.3` with a missing `AnyModule._decorateModule` symbol. Mizyun therefore pins both modules to exactly `57.0.2`; a regenerated CocoaPods graph, Release simulator build, install, and launch then succeeded.
 - ImagePicker provides system camera and library launchers, camera permission requests, and `getPendingResultAsync()` for Android activity destruction. The progress-photo screen exposes camera and library actions, requests camera access only at the moment of use, disables microphone permission in the config plugin, and recovers or reports pending picker results without updating an unmounted screen.
 - Picker results expose file dimensions and optional metadata. Mizyun requests no EXIF, then uses ImageManipulator's contextual API to render a new JPEG with a 2,048-pixel longest-edge ceiling and 0.85 compression. Validation applies to the rendered artifact, and only that derivative is uploaded.
 - The mobile client performs a direct `PUT` to the API-issued one-time signed URL. A failed transfer triggers best-effort deletion of the already-created metadata entry; source files remain on the device and are never treated as authoritative measurements.

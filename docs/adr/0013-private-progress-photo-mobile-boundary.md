@@ -17,11 +17,13 @@ Expo ImagePicker can launch the camera or system library and recover an interrup
 - If the direct transfer fails after metadata creation, the client performs best-effort asset deletion so a broken timeline entry is not retained.
 - Android pending picker results are recovered after process interruption. Recovery failures are visible to the user and ignored after the screen unmounts.
 - Timeline images use short-lived signed URLs. Comparison remains explicitly a visual reference, and deletion requires destructive confirmation that states the bytes are permanently removed.
+- The Expo ImagePicker and ImageManipulator packages are pinned to exactly `57.0.2`. Compatible semver ranges are insufficient for this native boundary because `57.0.5` produced a launch-time symbol mismatch against the installed ExpoModulesCore `57.0.3`.
 
 ## Consequences
 
 - Original camera/library files remain untouched on the device; only a bounded, metadata-stripped derivative is uploaded.
 - Re-encoding adds local CPU work and can slightly change image quality, but reduces payload size and privacy exposure.
 - The app does not request microphone access for camera capture.
+- Native dependency upgrades at this boundary require a regenerated CocoaPods graph plus a Release simulator launch, not only TypeScript tests or a Metro export.
 - A hard process termination between ticket creation and client cleanup can still leave metadata without bytes. An explicit server-side upload-finalization state remains a future hardening option if alpha evidence warrants it.
 - Native camera, library, interruption recovery, signed transfer, and deletion still require authenticated device acceptance on both platforms; web interaction and bundle export are implementation evidence, not substitutes.
