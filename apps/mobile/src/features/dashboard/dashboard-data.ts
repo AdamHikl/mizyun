@@ -1,9 +1,11 @@
 import {
   bodyMeasurementListResponseSchema,
   dailyFoodSummaryResponseSchema,
+  energySummaryResponseSchema,
   workoutListResponseSchema,
   type BodyMeasurementListResponse,
   type DailyFoodSummaryResponse,
+  type EnergySummaryResponse,
   type WorkoutListResponse,
 } from "@mizyun/contracts";
 
@@ -24,6 +26,20 @@ export type DailySummary = DailyFoodSummaryResponse["summary"];
 export type LatestWeight =
   BodyMeasurementListResponse["bodyMeasurements"][number] | null;
 export type WorkoutCount = number;
+export type EnergySummary = EnergySummaryResponse["summary"];
+
+export interface LocalDayQuery {
+  readonly date: string;
+  readonly utcOffsetMinutes: number;
+}
+
+export interface NutritionReview {
+  readonly loggedDays: number;
+  readonly entryCount: number;
+  /** Null when any logged day contains an entry without confirmed calories. */
+  readonly caloriesKcal: number | null;
+  readonly incompleteDays: number;
+}
 
 export interface DailyDataResult<T> {
   readonly value: T | null;
@@ -94,7 +110,59 @@ export const fetchLatestWeight = async (
   };
 };
 
-export const fetchWorkoutCountThisWeek = async (
+export const fetchEnergySummary = async (
+  client: ApiClient,
+  principal: DashboardPrincipal,
+  utcOffsetMinutes: number,
+): Promise<DailyDataResult<EnergySummary>> => {
+  if (principal === null) return unauthenticatedResult();
+  const result = await client.request({
+    method: "GET",
+    path: `/v1/energy/summary?utcOffsetMinutes=${encodeURIComponent(utcOffsetMinutes)}`,
+    schema: energySummaryResponseSchema,
+  });
+  if (!result.ok) return { value: null, error: result.error };
+  const parsed = parseSafe(result.value, energySummaryResponseSchema);
+  return { value: parsed?.summary ?? null, error: null };
+};
+
+export const fetchNutritionReview = async (
+  client: ApiClient,
+  principal: DashboardPrincipal,
+  days: ReadonlyArray<LocalDayQuery>,
+): Promise<DailyDataResult<NutritionReview>> => {
+  if (principal === null) return unauthenticatedResult();
+  const results = await Promise.all(
+    days.map((day) => fetchDailySummary(client, principal, day)),
+  );
+  const failed = results.find((result) => result.error !== null);
+  if (failed?.error) return { value: null, error: failed.error };
+
+  const summaries = results.flatMap((result) =>
+    result.value === null ? [] : [result.value],
+  );
+  const logged = summaries.filter((summary) => summary.entryCount > 0);
+  const incompleteDays = logged.filter(
+    (summary) => summary.caloriesKcal === null,
+  ).length;
+  return {
+    value: {
+      loggedDays: logged.length,
+      entryCount: logged.reduce((sum, summary) => sum + summary.entryCount, 0),
+      caloriesKcal:
+        incompleteDays > 0
+          ? null
+          : logged.reduce(
+              (sum, summary) => sum + (summary.caloriesKcal ?? 0),
+              0,
+            ),
+      incompleteDays,
+    },
+    error: null,
+  };
+};
+
+export const fetchWorkoutCountForPeriod = async (
   client: ApiClient,
   principal: DashboardPrincipal,
   options: {
@@ -111,12 +179,10 @@ export const fetchWorkoutCountThisWeek = async (
   });
   if (!result.ok) return { value: null, error: result.error };
   const parsed = parseSafe(result.value, workoutListResponseSchema);
-  // `completeWorkoutsOnly` would require a `status` filter the
-  // route doesn't expose yet; count every workout in the window.
-  // PERSIST-002 follow-up: narrow to completed-only once the
-  // route lands a status filter.
   return {
-    value: (parsed?.workouts ?? []).length,
+    value: (parsed?.workouts ?? []).filter(
+      (workout) => workout.completedAt !== null,
+    ).length,
     error: null,
   };
 };

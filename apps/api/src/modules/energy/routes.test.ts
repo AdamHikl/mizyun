@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   AgentOrchestrator,
@@ -403,6 +403,49 @@ describe("GET /v1/energy/summary", () => {
     // balance = consumed (800) - dailyTarget (calculated). Just
     // assert it's a number.
     expect(typeof response.json().summary.balanceKcal).toBe("number");
+  });
+
+  it("uses the supplied UTC offset for today's consumption window", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-19T12:00:00Z"));
+    try {
+      const {
+        app,
+        profileRepository,
+        goalRepository,
+        bodyMeasurementRepository,
+        foodEntryRepository,
+      } = build(tokenVerifierFor({ userId: userA }));
+      seedProfile(profileRepository, {
+        activityLevel: "lightly_active",
+        sexAtBirth: "male",
+      });
+      seedMeasurement(bodyMeasurementRepository);
+      seedGoal(goalRepository);
+      // UTC-14 is still on July 18 at the fixed instant. Its local day starts
+      // at 14:00Z on July 18, so this entry belongs to local "today" even
+      // though the server's UTC date is already July 19.
+      seedFoodEntry(foodEntryRepository, {
+        consumedAt: new Date("2026-07-18T15:00:00Z"),
+        caloriesKcal: 500,
+      });
+
+      const localResponse = await app.inject({
+        method: "GET",
+        url: "/v1/energy/summary?utcOffsetMinutes=-840",
+        headers: { authorization: "Bearer valid" },
+      });
+      const utcResponse = await app.inject({
+        method: "GET",
+        url: "/v1/energy/summary?utcOffsetMinutes=0",
+        headers: { authorization: "Bearer valid" },
+      });
+
+      expect(localResponse.json().summary.balanceKcal).not.toBeNull();
+      expect(utcResponse.json().summary.balanceKcal).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("prefers profile.activityLevel over the query string (PROF-001 follow-up)", async () => {

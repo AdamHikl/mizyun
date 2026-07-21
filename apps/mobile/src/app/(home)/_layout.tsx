@@ -5,6 +5,7 @@ export default function HomeStackLayout() {
     <Stack>
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="body" options={{ title: "Body progress" }} />
+      <Stack.Screen name="energy-setup" options={{ title: "Energy inputs" }} />
     </Stack>
   );
 }

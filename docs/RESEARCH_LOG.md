@@ -765,3 +765,21 @@ PERSIST-001 closed the persistence gap for profile, goals, and food. What's the 
 - Raw measurements remain visible beside a small raw-reading chart. Deletion is reserved for corrections and uses an explicit destructive Alert; the trend recalculates only after the API confirms removal.
 - Weight, waist, and chest entry accepts the selected display units, rejects any invalid nonblank field rather than silently dropping it, and converts to canonical kilograms/centimeters only at the API boundary.
 - ADR-0010 records the trend formula, evidence threshold, and presentation boundary.
+
+## 2026-07-21 — MOB-DASH-001 energy state and progress reviews
+
+### Primary sources
+
+- Expo SDK 57, **Router API** (accessed 2026-07-21): https://docs.expo.dev/versions/v57.0.0/sdk/router/
+- Expo, **Environment variables in Expo** (accessed 2026-07-21): https://docs.expo.dev/guides/environment-variables/
+- React Native, **Accessibility** (accessed 2026-07-21): https://reactnative.dev/docs/accessibility
+- React Native, **TextInput** (accessed 2026-07-21): https://reactnative.dev/docs/textinput
+- Supabase, **Use Supabase Auth with React Native** (accessed 2026-07-21): https://supabase.com/docs/guides/auth/quickstarts/react-native
+
+### Verified findings and implementation consequences
+
+- Expo Router's `useFocusEffect` is the supported focus-driven refresh primitive and its callback should be memoized. The dashboard keeps authoritative data refreshes behind a memoized callback and re-runs them whenever Home regains focus; the energy-input editor is a declared file route in the existing Home stack.
+- Expo only inlines `EXPO_PUBLIC_*` values when application code references them statically with `process.env.NAME` dot notation. The mobile composition root now takes one explicit three-key snapshot and passes it to the closed-world shared validator; dynamically cloning `process.env` no longer prevents configured native bundles from seeing their public URL/key values. Public variables remain bundle-visible and may never contain service-role or model secrets.
+- Supabase's React Native quickstart uses platform-specific persistent storage on native, browser storage on web, `processLock`, and foreground-controlled refresh outside web. Mizyun retains encrypted chunked SecureStore on native and validates the browser storage surface before use; SSR or partial shims fall back to per-process memory rather than throwing during route rendering.
+- React Native accessibility guidance recommends explicit labels for controls and state for selectable elements. Energy inputs expose labeled numeric fields, radio roles with selected state, alert-role validation, and a disabled/busy save action.
+- ADR-0011 records the durable temporal and completeness semantics: local energy-day bounds, per-date review offsets, completed-workout-only counts, and null propagation for incomplete calorie days.

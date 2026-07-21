@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { ChunkedStorage, type StringStorage } from "./chunked-storage.js";
+import { createWebStorage } from "./web-storage.js";
 
 class MapStorage implements StringStorage {
   readonly values = new Map<string, string>();
@@ -49,5 +50,13 @@ describe("ChunkedStorage", () => {
 
     await expect(storage.getItem("auth")).resolves.toBeNull();
     expect(primitive.values.size).toBe(0);
+  });
+});
+
+describe("createWebStorage", () => {
+  it("falls back to in-memory storage when SSR exposes a partial shim", async () => {
+    const storage = createWebStorage({});
+    await storage.setItem("session", "value");
+    await expect(storage.getItem("session")).resolves.toBe("value");
   });
 });

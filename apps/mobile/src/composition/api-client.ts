@@ -5,9 +5,9 @@ import {
   type ApiConfigurationStatus,
 } from "@mizyun/api-client";
 import type { AuthClient } from "@mizyun/identity";
-import { loadMobileConfig } from "@mizyun/config";
 
 import { authClient } from "./auth-client";
+import { mobileConfigResult } from "./mobile-config";
 
 /**
  * Pure factory: pick the right `ApiClient` from the validated mobile
@@ -30,7 +30,7 @@ export const selectApiClient = (
       })
     : new DisabledApiClient();
 
-const configResult = loadMobileConfig();
+const configResult = mobileConfigResult;
 const apiConfiguration: ApiConfigurationStatus =
   configResult.ok && configResult.value.apiUrl
     ? { configured: true, baseUrl: configResult.value.apiUrl }

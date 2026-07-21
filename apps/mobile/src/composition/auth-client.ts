@@ -1,6 +1,7 @@
 import { createSupabaseMobileAuthClient } from "@mizyun/adapter-supabase-mobile";
-import { loadMobileConfig } from "@mizyun/config";
 import { DisabledAuthClient, type AuthClient } from "@mizyun/identity";
+
+import { mobileConfigResult } from "./mobile-config";
 
 /**
  * Mobile composition root for authentication. The validated
@@ -10,7 +11,7 @@ import { DisabledAuthClient, type AuthClient } from "@mizyun/identity";
  * so the existing `AuthSetupScreen` keeps rendering the safe disabled
  * state without modification.
  */
-const configResult = loadMobileConfig();
+const configResult = mobileConfigResult;
 
 export const authConfiguration = configResult.ok
   ? configResult.value.supabase

@@ -15,6 +15,7 @@ import { ThemedView } from "@/components/themed-view";
 import { apiClient } from "@/composition/api-client";
 import { MaxContentWidth, Spacing } from "@/constants/theme";
 import { weightUnitLabel } from "@/lib/weight-units";
+import { lengthUnitLabel } from "@/lib/length-units";
 
 import {
   applyOnboardingPatch,
@@ -179,6 +180,8 @@ function StepBody({ step, form, onPatch, error }: StepBodyProps) {
           supportingText="This becomes your first confirmed measurement and gives future trends a real starting point."
         />
       );
+    case "energyProfile":
+      return <EnergyProfileBody form={form} onPatch={onPatch} error={error} />;
     case "primaryGoal":
       return <PrimaryGoalBody form={form} onPatch={onPatch} error={error} />;
   }
@@ -190,7 +193,7 @@ function WelcomeBody() {
       <ThemedText style={styles.paragraph}>
         Mizyun tracks your daily energy, training, and weight against a single
         primary goal so the math stays honest. Set up your starting point in
-        four short steps.
+        five short steps.
       </ThemedText>
       <ThemedText type="small" themeColor="textSecondary">
         You can change anything later from the Account tab.
@@ -295,6 +298,79 @@ function WeightBody({
   );
 }
 
+function EnergyProfileBody(props: {
+  readonly form: OnboardingForm;
+  readonly onPatch: (patch: OnboardingPatch) => void;
+  readonly error: string | null;
+}) {
+  const { form, onPatch, error } = props;
+  return (
+    <View style={styles.body}>
+      <ThemedText type="small" themeColor="textSecondary">
+        These confirmed inputs are used only by the deterministic energy
+        formula. They are not a diagnosis and can be changed later.
+      </ThemedText>
+      <ThemedText style={styles.label}>
+        Height ({lengthUnitLabel(form.unitSystem)})
+      </ThemedText>
+      <TextInput
+        accessibilityLabel={`Height (${lengthUnitLabel(form.unitSystem)})`}
+        keyboardType="decimal-pad"
+        value={form.height}
+        onChangeText={(value) => onPatch({ field: "height", value })}
+        placeholder={form.unitSystem === "imperial" ? "70" : "178"}
+        style={styles.input}
+      />
+      <ThemedText style={styles.label}>Birth year</ThemedText>
+      <TextInput
+        accessibilityLabel="Birth year"
+        keyboardType="number-pad"
+        value={form.birthYear}
+        onChangeText={(value) => onPatch({ field: "birthYear", value })}
+        placeholder="1995"
+        style={styles.input}
+      />
+      <ThemedText style={styles.label}>Formula sex input</ThemedText>
+      <View style={styles.choiceRow}>
+        <KindChoice
+          label="Female"
+          selected={form.sexAtBirth === "female"}
+          onPress={() => onPatch({ field: "sexAtBirth", value: "female" })}
+        />
+        <KindChoice
+          label="Male"
+          selected={form.sexAtBirth === "male"}
+          onPress={() => onPatch({ field: "sexAtBirth", value: "male" })}
+        />
+      </View>
+      <ThemedText style={styles.label}>Usual activity</ThemedText>
+      <View style={styles.choiceColumn}>
+        {(
+          [
+            ["Sedentary", "sedentary"],
+            ["Lightly active", "lightly_active"],
+            ["Moderately active", "moderately_active"],
+            ["Very active", "very_active"],
+            ["Extra active", "extra_active"],
+          ] as const
+        ).map(([label, value]) => (
+          <KindChoice
+            key={value}
+            label={label}
+            selected={form.activityLevel === value}
+            onPress={() => onPatch({ field: "activityLevel", value })}
+          />
+        ))}
+      </View>
+      {error ? (
+        <ThemedText accessibilityRole="alert" style={styles.fieldError}>
+          {error}
+        </ThemedText>
+      ) : null}
+    </View>
+  );
+}
+
 interface UnitChoiceProps {
   readonly label: string;
   readonly selected: boolean;
@@ -389,6 +465,8 @@ const titleFor = (step: OnboardingStep): string => {
       return "Pick your units";
     case "baselineWeight":
       return "Add your starting point";
+    case "energyProfile":
+      return "Complete the energy inputs";
     case "primaryGoal":
       return "Set a primary goal";
   }
@@ -404,6 +482,8 @@ const subtitleFor = (step: OnboardingStep): string => {
       return "Stored as kilograms; displayed in your choice.";
     case "baselineWeight":
       return "A confirmed baseline makes progress measurable.";
+    case "energyProfile":
+      return "Your inputs keep the estimate inspectable and reproducible.";
     case "primaryGoal":
       return "Drives the energy model until you change it.";
   }

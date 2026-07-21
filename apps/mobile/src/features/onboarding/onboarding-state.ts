@@ -14,13 +14,19 @@
  * knows how to roll back).
  */
 export type OnboardingStep =
-  "welcome" | "displayName" | "units" | "baselineWeight" | "primaryGoal";
+  | "welcome"
+  | "displayName"
+  | "units"
+  | "baselineWeight"
+  | "energyProfile"
+  | "primaryGoal";
 
 export const ONBOARDING_STEPS: ReadonlyArray<OnboardingStep> = [
   "welcome",
   "displayName",
   "units",
   "baselineWeight",
+  "energyProfile",
   "primaryGoal",
 ];
 
@@ -28,6 +34,16 @@ export interface OnboardingForm {
   readonly displayName: string;
   readonly unitSystem: "metric" | "imperial";
   readonly baselineWeight: string;
+  readonly height: string;
+  readonly birthYear: string;
+  readonly activityLevel:
+    | "sedentary"
+    | "lightly_active"
+    | "moderately_active"
+    | "very_active"
+    | "extra_active"
+    | null;
+  readonly sexAtBirth: "male" | "female" | null;
   readonly goalKind: "cut" | "recomp" | "maintain" | null;
   readonly goalWeight: string;
   readonly goalStartDate: string;
@@ -48,6 +64,10 @@ export const freshOnboardingForm = (now: Date): OnboardingForm => {
     displayName: "",
     unitSystem: "metric",
     baselineWeight: "",
+    height: "",
+    birthYear: "",
+    activityLevel: null,
+    sexAtBirth: null,
     goalKind: null,
     goalWeight: "",
     goalStartDate: today,
@@ -98,6 +118,27 @@ const validateWeight = (
 export const validateBaselineWeight = (form: OnboardingForm): string | null =>
   validateWeight(form.baselineWeight, form.unitSystem, "Baseline weight");
 
+export const validateEnergyProfile = (form: OnboardingForm): string | null => {
+  const height = Number(form.height.trim());
+  if (!Number.isFinite(height) || height <= 0) return "Enter a valid height.";
+  const heightCm = form.unitSystem === "imperial" ? height * 2.54 : height;
+  if (heightCm < 50 || heightCm > 260)
+    return "Height is outside the supported adult range.";
+  const birthYear = Number(form.birthYear.trim());
+  const maxBirthYear = new Date().getFullYear() - 13;
+  if (
+    !Number.isInteger(birthYear) ||
+    birthYear < 1900 ||
+    birthYear > maxBirthYear
+  ) {
+    return `Birth year must be between 1900 and ${maxBirthYear}.`;
+  }
+  if (form.activityLevel === null) return "Choose an activity level.";
+  if (form.sexAtBirth === null)
+    return "Choose a sex-at-birth input for the formula.";
+  return null;
+};
+
 export const validatePrimaryGoal = (form: OnboardingForm): string | null => {
   if (form.goalKind === null) return "Choose a goal kind.";
   return validateWeight(form.goalWeight, form.unitSystem, "Goal weight");
@@ -116,6 +157,8 @@ export const validateStep = (
       return validateUnits(form);
     case "baselineWeight":
       return validateBaselineWeight(form);
+    case "energyProfile":
+      return validateEnergyProfile(form);
     case "primaryGoal":
       return validatePrimaryGoal(form);
   }
@@ -145,6 +188,16 @@ export type OnboardingPatch =
   | { readonly field: "displayName"; readonly value: string }
   | { readonly field: "unitSystem"; readonly value: "metric" | "imperial" }
   | { readonly field: "baselineWeight"; readonly value: string }
+  | { readonly field: "height"; readonly value: string }
+  | { readonly field: "birthYear"; readonly value: string }
+  | {
+      readonly field: "activityLevel";
+      readonly value: OnboardingForm["activityLevel"];
+    }
+  | {
+      readonly field: "sexAtBirth";
+      readonly value: OnboardingForm["sexAtBirth"];
+    }
   | { readonly field: "goalKind"; readonly value: OnboardingForm["goalKind"] }
   | { readonly field: "goalWeight"; readonly value: string }
   | { readonly field: "goalStartDate"; readonly value: string }
@@ -164,10 +217,19 @@ export const applyOnboardingPatch = (
             ...form,
             unitSystem: patch.value,
             baselineWeight: "",
+            height: "",
             goalWeight: "",
           };
     case "baselineWeight":
       return { ...form, baselineWeight: patch.value };
+    case "height":
+      return { ...form, height: patch.value };
+    case "birthYear":
+      return { ...form, birthYear: patch.value };
+    case "activityLevel":
+      return { ...form, activityLevel: patch.value };
+    case "sexAtBirth":
+      return { ...form, sexAtBirth: patch.value };
     case "goalKind":
       return { ...form, goalKind: patch.value };
     case "goalWeight":

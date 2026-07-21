@@ -10,6 +10,10 @@ const baseForm = (overrides: Partial<OnboardingForm> = {}): OnboardingForm => ({
   displayName: "Adam",
   unitSystem: "metric",
   baselineWeight: "72.5",
+  height: "178",
+  birthYear: "1995",
+  activityLevel: "moderately_active",
+  sexAtBirth: "female",
   goalKind: "cut",
   goalWeight: "68",
   goalStartDate: "2026-07-19",
@@ -94,6 +98,10 @@ describe("submitOnboarding", () => {
     expect(client.calls[4]?.body).toEqual({
       displayName: "Adam",
       unitSystem: "metric",
+      heightCm: 178,
+      birthYear: 1995,
+      activityLevel: "moderately_active",
+      sexAtBirth: "female",
     });
   });
 
@@ -109,6 +117,7 @@ describe("submitOnboarding", () => {
       baseForm({
         unitSystem: "imperial",
         baselineWeight: "160",
+        height: "70",
         goalWeight: "150",
       }),
       client,
@@ -117,6 +126,7 @@ describe("submitOnboarding", () => {
       target: { weightKg: 68.039 },
     });
     expect(client.calls[3]?.body).toMatchObject({ weightKg: 72.575 });
+    expect(client.calls[4]?.body).toMatchObject({ heightCm: 177.8 });
   });
 
   it("skips duplicate creates when a retry finds existing authority", async () => {

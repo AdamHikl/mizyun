@@ -85,6 +85,7 @@ export const energySummaryQuerySchema = z
   .object({
     activityLevel: activityLevelSchema.optional(),
     sexAtBirth: sexAtBirthSchema.optional(),
+    utcOffsetMinutes: z.coerce.number().int().gte(-840).lte(840).optional(),
   })
   .strict();
 

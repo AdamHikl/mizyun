@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { displayLengthToCentimeters, lengthUnitLabel } from "./length-units";
+import {
+  centimetersToDisplayLength,
+  displayLengthToCentimeters,
+  lengthUnitLabel,
+} from "./length-units";
 
 describe("length unit boundaries", () => {
   it("converts inches to canonical centimeters", () => {
@@ -9,6 +13,10 @@ describe("length unit boundaries", () => {
 
   it("keeps metric values unchanged", () => {
     expect(displayLengthToCentimeters(81.2, "metric")).toBe(81.2);
+  });
+
+  it("prefills imperial displays from canonical centimeters", () => {
+    expect(centimetersToDisplayLength(177.8, "imperial")).toBe(70);
   });
 
   it("provides the selected display label", () => {

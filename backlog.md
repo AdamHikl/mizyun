@@ -39,7 +39,7 @@ These items convert the tested domain/API foundation into the low-friction produ
 | MOB-NUT-001   | P1       | done    | Manual food logging and daily totals UI               | User can create/edit/delete food and see stored calorie/macro totals        |
 | MOB-WO-001    | P1       | done    | Exercise, workout, and set logging UI                 | User completes a workout and sees previous performance                      |
 | MOB-BODY-001  | P1       | done    | Weight/measurement entry and trend UI                 | User records weight and sees raw history plus a labeled trend               |
-| MOB-DASH-001  | P1       | active  | Replace dashboard placeholders with real summaries    | Calories, weight, training, and energy state come from persisted records    |
+| MOB-DASH-001  | P1       | done    | Replace dashboard placeholders with real summaries    | Calories, weight, training, and energy state come from persisted records    |
 | MEDIA-MOB-001 | P1       | blocked | Progress-photo capture/upload/timeline/compare UI     | Private photo lifecycle is usable and deletable from mobile                 |
 | OBS-001       | P1       | blocked | Privacy-safe product validation analytics             | Activation, logging efficiency, failures, and retention are measurable      |
 | ALPHA-001     | P0       | blocked | Founder week plus 10–30 design-partner alpha          | No open P0/P1 issue blocks repeated use; evidence and feedback are recorded |

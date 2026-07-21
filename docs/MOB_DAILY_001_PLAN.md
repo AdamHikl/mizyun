@@ -60,10 +60,10 @@ MOB-WO-001 is complete: the workout route now creates or selects custom exercise
 
 MOB-BODY-001 is complete: measurement capture supports optional weight, waist, and chest in metric or imperial display units; the Body progress route shows every raw reading, a raw-reading chart, confirmed deletion, an elapsed-time seven-day-half-life smooth, and a 28-day weekly regression rate that remains explicitly insufficient until evidence thresholds are met.
 
+MOB-DASH-001 is complete at the implementation gate: onboarding and the recovery editor capture every deterministic energy input; the dashboard shows the local-day energy target/balance with formula assumptions and incomplete reasons; and week/month reviews aggregate complete nutrition days plus completed workouts. Persisted native-device acceptance remains part of the MOB-DAILY-001 parent gate.
+
 ## Open follow-ups (per the matrix)
 
-- MOB-DASH-001 — deterministic energy state, assumptions, and weekly progress summary.
-- MOB-DASH-001 — the trend views (week/month) and the energy-summary card from ENG-002.
 - MEDIA-MOB-001 — the photo capture + upload flow against PERSIST-003.
 - AND-001 — verify the same loop on Android (deferred).
 - OBS-001 — consent-respecting analytics once the loop is durable end-to-end.

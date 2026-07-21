@@ -22,34 +22,12 @@ import {
 } from "@mizyun/identity";
 
 import { ChunkedStorage, type StringStorage } from "./chunked-storage";
+import { createWebStorage } from "./web-storage";
 
 const secureStorePrimitive: StringStorage = {
   getItem: (key) => SecureStore.getItemAsync(key),
   setItem: (key, value) => SecureStore.setItemAsync(key, value),
   removeItem: (key) => SecureStore.deleteItemAsync(key),
-};
-
-const memoryStorage = (): StringStorage => {
-  const values = new Map<string, string>();
-  return {
-    getItem: async (key) => values.get(key) ?? null,
-    setItem: async (key, value) => {
-      values.set(key, value);
-    },
-    removeItem: async (key) => {
-      values.delete(key);
-    },
-  };
-};
-
-const webStorage = (): StringStorage => {
-  const storage = globalThis.localStorage;
-  if (!storage) return memoryStorage();
-  return {
-    getItem: async (key) => storage.getItem(key),
-    setItem: async (key, value) => storage.setItem(key, value),
-    removeItem: async (key) => storage.removeItem(key),
-  };
 };
 
 const toAuthSession = (session: Session | null): AuthSession | null => {
@@ -214,7 +192,7 @@ export const createSupabaseMobileAuthClient = (
 ): AuthClient => {
   const storage =
     Platform.OS === "web"
-      ? webStorage()
+      ? createWebStorage()
       : new ChunkedStorage(secureStorePrimitive);
   const client = createClient(configuration.url, configuration.publishableKey, {
     auth: {

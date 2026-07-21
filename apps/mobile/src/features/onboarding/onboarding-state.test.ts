@@ -9,6 +9,7 @@ import {
   stepIndex,
   validatePrimaryGoal,
   validateBaselineWeight,
+  validateEnergyProfile,
   validateDisplayName,
   validateStep,
   type OnboardingForm,
@@ -120,6 +121,29 @@ describe("validateBaselineWeight", () => {
   });
 });
 
+describe("validateEnergyProfile", () => {
+  it("requires all deterministic energy inputs", () => {
+    expect(validateEnergyProfile(fresh())).toMatch(/height/i);
+  });
+
+  it("accepts equivalent metric and imperial heights", () => {
+    const shared = {
+      ...fresh(),
+      birthYear: "1995",
+      activityLevel: "moderately_active" as const,
+      sexAtBirth: "female" as const,
+    };
+    expect(validateEnergyProfile({ ...shared, height: "178" })).toBeNull();
+    expect(
+      validateEnergyProfile({
+        ...shared,
+        unitSystem: "imperial",
+        height: "70",
+      }),
+    ).toBeNull();
+  });
+});
+
 describe("validateStep", () => {
   it("routes welcome and units to no-op validators", () => {
     expect(validateStep("welcome", fresh())).toBeNull();
@@ -129,6 +153,7 @@ describe("validateStep", () => {
   it("routes displayName and primaryGoal to their dedicated validators", () => {
     expect(validateStep("displayName", fresh())).toMatch(/blank/i);
     expect(validateStep("baselineWeight", fresh())).toMatch(/baseline/i);
+    expect(validateStep("energyProfile", fresh())).toMatch(/height/i);
     expect(validateStep("primaryGoal", fresh())).toMatch(/goal kind/i);
   });
 });
@@ -140,6 +165,7 @@ describe("ONBOARDING_STEPS ordering", () => {
       "displayName",
       "units",
       "baselineWeight",
+      "energyProfile",
       "primaryGoal",
     ]);
   });
@@ -149,14 +175,16 @@ describe("ONBOARDING_STEPS ordering", () => {
     expect(stepIndex("displayName")).toBe(1);
     expect(stepIndex("units")).toBe(2);
     expect(stepIndex("baselineWeight")).toBe(3);
-    expect(stepIndex("primaryGoal")).toBe(4);
+    expect(stepIndex("energyProfile")).toBe(4);
+    expect(stepIndex("primaryGoal")).toBe(5);
   });
 
   it("advances to the next step", () => {
     expect(nextStep("welcome")).toBe("displayName");
     expect(nextStep("displayName")).toBe("units");
     expect(nextStep("units")).toBe("baselineWeight");
-    expect(nextStep("baselineWeight")).toBe("primaryGoal");
+    expect(nextStep("baselineWeight")).toBe("energyProfile");
+    expect(nextStep("energyProfile")).toBe("primaryGoal");
     expect(nextStep("primaryGoal")).toBeNull();
   });
 
@@ -165,7 +193,8 @@ describe("ONBOARDING_STEPS ordering", () => {
     expect(previousStep("displayName")).toBe("welcome");
     expect(previousStep("units")).toBe("displayName");
     expect(previousStep("baselineWeight")).toBe("units");
-    expect(previousStep("primaryGoal")).toBe("baselineWeight");
+    expect(previousStep("energyProfile")).toBe("baselineWeight");
+    expect(previousStep("primaryGoal")).toBe("energyProfile");
   });
 });
 
@@ -180,7 +209,12 @@ describe("applyOnboardingPatch", () => {
 
   it("updates the unit system", () => {
     const next = applyOnboardingPatch(
-      { ...fresh(), baselineWeight: "72", goalWeight: "68" },
+      {
+        ...fresh(),
+        baselineWeight: "72",
+        height: "178",
+        goalWeight: "68",
+      },
       {
         field: "unitSystem",
         value: "imperial",
@@ -188,6 +222,7 @@ describe("applyOnboardingPatch", () => {
     );
     expect(next.unitSystem).toBe("imperial");
     expect(next.baselineWeight).toBe("");
+    expect(next.height).toBe("");
     expect(next.goalWeight).toBe("");
   });
 
@@ -215,6 +250,31 @@ describe("applyOnboardingPatch", () => {
       value: "78",
     });
     expect(goal.goalWeight).toBe("78");
+  });
+
+  it("updates the deterministic energy inputs", () => {
+    const height = applyOnboardingPatch(fresh(), {
+      field: "height",
+      value: "178",
+    });
+    const year = applyOnboardingPatch(height, {
+      field: "birthYear",
+      value: "1995",
+    });
+    const activity = applyOnboardingPatch(year, {
+      field: "activityLevel",
+      value: "moderately_active",
+    });
+    const sex = applyOnboardingPatch(activity, {
+      field: "sexAtBirth",
+      value: "female",
+    });
+    expect(sex).toMatchObject({
+      height: "178",
+      birthYear: "1995",
+      activityLevel: "moderately_active",
+      sexAtBirth: "female",
+    });
   });
 
   it("updates the dates", () => {

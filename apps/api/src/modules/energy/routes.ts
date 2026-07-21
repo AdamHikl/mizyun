@@ -59,17 +59,18 @@ const fetchLatestMeasurement = async (
  * Convert a `YYYY-MM-DD` date to the start-of-day instant (UTC)
  * the route layer uses for range filters.
  */
-const isoDateToStartOfDay = (iso: string): Date => {
+const isoDateToStartOfDay = (iso: string, utcOffsetMinutes = 0): Date => {
   const parts = iso.split("-").map((part) => Number.parseInt(part, 10));
   const [year, month, day] = parts as [number, number, number];
-  return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+  return new Date(
+    Date.UTC(year, month - 1, day, 0, 0, 0, 0) - utcOffsetMinutes * 60_000,
+  );
 };
 
-const isoDateToEndOfDay = (iso: string): Date => {
-  const parts = iso.split("-").map((part) => Number.parseInt(part, 10));
-  const [year, month, day] = parts as [number, number, number];
-  return new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
-};
+const isoDateToEndOfDay = (iso: string, utcOffsetMinutes = 0): Date =>
+  new Date(
+    isoDateToStartOfDay(iso, utcOffsetMinutes).getTime() + 86_400_000 - 1,
+  );
 
 /**
  * Sum today's consumed kcal from the food-entry repository.
@@ -84,13 +85,15 @@ const fetchTodayConsumedKcal = async (
   userId: UserId,
   now: Date,
   accessToken: string,
+  utcOffsetMinutes: number,
 ): Promise<number | null> => {
-  const y = now.getUTCFullYear();
-  const m = (now.getUTCMonth() + 1).toString().padStart(2, "0");
-  const d = now.getUTCDate().toString().padStart(2, "0");
+  const localNow = new Date(now.getTime() + utcOffsetMinutes * 60_000);
+  const y = localNow.getUTCFullYear();
+  const m = (localNow.getUTCMonth() + 1).toString().padStart(2, "0");
+  const d = localNow.getUTCDate().toString().padStart(2, "0");
   const dateIso = `${y}-${m}-${d}`;
-  const from = isoDateToStartOfDay(dateIso);
-  const to = isoDateToEndOfDay(dateIso);
+  const from = isoDateToStartOfDay(dateIso, utcOffsetMinutes);
+  const to = isoDateToEndOfDay(dateIso, utcOffsetMinutes);
   const entries = await repo.list(userId, {
     from,
     to,
@@ -164,6 +167,7 @@ const computeRouteSummary = async (
   query: {
     readonly activityLevel: ActivityLevel | null;
     readonly sexAtBirth: SexAtBirth | null;
+    readonly utcOffsetMinutes: number;
   },
   now: Date,
 ): Promise<EnergyBreakdown> => {
@@ -190,6 +194,7 @@ const computeRouteSummary = async (
     userId,
     now,
     accessToken,
+    query.utcOffsetMinutes,
   );
 
   // Profile values win over query-string overrides — the
@@ -329,6 +334,7 @@ export const energyRoutes: FastifyPluginAsync<EnergyRoutesOptions> = async (
         {
           activityLevel: parsed.data.activityLevel ?? null,
           sexAtBirth: parsed.data.sexAtBirth ?? null,
+          utcOffsetMinutes: parsed.data.utcOffsetMinutes ?? 0,
         },
         now,
       );

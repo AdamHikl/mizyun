@@ -9,6 +9,7 @@ import {
   type ProfilePatch,
 } from "@mizyun/contracts";
 import { displayWeightToKilograms } from "@/lib/weight-units";
+import { displayLengthToCentimeters } from "@/lib/length-units";
 
 import type { OnboardingForm } from "./onboarding-state";
 
@@ -39,10 +40,16 @@ export const submitOnboarding = async (
 ): Promise<SubmitOnboardingResult> => {
   const baselineDisplay = Number(form.baselineWeight.trim());
   const goalDisplay = Number(form.goalWeight.trim());
+  const heightDisplay = Number(form.height.trim());
+  const birthYear = Number(form.birthYear.trim());
   if (
     form.goalKind === null ||
+    form.activityLevel === null ||
+    form.sexAtBirth === null ||
     !Number.isFinite(baselineDisplay) ||
-    !Number.isFinite(goalDisplay)
+    !Number.isFinite(goalDisplay) ||
+    !Number.isFinite(heightDisplay) ||
+    !Number.isInteger(birthYear)
   ) {
     return { ok: false, message: "Please review your goal and weight values." };
   }
@@ -51,6 +58,7 @@ export const submitOnboarding = async (
     form.unitSystem,
   );
   const goalWeightKg = displayWeightToKilograms(goalDisplay, form.unitSystem);
+  const heightCm = displayLengthToCentimeters(heightDisplay, form.unitSystem);
 
   const activeGoal = await client.request({
     method: "GET",
@@ -133,6 +141,10 @@ export const submitOnboarding = async (
   const profilePatch: ProfilePatch = {
     displayName: form.displayName.trim(),
     unitSystem: form.unitSystem,
+    heightCm,
+    birthYear,
+    activityLevel: form.activityLevel,
+    sexAtBirth: form.sexAtBirth,
   };
   const profileResult = await client.request({
     method: "PUT",

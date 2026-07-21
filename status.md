@@ -1,16 +1,16 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-07-19**.
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-07-21**.
 
 ## Executive snapshot
 
 - **Product stage:** technical pre-alpha; the architecture and domain/API foundation are strong, but this is not yet a customer-usable tracking beta.
-- **Roadmap position:** MOB-DAILY-001 is active. MOB-NUT-001, MOB-ONB-001, MOB-WO-001, and MOB-BODY-001 are complete; energy state and persistent-device acceptance remain.
-- **Latest verified implementation slice:** MOB-BODY-001 — optional body measurements, raw history/chart, confirmed correction deletion, and an explicitly labeled deterministic weight trend.
-- **Next exact action:** MOB-DASH-001 — add deterministic energy state, assumptions, and a weekly progress summary to the dashboard.
+- **Roadmap position:** MOB-DAILY-001 is active. MOB-NUT-001, MOB-ONB-001, MOB-WO-001, MOB-BODY-001, and MOB-DASH-001 are complete at the implementation gate; persisted native-device acceptance and the progress-photo loop remain.
+- **Latest verified implementation slice:** MOB-DASH-001 — complete energy inputs, local-day deterministic energy state, transparent assumptions, and calendar week/month nutrition plus completed-workout reviews.
+- **Next exact action:** PERSIST-003 — implement and verify the real Supabase private-media storage adapter, then unblock MEDIA-MOB-001.
 - **Branch:** `main`; the coherent documentation, persistence, and mobile productization changes are included in the MOB-NUT-001 handoff commit.
 - **Remote:** `https://github.com/AdamHikl/mizyun`.
-- **Remote state:** local `main` is one commit ahead at `de3b197`; pushing this and future MOB slices requires explicit user approval.
+- **Remote state:** local `main` is three commits ahead at `8c75660` before the pending MOB-DASH-001 commit; pushing these MOB slices requires explicit user approval.
 - **AI provider:** intentionally disabled. No Mistral or other model API is configured.
 - **Hosted Supabase:** not created or linked.
 - **iOS:** bundle quality gate passes; prior simulator authentication work is documented.
@@ -54,10 +54,11 @@ The calculation layer correctly treats missing data as incomplete, separates det
 The mobile app currently includes:
 
 - configuration-required, authentication, confirmation/recovery, and session-loading states;
-- an onboarding wizard connected to the profile/goal endpoints;
+- an onboarding wizard connected to the profile/goal endpoints, including height, birth year, activity level, sex at birth, units, goal, and baseline weight;
 - onboarding baseline weight in metric or imperial units, persisted before the profile completion marker with retry-safe discovery of partial prior writes;
 - an Account tab with verified-principal display and sign-out;
-- a Home dashboard that reads today's confirmed calorie/macro summary, latest weight, and the current local calendar week's workout count from the API;
+- a Home dashboard that reads today's local-day calorie/macro and deterministic energy summary, latest weight, and calendar week/month review data from the API;
+- an energy-input recovery route for existing accounts, with unit-aware height editing and explicit incomplete-state reasons;
 - dashboard routes to create a manual meal, a minimal completed workout record, or a weight observation;
 - small encrypted, user-scoped logging drafts that survive app restart and are cleared only after the API confirms success;
 - metric/imperial weight entry and display with canonical kilograms at the API boundary;
@@ -67,12 +68,12 @@ The mobile app currently includes:
 
 ## Critical implementation distinction
 
-The first create paths are usable, but most tracking lifecycle behavior is **not yet available from the mobile app**:
+The core manual tracking lifecycles are implemented, but release-grade acceptance and the media loop remain incomplete:
 
 - food entries now have a complete manual mobile lifecycle for today's local calendar day; multi-day history remains deferred;
 - workout templates/reordering and broader progression summaries remain absent; the manual active-session/set/previous-performance loop is available;
 - body measurement activation, capture, raw history, and labeled trend are available; additional measurement kinds remain schema-extensible;
-- the dashboard does not yet show deterministic energy state or a weekly review;
+- the dashboard shows deterministic energy state and calendar week/month reviews, but persisted native-device acceptance remains open;
 - progress-photo capture/upload/timeline/compare remains absent;
 - the Coach screen is a provider-not-connected placeholder;
 - there is no HealthKit/Health Connect step synchronization;
@@ -82,7 +83,7 @@ The API can select Supabase-backed profile, goal, food, exercise, workout, worko
 
 Do not describe NUT-_, WO-_, BODY-_, ENG-_, MEDIA-* or DATA-001 as customer-complete. They are verified domain/API slices awaiting persistent adapters and mobile integration.
 
-## Verification evidence — 2026-07-19
+## Verification evidence — 2026-07-21
 
 The complete standard gate was run from the local repository:
 
@@ -90,8 +91,8 @@ The complete standard gate was run from the local repository:
 pnpm check
   formatting: passed
   workspace TypeScript checks: passed
-  iOS Expo/Metro/Hermes export: passed (1,634 modules, 4.6 MB bundle)
-  tests: 663 passed
+  iOS Expo/Metro/Hermes export: passed (1,639 modules, 4.6 MB bundle)
+  tests: 677 passed
   opt-in Supabase persistence/auth e2e: 12 skipped because local e2e credentials were not enabled
 ```
 
@@ -104,7 +105,7 @@ pnpm db:verify
   pgTAP: 55 assertions passed
 ```
 
-The full `pnpm check` gate passed after MOB-BODY-001: formatting, all workspace TypeScript checks, the iOS bundle (1,634 modules, 4.6 MB), and 663 tests. Twelve opt-in Supabase persistence/auth e2e tests were skipped because local e2e credentials were not enabled. No simulator/device acceptance was run in this session. Re-run the database and opt-in e2e gates whenever persistent adapters or hosted configuration change.
+The full `pnpm check` gate passed after MOB-DASH-001: formatting, all workspace TypeScript checks, the iOS bundle (1,639 modules, 4.6 MB), and 677 tests. Twelve opt-in Supabase persistence/auth e2e tests were skipped because local e2e credentials were not enabled. The focused gate included 97 mobile tests, 227 API tests, 13 contract tests, and 4 mobile-adapter tests. An Expo web interaction pass verified the energy-input route, validation, enabled save state, and week/month selector. Authenticated API persistence could not be exercised through Expo web because the local API returned 404 to CORS preflight requests; this does not substitute for native simulator/device acceptance. Re-run the database and opt-in e2e gates whenever persistent adapters or hosted configuration change.
 
 ## Business-plan alignment
 
@@ -117,9 +118,9 @@ The full `pnpm check` gate passed after MOB-BODY-001: formatting, all workspace 
 
 ### Gaps blocking early customers
 
-- The first low-effort create paths exist, but full meal/workout/weight lifecycles and authenticated simulator acceptance are incomplete.
+- The manual meal/workout/weight lifecycles and dashboard review exist, but authenticated native simulator/device acceptance is incomplete.
 - Supabase repository adapters exist, but hosted composition and restart evidence are not yet part of the default runtime gate.
-- There is no usable progress dashboard or weekly review.
+- The progress dashboard and calendar review exist; progress-photo capture/upload/timeline/compare remains absent.
 - Photo capture/upload and AI-assisted calorie drafts do not exist end to end.
 - The memory-aware coach is only an interface and disabled implementation.
 - Android has not been verified.
@@ -163,4 +164,4 @@ Never put a service-role or model secret in an `EXPO_PUBLIC_` variable. AI remai
 
 ## Handoff note
 
-Read `AGENTS.md`, `goals.md`, `docs/BUSINESS_ALIGNMENT.md`, `plan.md`, this file, and `backlog.md` before implementation. Continue MOB-DAILY-001 with MOB-DASH-001: add deterministic energy state, assumptions, and a weekly progress summary. Do not start AI.
+Read `AGENTS.md`, `goals.md`, `docs/BUSINESS_ALIGNMENT.md`, `plan.md`, this file, and `backlog.md` before implementation. Continue with PERSIST-003: implement and verify the real Supabase private-media storage adapter, then build MEDIA-MOB-001. Do not start AI.
