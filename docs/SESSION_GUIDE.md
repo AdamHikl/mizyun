@@ -27,18 +27,19 @@ Code is truth about what exists; it is not automatically truth about what should
    - `plan.md`
    - `status.md`
 2. Read `backlog.md` and the requirements/ADR files relevant to the active work package.
-3. Inspect repository state:
+3. When the session needs local services, native builds, simulators/emulators, or acceptance tests, open [`docs/tutorials/README.md`](./tutorials/README.md) and follow the narrowest runbook instead of reconstructing commands from chat history.
+4. Inspect repository state:
 
    ```bash
    git status --short
    git log --oneline --decorate -10
    ```
 
-4. Preserve any pre-existing user changes. Do not reset or overwrite unrelated work.
-5. Confirm the active work item and its definition of done from `status.md` and `backlog.md`.
-6. Research current official documentation for every platform/service materially affected.
-7. Add the sources and consequences to `docs/RESEARCH_LOG.md`; create an ADR if the result is durable.
-8. State assumptions and begin with the smallest vertical slice that can be verified end to end.
+5. Preserve any pre-existing user changes. Do not reset or overwrite unrelated work.
+6. Confirm the active work item and its definition of done from `status.md` and `backlog.md`.
+7. Research current official documentation for every platform/service materially affected.
+8. Add the sources and consequences to `docs/RESEARCH_LOG.md`; create an ADR if the result is durable.
+9. State assumptions and begin with the smallest vertical slice that can be verified end to end.
 
 ## During a session
 
@@ -114,17 +115,18 @@ For each affected technology:
 
 ## Documentation ownership
 
-| File                           | Purpose                                       | Update frequency                              |
-| ------------------------------ | --------------------------------------------- | --------------------------------------------- |
-| `goals.md`                     | Product mission, scope, non-goals, principles | Rarely, with product-direction changes        |
-| `plan.md`                      | Phase order, dependencies, exit criteria      | At phase/work-package transitions             |
-| `status.md`                    | Current implementation and next exact action  | Every development session                     |
-| `backlog.md`                   | Executable tasks and dependencies             | Whenever work is discovered/started/completed |
-| `docs/PRODUCT_REQUIREMENTS.md` | Stable behavioral requirements                | When accepted behavior changes                |
-| `docs/QUALITY_GATES.md`        | Definition of done and release criteria       | When testing/risk policy changes              |
-| `docs/RESEARCH_LOG.md`         | Primary-source findings                       | Before each affected implementation segment   |
-| `docs/adr/`                    | Durable technical decisions                   | When a decision is accepted/superseded        |
-| `docs/BEFORE_TESTING.md`       | AI activation gate                            | During evaluated AI-provider work only        |
+| File                           | Purpose                                        | Update frequency                               |
+| ------------------------------ | ---------------------------------------------- | ---------------------------------------------- |
+| `goals.md`                     | Product mission, scope, non-goals, principles  | Rarely, with product-direction changes         |
+| `plan.md`                      | Phase order, dependencies, exit criteria       | At phase/work-package transitions              |
+| `status.md`                    | Current implementation and next exact action   | Every development session                      |
+| `backlog.md`                   | Executable tasks and dependencies              | Whenever work is discovered/started/completed  |
+| `docs/PRODUCT_REQUIREMENTS.md` | Stable behavioral requirements                 | When accepted behavior changes                 |
+| `docs/QUALITY_GATES.md`        | Definition of done and release criteria        | When testing/risk policy changes               |
+| `docs/tutorials/`              | Setup, build, test, and troubleshooting memory | Whenever a proven operational workflow changes |
+| `docs/RESEARCH_LOG.md`         | Primary-source findings                        | Before each affected implementation segment    |
+| `docs/adr/`                    | Durable technical decisions                    | When a decision is accepted/superseded         |
+| `docs/BEFORE_TESTING.md`       | AI activation gate                             | During evaluated AI-provider work only         |
 
 ## Avoiding documentation drift
 

@@ -2,6 +2,8 @@
 
 This document is the manual counterpart to `apps/api/src/auth.e2e.test.ts`. The e2e test exercises the same GoTrue → Mailpit → `/v1/me` round-trip programmatically; this checklist is the path that drives the iOS simulator's React Native UI and proves that the production code in `apps/mobile/src/features/auth/` does the same thing end-to-end.
 
+For host setup, Release builds, simulator commands, and recurring failures, use the [`docs/tutorials` memory wiki](./tutorials/README.md). This page owns the Auth behavior checklist only.
+
 Run this verification when:
 
 - Changing the Supabase mobile adapter (`packages/adapters/supabase-mobile/`).
@@ -160,5 +162,5 @@ This stops the local Docker containers. Do not leave the stack running when not 
 
 - Real email delivery (local Supabase routes everything to Mailpit).
 - Hosted Supabase project integration (no project linked; this is the next segment after AUTH-002 / AUTH-003).
-- Password recovery or email change flows (AUTH-003).
-- Android emulator behaviour (AND-001).
+- Email-change behavior against a real provider.
+- Android UI behavior; AND-001 has separate standalone Android sign-in/session evidence in [`status.md`](../status.md) and the [Android runbook](./tutorials/ANDROID_EMULATOR.md).

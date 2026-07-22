@@ -2,9 +2,10 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { parseDeepLinkFragment } from "@mizyun/identity";
 import { useEffect } from "react";
-import { Linking, useColorScheme } from "react-native";
+import { AppState, Linking, useColorScheme } from "react-native";
 
 import { AnimatedSplashOverlay } from "@/components/animated-icon";
+import { analyticsClient } from "@/composition/analytics-client";
 import AppTabs from "@/components/app-tabs";
 import {
   AuthProvider,
@@ -13,6 +14,27 @@ import {
 } from "@/features/auth/auth-context";
 
 SplashScreen.preventAutoHideAsync();
+
+function AnalyticsSessionBridge() {
+  useEffect(() => {
+    let previous = AppState.currentState;
+    void analyticsClient.track({
+      name: "app_session_started",
+      properties: { entryPoint: "cold_start" },
+    });
+    const subscription = AppState.addEventListener("change", (next) => {
+      if (next === "active" && previous !== "active") {
+        void analyticsClient.track({
+          name: "app_session_started",
+          properties: { entryPoint: "foreground" },
+        });
+      }
+      previous = next;
+    });
+    return () => subscription.remove();
+  }, []);
+  return null;
+}
 
 /**
  * Bridges the platform `Linking` API into the auth boundary.
@@ -58,6 +80,7 @@ export default function TabLayout() {
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
       <AnimatedSplashOverlay />
+      <AnalyticsSessionBridge />
       <AuthProvider>
         <DeepLinkBridge />
         <SessionGate>

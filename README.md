@@ -18,7 +18,10 @@ Supporting sources of truth:
 - [`docs/PRODUCT_REQUIREMENTS.md`](docs/PRODUCT_REQUIREMENTS.md) — stable behavioral requirement IDs
 - [`docs/BUSINESS_ALIGNMENT.md`](docs/BUSINESS_ALIGNMENT.md) — bridge between product strategy and engineering priorities
 - [`docs/QUALITY_GATES.md`](docs/QUALITY_GATES.md) — definition of done and release gates
+- [`docs/OBSERVABILITY.md`](docs/OBSERVABILITY.md) — reviewed product-analytics events, properties, consent, retention, and export boundary
+- [`docs/alpha/README.md`](docs/alpha/README.md) — founder dogfood, design-partner, native acceptance, issue, and aggregate-results evidence
 - [`docs/SESSION_GUIDE.md`](docs/SESSION_GUIDE.md) — start/research/handoff workflow
+- [`docs/tutorials/README.md`](docs/tutorials/README.md) — reusable setup, build, test, simulator, emulator, and troubleshooting runbooks
 - [`docs/RESEARCH_LOG.md`](docs/RESEARCH_LOG.md) — primary sources reviewed by segment
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and [`docs/adr/`](docs/adr/) — module boundaries and durable decisions
 - [`docs/BEFORE_TESTING.md`](docs/BEFORE_TESTING.md) — mandatory gate before enabling AI
@@ -41,14 +44,19 @@ supabase/
   migrations/          Database, RLS, and private-storage definitions
 docs/
   adr/                 Architecture decision records
+  tutorials/           Operational memory wiki and proven runbooks
+  alpha/               ALPHA-001 validation workflow and evidence ledger
   BUSINESS_ALIGNMENT.md  Customer, business, and validation alignment
   PRODUCT_REQUIREMENTS.md  Stable behavioral requirements
+  OBSERVABILITY.md       Privacy-safe product analytics event catalog
   QUALITY_GATES.md     Definition of done and release criteria
   RESEARCH_LOG.md      Dated primary-source research
   SESSION_GUIDE.md     Cross-session continuity procedure
 ```
 
 ## Local setup
+
+For the maintained, platform-specific workflow—including standalone Release builds and known failures—start with the [development memory wiki](docs/tutorials/README.md). The abbreviated setup is:
 
 1. Install Node.js 22.13 or newer, pnpm 10, and a running Docker-compatible container runtime.
 2. Run `pnpm install`.

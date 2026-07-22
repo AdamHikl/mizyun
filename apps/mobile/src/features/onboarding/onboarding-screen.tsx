@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { bucketDuration, bucketTaps } from "@mizyun/observability";
 import {
   ActivityIndicator,
   Pressable,
@@ -13,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { apiClient } from "@/composition/api-client";
+import { analyticsClient } from "@/composition/analytics-client";
 import { MaxContentWidth, Spacing } from "@/constants/theme";
 import { weightUnitLabel } from "@/lib/weight-units";
 import { lengthUnitLabel } from "@/lib/length-units";
@@ -45,11 +47,14 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const startedAt = useRef(Date.now());
+  const taps = useRef(0);
 
   const validationError = useMemo(() => validateStep(step, form), [step, form]);
   const canContinue = validationError === null && !busy;
 
   const onAdvance = useCallback(async () => {
+    taps.current += 1;
     const next = nextStep(step);
     if (next === null) {
       // Final step — submit to the API.
@@ -58,6 +63,13 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
       try {
         const result = await submitOnboarding(form, apiClient);
         if (result.ok) {
+          void analyticsClient.track({
+            name: "onboarding_completed",
+            properties: {
+              duration: bucketDuration(Date.now() - startedAt.current),
+              taps: bucketTaps(taps.current),
+            },
+          });
           onComplete();
         } else {
           setError(result.message);
@@ -71,6 +83,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   }, [step, form, onComplete]);
 
   const onBack = useCallback(() => {
+    taps.current += 1;
     const prev = previousStep(step);
     if (prev !== null) setStep(prev);
   }, [step]);
@@ -104,6 +117,8 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
             onPatch={patch}
             error={validationError}
           />
+
+          {step === "welcome" ? <AnalyticsConsentPrompt /> : null}
 
           {error ? (
             <ThemedText style={styles.apiError}>{error}</ThemedText>
@@ -145,6 +160,74 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
           </View>
         </ScrollView>
       </SafeAreaView>
+    </ThemedView>
+  );
+}
+
+function AnalyticsConsentPrompt() {
+  const [consent, setConsent] = useState<
+    "loading" | "unknown" | "granted" | "denied"
+  >("loading");
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    void analyticsClient.getConsent().then(setConsent);
+  }, []);
+
+  const choose = useCallback(async (next: "granted" | "denied") => {
+    const saved = await analyticsClient.setConsent(next);
+    setConsent(saved ? next : "unknown");
+    setMessage(
+      saved
+        ? next === "granted"
+          ? "Optional analytics enabled. You can disable and clear it in Account."
+          : "Optional analytics is off. Mizyun works the same way."
+        : "The preference could not be saved, so analytics remains off.",
+    );
+  }, []);
+
+  return (
+    <ThemedView type="backgroundElement" style={styles.analyticsPrompt}>
+      <ThemedText type="smallBold">Optional product analytics</ThemedText>
+      <ThemedText type="small" themeColor="textSecondary">
+        Mizyun can keep coarse feature, failure, time, and tap-range events on
+        this device. They contain no account/device ID, food text, health
+        values, photos, messages, tokens, or paths, and leave the device only
+        when you export them. Your choice never affects core tracking.
+      </ThemedText>
+      <View style={styles.analyticsChoiceRow}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ selected: consent === "granted" }}
+          disabled={consent === "loading"}
+          onPress={() => void choose("granted")}
+          style={styles.analyticsChoice}
+        >
+          <ThemedText type="smallBold">
+            {consent === "granted" ? "✓ Enabled" : "Enable"}
+          </ThemedText>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ selected: consent === "denied" }}
+          disabled={consent === "loading"}
+          onPress={() => void choose("denied")}
+          style={styles.analyticsChoice}
+        >
+          <ThemedText type="smallBold">
+            {consent === "denied" ? "✓ Keep off" : "Keep off"}
+          </ThemedText>
+        </Pressable>
+      </View>
+      {message !== null ? (
+        <ThemedText
+          type="small"
+          themeColor="textSecondary"
+          accessibilityRole="alert"
+        >
+          {message}
+        </ThemedText>
+      ) : null}
     </ThemedView>
   );
 }
@@ -480,7 +563,7 @@ const titleFor = (step: OnboardingStep): string => {
 const subtitleFor = (step: OnboardingStep): string => {
   switch (step) {
     case "welcome":
-      return "Three short steps.";
+      return "Five short steps.";
     case "displayName":
       return "Shown on the dashboard and in coach messages.";
     case "units":
@@ -508,6 +591,24 @@ const styles = StyleSheet.create({
   },
   header: { gap: Spacing.two },
   body: { gap: Spacing.three },
+  analyticsPrompt: {
+    borderRadius: 14,
+    padding: Spacing.four,
+    gap: Spacing.three,
+  },
+  analyticsChoiceRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.two,
+  },
+  analyticsChoice: {
+    minHeight: 44,
+    borderRadius: 14,
+    paddingHorizontal: Spacing.four,
+    justifyContent: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#8A8D91",
+  },
   paragraph: { fontSize: 16, lineHeight: 24 },
   label: { fontSize: 14, fontWeight: "700", letterSpacing: 0.5 },
   labelGap: { marginTop: Spacing.three },

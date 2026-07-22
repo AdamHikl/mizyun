@@ -7,13 +7,19 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, Stack } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { LoggingFlowMeasurement } from "@mizyun/observability";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
+import { analyticsClient } from "@/composition/analytics-client";
+import {
+  classifyAnalyticsFailure,
+  isRetryableAnalyticsFailure,
+} from "@/features/analytics/classify-failure";
 import { lengthUnitLabel } from "@/lib/length-units";
 import {
   clearLoggingDraft,
@@ -32,9 +38,21 @@ export function LogWeightScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draftLoaded, setDraftLoaded] = useState(false);
+  const measurement = useRef<LoggingFlowMeasurement | null>(null);
+  const hadFailure = useRef(false);
   const userId = session?.user.id ?? null;
   const unitSystem = profile?.unitSystem ?? "metric";
   const unitLabel = unitSystem === "imperial" ? "lb" : "kg";
+
+  useEffect(() => {
+    measurement.current = new LoggingFlowMeasurement(
+      "body_measurement",
+      analyticsClient,
+    );
+    return () => {
+      measurement.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     if (userId === null) return;
@@ -64,6 +82,8 @@ export function LogWeightScreen() {
   }, [chest, draftLoaded, unitSystem, userId, waist, weight]);
 
   const onSubmit = useCallback(async () => {
+    measurement.current?.tap();
+    if (hadFailure.current) measurement.current?.retry();
     setSubmitting(true);
     setError(null);
     const result = await submitLogWeight({
@@ -74,10 +94,18 @@ export function LogWeightScreen() {
     });
     setSubmitting(false);
     if (result.ok) {
+      measurement.current?.complete();
       if (userId !== null) await clearLoggingDraft(userId, "weight");
       router.back();
       return;
     }
+    hadFailure.current = true;
+    const reason = classifyAnalyticsFailure(result.message);
+    measurement.current?.fail(
+      reason === "invalid_input" ? "validation" : "submit",
+      reason,
+      isRetryableAnalyticsFailure(reason),
+    );
     setError(result.message);
   }, [chest, unitSystem, userId, waist, weight]);
 
@@ -102,6 +130,7 @@ export function LogWeightScreen() {
             label={`Weight (${unitLabel})`}
             value={weight}
             onChangeText={setWeight}
+            onFocus={() => measurement.current?.tap()}
             placeholder="72.5"
             keyboardType="numeric"
             autoFocus
@@ -113,6 +142,7 @@ export function LogWeightScreen() {
             label={`Waist (${lengthUnitLabel(unitSystem)}, optional)`}
             value={waist}
             onChangeText={setWaist}
+            onFocus={() => measurement.current?.tap()}
             placeholder="81"
             keyboardType="numeric"
             inputColor={theme.text}
@@ -123,6 +153,7 @@ export function LogWeightScreen() {
             label={`Chest (${lengthUnitLabel(unitSystem)}, optional)`}
             value={chest}
             onChangeText={setChest}
+            onFocus={() => measurement.current?.tap()}
             placeholder="100"
             keyboardType="numeric"
             inputColor={theme.text}
@@ -166,6 +197,7 @@ function Field(props: {
   readonly label: string;
   readonly value: string;
   readonly onChangeText: (next: string) => void;
+  readonly onFocus?: () => void;
   readonly placeholder?: string;
   readonly autoFocus?: boolean;
   readonly keyboardType?: "default" | "numeric";
@@ -180,6 +212,7 @@ function Field(props: {
         testID={props.testID}
         value={props.value}
         onChangeText={props.onChangeText}
+        onFocus={props.onFocus}
         placeholder={props.placeholder}
         placeholderTextColor="#8A8D91"
         autoFocus={props.autoFocus === true}

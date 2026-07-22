@@ -1,4 +1,5 @@
 import { apiClient, apiConfiguration } from "@/composition/api-client";
+import { analyticsClient } from "@/composition/analytics-client";
 import { authConfiguration } from "@/composition/auth-client";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -10,6 +11,7 @@ import {
   ActivityIndicator,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   View,
 } from "react-native";
@@ -60,9 +62,17 @@ export function SettingsScreen() {
 
   useEffect(() => {
     void refresh();
+    void analyticsClient.track({
+      name: "feature_viewed",
+      properties: { feature: "settings" },
+    });
   }, [refresh]);
 
   const onSignOut = useCallback(async () => {
+    // Fire-and-forget by design: analytics storage failure must not block the
+    // identity boundary. Denial clears the local log and prevents a later
+    // account on this device from inheriting the prior user's choice.
+    void analyticsClient.setConsent("denied");
     await signOut();
   }, [signOut]);
 
@@ -84,6 +94,7 @@ export function SettingsScreen() {
           </View>
 
           <PrincipalCard state={state} onRetry={refresh} />
+          <AnalyticsCard />
           <SignOutCard
             disabled={state.kind === "disabled"}
             onPress={onSignOut}
@@ -98,6 +109,149 @@ export function SettingsScreen() {
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
+  );
+}
+
+function AnalyticsCard() {
+  const [consent, setConsent] = useState<
+    "loading" | "unknown" | "granted" | "denied"
+  >("loading");
+  const [eventCount, setEventCount] = useState(0);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const refreshAnalytics = useCallback(async () => {
+    const [nextConsent, events] = await Promise.all([
+      analyticsClient.getConsent(),
+      analyticsClient.list(),
+    ]);
+    setConsent(nextConsent);
+    setEventCount(events.length);
+  }, []);
+
+  useEffect(() => {
+    void refreshAnalytics();
+  }, [refreshAnalytics]);
+
+  const chooseConsent = useCallback(
+    async (next: "granted" | "denied") => {
+      setMessage(null);
+      const saved = await analyticsClient.setConsent(next);
+      if (!saved) {
+        setMessage(
+          "The analytics preference could not be saved. Mizyun remains usable and analytics stays off.",
+        );
+      }
+      await refreshAnalytics();
+    },
+    [refreshAnalytics],
+  );
+
+  const shareExport = useCallback(async () => {
+    const value = await analyticsClient.export();
+    if (value.events.length === 0) {
+      setMessage("There are no local analytics events to export.");
+      return;
+    }
+    try {
+      await Share.share({
+        title: "Mizyun product analytics export",
+        message: JSON.stringify(value, null, 2),
+      });
+      setMessage("The system share sheet opened with your local export.");
+    } catch {
+      setMessage(
+        "The export could not be shared. Your Mizyun data is unaffected.",
+      );
+    }
+  }, []);
+
+  const clearEvents = useCallback(async () => {
+    const cleared = await analyticsClient.clear();
+    setMessage(
+      cleared
+        ? "Local analytics events cleared."
+        : "Local analytics could not be cleared. Your Mizyun data is unaffected.",
+    );
+    await refreshAnalytics();
+  }, [refreshAnalytics]);
+
+  const enabled = consent === "granted";
+
+  return (
+    <ThemedView type="backgroundElement" style={styles.analyticsCard}>
+      <ThemedText type="smallBold">Optional product analytics</ThemedText>
+      <ThemedText type="small" themeColor="textSecondary">
+        Help measure onboarding, feature use, failures, and coarse time/tap
+        ranges. Events stay on this device unless you choose Export. They never
+        include account or device IDs, food names, health values, photos,
+        messages, tokens, or file paths.
+      </ThemedText>
+      <ThemedText type="smallBold">
+        {consent === "loading"
+          ? "Loading preference…"
+          : enabled
+            ? `Enabled · ${eventCount} local event${eventCount === 1 ? "" : "s"}`
+            : "Off"}
+      </ThemedText>
+      <View style={styles.analyticsActions}>
+        <AnalyticsButton
+          label={enabled ? "Enabled" : "Enable"}
+          disabled={consent === "loading" || enabled}
+          onPress={() => void chooseConsent("granted")}
+        />
+        <AnalyticsButton
+          label="Disable and clear"
+          disabled={consent === "loading" || !enabled}
+          onPress={() => void chooseConsent("denied")}
+        />
+        <AnalyticsButton
+          label="Export"
+          disabled={!enabled || eventCount === 0}
+          onPress={() => void shareExport()}
+        />
+        <AnalyticsButton
+          label="Clear"
+          disabled={!enabled || eventCount === 0}
+          onPress={() => void clearEvents()}
+        />
+      </View>
+      {message !== null ? (
+        <ThemedText
+          type="small"
+          themeColor="textSecondary"
+          accessibilityRole="alert"
+        >
+          {message}
+        </ThemedText>
+      ) : null}
+    </ThemedView>
+  );
+}
+
+function AnalyticsButton({
+  label,
+  disabled,
+  onPress,
+}: {
+  readonly label: string;
+  readonly disabled: boolean;
+  readonly onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.analyticsButton,
+        pressed && styles.signOutButtonPressed,
+        disabled && styles.signOutButtonDisabled,
+      ]}
+    >
+      <ThemedText type="smallBold">{label}</ThemedText>
+    </Pressable>
   );
 }
 
@@ -199,7 +353,8 @@ function SignOutCard({
     <ThemedView type="backgroundElement" style={styles.signOutCard}>
       <ThemedText type="smallBold">Sign out</ThemedText>
       <ThemedText type="small" themeColor="textSecondary">
-        End this device&apos;s session. Other devices are not affected.
+        End this device&apos;s session and clear optional local analytics. Other
+        devices are not affected.
       </ThemedText>
       <Pressable
         accessibilityRole="button"
@@ -240,6 +395,25 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.four,
     padding: Spacing.four,
     gap: Spacing.two,
+  },
+  analyticsCard: {
+    borderRadius: Spacing.four,
+    padding: Spacing.four,
+    gap: Spacing.three,
+  },
+  analyticsActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.two,
+  },
+  analyticsButton: {
+    minHeight: 44,
+    borderRadius: Spacing.three,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    justifyContent: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#8A8D91",
   },
   column: { gap: Spacing.one },
   center: { alignItems: "center", paddingVertical: Spacing.three },

@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { apiClient } from "@/composition/api-client";
+import { analyticsClient } from "@/composition/analytics-client";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { MaxContentWidth, Spacing } from "@/constants/theme";
@@ -105,6 +106,10 @@ export function ProgressPhotosScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      void analyticsClient.track({
+        name: "feature_viewed",
+        properties: { feature: "progress_photos" },
+      });
       void refresh();
     }, [refresh]),
   );

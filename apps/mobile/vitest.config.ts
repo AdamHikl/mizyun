@@ -47,6 +47,13 @@ export default defineConfig({
         ).pathname,
       },
       {
+        find: /^expo-file-system$/,
+        replacement: new URL(
+          "./vitest/expo-file-system-stub.ts",
+          import.meta.url,
+        ).pathname,
+      },
+      {
         // Match both `react-native-url-polyfill` and `react-native-url-polyfill/auto`.
         find: /^react-native-url-polyfill(\/.*)?$/,
         replacement: new URL("./vitest/url-polyfill-stub.ts", import.meta.url)
@@ -74,6 +81,10 @@ export default defineConfig({
       {
         find: /^@mizyun\/api-client$/,
         replacement: resolve(repoRoot, "packages/api-client/src/index.ts"),
+      },
+      {
+        find: /^@mizyun\/observability$/,
+        replacement: resolve(repoRoot, "packages/observability/src/index.ts"),
       },
     ],
   },

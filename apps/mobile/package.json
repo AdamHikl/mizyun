@@ -10,6 +10,7 @@
     "@mizyun/contracts": "workspace:*",
     "@mizyun/core": "workspace:*",
     "@mizyun/identity": "workspace:*",
+    "@mizyun/observability": "workspace:*",
     "expo": "~57.0.4",
     "expo-constants": "~57.0.3",
     "expo-device": "~57.0.0",

@@ -16,6 +16,7 @@ import type { WeightTrendSummary } from "@mizyun/core";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import { analyticsClient } from "@/composition/analytics-client";
 import { useAuth } from "@/features/auth/auth-context";
 import { kilogramsToDisplayWeight, weightUnitLabel } from "@/lib/weight-units";
 
@@ -53,6 +54,10 @@ export function BodyHistoryScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      void analyticsClient.track({
+        name: "feature_viewed",
+        properties: { feature: "body_history" },
+      });
       void refresh();
     }, [refresh]),
   );

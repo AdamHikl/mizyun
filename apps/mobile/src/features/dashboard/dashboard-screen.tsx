@@ -7,6 +7,7 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { apiClient } from "@/composition/api-client";
+import { analyticsClient } from "@/composition/analytics-client";
 import { useAuth } from "@/features/auth/auth-context";
 
 import {
@@ -246,6 +247,10 @@ export function DashboardScreen() {
   // their entry as soon as they navigate back from the log form.
   useFocusEffect(
     useCallback(() => {
+      void analyticsClient.track({
+        name: "feature_viewed",
+        properties: { feature: "dashboard" },
+      });
       void loadMetrics();
     }, [loadMetrics]),
   );

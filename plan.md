@@ -13,9 +13,9 @@
 
 ## Current focus
 
-🚧 **Cross-phase productization checkpoint — turn the tested domain/API slices into one persistent mobile daily loop.**
+🚧 **Cross-phase productization checkpoint — prove the persistent loop through founder and design-partner repetition.**
 
-Authentication, migrations, RLS, contracts, domain rules, and in-memory API routes exist. The immediate gap is not another domain model: feature repositories and media storage must be backed by Supabase, and the food/workout/weight/dashboard journeys must be reachable from the mobile app. AI remains deliberately disabled until the manual loop, privacy controls, evaluation data, and product instrumentation exist.
+The persistent food/workout/body/dashboard/photo journeys pass on standalone iOS and Android, and OBS-001 now provides consent-off-by-default, identifier-free local product analytics with a voluntary founder export. The immediate gap is repeated real use: verify the consent/export surface natively, complete a founder week without data loss, then collect structured evidence from 10–30 design partners. AI remains deliberately disabled until this manual-loop evidence, privacy controls, and evaluation data exist.
 
 ## Dependency sequence
 

@@ -5,12 +5,13 @@
 ## Executive snapshot
 
 - **Product stage:** technical pre-alpha; the architecture and domain/API foundation are strong, but this is not yet a customer-usable tracking beta.
-- **Roadmap position:** Every scoped MOB item and AND-001 is complete at the implementation and local native-acceptance gates. The next planned product slice is OBS-001, followed by founder/design-partner alpha.
-- **Latest verified implementation slice:** standalone iOS and Android Release apps pass the stored MOB journey, including exact nutrition/body/workout/dashboard values, restart restoration, previous performance, and two-photo private upload/compare/delete.
-- **Next exact action:** define the privacy-safe OBS-001 event contract and local measurement boundary before selecting or integrating an analytics processor.
+- **Roadmap position:** Every scoped MOB item, AND-001, and OBS-001 is complete at its implementation gate. ALPHA-001 is active; elapsed founder/design-partner evidence is still 0 of 7 days and 0 of 10 minimum participants.
+- **Latest verified implementation slice:** ALPHA-001 now has privacy-safe founder/design-partner/native evidence ledgers plus an exact-schema analyzer that converts voluntary local OBS exports into aggregate counts and coarse buckets without participant rows or filenames.
+- **Latest operational slice:** `docs/alpha/` is the validation hub, while `docs/tutorials/` retains reusable setup, local backend, iOS, Android, testing, teardown, and known-failure runbooks.
+- **Next exact action:** complete the synthetic consent → measured meal/workout/body flow → restart → export → disable/clear checklist on the installed iOS Release app and Android Release APK, then start founder day 1 only when seven consecutive real-use days are possible.
 - **Branch:** `main`; each completed mobile/persistence slice is kept in a coherent local commit.
 - **Remote:** `https://github.com/AdamHikl/mizyun`.
-- **Remote state:** local `main` contains the completed unpushed MOB-ONB, MOB-WO, MOB-BODY, MOB-DASH, PERSIST-003, and MEDIA-MOB slices; pushing them requires explicit user approval.
+- **Remote state:** all tracked work through this ALPHA-001 readiness handoff is committed locally. `main` is eleven commits ahead of `origin/main` (ten previously queued commits plus this handoff), so publishing the accumulated history requires explicit confirmation.
 - **AI provider:** intentionally disabled. No Mistral or other model API is configured.
 - **Hosted Supabase:** not created or linked.
 - **iOS:** native Release build/install/launch and the complete disposable-account onboarding/daily/restart/private-photo journey pass on an iPhone 17 Pro simulator.
@@ -67,6 +68,7 @@ The mobile app currently includes:
 - a recoverable workout session with custom exercise creation, rep/load/duration/distance/RPE sets, prior performance, completion, and confirmed deletion;
 - a progress-photo route with explicit per-upload consent, camera/library selection, bounded metadata-stripped JPEG preparation, direct signed upload, private timeline, two-photo comparison, interrupted Android picker recovery, and confirmed permanent deletion;
 - a Coach setup screen explaining that the model provider is disabled.
+- an optional product-analytics choice during onboarding and in Account, with a closed event schema, 30-day/500-event local bound, voluntary JSON export, and disable/clear controls.
 
 ## Critical implementation distinction
 
@@ -79,7 +81,7 @@ The core manual tracking and private progress-photo lifecycles are implemented a
 - progress-photo library selection/upload/timeline/compare/delete passes with synthetic non-sensitive media and real signed Storage transfer on iOS and Android; camera hardware and forced Android activity-destruction recovery remain open;
 - the Coach screen is a provider-not-connected placeholder;
 - there is no HealthKit/Health Connect step synchronization;
-- there is no billing, paywall, product analytics, crash reporting, or community functionality.
+- there is no billing, paywall, crash reporting, network analytics processor, or community functionality; product analytics is local-only and requires voluntary participant export.
 
 With validated Supabase server configuration, the API selects Supabase-backed profile, goal, food, exercise, workout, workout-set, body-measurement, and media-asset repositories plus private Storage. The standard no-environment gate intentionally remains in-memory. Hosted Supabase deployment, physical-device/store-build acceptance, and account deletion across every external resource remain incomplete.
 
@@ -87,14 +89,20 @@ Do not describe NUT-_, WO-_, BODY-_, ENG-_, MEDIA-* or DATA-001 as customer-comp
 
 ## Verification evidence — 2026-07-22
 
+ALPHA-001 readiness passes the complete standard gate: formatting and all workspace typechecks passed; the iOS Metro/Hermes production export resolved 1,677 modules; 715 tests passed and the 13 credential-gated Supabase e2e tests remained intentionally skipped. The observability package now has 9 focused tests, including exact export-envelope rejection and aggregate-only summary coverage. The `pnpm alpha:analyze -- <export>` end-to-end check passed with a temporary synthetic export after catching and fixing CommonJS top-level-await and pnpm argument-forwarding defects.
+
+The standalone iOS Release build also resolved 1,677 modules, compiled and installed successfully on the iPhone 17 Pro / iOS 26.5 simulator, and rendered the authentication screen after a direct no-Metro launch. Expo's final GUI-focus AppleScript was denied by host automation permissions after the successful install, so launch was verified with `xcrun simctl launch` instead. This is packaging/launch evidence only: iOS consent/export interaction and the equivalent Android ALPHA journey remain pending and are not counted as a founder day.
+
+The DOCS-WIKI-001 documentation slice was checked with Prettier, Markdown link/path inspection, and `git diff --check`. The runbooks were reconciled with the installed toolchain and the already-passing standalone iOS/Android acceptance evidence. No simulator, emulator, database, or application behavior changed.
+
 The complete standard gate was run from the local repository:
 
 ```text
 pnpm check
   formatting: passed
   workspace TypeScript checks: passed
-  iOS Expo/Metro/Hermes export: passed (1,673 modules, 4.7 MB bundle)
-  tests: 694 passed
+  iOS Expo/Metro/Hermes export: passed (1,677 modules, 4.7 MB bundle)
+  tests: 715 passed
   opt-in Supabase persistence/auth e2e: 13 skipped because local e2e credentials were not enabled for the standard gate
 ```
 
@@ -131,7 +139,7 @@ The Android SDK 36 toolchain then produced a standalone Release APK and installe
 - The progress dashboard, calendar review, and private photo lifecycle pass against local persistence on native iOS and Android; hosted acceptance remains open.
 - Library-based private photo capture/upload exists; camera-hardware proof and AI-assisted calorie drafts do not exist end to end.
 - The memory-aware coach is only an interface and disabled implementation.
-- There is no activation/retention instrumentation or subscription system, so the freemium/premium hypothesis cannot yet be measured.
+- Consent-respecting local activation/retention instrumentation and privacy-safe aggregation now exist, but no participant export or repeated-user dataset exists yet; there is still no subscription system.
 
 ## Productization sequence
 
@@ -141,7 +149,7 @@ Do not start Mistral/chatbot implementation merely because the provider boundary
 2. **PERSIST-002 / PERSIST-003:** persist training/body/account records and replace in-memory media storage; prove real export and deletion.
 3. **MOB-DAILY-001:** build the smallest persistent mobile daily loop: baseline weight, manual meal, workout/set, and real dashboard totals. (Complete.)
 4. **AND-001:** verify the same loop in an Android emulator, not just an iOS bundle. (Complete.)
-5. **OBS-001:** add consent-respecting product analytics for activation, logging time/taps, retention, failures, and AI cost readiness.
+5. **OBS-001:** add consent-respecting product analytics for activation, logging time/taps, retention, failures, and AI cost readiness. (Implementation gate complete.)
 6. **MEDIA-MOB-001:** add real progress-photo selection/capture, upload, timeline, comparison, and deletion UI. (Implementation gate complete.)
 7. **ALPHA-001:** run founder dogfooding and a 10–30-person design-partner beta; fix friction and data-loss issues.
 8. **AI-001 / MEM-001:** complete `docs/BEFORE_TESTING.md`, then add one evaluated Mistral text/vision adapter and user-visible memory controls.
@@ -171,4 +179,4 @@ Never put a service-role or model secret in an `EXPO_PUBLIC_` variable. AI remai
 
 ## Handoff note
 
-Read `AGENTS.md`, `goals.md`, `docs/BUSINESS_ALIGNMENT.md`, `plan.md`, this file, and `backlog.md` before implementation. Start OBS-001 by researching and defining a consent-respecting event contract that excludes food text, health values, photos, tokens, and message bodies; do not select a processor or start AI before that boundary is reviewed.
+Read `AGENTS.md`, `goals.md`, `docs/BUSINESS_ALIGNMENT.md`, `plan.md`, this file, and `backlog.md` before implementation. Continue `docs/alpha/NATIVE_ACCEPTANCE.md` from the installed iOS Release build, then verify Android and begin the founder log; do not count setup as elapsed use or select an analytics/AI provider merely because the local boundary exists.

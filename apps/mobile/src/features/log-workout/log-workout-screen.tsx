@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { LoggingFlowMeasurement } from "@mizyun/observability";
 import {
   ActivityIndicator,
   Alert,
@@ -19,6 +20,8 @@ import type {
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { analyticsClient } from "@/composition/analytics-client";
+import { classifyAnalyticsFailure } from "@/features/analytics/classify-failure";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { useAuth } from "@/features/auth/auth-context";
 import {
@@ -84,6 +87,18 @@ export function LogWorkoutScreen() {
   const [busy, setBusy] = useState(false);
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const measurement = useRef<LoggingFlowMeasurement | null>(null);
+  const hadFailure = useRef(false);
+
+  useEffect(() => {
+    measurement.current = new LoggingFlowMeasurement(
+      "workout",
+      analyticsClient,
+    );
+    return () => {
+      measurement.current = null;
+    };
+  }, []);
 
   const selectedExercise = useMemo(
     () =>
@@ -98,6 +113,14 @@ export function LogWorkoutScreen() {
     const next = await loadWorkoutWorkspace();
     setWorkspace(next);
     setMessage(next.message);
+    if (next.message !== null) {
+      hadFailure.current = true;
+      measurement.current?.fail(
+        "load",
+        classifyAnalyticsFailure(next.message),
+        true,
+      );
+    }
     setLoading(false);
   }, []);
 
@@ -147,11 +170,24 @@ export function LogWorkoutScreen() {
   }, []);
 
   const onStart = useCallback(async () => {
+    measurement.current?.tap();
+    if (hadFailure.current) {
+      measurement.current?.retry();
+      hadFailure.current = false;
+    }
     setBusy(true);
     setMessage(null);
     const result = await startWorkout(draft.name, draft.notes);
     setBusy(false);
-    if (!result.ok) return setMessage(result.message);
+    if (!result.ok) {
+      hadFailure.current = true;
+      measurement.current?.fail(
+        "submit",
+        classifyAnalyticsFailure(result.message),
+        true,
+      );
+      return setMessage(result.message);
+    }
     setWorkspace((current) => ({
       ...current,
       workout: result.workout,
@@ -161,11 +197,24 @@ export function LogWorkoutScreen() {
   }, [draft.name, draft.notes]);
 
   const onCreateExercise = useCallback(async () => {
+    measurement.current?.tap();
+    if (hadFailure.current) {
+      measurement.current?.retry();
+      hadFailure.current = false;
+    }
     setBusy(true);
     setMessage(null);
     const result = await createExercise(exerciseName, exerciseInstructions);
     setBusy(false);
-    if (!result.ok) return setMessage(result.message);
+    if (!result.ok) {
+      hadFailure.current = true;
+      measurement.current?.fail(
+        "submit",
+        classifyAnalyticsFailure(result.message),
+        true,
+      );
+      return setMessage(result.message);
+    }
     setWorkspace((current) => ({
       ...current,
       exercises: [...current.exercises, result.exercise].sort((a, b) =>
@@ -179,6 +228,11 @@ export function LogWorkoutScreen() {
 
   const onAddSet = useCallback(async () => {
     if (workspace.workout === null) return;
+    measurement.current?.tap();
+    if (hadFailure.current) {
+      measurement.current?.retry();
+      hadFailure.current = false;
+    }
     setBusy(true);
     setMessage(null);
     const result = await addWorkoutSet(workspace.workout.id, {
@@ -191,7 +245,15 @@ export function LogWorkoutScreen() {
       unitSystem,
     });
     setBusy(false);
-    if (!result.ok) return setMessage(result.message);
+    if (!result.ok) {
+      hadFailure.current = true;
+      measurement.current?.fail(
+        "submit",
+        classifyAnalyticsFailure(result.message),
+        true,
+      );
+      return setMessage(result.message);
+    }
     patchDraft({
       repetitions: "",
       load: "",
@@ -212,10 +274,24 @@ export function LogWorkoutScreen() {
 
   const finish = useCallback(async () => {
     if (workspace.workout === null) return;
+    measurement.current?.tap();
+    if (hadFailure.current) {
+      measurement.current?.retry();
+      hadFailure.current = false;
+    }
     setBusy(true);
     const result = await completeWorkout(workspace.workout.id);
     setBusy(false);
-    if (!result.ok) return setMessage(result.message);
+    if (!result.ok) {
+      hadFailure.current = true;
+      measurement.current?.fail(
+        "submit",
+        classifyAnalyticsFailure(result.message),
+        true,
+      );
+      return setMessage(result.message);
+    }
+    measurement.current?.complete();
     if (userId !== null) await clearLoggingDraft(userId, "workout");
     router.back();
   }, [userId, workspace.workout]);
@@ -291,6 +367,7 @@ export function LogWorkoutScreen() {
               busy={busy}
               onPatch={patchDraft}
               onStart={onStart}
+              onInteraction={() => measurement.current?.tap()}
             />
           ) : (
             <ActiveSection
@@ -313,13 +390,22 @@ export function LogWorkoutScreen() {
               onRemoveSet={removeSet}
               onFinish={finish}
               onAbandon={confirmAbandon}
+              onInteraction={() => measurement.current?.tap()}
             />
           )}
 
           {message !== null ? (
             <View style={styles.message} accessibilityRole="alert">
               <ThemedText>{message}</ThemedText>
-              <Button label="Retry" onPress={() => void refresh()} />
+              <Button
+                label="Retry"
+                onPress={() => {
+                  measurement.current?.tap();
+                  measurement.current?.retry();
+                  hadFailure.current = false;
+                  void refresh();
+                }}
+              />
             </View>
           ) : null}
         </ScrollView>
@@ -334,6 +420,7 @@ function StartSection(props: {
   readonly busy: boolean;
   readonly onPatch: (patch: Partial<WorkoutDraft>) => void;
   readonly onStart: () => void;
+  readonly onInteraction: () => void;
 }) {
   return (
     <View style={styles.section}>
@@ -347,6 +434,7 @@ function StartSection(props: {
         label="Workout name"
         value={props.draft.name}
         onChangeText={(name) => props.onPatch({ name })}
+        onFocus={props.onInteraction}
         placeholder="Leg day"
         inputColor={props.inputColor}
       />
@@ -355,6 +443,7 @@ function StartSection(props: {
         label="Notes (optional)"
         value={props.draft.notes}
         onChangeText={(notes) => props.onPatch({ notes })}
+        onFocus={props.onInteraction}
         placeholder="Strength focus"
         inputColor={props.inputColor}
       />
@@ -387,6 +476,7 @@ function ActiveSection(props: {
   readonly onRemoveSet: (set: WorkoutSet) => void;
   readonly onFinish: () => void;
   readonly onAbandon: () => void;
+  readonly onInteraction: () => void;
 }) {
   const unit = weightUnitLabel(props.unitSystem);
   return (
@@ -413,9 +503,10 @@ function ActiveSection(props: {
                 accessibilityState={{
                   selected: props.draft.selectedExerciseId === exercise.id,
                 }}
-                onPress={() =>
-                  props.onPatch({ selectedExerciseId: exercise.id })
-                }
+                onPress={() => {
+                  props.onInteraction();
+                  props.onPatch({ selectedExerciseId: exercise.id });
+                }}
                 style={[
                   styles.choice,
                   props.draft.selectedExerciseId === exercise.id &&
@@ -432,6 +523,7 @@ function ActiveSection(props: {
           label="New exercise name"
           value={props.exerciseName}
           onChangeText={props.onExerciseName}
+          onFocus={props.onInteraction}
           placeholder="Back squat"
           inputColor={props.inputColor}
         />
@@ -440,6 +532,7 @@ function ActiveSection(props: {
           label="Instructions (optional)"
           value={props.exerciseInstructions}
           onChangeText={props.onExerciseInstructions}
+          onFocus={props.onInteraction}
           placeholder="Brace before descending"
           inputColor={props.inputColor}
         />
@@ -477,6 +570,7 @@ function ActiveSection(props: {
               label="Reps"
               value={props.draft.repetitions}
               onChangeText={(repetitions) => props.onPatch({ repetitions })}
+              onFocus={props.onInteraction}
               keyboardType="decimal-pad"
               inputColor={props.inputColor}
             />
@@ -485,6 +579,7 @@ function ActiveSection(props: {
               label={`Load (${unit})`}
               value={props.draft.load}
               onChangeText={(load) => props.onPatch({ load })}
+              onFocus={props.onInteraction}
               keyboardType="decimal-pad"
               inputColor={props.inputColor}
             />
@@ -495,6 +590,7 @@ function ActiveSection(props: {
               onChangeText={(durationSeconds) =>
                 props.onPatch({ durationSeconds })
               }
+              onFocus={props.onInteraction}
               keyboardType="number-pad"
               inputColor={props.inputColor}
             />
@@ -505,6 +601,7 @@ function ActiveSection(props: {
               onChangeText={(distanceMeters) =>
                 props.onPatch({ distanceMeters })
               }
+              onFocus={props.onInteraction}
               keyboardType="decimal-pad"
               inputColor={props.inputColor}
             />
@@ -515,6 +612,7 @@ function ActiveSection(props: {
               onChangeText={(perceivedExertion) =>
                 props.onPatch({ perceivedExertion })
               }
+              onFocus={props.onInteraction}
               keyboardType="decimal-pad"
               inputColor={props.inputColor}
             />
@@ -572,6 +670,7 @@ function Field(props: {
   readonly label: string;
   readonly value: string;
   readonly onChangeText: (next: string) => void;
+  readonly onFocus?: () => void;
   readonly placeholder?: string;
   readonly keyboardType?: "default" | "decimal-pad" | "number-pad";
   readonly inputColor: string;
@@ -585,6 +684,7 @@ function Field(props: {
         testID={props.testID}
         value={props.value}
         onChangeText={props.onChangeText}
+        onFocus={props.onFocus}
         placeholder={props.placeholder}
         placeholderTextColor="#8A8D91"
         keyboardType={props.keyboardType ?? "default"}

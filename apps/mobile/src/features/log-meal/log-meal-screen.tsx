@@ -7,13 +7,19 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, Stack } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { LoggingFlowMeasurement } from "@mizyun/observability";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
+import { analyticsClient } from "@/composition/analytics-client";
+import {
+  classifyAnalyticsFailure,
+  isRetryableAnalyticsFailure,
+} from "@/features/analytics/classify-failure";
 import {
   clearLoggingDraft,
   loadLoggingDraft,
@@ -34,7 +40,16 @@ export function LogMealScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draftLoaded, setDraftLoaded] = useState(false);
+  const measurement = useRef<LoggingFlowMeasurement | null>(null);
+  const hadFailure = useRef(false);
   const userId = session?.user.id ?? null;
+
+  useEffect(() => {
+    measurement.current = new LoggingFlowMeasurement("meal", analyticsClient);
+    return () => {
+      measurement.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     if (userId === null) return;
@@ -67,6 +82,8 @@ export function LogMealScreen() {
   }, [calories, carbs, draftLoaded, fat, name, protein, userId]);
 
   const onSubmit = useCallback(async () => {
+    measurement.current?.tap();
+    if (hadFailure.current) measurement.current?.retry();
     setError(null);
     const parsedCalories = parseOptionalNutritionNumber(calories);
     const parsedProtein = parseOptionalNutritionNumber(protein);
@@ -78,6 +95,8 @@ export function LogMealScreen() {
       !parsedCarbs.ok ||
       !parsedFat.ok
     ) {
+      hadFailure.current = true;
+      measurement.current?.fail("validation", "invalid_input", false);
       setError("Calories and macros must be positive numbers or blank.");
       return;
     }
@@ -93,10 +112,18 @@ export function LogMealScreen() {
     const result = await submitLogMeal(form);
     setSubmitting(false);
     if (result.ok) {
+      measurement.current?.complete();
       if (userId !== null) await clearLoggingDraft(userId, "meal");
       router.back();
       return;
     }
+    hadFailure.current = true;
+    const reason = classifyAnalyticsFailure(result.message);
+    measurement.current?.fail(
+      reason === "invalid_input" ? "validation" : "submit",
+      reason,
+      isRetryableAnalyticsFailure(reason),
+    );
     setError(result.message);
   }, [name, calories, protein, carbs, fat, userId]);
 
@@ -124,6 +151,7 @@ export function LogMealScreen() {
             label="Name"
             value={name}
             onChangeText={setName}
+            onFocus={() => measurement.current?.tap()}
             placeholder="Toast"
             autoFocus
             inputColor={theme.text}
@@ -134,6 +162,7 @@ export function LogMealScreen() {
             label="Calories (kcal)"
             value={calories}
             onChangeText={setCalories}
+            onFocus={() => measurement.current?.tap()}
             placeholder="200"
             keyboardType="numeric"
             helperText={calorieHint}
@@ -147,6 +176,7 @@ export function LogMealScreen() {
                 label="Protein (g)"
                 value={protein}
                 onChangeText={setProtein}
+                onFocus={() => measurement.current?.tap()}
                 placeholder="5"
                 keyboardType="numeric"
                 inputColor={theme.text}
@@ -158,6 +188,7 @@ export function LogMealScreen() {
                 label="Carbs (g)"
                 value={carbs}
                 onChangeText={setCarbs}
+                onFocus={() => measurement.current?.tap()}
                 placeholder="30"
                 keyboardType="numeric"
                 inputColor={theme.text}
@@ -169,6 +200,7 @@ export function LogMealScreen() {
                 label="Fat (g)"
                 value={fat}
                 onChangeText={setFat}
+                onFocus={() => measurement.current?.tap()}
                 placeholder="4"
                 keyboardType="numeric"
                 inputColor={theme.text}
@@ -214,6 +246,7 @@ function Field(props: {
   readonly label: string;
   readonly value: string;
   readonly onChangeText: (next: string) => void;
+  readonly onFocus?: () => void;
   readonly placeholder?: string;
   readonly helperText?: string;
   readonly autoFocus?: boolean;
@@ -229,6 +262,7 @@ function Field(props: {
         testID={props.testID}
         value={props.value}
         onChangeText={props.onChangeText}
+        onFocus={props.onFocus}
         placeholder={props.placeholder}
         placeholderTextColor="#8A8D91"
         autoFocus={props.autoFocus === true}

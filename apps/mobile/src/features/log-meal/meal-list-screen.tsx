@@ -7,6 +7,7 @@ import type { DailyFoodSummary, FoodEntry } from "@mizyun/contracts";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import { analyticsClient } from "@/composition/analytics-client";
 
 import {
   copyFoodEntry,
@@ -74,6 +75,10 @@ export function MealListScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      void analyticsClient.track({
+        name: "feature_viewed",
+        properties: { feature: "nutrition_history" },
+      });
       void load();
     }, [load]),
   );

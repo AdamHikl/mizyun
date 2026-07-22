@@ -21,6 +21,7 @@
     "build": "pnpm -r --if-present build",
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test",
+    "alpha:analyze": "tsx scripts/analyze-alpha-exports.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "pnpm format:check && pnpm typecheck && pnpm --filter @mizyun/mobile bundle:check && pnpm test"

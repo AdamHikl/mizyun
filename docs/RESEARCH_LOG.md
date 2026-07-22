@@ -874,3 +874,64 @@ PERSIST-001 closed the persistence gap for profile, goals, and food. What's the 
 - Supabase's local Storage service returns signed URLs containing its configured `127.0.0.1` origin. Android's documented ADB reverse-port facility bridges those signed URLs back to the trusted host-only test service. This is acceptance-harness plumbing, not an application fallback or production networking design.
 - Maestro 2.7.0 drove the installed Release APK through real password sign-in, exact persisted meal/body/workout/dashboard assertions, process stop/relaunch restoration, and previous performance. A separate system Photo Picker flow proved two native `File` uploads, comparison, permanent deletion, and empty-state restoration. Android numeric keyboards require an explicit automation `hideKeyboard`; swipe gestures over the numeric keyboard can type digits and are not reliable dismissal evidence.
 - No durable architecture decision changed: the app uses the same provider-neutral API, persistence, native file transport, and private-media boundary on both platforms. No ADR is required.
+
+## 2026-07-22 — Reusable local development memory wiki
+
+### Primary sources
+
+- Expo, **Develop an app with Expo** (accessed 2026-07-22): https://docs.expo.dev/workflow/overview/
+- Expo, **Build locally: Overview** (accessed 2026-07-22): https://docs.expo.dev/guides/local-app-overview/
+- Expo, **iOS Simulator** (accessed 2026-07-22): https://docs.expo.dev/workflow/ios-simulator/
+- Expo, **Android Studio Emulator** (accessed 2026-07-22): https://docs.expo.dev/workflow/android-studio-emulator/
+- Android Developers, **Start the emulator from the command line** (accessed 2026-07-22): https://developer.android.com/studio/run/emulator-commandline
+- Android Developers, **Set up Android Emulator networking** (accessed 2026-07-22): https://developer.android.com/studio/run/emulator-networking
+- Supabase, **Local development workflow** (accessed 2026-07-22): https://supabase.com/docs/guides/local-development/cli-workflows
+- Maestro, **React Native support** (accessed 2026-07-22): https://docs.maestro.dev/platform-support/react-native
+- Maestro, **Installing Maestro** (accessed 2026-07-22): https://docs.maestro.dev/getting-started/installing-maestro
+
+### Verified findings and documentation consequences
+
+- Expo's Continuous Native Generation workflow treats `ios/` and `android/` as regenerable output and recommends clean regeneration after native dependency or app-config changes. The installed SDK 57 CLI cleans by default and offers `--no-clean` as the opt-out, so the wiki uses the locally verified `expo prebuild --platform ...` syntax and routes durable native settings back to `app.json` or config plugins.
+- Fast Expo development, native smoke, and standalone Release acceptance prove different things. The wiki separates them so a Metro export or Expo Go launch is never recorded as native Release evidence.
+- Android emulator host networking uses `10.0.2.2`; Mizyun's local signed Storage URLs additionally require the already-proven ADB reverse tunnel. Both constraints are now copy-pastable in the Android runbook instead of living only in session history.
+- Supabase documents its local stack as development-only and not hardened for external traffic. The backend runbook retains the measured Docker Desktop port warning, synthetic-data rule, clean-reset gate, and teardown requirement.
+- Maestro supports React Native through the accessibility UI layer without application instrumentation. The testing runbook records stable-selector order, secret-free disposable-user wrappers, Android keyboard behavior, and authoritative post-save assertions learned during native acceptance.
+- This change centralizes operational memory without altering module boundaries, security authority, data formats, or provider strategy. No ADR is required.
+
+## 2026-07-22 — OBS-001 consent-first product analytics
+
+### Primary sources
+
+- Apple Developer, **App privacy details on the App Store** (accessed 2026-07-22): https://developer.apple.com/app-store/app-privacy-details/
+- Apple Developer, **Describing data use in privacy manifests** (accessed 2026-07-22): https://developer.apple.com/documentation/bundleresources/describing-data-use-in-privacy-manifests
+- Google Play Console Help, **Provide information for Google Play's Data safety section** (accessed 2026-07-22): https://support.google.com/googleplay/android-developer/answer/10787469
+- Google Play Console Help, **User Data** (accessed 2026-07-22): https://support.google.com/googleplay/android-developer/answer/10144311
+- European Data Protection Board, **Process personal data lawfully** (accessed 2026-07-22): https://www.edpb.europa.eu/sme-be-compliant/process-personal-data-lawfully_en
+- Expo SDK 57, **FileSystem** (accessed 2026-07-22): https://docs.expo.dev/versions/latest/sdk/filesystem/
+- React Native 0.86, **Share** (accessed 2026-07-22): https://reactnative.dev/docs/0.86/share
+
+### Verified findings and implementation consequences
+
+- Apple classifies launches, taps, clicks, and similar interaction data as Product Interaction used for Analytics. Apple defines collection as off-device transmission accessible beyond real-time servicing and says solely on-device data is not collected for its disclosure answers; it also distinguishes analytics from tracking, which requires linking with third-party data for advertising/measurement or sharing with a broker. Mizyun version 1 stays on device, uses no identifier or advertising purpose, and does not add App Tracking Transparency. Store answers still require a fresh shipped-binary review.
+- Google Play classifies app interactions as App activity and feature/performance measurement as Analytics, requires declarations to include third-party SDK behavior, and says solely on-device data that is never transmitted need not be declared as collection. Mizyun adds no analytics SDK or automatic transmission. A user-initiated share can send an export elsewhere, so consent copy and release disclosures must accurately explain that explicit action.
+- The EDPB states that consent used as a legal basis must be freely given, informed, specific, unambiguous, and as easy to withdraw as to grant, without negative consequences. Mizyun therefore keeps analytics optional, leaves unknown/denied states as no-op, makes onboarding continuation independent of the choice, and exposes disable-and-clear beside enable/export. This is a conservative engineering application, not legal advice or a final lawful-basis determination.
+- Expo FileSystem SDK 57 supports app-local `File` instances under `Paths.document` with read, write, existence, and deletion operations. The consent choice and bounded event array use separate private document files. This also makes app uninstall reset the preference instead of placing non-secret consent state in iOS Keychain storage that can outlive an installation.
+- React Native's cross-platform `Share.share` opens the native share dialog for text. Mizyun serializes the validated export only after the user presses Export; no background uploader or processor endpoint exists.
+- ADR-0014 records the local-only, identifier-free, closed-schema, bounded-retention and fail-open boundary. `docs/OBSERVABILITY.md` is the mandatory event/property review catalog.
+
+## 2026-07-22 — ALPHA-001 validation and beta-distribution workflow
+
+### Primary sources
+
+- Expo, **Build locally: Overview** (accessed 2026-07-22): https://docs.expo.dev/guides/local-app-overview/
+- Apple Developer, **TestFlight Overview** (accessed 2026-07-22): https://developer.apple.com/help/app-store-connect/test-a-beta-version/testflight-overview/
+- Google Play Console Help, **Set up an open, closed, or internal test** (accessed 2026-07-22): https://support.google.com/googleplay/android-developer/answer/9845334
+- Maestro, **React Native support** (accessed 2026-07-22): https://docs.maestro.dev/platform-support/react-native
+
+### Verified findings and implementation consequences
+
+- Expo distinguishes local Debug and Release builds and documents Xcode/Android Studio as the native local build path. Mizyun's first ALPHA-001 checkpoint therefore reuses the documented standalone Release acceptance path; a Metro bundle alone is not recorded as alpha readiness.
+- TestFlight supports internal and external tester groups, requires beta test information and a feedback address, and may require review for the first external build. Google recommends starting with an internal test and then expanding to a small closed group, with an explicit feedback channel and opt-in link. Mizyun records these as distribution prerequisites rather than pretending simulator installation can recruit 10–30 design partners.
+- Both store systems collect their own tester/build feedback and engagement metadata. Mizyun's participant guide must disclose the actual distribution channel as well as the optional in-app analytics export; the local OBS-001 export does not replace platform disclosures.
+- Maestro remains an accessibility-layer acceptance tool and requires no analytics/testing SDK in the app. Native automation may prove the consent controls, customer flow, restart, and system share-sheet boundary, but elapsed founder days and participant feedback must remain dated human evidence.
+- No ADR is required: ALPHA-001 applies the existing native, privacy, analytics, and product-validation boundaries without changing a data format or provider decision.
