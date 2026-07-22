@@ -50,24 +50,19 @@ describe("uploadProgressPhoto", () => {
         expiresAt: "2026-07-21T10:00:00.000Z",
       }),
     );
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValueOnce(new Response(new Blob(["test"])))
-      .mockResolvedValueOnce(new Response(null, { status: 200 }));
+    const uploadFile = vi.fn().mockResolvedValue({ ok: true, status: 200 });
 
     const result = await uploadProgressPhoto(
       configuredClient(request),
       principal,
       photo,
-      fetchImpl,
+      uploadFile,
     );
 
     expect(result.ok).toBe(true);
-    expect(fetchImpl).toHaveBeenNthCalledWith(1, photo.uri);
-    expect(fetchImpl).toHaveBeenNthCalledWith(
-      2,
+    expect(uploadFile).toHaveBeenCalledWith(
       "https://storage.test/upload?token=one-time",
-      expect.objectContaining({ method: "PUT" }),
+      photo,
     );
   });
 
@@ -83,13 +78,13 @@ describe("uploadProgressPhoto", () => {
         }),
       )
       .mockResolvedValueOnce(ok(undefined));
-    const fetchImpl = vi.fn().mockRejectedValue(new Error("offline"));
+    const uploadFile = vi.fn().mockRejectedValue(new Error("offline"));
 
     const result = await uploadProgressPhoto(
       configuredClient(request),
       principal,
       photo,
-      fetchImpl,
+      uploadFile,
     );
 
     expect(result).toEqual(err({ kind: "upload_error", message: "offline" }));

@@ -272,7 +272,9 @@ export function LogWorkoutScreen() {
       <Stack.Screen options={{ title: "Workout" }} />
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
         <ScrollView
+          automaticallyAdjustKeyboardInsets
           contentContainerStyle={styles.content}
+          keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
         >
           {loading ? (
@@ -341,6 +343,7 @@ function StartSection(props: {
         server. Unsaved field text stays encrypted on this device.
       </ThemedText>
       <Field
+        testID="workout-name-input"
         label="Workout name"
         value={props.draft.name}
         onChangeText={(name) => props.onPatch({ name })}
@@ -348,6 +351,7 @@ function StartSection(props: {
         inputColor={props.inputColor}
       />
       <Field
+        testID="workout-notes-input"
         label="Notes (optional)"
         value={props.draft.notes}
         onChangeText={(notes) => props.onPatch({ notes })}
@@ -424,6 +428,7 @@ function ActiveSection(props: {
           </View>
         )}
         <Field
+          testID="exercise-name-input"
           label="New exercise name"
           value={props.exerciseName}
           onChangeText={props.onExerciseName}
@@ -431,6 +436,7 @@ function ActiveSection(props: {
           inputColor={props.inputColor}
         />
         <Field
+          testID="exercise-instructions-input"
           label="Instructions (optional)"
           value={props.exerciseInstructions}
           onChangeText={props.onExerciseInstructions}
@@ -467,6 +473,7 @@ function ActiveSection(props: {
           )}
           <View style={styles.grid}>
             <Field
+              testID="workout-reps-input"
               label="Reps"
               value={props.draft.repetitions}
               onChangeText={(repetitions) => props.onPatch({ repetitions })}
@@ -474,6 +481,7 @@ function ActiveSection(props: {
               inputColor={props.inputColor}
             />
             <Field
+              testID="workout-load-input"
               label={`Load (${unit})`}
               value={props.draft.load}
               onChangeText={(load) => props.onPatch({ load })}
@@ -481,6 +489,7 @@ function ActiveSection(props: {
               inputColor={props.inputColor}
             />
             <Field
+              testID="workout-duration-input"
               label="Duration (sec)"
               value={props.draft.durationSeconds}
               onChangeText={(durationSeconds) =>
@@ -490,6 +499,7 @@ function ActiveSection(props: {
               inputColor={props.inputColor}
             />
             <Field
+              testID="workout-distance-input"
               label="Distance (m)"
               value={props.draft.distanceMeters}
               onChangeText={(distanceMeters) =>
@@ -499,6 +509,7 @@ function ActiveSection(props: {
               inputColor={props.inputColor}
             />
             <Field
+              testID="workout-rpe-input"
               label="RPE (0–10)"
               value={props.draft.perceivedExertion}
               onChangeText={(perceivedExertion) =>
@@ -557,6 +568,7 @@ function ActiveSection(props: {
 }
 
 function Field(props: {
+  readonly testID?: string;
   readonly label: string;
   readonly value: string;
   readonly onChangeText: (next: string) => void;
@@ -570,6 +582,7 @@ function Field(props: {
         {props.label}
       </ThemedText>
       <TextInput
+        testID={props.testID}
         value={props.value}
         onChangeText={props.onChangeText}
         placeholder={props.placeholder}

@@ -87,7 +87,9 @@ export function EnergyProfileScreen() {
       <Stack.Screen options={{ title: "Energy inputs" }} />
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
         <ScrollView
+          automaticallyAdjustKeyboardInsets
           contentContainerStyle={styles.content}
+          keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
         >
           <ThemedText type="subtitle">

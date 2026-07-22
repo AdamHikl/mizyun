@@ -1,4 +1,5 @@
 import { Image } from "expo-image";
+import { File } from "expo-file-system";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect } from "expo-router";
@@ -51,15 +52,14 @@ const normalizeImage = async (
     compress: 0.85,
     format: SaveFormat.JPEG,
   });
-  const localResponse = await fetch(saved.uri);
-  if (!localResponse.ok) {
+  const file = new File(saved.uri);
+  if (!file.exists || file.size <= 0) {
     throw new Error("The selected photo could not be read.");
   }
-  const blob = await localResponse.blob();
   return {
     uri: saved.uri,
     mimeType: "image/jpeg",
-    byteSize: blob.size,
+    byteSize: file.size,
     width: saved.width,
     height: saved.height,
     capturedAt: new Date().toISOString(),

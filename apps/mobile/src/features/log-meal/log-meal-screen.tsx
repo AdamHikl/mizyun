@@ -108,7 +108,9 @@ export function LogMealScreen() {
       <Stack.Screen options={{ title: "Log a meal" }} />
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
         <ScrollView
+          automaticallyAdjustKeyboardInsets
           contentContainerStyle={styles.content}
+          keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
         >
           <ThemedText type="subtitle">What did you eat?</ThemedText>
@@ -118,6 +120,7 @@ export function LogMealScreen() {
           </ThemedText>
 
           <Field
+            testID="meal-name-input"
             label="Name"
             value={name}
             onChangeText={setName}
@@ -127,6 +130,7 @@ export function LogMealScreen() {
           />
 
           <Field
+            testID="meal-calories-input"
             label="Calories (kcal)"
             value={calories}
             onChangeText={setCalories}
@@ -139,6 +143,7 @@ export function LogMealScreen() {
           <View style={styles.macroRow}>
             <View style={styles.macroField}>
               <Field
+                testID="meal-protein-input"
                 label="Protein (g)"
                 value={protein}
                 onChangeText={setProtein}
@@ -149,6 +154,7 @@ export function LogMealScreen() {
             </View>
             <View style={styles.macroField}>
               <Field
+                testID="meal-carbs-input"
                 label="Carbs (g)"
                 value={carbs}
                 onChangeText={setCarbs}
@@ -159,6 +165,7 @@ export function LogMealScreen() {
             </View>
             <View style={styles.macroField}>
               <Field
+                testID="meal-fat-input"
                 label="Fat (g)"
                 value={fat}
                 onChangeText={setFat}
@@ -203,6 +210,7 @@ export function LogMealScreen() {
 }
 
 function Field(props: {
+  readonly testID: string;
   readonly label: string;
   readonly value: string;
   readonly onChangeText: (next: string) => void;
@@ -218,6 +226,7 @@ function Field(props: {
         {props.label}
       </ThemedText>
       <TextInput
+        testID={props.testID}
         value={props.value}
         onChangeText={props.onChangeText}
         placeholder={props.placeholder}

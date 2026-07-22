@@ -45,7 +45,7 @@ These items convert the tested domain/API foundation into the low-friction produ
 | ALPHA-001     | P0       | blocked | Founder week plus 10–30 design-partner alpha          | No open P0/P1 issue blocks repeated use; evidence and feedback are recorded |
 | BILL-001      | P1       | blocked | Premium packaging and mobile subscription billing     | Paid value/cost is validated and entitlements restore safely                |
 
-Native acceptance evidence: the standalone iOS Release app passes real sign-in, new-user onboarding, baseline weight creation, and the persisted dashboard. The combined meal, workout, body, progress-photo, restart-persistence, and Android journeys remain open under `MOB-DAILY-001`.
+Native acceptance evidence: the standalone iOS Release app passes real sign-in, onboarding/baseline, exact meal totals, weight plus waist/chest history, workout/set completion, previous performance, dashboard summaries, app-restart session/data restoration, and the two-photo private upload/compare/delete lifecycle against local Supabase. `MOB-DAILY-001` remains active until the same stored-data journey passes on Android under `AND-001`.
 
 ## Implemented domain/API slices — not yet customer-complete
 

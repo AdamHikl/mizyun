@@ -832,3 +832,27 @@ PERSIST-001 closed the persistence gap for profile, goals, and food. What's the 
 - A real password sign-in proved that the auth subscription updated the session without refreshing the profile. Fresh accounts therefore bypassed onboarding and rendered protected dashboard children. `AuthProvider` now resolves the profile on every session transition, holds a loading boundary during the request, invalidates stale requests, and routes unresolved/new profiles to onboarding.
 - Accessibility screenshots and hierarchy bounds proved that centered safe-area containers allowed `maxWidth: 800` scroll content to become 800 points wide on a 402-point iPhone. The affected mobile screens now stretch their safe area to the viewport and center only the bounded content container, preserving narrow-screen reachability and wide-screen limits.
 - The corrected Release build passed a disposable-account Maestro journey through sign-in, all onboarding inputs, the persisted 80 kg baseline, and the real dashboard. No ADR is required: the changes repair existing session-gating and responsive-layout intent without changing module boundaries, data formats, or provider strategy.
+
+## 2026-07-22 — Native keyboard-safe numeric forms
+
+### Primary sources
+
+- React Native, **ScrollView** (accessed 2026-07-22): https://reactnative.dev/docs/scrollview
+
+### Verified findings and implementation consequences
+
+- React Native documents that `automaticallyAdjustKeyboardInsets` updates a scroll view's content and indicator insets as the iOS keyboard changes size; its default is `false`. Native acceptance proved that Mizyun's macro inputs could remain geometrically behind the numeric keyboard, causing an attempted field tap to keep focus in calories and concatenate every later value there.
+- Input-heavy scroll forms now opt into the supported iOS inset adjustment while retaining `keyboardShouldPersistTaps="handled"`, so covered fields gain reachable scroll extent and taps handled by form controls still reach those controls. They use the cross-platform `keyboardDismissMode="on-drag"` option so an intentional form drag dismisses the numeric keyboard before submission. The inset prop is also safe on Android, where keyboard layout behavior remains controlled by the platform window mode.
+- The change applies consistently to onboarding, energy inputs, meal create/edit, body measurements, and workouts. It repairs reachability without changing validation, canonical-unit conversion, or persistence semantics, so no ADR is required.
+
+## 2026-07-22 — Native progress-photo file transport
+
+### Primary sources
+
+- Expo SDK 57, **FileSystem** (accessed 2026-07-22): https://docs.expo.dev/versions/latest/sdk/filesystem/
+
+### Verified findings and implementation consequences
+
+- Expo FileSystem's `File` represents a native file, reports its size directly, implements the Blob contract, and is the documented request body for file uploads through `expo/fetch`.
+- Standalone iOS acceptance proved that calling `Response.blob()` on a fetched local `file://` URI attempts an unsupported ArrayBuffer-to-Blob conversion. Mizyun now validates the normalized derivative with `File.exists` and `File.size`, then sends that same native `File` directly with `expo/fetch`; no JavaScript byte copy or base64 expansion is introduced.
+- Upload orchestration still receives an injectable transport in unit tests, preserves the one-time signed-URL headers, and deletes pending sensitive metadata if the native transfer throws or returns a non-success status. This is a platform transport correction within ADR-0013's existing direct-upload boundary, so no new ADR is required.

@@ -24,6 +24,11 @@ export interface PreparedProgressPhoto {
   readonly capturedAt: string;
 }
 
+export type ProgressPhotoUploader = (
+  uploadUrl: string,
+  photo: PreparedProgressPhoto,
+) => Promise<{ readonly ok: boolean; readonly status: number }>;
+
 export type ProgressPhotoError =
   | ApiError
   | { readonly kind: "invalid_photo"; readonly message: string }
@@ -89,11 +94,27 @@ export const deleteProgressPhoto = async (
 ): Promise<Result<void, ApiError>> =>
   client.request<void>({ method: "DELETE", path: `/v1/media/${assetId}` });
 
+const uploadNativeFile: ProgressPhotoUploader = async (uploadUrl, photo) => {
+  const [{ fetch: expoFetch }, { File }] = await Promise.all([
+    import("expo/fetch"),
+    import("expo-file-system"),
+  ]);
+  return expoFetch(uploadUrl, {
+    method: "PUT",
+    headers: {
+      "cache-control": "max-age=0",
+      "content-type": photo.mimeType,
+      "x-upsert": "false",
+    },
+    body: new File(photo.uri),
+  });
+};
+
 export const uploadProgressPhoto = async (
   client: ApiClient,
   principal: MobilePrincipal,
   photo: PreparedProgressPhoto,
-  fetchImpl: typeof globalThis.fetch = globalThis.fetch.bind(globalThis),
+  uploadFile: ProgressPhotoUploader = uploadNativeFile,
 ): Promise<Result<{ readonly assetId: string }, ProgressPhotoError>> => {
   const invalid = validatePreparedPhoto(photo);
   if (invalid !== null) return err(invalid);
@@ -115,20 +136,7 @@ export const uploadProgressPhoto = async (
   if (!ticket.ok) return err(ticket.error);
 
   try {
-    const localResponse = await fetchImpl(photo.uri);
-    if (!localResponse.ok) {
-      throw new Error(`local photo read failed (${localResponse.status})`);
-    }
-    const blob = await localResponse.blob();
-    const uploadResponse = await fetchImpl(ticket.value.uploadUrl, {
-      method: "PUT",
-      headers: {
-        "cache-control": "max-age=0",
-        "content-type": photo.mimeType,
-        "x-upsert": "false",
-      },
-      body: blob,
-    });
+    const uploadResponse = await uploadFile(ticket.value.uploadUrl, photo);
     if (!uploadResponse.ok) {
       throw new Error(`signed upload failed (${uploadResponse.status})`);
     }

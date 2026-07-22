@@ -135,7 +135,9 @@ export function EditMealScreen() {
       <Stack.Screen options={{ title: "Edit meal" }} />
       <SafeAreaView style={styles.safeArea} edges={["left", "right"]}>
         <ScrollView
+          automaticallyAdjustKeyboardInsets
           contentContainerStyle={styles.content}
+          keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
         >
           <ThemedText type="subtitle">Edit meal</ThemedText>

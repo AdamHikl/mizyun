@@ -82,7 +82,12 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   return (
     <ThemedView style={styles.page}>
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView
+          automaticallyAdjustKeyboardInsets
+          contentContainerStyle={styles.content}
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+        >
           <View style={styles.header}>
             <ThemedText type="smallBold" themeColor="textSecondary">
               WELCOME

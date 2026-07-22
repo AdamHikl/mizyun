@@ -86,7 +86,9 @@ export function LogWeightScreen() {
       <Stack.Screen options={{ title: "Add weight" }} />
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
         <ScrollView
+          automaticallyAdjustKeyboardInsets
           contentContainerStyle={styles.content}
+          keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
         >
           <ThemedText type="subtitle">Today's measurement.</ThemedText>
@@ -96,6 +98,7 @@ export function LogWeightScreen() {
           </ThemedText>
 
           <Field
+            testID="body-weight-input"
             label={`Weight (${unitLabel})`}
             value={weight}
             onChangeText={setWeight}
@@ -106,6 +109,7 @@ export function LogWeightScreen() {
           />
 
           <Field
+            testID="body-waist-input"
             label={`Waist (${lengthUnitLabel(unitSystem)}, optional)`}
             value={waist}
             onChangeText={setWaist}
@@ -115,6 +119,7 @@ export function LogWeightScreen() {
           />
 
           <Field
+            testID="body-chest-input"
             label={`Chest (${lengthUnitLabel(unitSystem)}, optional)`}
             value={chest}
             onChangeText={setChest}
@@ -157,6 +162,7 @@ export function LogWeightScreen() {
 }
 
 function Field(props: {
+  readonly testID: string;
   readonly label: string;
   readonly value: string;
   readonly onChangeText: (next: string) => void;
@@ -171,6 +177,7 @@ function Field(props: {
         {props.label}
       </ThemedText>
       <TextInput
+        testID={props.testID}
         value={props.value}
         onChangeText={props.onChangeText}
         placeholder={props.placeholder}
