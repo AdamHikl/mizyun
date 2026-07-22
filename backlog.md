@@ -19,11 +19,11 @@
 | SEC-002  | P0       | done   | Complete private-media isolation tests                  | Path and signed-URL owner-isolation tests pass           |
 | CFG-001  | P1       | done   | Add validated API and mobile configuration modules      | Missing/invalid config produces typed, actionable states |
 | API-001  | P1       | done   | Create provider-neutral authenticated mobile API client | Tokens attach/refresh; 401 and network errors normalize  |
-| AUTH-001 | P1       | done   | Test real sign-up/sign-in/session restore               | Verified against local Supabase in iOS simulator         |
+| AUTH-001 | P1       | done   | Test real sign-up/sign-in/session restore               | Verified against local Supabase on iOS and Android       |
 | AUTH-002 | P1       | done   | Add account/settings screen with sign-out               | Signed-in user can explicitly end the session            |
 | AUTH-003 | P1       | done   | Implement password recovery and confirmation flows      | Deep-link and error states verified                      |
 | OPS-001  | P1       | done   | Establish safe structured API logging/error baseline    | Request IDs present; sensitive bodies/tokens excluded    |
-| AND-001  | P1       | ready  | Configure and verify Android emulator                   | Clean Android Metro/runtime launch documented            |
+| AND-001  | P1       | done   | Configure and verify Android emulator                   | Standalone Release journey and native media pass         |
 
 ## Now — Persistent manual alpha
 
@@ -34,7 +34,7 @@ These items convert the tested domain/API foundation into the low-friction produ
 | PERSIST-001   | P0       | done    | Supabase repositories for profile, goals, and food    | Production composition persists records across API restarts with RLS        |
 | PERSIST-002   | P0       | done    | Supabase repositories for training, body, and account | Same persistence/isolation/export/deletion proof as PERSIST-001             |
 | PERSIST-003   | P0       | done    | Real Supabase private-media storage adapter           | Mobile-compatible signed upload/download/delete works against real storage  |
-| MOB-DAILY-001 | P1       | active  | Persistent mobile daily-loop integration              | All MOB-ONB/NUT/WO/BODY/DASH child journeys pass together on stored data    |
+| MOB-DAILY-001 | P1       | done    | Persistent mobile daily-loop integration              | All MOB-ONB/NUT/WO/BODY/DASH child journeys pass together on stored data    |
 | MOB-ONB-001   | P1       | done    | Complete activation and baseline weight               | New user reaches a useful dashboard with the minimum energy inputs          |
 | MOB-NUT-001   | P1       | done    | Manual food logging and daily totals UI               | User can create/edit/delete food and see stored calorie/macro totals        |
 | MOB-WO-001    | P1       | done    | Exercise, workout, and set logging UI                 | User completes a workout and sees previous performance                      |
@@ -45,7 +45,7 @@ These items convert the tested domain/API foundation into the low-friction produ
 | ALPHA-001     | P0       | blocked | Founder week plus 10–30 design-partner alpha          | No open P0/P1 issue blocks repeated use; evidence and feedback are recorded |
 | BILL-001      | P1       | blocked | Premium packaging and mobile subscription billing     | Paid value/cost is validated and entitlements restore safely                |
 
-Native acceptance evidence: the standalone iOS Release app passes real sign-in, onboarding/baseline, exact meal totals, weight plus waist/chest history, workout/set completion, previous performance, dashboard summaries, app-restart session/data restoration, and the two-photo private upload/compare/delete lifecycle against local Supabase. `MOB-DAILY-001` remains active until the same stored-data journey passes on Android under `AND-001`.
+Native acceptance evidence: standalone iOS and Android Release apps pass real sign-in, exact meal totals, weight plus waist/chest history, workout/set completion, previous performance, dashboard summaries, app-restart session/data restoration, and the two-photo private upload/compare/delete lifecycle against local Supabase. iOS additionally proves new-user onboarding with an 80 kg baseline. Android runs on an API 36 Pixel 9 AVD and uses only local reverse tunnels to make Supabase's localhost signed Storage URLs reachable from the emulator.
 
 ## Implemented domain/API slices — not yet customer-complete
 

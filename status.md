@@ -5,16 +5,16 @@
 ## Executive snapshot
 
 - **Product stage:** technical pre-alpha; the architecture and domain/API foundation are strong, but this is not yet a customer-usable tracking beta.
-- **Roadmap position:** Every scoped MOB child (activation, nutrition, workout, body, dashboard, and progress photos) is complete at the implementation gate. MOB-DAILY-001 remains active until the combined persisted journeys pass on native iOS and Android.
-- **Latest verified implementation slice:** the standalone iOS Release app now passes the complete stored MOB journey, including exact nutrition/body/workout/dashboard values, restart restoration, previous performance, and two-photo private upload/compare/delete. Native acceptance also corrected keyboard-obscured forms and local-file photo transport.
-- **Next exact action:** install/configure the Android SDK and emulator from the official Android Studio tooling, launch the standalone app against local Supabase/API, and repeat the same stored MOB journey for AND-001.
+- **Roadmap position:** Every scoped MOB item and AND-001 is complete at the implementation and local native-acceptance gates. The next planned product slice is OBS-001, followed by founder/design-partner alpha.
+- **Latest verified implementation slice:** standalone iOS and Android Release apps pass the stored MOB journey, including exact nutrition/body/workout/dashboard values, restart restoration, previous performance, and two-photo private upload/compare/delete.
+- **Next exact action:** define the privacy-safe OBS-001 event contract and local measurement boundary before selecting or integrating an analytics processor.
 - **Branch:** `main`; each completed mobile/persistence slice is kept in a coherent local commit.
 - **Remote:** `https://github.com/AdamHikl/mizyun`.
 - **Remote state:** local `main` contains the completed unpushed MOB-ONB, MOB-WO, MOB-BODY, MOB-DASH, PERSIST-003, and MEDIA-MOB slices; pushing them requires explicit user approval.
 - **AI provider:** intentionally disabled. No Mistral or other model API is configured.
 - **Hosted Supabase:** not created or linked.
 - **iOS:** native Release build/install/launch and the complete disposable-account onboarding/daily/restart/private-photo journey pass on an iPhone 17 Pro simulator.
-- **Android:** emulator/device runtime has not been configured or verified.
+- **Android:** a standalone Release APK passes the complete disposable-account daily/restart/private-photo journey on a Pixel 9 API 36 emulator.
 
 ## What is genuinely delivered
 
@@ -70,20 +70,20 @@ The mobile app currently includes:
 
 ## Critical implementation distinction
 
-The core manual tracking and private progress-photo lifecycles are implemented and pass together on native iOS, but release-grade cross-platform acceptance remains incomplete:
+The core manual tracking and private progress-photo lifecycles are implemented and pass together on native iOS and Android; release-grade hosted/device acceptance remains incomplete:
 
 - food entries now have a complete manual mobile lifecycle for today's local calendar day; multi-day history remains deferred;
 - workout templates/reordering and broader progression summaries remain absent; the manual active-session/set/previous-performance loop is available;
 - body measurement activation, capture, raw history, and labeled trend are available; additional measurement kinds remain schema-extensible;
-- the dashboard shows deterministic energy state and calendar week/month reviews; its stored meal/body/workout summaries and restart restoration pass on iOS, while Android remains open;
-- progress-photo library selection/upload/timeline/compare/delete passes with synthetic non-sensitive media and real signed Storage transfer on iOS; camera hardware and Android result recovery remain open;
+- the dashboard shows deterministic energy state and calendar week/month reviews; its stored meal/body/workout summaries and restart restoration pass on iOS and Android;
+- progress-photo library selection/upload/timeline/compare/delete passes with synthetic non-sensitive media and real signed Storage transfer on iOS and Android; camera hardware and forced Android activity-destruction recovery remain open;
 - the Coach screen is a provider-not-connected placeholder;
 - there is no HealthKit/Health Connect step synchronization;
 - there is no billing, paywall, product analytics, crash reporting, or community functionality.
 
-With validated Supabase server configuration, the API selects Supabase-backed profile, goal, food, exercise, workout, workout-set, body-measurement, and media-asset repositories plus private Storage. The standard no-environment gate intentionally remains in-memory. Hosted Supabase deployment, Android native acceptance, and account deletion across every external resource remain incomplete.
+With validated Supabase server configuration, the API selects Supabase-backed profile, goal, food, exercise, workout, workout-set, body-measurement, and media-asset repositories plus private Storage. The standard no-environment gate intentionally remains in-memory. Hosted Supabase deployment, physical-device/store-build acceptance, and account deletion across every external resource remain incomplete.
 
-Do not describe NUT-_, WO-_, BODY-_, ENG-_, MEDIA-* or DATA-001 as customer-complete. They are verified domain/API slices awaiting persistent adapters and mobile integration.
+Do not describe NUT-_, WO-_, BODY-_, ENG-_, MEDIA-* or DATA-001 as customer-complete. Their local persistent/native integration is verified, but hosted, physical-device, and repeated-user evidence is still absent.
 
 ## Verification evidence — 2026-07-22
 
@@ -107,11 +107,13 @@ pnpm db:verify
   pgTAP: 55 assertions passed
 ```
 
-PERSIST-003 passed `pnpm db:verify` on a clean reset: every migration applied, database lint reported no errors, and all 55 pgTAP assertions passed. The opt-in real-Supabase persistence suite passed all 8 tests, including fresh-repository media metadata visibility, two-user table/Storage isolation, direct signed PUT/download compatibility, and physical object deletion. MEDIA-MOB-001 passes 106 mobile tests (4 photo-specific), mobile typecheck, an iOS production export, and the authenticated standalone iOS lifecycle described below. Android result recovery and camera hardware remain outside this evidence.
+PERSIST-003 passed `pnpm db:verify` on a clean reset: every migration applied, database lint reported no errors, and all 55 pgTAP assertions passed. The opt-in real-Supabase persistence suite passed all 8 tests, including fresh-repository media metadata visibility, two-user table/Storage isolation, direct signed PUT/download compatibility, and physical object deletion. MEDIA-MOB-001 passes 106 mobile tests (4 photo-specific), mobile typecheck, an iOS production export, and the authenticated standalone iOS and Android lifecycles described below. Forced Android activity-destruction recovery and camera hardware remain outside this evidence.
 
 The first native MEDIA-MOB Release launch exposed a binary mismatch: ImagePicker/ImageManipulator `57.0.5` had resolved under their package ranges while ExpoModulesCore remained `57.0.3`, and dyld rejected ImageManipulator's missing `AnyModule._decorateModule` symbol. Exact `57.0.2` pins, a regenerated CocoaPods graph, and a fresh Release build corrected it. The corrected app installed and launched successfully in an iPhone 17 Pro simulator and rendered the sign-in screen without a crash. This proves native startup, not the authenticated camera/library and persisted-data journeys.
 
 Maestro 2.7.0 then drove disposable confirmed accounts through the standalone iOS Release app and found four P1 native defects. Session transitions now resolve `/v1/profile` before protected content; bounded screens stay within a 402-point viewport; input-heavy scroll forms gain keyboard insets and drag dismissal; and normalized photo derivatives use Expo's native `File` size/upload path instead of an unsupported ArrayBuffer-to-Blob conversion. After correction, an iPhone 17 Pro simulator passed onboarding with an `80.0 kg` baseline and a combined stored journey with `650 kcal`, `40P / 70C / 20F`, `81 kg`, separate `chest 101 cm · waist 82 cm`, a completed `Back squat · 5 reps · 100 kg` set, dashboard workout count, app-restart session/data restoration, and previous-performance recovery (`100 kg` best, `500 kg` prior volume). A separate synthetic-media journey passed two private signed uploads, same-day comparison, permanent deletion of both objects, and return to the empty timeline. Every disposable auth identity was deleted after its run.
+
+The Android SDK 36 toolchain then produced a standalone Release APK and installed it on a Pixel 9 API 36 arm64 AVD. Maestro repeated the stored daily journey with the same exact meal, body, workout, dashboard, restart, and previous-performance assertions. A separate system Photo Picker journey passed two normalized private signed uploads, same-day comparison, permanent deletion of both objects, and return to the empty timeline. Supabase's local signed URLs identify `127.0.0.1`; `adb reverse tcp:54321 tcp:54321` was therefore used strictly as local test plumbing so the emulator could reach the host Storage service. Every disposable Android auth identity was deleted after its run.
 
 ## Business-plan alignment
 
@@ -124,12 +126,11 @@ Maestro 2.7.0 then drove disposable confirmed accounts through the standalone iO
 
 ### Gaps blocking early customers
 
-- The manual meal/workout/weight lifecycles and dashboard review pass on authenticated native iOS; Android remains unverified.
+- The manual meal/workout/weight lifecycles and dashboard review pass on authenticated native iOS and Android.
 - Supabase repository and private Storage adapters have local restart/isolation evidence, but a hosted project is not yet deployed or accepted on native devices.
-- The progress dashboard, calendar review, and private photo lifecycle pass against local persistence on native iOS; hosted and Android acceptance remain open.
-- Photo capture/upload and AI-assisted calorie drafts do not exist end to end.
+- The progress dashboard, calendar review, and private photo lifecycle pass against local persistence on native iOS and Android; hosted acceptance remains open.
+- Library-based private photo capture/upload exists; camera-hardware proof and AI-assisted calorie drafts do not exist end to end.
 - The memory-aware coach is only an interface and disabled implementation.
-- Android has not been verified.
 - There is no activation/retention instrumentation or subscription system, so the freemium/premium hypothesis cannot yet be measured.
 
 ## Productization sequence
@@ -138,8 +139,8 @@ Do not start Mistral/chatbot implementation merely because the provider boundary
 
 1. **PERSIST-001:** implement Supabase-backed profile, goal, and food repositories; prove persistence and RLS end to end.
 2. **PERSIST-002 / PERSIST-003:** persist training/body/account records and replace in-memory media storage; prove real export and deletion.
-3. **MOB-DAILY-001:** build the smallest persistent mobile daily loop: baseline weight, manual meal, workout/set, and real dashboard totals.
-4. **AND-001:** verify the same loop in an Android emulator, not just an iOS bundle.
+3. **MOB-DAILY-001:** build the smallest persistent mobile daily loop: baseline weight, manual meal, workout/set, and real dashboard totals. (Complete.)
+4. **AND-001:** verify the same loop in an Android emulator, not just an iOS bundle. (Complete.)
 5. **OBS-001:** add consent-respecting product analytics for activation, logging time/taps, retention, failures, and AI cost readiness.
 6. **MEDIA-MOB-001:** add real progress-photo selection/capture, upload, timeline, comparison, and deletion UI. (Implementation gate complete.)
 7. **ALPHA-001:** run founder dogfooding and a 10–30-person design-partner beta; fix friction and data-loss issues.
@@ -149,7 +150,7 @@ Do not start Mistral/chatbot implementation merely because the provider boundary
 
 ## Known operational risks
 
-- Hosted Supabase deployment and Android native acceptance are still outstanding; the passing local iOS journey does not prove hosted networking, email delivery, or store builds.
+- Hosted Supabase deployment and physical-device/store-build acceptance are still outstanding; passing local simulator journeys do not prove hosted networking, email delivery, or store distribution.
 - Supabase CLI 2.109.1 reports localhost URLs while Docker Desktop publishes local services on `0.0.0.0` and IPv6 `::`. Use the stack only on a trusted network, never with real user data, and stop it when unused.
 - Account deletion currently orchestrates application repositories; release-grade deletion must also remove the real auth identity, storage bytes, conversations, memories, provider references, and any processor-held data.
 - The documentation previously contained contradictory phase/next-action statements. This file and `docs/BUSINESS_ALIGNMENT.md` now describe the audited state; keep them synchronized with executable changes.
@@ -170,4 +171,4 @@ Never put a service-role or model secret in an `EXPO_PUBLIC_` variable. AI remai
 
 ## Handoff note
 
-Read `AGENTS.md`, `goals.md`, `docs/BUSINESS_ALIGNMENT.md`, `plan.md`, this file, and `backlog.md` before implementation. Configure Android Studio/SDK/emulator from the official tooling and repeat the now-passing iOS stored MOB journey for AND-001; no `adb`, Android `emulator`, or `ANDROID_HOME` was available at the last check. Do not start AI.
+Read `AGENTS.md`, `goals.md`, `docs/BUSINESS_ALIGNMENT.md`, `plan.md`, this file, and `backlog.md` before implementation. Start OBS-001 by researching and defining a consent-respecting event contract that excludes food text, health values, photos, tokens, and message bodies; do not select a processor or start AI before that boundary is reviewed.

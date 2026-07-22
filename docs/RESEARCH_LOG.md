@@ -856,3 +856,21 @@ PERSIST-001 closed the persistence gap for profile, goals, and food. What's the 
 - Expo FileSystem's `File` represents a native file, reports its size directly, implements the Blob contract, and is the documented request body for file uploads through `expo/fetch`.
 - Standalone iOS acceptance proved that calling `Response.blob()` on a fetched local `file://` URI attempts an unsupported ArrayBuffer-to-Blob conversion. Mizyun now validates the normalized derivative with `File.exists` and `File.size`, then sends that same native `File` directly with `expo/fetch`; no JavaScript byte copy or base64 expansion is introduced.
 - Upload orchestration still receives an injectable transport in unit tests, preserves the one-time signed-URL headers, and deletes pending sensitive metadata if the native transfer throws or returns a non-success status. This is a platform transport correction within ADR-0013's existing direct-upload boundary, so no new ADR is required.
+
+## 2026-07-22 — AND-001 Android standalone acceptance
+
+### Primary sources
+
+- Android Developers, **Install Android Studio** (accessed 2026-07-22): https://developer.android.com/studio/install
+- Android Developers, **Start the emulator from the command line** (accessed 2026-07-22): https://developer.android.com/studio/run/emulator-commandline
+- Android Developers, **Create and manage virtual devices** (accessed 2026-07-22): https://developer.android.com/studio/run/managing-avds
+- Android Developers, **Set up Android Emulator networking** (accessed 2026-07-22): https://developer.android.com/studio/run/emulator-networking
+- Android Developers, **Android Debug Bridge — port forwarding** (accessed 2026-07-22): https://developer.android.com/tools/adb#forwardports
+
+### Verified findings and implementation consequences
+
+- Android Studio's bundled JBR and the SDK command-line tools provide the supported build/runtime path. Mizyun's local acceptance environment uses SDK Platform 36, Build Tools 36, an arm64 Google APIs system image, and a Pixel 9 API 36 AVD. A generated, ignored native project produced a standalone Release APK; the repository remains Expo-prebuild managed.
+- The Android emulator reserves `10.0.2.2` as an alias to the host loopback interface. The Release bundle therefore used `10.0.2.2` for the local API and Supabase entry URLs instead of treating emulator `127.0.0.1` as the development host.
+- Supabase's local Storage service returns signed URLs containing its configured `127.0.0.1` origin. Android's documented ADB reverse-port facility bridges those signed URLs back to the trusted host-only test service. This is acceptance-harness plumbing, not an application fallback or production networking design.
+- Maestro 2.7.0 drove the installed Release APK through real password sign-in, exact persisted meal/body/workout/dashboard assertions, process stop/relaunch restoration, and previous performance. A separate system Photo Picker flow proved two native `File` uploads, comparison, permanent deletion, and empty-state restoration. Android numeric keyboards require an explicit automation `hideKeyboard`; swipe gestures over the numeric keyboard can type digits and are not reliable dismissal evidence.
+- No durable architecture decision changed: the app uses the same provider-neutral API, persistence, native file transport, and private-media boundary on both platforms. No ADR is required.
