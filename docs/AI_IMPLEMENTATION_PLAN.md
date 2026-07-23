@@ -25,7 +25,7 @@ The default-off first vertical slice is implemented:
 - a native Coach conversation screen with disabled, loading, empty, pending, retry, provider-unavailable, evidence, archive/delete, and limitations states;
 - full offline repository and database gates.
 
-This is an implementation milestone, not permission to make a live call. Mistral external access still defaults to `false`; no key is configured; live moderation calibration, comprehensive grounded-answer evaluation, provider-account budgets/retention settings, and standalone iOS/Android AI acceptance remain open. Persistent memory and nutrition/photo drafting remain deliberately sequenced after the grounded coach promotion gate.
+This is an implementation milestone, not permission for real-user traffic. Mistral external access still defaults to `false`. On 2026-07-23, after the developer confirmed a dedicated capped workspace and privacy/retention controls, one direct live call passed with a fictional nutrition fixture: structured output, `stop` finish reason, 342 total tokens, and a 1–3 second latency bucket. No real user data, account identifier, photo, or key entered the recorded request/output. Live moderation calibration, comprehensive grounded-answer evaluation, application/native integration, and the real-user policy decision remain open. Persistent memory and nutrition/photo drafting remain deliberately sequenced after the grounded coach promotion gate.
 
 ## Why implementation can move before alpha
 

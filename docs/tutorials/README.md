@@ -4,14 +4,15 @@
 
 ## Pick the workflow you need
 
-| Goal                                             | Runbook                                   |
-| ------------------------------------------------ | ----------------------------------------- |
-| Start a normal coding session                    | [Daily quickstart](./QUICKSTART.md)       |
-| Configure or diagnose local Supabase and the API | [Local backend](./LOCAL_BACKEND.md)       |
-| Run or build the app in an iOS Simulator         | [iOS Simulator](./IOS_SIMULATOR.md)       |
-| Run or build the app in an Android emulator      | [Android emulator](./ANDROID_EMULATOR.md) |
-| Choose and execute the right test gate           | [Testing](./TESTING.md)                   |
-| Recover from a known setup/build/runtime failure | [Troubleshooting](./TROUBLESHOOTING.md)   |
+| Goal                                             | Runbook                                           |
+| ------------------------------------------------ | ------------------------------------------------- |
+| Start a normal coding session                    | [Daily quickstart](./QUICKSTART.md)               |
+| Configure or diagnose local Supabase and the API | [Local backend](./LOCAL_BACKEND.md)               |
+| Run or build the app in an iOS Simulator         | [iOS Simulator](./IOS_SIMULATOR.md)               |
+| Run or build the app in an Android emulator      | [Android emulator](./ANDROID_EMULATOR.md)         |
+| Configure and test the development AI provider   | [Mistral AI testing](./AI_DEVELOPMENT_TESTING.md) |
+| Choose and execute the right test gate           | [Testing](./TESTING.md)                           |
+| Recover from a known setup/build/runtime failure | [Troubleshooting](./TROUBLESHOOTING.md)           |
 
 The normal path is:
 

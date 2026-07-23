@@ -5,15 +5,16 @@
 ## Executive snapshot
 
 - **Product stage:** technical pre-alpha; the architecture and domain/API foundation are strong, but this is not yet a customer-usable tracking beta.
-- **Roadmap position:** Every scoped MOB item, AND-001, and OBS-001 is complete at its implementation gate. The default-off Mistral Coach vertical slice is implemented; AI-GOV-001, full/live evaluation, and native AI acceptance remain before ALPHA-001 can include AI. Elapsed founder/design-partner evidence remains 0 of 7 days and 0 of 10 minimum participants.
+- **Roadmap position:** Every scoped MOB item, AND-001, and OBS-001 is complete at its implementation gate. The default-off Mistral Coach vertical slice and first live synthetic adapter call pass; full evaluation, written real-user policy clearance, and native AI acceptance remain before ALPHA-001 can include AI. Elapsed founder/design-partner evidence remains 0 of 7 days and 0 of 10 minimum participants.
 - **Latest verified implementation slice:** server-only Mistral configuration/provider composition, private persisted conversations, confirmed-data grounding, fixed EN/SK safety paths, and the native Coach UI pass the complete offline code/database gates.
-- **Latest operational slice:** `docs/AI_IMPLEMENTATION_PLAN.md`, ADR 0015, and `docs/BEFORE_TESTING.md` separate completed default-off implementation from live-synthetic and real-user activation authority.
-- **Next exact action:** execute AI-GOV-001: configure a dedicated low-budget Mistral development workspace, record retention/training/DPA/ZDR settings, and obtain a written synthetic-use and fitness/wellness go/no-go. Only then add and run the opt-in live-synthetic evaluation; do not use real health data.
+- **Latest operational slice:** a direct server-side `mistral-medium-latest` request using only a fictional confirmed nutrition record returned schema-valid grounded output and bounded metadata; no personal record or key appeared in request evidence.
+- **Next exact action:** start AI-MOB-001 physical-device acceptance by first asking whether the target phone is iPhone or Android, then choose a trusted-LAN or hosted development API path. Before installing, add the remaining application rate-limit/jitter controls and an opt-in live-synthetic harness; keep the model key server-only and use a disposable synthetic account.
 - **Branch:** `main`; each completed mobile/persistence slice is kept in a coherent local commit.
-- **Latest commit:** `feat: add guarded Mistral coach` (this handoff).
+- **Latest commit:** `docs: record Mistral development test handoff` (this handoff).
 - **Remote:** `https://github.com/AdamHikl/mizyun`.
-- **Remote state:** `main` is twelve commits ahead of `origin/main`. The guarded Mistral implementation is committed locally; pushing would publish it together with the eleven earlier accumulated commits and requires explicit confirmation.
-- **AI provider:** Mistral `mistral-medium-latest` is implemented behind `AGENT_PROVIDER=mistral`, but external access defaults off and no API key is configured. It is not approved for real-user traffic.
+- **Remote state:** the live-test evidence and AI development runbook were committed and pushed to `origin/main` in this handoff.
+- **AI provider:** Mistral `mistral-medium-latest` is implemented behind `AGENT_PROVIDER=mistral`; external access defaults off. A local ignored development secret passed one synthetic live call, but the provider is not approved for real-user traffic.
+- **Local runtime at handoff:** the temporary API was stopped after the synthetic call; local Supabase was already stopped. The ignored root `.env` exists with mode `600`; do not print or commit it.
 - **Hosted Supabase:** not created or linked.
 - **iOS:** native Release build/install/launch and the complete disposable-account onboarding/daily/restart/private-photo journey pass on an iPhone 17 Pro simulator.
 - **Android:** a standalone Release APK passes the complete disposable-account daily/restart/private-photo journey on a Pixel 9 API 36 emulator.
@@ -80,7 +81,7 @@ The core manual tracking and private progress-photo lifecycles are implemented a
 - body measurement activation, capture, raw history, and labeled trend are available; additional measurement kinds remain schema-extensible;
 - the dashboard shows deterministic energy state and calendar week/month reviews; its stored meal/body/workout summaries and restart restoration pass on iOS and Android;
 - progress-photo library selection/upload/timeline/compare/delete passes with synthetic non-sensitive media and real signed Storage transfer on iOS and Android; camera hardware and forced Android activity-destruction recovery remain open;
-- the Coach UI and API are implemented, but live provider calls and standalone native AI acceptance remain gated;
+- the Coach UI and API are implemented and one direct synthetic provider call passes, but authenticated application/native AI acceptance remains gated;
 - there is no HealthKit/Health Connect step synchronization;
 - there is no billing, paywall, crash reporting, network analytics processor, or community functionality; product analytics is local-only and requires voluntary participant export.
 
@@ -109,7 +110,9 @@ git diff --check
   passed
 ```
 
-Focused evidence includes 4 fake-boundary Mistral provider tests, 8 runtime tests including every case in the versioned 12-case English/Slovak critical-safety corpus, 4 authenticated Coach route tests, 2 mobile Coach data tests, and database assertions for message status/idempotency plus the user-scoped uniqueness index. No live Mistral request was made, no key was configured, and no real health data was sent outside the local system.
+Focused evidence includes 4 fake-boundary Mistral provider tests, 8 runtime tests including every case in the versioned 12-case English/Slovak critical-safety corpus, 4 authenticated Coach route tests, 2 mobile Coach data tests, and database assertions for message status/idempotency plus the user-scoped uniqueness index.
+
+One explicitly authorized live development request then passed through the server-side adapter using only a fictional confirmed nutrition fixture (`1,800 kcal`, `92 g` protein, `210 g` carbohydrate, `58 g` fat, three entries). The structured answer referenced the confirmed `92 g` protein value and suggested one conservative food action. Metadata recorded `mistral-medium-latest`, `stop`, prompt version `coach-system-v1`, 294 prompt tokens, 48 completion tokens, 342 total tokens, SDK `1.15.1`, and a 1–3 second latency bucket. No real user data, account identifier, photo, or key was included in the recorded request/output.
 
 ## Verification evidence — 2026-07-22
 

@@ -21,9 +21,9 @@ Before the first live Mistral request:
 
 - [ ] Every model-provider item required for the candidate text adapter is complete except final production promotion.
 - [x] The offline evaluation corpus is versioned and contains only synthetic English/Slovak fixtures with no real user health data, photos, identifiers, or secrets.
-- [ ] A dedicated low-budget development key/workspace and spend cap are active.
-- [ ] Input/output logging is disabled or demonstrably redacted.
-- [ ] The applicable retention/training setting is recorded for the development account.
+- [x] A dedicated low-budget development key/workspace and spend cap are active. (Developer attestation, 2026-07-23.)
+- [x] Input/output logging is disabled or demonstrably redacted; the adapter emits only bounded metadata and the live synthetic run printed no key.
+- [x] The applicable retention/training setting is recorded for the development account. (Developer attestation, 2026-07-23.)
 
 ## Memory
 
@@ -46,5 +46,5 @@ Before the first live Mistral request:
 
 - [ ] Run the complete AI unit, contract, RLS, live-synthetic integration, and native end-to-end matrix.
 - [x] Verify signed media access expires and cross-user access fails. (Existing private-media persistence/native evidence; see `status.md`.)
-- [ ] Confirm the API reports the configured provider as ready.
-- [ ] Update this document and the relevant ADR with the selected adapters.
+- [x] Confirm the API reports the configured provider as ready. (`mistral-medium-latest`, external development access enabled; 2026-07-23.)
+- [x] Update this document and the relevant ADR with the selected adapters.
