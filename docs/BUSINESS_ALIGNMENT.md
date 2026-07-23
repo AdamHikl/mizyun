@@ -1,6 +1,6 @@
 # Mizyun business and product alignment
 
-> Stable bridge between the business plan and engineering execution. Revisit after material customer research, pricing evidence, or product-positioning changes. Last audited: **2026-07-22**.
+> Stable bridge between the business plan and engineering execution. Revisit after material customer research, pricing evidence, or product-positioning changes. Last audited: **2026-07-23**.
 
 ## Executive verdict
 
@@ -8,7 +8,7 @@ The repository supports the intended business **architecturally**, but not yet a
 
 Mizyun has a strong modular, privacy-conscious, provider-neutral foundation and unusually broad tested domain/API coverage for its stage. The manual tracking and private-photo surfaces now pass authenticated, persistent standalone iOS and Android journeys against local Supabase and Storage, and consent-first local product analytics is implemented. The app remains a technical pre-alpha because hosted deployment, physical-device proof, participant analytics exports, and real-user repetition are incomplete and the AI coach is disabled.
 
-The next business-critical milestone is not “add more backend endpoints,” select an analytics vendor, or “connect a chatbot.” It is founder and design-partner repetition of the now-working mobile loop, using voluntary privacy-safe exports to produce measurable activation, friction, reliability, and retention evidence.
+The next implementation milestone is a default-off, grounded Mistral text coach evaluated with synthetic data before controlled alpha. This sequencing change does not make the app customer-ready: provider policy/privacy, safety, deletion/isolation, cost, hosted deployment, physical-device, and repeated-user evidence remain required before external AI access.
 
 ## Customer and problem
 
@@ -86,9 +86,9 @@ These choices support future fundraising and technical hiring because engineers 
 3. MEDIA-MOB-001 — private mobile photo lifecycle.
 4. AND-001 — Android runtime and journey verification.
 5. OBS-001 — privacy-safe activation, friction, reliability, and retention measurement. (Implementation gate complete.)
-6. ALPHA-001 — founder dogfooding followed by 10–30 design partners.
-7. AI-001 / MEM-001 — evaluated Mistral provider, normalized tools, conversations, and visible memory controls.
-8. VISION-001 — editable photo/text food drafts with a consent-based evaluation dataset.
+6. AI-GOV-001 / AI-001 / AI-002 — privately implement and synthetically evaluate a default-off Mistral text coach using normalized read-only tools.
+7. ALPHA-001 — founder dogfooding followed by 10–30 design partners; enable AI only if its separate external-release gates pass.
+8. MEM-001 / VISION-001 — visible memory controls, then editable photo/text food drafts with a consent-based evaluation dataset.
 9. BILL-001 — premium packaging, entitlements, pricing test, and subscription billing.
 10. External beta and 30–100 active-customer validation before material paid acquisition or a large hiring plan.
 
@@ -141,7 +141,7 @@ It also creates predictable diligence questions. The company should demonstrate:
 
 - Do not add community before the private tracking loop retains users.
 - Do not use grants or investor interest as a substitute for customer evidence.
-- Do not enable AI before `docs/BEFORE_TESTING.md` and the manual workflow gates are satisfied.
+- Do not send real-user data to AI before `docs/BEFORE_TESTING.md`, `docs/AI_IMPLEMENTATION_PLAN.md`, and the external AI release gates are satisfied.
 - Do not call an API route “finished product” until persistence, mobile UI, platform verification, failure recovery, and acceptance evidence exist.
 - Do not scale paid marketing before activation, retention, gross margin, and a repeatable acquisition hypothesis are measurable.
 

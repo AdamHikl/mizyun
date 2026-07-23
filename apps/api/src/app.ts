@@ -14,6 +14,7 @@ import {
   DEFAULT_UNIT_SYSTEM,
   type AccountRepository,
   type BodyMeasurementRepository,
+  type ConversationRepository,
   type ExerciseRepository,
   type FoodEntryRepository,
   type GoalRepository,
@@ -29,6 +30,7 @@ import {
   type AccessTokenVerifier,
 } from "@mizyun/identity";
 import { InMemoryMemoryStore } from "@mizyun/memory";
+import { MistralAgentProvider } from "@mizyun/provider-mistral";
 
 import { InMemoryAccountRepository } from "./account-repository.js";
 import { InMemoryGoalRepository } from "./goal-repository.js";
@@ -49,6 +51,7 @@ import { workoutsRoutes } from "./modules/workouts/routes.js";
 import { workoutSetsRoutes } from "./modules/workout-sets/routes.js";
 import { authenticationPlugin } from "./plugins/authentication.js";
 import { InMemoryBodyMeasurementRepository } from "./body-measurement-repository.js";
+import { InMemoryConversationRepository } from "./conversation-repository.js";
 import { InMemoryExerciseRepository } from "./exercise-repository.js";
 import { InMemoryFoodEntryRepository } from "./food-entry-repository.js";
 import { InMemoryMediaAssetRepository } from "./media-asset-repository.js";
@@ -63,6 +66,7 @@ import {
   SupabaseWorkoutRepository,
   SupabaseWorkoutSetRepository,
   SupabaseBodyMeasurementRepository,
+  SupabaseConversationRepository,
   SupabaseMediaAssetRepository,
   SupabaseMediaStorage,
   type RepositorySupabaseClient,
@@ -97,6 +101,7 @@ export interface AppDependencies {
   readonly workoutRepository?: WorkoutRepository;
   readonly workoutSetRepository?: WorkoutSetRepository;
   readonly bodyMeasurementRepository?: BodyMeasurementRepository;
+  readonly conversationRepository?: ConversationRepository;
   readonly accountRepository?: AccountRepository;
   readonly mediaAssetRepository?: MediaAssetRepository;
   readonly mediaStorage?: MediaStorage;
@@ -128,10 +133,19 @@ const defaultDependencies = (): AppDependencies => {
         supabase: { configured: false, provider: "supabase", reason: "" },
         supabaseConfig: null,
         agentProvider: "disabled",
+        mistralConfig: null,
+        aiExternalAccess: false,
       };
+  const provider =
+    config.agentProvider === "mistral" && config.mistralConfig
+      ? new MistralAgentProvider({
+          ...config.mistralConfig,
+          externalAccess: config.aiExternalAccess,
+        })
+      : new DisabledAgentProvider();
   const base = {
     agent: new AgentOrchestrator({
-      provider: new DisabledAgentProvider(),
+      provider,
       memories: new InMemoryMemoryStore(),
     }),
     tokenVerifier: tokenVerifierFromConfig(config),
@@ -251,6 +265,11 @@ export const buildApp = (
     (sp
       ? new SupabaseBodyMeasurementRepository({ clientFor: sp.clientFor })
       : new InMemoryBodyMeasurementRepository());
+  const conversationRepository =
+    dependencies.conversationRepository ??
+    (sp
+      ? new SupabaseConversationRepository({ clientFor: sp.clientFor })
+      : new InMemoryConversationRepository());
   const accountRepository =
     dependencies.accountRepository ??
     new InMemoryAccountRepository({
@@ -261,6 +280,7 @@ export const buildApp = (
       workoutRepository,
       workoutSetRepository,
       bodyMeasurementRepository,
+      conversationRepository,
     });
   const mediaAssetRepository =
     dependencies.mediaAssetRepository ??
@@ -334,6 +354,17 @@ export const buildApp = (
   void app.register(coachRoutes, {
     prefix: "/v1/coach",
     agent: dependencies.agent,
+    conversationRepository,
+    profileRepository,
+    goalRepository,
+    foodEntryRepository,
+    workoutRepository,
+    workoutSetRepository,
+    bodyMeasurementRepository,
+    dailyUserTokenBudget:
+      configResult.ok && configResult.value.mistralConfig
+        ? configResult.value.mistralConfig.dailyUserTokenBudget
+        : 100_000,
   });
 
   return app;

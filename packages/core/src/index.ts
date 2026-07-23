@@ -169,6 +169,16 @@ export {
 } from "./media-asset";
 
 export {
+  type ConversationMessageRole,
+  type ConversationMessageStatus,
+  type ConversationRepository,
+  type ConversationRepositoryOptions,
+  type ConversationStatus,
+  type StoredConversation,
+  type StoredConversationMessage,
+} from "./conversation";
+
+export {
   BODY_WEIGHT_KG_MAX,
   BODY_WEIGHT_KG_MIN,
   summariseWeightTrend,

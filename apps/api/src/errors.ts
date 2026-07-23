@@ -12,8 +12,10 @@ export type ApiErrorCode =
   | "INVALID_ACCESS_TOKEN"
   | "AUTHENTICATION_UNAVAILABLE"
   | "NOT_FOUND"
+  | "CONFLICT"
   | "VALIDATION_ERROR"
   | "RATE_LIMITED"
+  | "AI_UNAVAILABLE"
   | "INTERNAL_ERROR";
 
 interface ApiErrorBody {

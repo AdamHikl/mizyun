@@ -1,18 +1,19 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-07-22**.
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-07-23**.
 
 ## Executive snapshot
 
 - **Product stage:** technical pre-alpha; the architecture and domain/API foundation are strong, but this is not yet a customer-usable tracking beta.
-- **Roadmap position:** Every scoped MOB item, AND-001, and OBS-001 is complete at its implementation gate. ALPHA-001 is active; elapsed founder/design-partner evidence is still 0 of 7 days and 0 of 10 minimum participants.
-- **Latest verified implementation slice:** ALPHA-001 now has privacy-safe founder/design-partner/native evidence ledgers plus an exact-schema analyzer that converts voluntary local OBS exports into aggregate counts and coarse buckets without participant rows or filenames.
-- **Latest operational slice:** `docs/alpha/` is the validation hub, while `docs/tutorials/` retains reusable setup, local backend, iOS, Android, testing, teardown, and known-failure runbooks.
-- **Next exact action:** complete the synthetic consent → measured meal/workout/body flow → restart → export → disable/clear checklist on the installed iOS Release app and Android Release APK, then start founder day 1 only when seven consecutive real-use days are possible.
+- **Roadmap position:** Every scoped MOB item, AND-001, and OBS-001 is complete at its implementation gate. The default-off Mistral Coach vertical slice is implemented; AI-GOV-001, full/live evaluation, and native AI acceptance remain before ALPHA-001 can include AI. Elapsed founder/design-partner evidence remains 0 of 7 days and 0 of 10 minimum participants.
+- **Latest verified implementation slice:** server-only Mistral configuration/provider composition, private persisted conversations, confirmed-data grounding, fixed EN/SK safety paths, and the native Coach UI pass the complete offline code/database gates.
+- **Latest operational slice:** `docs/AI_IMPLEMENTATION_PLAN.md`, ADR 0015, and `docs/BEFORE_TESTING.md` separate completed default-off implementation from live-synthetic and real-user activation authority.
+- **Next exact action:** execute AI-GOV-001: configure a dedicated low-budget Mistral development workspace, record retention/training/DPA/ZDR settings, and obtain a written synthetic-use and fitness/wellness go/no-go. Only then add and run the opt-in live-synthetic evaluation; do not use real health data.
 - **Branch:** `main`; each completed mobile/persistence slice is kept in a coherent local commit.
+- **Latest commit:** `feat: add guarded Mistral coach` (this handoff).
 - **Remote:** `https://github.com/AdamHikl/mizyun`.
-- **Remote state:** all tracked work through this ALPHA-001 readiness handoff is committed locally. `main` is eleven commits ahead of `origin/main` (ten previously queued commits plus this handoff), so publishing the accumulated history requires explicit confirmation.
-- **AI provider:** intentionally disabled. No Mistral or other model API is configured.
+- **Remote state:** `main` is twelve commits ahead of `origin/main`. The guarded Mistral implementation is committed locally; pushing would publish it together with the eleven earlier accumulated commits and requires explicit confirmation.
+- **AI provider:** Mistral `mistral-medium-latest` is implemented behind `AGENT_PROVIDER=mistral`, but external access defaults off and no API key is configured. It is not approved for real-user traffic.
 - **Hosted Supabase:** not created or linked.
 - **iOS:** native Release build/install/launch and the complete disposable-account onboarding/daily/restart/private-photo journey pass on an iPhone 17 Pro simulator.
 - **Android:** a standalone Release APK passes the complete disposable-account daily/restart/private-photo journey on a Pixel 9 API 36 emulator.
@@ -28,7 +29,7 @@
 - Fastify bearer-token verification, safe structured errors, request IDs, and sensitive-log redaction.
 - Forward-only Supabase migrations for profiles, goals, food, workouts, measurements, conversations, memories, and private media.
 - RLS policies, ownership indexes, private-storage path policies, and pgTAP two-user isolation coverage.
-- AI and memory interfaces are replaceable; the only runtime provider is the safe disabled provider.
+- AI and memory interfaces are replaceable; the API can compose the Mistral adapter, while the safe disabled provider and external-access kill switch remain the defaults.
 
 ### Domain and API behavior
 
@@ -67,7 +68,7 @@ The mobile app currently includes:
 - body progress history with raw readings, optional waist/chest measurements, confirmed correction deletion, and a labeled time-aware smoothed trend/rate;
 - a recoverable workout session with custom exercise creation, rep/load/duration/distance/RPE sets, prior performance, completion, and confirmed deletion;
 - a progress-photo route with explicit per-upload consent, camera/library selection, bounded metadata-stripped JPEG preparation, direct signed upload, private timeline, two-photo comparison, interrupted Android picker recovery, and confirmed permanent deletion;
-- a Coach setup screen explaining that the model provider is disabled.
+- a Coach conversation UI with disabled/unavailable, persisted thread, pending/retry, evidence, archive/delete, and visible non-medical/uncertainty states;
 - an optional product-analytics choice during onboarding and in Account, with a closed event schema, 30-day/500-event local bound, voluntary JSON export, and disable/clear controls.
 
 ## Critical implementation distinction
@@ -79,13 +80,36 @@ The core manual tracking and private progress-photo lifecycles are implemented a
 - body measurement activation, capture, raw history, and labeled trend are available; additional measurement kinds remain schema-extensible;
 - the dashboard shows deterministic energy state and calendar week/month reviews; its stored meal/body/workout summaries and restart restoration pass on iOS and Android;
 - progress-photo library selection/upload/timeline/compare/delete passes with synthetic non-sensitive media and real signed Storage transfer on iOS and Android; camera hardware and forced Android activity-destruction recovery remain open;
-- the Coach screen is a provider-not-connected placeholder;
+- the Coach UI and API are implemented, but live provider calls and standalone native AI acceptance remain gated;
 - there is no HealthKit/Health Connect step synchronization;
 - there is no billing, paywall, crash reporting, network analytics processor, or community functionality; product analytics is local-only and requires voluntary participant export.
 
 With validated Supabase server configuration, the API selects Supabase-backed profile, goal, food, exercise, workout, workout-set, body-measurement, and media-asset repositories plus private Storage. The standard no-environment gate intentionally remains in-memory. Hosted Supabase deployment, physical-device/store-build acceptance, and account deletion across every external resource remain incomplete.
 
 Do not describe NUT-_, WO-_, BODY-_, ENG-_, MEDIA-* or DATA-001 as customer-complete. Their local persistent/native integration is verified, but hosted, physical-device, and repeated-user evidence is still absent.
+
+## Verification evidence — 2026-07-23
+
+The default-off Mistral Coach implementation passes the complete standard gate:
+
+```text
+pnpm check
+  formatting: passed
+  workspace TypeScript checks: passed
+  iOS Expo/Metro/Hermes export: passed (1,679 modules, 4.7 MB bundle)
+  tests: 734 passed
+  opt-in Supabase persistence/auth e2e: 13 skipped because credentials were not enabled
+
+pnpm db:verify
+  clean migration reset: passed
+  database lint: passed
+  pgTAP: 58 assertions passed
+
+git diff --check
+  passed
+```
+
+Focused evidence includes 4 fake-boundary Mistral provider tests, 8 runtime tests including every case in the versioned 12-case English/Slovak critical-safety corpus, 4 authenticated Coach route tests, 2 mobile Coach data tests, and database assertions for message status/idempotency plus the user-scoped uniqueness index. No live Mistral request was made, no key was configured, and no real health data was sent outside the local system.
 
 ## Verification evidence — 2026-07-22
 
@@ -143,7 +167,7 @@ The Android SDK 36 toolchain then produced a standalone Release APK and installe
 
 ## Productization sequence
 
-Do not start Mistral/chatbot implementation merely because the provider boundary exists. Follow this sequence unless `plan.md` is deliberately changed:
+The user deliberately changed the sequence on 2026-07-23 so private Mistral implementation and synthetic evaluation occur before controlled alpha. Follow this sequence:
 
 1. **PERSIST-001:** implement Supabase-backed profile, goal, and food repositories; prove persistence and RLS end to end.
 2. **PERSIST-002 / PERSIST-003:** persist training/body/account records and replace in-memory media storage; prove real export and deletion.
@@ -151,10 +175,11 @@ Do not start Mistral/chatbot implementation merely because the provider boundary
 4. **AND-001:** verify the same loop in an Android emulator, not just an iOS bundle. (Complete.)
 5. **OBS-001:** add consent-respecting product analytics for activation, logging time/taps, retention, failures, and AI cost readiness. (Implementation gate complete.)
 6. **MEDIA-MOB-001:** add real progress-photo selection/capture, upload, timeline, comparison, and deletion UI. (Implementation gate complete.)
-7. **ALPHA-001:** run founder dogfooding and a 10–30-person design-partner beta; fix friction and data-loss issues.
-8. **AI-001 / MEM-001:** complete `docs/BEFORE_TESTING.md`, then add one evaluated Mistral text/vision adapter and user-visible memory controls.
-9. **BILL-001:** test premium packaging and subscription billing only after the paid value and provider unit economics are measurable.
-10. Community sharing remains post-MVP and must not delay the private self-service loop.
+7. **AI-GOV-001 / AI-001 / AI-002:** resolve provider/privacy/usage-policy gates, then build and synthetically evaluate a default-off Mistral text coach with read-only confirmed-data tools.
+8. **ALPHA-001:** run founder dogfooding and a 10–30-person design-partner beta; AI remains disabled in those builds unless its separate external-release gate passes.
+9. **MEM-001 / VISION-001:** add user-visible memory controls, then evaluated editable text/photo nutrition drafts.
+10. **BILL-001:** test premium packaging and subscription billing only after the paid value and provider unit economics are measurable.
+11. Community sharing remains post-MVP and must not delay the private self-service loop.
 
 ## Known operational risks
 
@@ -179,4 +204,4 @@ Never put a service-role or model secret in an `EXPO_PUBLIC_` variable. AI remai
 
 ## Handoff note
 
-Read `AGENTS.md`, `goals.md`, `docs/BUSINESS_ALIGNMENT.md`, `plan.md`, this file, and `backlog.md` before implementation. Continue `docs/alpha/NATIVE_ACCEPTANCE.md` from the installed iOS Release build, then verify Android and begin the founder log; do not count setup as elapsed use or select an analytics/AI provider merely because the local boundary exists.
+Read `AGENTS.md`, `goals.md`, `docs/BUSINESS_ALIGNMENT.md`, `plan.md`, this file, and `backlog.md` before implementation. Read `docs/AI_IMPLEMENTATION_PLAN.md`, then execute AI-GOV-001 and the opt-in live-synthetic evaluation. Do not send real-user data to Mistral until the provider, safety, privacy, deletion, cost, and native gates pass.

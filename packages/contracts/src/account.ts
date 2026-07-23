@@ -29,8 +29,19 @@ const isoDateSchema = z
  */
 export const conversationStubSchema = z.object({
   id: z.string().uuid(),
-  title: z.string(),
+  title: z.string().nullable(),
+  status: z.enum(["active", "archived"]),
   createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  messages: z.array(
+    z.object({
+      id: z.string().uuid(),
+      role: z.enum(["user", "assistant"]),
+      text: z.string(),
+      status: z.enum(["complete", "failed"]),
+      createdAt: z.string().datetime(),
+    }),
+  ),
 });
 
 /** Private media stub: only `id`, `createdAt`. */

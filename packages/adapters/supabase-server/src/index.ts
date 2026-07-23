@@ -201,6 +201,7 @@ export { SupabaseWorkoutRepository } from "./workout-repository.js";
 export { SupabaseWorkoutSetRepository } from "./workout-set-repository.js";
 export { SupabaseBodyMeasurementRepository } from "./body-measurement-repository.js";
 export { SupabaseMediaAssetRepository } from "./media-asset-repository.js";
+export { SupabaseConversationRepository } from "./conversation-repository.js";
 export {
   SupabaseMediaStorage,
   MediaStorageError,

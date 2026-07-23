@@ -122,7 +122,16 @@ const accountExportToWire = (exportDoc: AccountExport): AccountExportResponse =>
       conversations: exportDoc.conversations.map((c) => ({
         id: c.id,
         title: c.title,
+        status: c.status,
         createdAt: c.createdAt.toISOString(),
+        updatedAt: c.updatedAt.toISOString(),
+        messages: c.messages.map((message) => ({
+          id: message.id,
+          role: message.role,
+          text: message.text,
+          status: message.status,
+          createdAt: message.createdAt.toISOString(),
+        })),
       })),
       privateMedia: exportDoc.privateMedia.map((m) => ({
         id: m.id,

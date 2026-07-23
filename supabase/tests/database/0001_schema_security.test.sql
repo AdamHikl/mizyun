@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(36);
+select plan(39);
 
 select has_table(
   'public',
@@ -72,6 +72,27 @@ from unnest(array[
   'memory_provider_refs',
   'media_assets'
 ]) as tables(table_name);
+
+select has_column(
+  'public',
+  'messages',
+  'status',
+  'messages has a delivery status'
+);
+
+select has_column(
+  'public',
+  'messages',
+  'idempotency_key',
+  'messages has a retry-safe idempotency key'
+);
+
+select has_index(
+  'public',
+  'messages',
+  'messages_user_conversation_idempotency_idx',
+  'messages enforce one user message per idempotency key'
+);
 
 select * from finish();
 rollback;

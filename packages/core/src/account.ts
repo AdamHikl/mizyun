@@ -26,8 +26,17 @@ import type { StoredWorkoutSet } from "./workout-set";
 
 export interface StoredConversationStub {
   readonly id: string;
-  readonly title: string;
+  readonly title: string | null;
+  readonly status: "active" | "archived";
   readonly createdAt: Date;
+  readonly updatedAt: Date;
+  readonly messages: ReadonlyArray<{
+    readonly id: string;
+    readonly role: "user" | "assistant";
+    readonly text: string;
+    readonly status: "complete" | "failed";
+    readonly createdAt: Date;
+  }>;
 }
 
 /**

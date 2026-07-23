@@ -3,6 +3,7 @@ import {
   type AccountExport,
   type AccountRepository,
   type BodyMeasurementRepository,
+  type ConversationRepository,
   type ExerciseRepository,
   type FoodEntryRepository,
   type GoalRepository,
@@ -44,6 +45,7 @@ export interface InMemoryAccountRepositoryOptions {
   readonly workoutRepository: WorkoutRepository;
   readonly workoutSetRepository: WorkoutSetRepository;
   readonly bodyMeasurementRepository: BodyMeasurementRepository;
+  readonly conversationRepository?: ConversationRepository;
   /**
    * Clock; defaults to `() => new Date()`. Production callers
    * should not need this; tests inject a fixed clock so they
@@ -60,6 +62,7 @@ export class InMemoryAccountRepository implements AccountRepository {
   readonly #workoutRepository: WorkoutRepository;
   readonly #workoutSetRepository: WorkoutSetRepository;
   readonly #bodyMeasurementRepository: BodyMeasurementRepository;
+  readonly #conversationRepository: ConversationRepository | null;
   readonly #clock: { readonly now: () => Date };
   readonly #challenges = new Map<UserId, ChallengeRecord>();
 
@@ -71,6 +74,7 @@ export class InMemoryAccountRepository implements AccountRepository {
     this.#workoutRepository = options.workoutRepository;
     this.#workoutSetRepository = options.workoutSetRepository;
     this.#bodyMeasurementRepository = options.bodyMeasurementRepository;
+    this.#conversationRepository = options.conversationRepository ?? null;
     this.#clock = options.clock ?? { now: () => new Date() };
   }
 
@@ -118,6 +122,36 @@ export class InMemoryAccountRepository implements AccountRepository {
         accessToken: "",
       },
     );
+    const conversations =
+      this.#conversationRepository === null
+        ? []
+        : await Promise.all(
+            (
+              await this.#conversationRepository.list(userId, {
+                accessToken: "",
+                limit: 10_000,
+              })
+            ).map(async (conversation) => ({
+              id: conversation.id,
+              title: conversation.title,
+              status: conversation.status,
+              createdAt: conversation.createdAt,
+              updatedAt: conversation.updatedAt,
+              messages: (
+                await this.#conversationRepository!.listMessages(
+                  userId,
+                  conversation.id,
+                  { accessToken: "", limit: 10_000 },
+                )
+              ).map((message) => ({
+                id: message.id,
+                role: message.role,
+                text: message.text,
+                status: message.status,
+                createdAt: message.createdAt,
+              })),
+            })),
+          );
     return {
       userId,
       generatedAt: this.#clock.now(),
@@ -128,9 +162,7 @@ export class InMemoryAccountRepository implements AccountRepository {
       workouts,
       workoutSets,
       bodyMeasurements,
-      // Reserved for the CONV-* / MEM-* segments. Empty arrays
-      // so the envelope is exhaustive.
-      conversations: [],
+      conversations,
       privateMedia: [],
     };
   }
@@ -176,6 +208,11 @@ export class InMemoryAccountRepository implements AccountRepository {
     // returns `confirmation_token_missing` rather than silently
     // running the cascade again.
     this.#challenges.delete(userId);
+    if (this.#conversationRepository !== null) {
+      await this.#conversationRepository.deleteAllForUser(userId, {
+        accessToken: "",
+      });
+    }
 
     // Children before parents:
     //   1. workout_sets (FK to workouts + exercises)

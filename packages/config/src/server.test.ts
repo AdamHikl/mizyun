@@ -265,4 +265,41 @@ describe("loadServerConfig — closed-world", () => {
       expect(first.key).toBe(SERVER_ENV_KEYS.agentProvider);
     }
   });
+
+  it("requires a server-only key when Mistral is selected", () => {
+    const result = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.agentProvider]: "mistral",
+      },
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toContainEqual({
+      kind: "missing",
+      keys: [SERVER_ENV_KEYS.mistralApiKey],
+    });
+  });
+
+  it("builds a bounded Mistral configuration with external access default-off", () => {
+    const result = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.agentProvider]: "mistral",
+        [SERVER_ENV_KEYS.mistralApiKey]: "test-key-that-is-long-enough",
+      },
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).toMatchObject({
+      agentProvider: "mistral",
+      aiExternalAccess: false,
+      mistralConfig: {
+        model: "mistral-medium-latest",
+        timeoutMs: 30_000,
+        maxOutputTokens: 1_200,
+        dailyUserTokenBudget: 100_000,
+      },
+    });
+  });
 });

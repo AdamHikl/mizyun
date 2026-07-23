@@ -935,3 +935,51 @@ PERSIST-001 closed the persistence gap for profile, goals, and food. What's the 
 - Both store systems collect their own tester/build feedback and engagement metadata. Mizyun's participant guide must disclose the actual distribution channel as well as the optional in-app analytics export; the local OBS-001 export does not replace platform disclosures.
 - Maestro remains an accessibility-layer acceptance tool and requires no analytics/testing SDK in the app. Native automation may prove the consent controls, customer flow, restart, and system share-sheet boundary, but elapsed founder days and participant feedback must remain dated human evidence.
 - No ADR is required: ALPHA-001 applies the existing native, privacy, analytics, and product-validation boundaries without changing a data format or provider decision.
+
+## 2026-07-23 — Mistral text-coach planning before controlled alpha
+
+### Primary sources
+
+- Mistral AI, **Mistral Medium 3.5 model card** (accessed 2026-07-23): https://docs.mistral.ai/models/model-cards/mistral-medium-3-5-26-04
+- Mistral AI, **Build an agent with tools** (accessed 2026-07-23): https://docs.mistral.ai/getting-started/quickstarts/developer/build-an-agent
+- Mistral AI, **SDK clients** (accessed 2026-07-23): https://docs.mistral.ai/resources/sdks
+- Mistral AI, **Chat API reference** (accessed 2026-07-23): https://docs.mistral.ai/api
+- Mistral AI, **Structured outputs** (accessed 2026-07-23): https://docs.mistral.ai/studio-api/conversations/structured-output
+- Mistral AI, **Moderation and guardrailing** (accessed 2026-07-23): https://docs.mistral.ai/studio-api/conversations/moderation
+- Mistral AI, **Known limitations** (accessed 2026-07-23): https://docs.mistral.ai/resources/known-limitations
+- Mistral AI, **Usage and limits** (accessed 2026-07-23): https://docs.mistral.ai/admin/billing-usage/usage-limits
+- Mistral AI, **Privacy Policy** (accessed 2026-07-23): https://legal.mistral.ai/terms/privacy-policy
+- Mistral AI, **Data Processing Addendum** (effective 2026-03-12; accessed 2026-07-23): https://legal.mistral.ai/terms/data-processing-addendum
+- Mistral AI, **Commercial Terms of Service** (accessed 2026-07-23): https://legal.mistral.ai/terms/commercial-terms-of-service
+- Mistral AI, **Usage Policy** (effective 2026-06-11; accessed 2026-07-23): https://legal.mistral.ai/terms/usage-policy
+
+### Verified findings and implementation consequences
+
+- Mistral documents `mistral-medium-latest` for Chat Completions and tool calls, while the current Mistral Medium 3.5 card advertises structured outputs, function calling, a 256k context window, and current list prices of USD 1.50/M input tokens and USD 7.50/M output tokens. These details are time-sensitive and must be rechecked at implementation and release.
+- `mistral-medium-latest` is a moving alias. Mizyun will record the resolved response model and evaluation/prompt/tool versions, prefer a stable dated identifier for release when available, and rerun promotion evaluations when resolution changes.
+- Mistral recommends its official SDKs and provides a TypeScript package. Vendor SDK usage will be isolated to `packages/providers/mistral`; provider-neutral runtime and feature modules will not depend on it.
+- Mistral supports model-generated function arguments, but Mizyun—not the model—must validate schemas, enforce the read-only allowlist, inject verified-user authorization, execute tools, and bound tool rounds/deadlines.
+- Custom structured outputs are documented as more reliable than generic JSON mode. Every provider response and tool call will still pass Mizyun-owned runtime schemas before use.
+- The current moderation model includes self-harm, health, PII, and jailbreaking categories, and Mistral notes that thresholds can require recalibration. It may supplement but cannot replace Mizyun's fixed safety policy and evaluation set.
+- The API returns 429 when organization/model limits are exceeded; rate limits vary by tier/model and Mistral exposes organization/workspace spending controls. Mizyun needs server-side per-user budgets, bounded retries, a provider kill switch, and account-level spend caps.
+- Mistral's Privacy Policy says most API inputs/outputs are kept for generation plus 30 rolling days for abuse monitoring unless Zero Data Retention is activated; the Agents API retains input/output until account termination. Mizyun v1 will use stateless Chat Completions and store conversations itself. Real-user traffic requires confirming ZDR on the actual account and reflecting provider processing in privacy/deletion disclosures.
+- The DPA describes Mistral as processor for customer personal data, permits listed subprocessors and certain transfers with safeguards, and distinguishes feedback/training and abuse-monitoring uses. Mizyun must review/accept the actual DPA, subprocessor list, training settings, and feedback behavior before real-user processing.
+- The current cloud Usage Policy prohibits unqualified professional advice and explicitly includes health-related guidance. Because a fitness coach can overlap this category, private synthetic implementation may proceed, but real-user coaching requires written provider clarification or qualified legal review plus a narrowly tested wellness/non-medical scope. This is an external-release blocker, not a coding assumption.
+- `docs/AI_IMPLEMENTATION_PLAN.md` records the revised sequence and gates. No ADR is accepted yet; implementation should create one when the stateless Mistral adapter, model-version policy, conversation authority, and memory retrieval strategy are finalized.
+
+## 2026-07-23 — Mistral coach implementation refresh
+
+### Primary sources
+
+- Mistral AI, **SDK clients** (accessed 2026-07-23): https://docs.mistral.ai/resources/sdks
+- Mistral AI, **Function calling** (accessed 2026-07-23): https://docs.mistral.ai/studio-api/conversations/function-calling
+- Mistral AI, **Structured outputs** (accessed 2026-07-23): https://docs.mistral.ai/studio-api/conversations/structured-output
+- Mistral AI, **Moderation and guardrailing** (accessed 2026-07-23): https://docs.mistral.ai/studio-api/conversations/moderation
+- Mistral AI, **Mistral Moderation 2 model card** (accessed 2026-07-23): https://docs.mistral.ai/models/model-cards/mistral-moderation-26-03
+
+### Verified findings and implementation consequences
+
+- The installed official TypeScript SDK resolved to `@mistralai/mistralai` 1.15.1. Its Chat `parse` surface accepts a Zod schema, request timeout, abort/retry options, and returns resolved-model, finish-reason, request-ID, and usage metadata. The adapter disables SDK retries and owns one bounded transient retry so behavior remains contract-testable.
+- Current Mistral documentation recommends custom structured outputs over generic JSON mode. The provider requires `{ answer }` through the SDK parse surface and then validates the normalized response again before exposing it to the runtime.
+- Mistral Moderation 2 (`mistral-moderation-2603`) is the current documented moderation model and adds jailbreaking classification. Live moderation/guardrail calibration remains part of the synthetic-provider gate; critical medical, emergency, eating-disorder, self-harm, extreme-target, and prompt-injection cases have a deterministic provider-independent first line now.
+- ADR-0015 accepts stateless Chat Completions, Mizyun-owned RLS conversation state, server-built confirmed-data grounding, resolved-model recording, and default-off external access.

@@ -13,9 +13,9 @@
 
 ## Current focus
 
-🚧 **Cross-phase productization checkpoint — prove the persistent loop through founder and design-partner repetition.**
+🚧 **Cross-phase AI checkpoint — build and privately evaluate the grounded Mistral coach before controlled alpha.**
 
-The persistent food/workout/body/dashboard/photo journeys pass on standalone iOS and Android, and OBS-001 now provides consent-off-by-default, identifier-free local product analytics with a voluntary founder export. The immediate gap is repeated real use: verify the consent/export surface natively, complete a founder week without data loss, then collect structured evidence from 10–30 design partners. AI remains deliberately disabled until this manual-loop evidence, privacy controls, and evaluation data exist.
+The persistent food/workout/body/dashboard/photo journeys pass on standalone iOS and Android, and OBS-001 provides consent-off-by-default, identifier-free local product analytics with voluntary export. The user has chosen to build the first Mistral AI capabilities before founder/design-partner testing. Offline implementation and fake-adapter evaluation may now proceed behind a default-off server flag; live synthetic calls require `docs/BEFORE_TESTING.md`'s synthetic-provider gate, and real-user access remains blocked until the provider policy/privacy gate, safety evaluation, deletion/isolation, budgets, and two-platform acceptance pass. `docs/AI_IMPLEMENTATION_PLAN.md` is the execution plan.
 
 ## Dependency sequence
 
@@ -29,13 +29,14 @@ Foundation
         → mobile progress + private media
           → real dashboard + weekly review
             → Android verification + product analytics
-              → founder alpha + 10–30 design partners
-                → evaluated Mistral AI + durable memory
-                  → vision-assisted drafts
+              → private Mistral implementation + synthetic evaluation
+                → founder alpha + 10–30 design partners
+                  → durable memory + text-assisted nutrition
+                    → vision-assisted drafts
                     → subscription validation + beta hardening
 ```
 
-Nutrition, training, and progress can advance in parallel only after the production composition root persists them. AI and photo interpretation depend on confirmed manual workflows, privacy controls, product instrumentation, and evaluation data. Community sharing remains post-MVP.
+Nutrition, training, and progress can advance in parallel only after the production composition root persists them. The text coach may now be implemented because confirmed manual workflows, deterministic calculations, and product instrumentation exist. External AI access and photo interpretation still depend on provider/privacy approval, safety and quality evaluation, deletion/isolation, budgets, and native acceptance. Community sharing remains post-MVP.
 
 ## Phase 0 — Modular foundation ✅
 
@@ -220,7 +221,14 @@ Prove the business-plan launch wedge before adding AI: a busy intermediate gym-g
    - consent-respecting activation, time/taps-to-log, completion, retry/failure, retention, and feature-use events;
    - no food text, health values, photo content, tokens, or message bodies in analytics;
    - a founder dashboard or export sufficient to evaluate 10–30 design partners.
-8. **ALPHA-001 — Founder and design-partner validation**
+8. **AI-GOV-001 / AI-001 / AI-002 — Private Mistral text-coach implementation**
+   - resolve Mistral commercial, DPA, Zero Data Retention, and fitness/wellness Usage Policy questions;
+   - server-only configuration, the official-SDK adapter, structured output, bounded retry/failure normalization, and default-off external access are implemented;
+   - RLS conversation persistence, message idempotency, export/deletion, and bounded confirmed-data grounding are implemented;
+   - fixed critical-safety paths and the mobile Coach experience are implemented and unit/route tested;
+   - next pass the versioned offline and opt-in live synthetic safety, grounding, prompt-injection, cost, and failure evaluations plus standalone native acceptance;
+   - keep external AI access disabled until `docs/AI_IMPLEMENTATION_PLAN.md` release gates pass.
+9. **ALPHA-001 — Founder and design-partner validation**
    - founder completes at least one continuous week without data loss;
    - 10–30 target users test the loop before paid acquisition;
    - prioritize repeated friction and retention failures over additional feature breadth.
@@ -232,7 +240,7 @@ Prove the business-plan launch wedge before adding AI: a busy intermediate gym-g
 - Dashboard values come from stored records rather than constants.
 - The complete loop passes on both iOS and Android.
 - Logging efficiency, activation, and early retention can be measured without collecting sensitive payloads.
-- Known P0/P1 data-loss, privacy, and core-workflow failures are closed before AI or paid acquisition.
+- Known P0/P1 data-loss, privacy, and core-workflow failures are closed before external AI access or paid acquisition.
 
 ## Phase 6 — Steps, movement, and health-platform adapters 🔬
 
@@ -259,7 +267,7 @@ Incorporate activity signals without double-counting exercise or overstating exp
 
 ### Entry gate
 
-Every applicable item in `docs/BEFORE_TESTING.md` is complete. Manual product workflows, evaluation datasets, privacy controls, and deterministic calculations already exist.
+Private implementation may proceed under `docs/AI_IMPLEMENTATION_PLAN.md` with AI disabled externally and synthetic data only. Every applicable item in `docs/BEFORE_TESTING.md` plus the plan's external AI release gate must be complete before real-user access. Manual product workflows, privacy controls, and deterministic calculations already exist; provider and product evaluations are the active evidence gap.
 
 ### Objective
 

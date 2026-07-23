@@ -1,18 +1,29 @@
 # Before testing AI features
 
-> **AI integration is intentionally disabled.** Complete this checklist before testing any chatbot, image analysis, recommendation, or automatic-memory workflow.
+> **AI integration is intentionally disabled for real-user data.** Provider-neutral code and fake-adapter tests may proceed without a key. Complete the synthetic-provider gate below before sending synthetic fixtures to a live model, and complete the entire checklist before real-user AI testing or external access.
 
 The current business preference is to evaluate Mistral first because Mizyun is pursuing an EU-first provider and privacy position. This is a provider hypothesis, not permission to connect an API: current commercial terms, EU processing/retention, DPA and deletion behavior, model quality, latency, vision capability, and measured unit economics must pass this checklist before selection.
 
 ## Model provider
 
-- [ ] Research current official provider documentation and data-retention terms.
-- [ ] Choose the initial text/vision model provider and models using measured cost, latency, privacy, and evaluation results.
-- [ ] Create `packages/providers/<provider>` and implement the `AgentProvider` interface without modifying `packages/core`, `packages/memory`, or feature modules.
-- [ ] Keep API keys in server-side secrets; never use an `EXPO_PUBLIC_` variable for a secret.
-- [ ] Replace `DisabledAgentProvider` only in the API composition root.
-- [ ] Add strict input/output schemas and refusal/error handling.
+- [x] Research current official provider documentation and data-retention terms. (2026-07-23; see `docs/RESEARCH_LOG.md`.)
+- [x] Select Mistral `mistral-medium-latest` as the candidate text model for synthetic evaluation; this is not production promotion.
+- [ ] Promote the initial text/vision provider and models using measured cost, latency, privacy, safety, and quality results.
+- [x] Create `packages/providers/mistral` and implement the provider-neutral `AgentProvider` interface; vendor SDK code remains inside that package.
+- [x] Keep API keys in validated server-only configuration; mobile public configuration contains no Mistral secret.
+- [x] Select the Mistral adapter only in the API composition root and retain `DisabledAgentProvider` as the default.
+- [x] Add strict structured-output validation, fixed refusal paths, post-output checks, and normalized provider errors.
 - [ ] Add rate limits, timeouts, retries with jitter, and usage budgets.
+
+### Synthetic-provider gate
+
+Before the first live Mistral request:
+
+- [ ] Every model-provider item required for the candidate text adapter is complete except final production promotion.
+- [x] The offline evaluation corpus is versioned and contains only synthetic English/Slovak fixtures with no real user health data, photos, identifiers, or secrets.
+- [ ] A dedicated low-budget development key/workspace and spend cap are active.
+- [ ] Input/output logging is disabled or demonstrably redacted.
+- [ ] The applicable retention/training setting is recorded for the development account.
 
 ## Memory
 
@@ -33,7 +44,7 @@ The current business preference is to evaluate Mistral first because Mizyun is p
 
 ## Release gate
 
-- [ ] Run unit, contract, RLS, integration, and end-to-end tests.
-- [ ] Verify signed media access expires and cross-user access fails.
+- [ ] Run the complete AI unit, contract, RLS, live-synthetic integration, and native end-to-end matrix.
+- [x] Verify signed media access expires and cross-user access fails. (Existing private-media persistence/native evidence; see `status.md`.)
 - [ ] Confirm the API reports the configured provider as ready.
 - [ ] Update this document and the relevant ADR with the selected adapters.

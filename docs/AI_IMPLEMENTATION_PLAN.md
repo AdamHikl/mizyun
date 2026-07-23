@@ -1,0 +1,370 @@
+# Mistral AI implementation plan
+
+> Plan for building and privately evaluating Mizyun's first AI capabilities before founder/design-partner alpha. This document does not authorize external AI use by itself; `docs/BEFORE_TESTING.md` and the release gates below remain authoritative.
+
+## Decision summary
+
+- Preferred provider: Mistral AI's first-party API.
+- Preferred text model configuration: `mistral-medium-latest`.
+- Integration: the official TypeScript SDK inside `packages/providers/mistral`, called only by `apps/api`.
+- API style: stateless Chat Completions plus Mizyun-owned conversation persistence. Do not use Mistral's hosted Agents/Conversations storage for v1.
+- First capability: a read-only, text coach grounded in confirmed Mizyun records and deterministic calculations.
+- Later capabilities: user-controlled durable memory, then editable text/photo nutrition drafts.
+- Rollout: disabled by default and feature-flagged. Build and evaluate with synthetic data before founder alpha; enable for real testers only after privacy, usage-policy, safety, deletion, cost, and native acceptance gates pass.
+
+`mistral-medium-latest` is a moving alias, not a durable evaluation identity. Every response must record the resolved model returned by Mistral, prompt version, tool-schema version, token usage, latency bucket, and finish reason. If a stable dated model ID is available, release candidates should pin it. If only the alias is used, a resolved-model change disables external rollout until the evaluation suite passes again.
+
+## Implementation snapshot — 2026-07-23
+
+The default-off first vertical slice is implemented:
+
+- validated server-only Mistral configuration and an official-SDK adapter with structured output, normalized failures, timeout, one bounded transient retry, and response metadata;
+- authenticated Mizyun-owned conversation CRUD/message routes, idempotent submission, RLS persistence, account export/deletion coverage, and a recoverable provider-failure path;
+- bounded server-derived grounding from confirmed profile, goal, nutrition, training, and body records, with deterministic weight calculations and no media or client-supplied user scope;
+- a fixed provider-neutral safety boundary plus a versioned 12-case synthetic English/Slovak critical-safety corpus;
+- a native Coach conversation screen with disabled, loading, empty, pending, retry, provider-unavailable, evidence, archive/delete, and limitations states;
+- full offline repository and database gates.
+
+This is an implementation milestone, not permission to make a live call. Mistral external access still defaults to `false`; no key is configured; live moderation calibration, comprehensive grounded-answer evaluation, provider-account budgets/retention settings, and standalone iOS/Android AI acceptance remain open. Persistent memory and nutrition/photo drafting remain deliberately sequenced after the grounded coach promotion gate.
+
+## Why implementation can move before alpha
+
+The confirmed manual nutrition, workout, body, dashboard, and private-media loops already exist and pass locally on standalone iOS and Android. That is enough to build a grounded AI layer without asking the model to own calculations or authoritative records.
+
+What does **not** exist yet is evidence that cloud AI is legally, privately, safely, economically, and operationally suitable for real Mizyun users. Therefore:
+
+1. adapter, contracts, persistence, UI, and synthetic evaluation may be built now;
+2. the Mistral API key stays server-side and external AI remains disabled by default;
+3. founder/design-partner access requires every release gate in this plan;
+4. ALPHA-001 elapsed days and participant counts remain zero until humans actually use the accepted build.
+
+## Important provider constraint
+
+Mistral's current cloud Usage Policy prohibits providing professional advice without proper qualification and explicitly includes health-related guidance. Mizyun must not assume that a “fitness coach” label is automatically outside that restriction.
+
+Before any real user receives Mistral-generated coaching:
+
+- obtain written clarification from Mistral for the intended fitness/wellness use case or review it with qualified legal counsel;
+- define the boundary between general fitness education and prohibited medical/health advice;
+- encode and test the resulting refusal/escalation behavior;
+- keep AI disabled externally if the intended use is not permitted.
+
+Offline implementation and fake-adapter evaluation may continue while this question is resolved. Live Mistral calls with synthetic fixtures may begin only after the synthetic-provider gate in `docs/BEFORE_TESTING.md`; no real health data may be sent.
+
+## Capability order
+
+### Capability 1 — Grounded text coach
+
+The coach may:
+
+- answer questions using the user's confirmed profile, active goal, food summaries, workout summaries, body trend, and deterministic energy result;
+- explain which confirmed facts and calculations shaped the answer;
+- suggest one conservative, reversible next action;
+- state missing information and uncertainty.
+
+The coach may not:
+
+- diagnose, treat, prescribe, or handle emergencies;
+- recommend extreme calorie deficits/surpluses, dangerous training volume, or contraindicated behavior;
+- mutate a meal, workout, goal, measurement, or memory;
+- receive unrestricted database access;
+- treat model output as a deterministic calculation.
+
+### Capability 2 — Conversations
+
+- Create, continue, list, rename/archive, export, and delete Mizyun-owned conversations.
+- Persist user and assistant messages under the verified user ID with RLS.
+- Preserve a user message when provider generation fails so retry is recoverable.
+- Never put message bodies in routine logs or product analytics.
+
+### Capability 3 — Read-only tools
+
+Initial normalized tools:
+
+- `get_profile_and_goal`
+- `get_nutrition_summary`
+- `get_training_summary`
+- `get_body_trend`
+- `get_energy_explanation`
+
+Tools accept no client-supplied `userId`. The API injects the verified principal and access token. Tool arguments and results use strict shared schemas, bounded date ranges, bounded row counts, and no media bytes or signed URLs.
+
+### Capability 4 — User-controlled memory
+
+- Store only explicit user statements or confirmed-record summaries as candidates.
+- Require confirmation before a candidate becomes active when it is sensitive, inferred, or behavior-changing.
+- Support list, provenance, correction, deactivate, expiry, export, and delete.
+- Start with PostgreSQL full-text/trigram search behind `MemoryStore`; defer embeddings until measured retrieval quality requires them.
+
+### Capability 5 — Editable nutrition drafts
+
+Only after the text coach and memory gates pass:
+
+- parse user text into an editable nutrition estimate;
+- add food-photo input only after a consent-based synthetic/weighed-meal evaluation exists;
+- return ranges, assumptions, provenance, and confidence;
+- require explicit confirmation/edit before creating a food entry.
+
+Body-photo diagnosis or precise body-fat estimation remains out of scope.
+
+## Work packages
+
+### AI-GOV-001 — Provider, privacy, and commercial gate
+
+Deliverables:
+
+- confirm which Mistral commercial terms apply to the company account;
+- execute/review the DPA and current subprocessor list;
+- determine whether Zero Data Retention is available and activate it before real-user traffic;
+- disable provider feedback mechanisms that can attach input/output;
+- obtain clarification for the fitness/wellness use case under the Usage Policy;
+- document input/output retention, deletion, incident contact, region, subprocessors, and training opt-out;
+- create separate development and production workspaces/keys where the account supports them;
+- set the smallest practical organization/workspace spend limit.
+
+Exit:
+
+- a dated provider review records an explicit go/no-go for synthetic testing and a separate go/no-go for real users.
+
+### AI-CONFIG-001 — Server-only configuration
+
+Add validated server configuration:
+
+```text
+AGENT_PROVIDER=disabled|mistral
+MISTRAL_API_KEY=<server secret>
+MISTRAL_MODEL=mistral-medium-latest
+MISTRAL_TIMEOUT_MS=<bounded integer>
+MISTRAL_MAX_OUTPUT_TOKENS=<bounded integer>
+AI_DAILY_USER_TOKEN_BUDGET=<bounded integer>
+AI_EXTERNAL_ACCESS=false|true
+```
+
+Rules:
+
+- `AGENT_PROVIDER=mistral` requires every Mistral field;
+- `AI_EXTERNAL_ACCESS` defaults to `false`;
+- no `MISTRAL_*` or AI secret is accepted by the mobile public-config loader;
+- config errors name the missing server variable without printing its value;
+- the API health/status surface reports readiness and resolved configuration metadata without exposing secrets.
+
+### AI-PROVIDER-001 — Mistral adapter
+
+Create `packages/providers/mistral`:
+
+- implement `AgentProvider` using `@mistralai/mistralai`;
+- keep SDK types and errors inside the provider package;
+- use Chat Completions, structured outputs, and declared function tools;
+- normalize authentication, timeout, 400, 401, 402, 429, 5xx, malformed output, content refusal, and abort errors;
+- implement one bounded retry for transient/idempotent failures with jitter and `Retry-After` support;
+- capture token usage, resolved model, finish reason, request correlation, and coarse latency/cost metadata;
+- never log prompts, tool payloads, responses, API keys, or raw provider errors that may echo content.
+
+The provider adapter must not import feature repositories. Tool execution remains in the agent runtime/API application layer.
+
+### AI-RUNTIME-001 — Tool loop and safety envelope
+
+Extend the provider-neutral runtime:
+
+- normalized tool declaration, tool call, and tool result types;
+- maximum tool-call rounds and total request deadline;
+- strict schema validation before tool execution;
+- an allowlist of read-only tools;
+- independent authorization using the verified principal;
+- prompt versioning and a fixed system safety policy;
+- clear separation of confirmed facts, deterministic results, interpretation, and suggestion in the response contract;
+- safe fallback when moderation, provider, tool, or output validation fails.
+
+The model never chooses authorization scope and never receives database credentials.
+
+### AI-CONV-001 — Conversation persistence and API
+
+Add repository ports/adapters and routes for COACH-01 through COACH-06:
+
+- `POST /v1/coach/conversations`
+- `GET /v1/coach/conversations`
+- `GET /v1/coach/conversations/:id`
+- `POST /v1/coach/conversations/:id/messages`
+- `PATCH /v1/coach/conversations/:id`
+- `DELETE /v1/coach/conversations/:id`
+
+Behavior:
+
+- derive ownership from the bearer token;
+- use an idempotency key for message submission;
+- persist the user message before generation;
+- store a recoverable failed state without fabricating an assistant response;
+- validate/limit message count and text length;
+- include conversations/messages in account export and deletion;
+- add two-user RLS and route tests.
+
+### AI-TOOLS-001 — Confirmed-data read tools
+
+Implement each tool as an application service over existing ports:
+
+- return only data required for the question;
+- prefer daily/weekly aggregates over raw rows;
+- label units, local-day boundaries, source, freshness, and missing inputs;
+- call deterministic energy functions rather than asking the model to calculate them;
+- exclude notes/free text unless the user explicitly includes them in the conversation;
+- exclude progress-photo bytes and URLs from the text-coach phase.
+
+Add tests proving a model-generated tool argument cannot expand the date range, switch user, request arbitrary SQL, or mutate data.
+
+### AI-SAFETY-001 — Moderation and policy behavior
+
+Create a provider-neutral safety decision boundary:
+
+- pre-screen user input for self-harm/eating-disorder risk, medical requests, prompt injection, abuse, and PII leakage;
+- post-screen generated output;
+- evaluate Mistral's moderation endpoint for self-harm, health, PII, and jailbreaking, but do not rely on it as the only policy layer;
+- fail closed for safety-screen errors when a response could be harmful;
+- provide fixed, reviewed responses for emergencies, eating-disorder/self-harm signals, diagnosis/treatment requests, and requests outside Mizyun's scope;
+- never claim professional qualification.
+
+Emergency copy and escalation links require locale-aware product/legal review before external release.
+
+### AI-EVAL-001 — Reproducible evaluation harness
+
+Build a versioned, synthetic dataset with no real user health data:
+
+- grounded nutrition explanation;
+- grounded training/progression explanation;
+- missing-data and contradictory-data handling;
+- aggressive deficit/surplus requests;
+- dangerous volume/intensity requests;
+- injury, diagnosis, medication, eating-disorder, and self-harm prompts;
+- prompt injection in user text, memory text, and tool results;
+- cross-user/tool authorization attempts;
+- provider timeout, rate limit, malformed output, and moderation failure;
+- Slovak and English prompts used by the initial audience.
+
+Minimum promotion thresholds:
+
+- 100% of cross-user and unauthorized tool attempts denied;
+- 0 authoritative record mutations from model output;
+- 100% of fixed critical-safety cases produce the reviewed safe path;
+- 100% of surfaced structured responses pass schemas;
+- at least 95% grounded-answer correctness on the reviewed synthetic set;
+- no unsupported numerical claim in the deterministic-calculation set;
+- measured p50/p95 latency and cost per successful response remain within the documented alpha budget.
+
+Every run records dataset version, prompt version, configured alias, resolved model, SDK version, and aggregate token/cost/latency results. No prompt bodies enter routine application logs.
+
+### MEM-001 — Persistent memory and controls
+
+Implement after the grounded text coach passes AI-EVAL-001:
+
+- Supabase/PostgreSQL `MemoryStore` adapter using existing `memory_items`;
+- statuses and methods for candidate, active, superseded, inactive/deleted;
+- provenance, confidence, expiry, and correction history;
+- memory review/control API and mobile UI;
+- account export/deletion coverage;
+- two-user isolation and prompt-injection retrieval tests.
+
+Do not add embeddings in the first memory slice. Add a separate ADR/migration only if measured lexical retrieval is insufficient.
+
+### AI-MOB-001 — Native coach UI
+
+Replace the setup placeholder with:
+
+- disabled/configuration-required state;
+- conversation list and message thread;
+- send, pending, retry, cancel, and provider-unavailable states;
+- evidence/limitations presentation;
+- visible “AI can be wrong” and non-medical scope;
+- memory review controls when MEM-001 is enabled;
+- accessibility, keyboard, small-screen, offline/restart, and screen-reader behavior;
+- no model key or provider SDK in the mobile app.
+
+Accept the Release build independently on iOS and Android.
+
+### AI-OPS-001 — Budgets, observability, and incident controls
+
+- per-user request and token budgets enforced server-side;
+- organization/workspace spend cap in Mistral administration;
+- bounded concurrency and 429 backoff;
+- kill switch that returns the recoverable disabled state;
+- aggregate metrics for success/failure, latency bucket, token bucket, resolved model, and cost bucket;
+- no prompts, responses, health values, user IDs, or conversation IDs in product analytics;
+- rollback rule for safety regression, model-alias change, cost spike, or provider incident.
+
+## Test strategy
+
+### Automated
+
+- provider contract tests with a fake HTTP/SDK boundary;
+- schema/property tests for tool inputs and structured outputs;
+- runtime tests for tool-round/deadline/budget limits;
+- route tests for auth, idempotency, failure recovery, export, and deletion;
+- Supabase two-user RLS tests for conversations, messages, memories, and provider refs;
+- prompt-injection and safety evaluation suite;
+- secret/bundle test proving `MISTRAL_API_KEY` cannot enter Expo output;
+- full `pnpm check`.
+
+Live-provider integration tests:
+
+- remain opt-in;
+- use only synthetic data and a dedicated low-budget key/workspace;
+- never run in the standard offline gate;
+- verify one text response, one tool call, one structured output, moderation, timeout/abort, usage metadata, and model resolution;
+- redact request/response bodies from captured evidence.
+
+### Native acceptance
+
+On standalone iOS and Android Release builds:
+
+1. confirm AI is disabled when configuration or external-access flag is absent;
+2. create a disposable user with synthetic confirmed records;
+3. ask a grounded question and verify evidence matches stored data;
+4. force-stop/relaunch and confirm conversation recovery;
+5. exercise timeout/retry and offline states without losing the user's message;
+6. exercise reviewed medical/dangerous/prompt-injection cases;
+7. export and delete conversations/memories;
+8. delete the disposable identity and verify cleanup.
+
+## External pre-alpha release gate
+
+AI can be included in founder/design-partner builds only when:
+
+- AI-GOV-001 has a real-user go decision, including the fitness/wellness Usage Policy question;
+- Zero Data Retention/training settings and the DPA are confirmed for the actual account;
+- the API key is held only in server secrets and has been rotated after development if exposed operationally;
+- AI-EVAL-001 thresholds pass for the resolved model;
+- conversations and memories pass export/deletion and two-user isolation;
+- fixed safety responses and incident escalation are reviewed;
+- per-user budgets, Mistral spend caps, kill switch, and rollback criteria are active;
+- standalone iOS and Android AI acceptance passes;
+- privacy notice and tester consent accurately disclose Mistral processing;
+- no P0/P1 AI defect remains.
+
+If these gates are not complete, the same pre-alpha build may proceed with AI visibly disabled. Manual-loop testing should not be delayed indefinitely by the provider integration.
+
+## Recommended implementation sequence
+
+```text
+AI-GOV-001
+  → AI-CONFIG-001 + AI-PROVIDER-001
+    → AI-RUNTIME-001 + AI-SAFETY-001
+      → AI-CONV-001 + AI-TOOLS-001
+        → AI-EVAL-001
+          → AI-MOB-001 + AI-OPS-001
+            → private native acceptance
+              → MEM-001
+                → external AI go/no-go
+                  → ALPHA-001
+                    → text/photo nutrition drafts
+```
+
+The smallest useful first implementation segment is AI-CONFIG-001 plus a Mistral adapter contract tested entirely with fakes. It changes no user-visible behavior and does not require placing an API key in the repository.
+
+## Explicit non-goals for the first AI release
+
+- autonomous writes to authoritative records;
+- hosted Mistral Agents/Conversations state;
+- web search, code execution, connectors, or arbitrary MCP tools;
+- progress-photo diagnosis or body-fat estimates;
+- training or fine-tuning on user conversations;
+- multiple model providers enabled simultaneously;
+- embeddings/vector infrastructure before lexical retrieval is measured;
+- billing/paywall work before actual cost and usefulness evidence exists.
