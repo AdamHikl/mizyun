@@ -49,7 +49,8 @@ These items convert the tested domain/API foundation into the low-friction produ
 | AI-PROVIDER-001 | P0       | done    | Official-SDK Mistral provider adapter                  | Structured output, metadata, retry, timeout, and failures normalize                     |
 | AI-CONV-001     | P0       | done    | Private coach conversation persistence and API         | Auth, RLS adapter, idempotency, export, delete, and route tests pass                    |
 | AI-SAFETY-001   | P0       | active  | Provider-neutral coach safety envelope                 | Versioned 12-case EN/SK critical corpus passes; live moderation calibration remains     |
-| AI-MOB-001      | P1       | active  | Native Coach conversation experience                   | Next: identify target phone, configure safe dev endpoint, then run synthetic acceptance |
+| AI-MOB-001      | P1       | active  | Native Coach conversation experience                   | iPhone trusted-LAN preflight active; native synthetic acceptance remains                |
+| AI-OPS-001      | P0       | ready   | Durable AI budgets and replica-safe idempotency        | Shared limits survive restart/replicas and one logical message incurs one provider call |
 | ALPHA-001       | P0       | ready   | Founder week plus 10–30 design-partner alpha           | No open P0/P1 issue blocks repeated use; evidence and feedback are recorded             |
 | BILL-001        | P1       | blocked | Premium packaging and mobile subscription billing      | Paid value/cost is validated and entitlements restore safely                            |
 
@@ -91,6 +92,17 @@ Native acceptance evidence: standalone iOS and Android Release apps pass real si
 | REL-001        | P0       | blocked  | Privacy/export/deletion release gate         | MVP repositories complete                                                     |
 | REL-002        | P0       | blocked  | iOS/Android beta build matrix                | MVP feature complete                                                          |
 | REL-003        | P1       | blocked  | Accessibility and poor-network pass          | MVP feature complete                                                          |
+
+## Infrastructure evolution
+
+| ID                 | Priority | Status     | Work item                                                          | Entry gate                                                                                                     |
+| ------------------ | -------- | ---------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| INFRA-SELFHOST-001 | P0       | ready      | Self-hosted Mizyun-operated Supabase on Adam's Slovakia PC (alpha) | Physical-phone integration requires a reachable trusted environment; ADR-0016 amendment 2026-07-25             |
+| INFRA-MANAGED-001  | P0       | superseded | Hosted managed Supabase EU development/staging                     | Superseded by INFRA-SELFHOST-001 for the alpha track; returns as the production-track shape via INFRA-PORT-001 |
+| INFRA-PORT-001     | P1       | blocked    | Managed-to-self-hosted portability and restore lab                 | The alpha track on the Slovakia PC has shipped; off-site backups + second operator exist                       |
+| INFRA-CUTOVER-001  | P2       | blocked    | Rehearse and execute production data-plane migration               | 90-day staging gate and two rehearsals pass                                                                    |
+
+The authoritative stages, operational gates, topology, rollback, and provisional service objectives live in `docs/INFRASTRUCTURE_EVOLUTION_PLAN.md`. The single-Linux-host restriction is relaxed for the alpha track per ADR-0016 amendment 2026-07-25; it is restored before any paying-user cutover.
 
 ## Parking lot
 
