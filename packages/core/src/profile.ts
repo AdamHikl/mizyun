@@ -41,6 +41,11 @@ export const DISPLAY_NAME_MAX = 80;
 export const DEFAULT_TIMEZONE = "UTC";
 export const DEFAULT_UNIT_SYSTEM: UnitSystem = "metric";
 
+/** Closed set of plan tiers. Mirrors the SQL check on `profiles.plan_tier`. */
+export type PlanTier = "free" | "paid";
+
+export const DEFAULT_PLAN_TIER: PlanTier = "free";
+
 /**
  * Plain profile shape. The wire schema in `@mizyun/contracts` is the
  * superset (it also carries `userId`, `createdAt`, `updatedAt`). This
@@ -54,6 +59,7 @@ export interface ProfileCore {
   readonly heightCm: number | null;
   readonly activityLevel: ProfileActivityLevel | null;
   readonly sexAtBirth: ProfileSexAtBirth | null;
+  readonly planTier: PlanTier;
 }
 
 /**
@@ -259,6 +265,9 @@ export const validateProfilePatch = (
  * passed `validateProfilePatch`; if it has not, the result is
  * undefined behaviour and the route layer is responsible for
  * rejecting it.
+ *
+ * `planTier` is preserved verbatim. It is not editable from the
+ * public PATCH endpoint — billing (BILL-001) owns that surface.
  */
 export const applyProfilePatch = (
   stored: StoredProfile,
@@ -279,6 +288,7 @@ export const applyProfilePatch = (
       : patch.activityLevel,
   sexAtBirth:
     patch.sexAtBirth === undefined ? stored.sexAtBirth : patch.sexAtBirth,
+  planTier: stored.planTier,
   createdAt: stored.createdAt,
   updatedAt: now,
 });

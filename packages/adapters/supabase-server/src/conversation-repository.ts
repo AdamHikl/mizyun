@@ -131,10 +131,10 @@ export class SupabaseConversationRepository implements ConversationRepository {
       .eq("user_id", userId)
       .eq("conversation_id", conversationId)
       .in("role", ["user", "assistant"])
-      .order("created_at", { ascending: true })
+      .order("created_at", { ascending: false })
       .limit(options.limit);
     if (result.error) throw new RepositoryError(result.error.message);
-    return result.data.map(messageFromRow);
+    return result.data.map(messageFromRow).reverse();
   }
 
   async update(

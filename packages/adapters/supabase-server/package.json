@@ -13,6 +13,7 @@
   "dependencies": {
     "@mizyun/core": "workspace:*",
     "@mizyun/identity": "workspace:*",
+    "@mizyun/memory": "workspace:*",
     "@supabase/supabase-js": "^2.57.0"
   },
   "devDependencies": {

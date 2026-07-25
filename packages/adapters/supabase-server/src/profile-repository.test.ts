@@ -39,6 +39,7 @@ const fakeClient = (opts: {
     };
     return builder as unknown as never;
   },
+  rpc: vi.fn().mockResolvedValue({ data: [], error: null }),
   auth: {
     setSession: vi.fn().mockResolvedValue({
       data: { user: { id: "00000000-0000-4000-8000-000000000001" } },
@@ -165,6 +166,7 @@ describe("SupabaseProfileRepository.update", () => {
         heightCm: 180,
         activityLevel: "moderately_active",
         sexAtBirth: "male",
+        planTier: "free",
         createdAt: new Date("2026-01-01T00:00:00.000Z"),
         updatedAt: new Date("2026-07-17T12:00:00.000Z"),
       },
@@ -198,6 +200,7 @@ describe("SupabaseProfileRepository.update", () => {
           heightCm: null,
           activityLevel: null,
           sexAtBirth: null,
+          planTier: "free",
           createdAt: new Date(),
           updatedAt: new Date(),
         },

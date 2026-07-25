@@ -55,6 +55,7 @@ const fakeClient = (options: {
     };
     return builder as unknown as never;
   },
+  rpc: vi.fn().mockResolvedValue({ data: [], error: null }),
   auth: {
     setSession: vi.fn().mockResolvedValue({
       data: { user: { id: userId } },
