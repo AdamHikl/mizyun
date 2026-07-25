@@ -1,0 +1,38 @@
+# Schema-lint gate — runs `supabase db lint` on every PR. Lightweight
+# compared to `db-verify.yml`; useful as a per-PR fast-feedback check
+# before the heavier pgTAP gate.
+name: db-lint
+
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/**"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Start local Supabase stack
+        run: supabase start
+
+      - name: Lint schema
+        run: pnpm db:lint
+
+      - name: Stop local Supabase stack
+        if: always()
+        run: supabase stop --no-backup

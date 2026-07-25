@@ -1,0 +1,101 @@
+# Main-merge gate — pushes Supabase migrations to the hosted dev
+# project after a successful PR merge. Runs only when the GitHub
+# `hosted-dev` environment approves the workflow.
+#
+# Why a separate workflow: production migrations run on a longer
+# cadence with a separate approval + manual smoke gate. This file
+# owns the dev/staging track per `docs/INFRASTRUCTURE_EVOLUTION_PLAN.md`
+# Stage 1.
+#
+# Required GitHub Environment secrets (`hosted-dev`):
+#   SUPABASE_PROJECT_REF          hosted dev project id (e.g. "abcdefghijkl")
+#   SUPABASE_DB_PASSWORD          postgres-role password from Supabase
+#                                  Dashboard → Project Settings → Database
+#   SUPABASE_ACCESS_TOKEN         Supabase CLI access token (from
+#                                  supabase.com/dashboard/account/tokens)
+#
+# All three are environment-scoped and never logged. The workflow
+# uses `pnpm db:preflight` first so missing/unsafe env exits before
+# any CLI is invoked.
+name: db-push-dev
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "supabase/**"
+
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry-run (print SQL, do not apply)"
+        required: false
+        default: "true"
+
+concurrency:
+  group: db-push-dev
+  cancel-in-progress: false
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: hosted-dev
+      url: https://supabase.com/dashboard/project/${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Preflight (env shape, EU region, .env perms)
+        env:
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_REGION: "eu-central-1"
+        run: pnpm db:preflight
+
+      - name: Link hosted dev project
+        env:
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: pnpm db:link
+
+      - name: Show migration state before push
+        env:
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: pnpm db:remote-status
+
+      - name: Push migrations
+        env:
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            pnpm db:push -- --dry-run
+          else
+            pnpm db:push
+          fi
+
+      - name: Run hosted pgTAP
+        if: github.event.inputs.dry_run != 'true'
+        env:
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: pnpm db:linked-test

@@ -1,0 +1,45 @@
+# PR gate — runs the local Supabase schema + pgTAP gate on every
+# pull request. Same commands as `pnpm db:verify`, executed in
+# an isolated GitHub Actions runner with the pinned Supabase CLI
+# 2.109.1 (matching `pnpm-lock.yaml`).
+#
+# Why this exists: prior to AI-OPS-002 there was no CI. INFRA-MANAGED-001
+# establishes this baseline so every PR is verified against the
+# schema the hosted project will receive.
+name: db-verify
+
+on:
+  pull_request:
+    paths:
+      - "supabase/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Start local Supabase stack
+        run: supabase start
+
+      - name: Run db:verify (reset + lint + pgTAP)
+        run: pnpm db:verify
+
+      - name: Stop local Supabase stack
+        if: always()
+        run: supabase stop --no-backup
