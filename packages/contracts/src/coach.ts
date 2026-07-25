@@ -34,7 +34,15 @@ export const coachMessageSchema = z.object({
   status: z.enum(["complete", "failed"]),
   provider: z.string().nullable(),
   evidenceKinds: z.array(
-    z.enum(["profile", "goal", "nutrition", "training", "body", "energy"]),
+    z.enum([
+      "profile",
+      "goal",
+      "nutrition",
+      "training",
+      "body",
+      "energy",
+      "memory",
+    ]),
   ),
   createdAt: z.string().datetime(),
 });
@@ -99,3 +107,96 @@ export type CoachConversationListResponse = z.infer<
 >;
 export type CoachThreadResponse = z.infer<typeof coachThreadResponseSchema>;
 export type CoachMessageResponse = z.infer<typeof coachMessageResponseSchema>;
+
+// =========================================================================
+// MEM-001 — Coach memory controls.
+// =========================================================================
+
+/**
+ * `candidate` is not yet surfaced to the Coach prompt. `active`
+ * memories are filtered by `confidence >= 0.5` and
+ * `importance >= 3` (per ADR-0017 §"Memory invariants"). `deleted`
+ * is a soft-delete; the row is preserved for the audit trail
+ * but never returned by the route.
+ */
+export const coachMemoryStatusSchema = z.enum([
+  "candidate",
+  "active",
+  "superseded",
+  "deleted",
+]);
+
+export const coachMemoryKindSchema = z.enum([
+  "profile",
+  "goal",
+  "preference",
+  "constraint",
+  "observation",
+  "summary",
+]);
+
+export const coachMemorySummarySchema = z.object({
+  id: z.string().uuid(),
+  kind: coachMemoryKindSchema,
+  source: z.string(),
+  status: coachMemoryStatusSchema,
+  confidence: z.number().min(0).max(1),
+  importance: z.number().int().min(0).max(10),
+  preview: z.string().trim().min(1).max(280),
+  updatedAt: z.string().datetime(),
+});
+
+export const coachMemorySchema = z.object({
+  id: z.string().uuid(),
+  kind: coachMemoryKindSchema,
+  source: z.string(),
+  status: coachMemoryStatusSchema,
+  confidence: z.number().min(0).max(1),
+  importance: z.number().int().min(0).max(10),
+  content: z.string().trim().min(1).max(4_000),
+  metadata: z.record(z.unknown()),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  expiresAt: z.string().datetime().nullable(),
+});
+
+/**
+ * Patch shape for `PATCH /v1/coach/memories/:id`. Every field is
+ * optional; the validator rejects a patch that touches no field
+ * at all. The route layer runs `screenCoachInput` on `content`
+ * to defend against prompt injection via the controls API.
+ */
+export const coachMemoryPatchSchema = z
+  .object({
+    content: z.string().trim().min(1).max(4_000).optional(),
+    confidence: z.number().min(0).max(1).optional(),
+    importance: z.number().int().min(0).max(10).optional(),
+    status: coachMemoryStatusSchema.optional(),
+  })
+  .strict()
+  .refine(
+    (patch) =>
+      patch.content !== undefined ||
+      patch.confidence !== undefined ||
+      patch.importance !== undefined ||
+      patch.status !== undefined,
+    "at least one field must be present",
+  );
+
+export const coachMemoryListResponseSchema = z.object({
+  memories: z.array(coachMemorySummarySchema),
+});
+
+export const coachMemoryResponseSchema = z.object({
+  memory: coachMemorySchema,
+});
+
+export type CoachMemorySummary = z.infer<typeof coachMemorySummarySchema>;
+export type CoachMemory = z.infer<typeof coachMemorySchema>;
+export type CoachMemoryPatch = z.infer<typeof coachMemoryPatchSchema>;
+export type CoachMemoryListResponse = z.infer<
+  typeof coachMemoryListResponseSchema
+>;
+export type CoachMemoryResponse = z.infer<typeof coachMemoryResponseSchema>;
+export type CoachMemoryStatus = z.infer<typeof coachMemoryStatusSchema>;
+export type CoachMemoryKind = z.infer<typeof coachMemoryKindSchema>;
