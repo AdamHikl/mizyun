@@ -41,21 +41,40 @@ fi
 
 echo "Using Tailscale IP: $TS_IP"
 
-# Persist the tunnel URLs for the Expo dev build.
-cat > apps/mobile/.env.local <<EOF
+# Persist the tunnel URLs for the Expo dev build. The script
+# may be run from anywhere; resolve the env path relative to
+# this script so the write always lands in the right place.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENV_FILE="${SCRIPT_DIR}/../.env.local"
+cat > "${ENV_FILE}" <<EOF
 EXPO_PUBLIC_API_URL=http://${TS_IP}:4000
 EXPO_PUBLIC_SUPABASE_URL=http://${TS_IP}:54321
 EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$(pnpm supabase status 2>/dev/null | sed -n 's/^.*"PUBLISHABLE_KEY": "\([^"]*\)".*/\1/p' | head -1)
 EOF
-echo "Wrote apps/mobile/.env.local with the Tailscale URLs."
+echo "Wrote ${ENV_FILE} with the Tailscale URLs."
 
-# Build the .ipa for the connected iPhone. The phone is on the
-# tailnet so it can reach the Mac's API at the Tailscale IP.
+# Build the .ipa for the connected iPhone. Use the UDID
+# directly: device names with non-ASCII characters (e.g. emoji)
+# don't match the --device flag's name match.
 echo "Building the iOS Release binary..."
+IPHONE_UDID=$(xcrun devicectl list devices 2>/dev/null \
+  | grep -Eo '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' \
+  | head -1)
+if [[ -z "$IPHONE_UDID" ]]; then
+  echo "error: no iPhone UDID found. Pair the device in Xcode first."
+  exit 1
+fi
+echo "Targeting iPhone UDID: $IPHONE_UDID"
+if [[ -z "$IPHONE_UDID" ]]; then
+  echo "error: no connected iPhone found. Pair the device in Xcode first."
+  exit 1
+fi
+echo "Targeting iPhone UDID: $IPHONE_UDID"
+
 EXPO_PUBLIC_API_URL="http://${TS_IP}:4000" \
 EXPO_PUBLIC_SUPABASE_URL="http://${TS_IP}:54321" \
 EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$(pnpm supabase status 2>/dev/null | sed -n 's/^.*"PUBLISHABLE_KEY": "\([^"]*\)".*/\1/p' | head -1) \
-  npx expo run:ios --device "$(xcrun devicectl list devices 2>/dev/null | grep -i iphone | grep -v simulator | head -1 | awk -F'(' '{print $2}' | tr -d ')' || echo "iPhone 17 Pro")" --configuration Release
+  npx expo run:ios --device "Adam's Iphone 😋" --configuration Release
 
 echo "iPhone install complete. The app is now pointed at:"
 echo "  API:        http://${TS_IP}:4000"
