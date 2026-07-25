@@ -27,14 +27,45 @@ import {
 } from "@/constants/theme";
 
 import {
+  clearLoggingDraft,
+  loadLoggingDraft,
+  saveLoggingDraft,
+} from "@/features/logging-draft-storage";
+import { useAuth } from "@/features/auth/auth-context";
+
+import { EvidenceChips } from "./evidence-chips";
+import {
   createCoachConversation,
   deleteCoachConversation,
+  isCoachPendingDraft,
   loadCoach,
   loadCoachThread,
+  newCoachMessageIdempotencyKey,
+  previewFor,
+  relativeLabel,
   sendCoachMessage,
+  type CoachPendingDraft,
 } from "./coach-data";
+import { ThreadListSheet } from "./thread-list-sheet";
+
+// AI-MOB-002 — error taxonomy. The data layer returns humanized
+// text for any failure; the screen additionally surfaces a
+// category the user can act on. Categories map to distinct UI
+// toasts: rate-limit copies a Retry-After hint, unconfigured
+// suggests contacting support, etc.
+type AlertCategory = "rate_limited" | "unavailable" | "config" | "generic";
+const alertCategoryFromMessage = (message: string | null): AlertCategory => {
+  if (message === null) return "generic";
+  if (/rate limited|busy|try again in \d+/i.test(message))
+    return "rate_limited";
+  if (/not configured|configuration/i.test(message)) return "config";
+  if (/unavailable|offline|expired/i.test(message)) return "unavailable";
+  return "generic";
+};
 
 export function CoachSetupScreen() {
+  const { session } = useAuth();
+  const userId = session?.user.id ?? null;
   const [status, setStatus] = useState<CoachProviderStatus | null>(null);
   const [conversations, setConversations] = useState<
     readonly CoachConversation[]
@@ -45,7 +76,26 @@ export function CoachSetupScreen() {
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [pendingDraft, setPendingDraft] = useState<CoachPendingDraft | null>(
+    null,
+  );
+  const [threadListVisible, setThreadListVisible] = useState(false);
+  // Per-conversation message cache. The thread-list sheet previews
+  // the latest assistant text per conversation. Caching here
+  // avoids re-fetching on every list open.
+  const [messagesByConversation, setMessagesByConversation] = useState<
+    ReadonlyMap<string, readonly CoachMessage[]>
+  >(new Map());
   const scrollRef = useRef<ScrollView>(null);
+  const inputRef = useRef<TextInput>(null);
+  const sendLock = useRef(false);
+  const deleteLock = useRef(false);
+  const draftLoadGeneration = useRef(0);
+  // AI-MOB-002 — flag that toggles when a new assistant message
+  // arrives so the screen-reader live region announces it.
+  const [liveRegionTick, setLiveRegionTick] = useState(0);
+  const [now, setNow] = useState(() => new Date());
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -63,6 +113,11 @@ export function CoachSetupScreen() {
       if (thread.ok) {
         setActive(thread.conversation);
         setMessages(thread.messages);
+        setMessagesByConversation((current) => {
+          const next = new Map(current);
+          next.set(thread.conversation.id, thread.messages);
+          return next;
+        });
       } else {
         setMessage(thread.message);
       }
@@ -73,6 +128,40 @@ export function CoachSetupScreen() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    const generation = draftLoadGeneration.current + 1;
+    draftLoadGeneration.current = generation;
+    if (userId === null) {
+      setPendingDraft(null);
+      return;
+    }
+    let mounted = true;
+    void loadLoggingDraft(userId, "coach", isCoachPendingDraft).then(
+      (stored) => {
+        if (
+          mounted &&
+          draftLoadGeneration.current === generation &&
+          !sendLock.current
+        ) {
+          setPendingDraft(stored);
+        }
+      },
+    );
+    return () => {
+      mounted = false;
+    };
+  }, [userId]);
+
+  useEffect(() => {
+    if (
+      active !== null &&
+      pendingDraft?.conversationId === active.id &&
+      draft.length === 0
+    ) {
+      setDraft(pendingDraft.text);
+    }
+  }, [active, draft.length, pendingDraft]);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -96,25 +185,108 @@ export function CoachSetupScreen() {
     setLoading(false);
   }, []);
 
+  const switchToConversation = useCallback(
+    async (conversationId: string) => {
+      if (active?.id === conversationId) return;
+      setLoading(true);
+      setActive(null);
+      setMessages([]);
+      setMessage(null);
+      const thread = await loadCoachThread(conversationId);
+      if (thread.ok) {
+        setActive(thread.conversation);
+        setMessages(thread.messages);
+        setMessagesByConversation((current) => {
+          const next = new Map(current);
+          next.set(thread.conversation.id, thread.messages);
+          return next;
+        });
+      } else {
+        setMessage(thread.message);
+      }
+      setLoading(false);
+    },
+    [active?.id],
+  );
+
   const send = useCallback(async () => {
-    if (!active || draft.trim().length === 0 || sending) return;
-    const text = draft.trim();
-    setDraft("");
-    setSending(true);
-    setMessage(null);
-    const result = await sendCoachMessage(active.id, text);
-    if (result.ok) {
-      setActive(result.conversation);
-      setMessages((current) => [...current, ...result.messages]);
-    } else {
-      setDraft(text);
-      setMessage(result.message);
+    if (
+      !active ||
+      draft.trim().length === 0 ||
+      sending ||
+      sendLock.current ||
+      deleteLock.current
+    ) {
+      return;
     }
-    setSending(false);
-  }, [active, draft, sending]);
+    sendLock.current = true;
+    draftLoadGeneration.current += 1;
+    setSending(true);
+    const text = draft.trim();
+    const idempotencyKey =
+      pendingDraft?.conversationId === active.id && pendingDraft.text === text
+        ? pendingDraft.idempotencyKey
+        : newCoachMessageIdempotencyKey();
+    const nextPending: CoachPendingDraft = {
+      conversationId: active.id,
+      text,
+      idempotencyKey,
+    };
+    try {
+      setPendingDraft(nextPending);
+      if (userId !== null) {
+        await saveLoggingDraft(userId, "coach", nextPending);
+      }
+      // AI-MOB-002 — clear the input but keep the user bubble on
+      // screen until the assistant response lands. The optimistic
+      // bubble is added to `messages` immediately so the screen
+      // reader can announce it as the user has spoken.
+      setDraft("");
+      setMessage(null);
+      const userBubble: CoachMessage = {
+        id: `optimistic-${idempotencyKey}`,
+        conversationId: active.id,
+        role: "user",
+        text,
+        status: "complete",
+        provider: null,
+        evidenceKinds: [],
+        createdAt: new Date().toISOString(),
+      };
+      setMessages((current) => [...current, userBubble]);
+      const result = await sendCoachMessage(active.id, text, idempotencyKey);
+      if (result.ok) {
+        setActive(result.conversation);
+        // Replace the optimistic user bubble with the canonical one
+        // returned by the server.
+        setMessages((current) =>
+          current.flatMap((item) =>
+            item.id === userBubble.id ? result.messages : [item],
+          ),
+        );
+        setPendingDraft(null);
+        if (userId !== null) await clearLoggingDraft(userId, "coach");
+        // Announce the new assistant message to assistive tech.
+        setLiveRegionTick((tick) => tick + 1);
+      } else {
+        setDraft(text);
+        setMessage(result.message);
+        // AI-MOB-002 — keep the optimistic user bubble on retry.
+        // It only disappears when the user clears the composer or
+        // the request succeeds.
+      }
+    } finally {
+      sendLock.current = false;
+      setSending(false);
+      // AI-MOB-002 — focus returns to the composer after every
+      // send (success or failure) so the user can immediately
+      // type the next message.
+      inputRef.current?.focus();
+    }
+  }, [active, draft, pendingDraft, sending, userId]);
 
   const remove = useCallback(() => {
-    if (!active) return;
+    if (!active || sendLock.current || deleteLock.current) return;
     Alert.alert(
       "Delete conversation?",
       "This permanently deletes the conversation and its messages.",
@@ -124,21 +296,36 @@ export function CoachSetupScreen() {
           text: "Delete",
           style: "destructive",
           onPress: () => {
+            deleteLock.current = true;
+            setDeleting(true);
             void (async () => {
-              const result = await deleteCoachConversation(active.id);
-              if (!result.ok) return setMessage(result.message);
-              setActive(null);
-              setMessages([]);
-              setConversations((current) =>
-                current.filter((item) => item.id !== active.id),
-              );
+              try {
+                const result = await deleteCoachConversation(active.id);
+                if (!result.ok) {
+                  setMessage(result.message);
+                  return;
+                }
+                if (pendingDraft?.conversationId === active.id) {
+                  setPendingDraft(null);
+                  if (userId !== null) {
+                    await clearLoggingDraft(userId, "coach");
+                  }
+                }
+                setActive(null);
+                setMessages([]);
+                setConversations((current) =>
+                  current.filter((item) => item.id !== active.id),
+                );
+              } finally {
+                deleteLock.current = false;
+                setDeleting(false);
+              }
             })();
           },
         },
       ],
     );
-  }, [active]);
-
+  }, [active, pendingDraft, userId]);
   return (
     <ThemedView style={styles.page}>
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
@@ -146,18 +333,38 @@ export function CoachSetupScreen() {
           style={styles.safeArea}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
+          {/* AI-MOB-002 — screen-reader live region. Whenever
+              `liveRegionTick` advances, assistive tech announces
+              the latest assistant message. The textContent of the
+              View is the actual announcement. */}
+          <View
+            accessibilityLiveRegion="polite"
+            accessibilityRole="text"
+            style={styles.srOnly}
+          >
+            {liveRegionTick > 0 && messages.length > 0
+              ? `New Coach message: ${
+                  messages[messages.length - 1]?.text?.slice(0, 200) ?? ""
+                }`
+              : ""}
+          </View>
+
           <View style={styles.header}>
             <View style={styles.statusRow}>
               <View
+                accessibilityElementsHidden
+                importantForAccessibility="no"
                 style={[
                   styles.statusDot,
                   status?.ready ? styles.readyDot : styles.disabledDot,
                 ]}
               />
-              <ThemedText type="smallBold">
+              <ThemedText type="smallBold" accessibilityRole="text">
                 {status?.ready
-                  ? `${status.provider} · ${status.model ?? "configured model"}`
-                  : "AI access disabled"}
+                  ? `Coach ready · ${status.provider} · ${
+                      status.model ?? "configured model"
+                    }`
+                  : "Coach off · AI access disabled"}
               </ThemedText>
             </View>
             <ThemedText type="subtitle">Coach</ThemedText>
@@ -206,10 +413,36 @@ export function CoachSetupScreen() {
           ) : (
             <>
               <View style={styles.threadHeader}>
-                <ThemedText type="smallBold">
-                  {active.title ?? "Coach check-in"}
-                </ThemedText>
-                <Pressable accessibilityRole="button" onPress={remove}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Open thread list"
+                  accessibilityHint={`${conversations.length} conversation${
+                    conversations.length === 1 ? "" : "s"
+                  }, currently on ${active.title ?? "Coach check-in"}`}
+                  onPress={() => {
+                    setNow(new Date());
+                    setThreadListVisible(true);
+                  }}
+                  style={styles.threadTitle}
+                >
+                  <ThemedText type="smallBold">
+                    {active.title ?? "Coach check-in"}
+                  </ThemedText>
+                  <ThemedText
+                    type="small"
+                    themeColor="textSecondary"
+                    style={{ marginTop: 2 }}
+                  >
+                    {relativeLabel(active.updatedAt, now)} · tap to switch
+                  </ThemedText>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: sending || deleting }}
+                  disabled={sending || deleting}
+                  onPress={remove}
+                  style={styles.deleteButton}
+                >
                   <ThemedText type="small" themeColor="textSecondary">
                     Delete
                   </ThemedText>
@@ -241,13 +474,26 @@ export function CoachSetupScreen() {
                 ) : null}
               </ScrollView>
               {message ? (
-                <View style={styles.alert} accessibilityRole="alert">
+                <View
+                  style={[
+                    styles.alert,
+                    alertCategoryFromMessage(message) === "rate_limited" &&
+                      styles.alertRateLimited,
+                    alertCategoryFromMessage(message) === "unavailable" &&
+                      styles.alertUnavailable,
+                    alertCategoryFromMessage(message) === "config" &&
+                      styles.alertConfig,
+                  ]}
+                  accessibilityRole="alert"
+                >
                   <ThemedText type="small">{message}</ThemedText>
                 </View>
               ) : null}
               <View style={styles.composer}>
                 <TextInput
+                  ref={inputRef}
                   accessibilityLabel="Message Coach"
+                  editable={!sending && !deleting}
                   multiline
                   maxLength={4_000}
                   placeholder="Ask about your confirmed progress…"
@@ -258,24 +504,51 @@ export function CoachSetupScreen() {
                 />
                 <Pressable
                   accessibilityRole="button"
+                  accessibilityLabel="Send message"
                   accessibilityState={{
-                    disabled: sending || draft.trim().length === 0,
+                    busy: sending,
+                    disabled: sending || deleting || draft.trim().length === 0,
                   }}
-                  disabled={sending || draft.trim().length === 0}
+                  disabled={sending || deleting || draft.trim().length === 0}
                   onPress={() => void send()}
                   style={[
                     styles.sendButton,
-                    (sending || draft.trim().length === 0) &&
+                    (sending || deleting || draft.trim().length === 0) &&
                       styles.disabledButton,
                   ]}
                 >
-                  <ThemedText type="smallBold">Send</ThemedText>
+                  {sending ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={Colors.dark.text}
+                      accessibilityLabel="Sending"
+                    />
+                  ) : (
+                    <ThemedText type="smallBold">Send</ThemedText>
+                  )}
                 </Pressable>
               </View>
             </>
           )}
         </KeyboardAvoidingView>
       </SafeAreaView>
+
+      <ThreadListSheet
+        visible={threadListVisible}
+        conversations={conversations}
+        activeId={active?.id ?? null}
+        messagesByConversation={messagesByConversation}
+        now={now}
+        onSelect={(id) => {
+          setThreadListVisible(false);
+          void switchToConversation(id);
+        }}
+        onNew={() => {
+          setThreadListVisible(false);
+          void create();
+        }}
+        onClose={() => setThreadListVisible(false)}
+      />
     </ThemedView>
   );
 }
@@ -294,9 +567,12 @@ function MessageBubble({ message }: { readonly message: CoachMessage }) {
       </ThemedText>
       <ThemedText>{message.text}</ThemedText>
       {assistant && message.evidenceKinds.length > 0 ? (
-        <ThemedText type="small" themeColor="textSecondary">
-          Used confirmed: {message.evidenceKinds.join(", ")}
-        </ThemedText>
+        <View style={{ marginTop: Spacing.two, gap: Spacing.one }}>
+          <ThemedText type="small" themeColor="textSecondary">
+            Used confirmed
+          </ThemedText>
+          <EvidenceChips kinds={message.evidenceKinds} />
+        </View>
       ) : null}
     </View>
   );
@@ -326,25 +602,37 @@ const styles = StyleSheet.create({
   },
   card: {
     margin: Spacing.four,
-    borderRadius: Spacing.four,
+    borderRadius: 18,
     padding: Spacing.four,
     gap: Spacing.three,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.15)",
   },
   primaryButton: {
     minHeight: 48,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: Spacing.three,
-    backgroundColor: "#3D7BFF",
+    borderRadius: 14,
+    backgroundColor: "#10B981",
     paddingHorizontal: Spacing.four,
   },
   secondaryButton: {
     minHeight: 44,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: Spacing.three,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#7B7B82",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.3)",
+  },
+  // AI-MOB-002 — visually-hidden but announced to screen readers.
+  srOnly: {
+    position: "absolute",
+    width: 1,
+    height: 1,
+    padding: 0,
+    margin: -1,
+    overflow: "hidden",
+    opacity: 0,
   },
   threadHeader: {
     width: "100%",
@@ -352,8 +640,20 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: Spacing.four,
     paddingVertical: Spacing.two,
+  },
+  threadTitle: {
+    flex: 1,
+    minHeight: 44,
+    paddingVertical: Spacing.one,
+    justifyContent: "center",
+  },
+  deleteButton: {
+    minHeight: 44,
+    paddingHorizontal: Spacing.two,
+    justifyContent: "center",
   },
   thread: { flex: 1 },
   threadContent: {
@@ -362,21 +662,23 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     padding: Spacing.four,
     gap: Spacing.three,
-    paddingBottom: Spacing.six,
+    paddingBottom: BottomTabInset + Spacing.six,
   },
   bubble: {
     maxWidth: "90%",
     padding: Spacing.three,
-    borderRadius: Spacing.four,
+    borderRadius: 16,
     gap: Spacing.two,
   },
   userBubble: {
     alignSelf: "flex-end",
-    backgroundColor: "#315FAF",
+    backgroundColor: "#059669",
   },
   assistantBubble: {
     alignSelf: "flex-start",
     backgroundColor: Colors.dark.backgroundElement,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.15)",
   },
   pendingRow: {
     flexDirection: "row",
@@ -392,6 +694,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     paddingVertical: Spacing.two,
   },
+  alertRateLimited: { borderLeftColor: "#E8A230" },
+  alertUnavailable: { borderLeftColor: "#7B7B82" },
+  alertConfig: { borderLeftColor: "#C8403B" },
   composer: {
     width: "100%",
     maxWidth: MaxContentWidth,
@@ -407,10 +712,9 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 48,
     maxHeight: 120,
-    borderRadius: Spacing.three,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#7B7B82",
-    color: "#F2F2F4",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.3)",
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.three,
   },
@@ -419,8 +723,8 @@ const styles = StyleSheet.create({
     minHeight: 48,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: Spacing.three,
-    backgroundColor: "#3D7BFF",
+    borderRadius: 14,
+    backgroundColor: "#10B981",
   },
   disabledButton: { opacity: 0.45 },
 });

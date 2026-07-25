@@ -38,7 +38,7 @@ describe("resolveSessionGateTarget", () => {
     ).toBe("onboarding");
   });
 
-  it("routes a new profile through onboarding", () => {
+  it("routes a fresh profile without a displayName to onboarding", () => {
     expect(
       resolveSessionGateTarget({
         hasSession: true,

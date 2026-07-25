@@ -9,8 +9,7 @@ export const resolveSessionGateTarget = (input: {
 }): SessionGateTarget => {
   if (input.hasSession && input.recoveryState) return "recovery";
   if (!input.hasSession) return "auth";
-  if (input.profile === null || input.profile.displayName === null) {
+  if (input.profile === null || input.profile.displayName === null)
     return "onboarding";
-  }
   return "content";
 };

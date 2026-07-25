@@ -87,7 +87,7 @@ export const submitOnboarding = async (
       },
       schema: goalResponseSchema,
     });
-    if (!goalResult.ok) {
+    if (!goalResult.ok && !isActiveGoalConflict(goalResult.error)) {
       return {
         ok: false,
         message: humanizeError(
@@ -167,6 +167,15 @@ export const submitOnboarding = async (
 
 const isNotFound = (error: ApiError): boolean =>
   error.kind === "http_error" && error.status === 404;
+
+// The active-goal route reuses VALIDATION_ERROR for both the
+// "user already has an active goal" conflict and the unrelated
+// invalid-status-transition path, so match the message verbatim.
+const isActiveGoalConflict = (error: ApiError): boolean =>
+  error.kind === "http_error" &&
+  error.status === 409 &&
+  error.code === "VALIDATION_ERROR" &&
+  error.message === "user already has an active goal";
 
 const humanizeError = (kind: string, fallback: string): string => {
   switch (kind) {

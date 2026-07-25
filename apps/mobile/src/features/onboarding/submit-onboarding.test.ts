@@ -26,7 +26,14 @@ const notFound = err({
   status: 404,
   code: "NOT_FOUND",
   message: "missing",
-} as ApiError);
+} as unknown as ApiError);
+
+const httpError = (
+  status: number,
+  code: string,
+  message: string,
+): Result<unknown, ApiError> =>
+  err({ kind: "http_error", status, code, message } as unknown as ApiError);
 
 const stubClient = (
   queue: ReadonlyArray<Result<unknown, ApiError>>,
@@ -175,5 +182,38 @@ describe("submitOnboarding", () => {
     );
     expect(result.ok).toBe(false);
     expect(client.calls).toHaveLength(0);
+  });
+
+  it("treats an active-goal 409 conflict as a no-op so onboarding can complete", async () => {
+    const client = stubClient([
+      httpError(404, "NOT_FOUND", "missing"),
+      httpError(409, "VALIDATION_ERROR", "user already has an active goal"),
+      ok({ bodyMeasurements: [] }),
+      createdMeasurement,
+      savedProfile,
+    ]);
+    const result = await submitOnboarding(baseForm(), client);
+    expect(result.ok).toBe(true);
+    expect(client.calls.map(({ method, path }) => `${method} ${path}`)).toEqual(
+      [
+        "GET /v1/goals/active",
+        "POST /v1/goals",
+        "GET /v1/body-measurements?limit=200",
+        "POST /v1/body-measurements",
+        "PUT /v1/profile",
+      ],
+    );
+  });
+
+  it("does not silently swallow a different 409 conflict", async () => {
+    const client = stubClient([
+      httpError(404, "NOT_FOUND", "missing"),
+      httpError(409, "VALIDATION_ERROR", "invalid_status_transition"),
+    ]);
+    const result = await submitOnboarding(baseForm(), client);
+    expect(result.ok).toBe(false);
+    expect(client.calls.map(({ method, path }) => `${method} ${path}`)).toEqual(
+      ["GET /v1/goals/active", "POST /v1/goals"],
+    );
   });
 });

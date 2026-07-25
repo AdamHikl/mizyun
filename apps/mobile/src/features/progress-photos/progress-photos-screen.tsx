@@ -18,7 +18,7 @@ import { apiClient } from "@/composition/api-client";
 import { analyticsClient } from "@/composition/analytics-client";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { MaxContentWidth, Spacing } from "@/constants/theme";
+import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { useAuth } from "@/features/auth/auth-context";
 import type {
   MediaCompareResponse,
@@ -442,43 +442,44 @@ const styles = StyleSheet.create({
     maxWidth: MaxContentWidth,
     alignSelf: "center",
     padding: Spacing.four,
+    paddingBottom: BottomTabInset + Spacing.six,
     gap: Spacing.four,
   },
   card: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#8A8A8A66",
-    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.15)",
+    borderRadius: 18,
     padding: Spacing.four,
     gap: Spacing.three,
   },
   consent: {
     borderWidth: 1,
-    borderColor: "#8A8A8A88",
-    borderRadius: 12,
+    borderColor: "rgba(148, 163, 184, 0.3)",
+    borderRadius: 14,
     padding: Spacing.three,
   },
-  selected: { borderColor: "#208AEF", borderWidth: 2 },
+  selected: { borderColor: "#10B981", borderWidth: 2 },
   row: { flexDirection: "row", gap: Spacing.two, alignItems: "center" },
   primaryButton: {
     flex: 1,
-    backgroundColor: "#208AEF",
-    borderRadius: 12,
+    backgroundColor: "#10B981",
+    borderRadius: 14,
     padding: Spacing.three,
     alignItems: "center",
   },
   secondaryButton: {
     flex: 1,
     borderWidth: 1,
-    borderColor: "#8A8A8A88",
-    borderRadius: 12,
+    borderColor: "rgba(148, 163, 184, 0.3)",
+    borderRadius: 14,
     padding: Spacing.three,
     alignItems: "center",
   },
   buttonText: { color: "#FFFFFF" },
   disabled: { opacity: 0.45 },
   previewBlock: { gap: Spacing.two },
-  preview: { width: "100%", aspectRatio: 3 / 4, borderRadius: 12 },
-  error: { color: "#B42318" },
+  preview: { width: "100%", aspectRatio: 3 / 4, borderRadius: 14 },
+  error: { color: "#EF4444" },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -487,8 +488,8 @@ const styles = StyleSheet.create({
   },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.three },
   photoCard: { width: "47%", gap: Spacing.one },
-  imageFrame: { borderRadius: 12, overflow: "hidden" },
+  imageFrame: { borderRadius: 14, overflow: "hidden" },
   thumbnail: { width: "100%", aspectRatio: 3 / 4 },
-  deleteText: { color: "#B42318" },
-  compareImage: { flex: 1, aspectRatio: 3 / 4, borderRadius: 12 },
+  deleteText: { color: "#EF4444" },
+  compareImage: { flex: 1, aspectRatio: 3 / 4, borderRadius: 14 },
 });

@@ -1,7 +1,7 @@
 import * as SecureStore from "expo-secure-store";
 
 export type LoggingDraftKind =
-  "meal" | "workout" | "weight" | `meal-edit-${string}`;
+  "meal" | "workout" | "weight" | "coach" | `meal-edit-${string}`;
 
 interface SecureKeyValueStore {
   getItemAsync(key: string): Promise<string | null>;

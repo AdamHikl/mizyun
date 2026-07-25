@@ -365,6 +365,21 @@ export function DashboardScreen() {
               boundary.
             </ThemedText>
           </ThemedView>
+
+          {profile?.displayName === null ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Finish setting up Mizyun"
+              onPress={() => void router.push("/onboarding" as Href)}
+              style={styles.foundationCard}
+            >
+              <ThemedText type="smallBold">Finish setting up Mizyun</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                Add your display name, units, height, baseline weight, and goal
+                so the dashboard and energy targets become useful.
+              </ThemedText>
+            </Pressable>
+          ) : null}
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
@@ -518,11 +533,15 @@ function MetricCard(props: {
 }) {
   return (
     <ThemedView type="backgroundElement" style={styles.metricCard}>
-      <ThemedText type="small" themeColor="textSecondary">
+      <ThemedText type="smallBold" themeColor="textSecondary">
         {props.label}
       </ThemedText>
-      <ThemedText type="subtitle">{props.value}</ThemedText>
-      <ThemedText type="small">{props.detail}</ThemedText>
+      <ThemedText type="title" style={styles.metricValue}>
+        {props.value}
+      </ThemedText>
+      <ThemedText type="small" themeColor="textSecondary">
+        {props.detail}
+      </ThemedText>
     </ThemedView>
   );
 }
@@ -539,33 +558,42 @@ const styles = StyleSheet.create({
     paddingBottom: BottomTabInset + Spacing.six,
     gap: Spacing.five,
   },
-  header: { gap: Spacing.two },
+  header: { gap: Spacing.one },
   metrics: { gap: Spacing.three },
   metricCard: {
-    borderRadius: Spacing.four,
+    borderRadius: 18,
     padding: Spacing.four,
-    gap: Spacing.one,
+    gap: Spacing.half,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.12)",
+  },
+  metricValue: {
+    fontSize: 28,
+    fontWeight: "800",
+    letterSpacing: -0.5,
   },
   section: { gap: Spacing.three },
   actionGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.two },
   action: {
     minWidth: "47%",
     flexGrow: 1,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#8A8D91",
-    borderRadius: Spacing.three,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.2)",
+    borderRadius: 16,
     padding: Spacing.three,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  pressed: { opacity: 0.65 },
+  pressed: { opacity: 0.7, transform: [{ scale: 0.98 }] },
   foundationCard: {
-    borderRadius: Spacing.three,
+    borderRadius: 16,
     padding: Spacing.three,
     gap: Spacing.two,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.2)",
   },
-  actionBody: { flex: 1, gap: Spacing.one },
+  actionBody: { flex: 1, gap: Spacing.half },
   refreshError: {
     flexDirection: "row",
     alignItems: "center",
@@ -573,9 +601,11 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
   },
   detailCard: {
-    borderRadius: Spacing.four,
+    borderRadius: 18,
     padding: Spacing.four,
     gap: Spacing.three,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.12)",
   },
   cardHeading: {
     flexDirection: "row",
@@ -584,20 +614,25 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
   },
   compactButton: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#8A8D91",
-    borderRadius: Spacing.two,
-    padding: Spacing.two,
+    borderWidth: 1,
+    borderColor: "#10B981",
+    borderRadius: 12,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.one,
   },
   auditGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.two },
   auditValue: { minWidth: "45%", flexGrow: 1, gap: Spacing.one },
   periodChoices: { flexDirection: "row", gap: Spacing.one },
   periodChoice: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#8A8D91",
-    borderRadius: Spacing.two,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.3)",
+    borderRadius: 10,
     paddingHorizontal: Spacing.two,
     paddingVertical: Spacing.one,
   },
-  periodChoiceSelected: { borderWidth: 2, borderColor: "#4C8BF5" },
+  periodChoiceSelected: {
+    borderWidth: 1.5,
+    borderColor: "#10B981",
+    backgroundColor: "rgba(16, 185, 129, 0.1)",
+  },
 });

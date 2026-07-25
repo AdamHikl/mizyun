@@ -16,6 +16,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { router, type Href } from "expo-router";
 
 import {
   reducePrincipalState,
@@ -33,7 +34,7 @@ import {
  * the single "post-onboarding" surface regardless of configuration.
  */
 export function SettingsScreen() {
-  const { signOut } = useAuth();
+  const { signOut, profile } = useAuth();
   const [state, setState] = useState<PrincipalRenderState>({
     kind: "loading",
   });
@@ -94,6 +95,20 @@ export function SettingsScreen() {
           </View>
 
           <PrincipalCard state={state} onRetry={refresh} />
+          {profile?.displayName === null ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Finish setting up Mizyun"
+              onPress={() => void router.push("/onboarding" as Href)}
+              style={styles.finishSetupCard}
+            >
+              <ThemedText type="smallBold">Finish setting up Mizyun</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                Add your display name, units, height, baseline weight, and goal
+                so the dashboard and energy targets become useful.
+              </ThemedText>
+            </Pressable>
+          ) : null}
           <AnalyticsCard />
           <SignOutCard
             disabled={state.kind === "disabled"}
@@ -385,21 +400,35 @@ const styles = StyleSheet.create({
     paddingBottom: BottomTabInset + Spacing.six,
     gap: Spacing.four,
   },
-  header: { gap: Spacing.two },
+  header: { gap: Spacing.one },
   card: {
-    borderRadius: Spacing.four,
+    borderRadius: 18,
     padding: Spacing.four,
     gap: Spacing.three,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.12)",
   },
   signOutCard: {
-    borderRadius: Spacing.four,
+    borderRadius: 18,
     padding: Spacing.four,
     gap: Spacing.two,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.2)",
   },
   analyticsCard: {
-    borderRadius: Spacing.four,
+    borderRadius: 18,
     padding: Spacing.four,
     gap: Spacing.three,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.2)",
+  },
+  finishSetupCard: {
+    borderRadius: 18,
+    padding: Spacing.four,
+    gap: Spacing.two,
+    borderWidth: 1,
+    borderColor: "#10B981",
+    backgroundColor: "rgba(16, 185, 129, 0.05)",
   },
   analyticsActions: {
     flexDirection: "row",
@@ -408,27 +437,28 @@ const styles = StyleSheet.create({
   },
   analyticsButton: {
     minHeight: 44,
-    borderRadius: Spacing.three,
+    borderRadius: 12,
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
     justifyContent: "center",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#8A8D91",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.3)",
   },
   column: { gap: Spacing.one },
   center: { alignItems: "center", paddingVertical: Spacing.three },
   signOutButton: {
     marginTop: Spacing.two,
-    borderRadius: Spacing.three,
+    borderRadius: 12,
     paddingVertical: Spacing.three,
     alignItems: "center",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#8A8D91",
+    borderWidth: 1,
+    borderColor: "#EF4444",
+    backgroundColor: "rgba(239, 68, 68, 0.05)",
   },
   signOutButtonPressed: { opacity: 0.65 },
   signOutButtonDisabled: { opacity: 0.4 },
   note: {
-    borderRadius: Spacing.three,
+    borderRadius: 14,
     padding: Spacing.three,
     gap: Spacing.two,
   },
