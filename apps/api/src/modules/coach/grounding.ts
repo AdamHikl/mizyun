@@ -10,6 +10,7 @@ import {
   type WorkoutRepository,
   type WorkoutSetRepository,
 } from "@mizyun/core";
+import type { MemoryStore } from "@mizyun/memory";
 
 export interface CoachGroundingDependencies {
   readonly profileRepository: ProfileRepository;
@@ -18,6 +19,13 @@ export interface CoachGroundingDependencies {
   readonly workoutRepository: WorkoutRepository;
   readonly workoutSetRepository: WorkoutSetRepository;
   readonly bodyMeasurementRepository: BodyMeasurementRepository;
+  /**
+   * Optional. When provided, MEM-001 active memories surface as
+   * `kind: "memory"` grounding items. The route filters this kind
+   * out of the response's `evidenceKinds` because memory text is
+   * user-edited and may contain untrusted content.
+   */
+  readonly memoryStore?: MemoryStore;
 }
 
 const dayIso = (date: Date): string => date.toISOString().slice(0, 10);
@@ -138,5 +146,37 @@ export const buildCoachGrounding = async (
       },
     });
   }
+
+  // MEM-001 — surface active memories as `kind: "memory"`. The
+  // Mistral provider already wraps memory text as untrusted data
+  // inside the groundingMessage envelope, so the model treats
+  // these as facts-not-instructions. The route filters
+  // `kind: "memory"` out of the response's `evidenceKinds`
+  // because memory text is user-edited and may be untrusted.
+  if (dependencies.memoryStore !== undefined) {
+    const memories = await dependencies.memoryStore.search({
+      userId,
+      text: "",
+      limit: 12,
+      asOf: now,
+    });
+    for (const memory of memories) {
+      items.push({
+        kind: "memory",
+        label: `Confirmed memory (${memory.kind})`,
+        confirmed: true,
+        freshness: memory.updatedAt.toISOString(),
+        data: {
+          id: memory.id,
+          kind: memory.kind,
+          source: memory.source,
+          content: memory.content,
+          confidence: memory.confidence,
+          importance: memory.importance,
+        },
+      });
+    }
+  }
+
   return items;
 };

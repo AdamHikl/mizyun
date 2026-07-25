@@ -1,11 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AgentOrchestrator, type AgentProvider } from "@mizyun/agent-runtime";
-import type { UserId } from "@mizyun/core";
+import {
+  AgentOrchestrator,
+  AgentProviderError,
+  type AgentProvider,
+} from "@mizyun/agent-runtime";
+import type { PlanTier, ProfileRepository, UserId } from "@mizyun/core";
 import type { AccessTokenVerifier } from "@mizyun/identity";
 import { InMemoryMemoryStore } from "@mizyun/memory";
 
 import { buildApp } from "../../app.js";
 import { InMemoryConversationRepository } from "../../conversation-repository.js";
+import type { CoachLimitService } from "./limits.js";
 
 const userId = "00000000-0000-4000-8000-000000000001" as UserId;
 const tokenVerifier: AccessTokenVerifier = {
@@ -22,16 +27,28 @@ afterEach(async () => {
 const makeApp = (
   respond = vi.fn<AgentProvider["respond"]>(),
   conversationRepository = new InMemoryConversationRepository(),
+  coachControls?: {
+    readonly dailyUserTokenBudget?: number;
+    readonly userRequestsPerMinute?: number;
+    readonly userMaxConcurrentRequests?: number;
+    readonly now?: () => Date;
+    readonly planTierOverride?: PlanTier;
+    readonly limits?: CoachLimitService;
+  },
+  verifier: AccessTokenVerifier = tokenVerifier,
+  profileRepository?: ProfileRepository,
 ) => {
-  respond.mockImplementation(async (request) => ({
-    message: {
-      role: "assistant",
-      text: "Your confirmed records support one conservative next step.",
-    },
-    provider: "fake",
-    evidence: request.grounding,
-    providerMetadata: { totalTokens: 42, resolvedModel: "fake-v1" },
-  }));
+  if (respond.getMockImplementation() === undefined) {
+    respond.mockImplementation(async (request) => ({
+      message: {
+        role: "assistant",
+        text: "Your confirmed records support one conservative next step.",
+      },
+      provider: "fake",
+      evidence: request.grounding,
+      providerMetadata: { totalTokens: 42, resolvedModel: "fake-v1" },
+    }));
+  }
   const provider: AgentProvider = {
     status: async () => ({
       ready: true,
@@ -41,8 +58,10 @@ const makeApp = (
     respond,
   };
   const app = buildApp({
-    tokenVerifier,
+    tokenVerifier: verifier,
     conversationRepository,
+    ...(profileRepository ? { profileRepository } : {}),
+    ...(coachControls ? { coachControls } : {}),
     agent: new AgentOrchestrator({
       provider,
       memories: new InMemoryMemoryStore(),
@@ -52,16 +71,33 @@ const makeApp = (
   return { app, respond };
 };
 
-const createConversation = async (app: ReturnType<typeof buildApp>) => {
+const createConversation = async (
+  app: ReturnType<typeof buildApp>,
+  headers: Readonly<Record<string, string>> = auth,
+) => {
   const response = await app.inject({
     method: "POST",
     url: "/v1/coach/conversations",
-    headers: auth,
+    headers,
     payload: { title: "Daily check-in" },
   });
   expect(response.statusCode).toBe(201);
   return response.json().conversation.id as string;
 };
+
+const sendMessage = (
+  app: ReturnType<typeof buildApp>,
+  conversationId: string,
+  idempotencyKey: string,
+  text = "What is one sensible next step today?",
+  headers: Readonly<Record<string, string>> = auth,
+) =>
+  app.inject({
+    method: "POST",
+    url: `/v1/coach/conversations/${conversationId}/messages`,
+    headers: { ...headers, "idempotency-key": idempotencyKey },
+    payload: { text },
+  });
 
 describe("coach routes", () => {
   it("requires authentication for private conversations", async () => {
@@ -109,8 +145,22 @@ describe("coach routes", () => {
     expect(thread.json().messages).toHaveLength(2);
   });
 
-  it("persists a fixed medical refusal without calling the provider", async () => {
-    const { app, respond } = makeApp();
+  it("persists a fixed medical refusal before grounding or provider work", async () => {
+    const profileRepository: ProfileRepository = {
+      getOrCreate: async () => {
+        throw new Error("grounding should not run");
+      },
+      update: async () => {
+        throw new Error("not reached");
+      },
+    };
+    const { app, respond } = makeApp(
+      undefined,
+      undefined,
+      undefined,
+      tokenVerifier,
+      profileRepository,
+    );
     const id = await createConversation(app);
     const response = await app.inject({
       method: "POST",
@@ -124,6 +174,226 @@ describe("coach routes", () => {
     });
     expect(response.json().assistantMessage.text).toContain("can’t diagnose");
     expect(respond).not.toHaveBeenCalled();
+  });
+
+  it("does not spend provider capacity on fixed safety responses and resets the minute window", async () => {
+    let current = new Date("2026-07-23T10:00:00.000Z");
+    const { app, respond } = makeApp(undefined, undefined, {
+      userRequestsPerMinute: 1,
+      now: () => current,
+    });
+    const id = await createConversation(app);
+
+    const safety = await sendMessage(
+      app,
+      id,
+      "medical-limit-key",
+      "Diagnose my knee injury and prescribe treatment.",
+    );
+    expect(safety.statusCode).toBe(200);
+    expect(respond).not.toHaveBeenCalled();
+
+    const first = await sendMessage(app, id, "limit-key-0001");
+    expect(first.statusCode).toBe(200);
+    const limited = await sendMessage(app, id, "limit-key-0002");
+    expect(limited.statusCode).toBe(429);
+    expect(limited.headers["retry-after"]).toBe("60");
+    expect(limited.json()).toMatchObject({
+      error: { code: "RATE_LIMITED" },
+    });
+
+    current = new Date("2026-07-23T10:01:00.000Z");
+    const reset = await sendMessage(app, id, "limit-key-0003");
+    expect(reset.statusCode).toBe(200);
+    expect(respond).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects concurrent work per user and releases the slot afterward", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const respond = vi.fn<AgentProvider["respond"]>(async (request) => {
+      await gate;
+      return {
+        message: { role: "assistant", text: "One bounded response." },
+        provider: "fake",
+        evidence: request.grounding,
+        providerMetadata: { totalTokens: 10 },
+      };
+    });
+    const { app } = makeApp(respond, undefined, {
+      userMaxConcurrentRequests: 1,
+    });
+    const id = await createConversation(app);
+
+    const firstPromise = sendMessage(app, id, "concurrent-key-1");
+    await vi.waitFor(() => expect(respond).toHaveBeenCalledTimes(1));
+    const limited = await sendMessage(app, id, "concurrent-key-2");
+    expect(limited.statusCode).toBe(429);
+    expect(limited.headers["retry-after"]).toBe("1");
+
+    release();
+    expect((await firstPromise).statusCode).toBe(200);
+    const retried = await sendMessage(app, id, "concurrent-key-2");
+    expect(retried.statusCode).toBe(200);
+    expect(respond).toHaveBeenCalledTimes(2);
+  });
+
+  it("enforces the daily token budget but allows completed idempotent replay", async () => {
+    const { app, respond } = makeApp(undefined, undefined, {
+      dailyUserTokenBudget: 1,
+      now: () => new Date("2026-07-23T12:00:00.000Z"),
+    });
+    const id = await createConversation(app);
+
+    const first = await sendMessage(app, id, "budget-key-0001");
+    expect(first.statusCode).toBe(200);
+    const replay = await sendMessage(app, id, "budget-key-0001");
+    expect(replay.statusCode).toBe(200);
+    const limited = await sendMessage(app, id, "budget-key-0002");
+    expect(limited.statusCode).toBe(429);
+    expect(limited.headers["retry-after"]).toBe("43200");
+    expect(respond).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["rate_limited", 429, "RATE_LIMITED"],
+    ["timeout", 502, "AI_UNAVAILABLE"],
+    ["unavailable", 502, "AI_UNAVAILABLE"],
+    ["external_access_disabled", 503, "AI_UNAVAILABLE"],
+    ["malformed_response", 503, "AI_CONFIGURATION_ERROR"],
+  ] as const)(
+    "maps provider %s failures and persists the user message",
+    async (kind, expectedStatus, expectedCode) => {
+      const respond = vi
+        .fn<AgentProvider["respond"]>()
+        .mockRejectedValue(
+          new AgentProviderError(
+            kind,
+            "Provider unavailable.",
+            kind === "rate_limited" ||
+              kind === "timeout" ||
+              kind === "unavailable",
+          ),
+        );
+      const { app } = makeApp(respond);
+      const id = await createConversation(app);
+
+      const response = await sendMessage(app, id, `failure-${kind}-key`);
+      expect(response.statusCode).toBe(expectedStatus);
+      expect(response.json()).toMatchObject({
+        error: { code: expectedCode },
+      });
+      if (kind === "rate_limited") {
+        expect(response.headers["retry-after"]).toBe("1");
+      }
+      const thread = await app.inject({
+        method: "GET",
+        url: `/v1/coach/conversations/${id}`,
+        headers: auth,
+      });
+      expect(thread.json().messages).toMatchObject([
+        { role: "user", status: "complete" },
+      ]);
+    },
+  );
+
+  it("returns 409 when retrying a failed provider call with the same idempotency key, but a fresh key retries cleanly", async () => {
+    const respond = vi
+      .fn<AgentProvider["respond"]>()
+      .mockRejectedValueOnce(
+        new AgentProviderError("timeout", "Timed out.", true),
+      )
+      .mockImplementationOnce(async (request) => ({
+        message: { role: "assistant", text: "Recovered response." },
+        provider: "fake",
+        evidence: request.grounding,
+        providerMetadata: { totalTokens: 10 },
+      }));
+    const { app } = makeApp(respond);
+    const id = await createConversation(app);
+
+    // AI-OPS-001 makes the provider-call ledger durable: a hard
+    // failure with the same idempotency key is a `conflict`, not a
+    // silent retry. The mobile app must generate a fresh key to
+    // retry.
+    expect((await sendMessage(app, id, "retry-stable-key")).statusCode).toBe(
+      502,
+    );
+    expect((await sendMessage(app, id, "retry-stable-key")).statusCode).toBe(
+      409,
+    );
+    expect((await sendMessage(app, id, "retry-fresh-key")).statusCode).toBe(
+      200,
+    );
+    const thread = await app.inject({
+      method: "GET",
+      url: `/v1/coach/conversations/${id}`,
+      headers: auth,
+    });
+    // First failed user message + second fresh user message + one
+    // successful assistant = 3 messages; provider called twice.
+    expect(thread.json().messages).toHaveLength(3);
+    expect(respond).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps request windows isolated between users", async () => {
+    const firstUser = userId;
+    const secondUser = "00000000-0000-4000-8000-000000000099" as UserId;
+    const verifier: AccessTokenVerifier = {
+      verify: async (token) =>
+        token === "valid-a"
+          ? { userId: firstUser, accessToken: "access-a" }
+          : token === "valid-b"
+            ? { userId: secondUser, accessToken: "access-b" }
+            : null,
+    };
+    const { app, respond } = makeApp(
+      undefined,
+      undefined,
+      { userRequestsPerMinute: 1 },
+      verifier,
+    );
+    const authA = { authorization: "Bearer valid-a" };
+    const authB = { authorization: "Bearer valid-b" };
+    const firstConversation = await createConversation(app, authA);
+    const secondConversation = await createConversation(app, authB);
+
+    expect(
+      (
+        await sendMessage(
+          app,
+          firstConversation,
+          "first-user-key-1",
+          undefined,
+          authA,
+        )
+      ).statusCode,
+    ).toBe(200);
+    expect(
+      (
+        await sendMessage(
+          app,
+          secondConversation,
+          "second-user-key",
+          undefined,
+          authB,
+        )
+      ).statusCode,
+    ).toBe(200);
+    expect(
+      (
+        await sendMessage(
+          app,
+          firstConversation,
+          "first-user-key-2",
+          undefined,
+          authA,
+        )
+      ).statusCode,
+    ).toBe(429);
+    expect(respond).toHaveBeenCalledTimes(2);
   });
 
   it("does not allow a second user to read another user's thread", async () => {
@@ -160,5 +430,98 @@ describe("coach routes", () => {
       headers: auth,
     });
     expect(response.statusCode).toBe(404);
+  });
+});
+
+describe("coach routes — plan-tier limiter (AI-OPS-001)", () => {
+  it("free-tier profile sees the strict 3-per-minute window", async () => {
+    const { app } = makeApp(
+      undefined,
+      undefined,
+      {
+        // No coachControls override → the route reads the in-memory
+        // profile (planTier=free by default) and resolves the cap
+        // via capsForTier("free") → 3 req/min.
+      },
+      tokenVerifier,
+      undefined,
+    );
+    const id = await createConversation(app);
+    expect((await sendMessage(app, id, "free-key-0001")).statusCode).toBe(200);
+    expect((await sendMessage(app, id, "free-key-0002")).statusCode).toBe(200);
+    expect((await sendMessage(app, id, "free-key-0003")).statusCode).toBe(200);
+    const limited = await sendMessage(app, id, "free-key-0004");
+    expect(limited.statusCode).toBe(429);
+    expect(limited.json()).toMatchObject({ error: { code: "RATE_LIMITED" } });
+    expect(limited.headers["retry-after"]).toBeDefined();
+  });
+
+  it("paid-tier override allows 6 requests in the same minute", async () => {
+    const { app } = makeApp(
+      undefined,
+      undefined,
+      { planTierOverride: "paid" },
+      tokenVerifier,
+    );
+    const id = await createConversation(app);
+    for (let i = 1; i <= 6; i++) {
+      const response = await sendMessage(app, id, `paid-key-000${i}`);
+      expect(response.statusCode).toBe(200);
+    }
+    const limited = await sendMessage(app, id, "paid-key-0007");
+    expect(limited.statusCode).toBe(429);
+  });
+
+  it("capOverrides drive the per-minute cap when supplied (test-only knob)", async () => {
+    const { app } = makeApp(
+      undefined,
+      undefined,
+      {
+        // capOverrides requestsPerMinute=2 (overrides free tier's 3).
+        planTierOverride: "paid",
+        userRequestsPerMinute: 2,
+      },
+      tokenVerifier,
+    );
+    const id = await createConversation(app);
+    expect((await sendMessage(app, id, "tight-key-0001")).statusCode).toBe(200);
+    expect((await sendMessage(app, id, "tight-key-0002")).statusCode).toBe(200);
+    const limited = await sendMessage(app, id, "tight-key-0003");
+    expect(limited.statusCode).toBe(429);
+  });
+
+  it("falls back to free when the profile value is unrecognised", async () => {
+    const profileRepository: ProfileRepository = {
+      getOrCreate: async () => ({
+        userId,
+        displayName: null,
+        unitSystem: "metric",
+        timezone: "UTC",
+        birthYear: null,
+        heightCm: null,
+        activityLevel: null,
+        sexAtBirth: null,
+        planTier: "free" as const,
+        createdAt: new Date("2026-01-01T00:00:00Z"),
+        updatedAt: new Date("2026-01-01T00:00:00Z"),
+      }),
+      update: async () => {
+        throw new Error("not reached");
+      },
+    };
+    const { app } = makeApp(
+      undefined,
+      undefined,
+      undefined,
+      tokenVerifier,
+      profileRepository,
+    );
+    const id = await createConversation(app);
+    // 3 free-tier requests pass; the 4th is limited at the strict cap.
+    expect((await sendMessage(app, id, "fb-key-00001")).statusCode).toBe(200);
+    expect((await sendMessage(app, id, "fb-key-00002")).statusCode).toBe(200);
+    expect((await sendMessage(app, id, "fb-key-00003")).statusCode).toBe(200);
+    const limited = await sendMessage(app, id, "fb-key-00004");
+    expect(limited.statusCode).toBe(429);
   });
 });

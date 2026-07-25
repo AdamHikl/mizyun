@@ -11,6 +11,15 @@ export type NodeEnv = "development" | "test" | "production";
 export interface ServerSupabaseConfiguration {
   readonly url: string;
   readonly publishableKey: string;
+  /**
+   * Service-role key. Optional: when omitted, the durable AI limiter
+   * (AI-OPS-001) cannot run against a real Supabase project and the
+   * composition root falls back to the in-memory limiter. Only the
+   * limits service consumes this key; per-feature adapters stay on the
+   * publishable key + RLS. The key lives only in the ignored root
+   * `.env` and never in the mobile bundle.
+   */
+  readonly serviceRoleKey?: string;
 }
 
 export interface ServerMistralConfiguration {
@@ -19,6 +28,15 @@ export interface ServerMistralConfiguration {
   readonly timeoutMs: number;
   readonly maxOutputTokens: number;
   readonly dailyUserTokenBudget: number;
+  readonly userRequestsPerMinute: number;
+  readonly userMaxConcurrentRequests: number;
+}
+
+export interface ServerMistralVisionConfiguration {
+  readonly apiKey: string;
+  readonly model: string;
+  readonly timeoutMs: number;
+  readonly maxOutputTokens: number;
 }
 
 export interface ServerConfig {
@@ -28,7 +46,9 @@ export interface ServerConfig {
   readonly supabase: AuthConfigurationStatus;
   readonly supabaseConfig: ServerSupabaseConfiguration | null;
   readonly agentProvider: "disabled" | "mistral";
+  readonly visionProvider: "disabled" | "stub";
   readonly mistralConfig: ServerMistralConfiguration | null;
+  readonly mistralVisionConfig: ServerMistralVisionConfiguration | null;
   readonly aiExternalAccess: boolean;
 }
 
@@ -40,12 +60,20 @@ export const SERVER_ENV_KEYS = {
   env: "NODE_ENV",
   supabaseUrl: "SUPABASE_URL",
   supabasePublishableKey: "SUPABASE_PUBLISHABLE_KEY",
+  supabaseServiceRoleKey: "SUPABASE_SERVICE_ROLE_KEY",
   agentProvider: "AGENT_PROVIDER",
+  visionProvider: "VISION_PROVIDER",
   mistralApiKey: "MISTRAL_API_KEY",
   mistralModel: "MISTRAL_MODEL",
   mistralTimeoutMs: "MISTRAL_TIMEOUT_MS",
   mistralMaxOutputTokens: "MISTRAL_MAX_OUTPUT_TOKENS",
+  mistralVisionApiKey: "MISTRAL_VISION_API_KEY",
+  mistralVisionModel: "MISTRAL_VISION_MODEL",
+  mistralVisionTimeoutMs: "MISTRAL_VISION_TIMEOUT_MS",
+  mistralVisionMaxOutputTokens: "MISTRAL_VISION_MAX_OUTPUT_TOKENS",
   aiDailyUserTokenBudget: "AI_DAILY_USER_TOKEN_BUDGET",
+  aiUserRequestsPerMinute: "AI_USER_REQUESTS_PER_MINUTE",
+  aiUserMaxConcurrentRequests: "AI_USER_MAX_CONCURRENT_REQUESTS",
   aiExternalAccess: "AI_EXTERNAL_ACCESS",
 } as const;
 
@@ -65,7 +93,21 @@ const baseServerSchema = z.object({
     .string()
     .min(1, "SUPABASE_PUBLISHABLE_KEY must not be empty")
     .nullish(),
+  supabaseServiceRoleKey: z
+    .string()
+    .min(20, "SUPABASE_SERVICE_ROLE_KEY must be at least 20 characters")
+    .nullish(),
   agentProvider: z.enum(["disabled", "mistral"]).default("disabled"),
+  /**
+   * VISION-001 — overrides the photo-draft vision provider.
+   * `disabled` (default) returns 503 AI_CONFIGURATION_ERROR on
+   * the /v1/food-entries/draft endpoint. `stub` wires the
+   * deterministic StubVisionProvider for local dev + smoke. The
+   * Mistral vision provider is selected by setting
+   * `MISTRAL_VISION_API_KEY`; `VISION_PROVIDER` is ignored in
+   * that case (production always uses Mistral).
+   */
+  visionProvider: z.enum(["disabled", "stub"]).default("disabled"),
   mistralApiKey: z
     .string()
     .min(20, "MISTRAL_API_KEY must not be empty")
@@ -86,12 +128,44 @@ const baseServerSchema = z.object({
     .min(128, "MISTRAL_MAX_OUTPUT_TOKENS must be >= 128")
     .max(8_192, "MISTRAL_MAX_OUTPUT_TOKENS must be <= 8192")
     .default(1_200),
+  mistralVisionApiKey: z
+    .string()
+    .min(20, "MISTRAL_VISION_API_KEY must not be empty")
+    .optional(),
+  mistralVisionModel: z
+    .string()
+    .min(1, "MISTRAL_VISION_MODEL must not be empty")
+    .default("pixtral-12b-2409"),
+  mistralVisionTimeoutMs: z.coerce
+    .number()
+    .int("MISTRAL_VISION_TIMEOUT_MS must be an integer")
+    .min(1_000, "MISTRAL_VISION_TIMEOUT_MS must be >= 1000")
+    .max(120_000, "MISTRAL_VISION_TIMEOUT_MS must be <= 120000")
+    .default(45_000),
+  mistralVisionMaxOutputTokens: z.coerce
+    .number()
+    .int("MISTRAL_VISION_MAX_OUTPUT_TOKENS must be an integer")
+    .min(128, "MISTRAL_VISION_MAX_OUTPUT_TOKENS must be >= 128")
+    .max(8_192, "MISTRAL_VISION_MAX_OUTPUT_TOKENS must be <= 8192")
+    .default(1_200),
   aiDailyUserTokenBudget: z.coerce
     .number()
     .int("AI_DAILY_USER_TOKEN_BUDGET must be an integer")
     .min(1_000, "AI_DAILY_USER_TOKEN_BUDGET must be >= 1000")
     .max(2_000_000, "AI_DAILY_USER_TOKEN_BUDGET must be <= 2000000")
     .default(100_000),
+  aiUserRequestsPerMinute: z.coerce
+    .number()
+    .int("AI_USER_REQUESTS_PER_MINUTE must be an integer")
+    .min(1, "AI_USER_REQUESTS_PER_MINUTE must be >= 1")
+    .max(60, "AI_USER_REQUESTS_PER_MINUTE must be <= 60")
+    .default(6),
+  aiUserMaxConcurrentRequests: z.coerce
+    .number()
+    .int("AI_USER_MAX_CONCURRENT_REQUESTS must be an integer")
+    .min(1, "AI_USER_MAX_CONCURRENT_REQUESTS must be >= 1")
+    .max(1, "AI_USER_MAX_CONCURRENT_REQUESTS must be <= 1")
+    .default(1),
   aiExternalAccess: z
     .enum(["true", "false"])
     .default("false")
@@ -173,12 +247,15 @@ export const loadServerConfig = (
   const value = parsed.data;
   const url = value.supabaseUrl ?? null;
   const publishableKey = value.supabasePublishableKey ?? null;
+  const serviceRoleKey = value.supabaseServiceRoleKey ?? null;
   const supabase: AuthConfigurationStatus =
     url !== null && publishableKey !== null
       ? { configured: true, provider: "supabase" }
       : { configured: false, provider: "supabase", reason: DISABLED_REASON };
   const supabaseConfig: ServerSupabaseConfiguration | null =
-    url !== null && publishableKey !== null ? { url, publishableKey } : null;
+    url !== null && publishableKey !== null
+      ? { url, publishableKey, ...(serviceRoleKey ? { serviceRoleKey } : {}) }
+      : null;
   const mistralConfig: ServerMistralConfiguration | null =
     value.agentProvider === "mistral" && value.mistralApiKey !== undefined
       ? {
@@ -187,6 +264,17 @@ export const loadServerConfig = (
           timeoutMs: value.mistralTimeoutMs,
           maxOutputTokens: value.mistralMaxOutputTokens,
           dailyUserTokenBudget: value.aiDailyUserTokenBudget,
+          userRequestsPerMinute: value.aiUserRequestsPerMinute,
+          userMaxConcurrentRequests: value.aiUserMaxConcurrentRequests,
+        }
+      : null;
+  const mistralVisionConfig: ServerMistralVisionConfiguration | null =
+    value.mistralVisionApiKey !== undefined
+      ? {
+          apiKey: value.mistralVisionApiKey,
+          model: value.mistralVisionModel,
+          timeoutMs: value.mistralVisionTimeoutMs,
+          maxOutputTokens: value.mistralVisionMaxOutputTokens,
         }
       : null;
 
@@ -197,7 +285,9 @@ export const loadServerConfig = (
     supabase,
     supabaseConfig,
     agentProvider: value.agentProvider,
+    visionProvider: value.visionProvider,
     mistralConfig,
+    mistralVisionConfig,
     aiExternalAccess: value.aiExternalAccess,
   });
 };

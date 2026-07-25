@@ -16,6 +16,7 @@ export type ApiErrorCode =
   | "VALIDATION_ERROR"
   | "RATE_LIMITED"
   | "AI_UNAVAILABLE"
+  | "AI_CONFIGURATION_ERROR"
   | "INTERNAL_ERROR";
 
 interface ApiErrorBody {

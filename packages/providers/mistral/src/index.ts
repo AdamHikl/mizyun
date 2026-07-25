@@ -5,6 +5,9 @@ import {
   type AgentProviderStatus,
   type AgentRequest,
   type AgentResponse,
+  type AgentToolCall,
+  type AgentToolDefinition,
+  type AgentToolResult,
 } from "@mizyun/agent-runtime";
 import { z } from "zod";
 
@@ -18,14 +21,32 @@ const providerResponseSchema = z.object({
   usage: z.object({
     promptTokens: z.number().int().nonnegative().optional(),
     completionTokens: z.number().int().nonnegative().optional(),
-    totalTokens: z.number().int().nonnegative().optional(),
+    totalTokens: z.number().int().positive(),
   }),
   choices: z
     .array(
       z.object({
         finishReason: z.string(),
         message: z.object({
+          // When the model returns a final answer (no tool calls),
+          // Mistral puts a parsed payload here. When the model
+          // returns tool_calls, this is `null` and the
+          // `tool_calls` array carries the request.
           parsed: coachOutputSchema.optional(),
+          toolCalls: z
+            .array(
+              z.object({
+                id: z.string(),
+                type: z.string().optional(),
+                function: z.object({
+                  name: z.string(),
+                  // Mistral may send either a JSON string or an
+                  // already-parsed object. We coerce both.
+                  arguments: z.union([z.string(), z.record(z.unknown())]),
+                }),
+              }),
+            )
+            .optional(),
         }),
       }),
     )
@@ -38,22 +59,43 @@ export interface MistralProviderOptions {
   readonly timeoutMs: number;
   readonly maxOutputTokens: number;
   readonly externalAccess: boolean;
+  readonly maxRetries?: 0 | 1;
   readonly client?: MistralChatClient;
   readonly now?: () => number;
+  readonly random?: () => number;
   readonly sleep?: (milliseconds: number) => Promise<void>;
 }
 
 export interface MistralChatClient {
+  /**
+   * Structured final-answer call. Returns a payload that
+   * matches `providerResponseSchema` with `message.parsed`.
+   *
+   * The `tools` field is the wire format the Mistral SDK
+   * expects; the orchestrator converts its readonly
+   * `AgentToolDefinition[]` shape to this mutable shape
+   * before the call.
+   */
   parse(
     request: {
       readonly model: string;
       readonly messages: Array<{
-        role: "system" | "user" | "assistant";
+        role: "system" | "user" | "assistant" | "tool";
         content: string;
+        name?: string;
+        tool_call_id?: string;
       }>;
       readonly maxTokens: number;
       readonly temperature: number;
       readonly responseFormat: typeof coachOutputSchema;
+      readonly tools?: Array<{
+        type: "function";
+        function: {
+          name: string;
+          description: string;
+          parameters: Record<string, unknown>;
+        };
+      }>;
     },
     options: { readonly timeoutMs: number },
   ): Promise<unknown>;
@@ -65,12 +107,15 @@ const sdkClient = (apiKey: string): MistralChatClient => {
     parse: async (request, options) =>
       client.chat.parse(request, {
         timeoutMs: options.timeoutMs,
-        // Mizyun owns the single bounded retry so provider behavior remains
-        // deterministic and contract-testable.
+        // Mizyun owns the single bounded rate-limit retry so provider behavior
+        // remains deterministic and contract-testable.
         retries: { strategy: "none" },
       }),
   };
 };
+
+const RETRY_JITTER_MAX_MS = 250;
+const RETRY_AFTER_MAX_MS = 2_000;
 
 const statusCodeOf = (error: unknown): number | null => {
   if (
@@ -86,6 +131,51 @@ const statusCodeOf = (error: unknown): number | null => {
 
 const errorNameOf = (error: unknown): string =>
   error instanceof Error ? error.name : "";
+
+const retryAfterHeaderOf = (error: unknown): string | null => {
+  if (
+    typeof error !== "object" ||
+    error === null ||
+    !("headers" in error) ||
+    typeof error.headers !== "object" ||
+    error.headers === null ||
+    !("get" in error.headers) ||
+    typeof error.headers.get !== "function"
+  ) {
+    return null;
+  }
+  const value: unknown = error.headers.get("retry-after");
+  return typeof value === "string" && value.length > 0 ? value : null;
+};
+
+const retryAfterMilliseconds = (
+  error: unknown,
+  now: () => number,
+): number | null => {
+  const value = retryAfterHeaderOf(error);
+  if (value === null) return null;
+  const seconds = Number(value);
+  if (Number.isInteger(seconds) && seconds >= 0) {
+    return Math.min(seconds * 1_000, RETRY_AFTER_MAX_MS);
+  }
+  const date = Date.parse(value);
+  if (!Number.isFinite(date)) return null;
+  return Math.min(Math.max(0, date - now()), RETRY_AFTER_MAX_MS);
+};
+
+const retryDelayMilliseconds = (
+  error: unknown,
+  now: () => number,
+  random: () => number,
+): number => {
+  const retryAfter = retryAfterMilliseconds(error, now);
+  if (retryAfter !== null) return retryAfter;
+  const unit = Math.min(1, Math.max(0, random()));
+  return Math.min(
+    RETRY_JITTER_MAX_MS,
+    Math.floor(unit * (RETRY_JITTER_MAX_MS + 1)),
+  );
+};
 
 const normalizeError = (error: unknown): AgentProviderError => {
   const status = statusCodeOf(error);
@@ -121,12 +211,16 @@ const normalizeError = (error: unknown): AgentProviderError => {
     return new AgentProviderError(
       "unavailable",
       "The AI provider is temporarily unavailable.",
-      true,
+      false,
     );
   }
   const name = errorNameOf(error);
   if (name.includes("Timeout")) {
-    return new AgentProviderError("timeout", "The AI request timed out.", true);
+    return new AgentProviderError(
+      "timeout",
+      "The AI request timed out.",
+      false,
+    );
   }
   if (name.includes("Abort")) {
     return new AgentProviderError(
@@ -138,7 +232,7 @@ const normalizeError = (error: unknown): AgentProviderError => {
   return new AgentProviderError(
     "unavailable",
     "The AI provider is temporarily unavailable.",
-    true,
+    false,
   );
 };
 
@@ -162,22 +256,100 @@ const groundingMessage = (request: AgentRequest): string =>
     })),
   });
 
+const toolsFor = (
+  definitions: readonly AgentToolDefinition[] | undefined,
+):
+  | ReadonlyArray<{
+      readonly type: "function";
+      readonly function: {
+        readonly name: string;
+        readonly description: string;
+        readonly parameters: Readonly<Record<string, unknown>>;
+      };
+    }>
+  | undefined => {
+  if (definitions === undefined || definitions.length === 0) return undefined;
+  return definitions.map((definition) => ({
+    type: "function" as const,
+    function: {
+      name: definition.name,
+      description: definition.description,
+      parameters: definition.parameters,
+    },
+  }));
+};
+
+const toolMessagesFor = (
+  results: readonly AgentToolResult[] | undefined,
+): Array<{
+  role: "tool";
+  content: string;
+  name: string;
+  tool_call_id: string;
+}> => {
+  if (results === undefined || results.length === 0) return [];
+  return results.map((result) => ({
+    role: "tool" as const,
+    content: JSON.stringify(result.evidence),
+    name: result.name,
+    tool_call_id: result.id,
+  }));
+};
+
 const messagesFor = (
   request: AgentRequest,
 ): Array<{
-  role: "system" | "user" | "assistant";
+  role: "system" | "user" | "assistant" | "tool";
   content: string;
+  name?: string;
+  tool_call_id?: string;
 }> => [
   { role: "system", content: request.systemPolicy },
   {
     role: "system",
     content: `Mizyun confirmed context JSON:\n${groundingMessage(request)}`,
   },
+  ...toolMessagesFor(request.toolResults),
   ...request.messages.map((message) => ({
     role: message.role,
     content: message.text,
   })),
 ];
+
+const parseToolArguments = (
+  raw: string | Readonly<Record<string, unknown>>,
+): Readonly<Record<string, unknown>> => {
+  if (typeof raw === "object") return raw;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed === "object" && parsed !== null) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    // Fall through to empty object.
+  }
+  return {};
+};
+
+const toolCallsFromChoice = (
+  rawToolCalls:
+    | ReadonlyArray<{
+        readonly id: string;
+        readonly type?: string | undefined;
+        readonly function: {
+          readonly name: string;
+          readonly arguments: string | Readonly<Record<string, unknown>>;
+        };
+      }>
+    | undefined,
+): AgentToolCall[] | undefined => {
+  if (rawToolCalls === undefined || rawToolCalls.length === 0) return undefined;
+  return rawToolCalls.map((call) => ({
+    ...(call.id !== undefined ? { id: call.id } : {}),
+    name: call.function.name,
+    args: parseToolArguments(call.function.arguments),
+  }));
+};
 
 const unsafeOutput = (text: string): boolean =>
   [
@@ -193,8 +365,10 @@ export class MistralAgentProvider implements AgentProvider {
   readonly #timeoutMs: number;
   readonly #maxOutputTokens: number;
   readonly #externalAccess: boolean;
+  readonly #maxRetries: 0 | 1;
   readonly #client: MistralChatClient;
   readonly #now: () => number;
+  readonly #random: () => number;
   readonly #sleep: (milliseconds: number) => Promise<void>;
 
   constructor(options: MistralProviderOptions) {
@@ -202,8 +376,10 @@ export class MistralAgentProvider implements AgentProvider {
     this.#timeoutMs = options.timeoutMs;
     this.#maxOutputTokens = options.maxOutputTokens;
     this.#externalAccess = options.externalAccess;
+    this.#maxRetries = options.maxRetries ?? 1;
     this.#client = options.client ?? sdkClient(options.apiKey);
     this.#now = options.now ?? Date.now;
+    this.#random = options.random ?? Math.random;
     this.#sleep =
       options.sleep ??
       ((milliseconds) =>
@@ -238,6 +414,7 @@ export class MistralAgentProvider implements AgentProvider {
       );
     }
     const startedAt = this.#now();
+    const tools = toolsFor(request.tools);
     const call = () =>
       this.#client.parse(
         {
@@ -246,6 +423,18 @@ export class MistralAgentProvider implements AgentProvider {
           maxTokens: this.#maxOutputTokens,
           temperature: 0.2,
           responseFormat: coachOutputSchema,
+          ...(tools
+            ? {
+                tools: tools.map((tool) => ({
+                  type: "function" as const,
+                  function: {
+                    name: tool.function.name,
+                    description: tool.function.description,
+                    parameters: { ...tool.function.parameters },
+                  },
+                })),
+              }
+            : {}),
         },
         { timeoutMs: this.#timeoutMs },
       );
@@ -255,8 +444,10 @@ export class MistralAgentProvider implements AgentProvider {
       raw = await call();
     } catch (firstError) {
       const normalized = normalizeError(firstError);
-      if (!normalized.retryable) throw normalized;
-      await this.#sleep(50);
+      if (!normalized.retryable || this.#maxRetries === 0) throw normalized;
+      await this.#sleep(
+        retryDelayMilliseconds(firstError, this.#now, this.#random),
+      );
       try {
         raw = await call();
       } catch (secondError) {
@@ -266,8 +457,50 @@ export class MistralAgentProvider implements AgentProvider {
 
     const parsed = providerResponseSchema.safeParse(raw);
     const choice = parsed.success ? parsed.data.choices[0] : undefined;
-    const answer = choice?.message.parsed?.answer;
-    if (!parsed.success || choice === undefined || answer === undefined) {
+    if (!parsed.success || choice === undefined) {
+      throw new AgentProviderError(
+        "malformed_response",
+        "The AI provider returned an invalid response.",
+        false,
+      );
+    }
+
+    // Tool-call branch: the runtime will execute the tools,
+    // fold results into grounding, and re-invoke the provider.
+    const toolCalls = toolCallsFromChoice(choice.message.toolCalls);
+    if (toolCalls !== undefined) {
+      const elapsed = Math.max(0, this.#now() - startedAt);
+      return {
+        message:
+          choice.message.parsed !== undefined
+            ? {
+                role: "assistant",
+                text: choice.message.parsed.answer,
+              }
+            : {
+                role: "assistant",
+                text: "",
+              },
+        provider: "mistral",
+        evidence: request.grounding,
+        toolCalls,
+        providerMetadata: {
+          requestId: parsed.data.id,
+          configuredModel: this.#model,
+          resolvedModel: parsed.data.model,
+          finishReason: choice.finishReason,
+          promptVersion: request.promptVersion,
+          promptTokens: parsed.data.usage.promptTokens ?? 0,
+          completionTokens: parsed.data.usage.completionTokens ?? 0,
+          totalTokens: parsed.data.usage.totalTokens,
+          latencyBucket: latencyBucket(elapsed),
+          sdkVersion: "1.15.1",
+        },
+      };
+    }
+
+    const answer = choice.message.parsed?.answer;
+    if (answer === undefined) {
       throw new AgentProviderError(
         "malformed_response",
         "The AI provider returned an invalid response.",
@@ -275,11 +508,28 @@ export class MistralAgentProvider implements AgentProvider {
       );
     }
     if (unsafeOutput(answer)) {
-      throw new AgentProviderError(
-        "refused",
-        "The AI response did not pass Mizyun safety validation.",
-        false,
-      );
+      const elapsed = Math.max(0, this.#now() - startedAt);
+      return {
+        message: {
+          role: "assistant",
+          text: "Mizyun could not safely answer that request. Please rephrase it as a general fitness or nutrition wellness question.",
+        },
+        provider: "mizyun-safety",
+        evidence: [],
+        providerMetadata: {
+          requestId: parsed.data.id,
+          configuredModel: this.#model,
+          resolvedModel: parsed.data.model,
+          finishReason: choice.finishReason,
+          promptVersion: request.promptVersion,
+          promptTokens: parsed.data.usage.promptTokens ?? 0,
+          completionTokens: parsed.data.usage.completionTokens ?? 0,
+          totalTokens: parsed.data.usage.totalTokens,
+          latencyBucket: latencyBucket(elapsed),
+          sdkVersion: "1.15.1",
+          safetyCategory: "unsafe_provider_output",
+        },
+      };
     }
     const elapsed = Math.max(0, this.#now() - startedAt);
     return {
@@ -294,10 +544,16 @@ export class MistralAgentProvider implements AgentProvider {
         promptVersion: request.promptVersion,
         promptTokens: parsed.data.usage.promptTokens ?? 0,
         completionTokens: parsed.data.usage.completionTokens ?? 0,
-        totalTokens: parsed.data.usage.totalTokens ?? 0,
+        totalTokens: parsed.data.usage.totalTokens,
         latencyBucket: latencyBucket(elapsed),
         sdkVersion: "1.15.1",
       },
     };
   }
 }
+
+export {
+  MistralVisionProvider,
+  type MistralVisionProviderOptions,
+  type MistralVisionClient,
+} from "./vision.js";

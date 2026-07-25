@@ -1,12 +1,18 @@
 import Fastify, { type FastifyInstance } from "fastify";
+import fastifyMultipart from "@fastify/multipart";
 
 import {
   AgentOrchestrator,
   DisabledAgentProvider,
+  DisabledVisionProvider,
+  StubVisionProvider,
+  type AgentToolRegistry,
+  type VisionDraftProvider,
 } from "@mizyun/agent-runtime";
 import {
   createSupabaseAccessTokenVerifier,
   createSupabaseRepositoryClient,
+  createSupabaseServiceRoleClient,
   createSupabaseStorageClient,
 } from "@mizyun/adapter-supabase-server";
 import {
@@ -19,6 +25,7 @@ import {
   type FoodEntryRepository,
   type GoalRepository,
   type MediaAssetRepository,
+  type PlanTier,
   type ProfileRepository,
   type UserId,
   type WorkoutRepository,
@@ -30,18 +37,32 @@ import {
   type AccessTokenVerifier,
 } from "@mizyun/identity";
 import { InMemoryMemoryStore } from "@mizyun/memory";
-import { MistralAgentProvider } from "@mizyun/provider-mistral";
+import {
+  MistralAgentProvider,
+  MistralVisionProvider,
+} from "@mizyun/provider-mistral";
 
 import { InMemoryAccountRepository } from "./account-repository.js";
 import { InMemoryGoalRepository } from "./goal-repository.js";
 import { loggerConfig } from "./logging.js";
 import { InMemoryMediaStorage, type MediaStorage } from "./media-storage.js";
+import { SupabaseMemoryStore } from "@mizyun/adapter-supabase-server";
 import { accountRoutes } from "./modules/account/routes.js";
 import { bodyMeasurementsRoutes } from "./modules/body-measurements/routes.js";
+import { coachMemoryRoutes } from "./modules/coach/memory-routes.js";
 import { coachRoutes } from "./modules/coach/routes.js";
+import {
+  InMemoryCoachLimitService,
+  SupabaseCoachLimitService,
+  type CoachLimitService,
+} from "./modules/coach/limits.js";
+import { buildCoachToolRegistry } from "./modules/coach/tools.js";
 import { energyRoutes } from "./modules/energy/routes.js";
+import type { MemoryStore } from "@mizyun/memory";
 import { exercisesRoutes } from "./modules/exercises/routes.js";
 import { foodEntriesRoutes } from "./modules/food-entries/routes.js";
+import { foodDraftRoutes } from "./modules/food-entries/draft-route.js";
+import { FoodDraftRateLimiter } from "./modules/food-entries/draft-rate-limit.js";
 import { goalsRoutes } from "./modules/goals/routes.js";
 import { identityRoutes } from "./modules/identity/routes.js";
 import { mediaRoutes } from "./modules/media/routes.js";
@@ -84,8 +105,86 @@ export interface SupabasePersistenceOptions {
   readonly storageClientFor: (accessToken: string) => StorageSupabaseClient;
 }
 
+export interface CoachControlOptions {
+  readonly dailyUserTokenBudget?: number;
+  readonly userRequestsPerMinute?: number;
+  readonly userMaxConcurrentRequests?: number;
+  readonly now?: () => Date;
+  /**
+   * Optional test/dev override for the per-user plan tier.
+   * Production leaves this undefined; the route reads the tier
+   * from the profile. Set via `AI_USER_TIER_OVERRIDE` in dev.
+   */
+  readonly planTierOverride?: PlanTier;
+  /**
+   * Optional injection of the limiter service. When omitted, the
+   * composition root builds one from `supabasePersistence` (or an
+   * in-memory fallback when Supabase is not configured).
+   */
+  readonly limits?: CoachLimitService;
+  /**
+   * Optional injection of the read-only agent tool registry
+   * (AI-002). When omitted, the composition root builds the
+   * default Coach tool registry against the resolved
+   * repositories. Tests may pass an empty registry to bypass
+   * the loop.
+   */
+  readonly agentTools?: AgentToolRegistry;
+  /**
+   * Optional injection of the long-lived memory store used by
+   * both the orchestrator (to populate the prompt) and the
+   * `/v1/coach/memories/...` routes (the user-facing controls
+   * API). When omitted, the composition root builds an
+   * in-memory store; the Supabase-backed store is wired when
+   * `supabasePersistence` is configured.
+   */
+  readonly memoryStore?: MemoryStore;
+  /**
+   * Optional injection of the photo-draft vision provider
+   * (VISION-001). When omitted, the composition root builds a
+   * `MistralVisionProvider` (if `MISTRAL_VISION_API_KEY` is
+   * configured) or a `DisabledVisionProvider` otherwise. Tests
+   * pass a `StubVisionProvider` to drive deterministic drafts.
+   */
+  readonly visionProvider?: VisionDraftProvider;
+  /**
+   * Optional injection of the food-draft rate limiter
+   * (VISION-001). When omitted, the composition root builds a
+   * fresh in-memory sliding window. Tests share a single
+   * instance to assert ordering between consecutive calls.
+   */
+  readonly draftRateLimiter?: FoodDraftRateLimiter;
+  /**
+   * Optional resolver for the principal's plan tier. Production
+   * reads `profiles.plan_tier`; tests inject a stub.
+   */
+  readonly resolvePlanTier?: (userId: UserId) => PlanTier;
+}
+
 export interface AppDependencies {
-  readonly agent: AgentOrchestrator;
+  /**
+   * Pre-constructed orchestrator. When supplied, `buildApp`
+   * uses it as-is. When omitted, `buildApp` constructs one
+   * with the default tool registry wired against the
+   * resolved repositories (AI-002).
+   */
+  readonly agent?: AgentOrchestrator;
+  /**
+   * Provider + memory store used when `agent` is not
+   * supplied. `defaultDependencies` exposes these so
+   * `buildApp` can wire the tool registry after the repos
+   * are resolved.
+   */
+  readonly provider?: import("@mizyun/agent-runtime").AgentProvider;
+  readonly memories?: import("@mizyun/memory").MemoryStore;
+  /**
+   * Optional pre-constructed vision provider (VISION-001).
+   * `defaultDependencies` sets this to a `StubVisionProvider`
+   * when `AGENT_PROVIDER=vision-dev`; production wires
+   * `MistralVisionProvider` (when `MISTRAL_VISION_API_KEY` is
+   * configured) or a `DisabledVisionProvider` (otherwise).
+   */
+  readonly visionProvider?: import("@mizyun/agent-runtime").VisionDraftProvider;
   readonly tokenVerifier: AccessTokenVerifier;
   /**
    * Optional. When omitted, `buildApp` falls back to the in-memory
@@ -105,6 +204,7 @@ export interface AppDependencies {
   readonly accountRepository?: AccountRepository;
   readonly mediaAssetRepository?: MediaAssetRepository;
   readonly mediaStorage?: MediaStorage;
+  readonly coachControls?: CoachControlOptions;
   /**
    * When provided, the per-feature adapters swap to the Supabase
    * implementations. In-memory remains the default so the standard
@@ -133,7 +233,9 @@ const defaultDependencies = (): AppDependencies => {
         supabase: { configured: false, provider: "supabase", reason: "" },
         supabaseConfig: null,
         agentProvider: "disabled",
+        visionProvider: "disabled",
         mistralConfig: null,
+        mistralVisionConfig: null,
         aiExternalAccess: false,
       };
   const provider =
@@ -143,17 +245,34 @@ const defaultDependencies = (): AppDependencies => {
           externalAccess: config.aiExternalAccess,
         })
       : new DisabledAgentProvider();
+  // The default memory store is in-memory. When Supabase is
+  // configured, the buildApp step swaps it for a Supabase-backed
+  // store below; we leave the in-memory default here so dev/test
+  // paths stay zero-config.
   const base = {
-    agent: new AgentOrchestrator({
-      provider,
-      memories: new InMemoryMemoryStore(),
-    }),
+    provider,
+    memories: new InMemoryMemoryStore() as MemoryStore,
     tokenVerifier: tokenVerifierFromConfig(config),
   };
+  // VISION-001 — default vision provider for the dev/test path.
+  // When `VISION_PROVIDER=stub` is set we wire the deterministic
+  // StubVisionProvider so the smoke can hit the
+  // /v1/food-entries/draft endpoint without a Mistral vision
+  // key. Production wires MistralVisionProvider via `coachControls`
+  // (see buildApp).
+  if (config.visionProvider === "stub") {
+    Object.assign(base, {
+      visionProvider: new StubVisionProvider(),
+    });
+  }
   if (config.supabase.configured && config.supabaseConfig) {
     const supabaseConfig = config.supabaseConfig;
     return {
       ...base,
+      memories: new SupabaseMemoryStore({
+        clientFor: (accessToken: string) =>
+          createSupabaseRepositoryClient(supabaseConfig, accessToken),
+      }),
       supabasePersistence: {
         clientFor: (accessToken: string) =>
           createSupabaseRepositoryClient(supabaseConfig, accessToken),
@@ -178,6 +297,53 @@ const defaultDependencies = (): AppDependencies => {
     workoutSetRepository: new InMemoryWorkoutSetRepository(),
     bodyMeasurementRepository: new InMemoryBodyMeasurementRepository(),
   };
+};
+
+/**
+ * Resolve the plan tier override from the dev-only env knob.
+ * Production never sets this; the dev container may.
+ */
+const readPlanTierOverride = (): PlanTier | undefined => {
+  const raw = process.env.AI_USER_TIER_OVERRIDE;
+  if (raw === "free" || raw === "paid") return raw;
+  return undefined;
+};
+
+/**
+ * Resolve the long-lived memory store used by the orchestrator
+ * (prompt recall) and the `/v1/coach/memories` routes. Tests may
+ * inject a custom store via `coachControls.memoryStore`;
+ * otherwise the orchestrator's `dependencies.memories` is the
+ * default, falling back to a fresh in-memory store.
+ */
+const resolveMemoryStore = (dependencies: AppDependencies): MemoryStore =>
+  dependencies.coachControls?.memoryStore ??
+  dependencies.memories ??
+  new InMemoryMemoryStore();
+
+/**
+ * Pick the orchestrator for the request. When `dependencies.agent`
+ * is supplied, use it as-is (tests). Otherwise build a fresh
+ * orchestrator around the default provider + memory store and
+ * the supplied tool registry. The orchestrator only sees tools
+ * when the registry has at least one definition; empty
+ * registries skip the tool-loop entirely (cheaper for tests).
+ */
+const resolveAgent = (
+  dependencies: AppDependencies,
+  defaultToolSet: AgentToolRegistry,
+): AgentOrchestrator => {
+  if (dependencies.agent !== undefined) {
+    return dependencies.agent;
+  }
+  const provider = dependencies.provider ?? new DisabledAgentProvider();
+  const memories = dependencies.memories ?? new InMemoryMemoryStore();
+  const tools = defaultToolSet.list().length === 0 ? undefined : defaultToolSet;
+  return new AgentOrchestrator({
+    provider,
+    memories,
+    ...(tools ? { tools } : {}),
+  });
 };
 
 /**
@@ -297,9 +463,75 @@ export const buildApp = (
       : new InMemoryMediaStorage());
   const MEDIA_BUCKET_ID = "private-media";
 
+  // AI-002: build the read-only Coach tool registry against
+  // the resolved repositories. When `dependencies.agent` is
+  // supplied (tests injecting a fully custom orchestrator),
+  // the registry is unused. Otherwise build the default
+  // registry against the wired repos and pass it into a
+  // freshly-constructed orchestrator that owns the default
+  // provider + memory store.
+  const defaultToolSet = buildCoachToolRegistry({
+    goalRepository,
+    workoutRepository,
+    workoutSetRepository,
+    foodEntryRepository,
+    bodyMeasurementRepository,
+  });
+  const agent = resolveAgent(dependencies, defaultToolSet);
+
   void app.register(authenticationPlugin, {
     tokenVerifier: dependencies.tokenVerifier,
   });
+
+  // VISION-001 — multipart support for the photo-draft endpoint.
+  // 15 MiB per file (matches the private-media bucket policy);
+  // the route rejects anything larger.
+  void app.register(fastifyMultipart, {
+    limits: {
+      fileSize: 15 * 1024 * 1024,
+      files: 1,
+      fields: 4,
+    },
+  });
+
+  // VISION-001 — build the vision provider. Default is the
+  // disabled provider (returns VisionProviderError("not_configured")
+  // so the route returns 503 AI_CONFIGURATION_ERROR). The dev
+  // stub returns a deterministic candidate. MistralVisionProvider
+  // is wired when MISTRAL_VISION_API_KEY is configured.
+  const visionProvider: VisionDraftProvider = dependencies.coachControls
+    ?.visionProvider
+    ? dependencies.coachControls.visionProvider
+    : dependencies.visionProvider
+      ? dependencies.visionProvider
+      : (() => {
+          const mistralVisionConfig = configResult.ok
+            ? configResult.value.mistralVisionConfig
+            : null;
+          if (mistralVisionConfig !== null) {
+            return new MistralVisionProvider({
+              apiKey: mistralVisionConfig.apiKey,
+              model: mistralVisionConfig.model,
+              timeoutMs: mistralVisionConfig.timeoutMs,
+              maxOutputTokens: mistralVisionConfig.maxOutputTokens,
+              externalAccess: configResult.ok
+                ? configResult.value.aiExternalAccess
+                : false,
+            });
+          }
+          return new DisabledVisionProvider();
+        })();
+  const draftRateLimiter =
+    dependencies.coachControls?.draftRateLimiter ?? new FoodDraftRateLimiter();
+  const resolvePlanTier =
+    dependencies.coachControls?.resolvePlanTier ??
+    ((userId) => {
+      void userId;
+      const override = process.env.AI_USER_TIER_OVERRIDE;
+      if (override === "free" || override === "paid") return override;
+      return "free";
+    });
+
   void app.register(systemRoutes, { prefix: "/v1" });
   void app.register(identityRoutes, { prefix: "/v1" });
   void app.register(profileRoutes, {
@@ -313,6 +545,12 @@ export const buildApp = (
   void app.register(foodEntriesRoutes, {
     prefix: "/v1/food-entries",
     foodEntryRepository,
+  });
+  void app.register(foodDraftRoutes, {
+    prefix: "/v1/food-entries",
+    visionProvider,
+    rateLimiter: draftRateLimiter,
+    resolvePlanTier,
   });
   void app.register(exercisesRoutes, {
     prefix: "/v1/exercises",
@@ -351,9 +589,73 @@ export const buildApp = (
     mediaStorage,
     bucketId: MEDIA_BUCKET_ID,
   });
+
+  // MEM-001 — the long-lived memory store used by both the
+  // orchestrator (prompt recall) and the user-facing
+  // /v1/coach/memories routes. Resolve once so both surfaces
+  // share the same backing store. The orchestrator's
+  // `dependencies.memories` is the default; tests may inject a
+  // custom store via `coachControls.memoryStore`.
+  const memoryStore: MemoryStore = resolveMemoryStore(dependencies);
+
+  // Build the limiter service. Production wires the Supabase
+  // implementation against the service-role client; tests fall back
+  // to the in-memory implementation unless they pass an override.
+  const buildLimits = (): CoachLimitService => {
+    if (dependencies.coachControls?.limits) {
+      return dependencies.coachControls.limits;
+    }
+    const clock = dependencies.coachControls?.now ?? (() => new Date());
+    const supabaseConfig =
+      configResult.ok && configResult.value.supabaseConfig
+        ? configResult.value.supabaseConfig
+        : null;
+    if (sp && supabaseConfig && supabaseConfig.serviceRoleKey) {
+      return new SupabaseCoachLimitService({
+        serviceClient: createSupabaseServiceRoleClient({
+          url: supabaseConfig.url,
+          publishableKey: supabaseConfig.publishableKey,
+          serviceRoleKey: supabaseConfig.serviceRoleKey,
+        }),
+        clock,
+      });
+    }
+    return new InMemoryCoachLimitService({
+      clock,
+      ...(dependencies.coachControls?.dailyUserTokenBudget !== undefined ||
+      dependencies.coachControls?.userRequestsPerMinute !== undefined ||
+      dependencies.coachControls?.userMaxConcurrentRequests !== undefined
+        ? {
+            capOverrides: {
+              ...(dependencies.coachControls?.dailyUserTokenBudget !== undefined
+                ? {
+                    dailyTokenBudget:
+                      dependencies.coachControls.dailyUserTokenBudget,
+                  }
+                : {}),
+              ...(dependencies.coachControls?.userRequestsPerMinute !==
+              undefined
+                ? {
+                    requestsPerMinute:
+                      dependencies.coachControls.userRequestsPerMinute,
+                  }
+                : {}),
+              ...(dependencies.coachControls?.userMaxConcurrentRequests !==
+              undefined
+                ? {
+                    maxConcurrentRequests:
+                      dependencies.coachControls.userMaxConcurrentRequests,
+                  }
+                : {}),
+            },
+          }
+        : {}),
+    });
+  };
+
   void app.register(coachRoutes, {
     prefix: "/v1/coach",
-    agent: dependencies.agent,
+    agent,
     conversationRepository,
     profileRepository,
     goalRepository,
@@ -361,10 +663,23 @@ export const buildApp = (
     workoutRepository,
     workoutSetRepository,
     bodyMeasurementRepository,
-    dailyUserTokenBudget:
-      configResult.ok && configResult.value.mistralConfig
-        ? configResult.value.mistralConfig.dailyUserTokenBudget
-        : 100_000,
+    limits: buildLimits(),
+    memoryStore,
+    ...(dependencies.coachControls?.planTierOverride
+      ? { planTierOverride: dependencies.coachControls.planTierOverride }
+      : readPlanTierOverride()
+        ? { planTierOverride: readPlanTierOverride() }
+        : {}),
+    ...(dependencies.coachControls?.now
+      ? { now: dependencies.coachControls.now }
+      : {}),
+  });
+
+  // The user-facing /v1/coach/memories routes share the same
+  // backing store as the orchestrator's prompt recall.
+  void app.register(coachMemoryRoutes, {
+    prefix: "/v1/coach",
+    memoryStore,
   });
 
   return app;

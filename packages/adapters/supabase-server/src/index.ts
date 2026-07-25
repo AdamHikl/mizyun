@@ -68,6 +68,16 @@ export interface RepositorySupabaseClient {
   from<T extends Record<string, unknown>>(
     table: string,
   ): RepositoryTableBuilder<T>;
+  /**
+   * Call a stored SQL function (`create function …`) on the public
+   * schema. Used by AI-OPS-001 to invoke the SECURITY DEFINER
+   * limiter RPCs that own the rate-limit state. Returns the
+   * function's rowset directly; the caller maps to a domain shape.
+   */
+  rpc<TRow extends Record<string, unknown>>(
+    name: string,
+    args: Record<string, unknown>,
+  ): Promise<RepositoryRpcResult<TRow>>;
   auth: {
     /**
      * Bind the verified user's access token to the client so
@@ -81,6 +91,11 @@ export interface RepositorySupabaseClient {
       readonly error: unknown;
     }>;
   };
+}
+
+export interface RepositoryRpcResult<TRow extends Record<string, unknown>> {
+  readonly data: ReadonlyArray<TRow>;
+  readonly error: { readonly code?: string; readonly message: string } | null;
 }
 
 /**
@@ -120,6 +135,7 @@ export interface RepositorySingleResult<T> {
  */
 export interface RepositoryQueryBuilder<T> {
   eq(column: keyof T & string, value: unknown): RepositoryQueryBuilder<T>;
+  neq(column: keyof T & string, value: unknown): RepositoryQueryBuilder<T>;
   gte(column: keyof T & string, value: string): RepositoryQueryBuilder<T>;
   lte(column: keyof T & string, value: string): RepositoryQueryBuilder<T>;
   gt(column: keyof T & string, value: string): RepositoryQueryBuilder<T>;
@@ -191,7 +207,35 @@ export const createSupabaseRepositoryClient = (
   return raw as unknown as RepositorySupabaseClient;
 };
 
+/**
+ * Construct a service-role Supabase client for backend-only work
+ * that must bypass RLS. AI-OPS-001's SECURITY DEFINER RPCs are
+ * the primary consumer: the limiter tables are locked down to
+ * `select` for `authenticated`, so writes have to flow through
+ * the service role.
+ *
+ * The caller MUST hold the service-role key in process memory
+ * (e.g. via `@mizyun/config`'s `SUPABASE_SERVICE_ROLE_KEY`) and
+ * never expose it to a browser bundle. The key never leaves the
+ * server.
+ */
+export const createSupabaseServiceRoleClient = (
+  configuration: SupabaseServerConfiguration & {
+    readonly serviceRoleKey: string;
+  },
+): RepositorySupabaseClient => {
+  const raw = createClient(configuration.url, configuration.serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: false,
+    },
+  });
+  return raw as unknown as RepositorySupabaseClient;
+};
+
 export { SupabaseProfileRepository } from "./profile-repository.js";
+export { SupabaseMemoryStore } from "./memory-store.js";
 export { SupabaseGoalRepository } from "./goal-repository.js";
 export { SupabaseFoodEntryRepository } from "./food-entry-repository.js";
 export { RepositoryError } from "./repository-error.js";

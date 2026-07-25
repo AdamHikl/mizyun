@@ -1,4 +1,5 @@
 import type {
+  PlanTier,
   ProfileRepository,
   StoredProfile,
   UnitSystem,
@@ -9,6 +10,7 @@ import type { Clock } from "@mizyun/core";
 interface InMemoryProfileRepositoryOptions {
   readonly defaultTimezone: string;
   readonly defaultUnitSystem: UnitSystem;
+  readonly defaultPlanTier?: PlanTier;
   readonly clock?: Clock;
 }
 
@@ -32,11 +34,13 @@ export class InMemoryProfileRepository implements ProfileRepository {
   readonly #byUser = new Map<UserId, StoredProfile>();
   readonly #defaultTimezone: string;
   readonly #defaultUnitSystem: UnitSystem;
+  readonly #defaultPlanTier: PlanTier;
   readonly #clock: Clock;
 
   constructor(options: InMemoryProfileRepositoryOptions) {
     this.#defaultTimezone = options.defaultTimezone;
     this.#defaultUnitSystem = options.defaultUnitSystem;
+    this.#defaultPlanTier = options.defaultPlanTier ?? "free";
     this.#clock = options.clock ?? { now: () => new Date() };
   }
 
@@ -57,6 +61,7 @@ export class InMemoryProfileRepository implements ProfileRepository {
       heightCm: null,
       activityLevel: null,
       sexAtBirth: null,
+      planTier: this.#defaultPlanTier,
       createdAt: now,
       updatedAt: now,
     };

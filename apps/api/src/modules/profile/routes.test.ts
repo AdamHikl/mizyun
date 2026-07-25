@@ -105,6 +105,7 @@ describe("GET /v1/profile", () => {
       heightCm: 180,
       activityLevel: null,
       sexAtBirth: null,
+      planTier: "free",
       createdAt: new Date("2026-01-01T00:00:00Z"),
       updatedAt: new Date("2026-01-01T00:00:00Z"),
     });

@@ -148,6 +148,57 @@ describe("loadServerConfig — optional supabase", () => {
     expect(result.value.supabase.configured).toBe(false);
   });
 
+  it("accepts a long SUPABASE_SERVICE_ROLE_KEY alongside the pair", () => {
+    const result = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.supabaseUrl]: "http://127.0.0.1:54321",
+        [SERVER_ENV_KEYS.supabasePublishableKey]: "publishable-key",
+        [SERVER_ENV_KEYS.supabaseServiceRoleKey]:
+          "service-role-key-that-is-long-enough",
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.supabaseConfig?.serviceRoleKey).toBe(
+      "service-role-key-that-is-long-enough",
+    );
+  });
+
+  it("leaves serviceRoleKey undefined when omitted", () => {
+    const result = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.supabaseUrl]: "http://127.0.0.1:54321",
+        [SERVER_ENV_KEYS.supabasePublishableKey]: "publishable-key",
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.supabaseConfig?.serviceRoleKey).toBeUndefined();
+  });
+
+  it("rejects a too-short SUPABASE_SERVICE_ROLE_KEY with kind:out_of_range", () => {
+    const result = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.supabaseUrl]: "http://127.0.0.1:54321",
+        [SERVER_ENV_KEYS.supabasePublishableKey]: "publishable-key",
+        [SERVER_ENV_KEYS.supabaseServiceRoleKey]: "short",
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    const first = result.error[0];
+    expect(first?.kind).toBe("out_of_range");
+    if (first?.kind === "out_of_range") {
+      expect(first.key).toBe(SERVER_ENV_KEYS.supabaseServiceRoleKey);
+    }
+  });
+
   it("rejects when only one of URL/key is set (asymmetry)", () => {
     const onlyUrl = loadServerConfig({
       env: {
@@ -299,7 +350,51 @@ describe("loadServerConfig — closed-world", () => {
         timeoutMs: 30_000,
         maxOutputTokens: 1_200,
         dailyUserTokenBudget: 100_000,
+        userRequestsPerMinute: 6,
+        userMaxConcurrentRequests: 1,
       },
     });
+  });
+
+  it("validates bounded per-user AI request controls", () => {
+    const configured = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.agentProvider]: "mistral",
+        [SERVER_ENV_KEYS.mistralApiKey]: "test-key-that-is-long-enough",
+        [SERVER_ENV_KEYS.aiUserRequestsPerMinute]: "12",
+        [SERVER_ENV_KEYS.aiUserMaxConcurrentRequests]: "1",
+      },
+    });
+    expect(configured.ok).toBe(true);
+    if (configured.ok) {
+      expect(configured.value.mistralConfig).toMatchObject({
+        userRequestsPerMinute: 12,
+        userMaxConcurrentRequests: 1,
+      });
+    }
+
+    const invalid = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.aiUserRequestsPerMinute]: "0",
+        [SERVER_ENV_KEYS.aiUserMaxConcurrentRequests]: "2",
+      },
+    });
+    expect(invalid.ok).toBe(false);
+    if (!invalid.ok) {
+      expect(invalid.error).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            kind: "out_of_range",
+            key: SERVER_ENV_KEYS.aiUserRequestsPerMinute,
+          }),
+          expect.objectContaining({
+            kind: "out_of_range",
+            key: SERVER_ENV_KEYS.aiUserMaxConcurrentRequests,
+          }),
+        ]),
+      );
+    }
   });
 });

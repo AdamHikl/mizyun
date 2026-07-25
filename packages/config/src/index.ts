@@ -33,3 +33,11 @@ export {
   isPublicEnvKey,
   readProcessEnv,
 } from "./env";
+
+export {
+  type AiPlanTier,
+  type AiTierCaps,
+  AI_TIER_CAPS,
+  capsForTier,
+  isAiPlanTier,
+} from "./ai-tier";

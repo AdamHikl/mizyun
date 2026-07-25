@@ -1,6 +1,8 @@
 import type { FastifyPluginAsync } from "fastify";
 import {
   AgentProviderError,
+  COACH_PROMPT_VERSION,
+  screenCoachInput,
   type AgentOrchestrator,
 } from "@mizyun/agent-runtime";
 import type {
@@ -9,6 +11,7 @@ import type {
   ConversationRepository,
   FoodEntryRepository,
   GoalRepository,
+  PlanTier,
   ProfileRepository,
   StoredConversation,
   StoredConversationMessage,
@@ -28,9 +31,11 @@ import {
   type CoachConversation,
   type CoachMessage,
 } from "@mizyun/contracts";
+import type { MemoryStore } from "@mizyun/memory";
 
 import { sendApiError } from "../../errors.js";
 import { buildCoachGrounding } from "./grounding.js";
+import type { CoachLimitService } from "./limits.js";
 
 interface CoachRoutesOptions {
   readonly agent: AgentOrchestrator;
@@ -41,8 +46,24 @@ interface CoachRoutesOptions {
   readonly workoutRepository: WorkoutRepository;
   readonly workoutSetRepository: WorkoutSetRepository;
   readonly bodyMeasurementRepository: BodyMeasurementRepository;
-  readonly dailyUserTokenBudget?: number;
-  readonly now?: () => Date;
+  readonly limits: CoachLimitService;
+  /**
+   * Optional. When supplied (MEM-001), the grounding build pulls
+   * active memories from the store and surfaces them as
+   * `kind: "memory"` items. The route filters `kind: "memory"`
+   * out of the response's `evidenceKinds` so the mobile UI never
+   * claims "Used confirmed: memory" for user-edited content.
+   */
+  readonly memoryStore?: MemoryStore;
+  /**
+   * Optional test/dev override for the per-user plan tier.
+   * Production leaves it undefined; the route reads the tier from
+   * the profile. The dev container may set this via the
+   * `AI_USER_TIER_OVERRIDE` env var, surfaced through
+   * `AppDependencies`.
+   */
+  readonly planTierOverride?: PlanTier | undefined;
+  readonly now?: (() => Date) | undefined;
 }
 
 const toConversationWire = (stored: StoredConversation): CoachConversation => ({
@@ -98,8 +119,8 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
   options,
 ) => {
   const now = options.now ?? (() => new Date());
-  const tokenBudget = options.dailyUserTokenBudget ?? 100_000;
-  const usage = new Map<string, { readonly day: string; tokens: number }>();
+  const limits = options.limits;
+  const planTierOverride = options.planTierOverride;
 
   app.get("/status", async () =>
     coachProviderStatusSchema.parse(await options.agent.status()),
@@ -290,19 +311,6 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
         );
       }
 
-      const day = now().toISOString().slice(0, 10);
-      const currentUsage = usage.get(principal.userId);
-      const used = currentUsage?.day === day ? currentUsage.tokens : 0;
-      if (used >= tokenBudget) {
-        return sendApiError(
-          reply,
-          request,
-          429,
-          "RATE_LIMITED",
-          "Your daily AI budget has been reached. Try again tomorrow.",
-        );
-      }
-
       let userMessage =
         await options.conversationRepository.findUserMessageByIdempotencyKey(
           principal.userId,
@@ -351,30 +359,8 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
         });
       }
 
-      const grounding = await buildCoachGrounding(
-        options,
-        principal.userId,
-        principal.accessToken,
-        now(),
-      );
-      try {
-        const response = await options.agent.respond({
-          userId: principal.userId,
-          conversationId,
-          messages: storedMessages.map((message) => ({
-            role: message.role,
-            text: message.text,
-          })),
-          grounding,
-        });
-        const totalTokens =
-          typeof response.providerMetadata?.totalTokens === "number"
-            ? response.providerMetadata.totalTokens
-            : 0;
-        usage.set(principal.userId, {
-          day,
-          tokens: used + Math.max(0, totalTokens),
-        });
+      const safety = screenCoachInput(parsed.data.text);
+      if (!safety.allowed) {
         const assistantMessage =
           await options.conversationRepository.addMessage(
             principal.userId,
@@ -382,14 +368,15 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
               id: crypto.randomUUID(),
               conversationId,
               role: "assistant",
-              text: response.message.text,
+              text: safety.response,
               status: "complete",
               idempotencyKey: null,
               providerMetadata: {
-                provider: response.provider,
+                provider: "mizyun-safety",
                 replyTo: userMessage.id,
-                evidenceKinds: response.evidence.map((item) => item.kind),
-                ...(response.providerMetadata ?? {}),
+                evidenceKinds: [],
+                safetyCategory: safety.category,
+                promptVersion: COACH_PROMPT_VERSION,
               },
             },
             { accessToken: principal.accessToken, now: now() },
@@ -405,20 +392,203 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
           userMessage: toMessageWire(userMessage),
           assistantMessage: toMessageWire(assistantMessage),
         });
+      }
+
+      // Resolve plan tier: explicit override wins, otherwise the
+      // profile value. Unknown profile values fall back to `free`.
+      const profile = await options.profileRepository.getOrCreate(
+        principal.userId,
+        { now: now(), accessToken: principal.accessToken },
+      );
+      const planTier: PlanTier = planTierOverride ?? profile.planTier;
+
+      // Acquire a durable slot via the AI-OPS-001 limiter service.
+      // `tokensEstimated` is the per-request upper bound used by
+      // `ai_reserve_tokens` to gate against the daily budget before
+      // the provider call lands. We clamp to the per-tier budget so
+      // a misconfigured tiny budget (e.g. test fixture = 1) does not
+      // make every request reject before reaching the provider.
+      const cap = limits.resolveCap(planTier);
+      const slot = await limits.acquireSlot({
+        userId: principal.userId,
+        conversationId,
+        idempotencyKey,
+        planTier,
+        tokensEstimated: Math.min(cap.dailyTokenBudget, 1_200),
+      });
+
+      if (slot.kind === "limited") {
+        reply.header("retry-after", String(slot.retryAfter));
+        const message =
+          slot.reason === "tokens"
+            ? "Your daily AI budget has been reached. Try again tomorrow."
+            : slot.reason === "inflight"
+              ? "A Coach request is already in progress. Try again shortly."
+              : slot.reason === "lock_busy"
+                ? "The Coach limiter is busy. Try again shortly."
+                : "Too many Coach requests. Try again shortly.";
+        return sendApiError(reply, request, 429, "RATE_LIMITED", message);
+      }
+
+      if (slot.kind === "conflict") {
+        reply.header("retry-after", String(slot.retryAfter));
+        return sendApiError(
+          reply,
+          request,
+          409,
+          "CONFLICT",
+          "That idempotency key was already used for a failed request.",
+        );
+      }
+
+      if (slot.kind === "replayed") {
+        if (slot.existingMessageId === null) {
+          // Prior call still in flight; the second caller bails.
+          reply.header("retry-after", "1");
+          return sendApiError(
+            reply,
+            request,
+            409,
+            "CONFLICT",
+            "That Coach request is already in progress.",
+          );
+        }
+        // Re-read the assistant message for the reply body.
+        const replayedMessages =
+          await options.conversationRepository.listMessages(
+            principal.userId,
+            conversationId,
+            { accessToken: principal.accessToken, limit: 40 },
+          );
+        const replayedAssistant = replayedMessages.find(
+          (message) =>
+            message.role === "assistant" &&
+            message.providerMetadata.replyTo === userMessage.id,
+        );
+        if (replayedAssistant !== undefined) {
+          const latestConversation =
+            (await options.conversationRepository.get(
+              principal.userId,
+              conversationId,
+              { accessToken: principal.accessToken },
+            )) ?? conversation;
+          return coachMessageResponseSchema.parse({
+            conversation: toConversationWire(latestConversation),
+            userMessage: toMessageWire(userMessage),
+            assistantMessage: toMessageWire(replayedAssistant),
+          });
+        }
+        // Fall through: ledger says replayed but we cannot find the
+        // assistant row. Treat as a fresh request rather than 500.
+      }
+
+      const providerCallId =
+        slot.kind === "reserved" ? slot.providerCallId : "";
+
+      try {
+        const grounding = await buildCoachGrounding(
+          options,
+          principal.userId,
+          principal.accessToken,
+          now(),
+        );
+        // MEM-001: memories surface in the prompt as
+        // `kind: "memory"`, but we filter that kind out of the
+        // response's `evidenceKinds` because memory text is
+        // user-edited and may contain untrusted content. The model
+        // still sees the grounding; the mobile UI just doesn't
+        // claim "Used confirmed: memory".
+        const evidenceKinds = grounding
+          .map((item) => item.kind)
+          .filter((kind) => kind !== "memory");
+        const response = await options.agent.respond({
+          userId: principal.userId,
+          conversationId,
+          messages: storedMessages.map((message) => ({
+            role: message.role,
+            text: message.text,
+          })),
+          grounding,
+        });
+        const totalTokens =
+          typeof response.providerMetadata?.totalTokens === "number"
+            ? response.providerMetadata.totalTokens
+            : 0;
+        const assistantMessage =
+          await options.conversationRepository.addMessage(
+            principal.userId,
+            {
+              id: crypto.randomUUID(),
+              conversationId,
+              role: "assistant",
+              text: response.message.text,
+              status: "complete",
+              idempotencyKey: null,
+              providerMetadata: {
+                provider: response.provider,
+                replyTo: userMessage.id,
+                evidenceKinds,
+                ...(response.providerMetadata ?? {}),
+              },
+            },
+            { accessToken: principal.accessToken, now: now() },
+          );
+        await limits.commitTokens({
+          userId: principal.userId,
+          providerCallId,
+          finalStatus: "succeeded",
+          messageId: assistantMessage.id,
+          tokensUsed: totalTokens,
+        });
+        const latestConversation =
+          (await options.conversationRepository.get(
+            principal.userId,
+            conversationId,
+            { accessToken: principal.accessToken },
+          )) ?? conversation;
+        return coachMessageResponseSchema.parse({
+          conversation: toConversationWire(latestConversation),
+          userMessage: toMessageWire(userMessage),
+          assistantMessage: toMessageWire(assistantMessage),
+        });
       } catch (error) {
+        await limits
+          .releaseSlot({
+            userId: principal.userId,
+            providerCallId,
+            finalStatus: "failed",
+            messageId: null,
+            tokensUsed: 0,
+          })
+          .catch(() => {
+            // Best-effort release. A subsequent request will
+            // overwrite the slot state.
+          });
         if (error instanceof AgentProviderError) {
+          const configurationError =
+            error.kind === "authentication" ||
+            error.kind === "payment_required" ||
+            error.kind === "invalid_request" ||
+            error.kind === "malformed_response" ||
+            error.kind === "refused";
           const status =
             error.kind === "rate_limited"
               ? 429
-              : error.kind === "not_configured" ||
+              : configurationError ||
+                  error.kind === "not_configured" ||
                   error.kind === "external_access_disabled"
                 ? 503
                 : 502;
+          if (error.kind === "rate_limited") reply.header("retry-after", "1");
           return sendApiError(
             reply,
             request,
             status,
-            error.kind === "rate_limited" ? "RATE_LIMITED" : "AI_UNAVAILABLE",
+            error.kind === "rate_limited"
+              ? "RATE_LIMITED"
+              : configurationError
+                ? "AI_CONFIGURATION_ERROR"
+                : "AI_UNAVAILABLE",
             error.message,
           );
         }

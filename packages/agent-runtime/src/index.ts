@@ -37,7 +37,14 @@ export interface AgentMessage {
 
 export interface AgentGroundingItem {
   readonly kind:
-    "profile" | "goal" | "nutrition" | "training" | "body" | "energy";
+    | "profile"
+    | "goal"
+    | "nutrition"
+    | "training"
+    | "body"
+    | "energy"
+    | "memory"
+    | "tool";
   readonly label: string;
   readonly confirmed: boolean;
   readonly freshness: string;
@@ -52,6 +59,18 @@ export interface AgentRequest {
   readonly grounding: readonly AgentGroundingItem[];
   readonly systemPolicy: string;
   readonly promptVersion: string;
+  /**
+   * Read-only tools the model may call. The runtime already
+   * filtered the registry to user-bound tools; the provider
+   * must NOT expose the userId or any unsafe parameter.
+   */
+  readonly tools?: readonly AgentToolDefinition[];
+  /**
+   * Prior tool results appended to the next round-trip. The
+   * runtime folds these into `grounding` for the next call so
+   * the model sees them as confirmed context.
+   */
+  readonly toolResults?: readonly AgentToolResult[];
 }
 
 export interface AgentResponse {
@@ -59,12 +78,173 @@ export interface AgentResponse {
   readonly provider: string;
   readonly evidence: readonly AgentGroundingItem[];
   readonly providerMetadata?: Readonly<Record<string, unknown>>;
+  /**
+   * Set when the model wants to call one or more tools before
+   * producing a final answer. The runtime executes the tools,
+   * folds results into grounding, and re-invokes the provider.
+   * Absent when the response is the final answer.
+   */
+  readonly toolCalls?: readonly AgentToolCall[];
 }
 
 export interface AgentProvider {
   status(): Promise<AgentProviderStatus>;
   respond(request: AgentRequest): Promise<AgentResponse>;
 }
+
+/**
+ * Read-only tool the model can invoke mid-response to pull
+ * additional confirmed Mizyun context. The runtime is the
+ * authority on `userId` — the model only sees a sanitised
+ * argument shape and never the principal. Tools are pure
+ * application services; they MUST NOT mutate data, switch
+ * users, request arbitrary SQL, or expand the date range past
+ * the maximum the runtime enforces (28 days).
+ *
+ * Tools return `AgentGroundingItem`s so the model sees them
+ * with the same `kind / label / confirmed / freshness / data`
+ * envelope as the static grounding.
+ */
+export interface AgentTool<TArgs> {
+  readonly name: string;
+  readonly description: string;
+  readonly parameters: Readonly<Record<string, unknown>>;
+  /**
+   * Validate and execute the tool. The runtime injects
+   * `principalUserId`; the tool MUST refuse to act on any
+   * other userId (defence in depth — the model cannot pass
+   * `userId` as an arg because the schema does not expose it).
+   */
+  execute(input: {
+    readonly principalUserId: UserId;
+    readonly args: TArgs;
+    readonly accessToken: string;
+    readonly clock: Clock;
+  }): Promise<AgentGroundingItem>;
+}
+
+export interface AgentToolCall {
+  readonly id?: string;
+  readonly name: string;
+  readonly args: Readonly<Record<string, unknown>>;
+}
+
+export interface AgentToolResult {
+  readonly id: string;
+  readonly name: string;
+  readonly evidence: AgentGroundingItem;
+}
+
+export interface AgentToolDefinition {
+  readonly name: string;
+  readonly description: string;
+  readonly parameters: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * Tool a model asked to call cannot be resolved: either the
+ * registry does not include the name, or the args fail the
+ * tool's Zod schema. The runtime folds the error into the
+ * evidence so the model can recover.
+ */
+export class UnknownAgentToolError extends Error {
+  constructor(readonly toolName: string) {
+    super(`Unknown agent tool: ${toolName}`);
+    this.name = "UnknownAgentToolError";
+  }
+}
+
+export interface AgentToolRegistry {
+  list(): readonly AgentToolDefinition[];
+  execute(input: {
+    readonly principalUserId: UserId;
+    readonly calls: readonly AgentToolCall[];
+    readonly accessToken: string;
+    readonly clock: Clock;
+  }): Promise<readonly AgentToolResult[]>;
+}
+
+const KNOWN_KINDS = new Set([
+  "profile",
+  "goal",
+  "nutrition",
+  "training",
+  "body",
+  "energy",
+] as const);
+
+export type AgentEvidenceKind =
+  "profile" | "goal" | "nutrition" | "training" | "body" | "energy" | "tool";
+
+const isAgentEvidenceKind = (value: unknown): value is AgentEvidenceKind =>
+  typeof value === "string" && (KNOWN_KINDS as ReadonlySet<string>).has(value);
+
+const buildToolRegistry = <T>(
+  tools: ReadonlyMap<string, AgentTool<T>>,
+): AgentToolRegistry => {
+  const definitions: AgentToolDefinition[] = [...tools.values()].map(
+    (tool) => ({
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.parameters,
+    }),
+  );
+  return {
+    list: () => definitions,
+    execute: async ({ principalUserId, calls, accessToken, clock }) => {
+      const results: AgentToolResult[] = [];
+      for (const call of calls) {
+        const tool = tools.get(call.name);
+        if (tool === undefined) {
+          throw new UnknownAgentToolError(call.name);
+        }
+        // The tool's `execute` validates its own args. We trust
+        // its contract — the registry does not re-validate.
+        const evidence = await tool.execute({
+          principalUserId,
+          args: call.args as T,
+          accessToken,
+          clock,
+        });
+        const fallbackKind: AgentEvidenceKind = "tool";
+        const normalisedKind: AgentEvidenceKind = isAgentEvidenceKind(
+          evidence.kind,
+        )
+          ? evidence.kind
+          : fallbackKind;
+        results.push({
+          id: call.id ?? `${call.name}-${results.length}`,
+          name: call.name,
+          evidence: {
+            ...evidence,
+            kind: normalisedKind,
+            label: evidence.label ?? tool.name,
+            confirmed: true,
+            freshness: new Date(clock.now()).toISOString(),
+          },
+        });
+      }
+      return results;
+    },
+  };
+};
+
+export const createAgentToolRegistry = <T>(
+  tools: ReadonlyMap<string, AgentTool<T>>,
+): AgentToolRegistry => buildToolRegistry(tools);
+
+export const createAgentToolRegistryFromList = <T>(
+  tools: readonly AgentTool<T>[],
+): AgentToolRegistry => {
+  const map = new Map<string, AgentTool<T>>();
+  for (const tool of tools) {
+    if (map.has(tool.name)) {
+      throw new Error(`Duplicate tool name: ${tool.name}`);
+    }
+    map.set(tool.name, tool);
+  }
+  return buildToolRegistry(map);
+};
 
 export type AgentProviderFailureKind =
   | "not_configured"
@@ -234,6 +414,33 @@ export interface AgentOrchestratorOptions {
   readonly memories: MemoryStore;
   readonly clock?: Clock;
   readonly memoryLimit?: number;
+  /**
+   * Optional tool registry. When provided, the orchestrator
+   * drives a read-only tool loop: the provider may return
+   * `toolCalls`, the orchestrator executes them under the
+   * principal-bound `userId`, folds results into grounding,
+   * and re-invokes the provider until a final answer lands
+   * or `maxToolCalls` round-trips elapse.
+   */
+  readonly tools?: AgentToolRegistry;
+  /**
+   * Hard cap on tool-call round-trips per Coach message.
+   * Defaults to 1 (single tool batch). The provider is
+   * never invoked more than `maxToolCalls + 1` times.
+   */
+  readonly maxToolCalls?: number;
+}
+
+/**
+ * Thrown when the orchestrator exhausts its tool-call budget
+ * without a final answer. Surfaces as `AI_UNAVAILABLE` in the
+ * route layer so the user sees the generic recovery copy.
+ */
+export class AgentToolBudgetExceededError extends Error {
+  constructor(readonly limit: number) {
+    super(`The agent exceeded the tool-call budget (${limit} round-trips).`);
+    this.name = "AgentToolBudgetExceededError";
+  }
 }
 
 export class AgentOrchestrator {
@@ -241,12 +448,16 @@ export class AgentOrchestrator {
   readonly #memories: MemoryStore;
   readonly #clock: Clock;
   readonly #memoryLimit: number;
+  readonly #tools: AgentToolRegistry | undefined;
+  readonly #maxToolCalls: number;
 
   constructor(options: AgentOrchestratorOptions) {
     this.#provider = options.provider;
     this.#memories = options.memories;
     this.#clock = options.clock ?? systemClock;
     this.#memoryLimit = options.memoryLimit ?? 12;
+    this.#tools = options.tools;
+    this.#maxToolCalls = options.maxToolCalls ?? 1;
   }
 
   status(): Promise<AgentProviderStatus> {
@@ -258,6 +469,7 @@ export class AgentOrchestrator {
     readonly conversationId: ConversationId;
     readonly messages: readonly AgentMessage[];
     readonly grounding?: readonly AgentGroundingItem[];
+    readonly accessToken?: string;
   }): Promise<AgentResponse> {
     const latestUserMessage = [...input.messages]
       .reverse()
@@ -281,13 +493,90 @@ export class AgentOrchestrator {
       asOf: this.#clock.now(),
     });
 
-    return this.#provider.respond({
+    let grounding: readonly AgentGroundingItem[] = input.grounding ?? [];
+    let toolResults: readonly AgentToolResult[] | undefined;
+    let toolCallsUsed = 0;
+
+    let response = await this.#provider.respond({
       ...input,
-      grounding: input.grounding ?? [],
+      grounding,
       memories,
       systemPolicy: COACH_SYSTEM_POLICY,
       promptVersion: COACH_PROMPT_VERSION,
+      ...(this.#tools ? { tools: this.#tools.list() } : {}),
     });
+
+    while (
+      response.toolCalls !== undefined &&
+      response.toolCalls.length > 0 &&
+      toolCallsUsed < this.#maxToolCalls
+    ) {
+      if (this.#tools === undefined) {
+        throw new Error(
+          "Provider returned toolCalls but no registry was configured.",
+        );
+      }
+      toolCallsUsed += 1;
+      try {
+        toolResults = await this.#tools.execute({
+          principalUserId: input.userId,
+          calls: response.toolCalls,
+          accessToken: input.accessToken ?? "",
+          clock: this.#clock,
+        });
+      } catch (error) {
+        // Surface a safe, conservative fallback when a tool
+        // throws (e.g. UnknownAgentToolError, repo error).
+        // The model already saw the partial answer text it
+        // produced; we ship that with an annotation so the
+        // user gets a deterministic error envelope rather
+        // than a 500.
+        const reason =
+          error instanceof Error ? error.message : "Tool execution failed.";
+        return {
+          message: response.message,
+          provider: response.provider,
+          evidence: response.evidence,
+          providerMetadata: {
+            ...(response.providerMetadata ?? {}),
+            toolCallError: reason,
+            toolCallsUsed,
+            finishReason: "tool_error",
+            promptVersion: COACH_PROMPT_VERSION,
+          },
+        };
+      }
+      grounding = [
+        ...grounding,
+        ...toolResults.map((result) => result.evidence),
+      ];
+      response = await this.#provider.respond({
+        ...input,
+        grounding,
+        memories,
+        systemPolicy: COACH_SYSTEM_POLICY,
+        promptVersion: COACH_PROMPT_VERSION,
+        ...(this.#tools ? { tools: this.#tools.list() } : {}),
+        toolResults,
+      });
+    }
+
+    if (
+      response.toolCalls !== undefined &&
+      response.toolCalls.length > 0 &&
+      toolCallsUsed >= this.#maxToolCalls
+    ) {
+      throw new AgentToolBudgetExceededError(this.#maxToolCalls);
+    }
+
+    return {
+      ...response,
+      providerMetadata: {
+        ...(response.providerMetadata ?? {}),
+        ...(this.#tools ? { toolCallsUsed } : {}),
+        promptVersion: COACH_PROMPT_VERSION,
+      },
+    };
   }
 }
 
@@ -296,3 +585,151 @@ export {
   coachSafetyEvaluationCases,
   type CoachSafetyEvaluationCase,
 } from "./evaluation-cases.js";
+
+// =========================================================================
+// VISION-001 — Read-only Coach vision draft provider.
+// =========================================================================
+
+/**
+ * Photo bytes that flow into a vision provider are transient: the
+ * runtime holds the bytes in memory, sends them to the provider,
+ * then discards. Photo bytes NEVER land on disk, in logs, in
+ * analytics, or in the user-visible chat prompt (per
+ * `docs/AI_IMPLEMENTATION_PLAN.md` §"exclude progress-photo bytes
+ * and URLs from the text-coach phase"). The Mistral workspace is
+ * separate from the text-coach workspace per ADR-0017.
+ */
+export type VisionMimeType = "image/jpeg" | "image/png" | "image/webp";
+
+export interface VisionDraftRequest {
+  readonly userId: UserId;
+  readonly photo: Readonly<Uint8Array>;
+  readonly mimeType: VisionMimeType;
+  /**
+   * Optional text hint from the user (e.g. "this is my lunch"). The
+   * hint is part of the request and is sent to the provider, never
+   * logged.
+   */
+  readonly textHint?: string;
+  /**
+   * Optional caller-supplied request id for log correlation.
+   */
+  readonly requestId?: string;
+}
+
+export interface VisionDraftCandidate {
+  /**
+   * Suggested food name. `null` when the model cannot make a
+   * confident guess; the route translates this to a fixed
+   * "AI could not identify" warning rather than fabricating a
+   * name.
+   */
+  readonly name: string | null;
+  /**
+   * Per-macro suggestions. `null` per field is allowed; the route
+   * maps it to "AI was not confident — please enter manually".
+   */
+  readonly caloriesKcal: number | null;
+  readonly proteinG: number | null;
+  readonly carbohydrateG: number | null;
+  readonly fatG: number | null;
+  /**
+   * Model confidence in [0, 1]. Below 0.5 the route surfaces
+   * the draft with a "low confidence" warning.
+   */
+  readonly confidence: number;
+  /**
+   * Free-text warnings the AI attached. Always surfaced verbatim
+   * to the user; never logged.
+   */
+  readonly warnings: readonly string[];
+}
+
+export interface VisionDraftProvider {
+  status(): Promise<{ readonly ready: boolean; readonly provider: string }>;
+  /**
+   * Generate a draft candidate. The provider MUST throw
+   * `VisionProviderError` on any failure; the route maps that
+   * to a 502/503 envelope.
+   */
+  generateDraft(request: VisionDraftRequest): Promise<VisionDraftCandidate>;
+}
+
+export type VisionProviderFailureKind =
+  | "not_configured"
+  | "external_access_disabled"
+  | "authentication"
+  | "rate_limited"
+  | "timeout"
+  | "invalid_request"
+  | "refused"
+  | "malformed_response"
+  | "unavailable";
+
+export class VisionProviderError extends Error {
+  readonly code = "VISION_PROVIDER_ERROR";
+  constructor(
+    readonly kind: VisionProviderFailureKind,
+    message: string,
+    readonly retryable: boolean,
+  ) {
+    super(message);
+    this.name = "VisionProviderError";
+  }
+}
+
+/**
+ * Default provider when no Mistral vision workspace is configured.
+ * Returns a candidate with `name: null` and a "not configured"
+ * warning; the route maps that to a 503 with a safe
+ * "AI vision is not configured" message.
+ */
+export class DisabledVisionProvider implements VisionDraftProvider {
+  async status(): Promise<{
+    readonly ready: boolean;
+    readonly provider: string;
+  }> {
+    return { ready: false, provider: "disabled" };
+  }
+  async generateDraft(): Promise<VisionDraftCandidate> {
+    throw new VisionProviderError(
+      "not_configured",
+      "AI vision is not configured. Set MISTRAL_VISION_API_KEY and MISTRAL_VISION_MODEL to enable photo drafts.",
+      false,
+    );
+  }
+}
+
+/**
+ * Development-only canned-suggestion provider. Returns a
+ * deterministic candidate with the user's text hint as the food
+ * name. The model is never called; the route sees a real draft
+ * shape and the mobile UI sees a realistic round-trip. Use
+ * `AGENT_PROVIDER=vision-dev` to enable.
+ */
+export class StubVisionProvider implements VisionDraftProvider {
+  async status(): Promise<{
+    readonly ready: boolean;
+    readonly provider: string;
+  }> {
+    return { ready: true, provider: "vision-dev-stub" };
+  }
+  async generateDraft(
+    request: VisionDraftRequest,
+  ): Promise<VisionDraftCandidate> {
+    const hint = request.textHint?.trim() ?? "";
+    return {
+      name: hint.length > 0 ? hint : "AI could not identify the food",
+      caloriesKcal: 350,
+      proteinG: 12,
+      carbohydrateG: 40,
+      fatG: 14,
+      confidence: 0.45,
+      warnings: [
+        hint.length === 0
+          ? "AI could not identify the food from this photo."
+          : "Stub provider: please verify every value before saving.",
+      ],
+    };
+  }
+}

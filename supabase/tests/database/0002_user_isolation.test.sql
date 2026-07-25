@@ -3,12 +3,20 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(19);
+select plan(28);
 
 insert into auth.users (id, email)
 values
   ('10000000-0000-4000-8000-000000000001', 'user-a@mizyun.test'),
   ('10000000-0000-4000-8000-000000000002', 'user-b@mizyun.test');
+
+-- The auth-profile trigger creates the row on user insert; we just
+-- flip the plan_tier. AI-OPS-001 §1 locks free to 5k tokens/day and
+-- paid to 100k tokens/day.
+update public.profiles set plan_tier = 'free'
+  where id = '10000000-0000-4000-8000-000000000001';
+update public.profiles set plan_tier = 'paid'
+  where id = '10000000-0000-4000-8000-000000000002';
 
 insert into public.goals (user_id, kind)
 values
@@ -138,6 +146,128 @@ select throws_ok(
 select lives_ok(
   $$insert into storage.objects (bucket_id, name) values ('private-media', '10000000-0000-4000-8000-000000000001/own-object.jpg')$$,
   'user A can insert into their own storage path'
+);
+
+-- =========================================================================
+-- AI-OPS-001: per-tier limiter pgTAP cases (AI-003 plan §6).
+-- Run as service_role so the SECURITY DEFINER RPCs are accessible.
+-- =========================================================================
+
+reset role;
+set local role service_role;
+
+-- Free-tier user (A) is blocked at the 5_000-token cap. The
+-- reserve call uses `p_needed = 5_001` so the check
+-- `cur + p_needed > budget` actually fires.
+select is(
+  (
+    select (allowed)::text
+    from public.ai_reserve_tokens(
+      '10000000-0000-4000-8000-000000000001',
+      current_date,
+      5_000,
+      5_001
+    )
+    limit 1
+  ),
+  'false',
+  'free tier rejects a request that would push past the 5k token cap'
+);
+
+-- A free-tier commit with zero tokens is a no-op (no row error).
+select lives_ok(
+  $$select public.ai_commit_tokens('10000000-0000-4000-8000-000000000001', current_date, 0)$$,
+  'free-tier commit_tokens is a no-op for zero tokens'
+);
+
+-- Paid-tier user (B) passes a 100_000-token budget reserve.
+select is(
+  (
+    select (allowed)::text
+    from public.ai_reserve_tokens(
+      '10000000-0000-4000-8000-000000000002',
+      current_date,
+      100_000,
+      1_200
+    )
+    limit 1
+  ),
+  'true',
+  'paid tier passes a 1_200-token reserve under the 100k cap'
+);
+
+-- Cross-replica replay: same (user, conversation, key) returns the
+-- same provider_call_id without double-incrementing tokens. We
+-- reuse the user-B conversation that already exists in this test.
+select is(
+  (
+    select outcome::text from public.ai_reserve_provider_call(
+      '10000000-0000-4000-8000-000000000002',
+      '40000000-0000-4000-8000-000000000002',
+      'replay-key-001'
+    )
+    limit 1
+  ),
+  'reserved',
+  'first reserve creates a provider-call row with outcome=reserved'
+);
+
+select is(
+  (
+    select outcome::text from public.ai_reserve_provider_call(
+      '10000000-0000-4000-8000-000000000002',
+      '40000000-0000-4000-8000-000000000002',
+      'replay-key-001'
+    )
+    limit 1
+  ),
+  'replayed',
+  'second reserve with the same key returns outcome=replayed'
+);
+
+-- =========================================================================
+-- AI-OPS-002: RPC EXECUTE is restricted to service_role (ADR-0017).
+-- =========================================================================
+
+-- anon role has no grant on the limiter RPCs.
+reset role;
+set local role anon;
+set local search_path = public, extensions;
+
+select throws_ok(
+  $$select public.ai_reserve_tokens('10000000-0000-4000-8000-000000000001', current_date, 5000, 1)$$,
+  '42501',
+  'permission denied for function ai_reserve_tokens',
+  'anon role cannot execute ai_reserve_tokens'
+);
+
+select throws_ok(
+  $$select public.ai_reserve_provider_call('10000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', 'anon-key')$$,
+  '42501',
+  'permission denied for function ai_reserve_provider_call',
+  'anon role cannot execute ai_reserve_provider_call'
+);
+
+-- The authenticated role has no grant on the limiter RPCs either;
+-- only service_role (used by the API composition root) writes
+-- through this surface.
+reset role;
+set local role authenticated;
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
+set local search_path = public, extensions;
+
+select throws_ok(
+  $$select public.ai_commit_tokens('10000000-0000-4000-8000-000000000001', current_date, 1)$$,
+  '42501',
+  'permission denied for function ai_commit_tokens',
+  'authenticated role cannot execute ai_commit_tokens'
+);
+
+select throws_ok(
+  $$select public.ai_acquire_in_flight('10000000-0000-4000-8000-000000000001', 1)$$,
+  '42501',
+  'permission denied for function ai_acquire_in_flight',
+  'authenticated role cannot execute ai_acquire_in_flight'
 );
 
 select * from finish();

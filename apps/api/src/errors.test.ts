@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
+import { apiErrorSchema } from "@mizyun/contracts";
+
 import { buildApp } from "./app.js";
 import { sendApiError, internalErrorBody } from "./errors.js";
 
@@ -38,6 +40,29 @@ describe("error envelope", () => {
         requestId: expect.any(String),
       },
     });
+  });
+
+  it("surfaces AI configuration failures through the shared schema", async () => {
+    const app = buildApp();
+    apps.push(app);
+    app.get("/v1/__test-ai-configuration", async (request, reply) =>
+      sendApiError(
+        reply,
+        request,
+        503,
+        "AI_CONFIGURATION_ERROR",
+        "Coach configuration needs attention.",
+      ),
+    );
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/__test-ai-configuration",
+    });
+
+    expect(response.statusCode).toBe(503);
+    expect(apiErrorSchema.safeParse(response.json()).success).toBe(true);
+    expect(response.json().error.code).toBe("AI_CONFIGURATION_ERROR");
   });
 
   it("internalErrorBody returns INTERNAL_ERROR with the request ID", () => {
