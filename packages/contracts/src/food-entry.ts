@@ -240,3 +240,50 @@ export const foodEntrySummaryQuerySchema = z
   );
 
 export type FoodEntrySummaryQuery = z.infer<typeof foodEntrySummaryQuerySchema>;
+
+// =========================================================================
+// VISION-001 — Editable photo-to-draft food entry surface.
+// =========================================================================
+
+/**
+ * Wire shape for `POST /v1/food-entries/draft` (the multipart
+ * fields are read directly by the route; this schema documents
+ * the optional `textHint` and the response shape).
+ *
+ * The route:
+ *   1. reads the multipart `image` field (required) + `textHint`
+ *      (optional) from the request;
+ *   2. calls the configured VisionDraftProvider with the bytes;
+ *   3. post-screens the candidate for medical claims, sub-800-kcal
+ *      targets, and unsafe macro values per ADR-0017
+ *      §"Photo / vision invariants";
+ *   4. returns the candidate to the user, who edits and confirms
+ *      by posting to `POST /v1/food-entries`.
+ *
+ * The route never persists the photo bytes. The draft is
+ * ephemeral in v1; a future segment may add a server-side
+ * `food_entry_drafts` table for cross-device resume.
+ */
+export const foodDraftCandidateSchema = z.object({
+  name: z.string().trim().min(1).max(200).nullable(),
+  caloriesKcal: z.number().gte(0).lte(20_000).multipleOf(0.01).nullable(),
+  proteinG: macroSchema.nullable(),
+  carbohydrateG: macroSchema.nullable(),
+  fatG: macroSchema.nullable(),
+  confidence: z.number().gte(0).lte(1),
+  warnings: z.array(z.string().trim().min(1).max(500)).max(8),
+});
+
+export type FoodDraftCandidate = z.infer<typeof foodDraftCandidateSchema>;
+
+export const foodDraftResponseSchema = z.object({
+  draft: foodDraftCandidateSchema,
+  /**
+   * Server-side correlation id for log tracing. NOT a client-side
+   * field; the route stamps it so the user can quote it when
+   * reporting a bad draft.
+   */
+  requestId: z.string().min(1),
+});
+
+export type FoodDraftResponse = z.infer<typeof foodDraftResponseSchema>;

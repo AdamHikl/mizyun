@@ -1,0 +1,226 @@
+/**
+ * VISION-001 — `POST /v1/food-entries/draft`.
+ *
+ * Accepts multipart form data:
+ *   - `image` (required): JPEG / PNG / WebP bytes, max 15 MiB
+ *     (matches the `private-media` bucket policy).
+ *   - `textHint` (optional): free-text description from the user
+ *     ("this is my lunch", etc.).
+ *
+ * Returns a structured `FoodDraftCandidate` the mobile app shows
+ * in an editable form. Photo bytes are transient: the route
+ * holds them in memory, calls the vision provider, and discards
+ * them. Per ADR-0017 §"Photo / vision invariants", the bytes
+ * never enter the text-coach prompt, conversation persistence,
+ * analytics, or log lines.
+ *
+ * Rate-limited: free 1/min, paid 3/min via the in-memory
+ * `FoodDraftRateLimiter` (replaceable with the durable limiter
+ * once MEM-001's `memoryWriteRateLimit` shape lands).
+ */
+
+import type { FastifyPluginAsync } from "fastify";
+import type { PlanTier, UserId } from "@mizyun/core";
+import {
+  VisionProviderError,
+  type VisionDraftProvider,
+  type VisionDraftRequest,
+  type VisionMimeType,
+} from "@mizyun/agent-runtime";
+import {
+  foodDraftResponseSchema,
+  type FoodDraftResponse,
+} from "@mizyun/contracts";
+import { randomUUID } from "node:crypto";
+
+import { sendApiError } from "../../errors.js";
+import { FoodDraftRateLimiter } from "./draft-rate-limit.js";
+
+interface FoodDraftRoutesOptions {
+  readonly visionProvider: VisionDraftProvider;
+  readonly rateLimiter: FoodDraftRateLimiter;
+  /**
+   * Resolves the plan tier for the principal. Production wires
+   * this from `profiles.plan_tier`; tests inject a stub.
+   */
+  readonly resolvePlanTier: (userId: UserId) => PlanTier;
+}
+
+const MAX_PHOTO_BYTES = 15 * 1024 * 1024;
+const ALLOWED_MIME_TYPES: ReadonlySet<VisionMimeType> = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
+
+const principalOrThrow = (): never => {
+  throw new Error("principal missing after authentication");
+};
+
+const visionFailureToHttpStatus = (
+  kind: VisionProviderError["kind"],
+): number => {
+  switch (kind) {
+    case "not_configured":
+    case "external_access_disabled":
+      return 503;
+    case "authentication":
+    case "invalid_request":
+    case "refused":
+    case "malformed_response":
+      return 503;
+    case "rate_limited":
+      return 429;
+    case "timeout":
+    case "unavailable":
+      return 502;
+    default:
+      return 502;
+  }
+};
+
+export const foodDraftRoutes: FastifyPluginAsync<
+  FoodDraftRoutesOptions
+> = async (app, options) => {
+  app.post(
+    "/draft",
+    { preHandler: app.authenticate },
+    async (request, reply): Promise<FoodDraftResponse | void> => {
+      const principal = request.principal ?? principalOrThrow();
+      const requestId = randomUUID();
+
+      if (!request.isMultipart()) {
+        return sendApiError(
+          reply,
+          request,
+          422,
+          "VALIDATION_ERROR",
+          "Photo drafts require multipart/form-data with an `image` field.",
+        );
+      }
+
+      // Per-tier rate limit. The bucket is per user, sliding
+      // 60-second window. Reject with 429 + Retry-After before
+      // any photo bytes are read.
+      const tier = options.resolvePlanTier(principal.userId as UserId);
+      const rate = options.rateLimiter.acquire(principal.userId, tier);
+      if (!rate.allowed) {
+        reply.header("retry-after", String(rate.retryAfter));
+        return sendApiError(
+          reply,
+          request,
+          429,
+          "RATE_LIMITED",
+          `Photo drafts are limited to ${
+            tier === "paid" ? 3 : 1
+          } request per minute. Try again in ${rate.retryAfter} second(s).`,
+        );
+      }
+
+      // Read the multipart body. The route accepts exactly one
+      // `image` file + an optional `textHint` field.
+      let photo: Buffer | null = null;
+      let mimeType: VisionMimeType | null = null;
+      let textHint: string | undefined;
+      try {
+        for await (const part of request.parts()) {
+          if (part.type === "file" && part.fieldname === "image") {
+            if (photo !== null) {
+              return sendApiError(
+                reply,
+                request,
+                422,
+                "VALIDATION_ERROR",
+                "Only one `image` field is allowed.",
+              );
+            }
+            const candidate = part.mimetype.toLowerCase();
+            if (!ALLOWED_MIME_TYPES.has(candidate as VisionMimeType)) {
+              return sendApiError(
+                reply,
+                request,
+                422,
+                "VALIDATION_ERROR",
+                `Image mime type "${part.mimetype}" is not allowed. Use image/jpeg, image/png, or image/webp.`,
+              );
+            }
+            mimeType = candidate as VisionMimeType;
+            const chunks: Buffer[] = [];
+            let total = 0;
+            for await (const chunk of part.file) {
+              total += chunk.length;
+              if (total > MAX_PHOTO_BYTES) {
+                return sendApiError(
+                  reply,
+                  request,
+                  422,
+                  "VALIDATION_ERROR",
+                  `Image exceeds the 15 MiB limit (got ${total} bytes).`,
+                );
+              }
+              chunks.push(chunk as Buffer);
+            }
+            photo = Buffer.concat(chunks, total);
+          } else if (part.type === "field" && part.fieldname === "textHint") {
+            const value = (part.value as { toString(): string }).toString();
+            textHint = value.slice(0, 500);
+          }
+        }
+      } catch (error) {
+        return sendApiError(
+          reply,
+          request,
+          422,
+          "VALIDATION_ERROR",
+          `Failed to read multipart body: ${
+            error instanceof Error ? error.message : "unknown error"
+          }`,
+        );
+      }
+
+      if (photo === null || mimeType === null) {
+        return sendApiError(
+          reply,
+          request,
+          422,
+          "VALIDATION_ERROR",
+          "Missing required `image` field.",
+        );
+      }
+
+      const visionRequest: VisionDraftRequest = {
+        userId: principal.userId as UserId,
+        photo: new Uint8Array(photo),
+        mimeType,
+        ...(textHint !== undefined ? { textHint } : {}),
+        requestId,
+      };
+
+      try {
+        const candidate =
+          await options.visionProvider.generateDraft(visionRequest);
+        return reply
+          .status(200)
+          .send(foodDraftResponseSchema.parse({ draft: candidate, requestId }));
+      } catch (error) {
+        if (error instanceof VisionProviderError) {
+          const status = visionFailureToHttpStatus(error.kind);
+          const code =
+            status === 429
+              ? "RATE_LIMITED"
+              : status === 503
+                ? "AI_CONFIGURATION_ERROR"
+                : "AI_UNAVAILABLE";
+          const message =
+            error.kind === "not_configured"
+              ? "Photo drafts are not configured on this server."
+              : error.kind === "external_access_disabled"
+                ? "External AI vision access is disabled."
+                : error.message;
+          return sendApiError(reply, request, status, code, message);
+        }
+        throw error;
+      }
+    },
+  );
+};
