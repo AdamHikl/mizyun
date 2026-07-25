@@ -289,6 +289,56 @@ Accept the Release build independently on iOS and Android.
 - no prompts, responses, health values, user IDs, or conversation IDs in product analytics;
 - rollback rule for safety regression, model-alias change, cost spike, or provider incident.
 
+#### AI-OPS-001 — Durable limiter (implemented 2026-07-24)
+
+The single-process `Map`-based limiter used during AI-MOB-001 was
+replaced by a service-role Postgres implementation:
+
+- `supabase/migrations/20260724120000_ai_ops_001_limits.sql` adds
+  `ai_daily_token_ledger`, `ai_request_windows`, `ai_in_flight`, and
+  `ai_provider_calls` plus eight `SECURITY DEFINER` RPCs.
+- `packages/config/src/ai-tier.ts` (ADR-0017) pins the per-tier caps:
+  free = 5_000 tokens/day, 3 req/min, 1 concurrent; paid = 100_000
+  tokens/day, 6 req/min, 1 concurrent. Env overrides apply only to
+  the paid tier.
+- `apps/api/src/modules/coach/limits.ts` exposes the
+  `SupabaseCoachLimitService` (production) and
+  `InMemoryCoachLimitService` (tests + local dev) implementations of
+  the `CoachLimitService` interface. The Coach route
+  (`apps/api/src/modules/coach/routes.ts`) is now a thin consumer.
+- Plan tier resolves from `profiles.plan_tier`; the dev-only
+  `AI_USER_TIER_OVERRIDE` env knob threads through
+  `AppDependencies.planTierOverride`.
+- `SUPABASE_SERVICE_ROLE_KEY` (added to `@mizyun/config`) is the
+  single grant that unlocks the limiter RPCs. The key lives only in
+  the ignored root `.env`.
+- pgTAP cases (`supabase/tests/database/0002_user_isolation.test.sql`)
+  cover free vs paid token caps, durable replay, and the per-tier
+  `outcome='replayed'` contract.
+- `scripts/ai-ops-001-smoke.sh` boots two API replicas (free + paid)
+  and asserts the per-tier limits without any live Mistral call.
+
+#### AI-OPS-002 — RPC ACL lockdown (implemented 2026-07-25)
+
+The original `20260724120000_ai_ops_001_limits.sql` granted EXECUTE
+on the eight `ai_*` RPCs to `service_role`, but PostgreSQL ships with
+EXECUTE granted to PUBLIC for new functions. Without an explicit
+revoke, anon / authenticated callers retained the ability to invoke
+the limiter RPCs and read/write the durable ledger.
+
+- New migration `20260725120000_ai_ops_002_rpc_acls.sql` revokes
+  EXECUTE on every `ai_*` function from `public`, `anon`, and
+  `authenticated`. EXECUTE remains granted only to `service_role`,
+  which the API composition root uses via `SUPABASE_SERVICE_ROLE_KEY`.
+- pgTAP cases in `0002_user_isolation.test.sql` assert that
+  `anon` and `authenticated` cannot execute `ai_reserve_tokens`,
+  `ai_reserve_provider_call`, `ai_commit_tokens`, or
+  `ai_acquire_in_flight` — verified locally at plan count 28.
+- ADR-0017 (`/Users/adam/Documents/mizyun/docs/adr/0017-ai-governance.md`)
+  captures the governance decisions that bind this lockdown: per-feature
+  Mistral workspaces, ZDR + training/feedback off, EU residency,
+  wellness scope, free-vs-paid caps, photo / memory invariants.
+
 ## Test strategy
 
 ### Automated

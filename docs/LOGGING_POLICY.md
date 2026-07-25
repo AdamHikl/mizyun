@@ -61,15 +61,17 @@ The `internalErrorBody` and `sendApiError` helpers in `errors.ts` are the only p
 
 ## Error codes
 
-| Code                         | HTTP | Where it is used                                                |
-| ---------------------------- | ---- | --------------------------------------------------------------- |
-| `AUTHENTICATION_REQUIRED`    | 401  | `authenticationPlugin` when no Authorization header is present. |
-| `INVALID_ACCESS_TOKEN`       | 401  | `authenticationPlugin` when the verifier returns `null`.        |
-| `AUTHENTICATION_UNAVAILABLE` | 503  | `authenticationPlugin` when the verifier throws.                |
-| `NOT_FOUND`                  | 404  | Reserved for explicit 404 responses (future).                   |
-| `VALIDATION_ERROR`           | 422  | Reserved for explicit Zod-validation failures (future).         |
-| `RATE_LIMITED`               | 429  | Reserved for rate-limit responses (future).                     |
-| `INTERNAL_ERROR`             | 500  | Global error handler fallback.                                  |
+| Code                         | HTTP    | Where it is used                                                |
+| ---------------------------- | ------- | --------------------------------------------------------------- |
+| `AUTHENTICATION_REQUIRED`    | 401     | `authenticationPlugin` when no Authorization header is present. |
+| `INVALID_ACCESS_TOKEN`       | 401     | `authenticationPlugin` when the verifier returns `null`.        |
+| `AUTHENTICATION_UNAVAILABLE` | 503     | `authenticationPlugin` when the verifier throws.                |
+| `NOT_FOUND`                  | 404     | Reserved for explicit 404 responses (future).                   |
+| `VALIDATION_ERROR`           | 422     | Reserved for explicit Zod-validation failures (future).         |
+| `RATE_LIMITED`               | 429     | Per-user Coach request/token limits and provider 429 responses. |
+| `AI_UNAVAILABLE`             | 502/503 | Recoverable provider timeout/unavailable/disabled responses.    |
+| `AI_CONFIGURATION_ERROR`     | 503     | Non-retryable provider authentication/payment/schema failures.  |
+| `INTERNAL_ERROR`             | 500     | Global error handler fallback.                                  |
 
 ## What feature code may add
 

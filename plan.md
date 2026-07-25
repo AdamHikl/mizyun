@@ -38,6 +38,18 @@ Foundation
 
 Nutrition, training, and progress can advance in parallel only after the production composition root persists them. The text coach may now be implemented because confirmed manual workflows, deterministic calculations, and product instrumentation exist. External AI access and photo interpretation still depend on provider/privacy approval, safety and quality evaluation, deletion/isolation, budgets, and native acceptance. Community sharing remains post-MVP.
 
+## Cross-cutting infrastructure evolution
+
+ADR-0016 and `docs/INFRASTRUCTURE_EVOLUTION_PLAN.md` establish a managed-first, portable path:
+
+1. use separate managed Supabase EU projects for hosted development, staging, alpha, and initial production;
+2. keep business rules, identity, memory, media, and model providers behind replaceable ports;
+3. prove database/Auth/object export and restore into Mizyun-operated staging while managed Supabase remains authoritative;
+4. operate production-shaped self-hosted staging for at least 90 days with two qualified operators, recovery drills, monitoring, and rollback;
+5. move production only after two successful cutover rehearsals and explicit operational, data-protection, economic, and reliability approval.
+
+This track does not displace the current AI/mobile acceptance work. The next infrastructure milestone is hosted EU Supabase acceptance; self-hosting starts only after the managed environment provides real scale, cost, backup, and recovery measurements.
+
 ## Phase 0 — Modular foundation ✅
 
 ### Delivered

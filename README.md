@@ -20,6 +20,7 @@ Supporting sources of truth:
 - [`docs/QUALITY_GATES.md`](docs/QUALITY_GATES.md) — definition of done and release gates
 - [`docs/OBSERVABILITY.md`](docs/OBSERVABILITY.md) — reviewed product-analytics events, properties, consent, retention, and export boundary
 - [`docs/AI_IMPLEMENTATION_PLAN.md`](docs/AI_IMPLEMENTATION_PLAN.md) — default-off Mistral implementation, evaluation, safety, and release sequence
+- [`docs/INFRASTRUCTURE_EVOLUTION_PLAN.md`](docs/INFRASTRUCTURE_EVOLUTION_PLAN.md) — managed-EU hosting now and gated migration to Mizyun-operated infrastructure
 - [`docs/alpha/README.md`](docs/alpha/README.md) — founder dogfood, design-partner, native acceptance, issue, and aggregate-results evidence
 - [`docs/SESSION_GUIDE.md`](docs/SESSION_GUIDE.md) — start/research/handoff workflow
 - [`docs/tutorials/README.md`](docs/tutorials/README.md) — reusable setup, build, test, simulator, emulator, and troubleshooting runbooks

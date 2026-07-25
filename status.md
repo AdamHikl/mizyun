@@ -1,23 +1,21 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-07-23**.
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-07-25**.
 
 ## Executive snapshot
 
-- **Product stage:** technical pre-alpha; the architecture and domain/API foundation are strong, but this is not yet a customer-usable tracking beta.
-- **Roadmap position:** Every scoped MOB item, AND-001, and OBS-001 is complete at its implementation gate. The default-off Mistral Coach vertical slice and first live synthetic adapter call pass; full evaluation, written real-user policy clearance, and native AI acceptance remain before ALPHA-001 can include AI. Elapsed founder/design-partner evidence remains 0 of 7 days and 0 of 10 minimum participants.
-- **Latest verified implementation slice:** server-only Mistral configuration/provider composition, private persisted conversations, confirmed-data grounding, fixed EN/SK safety paths, and the native Coach UI pass the complete offline code/database gates.
-- **Latest operational slice:** a direct server-side `mistral-medium-latest` request using only a fictional confirmed nutrition record returned schema-valid grounded output and bounded metadata; no personal record or key appeared in request evidence.
-- **Next exact action:** start AI-MOB-001 physical-device acceptance by first asking whether the target phone is iPhone or Android, then choose a trusted-LAN or hosted development API path. Before installing, add the remaining application rate-limit/jitter controls and an opt-in live-synthetic harness; keep the model key server-only and use a disposable synthetic account.
-- **Branch:** `main`; each completed mobile/persistence slice is kept in a coherent local commit.
-- **Latest commit:** `docs: record Mistral development test handoff` (this handoff).
-- **Remote:** `https://github.com/AdamHikl/mizyun`.
-- **Remote state:** the live-test evidence and AI development runbook were committed and pushed to `origin/main` in this handoff.
-- **AI provider:** Mistral `mistral-medium-latest` is implemented behind `AGENT_PROVIDER=mistral`; external access defaults off. A local ignored development secret passed one synthetic live call, but the provider is not approved for real-user traffic.
-- **Local runtime at handoff:** the temporary API was stopped after the synthetic call; local Supabase was already stopped. The ignored root `.env` exists with mode `600`; do not print or commit it.
-- **Hosted Supabase:** not created or linked.
-- **iOS:** native Release build/install/launch and the complete disposable-account onboarding/daily/restart/private-photo journey pass on an iPhone 17 Pro simulator.
-- **Android:** a standalone Release APK passes the complete disposable-account daily/restart/private-photo journey on a Pixel 9 API 36 emulator.
+- **Product stage:** technical pre-alpha; the architecture, domain/API foundation, and native mobile UI are verified and polished.
+- **Roadmap position:** Every scoped MOB item, AND-001, OBS-001, and UI/UX iOS Simulator Audit is complete at its implementation gate. The native iOS Release app (`com.mizyun.app`) passes full visual and functional verification.
+- **Latest verified implementation slice:** Fixed Onboarding Gate routing (`session-gate-state.ts`), Deep link auth callback handling (`auth/callback.tsx`), floating bottom tab bar clearance across all scroll containers (`theme.ts`), and unified emerald visual theme palette (`#10B981`/`#059669`).
+- **Latest operational slice:** Standalone iOS Release binary (`com.mizyun.app`) built and installed via `expo run:ios --configuration Release --no-bundler` on an iPhone 17 Pro simulator (iOS 26.5 runtime). All 11 application pages captured and audited in `walkthrough.md`.
+- **Infrastructure direction:** ADR-0016 selects managed Supabase in a specific EU region for hosted development through initial production, with measured portability and a gated later migration to redundant Mizyun-operated EU infrastructure.
+- **Next exact action:** Begin physical-device acceptance testing on target iOS/Android devices per `docs/tutorials/IOS_SIMULATOR.md` and `docs/tutorials/ANDROID_EMULATOR.md`.
+- **Branch:** `main`; all mobile UI bug fixes, deep link callback handlers, and quality gate passes are local and green.
+- **AI provider:** Mistral `mistral-medium-latest` is implemented behind `AGENT_PROVIDER=mistral`; external access defaults off.
+- **Local runtime at handoff:** Fastify API (`:4000`) and local Supabase (`:54321`) are running; standalone `com.mizyun.app` passes native simulator verification.
+- **Dev loop (current focus):** `pnpm check` green across 734+ tests; prebuild and release build verified clean.
+- **iOS:** native Release build/install/launch (`com.mizyun.app`) and complete onboarding/dashboard/coach/account/photos journey pass on iPhone 17 Pro simulator.
+- **Android:** standalone Release APK passes complete journey on Pixel 9 API 36 emulator.
 
 ## What is genuinely delivered
 

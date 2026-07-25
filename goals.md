@@ -65,6 +65,8 @@ The coach can use current goals, confirmed records, preferences, limitations, an
 
 Authentication, model providers, memory retrieval, storage, and health-platform integrations remain behind explicit interfaces so one component can be upgraded without rewriting features.
 
+Managed services are acceptable for early product validation and production reliability. Durable user data must remain exportable and migratable to Mizyun-operated EU infrastructure without rewriting business features or surrendering user export/deletion guarantees.
+
 ## MVP scope
 
 The first usable beta must include:
@@ -100,7 +102,7 @@ Detailed requirements and identifiers live in `docs/PRODUCT_REQUIREMENTS.md`.
 4. **Private by default.** User data and media are isolated, minimally retained, and never made public implicitly.
 5. **Memory is visible and reversible.** Users can review, correct, expire, and delete what the coach remembers.
 6. **Recommendations explain why.** Guidance cites the goal and inputs that shaped it and communicates uncertainty.
-7. **Small replaceable modules.** Features depend on domain ports, not vendor SDKs or another feature's internals.
+7. **Small replaceable modules and portable data.** Features depend on domain ports, not vendor SDKs or another feature's internals; managed infrastructure must have an evidenced exit path.
 8. **Safe defaults over feature theater.** Disabled infrastructure produces an honest setup state, not fabricated results.
 9. **Accessible, low-friction logging.** Common actions should be reachable quickly and work with metric or imperial units.
 10. **Build evidence before automation.** Manual workflows and evaluation datasets come before AI automation.

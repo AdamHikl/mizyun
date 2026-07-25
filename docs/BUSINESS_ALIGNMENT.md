@@ -6,9 +6,11 @@
 
 The repository supports the intended business **architecturally**, but not yet as a customer-ready product.
 
-Mizyun has a strong modular, privacy-conscious, provider-neutral foundation and unusually broad tested domain/API coverage for its stage. The manual tracking and private-photo surfaces now pass authenticated, persistent standalone iOS and Android journeys against local Supabase and Storage, and consent-first local product analytics is implemented. The app remains a technical pre-alpha because hosted deployment, physical-device proof, participant analytics exports, and real-user repetition are incomplete and the AI coach is disabled.
+Mizyun has a strong modular, privacy-conscious, provider-neutral foundation and unusually broad tested domain/API coverage for its stage. The manual tracking and private-photo surfaces now pass authenticated, persistent standalone iOS and Android journeys against local Supabase and Storage, consent-first local product analytics is implemented, and the default-off Mistral Coach vertical slice plus one live synthetic adapter call pass. The app remains a technical pre-alpha because hosted deployment, physical-device AI proof, participant analytics exports, full AI evaluation, and real-user repetition are incomplete.
 
-The next implementation milestone is a default-off, grounded Mistral text coach evaluated with synthetic data before controlled alpha. This sequencing change does not make the app customer-ready: provider policy/privacy, safety, deletion/isolation, cost, hosted deployment, physical-device, and repeated-user evidence remain required before external AI access.
+The next implementation milestone is physical-device acceptance of the default-off grounded Mistral text coach using a trusted development endpoint and synthetic records. This sequencing does not make the app customer-ready: provider policy/privacy, safety, deletion/isolation, cost, hosted deployment, physical-device, and repeated-user evidence remain required before external AI access.
+
+The infrastructure strategy is managed-first and portable: use managed Supabase in a specific EU region through initial production, then consider migration to redundant Mizyun-operated EU infrastructure only after measured economic/compliance triggers and the restore, staffing, staging, recovery, and rollback gates in `docs/INFRASTRUCTURE_EVOLUTION_PLAN.md` pass.
 
 ## Customer and problem
 
@@ -46,19 +48,19 @@ Mizyun must remain a fitness/wellness product rather than claiming medical diagn
 
 ## Audited implementation matrix
 
-| Business promise                   | Current implementation                                                                | Readiness                     | Principal gap                                                                     |
-| ---------------------------------- | ------------------------------------------------------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------- |
-| Private personal workspace         | Supabase Auth, secure native sessions, RLS, persistent repositories, private Storage  | Local iOS/Android pass        | Hosted deployment and physical-device acceptance remain open                      |
-| Low-friction calorie tracking      | Persistent food CRUD, mobile daily lifecycle, and calorie/macro summaries             | Local iOS/Android pass        | History breadth and text/photo drafts remain open                                 |
-| Weight and body progress           | Persistent measurements, mobile raw/trend views, and private progress-photo lifecycle | Local iOS/Android pass        | Camera hardware and broader measurement breadth remain open                       |
-| Gym progress and exercise planning | Persistent workout/set routes, mobile active session, and previous performance        | Local iOS/Android pass        | Templates and suggestions remain open                                             |
-| Surplus/deficit guidance           | Versioned deterministic engine, real mobile dashboard, and calendar reviews           | Local iOS/Android pass        | Step input remains open                                                           |
-| AI trainer                         | Provider-neutral orchestrator and disabled provider                                   | Interface only                | No Mistral adapter, tools, conversation lifecycle, evaluation, or UI              |
-| Durable agent memory               | Memory port, in-memory search, and protected SQL schema                               | Interface/schema only         | No persistent adapter or user-visible review/correction controls                  |
-| Photo analysis                     | Private Storage plus consent-gated mobile upload/timeline/compare/delete              | Native iOS/Android loops pass | Camera hardware and any evaluated vision model remain open                        |
-| Android and iPhone                 | Shared Expo app; full local iOS and Android journeys pass                             | Simulator/emulator proof      | Physical devices and store builds remain unverified                               |
-| Freemium/premium business          | Product hypothesis plus consent-first local validation analytics                      | Instrumentation only          | No participant dataset, entitlement model, paywall, subscription, or pricing test |
-| Community sharing                  | Explicitly excluded from MVP                                                          | Intentionally deferred        | Reconsider only after private product retention                                   |
+| Business promise                   | Current implementation                                                                | Readiness                            | Principal gap                                                                     |
+| ---------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------- |
+| Private personal workspace         | Supabase Auth, secure native sessions, RLS, persistent repositories, private Storage  | Local iOS/Android pass               | Hosted deployment and physical-device acceptance remain open                      |
+| Low-friction calorie tracking      | Persistent food CRUD, mobile daily lifecycle, and calorie/macro summaries             | Local iOS/Android pass               | History breadth and text/photo drafts remain open                                 |
+| Weight and body progress           | Persistent measurements, mobile raw/trend views, and private progress-photo lifecycle | Local iOS/Android pass               | Camera hardware and broader measurement breadth remain open                       |
+| Gym progress and exercise planning | Persistent workout/set routes, mobile active session, and previous performance        | Local iOS/Android pass               | Templates and suggestions remain open                                             |
+| Surplus/deficit guidance           | Versioned deterministic engine, real mobile dashboard, and calendar reviews           | Local iOS/Android pass               | Step input remains open                                                           |
+| AI trainer                         | Default-off Mistral adapter, confirmed grounding, conversations, safety, and Coach UI | Offline plus one live synthetic call | Full evaluation, provider-policy clearance, budgets, and native acceptance remain |
+| Durable agent memory               | Memory port, in-memory search, and protected SQL schema                               | Interface/schema only                | No persistent adapter or user-visible review/correction controls                  |
+| Photo analysis                     | Private Storage plus consent-gated mobile upload/timeline/compare/delete              | Native iOS/Android loops pass        | Camera hardware and any evaluated vision model remain open                        |
+| Android and iPhone                 | Shared Expo app; full local iOS and Android journeys pass                             | Simulator/emulator proof             | Physical devices and store builds remain unverified                               |
+| Freemium/premium business          | Product hypothesis plus consent-first local validation analytics                      | Instrumentation only                 | No participant dataset, entitlement model, paywall, subscription, or pricing test |
+| Community sharing                  | Explicitly excluded from MVP                                                          | Intentionally deferred               | Reconsider only after private product retention                                   |
 
 ## What the architecture gets right
 
@@ -68,6 +70,7 @@ Mizyun must remain a fitness/wellness product rather than claiming medical diagn
 - AI-derived nutrition and photo observations are designed as uncertain drafts requiring confirmation.
 - Mistral can be added as a provider package and selected in the API composition root without rewriting core features.
 - Privacy, deletion, and user-controlled memory support a credible EU-first trust position.
+- Managed Supabase can establish a reliable EU production baseline without surrendering a future path to Mizyun-operated PostgreSQL/Auth/Storage infrastructure.
 
 These choices support future fundraising and technical hiring because engineers can work on vertical modules without coupling the entire application to one vendor.
 
@@ -77,7 +80,7 @@ These choices support future fundraising and technical hiring because engineers 
 2. **No paid value:** AI assistance, memory controls, billing, and entitlements are absent.
 3. **No production environment:** hosted backend, real email flows, monitoring, policies, and store-distributed builds are not ready.
 4. **No physical-device/repeated-user proof:** simulator acceptance does not replace device testing, founder dogfooding, or design-partner evidence.
-5. **Local-only work risk:** completed slices remain ahead of GitHub until an explicit push is authorized.
+5. **Operations gap:** no hosted backup/restore, monitoring, incident response, or production on-call evidence exists; future self-hosting would increase rather than remove these responsibilities.
 
 ## Required execution order
 
@@ -86,11 +89,12 @@ These choices support future fundraising and technical hiring because engineers 
 3. MEDIA-MOB-001 — private mobile photo lifecycle.
 4. AND-001 — Android runtime and journey verification.
 5. OBS-001 — privacy-safe activation, friction, reliability, and retention measurement. (Implementation gate complete.)
-6. AI-GOV-001 / AI-001 / AI-002 — privately implement and synthetically evaluate a default-off Mistral text coach using normalized read-only tools.
-7. ALPHA-001 — founder dogfooding followed by 10–30 design partners; enable AI only if its separate external-release gates pass.
-8. MEM-001 / VISION-001 — visible memory controls, then editable photo/text food drafts with a consent-based evaluation dataset.
-9. BILL-001 — premium packaging, entitlements, pricing test, and subscription billing.
-10. External beta and 30–100 active-customer validation before material paid acquisition or a large hiring plan.
+6. AI-GOV-001 / AI-001 / AI-002 — complete live-synthetic evaluation and physical-device acceptance of the default-off grounded Mistral coach.
+7. INFRA-MANAGED-001 — create hosted EU development/staging Supabase and prove migrations, Auth, RLS, Storage, recovery, and device reachability.
+8. ALPHA-001 — founder dogfooding followed by 10–30 design partners; enable AI only if its separate external-release gates pass.
+9. MEM-001 / VISION-001 — visible memory controls, then editable photo/text food drafts with a consent-based evaluation dataset.
+10. BILL-001 — premium packaging, entitlements, pricing test, and subscription billing.
+11. External beta and 30–100 active-customer validation before material paid acquisition or a large hiring plan.
 
 ## Validation ladder
 

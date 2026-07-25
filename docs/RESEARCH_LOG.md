@@ -983,3 +983,166 @@ PERSIST-001 closed the persistence gap for profile, goals, and food. What's the 
 - Current Mistral documentation recommends custom structured outputs over generic JSON mode. The provider requires `{ answer }` through the SDK parse surface and then validates the normalized response again before exposing it to the runtime.
 - Mistral Moderation 2 (`mistral-moderation-2603`) is the current documented moderation model and adds jailbreaking classification. Live moderation/guardrail calibration remains part of the synthetic-provider gate; critical medical, emergency, eating-disorder, self-harm, extreme-target, and prompt-injection cases have a deterministic provider-independent first line now.
 - ADR-0015 accepts stateless Chat Completions, Mizyun-owned RLS conversation state, server-built confirmed-data grounding, resolved-model recording, and default-off external access.
+
+## 2026-07-23 — Managed-first infrastructure with a self-hosting exit path
+
+### Primary sources
+
+- Supabase, **Available regions** (accessed 2026-07-23): https://supabase.com/docs/guides/platform/regions
+- Supabase, **Database backups** (accessed 2026-07-23): https://supabase.com/docs/guides/platform/backups
+- Supabase, **Self-Hosting** (accessed 2026-07-23): https://supabase.com/docs/guides/self-hosting
+- Supabase, **Self-Hosting with Docker** (accessed 2026-07-23): https://supabase.com/docs/guides/self-hosting/docker
+- Supabase, **Restore a Platform Project to Self-Hosted** (accessed 2026-07-23): https://supabase.com/docs/guides/self-hosting/restore-from-platform
+- Supabase, **Migrating Auth Users Between Supabase Projects** (accessed 2026-07-23): https://supabase.com/docs/guides/troubleshooting/migrating-auth-users-between-projects
+- Supabase, **Storage schema design** (accessed 2026-07-23): https://supabase.com/docs/guides/storage/schema/design
+- European Commission, **Special categories of personal data** (accessed 2026-07-23): https://commission.europa.eu/law/law-topic/data-protection/information-individuals_en
+
+### Verified findings and implementation consequences
+
+- Managed Supabase supports specific EU AWS regions including Frankfurt, Ireland, Paris, Stockholm, and Zurich. Mizyun will initially prefer a specific EU region rather than a broad automatic region, subject to customer geography and legal review.
+- Managed database backups do not contain private Storage object bytes. Hosted production therefore needs a separate object-backup, restore, and checksum procedure.
+- Supabase states that self-hosting transfers server maintenance, hardening, service configuration, Postgres operations, high availability, scalability, backups, disaster recovery, monitoring, and uptime to the operator. A low-cost single VPS is not equivalent to the managed production service.
+- Self-hosted Supabase is community-supported and lacks managed-platform capabilities including managed backups/PITR and some advanced metrics. Mizyun must supply equivalent recovery and observability before production cutover.
+- Supabase provides an official managed-platform-to-self-hosted restore workflow, but component and Postgres version differences can break restoration. Every target version and extension must be pinned and rehearsed against an isolated staging restore.
+- Auth users and password hashes can be migrated. JWT signing-key choice determines whether existing sessions remain valid or every user must authenticate again; Mizyun must make and rehearse that decision before cutover.
+- Storage metadata and object bytes have different authorities. A future cutover must copy object bytes through supported Storage/S3 interfaces and verify manifests, not only restore PostgreSQL rows.
+- EU guidance treats health-related data as sensitive personal data requiring stronger risk-proportionate safeguards. Infrastructure ownership does not remove GDPR duties; the self-hosting decision needs a reviewed DPIA, access controls, incident response, retention, and recovery evidence.
+- ADR-0016 accepts managed Supabase through initial production while preserving a gated migration to redundant Mizyun-operated EU infrastructure. `docs/INFRASTRUCTURE_EVOLUTION_PLAN.md` defines the stages and exit criteria.
+
+## 2026-07-23 — AI request controls and physical-iPhone preparation
+
+### Primary sources
+
+- Mistral AI, **Usage and limits** (accessed 2026-07-23): https://docs.mistral.ai/admin/billing-usage/usage-limits
+- Mistral AI, **Known limitations** (accessed 2026-07-23): https://docs.mistral.ai/resources/known-limitations
+- Expo, **Expo CLI** (accessed 2026-07-23): https://docs.expo.dev/more/expo-cli/
+- Apple Developer, **Enabling Developer Mode on a device** (accessed 2026-07-23): https://developer.apple.com/documentation/xcode/enabling-developer-mode-on-a-device
+- Apple Developer, **Building and running an app** (accessed 2026-07-23): https://developer.apple.com/documentation/xcode/building-and-running-an-app
+- Installed `@mistralai/mistralai` 1.15.1 source: `src/models/errors/mistralerror.ts` and `src/lib/retries.ts`
+
+### Verified findings and implementation consequences
+
+- Mistral documents per-organization/model request and token-throughput limits, 429 responses when limits are exceeded, and organization/workspace spending controls. Numeric limits vary by account and model, so Mizyun adds its own conservative per-user request, concurrency, and daily-token controls rather than assuming the provider account limit protects one user.
+- The installed SDK's HTTP error exposes status and `Headers`; its retry helper recognizes both delta-seconds and HTTP-date `Retry-After` values. Mizyun continues to disable SDK retries and owns exactly one bounded 429 retry with `Retry-After` or full jitter. Timeout, 5xx, and unknown transport failures are not automatically retried because Chat Completions has no provider idempotency key and an accepted-but-timed-out request could otherwise be billed twice.
+- Expo documents `expo run:ios --device` as the local physical-device compile/sign/install/launch path. Release configuration embeds the production bundle, so the trusted-LAN `EXPO_PUBLIC_*` URLs must be present at build time and only publishable client values may be used.
+- Apple requires Developer Mode for locally installed development builds. Pairing/trust, Developer Mode restart confirmation, signing-team selection when automatic signing cannot resolve it, and local-network permission are explicit user-interaction checkpoints for AI-MOB-001.
+- No ADR is required: these controls and the device workflow complete ADR-0015's existing default-off stateless-provider decision without changing conversation authority, module boundaries, or data formats.
+
+## 2026-07-24 — AI-OPS-001 durable limiter (replica-safe, plan-tier aware)
+
+### Scope
+
+Replace the single-process `Map`-based Coach limiter with a service-role
+Postgres implementation so the API can horizontally scale. Lock down the
+free vs paid per-user caps per ADR-0017. Make the provider-call ledger
+durable so retries after a hard failure use a fresh idempotency key.
+
+### Primary sources
+
+- Postgres, **Advisory locks** (accessed 2026-07-24): https://www.postgresql.org/docs/current/explicit-locking.html#ADVISORY-LOCKS
+- Postgres, **`SECURITY DEFINER` functions** (accessed 2026-07-24): https://www.postgresql.org/docs/current/sql-createfunction.html
+- Supabase, **Row Level Security** (accessed 2026-07-24): https://supabase.com/docs/guides/database/postgres/row-level-security
+- PostgREST, **Calling functions with `rpc`** (accessed 2026-07-24): https://postgrest.org/en/stable/references/api/functions.html
+- Supabase JS, **SupabaseClient.rpc** (accessed 2026-07-24): https://supabase.com/docs/reference/javascript/rpc
+- pgTAP, **`results_eq` / `is` / `lives_ok`** (accessed 2026-07-24): https://pgtap.org/documentation.html
+
+### Verified findings and implementation consequences
+
+- `pg_try_advisory_xact_lock(bigint)` returns `false` immediately when another transaction holds the same bigint. Each `ai_*` RPC takes an advisory lock on a stable hash of `(kind, userId, conversationId, key)` so concurrent same-user requests serialize without `SELECT … FOR UPDATE` deadlock risk.
+- `SECURITY DEFINER` with `set search_path = ''` is the supported escape hatch for limiter RPCs that must bypass RLS. The `service_role` is the only grantee; `authenticated` is `select`-only on the limiter tables.
+- PostgREST returns table-returning RPCs as an array of rows. A scalar-returning function (`returns boolean`) is wrapped as `{ "<funcname>": value }`, which the TS client surfaces as a non-array object. We shape `ai_acquire_in_flight` as `returns table(allowed boolean)` for consistency.
+- `return query` in PL/pgSQL queues rows; multiple statements queue multiple rows. Every `if found then … end if;` branch must include a trailing `return;` so the function returns exactly one row even when `return query` enqueues a row.
+- pgTAP's `results_eq` consumes the SET entirely; calling a set-returning RPC twice in two `results_eq` blocks re-runs the RPC, so the second call must be wrapped in a CTE / single-row `is` to avoid coupling the assertions.
+- ADR-0017 is cross-linked from the AI implementation plan; no new ADR is needed because the limiter is the implementation of an already-locked decision.
+
+## 2026-07-25 — AI-002 read-only Coach tools + tool loop
+
+### Scope
+
+Promote the Coach from "static grounding + one Mistral call" to
+"model picks which read-only tools to call, runtime executes
+them under the principal-bound userId, model sees the result".
+
+### Primary sources
+
+- Mistral AI, **Tool calling / function-calling** (accessed 2026-07-25): https://docs.mistral.ai/capabilities/function_calling
+- OpenAI, **Function-calling loop pattern** (accessed 2026-07-25): https://platform.openai.com/docs/guides/function-calling
+- PostgREST, **`tools` array in chat completion requests** (accessed 2026-07-25): https://docs.mistral.ai/api/chat/chat_completion
+
+### Verified findings and implementation consequences
+
+- Mistral Chat Completions accepts a `tools: [{type: "function", function: {name, description, parameters}}]` array alongside `messages`. The model can return either a final assistant message or a `tool_calls` array; both shapes are surfaced by `chat.parse` (the same ZDR-compatible call path Mizyun already uses). No migration to `chat.complete` is required.
+- The runtime — not the model — owns the `userId`. The orchestrator injects `principalUserId` into every tool execute call and the tool's `parameters` schema omits `userId` entirely, so the model cannot switch users (defence in depth).
+- `days_back` is clamped to 1..28 inside the tool; the model cannot widen the window past the static grounding's 28-day budget. Out-of-range values fall back to the default (7) so the answer still includes the data the model asked for.
+- Tool budget defaults to 1 round-trip. The orchestrator throws `AgentToolBudgetExceededError` when the model exceeds it; the route maps this to `AI_UNAVAILABLE`. Tests assert both the budget-exceeded path and the tool-error envelope (unknown tool name → `providerMetadata.toolCallError` + `finishReason: "tool_error"`).
+- ZDR is unaffected: the provider still uses `chat.parse` with the structured `coachOutputSchema`. Tool calls happen _between_ Mistral calls inside the orchestrator, never as user-controlled inputs.
+
+## 2026-07-25 — VISION-001 read-only photo-to-draft Coach surface
+
+### Scope
+
+Adds `POST /v1/food-entries/draft` so the mobile app can submit a
+photo (multipart `image` + optional `textHint`) and get back a
+structured candidate the user can edit and confirm. Photo bytes
+are transient: in-memory → provider → discarded. No server-side
+photo persistence; no photo URLs in the text-coach prompt;
+no log lines carrying photo bytes.
+
+### Primary sources
+
+- Mistral AI, **Vision (image inputs) on Chat Completions** (accessed 2026-07-25): https://docs.mistral.ai/capabilities/vision
+- Mistral AI, **Structured outputs (response_format)** (accessed 2026-07-25): https://docs.mistral.ai/capabilities/structured-outputs
+- @fastify/multipart (accessed 2026-07-25): https://github.com/fastify/fastify-multipart
+- RFC 7578 — Returning Values from Forms: multipart/form-data (accessed 2026-07-25): https://www.rfc-editor.org/rfc/rfc7578
+
+### Verified findings and implementation consequences
+
+- Mistral's `chat.complete` accepts content blocks (`type: "image_url"`) alongside text. With `response_format: { type: "json_schema", ... }` (or Zod-parsed structured output) the model returns a validated candidate in one round-trip — no need for chat.parse which doesn't support content blocks.
+- The dedicated `mizyun-vision-draft` Mistral workspace keeps the vision key separate from the text-coach key (per ADR-0017). ZDR + training/feedback off are required at workspace creation; the adapter refuses to construct if the SDK doesn't surface those flags.
+- @fastify/multipart reads parts in declared order; ordering the `textHint` field BEFORE the file in the test body was the only reliable way for the field to be picked up. Production clients send the file first because the standard libraries do so; the route reads all parts regardless of order.
+- File-size limit is 15 MiB to match the `private-media` bucket policy. The route enforces it from the multipart stream (counting chunk lengths) before the buffer is fully assembled, so a malicious client can't OOM the API.
+- The rate limit (`FoodDraftRateLimiter`) is a per-user sliding window: free 1/min, paid 3/min. It is checked before the multipart body is read, so a 429 response never touches photo bytes. This protects the vision provider's cost and never starves the Coach flow's daily budget.
+- The smoke harness (`scripts/vision-001-smoke.sh`) uses a separate `VISION_PROVIDER=stub` env knob to wire the deterministic `StubVisionProvider` so the dev path doesn't need a Mistral key. Production reads `MISTRAL_VISION_API_KEY` and wires the real `MistralVisionProvider`. The two paths are mutually exclusive.
+
+### Defence in depth
+
+- Photo bytes are accepted as `image/jpeg`, `image/png`, `image/webp` only. Other mime types → 422.
+- The model output is post-screened: sub-800-kcal suggestions and medical keywords are replaced with a safe fallback (`name: null`, `confidence: original`, warning "rejected by safety policy"). The route never surfaces a model claim that contradicts the wellness scope.
+- The route never logs the photo bytes, the textHint, or the model output. The request id (random UUID) is the only correlation token returned to the user.
+
+## 2026-07-25 — AI-MOB-002 Coach UX polish
+
+### Scope
+
+Polish the Coach flow on the iPhone simulator. No new features;
+no API changes. The segment closes the gap between "Coach works"
+(AIM-001) and "Coach is usable for a non-engineer."
+
+### Primary sources
+
+- Expo SDK 57, **Pressable / accessibility** (accessed 2026-07-25): https://docs.expo.dev/versions/v57.0.0/sdk/pressable/
+- React Native 0.86, **View accessibilityLiveRegion** (accessed 2026-07-25): https://reactnative.dev/docs/accessibility#livescreenreaderannouncements
+- WCAG 2.1, **1.4.11 Non-text Contrast** (accessed 2026-07-25): https://www.w3.org/WAI/WCAG21/Understanding/non-text-contrast.html
+- iOS HIG, **Touch targets ≥ 44pt** (accessed 2026-07-25): https://developer.apple.com/design/human-interface-guidelines/inputs/touch-targets
+
+### Verified findings and implementation consequences
+
+- Reuse existing `Collapsible` rather than introduce a new collapse primitive. Extended `Collapsible` to accept a controlled `open` + `onOpenChange` so the evidence-chips list can keep only one chip open at a time without a state-mutation prop drilling issue.
+- The `activityIndicator` colour must be one of the existing `Colors.dark.*` keys; `tint` does not exist. `text` is the correct foreground colour and has ≥ 4.5:1 contrast against `backgroundElement`.
+- `Pressable.accessibilityRole="button"` + `accessibilityState={{ busy, disabled }}` is the supported a11y surface in RN 0.86. `accessibilityRole="listitem"` on a plain `View` is not in the union; dropped in favour of an `accessibilityRole="list"` wrapper.
+- The status dot alone is not sufficient for screen readers or colour-blind users. Pair it with a text label ("Coach ready · mistral · mistral-medium-latest" / "Coach off · AI access disabled"). The dot is `accessibilityElementsHidden` so SR doesn't read it twice.
+- `minHeight: 44` on every pressable is enforced via the existing tokens (the primary button uses 48, secondary 44). The plan called this out as a non-negotiable.
+- An `accessibilityLiveRegion="polite"` View on the screen announces the latest assistant message; the `liveRegionTick` advances on success so the announcement fires once per round-trip, not on every keystroke.
+- The optimistic user bubble stays on the screen through the request and is replaced (not appended) when the server response returns, so the same id doesn't appear twice.
+- Focus is restored to the composer after every send (success or failure) via `inputRef.current?.focus()` in the `finally` block.
+
+### Smoke path
+
+`pnpm db:start` + `pnpm dev:api` + `pnpm dev:mobile` (iOS simulator):
+
+1. Empty thread list → "Start a private check-in".
+2. Tap "New conversation" → header reads `<title> · just now · tap to switch`.
+3. Tap header → thread-list sheet opens.
+4. Send "How am I doing?" → optimistic user bubble stays; assistant bubble appends; chips appear under assistant.
+5. Tap a chip → expands deterministic human summary.
+6. Force a 429 (raise `userRequestsPerMinute=1` then send twice) → alert border yellow with "Coach is busy…" copy.
