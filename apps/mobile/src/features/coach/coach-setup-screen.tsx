@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, type Href } from "expo-router";
+import { router, type Href, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import type {
   CoachConversation,
@@ -75,6 +75,7 @@ const alertCategoryFromMessage = (message: string | null): AlertCategory => {
 };
 
 export function CoachSetupScreen() {
+  const params = useLocalSearchParams<{ prompt?: string }>();
   const { session } = useAuth();
   const userId = session?.user.id ?? null;
   const [status, setStatus] = useState<CoachProviderStatus | null>(null);
@@ -107,6 +108,18 @@ export function CoachSetupScreen() {
   // arrives so the screen-reader live region announces it.
   const [liveRegionTick, setLiveRegionTick] = useState(0);
   const [now, setNow] = useState(() => new Date());
+  const reminderPromptApplied = useRef(false);
+
+  useEffect(() => {
+    if (
+      !reminderPromptApplied.current &&
+      typeof params.prompt === "string" &&
+      params.prompt.trim().length > 0
+    ) {
+      reminderPromptApplied.current = true;
+      setDraft(params.prompt.trim());
+    }
+  }, [params.prompt]);
 
   const refresh = useCallback(async () => {
     setLoading(true);

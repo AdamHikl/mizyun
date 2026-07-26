@@ -42,6 +42,12 @@
       "expo-router",
       "expo-secure-store",
       [
+        "expo-notifications",
+        {
+          "defaultChannel": "coach-reminders"
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "photosPermission": "Mizyun accesses a photo only when you choose it for a meal draft or your private progress timeline.",

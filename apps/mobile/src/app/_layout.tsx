@@ -1,4 +1,5 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from "expo-router";
+import { DarkTheme, DefaultTheme, ThemeProvider, router } from "expo-router";
+import * as Notifications from "expo-notifications";
 import * as SplashScreen from "expo-splash-screen";
 import { parseDeepLinkFragment } from "@mizyun/identity";
 import { useEffect } from "react";
@@ -14,6 +15,15 @@ import {
 } from "@/features/auth/auth-context";
 
 SplashScreen.preventAutoHideAsync();
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
 
 function AnalyticsSessionBridge() {
   useEffect(() => {
@@ -75,6 +85,33 @@ function DeepLinkBridge() {
   return null;
 }
 
+function CoachNotificationBridge() {
+  useEffect(() => {
+    const open = (notification: Notifications.Notification) => {
+      const data = notification.request.content.data ?? {};
+      if (data.url !== "/coach") return;
+      router.push({
+        pathname: "/coach",
+        params: {
+          ...(typeof data.prompt === "string" ? { prompt: data.prompt } : {}),
+        },
+      });
+    };
+    const initial = Notifications.getLastNotificationResponse();
+    if (initial?.notification) {
+      open(initial.notification);
+      Notifications.clearLastNotificationResponse();
+    }
+    const subscription = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        open(response.notification);
+      },
+    );
+    return () => subscription.remove();
+  }, []);
+  return null;
+}
+
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   return (
@@ -84,6 +121,7 @@ export default function TabLayout() {
       <AuthProvider>
         <DeepLinkBridge />
         <SessionGate>
+          <CoachNotificationBridge />
           <AppTabs />
         </SessionGate>
       </AuthProvider>

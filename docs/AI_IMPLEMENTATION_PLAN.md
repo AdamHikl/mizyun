@@ -66,7 +66,7 @@ offline implementation proceeds.
    production bundles are part of the standard gate. Next, run authenticated
    device journeys, hosted persistence/deletion checks, provider-model
    promotion, and the separately authorized policy/privacy go/no-go.
-8. **Coach action layer — active.** Convert explicit conversational inputs
+8. **Coach action layer — implementation complete.** Convert explicit conversational inputs
    into typed, persistent, editable proposals. Text meal logging and
    transient Coach photo attachments now route through the nutrition-draft
    provider and appear as the same persistent review card. Review transfers
@@ -84,8 +84,10 @@ offline implementation proceeds.
    nutrition days, the 28-day weight trend, the active goal, and recent
    training load. Adaptation is withheld until evidence thresholds pass;
    applicable recommendations step goal pace only once and require explicit
-   authenticated acceptance before recalculating future targets. Opt-in
-   proactive prompts remain sequenced next.
+   authenticated acceptance before recalculating future targets. Device-local
+   daily and weekly reminders are off by default, require OS permission,
+   deep-link to a prefilled Coach request, and perform no background analysis
+   or authoritative write. Sign-out cancels the user’s schedules.
 
 ## Why implementation can move before alpha
 

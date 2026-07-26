@@ -1327,6 +1327,34 @@ no log lines carrying photo bytes.
 - No new provider, platform service, native permission, or
   architectural boundary was introduced, so no ADR is required.
 
+## 2026-07-26 — Opt-in proactive Coach reminders
+
+### Primary sources
+
+- Expo SDK 57, **Notifications** (accessed 2026-07-26):
+  https://docs.expo.dev/versions/v57.0.0/sdk/notifications/
+
+### Verified findings and implementation consequences
+
+- Expo SDK 57 recommends `expo-notifications ~57.0.7` and supports
+  repeating daily and weekly local triggers on both mobile platforms.
+  Weekdays use `1` for Sunday through `7` for Saturday.
+- Android 13 requires a notification channel before its permission
+  prompt can appear. Mizyun creates one low-intrusion
+  `coach-reminders` channel before requesting permission.
+- The official Expo Router pattern listens for initial and warm
+  notification responses and validates the embedded URL before
+  navigation. Mizyun accepts only `/coach` and passes a bounded fixed
+  daily/weekly prompt into the composer.
+- Reminders are local, device-timezone schedules and require no push
+  token, remote notification service, background task, or health-data
+  processing. OS permission is requested only after explicit opt-in.
+- Settings and native schedule IDs are stored per authenticated user
+  in SecureStore. Rescheduling cancels old IDs; persistence failure
+  rolls back new schedules; opt-out and sign-out cancel every stored
+  schedule. No ADR is required because the feature uses the existing
+  device-local notification boundary without a new remote processor.
+
 ## 2026-07-25 — AI-MOB-002 Coach UX polish
 
 ### Scope

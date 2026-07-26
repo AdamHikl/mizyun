@@ -22,7 +22,12 @@ import {
   type PrincipalRenderState,
 } from "./principal-state";
 import { CoachPreferencesCard } from "./coach-preferences-card";
+import { CoachRemindersCard } from "./coach-reminders-card";
 import { MemoryControlsCard } from "./memory-controls-card";
+import {
+  applyCoachReminders,
+  loadCoachReminders,
+} from "@/features/coach/coach-reminders";
 
 /**
  * Account / settings screen.
@@ -35,7 +40,7 @@ import { MemoryControlsCard } from "./memory-controls-card";
  * the single "post-onboarding" surface regardless of configuration.
  */
 export function SettingsScreen() {
-  const { signOut, profile, refreshProfile } = useAuth();
+  const { signOut, profile, refreshProfile, session } = useAuth();
   const [state, setState] = useState<PrincipalRenderState>({
     kind: "loading",
   });
@@ -75,8 +80,17 @@ export function SettingsScreen() {
     // identity boundary. Denial clears the local log and prevents a later
     // account on this device from inheriting the prior user's choice.
     void analyticsClient.setConsent("denied");
+    if (session !== null) {
+      const reminders = await loadCoachReminders(session.user.id);
+      await applyCoachReminders(session.user.id, {
+        dailyEnabled: false,
+        weeklyEnabled: false,
+        hour: reminders.hour,
+        weeklyWeekday: reminders.weeklyWeekday,
+      });
+    }
     await signOut();
-  }, [signOut]);
+  }, [session, signOut]);
 
   return (
     <ThemedView style={styles.page}>
@@ -99,6 +113,9 @@ export function SettingsScreen() {
           {profile?.displayName ? null : <SetupWizardCard />}
           {profile !== null ? (
             <CoachPreferencesCard profile={profile} onSaved={refreshProfile} />
+          ) : null}
+          {session !== null ? (
+            <CoachRemindersCard userId={session.user.id} />
           ) : null}
           <MemoryControlsCard />
           <AnalyticsCard />
