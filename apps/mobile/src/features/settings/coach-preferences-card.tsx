@@ -1,7 +1,9 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, TextInput, View } from "react-native";
 import {
+  coachMemoryResponseSchema,
   profileResponseSchema,
+  type CoachMemoryResponse,
   type CoachingPreferences,
   type Profile,
 } from "@mizyun/contracts";
@@ -9,7 +11,7 @@ import {
 import { apiClient } from "@/composition/api-client";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { Spacing } from "@/constants/theme";
+import { Colors, Spacing } from "@/constants/theme";
 
 const experienceOptions = [
   ["beginner", "Beginner"],
@@ -88,16 +90,39 @@ export function CoachPreferencesCard({
   const [draft, setDraft] = useState<CoachingPreferences>(
     profile.coachingPreferences,
   );
+  const [customDurationText, setCustomDurationText] = useState(
+    profile.coachingPreferences.sessionDurationMinutes
+      ? String(profile.coachingPreferences.sessionDurationMinutes)
+      : "",
+  );
+  const [customNoteText, setCustomNoteText] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     setDraft(profile.coachingPreferences);
+    setCustomDurationText(
+      profile.coachingPreferences.sessionDurationMinutes
+        ? String(profile.coachingPreferences.sessionDurationMinutes)
+        : "",
+    );
   }, [profile]);
+
+  const updateDurationFromText = (text: string) => {
+    setCustomDurationText(text);
+    const parsed = parseInt(text.trim(), 10);
+    if (!isNaN(parsed) && parsed >= 15 && parsed <= 180) {
+      setDraft((prev) => ({ ...prev, sessionDurationMinutes: parsed }));
+    } else if (text.trim().length === 0) {
+      setDraft((prev) => ({ ...prev, sessionDurationMinutes: null }));
+    }
+  };
 
   const save = async () => {
     setSaving(true);
     setMessage(null);
+
+    // 1. Save profile preferences
     const result = await apiClient.request({
       method: "PUT",
       path: "/v1/profile",
@@ -113,7 +138,32 @@ export function CoachPreferencesCard({
       setSaving(false);
       return;
     }
-    setMessage("Coach preferences saved.");
+
+    // 2. If user typed a custom note, save it as a confirmed Coach memory
+    const note = customNoteText.trim();
+    if (note.length > 0) {
+      const memoryResult = await apiClient.request<CoachMemoryResponse>({
+        method: "POST",
+        path: "/v1/coach/memories",
+        body: {
+          kind: "preference",
+          content: note,
+          importance: 5,
+        },
+        schema: coachMemoryResponseSchema,
+      });
+      if (memoryResult.ok) {
+        // Automatically activate so Coach recalls it immediately
+        await apiClient.request<CoachMemoryResponse>({
+          method: "PATCH",
+          path: `/v1/coach/memories/${memoryResult.value.memory.id}`,
+          body: { status: "active" },
+        });
+        setCustomNoteText("");
+      }
+    }
+
+    setMessage("Coach preferences & custom notes saved.");
     setSaving(false);
     await onSaved();
   };
@@ -159,7 +209,7 @@ export function CoachPreferencesCard({
       </ChoiceSection>
 
       <ChoiceSection title="Days per week">
-        {[2, 3, 4, 5, 6].map((value) => (
+        {[1, 2, 3, 4, 5, 6, 7].map((value) => (
           <ChoiceChip
             key={value}
             label={String(value)}
@@ -175,21 +225,34 @@ export function CoachPreferencesCard({
         ))}
       </ChoiceSection>
 
-      <ChoiceSection title="Session length">
-        {[30, 45, 60, 90].map((value) => (
+      <ChoiceSection title="Session length (minutes)">
+        {[15, 30, 45, 60, 75, 90, 120].map((value) => (
           <ChoiceChip
             key={value}
-            label={`${value} min`}
+            label={`${value}m`}
             selected={draft.sessionDurationMinutes === value}
-            onPress={() =>
+            onPress={() => {
               setDraft({
                 ...draft,
                 sessionDurationMinutes:
                   draft.sessionDurationMinutes === value ? null : value,
-              })
-            }
+              });
+              setCustomDurationText(
+                draft.sessionDurationMinutes === value ? "" : String(value),
+              );
+            }}
           />
         ))}
+        <TextInput
+          accessibilityLabel="Custom session duration in minutes"
+          keyboardType="number-pad"
+          maxLength={3}
+          placeholder="Custom min (15-180)"
+          placeholderTextColor={Colors.dark.textSecondary}
+          value={customDurationText}
+          onChangeText={updateDurationFromText}
+          style={styles.customNumberInput}
+        />
       </ChoiceSection>
 
       <ChoiceSection title="Available equipment">
@@ -239,6 +302,23 @@ export function CoachPreferencesCard({
           />
         ))}
       </ChoiceSection>
+
+      <View style={styles.section}>
+        <ThemedText type="smallBold" themeColor="textSecondary">
+          Custom equipment, food & injury notes
+        </ThemedText>
+        <TextInput
+          accessibilityLabel="Custom Coach notes and preferences"
+          maxLength={500}
+          multiline
+          placeholder="e.g. I have 2x20kg kettlebells & TRX, allergic to peanuts, left shoulder stiffness..."
+          placeholderTextColor={Colors.dark.textSecondary}
+          value={customNoteText}
+          onChangeText={setCustomNoteText}
+          style={styles.customNoteInput}
+        />
+      </View>
+
       <ThemedText type="small" themeColor="textSecondary">
         For pain, injury, or a medical restriction, use guidance from a
         qualified professional. Mizyun will not interpret a diagnosis.
@@ -345,4 +425,23 @@ const styles = StyleSheet.create({
   saveText: { color: "#000000" },
   pressed: { opacity: 0.7 },
   disabled: { opacity: 0.45 },
+  customNumberInput: {
+    minHeight: 44,
+    minWidth: 150,
+    color: Colors.dark.text,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.3)",
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+  },
+  customNoteInput: {
+    minHeight: 76,
+    color: Colors.dark.text,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.3)",
+    padding: Spacing.three,
+    textAlignVertical: "top",
+  },
 });

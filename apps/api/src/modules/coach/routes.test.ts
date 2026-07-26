@@ -148,7 +148,7 @@ describe("coach routes", () => {
     });
     const storedMessages = await conversationRepository.listMessages(
       userId,
-      parseConversationId(id),
+      id as any,
       { accessToken: "valid-token", limit: 10 },
     );
     expect(storedMessages[1]?.providerMetadata).toMatchObject({
