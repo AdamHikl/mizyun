@@ -3,6 +3,7 @@ import type { ApiClient } from "@mizyun/api-client";
 import { err, ok } from "@mizyun/core";
 
 import {
+  acceptWeeklyAdaptationWith,
   isCoachPendingDraft,
   loadCoachWith,
   previewFor,
@@ -81,6 +82,36 @@ describe("coach data boundary", () => {
     expect(request).toHaveBeenCalledWith(
       expect.objectContaining({
         headers: { "idempotency-key": "stable-message-key" },
+      }),
+    );
+  });
+
+  it("accepts a weekly adaptation through the authenticated API boundary", async () => {
+    const request = vi.fn(async () =>
+      ok({
+        applied: true,
+        pace: "steady" as const,
+        assistantMessage: {
+          ...assistantMessage,
+          provider: "mizyun-planner",
+          text: "Accepted.",
+        },
+      }),
+    );
+    const client: ApiClient = {
+      request: request as unknown as ApiClient["request"],
+      status: () => ({ configured: true, baseUrl: "http://api.test" }),
+    };
+    const result = await acceptWeeklyAdaptationWith(
+      client,
+      conversation.id,
+      "00000000-0000-4000-8000-000000000099",
+    );
+    expect(result).toMatchObject({ ok: true, value: { pace: "steady" } });
+    expect(request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: "POST",
+        path: expect.stringContaining("/weekly-adaptations/"),
       }),
     );
   });

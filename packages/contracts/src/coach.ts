@@ -76,10 +76,34 @@ export const coachDailyPlanProposalSchema = z
   })
   .strict();
 
+export const coachWeeklyAdaptationProposalSchema = z
+  .object({
+    id: z.string().uuid(),
+    kind: z.literal("weekly_adaptation"),
+    version: z.string().min(1).max(100),
+    goalId: z.string().uuid().nullable(),
+    readiness: z.enum(["ready", "insufficient_data"]),
+    goalKind: z.enum(["cut", "bulk", "recomp", "maintain"]).nullable(),
+    currentPace: z.enum(["steady", "gradual", "aggressive"]).nullable(),
+    proposedPace: z.enum(["steady", "gradual", "aggressive"]).nullable(),
+    calorieAction: z.enum(["hold", "increase", "decrease"]),
+    trainingVolumeAction: z.enum(["build", "hold", "reduce"]),
+    observations: z.object({
+      loggedNutritionDays: z.number().int().nonnegative().max(7),
+      averageCalorieAdherencePercent: z.number().nonnegative().nullable(),
+      averageProteinAdherencePercent: z.number().nonnegative().nullable(),
+      weeklyWeightChangeKg: z.number().nullable(),
+      weeklyWeightChangePercent: z.number().nullable(),
+    }),
+    reasons: z.array(z.string().min(1).max(500)).min(1).max(5),
+  })
+  .strict();
+
 export const coachActionProposalSchema = z.discriminatedUnion("kind", [
   coachNutritionProposalSchema,
   coachWorkoutProposalSchema,
   coachDailyPlanProposalSchema,
+  coachWeeklyAdaptationProposalSchema,
 ]);
 
 export const coachConversationSchema = z.object({
@@ -155,6 +179,12 @@ export const coachMessageResponseSchema = z.object({
   assistantMessage: coachMessageSchema,
 });
 
+export const coachWeeklyAdaptationAcceptResponseSchema = z.object({
+  applied: z.boolean(),
+  pace: z.enum(["steady", "gradual", "aggressive"]),
+  assistantMessage: coachMessageSchema,
+});
+
 export type CoachProviderStatus = z.infer<typeof coachProviderStatusSchema>;
 export type CoachNutritionProposal = z.infer<
   typeof coachNutritionProposalSchema
@@ -162,6 +192,9 @@ export type CoachNutritionProposal = z.infer<
 export type CoachWorkoutProposal = z.infer<typeof coachWorkoutProposalSchema>;
 export type CoachDailyPlanProposal = z.infer<
   typeof coachDailyPlanProposalSchema
+>;
+export type CoachWeeklyAdaptationProposal = z.infer<
+  typeof coachWeeklyAdaptationProposalSchema
 >;
 export type CoachActionProposal = z.infer<typeof coachActionProposalSchema>;
 export type CoachConversation = z.infer<typeof coachConversationSchema>;
@@ -181,6 +214,9 @@ export type CoachConversationListResponse = z.infer<
 >;
 export type CoachThreadResponse = z.infer<typeof coachThreadResponseSchema>;
 export type CoachMessageResponse = z.infer<typeof coachMessageResponseSchema>;
+export type CoachWeeklyAdaptationAcceptResponse = z.infer<
+  typeof coachWeeklyAdaptationAcceptResponseSchema
+>;
 
 // =========================================================================
 // MEM-001 — Coach memory controls.

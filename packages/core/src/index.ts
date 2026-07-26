@@ -182,6 +182,14 @@ export {
 } from "./daily-action-plan";
 
 export {
+  WEEKLY_ADAPTATION_VERSION,
+  buildWeeklyAdaptation,
+  type WeeklyAdaptation,
+  type WeeklyAdaptationReadiness,
+  type WeeklyCalorieAction,
+} from "./weekly-adaptation";
+
+export {
   TRAINING_PRESCRIPTION_VERSION,
   buildTrainingPrescription,
   type MovementPattern,

@@ -57,8 +57,8 @@ These items convert the tested domain/API foundation into the low-friction produ
 | AI-ACT-001      | P0       | done    | Conversational meal action proposals                   | Text/photo Coach inputs persist an editable proposal; only explicit review/save creates a food entry    |
 | AI-ACT-002      | P0       | done    | Conversational workout action proposals                | Coach produces an editable deterministic workout proposal that requires explicit start/confirmation     |
 | AI-ACT-003      | P0       | done    | Daily Coach action plan                                | Coach unifies remaining calories/protein, training state, missing inputs, and one practical next action |
-| AI-ACT-004      | P0       | active  | Weekly Coach adaptation proposal                       | Coach reviews confirmed adherence/trends and proposes an inspectable target or training adjustment      |
-| AI-ACT-005      | P1       | ready   | Opt-in proactive Coach prompts                         | User-controlled reminders surface useful daily/weekly Coach check-ins without autonomous writes         |
+| AI-ACT-004      | P0       | done    | Weekly Coach adaptation proposal                       | Coach reviews confirmed adherence/trends and proposes an inspectable target or training adjustment      |
+| AI-ACT-005      | P1       | active  | Opt-in proactive Coach prompts                         | User-controlled reminders surface useful daily/weekly Coach check-ins without autonomous writes         |
 | ALPHA-001       | P0       | ready   | Founder week plus 10–30 design-partner alpha           | No open P0/P1 issue blocks repeated use; evidence and feedback are recorded                             |
 | BILL-001        | P1       | blocked | Premium packaging and mobile subscription billing      | Paid value/cost is validated and entitlements restore safely                                            |
 

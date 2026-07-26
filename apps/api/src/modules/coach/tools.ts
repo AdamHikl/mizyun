@@ -26,6 +26,7 @@ import {
 import {
   buildCoachingPlan,
   buildDailyActionPlan,
+  buildWeeklyAdaptation,
   buildTrainingPrescription,
   computeEnergy,
   summariseFoodEntries,
@@ -135,7 +136,7 @@ const loadEnergyContext = async (
     userId,
   ).breakdown;
 
-  return { breakdown, workouts, profile };
+  return { breakdown, workouts, profile, activeGoal, measurements };
 };
 
 const energyData = (
@@ -271,6 +272,75 @@ export const buildDailyActionPlanForUser = async (
   });
   const { computedAt: _computedAt, ...proposal } = daily;
   return proposal;
+};
+
+export const buildWeeklyAdaptationForUser = async (
+  deps: CoachToolDeps,
+  userId: UserId,
+  accessToken: string,
+  now: Date,
+) => {
+  const { breakdown, profile, activeGoal, measurements } =
+    await loadEnergyContext(deps, userId, accessToken, now);
+  const coachingPlan = buildCoachingPlan({
+    energy: breakdown,
+    completedWorkoutsLast7Days: 0,
+  });
+  const prescription = await buildTrainingPrescriptionForUser(
+    deps,
+    userId,
+    accessToken,
+    now,
+  );
+  const entries = await deps.foodEntryRepository.list(userId, {
+    from: new Date(now.getTime() - 8 * 86_400_000),
+    to: now,
+    limit: 500,
+    accessToken,
+  });
+  const today = localDayIso(now, profile.timezone);
+  const firstDay = localDayIso(
+    new Date(now.getTime() - 7 * 86_400_000),
+    profile.timezone,
+  );
+  const buckets = new Map<string, typeof entries>();
+  for (const entry of entries) {
+    const date = localDayIso(entry.consumedAt, profile.timezone);
+    if (date < firstDay || date >= today) continue;
+    buckets.set(date, [...(buckets.get(date) ?? []), entry]);
+  }
+  const sum = (values: readonly (number | null)[]): number | null =>
+    values.length === 0 || values.some((value) => value === null)
+      ? null
+      : Math.round(
+          values.reduce<number>((total, value) => total + (value ?? 0), 0) *
+            100,
+        ) / 100;
+  const nutritionDays = [...buckets.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([date, dayEntries]) => ({
+      date,
+      entryCount: dayEntries.length,
+      caloriesKcal: sum(dayEntries.map((entry) => entry.caloriesKcal)),
+      proteinG: sum(dayEntries.map((entry) => entry.proteinG)),
+      carbohydrateG: sum(dayEntries.map((entry) => entry.carbohydrateG)),
+      fatG: sum(dayEntries.map((entry) => entry.fatG)),
+    }));
+  const adaptation = buildWeeklyAdaptation({
+    goalKind: activeGoal?.kind ?? null,
+    currentPace: activeGoal?.pace ?? null,
+    targetKcal: coachingPlan.calorie?.targetKcal ?? null,
+    targetProteinG: coachingPlan.protein?.targetG ?? null,
+    nutritionDays,
+    weightTrend: summariseWeightTrend(measurements),
+    trainingVolumeAction: prescription.volumeAction,
+    now,
+  });
+  const { computedAt: _computedAt, ...proposal } = adaptation;
+  return {
+    ...proposal,
+    goalId: activeGoal?.id ?? null,
+  };
 };
 
 /**

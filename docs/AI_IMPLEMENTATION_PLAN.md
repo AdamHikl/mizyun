@@ -80,7 +80,11 @@ offline implementation proceeds.
    now produce a persisted, versioned card that computes remaining calories
    and protein, distinguishes missing logs from zero intake, reports training
    state, lists missing setup inputs, and selects one deterministic next
-   action without a model call. Weekly adaptation proposals and opt-in
+   action without a model call. Weekly review requests now combine complete
+   nutrition days, the 28-day weight trend, the active goal, and recent
+   training load. Adaptation is withheld until evidence thresholds pass;
+   applicable recommendations step goal pace only once and require explicit
+   authenticated acceptance before recalculating future targets. Opt-in
    proactive prompts remain sequenced next.
 
 ## Why implementation can move before alpha

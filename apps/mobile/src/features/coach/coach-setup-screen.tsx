@@ -20,6 +20,7 @@ import type {
   CoachNutritionProposal,
   CoachProviderStatus,
   CoachWorkoutProposal,
+  CoachWeeklyAdaptationProposal,
 } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
@@ -42,6 +43,7 @@ import { normalizeMealPhoto } from "@/features/log-meal/meal-photo";
 
 import { EvidenceChips } from "./evidence-chips";
 import {
+  acceptWeeklyAdaptation,
   createCoachConversation,
   deleteCoachConversation,
   isCoachPendingDraft,
@@ -383,6 +385,26 @@ export function CoachSetupScreen() {
     [userId],
   );
 
+  const acceptAdaptation = useCallback(
+    async (proposal: CoachWeeklyAdaptationProposal) => {
+      if (active === null || sending || deleting) return;
+      setSending(true);
+      setMessage(null);
+      try {
+        const result = await acceptWeeklyAdaptation(active.id, proposal.id);
+        if (!result.ok) {
+          setMessage(result.message);
+          return;
+        }
+        setMessages((current) => [...current, result.value.assistantMessage]);
+        setLiveRegionTick((tick) => tick + 1);
+      } finally {
+        setSending(false);
+      }
+    },
+    [active, deleting, sending],
+  );
+
   const attachMealPhoto = useCallback(async () => {
     if (
       active === null ||
@@ -574,6 +596,7 @@ export function CoachSetupScreen() {
                       message={item}
                       onReviewNutritionProposal={reviewNutritionProposal}
                       onReviewWorkoutProposal={reviewWorkoutProposal}
+                      onAcceptWeeklyAdaptation={acceptAdaptation}
                     />
                   ))
                 )}
@@ -684,12 +707,16 @@ function MessageBubble({
   message,
   onReviewNutritionProposal,
   onReviewWorkoutProposal,
+  onAcceptWeeklyAdaptation,
 }: {
   readonly message: CoachMessage;
   readonly onReviewNutritionProposal: (
     proposal: CoachNutritionProposal,
   ) => void;
   readonly onReviewWorkoutProposal: (proposal: CoachWorkoutProposal) => void;
+  readonly onAcceptWeeklyAdaptation: (
+    proposal: CoachWeeklyAdaptationProposal,
+  ) => void;
 }) {
   const assistant = message.role === "assistant";
   return (
@@ -717,6 +744,12 @@ function MessageBubble({
       ) : null}
       {message.actionProposal?.kind === "daily_plan" ? (
         <DailyPlanCard proposal={message.actionProposal} />
+      ) : null}
+      {message.actionProposal?.kind === "weekly_adaptation" ? (
+        <WeeklyAdaptationCard
+          proposal={message.actionProposal}
+          onAccept={onAcceptWeeklyAdaptation}
+        />
       ) : null}
       {assistant && message.evidenceKinds.length > 0 ? (
         <View style={{ marginTop: Spacing.two, gap: Spacing.one }}>
@@ -864,6 +897,66 @@ function DailyPlanCard({
       <ThemedText type="small" themeColor="textSecondary">
         Deterministic plan · updates from confirmed logs
       </ThemedText>
+    </View>
+  );
+}
+
+function WeeklyAdaptationCard({
+  proposal,
+  onAccept,
+}: {
+  readonly proposal: CoachWeeklyAdaptationProposal;
+  readonly onAccept: (proposal: CoachWeeklyAdaptationProposal) => void;
+}) {
+  const canApply =
+    proposal.readiness === "ready" &&
+    proposal.goalId !== null &&
+    proposal.currentPace !== null &&
+    proposal.proposedPace !== null &&
+    proposal.currentPace !== proposal.proposedPace;
+  return (
+    <View style={styles.proposalCard}>
+      <ThemedText type="smallBold">Weekly adaptation</ThemedText>
+      <ThemedText type="small">
+        Calories · {proposal.calorieAction}
+        {proposal.currentPace === null
+          ? ""
+          : ` · ${proposal.currentPace}${canApply ? ` → ${proposal.proposedPace}` : ""}`}
+      </ThemedText>
+      <ThemedText type="small">
+        Training volume · {proposal.trainingVolumeAction}
+      </ThemedText>
+      <ThemedText type="small">
+        Evidence · {proposal.observations.loggedNutritionDays} nutrition days ·{" "}
+        {proposal.observations.averageCalorieAdherencePercent ?? "—"}% calories
+        · {proposal.observations.averageProteinAdherencePercent ?? "—"}% protein
+      </ThemedText>
+      <ThemedText type="small">
+        Weight trend ·{" "}
+        {proposal.observations.weeklyWeightChangeKg === null
+          ? "not ready"
+          : `${proposal.observations.weeklyWeightChangeKg} kg/week`}
+      </ThemedText>
+      {proposal.reasons.map((reason) => (
+        <ThemedText key={reason} type="small" themeColor="textSecondary">
+          {reason}
+        </ThemedText>
+      ))}
+      {canApply ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Accept goal pace change from ${proposal.currentPace} to ${proposal.proposedPace}`}
+          accessibilityHint="Updates the active goal and recalculates future deterministic calorie targets."
+          onPress={() => onAccept(proposal)}
+          style={styles.proposalButton}
+        >
+          <ThemedText type="smallBold">Accept pace change</ThemedText>
+        </Pressable>
+      ) : (
+        <ThemedText type="small" themeColor="textSecondary">
+          No goal change is available to accept.
+        </ThemedText>
+      )}
     </View>
   );
 }

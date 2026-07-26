@@ -86,6 +86,7 @@
 - **COACH-07:** An explicit meal-logging statement or food-photo attachment can produce a persistent, editable nutrition action proposal; the proposal remains non-authoritative until the user reviews it and saves through the confirmed food-entry boundary.
 - **COACH-08:** An explicit workout-planning request can produce a persistent, editable action proposal derived from the deterministic training prescription; the user can change or remove proposed content, and no workout becomes authoritative until the user explicitly starts it.
 - **COACH-09:** An explicit daily-plan request produces a persistent, versioned summary of confirmed calorie/protein progress, training state, missing inputs, and one deterministic next action; missing meal logs are not treated as zero intake, and generating the plan never mutates authoritative records.
+- **COACH-10:** An explicit weekly-review request produces a persistent, versioned adaptation proposal from complete nutrition days, deterministic weight trend, active goal, and recent training load. Insufficient or poorly adherent data forces a hold; an applicable goal-pace change requires explicit authenticated acceptance and stale proposals cannot overwrite a changed goal.
 
 ### Durable memory
 

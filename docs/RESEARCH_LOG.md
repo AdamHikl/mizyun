@@ -1295,6 +1295,38 @@ no log lines carrying photo bytes.
 - No new platform service, native permission, database migration, or
   architectural boundary was introduced, so no ADR is required.
 
+## 2026-07-26 — Evidence-gated weekly Coach adaptation
+
+### Primary sources
+
+- Helms et al., **Evidence-based recommendations for natural
+  bodybuilding contest preparation** (JISSN, accessed 2026-07-26):
+  https://pubmed.ncbi.nlm.nih.gov/24864135/
+- Iraki et al., **Nutrition Recommendations for Bodybuilders in the
+  Off-Season** (Sports, accessed 2026-07-26):
+  https://pubmed.ncbi.nlm.nih.gov/31247944/
+
+### Verified findings and implementation consequences
+
+- The contest-preparation review recommends approximately 0.5–1% body
+  weight loss per week to support lean-mass retention. The weekly
+  engine uses that as the cut band and steps goal pace by only one
+  existing deterministic tier.
+- The off-season review recommends approximately 0.25–0.5% body weight
+  gain per week for novice/intermediate bodybuilders, with more
+  conservative gains for advanced athletes. The engine uses that
+  bounded bulk band and never invents a custom calorie number.
+- A trend alone is not enough to adapt. At least four complete
+  nutrition days, calorie adherence within 80–120%, and the existing
+  three-observation/seven-day trend gate must all pass. Otherwise the
+  proposal is hold-only and explains what evidence is missing.
+- Acceptance verifies conversation ownership, proposal provenance,
+  active-goal identity, and unchanged current pace before applying the
+  proposed pace. The normal deterministic energy engine recalculates
+  future targets; the model is never called and cannot write the goal.
+- No new provider, platform service, native permission, or
+  architectural boundary was introduced, so no ADR is required.
+
 ## 2026-07-25 — AI-MOB-002 Coach UX polish
 
 ### Scope

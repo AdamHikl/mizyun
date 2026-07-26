@@ -121,4 +121,38 @@ describe("Coach action proposal contracts", () => {
     });
     expect(parsed.actionProposal?.kind).toBe("daily_plan");
   });
+
+  it("accepts a bounded weekly adaptation proposal", () => {
+    const parsed = coachMessageSchema.parse({
+      id: "00000000-0000-4000-8000-000000000031",
+      conversationId: "00000000-0000-4000-8000-000000000032",
+      role: "assistant",
+      text: "Weekly review.",
+      status: "complete",
+      provider: "mizyun-planner",
+      evidenceKinds: ["plan", "nutrition", "training", "body"],
+      actionProposal: {
+        id: "00000000-0000-4000-8000-000000000033",
+        kind: "weekly_adaptation",
+        version: "v1-2026-07",
+        goalId: "00000000-0000-4000-8000-000000000034",
+        readiness: "ready",
+        goalKind: "cut",
+        currentPace: "gradual",
+        proposedPace: "steady",
+        calorieAction: "decrease",
+        trainingVolumeAction: "hold",
+        observations: {
+          loggedNutritionDays: 6,
+          averageCalorieAdherencePercent: 100,
+          averageProteinAdherencePercent: 95,
+          weeklyWeightChangeKg: -0.05,
+          weeklyWeightChangePercent: -0.06,
+        },
+        reasons: ["Confirmed trend is below the conservative band."],
+      },
+      createdAt: "2026-07-26T10:00:00.000Z",
+    });
+    expect(parsed.actionProposal?.kind).toBe("weekly_adaptation");
+  });
 });

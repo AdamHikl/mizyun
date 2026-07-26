@@ -277,6 +277,117 @@ describe("coach routes", () => {
     );
   });
 
+  it("applies an evidence-backed weekly pace proposal only after explicit acceptance", async () => {
+    const current = new Date("2026-07-26T12:00:00.000Z");
+    const { app, respond } = makeApp(
+      vi.fn<AgentProvider["respond"]>(),
+      new InMemoryConversationRepository(),
+      { now: () => current },
+    );
+    await app.inject({
+      method: "PUT",
+      url: "/v1/profile",
+      headers: { ...auth, "content-type": "application/json" },
+      payload: {
+        timezone: "UTC",
+        birthYear: 1990,
+        heightCm: 180,
+        activityLevel: "moderately_active",
+        sexAtBirth: "male",
+      },
+    });
+    await app.inject({
+      method: "POST",
+      url: "/v1/goals",
+      headers: { ...auth, "content-type": "application/json" },
+      payload: {
+        kind: "cut",
+        pace: "gradual",
+        target: { weightKg: 75 },
+        startsOn: "2026-07-01",
+        targetDate: "2026-12-31",
+      },
+    });
+    for (const [index, weightKg] of [80, 79.95, 79.9].entries()) {
+      await app.inject({
+        method: "POST",
+        url: "/v1/body-measurements",
+        headers: { ...auth, "content-type": "application/json" },
+        payload: {
+          weightKg,
+          measuredAt: [
+            "2026-07-12T08:00:00.000Z",
+            "2026-07-19T08:00:00.000Z",
+            "2026-07-25T08:00:00.000Z",
+          ][index],
+        },
+      });
+    }
+    const energy = await app.inject({
+      method: "GET",
+      url: "/v1/energy/summary",
+      headers: auth,
+    });
+    const targetKcal = energy.json().summary.dailyTargetKcal as number;
+    for (const day of [19, 20, 21, 22, 23, 24]) {
+      await app.inject({
+        method: "POST",
+        url: "/v1/food-entries",
+        headers: { ...auth, "content-type": "application/json" },
+        payload: {
+          name: `Complete day ${day}`,
+          consumedAt: `2026-07-${day}T12:00:00.000Z`,
+          caloriesKcal: targetKcal,
+          proteinG: 145,
+          carbohydrateG: 200,
+          fatG: 60,
+        },
+      });
+    }
+
+    const id = await createConversation(app);
+    const review = await sendMessage(
+      app,
+      id,
+      "weekly-review-key-0001",
+      "Review my week",
+    );
+    expect(review.statusCode).toBe(200);
+    expect(review.json().assistantMessage.actionProposal).toMatchObject({
+      kind: "weekly_adaptation",
+      readiness: "ready",
+      calorieAction: "decrease",
+      currentPace: "gradual",
+      proposedPace: "steady",
+      observations: { loggedNutritionDays: 6 },
+    });
+    expect(respond).not.toHaveBeenCalled();
+
+    const proposalId = review.json().assistantMessage.actionProposal
+      .id as string;
+    const accepted = await app.inject({
+      method: "POST",
+      url: `/v1/coach/conversations/${id}/weekly-adaptations/${proposalId}/accept`,
+      headers: auth,
+    });
+    expect(accepted.statusCode).toBe(200);
+    expect(accepted.json()).toMatchObject({
+      applied: true,
+      pace: "steady",
+      assistantMessage: { provider: "mizyun-planner" },
+    });
+    const replay = await app.inject({
+      method: "POST",
+      url: `/v1/coach/conversations/${id}/weekly-adaptations/${proposalId}/accept`,
+      headers: auth,
+    });
+    expect(replay.json()).toMatchObject({
+      applied: false,
+      pace: "steady",
+      assistantMessage: { id: accepted.json().assistantMessage.id },
+    });
+  });
+
   it("creates, grounds, persists, and idempotently returns a coach message", async () => {
     const { app, respond } = makeApp();
     const id = await createConversation(app);

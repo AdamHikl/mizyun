@@ -28,6 +28,8 @@ import {
   coachConversationResponseSchema,
   coachActionProposalSchema,
   coachDailyPlanProposalSchema,
+  coachWeeklyAdaptationProposalSchema,
+  coachWeeklyAdaptationAcceptResponseSchema,
   coachMessageCreateSchema,
   coachMessageResponseSchema,
   coachNutritionProposalSchema,
@@ -49,8 +51,10 @@ import { isExplicitMealLoggingIntent } from "./nutrition-action.js";
 import {
   buildDailyActionPlanForUser,
   buildTrainingPrescriptionForUser,
+  buildWeeklyAdaptationForUser,
 } from "./tools.js";
 import { isExplicitWorkoutProposalIntent } from "./workout-action.js";
+import { isExplicitWeeklyAdaptationIntent } from "./weekly-adaptation-action.js";
 
 interface CoachRoutesOptions {
   readonly agent: AgentOrchestrator;
@@ -317,6 +321,137 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
         );
       }
       return reply.status(204).send();
+    },
+  );
+
+  app.post(
+    "/conversations/:id/weekly-adaptations/:proposalId/accept",
+    { preHandler: app.authenticate },
+    async (request, reply) => {
+      const principal = request.principal ?? principalOrThrow();
+      const params = request.params as {
+        readonly id: string;
+        readonly proposalId: string;
+      };
+      const conversationId = parseConversationId(params.id);
+      const conversation = await options.conversationRepository.get(
+        principal.userId,
+        conversationId,
+        { accessToken: principal.accessToken },
+      );
+      if (conversation === null) {
+        return sendApiError(
+          reply,
+          request,
+          404,
+          "NOT_FOUND",
+          "Conversation not found.",
+        );
+      }
+      const messages = await options.conversationRepository.listMessages(
+        principal.userId,
+        conversationId,
+        { accessToken: principal.accessToken, limit: 200 },
+      );
+      const existingAcceptance = messages.find(
+        (message) =>
+          message.providerMetadata.acceptedProposalId === params.proposalId,
+      );
+      const proposal = messages
+        .map((message) =>
+          coachWeeklyAdaptationProposalSchema.safeParse(
+            message.providerMetadata.actionProposal,
+          ),
+        )
+        .find(
+          (candidate) =>
+            candidate.success && candidate.data.id === params.proposalId,
+        );
+      if (proposal === undefined || !proposal.success) {
+        return sendApiError(
+          reply,
+          request,
+          404,
+          "NOT_FOUND",
+          "Weekly adaptation proposal not found.",
+        );
+      }
+      if (
+        proposal.data.readiness !== "ready" ||
+        proposal.data.goalId === null ||
+        proposal.data.currentPace === null ||
+        proposal.data.proposedPace === null ||
+        proposal.data.proposedPace === proposal.data.currentPace
+      ) {
+        return sendApiError(
+          reply,
+          request,
+          409,
+          "CONFLICT",
+          "This weekly review does not contain an applicable goal change.",
+        );
+      }
+      const activeGoal = await options.goalRepository.getActive(
+        principal.userId,
+        { accessToken: principal.accessToken },
+      );
+      if (activeGoal === null || activeGoal.id !== proposal.data.goalId) {
+        return sendApiError(
+          reply,
+          request,
+          409,
+          "CONFLICT",
+          "The active goal has changed since this proposal was created.",
+        );
+      }
+      if (existingAcceptance !== undefined) {
+        return coachWeeklyAdaptationAcceptResponseSchema.parse({
+          applied: false,
+          pace: activeGoal.pace,
+          assistantMessage: toMessageWire(existingAcceptance),
+        });
+      }
+      if (activeGoal.pace !== proposal.data.currentPace) {
+        return sendApiError(
+          reply,
+          request,
+          409,
+          "CONFLICT",
+          "The goal pace has changed since this proposal was created.",
+        );
+      }
+      const acceptedAt = now();
+      const savedGoal = await options.goalRepository.update(
+        principal.userId,
+        {
+          ...activeGoal,
+          pace: proposal.data.proposedPace,
+          updatedAt: acceptedAt,
+        },
+        { accessToken: principal.accessToken },
+      );
+      const assistantMessage = await options.conversationRepository.addMessage(
+        principal.userId,
+        {
+          id: crypto.randomUUID(),
+          conversationId,
+          role: "assistant",
+          text: `Accepted. Your goal pace changed from ${proposal.data.currentPace} to ${proposal.data.proposedPace}. Future calorie plans will use the recalculated deterministic target.`,
+          status: "complete",
+          idempotencyKey: null,
+          providerMetadata: {
+            provider: "mizyun-planner",
+            evidenceKinds: ["goal", "plan", "energy"],
+            acceptedProposalId: proposal.data.id,
+          },
+        },
+        { accessToken: principal.accessToken, now: acceptedAt },
+      );
+      return coachWeeklyAdaptationAcceptResponseSchema.parse({
+        applied: true,
+        pace: savedGoal.pace,
+        assistantMessage: toMessageWire(assistantMessage),
+      });
     },
   );
 
@@ -635,6 +770,62 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
                   "nutrition",
                   "training",
                   "profile",
+                  "goal",
+                  "energy",
+                ],
+                actionProposal,
+              },
+            },
+            { accessToken: principal.accessToken, now: now() },
+          );
+        const latestConversation =
+          (await options.conversationRepository.get(
+            principal.userId,
+            conversationId,
+            { accessToken: principal.accessToken },
+          )) ?? conversation;
+        return coachMessageResponseSchema.parse({
+          conversation: toConversationWire(latestConversation),
+          userMessage: toMessageWire(userMessage),
+          assistantMessage: toMessageWire(assistantMessage),
+        });
+      }
+
+      if (isExplicitWeeklyAdaptationIntent(parsed.data.text)) {
+        const weekly = await buildWeeklyAdaptationForUser(
+          options,
+          principal.userId,
+          principal.accessToken,
+          now(),
+        );
+        const actionProposal = coachWeeklyAdaptationProposalSchema.parse({
+          id: crypto.randomUUID(),
+          kind: "weekly_adaptation",
+          ...weekly,
+        });
+        const assistantMessage =
+          await options.conversationRepository.addMessage(
+            principal.userId,
+            {
+              id: crypto.randomUUID(),
+              conversationId,
+              role: "assistant",
+              text:
+                weekly.readiness === "insufficient_data"
+                  ? "I reviewed the confirmed week, but there is not enough reliable adherence and weight-trend evidence to change the plan."
+                  : weekly.proposedPace !== weekly.currentPace
+                    ? "The confirmed week supports one conservative goal-pace adjustment. Review it before accepting; nothing has changed yet."
+                    : "The confirmed week supports holding your current goal pace. Training volume is shown separately from calorie adaptation.",
+              status: "complete",
+              idempotencyKey: null,
+              providerMetadata: {
+                provider: "mizyun-planner",
+                replyTo: userMessage.id,
+                evidenceKinds: [
+                  "plan",
+                  "nutrition",
+                  "training",
+                  "body",
                   "goal",
                   "energy",
                 ],

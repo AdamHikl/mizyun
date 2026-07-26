@@ -5,9 +5,11 @@ import {
   coachMessageResponseSchema,
   coachProviderStatusSchema,
   coachThreadResponseSchema,
+  coachWeeklyAdaptationAcceptResponseSchema,
   type CoachConversation,
   type CoachMessage,
   type CoachProviderStatus,
+  type CoachWeeklyAdaptationAcceptResponse,
 } from "@mizyun/contracts";
 
 import { apiClient } from "@/composition/api-client";
@@ -249,6 +251,34 @@ export const sendCoachMealPhotoWith = async (
         conversation: result.value.conversation,
         messages: [result.value.userMessage, result.value.assistantMessage],
       }
+    : { ok: false, message: humanize(result.error) };
+};
+
+export const acceptWeeklyAdaptation = async (
+  conversationId: string,
+  proposalId: string,
+): Promise<
+  | { readonly ok: true; readonly value: CoachWeeklyAdaptationAcceptResponse }
+  | { readonly ok: false; readonly message: string }
+> => acceptWeeklyAdaptationWith(apiClient, conversationId, proposalId);
+
+export const acceptWeeklyAdaptationWith = async (
+  client: ApiClient,
+  conversationId: string,
+  proposalId: string,
+): Promise<
+  | { readonly ok: true; readonly value: CoachWeeklyAdaptationAcceptResponse }
+  | { readonly ok: false; readonly message: string }
+> => {
+  const result = await client.request<CoachWeeklyAdaptationAcceptResponse>({
+    method: "POST",
+    path: `/v1/coach/conversations/${encodeURIComponent(
+      conversationId,
+    )}/weekly-adaptations/${encodeURIComponent(proposalId)}/accept`,
+    schema: coachWeeklyAdaptationAcceptResponseSchema,
+  });
+  return result.ok
+    ? { ok: true, value: result.value }
     : { ok: false, message: humanize(result.error) };
 };
 
