@@ -175,6 +175,15 @@ export {
 } from "./coaching-plan";
 
 export {
+  TRAINING_PRESCRIPTION_VERSION,
+  buildTrainingPrescription,
+  type MovementPattern,
+  type TrainingPrescription,
+  type TrainingPrescriptionMissingInput,
+  type TrainingVolumeAction,
+} from "./training-prescription";
+
+export {
   MEDIA_ALLOWED_MIME_TYPES,
   MEDIA_MAX_BYTE_SIZE,
   MEDIA_MAX_DIMENSION,

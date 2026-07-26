@@ -22,6 +22,7 @@ import {
   buildGetRecentMeasurementsTool,
   buildGetRecentWorkoutsTool,
   buildGetCoachingPlanTool,
+  buildGetTrainingPrescriptionTool,
 } from "./tools.js";
 
 const userId = "00000000-0000-4000-8000-000000000001" as UserId;
@@ -50,7 +51,7 @@ const buildDeps = () => {
 };
 
 describe("CoachTools — registry", () => {
-  it("exposes the seven expected tool names", () => {
+  it("exposes the eight expected tool names", () => {
     const deps = buildDeps();
     const registry = buildCoachToolRegistry(deps);
     const names = registry.list().map((tool) => tool.name);
@@ -61,6 +62,7 @@ describe("CoachTools — registry", () => {
       "get_recent_food_entries",
       "compute_energy",
       "get_coaching_plan",
+      "get_training_prescription",
     ]);
   });
 
@@ -190,6 +192,77 @@ describe("CoachTools — deterministic planning", () => {
       calorie: null,
       protein: null,
       training: null,
+    });
+  });
+
+  it("returns a bounded training prescription from confirmed preferences", async () => {
+    const deps = buildDeps();
+    seedCompletePlanningContext(deps);
+    const evidence = await buildGetTrainingPrescriptionTool(deps).execute({
+      principalUserId: userId,
+      args: {},
+      accessToken: "token",
+      clock: { now: clock },
+    });
+
+    expect(evidence.kind).toBe("plan");
+    expect(evidence.data).toMatchObject({
+      complete: true,
+      goalKind: "bulk",
+      requestedDaysPerWeek: 4,
+      resistanceDaysPerWeek: 4,
+      volumeAction: "hold",
+    });
+    expect(
+      (evidence.data.sessions as Array<{ exercises: unknown[] }>).every(
+        (session) => session.exercises.length > 0,
+      ),
+    ).toBe(true);
+  });
+
+  it("uses recent confirmed set exertion to reduce prescribed volume", async () => {
+    const deps = buildDeps();
+    seedCompletePlanningContext(deps);
+    deps.workoutRepository.__seedForTest({
+      id: "00000000-0000-4000-8000-000000000021",
+      userId,
+      name: "Hard session",
+      startedAt: new Date("2026-07-22T08:00:00Z"),
+      completedAt: new Date("2026-07-22T09:00:00Z"),
+      notes: null,
+      source: "manual",
+      details: {},
+      createdAt: new Date("2026-07-22T08:00:00Z"),
+      updatedAt: new Date("2026-07-22T09:00:00Z"),
+    });
+    deps.workoutSetRepository.__seedForTest({
+      id: "00000000-0000-4000-8000-000000000022",
+      userId,
+      workoutId: "00000000-0000-4000-8000-000000000021",
+      exerciseId: "00000000-0000-4000-8000-000000000023",
+      sequence: 1,
+      repetitions: 5,
+      loadKg: 100,
+      durationSeconds: null,
+      distanceMeters: null,
+      perceivedExertion: 9,
+      completedAt: new Date("2026-07-22T08:10:00Z"),
+      createdAt: new Date("2026-07-22T08:10:00Z"),
+    });
+
+    const evidence = await buildGetTrainingPrescriptionTool(deps).execute({
+      principalUserId: userId,
+      args: {},
+      accessToken: "token",
+      clock: { now: clock },
+    });
+    expect(evidence.data).toMatchObject({
+      recentLoad: {
+        completedSessionsLast7Days: 1,
+        completedSetsLast7Days: 1,
+        averageRpeLast7Days: 9,
+      },
+      volumeAction: "reduce",
     });
   });
 });

@@ -6,10 +6,10 @@
 
 - **Product stage:** technical pre-alpha; the architecture, domain/API foundation, and native mobile UI are verified and polished.
 - **Roadmap position:** Every scoped MOB item, AND-001, OBS-001, and UI/UX iOS Simulator Audit is complete at its implementation gate. The native iOS Release app (`com.mizyun.app`) passes full visual and functional verification.
-- **Latest verified implementation slice:** Added explicit AI Coach personalization across domain, contract, API, Supabase, export, Coach grounding, and mobile Account settings. Users can control experience, schedule, session duration, training focus, equipment, dietary preferences, and normalized non-medical movement constraints; unknown, duplicate, contradictory, or out-of-range values fail closed.
+- **Latest verified implementation slice:** Added a versioned deterministic weekly training prescription that selects compatible exercises from goal, experience, schedule, equipment, and explicit movement constraints; bounds resistance days, sets, reps, rest, and aerobic baseline; and uses confirmed seven-day sessions, sets, and average RPE to build, hold, or reduce volume. The same plan is available through an authenticated API, a Coach tool, and a mobile Coach card even when external AI is off.
 - **Latest operational slice:** Removed temporary request/body/auth logs, arbitrary-token development authentication, fake-success Coach fallbacks, arbitrary iOS network loads, and unfinished client-side AI/safety bypass controls. Real provider failures and the server-owned safety envelope are authoritative again.
 - **Infrastructure direction:** ADR-0016 selects managed Supabase in a specific EU region for hosted development through initial production, with measured portability and a gated later migration to redundant Mizyun-operated EU infrastructure.
-- **Next exact action:** Implement AI capability level 3: deterministic, editable exercise selection and progression using goal, experience, schedule, equipment, movement constraints, and recent training volume.
+- **Next exact action:** Implement AI capability level 4: correct production memory authorization/recall, then add candidate confirmation, correction/deactivation/expiry, and mobile memory controls.
 - **Branch:** `main`; the stabilization slice passes the complete repository gate and is ready for native acceptance.
 - **AI provider:** Mistral `mistral-medium-latest` is implemented behind server-only configuration; external access defaults off and cannot be bypassed by the mobile client.
 - **Local runtime at handoff:** Runtime services were not restarted for this stabilization pass; the no-environment repository gate and iOS production export are green.
@@ -90,21 +90,21 @@ Do not describe NUT-_, WO-_, BODY-_, ENG-_, MEDIA-* or DATA-001 as customer-comp
 
 ## Verification evidence — 2026-07-26
 
-The deterministic plan and explicit Coach-personalization levels pass the complete standard gate:
+The deterministic plan, personalization, and training-prescription levels pass the complete standard gate:
 
 ```text
 pnpm check
   formatting: passed
   workspace TypeScript checks: passed
-  iOS Expo/Metro/Hermes export: passed (1,690 modules, 4.8 MB bundle)
-  tests: 857 passed
+  iOS Expo/Metro/Hermes export: passed (1,693 modules, 4.8 MB bundle)
+  tests: 866 passed
   opt-in live/provider and Supabase auth/persistence e2e: 15 skipped
 
 git diff --check
   passed
 ```
 
-Focused coverage proves strict personalization validation, database acceptance/rejection constraints, Supabase mapping, account export, API persistence, and Coach grounding in addition to the deterministic plan. All 297 API tests, 221 core tests, 18 contract tests, 15 Mistral-provider tests, and 139 mobile tests passed. A clean database reset, lint, and all 70 pgTAP assertions passed. No live provider request or real user/photo data was used.
+Focused coverage proves equipment/constraint filtering, schedule and resistance-volume caps, typed missing inputs, conservative high-RPE reduction, actual repository aggregation, authenticated provider-independent access, and the shared Coach tool in addition to the prior deterministic plan and personalization coverage. All 300 API tests, 225 core tests, 20 contract tests, 15 Mistral-provider tests, and 139 mobile tests passed. The latest clean database reset, lint, and all 70 pgTAP assertions passed. No live provider request or real user/photo data was used.
 
 ## Verification evidence — 2026-07-23
 

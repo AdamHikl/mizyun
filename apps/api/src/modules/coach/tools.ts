@@ -25,6 +25,7 @@ import {
 } from "@mizyun/agent-runtime";
 import {
   buildCoachingPlan,
+  buildTrainingPrescription,
   computeEnergy,
   summariseFoodEntries,
   summariseWeightTrend,
@@ -39,6 +40,7 @@ import {
   type WorkoutSetRepository,
 } from "@mizyun/core";
 import { coachingPlanSchema } from "@mizyun/contracts";
+import { trainingPrescriptionSchema } from "@mizyun/contracts";
 
 const MAX_DAYS_BACK = 28;
 const DEFAULT_DAYS_BACK = 7;
@@ -139,6 +141,73 @@ const energyData = (
   dailyTargetKcal: breakdown.dailyTargetKcal,
   inputs: breakdown.inputs,
 });
+
+export const buildTrainingPrescriptionForUser = async (
+  deps: Pick<
+    CoachToolDeps,
+    | "profileRepository"
+    | "goalRepository"
+    | "workoutRepository"
+    | "workoutSetRepository"
+  >,
+  userId: UserId,
+  accessToken: string,
+  now: Date,
+) => {
+  const from = new Date(now.getTime() - 7 * 86_400_000);
+  const [profile, goal, workouts] = await Promise.all([
+    deps.profileRepository.getOrCreate(userId, { now, accessToken }),
+    deps.goalRepository.getActive(userId, { accessToken }),
+    deps.workoutRepository.list(userId, {
+      from,
+      to: now,
+      limit: 100,
+      accessToken,
+    }),
+  ]);
+  const completedWorkouts = workouts.filter(
+    (workout) => workout.completedAt !== null,
+  );
+  const sets = (
+    await Promise.all(
+      completedWorkouts.map((workout) =>
+        deps.workoutSetRepository.listForWorkout(workout.id, {
+          accessToken,
+        }),
+      ),
+    )
+  ).flat();
+  const rpeValues = sets
+    .map((set) => set.perceivedExertion)
+    .filter((value): value is number => value !== null);
+  const averageRpeLast7Days =
+    rpeValues.length === 0
+      ? null
+      : Math.round(
+          (rpeValues.reduce((total, value) => total + value, 0) /
+            rpeValues.length) *
+            10,
+        ) / 10;
+  const prescription = buildTrainingPrescription({
+    goalKind: goal?.kind ?? null,
+    preferences: profile.coachingPreferences,
+    completedSessionsLast7Days: completedWorkouts.length,
+    completedSetsLast7Days: sets.length,
+    averageRpeLast7Days,
+    now,
+  });
+  return trainingPrescriptionSchema.parse({
+    ...prescription,
+    computedAt: prescription.computedAt.toISOString(),
+    sessions: prescription.sessions.map((session) => ({
+      ...session,
+      exercises: session.exercises.map((exercise) => ({
+        ...exercise,
+        equipment: [...exercise.equipment],
+      })),
+    })),
+  });
+};
 
 /**
  * Tool: get_active_goal
@@ -516,6 +585,35 @@ export const buildGetCoachingPlanTool = (
   },
 });
 
+export const buildGetTrainingPrescriptionTool = (
+  deps: CoachToolDeps,
+): AgentTool<Record<string, never>> => ({
+  name: "get_training_prescription",
+  description:
+    "Return a deterministic, editable weekly exercise prescription using the user's confirmed goal, experience, schedule, equipment, movement constraints, and recent session/set/RPE load. The result caps volume and never interprets injury or pain.",
+  parameters: {
+    type: "object",
+    additionalProperties: false,
+    properties: {},
+  },
+  execute: async ({ principalUserId, accessToken, clock }) => {
+    const now = resolveClock(deps, clock).now();
+    const data = await buildTrainingPrescriptionForUser(
+      deps,
+      principalUserId,
+      accessToken,
+      now,
+    );
+    return {
+      kind: "plan",
+      label: "Deterministic weekly training prescription",
+      confirmed: true,
+      freshness: freshnessOf(now),
+      data,
+    } satisfies AgentGroundingItem;
+  },
+});
+
 /**
  * Build the full registry for the Coach route. Exposed for tests
  * + composition root. Returns an `AgentToolRegistry` that the
@@ -531,6 +629,7 @@ export const buildCoachToolRegistry = (
     buildGetRecentFoodEntriesTool(deps),
     buildComputeEnergyTool(deps),
     buildGetCoachingPlanTool(deps),
+    buildGetTrainingPrescriptionTool(deps),
   ]);
 
 export type CoachToolRegistrySet = ReturnType<typeof buildCoachToolRegistry>;

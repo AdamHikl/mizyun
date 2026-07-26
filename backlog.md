@@ -53,7 +53,7 @@ These items convert the tested domain/API foundation into the low-friction produ
 | AI-OPS-001      | P0       | ready   | Durable AI budgets and replica-safe idempotency        | Shared limits survive restart/replicas and one logical message incurs one provider call             |
 | COACH-PLAN-001  | P0       | done    | Deterministic calorie/protein/training plan foundation | Versioned engine and real read-only Coach tools return auditable targets or missing inputs          |
 | COACH-PERS-001  | P0       | done    | Goal-specific Coach personalization profile            | Experience, equipment, preferences, limitations, and schedule persist and ground suggestions        |
-| COACH-TRAIN-001 | P0       | active  | Exercise selection and progression plan                | Deterministic editable suggestions reflect goal, profile, equipment, limitations, and recent volume |
+| COACH-TRAIN-001 | P0       | done    | Exercise selection and progression plan                | Deterministic editable suggestions reflect goal, profile, equipment, limitations, and recent volume |
 | ALPHA-001       | P0       | ready   | Founder week plus 10–30 design-partner alpha           | No open P0/P1 issue blocks repeated use; evidence and feedback are recorded                         |
 | BILL-001        | P1       | blocked | Premium packaging and mobile subscription billing      | Paid value/cost is validated and entitlements restore safely                                        |
 
@@ -87,7 +87,7 @@ Native acceptance evidence: standalone iOS and Android Release apps pass real si
 | -------------- | -------- | -------- | -------------------------------------------- | --------------------------------------------------------------------------------------- |
 | IOS-HEALTH-001 | P2       | research | HealthKit permissions and steps adapter      | Phase 5                                                                                 |
 | AND-HEALTH-001 | P2       | research | Health Connect permissions and steps adapter | Android verified                                                                        |
-| MEM-001        | P0       | blocked  | Persistent memory adapter and controls       | Grounded text-coach evaluation                                                          |
+| MEM-001        | P0       | active   | Persistent memory adapter and controls       | Active-only authorized recall plus candidate lifecycle and mobile controls              |
 | AI-001         | P0       | active   | Evaluate/select initial Mistral model        | First live synthetic structured response passes; full evaluation remains                |
 | AI-002         | P1       | active   | Text coaching adapter and read-only tools    | Direct synthetic grounding works; authenticated app/native evaluation remains           |
 | VISION-001     | P1       | active   | Editable text/photo food drafts              | Local mobile/API/provider gate passes; authenticated native/provider acceptance remains |

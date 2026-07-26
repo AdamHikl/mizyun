@@ -558,6 +558,13 @@ export {
 export { coachingPlanSchema, type CoachingPlan } from "./coaching-plan";
 
 export {
+  trainingPrescriptionResponseSchema,
+  trainingPrescriptionSchema,
+  type TrainingPrescription,
+  type TrainingPrescriptionResponse,
+} from "./training-prescription";
+
+export {
   mediaAssetListResponseSchema,
   mediaAssetResponseSchema,
   mediaAssetSchema,

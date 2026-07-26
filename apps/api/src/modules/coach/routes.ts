@@ -28,14 +28,17 @@ import {
   coachMessageResponseSchema,
   coachProviderStatusSchema,
   coachThreadResponseSchema,
+  trainingPrescriptionResponseSchema,
   type CoachConversation,
   type CoachMessage,
+  type TrainingPrescriptionResponse,
 } from "@mizyun/contracts";
 import type { MemoryStore } from "@mizyun/memory";
 
 import { sendApiError } from "../../errors.js";
 import { buildCoachGrounding } from "./grounding.js";
 import type { CoachLimitService } from "./limits.js";
+import { buildTrainingPrescriptionForUser } from "./tools.js";
 
 interface CoachRoutesOptions {
   readonly agent: AgentOrchestrator;
@@ -125,6 +128,24 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
   app,
   options,
 ) => {
+  app.get(
+    "/training-prescription",
+    { preHandler: app.authenticate },
+    async (request): Promise<TrainingPrescriptionResponse> => {
+      const principal = request.principal;
+      if (!principal) {
+        throw new Error("principal missing after authentication");
+      }
+      const prescription = await buildTrainingPrescriptionForUser(
+        options,
+        principal.userId,
+        principal.accessToken,
+        (options.now ?? (() => new Date()))(),
+      );
+      return trainingPrescriptionResponseSchema.parse({ prescription });
+    },
+  );
+
   const now = options.now ?? (() => new Date());
   const limits = options.limits;
   const planTierOverride = options.planTierOverride;

@@ -47,6 +47,7 @@ import {
   type CoachPendingDraft,
 } from "./coach-data";
 import { ThreadListSheet } from "./thread-list-sheet";
+import { TrainingPlanCard } from "./training-plan-card";
 
 // AI-MOB-002 — error taxonomy. The data layer returns humanized
 // text for any failure; the screen additionally surfaces a
@@ -373,6 +374,8 @@ export function CoachSetupScreen() {
               and nutrition wellness—not diagnosis or treatment.
             </ThemedText>
           </View>
+
+          <TrainingPlanCard />
 
           {loading ? (
             <View style={styles.center}>

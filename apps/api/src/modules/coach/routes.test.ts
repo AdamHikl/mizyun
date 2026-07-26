@@ -109,6 +109,56 @@ describe("coach routes", () => {
     expect(response.statusCode).toBe(401);
   });
 
+  it("returns a deterministic training prescription without provider access", async () => {
+    const { app, respond } = makeApp();
+    const profile = await app.inject({
+      method: "PUT",
+      url: "/v1/profile",
+      headers: { ...auth, "content-type": "application/json" },
+      payload: {
+        coachingPreferences: {
+          experienceLevel: "intermediate",
+          trainingDaysPerWeek: 3,
+          sessionDurationMinutes: 45,
+          trainingFocus: "strength",
+          availableEquipment: ["dumbbells", "bench"],
+          dietaryPreferences: ["omnivore"],
+          trainingLimitations: [],
+        },
+      },
+    });
+    expect(profile.statusCode).toBe(200);
+    const goal = await app.inject({
+      method: "POST",
+      url: "/v1/goals",
+      headers: { ...auth, "content-type": "application/json" },
+      payload: {
+        kind: "recomp",
+        pace: "gradual",
+        target: { weightKg: 80 },
+        startsOn: "2026-07-01",
+        targetDate: "2026-12-31",
+      },
+    });
+    expect(goal.statusCode).toBe(200);
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/coach/training-prescription",
+      headers: auth,
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().prescription).toMatchObject({
+      complete: true,
+      goalKind: "recomp",
+      requestedDaysPerWeek: 3,
+      resistanceDaysPerWeek: 3,
+      volumeAction: "hold",
+    });
+    expect(response.json().prescription.sessions).toHaveLength(3);
+    expect(respond).not.toHaveBeenCalled();
+  });
+
   it("creates, grounds, persists, and idempotently returns a coach message", async () => {
     const { app, respond } = makeApp();
     const id = await createConversation(app);

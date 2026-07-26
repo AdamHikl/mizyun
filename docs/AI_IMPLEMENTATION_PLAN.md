@@ -47,11 +47,11 @@ offline implementation proceeds.
    equipment, dietary preferences, exercise limitations, schedule, and
    goal-specific preferences; expose them through account controls and
    principal-bound Coach grounding.
-3. **Training prescription and progression — next.** Build deterministic,
+3. **Training prescription and progression — done.** Build deterministic,
    inspectable exercise-selection and progression rules over exercises,
    templates, recent volume, equipment, experience, and limitations;
    let AI explain and suggest an editable plan.
-4. **User-controlled memory.** Correct the production adapter's
+4. **User-controlled memory — next.** Correct the production adapter's
    principal/token boundary, recall only confirmed active memories, add
    candidate/confirm/correct/deactivate/expiry lifecycle, and ship
    mobile review controls plus export/deletion evidence.
