@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(30);
+select plan(31);
 
 insert into auth.users (id, email)
 values
@@ -94,6 +94,23 @@ insert into public.memory_items (id, user_id, kind, content, source, confidence,
 values
   ('50000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', 'goal', 'A goal', 'user', 1, 8),
   ('50000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000002', 'goal', 'B goal', 'user', 1, 8);
+
+select throws_ok(
+  $$insert into public.memory_items
+    (user_id, kind, content, source, confidence, importance, status)
+    values (
+      '10000000-0000-4000-8000-000000000001',
+      'observation',
+      'Unconfirmed low-confidence inference',
+      'assistant',
+      0.2,
+      2,
+      'active'
+    )$$,
+  '23514',
+  'new row for relation "memory_items" violates check constraint "memory_items_active_threshold"',
+  'low-confidence or low-importance memory cannot become active'
+);
 
 insert into public.memory_provider_refs (user_id, memory_id, provider, external_id)
 values

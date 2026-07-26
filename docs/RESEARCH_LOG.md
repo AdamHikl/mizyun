@@ -1146,6 +1146,19 @@ no log lines carrying photo bytes.
 - Experience, available equipment, preferences, and limitations are not yet profile inputs. The output discloses that limitation; the next implementation level will add those inputs before exercise selection becomes personalized.
 - Level 2 now stores those inputs as an explicit, closed, non-medical preference object: experience, weekly schedule, session duration, training focus, equipment, dietary preferences, and movement constraints. There is no free-text diagnosis field and no silent inference. Shared schemas, domain validation, database checks, export, mobile controls, and Coach grounding use the same vocabulary.
 - Level 3 applies the ACSM/WHO baseline through a versioned deterministic prescription: no more than four resistance days, at least 150 moderate aerobic minutes, bounded sets/reps/rest, equipment and movement-constraint filtering, and a conservative `build`/`hold`/`reduce` decision from confirmed seven-day sessions, set count, and average RPE. The mobile Coach can show the plan even when external AI is disabled; the model receives the exact same result through a read-only tool.
+- Level 4 makes durable memory explicitly user-controlled and
+  candidate-first. The same verified access token now reaches
+  orchestrator recall, grounding recall, and every Supabase operation;
+  a user UUID is never reused as a bearer token. Only active,
+  non-expired memories meeting the confidence/importance threshold are
+  recalled, and PostgreSQL enforces the activation threshold.
+- Creation and correction pass the existing Coach prompt-injection
+  screen. Corrections keep bounded prior-content provenance. Mobile
+  controls expose confirmation, correction, deactivation, reactivation,
+  expiry, and permanent deletion; account export includes superseded
+  history and account deletion removes memory with the rest of the
+  user's records. No model-facing write tool or automatic promotion was
+  introduced.
 
 ## 2026-07-25 — AI-MOB-002 Coach UX polish
 

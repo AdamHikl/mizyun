@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
 import type { AccountExport, AccountRepository } from "@mizyun/core";
+import type { MemoryRecord, MemoryStore } from "@mizyun/memory";
 import {
   accountDeleteResponseSchema,
   accountDeleteSchema,
@@ -14,11 +15,30 @@ import { sendApiError } from "../../errors.js";
 
 interface AccountRoutesOptions {
   readonly accountRepository: AccountRepository;
+  readonly memoryStore: MemoryStore;
 }
 
 const CHALLENGE_TTL_SECONDS = 5 * 60;
 
-const accountExportToWire = (exportDoc: AccountExport): AccountExportResponse =>
+const memoryToWire = (memory: MemoryRecord) => ({
+  id: memory.id,
+  userId: memory.userId,
+  kind: memory.kind,
+  content: memory.content,
+  source: memory.source,
+  status: memory.status,
+  confidence: memory.confidence,
+  importance: memory.importance,
+  createdAt: memory.createdAt.toISOString(),
+  updatedAt: memory.updatedAt.toISOString(),
+  expiresAt: memory.expiresAt?.toISOString() ?? null,
+  metadata: { ...memory.metadata },
+});
+
+const accountExportToWire = (
+  exportDoc: AccountExport,
+  memories: readonly MemoryRecord[],
+): AccountExportResponse =>
   accountExportResponseSchema.parse({
     export: {
       userId: exportDoc.userId,
@@ -136,6 +156,7 @@ const accountExportToWire = (exportDoc: AccountExport): AccountExportResponse =>
           createdAt: message.createdAt.toISOString(),
         })),
       })),
+      memories: memories.map(memoryToWire),
       privateMedia: exportDoc.privateMedia.map((m) => ({
         id: m.id,
         createdAt: m.createdAt.toISOString(),
@@ -161,7 +182,11 @@ export const accountRoutes: FastifyPluginAsync<AccountRoutesOptions> = async (
       const exportDoc = await options.accountRepository.exportForUser(
         principal.userId,
       );
-      return accountExportToWire(exportDoc);
+      const memories = await options.memoryStore.list(principal.userId, {
+        accessToken: principal.accessToken,
+        includeSuperseded: true,
+      });
+      return accountExportToWire(exportDoc, memories);
     },
   );
 
@@ -218,6 +243,17 @@ export const accountRoutes: FastifyPluginAsync<AccountRoutesOptions> = async (
         { confirmationToken: parsed.data.confirmationToken, now: new Date() },
       );
       if (result.deleted) {
+        const memories = await options.memoryStore.list(principal.userId, {
+          accessToken: principal.accessToken,
+          includeSuperseded: true,
+        });
+        await Promise.allSettled(
+          memories.map((memory) =>
+            options.memoryStore.delete(principal.userId, memory.id, {
+              accessToken: principal.accessToken,
+            }),
+          ),
+        );
         return accountDeleteResponseSchema.parse({ deleted: true });
       }
       const reason = result.reason;

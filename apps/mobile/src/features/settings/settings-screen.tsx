@@ -22,6 +22,7 @@ import {
   type PrincipalRenderState,
 } from "./principal-state";
 import { CoachPreferencesCard } from "./coach-preferences-card";
+import { MemoryControlsCard } from "./memory-controls-card";
 
 /**
  * Account / settings screen.
@@ -99,6 +100,7 @@ export function SettingsScreen() {
           {profile !== null ? (
             <CoachPreferencesCard profile={profile} onSaved={refreshProfile} />
           ) : null}
+          <MemoryControlsCard />
           <AnalyticsCard />
           <SignOutCard
             disabled={state.kind === "disabled"}

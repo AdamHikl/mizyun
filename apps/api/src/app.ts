@@ -533,6 +533,10 @@ export const buildApp = (
       return "free";
     });
 
+  // Resolve once so account export/deletion and Coach recall/control
+  // operate on the exact same memory backing store.
+  const memoryStore: MemoryStore = resolveMemoryStore(dependencies);
+
   void app.register(systemRoutes, { prefix: "/v1" });
   void app.register(identityRoutes, { prefix: "/v1" });
   void app.register(profileRoutes, {
@@ -574,6 +578,7 @@ export const buildApp = (
   void app.register(accountRoutes, {
     prefix: "/v1",
     accountRepository,
+    memoryStore,
   });
   void app.register(energyRoutes, {
     prefix: "/v1",
@@ -597,8 +602,6 @@ export const buildApp = (
   // share the same backing store. The orchestrator's
   // `dependencies.memories` is the default; tests may inject a
   // custom store via `coachControls.memoryStore`.
-  const memoryStore: MemoryStore = resolveMemoryStore(dependencies);
-
   // Build the limiter service. Production wires the Supabase
   // implementation against the service-role client; tests fall back
   // to the in-memory implementation unless they pass an override.

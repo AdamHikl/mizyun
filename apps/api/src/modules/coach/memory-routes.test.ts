@@ -38,17 +38,20 @@ const seedMemory = async (
   overrides: Partial<Parameters<MemoryStore["save"]>[0]> = {},
 ): Promise<string> => {
   const id = crypto.randomUUID() as Parameters<MemoryStore["save"]>[0]["id"];
-  await store.save({
-    id,
-    userId: principal,
-    kind: "preference",
-    content: "Prefers morning workouts",
-    source: "user",
-    confidence: 0.9,
-    importance: 5,
-    status: "active",
-    ...overrides,
-  } as Parameters<MemoryStore["save"]>[0]);
+  await store.save(
+    {
+      id,
+      userId: principal,
+      kind: "preference",
+      content: "Prefers morning workouts",
+      source: "user",
+      confidence: 0.9,
+      importance: 5,
+      status: "active",
+      ...overrides,
+    } as Parameters<MemoryStore["save"]>[0],
+    { accessToken },
+  );
   return id;
 };
 
@@ -82,6 +85,50 @@ afterEach(async () => {
 });
 
 describe("Coach memory routes — happy paths", () => {
+  it("creates a candidate that is excluded until the user confirms it", async () => {
+    const store = new InMemoryMemoryStore();
+    const app = buildAppWithMemory(store);
+    const created = await app.inject({
+      method: "POST",
+      url: "/v1/coach/memories",
+      headers: { ...auth, "content-type": "application/json" },
+      payload: {
+        kind: "preference",
+        content: "I prefer training before work",
+        importance: 5,
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json().memory).toMatchObject({
+      status: "candidate",
+      source: "user",
+      confidence: 1,
+    });
+    const id = created.json().memory.id as string;
+
+    const activeOnly = await app.inject({
+      method: "GET",
+      url: "/v1/coach/memories",
+      headers: auth,
+    });
+    expect(activeOnly.json().memories).toEqual([]);
+    const audit = await app.inject({
+      method: "GET",
+      url: "/v1/coach/memories?includeSuperseded=true",
+      headers: auth,
+    });
+    expect(audit.json().memories).toHaveLength(1);
+
+    const confirmed = await app.inject({
+      method: "PATCH",
+      url: `/v1/coach/memories/${id}`,
+      headers: { ...auth, "content-type": "application/json" },
+      payload: { status: "active" },
+    });
+    expect(confirmed.statusCode).toBe(200);
+    expect(confirmed.json().memory.status).toBe("active");
+  });
+
   it("lists the user's active memories", async () => {
     const store = new InMemoryMemoryStore();
     await seedMemory(store, userId, "test-access-token", {
@@ -130,6 +177,37 @@ describe("Coach memory routes — happy paths", () => {
     });
     expect(response.statusCode).toBe(200);
     expect(response.json().memory.content).toContain("late-evening");
+    expect(response.json().memory.metadata).toMatchObject({
+      lastCorrectedBy: "user",
+      correctionHistory: [
+        expect.objectContaining({
+          content: "Prefers morning workouts",
+        }),
+      ],
+    });
+  });
+
+  it("sets and clears an explicit expiry", async () => {
+    const store = new InMemoryMemoryStore();
+    const id = await seedMemory(store, userId, "test-access-token");
+    const app = buildAppWithMemory(store);
+    const expiresAt = "2027-01-01T00:00:00.000Z";
+    const set = await app.inject({
+      method: "PATCH",
+      url: `/v1/coach/memories/${id}`,
+      headers: { ...auth, "content-type": "application/json" },
+      payload: { expiresAt },
+    });
+    expect(set.statusCode).toBe(200);
+    expect(set.json().memory.expiresAt).toBe(expiresAt);
+    const cleared = await app.inject({
+      method: "PATCH",
+      url: `/v1/coach/memories/${id}`,
+      headers: { ...auth, "content-type": "application/json" },
+      payload: { expiresAt: null },
+    });
+    expect(cleared.statusCode).toBe(200);
+    expect(cleared.json().memory.expiresAt).toBeNull();
   });
 
   it("deletes a memory and returns 204", async () => {

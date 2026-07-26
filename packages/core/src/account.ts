@@ -19,9 +19,9 @@ import type { StoredWorkoutSet } from "./workout-set";
  * The export deliberately returns immutable DTOs shaped from the
  * per-feature `Stored*` types. Conversations, messages, and
  * memories are reserved for a follow-up segment once the
- * per-feature wire schemas exist; the in-memory `AccountExport`
- * sets these to empty arrays so the client can rely on the
- * envelope being exhaustive (every key is always present).
+ * per-feature wire schemas exist. Memory is composed into the
+ * transport export by the API because the memory package depends
+ * on core; keeping that direction avoids a domain cycle.
  */
 
 export interface StoredConversationStub {
@@ -56,10 +56,8 @@ export interface AccountExport {
   readonly workoutSets: ReadonlyArray<StoredWorkoutSet>;
   readonly bodyMeasurements: ReadonlyArray<StoredBodyMeasurement>;
   /**
-   * Reserved for a follow-up segment (CONV-* / MEM-*). The
-   * envelope shape is stable today; an empty array means "not yet
-   * wired" so the client renders a "Coming soon" cell rather
-   * than crashing.
+   * Conversations are composed by the account repository.
+   * Memory is composed separately by the API route.
    */
   readonly conversations: ReadonlyArray<StoredConversationStub>;
   readonly privateMedia: ReadonlyArray<{

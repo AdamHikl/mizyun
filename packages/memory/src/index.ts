@@ -7,8 +7,8 @@ export type MemoryKind =
  * Lifecycle status of a memory item. Mirrors the SQL `check`
  * constraint in `20260714102000_conversations_and_memory.sql`.
  *
- * - `candidate`: surfaced by the orchestrator but not yet
- *   promoted; the user has not seen it.
+ * - `candidate`: visible in user controls but excluded from
+ *   orchestrator recall until the user confirms it.
  * - `active`: surfaced in the Coach prompt and on the memories
  *   list endpoint.
  * - `superseded`: replaced by a newer memory; kept for audit,
@@ -48,6 +48,7 @@ export interface NewMemory {
 
 export interface MemoryQuery {
   readonly userId: UserId;
+  readonly accessToken: string;
   readonly text: string;
   readonly kinds?: readonly MemoryKind[];
   readonly limit: number;
@@ -66,12 +67,17 @@ export interface MemoryPatch {
   readonly confidence?: number;
   readonly importance?: number;
   readonly status?: MemoryStatus;
+  readonly expiresAt?: Date | null;
+  /**
+   * Internal provenance metadata. User-facing contracts do not
+   * accept this field; the route uses it to append correction
+   * history before calling the store.
+   */
+  readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
-export interface MemorySearchOptions {
+export interface MemorySaveOptions {
   readonly accessToken: string;
-  readonly asOf?: Date;
-  readonly limit?: number;
 }
 
 export interface MemoryGetOptions {
@@ -130,7 +136,7 @@ export class MemoryEmptyPatchError extends MemoryValidationError {
 }
 
 export interface MemoryStore {
-  save(memory: NewMemory): Promise<MemoryRecord>;
+  save(memory: NewMemory, options: MemorySaveOptions): Promise<MemoryRecord>;
   search(query: MemoryQuery): Promise<readonly MemoryRecord[]>;
   /**
    * List memories for the principal. Default is `status='active'`
@@ -189,6 +195,17 @@ export const MEMORY_ACTIVE_IMPORTANCE = 3;
 export const MEMORY_LIST_DEFAULT_LIMIT = 50;
 export const MEMORY_LIST_MAX_LIMIT = 200;
 
+export const validateActiveMemoryThreshold = (
+  memory: Pick<MemoryRecord, "status" | "confidence" | "importance">,
+): MemoryValidationError | null =>
+  memory.status === "active" &&
+  (memory.confidence < MEMORY_ACTIVE_CONFIDENCE ||
+    memory.importance < MEMORY_ACTIVE_IMPORTANCE)
+    ? new MemoryValidationError(
+        `active memories require confidence >= ${MEMORY_ACTIVE_CONFIDENCE} and importance >= ${MEMORY_ACTIVE_IMPORTANCE}`,
+      )
+    : null;
+
 /**
  * Validate a `MemoryPatch`. Returns the first failure or `null`
  * when the patch is valid. Empty patches are rejected.
@@ -201,7 +218,9 @@ export const validateMemoryPatch = (
     patch.confidence !== undefined ||
     patch.importance !== undefined ||
     patch.status !== undefined;
-  if (!touched) {
+  const touchedWithLifecycle =
+    touched || patch.expiresAt !== undefined || patch.metadata !== undefined;
+  if (!touchedWithLifecycle) {
     return new MemoryEmptyPatchError();
   }
   if (patch.content !== undefined && patch.content.trim().length === 0) {
@@ -242,7 +261,11 @@ export const validateMemoryPatch = (
 export class InMemoryMemoryStore implements MemoryStore {
   readonly #records = new Map<MemoryId, MemoryRecord>();
 
-  async save(memory: NewMemory): Promise<MemoryRecord> {
+  async save(
+    memory: NewMemory,
+    options: MemorySaveOptions,
+  ): Promise<MemoryRecord> {
+    void options;
     const now = new Date();
     const existing = this.#records.get(memory.id);
     const record: MemoryRecord = {
@@ -252,6 +275,8 @@ export class InMemoryMemoryStore implements MemoryStore {
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
     };
+    const activationError = validateActiveMemoryThreshold(record);
+    if (activationError !== null) throw activationError;
 
     this.#records.set(record.id, record);
     return record;
@@ -262,11 +287,7 @@ export class InMemoryMemoryStore implements MemoryStore {
 
     return [...this.#records.values()]
       .filter((memory) => memory.userId === query.userId)
-      .filter((memory) => memory.status !== "deleted")
-      .filter(
-        (memory) => memory.status === "active" || memory.status === "candidate",
-      )
-      .filter((memory) => !memory.expiresAt || memory.expiresAt > query.asOf)
+      .filter((memory) => isActiveMemory(memory, query.asOf))
       .filter((memory) => !query.kinds || query.kinds.includes(memory.kind))
       .map((memory) => ({
         memory,
@@ -330,7 +351,7 @@ export class InMemoryMemoryStore implements MemoryStore {
     if (!memory || memory.userId !== userId || memory.status === "deleted") {
       throw new MemoryNotFoundError(memoryId);
     }
-    const next: MemoryRecord = {
+    const candidate: MemoryRecord = {
       ...memory,
       ...(options.patch.content !== undefined
         ? { content: options.patch.content }
@@ -344,8 +365,22 @@ export class InMemoryMemoryStore implements MemoryStore {
       ...(options.patch.status !== undefined
         ? { status: options.patch.status }
         : {}),
+      ...(options.patch.expiresAt instanceof Date
+        ? { expiresAt: options.patch.expiresAt }
+        : {}),
+      ...(options.patch.metadata !== undefined
+        ? { metadata: options.patch.metadata }
+        : {}),
       updatedAt: new Date(),
     };
+    const next: MemoryRecord =
+      options.patch.expiresAt === null
+        ? (({ expiresAt: _expiresAt, ...withoutExpiry }) => withoutExpiry)(
+            candidate,
+          )
+        : candidate;
+    const activationError = validateActiveMemoryThreshold(next);
+    if (activationError !== null) throw activationError;
     this.#records.set(next.id, next);
     return next;
   }

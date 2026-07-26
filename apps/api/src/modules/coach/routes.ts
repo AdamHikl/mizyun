@@ -528,6 +528,7 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
         // claim "Used confirmed: memory".
         const response = await options.agent.respond({
           userId: principal.userId,
+          accessToken: principal.accessToken,
           conversationId,
           messages: storedMessages.map((message) => ({
             role: message.role,

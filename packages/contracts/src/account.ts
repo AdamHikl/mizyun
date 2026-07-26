@@ -66,6 +66,7 @@ export const accountExportSchema = z.object({
   workoutSets: z.array(z.unknown()),
   bodyMeasurements: z.array(z.unknown()),
   conversations: z.array(conversationStubSchema),
+  memories: z.array(z.unknown()),
   privateMedia: z.array(privateMediaStubSchema),
 });
 

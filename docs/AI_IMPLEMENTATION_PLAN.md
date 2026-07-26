@@ -51,11 +51,11 @@ offline implementation proceeds.
    inspectable exercise-selection and progression rules over exercises,
    templates, recent volume, equipment, experience, and limitations;
    let AI explain and suggest an editable plan.
-4. **User-controlled memory — next.** Correct the production adapter's
+4. **User-controlled memory — done.** Correct the production adapter's
    principal/token boundary, recall only confirmed active memories, add
    candidate/confirm/correct/deactivate/expiry lifecycle, and ship
    mobile review controls plus export/deletion evidence.
-5. **Nutrition drafting completion.** Add text-to-draft and make both
+5. **Nutrition drafting completion — next.** Add text-to-draft and make both
    text/photo drafts return ranges, assumptions, provenance, warnings,
    and confidence before explicit confirmation.
 6. **Evaluation and operations.** Expand reproducible grounded-answer,
@@ -292,14 +292,23 @@ Every run records dataset version, prompt version, configured alias, resolved mo
 
 ### MEM-001 — Persistent memory and controls
 
-Implement after the grounded text coach passes AI-EVAL-001:
+Implemented behind the existing authenticated Coach boundary:
 
 - Supabase/PostgreSQL `MemoryStore` adapter using existing `memory_items`;
-- statuses and methods for candidate, active, superseded, inactive/deleted;
+- candidate-first status and methods for confirm, correct, supersede,
+  reactivate, expire, and hard-delete;
 - provenance, confidence, expiry, and correction history;
 - memory review/control API and mobile UI;
 - account export/deletion coverage;
-- two-user isolation and prompt-injection retrieval tests.
+- verified-token adapter tests, two-user database isolation, active-only
+  recall tests, and prompt-injection screening on creation/correction.
+
+The account export includes the complete memory audit trail, including
+superseded records. Successful account deletion removes the in-memory
+store explicitly; production PostgreSQL records also cascade from the
+user. The mobile settings surface is the authority for creation,
+confirmation, correction, deactivation, expiry, reactivation, and
+deletion. The runtime never writes or promotes a memory.
 
 Do not add embeddings in the first memory slice. Add a separate ADR/migration only if measured lexical retrieval is insufficient.
 

@@ -7,9 +7,8 @@
  * run `screenCoachInput` on user-edited text fields to defend
  * against prompt injection via the controls API.
  *
- * The runtime never auto-writes memories in v1 — v2 may add
- * "should I remember this?" candidates surfaced from
- * conversation turns. This route is the only write path.
+ * Candidate creation is explicit and user-controlled. Candidates
+ * never enter recall until the user promotes them to active.
  */
 
 import type { FastifyPluginAsync } from "fastify";
@@ -22,6 +21,7 @@ import {
 } from "@mizyun/memory";
 import {
   coachMemoryListResponseSchema,
+  coachMemoryCreateSchema,
   coachMemoryPatchSchema,
   coachMemoryResponseSchema,
   type CoachMemory,
@@ -78,6 +78,7 @@ const toSummary = (
       ? `${memory.content.slice(0, 277)}…`
       : memory.content,
   updatedAt: memory.updatedAt.toISOString(),
+  expiresAt: memory.expiresAt?.toISOString() ?? null,
 });
 
 const parseMemoryId = (raw: string): MemoryId => {
@@ -92,6 +93,59 @@ const parseMemoryId = (raw: string): MemoryId => {
 export const coachMemoryRoutes: FastifyPluginAsync<
   MemoryRoutesOptions
 > = async (app, options) => {
+  app.post(
+    "/memories",
+    { preHandler: app.authenticate },
+    async (request, reply) => {
+      const principal = request.principal ?? principalOrThrow();
+      const parsed = coachMemoryCreateSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return sendApiError(
+          reply,
+          request,
+          422,
+          "VALIDATION_ERROR",
+          "The memory candidate is invalid.",
+        );
+      }
+      const safety = screenCoachInput(parsed.data.content);
+      if (!safety.allowed) {
+        return sendApiError(
+          reply,
+          request,
+          422,
+          "VALIDATION_ERROR",
+          "The memory content is not allowed.",
+        );
+      }
+      const now = new Date();
+      const memory = await options.memoryStore.save(
+        {
+          id: crypto.randomUUID() as MemoryId,
+          userId: principal.userId as UserId,
+          kind: parsed.data.kind,
+          content: parsed.data.content,
+          source: "user",
+          confidence: 1,
+          importance: parsed.data.importance,
+          status: "candidate",
+          ...(parsed.data.expiresAt
+            ? { expiresAt: new Date(parsed.data.expiresAt) }
+            : {}),
+          metadata: {
+            createdBy: "user",
+            createdFrom: "memory_controls",
+            candidateCreatedAt: now.toISOString(),
+          },
+        },
+        { accessToken: principal.accessToken },
+      );
+      return reply
+        .status(201)
+        .send(coachMemoryResponseSchema.parse({ memory: toWire(memory) }));
+    },
+  );
+
   app.get(
     "/memories",
     { preHandler: app.authenticate },
@@ -180,6 +234,14 @@ export const coachMemoryRoutes: FastifyPluginAsync<
         ...(parsed_patch.status !== undefined
           ? { status: parsed_patch.status }
           : {}),
+        ...(parsed_patch.expiresAt !== undefined
+          ? {
+              expiresAt:
+                parsed_patch.expiresAt === null
+                  ? null
+                  : new Date(parsed_patch.expiresAt),
+            }
+          : {}),
       };
       if (parsed_patch.content !== undefined) {
         const safety = screenCoachInput(parsed_patch.content);
@@ -194,12 +256,49 @@ export const coachMemoryRoutes: FastifyPluginAsync<
         }
       }
       try {
+        const current = await options.memoryStore.get(
+          principal.userId as UserId,
+          id,
+          { accessToken: principal.accessToken },
+        );
+        if (current === null) {
+          return sendApiError(
+            reply,
+            request,
+            404,
+            "NOT_FOUND",
+            "Memory not found.",
+          );
+        }
+        const correctionHistory = Array.isArray(
+          current.metadata.correctionHistory,
+        )
+          ? current.metadata.correctionHistory.slice(-9)
+          : [];
+        const patchWithProvenance =
+          parsed_patch.content !== undefined &&
+          parsed_patch.content !== current.content
+            ? {
+                ...patch,
+                metadata: {
+                  ...current.metadata,
+                  correctionHistory: [
+                    ...correctionHistory,
+                    {
+                      content: current.content,
+                      correctedAt: new Date().toISOString(),
+                    },
+                  ],
+                  lastCorrectedBy: "user",
+                },
+              }
+            : patch;
         const memory = await options.memoryStore.update(
           principal.userId as UserId,
           id,
           {
             accessToken: principal.accessToken,
-            patch,
+            patch: patchWithProvenance,
           },
         );
         return reply

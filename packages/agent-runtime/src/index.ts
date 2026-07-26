@@ -489,6 +489,7 @@ export class AgentOrchestrator {
     }
     const memories = await this.#memories.search({
       userId: input.userId,
+      accessToken: input.accessToken ?? "",
       text: latestUserMessage?.text ?? "",
       limit: this.#memoryLimit,
       asOf: this.#clock.now(),

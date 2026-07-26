@@ -4,7 +4,7 @@ import {
   AgentOrchestrator,
   DisabledAgentProvider,
 } from "@mizyun/agent-runtime";
-import type { UserId } from "@mizyun/core";
+import type { MemoryId, UserId } from "@mizyun/core";
 import type { AccessTokenVerifier } from "@mizyun/identity";
 import { InMemoryMemoryStore } from "@mizyun/memory";
 
@@ -50,6 +50,7 @@ const build = (verifier: AccessTokenVerifier) => {
   const workoutRepository = new InMemoryWorkoutRepository();
   const workoutSetRepository = new InMemoryWorkoutSetRepository();
   const bodyMeasurementRepository = new InMemoryBodyMeasurementRepository();
+  const memoryStore = new InMemoryMemoryStore();
   const accountRepository = new InMemoryAccountRepository({
     profileRepository,
     goalRepository,
@@ -63,7 +64,7 @@ const build = (verifier: AccessTokenVerifier) => {
     tokenVerifier: verifier,
     agent: new AgentOrchestrator({
       provider: new DisabledAgentProvider(),
-      memories: new InMemoryMemoryStore(),
+      memories: memoryStore,
     }),
     profileRepository,
     goalRepository,
@@ -73,9 +74,16 @@ const build = (verifier: AccessTokenVerifier) => {
     workoutSetRepository,
     bodyMeasurementRepository,
     accountRepository,
+    memories: memoryStore,
   });
   apps.push(app);
-  return { app, profileRepository, exerciseRepository, workoutRepository };
+  return {
+    app,
+    profileRepository,
+    exerciseRepository,
+    workoutRepository,
+    memoryStore,
+  };
 };
 
 describe("GET /v1/account/export", () => {
@@ -106,11 +114,12 @@ describe("GET /v1/account/export", () => {
     expect(body.export.workoutSets).toEqual([]);
     expect(body.export.bodyMeasurements).toEqual([]);
     expect(body.export.conversations).toEqual([]);
+    expect(body.export.memories).toEqual([]);
     expect(body.export.privateMedia).toEqual([]);
   });
 
-  it("includes seeded records in the envelope", async () => {
-    const { app, exerciseRepository } = build(
+  it("includes seeded records and the complete memory audit trail", async () => {
+    const { app, exerciseRepository, memoryStore } = build(
       tokenVerifierFor({ userId: userA }),
     );
     exerciseRepository.__seedForTest({
@@ -122,6 +131,19 @@ describe("GET /v1/account/export", () => {
       createdAt: new Date("2026-07-10T08:00:00Z"),
       updatedAt: new Date("2026-07-10T08:00:00Z"),
     });
+    await memoryStore.save(
+      {
+        id: "00000000-0000-4000-8000-00000000d001" as MemoryId,
+        userId: userA,
+        kind: "preference",
+        content: "Prefers morning training",
+        source: "user",
+        confidence: 1,
+        importance: 5,
+        status: "superseded",
+      },
+      { accessToken: "test-token" },
+    );
     const response = await app.inject({
       method: "GET",
       url: "/v1/account/export",
@@ -129,6 +151,11 @@ describe("GET /v1/account/export", () => {
     });
     expect(response.json().export.exercises).toHaveLength(1);
     expect(response.json().export.exercises[0].name).toBe("Back squat");
+    expect(response.json().export.memories).toHaveLength(1);
+    expect(response.json().export.memories[0]).toMatchObject({
+      content: "Prefers morning training",
+      status: "superseded",
+    });
   });
 
   it("returns 401 without a bearer token", async () => {
@@ -208,8 +235,13 @@ describe("DELETE /v1/account", () => {
   });
 
   it("deletes every record when the token matches", async () => {
-    const { app, exerciseRepository, profileRepository, workoutRepository } =
-      build(tokenVerifierFor({ userId: userA }));
+    const {
+      app,
+      exerciseRepository,
+      profileRepository,
+      workoutRepository,
+      memoryStore,
+    } = build(tokenVerifierFor({ userId: userA }));
     exerciseRepository.__seedForTest({
       id: "00000000-0000-4000-8000-00000000c001",
       userId: userA,
@@ -253,6 +285,18 @@ describe("DELETE /v1/account", () => {
       createdAt: new Date("2026-07-10T08:00:00Z"),
       updatedAt: new Date("2026-07-10T08:00:00Z"),
     });
+    await memoryStore.save(
+      {
+        id: "00000000-0000-4000-8000-00000000d002" as MemoryId,
+        userId: userA,
+        kind: "goal",
+        content: "Run a 10K",
+        source: "user",
+        confidence: 1,
+        importance: 5,
+      },
+      { accessToken: "test-token" },
+    );
     const challenge = await app.inject({
       method: "POST",
       url: "/v1/account/delete/request",
@@ -281,6 +325,7 @@ describe("DELETE /v1/account", () => {
     });
     expect(afterExport.json().export.exercises).toEqual([]);
     expect(afterExport.json().export.workouts).toEqual([]);
+    expect(afterExport.json().export.memories).toEqual([]);
     expect(afterExport.json().export.profile.displayName).toBeNull();
   });
 

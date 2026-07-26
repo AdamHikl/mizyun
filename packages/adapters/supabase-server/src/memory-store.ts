@@ -8,7 +8,7 @@ import {
   type MemoryDeleteOptions,
   type MemoryGetOptions,
   type MemoryListOptions,
-  type MemorySearchOptions,
+  type MemorySaveOptions,
   type MemoryStore,
   type MemoryUpdateOptions,
 } from "@mizyun/memory";
@@ -19,6 +19,8 @@ import { RepositoryError } from "./repository-error.js";
 import {
   MEMORY_LIST_DEFAULT_LIMIT,
   MEMORY_LIST_MAX_LIMIT,
+  isActiveMemory,
+  validateActiveMemoryThreshold,
   validateMemoryPatch,
 } from "@mizyun/memory";
 
@@ -68,8 +70,17 @@ export class SupabaseMemoryStore implements MemoryStore {
     this.#clientFor = options.clientFor;
   }
 
-  async save(memory: NewMemory): Promise<MemoryRecord> {
-    const client = this.#clientFor(memory.userId);
+  async save(
+    memory: NewMemory,
+    options: MemorySaveOptions,
+  ): Promise<MemoryRecord> {
+    const activationError = validateActiveMemoryThreshold({
+      status: memory.status ?? "candidate",
+      confidence: memory.confidence,
+      importance: memory.importance,
+    });
+    if (activationError !== null) throw activationError;
+    const client = this.#clientFor(options.accessToken);
     const payload = {
       id: memory.id,
       user_id: memory.userId,
@@ -99,17 +110,18 @@ export class SupabaseMemoryStore implements MemoryStore {
 
   async search(query: {
     readonly userId: UserId;
+    readonly accessToken: string;
     readonly text: string;
     readonly kinds?: readonly MemoryKind[];
     readonly limit: number;
     readonly asOf: Date;
   }): Promise<readonly MemoryRecord[]> {
-    const client = this.#clientFor(query.userId);
+    const client = this.#clientFor(query.accessToken);
     let builder = client
       .from<MemoryRow>("memory_items")
       .select("*")
       .eq("user_id", query.userId)
-      .in("status", ["active", "candidate"])
+      .eq("status", "active")
       .order("updated_at", { ascending: false })
       .limit(query.limit);
     if (query.kinds !== undefined && query.kinds.length > 0) {
@@ -126,11 +138,7 @@ export class SupabaseMemoryStore implements MemoryStore {
     const words = query.text.toLocaleLowerCase().split(/\s+/).filter(Boolean);
     const filtered = result.data
       .map((row) => fromRow(row))
-      .filter((memory) =>
-        memory.expiresAt === undefined
-          ? true
-          : memory.expiresAt.getTime() > query.asOf.getTime(),
-      )
+      .filter((memory) => isActiveMemory(memory, query.asOf))
       .map((memory) => ({
         memory,
         score: words.filter((word) =>
@@ -202,7 +210,19 @@ export class SupabaseMemoryStore implements MemoryStore {
     if (validationError !== null) {
       throw validationError;
     }
+    const current = await this.get(userId, memoryId, {
+      accessToken: options.accessToken,
+    });
+    if (current === null) {
+      throw new MemoryNotFoundError(memoryId);
+    }
     const patch: MemoryPatch = options.patch;
+    const activationError = validateActiveMemoryThreshold({
+      status: patch.status ?? current.status,
+      confidence: patch.confidence ?? current.confidence,
+      importance: patch.importance ?? current.importance,
+    });
+    if (activationError !== null) throw activationError;
     const client = this.#clientFor(options.accessToken);
     const payload: Partial<MemoryRow> = {
       ...(patch.content !== undefined ? { content: patch.content } : {}),
@@ -213,6 +233,13 @@ export class SupabaseMemoryStore implements MemoryStore {
         ? { importance: patch.importance }
         : {}),
       ...(patch.status !== undefined ? { status: patch.status } : {}),
+      ...(patch.expiresAt !== undefined
+        ? {
+            expires_at:
+              patch.expiresAt === null ? null : patch.expiresAt.toISOString(),
+          }
+        : {}),
+      ...(patch.metadata !== undefined ? { metadata: patch.metadata } : {}),
     };
     const result = await client
       .from<MemoryRow>("memory_items")

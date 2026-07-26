@@ -145,6 +145,7 @@ export const coachMemorySummarySchema = z.object({
   importance: z.number().int().min(0).max(10),
   preview: z.string().trim().min(1).max(280),
   updatedAt: z.string().datetime(),
+  expiresAt: z.string().datetime().nullable(),
 });
 
 export const coachMemorySchema = z.object({
@@ -173,6 +174,7 @@ export const coachMemoryPatchSchema = z
     confidence: z.number().min(0).max(1).optional(),
     importance: z.number().int().min(0).max(10).optional(),
     status: coachMemoryStatusSchema.optional(),
+    expiresAt: z.string().datetime().nullable().optional(),
   })
   .strict()
   .refine(
@@ -180,13 +182,23 @@ export const coachMemoryPatchSchema = z
       patch.content !== undefined ||
       patch.confidence !== undefined ||
       patch.importance !== undefined ||
-      patch.status !== undefined,
+      patch.status !== undefined ||
+      patch.expiresAt !== undefined,
     "at least one field must be present",
   );
 
 export const coachMemoryListResponseSchema = z.object({
   memories: z.array(coachMemorySummarySchema),
 });
+
+export const coachMemoryCreateSchema = z
+  .object({
+    kind: coachMemoryKindSchema,
+    content: z.string().trim().min(1).max(4_000),
+    importance: z.number().int().min(3).max(10).default(5),
+    expiresAt: z.string().datetime().nullable().optional(),
+  })
+  .strict();
 
 export const coachMemoryResponseSchema = z.object({
   memory: coachMemorySchema,
@@ -195,6 +207,7 @@ export const coachMemoryResponseSchema = z.object({
 export type CoachMemorySummary = z.infer<typeof coachMemorySummarySchema>;
 export type CoachMemory = z.infer<typeof coachMemorySchema>;
 export type CoachMemoryPatch = z.infer<typeof coachMemoryPatchSchema>;
+export type CoachMemoryCreate = z.infer<typeof coachMemoryCreateSchema>;
 export type CoachMemoryListResponse = z.infer<
   typeof coachMemoryListResponseSchema
 >;

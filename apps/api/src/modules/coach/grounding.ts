@@ -157,6 +157,7 @@ export const buildCoachGrounding = async (
   if (dependencies.memoryStore !== undefined) {
     const memories = await dependencies.memoryStore.search({
       userId,
+      accessToken,
       text: "",
       limit: 12,
       asOf: now,

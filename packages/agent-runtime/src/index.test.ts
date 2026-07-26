@@ -23,6 +23,41 @@ describe("DisabledAgentProvider", () => {
 });
 
 describe("AgentOrchestrator — read-only tool loop (AI-002)", () => {
+  it("passes the verified access token into memory recall", async () => {
+    let recalledWith: string | null = null;
+    class TokenCapturingMemoryStore extends InMemoryMemoryStore {
+      override async search(
+        query: Parameters<InMemoryMemoryStore["search"]>[0],
+      ) {
+        recalledWith = query.accessToken;
+        return super.search(query);
+      }
+    }
+    const provider: AgentProvider = {
+      status: async () => ({
+        ready: true,
+        provider: "fake",
+        externalAccess: true,
+      }),
+      respond: async (request) => ({
+        message: { role: "assistant", text: "done" },
+        provider: "fake",
+        evidence: request.grounding,
+      }),
+    };
+    const orchestrator = new AgentOrchestrator({
+      provider,
+      memories: new TokenCapturingMemoryStore(),
+    });
+    await orchestrator.respond({
+      userId: "00000000-0000-4000-8000-000000000001" as UserId,
+      conversationId: "00000000-0000-4000-8000-000000000002" as ConversationId,
+      messages: [{ role: "user", text: "hello" }],
+      accessToken: "verified-access-token",
+    });
+    expect(recalledWith).toBe("verified-access-token");
+  });
+
   it("executes one tool batch, folds results into grounding, and returns the final answer", async () => {
     let providerCalls = 0;
     const toolExecutions: Array<{
