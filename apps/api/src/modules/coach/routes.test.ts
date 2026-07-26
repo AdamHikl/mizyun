@@ -4,6 +4,7 @@ import {
   AgentProviderError,
   StubVisionProvider,
   type AgentProvider,
+  type ContentModerator,
   type VisionDraftProvider,
 } from "@mizyun/agent-runtime";
 import type { PlanTier, ProfileRepository, UserId } from "@mizyun/core";
@@ -110,6 +111,54 @@ describe("coach routes", () => {
       url: "/v1/coach/conversations",
     });
     expect(response.statusCode).toBe(401);
+  });
+
+  it("passes an injected moderator into the composed orchestrator", async () => {
+    const conversationRepository = new InMemoryConversationRepository();
+    const respond = vi.fn<AgentProvider["respond"]>();
+    const provider: AgentProvider = {
+      status: async () => ({
+        ready: true,
+        provider: "fake",
+        externalAccess: true,
+      }),
+      respond,
+    };
+    const moderateText = vi.fn<ContentModerator["moderateText"]>(async () => ({
+      allowed: false,
+      provider: "fake-moderator",
+      model: "fake-moderation-v1",
+      category: "dangerous",
+    }));
+    const app = buildApp({
+      tokenVerifier,
+      conversationRepository,
+      provider,
+      memories: new InMemoryMemoryStore(),
+      moderator: { moderateText },
+    });
+    apps.push(app);
+
+    const id = await createConversation(app);
+    const response = await sendMessage(app, id, "moderated-message");
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().assistantMessage).toMatchObject({
+      provider: "mizyun-safety",
+    });
+    const storedMessages = await conversationRepository.listMessages(
+      userId,
+      parseConversationId(id),
+      { accessToken: "valid-token", limit: 10 },
+    );
+    expect(storedMessages[1]?.providerMetadata).toMatchObject({
+      safetyCategory: "external_moderation_dangerous",
+      moderationDirection: "input",
+      moderationProvider: "fake-moderator",
+      moderationModel: "fake-moderation-v1",
+    });
+    expect(moderateText).toHaveBeenCalledOnce();
+    expect(respond).not.toHaveBeenCalled();
   });
 
   it("returns a deterministic training prescription without provider access", async () => {

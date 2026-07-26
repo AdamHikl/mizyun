@@ -1391,3 +1391,21 @@ no API changes. The segment closes the gap between "Coach works"
 4. Send "How am I doing?" → optimistic user bubble stays; assistant bubble appends; chips appear under assistant.
 5. Tap a chip → expands deterministic human summary.
 6. Force a 429 (raise `userRequestsPerMinute=1` then send twice) → alert border yellow with "Coach is busy…" copy.
+
+## 2026-07-26 — External Mistral moderation API (AI-SAFETY-001)
+
+### Primary sources
+
+- Mistral AI, **Moderation API** (accessed 2026-07-26):
+  https://docs.mistral.ai/studio-api/conversations/moderation
+
+### Verified findings and implementation consequences
+
+- Mistral provides the `mistral-moderation-2603` model via the `@mistralai/mistralai` 1.15.1 `client.classifiers.moderate({ model, inputs })` method.
+- The returned payload is `{ id, model, results: [{ categories: Record<string, boolean>, categoryScores: Record<string, number> }] }`.
+- Documented categories include `sexual`, `hate/discrimination`, `violence/threats`, `dangerous`, `criminal`, `self-harm` (including eating disorders), `health`, `financial`, `law`, `PII`, and `jailbreaking`.
+- `MistralContentModerator` in `packages/providers/mistral` parses the response strictly against a Zod schema. It relies on the provider's boolean `categories` flags, selecting the highest-scoring category among true categories.
+- Malformed responses, provider failures, or disabled `AI_EXTERNAL_ACCESS` throw an exception so the runtime fails closed with a fixed reviewed safety envelope (`mizyun-safety`).
+- Prompts, responses, scores, and raw input/output texts are never logged.
+- The moderator is wired in `apps/api` composition root only when Mistral provider is configured (`AGENT_PROVIDER=mistral`), using `MISTRAL_MODERATION_MODEL` (defaulting to `mistral-moderation-2603`).
+- Opt-in live synthetic e2e calibration tests verify moderation connectivity without leaking sensitive text or secrets into logs.

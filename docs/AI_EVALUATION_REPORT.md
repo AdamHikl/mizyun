@@ -58,6 +58,7 @@ latency/cost. Reconcile those results here before changing
   under-one-second latency bucket.
 - Synthetic blank-image nutrition draft: passed strict
   `nutrition-draft-v2` parsing with Mistral provenance.
+- Bounded safe/blocked moderation calibration: verified with `mistral-moderation-2603` fake-client tests and opt-in e2e harness.
 
-These three calls verify connectivity and adapter compatibility; they
+These calls verify connectivity and adapter compatibility; they
 are not a statistically meaningful quality, latency, or cost sample.

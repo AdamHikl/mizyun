@@ -10,6 +10,7 @@ import {
   screenCoachInput,
   type AgentProvider,
   type AgentResponse,
+  type ContentModerator,
 } from "./index.js";
 import { InMemoryMemoryStore } from "@mizyun/memory";
 import type { ConversationId, UserId } from "@mizyun/core";
@@ -310,5 +311,157 @@ describe("coach safety boundary", () => {
     });
     expect(calls).toBe(0);
     expect(response.provider).toBe("mizyun-safety");
+  });
+
+  it("uses external moderation before memory recall and provider access", async () => {
+    let providerCalls = 0;
+    const moderator: ContentModerator = {
+      moderateText: async () => ({
+        allowed: false,
+        provider: "mistral",
+        model: "mistral-moderation-2603",
+        category: "dangerous",
+      }),
+    };
+    const orchestrator = new AgentOrchestrator({
+      provider: {
+        status: async () => ({
+          ready: true,
+          provider: "fake",
+          externalAccess: true,
+        }),
+        respond: async () => {
+          providerCalls += 1;
+          throw new Error("must not be called");
+        },
+      },
+      memories: new InMemoryMemoryStore(),
+      moderator,
+    });
+    const response = await orchestrator.respond({
+      userId: "00000000-0000-4000-8000-000000000001" as UserId,
+      conversationId: "00000000-0000-4000-8000-000000000002" as ConversationId,
+      messages: [{ role: "user", text: "an oblique unsafe request" }],
+    });
+    expect(providerCalls).toBe(0);
+    expect(response.provider).toBe("mizyun-safety");
+    expect(response.providerMetadata).toMatchObject({
+      safetyCategory: "external_moderation_dangerous",
+      moderationDirection: "input",
+    });
+  });
+
+  it("bounds external moderation metadata before surfacing it", async () => {
+    const orchestrator = new AgentOrchestrator({
+      provider: {
+        status: async () => ({
+          ready: true,
+          provider: "fake",
+          externalAccess: true,
+        }),
+        respond: async () => {
+          throw new Error("must not be called");
+        },
+      },
+      memories: new InMemoryMemoryStore(),
+      moderator: {
+        moderateText: async () => ({
+          allowed: false,
+          provider: "provider with spaces and\ncontrol text",
+          model: "model ".repeat(40),
+          category: "dangerous category\nwith control text",
+        }),
+      },
+    });
+    const response = await orchestrator.respond({
+      userId: "00000000-0000-4000-8000-000000000001" as UserId,
+      conversationId: "00000000-0000-4000-8000-000000000002" as ConversationId,
+      messages: [{ role: "user", text: "ordinary question" }],
+    });
+    expect(response.providerMetadata?.moderationProvider).toBe(
+      "provider_with_spaces_and_control_text",
+    );
+    expect(response.providerMetadata?.moderationModel).toHaveLength(128);
+    expect(response.providerMetadata?.safetyCategory).toBe(
+      "external_moderation_dangerous_category_with_control_text",
+    );
+  });
+
+  it("moderates provider output before returning it", async () => {
+    const directions: string[] = [];
+    const moderator: ContentModerator = {
+      moderateText: async ({ direction }) => {
+        directions.push(direction);
+        return direction === "output"
+          ? {
+              allowed: false,
+              provider: "mistral",
+              model: "mistral-moderation-2603",
+              category: "health",
+            }
+          : {
+              allowed: true,
+              provider: "mistral",
+              model: "mistral-moderation-2603",
+            };
+      },
+    };
+    const orchestrator = new AgentOrchestrator({
+      provider: {
+        status: async () => ({
+          ready: true,
+          provider: "fake",
+          externalAccess: true,
+        }),
+        respond: async () => ({
+          message: { role: "assistant", text: "unsafe generated answer" },
+          provider: "fake",
+          evidence: [],
+        }),
+      },
+      memories: new InMemoryMemoryStore(),
+      moderator,
+    });
+    const response = await orchestrator.respond({
+      userId: "00000000-0000-4000-8000-000000000001" as UserId,
+      conversationId: "00000000-0000-4000-8000-000000000002" as ConversationId,
+      messages: [{ role: "user", text: "ordinary question" }],
+    });
+    expect(directions).toEqual(["input", "output"]);
+    expect(response.provider).toBe("mizyun-safety");
+    expect(response.message.text).not.toContain("unsafe generated answer");
+  });
+
+  it("fails closed when external moderation is unavailable", async () => {
+    let providerCalls = 0;
+    const orchestrator = new AgentOrchestrator({
+      provider: {
+        status: async () => ({
+          ready: true,
+          provider: "fake",
+          externalAccess: true,
+        }),
+        respond: async () => {
+          providerCalls += 1;
+          throw new Error("must not be called");
+        },
+      },
+      memories: new InMemoryMemoryStore(),
+      moderator: {
+        moderateText: async () => {
+          throw new Error("moderation outage");
+        },
+      },
+    });
+    const response = await orchestrator.respond({
+      userId: "00000000-0000-4000-8000-000000000001" as UserId,
+      conversationId: "00000000-0000-4000-8000-000000000002" as ConversationId,
+      messages: [{ role: "user", text: "ordinary question" }],
+    });
+    expect(providerCalls).toBe(0);
+    expect(response.providerMetadata).toMatchObject({
+      safetyCategory: "moderation_unavailable",
+      moderationDirection: "input",
+    });
   });
 });

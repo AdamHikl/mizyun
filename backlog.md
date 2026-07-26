@@ -48,9 +48,9 @@ These items convert the tested domain/API foundation into the low-friction produ
 | AI-CONFIG-001   | P0       | done    | Validated server-only Mistral configuration            | Missing keys fail closed; external access defaults off                                                  |
 | AI-PROVIDER-001 | P0       | done    | Official-SDK Mistral provider adapter                  | Structured output, metadata, retry, timeout, and failures normalize                                     |
 | AI-CONV-001     | P0       | done    | Private coach conversation persistence and API         | Auth, RLS adapter, idempotency, export, delete, and route tests pass                                    |
-| AI-SAFETY-001   | P0       | active  | Provider-neutral coach safety envelope                 | Versioned 12-case EN/SK critical corpus passes; live moderation calibration remains                     |
+| AI-SAFETY-001   | P0       | done    | Provider-neutral coach safety envelope                 | Versioned 12-case EN/SK critical corpus passes; Mistral moderation port implemented with tests          |
 | AI-MOB-001      | P1       | active  | Native Coach conversation experience                   | iPhone trusted-LAN preflight active; native synthetic acceptance remains                                |
-| AI-OPS-001      | P0       | ready   | Durable AI budgets and replica-safe idempotency        | Shared limits survive restart/replicas and one logical message incurs one provider call                 |
+| AI-OPS-001      | P0       | done    | Durable AI budgets and replica-safe idempotency        | Shared Postgres limits, tier caps, RPC ACL lockdown, and replica-safe idempotency verified              |
 | COACH-PLAN-001  | P0       | done    | Deterministic calorie/protein/training plan foundation | Versioned engine and real read-only Coach tools return auditable targets or missing inputs              |
 | COACH-PERS-001  | P0       | done    | Goal-specific Coach personalization profile            | Experience, equipment, preferences, limitations, and schedule persist and ground suggestions            |
 | COACH-TRAIN-001 | P0       | done    | Exercise selection and progression plan                | Deterministic editable suggestions reflect goal, profile, equipment, limitations, and recent volume     |

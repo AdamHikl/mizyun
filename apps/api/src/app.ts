@@ -7,6 +7,7 @@ import {
   DisabledVisionProvider,
   StubVisionProvider,
   type AgentToolRegistry,
+  type ContentModerator,
   type VisionDraftProvider,
 } from "@mizyun/agent-runtime";
 import {
@@ -39,6 +40,7 @@ import {
 import { InMemoryMemoryStore } from "@mizyun/memory";
 import {
   MistralAgentProvider,
+  MistralContentModerator,
   MistralVisionProvider,
 } from "@mizyun/provider-mistral";
 
@@ -179,6 +181,12 @@ export interface AppDependencies {
   readonly provider?: import("@mizyun/agent-runtime").AgentProvider;
   readonly memories?: import("@mizyun/memory").MemoryStore;
   /**
+   * Optional provider-neutral input/output moderator used only when
+   * `agent` is not supplied. The default composition wires Mistral
+   * moderation only alongside a configured Mistral text provider.
+   */
+  readonly moderator?: ContentModerator;
+  /**
    * Optional pre-constructed vision provider (VISION-001).
    * `defaultDependencies` sets this to a `StubVisionProvider`
    * when `AGENT_PROVIDER=vision-dev`; production wires
@@ -239,10 +247,15 @@ const defaultDependencies = (): AppDependencies => {
         mistralVisionConfig: null,
         aiExternalAccess: false,
       };
+  const mistralConfig =
+    config.agentProvider === "mistral" ? config.mistralConfig : null;
   const provider =
-    config.agentProvider === "mistral" && config.mistralConfig
+    mistralConfig !== null
       ? new MistralAgentProvider({
-          ...config.mistralConfig,
+          apiKey: mistralConfig.apiKey,
+          model: mistralConfig.model,
+          timeoutMs: mistralConfig.timeoutMs,
+          maxOutputTokens: mistralConfig.maxOutputTokens,
           externalAccess: config.aiExternalAccess,
         })
       : new DisabledAgentProvider();
@@ -254,6 +267,16 @@ const defaultDependencies = (): AppDependencies => {
     provider,
     memories: new InMemoryMemoryStore() as MemoryStore,
     tokenVerifier: tokenVerifierFromConfig(config),
+    ...(mistralConfig !== null
+      ? {
+          moderator: new MistralContentModerator({
+            apiKey: mistralConfig.apiKey,
+            model: mistralConfig.moderationModel,
+            timeoutMs: mistralConfig.timeoutMs,
+            externalAccess: config.aiExternalAccess,
+          }),
+        }
+      : {}),
   };
   // VISION-001 — default vision provider for the dev/test path.
   // When `VISION_PROVIDER=stub` is set we wire the deterministic
@@ -343,6 +366,7 @@ const resolveAgent = (
   return new AgentOrchestrator({
     provider,
     memories,
+    ...(dependencies.moderator ? { moderator: dependencies.moderator } : {}),
     ...(tools ? { tools } : {}),
   });
 };

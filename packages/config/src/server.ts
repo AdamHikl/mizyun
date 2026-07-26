@@ -25,6 +25,7 @@ export interface ServerSupabaseConfiguration {
 export interface ServerMistralConfiguration {
   readonly apiKey: string;
   readonly model: string;
+  readonly moderationModel: string;
   readonly timeoutMs: number;
   readonly maxOutputTokens: number;
   readonly dailyUserTokenBudget: number;
@@ -65,6 +66,7 @@ export const SERVER_ENV_KEYS = {
   visionProvider: "VISION_PROVIDER",
   mistralApiKey: "MISTRAL_API_KEY",
   mistralModel: "MISTRAL_MODEL",
+  mistralModerationModel: "MISTRAL_MODERATION_MODEL",
   mistralTimeoutMs: "MISTRAL_TIMEOUT_MS",
   mistralMaxOutputTokens: "MISTRAL_MAX_OUTPUT_TOKENS",
   mistralVisionApiKey: "MISTRAL_VISION_API_KEY",
@@ -116,6 +118,10 @@ const baseServerSchema = z.object({
     .string()
     .min(1, "MISTRAL_MODEL must not be empty")
     .default("mistral-medium-latest"),
+  mistralModerationModel: z
+    .string()
+    .min(1, "MISTRAL_MODERATION_MODEL must not be empty")
+    .default("mistral-moderation-2603"),
   mistralTimeoutMs: z.coerce
     .number()
     .int("MISTRAL_TIMEOUT_MS must be an integer")
@@ -261,6 +267,7 @@ export const loadServerConfig = (
       ? {
           apiKey: value.mistralApiKey,
           model: value.mistralModel,
+          moderationModel: value.mistralModerationModel,
           timeoutMs: value.mistralTimeoutMs,
           maxOutputTokens: value.mistralMaxOutputTokens,
           dailyUserTokenBudget: value.aiDailyUserTokenBudget,

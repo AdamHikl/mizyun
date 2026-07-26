@@ -93,6 +93,44 @@ export interface AgentProvider {
   respond(request: AgentRequest): Promise<AgentResponse>;
 }
 
+export type ContentModerationDirection = "input" | "output";
+
+export type ContentModerationDecision =
+  | {
+      readonly allowed: true;
+      readonly provider: string;
+      readonly model: string;
+    }
+  | {
+      readonly allowed: false;
+      readonly provider: string;
+      readonly model: string;
+      readonly category: string;
+    };
+
+/**
+ * Provider-neutral moderation boundary. Implementations receive only the
+ * current user text or the candidate assistant answer and must never persist
+ * either value. Throwing is treated as a fail-closed decision by the runtime.
+ */
+export interface ContentModerator {
+  moderateText(input: {
+    readonly text: string;
+    readonly direction: ContentModerationDirection;
+  }): Promise<ContentModerationDecision>;
+}
+
+const boundedModerationMetadata = (
+  value: string,
+  maximumLength: number,
+): string => {
+  const bounded = value
+    .trim()
+    .slice(0, maximumLength)
+    .replace(/[^A-Za-z0-9._:/-]/g, "_");
+  return bounded.length > 0 ? bounded : "unknown";
+};
+
 /**
  * Read-only tool the model can invoke mid-response to pull
  * additional confirmed Mizyun context. The runtime is the
@@ -416,6 +454,7 @@ export const screenCoachInput = (rawText: string): SafetyDecision => {
 export interface AgentOrchestratorOptions {
   readonly provider: AgentProvider;
   readonly memories: MemoryStore;
+  readonly moderator?: ContentModerator;
   readonly clock?: Clock;
   readonly memoryLimit?: number;
   /**
@@ -450,6 +489,7 @@ export class AgentToolBudgetExceededError extends Error {
 export class AgentOrchestrator {
   readonly #provider: AgentProvider;
   readonly #memories: MemoryStore;
+  readonly #moderator: ContentModerator | undefined;
   readonly #clock: Clock;
   readonly #memoryLimit: number;
   readonly #tools: AgentToolRegistry | undefined;
@@ -458,6 +498,7 @@ export class AgentOrchestrator {
   constructor(options: AgentOrchestratorOptions) {
     this.#provider = options.provider;
     this.#memories = options.memories;
+    this.#moderator = options.moderator;
     this.#clock = options.clock ?? systemClock;
     this.#memoryLimit = options.memoryLimit ?? 12;
     this.#tools = options.tools;
@@ -466,6 +507,52 @@ export class AgentOrchestrator {
 
   status(): Promise<AgentProviderStatus> {
     return this.#provider.status();
+  }
+
+  async #moderate(
+    text: string,
+    direction: ContentModerationDirection,
+  ): Promise<AgentResponse | null> {
+    if (this.#moderator === undefined || text.trim().length === 0) return null;
+    try {
+      const decision = await this.#moderator.moderateText({ text, direction });
+      if (decision.allowed) return null;
+      const category = boundedModerationMetadata(decision.category, 64);
+      const provider = boundedModerationMetadata(decision.provider, 64);
+      const model = boundedModerationMetadata(decision.model, 128);
+      const selfHarm = /self.?harm|suicid/i.test(category);
+      return {
+        message: {
+          role: "assistant",
+          text: selfHarm
+            ? "I’m sorry you’re dealing with this. Mizyun cannot safely support a self-harm crisis. Please contact local emergency services or a crisis professional, and reach out to someone you trust who can stay with you."
+            : "Mizyun could not safely answer that request. Please rephrase it as a general fitness or nutrition wellness question.",
+        },
+        provider: "mizyun-safety",
+        evidence: [],
+        providerMetadata: {
+          safetyCategory: `external_moderation_${category}`,
+          moderationDirection: direction,
+          moderationProvider: provider,
+          moderationModel: model,
+          promptVersion: COACH_PROMPT_VERSION,
+        },
+      };
+    } catch {
+      return {
+        message: {
+          role: "assistant",
+          text: "Mizyun could not safely evaluate this request right now. Please try again later.",
+        },
+        provider: "mizyun-safety",
+        evidence: [],
+        providerMetadata: {
+          safetyCategory: "moderation_unavailable",
+          moderationDirection: direction,
+          promptVersion: COACH_PROMPT_VERSION,
+        },
+      };
+    }
   }
 
   async respond(input: {
@@ -490,6 +577,12 @@ export class AgentOrchestrator {
         },
       };
     }
+    const moderatedInput = await this.#moderate(
+      latestUserMessage?.text ?? "",
+      "input",
+    );
+    if (moderatedInput !== null) return moderatedInput;
+
     const memories = await this.#memories.search({
       userId: input.userId,
       accessToken: input.accessToken ?? "",
@@ -538,7 +631,7 @@ export class AgentOrchestrator {
         // than a 500.
         const reason =
           error instanceof Error ? error.message : "Tool execution failed.";
-        return {
+        const toolErrorResponse: AgentResponse = {
           message: response.message,
           provider: response.provider,
           evidence: response.evidence,
@@ -550,6 +643,11 @@ export class AgentOrchestrator {
             promptVersion: COACH_PROMPT_VERSION,
           },
         };
+        const moderatedOutput = await this.#moderate(
+          toolErrorResponse.message.text,
+          "output",
+        );
+        return moderatedOutput ?? toolErrorResponse;
       }
       grounding = [
         ...grounding,
@@ -574,7 +672,7 @@ export class AgentOrchestrator {
       throw new AgentToolBudgetExceededError(this.#maxToolCalls);
     }
 
-    return {
+    const finalResponse: AgentResponse = {
       ...response,
       providerMetadata: {
         ...(response.providerMetadata ?? {}),
@@ -582,6 +680,11 @@ export class AgentOrchestrator {
         promptVersion: COACH_PROMPT_VERSION,
       },
     };
+    const moderatedOutput = await this.#moderate(
+      finalResponse.message.text,
+      "output",
+    );
+    return moderatedOutput ?? finalResponse;
   }
 }
 

@@ -568,3 +568,8 @@ export {
   type MistralVisionProviderOptions,
   type MistralVisionClient,
 } from "./vision.js";
+export {
+  MistralContentModerator,
+  type MistralContentModeratorOptions,
+  type MistralModerationClient,
+} from "./moderation.js";

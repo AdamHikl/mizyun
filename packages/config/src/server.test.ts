@@ -347,6 +347,7 @@ describe("loadServerConfig — closed-world", () => {
       aiExternalAccess: false,
       mistralConfig: {
         model: "mistral-medium-latest",
+        moderationModel: "mistral-moderation-2603",
         timeoutMs: 30_000,
         maxOutputTokens: 1_200,
         dailyUserTokenBudget: 100_000,
@@ -354,6 +355,23 @@ describe("loadServerConfig — closed-world", () => {
         userMaxConcurrentRequests: 1,
       },
     });
+  });
+
+  it("accepts an explicit Mistral moderation model", () => {
+    const result = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.agentProvider]: "mistral",
+        [SERVER_ENV_KEYS.mistralApiKey]: "test-key-that-is-long-enough",
+        [SERVER_ENV_KEYS.mistralModerationModel]:
+          "mistral-moderation-release-candidate",
+      },
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.mistralConfig?.moderationModel).toBe(
+      "mistral-moderation-release-candidate",
+    );
   });
 
   it("validates bounded per-user AI request controls", () => {
