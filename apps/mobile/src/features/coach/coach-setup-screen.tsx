@@ -641,72 +641,92 @@ export function CoachSetupScreen() {
                 {messages.length === 0 ? (
                   <View style={styles.emptyStateContainer}>
                     <ThemedText type="subtitle" style={styles.emptyStateTitle}>
-                      What can I help you with today?
+                      What can I help with?
                     </ThemedText>
-                    <ThemedText type="small" themeColor="textSecondary">
-                      Choose a prompt or type your question below:
+                    <ThemedText
+                      type="small"
+                      themeColor="textSecondary"
+                      style={{ marginTop: Spacing.one }}
+                    >
+                      Tap a suggestion or type below
                     </ThemedText>
                     <View style={styles.promptChipsGrid}>
-                      <Pressable
-                        style={styles.promptChip}
-                        onPress={() =>
-                          sendPrompt(
-                            "Help me design a specialized workout to build a V-shape body",
-                          )
-                        }
-                      >
-                        <ThemedText type="smallBold">
-                          🏋️ V-Shape Workout
-                        </ThemedText>
-                        <ThemedText type="small" themeColor="textSecondary">
-                          Build upper back &amp; shoulders
-                        </ThemedText>
-                      </Pressable>
-                      <Pressable
-                        style={styles.promptChip}
-                        onPress={() =>
-                          sendPrompt(
-                            "How much protein should I eat today and what foods work best?",
-                          )
-                        }
-                      >
-                        <ThemedText type="smallBold">
-                          🥗 Protein Strategy
-                        </ThemedText>
-                        <ThemedText type="small" themeColor="textSecondary">
-                          Hit your daily macro target
-                        </ThemedText>
-                      </Pressable>
-                      <Pressable
-                        style={styles.promptChip}
-                        onPress={() =>
-                          sendPrompt(
-                            "Explain my latest weight trend and calorie balance",
-                          )
-                        }
-                      >
-                        <ThemedText type="smallBold">
-                          📈 Progress Review
-                        </ThemedText>
-                        <ThemedText type="small" themeColor="textSecondary">
-                          Analyze confirmed measurements
-                        </ThemedText>
-                      </Pressable>
-                      <Pressable
-                        style={styles.promptChip}
-                        onPress={() =>
-                          sendPrompt(
-                            "Suggest a 45-minute full body gym session",
-                          )
-                        }
-                      >
-                        <ThemedText type="smallBold">
-                          ⚡ 45-Min Workout
-                        </ThemedText>
-                        <ThemedText type="small" themeColor="textSecondary">
-                          Targeted 45-min routine
-                        </ThemedText>
-                      </Pressable>
+                      <View style={styles.promptChipsRow}>
+                        <Pressable
+                          style={styles.promptChip}
+                          onPress={() =>
+                            sendPrompt(
+                              "Help me design a specialized workout to build a V-shape body",
+                            )
+                          }
+                        >
+                          <ThemedText style={styles.promptChipEmoji}>
+                            🏋️
+                          </ThemedText>
+                          <ThemedText
+                            type="small"
+                            style={styles.promptChipLabel}
+                          >
+                            V-Shape
+                          </ThemedText>
+                        </Pressable>
+                        <Pressable
+                          style={styles.promptChip}
+                          onPress={() =>
+                            sendPrompt(
+                              "How much protein should I eat today and what foods work best?",
+                            )
+                          }
+                        >
+                          <ThemedText style={styles.promptChipEmoji}>
+                            🥗
+                          </ThemedText>
+                          <ThemedText
+                            type="small"
+                            style={styles.promptChipLabel}
+                          >
+                            Protein
+                          </ThemedText>
+                        </Pressable>
+                      </View>
+                      <View style={styles.promptChipsRow}>
+                        <Pressable
+                          style={styles.promptChip}
+                          onPress={() =>
+                            sendPrompt(
+                              "Explain my latest weight trend and calorie balance",
+                            )
+                          }
+                        >
+                          <ThemedText style={styles.promptChipEmoji}>
+                            📈
+                          </ThemedText>
+                          <ThemedText
+                            type="small"
+                            style={styles.promptChipLabel}
+                          >
+                            Progress
+                          </ThemedText>
+                        </Pressable>
+                        <Pressable
+                          style={styles.promptChip}
+                          onPress={() =>
+                            sendPrompt(
+                              "Suggest a 45-minute full body gym session",
+                            )
+                          }
+                        >
+                          <ThemedText style={styles.promptChipEmoji}>
+                            ⚡
+                          </ThemedText>
+                          <ThemedText
+                            type="small"
+                            style={styles.promptChipLabel}
+                          >
+                            Quick Gym
+                          </ThemedText>
+                        </Pressable>
+                      </View>
                     </View>
                   </View>
                 ) : (
@@ -747,7 +767,7 @@ export function CoachSetupScreen() {
                 </View>
               ) : null}
 
-              {/* Floating Capsule Composer */}
+              {/* Composer Bar */}
               <View style={styles.composerWrapper}>
                 <View style={styles.composerCapsule}>
                   <Pressable
@@ -759,7 +779,7 @@ export function CoachSetupScreen() {
                     onPress={() => void attachMealPhoto()}
                     style={styles.photoIconButton}
                   >
-                    <ThemedText style={{ fontSize: 18 }}>📷</ThemedText>
+                    <ThemedText style={styles.composerIconEmoji}>📷</ThemedText>
                   </Pressable>
                   <TextInput
                     ref={inputRef}
@@ -767,8 +787,8 @@ export function CoachSetupScreen() {
                     editable={!sending && !deleting}
                     multiline
                     maxLength={4_000}
-                    placeholder="Ask Mizyun Coach..."
-                    placeholderTextColor="#7B7B82"
+                    placeholder="Message..."
+                    placeholderTextColor="#64748B"
                     value={draft}
                     onChangeText={setDraft}
                     style={styles.capsuleInput}
@@ -792,9 +812,7 @@ export function CoachSetupScreen() {
                     {sending ? (
                       <ActivityIndicator size="small" color="#FFFFFF" />
                     ) : (
-                      <ThemedText type="smallBold" style={styles.sendIconText}>
-                        ↑
-                      </ThemedText>
+                      <ThemedText style={styles.sendArrow}>↑</ThemedText>
                     )}
                   </Pressable>
                 </View>
@@ -1185,34 +1203,53 @@ const styles = StyleSheet.create({
   },
   thread: { flex: 1 },
   threadContent: {
+    flexGrow: 1,
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
     paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.three,
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + 72,
+    paddingTop: Spacing.three,
+    gap: Spacing.four,
+    paddingBottom: 16,
   },
   emptyStateContainer: {
-    paddingVertical: Spacing.six,
-    gap: Spacing.two,
+    flex: 1,
+    justifyContent: "flex-end",
+    paddingBottom: Spacing.four,
   },
   emptyStateTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "700",
     color: "#FFFFFF",
+    letterSpacing: -0.4,
   },
   promptChipsGrid: {
-    marginTop: Spacing.three,
+    marginTop: Spacing.four,
+    gap: Spacing.two,
+  },
+  promptChipsRow: {
+    flexDirection: "row",
     gap: Spacing.two,
   },
   promptChip: {
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    flex: 1,
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
+    borderColor: "rgba(255, 255, 255, 0.12)",
     borderRadius: 16,
-    padding: Spacing.three,
-    gap: 2,
+    paddingVertical: Spacing.three,
+    paddingHorizontal: Spacing.three,
+    alignItems: "center",
+    gap: 4,
+  },
+  promptChipEmoji: {
+    fontSize: 24,
+  },
+  promptChipLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#CBD5E1",
+    textAlign: "center",
   },
   bubble: {
     maxWidth: "88%",
@@ -1275,56 +1312,59 @@ const styles = StyleSheet.create({
     maxWidth: MaxContentWidth,
     alignSelf: "center",
     paddingHorizontal: Spacing.three,
-    paddingTop: Spacing.one,
-    paddingBottom: BottomTabInset + Spacing.two,
+    paddingTop: Spacing.two,
+    paddingBottom: BottomTabInset + Spacing.one,
   },
   composerCapsule: {
     flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#16181D",
-    borderRadius: 28,
+    alignItems: "flex-end",
+    backgroundColor: "#1E2028",
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.14)",
-    paddingLeft: Spacing.two,
-    paddingRight: 6,
-    paddingVertical: 6,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 4,
+    borderColor: "rgba(255, 255, 255, 0.12)",
+    paddingLeft: 8,
+    paddingRight: 8,
+    paddingVertical: 8,
+    gap: 6,
   },
   photoIconButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(255, 255, 255, 0.08)",
   },
+  composerIconEmoji: {
+    fontSize: 20,
+  },
   capsuleInput: {
     flex: 1,
-    minHeight: 38,
+    minHeight: 40,
     maxHeight: 120,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.two,
+    paddingTop: 10,
+    paddingBottom: 10,
     fontSize: 16,
+    lineHeight: 20,
     color: "#FFFFFF",
   },
   circleSendButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: "#10B981",
     alignItems: "center",
     justifyContent: "center",
   },
   disabledSendButton: {
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
   },
-  sendIconText: {
-    fontSize: 18,
+  sendArrow: {
+    fontSize: 20,
+    fontWeight: "700",
     color: "#FFFFFF",
-    lineHeight: 20,
+    lineHeight: 22,
+    textAlign: "center",
   },
 });
