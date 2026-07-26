@@ -197,6 +197,10 @@ export function CoachSetupScreen() {
 
   const create = useCallback(async () => {
     setLoading(true);
+    const statusResult = await loadCoach();
+    if (statusResult.ok) {
+      setStatus(statusResult.status);
+    }
     const result = await createCoachConversation();
     if (result.ok) {
       setActive(result.conversation);
@@ -491,7 +495,12 @@ export function CoachSetupScreen() {
           </View>
 
           <View style={styles.header}>
-            <View style={styles.statusRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Coach status"
+              onPress={() => void refresh()}
+              style={styles.statusRow}
+            >
               <View
                 accessibilityElementsHidden
                 importantForAccessibility="no"
@@ -507,7 +516,7 @@ export function CoachSetupScreen() {
                     }`
                   : "Coach off · AI access disabled"}
               </ThemedText>
-            </View>
+            </Pressable>
             <ThemedText type="subtitle">Coach</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
               AI can be wrong. Mizyun uses confirmed records for general fitness
