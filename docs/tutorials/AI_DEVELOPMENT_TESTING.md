@@ -23,6 +23,8 @@ Store the development key only in the ignored repository-root `.env`:
 AGENT_PROVIDER=mistral
 MISTRAL_API_KEY=<development key>
 MISTRAL_MODEL=mistral-medium-latest
+MISTRAL_VISION_API_KEY=<development vision key>
+MISTRAL_VISION_MODEL=mistral-medium-latest
 MISTRAL_TIMEOUT_MS=30000
 MISTRAL_MAX_OUTPUT_TOKENS=1200
 AI_DAILY_USER_TOKEN_BUDGET=100000

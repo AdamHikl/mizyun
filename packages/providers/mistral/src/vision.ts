@@ -101,10 +101,9 @@ const sdkVisionClient = (apiKey: string): MistralVisionClient => {
   const client = new Mistral({ apiKey });
   return {
     complete: async (request, options) =>
-      // The SDK's `chat.complete` accepts content blocks including
-      // image_url. We forward the response through to the
-      // provider; the structured output is parsed downstream.
-      client.chat.complete(
+      // The SDK's `chat.parse` accepts image_url content blocks and
+      // places schema-validated output on `message.parsed`.
+      client.chat.parse(
         // The SDK types here are narrower than the wire shape we
         // pass; the cast is necessary because the SDK's
         // ChatCompletionRequest union doesn't have a stable
@@ -438,6 +437,13 @@ const parseProviderResponse = (
   const message = (first as { message?: unknown }).message;
   if (typeof message !== "object" || message === null) return null;
   const content = (message as { content?: unknown }).content;
+  const structured = (message as { parsed?: unknown }).parsed;
+  if (structured !== undefined && structured !== null) {
+    const parsed = visionOutputSchema.safeParse(structured);
+    if (parsed.success) {
+      return { candidate: parsed.data, resolvedModel };
+    }
+  }
   if (typeof content === "string") {
     try {
       const parsed: unknown = JSON.parse(content);

@@ -1181,6 +1181,35 @@ no log lines carrying photo bytes.
   p50/p95 latency/cost remain pending rather than being inferred from
   the two existing live synthetic cases.
 
+## 2026-07-26 — External text and multimodal development enablement
+
+### Primary sources
+
+- Mistral AI, **Vision** (accessed 2026-07-26):
+  https://docs.mistral.ai/studio-api/conversations/vision
+- Mistral AI, **Models** (accessed 2026-07-26):
+  https://docs.mistral.ai/models
+
+### Verified findings and implementation consequences
+
+- Current Mistral documentation lists the Medium family as
+  multimodal, so the capped development credential now uses
+  `mistral-medium-latest` for both Coach text and nutrition
+  photo/text drafting. The ignored local environment enables both;
+  the committed default remains off for fresh installations.
+- API `dev` and `start` scripts now load the ignored root `.env`
+  explicitly. Previously the file could be silently ignored unless
+  variables were exported by the caller's shell.
+- Live SDK verification exposed two response-shape defects that fake
+  clients had hidden. Vision now uses `chat.parse` and accepts
+  `message.parsed`; the Coach accepts the SDK's `toolCalls: null`
+  final-answer shape.
+- After those fixes, a synthetic blank-image request returned a valid
+  `nutrition-draft-v2` structured candidate. Both live fictional Coach
+  cases also passed with `mistral-medium-latest`, `stop` finish
+  reasons, 201/179 total tokens, and under-one-second latency buckets.
+  No real-user content, photo, identifier, or credential was used.
+
 ## 2026-07-25 — AI-MOB-002 Coach UX polish
 
 ### Scope

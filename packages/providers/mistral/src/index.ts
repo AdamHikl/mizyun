@@ -32,7 +32,7 @@ const providerResponseSchema = z.object({
           // Mistral puts a parsed payload here. When the model
           // returns tool_calls, this is `null` and the
           // `tool_calls` array carries the request.
-          parsed: coachOutputSchema.optional(),
+          parsed: coachOutputSchema.nullish(),
           toolCalls: z
             .array(
               z.object({
@@ -46,7 +46,7 @@ const providerResponseSchema = z.object({
                 }),
               }),
             )
-            .optional(),
+            .nullish(),
         }),
       }),
     )
@@ -345,9 +345,16 @@ const toolCallsFromChoice = (
           readonly arguments: string | Readonly<Record<string, unknown>>;
         };
       }>
+    | null
     | undefined,
 ): AgentToolCall[] | undefined => {
-  if (rawToolCalls === undefined || rawToolCalls.length === 0) return undefined;
+  if (
+    rawToolCalls === undefined ||
+    rawToolCalls === null ||
+    rawToolCalls.length === 0
+  ) {
+    return undefined;
+  }
   return rawToolCalls.map((call) => ({
     ...(call.id !== undefined ? { id: call.id } : {}),
     name: call.function.name,
@@ -476,7 +483,7 @@ export class MistralAgentProvider implements AgentProvider {
       const elapsed = Math.max(0, this.#now() - startedAt);
       return {
         message:
-          choice.message.parsed !== undefined
+          choice.message.parsed !== undefined && choice.message.parsed !== null
             ? {
                 role: "assistant",
                 text: choice.message.parsed.answer,

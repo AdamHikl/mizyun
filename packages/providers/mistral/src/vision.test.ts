@@ -45,6 +45,40 @@ const providerWith = (candidate: Record<string, unknown>) => {
 };
 
 describe("MistralVisionProvider", () => {
+  it("accepts the SDK chat.parse structured payload shape", async () => {
+    const candidate = {
+      name: "Synthetic meal",
+      caloriesKcal: 300,
+      proteinG: 20,
+      carbohydrateG: 30,
+      fatG: 10,
+      calorieRangeKcal: { low: 250, high: 360 },
+      proteinRangeG: { low: 16, high: 24 },
+      carbohydrateRangeG: { low: 24, high: 38 },
+      fatRangeG: { low: 7, high: 14 },
+      confidence: 0.8,
+      warnings: [],
+      assumptions: ["One serving"],
+    };
+    const complete = vi.fn<MistralVisionClient["complete"]>(async () => ({
+      model: "resolved-vision-model",
+      choices: [{ message: { parsed: candidate } }],
+    }));
+    const provider = new MistralVisionProvider({
+      apiKey: "test-key",
+      model: "vision-test-model",
+      timeoutMs: 5_000,
+      maxOutputTokens: 500,
+      externalAccess: true,
+      client: { complete },
+    });
+
+    await expect(provider.generateDraft(request)).resolves.toMatchObject({
+      name: "Synthetic meal",
+      provenance: { model: "resolved-vision-model" },
+    });
+  });
+
   it("accepts an ordinary meal estimate below 800 kcal", async () => {
     const { complete, provider } = providerWith({
       name: "Chicken and rice",

@@ -78,6 +78,34 @@ describe("MistralAgentProvider", () => {
     expect(JSON.stringify(parse.mock.calls[0])).not.toContain(request.userId);
   });
 
+  it("accepts null toolCalls from the current live SDK response shape", async () => {
+    const parse = vi.fn<MistralChatClient["parse"]>(async () => ({
+      ...validResponse,
+      choices: [
+        {
+          ...validResponse.choices[0],
+          message: {
+            ...validResponse.choices[0]?.message,
+            toolCalls: null,
+          },
+        },
+      ],
+    }));
+    const provider = new MistralAgentProvider({
+      apiKey: "test-key-that-is-long-enough",
+      model: "mistral-medium-latest",
+      timeoutMs: 5_000,
+      maxOutputTokens: 1_000,
+      externalAccess: true,
+      client: { parse },
+    });
+
+    await expect(provider.respond(request)).resolves.toMatchObject({
+      message: { text: "Your confirmed intake is 1,800 kcal." },
+      provider: "mistral",
+    });
+  });
+
   it("labels prompt injection inside memories and tool evidence as untrusted data", async () => {
     const parse = vi.fn<MistralChatClient["parse"]>(async () => validResponse);
     const provider = new MistralAgentProvider({

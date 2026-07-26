@@ -49,3 +49,15 @@ reviewed grounded-answer dataset, weighed-meal photo dataset, native
 iOS/Android journeys, and sufficient live samples for p50/p95
 latency/cost. Reconcile those results here before changing
 `AI_EXTERNAL_ACCESS` defaults or sending real-user data.
+
+### 2026-07-26 live development checkpoint
+
+- Grounded fictional nutrition: passed, 201 total tokens,
+  under-one-second latency bucket.
+- Missing fictional body evidence: passed, 179 total tokens,
+  under-one-second latency bucket.
+- Synthetic blank-image nutrition draft: passed strict
+  `nutrition-draft-v2` parsing with Mistral provenance.
+
+These three calls verify connectivity and adapter compatibility; they
+are not a statistically meaningful quality, latency, or cost sample.
