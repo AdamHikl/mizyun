@@ -5,15 +5,15 @@
 ## Executive snapshot
 
 - **Product stage:** technical pre-alpha; the architecture, domain/API foundation, and native mobile UI are verified and polished.
-- **Roadmap position:** Every scoped MOB item, AND-001, OBS-001, and UI/UX iOS Simulator Audit is complete at its implementation gate. The native iOS Release app (`com.mizyun.app`) passes full visual and functional verification.
-- **Latest verified implementation slice:** AI-SAFETY-001 completes the external Mistral moderation port (`MistralContentModerator`) using `mistral-moderation-2603` via `@mistralai/mistralai` `client.classifiers.moderate`. It strictly parses categories/categoryScores, selects highest-scoring blocked categories, fails closed on malformed/error/disabled states, and is wired in `apps/api` composition root alongside Mistral text provider under `MISTRAL_MODERATION_MODEL`.
-- **Latest operational slice:** The ignored local development environment enables Mistral text, vision, and moderation access. Real live synthetic text, blank-image, and moderation checks pass; committed defaults remain disabled for fresh clones.
+- **Roadmap position:** Every scoped MOB item, AND-001, OBS-001, and UI/UX iOS Simulator & Physical Device Audit is complete at its implementation gate. The native iOS Release app (`com.mizyun.app`) passes full visual and functional verification.
+- **Latest verified implementation slice:** Added interactive native `@react-native-community/slider` controls for training days (1–7) and session duration (15–180 min) in Coach Preferences, freeform custom equipment/food/injury notes that save directly as active Coach Memories, Proactive Local Coach Reminders (`expo-notifications`), and resolved Expo SDK 57 `expo-image-picker` `mediaTypes: ["images"]` photo picker crash.
+- **Latest operational slice:** The ignored local development environment enables Mistral text, vision, and moderation access. Fastify API bound to `0.0.0.0:4000` allows physical iPhone acceptance testing over Tailscale (`100.103.203.85`).
 - **Infrastructure direction:** ADR-0016 selects managed Supabase in a specific EU region for hosted development through initial production, with measured portability and a gated later migration to redundant Mizyun-operated EU infrastructure.
-- **Next exact action:** Complete authenticated native iOS and Android journeys for Coach meal text/photo, workout, daily plan, weekly adaptation, and reminder deep links, followed by external release/policy clearance.
-- **Branch:** `main`; all workspace typechecks, iOS export (1,763 modules), and 952 tests pass clean.
+- **Next exact action:** Complete authenticated native physical-device journey testing for Coach meal text/photo, workout, daily plan, weekly adaptation, and reminder deep links, followed by external release/policy clearance (`AI-GOV-001`).
+- **Branch:** `main`; all workspace typechecks, iOS export (1,764 modules), and 952 tests pass clean.
 - **AI provider:** Mistral `mistral-medium-latest` text/vision and `mistral-moderation-2603` moderation are configured; committed external access defaults off and cannot be bypassed by the mobile client.
 - **Local runtime at handoff:** The full repository gate (`pnpm check`) and `git diff --check` are green.
-- **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, 1,763-module iOS production export, and 952 tests passed; 27 opt-in live/e2e tests skipped.
+- **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, 1,764-module iOS production export, and 952 tests passed; 27 opt-in live/e2e tests skipped.
 - **iOS:** native Release build (`com.mizyun.app`) successfully compiled, signed (`PP89XZBW4U`), installed, and verified live on physical iPhone (`00008140-001114501A86801C`).
 - **Android:** standalone Release APK passes complete journey on Pixel 9 API 36 emulator.
 
