@@ -1146,6 +1146,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(148, 163, 184, 0.3)",
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.three,
+    color: "#FFFFFF",
   },
   sendButton: {
     minWidth: 72,
