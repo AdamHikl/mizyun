@@ -48,19 +48,19 @@ Mizyun must remain a fitness/wellness product rather than claiming medical diagn
 
 ## Audited implementation matrix
 
-| Business promise                   | Current implementation                                                                | Readiness                            | Principal gap                                                                     |
-| ---------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------- |
-| Private personal workspace         | Supabase Auth, secure native sessions, RLS, persistent repositories, private Storage  | Local iOS/Android pass               | Hosted deployment and physical-device acceptance remain open                      |
-| Low-friction calorie tracking      | Persistent food CRUD, mobile daily lifecycle, and calorie/macro summaries             | Local iOS/Android pass               | History breadth and text/photo drafts remain open                                 |
-| Weight and body progress           | Persistent measurements, mobile raw/trend views, and private progress-photo lifecycle | Local iOS/Android pass               | Camera hardware and broader measurement breadth remain open                       |
-| Gym progress and exercise planning | Persistent workout/set routes, mobile active session, and previous performance        | Local iOS/Android pass               | Templates and suggestions remain open                                             |
-| Surplus/deficit guidance           | Versioned deterministic engine, real mobile dashboard, and calendar reviews           | Local iOS/Android pass               | Step input remains open                                                           |
-| AI trainer                         | Default-off Mistral adapter, confirmed grounding, conversations, safety, and Coach UI | Offline plus one live synthetic call | Full evaluation, provider-policy clearance, budgets, and native acceptance remain |
-| Durable agent memory               | Memory port, in-memory search, and protected SQL schema                               | Interface/schema only                | No persistent adapter or user-visible review/correction controls                  |
-| Photo analysis                     | Private Storage plus consent-gated mobile upload/timeline/compare/delete              | Native iOS/Android loops pass        | Camera hardware and any evaluated vision model remain open                        |
-| Android and iPhone                 | Shared Expo app; full local iOS and Android journeys pass                             | Simulator/emulator proof             | Physical devices and store builds remain unverified                               |
-| Freemium/premium business          | Product hypothesis plus consent-first local validation analytics                      | Instrumentation only                 | No participant dataset, entitlement model, paywall, subscription, or pricing test |
-| Community sharing                  | Explicitly excluded from MVP                                                          | Intentionally deferred               | Reconsider only after private product retention                                   |
+| Business promise                   | Current implementation                                                                            | Readiness                                            | Principal gap                                                                     |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Private personal workspace         | Supabase Auth, secure native sessions, RLS, persistent repositories, private Storage              | Local iOS/Android pass                               | Hosted deployment and physical-device acceptance remain open                      |
+| Low-friction calorie tracking      | Persistent food CRUD, daily summaries, and editable text/photo AI drafts                          | Local plus dual-platform bundle gate                 | Weighed-meal evaluation and physical-device draft acceptance remain open          |
+| Weight and body progress           | Persistent measurements, mobile raw/trend views, and private progress-photo lifecycle             | Local iOS/Android pass                               | Camera hardware and broader measurement breadth remain open                       |
+| Gym progress and exercise planning | Persistent workout/set routes, active sessions, deterministic personalized prescription           | Local plus automated tests                           | Physical-device Coach acceptance remains open                                     |
+| Surplus/deficit guidance           | Versioned deterministic engine, real mobile dashboard, and calendar reviews                       | Local iOS/Android pass                               | Step input remains open                                                           |
+| AI trainer                         | Default-off Mistral adapter, deterministic plans/tools, confirmed grounding, safety, and Coach UI | Offline evaluation gate plus one live synthetic call | Provider-scale accuracy/latency, policy clearance, and native acceptance remain   |
+| Durable agent memory               | PostgreSQL/in-memory stores, active-only recall, lifecycle API, mobile controls, export/deletion  | Implemented and tested offline                       | Physical-device review flow remains open                                          |
+| Photo analysis                     | Private Storage plus consent-gated mobile upload/timeline/compare/delete                          | Native iOS/Android loops pass                        | Camera hardware and any evaluated vision model remain open                        |
+| Android and iPhone                 | Shared Expo app; full local iOS and Android journeys pass                                         | Simulator/emulator proof                             | Physical devices and store builds remain unverified                               |
+| Freemium/premium business          | Product hypothesis plus consent-first local validation analytics                                  | Instrumentation only                                 | No participant dataset, entitlement model, paywall, subscription, or pricing test |
+| Community sharing                  | Explicitly excluded from MVP                                                                      | Intentionally deferred                               | Reconsider only after private product retention                                   |
 
 ## What the architecture gets right
 
@@ -77,7 +77,7 @@ These choices support future fundraising and technical hiring because engineers 
 ## What currently blocks the business plan
 
 1. **No retention evidence:** the local analytics/export boundary exists, but no founder/design-partner dataset or structured feedback has been collected.
-2. **No paid value:** AI assistance, memory controls, billing, and entitlements are absent.
+2. **No monetization proof:** AI assistance and memory controls exist, but billing, entitlements, paywall, subscription, and pricing evidence are absent.
 3. **No production environment:** hosted backend, real email flows, monitoring, policies, and store-distributed builds are not ready.
 4. **No physical-device/repeated-user proof:** simulator acceptance does not replace device testing, founder dogfooding, or design-partner evidence.
 5. **Operations gap:** no hosted backup/restore, monitoring, incident response, or production on-call evidence exists; future self-hosting would increase rather than remove these responsibilities.

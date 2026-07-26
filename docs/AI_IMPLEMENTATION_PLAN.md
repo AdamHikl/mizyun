@@ -62,8 +62,9 @@ offline implementation proceeds.
    safety, prompt-injection, isolation, failure, budget, and
    secret-bundle suites; record threshold results and reconcile every
    release checklist.
-7. **Native and external enablement — next.** Run authenticated iOS/Android
-   journeys, hosted persistence/deletion checks, provider-model
+7. **Native and external enablement — build-ready.** iOS and Android
+   production bundles are part of the standard gate. Next, run authenticated
+   device journeys, hosted persistence/deletion checks, provider-model
    promotion, and the separately authorized policy/privacy go/no-go.
 
 ## Why implementation can move before alpha

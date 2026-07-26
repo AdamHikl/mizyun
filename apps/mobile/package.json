@@ -46,7 +46,9 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "bundle:check": "EXPO_NO_TELEMETRY=1 expo export --platform ios --clear --output-dir dist/bundle-check",
+    "bundle:check": "pnpm bundle:check:ios && pnpm bundle:check:android",
+    "bundle:check:ios": "EXPO_NO_TELEMETRY=1 expo export --platform ios --clear --output-dir dist/bundle-check-ios",
+    "bundle:check:android": "EXPO_NO_TELEMETRY=1 expo export --platform android --clear --output-dir dist/bundle-check-android",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },

@@ -32,6 +32,7 @@ export interface LogMealForm {
   readonly carbohydrateG: number | null;
   readonly fatG: number | null;
   readonly consumedAt: string | null;
+  readonly details?: Readonly<Record<string, unknown>>;
 }
 
 const humanizeError = (result: Result<unknown, ApiError>): string => {
@@ -82,6 +83,7 @@ export const submitLogMealWith = async (
       ? { carbohydrateG: form.carbohydrateG }
       : {}),
     ...(form.fatG !== null ? { fatG: form.fatG } : {}),
+    ...(form.details === undefined ? {} : { details: form.details }),
   };
   const parsed = foodEntryCreateSchema.safeParse(payload);
   if (!parsed.success) {

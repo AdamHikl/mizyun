@@ -77,6 +77,12 @@ describe("submitLogMealWith", () => {
         carbohydrateG: 30,
         fatG: 4,
         consumedAt: null,
+        details: {
+          aiDraft: {
+            provenance: { inputKind: "text" },
+            userConfirmed: true,
+          },
+        },
       },
       fakeClient(
         {
@@ -109,6 +115,14 @@ describe("submitLogMealWith", () => {
       method: "POST",
       path: "/v1/food-entries",
       body: { name: "Toast", caloriesKcal: 200, consumedAt: NOW.toISOString() },
+    });
+    expect(requests[0]?.body).toMatchObject({
+      details: {
+        aiDraft: {
+          provenance: { inputKind: "text" },
+          userConfirmed: true,
+        },
+      },
     });
   });
 

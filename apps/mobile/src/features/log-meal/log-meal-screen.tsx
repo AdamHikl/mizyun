@@ -13,6 +13,7 @@ import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LoggingFlowMeasurement } from "@mizyun/observability";
+import type { FoodDraftCandidate } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -112,6 +113,7 @@ export function LogMealScreen() {
   const [snapping, setSnapping] = useState(false);
   const [mealDescription, setMealDescription] = useState("");
   const [draftWarnings, setDraftWarnings] = useState<readonly string[]>([]);
+  const [aiDraft, setAiDraft] = useState<FoodDraftCandidate | null>(null);
   const measurement = useRef<LoggingFlowMeasurement | null>(null);
   const hadFailure = useRef(false);
   const userId = session?.user.id ?? null;
@@ -180,6 +182,16 @@ export function LogMealScreen() {
       carbohydrateG: parsedCarbs.value,
       fatG: parsedFat.value,
       consumedAt: null,
+      ...(aiDraft === null
+        ? {}
+        : {
+            details: {
+              aiDraft: {
+                ...aiDraft,
+                userConfirmed: true,
+              },
+            },
+          }),
     };
     const result = await submitLogMeal(form);
     setSubmitting(false);
@@ -197,7 +209,7 @@ export function LogMealScreen() {
       isRetryableAnalyticsFailure(reason),
     );
     setError(result.message);
-  }, [name, calories, protein, carbs, fat, userId]);
+  }, [name, calories, protein, carbs, fat, userId, aiDraft]);
 
   // VISION-001 — launch the image picker, normalize the selected image to a
   // bounded JPEG, then post the transient bytes to
@@ -240,6 +252,7 @@ export function LogMealScreen() {
       setCarbs(strings.carbs);
       setFat(strings.fat);
       setDraftWarnings(draftEvidenceLines(draft.draft));
+      setAiDraft(draft.draft);
       measurement.current?.complete();
     } catch (cause) {
       hadFailure.current = true;
@@ -272,6 +285,7 @@ export function LogMealScreen() {
       setCarbs(strings.carbs);
       setFat(strings.fat);
       setDraftWarnings(draftEvidenceLines(result.draft));
+      setAiDraft(result.draft);
     } finally {
       setSnapping(false);
     }
