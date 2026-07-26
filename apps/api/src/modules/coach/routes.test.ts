@@ -229,6 +229,54 @@ describe("coach routes", () => {
     );
   });
 
+  it("persists a deterministic daily plan without calling the model", async () => {
+    const { app, respond } = makeApp(
+      vi.fn<AgentProvider["respond"]>(),
+      new InMemoryConversationRepository(),
+      { now: () => new Date("2026-07-25T22:30:00.000Z") },
+    );
+    await app.inject({
+      method: "PUT",
+      url: "/v1/profile",
+      headers: { ...auth, "content-type": "application/json" },
+      payload: { timezone: "Europe/Bratislava" },
+    });
+    const id = await createConversation(app);
+    const first = await sendMessage(
+      app,
+      id,
+      "daily-plan-key-000001",
+      "What should I do today?",
+    );
+
+    expect(first.statusCode).toBe(200);
+    expect(first.json().assistantMessage).toMatchObject({
+      provider: "mizyun-planner",
+      evidenceKinds: expect.arrayContaining([
+        "plan",
+        "nutrition",
+        "training",
+        "energy",
+      ]),
+      actionProposal: {
+        kind: "daily_plan",
+        version: "v1-2026-07",
+        date: "2026-07-26",
+      },
+    });
+    expect(respond).not.toHaveBeenCalled();
+
+    const replay = await sendMessage(
+      app,
+      id,
+      "daily-plan-key-000001",
+      "What should I do today?",
+    );
+    expect(replay.json().assistantMessage.actionProposal.id).toBe(
+      first.json().assistantMessage.actionProposal.id,
+    );
+  });
+
   it("creates, grounds, persists, and idempotently returns a coach message", async () => {
     const { app, respond } = makeApp();
     const id = await createConversation(app);

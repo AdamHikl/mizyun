@@ -46,6 +46,7 @@ export type CoachResponse = z.infer<typeof coachResponseSchema>;
 
 export {
   coachActionProposalSchema,
+  coachDailyPlanProposalSchema,
   coachConversationCreateSchema,
   coachConversationListResponseSchema,
   coachConversationPatchSchema,
@@ -68,6 +69,7 @@ export {
   coachThreadResponseSchema,
   coachWorkoutProposalSchema,
   type CoachActionProposal,
+  type CoachDailyPlanProposal,
   type CoachConversation,
   type CoachConversationCreate,
   type CoachConversationListResponse,

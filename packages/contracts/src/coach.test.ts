@@ -88,4 +88,37 @@ describe("Coach action proposal contracts", () => {
     }
     expect(parsed.actionProposal.session.exercises[0]?.sets).toBe(3);
   });
+
+  it("accepts a deterministic daily plan proposal", () => {
+    const parsed = coachMessageSchema.parse({
+      id: "00000000-0000-4000-8000-000000000021",
+      conversationId: "00000000-0000-4000-8000-000000000022",
+      role: "assistant",
+      text: "Today’s plan.",
+      status: "complete",
+      provider: "mizyun-planner",
+      evidenceKinds: ["plan", "nutrition", "training"],
+      actionProposal: {
+        id: "00000000-0000-4000-8000-000000000023",
+        kind: "daily_plan",
+        version: "v1-2026-07",
+        date: "2026-07-26",
+        calorie: {
+          targetKcal: 2200,
+          consumedKcal: 1500,
+          remainingKcal: 700,
+        },
+        protein: { targetG: 144, consumedG: 80, remainingG: 64 },
+        training: {
+          due: true,
+          completedToday: false,
+          completedSessionsLast7Days: 1,
+        },
+        missingInputs: [],
+        nextAction: "prioritise_protein",
+      },
+      createdAt: "2026-07-26T10:00:00.000Z",
+    });
+    expect(parsed.actionProposal?.kind).toBe("daily_plan");
+  });
 });

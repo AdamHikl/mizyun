@@ -15,6 +15,7 @@ import { router, type Href } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import type {
   CoachConversation,
+  CoachDailyPlanProposal,
   CoachMessage,
   CoachNutritionProposal,
   CoachProviderStatus,
@@ -714,6 +715,9 @@ function MessageBubble({
           onReview={onReviewWorkoutProposal}
         />
       ) : null}
+      {message.actionProposal?.kind === "daily_plan" ? (
+        <DailyPlanCard proposal={message.actionProposal} />
+      ) : null}
       {assistant && message.evidenceKinds.length > 0 ? (
         <View style={{ marginTop: Spacing.two, gap: Spacing.one }}>
           <ThemedText type="small" themeColor="textSecondary">
@@ -801,6 +805,65 @@ function WorkoutProposalCard({
       >
         <ThemedText type="smallBold">Review &amp; start</ThemedText>
       </Pressable>
+    </View>
+  );
+}
+
+const nextActionLabel: Record<CoachDailyPlanProposal["nextAction"], string> = {
+  complete_setup: "Complete your Coach setup",
+  log_meal: "Log your next meal",
+  prioritise_protein: "Prioritise protein in your next meal",
+  train: "Complete today’s planned training",
+  stay_on_plan: "Stay on plan and keep logging",
+};
+
+function DailyPlanCard({
+  proposal,
+}: {
+  readonly proposal: CoachDailyPlanProposal;
+}) {
+  return (
+    <View style={styles.proposalCard}>
+      <ThemedText type="smallBold">Today · {proposal.date}</ThemedText>
+      {proposal.calorie === null ? null : (
+        <ThemedText type="small">
+          Calories ·{" "}
+          {proposal.calorie.consumedKcal === null
+            ? "not logged"
+            : `${proposal.calorie.consumedKcal} logged · ${proposal.calorie.remainingKcal} remaining`}{" "}
+          · {proposal.calorie.targetKcal} target
+        </ThemedText>
+      )}
+      {proposal.protein === null ? null : (
+        <ThemedText type="small">
+          Protein ·{" "}
+          {proposal.protein.consumedG === null
+            ? "not logged"
+            : `${proposal.protein.consumedG} g logged · ${proposal.protein.remainingG} g remaining`}{" "}
+          · {proposal.protein.targetG} g target
+        </ThemedText>
+      )}
+      {proposal.training === null ? null : (
+        <ThemedText type="small">
+          Training ·{" "}
+          {proposal.training.completedToday
+            ? "completed today"
+            : proposal.training.due
+              ? "due today"
+              : "base frequency on track"}
+        </ThemedText>
+      )}
+      <ThemedText type="smallBold">
+        Next · {nextActionLabel[proposal.nextAction]}
+      </ThemedText>
+      {proposal.missingInputs.length > 0 ? (
+        <ThemedText type="small" themeColor="textSecondary">
+          Missing: {proposal.missingInputs.join(", ")}
+        </ThemedText>
+      ) : null}
+      <ThemedText type="small" themeColor="textSecondary">
+        Deterministic plan · updates from confirmed logs
+      </ThemedText>
     </View>
   );
 }

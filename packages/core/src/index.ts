@@ -175,6 +175,13 @@ export {
 } from "./coaching-plan";
 
 export {
+  DAILY_ACTION_PLAN_VERSION,
+  buildDailyActionPlan,
+  type DailyActionPlan,
+  type DailyNextAction,
+} from "./daily-action-plan";
+
+export {
   TRAINING_PRESCRIPTION_VERSION,
   buildTrainingPrescription,
   type MovementPattern,

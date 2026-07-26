@@ -1269,6 +1269,32 @@ no log lines carrying photo bytes.
   reasons, 201/179 total tokens, and under-one-second latency buckets.
   No real-user content, photo, identifier, or credential was used.
 
+## 2026-07-26 — Deterministic daily Coach plan
+
+### Primary sources
+
+- Fastify, **Reference / Validation and Serialization** (accessed
+  2026-07-26): https://fastify.dev/docs/latest/Reference/Validation-and-Serialization/
+- React Native, **Accessibility** (accessed 2026-07-26):
+  https://reactnative.dev/docs/accessibility
+
+### Verified findings and implementation consequences
+
+- Fastify continues to recommend schema-validated request/response
+  boundaries. The daily plan therefore crosses the API and persistence
+  boundary as a strict discriminated-union proposal rather than an
+  untyped model payload.
+- React Native documents that touchables are accessible by default and
+  that text descendants form their screen-reader label. The daily plan
+  is a read-only semantic text card; it adds no misleading button or
+  adjustment role.
+- The plan is a versioned pure-core decision. Confirmed food/workout
+  repositories supply observations; existing energy/coaching rules own
+  targets; a model is not called and cannot alter the priority. Missing
+  nutrition logs remain `null`, never inferred as zero intake.
+- No new platform service, native permission, database migration, or
+  architectural boundary was introduced, so no ADR is required.
+
 ## 2026-07-25 — AI-MOB-002 Coach UX polish
 
 ### Scope

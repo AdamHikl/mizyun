@@ -76,8 +76,12 @@ offline implementation proceeds.
    versioned deterministic prescription, persist it as an editable proposal,
    and transfer it into recoverable workout state. Users may remove exercises
    or edit the workout name/notes before explicit start; the confirmed
-   proposal is retained in workout provenance. Daily action plans, weekly
-   adaptation proposals, and opt-in proactive prompts remain sequenced next.
+   proposal is retained in workout provenance. Explicit daily-plan requests
+   now produce a persisted, versioned card that computes remaining calories
+   and protein, distinguishes missing logs from zero intake, reports training
+   state, lists missing setup inputs, and selects one deterministic next
+   action without a model call. Weekly adaptation proposals and opt-in
+   proactive prompts remain sequenced next.
 
 ## Why implementation can move before alpha
 

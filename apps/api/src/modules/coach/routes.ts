@@ -27,6 +27,7 @@ import {
   coachConversationPatchSchema,
   coachConversationResponseSchema,
   coachActionProposalSchema,
+  coachDailyPlanProposalSchema,
   coachMessageCreateSchema,
   coachMessageResponseSchema,
   coachNutritionProposalSchema,
@@ -42,9 +43,13 @@ import type { MemoryStore } from "@mizyun/memory";
 import { sendApiError } from "../../errors.js";
 import type { FoodDraftRateLimiter } from "../food-entries/draft-rate-limit.js";
 import { buildCoachGrounding } from "./grounding.js";
+import { isExplicitDailyPlanIntent } from "./daily-plan-action.js";
 import type { CoachLimitService } from "./limits.js";
 import { isExplicitMealLoggingIntent } from "./nutrition-action.js";
-import { buildTrainingPrescriptionForUser } from "./tools.js";
+import {
+  buildDailyActionPlanForUser,
+  buildTrainingPrescriptionForUser,
+} from "./tools.js";
 import { isExplicitWorkoutProposalIntent } from "./workout-action.js";
 
 interface CoachRoutesOptions {
@@ -580,6 +585,60 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
                 replyTo: userMessage.id,
                 evidenceKinds: ["plan", "training", "profile", "goal"],
                 ...(actionProposal === null ? {} : { actionProposal }),
+              },
+            },
+            { accessToken: principal.accessToken, now: now() },
+          );
+        const latestConversation =
+          (await options.conversationRepository.get(
+            principal.userId,
+            conversationId,
+            { accessToken: principal.accessToken },
+          )) ?? conversation;
+        return coachMessageResponseSchema.parse({
+          conversation: toConversationWire(latestConversation),
+          userMessage: toMessageWire(userMessage),
+          assistantMessage: toMessageWire(assistantMessage),
+        });
+      }
+
+      if (isExplicitDailyPlanIntent(parsed.data.text)) {
+        const dailyPlan = await buildDailyActionPlanForUser(
+          options,
+          principal.userId,
+          principal.accessToken,
+          now(),
+        );
+        const actionProposal = coachDailyPlanProposalSchema.parse({
+          id: crypto.randomUUID(),
+          kind: "daily_plan",
+          ...dailyPlan,
+        });
+        const assistantMessage =
+          await options.conversationRepository.addMessage(
+            principal.userId,
+            {
+              id: crypto.randomUUID(),
+              conversationId,
+              role: "assistant",
+              text:
+                dailyPlan.nextAction === "complete_setup"
+                  ? "Your daily plan needs a few confirmed inputs before it can be complete."
+                  : "Here is today’s plan from your confirmed meals, targets, and training. The priority is deterministic and will update as you log.",
+              status: "complete",
+              idempotencyKey: null,
+              providerMetadata: {
+                provider: "mizyun-planner",
+                replyTo: userMessage.id,
+                evidenceKinds: [
+                  "plan",
+                  "nutrition",
+                  "training",
+                  "profile",
+                  "goal",
+                  "energy",
+                ],
+                actionProposal,
               },
             },
             { accessToken: principal.accessToken, now: now() },

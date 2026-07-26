@@ -25,6 +25,7 @@ import {
 } from "@mizyun/agent-runtime";
 import {
   buildCoachingPlan,
+  buildDailyActionPlan,
   buildTrainingPrescription,
   computeEnergy,
   summariseFoodEntries,
@@ -63,6 +64,18 @@ const extractDaysBack = (args: unknown): number => {
 };
 
 const dayIso = (date: Date): string => date.toISOString().slice(0, 10);
+
+const localDayIso = (date: Date, timeZone: string): string => {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const value = (type: Intl.DateTimeFormatPartTypes): string =>
+    parts.find((part) => part.type === type)?.value ?? "";
+  return `${value("year")}-${value("month")}-${value("day")}`;
+};
 
 const freshnessOf = (now: Date): string => now.toISOString();
 
@@ -122,7 +135,7 @@ const loadEnergyContext = async (
     userId,
   ).breakdown;
 
-  return { breakdown, workouts };
+  return { breakdown, workouts, profile };
 };
 
 const energyData = (
@@ -207,6 +220,57 @@ export const buildTrainingPrescriptionForUser = async (
       })),
     })),
   });
+};
+
+export const buildDailyActionPlanForUser = async (
+  deps: CoachToolDeps,
+  userId: UserId,
+  accessToken: string,
+  now: Date,
+) => {
+  const { breakdown, workouts, profile } = await loadEnergyContext(
+    deps,
+    userId,
+    accessToken,
+    now,
+  );
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 86_400_000);
+  const completedWorkouts = workouts.filter(
+    (workout) =>
+      workout.completedAt !== null &&
+      workout.completedAt >= sevenDaysAgo &&
+      workout.completedAt <= now,
+  );
+  const coachingPlan = buildCoachingPlan({
+    energy: breakdown,
+    completedWorkoutsLast7Days: completedWorkouts.length,
+  });
+  const today = localDayIso(now, profile.timezone);
+  const entries = await deps.foodEntryRepository.list(userId, {
+    from: new Date(now.getTime() - 36 * 3_600_000),
+    to: now,
+    limit: 500,
+    accessToken,
+  });
+  const summary = summariseFoodEntries(
+    entries.filter(
+      (entry) => localDayIso(entry.consumedAt, profile.timezone) === today,
+    ),
+    { from: today, to: today },
+  )[0];
+  const daily = buildDailyActionPlan({
+    plan: coachingPlan,
+    date: today,
+    consumedKcal: summary?.caloriesKcal ?? null,
+    consumedProteinG: summary?.proteinG ?? null,
+    completedWorkoutToday: completedWorkouts.some(
+      (workout) =>
+        workout.completedAt !== null &&
+        localDayIso(workout.completedAt, profile.timezone) === today,
+    ),
+  });
+  const { computedAt: _computedAt, ...proposal } = daily;
+  return proposal;
 };
 
 /**
