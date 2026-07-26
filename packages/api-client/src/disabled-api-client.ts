@@ -1,5 +1,8 @@
 import { err, type Result } from "@mizyun/core";
-import type { FoodDraftResponse } from "@mizyun/contracts";
+import type {
+  CoachMessageResponse,
+  FoodDraftResponse,
+} from "@mizyun/contracts";
 
 import type { ApiClient } from "./api-client";
 import type { ApiConfigurationStatus, ApiError, RequestOptions } from "./types";
@@ -27,6 +30,10 @@ export class DisabledApiClient implements ApiClient {
   }
 
   async draftFoodEntry(): Promise<Result<FoodDraftResponse, ApiError>> {
+    return err({ kind: "not_configured", reason: REASON });
+  }
+
+  async draftCoachMealPhoto(): Promise<Result<CoachMessageResponse, ApiError>> {
     return err({ kind: "not_configured", reason: REASON });
   }
 }

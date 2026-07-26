@@ -1,5 +1,8 @@
 import type { Result } from "@mizyun/core";
-import type { FoodDraftResponse } from "@mizyun/contracts";
+import type {
+  CoachMessageResponse,
+  FoodDraftResponse,
+} from "@mizyun/contracts";
 
 import type { ApiConfigurationStatus, ApiError, RequestOptions } from "./types";
 
@@ -38,6 +41,13 @@ export interface ApiClient {
     readonly mimeType: "image/jpeg" | "image/png" | "image/webp";
     readonly textHint?: string;
   }): Promise<Result<FoodDraftResponse, ApiError>>;
+
+  draftCoachMealPhoto?(input: {
+    readonly conversationId: string;
+    readonly idempotencyKey: string;
+    readonly photo: Blob;
+    readonly mimeType: "image/jpeg" | "image/png" | "image/webp";
+  }): Promise<Result<CoachMessageResponse, ApiError>>;
 
   /**
    * Provider-neutral status of this client. Mirrors the shape of

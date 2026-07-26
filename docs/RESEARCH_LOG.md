@@ -39,6 +39,21 @@ No new ADR is required. AI-ACT-001 reuses the accepted provider, conversation
 metadata, confirmed food-entry, and encrypted draft boundaries without adding
 a model mutation tool or a new durable data format.
 
+### Photo attachment follow-up
+
+- Expo SDK 57 ImagePicker: https://docs.expo.dev/versions/v57.0.0/sdk/imagepicker/
+- Expo ImageManipulator: https://docs.expo.dev/versions/latest/sdk/imagemanipulator/
+- Mistral Vision: https://docs.mistral.ai/studio-api/conversations/vision
+
+The Coach attachment is launched only from a user press, handles denied media
+permission and cancellation, and reuses the existing bounded JPEG
+normalization. ImageManipulator preserves aspect ratio when only one resize
+dimension is supplied. Mistral accepts base64 images through its vision-capable
+Chat Completions path; the existing provider adapter owns that encoding.
+Conversation persistence receives only the validated nutrition proposal and a
+fixed user-visible attachment message. Raw image bytes remain transient and
+are discarded after the provider call.
+
 ## 2026-07-14 — Monorepo and modular API foundation
 
 ### Scope

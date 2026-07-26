@@ -693,6 +693,102 @@ describe("HttpApiClient — food photo drafts", () => {
   });
 });
 
+describe("HttpApiClient — Coach meal photo proposals", () => {
+  it("posts an authenticated idempotent multipart image and validates the proposal", async () => {
+    const conversationId = "00000000-0000-4000-8000-000000000001";
+    const userMessage = {
+      id: "00000000-0000-4000-8000-000000000002",
+      conversationId,
+      role: "user" as const,
+      text: "Shared a meal photo for a nutrition draft.",
+      status: "complete" as const,
+      provider: null,
+      evidenceKinds: [],
+      actionProposal: null,
+      createdAt: "2026-07-26T10:00:00.000Z",
+    };
+    const responseBody = {
+      conversation: {
+        id: conversationId,
+        title: "Meal photo",
+        status: "active" as const,
+        createdAt: "2026-07-26T10:00:00.000Z",
+        updatedAt: "2026-07-26T10:00:01.000Z",
+      },
+      userMessage,
+      assistantMessage: {
+        ...userMessage,
+        id: "00000000-0000-4000-8000-000000000003",
+        role: "assistant" as const,
+        text: "Review this meal estimate.",
+        provider: "mistral",
+        actionProposal: {
+          id: "00000000-0000-4000-8000-000000000004",
+          kind: "meal_log" as const,
+          candidate: {
+            name: "Tuna",
+            caloriesKcal: 290,
+            proteinG: 63,
+            carbohydrateG: 0,
+            fatG: 2,
+            calorieRangeKcal: { low: 250, high: 340 },
+            proteinRangeG: { low: 55, high: 70 },
+            carbohydrateRangeG: { low: 0, high: 2 },
+            fatRangeG: { low: 1, high: 5 },
+            confidence: 0.8,
+            warnings: [],
+            assumptions: ["Assumes drained tuna."],
+            provenance: {
+              inputKind: "photo" as const,
+              provider: "mistral",
+              model: "mistral-medium-latest",
+              promptVersion: "nutrition-draft-v2",
+            },
+          },
+        },
+      },
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(200, responseBody));
+    const client = new HttpApiClient({
+      baseUrl: "https://api.test",
+      authClient: buildAuthClient({
+        getSession: () =>
+          Promise.resolve(buildSession({ accessToken: "coach-photo-token" })),
+      }),
+      fetch: fetchMock as unknown as typeof fetch,
+    });
+    const photo = new Blob(
+      [new Uint8Array([0xff, 0xd8]).buffer as ArrayBuffer],
+      {
+        type: "image/jpeg",
+      },
+    );
+
+    const result = await client.draftCoachMealPhoto({
+      conversationId,
+      idempotencyKey: "coach-photo-key-0001",
+      photo,
+      mimeType: "image/jpeg",
+    });
+
+    expect(result).toEqual({ ok: true, value: responseBody });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(
+      `https://api.test/v1/coach/conversations/${conversationId}/nutrition-photo`,
+    );
+    expect(init.headers).toMatchObject({
+      authorization: "Bearer coach-photo-token",
+      "idempotency-key": "coach-photo-key-0001",
+    });
+    expect(
+      (init.headers as Record<string, string>)["content-type"],
+    ).toBeUndefined();
+    expect(init.body).toBeInstanceOf(FormData);
+  });
+});
+
 describe("HttpApiClient — status", () => {
   it("status() reports configured:true with the baseUrl", () => {
     const authClient = buildAuthClient();

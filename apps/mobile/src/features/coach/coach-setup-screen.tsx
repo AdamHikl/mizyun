@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, type Href } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
 import type {
   CoachConversation,
   CoachMessage,
@@ -35,6 +36,7 @@ import {
 } from "@/features/logging-draft-storage";
 import { useAuth } from "@/features/auth/auth-context";
 import { mealFormStringsFromDraft } from "@/features/log-meal/meal-form";
+import { normalizeMealPhoto } from "@/features/log-meal/meal-photo";
 
 import { EvidenceChips } from "./evidence-chips";
 import {
@@ -47,6 +49,7 @@ import {
   previewFor,
   relativeLabel,
   sendCoachMessage,
+  sendCoachMealPhoto,
   type CoachPendingDraft,
 } from "./coach-data";
 import { ThreadListSheet } from "./thread-list-sheet";
@@ -351,6 +354,56 @@ export function CoachSetupScreen() {
     },
     [userId],
   );
+
+  const attachMealPhoto = useCallback(async () => {
+    if (
+      active === null ||
+      sending ||
+      deleting ||
+      sendLock.current ||
+      deleteLock.current
+    ) {
+      return;
+    }
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      setMessage("Photo library access is required to choose a meal photo.");
+      return;
+    }
+    const selection = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.85,
+      allowsEditing: false,
+    });
+    if (selection.canceled || selection.assets?.[0] === undefined) return;
+    sendLock.current = true;
+    setSending(true);
+    setMessage(null);
+    try {
+      const photo = await normalizeMealPhoto(selection.assets[0]);
+      const result = await sendCoachMealPhoto(
+        active.id,
+        photo,
+        newCoachMessageIdempotencyKey(),
+      );
+      if (!result.ok) {
+        setMessage(result.message);
+        return;
+      }
+      setActive(result.conversation);
+      setMessages((current) => [...current, ...result.messages]);
+      setLiveRegionTick((tick) => tick + 1);
+    } catch (cause) {
+      setMessage(
+        cause instanceof Error
+          ? `Couldn't read the photo: ${cause.message}`
+          : "Couldn't read the photo.",
+      );
+    } finally {
+      sendLock.current = false;
+      setSending(false);
+    }
+  }, [active, deleting, sending]);
   return (
     <ThemedView style={styles.page}>
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
@@ -521,6 +574,20 @@ export function CoachSetupScreen() {
                 </View>
               ) : null}
               <View style={styles.composer}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Attach a meal photo"
+                  accessibilityHint="Choose a meal photo and create an editable nutrition proposal."
+                  accessibilityState={{ disabled: sending || deleting }}
+                  disabled={sending || deleting}
+                  onPress={() => void attachMealPhoto()}
+                  style={[
+                    styles.photoButton,
+                    (sending || deleting) && styles.disabledButton,
+                  ]}
+                >
+                  <ThemedText type="subtitle">📷</ThemedText>
+                </Pressable>
                 <TextInput
                   ref={inputRef}
                   accessibilityLabel="Message Coach"
@@ -809,6 +876,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.two,
     paddingBottom: BottomTabInset,
+  },
+  photoButton: {
+    width: 48,
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.3)",
   },
   input: {
     flex: 1,

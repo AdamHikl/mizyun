@@ -1,6 +1,8 @@
 import { err, ok, type Result } from "@mizyun/core";
 import {
+  coachMessageResponseSchema,
   foodDraftResponseSchema,
+  type CoachMessageResponse,
   type FoodDraftResponse,
 } from "@mizyun/contracts";
 import type { AuthClient } from "@mizyun/identity";
@@ -145,6 +147,69 @@ export class HttpApiClient implements ApiClient {
       });
     }
     return ok(parsed.data);
+  }
+
+  async draftCoachMealPhoto(input: {
+    readonly conversationId: string;
+    readonly idempotencyKey: string;
+    readonly photo: Blob;
+    readonly mimeType: "image/jpeg" | "image/png" | "image/webp";
+  }): Promise<Result<CoachMessageResponse, ApiError>> {
+    const path = `/v1/coach/conversations/${encodeURIComponent(
+      input.conversationId,
+    )}/nutrition-photo`;
+    const session = await this.#authClient.getSession();
+    if (!session) return err({ kind: "no_session" });
+    const body = new FormData();
+    body.append("image", input.photo, `meal.${mimeExt(input.mimeType)}`);
+    let response: Response;
+    try {
+      response = await this.#fetch(`${this.#baseUrl}${path}`, {
+        method: "POST",
+        headers: {
+          [AUTHORIZATION_HEADER]: `Bearer ${session.accessToken}`,
+          "idempotency-key": input.idempotencyKey,
+        },
+        body,
+      });
+    } catch (cause) {
+      return err(mapFetchError(cause));
+    }
+    if (response.status === 401) {
+      void this.#authClient.signOut().catch(() => {});
+      return err({ kind: "session_expired" });
+    }
+    if (!response.ok) {
+      let parsedBody: unknown;
+      try {
+        parsedBody = await response.json();
+      } catch {
+        parsedBody = undefined;
+      }
+      const mapped = parseApiErrorBody(parsedBody);
+      if (!mapped.ok) {
+        if (mapped.error.kind === "http_error") {
+          return err({ ...mapped.error, status: response.status });
+        }
+        return err(mapped.error);
+      }
+      return err({
+        kind: "http_error",
+        status: response.status,
+        code: "INTERNAL_ERROR",
+        message: "The request could not be completed.",
+      });
+    }
+    let parsedBody: unknown;
+    try {
+      parsedBody = await response.json();
+    } catch (cause) {
+      return err({ kind: "parse_error", cause });
+    }
+    const parsed = coachMessageResponseSchema.safeParse(parsedBody);
+    return parsed.success
+      ? ok(parsed.data)
+      : err({ kind: "validation_error", issues: parsed.error.issues });
   }
 
   async request<T>(options: RequestOptions): Promise<Result<T, ApiError>> {

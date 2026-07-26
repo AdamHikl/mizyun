@@ -218,6 +218,40 @@ export const sendCoachMessageWith = async (
     : { ok: false, message: humanize(result.error) };
 };
 
+export const sendCoachMealPhoto = async (
+  conversationId: string,
+  photo: Blob,
+  idempotencyKey = newCoachMessageIdempotencyKey(),
+): Promise<CoachThreadResult> =>
+  sendCoachMealPhotoWith(apiClient, conversationId, photo, idempotencyKey);
+
+export const sendCoachMealPhotoWith = async (
+  client: ApiClient,
+  conversationId: string,
+  photo: Blob,
+  idempotencyKey: string,
+): Promise<CoachThreadResult> => {
+  if (client.draftCoachMealPhoto === undefined) {
+    return {
+      ok: false,
+      message: "Coach meal photos are not configured on this device.",
+    };
+  }
+  const result = await client.draftCoachMealPhoto({
+    conversationId,
+    idempotencyKey,
+    photo,
+    mimeType: "image/jpeg",
+  });
+  return result.ok
+    ? {
+        ok: true,
+        conversation: result.value.conversation,
+        messages: [result.value.userMessage, result.value.assistantMessage],
+      }
+    : { ok: false, message: humanize(result.error) };
+};
+
 export const deleteCoachConversation = async (
   conversationId: string,
 ): Promise<

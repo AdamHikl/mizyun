@@ -7,6 +7,7 @@ import {
   loadCoachWith,
   previewFor,
   relativeLabel,
+  sendCoachMealPhotoWith,
   sendCoachMessageWith,
 } from "./coach-data";
 
@@ -201,5 +202,35 @@ describe("relativeLabel", () => {
   });
   it("returns the ISO date for older timestamps", () => {
     expect(relativeLabel("2026-07-01T12:00:00.000Z", now)).toBe("2026-07-01");
+  });
+});
+
+describe("Coach meal photo data boundary", () => {
+  it("returns the persisted user and proposal messages", async () => {
+    const request = vi.fn(async () =>
+      ok({ conversation, userMessage, assistantMessage }),
+    );
+    const client: ApiClient = {
+      request: vi.fn() as unknown as ApiClient["request"],
+      draftCoachMealPhoto: request,
+      status: () => ({ configured: true, baseUrl: "http://api.test" }),
+    };
+    const result = await sendCoachMealPhotoWith(
+      client,
+      conversation.id,
+      new Blob(),
+      "coach-photo-key-0001",
+    );
+    expect(result).toEqual({
+      ok: true,
+      conversation,
+      messages: [userMessage, assistantMessage],
+    });
+    expect(request).toHaveBeenCalledWith({
+      conversationId: conversation.id,
+      idempotencyKey: "coach-photo-key-0001",
+      photo: expect.any(Blob),
+      mimeType: "image/jpeg",
+    });
   });
 });

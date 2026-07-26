@@ -50,6 +50,7 @@ import { SupabaseMemoryStore } from "@mizyun/adapter-supabase-server";
 import { accountRoutes } from "./modules/account/routes.js";
 import { bodyMeasurementsRoutes } from "./modules/body-measurements/routes.js";
 import { coachMemoryRoutes } from "./modules/coach/memory-routes.js";
+import { coachNutritionPhotoRoutes } from "./modules/coach/nutrition-photo-routes.js";
 import { coachRoutes } from "./modules/coach/routes.js";
 import {
   InMemoryCoachLimitService,
@@ -671,6 +672,21 @@ export const buildApp = (
     nutritionDraftProvider: visionProvider,
     nutritionDraftRateLimiter: draftRateLimiter,
     memoryStore,
+    ...(dependencies.coachControls?.planTierOverride
+      ? { planTierOverride: dependencies.coachControls.planTierOverride }
+      : readPlanTierOverride()
+        ? { planTierOverride: readPlanTierOverride() }
+        : {}),
+    ...(dependencies.coachControls?.now
+      ? { now: dependencies.coachControls.now }
+      : {}),
+  });
+  void app.register(coachNutritionPhotoRoutes, {
+    prefix: "/v1/coach",
+    conversationRepository,
+    profileRepository,
+    nutritionDraftProvider: visionProvider,
+    nutritionDraftRateLimiter: draftRateLimiter,
     ...(dependencies.coachControls?.planTierOverride
       ? { planTierOverride: dependencies.coachControls.planTierOverride }
       : readPlanTierOverride()

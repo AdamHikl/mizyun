@@ -67,13 +67,13 @@ offline implementation proceeds.
    device journeys, hosted persistence/deletion checks, provider-model
    promotion, and the separately authorized policy/privacy go/no-go.
 8. **Coach action layer — active.** Convert explicit conversational inputs
-   into typed, persistent, editable proposals. Text meal logging now routes
-   through the nutrition-draft provider and appears in Coach as a review
-   card; review transfers the proposal into encrypted recoverable meal-form
-   state, and only the existing confirmed food endpoint can create the
-   authoritative entry. Coach photo attachments, workout proposals, daily
-   action plans, weekly adaptation proposals, and opt-in proactive prompts
-   remain sequenced behind this slice.
+   into typed, persistent, editable proposals. Text meal logging and
+   transient Coach photo attachments now route through the nutrition-draft
+   provider and appear as the same persistent review card. Review transfers
+   the proposal into encrypted recoverable meal-form state, and only the
+   existing confirmed food endpoint can create the authoritative entry.
+   Workout proposals, daily action plans, weekly adaptation proposals, and
+   opt-in proactive prompts remain sequenced behind this completed meal slice.
 
 ## Why implementation can move before alpha
 
