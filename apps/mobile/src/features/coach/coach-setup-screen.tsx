@@ -93,6 +93,7 @@ export function CoachSetupScreen() {
     null,
   );
   const [threadListVisible, setThreadListVisible] = useState(false);
+  const [planExpanded, setPlanExpanded] = useState(false);
   // Per-conversation message cache. The thread-list sheet previews
   // the latest assistant text per conversation. Caching here
   // avoids re-fetching on every list open.
@@ -471,17 +472,22 @@ export function CoachSetupScreen() {
       setSending(false);
     }
   }, [active, deleting, sending]);
+  const sendPrompt = useCallback((promptText: string) => {
+    setDraft(promptText);
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
+  }, []);
+
   return (
     <ThemedView style={styles.page}>
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
         <KeyboardAvoidingView
           style={styles.safeArea}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
         >
-          {/* AI-MOB-002 — screen-reader live region. Whenever
-              `liveRegionTick` advances, assistive tech announces
-              the latest assistant message. The textContent of the
-              View is the actual announcement. */}
+          {/* AI-MOB-002 — screen-reader live region */}
           <View
             accessibilityLiveRegion="polite"
             accessibilityRole="text"
@@ -494,37 +500,98 @@ export function CoachSetupScreen() {
               : ""}
           </View>
 
-          <View style={styles.header}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Coach status"
-              onPress={() => void refresh()}
-              style={styles.statusRow}
-            >
-              <View
-                accessibilityElementsHidden
-                importantForAccessibility="no"
-                style={[
-                  styles.statusDot,
-                  status?.ready ? styles.readyDot : styles.disabledDot,
-                ]}
-              />
-              <ThemedText type="smallBold" accessibilityRole="text">
-                {status?.ready
-                  ? `Coach ready · ${status.provider} · ${
-                      status.model ?? "configured model"
-                    }`
-                  : "Coach off · AI access disabled"}
-              </ThemedText>
-            </Pressable>
-            <ThemedText type="subtitle">Coach</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              AI can be wrong. Mizyun uses confirmed records for general fitness
-              and nutrition wellness—not diagnosis or treatment.
-            </ThemedText>
+          {/* Top Bar: Thread Switcher & Actions */}
+          <View style={styles.topBar}>
+            {active !== null ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Open thread list"
+                onPress={() => {
+                  setNow(new Date());
+                  setThreadListVisible(true);
+                }}
+                style={styles.threadSelector}
+              >
+                <ThemedText type="smallBold">
+                  {active.title ?? "Coach check-in"}
+                </ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  ▾
+                </ThemedText>
+              </Pressable>
+            ) : (
+              <ThemedText type="subtitle">Coach</ThemedText>
+            )}
+
+            <View style={styles.topBarActions}>
+              {status?.ready ? (
+                <View style={styles.modelBadge}>
+                  <View style={[styles.statusDot, styles.readyDot]} />
+                  <ThemedText type="small" style={styles.modelBadgeText}>
+                    {status.model
+                      ? status.model.replace("mistral-", "")
+                      : "Mistral"}
+                  </ThemedText>
+                </View>
+              ) : null}
+
+              {active !== null ? (
+                <>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="New conversation"
+                    onPress={() => void create()}
+                    style={styles.iconActionButton}
+                  >
+                    <ThemedText type="smallBold">＋</ThemedText>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Delete thread"
+                    disabled={sending || deleting}
+                    onPress={remove}
+                    style={styles.iconActionButton}
+                  >
+                    <ThemedText type="small" themeColor="textSecondary">
+                      🗑️
+                    </ThemedText>
+                  </Pressable>
+                </>
+              ) : null}
+            </View>
           </View>
 
-          <TrainingPlanCard />
+          {/* Expandable Plan & Disclaimer Header */}
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setPlanExpanded((expanded) => !expanded)}
+            style={styles.planToggleBar}
+          >
+            <ThemedText type="small" themeColor="textSecondary">
+              ⚡ Training plan &amp; advisory info {planExpanded ? "▲" : "▼"}
+            </ThemedText>
+          </Pressable>
+
+          {planExpanded ? (
+            <ScrollView style={{ maxHeight: 220 }} nestedScrollEnabled>
+              <View
+                style={{
+                  paddingHorizontal: Spacing.four,
+                  paddingBottom: Spacing.two,
+                }}
+              >
+                <ThemedText
+                  type="small"
+                  themeColor="textSecondary"
+                  style={{ marginBottom: Spacing.two }}
+                >
+                  AI can be wrong. Mizyun uses confirmed records for general
+                  fitness and nutrition wellness—not diagnosis or treatment.
+                </ThemedText>
+                <TrainingPlanCard />
+              </View>
+            </ScrollView>
+          ) : null}
 
           {loading ? (
             <View style={styles.center}>
@@ -564,53 +631,84 @@ export function CoachSetupScreen() {
             </ThemedView>
           ) : (
             <>
-              <View style={styles.threadHeader}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Open thread list"
-                  accessibilityHint={`${conversations.length} conversation${
-                    conversations.length === 1 ? "" : "s"
-                  }, currently on ${active.title ?? "Coach check-in"}`}
-                  onPress={() => {
-                    setNow(new Date());
-                    setThreadListVisible(true);
-                  }}
-                  style={styles.threadTitle}
-                >
-                  <ThemedText type="smallBold">
-                    {active.title ?? "Coach check-in"}
-                  </ThemedText>
-                  <ThemedText
-                    type="small"
-                    themeColor="textSecondary"
-                    style={{ marginTop: 2 }}
-                  >
-                    {relativeLabel(active.updatedAt, now)} · tap to switch
-                  </ThemedText>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: sending || deleting }}
-                  disabled={sending || deleting}
-                  onPress={remove}
-                  style={styles.deleteButton}
-                >
-                  <ThemedText type="small" themeColor="textSecondary">
-                    Delete
-                  </ThemedText>
-                </Pressable>
-              </View>
               <ScrollView
                 ref={scrollRef}
                 style={styles.thread}
                 contentContainerStyle={styles.threadContent}
                 keyboardShouldPersistTaps="handled"
+                automaticallyAdjustKeyboardInsets
               >
                 {messages.length === 0 ? (
-                  <ThemedText type="small" themeColor="textSecondary">
-                    Ask about today’s confirmed nutrition, recent training,
-                    active goal, or weight trend.
-                  </ThemedText>
+                  <View style={styles.emptyStateContainer}>
+                    <ThemedText type="subtitle" style={styles.emptyStateTitle}>
+                      What can I help you with today?
+                    </ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      Choose a prompt or type your question below:
+                    </ThemedText>
+                    <View style={styles.promptChipsGrid}>
+                      <Pressable
+                        style={styles.promptChip}
+                        onPress={() =>
+                          sendPrompt(
+                            "Help me design a specialized workout to build a V-shape body",
+                          )
+                        }
+                      >
+                        <ThemedText type="smallBold">
+                          🏋️ V-Shape Workout
+                        </ThemedText>
+                        <ThemedText type="small" themeColor="textSecondary">
+                          Build upper back &amp; shoulders
+                        </ThemedText>
+                      </Pressable>
+                      <Pressable
+                        style={styles.promptChip}
+                        onPress={() =>
+                          sendPrompt(
+                            "How much protein should I eat today and what foods work best?",
+                          )
+                        }
+                      >
+                        <ThemedText type="smallBold">
+                          🥗 Protein Strategy
+                        </ThemedText>
+                        <ThemedText type="small" themeColor="textSecondary">
+                          Hit your daily macro target
+                        </ThemedText>
+                      </Pressable>
+                      <Pressable
+                        style={styles.promptChip}
+                        onPress={() =>
+                          sendPrompt(
+                            "Explain my latest weight trend and calorie balance",
+                          )
+                        }
+                      >
+                        <ThemedText type="smallBold">
+                          📈 Progress Review
+                        </ThemedText>
+                        <ThemedText type="small" themeColor="textSecondary">
+                          Analyze confirmed measurements
+                        </ThemedText>
+                      </Pressable>
+                      <Pressable
+                        style={styles.promptChip}
+                        onPress={() =>
+                          sendPrompt(
+                            "Suggest a 45-minute full body gym session",
+                          )
+                        }
+                      >
+                        <ThemedText type="smallBold">
+                          ⚡ 45-Min Workout
+                        </ThemedText>
+                        <ThemedText type="small" themeColor="textSecondary">
+                          Targeted 45-min routine
+                        </ThemedText>
+                      </Pressable>
+                    </View>
+                  </View>
                 ) : (
                   messages.map((item) => (
                     <MessageBubble
@@ -624,13 +722,14 @@ export function CoachSetupScreen() {
                 )}
                 {sending ? (
                   <View style={styles.pendingRow}>
-                    <ActivityIndicator size="small" />
+                    <ActivityIndicator size="small" color="#10B981" />
                     <ThemedText type="small" themeColor="textSecondary">
-                      Reviewing confirmed records…
+                      Mizyun Coach is thinking…
                     </ThemedText>
                   </View>
                 ) : null}
               </ScrollView>
+
               {message ? (
                 <View
                   style={[
@@ -647,58 +746,58 @@ export function CoachSetupScreen() {
                   <ThemedText type="small">{message}</ThemedText>
                 </View>
               ) : null}
-              <View style={styles.composer}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Attach a meal photo"
-                  accessibilityHint="Choose a meal photo and create an editable nutrition proposal."
-                  accessibilityState={{ disabled: sending || deleting }}
-                  disabled={sending || deleting}
-                  onPress={() => void attachMealPhoto()}
-                  style={[
-                    styles.photoButton,
-                    (sending || deleting) && styles.disabledButton,
-                  ]}
-                >
-                  <ThemedText type="subtitle">📷</ThemedText>
-                </Pressable>
-                <TextInput
-                  ref={inputRef}
-                  accessibilityLabel="Message Coach"
-                  editable={!sending && !deleting}
-                  multiline
-                  maxLength={4_000}
-                  placeholder="Ask about your confirmed progress…"
-                  placeholderTextColor="#7B7B82"
-                  value={draft}
-                  onChangeText={setDraft}
-                  style={styles.input}
-                />
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Send message"
-                  accessibilityState={{
-                    busy: sending,
-                    disabled: sending || deleting || draft.trim().length === 0,
-                  }}
-                  disabled={sending || deleting || draft.trim().length === 0}
-                  onPress={() => void send()}
-                  style={[
-                    styles.sendButton,
-                    (sending || deleting || draft.trim().length === 0) &&
-                      styles.disabledButton,
-                  ]}
-                >
-                  {sending ? (
-                    <ActivityIndicator
-                      size="small"
-                      color={Colors.dark.text}
-                      accessibilityLabel="Sending"
-                    />
-                  ) : (
-                    <ThemedText type="smallBold">Send</ThemedText>
-                  )}
-                </Pressable>
+
+              {/* Floating Capsule Composer */}
+              <View style={styles.composerWrapper}>
+                <View style={styles.composerCapsule}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Attach a meal photo"
+                    accessibilityHint="Choose a meal photo and create an editable nutrition proposal."
+                    accessibilityState={{ disabled: sending || deleting }}
+                    disabled={sending || deleting}
+                    onPress={() => void attachMealPhoto()}
+                    style={styles.photoIconButton}
+                  >
+                    <ThemedText style={{ fontSize: 18 }}>📷</ThemedText>
+                  </Pressable>
+                  <TextInput
+                    ref={inputRef}
+                    accessibilityLabel="Message Coach"
+                    editable={!sending && !deleting}
+                    multiline
+                    maxLength={4_000}
+                    placeholder="Ask Mizyun Coach..."
+                    placeholderTextColor="#7B7B82"
+                    value={draft}
+                    onChangeText={setDraft}
+                    style={styles.capsuleInput}
+                  />
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Send message"
+                    accessibilityState={{
+                      busy: sending,
+                      disabled:
+                        sending || deleting || draft.trim().length === 0,
+                    }}
+                    disabled={sending || deleting || draft.trim().length === 0}
+                    onPress={() => void send()}
+                    style={[
+                      styles.circleSendButton,
+                      (sending || deleting || draft.trim().length === 0) &&
+                        styles.disabledSendButton,
+                    ]}
+                  >
+                    {sending ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <ThemedText type="smallBold" style={styles.sendIconText}>
+                        ↑
+                      </ThemedText>
+                    )}
+                  </Pressable>
+                </View>
               </View>
             </>
           )}
@@ -986,19 +1085,65 @@ function WeeklyAdaptationCard({
 const styles = StyleSheet.create({
   page: { flex: 1 },
   safeArea: { flex: 1 },
-  header: {
+  topBar: {
+    width: "100%",
+    maxWidth: MaxContentWidth,
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.four,
+    paddingTop: Spacing.two,
+    paddingBottom: Spacing.two,
+  },
+  threadSelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.one,
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+  },
+  topBarActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+  },
+  modelBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  modelBadgeText: {
+    fontSize: 12,
+    color: "#10B981",
+    fontWeight: "600",
+  },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  readyDot: { backgroundColor: "#10B981" },
+  disabledDot: { backgroundColor: "#E8A230" },
+  iconActionButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  planToggleBar: {
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
     paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.three,
-    paddingBottom: Spacing.three,
-    gap: Spacing.two,
+    paddingVertical: Spacing.one,
   },
-  statusRow: { flexDirection: "row", alignItems: "center", gap: Spacing.two },
-  statusDot: { width: 10, height: 10, borderRadius: 5 },
-  readyDot: { backgroundColor: "#2F9E69" },
-  disabledDot: { backgroundColor: "#E8A230" },
   center: {
     flex: 1,
     alignItems: "center",
@@ -1029,7 +1174,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(148, 163, 184, 0.3)",
   },
-  // AI-MOB-002 — visually-hidden but announced to screen readers.
   srOnly: {
     position: "absolute",
     width: 1,
@@ -1039,58 +1183,66 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     opacity: 0,
   },
-  threadHeader: {
-    width: "100%",
-    maxWidth: MaxContentWidth,
-    alignSelf: "center",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.two,
-  },
-  threadTitle: {
-    flex: 1,
-    minHeight: 44,
-    paddingVertical: Spacing.one,
-    justifyContent: "center",
-  },
-  deleteButton: {
-    minHeight: 44,
-    paddingHorizontal: Spacing.two,
-    justifyContent: "center",
-  },
   thread: { flex: 1 },
   threadContent: {
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
-    padding: Spacing.four,
+    paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.three,
     gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.six,
+    paddingBottom: BottomTabInset + 72,
+  },
+  emptyStateContainer: {
+    paddingVertical: Spacing.six,
+    gap: Spacing.two,
+  },
+  emptyStateTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  promptChipsGrid: {
+    marginTop: Spacing.three,
+    gap: Spacing.two,
+  },
+  promptChip: {
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+    borderRadius: 16,
+    padding: Spacing.three,
+    gap: 2,
   },
   bubble: {
-    maxWidth: "90%",
-    padding: Spacing.three,
-    borderRadius: 16,
+    maxWidth: "88%",
+    paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.three,
+    borderRadius: 20,
     gap: Spacing.two,
   },
   userBubble: {
     alignSelf: "flex-end",
-    backgroundColor: "#059669",
+    backgroundColor: "rgba(16, 185, 129, 0.22)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.4)",
+    borderBottomRightRadius: 4,
   },
   assistantBubble: {
     alignSelf: "flex-start",
-    backgroundColor: Colors.dark.backgroundElement,
+    backgroundColor: "#16181D",
     borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.15)",
+    borderColor: "rgba(255, 255, 255, 0.08)",
+    borderBottomLeftRadius: 4,
   },
   proposalCard: {
     marginTop: Spacing.one,
     padding: Spacing.three,
     gap: Spacing.two,
-    borderRadius: 12,
-    backgroundColor: "rgba(16, 185, 129, 0.1)",
+    borderRadius: 14,
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.25)",
   },
   proposalButton: {
     minHeight: 44,
@@ -1104,6 +1256,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.two,
+    paddingVertical: Spacing.two,
   },
   alert: {
     width: "100%",
@@ -1117,44 +1270,61 @@ const styles = StyleSheet.create({
   alertRateLimited: { borderLeftColor: "#E8A230" },
   alertUnavailable: { borderLeftColor: "#7B7B82" },
   alertConfig: { borderLeftColor: "#C8403B" },
-  composer: {
+  composerWrapper: {
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: Spacing.two,
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.two,
-    paddingBottom: BottomTabInset,
+    paddingHorizontal: Spacing.three,
+    paddingTop: Spacing.one,
+    paddingBottom: BottomTabInset + Spacing.two,
   },
-  photoButton: {
-    width: 48,
-    minHeight: 48,
+  composerCapsule: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#16181D",
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.14)",
+    paddingLeft: Spacing.two,
+    paddingRight: 6,
+    paddingVertical: 6,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  photoIconButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.3)",
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
   },
-  input: {
+  capsuleInput: {
     flex: 1,
-    minHeight: 48,
+    minHeight: 38,
     maxHeight: 120,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.3)",
     paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.three,
+    paddingVertical: Spacing.two,
+    fontSize: 16,
     color: "#FFFFFF",
   },
-  sendButton: {
-    minWidth: 72,
-    minHeight: 48,
+  circleSendButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#10B981",
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 14,
-    backgroundColor: "#10B981",
   },
-  disabledButton: { opacity: 0.45 },
+  disabledSendButton: {
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+  },
+  sendIconText: {
+    fontSize: 18,
+    color: "#FFFFFF",
+    lineHeight: 20,
+  },
 });
