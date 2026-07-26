@@ -25,6 +25,7 @@ const userMessage = {
   status: "complete" as const,
   provider: null,
   evidenceKinds: [],
+  actionProposal: null,
   createdAt: "2026-07-23T10:01:00.000Z",
 };
 const assistantMessage = {

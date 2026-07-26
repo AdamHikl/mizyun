@@ -1,4 +1,8 @@
-import type { FoodEntry } from "@mizyun/contracts";
+import {
+  foodDraftCandidateSchema,
+  type FoodDraftCandidate,
+  type FoodEntry,
+} from "@mizyun/contracts";
 
 export type OptionalNumberResult =
   { readonly ok: true; readonly value: number | null } | { readonly ok: false };
@@ -21,6 +25,28 @@ export interface MealFormStrings {
   readonly carbs: string;
   readonly fat: string;
 }
+
+export interface RecoverableMealDraft extends MealFormStrings {
+  readonly aiDraft?: FoodDraftCandidate;
+  readonly sourceProposalId?: string;
+}
+
+export const isRecoverableMealDraft = (
+  value: unknown,
+): value is RecoverableMealDraft => {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  const stringsValid = ["name", "calories", "protein", "carbs", "fat"].every(
+    (field) => typeof record[field] === "string",
+  );
+  const aiDraftValid =
+    record.aiDraft === undefined ||
+    foodDraftCandidateSchema.safeParse(record.aiDraft).success;
+  const proposalIdValid =
+    record.sourceProposalId === undefined ||
+    typeof record.sourceProposalId === "string";
+  return stringsValid && aiDraftValid && proposalIdValid;
+};
 
 const editableNumber = (value: number | null): string =>
   value === null ? "" : String(value);

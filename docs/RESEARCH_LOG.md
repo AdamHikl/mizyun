@@ -6,6 +6,39 @@
 
 Each entry records date, scope/version, primary sources, findings that affected implementation, and any resulting ADR. Inferences must be labeled as such.
 
+## 2026-07-26 — AI-ACT-001 conversational meal proposal handoff
+
+### Scope
+
+Fastify 5 authenticated route orchestration and Expo SDK 57 navigation for
+moving a persisted Coach proposal into the existing editable meal workflow.
+
+### Primary sources
+
+- Fastify route lifecycle and `preHandler`: https://fastify.dev/docs/latest/Reference/Routes/
+- Fastify validation and serialization: https://fastify.dev/docs/latest/Reference/Validation-and-Serialization/
+- Expo SDK 57 Router: https://docs.expo.dev/versions/v57.0.0/sdk/router/
+- Expo Router navigation: https://docs.expo.dev/router/basics/navigation/
+- Expo SecureStore: https://docs.expo.dev/versions/latest/sdk/securestore/
+
+### Findings used
+
+- Authentication remains a route `preHandler`; owner scope is injected from
+  the verified principal before intent detection or provider work.
+- The structured action proposal is parsed through the shared Zod contract
+  before persistence and again before it is exposed on the wire.
+- Expo Router supports imperative `router.push` navigation to the existing
+  modal meal route.
+- Sensitive proposal values are not placed in route/search parameters.
+  The user-scoped encrypted logging-draft store carries the candidate and
+  provenance into the editable form and preserves recovery across restart.
+
+### Result
+
+No new ADR is required. AI-ACT-001 reuses the accepted provider, conversation
+metadata, confirmed food-entry, and encrypted draft boundaries without adding
+a model mutation tool or a new durable data format.
+
 ## 2026-07-14 — Monorepo and modular API foundation
 
 ### Scope

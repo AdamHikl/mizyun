@@ -668,6 +668,8 @@ export const buildApp = (
     workoutSetRepository,
     bodyMeasurementRepository,
     limits: buildLimits(),
+    nutritionDraftProvider: visionProvider,
+    nutritionDraftRateLimiter: draftRateLimiter,
     memoryStore,
     ...(dependencies.coachControls?.planTierOverride
       ? { planTierOverride: dependencies.coachControls.planTierOverride }

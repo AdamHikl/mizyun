@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { foodDraftCandidateSchema } from "./food-entry";
 
 export const coachProviderStatusSchema = z.discriminatedUnion("ready", [
   z.object({
@@ -17,6 +18,14 @@ export const coachProviderStatusSchema = z.discriminatedUnion("ready", [
 ]);
 
 export const coachConversationStatusSchema = z.enum(["active", "archived"]);
+
+export const coachNutritionProposalSchema = z
+  .object({
+    id: z.string().uuid(),
+    kind: z.literal("meal_log"),
+    candidate: foodDraftCandidateSchema,
+  })
+  .strict();
 
 export const coachConversationSchema = z.object({
   id: z.string().uuid(),
@@ -45,6 +54,7 @@ export const coachMessageSchema = z.object({
       "memory",
     ]),
   ),
+  actionProposal: coachNutritionProposalSchema.nullable().default(null),
   createdAt: z.string().datetime(),
 });
 
@@ -91,6 +101,9 @@ export const coachMessageResponseSchema = z.object({
 });
 
 export type CoachProviderStatus = z.infer<typeof coachProviderStatusSchema>;
+export type CoachNutritionProposal = z.infer<
+  typeof coachNutritionProposalSchema
+>;
 export type CoachConversation = z.infer<typeof coachConversationSchema>;
 export type CoachMessage = z.infer<typeof coachMessageSchema>;
 export type CoachConversationCreate = z.infer<

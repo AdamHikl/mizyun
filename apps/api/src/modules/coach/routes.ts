@@ -4,6 +4,8 @@ import {
   COACH_PROMPT_VERSION,
   screenCoachInput,
   type AgentOrchestrator,
+  type VisionDraftProvider,
+  VisionProviderError,
 } from "@mizyun/agent-runtime";
 import type {
   BodyMeasurementRepository,
@@ -26,6 +28,7 @@ import {
   coachConversationResponseSchema,
   coachMessageCreateSchema,
   coachMessageResponseSchema,
+  coachNutritionProposalSchema,
   coachProviderStatusSchema,
   coachThreadResponseSchema,
   trainingPrescriptionResponseSchema,
@@ -36,8 +39,10 @@ import {
 import type { MemoryStore } from "@mizyun/memory";
 
 import { sendApiError } from "../../errors.js";
+import type { FoodDraftRateLimiter } from "../food-entries/draft-rate-limit.js";
 import { buildCoachGrounding } from "./grounding.js";
 import type { CoachLimitService } from "./limits.js";
+import { isExplicitMealLoggingIntent } from "./nutrition-action.js";
 import { buildTrainingPrescriptionForUser } from "./tools.js";
 
 interface CoachRoutesOptions {
@@ -50,6 +55,8 @@ interface CoachRoutesOptions {
   readonly workoutSetRepository: WorkoutSetRepository;
   readonly bodyMeasurementRepository: BodyMeasurementRepository;
   readonly limits: CoachLimitService;
+  readonly nutritionDraftProvider: VisionDraftProvider;
+  readonly nutritionDraftRateLimiter: FoodDraftRateLimiter;
   /**
    * Optional. When supplied (MEM-001), the grounding build pulls
    * active memories from the store and surfaces them as
@@ -114,6 +121,12 @@ const toMessageWire = (stored: StoredConversationMessage): CoachMessage => ({
       ? stored.providerMetadata.provider
       : null,
   evidenceKinds: evidenceKinds(stored.providerMetadata),
+  actionProposal: (() => {
+    const parsed = coachNutritionProposalSchema.safeParse(
+      stored.providerMetadata.actionProposal,
+    );
+    return parsed.success ? parsed.data : null;
+  })(),
   createdAt: stored.createdAt.toISOString(),
 });
 
@@ -429,6 +442,95 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
         { now: now(), accessToken: principal.accessToken },
       );
       const planTier: PlanTier = planTierOverride ?? profile.planTier;
+
+      if (isExplicitMealLoggingIntent(parsed.data.text)) {
+        const rate = options.nutritionDraftRateLimiter.acquire(
+          principal.userId,
+          planTier,
+        );
+        if (!rate.allowed) {
+          reply.header("retry-after", String(rate.retryAfter));
+          return sendApiError(
+            reply,
+            request,
+            429,
+            "RATE_LIMITED",
+            "Meal drafts are limited. Try again shortly.",
+          );
+        }
+        try {
+          if (options.nutritionDraftProvider.generateTextDraft === undefined) {
+            throw new VisionProviderError(
+              "not_configured",
+              "Text nutrition drafts are not configured on this server.",
+              false,
+            );
+          }
+          const candidate =
+            await options.nutritionDraftProvider.generateTextDraft({
+              userId: principal.userId as UserId,
+              description: parsed.data.text,
+              requestId: crypto.randomUUID(),
+            });
+          const actionProposal = coachNutritionProposalSchema.parse({
+            id: crypto.randomUUID(),
+            kind: "meal_log",
+            candidate,
+          });
+          const assistantMessage =
+            await options.conversationRepository.addMessage(
+              principal.userId,
+              {
+                id: crypto.randomUUID(),
+                conversationId,
+                role: "assistant",
+                text: "I drafted that meal from your description. Review the portion, calories, and macros before logging it.",
+                status: "complete",
+                idempotencyKey: null,
+                providerMetadata: {
+                  provider: candidate.provenance.provider,
+                  replyTo: userMessage.id,
+                  evidenceKinds: [],
+                  actionProposal,
+                },
+              },
+              { accessToken: principal.accessToken, now: now() },
+            );
+          const latestConversation =
+            (await options.conversationRepository.get(
+              principal.userId,
+              conversationId,
+              { accessToken: principal.accessToken },
+            )) ?? conversation;
+          return coachMessageResponseSchema.parse({
+            conversation: toConversationWire(latestConversation),
+            userMessage: toMessageWire(userMessage),
+            assistantMessage: toMessageWire(assistantMessage),
+          });
+        } catch (error) {
+          if (error instanceof VisionProviderError) {
+            const status =
+              error.kind === "rate_limited"
+                ? 429
+                : error.kind === "timeout" || error.kind === "unavailable"
+                  ? 502
+                  : 503;
+            if (status === 429) reply.header("retry-after", "1");
+            return sendApiError(
+              reply,
+              request,
+              status,
+              status === 429
+                ? "RATE_LIMITED"
+                : status === 503
+                  ? "AI_CONFIGURATION_ERROR"
+                  : "AI_UNAVAILABLE",
+              error.message,
+            );
+          }
+          throw error;
+        }
+      }
 
       // Acquire a durable slot via the AI-OPS-001 limiter service.
       // `tokensEstimated` is the per-request upper bound used by

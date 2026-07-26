@@ -15,7 +15,7 @@
 
 🚧 **Cross-phase AI checkpoint — build and privately evaluate the grounded Mistral coach before controlled alpha.**
 
-The persistent food/workout/body/dashboard/photo journeys pass on standalone iOS and Android, and OBS-001 provides consent-off-by-default, identifier-free local product analytics with voluntary export. The user has chosen to build the first Mistral AI capabilities before founder/design-partner testing. Offline implementation and fake-adapter evaluation may now proceed behind a default-off server flag; live synthetic calls require `docs/BEFORE_TESTING.md`'s synthetic-provider gate, and real-user access remains blocked until the provider policy/privacy gate, safety evaluation, deletion/isolation, budgets, and two-platform acceptance pass. `docs/AI_IMPLEMENTATION_PLAN.md` is the execution plan.
+The persistent food/workout/body/dashboard/photo journeys pass on standalone iOS and Android, and OBS-001 provides consent-off-by-default, identifier-free local product analytics with voluntary export. The grounded Mistral Coach, deterministic planning, user-controlled memory, and editable nutrition drafts are implemented; the active product milestone is the Coach action layer, starting with persistent editable meal proposals from conversational text and photos. The model still cannot mutate authoritative records: every action requires explicit review and the existing confirmed write boundary. Real-user access remains blocked until the provider policy/privacy gate, safety evaluation, deletion/isolation, budgets, and two-platform acceptance pass. `docs/AI_IMPLEMENTATION_PLAN.md` is the execution plan.
 
 ## Dependency sequence
 

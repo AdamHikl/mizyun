@@ -11,9 +11,11 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { router, type Href } from "expo-router";
 import type {
   CoachConversation,
   CoachMessage,
+  CoachNutritionProposal,
   CoachProviderStatus,
 } from "@mizyun/contracts";
 
@@ -32,6 +34,7 @@ import {
   saveLoggingDraft,
 } from "@/features/logging-draft-storage";
 import { useAuth } from "@/features/auth/auth-context";
+import { mealFormStringsFromDraft } from "@/features/log-meal/meal-form";
 
 import { EvidenceChips } from "./evidence-chips";
 import {
@@ -252,6 +255,7 @@ export function CoachSetupScreen() {
         status: "complete",
         provider: null,
         evidenceKinds: [],
+        actionProposal: null,
         createdAt: new Date().toISOString(),
       };
       setMessages((current) => [...current, userBubble]);
@@ -327,6 +331,26 @@ export function CoachSetupScreen() {
       ],
     );
   }, [active, pendingDraft, userId]);
+
+  const reviewNutritionProposal = useCallback(
+    async (proposal: CoachNutritionProposal) => {
+      if (userId === null) {
+        setMessage("Your session expired. Sign in again.");
+        return;
+      }
+      const stored = await saveLoggingDraft(userId, "meal", {
+        ...mealFormStringsFromDraft(proposal.candidate),
+        aiDraft: proposal.candidate,
+        sourceProposalId: proposal.id,
+      });
+      if (!stored) {
+        setMessage("Could not prepare the meal draft. Try again.");
+        return;
+      }
+      router.push("/log-meal" as Href);
+    },
+    [userId],
+  );
   return (
     <ThemedView style={styles.page}>
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
@@ -464,7 +488,11 @@ export function CoachSetupScreen() {
                   </ThemedText>
                 ) : (
                   messages.map((item) => (
-                    <MessageBubble key={item.id} message={item} />
+                    <MessageBubble
+                      key={item.id}
+                      message={item}
+                      onReviewNutritionProposal={reviewNutritionProposal}
+                    />
                   ))
                 )}
                 {sending ? (
@@ -556,7 +584,15 @@ export function CoachSetupScreen() {
   );
 }
 
-function MessageBubble({ message }: { readonly message: CoachMessage }) {
+function MessageBubble({
+  message,
+  onReviewNutritionProposal,
+}: {
+  readonly message: CoachMessage;
+  readonly onReviewNutritionProposal: (
+    proposal: CoachNutritionProposal,
+  ) => void;
+}) {
   const assistant = message.role === "assistant";
   return (
     <View
@@ -569,6 +605,12 @@ function MessageBubble({ message }: { readonly message: CoachMessage }) {
         {assistant ? "Mizyun Coach" : "You"}
       </ThemedText>
       <ThemedText>{message.text}</ThemedText>
+      {message.actionProposal !== null ? (
+        <NutritionProposalCard
+          proposal={message.actionProposal}
+          onReview={onReviewNutritionProposal}
+        />
+      ) : null}
       {assistant && message.evidenceKinds.length > 0 ? (
         <View style={{ marginTop: Spacing.two, gap: Spacing.one }}>
           <ThemedText type="small" themeColor="textSecondary">
@@ -577,6 +619,48 @@ function MessageBubble({ message }: { readonly message: CoachMessage }) {
           <EvidenceChips kinds={message.evidenceKinds} />
         </View>
       ) : null}
+    </View>
+  );
+}
+
+function NutritionProposalCard({
+  proposal,
+  onReview,
+}: {
+  readonly proposal: CoachNutritionProposal;
+  readonly onReview: (proposal: CoachNutritionProposal) => void;
+}) {
+  const draft = proposal.candidate;
+  const point = [
+    draft.caloriesKcal === null ? null : `${draft.caloriesKcal} kcal`,
+    draft.proteinG === null ? null : `${draft.proteinG} g protein`,
+    draft.carbohydrateG === null ? null : `${draft.carbohydrateG} g carbs`,
+    draft.fatG === null ? null : `${draft.fatG} g fat`,
+  ]
+    .filter((value): value is string => value !== null)
+    .join(" · ");
+  return (
+    <View style={styles.proposalCard}>
+      <ThemedText type="smallBold">{draft.name ?? "Meal estimate"}</ThemedText>
+      <ThemedText type="small">
+        {point || "Nutrition values need review"}
+      </ThemedText>
+      {draft.calorieRangeKcal !== null ? (
+        <ThemedText type="small" themeColor="textSecondary">
+          Estimated range {draft.calorieRangeKcal.low}–
+          {draft.calorieRangeKcal.high} kcal · confidence{" "}
+          {Math.round(draft.confidence * 100)}%
+        </ThemedText>
+      ) : null}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Review and log ${draft.name ?? "meal"} draft`}
+        accessibilityHint="Opens an editable meal form. Nothing is logged until you save it."
+        onPress={() => onReview(proposal)}
+        style={styles.proposalButton}
+      >
+        <ThemedText type="smallBold">Review &amp; log</ThemedText>
+      </Pressable>
     </View>
   );
 }
@@ -682,6 +766,21 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.dark.backgroundElement,
     borderWidth: 1,
     borderColor: "rgba(148, 163, 184, 0.15)",
+  },
+  proposalCard: {
+    marginTop: Spacing.one,
+    padding: Spacing.three,
+    gap: Spacing.two,
+    borderRadius: 12,
+    backgroundColor: "rgba(16, 185, 129, 0.1)",
+  },
+  proposalButton: {
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    backgroundColor: "#10B981",
+    paddingHorizontal: Spacing.three,
   },
   pendingRow: {
     flexDirection: "row",

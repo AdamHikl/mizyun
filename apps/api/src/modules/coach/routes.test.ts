@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AgentOrchestrator,
   AgentProviderError,
+  StubVisionProvider,
   type AgentProvider,
+  type VisionDraftProvider,
 } from "@mizyun/agent-runtime";
 import type { PlanTier, ProfileRepository, UserId } from "@mizyun/core";
 import type { AccessTokenVerifier } from "@mizyun/identity";
@@ -34,6 +36,7 @@ const makeApp = (
     readonly now?: () => Date;
     readonly planTierOverride?: PlanTier;
     readonly limits?: CoachLimitService;
+    readonly visionProvider?: VisionDraftProvider;
   },
   verifier: AccessTokenVerifier = tokenVerifier,
   profileRepository?: ProfileRepository,
@@ -193,6 +196,52 @@ describe("coach routes", () => {
       headers: auth,
     });
     expect(thread.json().messages).toHaveLength(2);
+  });
+
+  it("persists an editable nutrition proposal for an explicit meal log without giving the Coach a write tool", async () => {
+    const { app, respond } = makeApp(undefined, undefined, {
+      visionProvider: new StubVisionProvider(),
+    });
+    const id = await createConversation(app);
+    const request = {
+      method: "POST" as const,
+      url: `/v1/coach/conversations/${id}/messages`,
+      headers: { ...auth, "idempotency-key": "meal-action-key-0001" },
+      payload: { text: "I had 250g of tuna for dinner" },
+    };
+
+    const first = await app.inject(request);
+    expect(first.statusCode).toBe(200);
+    expect(first.json().assistantMessage).toMatchObject({
+      provider: "vision-dev-stub",
+      actionProposal: {
+        kind: "meal_log",
+        candidate: {
+          name: "I had 250g of tuna for dinner",
+          caloriesKcal: 350,
+          provenance: { inputKind: "text" },
+        },
+      },
+    });
+    expect(respond).not.toHaveBeenCalled();
+
+    const replay = await app.inject(request);
+    expect(replay.statusCode).toBe(200);
+    expect(replay.json().assistantMessage.id).toBe(
+      first.json().assistantMessage.id,
+    );
+    expect(replay.json().assistantMessage.actionProposal.id).toBe(
+      first.json().assistantMessage.actionProposal.id,
+    );
+
+    const thread = await app.inject({
+      method: "GET",
+      url: `/v1/coach/conversations/${id}`,
+      headers: auth,
+    });
+    expect(thread.json().messages[1].actionProposal).toEqual(
+      first.json().assistantMessage.actionProposal,
+    );
   });
 
   it("persists a fixed medical refusal before grounding or provider work", async () => {

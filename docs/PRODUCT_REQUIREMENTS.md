@@ -83,6 +83,7 @@
 - **COACH-04:** When inputs are insufficient or uncertain, the coach asks for confirmation or states the limitation.
 - **COACH-05:** The coach refuses diagnosis, dangerous targets, and advice outside the defined safety boundary.
 - **COACH-06:** Provider failure, timeout, rate limit, or disabled state preserves the user's message and offers a recoverable result.
+- **COACH-07:** An explicit meal-logging statement or food-photo attachment can produce a persistent, editable nutrition action proposal; the proposal remains non-authoritative until the user reviews it and saves through the confirmed food-entry boundary.
 
 ### Durable memory
 

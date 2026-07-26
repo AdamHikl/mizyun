@@ -62,6 +62,7 @@ export {
   coachMessageCreateSchema,
   coachMessageResponseSchema,
   coachMessageSchema,
+  coachNutritionProposalSchema,
   coachProviderStatusSchema,
   coachThreadResponseSchema,
   type CoachConversation,
@@ -80,6 +81,7 @@ export {
   type CoachMessage,
   type CoachMessageCreate,
   type CoachMessageResponse,
+  type CoachNutritionProposal,
   type CoachProviderStatus,
   type CoachThreadResponse,
 } from "./coach";

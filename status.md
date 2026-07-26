@@ -6,14 +6,14 @@
 
 - **Product stage:** technical pre-alpha; the architecture, domain/API foundation, and native mobile UI are verified and polished.
 - **Roadmap position:** Every scoped MOB item, AND-001, OBS-001, and UI/UX iOS Simulator Audit is complete at its implementation gate. The native iOS Release app (`com.mizyun.app`) passes full visual and functional verification.
-- **Latest verified implementation slice:** Added a versioned deterministic weekly training prescription that selects compatible exercises from goal, experience, schedule, equipment, and explicit movement constraints; bounds resistance days, sets, reps, rest, and aerobic baseline; and uses confirmed seven-day sessions, sets, and average RPE to build, hold, or reduce volume. The same plan is available through an authenticated API, a Coach tool, and a mobile Coach card even when external AI is off.
-- **Latest operational slice:** Removed temporary request/body/auth logs, arbitrary-token development authentication, fake-success Coach fallbacks, arbitrary iOS network loads, and unfinished client-side AI/safety bypass controls. Real provider failures and the server-owned safety envelope are authoritative again.
+- **Latest verified implementation slice:** AI-ACT-001 text meal actions now turn explicit Coach statements such as “I had 250 g of tuna for dinner” into a typed, persistent nutrition proposal. The Coach thread shows point estimates, calorie range, and confidence; “Review & log” transfers the candidate and provenance through encrypted recoverable draft state into the existing editable meal form. No food entry is created until the user explicitly saves through the confirmed food endpoint.
+- **Latest operational slice:** The ignored local development environment enables Mistral text and multimodal access. Real live synthetic text and blank-image structured-output checks pass; committed defaults remain disabled for fresh clones.
 - **Infrastructure direction:** ADR-0016 selects managed Supabase in a specific EU region for hosted development through initial production, with measured portability and a gated later migration to redundant Mizyun-operated EU infrastructure.
-- **Next exact action:** Implement AI capability level 4: correct production memory authorization/recall, then add candidate confirmation, correction/deactivation/expiry, and mobile memory controls.
+- **Next exact action:** Complete AI-ACT-001 with a Coach photo attachment endpoint and mobile picker that persists the same editable proposal shape without storing photo bytes in conversations.
 - **Branch:** `main`; the stabilization slice passes the complete repository gate and is ready for native acceptance.
-- **AI provider:** Mistral `mistral-medium-latest` is implemented behind server-only configuration; external access defaults off and cannot be bypassed by the mobile client.
+- **AI provider:** Mistral `mistral-medium-latest` is enabled in the ignored local development environment behind server-only configuration; committed external access defaults off and cannot be bypassed by the mobile client.
 - **Local runtime at handoff:** Runtime services were not restarted for this stabilization pass; the no-environment repository gate and iOS production export are green.
-- **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, 1,687-module iOS export, and 841 tests passed; 15 opt-in live/e2e tests skipped.
+- **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, 1,694-module iOS and 1,781-module Android production exports, and 894 tests passed; 15 opt-in live/e2e tests skipped.
 - **iOS:** native Release build (`com.mizyun.app`) successfully compiled, signed (`PP89XZBW4U`), installed, and verified live on physical iPhone (`00008140-001114501A86801C`).
 - **Android:** standalone Release APK passes complete journey on Pixel 9 API 36 emulator.
 
@@ -182,7 +182,7 @@ The Android SDK 36 toolchain then produced a standalone Release APK and installe
 - Supabase repository and private Storage adapters have local restart/isolation evidence, but a hosted project is not yet deployed or accepted on native devices.
 - The progress dashboard, calendar review, and private photo lifecycle pass against local persistence on native iOS and Android; hosted acceptance remains open.
 - Library-based private photo capture/upload exists; camera-hardware proof remains open. AI-assisted calorie drafts now pass local mobile/API/provider tests, but authenticated physical-device acceptance with the configured provider remains open.
-- The memory-aware coach is only an interface and disabled implementation.
+- The memory-aware Coach has persistent candidate/active/correct/deactivate/expire/delete controls and active-only authorized recall; physical-device review acceptance remains open.
 - Consent-respecting local activation/retention instrumentation and privacy-safe aggregation now exist, but no participant export or repeated-user dataset exists yet; there is still no subscription system.
 
 ## Productization sequence

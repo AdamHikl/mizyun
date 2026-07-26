@@ -38,6 +38,7 @@ import {
   type LogMealForm,
 } from "./log-meal-data";
 import {
+  isRecoverableMealDraft,
   mealFormStringsFromDraft,
   parseOptionalNutritionNumber,
 } from "./meal-form";
@@ -114,6 +115,7 @@ export function LogMealScreen() {
   const [mealDescription, setMealDescription] = useState("");
   const [draftWarnings, setDraftWarnings] = useState<readonly string[]>([]);
   const [aiDraft, setAiDraft] = useState<FoodDraftCandidate | null>(null);
+  const [sourceProposalId, setSourceProposalId] = useState<string | null>(null);
   const measurement = useRef<LoggingFlowMeasurement | null>(null);
   const hadFailure = useRef(false);
   const userId = session?.user.id ?? null;
@@ -128,17 +130,26 @@ export function LogMealScreen() {
   useEffect(() => {
     if (userId === null) return;
     let active = true;
-    void loadLoggingDraft(userId, "meal", isMealDraft).then((draft) => {
-      if (!active) return;
-      if (draft !== null) {
-        setName(draft.name);
-        setCalories(draft.calories);
-        setProtein(draft.protein);
-        setCarbs(draft.carbs);
-        setFat(draft.fat);
-      }
-      setDraftLoaded(true);
-    });
+    void loadLoggingDraft(userId, "meal", isRecoverableMealDraft).then(
+      (draft) => {
+        if (!active) return;
+        if (draft !== null) {
+          setName(draft.name);
+          setCalories(draft.calories);
+          setProtein(draft.protein);
+          setCarbs(draft.carbs);
+          setFat(draft.fat);
+          setAiDraft(draft.aiDraft ?? null);
+          setSourceProposalId(draft.sourceProposalId ?? null);
+          setDraftWarnings(
+            draft.aiDraft === undefined
+              ? []
+              : draftEvidenceLines(draft.aiDraft),
+          );
+        }
+        setDraftLoaded(true);
+      },
+    );
     return () => {
       active = false;
     };
@@ -152,8 +163,20 @@ export function LogMealScreen() {
       protein,
       carbs,
       fat,
+      ...(aiDraft === null ? {} : { aiDraft }),
+      ...(sourceProposalId === null ? {} : { sourceProposalId }),
     });
-  }, [calories, carbs, draftLoaded, fat, name, protein, userId]);
+  }, [
+    aiDraft,
+    calories,
+    carbs,
+    draftLoaded,
+    fat,
+    name,
+    protein,
+    sourceProposalId,
+    userId,
+  ]);
 
   const onSubmit = useCallback(async () => {
     measurement.current?.tap();
@@ -189,6 +212,7 @@ export function LogMealScreen() {
               aiDraft: {
                 ...aiDraft,
                 userConfirmed: true,
+                ...(sourceProposalId === null ? {} : { sourceProposalId }),
               },
             },
           }),
@@ -209,7 +233,7 @@ export function LogMealScreen() {
       isRetryableAnalyticsFailure(reason),
     );
     setError(result.message);
-  }, [name, calories, protein, carbs, fat, userId, aiDraft]);
+  }, [name, calories, protein, carbs, fat, userId, aiDraft, sourceProposalId]);
 
   // VISION-001 — launch the image picker, normalize the selected image to a
   // bounded JPEG, then post the transient bytes to
@@ -253,6 +277,7 @@ export function LogMealScreen() {
       setFat(strings.fat);
       setDraftWarnings(draftEvidenceLines(draft.draft));
       setAiDraft(draft.draft);
+      setSourceProposalId(null);
       measurement.current?.complete();
     } catch (cause) {
       hadFailure.current = true;
@@ -286,6 +311,7 @@ export function LogMealScreen() {
       setFat(strings.fat);
       setDraftWarnings(draftEvidenceLines(result.draft));
       setAiDraft(result.draft);
+      setSourceProposalId(null);
     } finally {
       setSnapping(false);
     }
@@ -572,20 +598,3 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
   },
 });
-
-interface MealDraft {
-  readonly name: string;
-  readonly calories: string;
-  readonly protein: string;
-  readonly carbs: string;
-  readonly fat: string;
-}
-
-const isMealDraft = (value: unknown): value is MealDraft =>
-  typeof value === "object" &&
-  value !== null &&
-  ["name", "calories", "protein", "carbs", "fat"].every(
-    (field) =>
-      field in value &&
-      typeof (value as Record<string, unknown>)[field] === "string",
-  );
