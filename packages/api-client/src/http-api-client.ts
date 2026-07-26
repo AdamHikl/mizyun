@@ -14,6 +14,7 @@ export interface HttpApiClientDependencies {
   readonly baseUrl: string;
   readonly authClient: AuthClient;
   readonly fetch?: typeof globalThis.fetch;
+  readonly getExtraHeaders?: () => Record<string, string>;
 }
 
 const AUTHORIZATION_HEADER = "authorization";
@@ -42,11 +43,13 @@ export class HttpApiClient implements ApiClient {
   readonly #baseUrl: string;
   readonly #authClient: AuthClient;
   readonly #fetch: typeof globalThis.fetch;
+  readonly #getExtraHeaders: (() => Record<string, string>) | undefined;
 
   constructor(dependencies: HttpApiClientDependencies) {
     this.#baseUrl = trimTrailingSlash(dependencies.baseUrl);
     this.#authClient = dependencies.authClient;
     this.#fetch = dependencies.fetch ?? globalThis.fetch.bind(globalThis);
+    this.#getExtraHeaders = dependencies.getExtraHeaders;
   }
 
   status(): ApiConfigurationStatus {
@@ -68,10 +71,12 @@ export class HttpApiClient implements ApiClient {
       return err({ kind: "no_session" });
     }
 
+    const extra = this.#getExtraHeaders?.() ?? {};
     const headers: Record<string, string> = {
       ...(options.body !== undefined
         ? { [CONTENT_TYPE_HEADER]: JSON_CONTENT_TYPE }
         : {}),
+      ...extra,
       ...(options.headers ?? {}),
     };
     headers[AUTHORIZATION_HEADER] = `Bearer ${session.accessToken}`;
@@ -79,6 +84,15 @@ export class HttpApiClient implements ApiClient {
     const url = `${this.#baseUrl}${options.path}`;
     const body =
       options.body !== undefined ? JSON.stringify(options.body) : undefined;
+
+    // TEMP DEBUG (AI-MOB-002 instrumentation round 1): log every
+    // outgoing request + status. Visible in Xcode's device console
+    // so we can confirm the iPhone is actually reaching the API.
+    // eslint-disable-next-line no-console
+    console.log(
+      `[mizyun-api] → ${options.method} ${url}` +
+        (body !== undefined ? ` body=${body.slice(0, 200)}` : ""),
+    );
 
     let response: Response;
     try {
@@ -89,8 +103,13 @@ export class HttpApiClient implements ApiClient {
         ...(options.signal ? { signal: options.signal } : {}),
       });
     } catch (cause) {
+      // eslint-disable-next-line no-console
+      console.log(`[mizyun-api] ✗ network error: ${String(cause)}`);
       return err(mapFetchError(cause));
     }
+
+    // eslint-disable-next-line no-console
+    console.log(`[mizyun-api] ← ${response.status} ${options.method} ${url}`);
 
     if (response.status === 401) {
       // Fire-and-forget: the existing AuthContext subscribe path will
