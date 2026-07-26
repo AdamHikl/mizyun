@@ -44,7 +44,7 @@ export interface OnboardingForm {
     | "extra_active"
     | null;
   readonly sexAtBirth: "male" | "female" | null;
-  readonly goalKind: "cut" | "recomp" | "maintain" | null;
+  readonly goalKind: "cut" | "bulk" | "recomp" | "maintain" | null;
   readonly goalWeight: string;
   readonly goalStartDate: string;
   readonly goalTargetDate: string;
@@ -95,6 +95,11 @@ export const validateDisplayName = (form: OnboardingForm): string | null => {
   return null;
 };
 
+export const parseNumericInput = (raw: string): number => {
+  const normalized = raw.trim().replace(",", ".");
+  return Number(normalized);
+};
+
 export const validateUnits = (_form: OnboardingForm): string | null => null;
 
 const validateWeight = (
@@ -102,7 +107,7 @@ const validateWeight = (
   unitSystem: OnboardingForm["unitSystem"],
   label: string,
 ): string | null => {
-  const value = Number(raw.trim());
+  const value = parseNumericInput(raw);
   if (raw.trim().length === 0) return `Enter your ${label.toLowerCase()}.`;
   if (!Number.isFinite(value) || value <= 0)
     return `${label} must be a positive number.`;
@@ -119,12 +124,12 @@ export const validateBaselineWeight = (form: OnboardingForm): string | null =>
   validateWeight(form.baselineWeight, form.unitSystem, "Baseline weight");
 
 export const validateEnergyProfile = (form: OnboardingForm): string | null => {
-  const height = Number(form.height.trim());
+  const height = parseNumericInput(form.height);
   if (!Number.isFinite(height) || height <= 0) return "Enter a valid height.";
   const heightCm = form.unitSystem === "imperial" ? height * 2.54 : height;
   if (heightCm < 50 || heightCm > 260)
     return "Height is outside the supported adult range.";
-  const birthYear = Number(form.birthYear.trim());
+  const birthYear = parseNumericInput(form.birthYear);
   const maxBirthYear = new Date().getFullYear() - 13;
   if (
     !Number.isInteger(birthYear) ||

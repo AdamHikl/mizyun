@@ -16,7 +16,6 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, type Href } from "expo-router";
 
 import {
   reducePrincipalState,
@@ -95,20 +94,7 @@ export function SettingsScreen() {
           </View>
 
           <PrincipalCard state={state} onRetry={refresh} />
-          {profile?.displayName === null ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Finish setting up Mizyun"
-              onPress={() => void router.push("/onboarding" as Href)}
-              style={styles.finishSetupCard}
-            >
-              <ThemedText type="smallBold">Finish setting up Mizyun</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                Add your display name, units, height, baseline weight, and goal
-                so the dashboard and energy targets become useful.
-              </ThemedText>
-            </Pressable>
-          ) : null}
+          {profile?.displayName ? null : <SetupWizardCard />}
           <AnalyticsCard />
           <SignOutCard
             disabled={state.kind === "disabled"}
@@ -357,6 +343,32 @@ function PrincipalCard({
   );
 }
 
+function SetupWizardCard() {
+  const { openOnboarding } = useAuth();
+  return (
+    <ThemedView type="backgroundElement" style={styles.finishSetupCard}>
+      <ThemedText type="smallBold">Finish setting up Mizyun</ThemedText>
+      <ThemedText type="small" themeColor="textSecondary">
+        Add your display name, units, starting weight, and primary goal to
+        personalize your daily dashboard.
+      </ThemedText>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Finish setting up Mizyun"
+        onPress={openOnboarding}
+        style={({ pressed }) => [
+          styles.setupWizardButton,
+          pressed && styles.setupWizardButtonPressed,
+        ]}
+      >
+        <ThemedText type="smallBold" style={{ color: "#000000" }}>
+          Start setup →
+        </ThemedText>
+      </Pressable>
+    </ThemedView>
+  );
+}
+
 function SignOutCard({
   disabled,
   onPress,
@@ -430,6 +442,14 @@ const styles = StyleSheet.create({
     borderColor: "#10B981",
     backgroundColor: "rgba(16, 185, 129, 0.05)",
   },
+  setupWizardButton: {
+    marginTop: Spacing.two,
+    borderRadius: 12,
+    paddingVertical: Spacing.three,
+    alignItems: "center",
+    backgroundColor: "#10B981",
+  },
+  setupWizardButtonPressed: { opacity: 0.8 },
   analyticsActions: {
     flexDirection: "row",
     flexWrap: "wrap",

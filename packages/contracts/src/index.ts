@@ -230,7 +230,7 @@ export type ProfilePatch = z.infer<typeof profilePatchSchema>;
  * closed union onto the open column. A follow-up migration tightens
  * the SQL constraint.
  */
-export const goalKindSchema = z.enum(["cut", "recomp", "maintain"]);
+export const goalKindSchema = z.enum(["cut", "bulk", "recomp", "maintain"]);
 export type GoalKind = z.infer<typeof goalKindSchema>;
 
 export const goalPaceSchema = z.enum(["steady", "gradual", "aggressive"]);

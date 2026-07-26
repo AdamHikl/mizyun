@@ -502,6 +502,186 @@ describe("HttpApiClient — cancellation", () => {
   });
 });
 
+describe("HttpApiClient — food photo drafts", () => {
+  const mealPhoto = (): Blob =>
+    new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xe0]).buffer as ArrayBuffer], {
+      type: "image/jpeg",
+    });
+
+  const draftResponse = {
+    draft: {
+      name: "Chicken and rice",
+      caloriesKcal: 420,
+      proteinG: 38,
+      carbohydrateG: 45,
+      fatG: 9,
+      confidence: 0.82,
+      warnings: ["Confirm the portion size."],
+    },
+    requestId: "vision-request",
+  };
+
+  it("sends authenticated multipart data without setting a manual boundary", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(200, draftResponse));
+    const authClient = buildAuthClient({
+      getSession: () =>
+        Promise.resolve(buildSession({ accessToken: "vision-token" })),
+    });
+    const client = new HttpApiClient({
+      baseUrl: "https://api.test",
+      authClient,
+      fetch: fetchMock as unknown as typeof fetch,
+    });
+
+    const result = await client.draftFoodEntry({
+      photo: mealPhoto(),
+      mimeType: "image/jpeg",
+      textHint: " lunch ",
+    });
+
+    expect(result).toEqual({ ok: true, value: draftResponse });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://api.test/v1/food-entries/draft");
+    expect(init.method).toBe("POST");
+    expect(init.headers).toMatchObject({
+      authorization: "Bearer vision-token",
+    });
+    expect(
+      (init.headers as Record<string, string>)["content-type"],
+    ).toBeUndefined();
+    expect(init.body).toBeInstanceOf(FormData);
+    expect((init.body as FormData).get("textHint")).toBe("lunch");
+    expect((init.body as FormData).get("image")).toBeInstanceOf(Blob);
+  });
+
+  it("does not upload when there is no authenticated session", async () => {
+    const fetchMock = vi.fn();
+    const client = new HttpApiClient({
+      baseUrl: "https://api.test",
+      authClient: buildAuthClient({
+        getSession: () => Promise.resolve(null),
+      }),
+      fetch: fetchMock as unknown as typeof fetch,
+    });
+
+    const result = await client.draftFoodEntry({
+      photo: mealPhoto(),
+      mimeType: "image/jpeg",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: { kind: "no_session" },
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("signs out and returns session_expired when the draft endpoint returns 401", async () => {
+    const signOut = vi.fn().mockResolvedValue(undefined);
+    const client = new HttpApiClient({
+      baseUrl: "https://api.test",
+      authClient: buildAuthClient({
+        getSession: () => Promise.resolve(buildSession()),
+        signOut,
+      }),
+      fetch: vi
+        .fn()
+        .mockResolvedValue(jsonResponse(401, {})) as unknown as typeof fetch,
+    });
+
+    const result = await client.draftFoodEntry({
+      photo: mealPhoto(),
+      mimeType: "image/jpeg",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: { kind: "session_expired" },
+    });
+    expect(signOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves a structured rate-limit response", async () => {
+    const client = new HttpApiClient({
+      baseUrl: "https://api.test",
+      authClient: buildAuthClient({
+        getSession: () => Promise.resolve(buildSession()),
+      }),
+      fetch: vi.fn().mockResolvedValue(
+        jsonResponse(429, {
+          error: {
+            code: "RATE_LIMITED",
+            message: "Try again later.",
+            requestId: "vision-rate-limit",
+          },
+        }),
+      ) as unknown as typeof fetch,
+    });
+
+    const result = await client.draftFoodEntry({
+      photo: mealPhoto(),
+      mimeType: "image/jpeg",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        kind: "http_error",
+        status: 429,
+        code: "RATE_LIMITED",
+        message: "Try again later.",
+        requestId: "vision-rate-limit",
+      },
+    });
+  });
+
+  it("maps a photo-upload fetch rejection to network_error", async () => {
+    const cause = new TypeError("Network request failed");
+    const client = new HttpApiClient({
+      baseUrl: "https://api.test",
+      authClient: buildAuthClient({
+        getSession: () => Promise.resolve(buildSession()),
+      }),
+      fetch: vi.fn().mockRejectedValue(cause) as unknown as typeof fetch,
+    });
+
+    const result = await client.draftFoodEntry({
+      photo: mealPhoto(),
+      mimeType: "image/jpeg",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: { kind: "network_error", cause },
+    });
+  });
+
+  it("rejects a successful response that does not match the draft contract", async () => {
+    const client = new HttpApiClient({
+      baseUrl: "https://api.test",
+      authClient: buildAuthClient({
+        getSession: () => Promise.resolve(buildSession()),
+      }),
+      fetch: vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(200, { draft: null }),
+        ) as unknown as typeof fetch,
+    });
+
+    const result = await client.draftFoodEntry({
+      photo: mealPhoto(),
+      mimeType: "image/jpeg",
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.kind).toBe("validation_error");
+  });
+});
+
 describe("HttpApiClient — status", () => {
   it("status() reports configured:true with the baseUrl", () => {
     const authClient = buildAuthClient();

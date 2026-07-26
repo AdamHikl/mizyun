@@ -37,12 +37,9 @@ interface AuthContextValue {
    * profile has not been resolved yet.
    */
   profile: Profile | null;
-  /**
-   * Re-fetch the profile from the API. Called after the onboarding
-   * flow completes so the SessionGate sees the freshly-set
-   * displayName and stops routing to onboarding on subsequent
-   * sign-ins.
-   */
+  isOnboardingActive: boolean;
+  openOnboarding(): void;
+  closeOnboarding(): void;
   refreshProfile(): Promise<void>;
   signOut(): Promise<void>;
   /**
@@ -68,7 +65,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
   const [recoveryState, setRecoveryState] = useState(false);
+  const [isOnboardingActive, setIsOnboardingActive] = useState(false);
   const profileRequestVersion = useRef(0);
+
+  const openOnboarding = useCallback(() => setIsOnboardingActive(true), []);
+  const closeOnboarding = useCallback(() => setIsOnboardingActive(false), []);
   const configuration = authClient.status();
 
   const fetchProfile = useCallback(async (): Promise<Profile | null> => {
@@ -83,10 +84,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (result.ok) {
       return result.value.profile;
     }
-    // A failing profile load is treated as "no profile yet" so the
-    // SessionGate routes to onboarding after loading. Submission then
-    // surfaces the actionable API/network error without exposing protected
-    // dashboard children against unresolved profile state.
+    // A failing profile load is treated as "no profile yet". Content remains
+    // reachable and its setup prompts let the user retry the profile/setup
+    // flow explicitly.
     return null;
   }, []);
 
@@ -96,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(nextSession);
       setProfile(null);
       if (nextSession === null) {
+        setIsOnboardingActive(false);
         setProfileLoading(false);
         return;
       }
@@ -166,6 +167,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       profile,
       recoveryState,
+      isOnboardingActive,
+      openOnboarding,
+      closeOnboarding,
       signOut: () => authClient.signOut(),
       consumeDeepLink,
       clearRecoveryState,
@@ -175,6 +179,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       profile,
       recoveryState,
+      isOnboardingActive,
+      openOnboarding,
+      closeOnboarding,
       consumeDeepLink,
       clearRecoveryState,
       refreshProfile,
@@ -195,28 +202,25 @@ export function SessionGate({ children }: { children: ReactNode }) {
     recoveryState: context.recoveryState,
     profile: context.profile,
   });
+  if (target === "content" && context.isOnboardingActive) {
+    return (
+      <OnboardingScreen
+        onComplete={async () => {
+          await context.refreshProfile();
+          context.closeOnboarding();
+        }}
+        onExit={() => context.closeOnboarding()}
+      />
+    );
+  }
   switch (target) {
     case "recovery":
       return <ResetPasswordScreen />;
     case "auth":
       return <AuthScreen />;
-    case "onboarding":
-      return <OnboardingGate />;
     case "content":
       return <>{children}</>;
   }
-}
-
-/**
- * Wrapper for the onboarding screen. The SessionGate routes a
- * freshly-authenticated user with `displayName === null` here; once
- * the wizard completes, `refreshProfile()` flips the profile state
- * and the SessionGate falls back to rendering the regular children.
- */
-function OnboardingGate() {
-  const context = useContext(AuthContext);
-  if (!context) return null;
-  return <OnboardingScreen onComplete={() => void context.refreshProfile()} />;
 }
 
 export function useAuth() {

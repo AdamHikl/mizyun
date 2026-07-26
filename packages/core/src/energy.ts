@@ -277,6 +277,11 @@ const GOAL_ADJUSTMENT_KCAL: Readonly<
     gradual: -300,
     aggressive: -750,
   },
+  bulk: {
+    steady: 500,
+    gradual: 300,
+    aggressive: 750,
+  },
   recomp: {
     steady: -250,
     gradual: 0,

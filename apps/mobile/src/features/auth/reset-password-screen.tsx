@@ -70,6 +70,7 @@ export function ResetPasswordScreen() {
         autoCapitalize="none"
         autoComplete="new-password"
         placeholder="New password"
+        placeholderTextColor="#8E8E93"
         secureTextEntry
         value={password}
         onChangeText={setPassword}
@@ -79,6 +80,7 @@ export function ResetPasswordScreen() {
         autoCapitalize="none"
         autoComplete="new-password"
         placeholder="Confirm new password"
+        placeholderTextColor="#8E8E93"
         secureTextEntry
         value={confirm}
         onChangeText={setConfirm}
@@ -129,6 +131,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 16,
     fontSize: 16,
+    color: "#132019",
   },
   error: { color: "#a13a25", lineHeight: 20 },
   message: { color: "#18633d", lineHeight: 20 },

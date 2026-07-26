@@ -80,18 +80,18 @@ Native acceptance evidence: standalone iOS and Android Release apps pass real si
 
 ## Later — Phases 6–9
 
-| ID             | Priority | Status   | Work item                                    | Entry gate                                                                    |
-| -------------- | -------- | -------- | -------------------------------------------- | ----------------------------------------------------------------------------- |
-| IOS-HEALTH-001 | P2       | research | HealthKit permissions and steps adapter      | Phase 5                                                                       |
-| AND-HEALTH-001 | P2       | research | Health Connect permissions and steps adapter | Android verified                                                              |
-| MEM-001        | P0       | blocked  | Persistent memory adapter and controls       | Grounded text-coach evaluation                                                |
-| AI-001         | P0       | active   | Evaluate/select initial Mistral model        | First live synthetic structured response passes; full evaluation remains      |
-| AI-002         | P1       | active   | Text coaching adapter and read-only tools    | Direct synthetic grounding works; authenticated app/native evaluation remains |
-| VISION-001     | P1       | blocked  | Editable text/photo food drafts              | Manual nutrition + AI evaluation                                              |
-| VISION-002     | P2       | blocked  | Conservative body-progress observations      | Media + safety evaluation                                                     |
-| REL-001        | P0       | blocked  | Privacy/export/deletion release gate         | MVP repositories complete                                                     |
-| REL-002        | P0       | blocked  | iOS/Android beta build matrix                | MVP feature complete                                                          |
-| REL-003        | P1       | blocked  | Accessibility and poor-network pass          | MVP feature complete                                                          |
+| ID             | Priority | Status   | Work item                                    | Entry gate                                                                              |
+| -------------- | -------- | -------- | -------------------------------------------- | --------------------------------------------------------------------------------------- |
+| IOS-HEALTH-001 | P2       | research | HealthKit permissions and steps adapter      | Phase 5                                                                                 |
+| AND-HEALTH-001 | P2       | research | Health Connect permissions and steps adapter | Android verified                                                                        |
+| MEM-001        | P0       | blocked  | Persistent memory adapter and controls       | Grounded text-coach evaluation                                                          |
+| AI-001         | P0       | active   | Evaluate/select initial Mistral model        | First live synthetic structured response passes; full evaluation remains                |
+| AI-002         | P1       | active   | Text coaching adapter and read-only tools    | Direct synthetic grounding works; authenticated app/native evaluation remains           |
+| VISION-001     | P1       | active   | Editable text/photo food drafts              | Local mobile/API/provider gate passes; authenticated native/provider acceptance remains |
+| VISION-002     | P2       | blocked  | Conservative body-progress observations      | Media + safety evaluation                                                               |
+| REL-001        | P0       | blocked  | Privacy/export/deletion release gate         | MVP repositories complete                                                               |
+| REL-002        | P0       | blocked  | iOS/Android beta build matrix                | MVP feature complete                                                                    |
+| REL-003        | P1       | blocked  | Accessibility and poor-network pass          | MVP feature complete                                                                    |
 
 ## Infrastructure evolution
 

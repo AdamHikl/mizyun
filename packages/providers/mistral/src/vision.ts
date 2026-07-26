@@ -37,7 +37,7 @@ const visionSystemPolicy = [
   "Identify the food or drink in the photo. If you cannot, set name to null.",
   "Estimate calories and macros conservatively. Round to one decimal place for grams, integer for kcal.",
   "Prefer null over a guess you are not confident about.",
-  "Never make medical claims. Never suggest a calorie target below 800 kcal.",
+  "Never make medical claims or suggest a daily calorie target.",
   "Output strictly the JSON schema the user requested.",
 ].join("\n");
 
@@ -221,9 +221,6 @@ const dataUrlOf = (
 };
 
 const isUnsafeOutput = (candidate: VisionDraftCandidate): boolean => {
-  if (candidate.caloriesKcal !== null && candidate.caloriesKcal < 800) {
-    return true;
-  }
   if (
     candidate.name !== null &&
     /(diagnose|prescribe|medication|disorder)/i.test(candidate.name)

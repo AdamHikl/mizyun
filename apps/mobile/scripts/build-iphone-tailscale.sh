@@ -57,16 +57,14 @@ echo "Wrote ${ENV_FILE} with the Tailscale URLs."
 # directly: device names with non-ASCII characters (e.g. emoji)
 # don't match the --device flag's name match.
 echo "Building the iOS Release binary..."
-IPHONE_UDID=$(xcrun devicectl list devices 2>/dev/null \
-  | grep -Eo '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' \
+IPHONE_UDID=$(xcrun xctrace list devices 2>/dev/null \
+  | grep -i "iphone" \
+  | grep -v "Simulator" \
+  | grep -Eo '\([0-9A-F\-]{10,}\)' \
+  | tr -d '()' \
   | head -1)
 if [[ -z "$IPHONE_UDID" ]]; then
   echo "error: no iPhone UDID found. Pair the device in Xcode first."
-  exit 1
-fi
-echo "Targeting iPhone UDID: $IPHONE_UDID"
-if [[ -z "$IPHONE_UDID" ]]; then
-  echo "error: no connected iPhone found. Pair the device in Xcode first."
   exit 1
 fi
 echo "Targeting iPhone UDID: $IPHONE_UDID"
@@ -74,7 +72,7 @@ echo "Targeting iPhone UDID: $IPHONE_UDID"
 EXPO_PUBLIC_API_URL="http://${TS_IP}:4000" \
 EXPO_PUBLIC_SUPABASE_URL="http://${TS_IP}:54321" \
 EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$(pnpm supabase status 2>/dev/null | sed -n 's/^.*"PUBLISHABLE_KEY": "\([^"]*\)".*/\1/p' | head -1) \
-  npx expo run:ios --device "Adam's Iphone 😋" --configuration Release
+  npx expo run:ios --device "$IPHONE_UDID" --configuration Release
 
 echo "iPhone install complete. The app is now pointed at:"
 echo "  API:        http://${TS_IP}:4000"

@@ -1107,8 +1107,26 @@ no log lines carrying photo bytes.
 ### Defence in depth
 
 - Photo bytes are accepted as `image/jpeg`, `image/png`, `image/webp` only. Other mime types → 422.
-- The model output is post-screened: sub-800-kcal suggestions and medical keywords are replaced with a safe fallback (`name: null`, `confidence: original`, warning "rejected by safety policy"). The route never surfaces a model claim that contradicts the wellness scope.
+- The model output is post-screened for medical claims and unsafe daily-target language. Ordinary single-meal estimates below 800 kcal remain editable candidates; a meal estimate is not a daily calorie target.
 - The route never logs the photo bytes, the textHint, or the model output. The request id (random UUID) is the only correlation token returned to the user.
+
+## 2026-07-26 — Mobile meal-photo transport stabilization
+
+### Primary sources
+
+- Expo SDK 57, **ImagePicker** (accessed 2026-07-26): https://docs.expo.dev/versions/v57.0.0/sdk/imagepicker/
+- Expo SDK 57, **SecureStore** (accessed 2026-07-26): https://docs.expo.dev/versions/v57.0.0/sdk/securestore/
+- Installed Expo FileSystem 57 type declarations, `File.bytes()` and `File.size` (inspected 2026-07-26)
+- Mistral AI, **Vision** (accessed 2026-07-26): https://docs.mistral.ai/capabilities/vision/
+- Mistral AI, **Structured outputs** (accessed 2026-07-26): https://docs.mistral.ai/capabilities/structured-outputs
+
+### Verified findings and implementation consequences
+
+- ImagePicker assets expose a local URI and may expose a MIME type, but the chosen iOS asset is not guaranteed to already be one of the API's accepted JPEG/PNG/WebP encodings. The meal flow now normalizes every selected asset to a bounded JPEG, verifies its native file metadata, and reads it with Expo FileSystem before upload.
+- The mobile client uses platform `FormData`/`Blob` and leaves the multipart `Content-Type` unset so the fetch implementation supplies the correct boundary. Successful responses are parsed through `foodDraftResponseSchema`; malformed provider/API output cannot prefill the form.
+- Mistral vision accepts base64 data URLs in image content blocks and supports schema-constrained structured output. The server remains the only component that calls Mistral; photo bytes are transient and estimates require user confirmation before the normal food-entry write.
+- SecureStore's SDK 57 synchronous getter is `getItem`, while `getItemAsync` is the asynchronous API. Authentication/session changes retain the installed SDK surface and do not introduce a nonexistent `getItemSync` call.
+- No new ADR is required: the changes harden ADR-0017's existing server-owned safety, transient-photo, and user-confirmation decisions without changing authority or persistence.
 
 ## 2026-07-25 — AI-MOB-002 Coach UX polish
 

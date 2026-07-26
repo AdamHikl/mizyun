@@ -29,9 +29,9 @@ export function AuthScreen() {
         setMode("sign-in");
         return;
       }
-      if (mode === "sign-in")
+      if (mode === "sign-in") {
         await authClient.signInWithPassword({ email, password });
-      else {
+      } else {
         const result = await authClient.signUpWithPassword({ email, password });
         if (result.emailConfirmationRequired)
           setMessage("Check your email to confirm your account.");
@@ -61,6 +61,7 @@ export function AuthScreen() {
         autoComplete="email"
         keyboardType="email-address"
         placeholder="Email"
+        placeholderTextColor="#8E8E93"
         value={email}
         onChangeText={setEmail}
         style={styles.input}
@@ -72,6 +73,7 @@ export function AuthScreen() {
             mode === "sign-in" ? "current-password" : "new-password"
           }
           placeholder="Password"
+          placeholderTextColor="#8E8E93"
           secureTextEntry
           value={password}
           onChangeText={setPassword}
@@ -147,6 +149,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 16,
     fontSize: 16,
+    color: "#132019",
   },
   message: { color: "#75531b", lineHeight: 20 },
   primary: {

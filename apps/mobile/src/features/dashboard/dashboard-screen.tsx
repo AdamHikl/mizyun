@@ -180,7 +180,7 @@ const actions = [
 ] as const;
 
 export function DashboardScreen() {
-  const { profile, session } = useAuth();
+  const { profile, session, openOnboarding } = useAuth();
   const [metrics, setMetrics] = useState<MetricsState>(EMPTY_METRICS);
   const [reviewPeriod, setReviewPeriod] = useState<ReviewPeriod>("week");
   const userId = session?.user.id ?? null;
@@ -263,15 +263,51 @@ export function DashboardScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
-            <ThemedText type="smallBold" themeColor="textSecondary">
-              MIZYUN
-            </ThemedText>
+            <View style={styles.headerTopRow}>
+              <ThemedText type="smallBold" themeColor="textSecondary">
+                MIZYUN
+              </ThemedText>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Open Account settings"
+                onPress={() => void router.push("/settings" as Href)}
+                style={styles.headerSettingsButton}
+              >
+                <ThemedText type="smallBold" style={styles.headerSettingsText}>
+                  ⚙️ Account
+                </ThemedText>
+              </Pressable>
+            </View>
             <ThemedText type="subtitle">Your day, in one place.</ThemedText>
             <ThemedText themeColor="textSecondary">
-              Build the record first. Coaching and automation can plug into the
-              same data later.
+              Explore tracking and tools freely. Set up your primary goal
+              whenever you're ready.
             </ThemedText>
           </View>
+
+          {!profile?.displayName ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Set up Mizyun"
+              onPress={openOnboarding}
+              style={styles.setupBanner}
+            >
+              <View style={styles.setupBannerText}>
+                <ThemedText type="smallBold" style={styles.setupBannerTitle}>
+                  Set up Mizyun
+                </ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  5 short steps: add your name, units, starting weight, and goal
+                  to personalize your daily targets.
+                </ThemedText>
+              </View>
+              <View style={styles.setupBannerBadge}>
+                <ThemedText type="smallBold" style={styles.setupBannerAction}>
+                  Start →
+                </ThemedText>
+              </View>
+            </Pressable>
+          ) : null}
 
           <View style={styles.metrics}>
             <MetricCard
@@ -559,6 +595,41 @@ const styles = StyleSheet.create({
     gap: Spacing.five,
   },
   header: { gap: Spacing.one },
+  headerTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  headerSettingsButton: {
+    paddingHorizontal: Spacing.two,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: "rgba(16, 185, 129, 0.1)",
+  },
+  headerSettingsText: {
+    color: "#10B981",
+    fontSize: 12,
+  },
+  setupBanner: {
+    borderRadius: 16,
+    padding: Spacing.four,
+    backgroundColor: "rgba(16, 185, 129, 0.08)",
+    borderWidth: 1,
+    borderColor: "#10B981",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.three,
+  },
+  setupBannerText: { flex: 1, gap: Spacing.one },
+  setupBannerTitle: { color: "#10B981", fontSize: 16 },
+  setupBannerBadge: {
+    backgroundColor: "#10B981",
+    borderRadius: 12,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+  },
+  setupBannerAction: { color: "#ffffff" },
   metrics: { gap: Spacing.three },
   metricCard: {
     borderRadius: 18,

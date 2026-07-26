@@ -188,6 +188,19 @@ describe("computeEnergy / complete inputs", () => {
     expect(result.breakdown.inputs.goalPace).toBe("steady");
   });
 
+  it("applies a calorie surplus for a gradual bulk goal", () => {
+    const result = computeEnergy(
+      completeInputs({
+        activeGoal: baseGoal({ kind: "bulk", pace: "gradual" }),
+      }),
+      userId,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.breakdown.goalAdjustmentKcal).toBe(300);
+    expect(result.breakdown.dailyTargetKcal).toBe(2890);
+  });
+
   it("is deterministic across multiple invocations", () => {
     const a = computeEnergy(completeInputs(), userId);
     const b = computeEnergy(completeInputs(), userId);

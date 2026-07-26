@@ -1,4 +1,8 @@
 import { err, ok, type Result } from "@mizyun/core";
+import {
+  foodDraftResponseSchema,
+  type FoodDraftResponse,
+} from "@mizyun/contracts";
 import type { AuthClient } from "@mizyun/identity";
 
 import type { ApiClient } from "./api-client";
@@ -14,7 +18,6 @@ export interface HttpApiClientDependencies {
   readonly baseUrl: string;
   readonly authClient: AuthClient;
   readonly fetch?: typeof globalThis.fetch;
-  readonly getExtraHeaders?: () => Record<string, string>;
 }
 
 const AUTHORIZATION_HEADER = "authorization";
@@ -25,6 +28,17 @@ const isAbsoluteUrl = (path: string): boolean => /^https?:\/\//i.test(path);
 
 const trimTrailingSlash = (value: string): string =>
   value.endsWith("/") ? value.slice(0, -1) : value;
+
+const mimeExt = (mime: "image/jpeg" | "image/png" | "image/webp"): string => {
+  switch (mime) {
+    case "image/jpeg":
+      return "jpg";
+    case "image/png":
+      return "png";
+    case "image/webp":
+      return "webp";
+  }
+};
 
 /**
  * Real `fetch`-backed API client. Attaches the bearer token from
@@ -43,17 +57,94 @@ export class HttpApiClient implements ApiClient {
   readonly #baseUrl: string;
   readonly #authClient: AuthClient;
   readonly #fetch: typeof globalThis.fetch;
-  readonly #getExtraHeaders: (() => Record<string, string>) | undefined;
 
   constructor(dependencies: HttpApiClientDependencies) {
     this.#baseUrl = trimTrailingSlash(dependencies.baseUrl);
     this.#authClient = dependencies.authClient;
     this.#fetch = dependencies.fetch ?? globalThis.fetch.bind(globalThis);
-    this.#getExtraHeaders = dependencies.getExtraHeaders;
   }
 
   status(): ApiConfigurationStatus {
     return { configured: true, baseUrl: this.#baseUrl };
+  }
+
+  /**
+   * VISION-001 — post a meal photo + optional text hint to the
+   * Mistral vision workspace. The API returns a structured
+   * candidate the user can edit before saving via
+   * `request({ method: "POST", path: "/v1/food-entries", ... })`.
+   *
+   * `photo` is a native/web Blob (JPEG/PNG/WebP, ≤ 15 MiB);
+   * `mimeType` must match the byte stream. The route never
+   * persists the photo — bytes flow transient to the
+   * provider and back.
+   */
+  async draftFoodEntry(input: {
+    readonly photo: Blob;
+    readonly mimeType: "image/jpeg" | "image/png" | "image/webp";
+    readonly textHint?: string;
+  }): Promise<Result<FoodDraftResponse, ApiError>> {
+    const url = `${this.#baseUrl}/v1/food-entries/draft`;
+    const session = await this.#authClient.getSession();
+    if (!session) return err({ kind: "no_session" });
+
+    const headers: Record<string, string> = {
+      [AUTHORIZATION_HEADER]: `Bearer ${session.accessToken}`,
+    };
+    const body = new FormData();
+    body.append("image", input.photo, `meal.${mimeExt(input.mimeType)}`);
+    if (input.textHint !== undefined && input.textHint.trim().length > 0) {
+      body.append("textHint", input.textHint.trim());
+    }
+
+    let response: Response;
+    try {
+      response = await this.#fetch(url, { method: "POST", headers, body });
+    } catch (cause) {
+      return err(mapFetchError(cause));
+    }
+
+    if (response.status === 401) {
+      void this.#authClient.signOut().catch(() => {});
+      return err({ kind: "session_expired" });
+    }
+
+    if (!response.ok) {
+      let parsedBody: unknown;
+      try {
+        parsedBody = await response.json();
+      } catch {
+        parsedBody = undefined;
+      }
+      const mapped = parseApiErrorBody(parsedBody);
+      if (!mapped.ok) {
+        if (mapped.error.kind === "http_error") {
+          return err({ ...mapped.error, status: response.status });
+        }
+        return err(mapped.error);
+      }
+      return err({
+        kind: "http_error",
+        status: response.status,
+        code: "INTERNAL_ERROR",
+        message: "The request could not be completed.",
+      });
+    }
+
+    let parsedBody: unknown;
+    try {
+      parsedBody = await response.json();
+    } catch (cause) {
+      return err({ kind: "parse_error", cause });
+    }
+    const parsed = foodDraftResponseSchema.safeParse(parsedBody);
+    if (!parsed.success) {
+      return err({
+        kind: "validation_error",
+        issues: parsed.error.issues,
+      });
+    }
+    return ok(parsed.data);
   }
 
   async request<T>(options: RequestOptions): Promise<Result<T, ApiError>> {
@@ -71,12 +162,10 @@ export class HttpApiClient implements ApiClient {
       return err({ kind: "no_session" });
     }
 
-    const extra = this.#getExtraHeaders?.() ?? {};
     const headers: Record<string, string> = {
       ...(options.body !== undefined
         ? { [CONTENT_TYPE_HEADER]: JSON_CONTENT_TYPE }
         : {}),
-      ...extra,
       ...(options.headers ?? {}),
     };
     headers[AUTHORIZATION_HEADER] = `Bearer ${session.accessToken}`;
@@ -84,15 +173,6 @@ export class HttpApiClient implements ApiClient {
     const url = `${this.#baseUrl}${options.path}`;
     const body =
       options.body !== undefined ? JSON.stringify(options.body) : undefined;
-
-    // TEMP DEBUG (AI-MOB-002 instrumentation round 1): log every
-    // outgoing request + status. Visible in Xcode's device console
-    // so we can confirm the iPhone is actually reaching the API.
-    // eslint-disable-next-line no-console
-    console.log(
-      `[mizyun-api] → ${options.method} ${url}` +
-        (body !== undefined ? ` body=${body.slice(0, 200)}` : ""),
-    );
 
     let response: Response;
     try {
@@ -103,13 +183,8 @@ export class HttpApiClient implements ApiClient {
         ...(options.signal ? { signal: options.signal } : {}),
       });
     } catch (cause) {
-      // eslint-disable-next-line no-console
-      console.log(`[mizyun-api] ✗ network error: ${String(cause)}`);
       return err(mapFetchError(cause));
     }
-
-    // eslint-disable-next-line no-console
-    console.log(`[mizyun-api] ← ${response.status} ${options.method} ${url}`);
 
     if (response.status === 401) {
       // Fire-and-forget: the existing AuthContext subscribe path will

@@ -66,6 +66,18 @@ describe("validateGoalCreate", () => {
     ).toBeNull();
   });
 
+  it("accepts a bulk goal", () => {
+    expect(
+      validateGoalCreate({
+        kind: "bulk",
+        pace: "gradual",
+        target: { weightKg: 85 },
+        startsOn: "2026-01-01",
+        targetDate: "2026-06-01",
+      }),
+    ).toBeNull();
+  });
+
   it("rejects a target date before the start date", () => {
     expect(
       validateGoalCreate({

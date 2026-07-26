@@ -83,8 +83,8 @@ describe("validatePrimaryGoal", () => {
     ).toMatch(/30 and 250/);
   });
 
-  it("accepts a valid cut/recomp/maintain with a weight", () => {
-    for (const kind of ["cut", "recomp", "maintain"] as const) {
+  it("accepts every supported goal kind with a weight", () => {
+    for (const kind of ["cut", "bulk", "recomp", "maintain"] as const) {
       expect(
         validatePrimaryGoal({
           ...fresh(),

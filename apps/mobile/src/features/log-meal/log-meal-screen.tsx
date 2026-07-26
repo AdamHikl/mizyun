@@ -1,4 +1,5 @@
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -7,6 +8,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, Stack } from "expo-router";
+import { File } from "expo-file-system";
+import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
+import * as ImagePicker from "expo-image-picker";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LoggingFlowMeasurement } from "@mizyun/observability";
 
@@ -26,8 +30,41 @@ import {
   saveLoggingDraft,
 } from "@/features/logging-draft-storage";
 
-import { submitLogMeal, type LogMealForm } from "./log-meal-data";
-import { parseOptionalNutritionNumber } from "./meal-form";
+import {
+  snapMealPhoto,
+  submitLogMeal,
+  type LogMealForm,
+} from "./log-meal-data";
+import {
+  mealFormStringsFromDraft,
+  parseOptionalNutritionNumber,
+} from "./meal-form";
+
+const MAX_MEAL_IMAGE_EDGE = 2048;
+
+const normalizeMealPhoto = async (
+  asset: ImagePicker.ImagePickerAsset,
+): Promise<File> => {
+  const context = ImageManipulator.manipulate(asset.uri);
+  const longestEdge = Math.max(asset.width, asset.height);
+  if (longestEdge > MAX_MEAL_IMAGE_EDGE) {
+    if (asset.width >= asset.height) {
+      context.resize({ width: MAX_MEAL_IMAGE_EDGE, height: null });
+    } else {
+      context.resize({ width: null, height: MAX_MEAL_IMAGE_EDGE });
+    }
+  }
+  const rendered = await context.renderAsync();
+  const saved = await rendered.saveAsync({
+    compress: 0.82,
+    format: SaveFormat.JPEG,
+  });
+  const file = new File(saved.uri);
+  if (!file.exists || file.size <= 0) {
+    throw new Error("The selected photo could not be read.");
+  }
+  return file;
+};
 
 export function LogMealScreen() {
   const { session } = useAuth();
@@ -40,6 +77,13 @@ export function LogMealScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draftLoaded, setDraftLoaded] = useState(false);
+  // VISION-001 — photo-to-draft state. `snapping` is true while
+  // the photo is uploading and the configured vision provider is being
+  // consulted. The form pre-fills with the candidate's name/calories/macros;
+  // the user can edit before saving, while `draftWarnings` keeps provider
+  // uncertainty visible.
+  const [snapping, setSnapping] = useState(false);
+  const [draftWarnings, setDraftWarnings] = useState<readonly string[]>([]);
   const measurement = useRef<LoggingFlowMeasurement | null>(null);
   const hadFailure = useRef(false);
   const userId = session?.user.id ?? null;
@@ -127,6 +171,61 @@ export function LogMealScreen() {
     setError(result.message);
   }, [name, calories, protein, carbs, fat, userId]);
 
+  // VISION-001 — launch the image picker, normalize the selected image to a
+  // bounded JPEG, then post the transient bytes to
+  // /v1/food-entries/draft. The candidate's name/calories/macros
+  // pre-fill the form; the user can edit before saving. The
+  // model's free-text warnings are shown inline so the user
+  // knows when the AI is uncertain.
+  const onSnap = useCallback(async () => {
+    measurement.current?.tap();
+    if (hadFailure.current) measurement.current?.retry();
+    setError(null);
+    setDraftWarnings([]);
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      setError("Photo library access is required to choose a meal photo.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.85,
+      allowsEditing: false,
+    });
+    if (result.canceled) return;
+    const asset = result.assets?.[0];
+    if (asset === undefined) return;
+    setSnapping(true);
+    try {
+      const photo = await normalizeMealPhoto(asset);
+      const draft = await snapMealPhoto(photo, "image/jpeg");
+      if (!draft.ok) {
+        hadFailure.current = true;
+        measurement.current?.fail("upload", "unexpected", true);
+        setError(draft.message);
+        return;
+      }
+      const strings = mealFormStringsFromDraft(draft.draft);
+      setName(strings.name);
+      setCalories(strings.calories);
+      setProtein(strings.protein);
+      setCarbs(strings.carbs);
+      setFat(strings.fat);
+      setDraftWarnings(draft.draft.warnings);
+      measurement.current?.complete();
+    } catch (cause) {
+      hadFailure.current = true;
+      measurement.current?.fail("upload", "unexpected", true);
+      setError(
+        cause instanceof Error
+          ? `Couldn't read the photo: ${cause.message}`
+          : "Couldn't read the photo.",
+      );
+    } finally {
+      setSnapping(false);
+    }
+  }, [userId]);
+
   const calorieHint =
     calories.trim().length > 0 ? "calories recorded" : "calories optional";
 
@@ -145,6 +244,54 @@ export function LogMealScreen() {
             Name your meal first; calories and macros are optional but the
             dashboard totals use them when present.
           </ThemedText>
+
+          <Pressable
+            accessibilityRole="button"
+            testID="snap-meal-button"
+            accessibilityLabel="Choose a meal photo"
+            accessibilityHint="Open the photo library, pick a meal photo, and let Mizyun suggest a draft with calories and macros."
+            disabled={snapping || submitting}
+            accessibilityState={{
+              busy: snapping,
+              disabled: snapping || submitting,
+            }}
+            onPress={() => {
+              void onSnap();
+            }}
+            style={({ pressed }) => [
+              styles.snap,
+              (pressed || snapping) && styles.snapPressed,
+            ]}
+          >
+            {snapping ? (
+              <ActivityIndicator
+                size="small"
+                color={theme.text}
+                accessibilityLabel="Analysing photo"
+              />
+            ) : (
+              <ThemedText type="smallBold">📷 Choose a meal photo</ThemedText>
+            )}
+          </Pressable>
+
+          {draftWarnings.length > 0 ? (
+            <ThemedView
+              type="backgroundElement"
+              style={styles.warnings}
+              accessibilityRole="alert"
+            >
+              {draftWarnings.map((warning) => (
+                <ThemedText
+                  key={warning}
+                  type="small"
+                  themeColor="textSecondary"
+                  style={{ marginVertical: 1 }}
+                >
+                  {warning}
+                </ThemedText>
+              ))}
+            </ThemedView>
+          ) : null}
 
           <Field
             testID="meal-name-input"
@@ -312,6 +459,23 @@ const styles = StyleSheet.create({
   },
   submitPressed: { opacity: 0.65 },
   errorText: { marginTop: Spacing.one },
+  snap: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#8A8D91",
+    borderRadius: Spacing.three,
+    paddingVertical: Spacing.three,
+    paddingHorizontal: Spacing.four,
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: Spacing.two,
+  },
+  snapPressed: { opacity: 0.65 },
+  warnings: {
+    padding: Spacing.three,
+    borderRadius: Spacing.two,
+    gap: Spacing.one,
+  },
 });
 
 interface MealDraft {

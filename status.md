@@ -1,20 +1,20 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-07-25**.
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-07-26**.
 
 ## Executive snapshot
 
 - **Product stage:** technical pre-alpha; the architecture, domain/API foundation, and native mobile UI are verified and polished.
 - **Roadmap position:** Every scoped MOB item, AND-001, OBS-001, and UI/UX iOS Simulator Audit is complete at its implementation gate. The native iOS Release app (`com.mizyun.app`) passes full visual and functional verification.
-- **Latest verified implementation slice:** Fixed Onboarding Gate routing (`session-gate-state.ts`), Deep link auth callback handling (`auth/callback.tsx`), floating bottom tab bar clearance across all scroll containers (`theme.ts`), and unified emerald visual theme palette (`#10B981`/`#059669`).
-- **Latest operational slice:** Standalone iOS Release binary (`com.mizyun.app`) built and installed via `expo run:ios --configuration Release --no-bundler` on an iPhone 17 Pro simulator (iOS 26.5 runtime). All 11 application pages captured and audited in `walkthrough.md`.
+- **Latest verified implementation slice:** Stabilized content-first routing, optional setup entry points, comma-decimal input, and the new `bulk` goal across contracts/domain/energy/onboarding. Added an authenticated, editable photo-to-meal-draft path with bounded JPEG normalization, validated multipart responses, transient provider processing, and no automatic persistence.
+- **Latest operational slice:** Removed temporary request/body/auth logs, arbitrary-token development authentication, fake-success Coach fallbacks, arbitrary iOS network loads, and unfinished client-side AI/safety bypass controls. Real provider failures and the server-owned safety envelope are authoritative again.
 - **Infrastructure direction:** ADR-0016 selects managed Supabase in a specific EU region for hosted development through initial production, with measured portability and a gated later migration to redundant Mizyun-operated EU infrastructure.
-- **Next exact action:** Begin physical-device acceptance testing on target iOS/Android devices per `docs/tutorials/IOS_SIMULATOR.md` and `docs/tutorials/ANDROID_EMULATOR.md`.
-- **Branch:** `main`; all mobile UI bug fixes, deep link callback handlers, and quality gate passes are local and green.
-- **AI provider:** Mistral `mistral-medium-latest` is implemented behind `AGENT_PROVIDER=mistral`; external access defaults off.
-- **Local runtime at handoff:** Fastify API (`:4000`) and local Supabase (`:54321`) are running; standalone `com.mizyun.app` passes native simulator verification.
-- **Dev loop (current focus):** `pnpm check` green across 734+ tests; prebuild and release build verified clean.
-- **iOS:** native Release build/install/launch (`com.mizyun.app`) and complete onboarding/dashboard/coach/account/photos journey pass on iPhone 17 Pro simulator.
+- **Next exact action:** Run an authenticated physical-iPhone acceptance pass for setup re-entry, a bulk goal, and editable meal-photo drafting against the trusted development server.
+- **Branch:** `main`; the stabilization slice passes the complete repository gate and is ready for native acceptance.
+- **AI provider:** Mistral `mistral-medium-latest` is implemented behind server-only configuration; external access defaults off and cannot be bypassed by the mobile client.
+- **Local runtime at handoff:** Runtime services were not restarted for this stabilization pass; the no-environment repository gate and iOS production export are green.
+- **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, 1,687-module iOS export, and 841 tests passed; 15 opt-in live/e2e tests skipped.
+- **iOS:** native Release build (`com.mizyun.app`) successfully compiled, signed (`PP89XZBW4U`), installed, and verified live on physical iPhone (`00008140-001114501A86801C`).
 - **Android:** standalone Release APK passes complete journey on Pixel 9 API 36 emulator.
 
 ## What is genuinely delivered
@@ -62,6 +62,7 @@ The mobile app currently includes:
 - a Home dashboard that reads today's local-day calorie/macro and deterministic energy summary, latest weight, and calendar week/month review data from the API;
 - an energy-input recovery route for existing accounts, with unit-aware height editing and explicit incomplete-state reasons;
 - dashboard routes to create a manual meal, a minimal completed workout record, or a weight observation;
+- an authenticated meal-photo draft flow that normalizes selected images to bounded JPEGs, asks the vision provider for structured calorie/macro estimates, validates the response, surfaces warnings, and requires user editing/confirmation before the normal food-entry save;
 - small encrypted, user-scoped logging drafts that survive app restart and are cleared only after the API confirms success;
 - metric/imperial weight entry and display with canonical kilograms at the API boundary;
 - body progress history with raw readings, optional waist/chest measurements, confirmed correction deletion, and a labeled time-aware smoothed trend/rate;
@@ -86,6 +87,24 @@ The core manual tracking and private progress-photo lifecycles are implemented a
 With validated Supabase server configuration, the API selects Supabase-backed profile, goal, food, exercise, workout, workout-set, body-measurement, and media-asset repositories plus private Storage. The standard no-environment gate intentionally remains in-memory. Hosted Supabase deployment, physical-device/store-build acceptance, and account deletion across every external resource remain incomplete.
 
 Do not describe NUT-_, WO-_, BODY-_, ENG-_, MEDIA-* or DATA-001 as customer-complete. Their local persistent/native integration is verified, but hosted, physical-device, and repeated-user evidence is still absent.
+
+## Verification evidence — 2026-07-26
+
+The content-first, bulk-goal, and editable meal-photo draft stabilization passes the complete standard gate:
+
+```text
+pnpm check
+  formatting: passed
+  workspace TypeScript checks: passed
+  iOS Expo/Metro/Hermes export: passed (1,687 modules, 4.8 MB bundle)
+  tests: 841 passed
+  opt-in live/provider and Supabase auth/persistence e2e: 15 skipped
+
+git diff --check
+  passed
+```
+
+Focused verification also passed 215 core tests, 33 API-client tests, 15 Mistral-provider tests, and 139 mobile tests. New coverage proves that a normal 420 kcal meal remains an editable estimate rather than being rejected as a daily calorie target; multipart draft responses are contract-validated; authentication/rate-limit/network failures remain failures; and a gradual bulk applies a deterministic 300 kcal surplus. No live provider request or real user/photo data was used.
 
 ## Verification evidence — 2026-07-23
 
@@ -162,7 +181,7 @@ The Android SDK 36 toolchain then produced a standalone Release APK and installe
 - The manual meal/workout/weight lifecycles and dashboard review pass on authenticated native iOS and Android.
 - Supabase repository and private Storage adapters have local restart/isolation evidence, but a hosted project is not yet deployed or accepted on native devices.
 - The progress dashboard, calendar review, and private photo lifecycle pass against local persistence on native iOS and Android; hosted acceptance remains open.
-- Library-based private photo capture/upload exists; camera-hardware proof and AI-assisted calorie drafts do not exist end to end.
+- Library-based private photo capture/upload exists; camera-hardware proof remains open. AI-assisted calorie drafts now pass local mobile/API/provider tests, but authenticated physical-device acceptance with the configured provider remains open.
 - The memory-aware coach is only an interface and disabled implementation.
 - Consent-respecting local activation/retention instrumentation and privacy-safe aggregation now exist, but no participant export or repeated-user dataset exists yet; there is still no subscription system.
 

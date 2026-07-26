@@ -38,9 +38,16 @@ interface OnboardingScreenProps {
    * transitions to the regular tabs.
    */
   readonly onComplete: () => void;
+  /**
+   * Optional callback to pause/exit onboarding and return to the main app.
+   */
+  readonly onExit?: () => void;
 }
 
-export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
+export function OnboardingScreen({
+  onComplete,
+  onExit,
+}: OnboardingScreenProps) {
   const [step, setStep] = useState<OnboardingStep>("welcome");
   const [form, setForm] = useState<OnboardingForm>(() =>
     freshOnboardingForm(new Date()),
@@ -102,9 +109,23 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.header}>
-            <ThemedText type="smallBold" themeColor="textSecondary">
-              WELCOME
-            </ThemedText>
+            <View style={styles.headerTopRow}>
+              <ThemedText type="smallBold" themeColor="textSecondary">
+                MIZYUN SETUP
+              </ThemedText>
+              {onExit ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Exit setup"
+                  onPress={onExit}
+                  style={styles.exitButton}
+                >
+                  <ThemedText type="smallBold" style={styles.exitButtonText}>
+                    ✕ Exit / Explore
+                  </ThemedText>
+                </Pressable>
+              ) : null}
+            </View>
             <ThemedText type="subtitle">{titleFor(step)}</ThemedText>
             <ThemedText themeColor="textSecondary">
               {subtitleFor(step)}
@@ -134,9 +155,16 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
               >
                 <ThemedText type="smallBold">Back</ThemedText>
               </Pressable>
-            ) : (
-              <View style={styles.secondaryButton} />
-            )}
+            ) : onExit ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={onExit}
+                disabled={busy}
+                style={styles.secondaryButton}
+              >
+                <ThemedText type="smallBold">Explore First</ThemedText>
+              </Pressable>
+            ) : null}
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={isFinalStep(step) ? "Finish" : "Continue"}
@@ -146,6 +174,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
               }}
               style={[
                 styles.primaryButton,
+                step === "welcome" && styles.primaryButtonFullWidth,
                 !canContinue && styles.primaryButtonDisabled,
               ]}
             >
@@ -494,6 +523,11 @@ function PrimaryGoalBody({ form, onPatch, error }: PrimaryGoalBodyProps) {
           onPress={() => onPatch({ field: "goalKind", value: "cut" })}
         />
         <KindChoice
+          label="Bulk — gain muscle mass"
+          selected={form.goalKind === "bulk"}
+          onPress={() => onPatch({ field: "goalKind", value: "bulk" })}
+        />
+        <KindChoice
           label="Recomp — redistribute mass"
           selected={form.goalKind === "recomp"}
           onPress={() => onPatch({ field: "goalKind", value: "recomp" })}
@@ -590,6 +624,21 @@ const styles = StyleSheet.create({
     gap: Spacing.five,
   },
   header: { gap: Spacing.two },
+  headerTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  exitButton: {
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.one,
+    borderRadius: 8,
+    backgroundColor: "rgba(148, 163, 184, 0.12)",
+  },
+  exitButtonText: {
+    color: "#8A8D91",
+    fontSize: 12,
+  },
   body: { gap: Spacing.three },
   analyticsPrompt: {
     borderRadius: 14,
@@ -659,6 +708,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#18633d",
+  },
+  primaryButtonFullWidth: {
+    flex: 1,
   },
   primaryButtonDisabled: { opacity: 0.5 },
   primaryButtonText: { color: "#fff", fontWeight: "700", fontSize: 16 },

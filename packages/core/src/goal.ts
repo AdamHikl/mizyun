@@ -8,7 +8,7 @@ import type { UserId } from "./index.js";
  * and the repository port that adapters implement.
  */
 
-export type GoalKind = "cut" | "recomp" | "maintain";
+export type GoalKind = "cut" | "bulk" | "recomp" | "maintain";
 
 export type GoalPace = "steady" | "gradual" | "aggressive";
 

@@ -254,8 +254,8 @@ export type FoodEntrySummaryQuery = z.infer<typeof foodEntrySummaryQuerySchema>;
  *   1. reads the multipart `image` field (required) + `textHint`
  *      (optional) from the request;
  *   2. calls the configured VisionDraftProvider with the bytes;
- *   3. post-screens the candidate for medical claims, sub-800-kcal
- *      targets, and unsafe macro values per ADR-0017
+ *   3. validates the structured candidate and post-screens medical claims
+ *      per ADR-0017
  *      §"Photo / vision invariants";
  *   4. returns the candidate to the user, who edits and confirms
  *      by posting to `POST /v1/food-entries`.

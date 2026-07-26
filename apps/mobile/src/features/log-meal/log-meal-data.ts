@@ -5,7 +5,8 @@ import {
   type FoodEntryCreate,
 } from "@mizyun/contracts";
 
-import type { ApiClient } from "@mizyun/api-client";
+import type { ApiClient, ApiError } from "@mizyun/api-client";
+import type { Result } from "@mizyun/core";
 import { apiClient } from "@/composition/api-client";
 
 /**
@@ -33,12 +34,7 @@ export interface LogMealForm {
   readonly consumedAt: string | null;
 }
 
-const humanizeError = (
-  result: import("@mizyun/core").Result<
-    unknown,
-    import("@mizyun/api-client").ApiError
-  >,
-): string => {
+const humanizeError = (result: Result<unknown, ApiError>): string => {
   if (!result.ok) {
     switch (result.error.kind) {
       case "session_expired":
@@ -104,4 +100,82 @@ export const submitLogMealWith = async (
     return { ok: false, message: humanizeError(result) };
   }
   return { ok: true, id: result.value.foodEntry.id };
+};
+
+// =========================================================================
+// VISION-001 — Photo-to-draft flow.
+// =========================================================================
+
+import {
+  foodDraftCandidateSchema,
+  type FoodDraftCandidate,
+} from "@mizyun/contracts";
+
+export type SnapMealPhotoResult =
+  | { readonly ok: true; readonly draft: FoodDraftCandidate }
+  | { readonly ok: false; readonly message: string };
+
+const humanizeDraftError = (result: Result<unknown, ApiError>): string => {
+  // `draftFoodEntry` is best-effort: a failure here just means
+  // the user has to fill the form by hand. The screen does not
+  // surface a transient / retryable hint — that's a Coach-level
+  // distinction. Keep the copy short and actionable.
+  if (result.ok) {
+    return "Couldn't read the photo — type the meal by hand.";
+  }
+  if (
+    result.error.kind === "http_error" &&
+    result.error.code === "AI_CONFIGURATION_ERROR"
+  ) {
+    return "Photo drafts are not configured on this server.";
+  }
+  if (
+    result.error.kind === "http_error" &&
+    result.error.code === "RATE_LIMITED"
+  ) {
+    return "Photo drafts are limited — try again in a minute.";
+  }
+  if (result.error.kind === "network_error") {
+    return "Can't reach the server — type the meal by hand.";
+  }
+  return "Couldn't read the photo — type the meal by hand.";
+};
+
+export const snapMealPhoto = async (
+  photo: Blob,
+  mimeType: "image/jpeg" | "image/png" | "image/webp",
+  textHint?: string,
+): Promise<SnapMealPhotoResult> =>
+  snapMealPhotoWith(apiClient, photo, mimeType, textHint);
+
+export const snapMealPhotoWith = async (
+  client: ApiClient,
+  photo: Blob,
+  mimeType: "image/jpeg" | "image/png" | "image/webp",
+  textHint?: string,
+): Promise<SnapMealPhotoResult> => {
+  if (client.draftFoodEntry === undefined) {
+    return {
+      ok: false,
+      message: "Photo drafts are not configured on this server.",
+    };
+  }
+  const result = await client.draftFoodEntry({
+    photo,
+    mimeType,
+    ...(textHint !== undefined && textHint.trim().length > 0
+      ? { textHint }
+      : {}),
+  });
+  if (!result.ok) {
+    return { ok: false, message: humanizeDraftError(result) };
+  }
+  const parsed = foodDraftCandidateSchema.safeParse(result.value.draft);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: "Couldn't read the photo — type the meal by hand.",
+    };
+  }
+  return { ok: true, draft: parsed.data };
 };

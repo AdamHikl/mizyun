@@ -63,7 +63,7 @@ runtime, not the model:
   prompt-injection: fixed `screenCoachInput` patterns + fixed
   response copy. Provider is bypassed entirely.
 - Provider output is post-screened for unsafe-content patterns
-  (medical claims, sub-800 kcal targets, train-through-pain advice).
+  (medical claims, unsafe daily targets, train-through-pain advice).
   Matched output is replaced with a generic safety fallback.
 
 `docs/AI_IMPLEMENTATION_PLAN.md` §AI-SAFETY-001 enumerates the

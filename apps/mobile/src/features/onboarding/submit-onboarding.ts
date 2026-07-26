@@ -11,7 +11,7 @@ import {
 import { displayWeightToKilograms } from "@/lib/weight-units";
 import { displayLengthToCentimeters } from "@/lib/length-units";
 
-import type { OnboardingForm } from "./onboarding-state";
+import { parseNumericInput, type OnboardingForm } from "./onboarding-state";
 
 export type SubmitOnboardingResult =
   | { readonly ok: true }
@@ -38,10 +38,10 @@ export const submitOnboarding = async (
   form: OnboardingForm,
   client: ApiClient,
 ): Promise<SubmitOnboardingResult> => {
-  const baselineDisplay = Number(form.baselineWeight.trim());
-  const goalDisplay = Number(form.goalWeight.trim());
-  const heightDisplay = Number(form.height.trim());
-  const birthYear = Number(form.birthYear.trim());
+  const baselineDisplay = parseNumericInput(form.baselineWeight);
+  const goalDisplay = parseNumericInput(form.goalWeight);
+  const heightDisplay = parseNumericInput(form.height);
+  const birthYear = parseNumericInput(form.birthYear);
   if (
     form.goalKind === null ||
     form.activityLevel === null ||
