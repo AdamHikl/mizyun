@@ -471,6 +471,7 @@ export const buildApp = (
   // freshly-constructed orchestrator that owns the default
   // provider + memory store.
   const defaultToolSet = buildCoachToolRegistry({
+    profileRepository,
     goalRepository,
     workoutRepository,
     workoutSetRepository,

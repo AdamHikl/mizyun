@@ -25,6 +25,7 @@ const SUMMARY_BY_KIND: Readonly<Record<string, string>> = {
   training: "Your confirmed training within the last 28 days.",
   body: "Your confirmed weight trend and recent measurements.",
   energy: "Deterministic energy calculation (Mifflin-St Jeor).",
+  plan: "Deterministic calorie, protein, and training plan.",
   memory: "Context recalled from your memory store (untrusted data).",
   tool: "Live tool result from the Coach runtime (read-only).",
 };

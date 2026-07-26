@@ -1128,6 +1128,23 @@ no log lines carrying photo bytes.
 - SecureStore's SDK 57 synchronous getter is `getItem`, while `getItemAsync` is the asynchronous API. Authentication/session changes retain the installed SDK surface and do not introduce a nonexistent `getItemSync` call.
 - No new ADR is required: the changes harden ADR-0017's existing server-owned safety, transient-photo, and user-confirmation decisions without changing authority or persistence.
 
+## 2026-07-26 — Deterministic calorie, protein, and training plan
+
+### Primary sources
+
+- ACSM, **Resistance Training Guidelines Update (2026)** (accessed 2026-07-26): https://acsm.org/resistance-training-guidelines-update-2026/
+- ACSM, **Resistance Training Position Stand infographic** (accessed 2026-07-26): https://www.acsm.org/wp-content/uploads/2026/03/Resistance-Training-Position-Stand-infographic.pdf
+- WHO, **Recommended amount of physical activity for adults** (accessed 2026-07-26): https://www.emro.who.int/health-education/physical-activity/promoting-physical-activity/What-is-the-recommended-amount-of-exerci.html
+- International Society of Sports Nutrition, **Position stand: protein and exercise** (accessed 2026-07-26): https://pubmed.ncbi.nlm.nih.gov/28642676/
+
+### Verified findings and implementation consequences
+
+- The AI must explain a deterministic plan, not calculate targets itself. `buildCoachingPlan` now combines the existing versioned energy result with explicit protein and training rules, and the Coach tool reads confirmed repositories before invoking it.
+- The ISSN position stand supports a general range of 1.4–2.0 g protein/kg/day for exercising adults. Mizyun uses 1.4–1.8 for maintenance and 1.6–2.0 for cut, bulk, or recomp, with a visible current-weight basis and no target when weight or goal is missing.
+- WHO's adult baseline is at least 150 minutes of moderate aerobic activity weekly and muscle strengthening on two or more days. ACSM's 2026 update emphasizes training all major muscle groups at least twice weekly and individualizing around goals. Mizyun therefore returns a conservative base frequency and exercise-type framework, not injury-specific or person-specific exercise selection.
+- The calorie range is explicitly an adherence/planning band of plus or minus 100 kcal, not physiological measurement uncertainty. The underlying target and its formula version remain visible.
+- Experience, available equipment, preferences, and limitations are not yet profile inputs. The output discloses that limitation; the next implementation level will add those inputs before exercise selection becomes personalized.
+
 ## 2026-07-25 — AI-MOB-002 Coach UX polish
 
 ### Scope

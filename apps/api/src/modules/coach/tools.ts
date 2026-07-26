@@ -1,7 +1,7 @@
 /**
  * AI-002 — Read-only CoachTools.
  *
- * The four tools the model can call to pull additional confirmed
+ * Tools the model can call to pull additional confirmed
  * Mizyun context before producing the final answer. Every tool:
  *
  *   - validates its own args with a Zod schema (the runtime
@@ -24,6 +24,8 @@ import {
   type AgentToolRegistry,
 } from "@mizyun/agent-runtime";
 import {
+  buildCoachingPlan,
+  computeEnergy,
   summariseFoodEntries,
   summariseWeightTrend,
   systemClock,
@@ -31,10 +33,12 @@ import {
   type Clock,
   type FoodEntryRepository,
   type GoalRepository,
+  type ProfileRepository,
   type UserId,
   type WorkoutRepository,
   type WorkoutSetRepository,
 } from "@mizyun/core";
+import { coachingPlanSchema } from "@mizyun/contracts";
 
 const MAX_DAYS_BACK = 28;
 const DEFAULT_DAYS_BACK = 7;
@@ -61,6 +65,7 @@ const dayIso = (date: Date): string => date.toISOString().slice(0, 10);
 const freshnessOf = (now: Date): string => now.toISOString();
 
 interface CoachToolDeps {
+  readonly profileRepository: ProfileRepository;
   readonly goalRepository: GoalRepository;
   readonly workoutRepository: WorkoutRepository;
   readonly workoutSetRepository: WorkoutSetRepository;
@@ -71,6 +76,69 @@ interface CoachToolDeps {
 
 const resolveClock = (deps: CoachToolDeps, override?: Clock): Clock =>
   override ?? deps.clock ?? systemClock;
+
+const loadEnergyContext = async (
+  deps: CoachToolDeps,
+  userId: UserId,
+  accessToken: string,
+  now: Date,
+) => {
+  const from = new Date(now.getTime() - MAX_DAYS_BACK * 86_400_000);
+  const [profile, activeGoal, measurements, workouts] = await Promise.all([
+    deps.profileRepository.getOrCreate(userId, { now, accessToken }),
+    deps.goalRepository.getActive(userId, { accessToken }),
+    deps.bodyMeasurementRepository.list(userId, {
+      from,
+      to: now,
+      limit: 100,
+      accessToken,
+    }),
+    deps.workoutRepository.list(userId, {
+      from,
+      to: now,
+      limit: 100,
+      accessToken,
+    }),
+  ]);
+  const recentWorkoutDays = new Set(
+    workouts
+      .filter((workout) => workout.completedAt !== null)
+      .map((workout) => dayIso(workout.completedAt as Date)),
+  );
+  const breakdown = computeEnergy(
+    {
+      profile,
+      latestBodyMeasurement: measurements[0] ?? null,
+      activeGoal,
+      activityLevel: profile.activityLevel,
+      sexAtBirth: profile.sexAtBirth,
+      recentWorkouts: workouts,
+      recentWorkoutsDayCount: recentWorkoutDays.size,
+      consumedKcalToday: null,
+      now,
+    },
+    userId,
+  ).breakdown;
+
+  return { breakdown, workouts };
+};
+
+const energyData = (
+  breakdown: Awaited<ReturnType<typeof loadEnergyContext>>["breakdown"],
+) => ({
+  formulaVersion: breakdown.formulaVersion,
+  computedAt: breakdown.computedAt.toISOString(),
+  complete: breakdown.complete,
+  incompleteReason: breakdown.incompleteReason,
+  ageYears: breakdown.ageYears,
+  bmrKcal: breakdown.bmrKcal,
+  activityMultiplier: breakdown.activityMultiplier,
+  tdeeKcal: breakdown.tdeeKcal,
+  exerciseKcal: breakdown.exerciseKcal,
+  goalAdjustmentKcal: breakdown.goalAdjustmentKcal,
+  dailyTargetKcal: breakdown.dailyTargetKcal,
+  inputs: breakdown.inputs,
+});
 
 /**
  * Tool: get_active_goal
@@ -365,36 +433,88 @@ export const buildGetRecentFoodEntriesTool = (
  * Tool: compute_energy
  *
  * Returns the deterministic Mifflin-St Jeor energy breakdown.
- * Pure function — no DB access. The model cannot compute it
- * itself because it has no profile context outside the static
- * grounding.
+ * The application service loads confirmed records, then delegates
+ * all arithmetic to the pure core function.
  */
-export const buildComputeEnergyTool = (): AgentTool<Record<string, never>> => ({
+export const buildComputeEnergyTool = (
+  deps: CoachToolDeps,
+): AgentTool<Record<string, never>> => ({
   name: "compute_energy",
   description:
-    "Return a deterministic energy breakdown (BMR, TDEE) for the user's confirmed profile. Pure function; no DB access.",
+    "Return a deterministic energy breakdown (BMR, TDEE, goal adjustment, and daily target) calculated from the user's confirmed profile, measurement, and active goal. Returns null fields when inputs are missing.",
   parameters: {
     type: "object",
     additionalProperties: false,
     properties: {},
   },
-  execute: async ({ clock }) => {
-    const now = clock.now();
+  execute: async ({ principalUserId, accessToken, clock }) => {
+    const now = resolveClock(deps, clock).now();
+    const { breakdown } = await loadEnergyContext(
+      deps,
+      principalUserId,
+      accessToken,
+      now,
+    );
     return {
       kind: "energy",
       label: "Deterministic energy breakdown",
       confirmed: true,
       freshness: freshnessOf(now),
-      data: {
-        formulaVersion: compute_energy_VERSION(),
-        computedAt: now.toISOString(),
-        note: "Inputs are read from the user's confirmed profile (unit_system, height, birth_year, activity_level, sex_at_birth). The tool returns null fields when any input is missing.",
-      },
+      data: energyData(breakdown),
     } satisfies AgentGroundingItem;
   },
 });
 
-const compute_energy_VERSION = (): string => "energy-formula-v1";
+/**
+ * Tool: get_coaching_plan
+ *
+ * Combines the deterministic energy result with conservative
+ * protein and training targets. The model explains this result;
+ * it does not own the arithmetic.
+ */
+export const buildGetCoachingPlanTool = (
+  deps: CoachToolDeps,
+): AgentTool<Record<string, never>> => ({
+  name: "get_coaching_plan",
+  description:
+    "Return the user's deterministic calorie target, protein range and target, and goal-specific base training focus from confirmed profile, measurement, goal, and workout data. Returns typed missing inputs rather than guessing.",
+  parameters: {
+    type: "object",
+    additionalProperties: false,
+    properties: {},
+  },
+  execute: async ({ principalUserId, accessToken, clock }) => {
+    const now = resolveClock(deps, clock).now();
+    const { breakdown, workouts } = await loadEnergyContext(
+      deps,
+      principalUserId,
+      accessToken,
+      now,
+    );
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 86_400_000);
+    const completedWorkoutsLast7Days = workouts.filter(
+      (workout) =>
+        workout.completedAt !== null &&
+        workout.completedAt >= sevenDaysAgo &&
+        workout.completedAt <= now,
+    ).length;
+    const plan = buildCoachingPlan({
+      energy: breakdown,
+      completedWorkoutsLast7Days,
+    });
+    const data = coachingPlanSchema.parse({
+      ...plan,
+      computedAt: plan.computedAt.toISOString(),
+    });
+    return {
+      kind: "plan",
+      label: "Deterministic calorie, protein, and training plan",
+      confirmed: true,
+      freshness: freshnessOf(now),
+      data,
+    } satisfies AgentGroundingItem;
+  },
+});
 
 /**
  * Build the full registry for the Coach route. Exposed for tests
@@ -409,12 +529,14 @@ export const buildCoachToolRegistry = (
     buildGetRecentWorkoutsTool(deps),
     buildGetRecentMeasurementsTool(deps),
     buildGetRecentFoodEntriesTool(deps),
-    buildComputeEnergyTool(),
+    buildComputeEnergyTool(deps),
+    buildGetCoachingPlanTool(deps),
   ]);
 
 export type CoachToolRegistrySet = ReturnType<typeof buildCoachToolRegistry>;
 
 export interface CoachToolsForRegistry {
+  readonly profileRepository: ProfileRepository;
   readonly goalRepository: GoalRepository;
   readonly workoutRepository: WorkoutRepository;
   readonly workoutSetRepository: WorkoutSetRepository;

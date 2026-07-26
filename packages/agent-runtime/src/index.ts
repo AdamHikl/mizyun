@@ -43,6 +43,7 @@ export interface AgentGroundingItem {
     | "training"
     | "body"
     | "energy"
+    | "plan"
     | "memory"
     | "tool";
   readonly label: string;

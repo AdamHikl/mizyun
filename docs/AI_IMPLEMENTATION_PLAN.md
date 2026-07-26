@@ -14,7 +14,7 @@
 
 `mistral-medium-latest` is a moving alias, not a durable evaluation identity. Every response must record the resolved model returned by Mistral, prompt version, tool-schema version, token usage, latency bucket, and finish reason. If a stable dated model ID is available, release candidates should pin it. If only the alias is used, a resolved-model change disables external rollout until the evaluation suite passes again.
 
-## Implementation snapshot — 2026-07-23
+## Implementation snapshot — 2026-07-26
 
 The default-off first vertical slice is implemented:
 
@@ -25,7 +25,46 @@ The default-off first vertical slice is implemented:
 - a native Coach conversation screen with disabled, loading, empty, pending, retry, provider-unavailable, evidence, archive/delete, and limitations states;
 - full offline repository and database gates.
 
-This is an implementation milestone, not permission for real-user traffic. Mistral external access still defaults to `false`. On 2026-07-23, after the developer confirmed a dedicated capped workspace and privacy/retention controls, one direct live call passed with a fictional nutrition fixture: structured output, `stop` finish reason, 342 total tokens, and a 1–3 second latency bucket. No real user data, account identifier, photo, or key entered the recorded request/output. Live moderation calibration, comprehensive grounded-answer evaluation, application/native integration, and the real-user policy decision remain open. Persistent memory and nutrition/photo drafting remain deliberately sequenced after the grounded coach promotion gate.
+This is an implementation milestone, not permission for real-user traffic. Mistral external access still defaults to `false`. On 2026-07-23, after the developer confirmed a dedicated capped workspace and privacy/retention controls, one direct live call passed with a fictional nutrition fixture: structured output, `stop` finish reason, 342 total tokens, and a 1–3 second latency bucket. No real user data, account identifier, photo, or key entered the recorded request/output. Live moderation calibration, comprehensive grounded-answer evaluation, application/native integration, and the real-user policy decision remain open.
+
+The first integrated planning level is also implemented: a pure,
+versioned engine owns calorie, protein, and base training targets;
+`compute_energy` now returns the real confirmed-input calculation;
+and `get_coaching_plan` gives the model a strict, read-only plan with
+typed missing inputs. Bulk goals are accepted across the energy wire
+contract.
+
+## Full AI capability execution levels
+
+Each level is a reviewable commit with focused tests and the standard
+repository gate. External provider access remains default-off while
+offline implementation proceeds.
+
+1. **Deterministic planning foundation — done.** Versioned calorie,
+   protein, goal-specific training focus, exercise types, assumptions,
+   and missing-input behavior; real Coach calculation tools.
+2. **Personalization profile — next.** Persist experience, available
+   equipment, dietary preferences, exercise limitations, schedule, and
+   goal-specific preferences; expose them through account controls and
+   principal-bound Coach grounding.
+3. **Training prescription and progression.** Build deterministic,
+   inspectable exercise-selection and progression rules over exercises,
+   templates, recent volume, equipment, experience, and limitations;
+   let AI explain and suggest an editable plan.
+4. **User-controlled memory.** Correct the production adapter's
+   principal/token boundary, recall only confirmed active memories, add
+   candidate/confirm/correct/deactivate/expiry lifecycle, and ship
+   mobile review controls plus export/deletion evidence.
+5. **Nutrition drafting completion.** Add text-to-draft and make both
+   text/photo drafts return ranges, assumptions, provenance, warnings,
+   and confidence before explicit confirmation.
+6. **Evaluation and operations.** Expand reproducible grounded-answer,
+   safety, prompt-injection, isolation, failure, budget, and
+   secret-bundle suites; record threshold results and reconcile every
+   release checklist.
+7. **Native and external enablement.** Run authenticated iOS/Android
+   journeys, hosted persistence/deletion checks, provider-model
+   promotion, and the separately authorized policy/privacy go/no-go.
 
 ## Why implementation can move before alpha
 

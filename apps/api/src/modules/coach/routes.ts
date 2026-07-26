@@ -83,13 +83,20 @@ const evidenceKinds = (
     (
       value,
     ): value is
-      "profile" | "goal" | "nutrition" | "training" | "body" | "energy" =>
+      | "profile"
+      | "goal"
+      | "nutrition"
+      | "training"
+      | "body"
+      | "energy"
+      | "plan" =>
       value === "profile" ||
       value === "goal" ||
       value === "nutrition" ||
       value === "training" ||
       value === "body" ||
-      value === "energy",
+      value === "energy" ||
+      value === "plan",
   );
 };
 
@@ -498,9 +505,6 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
         // user-edited and may contain untrusted content. The model
         // still sees the grounding; the mobile UI just doesn't
         // claim "Used confirmed: memory".
-        const evidenceKinds = grounding
-          .map((item) => item.kind)
-          .filter((kind) => kind !== "memory");
         const response = await options.agent.respond({
           userId: principal.userId,
           conversationId,
@@ -510,6 +514,21 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
           })),
           grounding,
         });
+        const evidenceKinds = [...grounding, ...response.evidence]
+          .map((item) => item.kind)
+          .filter(
+            (
+              kind,
+            ): kind is
+              | "profile"
+              | "goal"
+              | "nutrition"
+              | "training"
+              | "body"
+              | "energy"
+              | "plan" => kind !== "memory" && kind !== "tool",
+          )
+          .filter((kind, index, all) => all.indexOf(kind) === index);
         const totalTokens =
           typeof response.providerMetadata?.totalTokens === "number"
             ? response.providerMetadata.totalTokens

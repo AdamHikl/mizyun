@@ -41,6 +41,7 @@ export const coachMessageSchema = z.object({
       "training",
       "body",
       "energy",
+      "plan",
       "memory",
     ]),
   ),

@@ -470,6 +470,8 @@ export {
   type EnergySummaryResponse,
 } from "./energy";
 
+export { coachingPlanSchema, type CoachingPlan } from "./coaching-plan";
+
 export {
   mediaAssetListResponseSchema,
   mediaAssetResponseSchema,

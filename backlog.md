@@ -30,29 +30,32 @@
 
 These items convert the tested domain/API foundation into the low-friction product required for customer validation.
 
-| ID              | Priority | Status  | Work item                                              | Done when                                                                               |
-| --------------- | -------- | ------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------- |
-| PERSIST-001     | P0       | done    | Supabase repositories for profile, goals, and food     | Production composition persists records across API restarts with RLS                    |
-| PERSIST-002     | P0       | done    | Supabase repositories for training, body, and account  | Same persistence/isolation/export/deletion proof as PERSIST-001                         |
-| PERSIST-003     | P0       | done    | Real Supabase private-media storage adapter            | Mobile-compatible signed upload/download/delete works against real storage              |
-| MOB-DAILY-001   | P1       | done    | Persistent mobile daily-loop integration               | All MOB-ONB/NUT/WO/BODY/DASH child journeys pass together on stored data                |
-| MOB-ONB-001     | P1       | done    | Complete activation and baseline weight                | New user reaches a useful dashboard with the minimum energy inputs                      |
-| MOB-NUT-001     | P1       | done    | Manual food logging and daily totals UI                | User can create/edit/delete food and see stored calorie/macro totals                    |
-| MOB-WO-001      | P1       | done    | Exercise, workout, and set logging UI                  | User completes a workout and sees previous performance                                  |
-| MOB-BODY-001    | P1       | done    | Weight/measurement entry and trend UI                  | User records weight and sees raw history plus a labeled trend                           |
-| MOB-DASH-001    | P1       | done    | Replace dashboard placeholders with real summaries     | Calories, weight, training, and energy state come from persisted records                |
-| MEDIA-MOB-001   | P1       | done    | Progress-photo capture/upload/timeline/compare UI      | Private photo lifecycle is usable and deletable from mobile                             |
-| OBS-001         | P1       | done    | Privacy-safe product validation analytics              | Activation, logging efficiency, failures, and retention are measurable                  |
-| AI-PLAN-001     | P0       | done    | Plan Mistral AI before controlled pre-alpha            | Sequenced provider, safety, evaluation, UI, and release gates are documented            |
-| AI-GOV-001      | P0       | active  | Mistral privacy, policy, DPA, ZDR, and commercial gate | Capped/private dev setup attested; written real-user health-policy decision remains     |
-| AI-CONFIG-001   | P0       | done    | Validated server-only Mistral configuration            | Missing keys fail closed; external access defaults off                                  |
-| AI-PROVIDER-001 | P0       | done    | Official-SDK Mistral provider adapter                  | Structured output, metadata, retry, timeout, and failures normalize                     |
-| AI-CONV-001     | P0       | done    | Private coach conversation persistence and API         | Auth, RLS adapter, idempotency, export, delete, and route tests pass                    |
-| AI-SAFETY-001   | P0       | active  | Provider-neutral coach safety envelope                 | Versioned 12-case EN/SK critical corpus passes; live moderation calibration remains     |
-| AI-MOB-001      | P1       | active  | Native Coach conversation experience                   | iPhone trusted-LAN preflight active; native synthetic acceptance remains                |
-| AI-OPS-001      | P0       | ready   | Durable AI budgets and replica-safe idempotency        | Shared limits survive restart/replicas and one logical message incurs one provider call |
-| ALPHA-001       | P0       | ready   | Founder week plus 10–30 design-partner alpha           | No open P0/P1 issue blocks repeated use; evidence and feedback are recorded             |
-| BILL-001        | P1       | blocked | Premium packaging and mobile subscription billing      | Paid value/cost is validated and entitlements restore safely                            |
+| ID              | Priority | Status  | Work item                                              | Done when                                                                                           |
+| --------------- | -------- | ------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| PERSIST-001     | P0       | done    | Supabase repositories for profile, goals, and food     | Production composition persists records across API restarts with RLS                                |
+| PERSIST-002     | P0       | done    | Supabase repositories for training, body, and account  | Same persistence/isolation/export/deletion proof as PERSIST-001                                     |
+| PERSIST-003     | P0       | done    | Real Supabase private-media storage adapter            | Mobile-compatible signed upload/download/delete works against real storage                          |
+| MOB-DAILY-001   | P1       | done    | Persistent mobile daily-loop integration               | All MOB-ONB/NUT/WO/BODY/DASH child journeys pass together on stored data                            |
+| MOB-ONB-001     | P1       | done    | Complete activation and baseline weight                | New user reaches a useful dashboard with the minimum energy inputs                                  |
+| MOB-NUT-001     | P1       | done    | Manual food logging and daily totals UI                | User can create/edit/delete food and see stored calorie/macro totals                                |
+| MOB-WO-001      | P1       | done    | Exercise, workout, and set logging UI                  | User completes a workout and sees previous performance                                              |
+| MOB-BODY-001    | P1       | done    | Weight/measurement entry and trend UI                  | User records weight and sees raw history plus a labeled trend                                       |
+| MOB-DASH-001    | P1       | done    | Replace dashboard placeholders with real summaries     | Calories, weight, training, and energy state come from persisted records                            |
+| MEDIA-MOB-001   | P1       | done    | Progress-photo capture/upload/timeline/compare UI      | Private photo lifecycle is usable and deletable from mobile                                         |
+| OBS-001         | P1       | done    | Privacy-safe product validation analytics              | Activation, logging efficiency, failures, and retention are measurable                              |
+| AI-PLAN-001     | P0       | done    | Plan Mistral AI before controlled pre-alpha            | Sequenced provider, safety, evaluation, UI, and release gates are documented                        |
+| AI-GOV-001      | P0       | active  | Mistral privacy, policy, DPA, ZDR, and commercial gate | Capped/private dev setup attested; written real-user health-policy decision remains                 |
+| AI-CONFIG-001   | P0       | done    | Validated server-only Mistral configuration            | Missing keys fail closed; external access defaults off                                              |
+| AI-PROVIDER-001 | P0       | done    | Official-SDK Mistral provider adapter                  | Structured output, metadata, retry, timeout, and failures normalize                                 |
+| AI-CONV-001     | P0       | done    | Private coach conversation persistence and API         | Auth, RLS adapter, idempotency, export, delete, and route tests pass                                |
+| AI-SAFETY-001   | P0       | active  | Provider-neutral coach safety envelope                 | Versioned 12-case EN/SK critical corpus passes; live moderation calibration remains                 |
+| AI-MOB-001      | P1       | active  | Native Coach conversation experience                   | iPhone trusted-LAN preflight active; native synthetic acceptance remains                            |
+| AI-OPS-001      | P0       | ready   | Durable AI budgets and replica-safe idempotency        | Shared limits survive restart/replicas and one logical message incurs one provider call             |
+| COACH-PLAN-001  | P0       | done    | Deterministic calorie/protein/training plan foundation | Versioned engine and real read-only Coach tools return auditable targets or missing inputs          |
+| COACH-PERS-001  | P0       | active  | Goal-specific Coach personalization profile            | Experience, equipment, preferences, limitations, and schedule persist and ground suggestions        |
+| COACH-TRAIN-001 | P0       | ready   | Exercise selection and progression plan                | Deterministic editable suggestions reflect goal, profile, equipment, limitations, and recent volume |
+| ALPHA-001       | P0       | ready   | Founder week plus 10–30 design-partner alpha           | No open P0/P1 issue blocks repeated use; evidence and feedback are recorded                         |
+| BILL-001        | P1       | blocked | Premium packaging and mobile subscription billing      | Paid value/cost is validated and entitlements restore safely                                        |
 
 Native acceptance evidence: standalone iOS and Android Release apps pass real sign-in, exact meal totals, weight plus waist/chest history, workout/set completion, previous performance, dashboard summaries, app-restart session/data restoration, and the two-photo private upload/compare/delete lifecycle against local Supabase. iOS additionally proves new-user onboarding with an 80 kg baseline. Android runs on an API 36 Pixel 9 AVD and uses only local reverse tunnels to make Supabase's localhost signed Storage URLs reachable from the emulator.
 

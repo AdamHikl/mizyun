@@ -153,6 +153,16 @@ export {
 } from "./energy";
 
 export {
+  COACHING_PLAN_VERSION,
+  buildCoachingPlan,
+  type CoachingExerciseType,
+  type CoachingPlan,
+  type CoachingPlanMissingInput,
+  type CoachingTrainingFocus,
+  type CoachingTrainingStatus,
+} from "./coaching-plan";
+
+export {
   MEDIA_ALLOWED_MIME_TYPES,
   MEDIA_MAX_BYTE_SIZE,
   MEDIA_MAX_DIMENSION,

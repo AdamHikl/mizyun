@@ -60,7 +60,7 @@ export const energySummarySchema = z.object({
     birthYear: z.number().int().gte(1900).lte(2100).nullable(),
     sexAtBirth: sexAtBirthSchema.nullable(),
     activityLevel: activityLevelSchema.nullable(),
-    goalKind: z.enum(["cut", "recomp", "maintain"]).nullable(),
+    goalKind: z.enum(["cut", "bulk", "recomp", "maintain"]).nullable(),
     goalPace: z.enum(["steady", "gradual", "aggressive"]).nullable(),
   }),
 });

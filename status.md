@@ -6,10 +6,10 @@
 
 - **Product stage:** technical pre-alpha; the architecture, domain/API foundation, and native mobile UI are verified and polished.
 - **Roadmap position:** Every scoped MOB item, AND-001, OBS-001, and UI/UX iOS Simulator Audit is complete at its implementation gate. The native iOS Release app (`com.mizyun.app`) passes full visual and functional verification.
-- **Latest verified implementation slice:** Stabilized content-first routing, optional setup entry points, comma-decimal input, and the new `bulk` goal across contracts/domain/energy/onboarding. Added an authenticated, editable photo-to-meal-draft path with bounded JPEG normalization, validated multipart responses, transient provider processing, and no automatic persistence.
+- **Latest verified implementation slice:** Added a pure, versioned coaching-plan engine for calorie targets, protein ranges/targets, goal-specific training focus, exercise types, and honest missing-input states. The Coach's `compute_energy` tool now performs the real deterministic calculation and `get_coaching_plan` exposes the combined result without user identifiers; bulk goals now pass the energy wire contract.
 - **Latest operational slice:** Removed temporary request/body/auth logs, arbitrary-token development authentication, fake-success Coach fallbacks, arbitrary iOS network loads, and unfinished client-side AI/safety bypass controls. Real provider failures and the server-owned safety envelope are authoritative again.
 - **Infrastructure direction:** ADR-0016 selects managed Supabase in a specific EU region for hosted development through initial production, with measured portability and a gated later migration to redundant Mizyun-operated EU infrastructure.
-- **Next exact action:** Run an authenticated physical-iPhone acceptance pass for setup re-entry, a bulk goal, and editable meal-photo drafting against the trusted development server.
+- **Next exact action:** Implement AI capability level 2: persist experience, equipment, dietary preferences, exercise limitations, schedule, and goal-specific preferences, then surface them in mobile account controls and principal-bound Coach context.
 - **Branch:** `main`; the stabilization slice passes the complete repository gate and is ready for native acceptance.
 - **AI provider:** Mistral `mistral-medium-latest` is implemented behind server-only configuration; external access defaults off and cannot be bypassed by the mobile client.
 - **Local runtime at handoff:** Runtime services were not restarted for this stabilization pass; the no-environment repository gate and iOS production export are green.
@@ -90,21 +90,21 @@ Do not describe NUT-_, WO-_, BODY-_, ENG-_, MEDIA-* or DATA-001 as customer-comp
 
 ## Verification evidence — 2026-07-26
 
-The content-first, bulk-goal, and editable meal-photo draft stabilization passes the complete standard gate:
+The deterministic coaching-plan foundation passes the complete standard gate:
 
 ```text
 pnpm check
   formatting: passed
   workspace TypeScript checks: passed
-  iOS Expo/Metro/Hermes export: passed (1,687 modules, 4.8 MB bundle)
-  tests: 841 passed
+  iOS Expo/Metro/Hermes export: passed (1,689 modules, 4.8 MB bundle)
+  tests: 849 passed
   opt-in live/provider and Supabase auth/persistence e2e: 15 skipped
 
 git diff --check
   passed
 ```
 
-Focused verification also passed 215 core tests, 33 API-client tests, 15 Mistral-provider tests, and 139 mobile tests. New coverage proves that a normal 420 kcal meal remains an editable estimate rather than being rejected as a daily calorie target; multipart draft responses are contract-validated; authentication/rate-limit/network failures remain failures; and a gradual bulk applies a deterministic 300 kcal surplus. No live provider request or real user/photo data was used.
+Focused coverage proves complete and missing-input coaching plans, bulk energy contracts, actual repository-backed energy calculations, normalized invalid workout counts, protein ranges and targets, goal-specific training focus, and safe omission of user identifiers from Coach tool data. All 295 API tests, 218 core tests, 15 contract tests, 15 Mistral-provider tests, and 139 mobile tests passed. No live provider request or real user/photo data was used.
 
 ## Verification evidence — 2026-07-23
 

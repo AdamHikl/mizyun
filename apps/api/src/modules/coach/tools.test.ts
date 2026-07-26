@@ -11,14 +11,17 @@ import type {
 import { InMemoryBodyMeasurementRepository } from "../../body-measurement-repository.js";
 import { InMemoryFoodEntryRepository } from "../../food-entry-repository.js";
 import { InMemoryGoalRepository } from "../../goal-repository.js";
+import { InMemoryProfileRepository } from "../../profile-repository.js";
 import { InMemoryWorkoutRepository } from "../../workout-repository.js";
 import { InMemoryWorkoutSetRepository } from "../../workout-set-repository.js";
 import {
   buildCoachToolRegistry,
+  buildComputeEnergyTool,
   buildGetActiveGoalTool,
   buildGetRecentFoodEntriesTool,
   buildGetRecentMeasurementsTool,
   buildGetRecentWorkoutsTool,
+  buildGetCoachingPlanTool,
 } from "./tools.js";
 
 const userId = "00000000-0000-4000-8000-000000000001" as UserId;
@@ -26,12 +29,18 @@ const otherUserId = "00000000-0000-4000-8000-000000000002" as UserId;
 const clock = () => new Date("2026-07-23T10:00:00.000Z");
 
 const buildDeps = () => {
+  const profileRepository = new InMemoryProfileRepository({
+    defaultTimezone: "Europe/Bratislava",
+    defaultUnitSystem: "metric",
+    clock: { now: clock },
+  });
   const goalRepository = new InMemoryGoalRepository();
   const workoutRepository = new InMemoryWorkoutRepository();
   const workoutSetRepository = new InMemoryWorkoutSetRepository();
   const foodEntryRepository = new InMemoryFoodEntryRepository();
   const bodyMeasurementRepository = new InMemoryBodyMeasurementRepository();
   return {
+    profileRepository,
     goalRepository,
     workoutRepository,
     workoutSetRepository,
@@ -41,7 +50,7 @@ const buildDeps = () => {
 };
 
 describe("CoachTools — registry", () => {
-  it("exposes the five expected tool names", () => {
+  it("exposes the seven expected tool names", () => {
     const deps = buildDeps();
     const registry = buildCoachToolRegistry(deps);
     const names = registry.list().map((tool) => tool.name);
@@ -51,6 +60,7 @@ describe("CoachTools — registry", () => {
       "get_recent_measurements",
       "get_recent_food_entries",
       "compute_energy",
+      "get_coaching_plan",
     ]);
   });
 
@@ -65,6 +75,113 @@ describe("CoachTools — registry", () => {
         clock: { now: clock },
       }),
     ).rejects.toThrow(/Unknown agent tool/);
+  });
+});
+
+const seedCompletePlanningContext = (deps: ReturnType<typeof buildDeps>) => {
+  deps.profileRepository.__seedForTest({
+    userId,
+    displayName: "Ada",
+    unitSystem: "metric",
+    timezone: "Europe/Bratislava",
+    birthYear: 1992,
+    heightCm: 180,
+    activityLevel: "lightly_active",
+    sexAtBirth: "female",
+    planTier: "free",
+    createdAt: new Date("2026-07-01T00:00:00Z"),
+    updatedAt: new Date("2026-07-20T00:00:00Z"),
+  });
+  deps.goalRepository.__seedForTest({
+    id: "00000000-0000-4000-8000-000000000011",
+    userId,
+    kind: "bulk",
+    pace: "gradual",
+    target: { weightKg: 85 },
+    startsOn: "2026-07-01",
+    targetDate: "2026-12-31",
+    status: "active",
+    createdAt: new Date("2026-07-01T00:00:00Z"),
+    updatedAt: new Date("2026-07-20T00:00:00Z"),
+  });
+  deps.bodyMeasurementRepository.__seedForTest({
+    id: "00000000-0000-4000-8000-000000000012",
+    userId,
+    measuredAt: new Date("2026-07-22T08:00:00Z"),
+    weightKg: 80,
+    measurements: {},
+    source: "manual",
+    createdAt: new Date("2026-07-22T08:00:00Z"),
+  });
+};
+
+describe("CoachTools — deterministic planning", () => {
+  it("compute_energy returns actual calculations from confirmed data", async () => {
+    const deps = buildDeps();
+    seedCompletePlanningContext(deps);
+    const evidence = await buildComputeEnergyTool(deps).execute({
+      principalUserId: userId,
+      args: {},
+      accessToken: "token",
+      clock: { now: clock },
+    });
+
+    expect(evidence.kind).toBe("energy");
+    expect(evidence.data).toMatchObject({
+      complete: true,
+      dailyTargetKcal: expect.any(Number),
+      inputs: {
+        weightKg: 80,
+        goalKind: "bulk",
+        goalPace: "gradual",
+      },
+    });
+    expect(evidence.data).not.toHaveProperty("userId");
+  });
+
+  it("returns a validated calorie, protein, and training plan", async () => {
+    const deps = buildDeps();
+    seedCompletePlanningContext(deps);
+    const evidence = await buildGetCoachingPlanTool(deps).execute({
+      principalUserId: userId,
+      args: {},
+      accessToken: "token",
+      clock: { now: clock },
+    });
+
+    expect(evidence.kind).toBe("plan");
+    expect(evidence.data).toMatchObject({
+      complete: true,
+      goalKind: "bulk",
+      protein: {
+        basisWeightKg: 80,
+        minG: 128,
+        targetG: 144,
+        maxG: 160,
+      },
+      training: {
+        focus: "hypertrophy_and_strength",
+        resistanceDaysMin: 3,
+        resistanceDaysMax: 4,
+      },
+    });
+  });
+
+  it("surfaces typed missing inputs instead of guessing", async () => {
+    const evidence = await buildGetCoachingPlanTool(buildDeps()).execute({
+      principalUserId: userId,
+      args: {},
+      accessToken: "token",
+      clock: { now: clock },
+    });
+
+    expect(evidence.data).toMatchObject({
+      complete: false,
+      missingInputs: ["active_goal", "body_weight", "energy_target"],
+      calorie: null,
+      protein: null,
+      training: null,
+    });
   });
 });
 
