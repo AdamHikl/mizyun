@@ -21,6 +21,7 @@ import {
   reducePrincipalState,
   type PrincipalRenderState,
 } from "./principal-state";
+import { CoachPreferencesCard } from "./coach-preferences-card";
 
 /**
  * Account / settings screen.
@@ -33,7 +34,7 @@ import {
  * the single "post-onboarding" surface regardless of configuration.
  */
 export function SettingsScreen() {
-  const { signOut, profile } = useAuth();
+  const { signOut, profile, refreshProfile } = useAuth();
   const [state, setState] = useState<PrincipalRenderState>({
     kind: "loading",
   });
@@ -95,6 +96,9 @@ export function SettingsScreen() {
 
           <PrincipalCard state={state} onRetry={refresh} />
           {profile?.displayName ? null : <SetupWizardCard />}
+          {profile !== null ? (
+            <CoachPreferencesCard profile={profile} onSaved={refreshProfile} />
+          ) : null}
           <AnalyticsCard />
           <SignOutCard
             disabled={state.kind === "disabled"}

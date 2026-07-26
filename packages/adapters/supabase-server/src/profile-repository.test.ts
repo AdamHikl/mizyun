@@ -61,6 +61,15 @@ describe("SupabaseProfileRepository.getOrCreate", () => {
           height_cm: 175,
           activity_level: null,
           sex_at_birth: null,
+          coaching_preferences: {
+            experienceLevel: "beginner",
+            trainingDaysPerWeek: 3,
+            sessionDurationMinutes: 45,
+            trainingFocus: "balanced",
+            availableEquipment: ["dumbbells"],
+            dietaryPreferences: ["vegetarian"],
+            trainingLimitations: ["low_impact_only"],
+          },
           created_at: "2026-01-01T00:00:00.000Z",
           updated_at: "2026-01-01T00:00:00.000Z",
         },
@@ -78,6 +87,11 @@ describe("SupabaseProfileRepository.getOrCreate", () => {
       },
     );
     expect(profile.displayName).toBe("Adam");
+    expect(profile.coachingPreferences).toMatchObject({
+      experienceLevel: "beginner",
+      trainingDaysPerWeek: 3,
+      availableEquipment: ["dumbbells"],
+    });
     expect(profile.userId).toBe(
       "00000000-0000-4000-8000-000000000001" as StoredProfile["userId"],
     );
@@ -145,6 +159,15 @@ describe("SupabaseProfileRepository.update", () => {
           height_cm: 180,
           activity_level: "moderately_active",
           sex_at_birth: "male",
+          coaching_preferences: {
+            experienceLevel: "intermediate",
+            trainingDaysPerWeek: 4,
+            sessionDurationMinutes: 60,
+            trainingFocus: "strength",
+            availableEquipment: ["full_gym"],
+            dietaryPreferences: ["omnivore"],
+            trainingLimitations: [],
+          },
           created_at: "2026-01-01T00:00:00.000Z",
           updated_at: "2026-07-17T12:00:00.000Z",
         },
@@ -166,6 +189,15 @@ describe("SupabaseProfileRepository.update", () => {
         heightCm: 180,
         activityLevel: "moderately_active",
         sexAtBirth: "male",
+        coachingPreferences: {
+          experienceLevel: "intermediate",
+          trainingDaysPerWeek: 4,
+          sessionDurationMinutes: 60,
+          trainingFocus: "strength",
+          availableEquipment: ["full_gym"],
+          dietaryPreferences: ["omnivore"],
+          trainingLimitations: [],
+        },
         planTier: "free",
         createdAt: new Date("2026-01-01T00:00:00.000Z"),
         updatedAt: new Date("2026-07-17T12:00:00.000Z"),
@@ -175,6 +207,7 @@ describe("SupabaseProfileRepository.update", () => {
     expect(stored.unitSystem).toBe("imperial");
     expect(stored.activityLevel).toBe("moderately_active");
     expect(stored.sexAtBirth).toBe("male");
+    expect(stored.coachingPreferences.trainingFocus).toBe("strength");
   });
 
   it("throws when the update query returns an error", async () => {
@@ -200,6 +233,15 @@ describe("SupabaseProfileRepository.update", () => {
           heightCm: null,
           activityLevel: null,
           sexAtBirth: null,
+          coachingPreferences: {
+            experienceLevel: null,
+            trainingDaysPerWeek: null,
+            sessionDurationMinutes: null,
+            trainingFocus: null,
+            availableEquipment: [],
+            dietaryPreferences: [],
+            trainingLimitations: [],
+          },
           planTier: "free",
           createdAt: new Date(),
           updatedAt: new Date(),

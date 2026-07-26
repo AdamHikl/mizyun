@@ -90,6 +90,15 @@ describe("GET /v1/account/export", () => {
     const body = response.json();
     expect(body.export.userId).toBe(userA);
     expect(body.export.profile.userId).toBe(userA);
+    expect(body.export.profile.coachingPreferences).toEqual({
+      experienceLevel: null,
+      trainingDaysPerWeek: null,
+      sessionDurationMinutes: null,
+      trainingFocus: null,
+      availableEquipment: [],
+      dietaryPreferences: [],
+      trainingLimitations: [],
+    });
     expect(body.export.goals).toEqual([]);
     expect(body.export.foodEntries).toEqual([]);
     expect(body.export.exercises).toEqual([]);
@@ -219,6 +228,15 @@ describe("DELETE /v1/account", () => {
       heightCm: 180,
       activityLevel: null,
       sexAtBirth: null,
+      coachingPreferences: {
+        experienceLevel: null,
+        trainingDaysPerWeek: null,
+        sessionDurationMinutes: null,
+        trainingFocus: null,
+        availableEquipment: [],
+        dietaryPreferences: [],
+        trainingLimitations: [],
+      },
       planTier: "free",
       createdAt: new Date("2026-07-10T08:00:00Z"),
       updatedAt: new Date("2026-07-10T08:00:00Z"),

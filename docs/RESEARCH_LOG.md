@@ -1144,6 +1144,7 @@ no log lines carrying photo bytes.
 - WHO's adult baseline is at least 150 minutes of moderate aerobic activity weekly and muscle strengthening on two or more days. ACSM's 2026 update emphasizes training all major muscle groups at least twice weekly and individualizing around goals. Mizyun therefore returns a conservative base frequency and exercise-type framework, not injury-specific or person-specific exercise selection.
 - The calorie range is explicitly an adherence/planning band of plus or minus 100 kcal, not physiological measurement uncertainty. The underlying target and its formula version remain visible.
 - Experience, available equipment, preferences, and limitations are not yet profile inputs. The output discloses that limitation; the next implementation level will add those inputs before exercise selection becomes personalized.
+- Level 2 now stores those inputs as an explicit, closed, non-medical preference object: experience, weekly schedule, session duration, training focus, equipment, dietary preferences, and movement constraints. There is no free-text diagnosis field and no silent inference. Shared schemas, domain validation, database checks, export, mobile controls, and Coach grounding use the same vocabulary.
 
 ## 2026-07-25 — AI-MOB-002 Coach UX polish
 

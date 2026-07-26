@@ -43,11 +43,11 @@ offline implementation proceeds.
 1. **Deterministic planning foundation — done.** Versioned calorie,
    protein, goal-specific training focus, exercise types, assumptions,
    and missing-input behavior; real Coach calculation tools.
-2. **Personalization profile — next.** Persist experience, available
+2. **Personalization profile — done.** Persist experience, available
    equipment, dietary preferences, exercise limitations, schedule, and
    goal-specific preferences; expose them through account controls and
    principal-bound Coach grounding.
-3. **Training prescription and progression.** Build deterministic,
+3. **Training prescription and progression — next.** Build deterministic,
    inspectable exercise-selection and progression rules over exercises,
    templates, recent volume, equipment, experience, and limitations;
    let AI explain and suggest an editable plan.

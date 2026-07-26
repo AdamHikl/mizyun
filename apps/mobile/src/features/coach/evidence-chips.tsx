@@ -19,7 +19,8 @@ import { ThemedText } from "@/components/themed-text";
 import { Colors, Spacing } from "@/constants/theme";
 
 const SUMMARY_BY_KIND: Readonly<Record<string, string>> = {
-  profile: "Your confirmed profile (units, timezone, height, activity).",
+  profile:
+    "Your confirmed profile, activity, equipment, schedule, and Coach preferences.",
   goal: "Your active Mizyun goal (kind, pace, target, target date).",
   nutrition: "Your confirmed nutrition log within the last 28 days.",
   training: "Your confirmed training within the last 28 days.",

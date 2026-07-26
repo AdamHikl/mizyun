@@ -124,6 +124,88 @@ export const unitSystemSchema = z.enum(["metric", "imperial"]);
 
 export type UnitSystem = z.infer<typeof unitSystemSchema>;
 
+export const coachingPreferencesSchema = z
+  .object({
+    experienceLevel: z
+      .enum(["beginner", "intermediate", "advanced"])
+      .nullable(),
+    trainingDaysPerWeek: z.number().int().gte(1).lte(7).nullable(),
+    sessionDurationMinutes: z.number().int().gte(15).lte(180).nullable(),
+    trainingFocus: z
+      .enum(["balanced", "strength", "hypertrophy", "endurance"])
+      .nullable(),
+    availableEquipment: z
+      .array(
+        z.enum([
+          "bodyweight",
+          "dumbbells",
+          "barbell",
+          "bench",
+          "rack",
+          "cable_machine",
+          "resistance_bands",
+          "pullup_bar",
+          "cardio_machine",
+          "full_gym",
+        ]),
+      )
+      .max(10),
+    dietaryPreferences: z
+      .array(
+        z.enum([
+          "omnivore",
+          "vegetarian",
+          "vegan",
+          "pescatarian",
+          "halal",
+          "kosher",
+          "lactose_free",
+          "gluten_free",
+        ]),
+      )
+      .max(8),
+    trainingLimitations: z
+      .array(
+        z.enum([
+          "low_impact_only",
+          "no_overhead_work",
+          "no_running",
+          "no_jumping",
+          "limited_knee_flexion",
+          "limited_spinal_loading",
+        ]),
+      )
+      .max(6),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    for (const key of [
+      "availableEquipment",
+      "dietaryPreferences",
+      "trainingLimitations",
+    ] as const) {
+      if (new Set(value[key]).size !== value[key].length) {
+        context.addIssue({
+          code: "custom",
+          path: [key],
+          message: "values must be unique",
+        });
+      }
+    }
+    const baseDiets = value.dietaryPreferences.filter((preference) =>
+      ["omnivore", "vegetarian", "vegan", "pescatarian"].includes(preference),
+    );
+    if (baseDiets.length > 1) {
+      context.addIssue({
+        code: "custom",
+        path: ["dietaryPreferences"],
+        message: "select at most one base diet",
+      });
+    }
+  });
+
+export type CoachingPreferences = z.infer<typeof coachingPreferencesSchema>;
+
 export const profileSchema = z.object({
   userId: z.string().uuid(),
   displayName: z.string().trim().min(1).max(80).nullable().optional(),
@@ -164,6 +246,7 @@ export const profileSchema = z.object({
    * fabricate a number without it (ENG-06).
    */
   sexAtBirth: z.enum(["male", "female"]).nullable().optional(),
+  coachingPreferences: coachingPreferencesSchema,
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
@@ -195,6 +278,7 @@ export const profilePatchSchema = z
     heightCm: profileSchema.shape.heightCm.optional(),
     activityLevel: profileSchema.shape.activityLevel.optional(),
     sexAtBirth: profileSchema.shape.sexAtBirth.optional(),
+    coachingPreferences: coachingPreferencesSchema.optional(),
   })
   .strict()
   .refine(
@@ -205,7 +289,8 @@ export const profilePatchSchema = z
       patch.birthYear !== undefined ||
       patch.heightCm !== undefined ||
       patch.activityLevel !== undefined ||
-      patch.sexAtBirth !== undefined,
+      patch.sexAtBirth !== undefined ||
+      patch.coachingPreferences !== undefined,
     { message: "at least one field must be present" },
   );
 

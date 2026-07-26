@@ -105,6 +105,15 @@ describe("GET /v1/profile", () => {
       heightCm: 180,
       activityLevel: null,
       sexAtBirth: null,
+      coachingPreferences: {
+        experienceLevel: null,
+        trainingDaysPerWeek: null,
+        sessionDurationMinutes: null,
+        trainingFocus: null,
+        availableEquipment: [],
+        dietaryPreferences: [],
+        trainingLimitations: [],
+      },
       planTier: "free",
       createdAt: new Date("2026-01-01T00:00:00Z"),
       updatedAt: new Date("2026-01-01T00:00:00Z"),
@@ -271,6 +280,56 @@ describe("PUT /v1/profile", () => {
     expect(response.json().profile.sexAtBirth).toBe("female");
   });
 
+  it("persists strict user-controlled coaching preferences", async () => {
+    const { app } = build(tokenVerifierFor({ userId: userA }));
+    const coachingPreferences = {
+      experienceLevel: "intermediate",
+      trainingDaysPerWeek: 4,
+      sessionDurationMinutes: 60,
+      trainingFocus: "hypertrophy",
+      availableEquipment: ["dumbbells", "bench"],
+      dietaryPreferences: ["vegetarian"],
+      trainingLimitations: ["no_running"],
+    };
+    const response = await app.inject({
+      method: "PUT",
+      url: "/v1/profile",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: { coachingPreferences },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().profile.coachingPreferences).toEqual(
+      coachingPreferences,
+    );
+  });
+
+  it("rejects unknown or duplicate coaching preference values", async () => {
+    const { app } = build(tokenVerifierFor({ userId: userA }));
+    const response = await app.inject({
+      method: "PUT",
+      url: "/v1/profile",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: {
+        coachingPreferences: {
+          experienceLevel: "expert",
+          trainingDaysPerWeek: 9,
+          sessionDurationMinutes: 60,
+          trainingFocus: "strength",
+          availableEquipment: ["barbell", "barbell"],
+          dietaryPreferences: [],
+          trainingLimitations: [],
+        },
+      },
+    });
+    expect(response.statusCode).toBe(422);
+  });
+
   it("rejects an invalid activityLevel with a 422", async () => {
     const { app } = build(tokenVerifierFor({ userId: userA }));
     const response = await app.inject({
@@ -336,5 +395,14 @@ describe("PUT /v1/profile", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json().profile.activityLevel).toBeNull();
     expect(response.json().profile.sexAtBirth).toBeNull();
+    expect(response.json().profile.coachingPreferences).toEqual({
+      experienceLevel: null,
+      trainingDaysPerWeek: null,
+      sessionDurationMinutes: null,
+      trainingFocus: null,
+      availableEquipment: [],
+      dietaryPreferences: [],
+      trainingLimitations: [],
+    });
   });
 });

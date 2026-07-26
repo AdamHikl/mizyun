@@ -16,6 +16,15 @@ describe("energy profile form", () => {
       birthYear: 1990,
       activityLevel: "lightly_active",
       sexAtBirth: "male",
+      coachingPreferences: {
+        experienceLevel: null,
+        trainingDaysPerWeek: null,
+        sessionDurationMinutes: null,
+        trainingFocus: null,
+        availableEquipment: [],
+        dietaryPreferences: [],
+        trainingLimitations: [],
+      },
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
     });

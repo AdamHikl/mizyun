@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(28);
+select plan(30);
 
 insert into auth.users (id, email)
 values
@@ -17,6 +17,38 @@ update public.profiles set plan_tier = 'free'
   where id = '10000000-0000-4000-8000-000000000001';
 update public.profiles set plan_tier = 'paid'
   where id = '10000000-0000-4000-8000-000000000002';
+
+select lives_ok(
+  $$update public.profiles
+    set coaching_preferences = '{
+      "experienceLevel": "intermediate",
+      "trainingDaysPerWeek": 4,
+      "sessionDurationMinutes": 60,
+      "trainingFocus": "strength",
+      "availableEquipment": ["barbell", "rack"],
+      "dietaryPreferences": ["omnivore"],
+      "trainingLimitations": []
+    }'::jsonb
+    where id = '10000000-0000-4000-8000-000000000001'$$,
+  'normalized Coach preferences satisfy the database constraint'
+);
+
+select throws_ok(
+  $$update public.profiles
+    set coaching_preferences = '{
+      "experienceLevel": "expert",
+      "trainingDaysPerWeek": 9,
+      "sessionDurationMinutes": 5,
+      "trainingFocus": "unsafe",
+      "availableEquipment": ["unknown"],
+      "dietaryPreferences": [],
+      "trainingLimitations": []
+    }'::jsonb
+    where id = '10000000-0000-4000-8000-000000000001'$$,
+  '23514',
+  'new row for relation "profiles" violates check constraint "profiles_coaching_preferences_object"',
+  'invalid Coach preferences fail closed at the database boundary'
+);
 
 insert into public.goals (user_id, kind)
 values

@@ -5,7 +5,7 @@ import {
   type ProfilePatch,
   type ProfileRepository,
   type ProfileValidationError,
-  type UserId,
+  type StoredProfile,
 } from "@mizyun/core";
 import {
   profilePatchSchema,
@@ -101,6 +101,14 @@ const validationErrorToApi = (
         message: `sexAtBirth '${error.value}' must be 'male' or 'female'.`,
         requestId,
       };
+    case "invalid_coaching_preferences":
+      return {
+        status: 422,
+        code: "VALIDATION_ERROR",
+        message:
+          "coachingPreferences contains an unsupported value or out-of-range schedule.",
+        requestId,
+      };
   }
 };
 
@@ -110,24 +118,7 @@ const validationErrorToApi = (
  * parsed through the Zod contract at the producer side so any future
  * drift is caught at the boundary, not by a downstream consumer.
  */
-const toWire = (stored: {
-  userId: UserId;
-  displayName: string | null;
-  unitSystem: "metric" | "imperial";
-  timezone: string;
-  birthYear: number | null;
-  heightCm: number | null;
-  activityLevel:
-    | "sedentary"
-    | "lightly_active"
-    | "moderately_active"
-    | "very_active"
-    | "extra_active"
-    | null;
-  sexAtBirth: "male" | "female" | null;
-  createdAt: Date;
-  updatedAt: Date;
-}): ProfileResponse =>
+const toWire = (stored: StoredProfile): ProfileResponse =>
   profileResponseSchema.parse({
     profile: {
       userId: stored.userId,
@@ -138,6 +129,14 @@ const toWire = (stored: {
       heightCm: stored.heightCm,
       activityLevel: stored.activityLevel,
       sexAtBirth: stored.sexAtBirth,
+      coachingPreferences: {
+        ...stored.coachingPreferences,
+        availableEquipment: [...stored.coachingPreferences.availableEquipment],
+        dietaryPreferences: [...stored.coachingPreferences.dietaryPreferences],
+        trainingLimitations: [
+          ...stored.coachingPreferences.trainingLimitations,
+        ],
+      },
       createdAt: stored.createdAt.toISOString(),
       updatedAt: stored.updatedAt.toISOString(),
     },

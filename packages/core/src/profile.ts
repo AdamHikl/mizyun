@@ -27,6 +27,82 @@ export type ProfileActivityLevel =
 /** Closed biological-sex category. */
 export type ProfileSexAtBirth = "male" | "female";
 
+export const EXPERIENCE_LEVELS = [
+  "beginner",
+  "intermediate",
+  "advanced",
+] as const;
+export type ExperienceLevel = (typeof EXPERIENCE_LEVELS)[number];
+
+export const TRAINING_FOCUS_PREFERENCES = [
+  "balanced",
+  "strength",
+  "hypertrophy",
+  "endurance",
+] as const;
+export type TrainingFocusPreference =
+  (typeof TRAINING_FOCUS_PREFERENCES)[number];
+
+export const EQUIPMENT_OPTIONS = [
+  "bodyweight",
+  "dumbbells",
+  "barbell",
+  "bench",
+  "rack",
+  "cable_machine",
+  "resistance_bands",
+  "pullup_bar",
+  "cardio_machine",
+  "full_gym",
+] as const;
+export type EquipmentOption = (typeof EQUIPMENT_OPTIONS)[number];
+
+export const DIETARY_PREFERENCE_OPTIONS = [
+  "omnivore",
+  "vegetarian",
+  "vegan",
+  "pescatarian",
+  "halal",
+  "kosher",
+  "lactose_free",
+  "gluten_free",
+] as const;
+export type DietaryPreference = (typeof DIETARY_PREFERENCE_OPTIONS)[number];
+
+/**
+ * User-selected movement constraints. These are non-medical controls,
+ * not diagnoses; the Coach must not infer a condition from them.
+ */
+export const TRAINING_LIMITATION_OPTIONS = [
+  "low_impact_only",
+  "no_overhead_work",
+  "no_running",
+  "no_jumping",
+  "limited_knee_flexion",
+  "limited_spinal_loading",
+] as const;
+export type TrainingLimitation = (typeof TRAINING_LIMITATION_OPTIONS)[number];
+
+export interface CoachingPreferences {
+  readonly experienceLevel: ExperienceLevel | null;
+  readonly trainingDaysPerWeek: number | null;
+  readonly sessionDurationMinutes: number | null;
+  readonly trainingFocus: TrainingFocusPreference | null;
+  readonly availableEquipment: readonly EquipmentOption[];
+  readonly dietaryPreferences: readonly DietaryPreference[];
+  readonly trainingLimitations: readonly TrainingLimitation[];
+}
+
+export const DEFAULT_COACHING_PREFERENCES: CoachingPreferences = {
+  experienceLevel: null,
+  trainingDaysPerWeek: null,
+  sessionDurationMinutes: null,
+  trainingFocus: null,
+  availableEquipment: [],
+  dietaryPreferences: [],
+  trainingLimitations: [],
+};
+
 /** Plausible adult height range, in centimetres. Stored canonical. */
 export const HEIGHT_CM_MIN = 50;
 export const HEIGHT_CM_MAX = 260;
@@ -59,6 +135,7 @@ export interface ProfileCore {
   readonly heightCm: number | null;
   readonly activityLevel: ProfileActivityLevel | null;
   readonly sexAtBirth: ProfileSexAtBirth | null;
+  readonly coachingPreferences: CoachingPreferences;
   readonly planTier: PlanTier;
 }
 
@@ -93,6 +170,7 @@ export type ProfilePatch = {
   readonly heightCm?: number | null | undefined;
   readonly activityLevel?: ProfileActivityLevel | null | undefined;
   readonly sexAtBirth?: ProfileSexAtBirth | null | undefined;
+  readonly coachingPreferences?: CoachingPreferences | undefined;
 };
 
 /**
@@ -117,7 +195,8 @@ export type ProfileValidationError =
     }
   | { readonly kind: "invalid_unit_system"; readonly value: string }
   | { readonly kind: "invalid_activity_level"; readonly value: string }
-  | { readonly kind: "invalid_sex_at_birth"; readonly value: string };
+  | { readonly kind: "invalid_sex_at_birth"; readonly value: string }
+  | { readonly kind: "invalid_coaching_preferences" };
 
 const TIMEZONE_PATTERN = /^[A-Za-z][A-Za-z0-9_+\-/]*$/;
 const MAX_BIRTH_YEAR = () => new Date().getUTCFullYear();
@@ -220,6 +299,46 @@ const validateHeightCm = (
   return null;
 };
 
+const uniqueKnownValues = (
+  values: readonly string[],
+  allowed: readonly string[],
+): boolean =>
+  new Set(values).size === values.length &&
+  values.every((value) => allowed.includes(value));
+
+const validateCoachingPreferences = (
+  value: CoachingPreferences | undefined,
+): ProfileValidationError | null => {
+  if (value === undefined) return null;
+  const baseDietCount = value.dietaryPreferences.filter((preference) =>
+    ["omnivore", "vegetarian", "vegan", "pescatarian"].includes(preference),
+  ).length;
+  if (
+    (value.experienceLevel !== null &&
+      !EXPERIENCE_LEVELS.includes(value.experienceLevel)) ||
+    (value.trainingFocus !== null &&
+      !TRAINING_FOCUS_PREFERENCES.includes(value.trainingFocus)) ||
+    (value.trainingDaysPerWeek !== null &&
+      (!Number.isInteger(value.trainingDaysPerWeek) ||
+        value.trainingDaysPerWeek < 1 ||
+        value.trainingDaysPerWeek > 7)) ||
+    (value.sessionDurationMinutes !== null &&
+      (!Number.isInteger(value.sessionDurationMinutes) ||
+        value.sessionDurationMinutes < 15 ||
+        value.sessionDurationMinutes > 180)) ||
+    !uniqueKnownValues(value.availableEquipment, EQUIPMENT_OPTIONS) ||
+    !uniqueKnownValues(value.dietaryPreferences, DIETARY_PREFERENCE_OPTIONS) ||
+    !uniqueKnownValues(
+      value.trainingLimitations,
+      TRAINING_LIMITATION_OPTIONS,
+    ) ||
+    baseDietCount > 1
+  ) {
+    return { kind: "invalid_coaching_preferences" };
+  }
+  return null;
+};
+
 /**
  * Validate the patch as a whole. Returns `null` on success or the
  * first failure reason encountered. The route layer wraps the failure
@@ -243,6 +362,8 @@ export const validateProfilePatch = (
   if (e6 !== null) errors.push(e6);
   const e7 = validateSexAtBirth(patch.sexAtBirth);
   if (e7 !== null) errors.push(e7);
+  const e8 = validateCoachingPreferences(patch.coachingPreferences);
+  if (e8 !== null) errors.push(e8);
 
   if (errors.length === 0) {
     // Empty patch is still rejected because it has no effect.
@@ -253,7 +374,8 @@ export const validateProfilePatch = (
       patch.birthYear !== undefined ||
       patch.heightCm !== undefined ||
       patch.activityLevel !== undefined ||
-      patch.sexAtBirth !== undefined;
+      patch.sexAtBirth !== undefined ||
+      patch.coachingPreferences !== undefined;
     return anyTouched ? null : { kind: "empty_patch" };
   }
   return errors[0] as ProfileValidationError;
@@ -288,6 +410,10 @@ export const applyProfilePatch = (
       : patch.activityLevel,
   sexAtBirth:
     patch.sexAtBirth === undefined ? stored.sexAtBirth : patch.sexAtBirth,
+  coachingPreferences:
+    patch.coachingPreferences === undefined
+      ? stored.coachingPreferences
+      : patch.coachingPreferences,
   planTier: stored.planTier,
   createdAt: stored.createdAt,
   updatedAt: now,

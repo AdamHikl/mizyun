@@ -1,4 +1,5 @@
 import type {
+  CoachingPreferences,
   PlanTier,
   ProfileRepository,
   StoredProfile,
@@ -61,6 +62,15 @@ export class InMemoryProfileRepository implements ProfileRepository {
       heightCm: null,
       activityLevel: null,
       sexAtBirth: null,
+      coachingPreferences: {
+        experienceLevel: null,
+        trainingDaysPerWeek: null,
+        sessionDurationMinutes: null,
+        trainingFocus: null,
+        availableEquipment: [],
+        dietaryPreferences: [],
+        trainingLimitations: [],
+      } satisfies CoachingPreferences,
       planTier: this.#defaultPlanTier,
       createdAt: now,
       updatedAt: now,

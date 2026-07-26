@@ -89,6 +89,7 @@ export const buildCoachGrounding = async (
         timezone: profile.timezone,
         heightCm: profile.heightCm,
         activityLevel: profile.activityLevel,
+        coachingPreferences: profile.coachingPreferences,
       },
     },
     {

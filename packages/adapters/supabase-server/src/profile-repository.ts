@@ -1,4 +1,5 @@
 import type {
+  CoachingPreferences,
   PlanTier,
   ProfileActivityLevel,
   ProfileRepository,
@@ -30,6 +31,7 @@ interface ProfileRow extends Record<string, unknown> {
   readonly height_cm: number | null;
   readonly activity_level: ProfileActivityLevel | null;
   readonly sex_at_birth: ProfileSexAtBirth | null;
+  readonly coaching_preferences: CoachingPreferences | null;
   readonly plan_tier: PlanTier | null;
   readonly created_at: string;
   readonly updated_at: string;
@@ -44,6 +46,15 @@ const fromRow = (row: ProfileRow): StoredProfile => ({
   heightCm: row.height_cm,
   activityLevel: row.activity_level,
   sexAtBirth: row.sex_at_birth,
+  coachingPreferences: row.coaching_preferences ?? {
+    experienceLevel: null,
+    trainingDaysPerWeek: null,
+    sessionDurationMinutes: null,
+    trainingFocus: null,
+    availableEquipment: [],
+    dietaryPreferences: [],
+    trainingLimitations: [],
+  },
   planTier: (row.plan_tier ?? "free") as PlanTier,
   createdAt: new Date(row.created_at),
   updatedAt: new Date(row.updated_at),
@@ -115,6 +126,7 @@ export class SupabaseProfileRepository implements ProfileRepository {
         height_cm: next.heightCm,
         activity_level: next.activityLevel,
         sex_at_birth: next.sexAtBirth,
+        coaching_preferences: next.coachingPreferences,
       })
       .eq("id", userId)
       .select("*")

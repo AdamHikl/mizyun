@@ -35,6 +35,9 @@ const accountExportToWire = (exportDoc: AccountExport): AccountExportResponse =>
             timezone: exportDoc.profile.timezone,
             birthYear: exportDoc.profile.birthYear,
             heightCm: exportDoc.profile.heightCm,
+            activityLevel: exportDoc.profile.activityLevel,
+            sexAtBirth: exportDoc.profile.sexAtBirth,
+            coachingPreferences: exportDoc.profile.coachingPreferences,
             createdAt: exportDoc.profile.createdAt.toISOString(),
             updatedAt: exportDoc.profile.updatedAt.toISOString(),
           }

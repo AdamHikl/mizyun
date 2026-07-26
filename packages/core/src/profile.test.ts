@@ -17,6 +17,15 @@ const baseStored = (overrides: Partial<StoredProfile> = {}): StoredProfile => ({
   heightCm: 170,
   activityLevel: null,
   sexAtBirth: null,
+  coachingPreferences: {
+    experienceLevel: null,
+    trainingDaysPerWeek: null,
+    sessionDurationMinutes: null,
+    trainingFocus: null,
+    availableEquipment: [],
+    dietaryPreferences: [],
+    trainingLimitations: [],
+  },
   planTier: "free",
   createdAt: new Date("2026-01-01T00:00:00Z"),
   updatedAt: new Date("2026-01-01T00:00:00Z"),
@@ -102,6 +111,38 @@ describe("validateProfilePatch", () => {
     const thisYear = new Date().getUTCFullYear();
     expect(validateProfilePatch({ birthYear: thisYear })).toBeNull();
   });
+
+  it("accepts normalized explicit coaching preferences", () => {
+    expect(
+      validateProfilePatch({
+        coachingPreferences: {
+          experienceLevel: "intermediate",
+          trainingDaysPerWeek: 4,
+          sessionDurationMinutes: 60,
+          trainingFocus: "strength",
+          availableEquipment: ["barbell", "rack"],
+          dietaryPreferences: ["omnivore"],
+          trainingLimitations: ["no_running"],
+        },
+      }),
+    ).toBeNull();
+  });
+
+  it("rejects invalid or duplicate coaching preference values", () => {
+    expect(
+      validateProfilePatch({
+        coachingPreferences: {
+          experienceLevel: "intermediate",
+          trainingDaysPerWeek: 8,
+          sessionDurationMinutes: 60,
+          trainingFocus: "strength",
+          availableEquipment: ["barbell", "barbell"],
+          dietaryPreferences: [],
+          trainingLimitations: [],
+        },
+      }),
+    ).toEqual({ kind: "invalid_coaching_preferences" });
+  });
 });
 
 describe("applyProfilePatch", () => {
@@ -131,6 +172,24 @@ describe("applyProfilePatch", () => {
     );
     expect(next.displayName).toBeNull();
     expect(next.birthYear).toBeNull();
+  });
+
+  it("replaces coaching preferences as one auditable user choice", () => {
+    const preferences = {
+      experienceLevel: "beginner" as const,
+      trainingDaysPerWeek: 3,
+      sessionDurationMinutes: 45,
+      trainingFocus: "balanced" as const,
+      availableEquipment: ["dumbbells"] as const,
+      dietaryPreferences: ["vegetarian"] as const,
+      trainingLimitations: ["low_impact_only"] as const,
+    };
+    const next = applyProfilePatch(
+      baseStored(),
+      { coachingPreferences: preferences },
+      new Date("2026-06-01T00:00:00Z"),
+    );
+    expect(next.coachingPreferences).toEqual(preferences);
   });
 
   it("preserves userId and createdAt across updates", () => {

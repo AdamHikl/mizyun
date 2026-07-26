@@ -52,8 +52,8 @@ These items convert the tested domain/API foundation into the low-friction produ
 | AI-MOB-001      | P1       | active  | Native Coach conversation experience                   | iPhone trusted-LAN preflight active; native synthetic acceptance remains                            |
 | AI-OPS-001      | P0       | ready   | Durable AI budgets and replica-safe idempotency        | Shared limits survive restart/replicas and one logical message incurs one provider call             |
 | COACH-PLAN-001  | P0       | done    | Deterministic calorie/protein/training plan foundation | Versioned engine and real read-only Coach tools return auditable targets or missing inputs          |
-| COACH-PERS-001  | P0       | active  | Goal-specific Coach personalization profile            | Experience, equipment, preferences, limitations, and schedule persist and ground suggestions        |
-| COACH-TRAIN-001 | P0       | ready   | Exercise selection and progression plan                | Deterministic editable suggestions reflect goal, profile, equipment, limitations, and recent volume |
+| COACH-PERS-001  | P0       | done    | Goal-specific Coach personalization profile            | Experience, equipment, preferences, limitations, and schedule persist and ground suggestions        |
+| COACH-TRAIN-001 | P0       | active  | Exercise selection and progression plan                | Deterministic editable suggestions reflect goal, profile, equipment, limitations, and recent volume |
 | ALPHA-001       | P0       | ready   | Founder week plus 10–30 design-partner alpha           | No open P0/P1 issue blocks repeated use; evidence and feedback are recorded                         |
 | BILL-001        | P1       | blocked | Premium packaging and mobile subscription billing      | Paid value/cost is validated and entitlements restore safely                                        |
 

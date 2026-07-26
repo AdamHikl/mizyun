@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(39);
+select plan(40);
 
 select has_table(
   'public',
@@ -78,6 +78,13 @@ select has_column(
   'messages',
   'status',
   'messages has a delivery status'
+);
+
+select has_column(
+  'public',
+  'profiles',
+  'coaching_preferences',
+  'profiles store explicit Coach personalization'
 );
 
 select has_column(
