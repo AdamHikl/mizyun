@@ -19,6 +19,9 @@ const energy = (overrides: Partial<EnergyBreakdown> = {}): EnergyBreakdown => ({
   exerciseKcal: null,
   goalAdjustmentKcal: 300,
   dailyTargetKcal: 3_000,
+  targetProteinG: 144,
+  targetCarbohydrateG: 375,
+  targetFatG: 83,
   balanceKcal: null,
   balanceUncertaintyKcal: null,
   inputs: {

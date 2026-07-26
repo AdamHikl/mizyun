@@ -168,6 +168,9 @@ export interface EnergyBreakdown {
 
   // Final results.
   readonly dailyTargetKcal: number | null;
+  readonly targetProteinG: number | null;
+  readonly targetCarbohydrateG: number | null;
+  readonly targetFatG: number | null;
 
   // Intake balance for today (consumed − TDEE). Null when either
   // input is missing; never fabricated.
@@ -408,6 +411,35 @@ export const mifflinStJeorFormula: EnergyFormula = {
       }
     }
 
+    let targetProteinG: number | null = null;
+    let targetFatG: number | null = null;
+    let targetCarbohydrateG: number | null = null;
+
+    if (dailyTargetKcal !== null) {
+      if (resolvedWeight !== null && resolvedWeight > 0) {
+        const factor =
+          input.activeGoal?.kind === "cut" ||
+          input.activeGoal?.kind === "recomp"
+            ? 2.0
+            : input.activeGoal?.kind === "bulk"
+              ? 1.8
+              : 1.6;
+        targetProteinG = Math.round(resolvedWeight * factor);
+      } else {
+        targetProteinG = Math.round((dailyTargetKcal * 0.25) / 4);
+      }
+
+      targetFatG = Math.round((dailyTargetKcal * 0.25) / 9);
+
+      const proteinKcal = targetProteinG * 4;
+      const fatKcal = targetFatG * 9;
+      const remainingKcal = Math.max(
+        0,
+        dailyTargetKcal - proteinKcal - fatKcal,
+      );
+      targetCarbohydrateG = Math.round(remainingKcal / 4);
+    }
+
     if (belowFloor) {
       incompleteReasons.add("below_safety_floor");
     }
@@ -436,6 +468,9 @@ export const mifflinStJeorFormula: EnergyFormula = {
         exerciseKcal,
         goalAdjustmentKcal,
         dailyTargetKcal,
+        targetProteinG,
+        targetCarbohydrateG,
+        targetFatG,
         balanceKcal,
         balanceUncertaintyKcal,
         inputs: {

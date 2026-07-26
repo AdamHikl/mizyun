@@ -100,12 +100,23 @@ const formatWeight = (
 const formatCount = (n: number | null): string =>
   n === null ? "—" : String(n);
 
-const caloriesDetail = (summary: DailySummary | null): string => {
+const caloriesDetail = (
+  summary: DailySummary | null,
+  energy: EnergySummary | null,
+): string => {
   if (summary === null) return "Start with a meal";
-  if (summary.entryCount === 0) return "No entries yet today";
+  if (summary.entryCount === 0) {
+    if (energy?.targetProteinG != null) {
+      return `Target: ${energy.targetProteinG}g P · ${energy.targetCarbohydrateG}g C · ${energy.targetFatG}g F`;
+    }
+    return "No entries yet today";
+  }
   const p = summary.proteinG ?? 0;
   const c = summary.carbohydrateG ?? 0;
   const f = summary.fatG ?? 0;
+  if (energy?.targetProteinG != null) {
+    return `${p}/${energy.targetProteinG}g P · ${c}/${energy.targetCarbohydrateG}g C · ${f}/${energy.targetFatG}g F`;
+  }
   return `${p}P / ${c}C / ${f}F · ${summary.entryCount} ${summary.entryCount === 1 ? "entry" : "entries"}`;
 };
 
@@ -313,7 +324,7 @@ export function DashboardScreen() {
             <MetricCard
               label="Calories today"
               value={formatCalories(metrics.caloriesToday)}
-              detail={caloriesDetail(metrics.macros)}
+              detail={caloriesDetail(metrics.macros, metrics.energy)}
             />
             <MetricCard
               label="Current weight"
@@ -458,16 +469,34 @@ function EnergyCard(props: {
             {formatCalories(summary.dailyTargetKcal)} target
           </ThemedText>
           <View style={styles.auditGrid}>
+            <AuditValue
+              label="Target Protein"
+              value={
+                summary.targetProteinG !== null
+                  ? `${summary.targetProteinG} g`
+                  : "—"
+              }
+            />
+            <AuditValue
+              label="Target Carbs"
+              value={
+                summary.targetCarbohydrateG !== null
+                  ? `${summary.targetCarbohydrateG} g`
+                  : "—"
+              }
+            />
+            <AuditValue
+              label="Target Fat"
+              value={
+                summary.targetFatG !== null ? `${summary.targetFatG} g` : "—"
+              }
+            />
+            <AuditValue
+              label="Target Calories"
+              value={formatCalories(summary.dailyTargetKcal)}
+            />
             <AuditValue label="BMR" value={formatCalories(summary.bmrKcal)} />
             <AuditValue label="TDEE" value={formatCalories(summary.tdeeKcal)} />
-            <AuditValue
-              label="Activity"
-              value={summary.activityMultiplier?.toFixed(2) ?? "—"}
-            />
-            <AuditValue
-              label="Goal adjustment"
-              value={formatCalories(summary.goalAdjustmentKcal)}
-            />
           </View>
           <ThemedText type="small" themeColor="textSecondary">
             Inputs: {summary.inputs.weightKg ?? "—"} kg ·{" "}

@@ -52,6 +52,9 @@ export const energySummarySchema = z.object({
   exerciseKcal: boundedKcalSchema.nullable(),
   goalAdjustmentKcal: boundedKcalSchema.nullable(),
   dailyTargetKcal: nonNegativeKcalSchema.nullable(),
+  targetProteinG: z.number().int().gte(0).lte(1000).nullable(),
+  targetCarbohydrateG: z.number().int().gte(0).lte(2000).nullable(),
+  targetFatG: z.number().int().gte(0).lte(1000).nullable(),
   balanceKcal: boundedKcalSchema.nullable(),
   balanceUncertaintyKcal: nonNegativeKcalSchema.nullable(),
   inputs: z.object({

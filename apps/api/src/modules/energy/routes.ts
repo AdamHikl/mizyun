@@ -284,6 +284,9 @@ const toWire = (breakdown: EnergyBreakdown): EnergySummaryResponse =>
       exerciseKcal: breakdown.exerciseKcal,
       goalAdjustmentKcal: breakdown.goalAdjustmentKcal,
       dailyTargetKcal: breakdown.dailyTargetKcal,
+      targetProteinG: breakdown.targetProteinG,
+      targetCarbohydrateG: breakdown.targetCarbohydrateG,
+      targetFatG: breakdown.targetFatG,
       balanceKcal: breakdown.balanceKcal,
       balanceUncertaintyKcal: breakdown.balanceUncertaintyKcal,
       inputs: {

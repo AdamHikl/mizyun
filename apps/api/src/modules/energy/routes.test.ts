@@ -227,6 +227,9 @@ describe("GET /v1/energy/summary", () => {
     expect(body.tdeeKcal).toBeGreaterThan(0);
     expect(body.goalAdjustmentKcal).toBe(-500);
     expect(body.dailyTargetKcal).toBeGreaterThan(0);
+    expect(body.targetProteinG).toBeGreaterThan(0);
+    expect(body.targetCarbohydrateG).toBeGreaterThan(0);
+    expect(body.targetFatG).toBeGreaterThan(0);
   });
 
   it("echoes the formula version so the UI can render it (ENG-02)", async () => {

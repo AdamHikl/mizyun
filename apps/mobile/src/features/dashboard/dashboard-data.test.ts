@@ -158,6 +158,9 @@ describe("fetchEnergySummary", () => {
         exerciseKcal: 120,
         goalAdjustmentKcal: -500,
         dailyTargetKcal: 1900,
+        targetProteinG: 140,
+        targetCarbohydrateG: 212,
+        targetFatG: 53,
         balanceKcal: -300,
         balanceUncertaintyKcal: 50,
         inputs: {
