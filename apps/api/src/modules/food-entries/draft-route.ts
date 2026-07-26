@@ -22,6 +22,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import type { PlanTier, UserId } from "@mizyun/core";
 import {
+  screenCoachInput,
   VisionProviderError,
   type VisionDraftProvider,
   type VisionDraftRequest,
@@ -29,6 +30,7 @@ import {
 } from "@mizyun/agent-runtime";
 import {
   foodDraftResponseSchema,
+  foodTextDraftRequestSchema,
   type FoodDraftResponse,
 } from "@mizyun/contracts";
 import { randomUUID } from "node:crypto";
@@ -82,6 +84,80 @@ const visionFailureToHttpStatus = (
 export const foodDraftRoutes: FastifyPluginAsync<
   FoodDraftRoutesOptions
 > = async (app, options) => {
+  app.post(
+    "/draft/text",
+    { preHandler: app.authenticate },
+    async (request, reply): Promise<FoodDraftResponse | void> => {
+      const principal = request.principal ?? principalOrThrow();
+      const parsed = foodTextDraftRequestSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return sendApiError(
+          reply,
+          request,
+          422,
+          "VALIDATION_ERROR",
+          "Describe the meal in 2 to 1,000 characters.",
+        );
+      }
+      const safety = screenCoachInput(parsed.data.description);
+      if (!safety.allowed) {
+        return sendApiError(
+          reply,
+          request,
+          422,
+          "VALIDATION_ERROR",
+          "The meal description must contain food and portion details, not instructions or medical advice.",
+        );
+      }
+      const tier = options.resolvePlanTier(principal.userId as UserId);
+      const rate = options.rateLimiter.acquire(principal.userId, tier);
+      if (!rate.allowed) {
+        reply.header("retry-after", String(rate.retryAfter));
+        return sendApiError(
+          reply,
+          request,
+          429,
+          "RATE_LIMITED",
+          `Nutrition drafts are limited to ${tier === "paid" ? 3 : 1} request per minute.`,
+        );
+      }
+      const requestId = randomUUID();
+      try {
+        if (options.visionProvider.generateTextDraft === undefined) {
+          throw new VisionProviderError(
+            "not_configured",
+            "Text nutrition drafts are not configured on this server.",
+            false,
+          );
+        }
+        const candidate = await options.visionProvider.generateTextDraft({
+          userId: principal.userId as UserId,
+          description: parsed.data.description,
+          requestId,
+        });
+        return reply
+          .status(200)
+          .send(foodDraftResponseSchema.parse({ draft: candidate, requestId }));
+      } catch (error) {
+        if (error instanceof VisionProviderError) {
+          const status = visionFailureToHttpStatus(error.kind);
+          return sendApiError(
+            reply,
+            request,
+            status,
+            status === 429
+              ? "RATE_LIMITED"
+              : status === 503
+                ? "AI_CONFIGURATION_ERROR"
+                : "AI_UNAVAILABLE",
+            error.message,
+          );
+        }
+        throw error;
+      }
+    },
+  );
+
   app.post(
     "/draft",
     { preHandler: app.authenticate },

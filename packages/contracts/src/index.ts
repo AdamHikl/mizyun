@@ -456,6 +456,7 @@ export type GoalPatch = z.infer<typeof goalPatchSchema>;
 export {
   foodDraftCandidateSchema,
   foodDraftResponseSchema,
+  foodTextDraftRequestSchema,
   foodEntryCreateSchema,
   foodEntryListQuerySchema,
   foodEntryListResponseSchema,
@@ -472,6 +473,7 @@ export {
   type DailyFoodSummaryResponse,
   type FoodDraftCandidate,
   type FoodDraftResponse,
+  type FoodTextDraftRequest,
   type FoodEntry,
   type FoodEntryCreate,
   type FoodEntryListQuery,

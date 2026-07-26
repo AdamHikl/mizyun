@@ -1159,6 +1159,17 @@ no log lines carrying photo bytes.
   history and account deletion removes memory with the rest of the
   user's records. No model-facing write tool or automatic promotion was
   introduced.
+- Level 5 uses one strict editable nutrition candidate for both photo
+  and typed-description inputs. Point estimates are accompanied by
+  plausible low/high ranges, portion/ingredient assumptions,
+  confidence, warnings, and server-owned provider/model/prompt
+  provenance. The provider's resolved model identifier is preferred
+  over its configured alias when returned.
+- Typed descriptions are bounded, strict-schema inputs and pass the
+  Coach safety screen before provider access. Photo bytes retain the
+  existing transient-only boundary. Both paths only prefill the manual
+  meal form; the normal confirmed food-entry endpoint remains the sole
+  persistence authority.
 
 ## 2026-07-25 — AI-MOB-002 Coach UX polish
 

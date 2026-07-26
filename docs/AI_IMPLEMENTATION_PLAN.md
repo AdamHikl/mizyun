@@ -55,10 +55,10 @@ offline implementation proceeds.
    principal/token boundary, recall only confirmed active memories, add
    candidate/confirm/correct/deactivate/expiry lifecycle, and ship
    mobile review controls plus export/deletion evidence.
-5. **Nutrition drafting completion — next.** Add text-to-draft and make both
+5. **Nutrition drafting completion — done.** Add text-to-draft and make both
    text/photo drafts return ranges, assumptions, provenance, warnings,
    and confidence before explicit confirmation.
-6. **Evaluation and operations.** Expand reproducible grounded-answer,
+6. **Evaluation and operations — next.** Expand reproducible grounded-answer,
    safety, prompt-injection, isolation, failure, budget, and
    secret-bundle suites; record threshold results and reconcile every
    release checklist.

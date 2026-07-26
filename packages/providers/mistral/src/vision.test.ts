@@ -15,7 +15,21 @@ const request: VisionDraftRequest = {
 
 const providerWith = (candidate: Record<string, unknown>) => {
   const complete = vi.fn<MistralVisionClient["complete"]>(async () => ({
-    choices: [{ message: { content: JSON.stringify(candidate) } }],
+    model: "resolved-test-model",
+    choices: [
+      {
+        message: {
+          content: JSON.stringify({
+            calorieRangeKcal: { low: 380, high: 500 },
+            proteinRangeG: { low: 32, high: 44 },
+            carbohydrateRangeG: { low: 38, high: 55 },
+            fatRangeG: { low: 6, high: 13 },
+            assumptions: ["Assumes one ordinary plate."],
+            ...candidate,
+          }),
+        },
+      },
+    ],
   }));
   return {
     complete,
@@ -77,10 +91,43 @@ describe("MistralVisionProvider", () => {
       proteinG: null,
       carbohydrateG: null,
       fatG: null,
+      calorieRangeKcal: null,
+      proteinRangeG: null,
+      carbohydrateRangeG: null,
+      fatRangeG: null,
       confidence: 0.7,
       warnings: [
         "The AI suggestion was rejected by the safety policy. Please enter the values manually.",
       ],
+      assumptions: [],
+      provenance: {
+        inputKind: "photo",
+        provider: "mistral",
+        model: "resolved-test-model",
+        promptVersion: "nutrition-draft-v2",
+      },
     });
+  });
+
+  it("creates a text draft with text provenance and no image block", async () => {
+    const { complete, provider } = providerWith({
+      name: "Oats and yogurt",
+      caloriesKcal: 390,
+      proteinG: 24,
+      carbohydrateG: 52,
+      fatG: 9,
+      confidence: 0.75,
+      warnings: ["Verify yogurt fat percentage."],
+    });
+
+    const result = await provider.generateTextDraft({
+      userId: request.userId,
+      description: "60g oats and 200g Greek yogurt",
+    });
+
+    expect(result.provenance.inputKind).toBe("text");
+    expect(complete.mock.calls[0]?.[0].messages[1]?.content).toEqual(
+      expect.any(String),
+    );
   });
 });

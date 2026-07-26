@@ -31,6 +31,7 @@ import {
 } from "@/features/logging-draft-storage";
 
 import {
+  draftMealFromText,
   snapMealPhoto,
   submitLogMeal,
   type LogMealForm,
@@ -41,6 +42,32 @@ import {
 } from "./meal-form";
 
 const MAX_MEAL_IMAGE_EDGE = 2048;
+
+const draftEvidenceLines = (
+  draft: import("@mizyun/contracts").FoodDraftCandidate,
+): readonly string[] => {
+  const ranges = [
+    draft.calorieRangeKcal
+      ? `Calories: ${draft.calorieRangeKcal.low}–${draft.calorieRangeKcal.high} kcal`
+      : null,
+    draft.proteinRangeG
+      ? `Protein: ${draft.proteinRangeG.low}–${draft.proteinRangeG.high} g`
+      : null,
+    draft.carbohydrateRangeG
+      ? `Carbs: ${draft.carbohydrateRangeG.low}–${draft.carbohydrateRangeG.high} g`
+      : null,
+    draft.fatRangeG
+      ? `Fat: ${draft.fatRangeG.low}–${draft.fatRangeG.high} g`
+      : null,
+  ].filter((line): line is string => line !== null);
+  return [
+    `AI confidence: ${Math.round(draft.confidence * 100)}%`,
+    ...ranges,
+    ...draft.assumptions.map((item) => `Assumption: ${item}`),
+    ...draft.warnings,
+    `Source: ${draft.provenance.inputKind} estimate · ${draft.provenance.provider} · ${draft.provenance.promptVersion}`,
+  ];
+};
 
 const normalizeMealPhoto = async (
   asset: ImagePicker.ImagePickerAsset,
@@ -83,6 +110,7 @@ export function LogMealScreen() {
   // the user can edit before saving, while `draftWarnings` keeps provider
   // uncertainty visible.
   const [snapping, setSnapping] = useState(false);
+  const [mealDescription, setMealDescription] = useState("");
   const [draftWarnings, setDraftWarnings] = useState<readonly string[]>([]);
   const measurement = useRef<LoggingFlowMeasurement | null>(null);
   const hadFailure = useRef(false);
@@ -211,7 +239,7 @@ export function LogMealScreen() {
       setProtein(strings.protein);
       setCarbs(strings.carbs);
       setFat(strings.fat);
-      setDraftWarnings(draft.draft.warnings);
+      setDraftWarnings(draftEvidenceLines(draft.draft));
       measurement.current?.complete();
     } catch (cause) {
       hadFailure.current = true;
@@ -225,6 +253,29 @@ export function LogMealScreen() {
       setSnapping(false);
     }
   }, [userId]);
+
+  const onTextDraft = useCallback(async () => {
+    if (mealDescription.trim().length < 2) return;
+    setSnapping(true);
+    setError(null);
+    setDraftWarnings([]);
+    try {
+      const result = await draftMealFromText(mealDescription);
+      if (!result.ok) {
+        setError(result.message);
+        return;
+      }
+      const strings = mealFormStringsFromDraft(result.draft);
+      setName(strings.name);
+      setCalories(strings.calories);
+      setProtein(strings.protein);
+      setCarbs(strings.carbs);
+      setFat(strings.fat);
+      setDraftWarnings(draftEvidenceLines(result.draft));
+    } finally {
+      setSnapping(false);
+    }
+  }, [mealDescription]);
 
   const calorieHint =
     calories.trim().length > 0 ? "calories recorded" : "calories optional";
@@ -244,6 +295,35 @@ export function LogMealScreen() {
             Name your meal first; calories and macros are optional but the
             dashboard totals use them when present.
           </ThemedText>
+
+          <TextInput
+            accessibilityLabel="Describe meal for AI draft"
+            multiline
+            maxLength={1_000}
+            placeholder="Describe food and portions, e.g. two eggs, toast, and a teaspoon of butter"
+            placeholderTextColor="#8A8D91"
+            value={mealDescription}
+            onChangeText={setMealDescription}
+            style={[styles.input, styles.description, { color: theme.text }]}
+          />
+          <Pressable
+            accessibilityRole="button"
+            disabled={
+              snapping || submitting || mealDescription.trim().length < 2
+            }
+            accessibilityState={{
+              busy: snapping,
+              disabled:
+                snapping || submitting || mealDescription.trim().length < 2,
+            }}
+            onPress={() => void onTextDraft()}
+            style={({ pressed }) => [
+              styles.snap,
+              (pressed || snapping) && styles.snapPressed,
+            ]}
+          >
+            <ThemedText type="smallBold">✨ Draft from description</ThemedText>
+          </Pressable>
 
           <Pressable
             accessibilityRole="button"
@@ -446,6 +526,7 @@ const styles = StyleSheet.create({
     padding: Spacing.three,
     fontSize: 16,
   },
+  description: { minHeight: 76, textAlignVertical: "top" },
   macroRow: { flexDirection: "row", gap: Spacing.two },
   macroField: { flex: 1 },
   submit: {

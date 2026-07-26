@@ -108,7 +108,9 @@ export const submitLogMealWith = async (
 
 import {
   foodDraftCandidateSchema,
+  foodDraftResponseSchema,
   type FoodDraftCandidate,
+  type FoodDraftResponse,
 } from "@mizyun/contracts";
 
 export type SnapMealPhotoResult =
@@ -178,4 +180,19 @@ export const snapMealPhotoWith = async (
     };
   }
   return { ok: true, draft: parsed.data };
+};
+
+export const draftMealFromText = async (
+  description: string,
+): Promise<SnapMealPhotoResult> => {
+  const result = await apiClient.request<FoodDraftResponse>({
+    method: "POST",
+    path: "/v1/food-entries/draft/text",
+    body: { description: description.trim() },
+    schema: foodDraftResponseSchema,
+  });
+  if (!result.ok) {
+    return { ok: false, message: humanizeDraftError(result) };
+  }
+  return { ok: true, draft: result.value.draft };
 };

@@ -619,6 +619,17 @@ export interface VisionDraftRequest {
   readonly requestId?: string;
 }
 
+export interface TextFoodDraftRequest {
+  readonly userId: UserId;
+  readonly description: string;
+  readonly requestId?: string;
+}
+
+export interface NutritionEstimateRange {
+  readonly low: number;
+  readonly high: number;
+}
+
 export interface VisionDraftCandidate {
   /**
    * Suggested food name. `null` when the model cannot make a
@@ -635,6 +646,10 @@ export interface VisionDraftCandidate {
   readonly proteinG: number | null;
   readonly carbohydrateG: number | null;
   readonly fatG: number | null;
+  readonly calorieRangeKcal: NutritionEstimateRange | null;
+  readonly proteinRangeG: NutritionEstimateRange | null;
+  readonly carbohydrateRangeG: NutritionEstimateRange | null;
+  readonly fatRangeG: NutritionEstimateRange | null;
   /**
    * Model confidence in [0, 1]. Below 0.5 the route surfaces
    * the draft with a "low confidence" warning.
@@ -645,6 +660,13 @@ export interface VisionDraftCandidate {
    * to the user; never logged.
    */
   readonly warnings: readonly string[];
+  readonly assumptions: readonly string[];
+  readonly provenance: {
+    readonly inputKind: "photo" | "text";
+    readonly provider: string;
+    readonly model: string;
+    readonly promptVersion: string;
+  };
 }
 
 export interface VisionDraftProvider {
@@ -655,6 +677,9 @@ export interface VisionDraftProvider {
    * to a 502/503 envelope.
    */
   generateDraft(request: VisionDraftRequest): Promise<VisionDraftCandidate>;
+  generateTextDraft?(
+    request: TextFoodDraftRequest,
+  ): Promise<VisionDraftCandidate>;
 }
 
 export type VisionProviderFailureKind =
@@ -700,6 +725,9 @@ export class DisabledVisionProvider implements VisionDraftProvider {
       false,
     );
   }
+  async generateTextDraft(): Promise<VisionDraftCandidate> {
+    return this.generateDraft();
+  }
 }
 
 /**
@@ -726,12 +754,41 @@ export class StubVisionProvider implements VisionDraftProvider {
       proteinG: 12,
       carbohydrateG: 40,
       fatG: 14,
+      calorieRangeKcal: { low: 280, high: 430 },
+      proteinRangeG: { low: 9, high: 16 },
+      carbohydrateRangeG: { low: 32, high: 50 },
+      fatRangeG: { low: 10, high: 19 },
       confidence: 0.45,
       warnings: [
         hint.length === 0
           ? "AI could not identify the food from this photo."
           : "Stub provider: please verify every value before saving.",
       ],
+      assumptions: ["Assumes one ordinary serving."],
+      provenance: {
+        inputKind: "photo",
+        provider: "vision-dev-stub",
+        model: "deterministic-stub",
+        promptVersion: "nutrition-draft-v2",
+      },
+    };
+  }
+  async generateTextDraft(
+    request: TextFoodDraftRequest,
+  ): Promise<VisionDraftCandidate> {
+    const photoLikeRequest: VisionDraftRequest = {
+      userId: request.userId,
+      photo: new Uint8Array(),
+      mimeType: "image/jpeg",
+      textHint: request.description,
+      ...(request.requestId === undefined
+        ? {}
+        : { requestId: request.requestId }),
+    };
+    const candidate = await this.generateDraft(photoLikeRequest);
+    return {
+      ...candidate,
+      provenance: { ...candidate.provenance, inputKind: "text" },
     };
   }
 }

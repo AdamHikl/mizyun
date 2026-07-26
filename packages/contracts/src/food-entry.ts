@@ -264,17 +264,48 @@ export type FoodEntrySummaryQuery = z.infer<typeof foodEntrySummaryQuerySchema>;
  * ephemeral in v1; a future segment may add a server-side
  * `food_entry_drafts` table for cross-device resume.
  */
+const nutritionEstimateRangeSchema = z
+  .object({
+    low: z.number().gte(0).lte(20_000),
+    high: z.number().gte(0).lte(20_000),
+  })
+  .strict()
+  .refine((range) => range.low <= range.high, {
+    message: "low must be less than or equal to high",
+  });
+
 export const foodDraftCandidateSchema = z.object({
   name: z.string().trim().min(1).max(200).nullable(),
   caloriesKcal: z.number().gte(0).lte(20_000).multipleOf(0.01).nullable(),
   proteinG: macroSchema.nullable(),
   carbohydrateG: macroSchema.nullable(),
   fatG: macroSchema.nullable(),
+  calorieRangeKcal: nutritionEstimateRangeSchema.nullable(),
+  proteinRangeG: nutritionEstimateRangeSchema.nullable(),
+  carbohydrateRangeG: nutritionEstimateRangeSchema.nullable(),
+  fatRangeG: nutritionEstimateRangeSchema.nullable(),
   confidence: z.number().gte(0).lte(1),
   warnings: z.array(z.string().trim().min(1).max(500)).max(8),
+  assumptions: z.array(z.string().trim().min(1).max(500)).max(8),
+  provenance: z
+    .object({
+      inputKind: z.enum(["photo", "text"]),
+      provider: z.string().trim().min(1).max(100),
+      model: z.string().trim().min(1).max(200),
+      promptVersion: z.string().trim().min(1).max(100),
+    })
+    .strict(),
 });
 
 export type FoodDraftCandidate = z.infer<typeof foodDraftCandidateSchema>;
+
+export const foodTextDraftRequestSchema = z
+  .object({
+    description: z.string().trim().min(2).max(1_000),
+  })
+  .strict();
+
+export type FoodTextDraftRequest = z.infer<typeof foodTextDraftRequestSchema>;
 
 export const foodDraftResponseSchema = z.object({
   draft: foodDraftCandidateSchema,

@@ -18,6 +18,7 @@ import {
   type VisionDraftCandidate,
   type VisionDraftProvider,
   type VisionDraftRequest,
+  type TextFoodDraftRequest,
   type VisionMimeType,
 } from "@mizyun/agent-runtime";
 import { z } from "zod";
@@ -28,14 +29,31 @@ const visionOutputSchema = z.object({
   proteinG: z.number().nonnegative().lte(10_000).nullable(),
   carbohydrateG: z.number().nonnegative().lte(10_000).nullable(),
   fatG: z.number().nonnegative().lte(10_000).nullable(),
+  calorieRangeKcal: z
+    .object({ low: z.number().nonnegative(), high: z.number().nonnegative() })
+    .nullable(),
+  proteinRangeG: z
+    .object({ low: z.number().nonnegative(), high: z.number().nonnegative() })
+    .nullable(),
+  carbohydrateRangeG: z
+    .object({ low: z.number().nonnegative(), high: z.number().nonnegative() })
+    .nullable(),
+  fatRangeG: z
+    .object({ low: z.number().nonnegative(), high: z.number().nonnegative() })
+    .nullable(),
   confidence: z.number().min(0).max(1),
   warnings: z.array(z.string().trim().min(1).max(500)).max(8),
+  assumptions: z.array(z.string().trim().min(1).max(500)).max(8),
 });
+type VisionModelOutput = z.infer<typeof visionOutputSchema>;
+
+const NUTRITION_DRAFT_PROMPT_VERSION = "nutrition-draft-v2";
 
 const visionSystemPolicy = [
   "You are a nutrition photo analyzer. Use only the photo and the user's hint.",
   "Identify the food or drink in the photo. If you cannot, set name to null.",
   "Estimate calories and macros conservatively. Round to one decimal place for grams, integer for kcal.",
+  "For every non-null estimate, return a plausible low/high range and list the portion or ingredient assumptions that drive it.",
   "Prefer null over a guess you are not confident about.",
   "Never make medical claims or suggest a daily calorie target.",
   "Output strictly the JSON schema the user requested.",
@@ -220,7 +238,9 @@ const dataUrlOf = (
   return `data:${mime};base64,${buffer.toString("base64")}`;
 };
 
-const isUnsafeOutput = (candidate: VisionDraftCandidate): boolean => {
+const isUnsafeOutput = (
+  candidate: Pick<VisionDraftCandidate, "name">,
+): boolean => {
   if (
     candidate.name !== null &&
     /(diagnose|prescribe|medication|disorder)/i.test(candidate.name)
@@ -278,6 +298,40 @@ export class MistralVisionProvider implements VisionDraftProvider {
       );
     }
     const dataUrl = dataUrlOf(request.mimeType, request.photo);
+    return this.#generate(
+      [
+        { type: "text", text: visionUserPrompt(request.textHint) },
+        { type: "image_url", imageUrl: dataUrl },
+      ],
+      "photo",
+    );
+  }
+
+  async generateTextDraft(
+    request: TextFoodDraftRequest,
+  ): Promise<VisionDraftCandidate> {
+    if (!this.#externalAccess) {
+      throw new VisionProviderError(
+        "external_access_disabled",
+        "External AI nutrition drafting access is disabled.",
+        false,
+      );
+    }
+    return this.#generate(
+      `Estimate an editable meal draft from this user description only: "${request.description.trim()}".`,
+      "text",
+    );
+  }
+
+  async #generate(
+    content:
+      | string
+      | Array<
+          | { type: "text"; text: string }
+          | { type: "image_url"; imageUrl: string }
+        >,
+    inputKind: "photo" | "text",
+  ): Promise<VisionDraftCandidate> {
     const call = () =>
       this.#client.complete(
         {
@@ -286,10 +340,7 @@ export class MistralVisionProvider implements VisionDraftProvider {
             { role: "system", content: visionSystemPolicy },
             {
               role: "user",
-              content: [
-                { type: "text", text: visionUserPrompt(request.textHint) },
-                { type: "image_url", imageUrl: dataUrl },
-              ],
+              content,
             },
           ],
           maxTokens: this.#maxOutputTokens,
@@ -313,14 +364,16 @@ export class MistralVisionProvider implements VisionDraftProvider {
       }
     }
 
-    const parsed = parseProviderResponse(raw);
-    if (parsed === null) {
+    const parsedResponse = parseProviderResponse(raw);
+    if (parsedResponse === null) {
       throw new VisionProviderError(
         "malformed_response",
         "The vision provider returned an invalid response.",
         false,
       );
     }
+    const parsed = parsedResponse.candidate;
+    const resolvedModel = parsedResponse.resolvedModel ?? this.#model;
     if (isUnsafeOutput(parsed)) {
       // Replace the candidate with a safe fallback so the user
       // never sees a medically-loaded suggestion. The route
@@ -332,24 +385,52 @@ export class MistralVisionProvider implements VisionDraftProvider {
         proteinG: null,
         carbohydrateG: null,
         fatG: null,
+        calorieRangeKcal: null,
+        proteinRangeG: null,
+        carbohydrateRangeG: null,
+        fatRangeG: null,
         confidence: parsed.confidence,
         warnings: [
           ...parsed.warnings,
           "The AI suggestion was rejected by the safety policy. Please enter the values manually.",
         ],
+        assumptions: [],
+        provenance: {
+          inputKind,
+          provider: "mistral",
+          model: resolvedModel,
+          promptVersion: NUTRITION_DRAFT_PROMPT_VERSION,
+        },
       };
     }
-    return parsed;
+    return {
+      ...parsed,
+      provenance: {
+        inputKind,
+        provider: "mistral",
+        model: resolvedModel,
+        promptVersion: NUTRITION_DRAFT_PROMPT_VERSION,
+      },
+    };
   }
 }
 
-const parseProviderResponse = (raw: unknown): VisionDraftCandidate | null => {
+const parseProviderResponse = (
+  raw: unknown,
+): {
+  readonly candidate: VisionModelOutput;
+  readonly resolvedModel: string | null;
+} | null => {
   // Mistral's chat.complete returns an object with `choices[0]`
   // containing the message. The `content` field may be a string
   // (when the model returns free-form text) or an object when
   // the response_format is JSON schema.
   if (typeof raw !== "object" || raw === null) return null;
   const record = raw as Record<string, unknown>;
+  const resolvedModel =
+    typeof record.model === "string" && record.model.length > 0
+      ? record.model
+      : null;
   const choices = record.choices;
   if (!Array.isArray(choices) || choices.length === 0) return null;
   const first = choices[0];
@@ -360,14 +441,19 @@ const parseProviderResponse = (raw: unknown): VisionDraftCandidate | null => {
   if (typeof content === "string") {
     try {
       const parsed: unknown = JSON.parse(content);
-      return visionOutputSchema.parse(parsed);
+      return {
+        candidate: visionOutputSchema.parse(parsed),
+        resolvedModel,
+      };
     } catch {
       return null;
     }
   }
   if (typeof content === "object" && content !== null) {
     const parsed = visionOutputSchema.safeParse(content);
-    if (parsed.success) return parsed.data;
+    if (parsed.success) {
+      return { candidate: parsed.data, resolvedModel };
+    }
   }
   return null;
 };
