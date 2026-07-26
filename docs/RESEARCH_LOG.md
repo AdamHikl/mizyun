@@ -1170,6 +1170,16 @@ no log lines carrying photo bytes.
   existing transient-only boundary. Both paths only prefill the manual
   meal form; the normal confirmed food-entry endpoint remains the sole
   persistence authority.
+- Level 6 adds one reproducible offline evaluation command and a
+  threshold-by-threshold evidence report. The fixed critical-safety
+  corpus is now `coach-safety-v2` with 16 English/Slovak cases,
+  including medication and dangerous training-volume requests.
+  Retrieved memories and tool results are explicitly serialized as
+  untrusted data, with a regression test containing adversarial text.
+- The evidence report separates offline passes from provider-dependent
+  promotion measurements. Grounded-answer accuracy at scale and
+  p50/p95 latency/cost remain pending rather than being inferred from
+  the two existing live synthetic cases.
 
 ## 2026-07-25 — AI-MOB-002 Coach UX polish
 

@@ -13,7 +13,7 @@ The current business preference is to evaluate Mistral first because Mizyun is p
 - [x] Keep API keys in validated server-only configuration; mobile public configuration contains no Mistral secret.
 - [x] Select the Mistral adapter only in the API composition root and retain `DisabledAgentProvider` as the default.
 - [x] Add strict structured-output validation, fixed refusal paths, post-output checks, and normalized provider errors.
-- [ ] Add rate limits, timeouts, retries with jitter, and usage budgets.
+- [x] Add rate limits, timeouts, retries with jitter, and usage budgets.
 
 ### Synthetic-provider gate
 
@@ -27,11 +27,11 @@ Before the first live Mistral request:
 
 ## Memory
 
-- [ ] Choose the first `MemoryStore` adapter: PostgreSQL search, pgvector, or an external vector store.
-- [ ] Define embedding model, dimensions, migration strategy, and re-embedding procedure inside that adapter.
-- [ ] Test user isolation for save, list, search, update, and deletion.
-- [ ] Add user-visible memory review, correction, export, and deletion controls.
-- [ ] Ensure inferred memories include provenance, confidence, and expiry rules.
+- [x] Choose the first `MemoryStore` adapter: PostgreSQL lexical search.
+- [x] Record that embeddings are intentionally excluded from the first memory slice; an ADR and re-embedding plan are required before adding them.
+- [x] Test verified-principal isolation for save, list, search, update, and deletion.
+- [x] Add user-visible memory review, correction, export, and deletion controls.
+- [x] Ensure memory candidates include provenance, confidence, and expiry rules; the runtime never creates inferred memories.
 
 ## Product and safety evaluation
 

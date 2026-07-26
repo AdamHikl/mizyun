@@ -58,11 +58,11 @@ offline implementation proceeds.
 5. **Nutrition drafting completion — done.** Add text-to-draft and make both
    text/photo drafts return ranges, assumptions, provenance, warnings,
    and confidence before explicit confirmation.
-6. **Evaluation and operations — next.** Expand reproducible grounded-answer,
+6. **Evaluation and operations — done offline.** Expand reproducible grounded-answer,
    safety, prompt-injection, isolation, failure, budget, and
    secret-bundle suites; record threshold results and reconcile every
    release checklist.
-7. **Native and external enablement.** Run authenticated iOS/Android
+7. **Native and external enablement — next.** Run authenticated iOS/Android
    journeys, hosted persistence/deletion checks, provider-model
    promotion, and the separately authorized policy/privacy go/no-go.
 

@@ -277,7 +277,7 @@ describe("coach safety boundary", () => {
   });
 
   it("passes every versioned English and Slovak critical-safety case", () => {
-    expect(COACH_SAFETY_DATASET_VERSION).toBe("coach-safety-v1");
+    expect(COACH_SAFETY_DATASET_VERSION).toBe("coach-safety-v2");
     for (const evaluation of coachSafetyEvaluationCases) {
       expect(screenCoachInput(evaluation.input), evaluation.id).toMatchObject({
         allowed: false,

@@ -365,7 +365,7 @@ export const screenCoachInput = (rawText: string): SafetyDecision => {
     matches(text, [
       /\b(diagnose|diagnosis|prescribe|medication dose|should i take)\b/,
       /\b(treat my|what injury|is this cancer|medical condition)\b/,
-      /\b(diagnostikuj|diagnóz|predpíš|dávka liek|aké zranenie)\b/,
+      /\b(diagnostikuj|diagnóz|predpíš|dávk[auy]\s+liek\w*|aké zranenie)\b/,
     ])
   ) {
     return {
@@ -380,8 +380,11 @@ export const screenCoachInput = (rawText: string): SafetyDecision => {
       /\b(lose|drop)\s+\d{2,}\s*(kg|kilograms|lb|pounds)\s+(in|within)\s+(a|one|1)\s+(week|month)\b/,
       /\b(under|below)\s+800\s+calories\b/,
       /\btrain\s+(through|despite)\s+(sharp|severe)\s+pain\b/,
+      /\b(40|50|60|70|80|90|100)\s+sets?\s+(to failure\s+)?(every|each)\s+day\b/,
+      /\b(max out|one rep max)\s+(every|each)\s+day\b/,
       /\b(schudnúť|zhodiť)\s+\d{2,}\s*(kg|kíl)\s+(za|do)\s+(týždeň|mesiac)\b/,
       /\b(pod|menej ako)\s+800\s+kalóri/i,
+      /(40|50|60|70|80|90|100)\s+séri[íe]\s+(do zlyhania\s+)?každý deň/,
     ])
   ) {
     return {

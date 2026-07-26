@@ -29,6 +29,8 @@
     "test": "pnpm -r --if-present test",
     "alpha:analyze": "tsx scripts/analyze-alpha-exports.ts",
     "ai:live-synthetic": "pnpm --filter @mizyun/provider-mistral exec vitest run src/live-synthetic.e2e.test.ts",
+    "ai:eval:offline": "pnpm --filter @mizyun/agent-runtime test && pnpm --filter @mizyun/core test && pnpm --filter @mizyun/contracts test && pnpm --filter @mizyun/provider-mistral test && pnpm --filter @mizyun/api test",
+    "ai:eval": "pnpm check && pnpm db:verify",
     "mem:smoke": "bash scripts/mem-001-smoke.sh",
     "vision:smoke": "bash scripts/vision-001-smoke.sh",
     "ai:smoke": "bash scripts/ai-ops-001-smoke.sh",
