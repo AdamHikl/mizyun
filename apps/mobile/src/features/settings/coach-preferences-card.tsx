@@ -11,6 +11,7 @@ import {
 import { apiClient } from "@/composition/api-client";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { Slider } from "@/components/slider";
 import { Colors, Spacing } from "@/constants/theme";
 
 const experienceOptions = [
@@ -90,33 +91,13 @@ export function CoachPreferencesCard({
   const [draft, setDraft] = useState<CoachingPreferences>(
     profile.coachingPreferences,
   );
-  const [customDurationText, setCustomDurationText] = useState(
-    profile.coachingPreferences.sessionDurationMinutes
-      ? String(profile.coachingPreferences.sessionDurationMinutes)
-      : "",
-  );
   const [customNoteText, setCustomNoteText] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     setDraft(profile.coachingPreferences);
-    setCustomDurationText(
-      profile.coachingPreferences.sessionDurationMinutes
-        ? String(profile.coachingPreferences.sessionDurationMinutes)
-        : "",
-    );
   }, [profile]);
-
-  const updateDurationFromText = (text: string) => {
-    setCustomDurationText(text);
-    const parsed = parseInt(text.trim(), 10);
-    if (!isNaN(parsed) && parsed >= 15 && parsed <= 180) {
-      setDraft((prev) => ({ ...prev, sessionDurationMinutes: parsed }));
-    } else if (text.trim().length === 0) {
-      setDraft((prev) => ({ ...prev, sessionDurationMinutes: null }));
-    }
-  };
 
   const save = async () => {
     setSaving(true);
@@ -208,52 +189,29 @@ export function CoachPreferencesCard({
         ))}
       </ChoiceSection>
 
-      <ChoiceSection title="Days per week">
-        {[1, 2, 3, 4, 5, 6, 7].map((value) => (
-          <ChoiceChip
-            key={value}
-            label={String(value)}
-            selected={draft.trainingDaysPerWeek === value}
-            onPress={() =>
-              setDraft({
-                ...draft,
-                trainingDaysPerWeek:
-                  draft.trainingDaysPerWeek === value ? null : value,
-              })
-            }
-          />
-        ))}
-      </ChoiceSection>
+      <Slider
+        label="Training days per week"
+        min={1}
+        max={7}
+        step={1}
+        value={draft.trainingDaysPerWeek ?? 3}
+        formatValue={(v) => `${v} day${v === 1 ? "" : "s"} / week`}
+        onChange={(value) =>
+          setDraft((prev) => ({ ...prev, trainingDaysPerWeek: value }))
+        }
+      />
 
-      <ChoiceSection title="Session length (minutes)">
-        {[15, 30, 45, 60, 75, 90, 120].map((value) => (
-          <ChoiceChip
-            key={value}
-            label={`${value}m`}
-            selected={draft.sessionDurationMinutes === value}
-            onPress={() => {
-              setDraft({
-                ...draft,
-                sessionDurationMinutes:
-                  draft.sessionDurationMinutes === value ? null : value,
-              });
-              setCustomDurationText(
-                draft.sessionDurationMinutes === value ? "" : String(value),
-              );
-            }}
-          />
-        ))}
-        <TextInput
-          accessibilityLabel="Custom session duration in minutes"
-          keyboardType="number-pad"
-          maxLength={3}
-          placeholder="Custom min (15-180)"
-          placeholderTextColor={Colors.dark.textSecondary}
-          value={customDurationText}
-          onChangeText={updateDurationFromText}
-          style={styles.customNumberInput}
-        />
-      </ChoiceSection>
+      <Slider
+        label="Session length"
+        min={15}
+        max={180}
+        step={5}
+        value={draft.sessionDurationMinutes ?? 45}
+        formatValue={(v) => `${v} minutes / session`}
+        onChange={(value) =>
+          setDraft((prev) => ({ ...prev, sessionDurationMinutes: value }))
+        }
+      />
 
       <ChoiceSection title="Available equipment">
         {equipmentOptions.map(([value, label]) => (
