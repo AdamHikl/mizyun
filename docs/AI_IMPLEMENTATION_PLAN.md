@@ -72,8 +72,12 @@ offline implementation proceeds.
    provider and appear as the same persistent review card. Review transfers
    the proposal into encrypted recoverable meal-form state, and only the
    existing confirmed food endpoint can create the authoritative entry.
-   Workout proposals, daily action plans, weekly adaptation proposals, and
-   opt-in proactive prompts remain sequenced behind this completed meal slice.
+   Explicit workout-plan requests now select the next session from the
+   versioned deterministic prescription, persist it as an editable proposal,
+   and transfer it into recoverable workout state. Users may remove exercises
+   or edit the workout name/notes before explicit start; the confirmed
+   proposal is retained in workout provenance. Daily action plans, weekly
+   adaptation proposals, and opt-in proactive prompts remain sequenced next.
 
 ## Why implementation can move before alpha
 

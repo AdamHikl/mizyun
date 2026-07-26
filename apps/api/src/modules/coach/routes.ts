@@ -26,6 +26,7 @@ import {
   coachConversationListResponseSchema,
   coachConversationPatchSchema,
   coachConversationResponseSchema,
+  coachActionProposalSchema,
   coachMessageCreateSchema,
   coachMessageResponseSchema,
   coachNutritionProposalSchema,
@@ -44,6 +45,7 @@ import { buildCoachGrounding } from "./grounding.js";
 import type { CoachLimitService } from "./limits.js";
 import { isExplicitMealLoggingIntent } from "./nutrition-action.js";
 import { buildTrainingPrescriptionForUser } from "./tools.js";
+import { isExplicitWorkoutProposalIntent } from "./workout-action.js";
 
 interface CoachRoutesOptions {
   readonly agent: AgentOrchestrator;
@@ -122,7 +124,7 @@ const toMessageWire = (stored: StoredConversationMessage): CoachMessage => ({
       : null,
   evidenceKinds: evidenceKinds(stored.providerMetadata),
   actionProposal: (() => {
-    const parsed = coachNutritionProposalSchema.safeParse(
+    const parsed = coachActionProposalSchema.safeParse(
       stored.providerMetadata.actionProposal,
     );
     return parsed.success ? parsed.data : null;
@@ -530,6 +532,69 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
           }
           throw error;
         }
+      }
+
+      if (isExplicitWorkoutProposalIntent(parsed.data.text)) {
+        const prescription = await buildTrainingPrescriptionForUser(
+          options,
+          principal.userId,
+          principal.accessToken,
+          now(),
+        );
+        const session =
+          prescription.sessions.length === 0
+            ? null
+            : (prescription.sessions[
+                prescription.recentLoad.completedSessionsLast7Days %
+                  prescription.sessions.length
+              ] ??
+              prescription.sessions[0] ??
+              null);
+        const actionProposal =
+          session === null
+            ? null
+            : coachActionProposalSchema.parse({
+                id: crypto.randomUUID(),
+                kind: "workout_start",
+                prescriptionVersion: prescription.version,
+                volumeAction: prescription.volumeAction,
+                session,
+              });
+        const assistantMessage =
+          await options.conversationRepository.addMessage(
+            principal.userId,
+            {
+              id: crypto.randomUUID(),
+              conversationId,
+              role: "assistant",
+              text:
+                actionProposal === null
+                  ? `I need ${prescription.missingInputs.join(
+                      ", ",
+                    )} before I can build a workout. Add those Coach preferences first.`
+                  : `I prepared ${session?.label ?? "today’s workout"} from your confirmed goal, schedule, equipment, limitations, and recent training load. Review it before starting.`,
+              status: "complete",
+              idempotencyKey: null,
+              providerMetadata: {
+                provider: "mizyun-planner",
+                replyTo: userMessage.id,
+                evidenceKinds: ["plan", "training", "profile", "goal"],
+                ...(actionProposal === null ? {} : { actionProposal }),
+              },
+            },
+            { accessToken: principal.accessToken, now: now() },
+          );
+        const latestConversation =
+          (await options.conversationRepository.get(
+            principal.userId,
+            conversationId,
+            { accessToken: principal.accessToken },
+          )) ?? conversation;
+        return coachMessageResponseSchema.parse({
+          conversation: toConversationWire(latestConversation),
+          userMessage: toMessageWire(userMessage),
+          assistantMessage: toMessageWire(assistantMessage),
+        });
       }
 
       // Acquire a durable slot via the AI-OPS-001 limiter service.

@@ -12,10 +12,12 @@ import {
 import { router, Stack } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import type {
-  Exercise,
-  ExerciseRecentSetsResponse,
-  WorkoutSet,
+import {
+  coachWorkoutProposalSchema,
+  type CoachWorkoutProposal,
+  type Exercise,
+  type ExerciseRecentSetsResponse,
+  type WorkoutSet,
 } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
@@ -53,6 +55,7 @@ interface WorkoutDraft {
   readonly durationSeconds: string;
   readonly distanceMeters: string;
   readonly perceivedExertion: string;
+  readonly workoutProposal?: CoachWorkoutProposal;
 }
 
 const EMPTY_DRAFT: WorkoutDraft = {
@@ -177,7 +180,18 @@ export function LogWorkoutScreen() {
     }
     setBusy(true);
     setMessage(null);
-    const result = await startWorkout(draft.name, draft.notes);
+    const result = await startWorkout(
+      draft.name,
+      draft.notes,
+      draft.workoutProposal === undefined
+        ? undefined
+        : {
+            aiDraft: {
+              ...draft.workoutProposal,
+              userConfirmed: true,
+            },
+          },
+    );
     setBusy(false);
     if (!result.ok) {
       hadFailure.current = true;
@@ -438,6 +452,51 @@ function StartSection(props: {
         placeholder="Leg day"
         inputColor={props.inputColor}
       />
+      {props.draft.workoutProposal !== undefined ? (
+        <View style={styles.planCard}>
+          <ThemedText type="smallBold">Coach workout proposal</ThemedText>
+          {props.draft.workoutProposal.session.exercises.map((exercise) => (
+            <View key={exercise.catalogId} style={styles.planExercise}>
+              <View style={styles.setCopy}>
+                <ThemedText type="smallBold">{exercise.name}</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {exercise.sets} sets ·{" "}
+                  {exercise.repsMin === null
+                    ? `${exercise.durationMinutes} min`
+                    : `${exercise.repsMin}–${exercise.repsMax} reps`}{" "}
+                  · {exercise.restSeconds}s rest
+                </ThemedText>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${exercise.name} from proposal`}
+                onPress={() =>
+                  props.onPatch({
+                    workoutProposal: {
+                      ...props.draft.workoutProposal!,
+                      session: {
+                        ...props.draft.workoutProposal!.session,
+                        exercises:
+                          props.draft.workoutProposal!.session.exercises.filter(
+                            (candidate) =>
+                              candidate.catalogId !== exercise.catalogId,
+                          ),
+                      },
+                    },
+                  })
+                }
+                style={styles.deleteButton}
+              >
+                <ThemedText type="smallBold">Remove</ThemedText>
+              </Pressable>
+            </View>
+          ))}
+          <ThemedText type="small" themeColor="textSecondary">
+            Edit the name or notes, remove exercises, then start. Actual sets
+            remain editable as you log them.
+          </ThemedText>
+        </View>
+      ) : null}
       <Field
         testID="workout-notes-input"
         label="Notes (optional)"
@@ -487,6 +546,21 @@ function ActiveSection(props: {
           Active session · {props.sets.length} saved sets
         </ThemedText>
       </View>
+
+      {props.draft.workoutProposal !== undefined ? (
+        <View style={styles.planCard}>
+          <ThemedText type="smallBold">Planned session</ThemedText>
+          {props.draft.workoutProposal.session.exercises.map((exercise) => (
+            <ThemedText key={exercise.catalogId} type="small">
+              {exercise.name} · {exercise.sets}×
+              {exercise.repsMin === null
+                ? `${exercise.durationMinutes} min`
+                : `${exercise.repsMin}–${exercise.repsMax}`}{" "}
+              · {exercise.restSeconds}s rest
+            </ThemedText>
+          ))}
+        </View>
+      ) : null}
 
       <View style={styles.section}>
         <ThemedText type="smallBold">Choose an exercise</ThemedText>
@@ -752,9 +826,13 @@ const isStoredWorkoutDraft = (value: unknown): value is StoredWorkoutDraft => {
   const candidate = value as Record<string, unknown>;
   if (typeof candidate.name !== "string" || typeof candidate.notes !== "string")
     return false;
-  return Object.keys(EMPTY_DRAFT).every(
+  const stringsValid = Object.keys(EMPTY_DRAFT).every(
     (key) => candidate[key] === undefined || typeof candidate[key] === "string",
   );
+  const proposalValid =
+    candidate.workoutProposal === undefined ||
+    coachWorkoutProposalSchema.safeParse(candidate.workoutProposal).success;
+  return stringsValid && proposalValid;
 };
 
 const styles = StyleSheet.create({
@@ -775,6 +853,18 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.six,
   },
   section: { gap: Spacing.three },
+  planCard: {
+    gap: Spacing.two,
+    padding: Spacing.three,
+    borderRadius: Spacing.three,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#18633d",
+  },
+  planExercise: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+  },
   field: { flex: 1, minWidth: 140, gap: Spacing.one },
   input: {
     borderWidth: StyleSheet.hairlineWidth,

@@ -104,6 +104,27 @@ describe("workout lifecycle", () => {
     });
   });
 
+  it("retains the confirmed Coach proposal as workout provenance", async () => {
+    const requests: RequestOptions[] = [];
+    const proposal = {
+      kind: "workout_start",
+      prescriptionVersion: "training-prescription-v1",
+      userConfirmed: true,
+    };
+    const result = await startWorkoutWith(
+      queuedClient([{ ok: true, value: { workout: WORKOUT } }], requests),
+      " Full body A ",
+      " Coach plan ",
+      () => NOW,
+      { aiDraft: proposal },
+    );
+    expect(result.ok).toBe(true);
+    expect(requests[0]?.body).toMatchObject({
+      name: "Full body A",
+      details: { aiDraft: proposal },
+    });
+  });
+
   it("creates a custom exercise", async () => {
     const requests: RequestOptions[] = [];
     const result = await createExerciseWith(

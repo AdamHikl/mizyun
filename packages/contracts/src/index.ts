@@ -45,6 +45,7 @@ export const coachResponseSchema = z.object({
 export type CoachResponse = z.infer<typeof coachResponseSchema>;
 
 export {
+  coachActionProposalSchema,
   coachConversationCreateSchema,
   coachConversationListResponseSchema,
   coachConversationPatchSchema,
@@ -65,6 +66,8 @@ export {
   coachNutritionProposalSchema,
   coachProviderStatusSchema,
   coachThreadResponseSchema,
+  coachWorkoutProposalSchema,
+  type CoachActionProposal,
   type CoachConversation,
   type CoachConversationCreate,
   type CoachConversationListResponse,
@@ -84,6 +87,7 @@ export {
   type CoachNutritionProposal,
   type CoachProviderStatus,
   type CoachThreadResponse,
+  type CoachWorkoutProposal,
 } from "./coach";
 
 /**

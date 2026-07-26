@@ -141,18 +141,22 @@ export const loadWorkoutWorkspaceWith = async (
 export const startWorkout = async (
   name: string,
   notes: string,
-): Promise<StartWorkoutResult> => startWorkoutWith(apiClient, name, notes);
+  details?: Readonly<Record<string, unknown>>,
+): Promise<StartWorkoutResult> =>
+  startWorkoutWith(apiClient, name, notes, () => new Date(), details);
 
 export const startWorkoutWith = async (
   client: ApiClient,
   name: string,
   notes: string,
   now: () => Date = () => new Date(),
+  details?: Readonly<Record<string, unknown>>,
 ): Promise<StartWorkoutResult> => {
   const parsed = workoutCreateSchema.safeParse({
     name: name.trim(),
     startedAt: now().toISOString(),
     ...(notes.trim().length > 0 ? { notes: notes.trim() } : {}),
+    ...(details === undefined ? {} : { details }),
   });
   if (!parsed.success) return { ok: false, message: "Name the workout first." };
   const result = await client.request<WorkoutResponse>({

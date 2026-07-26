@@ -162,6 +162,73 @@ describe("coach routes", () => {
     expect(respond).not.toHaveBeenCalled();
   });
 
+  it("persists an editable workout proposal from the deterministic prescription without provider work", async () => {
+    const { app, respond } = makeApp();
+    await app.inject({
+      method: "PUT",
+      url: "/v1/profile",
+      headers: { ...auth, "content-type": "application/json" },
+      payload: {
+        coachingPreferences: {
+          experienceLevel: "intermediate",
+          trainingDaysPerWeek: 3,
+          sessionDurationMinutes: 45,
+          trainingFocus: "strength",
+          availableEquipment: ["dumbbells", "bench"],
+          dietaryPreferences: ["omnivore"],
+          trainingLimitations: [],
+        },
+      },
+    });
+    await app.inject({
+      method: "POST",
+      url: "/v1/goals",
+      headers: { ...auth, "content-type": "application/json" },
+      payload: {
+        kind: "recomp",
+        pace: "gradual",
+        target: { weightKg: 80 },
+        startsOn: "2026-07-01",
+        targetDate: "2026-12-31",
+      },
+    });
+    const id = await createConversation(app);
+    const first = await sendMessage(
+      app,
+      id,
+      "workout-action-key-0001",
+      "Build today's workout",
+    );
+    expect(first.statusCode).toBe(200);
+    expect(first.json().assistantMessage).toMatchObject({
+      provider: "mizyun-planner",
+      evidenceKinds: expect.arrayContaining(["plan", "training"]),
+      actionProposal: {
+        kind: "workout_start",
+        volumeAction: "hold",
+        session: {
+          index: 1,
+          estimatedMinutes: 45,
+          exercises: expect.any(Array),
+        },
+      },
+    });
+    expect(
+      first.json().assistantMessage.actionProposal.session.exercises.length,
+    ).toBeGreaterThan(0);
+    expect(respond).not.toHaveBeenCalled();
+
+    const replay = await sendMessage(
+      app,
+      id,
+      "workout-action-key-0001",
+      "Build today's workout",
+    );
+    expect(replay.json().assistantMessage.actionProposal.id).toBe(
+      first.json().assistantMessage.actionProposal.id,
+    );
+  });
+
   it("creates, grounds, persists, and idempotently returns a coach message", async () => {
     const { app, respond } = makeApp();
     const id = await createConversation(app);

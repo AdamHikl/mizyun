@@ -18,6 +18,7 @@ import type {
   CoachMessage,
   CoachNutritionProposal,
   CoachProviderStatus,
+  CoachWorkoutProposal,
 } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
@@ -355,6 +356,32 @@ export function CoachSetupScreen() {
     [userId],
   );
 
+  const reviewWorkoutProposal = useCallback(
+    async (proposal: CoachWorkoutProposal) => {
+      if (userId === null) {
+        setMessage("Your session expired. Sign in again.");
+        return;
+      }
+      const stored = await saveLoggingDraft(userId, "workout", {
+        name: proposal.session.label,
+        notes: `Coach plan · ${proposal.volumeAction} volume · ${proposal.session.estimatedMinutes} min`,
+        selectedExerciseId: "",
+        repetitions: "",
+        load: "",
+        durationSeconds: "",
+        distanceMeters: "",
+        perceivedExertion: "",
+        workoutProposal: proposal,
+      });
+      if (!stored) {
+        setMessage("Could not prepare the workout proposal. Try again.");
+        return;
+      }
+      router.push("/log-workout" as Href);
+    },
+    [userId],
+  );
+
   const attachMealPhoto = useCallback(async () => {
     if (
       active === null ||
@@ -545,6 +572,7 @@ export function CoachSetupScreen() {
                       key={item.id}
                       message={item}
                       onReviewNutritionProposal={reviewNutritionProposal}
+                      onReviewWorkoutProposal={reviewWorkoutProposal}
                     />
                   ))
                 )}
@@ -654,11 +682,13 @@ export function CoachSetupScreen() {
 function MessageBubble({
   message,
   onReviewNutritionProposal,
+  onReviewWorkoutProposal,
 }: {
   readonly message: CoachMessage;
   readonly onReviewNutritionProposal: (
     proposal: CoachNutritionProposal,
   ) => void;
+  readonly onReviewWorkoutProposal: (proposal: CoachWorkoutProposal) => void;
 }) {
   const assistant = message.role === "assistant";
   return (
@@ -672,10 +702,16 @@ function MessageBubble({
         {assistant ? "Mizyun Coach" : "You"}
       </ThemedText>
       <ThemedText>{message.text}</ThemedText>
-      {message.actionProposal !== null ? (
+      {message.actionProposal?.kind === "meal_log" ? (
         <NutritionProposalCard
           proposal={message.actionProposal}
           onReview={onReviewNutritionProposal}
+        />
+      ) : null}
+      {message.actionProposal?.kind === "workout_start" ? (
+        <WorkoutProposalCard
+          proposal={message.actionProposal}
+          onReview={onReviewWorkoutProposal}
         />
       ) : null}
       {assistant && message.evidenceKinds.length > 0 ? (
@@ -727,6 +763,43 @@ function NutritionProposalCard({
         style={styles.proposalButton}
       >
         <ThemedText type="smallBold">Review &amp; log</ThemedText>
+      </Pressable>
+    </View>
+  );
+}
+
+function WorkoutProposalCard({
+  proposal,
+  onReview,
+}: {
+  readonly proposal: CoachWorkoutProposal;
+  readonly onReview: (proposal: CoachWorkoutProposal) => void;
+}) {
+  return (
+    <View style={styles.proposalCard}>
+      <ThemedText type="smallBold">
+        {proposal.session.label} · {proposal.session.estimatedMinutes} min
+      </ThemedText>
+      {proposal.session.exercises.map((exercise) => (
+        <ThemedText key={exercise.catalogId} type="small">
+          {exercise.name} · {exercise.sets}×
+          {exercise.repsMin === null
+            ? `${exercise.durationMinutes} min`
+            : `${exercise.repsMin}–${exercise.repsMax}`}{" "}
+          · {exercise.restSeconds}s rest
+        </ThemedText>
+      ))}
+      <ThemedText type="small" themeColor="textSecondary">
+        {proposal.volumeAction} volume · deterministic plan
+      </ThemedText>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Review and start ${proposal.session.label}`}
+        accessibilityHint="Opens an editable workout plan. Nothing is started until you confirm."
+        onPress={() => onReview(proposal)}
+        style={styles.proposalButton}
+      >
+        <ThemedText type="smallBold">Review &amp; start</ThemedText>
       </Pressable>
     </View>
   );

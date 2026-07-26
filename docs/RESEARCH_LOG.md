@@ -54,6 +54,17 @@ Conversation persistence receives only the validated nutrition proposal and a
 fixed user-visible attachment message. Raw image bytes remain transient and
 are discarded after the provider call.
 
+### Workout action follow-up
+
+AI-ACT-002 introduces no new vendor or native API. It reuses the reviewed Expo
+Router and SecureStore boundaries above plus Mizyun’s versioned deterministic
+training prescription. The action contract stores a bounded prescription
+session, not free-form model output. Review moves that proposal into encrypted
+recoverable workout state; explicit start uses the existing authenticated
+workout endpoint and retains the original proposal in `details.aiDraft`.
+Therefore no new ADR is required and the model/provider remains outside the
+authoritative workout write path.
+
 ## 2026-07-14 — Monorepo and modular API foundation
 
 ### Scope

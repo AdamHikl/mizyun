@@ -16,6 +16,7 @@ describe("isExplicitMealLoggingIntent", () => {
   it.each([
     "How much protein is in tuna?",
     "Should I eat more at dinner?",
+    "I had a great workout",
     "Explain my calorie target",
     "What did I log yesterday?",
   ])("leaves nutrition questions with the grounded Coach: %s", (text) => {
