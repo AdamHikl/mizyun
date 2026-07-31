@@ -1,0 +1,20 @@
+[Unit]
+Description=Mizyun production API
+Wants=network-online.target
+After=network-online.target mizyun-supabase.service
+Requires=mizyun-supabase.service
+
+[Service]
+Type=simple
+User=mizyun
+Group=mizyun
+WorkingDirectory=/home/mizyun/mizyun
+EnvironmentFile=/etc/mizyun/production.env
+ExecStart=/usr/bin/env pnpm --filter @mizyun/api start
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

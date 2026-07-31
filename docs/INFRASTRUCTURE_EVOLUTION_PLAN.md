@@ -32,17 +32,17 @@ constraint is reversed only by INFRA-PORT-001.
 
 ## Data ownership map
 
-| Data                                     | Alpha authority (self-hosted Slovakia PC)       | Long-term authority                                                            |
-| ---------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------ |
-| Accounts and identities                  | Self-hosted Supabase Auth on the PC             | Mizyun-operated Supabase Auth or a replacement identity adapter                |
-| Food, training, body, goals and settings | Self-hosted Supabase PostgreSQL on the PC       | Mizyun-operated PostgreSQL                                                     |
-| Coach conversations                      | Self-hosted Supabase PostgreSQL on the PC       | Mizyun-operated PostgreSQL                                                     |
-| Durable AI memory                        | `memory_items` in self-hosted PostgreSQL        | The same portable schema in Mizyun-operated PostgreSQL                         |
-| Optional future embeddings               | PostgreSQL/pgvector only after measured need    | PostgreSQL/pgvector or a replaceable memory adapter                            |
-| Progress photos                          | Private self-hosted Supabase Storage on the PC  | Mizyun-operated Supabase Storage with independent S3-compatible object storage |
-| Model inputs and outputs                 | Transient Mistral stateless requests with ZDR   | Still transient, or a later evaluated self-hosted model provider               |
-| Model keys and server secrets            | `~/.cloudflared/alpha.env` on the PC, mode 0600 | Mizyun-operated secrets manager, never application files                       |
-| Product analytics                        | Consent-based bounded/aggregate data only       | Same policy on Mizyun-operated infrastructure                                  |
+| Data                                     | Alpha authority (self-hosted Slovakia PC)                       | Long-term authority                                                            |
+| ---------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Accounts and identities                  | Self-hosted Supabase Auth on the PC                             | Mizyun-operated Supabase Auth or a replacement identity adapter                |
+| Food, training, body, goals and settings | Self-hosted Supabase PostgreSQL on the PC                       | Mizyun-operated PostgreSQL                                                     |
+| Coach conversations                      | Self-hosted Supabase PostgreSQL on the PC                       | Mizyun-operated PostgreSQL                                                     |
+| Durable AI memory                        | `memory_items` in self-hosted PostgreSQL                        | The same portable schema in Mizyun-operated PostgreSQL                         |
+| Optional future embeddings               | PostgreSQL/pgvector only after measured need                    | PostgreSQL/pgvector or a replaceable memory adapter                            |
+| Progress photos                          | Private self-hosted Supabase Storage on the PC                  | Mizyun-operated Supabase Storage with independent S3-compatible object storage |
+| Model inputs and outputs                 | Transient Mistral stateless requests with ZDR                   | Still transient, or a later evaluated self-hosted model provider               |
+| Model keys and server secrets            | `/etc/mizyun/production.env` on the PC, mode 0640 root:`mizyun` | Mizyun-operated secrets manager, never application files                       |
+| Product analytics                        | Consent-based bounded/aggregate data only                       | Same policy on Mizyun-operated infrastructure                                  |
 
 Mistral is never the durable memory authority. The API selects a bounded grounding snapshot and sends only what is necessary for one request.
 
@@ -64,21 +64,23 @@ Exit:
 - every user-owned table has RLS and a `user_id` index;
 - export and deletion contracts cover every durable data category.
 
-### Stage 1 — Self-hosted Slovakia PC (alpha track)
+### Stage 1 — Windows/WSL2 Slovakia PC (founder-production alpha track)
 
-Single EU Linux host running Supabase + Fastify + Cloudflare Tunnel.
+Single Windows PC with an Ubuntu/WSL2 Linux environment running official
+self-hosted Supabase Docker Compose + Fastify + Cloudflare Tunnel.
 Operated by Adam with Mac-side dev loop. Replaces the prior
 "Managed EU foundation" Stage 1 for the alpha period.
 
-- the PC runs `supabase start` (long-lived) plus the Fastify API
-  under a systemd unit, both on a private Docker network;
-- a Cloudflare named tunnel exposes `alpha.mizyun.app` (API) and
-  `supabase-alpha.mizyun.app` (Supabase Studio) on stable URLs;
-- migrations deploy via `pnpm deploy:remote` (Mac → PC over SSH);
+- the PC runs the official Supabase self-hosted Docker Compose distribution
+  plus the Fastify API under systemd units;
+- a Cloudflare named tunnel exposes only the API and Supabase gateway on stable
+  HTTPS URLs; Postgres, SSH, and Studio remain private;
+- migrations deploy via exact-commit `pnpm deploy:remote` (Mac → PC over
+  Tailscale/SSH) after a database and Storage backup;
 - Auth redirect URLs gain the tunnel URL alongside the mobile
   deep-link;
-- service-role and Mistral keys live in
-  `~/.cloudflared/alpha.env` on the PC, mode `0600`;
+- service-role, database, and Mistral keys live in
+  `/etc/mizyun/production.env`, outside Git;
 - the `private-media` Storage bucket is created by the migration
   with `ON CONFLICT DO NOTHING`; the runbook verifies the bucket
   settings on the PC after the first `db:push`;
@@ -88,14 +90,12 @@ public, anon, authenticated`) is mandatory and verified per
 
 Alpha risk Adam accepts:
 
-- no off-site backup target — `pg_dump` and `rclone sync` of the
-  private-media bucket are local only;
+- no off-site backup target — logical database and private Storage archives are
+  local only until INFRA-PORT-001;
 - no PITR;
 - single host, no replication, no second operator;
-- Cloudflare Tunnel depends on a stable tunnel URL. If Adam uses
-  `trycloudflare.com` ephemeral URLs, the mobile bundle must be
-  rebuilt on every tunnel restart. A named tunnel + custom
-  domain is the answer once Adam is ready to register one.
+- Windows, WSL2, Docker, systemd, Tailscale, and Cloudflare Tunnel are all in the
+  availability chain and require reboot verification after updates.
 
 Exit (Stage 2 transition — handled by INFRA-PORT-001):
 
@@ -103,7 +103,7 @@ Exit (Stage 2 transition — handled by INFRA-PORT-001):
 - PITR or daily-restore drill exercised against a scratch
   environment;
 - second operator on-call rotation;
-- Cloudflare Access in front of Supabase Studio;
+- private operator-only Studio access, with no public Studio route;
 - documented subprocessors, DPAs, data locations, retention,
   access, incident response, and deletion;
 - keep development, staging, and production identities, databases,
@@ -111,7 +111,8 @@ Exit (Stage 2 transition — handled by INFRA-PORT-001):
 
 ### Stage 2 — Portability hardening
 
-This stage runs while managed Supabase remains authoritative.
+This stage runs while the PC remains the founder-alpha authority and prepares a
+managed or redundant Mizyun-operated successor.
 
 - keep business rules outside Supabase-specific adapters;
 - keep PostgreSQL migrations compatible with the selected self-hosted Postgres target;
@@ -246,6 +247,11 @@ Targets must be revised using actual user expectations, staffing, regulatory adv
 
 ## Near-term action
 
-Do not begin self-hosting implementation during the current AI/mobile acceptance work. The next infrastructure action is `INFRA-MANAGED-001`: create a hosted EU development/staging Supabase project, deploy the committed migrations, and prove physical-device Auth/RLS/Storage behavior.
+Execute `INFRA-WIN-001`: provision Ubuntu/WSL2 on the Windows PC, install the
+official self-hosted Supabase stack and service units, create external
+production configuration, and prove an exact-commit promotion, reboot recovery,
+backup/restore, Auth/RLS/Storage, and authenticated physical-device journey.
 
-The self-hosting work begins with `INFRA-PORT-001` only after hosted acceptance produces real measurements to design against.
+After founder-production acceptance, `INFRA-PORT-001` adds encrypted off-device
+backups, recovery evidence, monitoring, and the managed/redundant successor
+required before paying-user production.

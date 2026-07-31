@@ -1,0 +1,19 @@
+[Unit]
+Description=Mizyun self-hosted Supabase production stack
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=mizyun
+Group=mizyun
+WorkingDirectory=/srv/mizyun/supabase
+ExecStart=/bin/sh /srv/mizyun/supabase/run.sh start
+ExecStop=/bin/sh /srv/mizyun/supabase/run.sh stop
+RemainAfterExit=true
+TimeoutStartSec=300
+TimeoutStopSec=180
+
+[Install]
+WantedBy=multi-user.target

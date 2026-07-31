@@ -1,353 +1,336 @@
-# Self-hosted runbook — INFRA-SELFHOST-001
+# Development and Windows production runbook
 
-Operational runbook for the Slovakia PC that runs the alpha-track
-Mizyun stack. The local Supabase stack on Adam's Mac remains the
-canonical development surface; this runbook is about the shared,
-networked, multi-device alpha surface that lives on the PC.
+This is the operating guide for keeping Mizyun development on the MacBook and
+the persistent founder-production environment on the Windows PC. Read this in
+future sessions before starting, promoting, restoring, or debugging the backend.
 
-Audience: Adam (operator + engineer) and any future second
-operator on-call.
+The PC environment is suitable for Adam's private/founder alpha. It is not yet
+release-grade production for paying users: one Windows PC is still one failure
+domain, and the backup/restore, monitoring, SMTP, patching, and second-operator
+gates in [`INFRASTRUCTURE_EVOLUTION_PLAN.md`](../INFRASTRUCTURE_EVOLUTION_PLAN.md)
+remain mandatory.
 
-## Why this exists
+## The separation contract
 
-AI-MOB-001 needs a reachable backend for physical-iPhone integration
-testing. ADR-0016 amendment 2026-07-25 commits Mizyun to self-hosted
-alpha on the Slovakia PC; ADR-0017 locks AI governance (EU residency,
-ZDR, per-feature workspaces, free-vs-paid caps) and requires the
-limiter surface to be locked down before any alpha deployment.
+| Concern       | MacBook development                       | Windows PC production                                    |
+| ------------- | ----------------------------------------- | -------------------------------------------------------- |
+| Purpose       | coding, destructive resets, tests         | persistent daily-use data                                |
+| Supabase      | CLI local stack; development only         | official self-hosted Docker Compose stack in Ubuntu/WSL2 |
+| API           | `pnpm dev:api`, watch mode                | `mizyun-api.service`, production mode                    |
+| Configuration | ignored repository `.env`                 | `/etc/mizyun/production.env`, outside Git                |
+| Database      | disposable; `pnpm db:verify` may reset it | persistent; reset commands are forbidden                 |
+| Source        | normal `main` checkout                    | detached, exact promoted commit                          |
+| Public access | none or a temporary trusted-device route  | named Cloudflare Tunnel with HTTPS                       |
+| Data movement | synthetic fixtures only                   | never copied back to development                         |
 
-## Topology
+Three rules prevent accidental cross-environment damage:
 
-| Component      | Mac (workstation)                   | Slovakia PC (alpha server)                                  |
-| -------------- | ----------------------------------- | ----------------------------------------------------------- |
-| Source code    | pnpm workspace + `git push`         | `git pull` via `pnpm deploy:remote`                         |
-| Supabase stack | `pnpm db:start` (long-lived on Mac) | `pnpm db:start` (long-lived on PC)                          |
-| API process    | `pnpm dev:api` (Fastify watch mode) | Docker container on the PC's docker net                     |
-| Tunnel         | none                                | `cloudflared` daemon (named tunnel)                         |
-| Backups        | local only (dev sandbox)            | local `pg_dump` + `rclone sync`; **no off-site target yet** |
-| Mobile bundle  | dev: `localhost` URLs               | alpha: tunnel URL via `EXPO_PUBLIC_*`                       |
+1. Never run `pnpm db:reset`, `pnpm db:verify`, `supabase reset.sh`, or
+   `docker compose down -v` on the PC.
+2. Never copy PC secrets or real records into the Mac development environment.
+3. Promote only with `pnpm deploy:remote`; do not manually pull and restart.
 
-The Mac's daily-dev loop is unchanged. The PC is the
-production-shape target for alpha.
+`NODE_ENV=production` also fails closed in code unless durable Supabase URL,
+publishable-key, and service-role configuration are present. The deterministic
+vision stub is forbidden in production.
 
-## PC provisioning checklist (one-time)
+## Daily Mac development
 
-The PC runs Linux (Ubuntu/Debian recommended). Steps run on the
-PC itself, not on the Mac.
+Use the normal local loop:
 
-1. **Install Docker Engine + Compose plugin.**
-
-   ```sh
-   sudo apt update
-   sudo apt install -y docker.io docker-compose-plugin
-   sudo usermod -aG docker $USER
-   newgrp docker
-   ```
-
-2. **Install the Supabase CLI pinned to `2.109.1`.**
-
-   ```sh
-   sudo npm i -g supabase@2.109.1
-   supabase --version
-   # must report 2.109.1
-   ```
-
-3. **Install `cloudflared`** and authenticate:
-
-   ```sh
-   # On Debian/Ubuntu the package is `cloudflared` from
-   # https://pkg.cloudflare.com/
-   sudo apt install -y cloudflared
-   cloudflared tunnel login
-   ```
-
-4. **Create the named tunnel:**
-
-   ```sh
-   cloudflared tunnel create mizyun-alpha
-   cloudflared tunnel route dns mizyun-alpha alpha.mizyun.app
-   cloudflared tunnel route dns mizyun-alpha supabase-alpha.mizyun.app
-   ```
-
-   The first command prints a credentials JSON to
-   `~/.cloudflared/<UUID>.json` (mode `0600`). The DNS commands
-   bind the hostnames to the tunnel; replace with whatever Adam
-   registers.
-
-5. **Configure the tunnel** at `~/.cloudflared/config.yml`:
-
-   ```yaml
-   tunnel: mizyun-alpha
-   credentials-file: /home/mizyun/.cloudflared/<UUID>.json
-   ingress:
-     - hostname: alpha.mizyun.app
-       service: http://localhost:4000
-     - hostname: supabase-alpha.mizyun.app
-       service: http://localhost:54321
-     - service: http_status:404
-   ```
-
-6. **Run the tunnel as a systemd service** so it survives reboots:
-
-   ```sh
-   sudo cloudflared service install
-   sudo systemctl enable cloudflared
-   sudo systemctl start cloudflared
-   cloudflared tunnel info mizyun-alpha
-   # must report "HEALTHY"
-   ```
-
-7. **Initialise the Supabase project** on the PC:
-
-   ```sh
-   git clone <mizyun-repo> ~/mizyun
-   cd ~/mizyun
-   pnpm install
-   supabase start
-   # capture the printed API URL, anon key, service_role key
-   ```
-
-8. **Apply migrations** from the local checkout (this is what
-   `pnpm deploy:remote` does end-to-end; for the first time, run
-   it manually so Adam sees the output):
-
-   ```sh
-   pnpm db:push
-   ```
-
-9. **Configure `~/.cloudflared/alpha.env`** (mode `0600`):
-
-   ```sh
-   SUPABASE_PROJECT_REF=alpha
-   SUPABASE_DB_PASSWORD=<from supabase start output>
-   SUPABASE_URL=http://localhost:54321
-   SUPABASE_PUBLISHABLE_KEY=<anon key from supabase start>
-   SUPABASE_SERVICE_ROLE_KEY=<service_role key from supabase start>
-   MISTRAL_API_KEY=<mizyun-text-coach workspace key>
-   MISTRAL_VISION_API_KEY=<mizyun-vision-draft workspace key>
-   MISTRAL_MODEL=mistral-medium-latest
-   MISTRAL_VISION_MODEL=<release-pinned dated vision model>
-   AI_EXTERNAL_ACCESS=false
-   API_PORT=4000
-   MIZYUN_ALLOWED_ORIGINS=https://alpha.mizyun.app
-   chmod 600 ~/.cloudflared/alpha.env
-   ```
-
-10. **Start the API under systemd** so it survives reboots. The
-    simplest path is a systemd unit that runs `pnpm start`:
-
-    ```ini
-    # /etc/systemd/system/mizyun-api.service
-    [Unit]
-    Description=Mizyun API
-    After=docker.service
-    Requires=docker.service
-
-    [Service]
-    Type=simple
-    User=mizyun
-    WorkingDirectory=/home/mizyun/mizyun
-    EnvironmentFile=/home/mizyun/.cloudflared/alpha.env
-    ExecStart=/usr/bin/pnpm start --filter @mizyun/api
-    Restart=on-failure
-
-    [Install]
-    WantedBy=multi-user.target
-    ```
-
-    ```sh
-    sudo systemctl daemon-reload
-    sudo systemctl enable --now mizyun-api
-    sudo systemctl status mizyun-api
-    ```
-
-11. **Verify the tunnel + API end-to-end** from the Mac:
-
-    ```sh
-    curl https://alpha.mizyun.app/v1/system/status
-    # must return {"status":"ok",...} with a 200
-    ```
-
-## Local operator setup (Mac)
-
-The repo's gitignored root `.env` carries the local-dev secrets
-only. The PC-side secrets stay on the PC.
-
-```sh
-echo 'SUPABASE_URL=http://127.0.0.1:54321' >> .env
-echo 'SUPABASE_PUBLISHABLE_KEY=<anon>' >> .env
-echo 'SUPABASE_SERVICE_ROLE_KEY=<service_role>' >> .env
-echo 'MISTRAL_API_KEY=<text-coach workspace>' >> .env
-chmod 600 .env
+```bash
+cd /Users/adam/Documents/mizyun
+git status --short --branch
+pnpm db:start
+pnpm dev:api
+pnpm dev:mobile
 ```
 
-For tunnel-routed deploys, the Mac also needs the SSH key:
+The ignored root `.env` contains only Mac development values. Use
+[`LOCAL_BACKEND.md`](./LOCAL_BACKEND.md) to create it. Local data can be reset at
+any time:
 
-```sh
-ssh-keygen -t ed25519 -N '' -f ~/.ssh/id_ed25519_mizyun
-# add the public key to the PC's ~/.ssh/authorized_keys for user `mizyun`
+```bash
+pnpm db:verify
 ```
 
-Add the SSH alias at `~/.ssh/config`:
+Do not point the development mobile build at the PC merely to test unfinished
+code. A production mobile build uses separate public endpoints:
 
+```dotenv
+EXPO_PUBLIC_API_URL=https://<production-api-host>
+EXPO_PUBLIC_SUPABASE_URL=https://<production-supabase-host>
+EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<production-publishable-key>
 ```
+
+Only the publishable key belongs in the mobile build.
+
+## One-time Windows PC setup
+
+### 1. Install and start Ubuntu/WSL2
+
+From Administrator PowerShell:
+
+```powershell
+wsl --install -d Ubuntu
+wsl --update
+```
+
+Restart Windows if requested. In Ubuntu, verify `systemd`:
+
+```bash
+systemctl status
+```
+
+Current Ubuntu installations use `systemd` by default. If this installation
+does not, follow Microsoft's WSL systemd guide linked in the research log.
+
+Create a dedicated operator account if the Ubuntu account is not already named
+`mizyun`:
+
+```bash
+sudo adduser mizyun
+sudo usermod -aG sudo mizyun
+```
+
+All remaining Linux commands run as `mizyun`. Keep the repository in the WSL
+ext4 filesystem (`/home/mizyun`), not under `/mnt/c`, for correct permissions and
+Docker performance.
+
+### 2. Install the Linux runtime
+
+Inside Ubuntu, install Git, Docker Engine/Compose, Node 22+, Corepack/pnpm,
+PostgreSQL client tools, curl, and Tailscale. Use the current official vendor
+instructions rather than copying old package URLs from a prior session.
+
+Tailscale inside WSL provides the private SSH path used by the Mac. Install and
+enable OpenSSH in Ubuntu, then add the Mac deploy public key to
+`/home/mizyun/.ssh/authorized_keys`. Configure this alias on the Mac:
+
+```sshconfig
 Host mizyun-pc
-    HostName <pc-lan-ip-or-domain>
+    HostName <WSL-Tailscale-name-or-IP>
     User mizyun
     IdentityFile ~/.ssh/id_ed25519_mizyun
 ```
 
-## Deploying from Mac
+Verify from the Mac:
 
-```sh
+```bash
+ssh mizyun-pc 'systemctl is-system-running'
+```
+
+### 3. Install official self-hosted Supabase
+
+The Supabase CLI stack (`supabase start`) is development-only and must not be
+publicly exposed. On the PC use Supabase's official self-hosted Docker setup:
+
+```bash
+sudo mkdir -p /srv/mizyun
+sudo chown -R mizyun:mizyun /srv/mizyun
+cd /srv/mizyun
+curl -fsSL https://supabase.link/setup.sh -o setup-supabase.sh
+less setup-supabase.sh
+sh setup-supabase.sh
+```
+
+The installer currently creates `supabase-project` by default. Ensure the final
+directory is `/srv/mizyun/supabase` (rename the generated directory before first
+start if necessary). Configure strong unique secrets, the production public
+Supabase HTTPS URL, `mizyun://auth/callback`, and the project's real domain. Do
+not expose Postgres or Studio publicly. Keep the generated Compose `.env`
+readable only by `mizyun`:
+
+```bash
+chmod 0600 /srv/mizyun/supabase/.env
+cd /srv/mizyun/supabase
+sh run.sh start
+docker compose ps
+```
+
+Do not run Supabase's `reset.sh` after this environment becomes authoritative;
+it deletes the database and Storage volumes.
+
+### 4. Clone Mizyun and install the service units
+
+```bash
+git clone <canonical-repository-url> /home/mizyun/mizyun
+cd /home/mizyun/mizyun
+corepack enable
+pnpm install --frozen-lockfile
+
+sudo cp deploy/windows-wsl/mizyun-supabase.service /etc/systemd/system/
+sudo cp deploy/windows-wsl/mizyun-api.service /etc/systemd/system/
+sudo systemctl daemon-reload
+```
+
+Allow the deploy account to restart only the Mizyun API without an interactive
+sudo prompt:
+
+```bash
+echo 'mizyun ALL=(root) NOPASSWD: /usr/bin/systemctl restart mizyun-api' \
+  | sudo tee /etc/sudoers.d/mizyun-deploy >/dev/null
+sudo chmod 0440 /etc/sudoers.d/mizyun-deploy
+sudo visudo --check --file=/etc/sudoers.d/mizyun-deploy
+```
+
+Copy the production environment template outside the repository and replace
+every placeholder without printing secrets:
+
+```bash
+sudo mkdir -p /etc/mizyun /srv/mizyun/backups
+sudo cp deploy/windows-wsl/production.env.example /etc/mizyun/production.env
+sudo chown root:mizyun /etc/mizyun/production.env
+sudo chmod 0640 /etc/mizyun/production.env
+sudoedit /etc/mizyun/production.env
+```
+
+The API's `SUPABASE_URL` stays internal (`http://127.0.0.1:8000`). The database
+URL is used only by the promotion tool to apply pending migrations. Percent-
+encode special characters in its password.
+
+Enable Supabase. Leave the API unit installed but not enabled until the first
+promotion has applied the application migrations:
+
+```bash
+sudo systemctl enable --now mizyun-supabase
+systemctl status mizyun-supabase --no-pager
+```
+
+### 5. Configure the HTTPS tunnel
+
+Install `cloudflared` inside Ubuntu from Cloudflare's official repository. Use a
+named tunnel with two public hostnames and no Studio route:
+
+```yaml
+tunnel: <tunnel-uuid>
+credentials-file: /home/mizyun/.cloudflared/<tunnel-uuid>.json
+ingress:
+  - hostname: <production-api-host>
+    service: http://127.0.0.1:4000
+  - hostname: <production-supabase-host>
+    service: http://127.0.0.1:8000
+  - service: http_status:404
+```
+
+Install it as a systemd service and verify both HTTPS endpoints externally. Do
+not route Postgres, SSH, or Studio through the public tunnel.
+
+Run the first promotion from the Mac using the procedure below. It applies the
+initial migrations and starts the API. After its public smoke test passes,
+enable the API for future reboots on the PC:
+
+```bash
+sudo systemctl enable mizyun-api
+```
+
+### 6. Make WSL start after a Windows reboot
+
+Create a Windows Task Scheduler task that runs at system startup with highest
+privileges and executes:
+
+```text
+wsl.exe -d Ubuntu --exec /bin/true
+```
+
+This starts the WSL distribution; its enabled systemd services start the Docker
+stack, API, Tailscale, and Cloudflare Tunnel. Disable Windows sleep/hibernate for
+this always-on PC. Reboot once and verify from another device before trusting it:
+
+```bash
+curl --fail https://<production-api-host>/v1/system/status
+ssh mizyun-pc 'systemctl is-active mizyun-supabase mizyun-api cloudflared tailscaled'
+```
+
+## Promoting a tested Mac version
+
+Promotion deploys one immutable Git commit. It never resets production.
+
+1. Finish the feature on the Mac and commit it to `main`.
+2. Ensure Docker and the Mac development Supabase stack are running.
+3. Set the public production API URL in the Mac shell.
+4. Run the promotion command:
+
+```bash
+export MIZYUN_PRODUCTION_API_URL=https://<production-api-host>
+pnpm deploy:remote --dry-run
 pnpm deploy:remote
 ```
 
-The script:
+The command:
 
-1. Verifies the local tree is clean, the SSH alias works, and the
-   PC tunnel reports HEALTHY.
-2. `git push` to the canonical remote (so the PC's `git pull` is
-   not blocked by missing refs).
-3. SSHes into the PC and runs:
-   - `cd ~/mizyun && git pull --ff-only`
-   - `pnpm install --frozen-lockfile`
-   - `pnpm db:verify` (uses local PC stack)
-   - `pnpm db:push` (uses local PC stack via the same wrapper
-     the hosted version used, but pointed at
-     `localhost:54322` via the PC's `~/.cloudflared/alpha.env`)
-   - `sudo systemctl restart mizyun-api`
-4. Smoke-tests `https://alpha.mizyun.app/v1/system/status` from
-   the Mac.
+1. requires a clean Mac `main` checkout;
+2. runs `pnpm check` and destructive database verification only on the Mac;
+3. pushes the exact commit to `origin/main`;
+4. tells the PC to fetch that exact commit;
+5. creates a database and private-Storage backup on the PC;
+6. previews and applies only pending migrations using `supabase db push`;
+7. restarts the production API and smoke-tests it internally and publicly.
 
-Failure modes and rollback:
+The PC records the deployed SHA in `.git/mizyun-production-sha`:
 
-- If `git pull` fails (local PC has commits the Mac doesn't), the
-  script aborts before any migrations.
-- If `pnpm db:verify` fails, the script aborts before
-  `db:push` — the PC's stack stays at the last-known-good
-  migration.
-- If `db:push` fails, the script prints the last-known-good
-  migration hash so Adam can `pnpm db:reset --local` on the Mac
-  and re-run.
-- If the smoke test fails, Adam can `ssh mizyun-pc 'sudo
-systemctl restart mizyun-api'` to pick up the last-known-good
-  commit (since `git pull --ff-only` only fast-forwards).
-
-## Verifying the alpha track
-
-Per ADR-0017 + AI-OPS-002, after the first `db:push`, verify the
-limiter ACL against the live PC database:
-
-```sh
-ssh mizyun-pc "PGPASSWORD=$SUPABASE_DB_PASSWORD psql -h localhost -p 54322 -U postgres -d postgres -c \"select proname, proacl from pg_proc where pronamespace = 'public'::regnamespace and proname like 'ai_%';\""
+```bash
+ssh mizyun-pc 'cd /home/mizyun/mizyun && cat .git/mizyun-production-sha'
 ```
 
-Expected: every row shows `{service_role=X/postgres,
-postgres=X/postgres}` with **no PUBLIC grant**. If PUBLIC is
-present, add an emergency migration revoking PUBLIC and re-run
-`pnpm db:verify`.
+Never promote uncommitted files. A migration must be forward-only and compatible
+with the previously running API because schema rollback is not automatic.
 
-Verify the `private-media` bucket:
+## Routine operation
 
-```sh
-ssh mizyun-pc "PGPASSWORD=$SUPABASE_DB_PASSWORD psql -h localhost -p 54322 -U postgres -d postgres -c \"select id, public, file_size_limit, allowed_mime_types from storage.buckets where id = 'private-media';\""
+Check production without changing it:
+
+```bash
+curl --fail https://<production-api-host>/v1/system/status
+ssh mizyun-pc 'systemctl status mizyun-api mizyun-supabase --no-pager'
+ssh mizyun-pc 'journalctl -u mizyun-api -n 100 --no-pager'
+ssh mizyun-pc 'cd /home/mizyun/mizyun && cat .git/mizyun-production-sha'
 ```
 
-Expected: `public = false`, `file_size_limit = 15728640`,
-`allowed_mime_types = {image/jpeg, image/png, image/webp}`. If
-any field differs, the migration's `ON CONFLICT DO NOTHING`
-skipped the insert because the bucket already existed; apply
-the correct settings via the Storage dashboard.
+Create an extra backup before risky maintenance:
 
-## AI limiter smoke against the tunnel
-
-```sh
-SUPABASE_URL=https://alpha.mizyun.app \
-SUPABASE_PUBLISHABLE_KEY=<anon key> \
-  bash scripts/ai-ops-001-smoke.sh
+```bash
+ssh mizyun-pc 'cd /home/mizyun/mizyun && bash scripts/backup-production.sh'
 ```
 
-The script does not bootstrap the disposable user — provision
-via the Auth API once, then re-run the smoke on every deploy:
+The backup directory must be on a different disk from the live Supabase files.
+Copy encrypted backups off the PC before allowing anyone besides Adam to rely on
+the service. A backup is not accepted until a restore drill verifies both the
+database dump and private Storage archive.
 
-```sh
-curl -X POST https://alpha.mizyun.app/auth/v1/signup \
-  -H "apikey: <anon key>" \
-  -H "Content-Type: application/json" \
-  -d '{"email":"smoke+ai-ops-001@mizyun.test","password":"smoke-only-do-not-reuse"}'
-```
+After Windows, Docker, Supabase, Node, or tunnel updates, rerun the reboot test
+and an authenticated synthetic mobile journey. Never update all layers at once.
 
-Free-tier 4th request returns 429; paid-tier 4th request returns 200.
+## Failure and rollback
 
-## Cascade deletion drill
+- If Mac verification fails, nothing is pushed or changed on the PC.
+- If backup or migration preview fails, the API keeps serving the previous code.
+- If API restart/smoke fails, the remote script checks out and restarts the
+  previous code commit.
+- Applied database migrations are not automatically reversed. Forward/backward
+  compatible migrations are therefore required.
+- To take production offline without deleting data:
 
-Once a quarter, exercise the cascade path against the alpha:
+  ```bash
+  ssh mizyun-pc 'sudo systemctl stop cloudflared'
+  ```
 
-```sh
-ssh mizyun-pc "PGPASSWORD=$SUPABASE_DB_PASSWORD psql -h localhost -p 54322 -U postgres -d postgres -c \"set local role service_role; delete from auth.users where id = '<disposable-user-id>';\""
-```
+- Never use `git reset --hard`, Supabase `reset.sh`, `db:reset`, `db:verify`, or
+  `docker compose down -v` as a production rollback.
 
-Verify the cascade deletes `profiles`, `goals`,
-`body_measurements`, `food_entries`, `exercises`, `workouts`,
-`workout_sets`, `conversations`, `messages`, `memory_items`,
-`media_assets`, `memory_provider_refs`, and the four AI limiter
-rows.
+## Future-session checklist
 
-## Local backups (alpha only — no off-site target)
+At the beginning of a backend session:
 
-Per ADR-0016 amendment 2026-07-25, Adam accepts the single-host
-risk for alpha. Local backups run on the PC:
+1. Read the continuity files required by `AGENTS.md` and this runbook.
+2. Check Mac Git state and the deployed PC SHA.
+3. Confirm which environment the task targets; default to Mac development.
+4. Research current official docs before changing WSL, Docker, Supabase,
+   Cloudflare, Tailscale, or systemd configuration.
 
-```sh
-# Postgres logical dump — run nightly via cron
-ssh mizyun-pc "pg_dump -h localhost -p 54322 -U postgres -d postgres | gzip > ~/backups/mizyun-\$(date +%F).sql.gz"
+At the end:
 
-# private-media storage bytes — rclone to a local mirror disk
-ssh mizyun-pc "rclone sync /var/lib/docker/volumes/supabase_storage/_data ~/backups/storage/ --progress"
-```
-
-A hardware failure on the PC loses user data. Reversed by
-INFRA-PORT-001.
-
-## Locking down Supabase Studio
-
-`cloudflared` exposes Supabase Studio on
-`supabase-alpha.mizyun.app`. Without auth in front, anyone with
-the URL can hit `/login`. **Before any non-self user gets the
-URL**, add Cloudflare Access:
-
-1. Cloudflare Zero Trust dashboard → Access → Applications.
-2. Add a self-hosted app for `supabase-alpha.mizyun.app`.
-3. Allow only Adam's email (and any future operator).
-4. Cloudflare Access presents a one-time-pin / IdP login before
-   the Studio loads.
-
-This is a follow-up after the alpha smoke; not strictly required
-while only Adam knows the URL.
-
-## What's out of scope (deferred)
-
-- Off-site backup target — INFRA-PORT-001.
-- PITR or managed-style durability — INFRA-PORT-001.
-- Second operator + on-call rotation — INFRA-PORT-001.
-- Migrating alpha users to managed Supabase — INFRA-PORT-001
-  (or a new INFRA-CUTOVER-001 segment).
-- Mobile bundle signing pipeline (`eas build` on Mac) — runs in
-  AI-MOB-002 segment.
-- A real domain + DNS — Adam's call; once a domain is bound the
-  tunnel hostnames in this runbook change accordingly.
-
-## Rollback
-
-If the alpha goes bad:
-
-1. Adam stops the tunnel: `sudo systemctl stop cloudflared`.
-   The API and Supabase stay up on `localhost` for debug access.
-2. The Mac can still `pnpm dev:api` against the local Supabase
-   stack — no functional break.
-3. To revert to a known-good commit, SSH into the PC, `cd
-~/mizyun && git checkout <good-sha>` and `sudo systemctl
-restart mizyun-api`.
-4. No off-site backup means no restore from a hardware failure —
-   Adam accepts this for alpha.
+1. Run `pnpm check`, `git diff --check`, and the relevant database gate on Mac.
+2. Update `status.md`, `backlog.md`, and the research log.
+3. Promote only when explicitly intended; committing is not deployment.
+4. Record the promoted SHA, backup path, smoke evidence, and any blocker.

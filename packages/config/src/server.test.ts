@@ -261,6 +261,71 @@ describe("loadServerConfig — optional supabase", () => {
   });
 });
 
+describe("loadServerConfig — production isolation", () => {
+  it("fails closed when production would use in-memory persistence", () => {
+    const result = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.env]: "production",
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toContainEqual({
+      kind: "missing",
+      keys: [
+        SERVER_ENV_KEYS.supabaseUrl,
+        SERVER_ENV_KEYS.supabasePublishableKey,
+      ],
+    });
+    expect(result.error).toContainEqual({
+      kind: "missing",
+      keys: [SERVER_ENV_KEYS.supabaseServiceRoleKey],
+    });
+  });
+
+  it("accepts production only with durable Supabase configuration", () => {
+    const result = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.env]: "production",
+        [SERVER_ENV_KEYS.supabaseUrl]: "http://127.0.0.1:8000",
+        [SERVER_ENV_KEYS.supabasePublishableKey]: "publishable-key",
+        [SERVER_ENV_KEYS.supabaseServiceRoleKey]:
+          "service-role-key-that-is-long-enough",
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.env).toBe("production");
+    expect(result.value.supabase.configured).toBe(true);
+  });
+
+  it("forbids the deterministic vision stub in production", () => {
+    const result = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.env]: "production",
+        [SERVER_ENV_KEYS.supabaseUrl]: "http://127.0.0.1:8000",
+        [SERVER_ENV_KEYS.supabasePublishableKey]: "publishable-key",
+        [SERVER_ENV_KEYS.supabaseServiceRoleKey]:
+          "service-role-key-that-is-long-enough",
+        [SERVER_ENV_KEYS.visionProvider]: "stub",
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toContainEqual({
+      kind: "malformed",
+      key: SERVER_ENV_KEYS.visionProvider,
+      reason: "VISION_PROVIDER=stub is forbidden when NODE_ENV=production.",
+    });
+  });
+});
+
 describe("loadServerConfig — closed-world", () => {
   it("ignores unrelated env vars (e.g. PATH) without producing an error", () => {
     const result = loadServerConfig({

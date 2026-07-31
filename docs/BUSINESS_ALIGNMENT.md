@@ -10,7 +10,7 @@ Mizyun has a strong modular, privacy-conscious, provider-neutral foundation and 
 
 The next implementation milestone is physical-device acceptance of the default-off grounded Mistral text coach using a trusted development endpoint and synthetic records. This sequencing does not make the app customer-ready: provider policy/privacy, safety, deletion/isolation, cost, hosted deployment, physical-device, and repeated-user evidence remain required before external AI access.
 
-The infrastructure strategy is managed-first and portable: use managed Supabase in a specific EU region through initial production, then consider migration to redundant Mizyun-operated EU infrastructure only after measured economic/compliance triggers and the restore, staffing, staging, recovery, and rollback gates in `docs/INFRASTRUCTURE_EVOLUTION_PLAN.md` pass.
+The infrastructure strategy is portable with a founder-production exception: Mac development remains disposable and isolated, while Adam's Windows PC will run official self-hosted Supabase inside Ubuntu/WSL2 for private daily use. This single-PC environment is not paying-user production; encrypted off-device backup, recovery, monitoring, redundancy/managed hosting, staffing, staging, and rollback gates in `docs/INFRASTRUCTURE_EVOLUTION_PLAN.md` remain required before external reliance.
 
 ## Customer and problem
 
@@ -90,7 +90,7 @@ These choices support future fundraising and technical hiring because engineers 
 4. AND-001 — Android runtime and journey verification.
 5. OBS-001 — privacy-safe activation, friction, reliability, and retention measurement. (Implementation gate complete.)
 6. AI-GOV-001 / AI-001 / AI-002 — complete live-synthetic evaluation and physical-device acceptance of the default-off grounded Mistral coach.
-7. INFRA-MANAGED-001 — create hosted EU development/staging Supabase and prove migrations, Auth, RLS, Storage, recovery, and device reachability.
+7. INFRA-ENV-001 / INFRA-WIN-001 — keep Mac development isolated, provision Windows founder production, and prove exact-commit promotion, reboot recovery, backup/restore, Auth, RLS, Storage, and device reachability.
 8. ALPHA-001 — founder dogfooding followed by 10–30 design partners; enable AI only if its separate external-release gates pass.
 9. MEM-001 / VISION-001 — visible memory controls, then editable photo/text food drafts with a consent-based evaluation dataset.
 10. BILL-001 — premium packaging, entitlements, pricing test, and subscription billing.

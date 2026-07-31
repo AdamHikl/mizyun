@@ -1,19 +1,19 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-07-26**.
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-07-31**.
 
 ## Executive snapshot
 
 - **Product stage:** technical pre-alpha; the architecture, domain/API foundation, and native mobile UI are verified and polished.
-- **Roadmap position:** Every scoped MOB item, AND-001, OBS-001, and UI/UX iOS Simulator & Physical Device Audit is complete at its implementation gate. The native iOS Release app (`com.mizyun.app`) passes full visual and functional verification.
-- **Latest verified implementation slice:** Added deterministic daily protein, carbohydrate, and fat targets to `@mizyun/core`, wire contracts, and home dashboard energy card; added camera snap button (`ImagePicker.launchCameraAsync`) alongside gallery picker; and resolved Coach chat input contrast by enforcing explicit white text (`color: "#FFFFFF"`).
-- **Latest operational slice:** The ignored local development environment enables Mistral text, vision, and moderation access. Fastify API bound to `0.0.0.0:4000` allows physical iPhone acceptance testing over Tailscale (`100.103.203.85`).
-- **Infrastructure direction:** ADR-0016 selects managed Supabase in a specific EU region for hosted development through initial production, with measured portability and a gated later migration to redundant Mizyun-operated EU infrastructure.
-- **Next exact action:** Complete authenticated native physical-device journey testing for Coach meal text/photo, workout, daily plan, weekly adaptation, and reminder deep links, followed by external release/policy clearance (`AI-GOV-001`).
-- **Branch:** `main`; all workspace typechecks, iOS export (1,764 modules), and 952 tests pass clean.
+- **Roadmap position:** INFRA-ENV-001 is implemented: Mac development is disposable and isolated, and Windows founder production has fail-closed configuration, exact-commit promotion, backup, service templates, and a future-session runbook. INFRA-WIN-001 live PC provisioning/acceptance is active.
+- **Latest verified implementation slice:** Production startup no longer reads the Mac `.env`; `NODE_ENV=production` requires durable Supabase URL/publishable/service-role settings and rejects the vision stub. The old PC deploy path that ran destructive `db:verify` was replaced by Mac-only verification plus exact-SHA PC backup, pending-migration apply, restart, smoke, and code rollback.
+- **Latest operational slice:** ADR-0018 and `docs/tutorials/SELFHOSTED_RUNBOOK.md` define Ubuntu/WSL2 on the Windows PC with official self-hosted Supabase Docker Compose, systemd API/Supabase units, Tailscale/SSH operations, named HTTPS tunnel, reboot proof, and off-repository production secrets.
+- **Infrastructure direction:** The Windows PC is the persistent founder-production authority after INFRA-WIN-001 passes, while the Mac remains development-only. One PC is explicitly not paying-user production; off-device recovery, monitoring, redundancy/managed hosting, and second-operator gates remain.
+- **Next exact action:** On the Windows PC, execute `docs/tutorials/SELFHOSTED_RUNBOOK.md` through the first exact-commit promotion, then prove reboot recovery, backup restore, Auth/RLS/Storage isolation, and one authenticated synthetic physical-device journey.
+- **Branch:** `main`; environment-isolation segment is committed at the current HEAD and not pushed.
 - **AI provider:** Mistral `mistral-medium-latest` text/vision and `mistral-moderation-2603` moderation are configured; committed external access defaults off and cannot be bypassed by the mobile client.
-- **Local runtime at handoff:** The full repository gate (`pnpm check`) and `git diff --check` are green.
-- **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, 1,764-module iOS production export, and 952 tests passed; 27 opt-in live/e2e tests skipped.
+- **Local runtime at handoff:** `pnpm check`, focused config tests, shell/Node syntax, promotion dry-run, migration reset, database lint, and `git diff --check` pass. The pgTAP container stalled before output and was terminated; no schema changed in this segment.
+- **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, 1,776-module iOS and 1,865-module Android production exports, and 945 tests passed; 17 opt-in live/e2e tests skipped.
 - **iOS:** native Release build (`com.mizyun.app`) successfully compiled, signed (`PP89XZBW4U`), installed, and verified live on physical iPhone (`00008140-001114501A86801C`).
 - **Android:** standalone Release APK passes complete journey on Pixel 9 API 36 emulator.
 
@@ -87,6 +87,40 @@ The core manual tracking and private progress-photo lifecycles are implemented a
 With validated Supabase server configuration, the API selects Supabase-backed profile, goal, food, exercise, workout, workout-set, body-measurement, and media-asset repositories plus private Storage. The standard no-environment gate intentionally remains in-memory. Hosted Supabase deployment, physical-device/store-build acceptance, and account deletion across every external resource remain incomplete.
 
 Do not describe NUT-_, WO-_, BODY-_, ENG-_, MEDIA-* or DATA-001 as customer-complete. Their local persistent/native integration is verified, but hosted, physical-device, and repeated-user evidence is still absent.
+
+## Verification evidence — 2026-07-31
+
+```text
+pnpm check
+  formatting: passed
+  workspace TypeScript checks: passed
+  iOS Expo/Metro/Hermes export: passed (1,776 modules)
+  Android Expo/Metro/Hermes export: passed (1,865 modules)
+  tests: 945 passed
+  opt-in live/provider and Supabase e2e: 17 skipped
+
+pnpm --filter @mizyun/config test
+  51 passed, including 3 production-isolation tests
+
+bash -n scripts/promote-production.sh scripts/backup-production.sh
+node --check scripts/deploy-remote.mjs
+pnpm deploy:remote --dry-run
+  passed
+
+pnpm db:verify
+  local destructive reset + all migrations: passed
+  database lint: passed, no schema errors
+  pgTAP: stalled inside the pg_prove Docker launch before test output and was
+    terminated; containers remained healthy and this segment changes no schema
+
+git diff --check
+  passed
+```
+
+No PC, public tunnel, production database, backup restore, reboot, or physical-
+device production acceptance was available in this Mac session. INFRA-WIN-001
+remains active until those checks pass. No real user data, production secret, or
+live model request was used.
 
 ## Verification evidence — 2026-07-26
 

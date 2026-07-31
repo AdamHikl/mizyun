@@ -103,12 +103,14 @@ Native acceptance evidence: standalone iOS and Android Release apps pass real si
 
 ## Infrastructure evolution
 
-| ID                 | Priority | Status     | Work item                                                          | Entry gate                                                                                                     |
-| ------------------ | -------- | ---------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| INFRA-SELFHOST-001 | P0       | ready      | Self-hosted Mizyun-operated Supabase on Adam's Slovakia PC (alpha) | Physical-phone integration requires a reachable trusted environment; ADR-0016 amendment 2026-07-25             |
-| INFRA-MANAGED-001  | P0       | superseded | Hosted managed Supabase EU development/staging                     | Superseded by INFRA-SELFHOST-001 for the alpha track; returns as the production-track shape via INFRA-PORT-001 |
-| INFRA-PORT-001     | P1       | blocked    | Managed-to-self-hosted portability and restore lab                 | The alpha track on the Slovakia PC has shipped; off-site backups + second operator exist                       |
-| INFRA-CUTOVER-001  | P2       | blocked    | Rehearse and execute production data-plane migration               | 90-day staging gate and two rehearsals pass                                                                    |
+| ID                 | Priority | Status     | Work item                                                          | Entry gate                                                                                                             |
+| ------------------ | -------- | ---------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| INFRA-ENV-001      | P0       | done       | Isolate Mac development from Windows founder production            | Production config fails closed; exact-commit promotion never resets PC data; runbook and service templates pass checks |
+| INFRA-WIN-001      | P0       | active     | Provision Windows/WSL2 founder-production backend                  | Official self-hosted Supabase + API survive reboot; backup/restore and authenticated synthetic device journey pass     |
+| INFRA-SELFHOST-001 | P0       | active     | Self-hosted Mizyun-operated Supabase on Adam's Slovakia PC (alpha) | Implemented by INFRA-ENV-001 and completed by live INFRA-WIN-001 acceptance                                            |
+| INFRA-MANAGED-001  | P0       | superseded | Hosted managed Supabase EU development/staging                     | Superseded by INFRA-SELFHOST-001 for the alpha track; returns as the production-track shape via INFRA-PORT-001         |
+| INFRA-PORT-001     | P1       | blocked    | Managed-to-self-hosted portability and restore lab                 | The alpha track on the Slovakia PC has shipped; off-site backups + second operator exist                               |
+| INFRA-CUTOVER-001  | P2       | blocked    | Rehearse and execute production data-plane migration               | 90-day staging gate and two rehearsals pass                                                                            |
 
 The authoritative stages, operational gates, topology, rollback, and provisional service objectives live in `docs/INFRASTRUCTURE_EVOLUTION_PLAN.md`. The single-Linux-host restriction is relaxed for the alpha track per ADR-0016 amendment 2026-07-25; it is restored before any paying-user cutover.
 

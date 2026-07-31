@@ -33,6 +33,10 @@ The existing ports/adapters, PostgreSQL migrations, RLS policies, private Storag
 
 ## Amendment 2026-07-25 — Self-hosted alpha track
 
+> Operationally refined by ADR-0018 on 2026-07-31. In particular, the PC uses
+> official self-hosted Supabase Docker Compose rather than the development-only
+> CLI stack, and production promotion never runs `db:verify`/`db:reset` there.
+
 For the alpha track before the first paying user, the "managed
 first" decision above is suspended in favour of self-hosting on
 Adam's Slovakia PC. The original managed-first posture remains

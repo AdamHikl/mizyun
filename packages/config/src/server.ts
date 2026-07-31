@@ -248,6 +248,30 @@ export const loadServerConfig = (
   ) {
     issues.push({ kind: "missing", keys: [SERVER_ENV_KEYS.mistralApiKey] });
   }
+  if (parsed.success && parsed.data.env === "production") {
+    if (!bothPresent) {
+      issues.push({
+        kind: "missing",
+        keys: [
+          SERVER_ENV_KEYS.supabaseUrl,
+          SERVER_ENV_KEYS.supabasePublishableKey,
+        ],
+      });
+    }
+    if (parsed.data.supabaseServiceRoleKey === undefined) {
+      issues.push({
+        kind: "missing",
+        keys: [SERVER_ENV_KEYS.supabaseServiceRoleKey],
+      });
+    }
+    if (parsed.data.visionProvider === "stub") {
+      issues.push({
+        kind: "malformed",
+        key: SERVER_ENV_KEYS.visionProvider,
+        reason: "VISION_PROVIDER=stub is forbidden when NODE_ENV=production.",
+      });
+    }
+  }
   if (issues.length > 0 || !parsed.success) return err(issues);
 
   const value = parsed.data;

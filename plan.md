@@ -13,9 +13,9 @@
 
 ## Current focus
 
-🚧 **Cross-phase AI checkpoint — build and privately evaluate the grounded Mistral coach before controlled alpha.**
+🚧 **Cross-cutting infrastructure checkpoint — establish isolated Mac development and Windows founder production.**
 
-The persistent food/workout/body/dashboard/photo journeys pass on standalone iOS and Android, and OBS-001 provides consent-off-by-default, identifier-free local product analytics with voluntary export. The grounded Mistral Coach, deterministic planning, user-controlled memory, editable nutrition drafts, persistent Coach meal/workout proposals, deterministic daily action plans, evidence-gated weekly adaptations, and opt-in proactive reminders are implemented. The active work is a requirement-by-requirement AI completion audit plus authenticated native acceptance of every action flow. The model still cannot mutate authoritative records: every action requires explicit review and the existing confirmed write boundary. Real-user access remains blocked until the provider policy/privacy gate, safety evaluation, deletion/isolation, budgets, and two-platform acceptance pass. `docs/AI_IMPLEMENTATION_PLAN.md` is the execution plan.
+ADR-0018 separates the disposable Mac Supabase/API development loop from a persistent founder-production environment on the Windows PC. Configuration and exact-commit promotion guards are implemented; the next active step is one-time Windows/WSL2 provisioning, official self-hosted Supabase installation, reboot proof, first backup/restore drill, and authenticated synthetic acceptance. The AI completion audit resumes after this stable device-reachable backend exists. Real-user AI access remains blocked until the provider policy/privacy, safety, deletion/isolation, budget, and two-platform gates pass.
 
 ## Dependency sequence
 
@@ -30,7 +30,8 @@ Foundation
           → real dashboard + weekly review
             → Android verification + product analytics
               → private Mistral implementation + synthetic evaluation
-                → founder alpha + 10–30 design partners
+                → isolated Windows founder production
+                  → founder alpha + 10–30 design partners
                   → durable memory + text-assisted nutrition
                     → vision-assisted drafts
                     → subscription validation + beta hardening
@@ -40,15 +41,15 @@ Nutrition, training, and progress can advance in parallel only after the product
 
 ## Cross-cutting infrastructure evolution
 
-ADR-0016 and `docs/INFRASTRUCTURE_EVOLUTION_PLAN.md` establish a managed-first, portable path:
+ADR-0016, ADR-0018, and `docs/INFRASTRUCTURE_EVOLUTION_PLAN.md` establish a portable path with an explicit founder-production exception:
 
-1. use separate managed Supabase EU projects for hosted development, staging, alpha, and initial production;
-2. keep business rules, identity, memory, media, and model providers behind replaceable ports;
-3. prove database/Auth/object export and restore into Mizyun-operated staging while managed Supabase remains authoritative;
-4. operate production-shaped self-hosted staging for at least 90 days with two qualified operators, recovery drills, monitoring, and rollback;
-5. move production only after two successful cutover rehearsals and explicit operational, data-protection, economic, and reliability approval.
+1. keep disposable local development on the Mac and persistent founder production on official self-hosted Supabase inside Windows/WSL2;
+2. promote exact verified commits without ever resetting or seeding the PC authority;
+3. keep business rules, identity, memory, media, and model providers behind replaceable ports;
+4. add off-device backups, restore proof, monitoring, and a second operator before other users rely on the PC;
+5. return to the managed/redundant production gate before paying-user cutover, including 90 days of production-shaped staging and two rehearsals.
 
-This track does not displace the current AI/mobile acceptance work. The next infrastructure milestone is hosted EU Supabase acceptance; self-hosting starts only after the managed environment provides real scale, cost, backup, and recovery measurements.
+The current milestone is `INFRA-WIN-001`: provision the Windows/WSL2 host and prove persistence, reboot recovery, backup/restore, Auth/RLS/Storage, and physical-device reachability. “Production” during this milestone means Adam's founder environment, not release-grade paying-user production.
 
 ## Phase 0 — Modular foundation ✅
 

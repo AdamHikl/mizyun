@@ -1409,3 +1409,49 @@ no API changes. The segment closes the gap between "Coach works"
 - Prompts, responses, scores, and raw input/output texts are never logged.
 - The moderator is wired in `apps/api` composition root only when Mistral provider is configured (`AGENT_PROVIDER=mistral`), using `MISTRAL_MODERATION_MODEL` (defaulting to `mistral-moderation-2603`).
 - Opt-in live synthetic e2e calibration tests verify moderation connectivity without leaking sensitive text or secrets into logs.
+
+## 2026-07-31 — Isolated Mac development and Windows founder production
+
+### Primary sources
+
+- Supabase, **Local development workflow** (accessed 2026-07-31):
+  https://supabase.com/docs/guides/local-development/cli-workflows
+- Supabase, **Self-Hosting** (accessed 2026-07-31):
+  https://supabase.com/docs/guides/self-hosting
+- Supabase, **Self-Hosting with Docker** (accessed 2026-07-31):
+  https://supabase.com/docs/guides/self-hosting/docker
+- Microsoft, **Use systemd to manage Linux services with WSL** (accessed
+  2026-07-31): https://learn.microsoft.com/en-us/windows/wsl/systemd
+- Microsoft, **Accessing network applications with WSL** (accessed 2026-07-31):
+  https://learn.microsoft.com/en-us/windows/wsl/networking
+- Tailscale, **Install Tailscale on Windows with WSL 2** (accessed 2026-07-31):
+  https://tailscale.com/docs/install/windows/wsl2
+- Cloudflare, **Run as a service** (accessed 2026-07-31):
+  https://developers.cloudflare.com/tunnel/advanced/local-management/as-a-service/
+
+### Verified findings and implementation consequences
+
+- Supabase explicitly describes the CLI local stack as development-only, without
+  production hardening, and says it must never be exposed externally. The Mac
+  retains that stack; the PC runbook now uses the official self-hosted Docker
+  Compose distribution.
+- Supabase documents `db push` as applying only migrations absent from the remote
+  migration history, while reset commands erase data. The former is the PC
+  promotion primitive; `db:verify`/`db:reset` are forbidden on the PC.
+- Official self-hosting makes Mizyun responsible for server maintenance,
+  security, PostgreSQL operations, backups, recovery, monitoring, and uptime.
+  The PC is therefore labeled founder production and does not satisfy the
+  eventual paying-user gate.
+- Current Ubuntu under WSL supports systemd, which allows the Supabase and API
+  services to be enabled and supervised. A Windows startup task must launch the
+  WSL distribution, and a real reboot proof is required.
+- WSL mirrored networking can improve VPN/LAN behavior, but Mizyun does not
+  depend on LAN exposure: Tailscale inside WSL carries private SSH, while a
+  named Cloudflare Tunnel carries only HTTPS API/Supabase gateway traffic.
+- Production configuration is external to Git and now fails closed unless
+  durable Supabase settings are present. API production startup no longer loads
+  the Mac development `.env`.
+- The previous deploy script ran `pnpm db:verify` on the PC even though that
+  command includes a destructive local reset. The replacement verifies only on
+  Mac, promotes an exact commit, backs up the PC, previews/applies pending
+  migrations, restarts, and smoke-tests.

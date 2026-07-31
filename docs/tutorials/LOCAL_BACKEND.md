@@ -36,7 +36,7 @@ EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<local publishable key>
 
 SUPABASE_URL=http://127.0.0.1:54321
 SUPABASE_PUBLISHABLE_KEY=<local publishable key>
-SUPABASE_SECRET_KEY=<local service-role key>
+SUPABASE_SERVICE_ROLE_KEY=<local service-role key>
 
 AGENT_PROVIDER=disabled
 ```
