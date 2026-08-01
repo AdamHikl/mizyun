@@ -31,5 +31,9 @@ export const authClient: AuthClient =
   authConfiguration.configured &&
   configResult.ok &&
   configResult.value.supabaseConfig
-    ? createSupabaseMobileAuthClient(configResult.value.supabaseConfig)
+    ? createSupabaseMobileAuthClient({
+        ...configResult.value.supabaseConfig,
+        redirectUri:
+          configResult.value.authRedirectUri ?? "mizyun://auth/callback",
+      })
     : new DisabledAuthClient();

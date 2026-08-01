@@ -55,15 +55,35 @@ pnpm db:verify
 ```
 
 Do not point the development mobile build at the PC merely to test unfinished
-code. A production mobile build uses separate public endpoints:
+code. The phone can hold both apps simultaneously: the Dev build uses
+`com.mizyun.dev`/`mizyun-dev://`, while the Production build uses
+`com.mizyun.app`/`mizyun://`. Build each variant with its own ignored endpoint
+file and never reuse a production publishable key in the Dev file.
+
+For Dev, copy `apps/mobile/env.dev.example` to `apps/mobile/.env.local` and
+fill in the Mac's reachable development URLs. Add
+`mizyun-dev://auth/callback` to the Mac Supabase Auth redirect allow-list.
+For Production, copy `apps/mobile/env.production.example` to
+`apps/mobile/.env.local` and fill in the PC's publishable key:
 
 ```dotenv
-EXPO_PUBLIC_API_URL=https://<production-api-host>
-EXPO_PUBLIC_SUPABASE_URL=https://<production-supabase-host>
+EXPO_PUBLIC_API_URL=https://mizyun-api.phiskel.com
+EXPO_PUBLIC_SUPABASE_URL=https://mizyun-supabase.phiskel.com
 EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<production-publishable-key>
+EXPO_PUBLIC_AUTH_REDIRECT_URI=mizyun://auth/callback
 ```
 
-Only the publishable key belongs in the mobile build.
+Select the native app identity at build time:
+
+```bash
+MIZYUN_APP_VARIANT=dev pnpm --filter @mizyun/mobile exec expo run:ios
+MIZYUN_APP_VARIANT=production pnpm --filter @mizyun/mobile exec expo run:ios
+```
+
+Use the equivalent `expo run:android` command for Android. The two bundle IDs
+and schemes make the installs independent; each app has its own SecureStore
+session and its own Supabase database. Only the publishable key belongs in the
+mobile build.
 
 ## One-time Windows PC setup
 

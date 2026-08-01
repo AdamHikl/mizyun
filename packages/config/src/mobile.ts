@@ -25,6 +25,7 @@ export const ALLOWED_MOBILE_PUBLIC_KEYS = [
   "EXPO_PUBLIC_SUPABASE_URL",
   "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
   "EXPO_PUBLIC_API_URL",
+  "EXPO_PUBLIC_AUTH_REDIRECT_URI",
 ] as const;
 
 export type AllowedMobilePublicKey =
@@ -44,6 +45,8 @@ export interface MobileConfig {
    */
   readonly supabase: AuthConfigurationStatus;
   readonly supabaseConfig: MobileSupabaseConfiguration | null;
+  /** Deep-link URI used by password recovery for the selected app variant. */
+  readonly authRedirectUri: string | null;
   /**
    * Public base URL of the Mizyun API. Null when not provided; UI surfaces
    * should render an empty-state configuration-required message in that
@@ -60,6 +63,8 @@ const apiUrlSchema = z
   .string()
   .url("EXPO_PUBLIC_API_URL must be a valid URL")
   .nullable();
+
+const authRedirectUriSchema = z.string().min(1);
 
 const parseSupabasePair = (
   snapshot: EnvSnapshot,
@@ -150,6 +155,21 @@ export const loadMobileConfig = (
     }
   }
 
+  let authRedirectUriValue: string | null = null;
+  const authRedirectUriRaw = snapshot["EXPO_PUBLIC_AUTH_REDIRECT_URI"];
+  if (typeof authRedirectUriRaw === "string" && authRedirectUriRaw.length > 0) {
+    const parsed = authRedirectUriSchema.safeParse(authRedirectUriRaw);
+    if (parsed.success) {
+      authRedirectUriValue = parsed.data;
+    } else {
+      issues.push({
+        kind: "malformed",
+        key: "EXPO_PUBLIC_AUTH_REDIRECT_URI",
+        reason: parsed.error.issues[0]?.message ?? "must not be empty",
+      });
+    }
+  }
+
   if (issues.length > 0) {
     return err(issues);
   }
@@ -179,7 +199,12 @@ export const loadMobileConfig = (
       ? { url: pair.url, publishableKey: pair.publishableKey }
       : null;
 
-  return ok({ supabase, supabaseConfig, apiUrl: apiUrlValue });
+  return ok({
+    supabase,
+    supabaseConfig,
+    apiUrl: apiUrlValue,
+    authRedirectUri: authRedirectUriValue,
+  });
 };
 
 /**

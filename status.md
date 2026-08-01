@@ -5,11 +5,11 @@
 ## Executive snapshot
 
 - **Product stage:** technical pre-alpha; the architecture, domain/API foundation, and native mobile UI are verified and polished.
-- **Roadmap position:** INFRA-ENV-001 is implemented: Mac development is disposable and isolated, and Windows founder production has fail-closed configuration, exact-commit promotion, backup, service templates, and a future-session runbook. INFRA-WIN-001 live PC provisioning/acceptance is active.
+- **Roadmap position:** INFRA-ENV-001 is implemented: Mac development is disposable and isolated, and Windows founder production has fail-closed configuration, exact-commit promotion, backup, service templates, and a future-session runbook. INFRA-WIN-001 live PC provisioning/acceptance is active; the PC now runs the first live Supabase/API/tunnel stack.
 - **Latest verified implementation slice:** Production startup no longer reads the Mac `.env`; `NODE_ENV=production` requires durable Supabase URL/publishable/service-role settings and rejects the vision stub. The old PC deploy path that ran destructive `db:verify` was replaced by Mac-only verification plus exact-SHA PC backup, pending-migration apply, restart, smoke, and code rollback.
-- **Latest operational slice:** ADR-0018 and `docs/tutorials/SELFHOSTED_RUNBOOK.md` define Ubuntu/WSL2 on the Windows PC with official self-hosted Supabase Docker Compose, systemd API/Supabase units, Tailscale/SSH operations, named HTTPS tunnel, reboot proof, and off-repository production secrets.
+- **Latest operational slice:** The Windows PC now has the exact promoted checkout, read-only GitHub deploy key, Docker access for `mizyun`, official self-hosted Supabase under `mizyun-supabase.service`, production API under `mizyun-api.service`, and a healthy Cloudflare Tunnel. Public API and Supabase hostnames are `mizyun-api.phiskel.com` and `mizyun-supabase.phiskel.com`.
 - **Infrastructure direction:** The Windows PC is the persistent founder-production authority after INFRA-WIN-001 passes, while the Mac remains development-only. One PC is explicitly not paying-user production; off-device recovery, monitoring, redundancy/managed hosting, and second-operator gates remain.
-- **Next exact action:** On the Windows PC, execute `docs/tutorials/SELFHOSTED_RUNBOOK.md` through the first exact-commit promotion, then prove reboot recovery, backup restore, Auth/RLS/Storage isolation, and one authenticated synthetic physical-device journey.
+- **Next exact action:** Build and install the new Dev/Production mobile variants, then prove PC reboot recovery, backup restore, Auth/RLS/Storage isolation, and one authenticated synthetic physical-device journey.
 - **Branch:** `main`; environment-isolation segment is committed at the current HEAD and not pushed.
 - **AI provider:** Mistral `mistral-medium-latest` text/vision and `mistral-moderation-2603` moderation are configured; committed external access defaults off and cannot be bypassed by the mobile client.
 - **Local runtime at handoff:** `pnpm check`, focused config tests, shell/Node syntax, promotion dry-run, migration reset, database lint, and `git diff --check` pass. The pgTAP container stalled before output and was terminated; no schema changed in this segment.
@@ -121,6 +121,32 @@ No PC, public tunnel, production database, backup restore, reboot, or physical-
 device production acceptance was available in this Mac session. INFRA-WIN-001
 remains active until those checks pass. No real user data, production secret, or
 live model request was used.
+
+## Verification evidence — 2026-08-01
+
+```text
+PC over SSH:
+  exact checkout: 89564a6
+  Node: v22.22.0; pnpm: 10.33.0; Docker: 29.2.0
+  mizyun-supabase.service: active (exited), all Supabase containers healthy
+  mizyun-api.service: active (running), local /v1/health: HTTP 200
+  cloudflared.service: active (running)
+
+Public tunnel:
+  https://mizyun-api.phiskel.com/v1/health: HTTP 200
+  https://mizyun-supabase.phiskel.com/auth/v1/health: HTTP 401
+    (expected without an API key)
+
+Mac:
+  pnpm check: passed after Dev/Production mobile variant and auth redirect changes
+  mobile bundle checks: iOS 1,776 modules; Android 1,865 modules
+  tests: 945 passed; 17 opt-in tests skipped
+```
+
+The API service is enabled for reboot recovery; reboot proof, backup/restore,
+hosted Auth/RLS/Storage isolation, and physical-device production acceptance
+remain open. No real user data, production secret, or live model request was
+used in this verification.
 
 ## Verification evidence — 2026-07-26
 

@@ -54,6 +54,8 @@ const asIdentityError = (error: unknown): IdentityError => {
 export interface SupabaseMobileConfiguration {
   readonly url: string;
   readonly publishableKey: string;
+  /** Deep-link URI generated from the current app variant's scheme. */
+  readonly redirectUri?: string;
 }
 
 export class SupabaseMobileAuthClient implements AuthClient {
@@ -64,7 +66,10 @@ export class SupabaseMobileAuthClient implements AuthClient {
   // reset-password screen in place of the AuthScreen.
   #inRecovery = false;
 
-  constructor(private readonly client: SupabaseClient) {
+  constructor(
+    private readonly client: SupabaseClient,
+    private readonly redirectUri = "mizyun://auth/callback",
+  ) {
     if (Platform.OS !== "web") {
       const subscription = AppState.addEventListener("change", (state) => {
         if (state === "active") this.client.auth.startAutoRefresh();
@@ -168,7 +173,7 @@ export class SupabaseMobileAuthClient implements AuthClient {
     const { error } = await this.client.auth.resetPasswordForEmail(
       email.email,
       {
-        redirectTo: "mizyun://auth/callback",
+        redirectTo: this.redirectUri,
       },
     );
     if (error) throw asIdentityError(error);
