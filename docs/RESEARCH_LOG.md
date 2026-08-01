@@ -1455,3 +1455,27 @@ no API changes. The segment closes the gap between "Coach works"
   command includes a destructive local reset. The replacement verifies only on
   Mac, promotes an exact commit, backs up the PC, previews/applies pending
   migrations, restarts, and smoke-tests.
+
+## 2026-08-01 — Separate iOS Dev identity under an Apple Personal Team
+
+### Primary sources
+
+- Expo, **App config reference** (accessed 2026-08-01):
+  https://docs.expo.dev/versions/latest/config/app/
+- Expo, **Send notifications with FCM and APNs** (accessed 2026-08-01):
+  https://docs.expo.dev/push-notifications/sending-notifications-custom/
+- Expo, **iOS capabilities** (accessed 2026-08-01):
+  https://docs.expo.dev/build-reference/ios-capabilities/
+
+### Verified findings and implementation consequences
+
+- `ios.bundleIdentifier`, `scheme`, and native entitlements are app-config
+  concerns, but an existing generated iOS project must be regenerated when the
+  selected variant changes.
+- Expo's notifications integration adds the APNs `aps-environment` entitlement.
+  Apple Personal Teams cannot provision that capability for the new
+  `com.mizyun.dev` identity, so a final Dev-only config plugin removes it after
+  Expo's automatic plugin pass. Production continues to request APNs.
+- The physical-device build then compiled, signed, and installed both independent
+  identities. iOS still requires the user to enable Developer Mode and trust the
+  Personal Team profile before either development-signed app can launch.

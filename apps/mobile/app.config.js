@@ -29,6 +29,16 @@ if (!variant) {
 const baseExpo = baseConfig.expo;
 const baseIos = baseExpo.ios;
 const baseAndroid = baseExpo.android;
+const plugins =
+  variantName === "dev"
+    ? [
+        ...baseExpo.plugins.filter((plugin) => {
+          const pluginName = Array.isArray(plugin) ? plugin[0] : plugin;
+          return pluginName !== "expo-notifications";
+        }),
+        "./plugins/without-ios-push-notifications",
+      ]
+    : baseExpo.plugins;
 
 module.exports = {
   ...baseConfig,
@@ -49,5 +59,6 @@ module.exports = {
       ...baseAndroid,
       package: variant.androidPackage,
     },
+    plugins,
   },
 };

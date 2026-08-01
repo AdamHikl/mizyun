@@ -1,6 +1,6 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-07-31**.
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-08-01**.
 
 ## Executive snapshot
 
@@ -9,12 +9,12 @@
 - **Latest verified implementation slice:** Production startup no longer reads the Mac `.env`; `NODE_ENV=production` requires durable Supabase URL/publishable/service-role settings and rejects the vision stub. The old PC deploy path that ran destructive `db:verify` was replaced by Mac-only verification plus exact-SHA PC backup, pending-migration apply, restart, smoke, and code rollback.
 - **Latest operational slice:** The Windows PC now has the exact promoted checkout, read-only GitHub deploy key, Docker access for `mizyun`, official self-hosted Supabase under `mizyun-supabase.service`, production API under `mizyun-api.service`, and a healthy Cloudflare Tunnel. Public API and Supabase hostnames are `mizyun-api.phiskel.com` and `mizyun-supabase.phiskel.com`.
 - **Infrastructure direction:** The Windows PC is the persistent founder-production authority after INFRA-WIN-001 passes, while the Mac remains development-only. One PC is explicitly not paying-user production; off-device recovery, monitoring, redundancy/managed hosting, and second-operator gates remain.
-- **Next exact action:** Build and install the new Dev/Production mobile variants, then prove PC reboot recovery, backup restore, Auth/RLS/Storage isolation, and one authenticated synthetic physical-device journey.
-- **Branch:** `main`; environment-isolation segment is committed at the current HEAD and not pushed.
+- **Next exact action:** Trust the Personal Team developer profile on the physical iPhone, launch `Mizyun Dev`, wake the Windows PC so its public Supabase anonymous key can populate the ignored Production mobile env, then rebuild `Mizyun` against Production and prove PC reboot recovery.
+- **Branch:** `main`; the mobile variant commits are local and not pushed, with the final Personal-Team Dev entitlement adjustment still uncommitted.
 - **AI provider:** Mistral `mistral-medium-latest` text/vision and `mistral-moderation-2603` moderation are configured; committed external access defaults off and cannot be bypassed by the mobile client.
 - **Local runtime at handoff:** `pnpm check`, focused config tests, shell/Node syntax, promotion dry-run, migration reset, database lint, and `git diff --check` pass. The pgTAP container stalled before output and was terminated; no schema changed in this segment.
 - **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, 1,776-module iOS and 1,865-module Android production exports, and 945 tests passed; 17 opt-in live/e2e tests skipped.
-- **iOS:** native Release build (`com.mizyun.app`) successfully compiled, signed (`PP89XZBW4U`), installed, and verified live on physical iPhone (`00008140-001114501A86801C`).
+- **iOS:** both `Mizyun` (`com.mizyun.app`) and `Mizyun Dev` (`com.mizyun.dev`) are installed on physical iPhone `00008140-001114501A86801C`. The separate Dev target builds and signs under the Personal Team after omitting APNs only for Dev; first launch is blocked until the user trusts the developer profile on-device. The currently installed Production identity still needs rebuilding with the PC publishable key.
 - **Android:** standalone Release APK passes complete journey on Pixel 9 API 36 emulator.
 
 ## What is genuinely delivered

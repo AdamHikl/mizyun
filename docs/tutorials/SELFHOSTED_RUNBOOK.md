@@ -73,17 +73,25 @@ EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<production-publishable-key>
 EXPO_PUBLIC_AUTH_REDIRECT_URI=mizyun://auth/callback
 ```
 
-Select the native app identity at build time:
+Select the native app identity at build time. Regenerate the ignored native
+project before switching variants; `expo run:ios` reuses an existing project
+and otherwise keeps its previous bundle ID:
 
 ```bash
+MIZYUN_APP_VARIANT=dev pnpm --filter @mizyun/mobile exec expo prebuild --clean --platform ios
 MIZYUN_APP_VARIANT=dev pnpm --filter @mizyun/mobile exec expo run:ios
+MIZYUN_APP_VARIANT=production pnpm --filter @mizyun/mobile exec expo prebuild --clean --platform ios
 MIZYUN_APP_VARIANT=production pnpm --filter @mizyun/mobile exec expo run:ios
 ```
 
 Use the equivalent `expo run:android` command for Android. The two bundle IDs
 and schemes make the installs independent; each app has its own SecureStore
 session and its own Supabase database. Only the publishable key belongs in the
-mobile build.
+mobile build. The local iOS Dev variant deliberately removes the APNs
+entitlement because Apple Personal Teams cannot provision Push Notifications;
+Production retains the notification capability. On first install from a
+Personal Team, enable Developer Mode and trust the developer profile on the
+iPhone before launching.
 
 ## One-time Windows PC setup
 
