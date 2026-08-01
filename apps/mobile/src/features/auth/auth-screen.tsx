@@ -10,6 +10,8 @@ import {
 
 import { authClient } from "@/composition/auth-client";
 
+import { authErrorMessage } from "./auth-error-message";
+
 export function AuthScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -37,9 +39,7 @@ export function AuthScreen() {
           setMessage("Check your email to confirm your account.");
       }
     } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : "Authentication failed.",
-      );
+      setMessage(authErrorMessage(mode, error));
     } finally {
       setBusy(false);
     }
@@ -80,7 +80,15 @@ export function AuthScreen() {
           style={styles.input}
         />
       ) : null}
-      {message ? <Text style={styles.message}>{message}</Text> : null}
+      {message ? (
+        <Text
+          accessibilityLiveRegion="polite"
+          accessibilityRole="alert"
+          style={styles.message}
+        >
+          {message}
+        </Text>
+      ) : null}
       <Pressable
         accessibilityRole="button"
         disabled={busy || !email || (mode !== "forgot" && password.length < 6)}

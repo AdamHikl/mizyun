@@ -17,6 +17,8 @@
 
 ADR-0018 separates the disposable Mac Supabase/API development loop from a persistent founder-production environment on the Windows PC. Configuration and exact-commit promotion guards are implemented; the next active step is one-time Windows/WSL2 provisioning, official self-hosted Supabase installation, reboot proof, first backup/restore drill, and authenticated synthetic acceptance. The AI completion audit resumes after this stable device-reachable backend exists. Real-user AI access remains blocked until the provider policy/privacy, safety, deletion/isolation, budget, and two-platform gates pass.
 
+Founder production temporarily auto-confirms new email/password accounts because outbound email is not configured. This is an explicit single-founder alpha exception, not an external-release design: AUTH-SMTP-001 must add domain-authenticated confirmation and recovery email from `no-reply@phiskel.com` before design-partner beta.
+
 ## Dependency sequence
 
 ```text
@@ -337,6 +339,7 @@ Reduce logging friction with vision-assisted drafts while preserving confirmatio
 - subscription/paywall implementation only after premium value, provider cost, and willingness to pay have been tested;
 - unit-economics reporting for AI cost per active/paying user and subscription gross margin;
 - privacy policy, terms, consent, retention, export, and account deletion;
+- domain-authenticated transactional Auth email from `no-reply@phiskel.com`, with confirmation and password-recovery acceptance;
 - Android emulator/device and iOS simulator/device test matrix;
 - store metadata, permission disclosures, signing, staged rollout, and rollback plan.
 
@@ -345,6 +348,7 @@ Reduce logging friction with vision-assisted drafts while preserving confirmatio
 - All MVP requirements are accepted and all P0/P1 defects are closed.
 - `docs/QUALITY_GATES.md` and `docs/BEFORE_TESTING.md` release gates pass.
 - A restore/recovery exercise and account-deletion test have succeeded.
+- Email confirmation and password recovery succeed through the production transactional-mail provider; automatic confirmation is disabled.
 - TestFlight and internal Android builds complete the defined device matrix.
 - Free and premium entitlements fail safely and can be restored across supported platforms.
 - The team can measure the 30–100-customer validation funnel without logging sensitive content.

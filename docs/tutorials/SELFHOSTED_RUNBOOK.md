@@ -226,6 +226,22 @@ The API's `SUPABASE_URL` stays internal (`http://127.0.0.1:8000`). The database
 URL is used only by the promotion tool to apply pending migrations. Percent-
 encode special characters in its password.
 
+### Founder-alpha Auth email exception
+
+The single-founder environment currently sets
+`ENABLE_EMAIL_AUTOCONFIRM=true`. Account creation therefore issues a confirmed
+session without sending email. This is an explicitly accepted founder-alpha
+exception because the template `supabase-mail:2500` SMTP host does not exist in
+the production Compose stack.
+
+This setting is not acceptable for design partners or external release: it does
+not prove mailbox ownership, and password recovery cannot work without outbound
+email. Before design-partner beta, AUTH-SMTP-001 must configure a dedicated
+transactional provider and domain authentication for
+`Mizyun <no-reply@phiskel.com>`, prove confirmation and recovery on physical
+devices, and restore `ENABLE_EMAIL_AUTOCONFIRM=false`. Do not use a personal
+mailbox as the external product sender.
+
 Enable Supabase. Leave the API unit installed but not enabled until the first
 promotion has applied the application migrations:
 

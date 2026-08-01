@@ -1480,3 +1480,43 @@ no API changes. The segment closes the gap between "Coach works"
 - The physical-device build then compiled, signed, and installed both independent
   identities. iOS still requires the user to enable Developer Mode and trust the
   Personal Team profile before either development-signed app can launch.
+
+## 2026-08-01 — Founder-production Auth signup timeout
+
+### Primary sources
+
+- Supabase, **Self-Hosting with Docker** (accessed 2026-08-01):
+  https://supabase.com/docs/guides/self-hosting/docker
+- Supabase, **Auth Self-hosting Config** (accessed 2026-08-01):
+  https://supabase.com/docs/guides/self-hosting/auth/config
+- Supabase, **JavaScript signUp** (accessed 2026-08-01):
+  https://supabase.com/docs/reference/javascript/auth-signup
+- Supabase, **Use Supabase Auth with React Native** (accessed 2026-08-01):
+  https://supabase.com/docs/guides/auth/quickstarts/react-native
+
+### Verified findings and implementation consequences
+
+- A physical iPhone signup reached the self-hosted GoTrue service, but GoTrue
+  timed out after ten seconds while attempting to send confirmation mail. The
+  production Compose environment still used the template
+  `SMTP_HOST=supabase-mail` / `SMTP_PORT=2500`, and no such service or hostname
+  exists in the running stack. The transaction rolled back; `auth.users`
+  remained empty.
+- Supabase requires a production-ready SMTP service for self-hosted confirmation
+  and recovery email. The user explicitly selected automatic confirmation as a
+  temporary single-founder exception rather than sending from a personal Gmail
+  account. `ENABLE_EMAIL_AUTOCONFIRM=true` is active on the PC; a disposable
+  synthetic signup returned HTTP 200, an immediately confirmed user, and a valid
+  session through both the internal gateway and the public Cloudflare route,
+  after which the admin API deleted each test identity successfully.
+- Automatic confirmation means the public Auth endpoint does not verify mailbox
+  ownership, and password recovery remains unavailable. AUTH-SMTP-001 therefore
+  blocks design-partner beta until a dedicated provider sends domain-authenticated
+  confirmation and recovery mail from `no-reply@phiskel.com`, and autoconfirm is
+  disabled again.
+- Supabase client exceptions can contain serialized gateway response details.
+  The mobile Auth screen now maps every provider failure to action-specific,
+  stable copy and announces it as an accessibility alert; a focused test proves
+  a serialized 504 body and endpoint URL cannot reach rendered message text.
+- AUTH-PROD-001 is complete for founder account creation. AUTH-SMTP-001 owns the
+  intentionally deferred production email-confirmation and recovery gate.

@@ -9,22 +9,23 @@
 
 ## Now — Phase 1
 
-| ID            | Priority | Status | Work item                                               | Done when                                                |
-| ------------- | -------- | ------ | ------------------------------------------------------- | -------------------------------------------------------- |
-| BE-001        | P0       | done   | Choose local/hosted Supabase development workflow       | ADR-0003: local-first with separate hosted integration   |
-| TOOL-001      | P0       | done   | Start the installed Docker Desktop runtime              | Docker engine verified and local stack starts            |
-| BE-002        | P0       | done   | Configure local development Supabase project            | Local stack starts from committed configuration          |
-| BE-003        | P0       | done   | Apply and validate all migrations                       | Clean reset and database lint pass                       |
-| SEC-001       | P0       | done   | Add automated RLS isolation tests                       | All current pgTAP schema/RLS assertions pass             |
-| SEC-002       | P0       | done   | Complete private-media isolation tests                  | Path and signed-URL owner-isolation tests pass           |
-| CFG-001       | P1       | done   | Add validated API and mobile configuration modules      | Missing/invalid config produces typed, actionable states |
-| API-001       | P1       | done   | Create provider-neutral authenticated mobile API client | Tokens attach/refresh; 401 and network errors normalize  |
-| AUTH-001      | P1       | done   | Test real sign-up/sign-in/session restore               | Verified against local Supabase on iOS and Android       |
-| AUTH-002      | P1       | done   | Add account/settings screen with sign-out               | Signed-in user can explicitly end the session            |
-| AUTH-003      | P1       | done   | Implement password recovery and confirmation flows      | Deep-link and error states verified                      |
-| OPS-001       | P1       | done   | Establish safe structured API logging/error baseline    | Request IDs present; sensitive bodies/tokens excluded    |
-| AND-001       | P1       | done   | Configure and verify Android emulator                   | Standalone Release journey and native media pass         |
-| DOCS-WIKI-001 | P2       | done   | Capture reusable local development runbooks             | Setup/build/test/platform failures are reproducible      |
+| ID            | Priority | Status | Work item                                               | Done when                                                                  |
+| ------------- | -------- | ------ | ------------------------------------------------------- | -------------------------------------------------------------------------- |
+| BE-001        | P0       | done   | Choose local/hosted Supabase development workflow       | ADR-0003: local-first with separate hosted integration                     |
+| TOOL-001      | P0       | done   | Start the installed Docker Desktop runtime              | Docker engine verified and local stack starts                              |
+| BE-002        | P0       | done   | Configure local development Supabase project            | Local stack starts from committed configuration                            |
+| BE-003        | P0       | done   | Apply and validate all migrations                       | Clean reset and database lint pass                                         |
+| SEC-001       | P0       | done   | Add automated RLS isolation tests                       | All current pgTAP schema/RLS assertions pass                               |
+| SEC-002       | P0       | done   | Complete private-media isolation tests                  | Path and signed-URL owner-isolation tests pass                             |
+| CFG-001       | P1       | done   | Add validated API and mobile configuration modules      | Missing/invalid config produces typed, actionable states                   |
+| API-001       | P1       | done   | Create provider-neutral authenticated mobile API client | Tokens attach/refresh; 401 and network errors normalize                    |
+| AUTH-001      | P1       | done   | Test real sign-up/sign-in/session restore               | Verified against local Supabase on iOS and Android                         |
+| AUTH-002      | P1       | done   | Add account/settings screen with sign-out               | Signed-in user can explicitly end the session                              |
+| AUTH-003      | P1       | done   | Implement password recovery and confirmation flows      | Deep-link and error states verified                                        |
+| AUTH-PROD-001 | P0       | done   | Restore founder-production account creation             | Founder-alpha autoconfirm issues a session; raw provider errors are hidden |
+| OPS-001       | P1       | done   | Establish safe structured API logging/error baseline    | Request IDs present; sensitive bodies/tokens excluded                      |
+| AND-001       | P1       | done   | Configure and verify Android emulator                   | Standalone Release journey and native media pass                           |
+| DOCS-WIKI-001 | P2       | done   | Capture reusable local development runbooks             | Setup/build/test/platform failures are reproducible                        |
 
 ## Now — Persistent manual alpha
 
@@ -100,6 +101,7 @@ Native acceptance evidence: standalone iOS and Android Release apps pass real si
 | REL-001        | P0       | blocked  | Privacy/export/deletion release gate         | MVP repositories complete                                                               |
 | REL-002        | P0       | blocked  | iOS/Android beta build matrix                | MVP feature complete                                                                    |
 | REL-003        | P1       | blocked  | Accessibility and poor-network pass          | MVP feature complete                                                                    |
+| AUTH-SMTP-001  | P1       | blocked  | Domain-authenticated Auth email delivery     | `no-reply@phiskel.com` sends confirmation/recovery mail before external beta            |
 
 ## Infrastructure evolution
 
