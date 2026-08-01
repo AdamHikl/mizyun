@@ -1473,9 +1473,10 @@ no API changes. The segment closes the gap between "Coach works"
   concerns, but an existing generated iOS project must be regenerated when the
   selected variant changes.
 - Expo's notifications integration adds the APNs `aps-environment` entitlement.
-  Apple Personal Teams cannot provision that capability for the new
-  `com.mizyun.dev` identity, so a final Dev-only config plugin removes it after
-  Expo's automatic plugin pass. Production continues to request APNs.
+  Apple Personal Teams cannot provision that capability, so a final config
+  plugin removes it after Expo's automatic plugin pass for Dev and for an
+  explicitly opted-in local Production device build. Normal
+  Production/distribution configuration continues to request APNs.
 - The physical-device build then compiled, signed, and installed both independent
   identities. iOS still requires the user to enable Developer Mode and trust the
   Personal Team profile before either development-signed app can launch.

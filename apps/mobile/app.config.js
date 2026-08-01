@@ -29,16 +29,17 @@ if (!variant) {
 const baseExpo = baseConfig.expo;
 const baseIos = baseExpo.ios;
 const baseAndroid = baseExpo.android;
-const plugins =
-  variantName === "dev"
-    ? [
-        ...baseExpo.plugins.filter((plugin) => {
-          const pluginName = Array.isArray(plugin) ? plugin[0] : plugin;
-          return pluginName !== "expo-notifications";
-        }),
-        "./plugins/without-ios-push-notifications",
-      ]
-    : baseExpo.plugins;
+const disableIosPushNotifications =
+  variantName === "dev" || process.env.MIZYUN_IOS_DISABLE_PUSH === "1";
+const plugins = disableIosPushNotifications
+  ? [
+      ...baseExpo.plugins.filter((plugin) => {
+        const pluginName = Array.isArray(plugin) ? plugin[0] : plugin;
+        return pluginName !== "expo-notifications";
+      }),
+      "./plugins/without-ios-push-notifications",
+    ]
+  : baseExpo.plugins;
 
 module.exports = {
   ...baseConfig,

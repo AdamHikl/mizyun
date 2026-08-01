@@ -81,7 +81,7 @@ and otherwise keeps its previous bundle ID:
 MIZYUN_APP_VARIANT=dev pnpm --filter @mizyun/mobile exec expo prebuild --clean --platform ios
 MIZYUN_APP_VARIANT=dev pnpm --filter @mizyun/mobile exec expo run:ios
 MIZYUN_APP_VARIANT=production pnpm --filter @mizyun/mobile exec expo prebuild --clean --platform ios
-MIZYUN_APP_VARIANT=production pnpm --filter @mizyun/mobile exec expo run:ios
+MIZYUN_APP_VARIANT=production pnpm --filter @mizyun/mobile exec expo run:ios --configuration Release
 ```
 
 Use the equivalent `expo run:android` command for Android. The two bundle IDs
@@ -92,6 +92,15 @@ entitlement because Apple Personal Teams cannot provision Push Notifications;
 Production retains the notification capability. On first install from a
 Personal Team, enable Developer Mode and trust the developer profile on the
 iPhone before launching.
+
+A Production-endpoint build signed directly to an iPhone with an Apple Personal
+Team also needs the local signing override because Personal Teams cannot
+provision APNs. This does not change normal Production/distribution builds:
+
+```bash
+MIZYUN_IOS_DISABLE_PUSH=1 MIZYUN_APP_VARIANT=production pnpm --filter @mizyun/mobile exec expo prebuild --clean --platform ios
+MIZYUN_IOS_DISABLE_PUSH=1 MIZYUN_APP_VARIANT=production pnpm --filter @mizyun/mobile exec expo run:ios --configuration Release
+```
 
 ## One-time Windows PC setup
 
