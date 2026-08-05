@@ -81,7 +81,7 @@ migrations_applied=true
 
 sudo -n systemctl restart "$MIZYUN_API_SERVICE"
 curl --silent --show-error --fail --max-time 15 \
-  "$MIZYUN_LOCAL_API_URL/v1/system/status" >/dev/null
+  "$MIZYUN_LOCAL_API_URL/v1/health" >/dev/null
 
 printf '%s\n' "$target_sha" > .git/mizyun-production-sha
 trap - ERR

@@ -31,7 +31,7 @@ const steps = [
   "run pnpm db:verify against the Mac development database",
   "push the exact local commit to origin/main",
   "ask the PC to back up, apply pending migrations, and restart the API",
-  `smoke-test ${publicApiUrl ?? "<MIZYUN_PRODUCTION_API_URL>"}/v1/system/status`,
+  `smoke-test ${publicApiUrl ?? "<MIZYUN_PRODUCTION_API_URL>"}/v1/health`,
 ];
 
 if (dryRun) {
@@ -125,7 +125,7 @@ const smoke = run("curl", [
   "--fail",
   "--max-time",
   "15",
-  `${publicApiUrl}/v1/system/status`,
+  `${publicApiUrl}/v1/health`,
 ]);
 if (smoke.status !== 0) {
   fail(`the public smoke test failed; inspect the PC service and tunnel`, 4);

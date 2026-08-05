@@ -49,7 +49,7 @@ wait_for_http() {
   local url="$1"
   local attempts=40
   while (( attempts > 0 )); do
-    if curl -fsS -o /dev/null "${url}/v1/system/status" 2>/dev/null; then
+    if curl -fsS -o /dev/null "${url}/v1/health" 2>/dev/null; then
       return 0
     fi
     attempts=$(( attempts - 1 ))

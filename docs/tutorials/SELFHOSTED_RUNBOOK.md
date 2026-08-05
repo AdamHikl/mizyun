@@ -291,7 +291,7 @@ stack, API, Tailscale, and Cloudflare Tunnel. Disable Windows sleep/hibernate fo
 this always-on PC. Reboot once and verify from another device before trusting it:
 
 ```bash
-curl --fail https://<production-api-host>/v1/system/status
+curl --fail https://<production-api-host>/v1/health
 ssh mizyun-pc 'systemctl is-active mizyun-supabase mizyun-api cloudflared tailscaled'
 ```
 
@@ -337,7 +337,7 @@ with the previously running API because schema rollback is not automatic.
 Check production without changing it:
 
 ```bash
-curl --fail https://<production-api-host>/v1/system/status
+curl --fail https://<production-api-host>/v1/health
 ssh mizyun-pc 'systemctl status mizyun-api mizyun-supabase --no-pager'
 ssh mizyun-pc 'journalctl -u mizyun-api -n 100 --no-pager'
 ssh mizyun-pc 'cd /home/mizyun/mizyun && cat .git/mizyun-production-sha'
