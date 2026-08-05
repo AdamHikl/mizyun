@@ -317,7 +317,9 @@ The command:
 3. pushes the exact commit to `origin/main`;
 4. tells the PC to fetch that exact commit;
 5. creates a database and private-Storage backup on the PC;
-6. previews and applies only pending migrations using `supabase db push`; on
+6. when migration files changed, previews and applies only pending migrations
+   using `supabase db push`; when they did not change, records that fact and
+   skips the unnecessary database connection. On
    the founder PC, the script resolves `supabase-db` directly and sets
    `PGSSLMODE=disable` because the published Supavisor port is not configured
    with a tenant identifier;

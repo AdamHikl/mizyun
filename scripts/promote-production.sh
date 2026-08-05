@@ -63,21 +63,25 @@ pnpm install --frozen-lockfile
 # database and private Storage bytes without resetting either environment.
 bash scripts/backup-production.sh
 
-# The self-hosted stack publishes Supavisor on localhost, but its tenant
-# routing is intentionally not part of founder production. Resolve the
-# database container directly so migrations do not depend on pooler SNI and
-# use the local Postgres server's non-TLS endpoint.
-production_db_url="$MIZYUN_PRODUCTION_DB_URL"
-if [[ "${MIZYUN_PRODUCTION_DB_DIRECT_CONTAINER:-true}" == "true" ]]; then
-  db_container_ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$MIZYUN_DB_CONTAINER")"
-  [[ -n "$db_container_ip" ]] || die "could not resolve database container IP: $MIZYUN_DB_CONTAINER"
-  production_db_url="$(printf '%s' "$production_db_url" | sed "s#@127.0.0.1:5432/#@$db_container_ip:5432/#")"
-fi
-export PGSSLMODE="$MIZYUN_PRODUCTION_DB_SSLMODE"
+if [[ -n "$(git diff --name-only "$previous_sha" "$target_sha" -- supabase/migrations)" ]]; then
+  # The self-hosted stack publishes Supavisor on localhost, but its tenant
+  # routing is intentionally not part of founder production. Resolve the
+  # database container directly so migrations do not depend on pooler SNI and
+  # use the local Postgres server's non-TLS endpoint.
+  production_db_url="$MIZYUN_PRODUCTION_DB_URL"
+  if [[ "${MIZYUN_PRODUCTION_DB_DIRECT_CONTAINER:-true}" == "true" ]]; then
+    db_container_ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$MIZYUN_DB_CONTAINER")"
+    [[ -n "$db_container_ip" ]] || die "could not resolve database container IP: $MIZYUN_DB_CONTAINER"
+    production_db_url="$(printf '%s' "$production_db_url" | sed "s#@127.0.0.1:5432/#@$db_container_ip:5432/#")"
+  fi
+  export PGSSLMODE="$MIZYUN_PRODUCTION_DB_SSLMODE"
 
-pnpm exec supabase db push --db-url "$production_db_url" --dry-run
-pnpm exec supabase db push --db-url "$production_db_url"
-migrations_applied=true
+  pnpm exec supabase db push --db-url "$production_db_url" --dry-run
+  pnpm exec supabase db push --db-url "$production_db_url"
+  migrations_applied=true
+else
+  echo "No migration changes between $previous_sha and $target_sha; skipping database push."
+fi
 
 sudo -n systemctl restart "$MIZYUN_API_SERVICE"
 curl --silent --show-error --fail --max-time 15 \
