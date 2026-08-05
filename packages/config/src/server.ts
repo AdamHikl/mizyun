@@ -141,7 +141,7 @@ const baseServerSchema = z.object({
   mistralVisionModel: z
     .string()
     .min(1, "MISTRAL_VISION_MODEL must not be empty")
-    .default("pixtral-12b-2409"),
+    .default("mistral-medium-2508"),
   mistralVisionTimeoutMs: z.coerce
     .number()
     .int("MISTRAL_VISION_TIMEOUT_MS must be an integer")
