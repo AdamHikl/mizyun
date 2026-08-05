@@ -1616,3 +1616,10 @@ no API changes. The segment closes the gap between "Coach works"
   suggestions, and health-related guidance, and prohibits circumventing safety
   filters. Mizyun must keep the wellness/non-medical boundary, deterministic
   safety envelope, and provider-policy gate even during founder testing.
+
+## 2026-08-05 — Founder testing mode and Mistral vision model
+
+- **Primary sources:** [Mistral vision documentation](https://docs.mistral.ai/studio-api/conversations/vision), [Mistral models](https://docs.mistral.ai/models), accessed 2026-08-05.
+- Mistral's current vision guidance lists `mistral-medium-2508` (Mistral Medium 3.1) as a recommended vision-capable model; the previous `mistral-medium-latest` alias is retained for the text Coach until a separate text-model evaluation changes it.
+- Implementation consequence: founder development and founder-production templates now enable the implemented Mistral text and nutrition/photo draft paths by default, with `MISTRAL_VISION_MODEL=mistral-medium-2508`. Keys remain server-only, and the production composition root still rejects the deterministic vision stub.
+- Scope consequence: this is a personal founder-testing policy, not an external-release or provider-governance completion. Unimplemented integrations, consent-controlled analytics, and the remaining `docs/BEFORE_TESTING.md` gates stay explicitly out of scope.

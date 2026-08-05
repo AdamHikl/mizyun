@@ -11,7 +11,7 @@
 - **Latest operational slice:** The Windows PC now has the exact promoted checkout, read-only GitHub deploy key, Docker access for `mizyun`, official self-hosted Supabase under `mizyun-supabase.service`, production API under `mizyun-api.service`, and a healthy Cloudflare Tunnel. Public API and Supabase hostnames are `mizyun-api.phiskel.com` and `mizyun-supabase.phiskel.com`. A production onboarding outage was fixed on 2026-08-01: after a backup, all 13 forward migrations were applied directly to the Supabase database container and `profiles`, `goals`, and `body_measurements` were verified.
 - **Production Auth incident:** Resolved for single-founder alpha. The PC now uses `ENABLE_EMAIL_AUTOCONFIRM=true`; disposable signups through both the internal gateway and public Cloudflare route returned HTTP 200 with immediately confirmed users and valid sessions, and both cleanups returned HTTP 200. Mobile provider errors are normalized to safe action-specific copy. Password recovery and mailbox verification remain intentionally unavailable until AUTH-SMTP-001 adds `no-reply@phiskel.com` before design-partner beta.
 - **Infrastructure direction:** The Windows PC is the persistent founder-production authority after INFRA-WIN-001 passes, while the Mac remains development-only. One PC is explicitly not paying-user production; off-device recovery, monitoring, redundancy/managed hosting, and second-operator gates remain.
-- **Next exact action:** Exercise the enabled founder-production text Coach and nutrition-photo flow through the Production iPhone for the week, then record failures and cost/latency observations. The PC now has server-only Mistral keys, `AGENT_PROVIDER=mistral`, and `AI_EXTERNAL_ACCESS=true`; `VISION_PROVIDER=disabled` remains correct because production auto-wires real vision from `MISTRAL_VISION_API_KEY` and forbids the stub.
+- **Next exact action:** Exercise the enabled founder-production text Coach and nutrition/photo-draft flow through the Production iPhone for the week, then record failures and cost/latency observations. The standing policy is documented in [`docs/FOUNDER_TESTING_MODE.md`](docs/FOUNDER_TESTING_MODE.md). The PC uses server-only Mistral keys, `AGENT_PROVIDER=mistral`, `AI_EXTERNAL_ACCESS=true`, and `MISTRAL_VISION_MODEL=mistral-medium-2508`; `VISION_PROVIDER=disabled` remains correct because production auto-wires real vision from `MISTRAL_VISION_API_KEY` and forbids the stub.
 - **Branch:** `main` is synchronized with `origin/main`; all changes verified clean under `pnpm check`.
 - **AI provider:** Founder production Mistral access is enabled for the week-long dogfood test. A synthetic-only live smoke passed 28 provider tests, including structured grounded text, missing-evidence behavior, allowed wellness moderation, and blocked critical-safety moderation. The current SDK still uses its default global Mistral endpoint; EU regional routing remains a follow-up before real-user health data.
 - **Local runtime at handoff:** `pnpm check` passes with 948 tests and 17 opt-in tests skipped; iOS exports 1,777 modules and Android exports 1,866. Focused mobile Auth tests, all workspace typechecks, formatting, bundle exports, and `git diff --check` pass. The prior pgTAP container stall remains unrelated; no schema changed in this segment.
@@ -282,7 +282,10 @@ pnpm dev:api
 pnpm dev:mobile
 ```
 
-Never put a service-role or model secret in an `EXPO_PUBLIC_` variable. AI remains gated by `docs/BEFORE_TESTING.md`.
+Never put a service-role or model secret in an `EXPO_PUBLIC_` variable. The
+founder-only enablement policy and external-release gate are documented in
+[`docs/FOUNDER_TESTING_MODE.md`](docs/FOUNDER_TESTING_MODE.md) and
+`docs/BEFORE_TESTING.md`.
 
 ## Handoff note
 

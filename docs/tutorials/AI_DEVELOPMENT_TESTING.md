@@ -1,6 +1,7 @@
 # Mistral AI development testing
 
-> Development-team workflow for the default-off Mizyun Coach. Use only synthetic records until the real-user policy, privacy, safety, and native release gates pass.
+> Development-team workflow for the founder testing mode. Use only the
+> founder's own data; external users remain gated by `docs/BEFORE_TESTING.md`.
 
 ## Current proven state
 
@@ -10,8 +11,10 @@ As of 2026-07-23:
 - the API reports `mistral-medium-latest` ready when explicitly enabled;
 - one direct live request passed with a fictional nutrition fixture;
 - authenticated mobile/native AI acceptance has not run;
-- persistent AI memory and photo-based nutrition AI are not implemented;
-- external access still defaults to `false`.
+- persistent AI memory and photo-based nutrition AI are implemented behind the
+  same server-side provider boundary;
+- external access is enabled in the founder testing mode and remains disabled
+  in release-oriented environments.
 
 The live fixture contained no real user record, account identifier, photo, or secret. Do not reinterpret this as approval for real-user traffic.
 
@@ -24,7 +27,7 @@ AGENT_PROVIDER=mistral
 MISTRAL_API_KEY=<development key>
 MISTRAL_MODEL=mistral-medium-latest
 MISTRAL_VISION_API_KEY=<development vision key>
-MISTRAL_VISION_MODEL=mistral-medium-latest
+MISTRAL_VISION_MODEL=mistral-medium-2508
 MISTRAL_TIMEOUT_MS=30000
 MISTRAL_MAX_OUTPUT_TOKENS=1200
 AI_DAILY_USER_TOKEN_BUDGET=100000

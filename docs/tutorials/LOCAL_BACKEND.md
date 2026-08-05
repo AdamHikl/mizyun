@@ -7,7 +7,9 @@ Mizyun uses the pinned Supabase CLI plus Docker as its canonical local persisten
 - Docker Desktop is installed and its engine is running.
 - Root dependencies are installed with `pnpm install`.
 - `.env` exists at the repository root and is gitignored.
-- AI remains disabled: `AGENT_PROVIDER=disabled`.
+- Founder testing mode keeps implemented AI features enabled by default; see
+  [`FOUNDER_TESTING_MODE.md`](../FOUNDER_TESTING_MODE.md). Set
+  `AGENT_PROVIDER=disabled` only when intentionally testing the disabled state.
 
 Check Docker without mutating project state:
 
@@ -38,7 +40,9 @@ SUPABASE_URL=http://127.0.0.1:54321
 SUPABASE_PUBLISHABLE_KEY=<local publishable key>
 SUPABASE_SERVICE_ROLE_KEY=<local service-role key>
 
-AGENT_PROVIDER=disabled
+AGENT_PROVIDER=mistral
+VISION_PROVIDER=disabled
+AI_EXTERNAL_ACCESS=true
 ```
 
 The service-role value is server-only. Never copy it into any public variable or mobile-only env file.
