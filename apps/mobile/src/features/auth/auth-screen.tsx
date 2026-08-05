@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  View,
 } from "react-native";
 
 import { authClient } from "@/composition/auth-client";
@@ -13,6 +13,7 @@ import { authClient } from "@/composition/auth-client";
 import { authErrorMessage } from "./auth-error-message";
 
 export function AuthScreen() {
+  const passwordInput = useRef<TextInput>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<"sign-in" | "sign-up" | "forgot">("sign-in");
@@ -53,7 +54,13 @@ export function AuthScreen() {
         : "Create your space";
 
   return (
-    <View style={styles.container}>
+    <ScrollView
+      automaticallyAdjustKeyboardInsets
+      contentContainerStyle={styles.content}
+      keyboardDismissMode="on-drag"
+      keyboardShouldPersistTaps="handled"
+      style={styles.page}
+    >
       <Text style={styles.eyebrow}>YOUR PRIVATE FITNESS SPACE</Text>
       <Text style={styles.title}>{title}</Text>
       <TextInput
@@ -62,8 +69,13 @@ export function AuthScreen() {
         keyboardType="email-address"
         placeholder="Email"
         placeholderTextColor="#8E8E93"
+        returnKeyType={mode === "forgot" ? "done" : "next"}
         value={email}
         onChangeText={setEmail}
+        onSubmitEditing={() => {
+          if (mode === "forgot" && email) void submit();
+          else passwordInput.current?.focus();
+        }}
         style={styles.input}
       />
       {mode !== "forgot" ? (
@@ -74,9 +86,14 @@ export function AuthScreen() {
           }
           placeholder="Password"
           placeholderTextColor="#8E8E93"
+          ref={passwordInput}
+          returnKeyType="done"
           secureTextEntry
           value={password}
           onChangeText={setPassword}
+          onSubmitEditing={() => {
+            if (email && password.length >= 6) void submit();
+          }}
           style={styles.input}
         />
       ) : null}
@@ -131,17 +148,17 @@ export function AuthScreen() {
               : "Back to sign in"}
         </Text>
       </Pressable>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  page: { flex: 1, backgroundColor: "#f7f8f4" },
+  content: {
+    flexGrow: 1,
     justifyContent: "center",
     padding: 28,
     gap: 14,
-    backgroundColor: "#f7f8f4",
   },
   eyebrow: {
     fontSize: 12,

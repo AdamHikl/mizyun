@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -110,6 +111,22 @@ export function CoachSetupScreen() {
   const [liveRegionTick, setLiveRegionTick] = useState(0);
   const [now, setNow] = useState(() => new Date());
   const reminderPromptApplied = useRef(false);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      () => setIsKeyboardVisible(true),
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => setIsKeyboardVisible(false),
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   useEffect(() => {
     if (
@@ -636,7 +653,7 @@ export function CoachSetupScreen() {
                 style={styles.thread}
                 contentContainerStyle={styles.threadContent}
                 keyboardShouldPersistTaps="handled"
-                automaticallyAdjustKeyboardInsets
+                keyboardDismissMode="on-drag"
               >
                 {messages.length === 0 ? (
                   <View style={styles.emptyStateContainer}>
@@ -768,7 +785,12 @@ export function CoachSetupScreen() {
               ) : null}
 
               {/* Composer Bar */}
-              <View style={styles.composerWrapper}>
+              <View
+                style={[
+                  styles.composerWrapper,
+                  isKeyboardVisible && styles.composerWrapperKeyboardActive,
+                ]}
+              >
                 <View style={styles.composerCapsule}>
                   <Pressable
                     accessibilityRole="button"
@@ -1214,8 +1236,8 @@ const styles = StyleSheet.create({
   },
   emptyStateContainer: {
     flex: 1,
-    justifyContent: "flex-end",
-    paddingBottom: Spacing.four,
+    justifyContent: "center",
+    paddingVertical: Spacing.four,
   },
   emptyStateTitle: {
     fontSize: 24,
@@ -1311,9 +1333,13 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
+    backgroundColor: "#0D0E12",
     paddingHorizontal: Spacing.three,
     paddingTop: Spacing.two,
     paddingBottom: BottomTabInset + Spacing.one,
+  },
+  composerWrapperKeyboardActive: {
+    paddingBottom: Spacing.two,
   },
   composerCapsule: {
     flexDirection: "row",

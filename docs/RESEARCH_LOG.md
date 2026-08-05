@@ -1520,3 +1520,99 @@ no API changes. The segment closes the gap between "Coach works"
   a serialized 504 body and endpoint URL cannot reach rendered message text.
 - AUTH-PROD-001 is complete for founder account creation. AUTH-SMTP-001 owns the
   intentionally deferred production email-confirmation and recovery gate.
+
+## 2026-08-01 — Mobile Auth keyboard accessibility
+
+### Primary sources
+
+- Expo, **Keyboard handling** (accessed 2026-08-01):
+  https://docs.expo.dev/guides/keyboard-handling/
+- React Native 0.86, **ScrollView** (accessed 2026-08-01):
+  https://reactnative.dev/docs/scrollview
+
+### Verified findings and implementation consequences
+
+- The Auth and password-reset screens vertically centered their forms in fixed
+  `View` containers. On a physical iPhone, the software keyboard covered the
+  primary and secondary actions because the content had no scrolling or keyboard
+  inset behavior.
+- Both forms now use the repository's established input-flow pattern:
+  `ScrollView` with `automaticallyAdjustKeyboardInsets`, drag-to-dismiss, handled
+  child taps, and a `flexGrow` content container. Actions remain reachable by
+  scrolling while the keyboard is open, and tapping them is not consumed only to
+  dismiss the keyboard.
+- Email return advances to the password field; the final keyboard action submits
+  only when the same validation conditions as the visible button are satisfied.
+  The reset-password form follows the same focus and guarded-submit behavior.
+- This is a presentation-only change inside `apps/mobile`; the identity boundary,
+  Auth requests, validation thresholds, and production autoconfirm exception do
+  not change.
+
+## 2026-08-01 — Founder-production migration repair
+
+### Primary sources
+
+- Supabase, **CLI `db push` reference** (accessed 2026-08-01):
+  https://supabase.com/docs/reference/cli/supabase-db-push
+- Supabase, **Self-hosting Docker deployment** (accessed 2026-08-01):
+  https://supabase.com/docs/guides/self-hosting/docker
+
+### Verified findings and implementation consequences
+
+- The production API returned HTTP 500 for onboarding because the self-hosted
+  database had no application tables; `public.goals`, `public.profiles`, and
+  `public.body_measurements` were absent. The mobile generic retry message was
+  therefore a symptom of missing production schema, not a goal-form validation
+  defect.
+- A production backup was created before mutation. Supabase CLI `db push
+--dry-run` then listed all 13 pending forward migrations; the real push applied
+  those migrations once, without reset or destructive rollback. The resulting
+  tables were verified inside `supabase-db`, and `mizyun-api` restarted with a
+  healthy `/v1/health` response.
+- The published `127.0.0.1:5432` endpoint is Supavisor and requires tenant
+  routing in this stack. Migration promotion used the database container's
+  internal address with `PGSSLMODE=disable`; the deployment runbook must retain
+  this direct-container procedure until the pooler's tenant configuration is
+  corrected.
+
+## 2026-08-05 — EU AI provider recommendation for Mizyun
+
+### Primary sources
+
+- Mistral AI, **Regional inference** (accessed 2026-08-05):
+  https://docs.mistral.ai/studio-api/regional-inference
+- Mistral AI, **Privacy and data controls** (accessed 2026-08-05):
+  https://docs.mistral.ai/admin/monitor-comply/privacy-data-controls
+- Mistral AI, **Organization data location** (accessed 2026-08-05):
+  https://help.mistral.ai/en/articles/347629-where-do-you-store-my-data-or-my-organization-s-data
+- Microsoft, **Data privacy for Azure-hosted models** (accessed 2026-08-05):
+  https://learn.microsoft.com/en-us/azure/foundry/responsible-ai/openai/data-privacy
+- Mistral AI, **Usage Policy** (effective 2026-06-11; accessed 2026-08-05):
+  https://legal.mistral.ai/terms/usage-policy
+
+### Verified findings and implementation consequences
+
+- Mistral is the best near-term fit for Mizyun: the existing provider adapter,
+  moderation path, structured outputs, and vision flow already target Mistral,
+  while Mistral exposes an EU regional endpoint (`api.eu.mistral.ai`) whose
+  inference stays within EU/EFTA data centers. Regional inference currently
+  carries a documented 10% price premium and does not support all stateful
+  features, which is acceptable because Mizyun owns conversation persistence.
+- Mistral's API data is not used for model training by default, and its API
+  privacy controls include training opt-out and zero-data-retention settings.
+  Before real-user health data, the actual organization must have those controls
+  enabled, the DPA/subprocessor list reviewed, and the wellness-only policy
+  boundary accepted.
+- Azure-hosted models are a credible enterprise fallback: regional/DataZone
+  deployments can keep processing within the EU geography and Azure states that
+  prompts/completions are not used to train foundation models. This would add
+  Azure tenancy, procurement, and deployment complexity without improving the
+  founder-alpha path enough to justify switching now.
+- The provider boundary remains vendor-neutral. The implementation follow-up
+  is to make the Mistral SDK clients use `server: "eu"` (or an equivalent
+  server-only configuration value) for text, moderation, and vision; no mobile
+  code or domain rules should depend on Mistral.
+- Mistral's hosted-platform policy prohibits medical diagnoses, treatment
+  suggestions, and health-related guidance, and prohibits circumventing safety
+  filters. Mizyun must keep the wellness/non-medical boundary, deterministic
+  safety envelope, and provider-policy gate even during founder testing.

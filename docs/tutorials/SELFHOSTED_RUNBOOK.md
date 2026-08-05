@@ -317,7 +317,10 @@ The command:
 3. pushes the exact commit to `origin/main`;
 4. tells the PC to fetch that exact commit;
 5. creates a database and private-Storage backup on the PC;
-6. previews and applies only pending migrations using `supabase db push`;
+6. previews and applies only pending migrations using `supabase db push`; on
+   the founder PC, the script resolves `supabase-db` directly and sets
+   `PGSSLMODE=disable` because the published Supavisor port is not configured
+   with a tenant identifier;
 7. restarts the production API and smoke-tests it internally and publicly.
 
 The PC records the deployed SHA in `.git/mizyun-production-sha`:

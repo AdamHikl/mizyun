@@ -1,11 +1,11 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  View,
 } from "react-native";
 
 import { authClient } from "@/composition/auth-client";
@@ -20,6 +20,7 @@ import { useAuth } from "./auth-context";
  * that allows `updateUser({ password })` without re-authentication.
  */
 export function ResetPasswordScreen() {
+  const confirmInput = useRef<TextInput>(null);
   const { clearRecoveryState, signOut } = useAuth();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -60,7 +61,13 @@ export function ResetPasswordScreen() {
   const ready = !busy && password.length >= 8 && password === confirm;
 
   return (
-    <View style={styles.container}>
+    <ScrollView
+      automaticallyAdjustKeyboardInsets
+      contentContainerStyle={styles.content}
+      keyboardDismissMode="on-drag"
+      keyboardShouldPersistTaps="handled"
+      style={styles.page}
+    >
       <Text style={styles.eyebrow}>RESET PASSWORD</Text>
       <Text style={styles.title}>Choose a new password</Text>
       <Text style={styles.body}>
@@ -71,9 +78,11 @@ export function ResetPasswordScreen() {
         autoComplete="new-password"
         placeholder="New password"
         placeholderTextColor="#8E8E93"
+        returnKeyType="next"
         secureTextEntry
         value={password}
         onChangeText={setPassword}
+        onSubmitEditing={() => confirmInput.current?.focus()}
         style={styles.input}
       />
       <TextInput
@@ -81,9 +90,14 @@ export function ResetPasswordScreen() {
         autoComplete="new-password"
         placeholder="Confirm new password"
         placeholderTextColor="#8E8E93"
+        ref={confirmInput}
+        returnKeyType="done"
         secureTextEntry
         value={confirm}
         onChangeText={setConfirm}
+        onSubmitEditing={() => {
+          if (ready) void submit();
+        }}
         style={styles.input}
       />
       {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -104,17 +118,17 @@ export function ResetPasswordScreen() {
       <Pressable accessibilityRole="button" onPress={cancel}>
         <Text style={styles.cancel}>Cancel and sign out</Text>
       </Pressable>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  page: { flex: 1, backgroundColor: "#f7f8f4" },
+  content: {
+    flexGrow: 1,
     justifyContent: "center",
     padding: 28,
     gap: 14,
-    backgroundColor: "#f7f8f4",
   },
   eyebrow: {
     fontSize: 12,

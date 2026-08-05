@@ -23,6 +23,8 @@ source "$production_env"
 set +a
 
 : "${MIZYUN_PRODUCTION_DB_URL:?missing MIZYUN_PRODUCTION_DB_URL}"
+: "${MIZYUN_DB_CONTAINER:=supabase-db}"
+: "${MIZYUN_PRODUCTION_DB_SSLMODE:=disable}"
 : "${MIZYUN_API_SERVICE:=mizyun-api}"
 : "${MIZYUN_LOCAL_API_URL:=http://127.0.0.1:4000}"
 
@@ -61,8 +63,20 @@ pnpm install --frozen-lockfile
 # database and private Storage bytes without resetting either environment.
 bash scripts/backup-production.sh
 
-pnpm exec supabase db push --db-url "$MIZYUN_PRODUCTION_DB_URL" --dry-run
-pnpm exec supabase db push --db-url "$MIZYUN_PRODUCTION_DB_URL"
+# The self-hosted stack publishes Supavisor on localhost, but its tenant
+# routing is intentionally not part of founder production. Resolve the
+# database container directly so migrations do not depend on pooler SNI and
+# use the local Postgres server's non-TLS endpoint.
+production_db_url="$MIZYUN_PRODUCTION_DB_URL"
+if [[ "${MIZYUN_PRODUCTION_DB_DIRECT_CONTAINER:-true}" == "true" ]]; then
+  db_container_ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$MIZYUN_DB_CONTAINER")"
+  [[ -n "$db_container_ip" ]] || die "could not resolve database container IP: $MIZYUN_DB_CONTAINER"
+  production_db_url="$(printf '%s' "$production_db_url" | sed "s#@127.0.0.1:5432/#@$db_container_ip:5432/#")"
+fi
+export PGSSLMODE="$MIZYUN_PRODUCTION_DB_SSLMODE"
+
+pnpm exec supabase db push --db-url "$production_db_url" --dry-run
+pnpm exec supabase db push --db-url "$production_db_url"
 migrations_applied=true
 
 sudo -n systemctl restart "$MIZYUN_API_SERVICE"
