@@ -104,6 +104,7 @@ describe("AgentOrchestrator — read-only tool loop (AI-002)", () => {
             args: {},
           },
         ]);
+        expect(request.tools).toBeUndefined();
         if (request.grounding.length !== 1) {
           throw new Error(
             `expected 1 grounding item, got ${request.grounding.length}`,

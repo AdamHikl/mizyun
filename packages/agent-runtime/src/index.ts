@@ -665,7 +665,6 @@ export class AgentOrchestrator {
         memories,
         systemPolicy: COACH_SYSTEM_POLICY,
         promptVersion: COACH_PROMPT_VERSION,
-        ...(this.#tools ? { tools: this.#tools.list() } : {}),
         requestedToolCalls: response.toolCalls,
         toolResults,
       });

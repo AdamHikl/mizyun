@@ -345,8 +345,6 @@ const resolveMemoryStore = (dependencies: AppDependencies): MemoryStore =>
   dependencies.memories ??
   new InMemoryMemoryStore();
 
-const COACH_MAX_TOOL_ROUND_TRIPS = 3;
-
 /**
  * Pick the orchestrator for the request. When `dependencies.agent`
  * is supplied, use it as-is (tests). Otherwise build a fresh
@@ -368,7 +366,6 @@ const resolveAgent = (
   return new AgentOrchestrator({
     provider,
     memories,
-    maxToolCalls: COACH_MAX_TOOL_ROUND_TRIPS,
     ...(dependencies.moderator ? { moderator: dependencies.moderator } : {}),
     ...(tools ? { tools } : {}),
   });
