@@ -72,6 +72,12 @@ export interface AgentRequest {
    * the model sees them as confirmed context.
    */
   readonly toolResults?: readonly AgentToolResult[];
+  /**
+   * The provider tool calls that produced `toolResults`. Providers whose chat
+   * protocol requires an assistant tool-call message before tool-result
+   * messages use this to replay the complete round-trip.
+   */
+  readonly requestedToolCalls?: readonly AgentToolCall[];
 }
 
 export interface AgentResponse {
@@ -660,6 +666,7 @@ export class AgentOrchestrator {
         systemPolicy: COACH_SYSTEM_POLICY,
         promptVersion: COACH_PROMPT_VERSION,
         ...(this.#tools ? { tools: this.#tools.list() } : {}),
+        requestedToolCalls: response.toolCalls,
         toolResults,
       });
     }

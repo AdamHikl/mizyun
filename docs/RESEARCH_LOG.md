@@ -1626,3 +1626,10 @@ no API changes. The segment closes the gap between "Coach works"
 - Deployment consequence: promotion compares `supabase/migrations` between the previously running and target commits. It still performs the mandatory dry-run and push for migration-bearing releases, but skips the database connection for code/documentation-only releases. This prevents a healthy code promotion from depending on an unrelated WSL-to-container bridge path when no schema work exists.
 - Startup consequence: systemd can report a successful API restart before Fastify has bound port 4000. Promotion now polls the local health route for up to 15 seconds before deciding whether to roll back, instead of treating the first connection refusal as a failed release.
 - Scope consequence: this is a personal founder-testing policy, not an external-release or provider-governance completion. Unimplemented integrations, consent-controlled analytics, and the remaining `docs/BEFORE_TESTING.md` gates stay explicitly out of scope.
+
+## 2026-08-06 — Mistral function-calling message sequence
+
+- **Primary source:** [Mistral function-calling documentation](https://docs.mistral.ai/studio-api/conversations/function-calling), accessed 2026-08-06.
+- Mistral's documented tool round-trip appends the model's assistant message containing `tool_calls` before appending the matching `tool` message with `tool_call_id`; the complete ordered history is then sent for the follow-up answer.
+- Production diagnostics reproduced the defect without personal data: the initial request and tool selection succeeded, while a follow-up containing only Mizyun's tool-result message was rejected as an invalid request.
+- Implementation consequence: the provider-neutral request now carries the tool calls that produced each result, and the Mistral adapter replays `user -> assistant tool call -> tool result` using the SDK's camel-case input fields (`toolCalls` and `toolCallId`).
