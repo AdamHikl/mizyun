@@ -545,6 +545,26 @@ describe("MistralAgentProvider", () => {
     });
   });
 
+  it("uses its single retry for a transient malformed structured response", async () => {
+    const parse = vi
+      .fn<MistralChatClient["parse"]>()
+      .mockResolvedValueOnce({ choices: [] })
+      .mockResolvedValueOnce(validResponse);
+    const provider = new MistralAgentProvider({
+      apiKey: "test-key-that-is-long-enough",
+      model: "mistral-medium-latest",
+      timeoutMs: 5_000,
+      maxOutputTokens: 1_000,
+      externalAccess: true,
+      client: { parse },
+    });
+
+    await expect(provider.respond(request)).resolves.toMatchObject({
+      message: { text: "Your confirmed intake is 1,800 kcal." },
+    });
+    expect(parse).toHaveBeenCalledTimes(2);
+  });
+
   it("fails closed on malformed structured output", async () => {
     const provider = new MistralAgentProvider({
       apiKey: "test-key-that-is-long-enough",

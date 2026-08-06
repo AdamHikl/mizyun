@@ -471,6 +471,17 @@ const toolCallsFromChoice = (
   }));
 };
 
+const validatedProviderResponse = (raw: unknown) => {
+  const parsed = providerResponseSchema.safeParse(raw);
+  const choice = parsed.success ? parsed.data.choices[0] : undefined;
+  if (!parsed.success || choice === undefined) return null;
+  const toolCalls = toolCallsFromChoice(choice.message.toolCalls);
+  if (toolCalls === undefined && choice.message.parsed?.answer === undefined) {
+    return null;
+  }
+  return { parsed: parsed.data, choice, toolCalls };
+};
+
 const unsafeOutput = (text: string): boolean =>
   [
     /\byou (definitely|clearly) have\b/i,
@@ -560,6 +571,7 @@ export class MistralAgentProvider implements AgentProvider {
       );
 
     let raw: unknown;
+    let retryUsed = false;
     try {
       raw = await call();
     } catch (firstError) {
@@ -568,6 +580,7 @@ export class MistralAgentProvider implements AgentProvider {
       await this.#sleep(
         retryDelayMilliseconds(firstError, this.#now, this.#random),
       );
+      retryUsed = true;
       try {
         raw = await call();
       } catch (secondError) {
@@ -575,19 +588,27 @@ export class MistralAgentProvider implements AgentProvider {
       }
     }
 
-    const parsed = providerResponseSchema.safeParse(raw);
-    const choice = parsed.success ? parsed.data.choices[0] : undefined;
-    if (!parsed.success || choice === undefined) {
+    let validated = validatedProviderResponse(raw);
+    if (validated === null && this.#maxRetries === 1 && !retryUsed) {
+      retryUsed = true;
+      try {
+        raw = await call();
+      } catch (retryError) {
+        throw normalizeError(retryError);
+      }
+      validated = validatedProviderResponse(raw);
+    }
+    if (validated === null) {
       throw new AgentProviderError(
         "malformed_response",
         "The AI provider returned an invalid response.",
         false,
       );
     }
+    const { parsed, choice, toolCalls } = validated;
 
     // Tool-call branch: the runtime will execute the tools,
     // fold results into grounding, and re-invoke the provider.
-    const toolCalls = toolCallsFromChoice(choice.message.toolCalls);
     if (toolCalls !== undefined) {
       const elapsed = Math.max(0, this.#now() - startedAt);
       return {
@@ -605,14 +626,14 @@ export class MistralAgentProvider implements AgentProvider {
         evidence: request.grounding,
         toolCalls,
         providerMetadata: {
-          requestId: parsed.data.id,
+          requestId: parsed.id,
           configuredModel: this.#model,
-          resolvedModel: parsed.data.model,
+          resolvedModel: parsed.model,
           finishReason: choice.finishReason,
           promptVersion: request.promptVersion,
-          promptTokens: parsed.data.usage.promptTokens ?? 0,
-          completionTokens: parsed.data.usage.completionTokens ?? 0,
-          totalTokens: parsed.data.usage.totalTokens,
+          promptTokens: parsed.usage.promptTokens ?? 0,
+          completionTokens: parsed.usage.completionTokens ?? 0,
+          totalTokens: parsed.usage.totalTokens,
           latencyBucket: latencyBucket(elapsed),
           sdkVersion: "1.15.1",
         },
@@ -637,14 +658,14 @@ export class MistralAgentProvider implements AgentProvider {
         provider: "mizyun-safety",
         evidence: [],
         providerMetadata: {
-          requestId: parsed.data.id,
+          requestId: parsed.id,
           configuredModel: this.#model,
-          resolvedModel: parsed.data.model,
+          resolvedModel: parsed.model,
           finishReason: choice.finishReason,
           promptVersion: request.promptVersion,
-          promptTokens: parsed.data.usage.promptTokens ?? 0,
-          completionTokens: parsed.data.usage.completionTokens ?? 0,
-          totalTokens: parsed.data.usage.totalTokens,
+          promptTokens: parsed.usage.promptTokens ?? 0,
+          completionTokens: parsed.usage.completionTokens ?? 0,
+          totalTokens: parsed.usage.totalTokens,
           latencyBucket: latencyBucket(elapsed),
           sdkVersion: "1.15.1",
           safetyCategory: "unsafe_provider_output",
@@ -657,14 +678,14 @@ export class MistralAgentProvider implements AgentProvider {
       provider: "mistral",
       evidence: request.grounding,
       providerMetadata: {
-        requestId: parsed.data.id,
+        requestId: parsed.id,
         configuredModel: this.#model,
-        resolvedModel: parsed.data.model,
+        resolvedModel: parsed.model,
         finishReason: choice.finishReason,
         promptVersion: request.promptVersion,
-        promptTokens: parsed.data.usage.promptTokens ?? 0,
-        completionTokens: parsed.data.usage.completionTokens ?? 0,
-        totalTokens: parsed.data.usage.totalTokens,
+        promptTokens: parsed.usage.promptTokens ?? 0,
+        completionTokens: parsed.usage.completionTokens ?? 0,
+        totalTokens: parsed.usage.totalTokens,
         latencyBucket: latencyBucket(elapsed),
         sdkVersion: "1.15.1",
       },
