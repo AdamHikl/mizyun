@@ -23,6 +23,7 @@
 | AUTH-002          | P1       | done   | Add account/settings screen with sign-out               | Signed-in user can explicitly end the session                               |
 | AUTH-003          | P1       | done   | Implement password recovery and confirmation flows      | Deep-link and error states verified                                         |
 | AUTH-PROD-001     | P0       | done   | Restore founder-production account creation             | Founder-alpha autoconfirm issues a session; raw provider errors are hidden  |
+| MOB-ENV-001       | P0       | done   | Isolate founder Production iOS build environment        | Guarded build rejects non-production API/Auth hosts before Expo bundles     |
 | AUTH-UX-001       | P1       | done   | Keep Auth actions reachable above the software keyboard | Auth and recovery forms scroll, dismiss, and submit through keyboard safely |
 | OPS-001           | P1       | done   | Establish safe structured API logging/error baseline    | Request IDs present; sensitive bodies/tokens excluded                       |
 | AND-001           | P1       | done   | Configure and verify Android emulator                   | Standalone Release journey and native media pass                            |

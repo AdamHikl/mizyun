@@ -94,13 +94,20 @@ Personal Team, enable Developer Mode and trust the developer profile on the
 iPhone before launching.
 
 A Production-endpoint build signed directly to an iPhone with an Apple Personal
-Team also needs the local signing override because Personal Teams cannot
-provision APNs. This does not change normal Production/distribution builds:
+Team must use the guarded founder-production wrapper. It exports the reviewed
+`.env.production`, disables Expo's automatic dotenv loading so `.env.local`
+cannot override production, validates the exact public hosts, and enables the
+local signing override because Personal Teams cannot provision APNs. This does
+not change normal Production/distribution builds:
 
 ```bash
-MIZYUN_IOS_DISABLE_PUSH=1 MIZYUN_APP_VARIANT=production pnpm --filter @mizyun/mobile exec expo prebuild --clean --platform ios
-MIZYUN_IOS_DISABLE_PUSH=1 MIZYUN_APP_VARIANT=production pnpm --filter @mizyun/mobile exec expo run:ios --configuration Release
+pnpm mobile:founder-production:ios:prebuild
+pnpm mobile:founder-production:ios -- --device <physical-device-id> --no-bundler
 ```
+
+Never run the raw `expo run:ios` Production command while the development
+`.env.local` exists. Expo follows standard dotenv priority and `.env.local` can
+otherwise inline development API/Auth endpoints into a Production-identity app.
 
 ## One-time Windows PC setup
 

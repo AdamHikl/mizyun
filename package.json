@@ -24,6 +24,8 @@
     "db:linked-test": "node scripts/db-linked-test.mjs",
     "db:preflight": "node scripts/db-preflight.mjs",
     "deploy:remote": "node scripts/deploy-remote.mjs",
+    "mobile:founder-production:ios:prebuild": "bash scripts/mobile-founder-production-ios.sh prebuild",
+    "mobile:founder-production:ios": "bash scripts/mobile-founder-production-ios.sh run",
     "build": "pnpm -r --if-present build",
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test",
