@@ -69,6 +69,18 @@ runtime, not the model:
 `docs/AI_IMPLEMENTATION_PLAN.md` §AI-SAFETY-001 enumerates the
 canonical categories. Any expansion requires a new ADR amendment.
 
+#### Amendment 2026-08-06 — direction-aware health moderation
+
+Mistral Moderation 2 defines `health` as detailed or tailored medical advice.
+Mizyun therefore keeps `health` blocking on user input, after the deterministic
+critical-safety screen, but does not treat `health` alone as a reason to discard
+generated output. Personalized fitness and nutrition wellness answers can be
+classified as `health` because they use confirmed user context. Generated output
+still passes the provider adapter's deterministic medical-claim, extreme-intake,
+and train-through-pain screen; every other positive Mistral moderation category
+remains blocking. This policy prevents broad category overlap from disabling the
+product's accepted wellness scope without removing the medical-input boundary.
+
 ### Free vs paid caps
 
 `@mizyun/config/src/ai-tier.ts` is the single source of truth for

@@ -72,6 +72,68 @@ describe("MistralContentModerator", () => {
     });
   });
 
+  it("keeps health blocking on input", async () => {
+    const moderate = vi.fn(async () =>
+      response(
+        { dangerous: false, health: true, selfharm: false },
+        { dangerous: 0.01, health: 0.91, selfharm: 0.001 },
+      ),
+    );
+
+    await expect(
+      moderator({ moderate }).moderateText({
+        text: "Give me tailored medical advice.",
+        direction: "input",
+      }),
+    ).resolves.toEqual({
+      allowed: false,
+      provider: "mistral",
+      model: "mistral-moderation-2603",
+      category: "health",
+    });
+  });
+
+  it("allows output when health is the only provider-blocked category", async () => {
+    const moderate = vi.fn(async () =>
+      response(
+        { dangerous: false, health: true, selfharm: false },
+        { dangerous: 0.01, health: 0.91, selfharm: 0.001 },
+      ),
+    );
+
+    await expect(
+      moderator({ moderate }).moderateText({
+        text: "A personalized general nutrition wellness answer.",
+        direction: "output",
+      }),
+    ).resolves.toEqual({
+      allowed: true,
+      provider: "mistral",
+      model: "mistral-moderation-2603",
+    });
+  });
+
+  it("still blocks another unsafe output category alongside health", async () => {
+    const moderate = vi.fn(async () =>
+      response(
+        { dangerous: true, health: true, selfharm: false },
+        { dangerous: 0.82, health: 0.91, selfharm: 0.001 },
+      ),
+    );
+
+    await expect(
+      moderator({ moderate }).moderateText({
+        text: "A synthetic dangerous health answer.",
+        direction: "output",
+      }),
+    ).resolves.toEqual({
+      allowed: false,
+      provider: "mistral",
+      model: "mistral-moderation-2603",
+      category: "dangerous",
+    });
+  });
+
   it("rejects malformed responses instead of guessing a decision", async () => {
     const moderate = vi.fn(async () =>
       response({ dangerous: true, health: false }, { dangerous: 0.8 }),

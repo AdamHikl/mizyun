@@ -91,7 +91,6 @@ export class MistralContentModerator implements ContentModerator {
     readonly text: string;
     readonly direction: "input" | "output";
   }): Promise<ContentModerationDecision> {
-    void input.direction;
     if (!this.#externalAccess) {
       throw new Error("External moderation access is disabled.");
     }
@@ -113,7 +112,14 @@ export class MistralContentModerator implements ContentModerator {
       throw new Error("The moderation provider returned no decision.");
     }
     const blockedCategories = Object.entries(result.categories)
-      .filter(([, blocked]) => blocked)
+      .filter(
+        ([category, blocked]) =>
+          // The provider's `health` category covers tailored medical advice,
+          // which overlaps grounded nutrition/fitness wellness output. Medical
+          // inputs remain blocked, while generated text is still protected by
+          // the adapter's deterministic unsafe-output screen.
+          blocked && !(input.direction === "output" && category === "health"),
+      )
       .map(([category]) => category)
       .sort((left, right) => {
         const scoreDifference =
