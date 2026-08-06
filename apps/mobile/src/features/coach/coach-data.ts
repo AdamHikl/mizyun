@@ -187,6 +187,23 @@ export const isCoachPendingDraft = (
 export const newCoachMessageIdempotencyKey = (): string =>
   `mobile-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
 
+export const optimisticCoachMessageId = (idempotencyKey: string): string =>
+  `optimistic-${idempotencyKey}`;
+
+export const mergeCoachSendResult = (
+  current: readonly CoachMessage[],
+  optimisticId: string,
+  result: readonly CoachMessage[],
+): readonly CoachMessage[] => {
+  const resultIds = new Set(result.map((message) => message.id));
+  return [
+    ...current.filter(
+      (message) => message.id !== optimisticId && !resultIds.has(message.id),
+    ),
+    ...result,
+  ];
+};
+
 export const sendCoachMessage = async (
   conversationId: string,
   text: string,

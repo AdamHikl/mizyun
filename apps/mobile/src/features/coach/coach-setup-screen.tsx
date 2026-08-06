@@ -50,7 +50,9 @@ import {
   isCoachPendingDraft,
   loadCoach,
   loadCoachThread,
+  mergeCoachSendResult,
   newCoachMessageIdempotencyKey,
+  optimisticCoachMessageId,
   previewFor,
   relativeLabel,
   sendCoachMessage,
@@ -196,16 +198,6 @@ export function CoachSetupScreen() {
   }, [userId]);
 
   useEffect(() => {
-    if (
-      active !== null &&
-      pendingDraft?.conversationId === active.id &&
-      draft.length === 0
-    ) {
-      setDraft(pendingDraft.text);
-    }
-  }, [active, draft.length, pendingDraft]);
-
-  useEffect(() => {
     if (messages.length > 0) {
       requestAnimationFrame(() =>
         scrollRef.current?.scrollToEnd({ animated: true }),
@@ -255,82 +247,102 @@ export function CoachSetupScreen() {
     [active?.id],
   );
 
-  const send = useCallback(async () => {
-    if (
-      !active ||
-      draft.trim().length === 0 ||
-      sending ||
-      sendLock.current ||
-      deleteLock.current
-    ) {
-      return;
-    }
-    sendLock.current = true;
-    draftLoadGeneration.current += 1;
-    setSending(true);
-    const text = draft.trim();
-    const idempotencyKey =
-      pendingDraft?.conversationId === active.id && pendingDraft.text === text
-        ? pendingDraft.idempotencyKey
-        : newCoachMessageIdempotencyKey();
-    const nextPending: CoachPendingDraft = {
-      conversationId: active.id,
-      text,
-      idempotencyKey,
-    };
-    try {
-      setPendingDraft(nextPending);
-      if (userId !== null) {
-        await saveLoggingDraft(userId, "coach", nextPending);
+  const send = useCallback(
+    async (retryDraft?: CoachPendingDraft) => {
+      const retry =
+        retryDraft?.conversationId === active?.id ? retryDraft : undefined;
+      const text = retry?.text ?? draft.trim();
+      if (
+        !active ||
+        text.length === 0 ||
+        sending ||
+        sendLock.current ||
+        deleteLock.current
+      ) {
+        return;
       }
-      // AI-MOB-002 — clear the input but keep the user bubble on
-      // screen until the assistant response lands. The optimistic
-      // bubble is added to `messages` immediately so the screen
-      // reader can announce it as the user has spoken.
-      setDraft("");
-      setMessage(null);
-      const userBubble: CoachMessage = {
-        id: `optimistic-${idempotencyKey}`,
+      sendLock.current = true;
+      draftLoadGeneration.current += 1;
+      setSending(true);
+      const idempotencyKey =
+        retry !== undefined
+          ? retry.idempotencyKey
+          : pendingDraft?.conversationId === active.id &&
+              pendingDraft.text === text
+            ? pendingDraft.idempotencyKey
+            : newCoachMessageIdempotencyKey();
+      const nextPending: CoachPendingDraft = {
         conversationId: active.id,
-        role: "user",
         text,
-        status: "complete",
-        provider: null,
-        evidenceKinds: [],
-        actionProposal: null,
-        createdAt: new Date().toISOString(),
+        idempotencyKey,
       };
-      setMessages((current) => [...current, userBubble]);
-      const result = await sendCoachMessage(active.id, text, idempotencyKey);
-      if (result.ok) {
-        setActive(result.conversation);
-        // Replace the optimistic user bubble with the canonical one
-        // returned by the server.
+      try {
+        setPendingDraft(nextPending);
+        if (userId !== null) {
+          await saveLoggingDraft(userId, "coach", nextPending);
+        }
+        // AI-MOB-002 — clear the input but keep the user bubble on
+        // screen until the assistant response lands. The optimistic
+        // bubble is added to `messages` immediately so the screen
+        // reader can announce it as the user has spoken.
+        setDraft("");
+        setMessage(null);
+        const userBubble: CoachMessage = {
+          id: optimisticCoachMessageId(idempotencyKey),
+          conversationId: active.id,
+          role: "user",
+          text,
+          status: "complete",
+          provider: null,
+          evidenceKinds: [],
+          actionProposal: null,
+          createdAt: new Date().toISOString(),
+        };
         setMessages((current) =>
-          current.flatMap((item) =>
-            item.id === userBubble.id ? result.messages : [item],
-          ),
+          current.some((item) => item.id === userBubble.id)
+            ? current
+            : [...current, userBubble],
         );
-        setPendingDraft(null);
-        if (userId !== null) await clearLoggingDraft(userId, "coach");
-        // Announce the new assistant message to assistive tech.
-        setLiveRegionTick((tick) => tick + 1);
-      } else {
-        setDraft(text);
-        setMessage(result.message);
-        // AI-MOB-002 — keep the optimistic user bubble on retry.
-        // It only disappears when the user clears the composer or
-        // the request succeeds.
+        const result = await sendCoachMessage(active.id, text, idempotencyKey);
+        if (result.ok) {
+          setActive(result.conversation);
+          // Replace the optimistic bubble and de-duplicate the canonical user
+          // message if this retry was restored after an app restart.
+          setMessages((current) =>
+            mergeCoachSendResult(current, userBubble.id, result.messages),
+          );
+          setPendingDraft(null);
+          if (userId !== null) await clearLoggingDraft(userId, "coach");
+          // Announce the new assistant message to assistive tech.
+          setLiveRegionTick((tick) => tick + 1);
+        } else {
+          setMessage(result.message);
+          // Keep the failed bubble and encrypted retry payload, but leave the
+          // composer empty. The bubble owns the explicit retry affordance.
+        }
+      } finally {
+        sendLock.current = false;
+        setSending(false);
+        // AI-MOB-002 — focus returns to the composer after every
+        // send (success or failure) so the user can immediately
+        // type the next message.
+        inputRef.current?.focus();
       }
-    } finally {
-      sendLock.current = false;
-      setSending(false);
-      // AI-MOB-002 — focus returns to the composer after every
-      // send (success or failure) so the user can immediately
-      // type the next message.
-      inputRef.current?.focus();
-    }
-  }, [active, draft, pendingDraft, sending, userId]);
+    },
+    [active, draft, pendingDraft, sending, userId],
+  );
+
+  const activeRetry =
+    active !== null && pendingDraft?.conversationId === active.id
+      ? pendingDraft
+      : null;
+  const activeRetryBubbleId =
+    activeRetry === null
+      ? null
+      : optimisticCoachMessageId(activeRetry.idempotencyKey);
+  const retryBubbleVisible =
+    activeRetryBubbleId !== null &&
+    messages.some((item) => item.id === activeRetryBubbleId);
 
   const remove = useCallback(() => {
     if (!active || sendLock.current || deleteLock.current) return;
@@ -751,6 +763,12 @@ export function CoachSetupScreen() {
                     <MessageBubble
                       key={item.id}
                       message={item}
+                      retrying={sending && item.id === activeRetryBubbleId}
+                      onRetry={
+                        item.id === activeRetryBubbleId && activeRetry !== null
+                          ? () => void send(activeRetry)
+                          : undefined
+                      }
                       onReviewNutritionProposal={reviewNutritionProposal}
                       onReviewWorkoutProposal={reviewWorkoutProposal}
                       onAcceptWeeklyAdaptation={acceptAdaptation}
@@ -781,6 +799,34 @@ export function CoachSetupScreen() {
                   accessibilityRole="alert"
                 >
                   <ThemedText type="small">{message}</ThemedText>
+                  {activeRetry !== null && !retryBubbleVisible ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Retry saved Coach message"
+                      accessibilityState={{ disabled: sending, busy: sending }}
+                      disabled={sending}
+                      onPress={() => void send(activeRetry)}
+                      style={styles.retryButton}
+                    >
+                      <ThemedText type="smallBold">Retry</ThemedText>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : activeRetry !== null && !retryBubbleVisible ? (
+                <View style={styles.alert} accessibilityRole="alert">
+                  <ThemedText type="small">
+                    A saved message still needs to be sent.
+                  </ThemedText>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Retry saved Coach message"
+                    accessibilityState={{ disabled: sending, busy: sending }}
+                    disabled={sending}
+                    onPress={() => void send(activeRetry)}
+                    style={styles.retryButton}
+                  >
+                    <ThemedText type="smallBold">Retry</ThemedText>
+                  </Pressable>
                 </View>
               ) : null}
 
@@ -866,11 +912,15 @@ export function CoachSetupScreen() {
 
 function MessageBubble({
   message,
+  retrying,
+  onRetry,
   onReviewNutritionProposal,
   onReviewWorkoutProposal,
   onAcceptWeeklyAdaptation,
 }: {
   readonly message: CoachMessage;
+  readonly retrying: boolean;
+  readonly onRetry?: (() => void) | undefined;
   readonly onReviewNutritionProposal: (
     proposal: CoachNutritionProposal,
   ) => void;
@@ -891,6 +941,27 @@ function MessageBubble({
         {assistant ? "Mizyun Coach" : "You"}
       </ThemedText>
       <ThemedText>{message.text}</ThemedText>
+      {onRetry !== undefined ? (
+        <View style={styles.failedMessageActions}>
+          <ThemedText type="small" themeColor="textSecondary">
+            Not completed
+          </ThemedText>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Retry failed Coach message"
+            accessibilityState={{ disabled: retrying, busy: retrying }}
+            disabled={retrying}
+            onPress={onRetry}
+            style={styles.retryButton}
+          >
+            {retrying ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <ThemedText type="smallBold">Retry</ThemedText>
+            )}
+          </Pressable>
+        </View>
+      ) : null}
       {message.actionProposal?.kind === "meal_log" ? (
         <NutritionProposalCard
           proposal={message.actionProposal}
@@ -1316,6 +1387,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: Spacing.two,
     paddingVertical: Spacing.two,
+  },
+  failedMessageActions: {
+    marginTop: Spacing.one,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.two,
+  },
+  retryButton: {
+    minHeight: 44,
+    minWidth: 88,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    backgroundColor: "#10B981",
+    paddingHorizontal: Spacing.three,
   },
   alert: {
     width: "100%",

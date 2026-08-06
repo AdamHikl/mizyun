@@ -5,6 +5,8 @@ import { err, ok } from "@mizyun/core";
 import {
   acceptWeeklyAdaptationWith,
   isCoachPendingDraft,
+  mergeCoachSendResult,
+  optimisticCoachMessageId,
   loadCoachWith,
   previewFor,
   relativeLabel,
@@ -130,6 +132,21 @@ describe("coach data boundary", () => {
         text: "How am I doing?",
       }),
     ).toBe(false);
+  });
+
+  it("derives a stable optimistic message id from the retry key", () => {
+    expect(optimisticCoachMessageId("stable-message-key")).toBe(
+      "optimistic-stable-message-key",
+    );
+  });
+
+  it("merges a retry result without duplicating a persisted user message", () => {
+    expect(
+      mergeCoachSendResult([userMessage], "optimistic-stable-message-key", [
+        userMessage,
+        assistantMessage,
+      ]),
+    ).toEqual([userMessage, assistantMessage]);
   });
 
   it("uses generic recovery copy for any 429 source", async () => {

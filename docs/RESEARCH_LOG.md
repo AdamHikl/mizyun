@@ -1643,3 +1643,9 @@ no API changes. The segment closes the gap between "Coach works"
 - Mistral defines `health` as content containing or eliciting detailed or tailored medical advice. Its documentation says verticals require different guardrailing levels and supports category-specific thresholds/selection.
 - Production response metadata for the founder's 17:31 request showed that input moderation passed, confirmed grounding and generation completed, and only output moderation rejected the answer as `external_moderation_health`. No message content was read during diagnosis.
 - Implementation consequence: `health` remains blocking for input, while output ignores `health` alone because personalized general fitness/nutrition wellness can overlap that broad category. The provider adapter's deterministic unsafe-output screen remains mandatory, and any other positive moderation category still blocks the response.
+
+## 2026-08-06 — Coach failed-message retry UX
+
+- **Primary sources:** [React Native Pressable](https://reactnative.dev/docs/pressable), [React Native accessibility](https://reactnative.dev/docs/accessibility), [Expo SecureStore](https://docs.expo.dev/versions/latest/sdk/securestore/), accessed 2026-08-06.
+- React Native exposes explicit disabled and busy accessibility states for pressable controls. Expo SecureStore supports asynchronous encrypted key-value persistence suitable for Mizyun's small user-scoped retry payload.
+- Implementation consequence: a failed Coach request keeps its retry-stable idempotency payload in the existing encrypted local draft store but no longer restores sent text into the controlled composer. The failed optimistic bubble owns an accessible 44-point Retry action; after app restart, a recovery alert exposes the same action if the optimistic bubble is no longer in memory.
