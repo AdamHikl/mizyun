@@ -97,6 +97,13 @@ describe("AgentOrchestrator — read-only tool loop (AI-002)", () => {
             `expected 1 tool result, got ${request.toolResults?.length ?? 0}`,
           );
         }
+        expect(request.requestedToolCalls).toEqual([
+          {
+            id: "call-1",
+            name: "get_active_goal",
+            args: {},
+          },
+        ]);
         if (request.grounding.length !== 1) {
           throw new Error(
             `expected 1 grounding item, got ${request.grounding.length}`,

@@ -66,6 +66,29 @@ export interface MistralProviderOptions {
   readonly sleep?: (milliseconds: number) => Promise<void>;
 }
 
+type MistralRequestToolCall = {
+  id?: string;
+  type: "function";
+  function: {
+    name: string;
+    arguments: string | Record<string, unknown>;
+  };
+};
+
+type MistralRequestMessage =
+  | { role: "system" | "user"; content: string }
+  | {
+      role: "assistant";
+      content?: string | null;
+      toolCalls?: MistralRequestToolCall[];
+    }
+  | {
+      role: "tool";
+      content: string;
+      name?: string;
+      toolCallId?: string;
+    };
+
 export interface MistralChatClient {
   /**
    * Structured final-answer call. Returns a payload that
@@ -79,12 +102,7 @@ export interface MistralChatClient {
   parse(
     request: {
       readonly model: string;
-      readonly messages: Array<{
-        role: "system" | "user" | "assistant" | "tool";
-        content: string;
-        name?: string;
-        tool_call_id?: string;
-      }>;
+      readonly messages: MistralRequestMessage[];
       readonly maxTokens: number;
       readonly temperature: number;
       readonly responseFormat: typeof coachOutputSchema;
@@ -285,7 +303,7 @@ const toolMessagesFor = (
   role: "tool";
   content: string;
   name: string;
-  tool_call_id: string;
+  toolCallId: string;
 }> => {
   if (results === undefined || results.length === 0) return [];
   return results.map((result) => ({
@@ -296,28 +314,55 @@ const toolMessagesFor = (
       evidence: result.evidence,
     }),
     name: result.name,
-    tool_call_id: result.id,
+    toolCallId: result.id,
   }));
 };
 
-const messagesFor = (
-  request: AgentRequest,
-): Array<{
-  role: "system" | "user" | "assistant" | "tool";
-  content: string;
-  name?: string;
-  tool_call_id?: string;
-}> => [
+const requestedToolCallMessageFor = (
+  calls: readonly AgentToolCall[] | undefined,
+):
+  | {
+      role: "assistant";
+      content: null;
+      toolCalls: Array<{
+        id?: string;
+        type: "function";
+        function: {
+          name: string;
+          arguments: string;
+        };
+      }>;
+    }
+  | undefined => {
+  if (calls === undefined || calls.length === 0) return undefined;
+  return {
+    role: "assistant",
+    content: null,
+    toolCalls: calls.map((call) => ({
+      ...(call.id !== undefined ? { id: call.id } : {}),
+      type: "function",
+      function: {
+        name: call.name,
+        arguments: JSON.stringify(call.args),
+      },
+    })),
+  };
+};
+
+const messagesFor = (request: AgentRequest): MistralRequestMessage[] => [
   { role: "system", content: request.systemPolicy },
   {
     role: "system",
     content: `Mizyun confirmed context JSON:\n${groundingMessage(request)}`,
   },
-  ...toolMessagesFor(request.toolResults),
-  ...request.messages.map((message) => ({
+  ...request.messages.map<MistralRequestMessage>((message) => ({
     role: message.role,
     content: message.text,
   })),
+  ...(requestedToolCallMessageFor(request.requestedToolCalls) !== undefined
+    ? [requestedToolCallMessageFor(request.requestedToolCalls)!]
+    : []),
+  ...toolMessagesFor(request.toolResults),
 ];
 
 const parseToolArguments = (
