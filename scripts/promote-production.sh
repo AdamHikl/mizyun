@@ -84,8 +84,19 @@ else
 fi
 
 sudo -n systemctl restart "$MIZYUN_API_SERVICE"
-curl --silent --show-error --fail --max-time 15 \
-  "$MIZYUN_LOCAL_API_URL/v1/health" >/dev/null
+api_ready=false
+for _attempt in {1..15}; do
+  if curl --silent --show-error --fail --max-time 2 \
+    "$MIZYUN_LOCAL_API_URL/v1/health" >/dev/null 2>&1; then
+    api_ready=true
+    break
+  fi
+  sleep 1
+done
+if [[ "$api_ready" != true ]]; then
+  echo "API did not become healthy within 15 seconds." >&2
+  exit 1
+fi
 
 printf '%s\n' "$target_sha" > .git/mizyun-production-sha
 trap - ERR

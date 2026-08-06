@@ -323,7 +323,8 @@ The command:
    the founder PC, the script resolves `supabase-db` directly and sets
    `PGSSLMODE=disable` because the published Supavisor port is not configured
    with a tenant identifier;
-7. restarts the production API and smoke-tests it internally and publicly.
+7. restarts the production API, waits up to 15 seconds for local readiness,
+   and then smoke-tests it publicly.
 
 The PC records the deployed SHA in `.git/mizyun-production-sha`:
 
