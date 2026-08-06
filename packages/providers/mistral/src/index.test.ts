@@ -169,6 +169,38 @@ describe("MistralAgentProvider", () => {
     );
   });
 
+  it("parses a structured final answer returned as SDK text chunks", async () => {
+    sdkComplete.mockResolvedValue({
+      id: "request-chunked-answer",
+      model: "mistral-medium-latest",
+      usage: { promptTokens: 50, completionTokens: 10, totalTokens: 60 },
+      choices: [
+        {
+          finishReason: "stop",
+          message: {
+            content: [
+              { type: "text", text: '{"answer":"I can help with ' },
+              { type: "text", text: 'fitness and nutrition."}' },
+            ],
+            toolCalls: null,
+          },
+        },
+      ],
+    });
+    const provider = new MistralAgentProvider({
+      apiKey: "test-key-that-is-long-enough",
+      model: "mistral-medium-latest",
+      timeoutMs: 5_000,
+      maxOutputTokens: 1_000,
+      externalAccess: true,
+    });
+
+    await expect(provider.respond(request)).resolves.toMatchObject({
+      message: { text: "I can help with fitness and nutrition." },
+      provider: "mistral",
+    });
+  });
+
   it("labels prompt injection inside memories and tool evidence as untrusted data", async () => {
     const parse = vi.fn<MistralChatClient["parse"]>(async () => validResponse);
     const provider = new MistralAgentProvider({
