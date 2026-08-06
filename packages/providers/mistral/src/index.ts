@@ -15,6 +15,22 @@ const coachOutputSchema = z.object({
   answer: z.string().trim().min(1).max(8_000),
 });
 
+const coachResponseFormat = {
+  type: "json_schema" as const,
+  jsonSchema: {
+    name: "mizyun_coach_output",
+    schemaDefinition: {
+      type: "object",
+      properties: {
+        answer: { type: "string", minLength: 1, maxLength: 8_000 },
+      },
+      required: ["answer"],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
+};
+
 const providerResponseSchema = z.object({
   id: z.string(),
   model: z.string(),
@@ -122,13 +138,47 @@ export interface MistralChatClient {
 const sdkClient = (apiKey: string): MistralChatClient => {
   const client = new Mistral({ apiKey });
   return {
-    parse: async (request, options) =>
-      client.chat.parse(request, {
-        timeoutMs: options.timeoutMs,
-        // Mizyun owns the single bounded rate-limit retry so provider behavior
-        // remains deterministic and contract-testable.
-        retries: { strategy: "none" },
-      }),
+    parse: async (request, options) => {
+      const { responseFormat: _responseFormat, ...completionRequest } = request;
+      const response = await client.chat.complete(
+        {
+          ...completionRequest,
+          responseFormat: coachResponseFormat,
+        },
+        {
+          timeoutMs: options.timeoutMs,
+          // Mizyun owns the single bounded rate-limit retry so provider behavior
+          // remains deterministic and contract-testable.
+          retries: { strategy: "none" },
+        },
+      );
+      return {
+        ...response,
+        choices: response.choices.map((choice) => {
+          const hasToolCalls =
+            choice.message.toolCalls !== undefined &&
+            choice.message.toolCalls !== null &&
+            choice.message.toolCalls.length > 0;
+          let parsed: z.infer<typeof coachOutputSchema> | null = null;
+          if (!hasToolCalls && typeof choice.message.content === "string") {
+            try {
+              const candidate: unknown = JSON.parse(choice.message.content);
+              const result = coachOutputSchema.safeParse(candidate);
+              parsed = result.success ? result.data : null;
+            } catch {
+              parsed = null;
+            }
+          }
+          return {
+            ...choice,
+            message: {
+              ...choice.message,
+              parsed,
+            },
+          };
+        }),
+      };
+    },
   };
 };
 

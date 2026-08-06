@@ -1,7 +1,15 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentRequest } from "@mizyun/agent-runtime";
 import type { MistralChatClient } from "./index.js";
 import { MistralAgentProvider } from "./index.js";
+
+const sdkComplete = vi.hoisted(() => vi.fn());
+
+vi.mock("@mistralai/mistralai", () => ({
+  Mistral: class {
+    readonly chat = { complete: sdkComplete };
+  },
+}));
 
 const request: AgentRequest = {
   userId: "00000000-0000-4000-8000-000000000001" as AgentRequest["userId"],
@@ -35,6 +43,10 @@ const validResponse = {
 };
 
 describe("MistralAgentProvider", () => {
+  beforeEach(() => {
+    sdkComplete.mockReset();
+  });
+
   it("stays unavailable while external access is false", async () => {
     const provider = new MistralAgentProvider({
       apiKey: "test-key-that-is-long-enough",
@@ -104,6 +116,57 @@ describe("MistralAgentProvider", () => {
       message: { text: "Your confirmed intake is 1,800 kcal." },
       provider: "mistral",
     });
+  });
+
+  it("does not JSON-parse incidental assistant text when the SDK returns tool calls", async () => {
+    sdkComplete.mockResolvedValue({
+      id: "request-tool-call",
+      model: "mistral-medium-latest",
+      usage: { promptTokens: 50, completionTokens: 10, totalTokens: 60 },
+      choices: [
+        {
+          finishReason: "tool_calls",
+          message: {
+            content: '{"answer":"I will check."} trailing text',
+            toolCalls: [
+              {
+                id: "tool-call-1",
+                type: "function",
+                function: { name: "get_active_goal", arguments: "{}" },
+              },
+            ],
+          },
+        },
+      ],
+    });
+    const provider = new MistralAgentProvider({
+      apiKey: "test-key-that-is-long-enough",
+      model: "mistral-medium-latest",
+      timeoutMs: 5_000,
+      maxOutputTokens: 1_000,
+      externalAccess: true,
+    });
+
+    await expect(
+      provider.respond({
+        ...request,
+        tools: [
+          {
+            name: "get_active_goal",
+            description: "Returns the active goal.",
+            parameters: { type: "object", properties: {} },
+          },
+        ],
+      }),
+    ).resolves.toMatchObject({
+      toolCalls: [{ id: "tool-call-1", name: "get_active_goal", args: {} }],
+    });
+    expect(sdkComplete).toHaveBeenCalledWith(
+      expect.objectContaining({
+        responseFormat: expect.objectContaining({ type: "json_schema" }),
+      }),
+      expect.anything(),
+    );
   });
 
   it("labels prompt injection inside memories and tool evidence as untrusted data", async () => {
