@@ -97,7 +97,7 @@ Native acceptance evidence: standalone iOS and Android Release apps pass real si
 | AND-HEALTH-001 | P2       | research | Health Connect permissions and steps adapter | Android verified                                                                        |
 | MEM-001        | P0       | active   | Persistent memory adapter and controls       | Active-only authorized recall plus candidate lifecycle and mobile controls              |
 | AI-001         | P0       | active   | Evaluate/select initial Mistral model        | First live synthetic structured response passes; full evaluation remains                |
-| AI-002         | P1       | active   | Text coaching adapter and read-only tools    | Mistral tool-call replay corrected; production/native re-acceptance remains             |
+| AI-002         | P1       | active   | Text coaching adapter and read-only tools    | Production synthetic tool flow passes; native iPhone re-acceptance remains              |
 | VISION-001     | P1       | active   | Editable text/photo food drafts              | Local mobile/API/provider gate passes; authenticated native/provider acceptance remains |
 | VISION-002     | P2       | blocked  | Conservative body-progress observations      | Media + safety evaluation                                                               |
 | REL-001        | P0       | blocked  | Privacy/export/deletion release gate         | MVP repositories complete                                                               |
