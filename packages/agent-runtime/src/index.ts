@@ -737,6 +737,23 @@ export interface TextFoodDraftRequest {
   readonly requestId?: string;
 }
 
+/**
+ * AI-ACT-007 — refine an existing meal draft.
+ *
+ * The mobile composer sends the draft the AI just produced (or
+ * the user has since edited) plus a free-text instruction. The
+ * provider returns a refined draft that honours the instruction
+ * while keeping the schema bounds and provenance rules. The
+ * LLM never invents content from scratch — it adjusts the
+ * existing values.
+ */
+export interface RefineFoodDraftRequest {
+  readonly userId: UserId;
+  readonly currentDraft: VisionDraftCandidate;
+  readonly instruction: string;
+  readonly requestId?: string;
+}
+
 export interface NutritionEstimateRange {
   readonly low: number;
   readonly high: number;
@@ -792,6 +809,12 @@ export interface VisionDraftProvider {
   generateTextDraft?(
     request: TextFoodDraftRequest,
   ): Promise<VisionDraftCandidate>;
+  /**
+   * AI-ACT-007 — refine an existing draft. Optional; the route
+   * returns 503 when not implemented. The provider MUST throw
+   * `VisionProviderError` on any failure.
+   */
+  refineDraft?(request: RefineFoodDraftRequest): Promise<VisionDraftCandidate>;
 }
 
 export type VisionProviderFailureKind =
@@ -838,6 +861,9 @@ export class DisabledVisionProvider implements VisionDraftProvider {
     );
   }
   async generateTextDraft(): Promise<VisionDraftCandidate> {
+    return this.generateDraft();
+  }
+  async refineDraft(): Promise<VisionDraftCandidate> {
     return this.generateDraft();
   }
 }
@@ -901,6 +927,96 @@ export class StubVisionProvider implements VisionDraftProvider {
     return {
       ...candidate,
       provenance: { ...candidate.provenance, inputKind: "text" },
+    };
+  }
+  async refineDraft(
+    request: RefineFoodDraftRequest,
+  ): Promise<VisionDraftCandidate> {
+    // Dev-only deterministic stub: detect a handful of simple
+    // portion-change phrases and scale the existing draft
+    // proportionally so the test suite can observe a real
+    // round-trip. Anything we don't recognise is echoed back
+    // with a low-confidence warning.
+    const instruction = request.instruction.trim().toLowerCase();
+    const draft = request.currentDraft;
+    const scale = (() => {
+      if (/\b(double|2x|twice as much|two times)\b/.test(instruction)) {
+        return 2;
+      }
+      if (/\b(half|halve|0\.5x|0,5x)\b/.test(instruction)) {
+        return 0.5;
+      }
+      if (/\b(triple|3x|three times)\b/.test(instruction)) {
+        return 3;
+      }
+      const gramsMatch = instruction.match(
+        /(\d+(?:\.\d+)?)\s*g(?:rams?)?\s+(?:instead of|vs\.?)\s+(\d+(?:\.\d+)?)\s*g(?:rams?)?/,
+      );
+      if (gramsMatch !== null) {
+        const newGrams = Number(gramsMatch[1]);
+        const oldGrams = Number(gramsMatch[2]);
+        if (oldGrams > 0 && Number.isFinite(newGrams)) {
+          return newGrams / oldGrams;
+        }
+      }
+      return null;
+    })();
+    if (scale === null) {
+      return {
+        ...draft,
+        confidence: Math.max(0.1, draft.confidence - 0.1),
+        warnings: [
+          ...draft.warnings,
+          "Stub refine provider: instruction not recognised. Edit values manually.",
+        ],
+        assumptions: [
+          ...draft.assumptions,
+          "Stub refine: no portion adjustment applied.",
+        ],
+        provenance: {
+          ...draft.provenance,
+          provider: "vision-dev-stub",
+          model: "deterministic-stub",
+          promptVersion: "nutrition-draft-refine-v1",
+        },
+      };
+    }
+    const scaledNumber = (value: number | null): number | null =>
+      value === null ? null : Math.round(value * scale * 100) / 100;
+    const scaledRange = (
+      value: { low: number; high: number } | null,
+    ): { low: number; high: number } | null =>
+      value === null
+        ? null
+        : {
+            low: Math.round(value.low * scale * 100) / 100,
+            high: Math.round(value.high * scale * 100) / 100,
+          };
+    return {
+      ...draft,
+      caloriesKcal: scaledNumber(draft.caloriesKcal),
+      proteinG: scaledNumber(draft.proteinG),
+      carbohydrateG: scaledNumber(draft.carbohydrateG),
+      fatG: scaledNumber(draft.fatG),
+      calorieRangeKcal: scaledRange(draft.calorieRangeKcal),
+      proteinRangeG: scaledRange(draft.proteinRangeG),
+      carbohydrateRangeG: scaledRange(draft.carbohydrateRangeG),
+      fatRangeG: scaledRange(draft.fatRangeG),
+      confidence: draft.confidence,
+      warnings: [
+        ...draft.warnings,
+        `Stub refine: portion scaled by ${scale}x. Verify every value before saving.`,
+      ],
+      assumptions: [
+        ...draft.assumptions,
+        `Stub refine assumes a uniform ${scale}x scale.`,
+      ],
+      provenance: {
+        ...draft.provenance,
+        provider: "vision-dev-stub",
+        model: "deterministic-stub",
+        promptVersion: "nutrition-draft-refine-v1",
+      },
     };
   }
 }

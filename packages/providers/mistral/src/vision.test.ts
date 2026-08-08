@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { VisionDraftRequest } from "@mizyun/agent-runtime";
+import type {
+  RefineFoodDraftRequest,
+  VisionDraftRequest,
+} from "@mizyun/agent-runtime";
 
 import { MistralVisionProvider, type MistralVisionClient } from "./vision.js";
 
@@ -163,5 +166,156 @@ describe("MistralVisionProvider", () => {
     expect(complete.mock.calls[0]?.[0].messages[1]?.content).toEqual(
       expect.any(String),
     );
+  });
+});
+
+describe("MistralVisionProvider.refineDraft (AI-ACT-007)", () => {
+  const baselineCurrent = {
+    name: "Grilled chicken" as const,
+    caloriesKcal: 300,
+    proteinG: 50,
+    carbohydrateG: 0,
+    fatG: 10,
+    calorieRangeKcal: { low: 240, high: 360 },
+    proteinRangeG: { low: 40, high: 60 },
+    carbohydrateRangeG: { low: 0, high: 5 },
+    fatRangeG: { low: 7, high: 14 },
+    confidence: 0.7,
+    warnings: [],
+    assumptions: ["Assumes 100g chicken breast."],
+    provenance: {
+      inputKind: "text" as const,
+      provider: "stub",
+      model: "stub",
+      promptVersion: "nutrition-draft-v2",
+    },
+  };
+
+  it("uses the refine prompt + prompt version and forwards the instruction", async () => {
+    const complete = vi.fn<MistralVisionClient["complete"]>(async () => ({
+      model: "resolved-vision-model",
+      choices: [
+        {
+          message: {
+            parsed: {
+              name: "Grilled chicken (200g)",
+              caloriesKcal: 600,
+              proteinG: 100,
+              carbohydrateG: 0,
+              fatG: 20,
+              calorieRangeKcal: { low: 480, high: 720 },
+              proteinRangeG: { low: 80, high: 120 },
+              carbohydrateRangeG: { low: 0, high: 10 },
+              fatRangeG: { low: 14, high: 28 },
+              confidence: 0.72,
+              warnings: [],
+              assumptions: ["Assumes 200g chicken breast."],
+            },
+          },
+        },
+      ],
+    }));
+    const provider = new MistralVisionProvider({
+      apiKey: "test-key",
+      model: "vision-test-model",
+      timeoutMs: 5_000,
+      maxOutputTokens: 500,
+      externalAccess: true,
+      client: { complete },
+    });
+    const refineRequest: RefineFoodDraftRequest = {
+      userId: request.userId,
+      currentDraft: baselineCurrent,
+      instruction: "Make the chicken 200g instead of 100g",
+    };
+    const result = await provider.refineDraft(refineRequest);
+    expect(result.caloriesKcal).toBe(600);
+    expect(result.proteinG).toBe(100);
+    expect(result.provenance).toMatchObject({
+      inputKind: "text",
+      provider: "mistral",
+      promptVersion: "nutrition-draft-refine-v1",
+    });
+    const firstCall = complete.mock.calls[0]?.[0];
+    const systemMessage = firstCall?.messages[0];
+    expect(systemMessage?.content).toEqual(
+      expect.stringContaining("refining an existing meal draft"),
+    );
+    const userMessage = firstCall?.messages[1];
+    expect(userMessage?.content).toEqual(
+      expect.stringContaining("Make the chicken 200g instead of 100g"),
+    );
+    expect(userMessage?.content).toEqual(
+      expect.stringContaining("Grilled chicken"),
+    );
+  });
+
+  it("replaces medically loaded refine output with an editable empty draft", async () => {
+    const complete = vi.fn<MistralVisionClient["complete"]>(async () => ({
+      model: "resolved-vision-model",
+      choices: [
+        {
+          message: {
+            parsed: {
+              name: "Diagnose this disorder",
+              caloriesKcal: 100,
+              proteinG: 0,
+              carbohydrateG: 0,
+              fatG: 0,
+              calorieRangeKcal: { low: 0, high: 100 },
+              proteinRangeG: { low: 0, high: 0 },
+              carbohydrateRangeG: { low: 0, high: 0 },
+              fatRangeG: { low: 0, high: 0 },
+              confidence: 0.6,
+              warnings: [],
+              assumptions: [],
+            },
+          },
+        },
+      ],
+    }));
+    const provider = new MistralVisionProvider({
+      apiKey: "test-key",
+      model: "vision-test-model",
+      timeoutMs: 5_000,
+      maxOutputTokens: 500,
+      externalAccess: true,
+      client: { complete },
+    });
+    const result = await provider.refineDraft({
+      userId: request.userId,
+      currentDraft: baselineCurrent,
+      instruction: "double the portion",
+    });
+    expect(result).toMatchObject({
+      name: null,
+      caloriesKcal: null,
+      proteinG: null,
+      fatG: null,
+      confidence: 0.6,
+      provenance: {
+        inputKind: "text",
+        provider: "mistral",
+        promptVersion: "nutrition-draft-refine-v1",
+      },
+    });
+    expect(result.warnings[0]).toContain("safety policy");
+  });
+
+  it("refuses to refine when external access is disabled", async () => {
+    const provider = new MistralVisionProvider({
+      apiKey: "test-key",
+      model: "vision-test-model",
+      timeoutMs: 5_000,
+      maxOutputTokens: 500,
+      externalAccess: false,
+    });
+    await expect(
+      provider.refineDraft({
+        userId: request.userId,
+        currentDraft: baselineCurrent,
+        instruction: "double the portion",
+      }),
+    ).rejects.toMatchObject({ kind: "external_access_disabled" });
   });
 });

@@ -18,6 +18,7 @@ import {
   type VisionDraftCandidate,
   type VisionDraftProvider,
   type VisionDraftRequest,
+  type RefineFoodDraftRequest,
   type TextFoodDraftRequest,
   type VisionMimeType,
 } from "@mizyun/agent-runtime";
@@ -48,6 +49,7 @@ const visionOutputSchema = z.object({
 type VisionModelOutput = z.infer<typeof visionOutputSchema>;
 
 const NUTRITION_DRAFT_PROMPT_VERSION = "nutrition-draft-v2";
+const NUTRITION_DRAFT_REFINE_PROMPT_VERSION = "nutrition-draft-refine-v1";
 
 const visionSystemPolicy = [
   "You are a nutrition photo analyzer. Use only the photo and the user's hint.",
@@ -63,6 +65,43 @@ const visionUserPrompt = (hint: string | undefined): string =>
   hint && hint.trim().length > 0
     ? `Identify the food in the photo. The user describes it as: "${hint.trim()}".`
     : "Identify the food or drink in the photo.";
+
+/**
+ * AI-ACT-007 — refine a draft that the AI just produced (or the
+ * user has since edited) by re-running the structured-output
+ * provider with the current values and a free-text instruction.
+ * The LLM adjusts the existing values; it never invents content
+ * from scratch.
+ */
+const refineSystemPolicy = [
+  "You are a nutrition assistant refining an existing meal draft.",
+  "Use the current draft as the starting point. Do not invent new ingredients, portions, or meals.",
+  "Apply the user's instruction conservatively: change only the values the instruction clearly targets.",
+  "When the instruction references a current value (e.g. '200g instead of 100g'), scale the affected macros proportionally and surface the new low/high range.",
+  "When the instruction is ambiguous or unsafe, leave the draft unchanged, lower the confidence, and add a warning describing why.",
+  "Preserve the same JSON schema. Keep `inputKind` from the original draft unless the instruction explicitly switches input kind.",
+  "Never make medical claims, diagnose, or suggest a daily calorie target.",
+].join("\n");
+
+const refineUserPrompt = (
+  currentDraft: RefineFoodDraftRequest["currentDraft"],
+  instruction: string,
+): string => {
+  const lines = [
+    "Current meal draft:",
+    `Name: ${currentDraft.name ?? "(empty)"}`,
+    `Calories: ${currentDraft.caloriesKcal ?? "(empty)"} kcal`,
+    `Protein: ${currentDraft.proteinG ?? "(empty)"} g`,
+    `Carbs: ${currentDraft.carbohydrateG ?? "(empty)"} g`,
+    `Fat: ${currentDraft.fatG ?? "(empty)"} g`,
+    `Confidence: ${currentDraft.confidence}`,
+    "",
+    `User instruction: "${instruction.trim()}"`,
+    "",
+    "Return a refined draft that honours the instruction while staying within the same JSON schema. Keep changes conservative and explain assumptions in `assumptions`.",
+  ];
+  return lines.join("\n");
+};
 
 export interface MistralVisionProviderOptions {
   readonly apiKey: string;
@@ -322,6 +361,30 @@ export class MistralVisionProvider implements VisionDraftProvider {
     );
   }
 
+  async refineDraft(
+    request: RefineFoodDraftRequest,
+  ): Promise<VisionDraftCandidate> {
+    if (!this.#externalAccess) {
+      throw new VisionProviderError(
+        "external_access_disabled",
+        "External AI nutrition refine access is disabled.",
+        false,
+      );
+    }
+    if (request.instruction.trim().length < 2) {
+      throw new VisionProviderError(
+        "invalid_request",
+        "The refine instruction must be at least 2 characters.",
+        false,
+      );
+    }
+    const content = refineUserPrompt(request.currentDraft, request.instruction);
+    return this.#generate(content, request.currentDraft.provenance.inputKind, {
+      systemPolicy: refineSystemPolicy,
+      promptVersion: NUTRITION_DRAFT_REFINE_PROMPT_VERSION,
+    });
+  }
+
   async #generate(
     content:
       | string
@@ -330,13 +393,20 @@ export class MistralVisionProvider implements VisionDraftProvider {
           | { type: "image_url"; imageUrl: string }
         >,
     inputKind: "photo" | "text",
+    overrides: {
+      readonly systemPolicy?: string;
+      readonly promptVersion?: string;
+    } = {},
   ): Promise<VisionDraftCandidate> {
+    const systemPolicy = overrides.systemPolicy ?? visionSystemPolicy;
+    const promptVersion =
+      overrides.promptVersion ?? NUTRITION_DRAFT_PROMPT_VERSION;
     const call = () =>
       this.#client.complete(
         {
           model: this.#model,
           messages: [
-            { role: "system", content: visionSystemPolicy },
+            { role: "system", content: systemPolicy },
             {
               role: "user",
               content,
@@ -398,7 +468,7 @@ export class MistralVisionProvider implements VisionDraftProvider {
           inputKind,
           provider: "mistral",
           model: resolvedModel,
-          promptVersion: NUTRITION_DRAFT_PROMPT_VERSION,
+          promptVersion,
         },
       };
     }
@@ -408,7 +478,7 @@ export class MistralVisionProvider implements VisionDraftProvider {
         inputKind,
         provider: "mistral",
         model: resolvedModel,
-        promptVersion: NUTRITION_DRAFT_PROMPT_VERSION,
+        promptVersion,
       },
     };
   }

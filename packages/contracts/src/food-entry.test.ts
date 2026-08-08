@@ -4,6 +4,7 @@ import {
   foodDraftCandidateSchema,
   foodEntryListQuerySchema,
   foodEntrySummaryQuerySchema,
+  foodRefineDraftRequestSchema,
   foodTextDraftRequestSchema,
 } from "./food-entry";
 
@@ -81,6 +82,78 @@ describe("nutrition draft contracts", () => {
       foodTextDraftRequestSchema.safeParse({
         description: "one apple",
         userId: "not-accepted",
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("foodRefineDraftRequestSchema (AI-ACT-007)", () => {
+  const baselineDraft = {
+    name: "Grilled chicken",
+    caloriesKcal: 300,
+    proteinG: 50,
+    carbohydrateG: 0,
+    fatG: 10,
+    calorieRangeKcal: { low: 240, high: 360 },
+    proteinRangeG: { low: 40, high: 60 },
+    carbohydrateRangeG: { low: 0, high: 5 },
+    fatRangeG: { low: 7, high: 14 },
+    confidence: 0.7,
+    warnings: [],
+    assumptions: ["Assumes 100g chicken breast."],
+    provenance: {
+      inputKind: "text" as const,
+      provider: "mistral",
+      model: "test",
+      promptVersion: "nutrition-draft-v2",
+    },
+  };
+
+  it("accepts a valid current draft and a free-text instruction", () => {
+    const parsed = foodRefineDraftRequestSchema.parse({
+      currentDraft: baselineDraft,
+      instruction: "Make the chicken 200g instead of 100g",
+    });
+    expect(parsed.instruction).toBe("Make the chicken 200g instead of 100g");
+    expect(parsed.currentDraft.name).toBe("Grilled chicken");
+  });
+
+  it("rejects an instruction shorter than 2 characters", () => {
+    expect(
+      foodRefineDraftRequestSchema.safeParse({
+        currentDraft: baselineDraft,
+        instruction: "x",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects an instruction longer than 1,000 characters", () => {
+    expect(
+      foodRefineDraftRequestSchema.safeParse({
+        currentDraft: baselineDraft,
+        instruction: "a".repeat(1_001),
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects extra top-level fields (strict object)", () => {
+    expect(
+      foodRefineDraftRequestSchema.safeParse({
+        currentDraft: baselineDraft,
+        instruction: "Halve the rice",
+        userId: "00000000-0000-4000-8000-000000000099",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects a malformed current draft (e.g. inverted ranges)", () => {
+    expect(
+      foodRefineDraftRequestSchema.safeParse({
+        currentDraft: {
+          ...baselineDraft,
+          calorieRangeKcal: { low: 600, high: 200 },
+        },
+        instruction: "Make the chicken 200g instead of 100g",
       }).success,
     ).toBe(false);
   });

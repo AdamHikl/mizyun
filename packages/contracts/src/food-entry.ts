@@ -307,6 +307,29 @@ export const foodTextDraftRequestSchema = z
 
 export type FoodTextDraftRequest = z.infer<typeof foodTextDraftRequestSchema>;
 
+/**
+ * AI-ACT-007 — refine a meal draft with a follow-up instruction.
+ *
+ * The mobile composer sends the current draft (what the AI just
+ * produced or what the user has since edited) plus a free-text
+ * instruction like "make the chicken 200g instead of 100g".
+ * The server re-runs the structured-output provider with both as
+ * context and returns a refined `FoodDraftCandidate`. The LLM
+ * never invents content from scratch — it adjusts the existing
+ * values to honour the instruction while keeping the schema
+ * bounds and provenance rules.
+ */
+export const foodRefineDraftRequestSchema = z
+  .object({
+    currentDraft: foodDraftCandidateSchema,
+    instruction: z.string().trim().min(2).max(1_000),
+  })
+  .strict();
+
+export type FoodRefineDraftRequest = z.infer<
+  typeof foodRefineDraftRequestSchema
+>;
+
 export const foodDraftResponseSchema = z.object({
   draft: foodDraftCandidateSchema,
   /**

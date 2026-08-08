@@ -31,6 +31,7 @@ import {
 
 import {
   draftMealFromText,
+  refineMealDraft,
   snapMealPhoto,
   submitLogMeal,
   type LogMealForm,
@@ -89,6 +90,12 @@ export function LogMealScreen() {
   const [draftWarnings, setDraftWarnings] = useState<readonly string[]>([]);
   const [aiDraft, setAiDraft] = useState<FoodDraftCandidate | null>(null);
   const [sourceProposalId, setSourceProposalId] = useState<string | null>(null);
+  // AI-ACT-007 — free-text instruction the user types after the
+  // initial draft lands. The "Refine with AI" button is enabled
+  // only while an AI draft is loaded; submitting POSTs to
+  // /v1/food-entries/draft/refine and patches the form.
+  const [refineInstruction, setRefineInstruction] = useState("");
+  const [refining, setRefining] = useState(false);
   const measurement = useRef<LoggingFlowMeasurement | null>(null);
   const hadFailure = useRef(false);
   const userId = session?.user.id ?? null;
@@ -115,6 +122,7 @@ export function LogMealScreen() {
           setMealDescription(draft.description ?? "");
           setAiDraft(draft.aiDraft ?? null);
           setSourceProposalId(draft.sourceProposalId ?? null);
+          setRefineInstruction(draft.refineInstruction ?? "");
           setDraftWarnings(
             draft.aiDraft === undefined
               ? []
@@ -140,6 +148,7 @@ export function LogMealScreen() {
       description: mealDescription,
       ...(aiDraft === null ? {} : { aiDraft }),
       ...(sourceProposalId === null ? {} : { sourceProposalId }),
+      ...(refineInstruction.trim().length > 0 ? { refineInstruction } : {}),
     });
   }, [
     aiDraft,
@@ -150,6 +159,7 @@ export function LogMealScreen() {
     mealDescription,
     name,
     protein,
+    refineInstruction,
     sourceProposalId,
     userId,
   ]);
@@ -330,6 +340,42 @@ export function LogMealScreen() {
       setSnapping(false);
     }
   }, [mealDescription]);
+
+  // AI-ACT-007 — refine the current AI draft with a follow-up
+  // instruction. The endpoint takes the current draft as
+  // context, so the user can type "make the chicken 200g instead
+  // of 100g" and the server returns a re-evaluated candidate.
+  // On success we patch the form fields + warnings so the user
+  // can confirm. The description field is intentionally left
+  // intact so the photo flow's `textHint` chain still works.
+  const onRefineDraft = useCallback(async () => {
+    const instruction = refineInstruction.trim();
+    if (instruction.length < 2 || aiDraft === null || refining || submitting) {
+      return;
+    }
+    setRefining(true);
+    setError(null);
+    try {
+      const result = await refineMealDraft(aiDraft, instruction);
+      if (!result.ok) {
+        setError(result.message);
+        return;
+      }
+      const strings = mealFormStringsFromDraft(result.draft);
+      setName(strings.name);
+      setCalories(strings.calories);
+      setProtein(strings.protein);
+      setCarbs(strings.carbs);
+      setFat(strings.fat);
+      setDraftWarnings(draftEvidenceLines(result.draft));
+      setAiDraft(result.draft);
+      // Keep the user's instruction visible so they can chain
+      // follow-up refinements (e.g. "now make the rice half").
+      measurement.current?.complete();
+    } finally {
+      setRefining(false);
+    }
+  }, [refineInstruction, aiDraft, refining, submitting]);
 
   const calorieHint =
     calories.trim().length > 0 ? "calories recorded" : "calories optional";
@@ -522,6 +568,71 @@ export function LogMealScreen() {
             </View>
           </View>
 
+          {aiDraft !== null ? (
+            <View style={styles.refineBlock}>
+              <ThemedText type="small" themeColor="textSecondary">
+                Refine with AI
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                Tell the AI how to adjust the values above — for example “make
+                the chicken 200g instead of 100g”. The form will be re-filled
+                with the refined estimate.
+              </ThemedText>
+              <TextInput
+                testID="meal-refine-input"
+                accessibilityLabel="Refine AI meal draft"
+                placeholder="Make the chicken 200g instead of 100g"
+                placeholderTextColor="#8A8D91"
+                multiline
+                maxLength={1_000}
+                value={refineInstruction}
+                onChangeText={setRefineInstruction}
+                style={[
+                  styles.input,
+                  styles.refineInput,
+                  { color: theme.text },
+                ]}
+              />
+              <Pressable
+                accessibilityRole="button"
+                testID="meal-refine-button"
+                accessibilityLabel="Refine the AI draft"
+                accessibilityHint="Send the current draft and your instruction to Mizyun. The form will be re-filled with the refined estimate."
+                disabled={
+                  refining ||
+                  submitting ||
+                  snapping ||
+                  refineInstruction.trim().length < 2
+                }
+                accessibilityState={{
+                  busy: refining,
+                  disabled:
+                    refining ||
+                    submitting ||
+                    snapping ||
+                    refineInstruction.trim().length < 2,
+                }}
+                onPress={() => {
+                  void onRefineDraft();
+                }}
+                style={({ pressed }) => [
+                  styles.refineButton,
+                  (pressed || refining) && styles.refinePressed,
+                ]}
+              >
+                {refining ? (
+                  <ActivityIndicator
+                    size="small"
+                    color={theme.text}
+                    accessibilityLabel="Refining draft"
+                  />
+                ) : (
+                  <ThemedText type="smallBold">✨ Refine</ThemedText>
+                )}
+              </Pressable>
+            </View>
+          ) : null}
+
           {error !== null ? (
             <ThemedText
               type="small"
@@ -660,4 +771,24 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.two,
     gap: Spacing.one,
   },
+  refineBlock: {
+    gap: Spacing.two,
+    paddingTop: Spacing.two,
+  },
+  refineInput: {
+    minHeight: 64,
+    textAlignVertical: "top",
+  },
+  refineButton: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#1F1F23",
+    borderRadius: Spacing.three,
+    paddingVertical: Spacing.three,
+    paddingHorizontal: Spacing.four,
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: Spacing.two,
+  },
+  refinePressed: { opacity: 0.65 },
 });

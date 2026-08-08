@@ -145,6 +145,39 @@ const humanizeDraftError = (result: Result<unknown, ApiError>): string => {
   return "Couldn't read the photo — type the meal by hand.";
 };
 
+const humanizeRefineError = (result: Result<unknown, ApiError>): string => {
+  // Refine shares the rate limiter + provider with the photo /
+  // text-draft endpoints, so reuse the same code-based
+  // short-circuits. The fallback copy is refine-specific (no
+  // "photo" wording) so the user isn't told their photo failed
+  // when they only asked the AI to re-estimate the values.
+  if (result.ok) {
+    return "Couldn't refine the draft. Edit the values manually.";
+  }
+  if (
+    result.error.kind === "http_error" &&
+    result.error.code === "AI_CONFIGURATION_ERROR"
+  ) {
+    return "Refine is not configured on this server.";
+  }
+  if (
+    result.error.kind === "http_error" &&
+    result.error.code === "RATE_LIMITED"
+  ) {
+    return "Refine is limited — try again in a minute.";
+  }
+  if (result.error.kind === "network_error") {
+    return "Can't reach the server — try again in a moment.";
+  }
+  if (result.error.kind === "validation_error") {
+    return "Couldn't refine the draft. Edit the values manually.";
+  }
+  if (result.error.kind === "http_error" && result.error.status === 422) {
+    return "Couldn't refine the draft. Edit the values manually.";
+  }
+  return "Couldn't refine the draft. Edit the values manually.";
+};
+
 export const snapMealPhoto = async (
   photo: Blob,
   mimeType: "image/jpeg" | "image/png" | "image/webp",
@@ -197,4 +230,68 @@ export const draftMealFromText = async (
     return { ok: false, message: humanizeDraftError(result) };
   }
   return { ok: true, draft: result.value.draft };
+};
+
+// =========================================================================
+// AI-ACT-007 — Refine an existing AI meal draft.
+// =========================================================================
+
+import { foodRefineDraftRequestSchema } from "@mizyun/contracts";
+
+/**
+ * Re-run the structured-output provider with the current draft
+ * values plus a free-text instruction like
+ * "make the chicken 200g instead of 100g". The route returns a
+ * refined `FoodDraftCandidate`; the screen updates the form
+ * fields with the result so the user can confirm before saving.
+ *
+ * Failures are best-effort: a 503 means the server has no model
+ * wired up; a 422 means the instruction was rejected; a
+ * 429 means the user is over the per-minute cap. The screen
+ * shows the humanised message but does not block the manual
+ * save path.
+ */
+export const refineMealDraft = async (
+  currentDraft: FoodDraftCandidate,
+  instruction: string,
+): Promise<SnapMealPhotoResult> =>
+  refineMealDraftWith(apiClient, currentDraft, instruction);
+
+export const refineMealDraftWith = async (
+  client: ApiClient,
+  currentDraft: FoodDraftCandidate,
+  instruction: string,
+): Promise<SnapMealPhotoResult> => {
+  const trimmedInstruction = instruction.trim();
+  if (trimmedInstruction.length < 2) {
+    return { ok: false, message: "Type an instruction for the AI." };
+  }
+  const payload = {
+    currentDraft,
+    instruction: trimmedInstruction,
+  };
+  const parsed = foodRefineDraftRequestSchema.safeParse(payload);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: "Couldn't refine the draft. Edit the values manually.",
+    };
+  }
+  const result = await client.request<FoodDraftResponse>({
+    method: "POST",
+    path: "/v1/food-entries/draft/refine",
+    body: parsed.data,
+    schema: foodDraftResponseSchema,
+  });
+  if (!result.ok) {
+    return { ok: false, message: humanizeRefineError(result) };
+  }
+  const refined = foodDraftCandidateSchema.safeParse(result.value.draft);
+  if (!refined.success) {
+    return {
+      ok: false,
+      message: "Couldn't refine the draft. Edit the values manually.",
+    };
+  }
+  return { ok: true, draft: refined.data };
 };
