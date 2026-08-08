@@ -99,11 +99,81 @@ export const coachWeeklyAdaptationProposalSchema = z
   })
   .strict();
 
+/**
+ * AI-ACT-006 — multi-session workout plan proposal.
+ *
+ * The Coach detects an explicit multi-session request ("3 day plan",
+ * "Push Pull Legs split", "V-shape with 2-hour sessions") and asks
+ * the deterministic training-prescription engine to build an ordered
+ * list of N sessions. Sessions are pre-scheduled to target days
+ * across the next 7 days so the mobile UI can save them in one tap
+ * and the user gets an actual interactive workout for each one.
+ *
+ * The action is advisory until the user taps "Save all" (or the
+ * per-session "Start"); saving creates real `workout` + `workout_set`
+ * records via the existing repositories. The LLM never invents
+ * exercise content — it only extracts {sessions, focus, sessionMinutes}
+ * which are passed to the deterministic engine.
+ */
+export const coachMultiWorkoutPlanProposalSessionSchema = z
+  .object({
+    index: z.number().int().gte(1).lte(7),
+    label: z.string().min(1).max(80),
+    estimatedMinutes: z.number().int().gte(15).lte(180),
+    focus: z.string().min(1).max(80).nullable(),
+    targetDay: z.string().date(),
+    exercises: z
+      .array(
+        z.object({
+          catalogId: z.string().min(1).max(120),
+          name: z.string().min(1).max(120),
+          movementPattern: z.enum([
+            "knee_dominant",
+            "hip_hinge",
+            "horizontal_push",
+            "horizontal_pull",
+            "vertical_push",
+            "vertical_pull",
+            "core",
+            "aerobic",
+            "mobility",
+          ]),
+          equipment: z.array(z.string().min(1).max(40)).max(4),
+          sets: z.number().int().gte(1).lte(5),
+          repsMin: z.number().int().gte(1).lte(100).nullable(),
+          repsMax: z.number().int().gte(1).lte(100).nullable(),
+          durationMinutes: z.number().int().gte(1).lte(180).nullable(),
+          restSeconds: z.number().int().gte(0).lte(600),
+          progression: z.enum(["double_progression", "time_progression"]),
+        }),
+      )
+      .min(1)
+      .max(20),
+  })
+  .strict();
+
+export const coachMultiWorkoutPlanProposalSchema = z
+  .object({
+    id: z.string().uuid(),
+    kind: z.literal("multi_workout_plan"),
+    prescriptionVersion: z.string().min(1).max(100),
+    volumeAction: z.enum(["build", "hold", "reduce"]),
+    focus: z.string().min(1).max(80).nullable(),
+    requestedSessions: z.number().int().gte(1).lte(7),
+    sessionMinutes: z.number().int().gte(15).lte(180),
+    rationale: z.string().min(1).max(500),
+    sessions: z.array(coachMultiWorkoutPlanProposalSessionSchema).min(1).max(7),
+    startDay: z.string().date(),
+    endDay: z.string().date(),
+  })
+  .strict();
+
 export const coachActionProposalSchema = z.discriminatedUnion("kind", [
   coachNutritionProposalSchema,
   coachWorkoutProposalSchema,
   coachDailyPlanProposalSchema,
   coachWeeklyAdaptationProposalSchema,
+  coachMultiWorkoutPlanProposalSchema,
 ]);
 
 export const coachConversationSchema = z.object({
@@ -195,6 +265,12 @@ export type CoachDailyPlanProposal = z.infer<
 >;
 export type CoachWeeklyAdaptationProposal = z.infer<
   typeof coachWeeklyAdaptationProposalSchema
+>;
+export type CoachMultiWorkoutPlanProposalSession = z.infer<
+  typeof coachMultiWorkoutPlanProposalSessionSchema
+>;
+export type CoachMultiWorkoutPlanProposal = z.infer<
+  typeof coachMultiWorkoutPlanProposalSchema
 >;
 export type CoachActionProposal = z.infer<typeof coachActionProposalSchema>;
 export type CoachConversation = z.infer<typeof coachConversationSchema>;

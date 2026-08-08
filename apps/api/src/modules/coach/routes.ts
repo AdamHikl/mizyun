@@ -28,6 +28,7 @@ import {
   coachConversationResponseSchema,
   coachActionProposalSchema,
   coachDailyPlanProposalSchema,
+  coachMultiWorkoutPlanProposalSchema,
   coachWeeklyAdaptationProposalSchema,
   coachWeeklyAdaptationAcceptResponseSchema,
   coachMessageCreateSchema,
@@ -55,6 +56,12 @@ import {
 } from "./tools.js";
 import { isExplicitWorkoutProposalIntent } from "./workout-action.js";
 import { isExplicitWeeklyAdaptationIntent } from "./weekly-adaptation-action.js";
+import {
+  defaultMultiWorkoutParams,
+  extractMultiWorkoutParamsFromText,
+  isMultiWorkoutProposalIntent,
+  type MultiWorkoutParams,
+} from "./multi-workout-action.js";
 
 interface CoachRoutesOptions {
   readonly agent: AgentOrchestrator;
@@ -735,6 +742,123 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
           userMessage: toMessageWire(userMessage),
           assistantMessage: toMessageWire(assistantMessage),
         });
+      }
+
+      // AI-ACT-006 — multi-session workout plan.
+      //
+      // The Coach detects explicit multi-session requests ("3 day
+      // plan", "Push Pull Legs split", "V-shape with 2-hour sessions")
+      // and asks the deterministic training-prescription engine to
+      // build an ordered list of N sessions, auto-scheduled across
+      // the next 7 days. The user can save them all (or per session)
+      // and get a real interactive workout for each one.
+      if (isMultiWorkoutProposalIntent(parsed.data.text)) {
+        const patternParams = extractMultiWorkoutParamsFromText(
+          parsed.data.text,
+        );
+        const profile = await options.profileRepository.getOrCreate(
+          principal.userId,
+          { now: now(), accessToken: principal.accessToken },
+        );
+        const params: MultiWorkoutParams =
+          patternParams ??
+          defaultMultiWorkoutParams({
+            trainingDaysPerWeek:
+              profile.coachingPreferences.trainingDaysPerWeek,
+            sessionDurationMinutes:
+              profile.coachingPreferences.sessionDurationMinutes,
+          });
+
+        const prescription = await buildTrainingPrescriptionForUser(
+          options,
+          principal.userId,
+          principal.accessToken,
+          now(),
+          {
+            preferenceOverride: {
+              trainingDaysPerWeek: params.requestedSessions,
+              sessionDurationMinutes: params.sessionMinutes,
+              ...(params.focus === "general_hypertrophy"
+                ? { trainingFocus: "hypertrophy" }
+                : {}),
+            },
+          },
+        );
+
+        if (prescription.sessions.length === 0) {
+          // Deterministic engine refused (profile incomplete).
+          // Fall through to grounded text; the existing single-workout
+          // / daily-plan / weekly-adaptation paths cover most cases.
+        } else {
+          const sessionsToReturn = prescription.sessions.slice(
+            0,
+            params.requestedSessions,
+          );
+          const startDay = new Date(now().getTime());
+          const stepDays = Math.max(
+            1,
+            Math.floor(7 / Math.max(sessionsToReturn.length, 1)),
+          );
+          const sessionsWithDays = sessionsToReturn.map((session, idx) => {
+            const day = new Date(
+              startDay.getTime() + idx * stepDays * 86_400_000,
+            );
+            const targetDay = day.toISOString().slice(0, 10);
+            return {
+              ...session,
+              focus: prescription.assumptions[0] ?? params.focus,
+              targetDay,
+            };
+          });
+          const endDay =
+            sessionsWithDays[sessionsWithDays.length - 1]?.targetDay ??
+            startDay.toISOString().slice(0, 10);
+          const actionProposal = coachMultiWorkoutPlanProposalSchema.parse({
+            id: crypto.randomUUID(),
+            kind: "multi_workout_plan",
+            prescriptionVersion: prescription.version,
+            volumeAction: prescription.volumeAction,
+            focus: params.focus === "unknown" ? null : params.focus,
+            requestedSessions: sessionsToReturn.length,
+            sessionMinutes: params.sessionMinutes,
+            rationale:
+              prescription.assumptions[0] ??
+              `Built ${sessionsToReturn.length} sessions of about ${params.sessionMinutes} minutes from your confirmed goal, equipment, and recent load.`,
+            sessions: sessionsWithDays,
+            startDay: startDay.toISOString().slice(0, 10),
+            endDay,
+          });
+          const assistantMessage =
+            await options.conversationRepository.addMessage(
+              principal.userId,
+              {
+                id: crypto.randomUUID(),
+                conversationId,
+                role: "assistant",
+                text: `Here is your ${sessionsToReturn.length}-session plan, auto-scheduled across the next 7 days. Save it to create the workouts, then open any session to start, reorder exercises, change weights, or add/remove sets.`,
+                status: "complete",
+                idempotencyKey: null,
+                providerMetadata: {
+                  provider: "mizyun-planner",
+                  replyTo: userMessage.id,
+                  evidenceKinds: ["plan", "training", "profile", "goal"],
+                  actionProposal,
+                },
+              },
+              { accessToken: principal.accessToken, now: now() },
+            );
+          const latestConversation =
+            (await options.conversationRepository.get(
+              principal.userId,
+              conversationId,
+              { accessToken: principal.accessToken },
+            )) ?? conversation;
+          return coachMessageResponseSchema.parse({
+            conversation: toConversationWire(latestConversation),
+            userMessage: toMessageWire(userMessage),
+            assistantMessage: toMessageWire(assistantMessage),
+          });
+        }
       }
 
       if (isExplicitDailyPlanIntent(parsed.data.text)) {

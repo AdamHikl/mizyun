@@ -43,6 +43,7 @@ import {
 } from "@mizyun/core";
 import { coachingPlanSchema } from "@mizyun/contracts";
 import { trainingPrescriptionSchema } from "@mizyun/contracts";
+import type { CoachingPreferences } from "@mizyun/core";
 
 const MAX_DAYS_BACK = 28;
 const DEFAULT_DAYS_BACK = 7;
@@ -167,6 +168,9 @@ export const buildTrainingPrescriptionForUser = async (
   userId: UserId,
   accessToken: string,
   now: Date,
+  options?: {
+    readonly preferenceOverride?: Partial<CoachingPreferences>;
+  },
 ) => {
   const from = new Date(now.getTime() - 7 * 86_400_000);
   const [profile, goal, workouts] = await Promise.all([
@@ -202,9 +206,13 @@ export const buildTrainingPrescriptionForUser = async (
             rpeValues.length) *
             10,
         ) / 10;
+  const preferences: CoachingPreferences = {
+    ...profile.coachingPreferences,
+    ...(options?.preferenceOverride ?? {}),
+  };
   const prescription = buildTrainingPrescription({
     goalKind: goal?.kind ?? null,
-    preferences: profile.coachingPreferences,
+    preferences,
     completedSessionsLast7Days: completedWorkouts.length,
     completedSetsLast7Days: sets.length,
     averageRpeLast7Days,

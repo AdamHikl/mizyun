@@ -18,6 +18,7 @@ import type {
   CoachConversation,
   CoachDailyPlanProposal,
   CoachMessage,
+  CoachMultiWorkoutPlanProposal,
   CoachNutritionProposal,
   CoachProviderStatus,
   CoachWorkoutProposal,
@@ -61,6 +62,10 @@ import {
 } from "./coach-data";
 import { ThreadListSheet } from "./thread-list-sheet";
 import { TrainingPlanCard } from "./training-plan-card";
+import {
+  saveMultiWorkoutPlan,
+  type MultiWorkoutPlanSaveResult,
+} from "./multi-workout-plan";
 
 // AI-MOB-002 — error taxonomy. The data layer returns humanized
 // text for any failure; the screen additionally surfaces a
@@ -974,6 +979,9 @@ function MessageBubble({
           onReview={onReviewWorkoutProposal}
         />
       ) : null}
+      {message.actionProposal?.kind === "multi_workout_plan" ? (
+        <MultiWorkoutPlanCard proposal={message.actionProposal} />
+      ) : null}
       {message.actionProposal?.kind === "daily_plan" ? (
         <DailyPlanCard proposal={message.actionProposal} />
       ) : null}
@@ -1081,6 +1089,200 @@ const nextActionLabel: Record<CoachDailyPlanProposal["nextAction"], string> = {
   train: "Complete today’s planned training",
   stay_on_plan: "Stay on plan and keep logging",
 };
+
+function formatTargetDay(targetDay: string): string {
+  // The server emits YYYY-MM-DD; render a short locale-friendly
+  // label so the user can scan the schedule without a heavy
+  // date picker.
+  const [year, month, day] = targetDay
+    .split("-")
+    .map((part) => Number.parseInt(part, 10));
+  if (
+    Number.isNaN(year) ||
+    Number.isNaN(month) ||
+    Number.isNaN(day) ||
+    year < 2000 ||
+    year > 2100
+  ) {
+    return targetDay;
+  }
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function MultiWorkoutPlanCard({
+  proposal,
+}: {
+  readonly proposal: CoachMultiWorkoutPlanProposal;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [result, setResult] = useState<MultiWorkoutPlanSaveResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const onSaveAll = useCallback(async () => {
+    if (saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const saved = await saveMultiWorkoutPlan(proposal);
+      setResult(saved);
+      if (!saved.ok) {
+        setError(
+          "One or more sessions could not be saved. Retry the failed ones below.",
+        );
+      }
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? `Could not save the plan: ${cause.message}`
+          : "Could not save the plan.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }, [proposal, saving]);
+
+  const onOpenWorkout = useCallback((workoutId: string) => {
+    router.push(`/log-workout?workoutId=${workoutId}` as Href);
+  }, []);
+
+  const onOpenFirst = useCallback(() => {
+    const first = result?.saved.find((entry) => entry.result.ok);
+    if (first?.result.ok) {
+      onOpenWorkout(first.result.workout.id);
+    }
+  }, [onOpenWorkout, result]);
+
+  const savedByIndex = new Map<
+    number,
+    NonNullable<MultiWorkoutPlanSaveResult["saved"][number]>
+  >();
+  result?.saved.forEach((entry) => {
+    savedByIndex.set(entry.session.index, entry);
+  });
+
+  return (
+    <View style={styles.proposalCard}>
+      <ThemedText type="smallBold">
+        {proposal.requestedSessions}-session plan ·{" "}
+        {proposal.focus ?? "general"} · {proposal.sessionMinutes} min each
+      </ThemedText>
+      <ThemedText type="small" themeColor="textSecondary">
+        {proposal.rationale}
+      </ThemedText>
+      {proposal.sessions.map((session) => {
+        const saved = savedByIndex.get(session.index);
+        const isSaved = saved?.result.ok === true;
+        const isFailed = saved !== undefined && !saved.result.ok;
+        return (
+          <View
+            key={session.index}
+            style={styles.multiWorkoutRow}
+            accessibilityLabel={`Session ${session.index}: ${session.label} on ${formatTargetDay(session.targetDay)}, ${session.estimatedMinutes} minutes, ${session.exercises.length} exercises`}
+          >
+            <View style={{ flex: 1, gap: Spacing.one }}>
+              <ThemedText type="smallBold">
+                Day {session.index} · {session.label}
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                {formatTargetDay(session.targetDay)} ·{" "}
+                {session.estimatedMinutes} min · {session.exercises.length}{" "}
+                exercises
+              </ThemedText>
+              {session.exercises.slice(0, 3).map((exercise) => (
+                <ThemedText
+                  key={`${session.index}-${exercise.catalogId}`}
+                  type="small"
+                  themeColor="textSecondary"
+                >
+                  · {exercise.name} · {exercise.sets}×
+                  {exercise.repsMin === null
+                    ? `${exercise.durationMinutes} min`
+                    : `${exercise.repsMin}–${exercise.repsMax}`}
+                </ThemedText>
+              ))}
+              {session.exercises.length > 3 ? (
+                <ThemedText type="small" themeColor="textSecondary">
+                  + {session.exercises.length - 3} more
+                </ThemedText>
+              ) : null}
+              {isSaved ? (
+                <ThemedText type="small" themeColor="textSecondary">
+                  Saved · ready to open and edit
+                </ThemedText>
+              ) : null}
+              {isFailed ? (
+                <ThemedText type="small" themeColor="textSecondary">
+                  Could not save ·{" "}
+                  {saved?.result.ok === false
+                    ? saved.result.message
+                    : "unknown error"}
+                </ThemedText>
+              ) : null}
+            </View>
+            {isSaved ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${session.label} on ${formatTargetDay(session.targetDay)}`}
+                onPress={() =>
+                  saved.result.ok && onOpenWorkout(saved.result.workout.id)
+                }
+                style={styles.multiWorkoutOpenButton}
+              >
+                <ThemedText type="smallBold">Open</ThemedText>
+              </Pressable>
+            ) : null}
+          </View>
+        );
+      })}
+      {error !== null ? (
+        <ThemedText
+          type="small"
+          themeColor="textSecondary"
+          accessibilityRole="alert"
+        >
+          {error}
+        </ThemedText>
+      ) : null}
+      {result === null ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Save all ${proposal.requestedSessions} sessions`}
+          accessibilityHint="Creates one real workout per session, scheduled to the days above. You can then open any session to add sets, reorder exercises, or adjust weights."
+          disabled={saving}
+          accessibilityState={{ disabled: saving, busy: saving }}
+          onPress={() => {
+            void onSaveAll();
+          }}
+          style={styles.proposalButton}
+        >
+          {saving ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <ThemedText type="smallBold">
+              Save {proposal.requestedSessions} sessions
+            </ThemedText>
+          )}
+        </Pressable>
+      ) : (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open the first saved session"
+          onPress={() => {
+            onOpenFirst();
+          }}
+          style={styles.proposalButton}
+        >
+          <ThemedText type="smallBold">Open first session</ThemedText>
+        </Pressable>
+      )}
+    </View>
+  );
+}
 
 function DailyPlanCard({
   proposal,
@@ -1479,5 +1681,21 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     lineHeight: 22,
     textAlign: "center",
+  },
+  multiWorkoutRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.two,
+    paddingVertical: Spacing.two,
+  },
+  multiWorkoutOpenButton: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#1F1F23",
+    borderRadius: Spacing.two,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
   },
 });

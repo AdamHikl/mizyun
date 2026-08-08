@@ -278,6 +278,77 @@ describe("coach routes", () => {
     );
   });
 
+  it("persists a multi-session plan from the deterministic prescription when the user asks for a multi-day split", async () => {
+    const { app, respond } = makeApp(
+      vi.fn<AgentProvider["respond"]>(),
+      new InMemoryConversationRepository(),
+      { now: () => new Date("2026-07-25T22:30:00.000Z") },
+    );
+    const profile = await app.inject({
+      method: "PUT",
+      url: "/v1/profile",
+      headers: { ...auth, "content-type": "application/json" },
+      payload: {
+        coachingPreferences: {
+          experienceLevel: "intermediate",
+          trainingDaysPerWeek: 3,
+          sessionDurationMinutes: 60,
+          trainingFocus: "hypertrophy",
+          availableEquipment: ["dumbbells", "bench", "barbell", "rack"],
+          dietaryPreferences: ["omnivore"],
+          trainingLimitations: [],
+        },
+      },
+    });
+    expect(profile.statusCode).toBe(200);
+    const goal = await app.inject({
+      method: "POST",
+      url: "/v1/goals",
+      headers: { ...auth, "content-type": "application/json" },
+      payload: {
+        kind: "recomp",
+        pace: "gradual",
+        target: { weightKg: 80 },
+        startsOn: "2026-07-01",
+        targetDate: "2026-12-31",
+      },
+    });
+    expect(goal.statusCode).toBe(200);
+
+    const id = await createConversation(app);
+    const response = await sendMessage(
+      app,
+      id,
+      "multi-workout-action-key-0001",
+      "Help me create a 3 day gym plan to build a V-shape with each session about 2 hours long",
+    );
+    expect(response.statusCode).toBe(200);
+    expect(respond).not.toHaveBeenCalled();
+    const proposal = response.json().assistantMessage.actionProposal;
+    expect(proposal).toMatchObject({
+      kind: "multi_workout_plan",
+      volumeAction: expect.stringMatching(/^(build|hold|reduce)$/),
+      requestedSessions: 3,
+      sessionMinutes: 120,
+      sessions: expect.any(Array),
+    });
+    expect(proposal.sessions).toHaveLength(3);
+    expect(proposal.sessions[0]).toMatchObject({
+      index: expect.any(Number),
+      label: expect.any(String),
+      estimatedMinutes: expect.any(Number),
+      targetDay: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      exercises: expect.any(Array),
+    });
+    expect(proposal.sessions[0].exercises.length).toBeGreaterThan(0);
+    // The auto-schedule lands each session on a distinct day within
+    // the next 7 days.
+    const days = new Set(
+      proposal.sessions.map((s: { targetDay: string }) => s.targetDay),
+    );
+    expect(days.size).toBe(3);
+  });
+
   it("persists a deterministic daily plan without calling the model", async () => {
     const { app, respond } = makeApp(
       vi.fn<AgentProvider["respond"]>(),
