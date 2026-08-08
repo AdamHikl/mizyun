@@ -48,6 +48,29 @@ case "$action" in
     ;;
   run)
     shift
+    # AI-ACT-006 era: Apple's Personal Team provisioning profiles
+    # expire after 7 days, so `expo run:ios` (which does not pass
+    # `-allowProvisioningUpdates` to xcodebuild) fails on the
+    # second week with "No profiles for 'com.mizyun.app' were found".
+    # When the new-build flag is passed (or when CI/daily-job uses
+    # it), fall back to a direct xcodebuild invocation that lets
+    # Xcode refresh the profile and the device install. The Expo
+    # happy path is still used for greenfield builds where the
+    # profile is fresh.
+    if [[ "${1:-}" == "--renew-profile" ]]; then
+      shift
+      xcodebuild_args=(
+        -workspace "$repo_root/apps/mobile/ios/Mizyun.xcworkspace"
+        -scheme Mizyun
+        -configuration Release
+        -destination "id=00008140-001114501A86801C"
+        -allowProvisioningUpdates
+        CODE_SIGN_STYLE=Automatic
+        DEVELOPMENT_TEAM=PP89XZBW4U
+        build
+      )
+      exec xcodebuild "${xcodebuild_args[@]}"
+    fi
     exec pnpm --filter @mizyun/mobile exec expo run:ios --configuration Release "$@"
     ;;
   *)
