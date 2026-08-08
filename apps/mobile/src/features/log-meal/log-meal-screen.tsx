@@ -112,6 +112,7 @@ export function LogMealScreen() {
           setProtein(draft.protein);
           setCarbs(draft.carbs);
           setFat(draft.fat);
+          setMealDescription(draft.description ?? "");
           setAiDraft(draft.aiDraft ?? null);
           setSourceProposalId(draft.sourceProposalId ?? null);
           setDraftWarnings(
@@ -136,6 +137,7 @@ export function LogMealScreen() {
       protein,
       carbs,
       fat,
+      description: mealDescription,
       ...(aiDraft === null ? {} : { aiDraft }),
       ...(sourceProposalId === null ? {} : { sourceProposalId }),
     });
@@ -145,6 +147,7 @@ export function LogMealScreen() {
     carbs,
     draftLoaded,
     fat,
+    mealDescription,
     name,
     protein,
     sourceProposalId,
@@ -214,12 +217,18 @@ export function LogMealScreen() {
   // pre-fill the form; the user can edit before saving. The
   // model's free-text warnings are shown inline so the user
   // knows when the AI is uncertain.
+  //
+  // If the user has already typed a description in the composer, it is
+  // forwarded as a `textHint` so the vision provider can combine
+  // the photo with the user's own text (portion, cooking method,
+  // ingredients the photo can't resolve). The hint is optional;
+  // the photo still works without it.
   const processPhotoAsset = useCallback(
-    async (asset: ImagePicker.ImagePickerAsset) => {
+    async (asset: ImagePicker.ImagePickerAsset, textHint?: string) => {
       setSnapping(true);
       try {
         const photo = await normalizeMealPhoto(asset);
-        const draft = await snapMealPhoto(photo, "image/jpeg");
+        const draft = await snapMealPhoto(photo, "image/jpeg", textHint);
         if (!draft.ok) {
           hadFailure.current = true;
           measurement.current?.fail("upload", "unexpected", true);
@@ -267,8 +276,12 @@ export function LogMealScreen() {
       allowsEditing: false,
     });
     if (result.canceled || !result.assets?.[0]) return;
-    await processPhotoAsset(result.assets[0]);
-  }, [processPhotoAsset]);
+    const hint = mealDescription.trim();
+    await processPhotoAsset(
+      result.assets[0],
+      hint.length > 0 ? hint : undefined,
+    );
+  }, [processPhotoAsset, mealDescription]);
 
   const onTakePhoto = useCallback(async () => {
     measurement.current?.tap();
@@ -286,8 +299,12 @@ export function LogMealScreen() {
       allowsEditing: false,
     });
     if (result.canceled || !result.assets?.[0]) return;
-    await processPhotoAsset(result.assets[0]);
-  }, [processPhotoAsset]);
+    const hint = mealDescription.trim();
+    await processPhotoAsset(
+      result.assets[0],
+      hint.length > 0 ? hint : undefined,
+    );
+  }, [processPhotoAsset, mealDescription]);
 
   const onTextDraft = useCallback(async () => {
     if (mealDescription.trim().length < 2) return;
@@ -330,7 +347,9 @@ export function LogMealScreen() {
           <ThemedText type="subtitle">What did you eat?</ThemedText>
           <ThemedText themeColor="textSecondary" type="small">
             Name your meal first; calories and macros are optional but the
-            dashboard totals use them when present.
+            dashboard totals use them when present. You can describe the meal,
+            add a photo, or both — anything you type is sent with the photo to
+            help the AI estimate portions and ingredients.
           </ThemedText>
 
           <TextInput
@@ -367,7 +386,7 @@ export function LogMealScreen() {
               accessibilityRole="button"
               testID="take-meal-photo-button"
               accessibilityLabel="Take a meal photo"
-              accessibilityHint="Open the camera, take a meal photo, and let Mizyun suggest a draft with calories and macros."
+              accessibilityHint="Open the camera, take a meal photo, and let Mizyun suggest a draft with calories and macros. Any text in the description above is also sent to help the AI estimate portions and ingredients."
               disabled={snapping || submitting}
               accessibilityState={{
                 busy: snapping,
@@ -396,7 +415,7 @@ export function LogMealScreen() {
               accessibilityRole="button"
               testID="snap-meal-button"
               accessibilityLabel="Choose a meal photo"
-              accessibilityHint="Open the photo library, pick a meal photo, and let Mizyun suggest a draft with calories and macros."
+              accessibilityHint="Open the photo library, pick a meal photo, and let Mizyun suggest a draft with calories and macros. Any text in the description above is also sent to help the AI estimate portions and ingredients."
               disabled={snapping || submitting}
               accessibilityState={{
                 busy: snapping,

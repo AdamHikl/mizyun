@@ -101,4 +101,28 @@ describe("recoverable AI meal drafts", () => {
       }),
     ).toBe(false);
   });
+
+  it("accepts an optional free-text description used as a photo textHint", () => {
+    const draft = {
+      ...mealFormStringsFromDraft(candidate),
+      description: "Tuna salad, two handfuls, olive oil dressing",
+    };
+    expect(isRecoverableMealDraft(draft)).toBe(true);
+    expect(draft.description).toBe(
+      "Tuna salad, two handfuls, olive oil dressing",
+    );
+  });
+
+  it("rejects a non-string description", () => {
+    expect(
+      isRecoverableMealDraft({
+        name: "Tuna",
+        calories: "290",
+        protein: "63",
+        carbs: "0",
+        fat: "2",
+        description: { text: "salad" },
+      }),
+    ).toBe(false);
+  });
 });

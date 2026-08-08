@@ -27,6 +27,7 @@ export interface MealFormStrings {
 }
 
 export interface RecoverableMealDraft extends MealFormStrings {
+  readonly description?: string;
   readonly aiDraft?: FoodDraftCandidate;
   readonly sourceProposalId?: string;
 }
@@ -39,13 +40,15 @@ export const isRecoverableMealDraft = (
   const stringsValid = ["name", "calories", "protein", "carbs", "fat"].every(
     (field) => typeof record[field] === "string",
   );
+  const descriptionValid =
+    record.description === undefined || typeof record.description === "string";
   const aiDraftValid =
     record.aiDraft === undefined ||
     foodDraftCandidateSchema.safeParse(record.aiDraft).success;
   const proposalIdValid =
     record.sourceProposalId === undefined ||
     typeof record.sourceProposalId === "string";
-  return stringsValid && aiDraftValid && proposalIdValid;
+  return stringsValid && descriptionValid && aiDraftValid && proposalIdValid;
 };
 
 const editableNumber = (value: number | null): string =>

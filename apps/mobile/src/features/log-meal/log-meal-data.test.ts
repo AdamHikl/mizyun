@@ -245,6 +245,39 @@ describe("snapMealPhotoWith", () => {
     });
   });
 
+  it("forwards the user's description as a textHint alongside the photo", async () => {
+    let captured:
+      | {
+          readonly photo: Blob;
+          readonly mimeType: "image/jpeg" | "image/png" | "image/webp";
+          readonly textHint?: string;
+        }
+      | undefined;
+    const client: ApiClient = {
+      ...fakeClient({ ok: true, value: {} }),
+      draftFoodEntry: async (input) => {
+        captured = input;
+        return {
+          ok: true as const,
+          value: stubFoodDraft({ name: "Toast and butter" }),
+        };
+      },
+    };
+    const description = "two slices of toast with a teaspoon of butter";
+    const result = await snapMealPhotoWith(
+      client,
+      photoBlob,
+      "image/jpeg",
+      description,
+    );
+    expect(result.ok).toBe(true);
+    expect(captured).toEqual({
+      photo: photoBlob,
+      mimeType: "image/jpeg",
+      textHint: description,
+    });
+  });
+
   it("translates a network error to a recoverable human message", async () => {
     const client: ApiClient = {
       ...fakeClient({ ok: true, value: {} }),
