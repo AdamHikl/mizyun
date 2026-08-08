@@ -33,6 +33,48 @@ New features should be vertical modules with explicit public exports. Do not imp
 - AI output is advisory and uncertain; deterministic calculations remain in domain code.
 - Photo-derived nutrition values require user confirmation before becoming authoritative.
 
+## Primary working environment
+
+For Mizyun, the **Founder production PC** (Windows host, WSL2 Ubuntu
+22.04, reachable from this Mac over SSH as `mizyun-pc`, repo at
+`/home/mizyun/mizyun`) is the primary testing environment for the
+duration of the single-founder alpha. The Mac remains the code-edit
+and pre-promotion verification machine; it does not run the local
+Supabase/API stack for daily testing. This rule stays in effect until
+the user explicitly changes it.
+
+Default workflow for every commit:
+
+- implement + format/typecheck/test on the Mac (`pnpm check` must
+  pass);
+- commit on `main` and push the exact SHA to `origin/main`;
+- promote the SHA to the production PC via
+  `pnpm deploy:remote <sha>` (which calls
+  `scripts/promote-production.sh` on the PC);
+- test on the installed `com.mizyun.app` Production iPhone build
+  against the public production API/Supabase hosts
+  (`https://mizyun-api.phiskel.com`,
+  `https://mizyun-supabase.phiskel.com`);
+- record evidence (commit SHA, public health, device journey) in
+  `status.md`.
+
+Consequences and expectations:
+
+- the production PC is expected to keep running even when the Mac is
+  off — the Production iPhone app and public API are the durable
+  testing surface;
+- the local Mac dev Supabase/API is reserved for schema and migration
+  work and for one-off debugging; do not treat it as a long-running
+  parallel test stack;
+- a founder-only enablement model means mistakes hit the founder
+  directly, not real users, so the faster promote→test loop is
+  acceptable; this is **not** a paying-user posture, and the
+  managed/hosted/second-operator gates from `docs/INFRASTRUCTURE_EVOLUTION_PLAN.md`
+  still apply before any cutover;
+- before any promote, run `pnpm check` on the Mac; before any
+  production migration, run `pnpm db:verify` on the Mac against a
+  clean local reset to keep the schema diff honest.
+
 ## Verification
 
 Run `pnpm check` before committing. Provider integration tests remain disabled until every item in `docs/BEFORE_TESTING.md` is complete.
