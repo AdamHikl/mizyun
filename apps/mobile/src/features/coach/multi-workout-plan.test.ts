@@ -4,7 +4,10 @@ import type { ApiClient, ApiError, RequestOptions } from "@mizyun/api-client";
 import type { Result } from "@mizyun/core";
 import type { CoachMultiWorkoutPlanProposal } from "@mizyun/contracts";
 
-import { saveMultiWorkoutPlanWith } from "./multi-workout-plan";
+import {
+  humanFocusLabel,
+  saveMultiWorkoutPlanWith,
+} from "./multi-workout-plan";
 
 const NOW = new Date("2026-07-19T10:15:00.000Z");
 
@@ -201,5 +204,30 @@ describe("saveMultiWorkoutPlan", () => {
     expect(result.saved[1]?.result.ok).toBe(false);
     expect(result.saved[2]?.result.ok).toBe(true);
     expect(result.firstWorkoutId).toBe("w-1");
+  });
+});
+
+describe("humanFocusLabel", () => {
+  it("returns null for empty or unknown focus values", () => {
+    expect(humanFocusLabel(null)).toBeNull();
+    expect(humanFocusLabel("")).toBeNull();
+    expect(humanFocusLabel("unknown")).toBeNull();
+  });
+
+  it("maps plan-level focus codes to human labels", () => {
+    expect(humanFocusLabel("general_hypertrophy")).toBe("Upper-body emphasis");
+    expect(humanFocusLabel("ppl")).toBe("Push · Pull · Legs");
+    expect(humanFocusLabel("upper_lower")).toBe("Upper / Lower");
+    expect(humanFocusLabel("full_body")).toBe("Full body");
+  });
+
+  it("maps per-session distribution focus codes to human labels", () => {
+    expect(humanFocusLabel("upper")).toBe("Upper body");
+    expect(humanFocusLabel("lower")).toBe("Lower body");
+    expect(humanFocusLabel("full")).toBe("Full body");
+  });
+
+  it("title-cases unmapped snake_case values instead of leaking the code", () => {
+    expect(humanFocusLabel("high_intensity")).toBe("High Intensity");
   });
 });

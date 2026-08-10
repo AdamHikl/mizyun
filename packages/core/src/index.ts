@@ -192,7 +192,9 @@ export {
 export {
   TRAINING_PRESCRIPTION_VERSION,
   buildTrainingPrescription,
+  sessionFocusLabel,
   type MovementPattern,
+  type SessionFocus,
   type TrainingPrescription,
   type TrainingPrescriptionMissingInput,
   type TrainingVolumeAction,

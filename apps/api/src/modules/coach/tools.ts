@@ -37,6 +37,7 @@ import {
   type FoodEntryRepository,
   type GoalRepository,
   type ProfileRepository,
+  type SessionFocus,
   type UserId,
   type WorkoutRepository,
   type WorkoutSetRepository,
@@ -170,6 +171,13 @@ export const buildTrainingPrescriptionForUser = async (
   now: Date,
   options?: {
     readonly preferenceOverride?: Partial<CoachingPreferences>;
+    /**
+     * Optional per-session focus distribution. When supplied, the
+     * engine filters movement patterns to upper or lower body per
+     * session and labels each session accordingly. See
+     * `extractSessionDistribution` in `multi-workout-action.ts`.
+     */
+    readonly sessionDistribution?: readonly SessionFocus[];
   },
 ) => {
   const from = new Date(now.getTime() - 7 * 86_400_000);
@@ -217,6 +225,9 @@ export const buildTrainingPrescriptionForUser = async (
     completedSetsLast7Days: sets.length,
     averageRpeLast7Days,
     now,
+    ...(options?.sessionDistribution === undefined
+      ? {}
+      : { sessionDistribution: options.sessionDistribution }),
   });
   return trainingPrescriptionSchema.parse({
     ...prescription,

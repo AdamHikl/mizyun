@@ -14,6 +14,8 @@
  * (3 sessions, 60 minutes, unknown focus).
  */
 
+import type { SessionFocus } from "@mizyun/core";
+
 export type MultiWorkoutFocus =
   "ppl" | "upper_lower" | "full_body" | "general_hypertrophy" | "unknown";
 
@@ -21,6 +23,16 @@ export interface MultiWorkoutParams {
   readonly requestedSessions: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   readonly sessionMinutes: 15 | 30 | 45 | 60 | 75 | 90 | 105 | 120;
   readonly focus: MultiWorkoutFocus;
+  /**
+   * Optional per-session focus distribution. When the user explicitly
+   * asks for a count split ("two upper body and one lower body"),
+   * this carries the resolved `SessionFocus[]` of length
+   * `requestedSessions`. The deterministic engine uses it to bias
+   * exercise selection per day and to label each session
+   * ("Upper body" / "Lower body") instead of the generic "Session N".
+   * Null when the user did not specify a distribution.
+   */
+  readonly sessionDistribution: readonly SessionFocus[] | null;
   readonly confidence: "pattern" | "llm" | "default";
 }
 
@@ -94,6 +106,63 @@ const detectFocus = (text: string): MultiWorkoutFocus => {
   return "unknown";
 };
 
+const WORD_NUMBERS: Readonly<Record<string, number>> = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+};
+
+const parseCount = (raw: string): number | null => {
+  const trimmed = raw.trim().toLowerCase();
+  if (/^\d+$/.test(trimmed)) {
+    const parsed = Number.parseInt(trimmed, 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return WORD_NUMBERS[trimmed] ?? null;
+};
+
+/**
+ * Best-effort extraction of an explicit upper/lower session split
+ * from the user's free-text request.
+ *
+ * Matches both digit-form ("2 upper body and 1 lower body day")
+ * and word-form ("two upper and one lower"). Returns null when the
+ * text does not contain an explicit count split, when the counts
+ * do not sum to `requestedSessions`, or when only one side is
+ * mentioned (in which case the engine's default rotation is more
+ * honest than guessing the rest).
+ *
+ * The returned array is ordered `[upper, upper, ..., lower, lower, ...]`
+ * to match the natural reading order of the request and so the
+ * first day is the priority the user named first.
+ */
+export const extractSessionDistribution = (
+  text: string,
+  requestedSessions: number,
+): readonly SessionFocus[] | null => {
+  const normalized = text.toLowerCase();
+  const upperMatch = normalized.match(
+    /\b(\d+|[a-z]+)\s+upper(?:\s+body)?(?:\s+days?)?\b/,
+  );
+  const lowerMatch = normalized.match(
+    /\b(\d+|[a-z]+)\s+lower(?:\s+body)?(?:\s+days?)?\b/,
+  );
+  if (upperMatch === null || lowerMatch === null) return null;
+  const upperCount = parseCount(upperMatch[1] ?? "");
+  const lowerCount = parseCount(lowerMatch[1] ?? "");
+  if (upperCount === null || lowerCount === null) return null;
+  if (upperCount <= 0 || lowerCount <= 0) return null;
+  if (upperCount + lowerCount !== requestedSessions) return null;
+  const distribution: SessionFocus[] = [];
+  for (let i = 0; i < upperCount; i += 1) distribution.push("upper");
+  for (let i = 0; i < lowerCount; i += 1) distribution.push("lower");
+  return distribution;
+};
+
 /**
  * Returns true if the user's text looks like a multi-session
  * workout plan request (vs. a single workout). Conservative: only
@@ -139,6 +208,7 @@ export const extractMultiWorkoutParamsFromText = (
     requestedSessions,
     sessionMinutes,
     focus: detectFocus(text),
+    sessionDistribution: extractSessionDistribution(text, requestedSessions),
     confidence: "pattern",
   };
 };
@@ -159,5 +229,6 @@ export const defaultMultiWorkoutParams = (profileFallback: {
     profileFallback.sessionDurationMinutes ?? 60,
   ),
   focus: "unknown",
+  sessionDistribution: null,
   confidence: "default",
 });

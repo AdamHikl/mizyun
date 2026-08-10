@@ -782,6 +782,9 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
                 ? { trainingFocus: "hypertrophy" }
                 : {}),
             },
+            ...(params.sessionDistribution === null
+              ? {}
+              : { sessionDistribution: params.sessionDistribution }),
           },
         );
 
@@ -804,9 +807,17 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
               startDay.getTime() + idx * stepDays * 86_400_000,
             );
             const targetDay = day.toISOString().slice(0, 10);
+            // Per-session focus: prefer the engine's distribution if
+            // we passed one down, otherwise fall back to the
+            // global MultiWorkoutFocus. The wire `focus` field is
+            // human-readable and the mobile UI displays it
+            // directly above each session.
+            const sessionFocus =
+              params.sessionDistribution?.[idx] ??
+              (params.focus === "unknown" ? null : params.focus);
             return {
               ...session,
-              focus: prescription.assumptions[0] ?? params.focus,
+              focus: sessionFocus,
               targetDay,
             };
           });

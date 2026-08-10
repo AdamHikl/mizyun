@@ -63,6 +63,7 @@ import {
 import { ThreadListSheet } from "./thread-list-sheet";
 import { TrainingPlanCard } from "./training-plan-card";
 import {
+  humanFocusLabel,
   saveMultiWorkoutPlan,
   type MultiWorkoutPlanSaveResult,
 } from "./multi-workout-plan";
@@ -73,6 +74,16 @@ import {
 // toasts: rate-limit copies a Retry-After hint, unconfigured
 // suggests contacting support, etc.
 type AlertCategory = "rate_limited" | "unavailable" | "config" | "generic";
+
+/**
+ * Minimum time the "Coach is thinking…" indicator stays on screen
+ * after a send. The deterministic multi-workout path returns in
+ * well under 200 ms; without this floor the spinner flashes so
+ * briefly it reads as "loaded from cache" rather than a real
+ * response. LLM calls take 1–5 s and are unaffected.
+ */
+const MIN_SEND_INDICATOR_MS = 500;
+
 const alertCategoryFromMessage = (message: string | null): AlertCategory => {
   if (message === null) return "generic";
   if (/rate limited|busy|try again in \d+/i.test(message))
@@ -269,6 +280,7 @@ export function CoachSetupScreen() {
       sendLock.current = true;
       draftLoadGeneration.current += 1;
       setSending(true);
+      const sentAt = Date.now();
       const idempotencyKey =
         retry !== undefined
           ? retry.idempotencyKey
@@ -326,6 +338,17 @@ export function CoachSetupScreen() {
           // composer empty. The bubble owns the explicit retry affordance.
         }
       } finally {
+        // AI-MOB-002 — keep the "Coach is thinking…" indicator
+        // visible for at least MIN_SEND_INDICATOR_MS so the
+        // deterministic multi-workout path (which is genuinely
+        // fast, well under 200 ms) does not flash the spinner
+        // so quickly it looks like the answer was loaded from
+        // cache. LLM paths take 1–5 s and are unaffected.
+        const elapsed = Date.now() - sentAt;
+        const remaining = MIN_SEND_INDICATOR_MS - elapsed;
+        if (remaining > 0) {
+          await new Promise<void>((resolve) => setTimeout(resolve, remaining));
+        }
         sendLock.current = false;
         setSending(false);
         // AI-MOB-002 — focus returns to the composer after every
@@ -1168,8 +1191,11 @@ function MultiWorkoutPlanCard({
   return (
     <View style={styles.proposalCard}>
       <ThemedText type="smallBold">
-        {proposal.requestedSessions}-session plan ·{" "}
-        {proposal.focus ?? "general"} · {proposal.sessionMinutes} min each
+        {proposal.requestedSessions}-session plan
+        {humanFocusLabel(proposal.focus) === null
+          ? ""
+          : ` · ${humanFocusLabel(proposal.focus)}`}{" "}
+        · {proposal.sessionMinutes} min each
       </ThemedText>
       <ThemedText type="small" themeColor="textSecondary">
         {proposal.rationale}
@@ -1178,15 +1204,21 @@ function MultiWorkoutPlanCard({
         const saved = savedByIndex.get(session.index);
         const isSaved = saved?.result.ok === true;
         const isFailed = saved !== undefined && !saved.result.ok;
+        // The engine now sets the per-session focus to either the
+        // distribution slot ("upper" / "lower") or the plan-level
+        // focus. We humanize it for the row subtitle so the user
+        // never sees raw snake_case.
+        const sessionFocusLabel = humanFocusLabel(session.focus);
         return (
           <View
             key={session.index}
             style={styles.multiWorkoutRow}
-            accessibilityLabel={`Session ${session.index}: ${session.label} on ${formatTargetDay(session.targetDay)}, ${session.estimatedMinutes} minutes, ${session.exercises.length} exercises`}
+            accessibilityLabel={`Session ${session.index}: ${session.label}${sessionFocusLabel === null ? "" : `, ${sessionFocusLabel}`} on ${formatTargetDay(session.targetDay)}, ${session.estimatedMinutes} minutes, ${session.exercises.length} exercises`}
           >
             <View style={{ flex: 1, gap: Spacing.one }}>
               <ThemedText type="smallBold">
                 Day {session.index} · {session.label}
+                {sessionFocusLabel === null ? "" : ` · ${sessionFocusLabel}`}
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
                 {formatTargetDay(session.targetDay)} ·{" "}

@@ -21,6 +21,57 @@ export type MovementPattern =
 
 export type TrainingVolumeAction = "build" | "hold" | "reduce";
 
+/**
+ * AI-ACT-006 — per-session focus distribution. Extracted from the
+ * user's free-text request ("two upper body days and one lower body
+ * day") by the pattern matcher and forwarded to the prescription
+ * engine. The engine uses it to filter movement patterns to upper
+ * or lower body per session, and to label the session
+ * ("Upper body" / "Lower body" / "Full body") instead of the
+ * generic "Session N".
+ */
+export type SessionFocus = "upper" | "lower" | "full";
+
+const SESSION_FOCUS_LABELS: Record<SessionFocus, string> = {
+  upper: "Upper body",
+  lower: "Lower body",
+  full: "Full body",
+};
+
+export const sessionFocusLabel = (focus: SessionFocus): string =>
+  SESSION_FOCUS_LABELS[focus];
+
+const UPPER_BODY_PATTERNS: ReadonlySet<MovementPattern> = new Set([
+  "horizontal_push",
+  "horizontal_pull",
+  "vertical_push",
+  "vertical_pull",
+]);
+
+const LOWER_BODY_PATTERNS: ReadonlySet<MovementPattern> = new Set([
+  "knee_dominant",
+  "hip_hinge",
+]);
+
+const isUpperOnlyPattern = (pattern: MovementPattern): boolean =>
+  UPPER_BODY_PATTERNS.has(pattern);
+
+const isLowerOnlyPattern = (pattern: MovementPattern): boolean =>
+  LOWER_BODY_PATTERNS.has(pattern);
+
+const allowedPatternsFor = (
+  focus: SessionFocus,
+  allPatterns: readonly MovementPattern[],
+): MovementPattern[] => {
+  if (focus === "upper") {
+    return allPatterns.filter((pattern) => !isLowerOnlyPattern(pattern));
+  }
+  if (focus === "lower") {
+    return allPatterns.filter((pattern) => !isUpperOnlyPattern(pattern));
+  }
+  return [...allPatterns];
+};
+
 export type TrainingPrescriptionMissingInput =
   "active_goal" | "experience_level" | "training_days" | "session_duration";
 
@@ -302,6 +353,14 @@ export const buildTrainingPrescription = (input: {
   readonly completedSetsLast7Days: number;
   readonly averageRpeLast7Days: number | null;
   readonly now: Date;
+  /**
+   * Optional per-session focus distribution, length must equal the
+   * computed `sessions.length`. When omitted, every session uses
+   * the default "full body" rotation. When supplied, the engine
+   * filters movement patterns to upper or lower body per session
+   * and uses a human-friendly session label.
+   */
+  readonly sessionDistribution?: readonly SessionFocus[];
 }): TrainingPrescription => {
   const missingInputs: TrainingPrescriptionMissingInput[] = [];
   if (input.goalKind === null) missingInputs.push("active_goal");
@@ -415,8 +474,12 @@ export const buildTrainingPrescription = (input: {
   const sessions = Array.from(
     { length: resistanceDaysPerWeek },
     (_, sessionIndex) => {
-      const rotated = patterns.map(
-        (_, index) => patterns[(index + sessionIndex * 2) % patterns.length]!,
+      const sessionFocus: SessionFocus =
+        input.sessionDistribution?.[sessionIndex] ?? "full";
+      const allowedForFocus = allowedPatternsFor(sessionFocus, patterns);
+      const rotated = allowedForFocus.map(
+        (_, index) =>
+          allowedForFocus[(index + sessionIndex * 2) % allowedForFocus.length]!,
       );
       const exercises = rotated
         .map((pattern) => {
@@ -463,9 +526,14 @@ export const buildTrainingPrescription = (input: {
           `Session ${sessionIndex + 1} has fewer exercises because the selected equipment and movement constraints leave no compatible option for every pattern.`,
         );
       }
+      const label =
+        input.sessionDistribution === undefined ||
+        input.sessionDistribution[sessionIndex] === undefined
+          ? `Session ${sessionIndex + 1}`
+          : sessionFocusLabel(input.sessionDistribution[sessionIndex]!);
       return {
         index: sessionIndex + 1,
-        label: `Session ${sessionIndex + 1}`,
+        label,
         estimatedMinutes: sessionDurationMinutes,
         exercises,
       };

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   defaultMultiWorkoutParams,
   extractMultiWorkoutParamsFromText,
+  extractSessionDistribution,
   isMultiWorkoutProposalIntent,
 } from "./multi-workout-action";
 
@@ -123,6 +124,7 @@ describe("defaultMultiWorkoutParams", () => {
     expect(params.requestedSessions).toBe(5);
     expect(params.sessionMinutes).toBe(75);
     expect(params.focus).toBe("unknown");
+    expect(params.sessionDistribution).toBeNull();
     expect(params.confidence).toBe("default");
   });
 
@@ -133,5 +135,60 @@ describe("defaultMultiWorkoutParams", () => {
     });
     expect(params.requestedSessions).toBe(3);
     expect(params.sessionMinutes).toBe(60);
+  });
+});
+
+describe("extractSessionDistribution", () => {
+  it("extracts digit-form 2 upper / 1 lower for a 3-day V-shape plan", () => {
+    const distribution = extractSessionDistribution(
+      "Help me create a 3 day workout for hitting a V shape, I want two upper body and one lower body days",
+      3,
+    );
+    expect(distribution).toEqual(["upper", "upper", "lower"]);
+  });
+
+  it("extracts digit-form 1 upper / 1 lower for a 2-day split", () => {
+    const distribution = extractSessionDistribution(
+      "Build me a 2 day plan with 1 upper body and 1 lower body day",
+      2,
+    );
+    expect(distribution).toEqual(["upper", "lower"]);
+  });
+
+  it("returns null when the upper/lower counts do not sum to the requested sessions", () => {
+    // user asks for 2 upper / 1 lower in a 4-day plan; engine
+    // should not silently invent a third distribution entry.
+    const distribution = extractSessionDistribution(
+      "4 day plan, 2 upper body and 1 lower body",
+      4,
+    );
+    expect(distribution).toBeNull();
+  });
+
+  it("returns null when only one of upper/lower is mentioned", () => {
+    expect(
+      extractSessionDistribution("3 day plan, all upper body", 3),
+    ).toBeNull();
+  });
+
+  it("returns null when neither is mentioned", () => {
+    expect(extractSessionDistribution("3 day PPL plan", 3)).toBeNull();
+  });
+});
+
+describe("extractMultiWorkoutParamsFromText — session distribution wiring", () => {
+  it("populates sessionDistribution when the user spells out upper/lower counts", () => {
+    const params = extractMultiWorkoutParamsFromText(
+      "Help me create a 3 day workout for hitting a V shape, I want two upper body and one lower body days",
+    );
+    expect(params).not.toBeNull();
+    expect(params?.sessionDistribution).toEqual(["upper", "upper", "lower"]);
+  });
+
+  it("leaves sessionDistribution null when the user does not split upper/lower", () => {
+    const params = extractMultiWorkoutParamsFromText(
+      "Build me a 3-day PPL plan",
+    );
+    expect(params?.sessionDistribution).toBeNull();
   });
 });

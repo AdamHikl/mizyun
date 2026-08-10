@@ -106,3 +106,73 @@ describe("buildTrainingPrescription", () => {
     expect(result.sessions).toEqual([]);
   });
 });
+
+describe("buildTrainingPrescription — session distribution", () => {
+  const lowerPatterns = new Set(["knee_dominant", "hip_hinge"]);
+  const upperPatterns = new Set([
+    "horizontal_push",
+    "horizontal_pull",
+    "vertical_push",
+    "vertical_pull",
+  ]);
+
+  it("labels and restricts exercises per session when distribution is supplied", () => {
+    const result = buildTrainingPrescription({
+      goalKind: "bulk",
+      preferences: preferences({
+        trainingDaysPerWeek: 3,
+        availableEquipment: ["full_gym"],
+      }),
+      completedSessionsLast7Days: 0,
+      completedSetsLast7Days: 0,
+      averageRpeLast7Days: null,
+      now: new Date("2026-07-26T10:00:00Z"),
+      sessionDistribution: ["upper", "upper", "lower"],
+    });
+    expect(result.sessions).toHaveLength(3);
+    expect(result.sessions.map((session) => session.label)).toEqual([
+      "Upper body",
+      "Upper body",
+      "Lower body",
+    ]);
+    const upperSessionPatterns = result.sessions[0]!.exercises.map(
+      (exercise) => exercise.movementPattern,
+    );
+    const lowerSessionPatterns = result.sessions[2]!.exercises.map(
+      (exercise) => exercise.movementPattern,
+    );
+    for (const pattern of upperSessionPatterns) {
+      expect(
+        upperPatterns.has(pattern) ||
+          pattern === "core" ||
+          pattern === "mobility",
+      ).toBe(true);
+      expect(lowerPatterns.has(pattern)).toBe(false);
+    }
+    for (const pattern of lowerSessionPatterns) {
+      expect(
+        lowerPatterns.has(pattern) ||
+          pattern === "core" ||
+          pattern === "mobility",
+      ).toBe(true);
+      expect(upperPatterns.has(pattern)).toBe(false);
+    }
+  });
+
+  it("falls back to generic Session N labels when no distribution is supplied", () => {
+    const result = buildTrainingPrescription({
+      goalKind: "bulk",
+      preferences: preferences(),
+      completedSessionsLast7Days: 0,
+      completedSetsLast7Days: 0,
+      averageRpeLast7Days: null,
+      now: new Date("2026-07-26T10:00:00Z"),
+    });
+    expect(result.sessions.map((session) => session.label)).toEqual([
+      "Session 1",
+      "Session 2",
+      "Session 3",
+      "Session 4",
+    ]);
+  });
+});

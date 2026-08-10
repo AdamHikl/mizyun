@@ -30,6 +30,46 @@ export interface MultiWorkoutPlanSaveResult {
   readonly firstWorkoutId: string | null;
 }
 
+/**
+ * The proposal carries focus values as code-internal strings
+ * (`"general_hypertrophy"`, `"ppl"`, `"upper_lower"`,
+ * `"full_body"`, plus the per-session `"upper"` / `"lower"` /
+ * `"full"` set by the AI-ACT-006 distribution work). The mobile
+ * UI should never display those raw values to the user. This
+ * mapper returns a human-friendly label, or `null` when the focus
+ * is missing / unknown.
+ */
+export const humanFocusLabel = (focus: string | null): string | null => {
+  if (focus === null || focus.length === 0) return null;
+  switch (focus) {
+    case "general_hypertrophy":
+      return "Upper-body emphasis";
+    case "ppl":
+      return "Push · Pull · Legs";
+    case "upper_lower":
+      return "Upper / Lower";
+    case "full_body":
+      return "Full body";
+    case "upper":
+      return "Upper body";
+    case "lower":
+      return "Lower body";
+    case "full":
+      return "Full body";
+    case "unknown":
+      return null;
+    default:
+      // Future-proof: humanise snake_case into Title Case rather
+      // than leaking an unmapped code value to the user.
+      return focus
+        .split("_")
+        .map((part) =>
+          part.length === 0 ? part : part[0]!.toUpperCase() + part.slice(1),
+        )
+        .join(" ");
+  }
+};
+
 const targetDayToStartedAt = (targetDay: string): string => {
   // The Coach pre-schedules sessions to a local calendar day in
   // the user's timezone. The wire schema only carries the date
@@ -54,10 +94,8 @@ const sessionNotes = (
   session: CoachMultiWorkoutPlanProposal["sessions"][number],
   proposal: CoachMultiWorkoutPlanProposal,
 ): string => {
-  const focusTag =
-    session.focus === null || session.focus.length === 0
-      ? ""
-      : ` · focus ${session.focus}`;
+  const focusLabel = humanFocusLabel(session.focus);
+  const focusTag = focusLabel === null ? "" : ` · focus ${focusLabel}`;
   return [
     `Coach plan · ${proposal.prescriptionVersion} · ${session.targetDay}${focusTag}`,
     `Volume action: ${proposal.volumeAction}`,
