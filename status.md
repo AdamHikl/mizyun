@@ -197,7 +197,7 @@ Out-of-band request: build a sideloadable Android APK on the Mac so Adam
 can install Mizyun on his other Android phone. Mirrors the existing
 founder iOS workflow (`mobile:founder-production:ios`).
 
-New artifacts (uncommitted, on `main`):
+New artifacts (committed in `a2bd01f`, pushed to `origin/main`):
 
 - `scripts/mobile-founder-production-android.sh` — mirrors the iOS
   script. Sources `apps/mobile/.env.production` (and validates the
