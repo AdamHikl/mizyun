@@ -181,14 +181,105 @@ PC over SSH:
 Focused coverage proves the contract parse/validate envelope, the
 `/draft/refine` route through the deterministic provider (portion scaled
 2x, prompt version `nutrition-draft-refine-v1`), the 422 short-instruction
-+ injection-screened paths, the 503 when `refineDraft` is missing, the
-shared rate limit with the text/photo endpoints, the Mistral provider
-refine uses the refine system policy + safety replacement, the mobile
-data layer covers 200/short-instruction/422/503/429/network/invalid
-response, and the `StubVisionProvider` scales the existing draft by
-`double`/`halve`/`triple` or a parsed "Ng instead of Mg" regex. The
-Production iPhone Release is being rebuilt; this evidence is the gate
-before the install.
+
+- injection-screened paths, the 503 when `refineDraft` is missing, the
+  shared rate limit with the text/photo endpoints, the Mistral provider
+  refine uses the refine system policy + safety replacement, the mobile
+  data layer covers 200/short-instruction/422/503/429/network/invalid
+  response, and the `StubVisionProvider` scales the existing draft by
+  `double`/`halve`/`triple` or a parsed "Ng instead of Mg" regex. The
+  Production iPhone Release is being rebuilt; this evidence is the gate
+  before the install.
+
+## Verification evidence — 2026-08-10 (Android founder APK sideload build)
+
+Out-of-band request: build a sideloadable Android APK on the Mac so Adam
+can install Mizyun on his other Android phone. Mirrors the existing
+founder iOS workflow (`mobile:founder-production:ios`).
+
+New artifacts (uncommitted, on `main`):
+
+- `scripts/mobile-founder-production-android.sh` — mirrors the iOS
+  script. Sources `apps/mobile/.env.production` (and validates the
+  `mizyun-api.phiskel.com` / `mizyun-supabase.phiskel.com` /
+  `mizyun://auth/callback` URL triple), sets `EXPO_NO_DOTENV=1` and
+  `MIZYUN_APP_VARIANT=production`, exports `ANDROID_HOME` and
+  `JAVA_HOME` (prefers Temurin 17 from the Gradle auto-download cache
+  because AGP 8 / RN 0.86's `JdkImageTransform` rejects Homebrew's
+  JDK 26), then runs `expo prebuild --clean --platform android` for
+  the `prebuild` action and `:app:assembleRelease` for the
+  `assembleRelease` action.
+- `package.json` — adds `mobile:founder-production:android:prebuild`
+  and `mobile:founder-production:android:assembleRelease` next to
+  the existing iOS scripts.
+
+Build evidence (Mac, 2026-08-10):
+
+```text
+pnpm mobile:founder-production:android:prebuild
+  Clearing android / Created native directory / Finished prebuild
+
+pnpm mobile:founder-production:android:assembleRelease
+  JAVA_HOME = ~/.gradle/jdks/eclipse_adoptium-17-aarch64-os_x.2/jdk-17.0.19+10/Contents/Home
+  568 actionable tasks: 389 executed, 179 up-to-date
+  BUILD SUCCESSFUL in 5m
+```
+
+APK verification:
+
+```text
+file:    apps/mobile/dist/mizyun-founder-production-v1.0.0.apk
+size:    107,619,485 bytes (103 MB) — universal, all 4 ABIs
+sha256:  569918841b1a56d342cd00fff9566feb3f7b0df31b18e3526eab1be268b22a29
+
+aapt dump badging:
+  package: com.mizyun.app  versionCode=1  versionName=1.0.0
+  minSdk=24  targetSdk=36  compileSdk=36
+
+apksigner verify:
+  Verified using v2 scheme (APK Signature Scheme v2): true
+  Signer DN: CN=Android Debug, OU=Android, O=Unknown, ...  (debug keystore)
+  (Same model as the founder iOS personal-team signing.)
+
+assets/index.android.bundle contains:
+  mizyun-api.phiskel.com
+  mizyun-supabase.phiskel.com
+  mizyun://auth/callback
+```
+
+What this proves:
+
+- The Android founder-production build path now exists and is
+  repeatable. The script is idempotent — a fresh
+  `mobile:founder-production:android:assembleRelease` after a code
+  change will re-bundle the JS and produce a new APK in
+  `apps/mobile/android/app/build/outputs/apk/release/app-release.apk`
+  without re-running prebuild.
+- The release variant bakes the production JS bundle into the APK
+  and signs with the debug keystore from `apps/mobile/android/app/debug.keystore`
+  (the standard Expo prebuild output). That is fine for a single
+  founder sideload to Adam's own device; it is **not** a Play Store
+  release and must not be distributed to anyone else.
+
+Known limitations surfaced during this build:
+
+- The universal APK is 103 MB because it includes all four ABIs
+  (`armeabi-v7a, arm64-v8a, x86, x86_64`). For a single device,
+  splitting per ABI in `android/app/build.gradle` would drop it to
+  roughly 35–45 MB and make messenger transfer easier. Not changed
+  in this session because the sideload is to one phone and the file
+  is below most cloud-storage limits; tracked in `backlog.md`.
+- JDK 26 (Homebrew `openjdk`) breaks `JdkImageTransform` in AGP and
+  emits "WARNING: A restricted method in java.lang.System has been
+  called" from CMake. The script pins JDK 17 (Temurin, auto-downloaded
+  by Gradle). If a future AGP upgrade wants JDK 21, the script's
+  fallback chain will pick Android Studio's JBR automatically.
+- The script is uncommitted. Run `pnpm check`, then commit on
+  `main` and push before the next `pnpm deploy:remote`.
+
+Next action: deliver the APK to the other Android phone (USB / cloud
+storage). The Production iPhone Release from the 2026-08-08 work is
+independent and unchanged.
 
 ## Verification evidence — 2026-07-26
 
