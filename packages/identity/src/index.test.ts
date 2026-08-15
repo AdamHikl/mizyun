@@ -51,13 +51,20 @@ describe("disabled identity adapters", () => {
       client.requestPasswordRecovery({ email: "person@example.com" }),
     ).rejects.toMatchObject({ code: "AUTH_NOT_CONFIGURED" });
   });
+
+  it("rejects OAuth sign-in request when configuration is absent", async () => {
+    const client = new DisabledAuthClient();
+    await expect(
+      client.signInWithOAuth({ provider: "google" }),
+    ).rejects.toMatchObject({ code: "AUTH_NOT_CONFIGURED" });
+  });
 });
 
 describe("parseDeepLinkFragment", () => {
   const urlWithFragment = (fragment: string): string =>
     `mizyun://auth/callback#${fragment}`;
 
-  it("returns null when the URL has no fragment", () => {
+  it("returns null when the URL has no fragment or query", () => {
     expect(parseDeepLinkFragment("mizyun://auth/callback")).toBeNull();
   });
 
@@ -112,6 +119,43 @@ describe("parseDeepLinkFragment", () => {
     );
     expect(payload).toEqual({
       kind: "magiclink",
+      accessToken: "ACCESS",
+      refreshToken: "REFRESH",
+    });
+  });
+
+  it("parses an oauth callback with explicit type=oauth", () => {
+    const payload = parseDeepLinkFragment(
+      urlWithFragment(
+        "access_token=ACCESS&refresh_token=REFRESH&type=oauth&provider_token=P_TOKEN",
+      ),
+    );
+    expect(payload).toEqual({
+      kind: "oauth",
+      accessToken: "ACCESS",
+      refreshToken: "REFRESH",
+    });
+  });
+
+  it("parses an oauth callback without type (implicit OAuth fragment)", () => {
+    const payload = parseDeepLinkFragment(
+      urlWithFragment(
+        "access_token=ACCESS&refresh_token=REFRESH&provider_token=P_TOKEN&token_type=bearer",
+      ),
+    );
+    expect(payload).toEqual({
+      kind: "oauth",
+      accessToken: "ACCESS",
+      refreshToken: "REFRESH",
+    });
+  });
+
+  it("parses query parameters when delivered with query string instead of fragment", () => {
+    const payload = parseDeepLinkFragment(
+      "mizyun://auth/callback?access_token=ACCESS&refresh_token=REFRESH&type=oauth",
+    );
+    expect(payload).toEqual({
+      kind: "oauth",
       accessToken: "ACCESS",
       refreshToken: "REFRESH",
     });

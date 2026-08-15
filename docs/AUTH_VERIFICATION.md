@@ -132,7 +132,47 @@ Expected: the screen shows "If an account exists for this email, a reset link is
 
 Expected: `authClient.updatePassword({ password })` succeeds. The SessionGate falls back to rendering the regular tabs. Sign out and sign back in with the new password to prove rotation landed.
 
-## Step 11 — Bundle purity (defensive)
+## Step 11 — Google OAuth sign-in / sign-up
+
+### 1. Google Cloud Console setup
+
+1. Open [Google Cloud Console](https://console.cloud.google.com/) -> APIs & Services -> Credentials.
+2. Configure the OAuth Consent Screen (User Type: External / Internal, Scopes: `.../auth/userinfo.email`, `.../auth/userinfo.profile`, `openid`).
+3. Create an **OAuth 2.0 Client ID** (Application type: **Web application**).
+4. Add **Authorized JavaScript origins**:
+   - Production: `https://mizyun-supabase.phiskel.com`
+   - Local Dev: `http://127.0.0.1:54321`
+5. Add **Authorized redirect URIs**:
+   - Production: `https://mizyun-supabase.phiskel.com/auth/v1/callback`
+   - Local Dev: `http://127.0.0.1:54321/auth/v1/callback`
+6. Copy the **Client ID** and **Client Secret**.
+
+### 2. Environment configuration
+
+- **Local Dev**: In `.env` or shell:
+  ```dotenv
+  SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID=<google-client-id>
+  SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET=<google-client-secret>
+  ```
+- **Self-Hosted Production (Raspberry Pi / Windows PC)**: In `/srv/mizyun/supabase/.env` or `/etc/mizyun/production.env`:
+  ```dotenv
+  GOTRUE_EXTERNAL_GOOGLE_ENABLED=true
+  GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID=<google-client-id>
+  GOTRUE_EXTERNAL_GOOGLE_SECRET=<google-client-secret>
+  GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI=https://mizyun-supabase.phiskel.com/auth/v1/callback
+  ```
+  Restart Supabase (`sudo systemctl restart mizyun-supabase` or `cd /srv/mizyun/supabase && sh run.sh restart`).
+
+### 3. Verification
+
+1. Launch the mobile app.
+2. On `AuthScreen`, tap **Continue with Google**.
+3. The in-app browser (`expo-web-browser`) opens the Google consent screen.
+4. Sign in with your Google account.
+5. Google redirects to Supabase `/auth/v1/callback` -> Supabase redirects to `mizyun://auth/callback#access_token=...&refresh_token=...`.
+6. Expected: The browser closes automatically, the session is consumed, and the user lands on the app dashboard.
+
+## Step 12 — Bundle purity (defensive)
 
 ```bash
 pnpm --filter @mizyun/mobile bundle:check
@@ -141,7 +181,7 @@ pnpm --filter @mizyun/config test -- mobile-public
 
 Expected: the bundle exports; the bundle-purity vitest asserts the generated `.hbc` does not contain `SUPABASE_SECRET_KEY`, `sbp_`, or `eyJ...` JWT literals.
 
-## Step 12 — Tear down
+## Step 13 — Tear down
 
 ```bash
 pnpm db:stop
@@ -151,7 +191,7 @@ This stops the local Docker containers. Do not leave the stack running when not 
 
 ## What this verifies
 
-- `apps/mobile/src/features/auth/auth-screen.tsx` produces the right GoTrue signup/signin requests with the right shape.
+- `apps/mobile/src/features/auth/auth-screen.tsx` produces the right GoTrue signup/signin/OAuth requests with the right shape.
 - `apps/mobile/src/features/auth/auth-context.tsx` correctly subscribes to session changes and gates `SessionGate`.
 - `@mizyun/adapter-supabase-mobile` stores and restores the session through Expo SecureStore's chunked storage.
 - `@mizyun/api-client`'s `HttpApiClient` attaches the bearer token and normalizes 401 into `kind: "session_expired"`.

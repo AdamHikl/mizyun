@@ -105,14 +105,12 @@ export function EnergyProfileScreen() {
             label={`Height (${lengthUnitLabel(unitSystem)})`}
             value={form.height}
             onChangeText={(value) => patch("height", value)}
-            placeholder={unitSystem === "imperial" ? "70" : "178"}
             inputColor={theme.text}
           />
           <Field
             label="Birth year"
             value={form.birthYear}
             onChangeText={(value) => patch("birthYear", value)}
-            placeholder="1990"
             inputColor={theme.text}
           />
 
@@ -189,7 +187,7 @@ function Field(props: {
   readonly label: string;
   readonly value: string;
   readonly onChangeText: (value: string) => void;
-  readonly placeholder: string;
+  readonly placeholder?: string;
   readonly inputColor: string;
 }) {
   return (

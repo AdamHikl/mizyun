@@ -23,7 +23,9 @@ import {
 } from "./principal-state";
 import { CoachPreferencesCard } from "./coach-preferences-card";
 import { CoachRemindersCard } from "./coach-reminders-card";
+import { GoalSettingsCard } from "./goal-settings-card";
 import { MemoryControlsCard } from "./memory-controls-card";
+import { ProfileSettingsCard } from "./profile-settings-card";
 import {
   applyCoachReminders,
   loadCoachReminders,
@@ -111,6 +113,12 @@ export function SettingsScreen() {
 
           <PrincipalCard state={state} onRetry={refresh} />
           {profile?.displayName ? null : <SetupWizardCard />}
+          {profile !== null ? (
+            <ProfileSettingsCard profile={profile} onSaved={refreshProfile} />
+          ) : null}
+          {profile !== null ? (
+            <GoalSettingsCard unitSystem={profile.unitSystem} />
+          ) : null}
           {profile !== null ? (
             <CoachPreferencesCard profile={profile} onSaved={refreshProfile} />
           ) : null}

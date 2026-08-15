@@ -10,6 +10,7 @@ const buildAuthClient = (overrides: Partial<AuthClient> = {}): AuthClient => ({
   getSession: () => Promise.resolve(null),
   signInWithPassword: () => Promise.reject(new Error("not used in this test")),
   signUpWithPassword: () => Promise.reject(new Error("not used in this test")),
+  signInWithOAuth: () => Promise.reject(new Error("not used in this test")),
   signOut: () => Promise.resolve(),
   consumeDeepLink: () => Promise.reject(new Error("not used in this test")),
   updatePassword: () => Promise.reject(new Error("not used in this test")),

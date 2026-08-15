@@ -113,7 +113,16 @@ describe("recoverable AI meal drafts", () => {
     );
   });
 
-  it("rejects a non-string description", () => {
+  it("accepts an optional attachedPhotoUri", () => {
+    const draft = {
+      ...mealFormStringsFromDraft(candidate),
+      attachedPhotoUri: "file:///tmp/photo-123.jpg",
+    };
+    expect(isRecoverableMealDraft(draft)).toBe(true);
+    expect(draft.attachedPhotoUri).toBe("file:///tmp/photo-123.jpg");
+  });
+
+  it("rejects a non-string attachedPhotoUri", () => {
     expect(
       isRecoverableMealDraft({
         name: "Tuna",
@@ -121,7 +130,7 @@ describe("recoverable AI meal drafts", () => {
         protein: "63",
         carbs: "0",
         fat: "2",
-        description: { text: "salad" },
+        attachedPhotoUri: 12345,
       }),
     ).toBe(false);
   });

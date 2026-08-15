@@ -43,15 +43,25 @@ export interface SignUpResult {
   readonly emailConfirmationRequired: boolean;
 }
 
+export type OAuthProvider = "google" | "apple";
+
+export interface OAuthSignInOptions {
+  readonly provider: OAuthProvider;
+  readonly redirectTo?: string;
+}
+
+export interface OAuthSignInResult {
+  readonly url: string;
+}
+
 export type AuthStateListener = (session: AuthSession | null) => void;
 
 /**
  * Discriminated union for the parsed deep-link payload delivered by
  * the auth provider. The recovery case signals that the caller should
- * drive `updatePassword({ password })` next; the signup and magiclink
- * cases carry the verified session but do not require a follow-up
- * action; the email_change case is exposed for completeness but is
- * not wired in Mizyun today; unknown covers any other `type` value
+ * drive `updatePassword({ password })` next; the signup, magiclink, and
+ * oauth cases carry the verified session; the email_change case is
+ * exposed for completeness; unknown covers any other `type` value
  * delivered by the provider.
  */
 export type DeepLinkPayload =
@@ -69,6 +79,12 @@ export type DeepLinkPayload =
     }
   | {
       readonly kind: "magiclink";
+      readonly accessToken: string;
+      readonly refreshToken: string;
+      readonly expiresAt?: Date;
+    }
+  | {
+      readonly kind: "oauth";
       readonly accessToken: string;
       readonly refreshToken: string;
       readonly expiresAt?: Date;
@@ -92,6 +108,7 @@ export interface AuthClient {
   getSession(): Promise<AuthSession | null>;
   signInWithPassword(credentials: PasswordCredentials): Promise<AuthSession>;
   signUpWithPassword(credentials: PasswordCredentials): Promise<SignUpResult>;
+  signInWithOAuth(options: OAuthSignInOptions): Promise<OAuthSignInResult>;
   signOut(): Promise<void>;
   /**
    * Consume a deep-link payload delivered by the auth provider (e.g.
@@ -137,11 +154,11 @@ export class IdentityError extends Error {
 }
 
 /**
- * Parse the fragment of a `mizyun://auth/callback#...` deep link into
- * a typed `DeepLinkPayload`. The GoTrue implicit flow delivers the
- * access/refresh tokens in the URL fragment; the access token alone is
- * not enough to establish a session, so both are required. An empty
- * fragment returns `null` — the URL was not a valid callback.
+ * Parse the fragment (or query parameters) of a `mizyun://auth/callback#...`
+ * deep link into a typed `DeepLinkPayload`. The GoTrue flow delivers the
+ * access/refresh tokens in the URL fragment (or query); the access token
+ * alone is not enough to establish a session, so both are required. An empty
+ * fragment/query returns `null` — the URL was not a valid callback.
  *
  * Provider-agnostic: accepts the raw URL the platform's `Linking`
  * surfaces (which preserves the fragment) and returns the typed
@@ -150,11 +167,19 @@ export class IdentityError extends Error {
 export const parseDeepLinkFragment = (
   rawUrl: string,
 ): DeepLinkPayload | null => {
+  let paramString = "";
   const hashIndex = rawUrl.indexOf("#");
-  if (hashIndex < 0) return null;
-  const fragment = rawUrl.slice(hashIndex + 1);
-  if (fragment.length === 0) return null;
-  const params = new URLSearchParams(fragment);
+  if (hashIndex >= 0) {
+    paramString = rawUrl.slice(hashIndex + 1);
+  }
+  if (!paramString) {
+    const questionIndex = rawUrl.indexOf("?");
+    if (questionIndex >= 0) {
+      paramString = rawUrl.slice(questionIndex + 1);
+    }
+  }
+  if (!paramString) return null;
+  const params = new URLSearchParams(paramString);
   const accessToken = params.get("access_token");
   const refreshToken = params.get("refresh_token");
   if (!accessToken || !refreshToken) return null;
@@ -176,6 +201,11 @@ export const parseDeepLinkFragment = (
       return expiresAt
         ? { kind: "magiclink", accessToken, refreshToken, expiresAt }
         : { kind: "magiclink", accessToken, refreshToken };
+    case "oauth":
+    case "":
+      return expiresAt
+        ? { kind: "oauth", accessToken, refreshToken, expiresAt }
+        : { kind: "oauth", accessToken, refreshToken };
     case "email_change":
       return expiresAt
         ? { kind: "email_change", accessToken, refreshToken, expiresAt }
@@ -218,6 +248,12 @@ export class DisabledAuthClient implements AuthClient {
   async signUpWithPassword(
     _credentials: PasswordCredentials,
   ): Promise<SignUpResult> {
+    throw new IdentityError("AUTH_NOT_CONFIGURED", DisabledAuthClient.reason);
+  }
+
+  async signInWithOAuth(
+    _options: OAuthSignInOptions,
+  ): Promise<OAuthSignInResult> {
     throw new IdentityError("AUTH_NOT_CONFIGURED", DisabledAuthClient.reason);
   }
 

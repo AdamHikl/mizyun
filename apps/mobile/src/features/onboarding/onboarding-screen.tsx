@@ -332,7 +332,6 @@ function DisplayNameBody({ value, onChange, error }: DisplayNameBodyProps) {
       <TextInput
         autoCapitalize="words"
         autoCorrect={false}
-        placeholder="Adam"
         value={value}
         onChangeText={onChange}
         style={styles.input}
@@ -401,7 +400,6 @@ function WeightBody({
       <TextInput
         accessibilityLabel={label}
         keyboardType="decimal-pad"
-        placeholder="72.5"
         value={value}
         onChangeText={onChange}
         style={styles.input}
@@ -435,7 +433,6 @@ function EnergyProfileBody(props: {
         keyboardType="decimal-pad"
         value={form.height}
         onChangeText={(value) => onPatch({ field: "height", value })}
-        placeholder={form.unitSystem === "imperial" ? "70" : "178"}
         style={styles.input}
       />
       <ThemedText style={styles.label}>Birth year</ThemedText>
@@ -444,7 +441,6 @@ function EnergyProfileBody(props: {
         keyboardType="number-pad"
         value={form.birthYear}
         onChangeText={(value) => onPatch({ field: "birthYear", value })}
-        placeholder="1995"
         style={styles.input}
       />
       <ThemedText style={styles.label}>Formula sex input</ThemedText>
@@ -545,7 +541,6 @@ function PrimaryGoalBody({ form, onPatch, error }: PrimaryGoalBodyProps) {
       <TextInput
         accessibilityLabel={`Goal weight (${weightUnitLabel(form.unitSystem)})`}
         keyboardType="decimal-pad"
-        placeholder="78.0"
         value={form.goalWeight}
         onChangeText={(value) => onPatch({ field: "goalWeight", value })}
         style={styles.input}

@@ -26,12 +26,24 @@ describe("authErrorMessage", () => {
     expect(authErrorMessage("forgot", new Error("provider detail"))).toBe(
       "We couldn't send a reset link. Check your connection and try again.",
     );
+    expect(authErrorMessage("oauth", new Error("provider detail"))).toBe(
+      "We couldn't sign you in with Google. Please try again.",
+    );
   });
 
   it("preserves the explicit configuration-required state", () => {
     expect(
       authErrorMessage(
         "sign-in",
+        new IdentityError(
+          "AUTH_NOT_CONFIGURED",
+          "internal configuration detail",
+        ),
+      ),
+    ).toBe("Authentication is not available in this build.");
+    expect(
+      authErrorMessage(
+        "oauth",
         new IdentityError(
           "AUTH_NOT_CONFIGURED",
           "internal configuration detail",

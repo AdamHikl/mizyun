@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, Stack } from "expo-router";
+import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LoggingFlowMeasurement } from "@mizyun/observability";
@@ -80,11 +81,17 @@ export function LogMealScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draftLoaded, setDraftLoaded] = useState(false);
-  // VISION-001 — photo-to-draft state. `snapping` is true while
-  // the photo is uploading and the configured vision provider is being
+  // VISION-001 — photo-to-draft state. `attachedPhoto` holds the
+  // user's selected or captured image before submission. `snapping` is true
+  // while the photo is uploading and the configured vision provider is being
   // consulted. The form pre-fills with the candidate's name/calories/macros;
   // the user can edit before saving, while `draftWarnings` keeps provider
   // uncertainty visible.
+  const [attachedPhoto, setAttachedPhoto] = useState<{
+    uri: string;
+    width?: number;
+    height?: number;
+  } | null>(null);
   const [snapping, setSnapping] = useState(false);
   const [mealDescription, setMealDescription] = useState("");
   const [draftWarnings, setDraftWarnings] = useState<readonly string[]>([]);
@@ -123,6 +130,9 @@ export function LogMealScreen() {
           setAiDraft(draft.aiDraft ?? null);
           setSourceProposalId(draft.sourceProposalId ?? null);
           setRefineInstruction(draft.refineInstruction ?? "");
+          if (draft.attachedPhotoUri) {
+            setAttachedPhoto({ uri: draft.attachedPhotoUri });
+          }
           setDraftWarnings(
             draft.aiDraft === undefined
               ? []
@@ -149,9 +159,13 @@ export function LogMealScreen() {
       ...(aiDraft === null ? {} : { aiDraft }),
       ...(sourceProposalId === null ? {} : { sourceProposalId }),
       ...(refineInstruction.trim().length > 0 ? { refineInstruction } : {}),
+      ...(attachedPhoto !== null
+        ? { attachedPhotoUri: attachedPhoto.uri }
+        : {}),
     });
   }, [
     aiDraft,
+    attachedPhoto,
     calories,
     carbs,
     draftLoaded,
@@ -221,60 +235,10 @@ export function LogMealScreen() {
     setError(result.message);
   }, [name, calories, protein, carbs, fat, userId, aiDraft, sourceProposalId]);
 
-  // VISION-001 — launch the image picker, normalize the selected image to a
-  // bounded JPEG, then post the transient bytes to
-  // /v1/food-entries/draft. The candidate's name/calories/macros
-  // pre-fill the form; the user can edit before saving. The
-  // model's free-text warnings are shown inline so the user
-  // knows when the AI is uncertain.
-  //
-  // If the user has already typed a description in the composer, it is
-  // forwarded as a `textHint` so the vision provider can combine
-  // the photo with the user's own text (portion, cooking method,
-  // ingredients the photo can't resolve). The hint is optional;
-  // the photo still works without it.
-  const processPhotoAsset = useCallback(
-    async (asset: ImagePicker.ImagePickerAsset, textHint?: string) => {
-      setSnapping(true);
-      try {
-        const photo = await normalizeMealPhoto(asset);
-        const draft = await snapMealPhoto(photo, "image/jpeg", textHint);
-        if (!draft.ok) {
-          hadFailure.current = true;
-          measurement.current?.fail("upload", "unexpected", true);
-          setError(draft.message);
-          return;
-        }
-        const strings = mealFormStringsFromDraft(draft.draft);
-        setName(strings.name);
-        setCalories(strings.calories);
-        setProtein(strings.protein);
-        setCarbs(strings.carbs);
-        setFat(strings.fat);
-        setDraftWarnings(draftEvidenceLines(draft.draft));
-        setAiDraft(draft.draft);
-        setSourceProposalId(null);
-        measurement.current?.complete();
-      } catch (cause) {
-        hadFailure.current = true;
-        measurement.current?.fail("upload", "unexpected", true);
-        setError(
-          cause instanceof Error
-            ? `Couldn't read the photo: ${cause.message}`
-            : "Couldn't read the photo.",
-        );
-      } finally {
-        setSnapping(false);
-      }
-    },
-    [],
-  );
-
   const onChoosePhoto = useCallback(async () => {
     measurement.current?.tap();
     if (hadFailure.current) measurement.current?.retry();
     setError(null);
-    setDraftWarnings([]);
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
       setError("Photo library access is required to choose a meal photo.");
@@ -286,18 +250,18 @@ export function LogMealScreen() {
       allowsEditing: false,
     });
     if (result.canceled || !result.assets?.[0]) return;
-    const hint = mealDescription.trim();
-    await processPhotoAsset(
-      result.assets[0],
-      hint.length > 0 ? hint : undefined,
-    );
-  }, [processPhotoAsset, mealDescription]);
+    const asset = result.assets[0];
+    setAttachedPhoto({
+      uri: asset.uri,
+      width: asset.width,
+      height: asset.height,
+    });
+  }, []);
 
   const onTakePhoto = useCallback(async () => {
     measurement.current?.tap();
     if (hadFailure.current) measurement.current?.retry();
     setError(null);
-    setDraftWarnings([]);
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
       setError("Camera permission is required to take a meal photo.");
@@ -309,21 +273,74 @@ export function LogMealScreen() {
       allowsEditing: false,
     });
     if (result.canceled || !result.assets?.[0]) return;
-    const hint = mealDescription.trim();
-    await processPhotoAsset(
-      result.assets[0],
-      hint.length > 0 ? hint : undefined,
-    );
-  }, [processPhotoAsset, mealDescription]);
+    const asset = result.assets[0];
+    setAttachedPhoto({
+      uri: asset.uri,
+      width: asset.width,
+      height: asset.height,
+    });
+  }, []);
+
+  const onRemovePhoto = useCallback(() => {
+    setAttachedPhoto(null);
+  }, []);
+
+  const onProcessPhoto = useCallback(async () => {
+    if (attachedPhoto === null) return;
+    measurement.current?.tap();
+    if (hadFailure.current) measurement.current?.retry();
+    setSnapping(true);
+    setError(null);
+    setDraftWarnings([]);
+    try {
+      const hint = mealDescription.trim();
+      const photo = await normalizeMealPhoto(attachedPhoto);
+      const draft = await snapMealPhoto(
+        photo,
+        "image/jpeg",
+        hint.length > 0 ? hint : undefined,
+      );
+      if (!draft.ok) {
+        hadFailure.current = true;
+        measurement.current?.fail("upload", "unexpected", true);
+        setError(draft.message);
+        return;
+      }
+      const strings = mealFormStringsFromDraft(draft.draft);
+      setName(strings.name);
+      setCalories(strings.calories);
+      setProtein(strings.protein);
+      setCarbs(strings.carbs);
+      setFat(strings.fat);
+      setDraftWarnings(draftEvidenceLines(draft.draft));
+      setAiDraft(draft.draft);
+      setSourceProposalId(null);
+      measurement.current?.complete();
+    } catch (cause) {
+      hadFailure.current = true;
+      measurement.current?.fail("upload", "unexpected", true);
+      setError(
+        cause instanceof Error
+          ? `Couldn't read the photo: ${cause.message}`
+          : "Couldn't read the photo.",
+      );
+    } finally {
+      setSnapping(false);
+    }
+  }, [attachedPhoto, mealDescription]);
 
   const onTextDraft = useCallback(async () => {
     if (mealDescription.trim().length < 2) return;
+    measurement.current?.tap();
+    if (hadFailure.current) measurement.current?.retry();
     setSnapping(true);
     setError(null);
     setDraftWarnings([]);
     try {
       const result = await draftMealFromText(mealDescription);
       if (!result.ok) {
+        hadFailure.current = true;
+        measurement.current?.fail("submit", "unexpected", true);
         setError(result.message);
         return;
       }
@@ -336,6 +353,11 @@ export function LogMealScreen() {
       setDraftWarnings(draftEvidenceLines(result.draft));
       setAiDraft(result.draft);
       setSourceProposalId(null);
+      measurement.current?.complete();
+    } catch {
+      hadFailure.current = true;
+      measurement.current?.fail("submit", "unexpected", true);
+      setError("Couldn't generate a draft from the description.");
     } finally {
       setSnapping(false);
     }
@@ -394,11 +416,12 @@ export function LogMealScreen() {
           <ThemedText themeColor="textSecondary" type="small">
             Name your meal first; calories and macros are optional but the
             dashboard totals use them when present. You can describe the meal,
-            add a photo, or both — anything you type is sent with the photo to
-            help the AI estimate portions and ingredients.
+            attach a photo, or both — anything you type is sent with the photo
+            to help the AI estimate portions and ingredients.
           </ThemedText>
 
           <TextInput
+            testID="meal-description-input"
             accessibilityLabel="Describe meal for AI draft"
             multiline
             maxLength={1_000}
@@ -408,84 +431,142 @@ export function LogMealScreen() {
             onChangeText={setMealDescription}
             style={[styles.input, styles.description, { color: theme.text }]}
           />
-          <Pressable
-            accessibilityRole="button"
-            disabled={
-              snapping || submitting || mealDescription.trim().length < 2
-            }
-            accessibilityState={{
-              busy: snapping,
-              disabled:
-                snapping || submitting || mealDescription.trim().length < 2,
-            }}
-            onPress={() => void onTextDraft()}
-            style={({ pressed }) => [
-              styles.snap,
-              (pressed || snapping) && styles.snapPressed,
-            ]}
-          >
-            <ThemedText type="smallBold">✨ Draft from description</ThemedText>
-          </Pressable>
 
-          <View style={styles.photoRow}>
+          {attachedPhoto !== null ? (
+            <View style={styles.attachedPhotoCard}>
+              <Image
+                source={attachedPhoto.uri}
+                style={styles.attachedPhotoImage}
+                contentFit="cover"
+                accessibilityLabel="Attached meal photo"
+              />
+              <View style={styles.attachedPhotoInfo}>
+                <ThemedText type="smallBold">📷 Photo attached</ThemedText>
+                <ThemedText themeColor="textSecondary" type="small">
+                  Ready to process with your description
+                </ThemedText>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Remove attached photo"
+                disabled={snapping || submitting}
+                onPress={onRemovePhoto}
+                style={({ pressed }) => [
+                  styles.removePhotoButton,
+                  pressed && styles.snapPressed,
+                ]}
+              >
+                <ThemedText type="smallBold" themeColor="textSecondary">
+                  ✕ Remove
+                </ThemedText>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {attachedPhoto !== null ? (
             <Pressable
               accessibilityRole="button"
-              testID="take-meal-photo-button"
-              accessibilityLabel="Take a meal photo"
-              accessibilityHint="Open the camera, take a meal photo, and let Mizyun suggest a draft with calories and macros. Any text in the description above is also sent to help the AI estimate portions and ingredients."
+              testID="process-meal-photo-button"
+              accessibilityLabel="Process photo with AI"
+              accessibilityHint="Send the attached photo and your description to Mizyun to generate a meal draft with estimated calories and macros."
               disabled={snapping || submitting}
               accessibilityState={{
                 busy: snapping,
                 disabled: snapping || submitting,
               }}
               onPress={() => {
-                void onTakePhoto();
+                void onProcessPhoto();
               }}
               style={({ pressed }) => [
-                styles.snapButton,
-                (pressed || snapping) && styles.snapPressed,
+                styles.processButton,
+                (pressed || snapping) && styles.processButtonPressed,
               ]}
             >
               {snapping ? (
                 <ActivityIndicator
                   size="small"
-                  color={theme.text}
+                  color="#FFFFFF"
                   accessibilityLabel="Analysing photo"
                 />
               ) : (
-                <ThemedText type="smallBold">📸 Take photo</ThemedText>
+                <ThemedText type="smallBold" style={styles.processButtonText}>
+                  ✨ Process photo with AI
+                </ThemedText>
               )}
             </Pressable>
+          ) : (
+            <>
+              {mealDescription.trim().length >= 2 ? (
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={snapping || submitting}
+                  accessibilityState={{
+                    busy: snapping,
+                    disabled: snapping || submitting,
+                  }}
+                  onPress={() => void onTextDraft()}
+                  style={({ pressed }) => [
+                    styles.snap,
+                    (pressed || snapping) && styles.snapPressed,
+                  ]}
+                >
+                  {snapping ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={theme.text}
+                      accessibilityLabel="Analysing description"
+                    />
+                  ) : (
+                    <ThemedText type="smallBold">
+                      ✨ Draft from description
+                    </ThemedText>
+                  )}
+                </Pressable>
+              ) : null}
 
-            <Pressable
-              accessibilityRole="button"
-              testID="snap-meal-button"
-              accessibilityLabel="Choose a meal photo"
-              accessibilityHint="Open the photo library, pick a meal photo, and let Mizyun suggest a draft with calories and macros. Any text in the description above is also sent to help the AI estimate portions and ingredients."
-              disabled={snapping || submitting}
-              accessibilityState={{
-                busy: snapping,
-                disabled: snapping || submitting,
-              }}
-              onPress={() => {
-                void onChoosePhoto();
-              }}
-              style={({ pressed }) => [
-                styles.snapButton,
-                (pressed || snapping) && styles.snapPressed,
-              ]}
-            >
-              {snapping ? (
-                <ActivityIndicator
-                  size="small"
-                  color={theme.text}
-                  accessibilityLabel="Analysing photo"
-                />
-              ) : (
-                <ThemedText type="smallBold">🖼️ Choose photo</ThemedText>
-              )}
-            </Pressable>
-          </View>
+              <View style={styles.photoRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  testID="take-meal-photo-button"
+                  accessibilityLabel="Take a meal photo"
+                  accessibilityHint="Open the camera to take a meal photo and attach it to this entry."
+                  disabled={snapping || submitting}
+                  accessibilityState={{
+                    disabled: snapping || submitting,
+                  }}
+                  onPress={() => {
+                    void onTakePhoto();
+                  }}
+                  style={({ pressed }) => [
+                    styles.snapButton,
+                    pressed && styles.snapPressed,
+                  ]}
+                >
+                  <ThemedText type="smallBold">📸 Take photo</ThemedText>
+                </Pressable>
+
+                <Pressable
+                  accessibilityRole="button"
+                  testID="snap-meal-button"
+                  accessibilityLabel="Choose a meal photo"
+                  accessibilityHint="Open the photo library to pick a meal photo and attach it to this entry."
+                  disabled={snapping || submitting}
+                  accessibilityState={{
+                    disabled: snapping || submitting,
+                  }}
+                  onPress={() => {
+                    void onChoosePhoto();
+                  }}
+                  style={({ pressed }) => [
+                    styles.snapButton,
+                    pressed && styles.snapPressed,
+                  ]}
+                >
+                  <ThemedText type="smallBold">🖼️ Choose photo</ThemedText>
+                </Pressable>
+              </View>
+            </>
+          )}
 
           {draftWarnings.length > 0 ? (
             <ThemedView
@@ -791,4 +872,45 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   refinePressed: { opacity: 0.65 },
+  attachedPhotoCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#8A8D91",
+    borderRadius: Spacing.three,
+    padding: Spacing.two,
+    gap: Spacing.three,
+  },
+  attachedPhotoImage: {
+    width: 56,
+    height: 56,
+    borderRadius: Spacing.two,
+  },
+  attachedPhotoInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  removePhotoButton: {
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.one,
+    borderRadius: Spacing.two,
+  },
+  processButton: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#1F1F23",
+    borderRadius: Spacing.three,
+    paddingVertical: Spacing.three,
+    paddingHorizontal: Spacing.four,
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    backgroundColor: "#1F1F23",
+    gap: Spacing.two,
+  },
+  processButtonPressed: {
+    opacity: 0.65,
+  },
+  processButtonText: {
+    color: "#FFFFFF",
+  },
 });

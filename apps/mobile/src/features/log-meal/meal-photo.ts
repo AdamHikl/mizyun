@@ -4,13 +4,21 @@ import type * as ImagePicker from "expo-image-picker";
 
 const MAX_MEAL_IMAGE_EDGE = 2048;
 
+export interface MealPhotoAssetInput {
+  readonly uri: string;
+  readonly width?: number;
+  readonly height?: number;
+}
+
 export const normalizeMealPhoto = async (
-  asset: ImagePicker.ImagePickerAsset,
+  asset: MealPhotoAssetInput,
 ): Promise<File> => {
   const context = ImageManipulator.manipulate(asset.uri);
-  const longestEdge = Math.max(asset.width, asset.height);
+  const width = asset.width ?? 0;
+  const height = asset.height ?? 0;
+  const longestEdge = Math.max(width, height);
   if (longestEdge > MAX_MEAL_IMAGE_EDGE) {
-    if (asset.width >= asset.height) {
+    if (width >= height) {
       context.resize({ width: MAX_MEAL_IMAGE_EDGE, height: null });
     } else {
       context.resize({ width: null, height: MAX_MEAL_IMAGE_EDGE });

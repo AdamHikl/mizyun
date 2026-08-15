@@ -1,3 +1,5 @@
+import { parseDeepLinkFragment } from "@mizyun/identity";
+import * as WebBrowser from "expo-web-browser";
 import { useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -6,11 +8,16 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  View,
 } from "react-native";
 
+import { GoogleIcon } from "@/components/google-icon";
 import { authClient } from "@/composition/auth-client";
+import { mobileConfigResult } from "@/composition/mobile-config";
 
 import { authErrorMessage } from "./auth-error-message";
+
+WebBrowser.maybeCompleteAuthSession();
 
 export function AuthScreen() {
   const passwordInput = useRef<TextInput>(null);
@@ -18,10 +25,13 @@ export function AuthScreen() {
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<"sign-in" | "sign-up" | "forgot">("sign-in");
   const [message, setMessage] = useState<string>();
-  const [busy, setBusy] = useState(false);
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
+
+  const busy = emailBusy || googleBusy;
 
   const submit = async () => {
-    setBusy(true);
+    setEmailBusy(true);
     setMessage(undefined);
     try {
       if (mode === "forgot") {
@@ -42,7 +52,29 @@ export function AuthScreen() {
     } catch (error) {
       setMessage(authErrorMessage(mode, error));
     } finally {
-      setBusy(false);
+      setEmailBusy(false);
+    }
+  };
+
+  const submitGoogleAuth = async () => {
+    setGoogleBusy(true);
+    setMessage(undefined);
+    try {
+      const { url } = await authClient.signInWithOAuth({ provider: "google" });
+      const redirectUri =
+        (mobileConfigResult.ok && mobileConfigResult.value.authRedirectUri) ||
+        "mizyun://auth/callback";
+      const result = await WebBrowser.openAuthSessionAsync(url, redirectUri);
+      if (result.type === "success" && result.url) {
+        const payload = parseDeepLinkFragment(result.url);
+        if (payload) {
+          await authClient.consumeDeepLink(payload);
+        }
+      }
+    } catch (error) {
+      setMessage(authErrorMessage("oauth", error));
+    } finally {
+      setGoogleBusy(false);
     }
   };
 
@@ -63,6 +95,34 @@ export function AuthScreen() {
     >
       <Text style={styles.eyebrow}>YOUR PRIVATE FITNESS SPACE</Text>
       <Text style={styles.title}>{title}</Text>
+
+      {mode !== "forgot" ? (
+        <>
+          <Pressable
+            accessibilityRole="button"
+            disabled={busy}
+            onPress={submitGoogleAuth}
+            style={styles.googleButton}
+          >
+            {googleBusy ? (
+              <ActivityIndicator color="#132019" />
+            ) : (
+              <>
+                <GoogleIcon size={18} />
+                <Text style={styles.googleButtonText}>
+                  Continue with Google
+                </Text>
+              </>
+            )}
+          </Pressable>
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or continue with email</Text>
+            <View style={styles.dividerLine} />
+          </View>
+        </>
+      ) : null}
+
       <TextInput
         autoCapitalize="none"
         autoComplete="email"
@@ -112,7 +172,7 @@ export function AuthScreen() {
         onPress={submit}
         style={styles.primary}
       >
-        {busy ? (
+        {emailBusy ? (
           <ActivityIndicator color="#fff" />
         ) : (
           <Text style={styles.primaryText}>
@@ -167,6 +227,39 @@ const styles = StyleSheet.create({
     color: "#51705d",
   },
   title: { fontSize: 34, fontWeight: "700", color: "#132019", marginBottom: 8 },
+  googleButton: {
+    minHeight: 52,
+    borderRadius: 14,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#d6ded8",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    marginTop: 4,
+  },
+  googleButtonText: {
+    color: "#132019",
+    fontWeight: "600",
+    fontSize: 16,
+  },
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginVertical: 4,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#e0e6e2",
+  },
+  dividerText: {
+    fontSize: 13,
+    color: "#73887c",
+    fontWeight: "500",
+  },
   input: {
     backgroundColor: "#fff",
     borderColor: "#d6ded8",

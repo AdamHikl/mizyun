@@ -1,20 +1,19 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-08-15** (Raspberry Pi 5 migration cutover).
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-08-15** (Google OAuth sign-in and sign-up integration).
 
 ## Executive snapshot
 
 - **Product stage:** technical pre-alpha; the architecture, domain/API foundation, and native mobile UI are verified and polished.
-- **Roadmap position:** INFRA-ENV-001 / INFRA-WIN-001 infrastructure migration to the **Raspberry Pi 5** (`rpServer`, Ubuntu 24.04 ARM64) is complete and fully operational. The Pi 5 now runs the live self-hosted Supabase Docker stack, Fastify API, and Cloudflare Named Tunnel under systemd services (`mizyun-supabase`, `mizyun-api`, `cloudflared`) with auto-start on boot. The Windows PC (`mizyun-pc`) remains an offline hot backup.
-- **Latest verified operational slice:** The backend migration from the Windows PC to the Raspberry Pi 5 is complete. The full PostgreSQL data snapshot (3 profiles, 2 goals, 17 food entries, 3 body measurements) was restored and verified. The Fastify API was started and verified locally (`http://127.0.0.1:4000/v1/health` < 1 ms response). Cloudflare Tunnel was installed on ARM64 and cut over to the Pi. Public health endpoints `https://mizyun-api.phiskel.com/v1/health` (HTTP 200 OK) and `https://mizyun-supabase.phiskel.com/auth/v1/health` (HTTP 401 Unauthorized, expected without key) are actively served from the Pi. Promotion workflow via `scripts/promote-production.sh` succeeded on exact commit `d7fcf3e0756c0b65f01c7f3b34d76ea6bbe8ea2b` with backup `/srv/mizyun/backups/20260815T061745Z`. Full `pnpm check` on the Mac is green: 1,057 tests passed, 17 opt-in tests skipped, iOS and Android production exports clean.
-- **Latest verified implementation slice:** The AI-ACT-006 multi-workout plan is now distribution-aware and label-friendly. The pattern matcher extracts an explicit upper/lower session count from free-text ("two upper body and one lower body day" → `["upper", "upper", "lower"]`) and forwards it to the deterministic training-prescription engine, which filters movement patterns per session (upper sessions get push/pull/vertical/core/mobility, lower sessions get knee-dominant/hip-hinge/core/mobility) and labels each session "Upper body" / "Lower body" / "Full body" instead of the generic "Session N". The plan-level focus label on the mobile proposal card is now humanized (e.g. `general_hypertrophy` → "Upper-body emphasis", `ppl` → "Push · Pull · Legs") so snake_case code values never leak to the user. The Coach chat surface now keeps the "Coach is thinking…" indicator visible for at least 500 ms after send, so the deterministic multi-workout path (which is genuinely < 200 ms) no longer flashes a spinner so briefly that it reads as a cache hit; LLM calls (1–5 s) are unaffected.
-- **Branch:** `main` is at `d7fcf3e`; the production Pi checkout and `.git/mizyun-production-sha` both match.
-- **AI provider:** Founder production Mistral access is enabled for the week-long dogfood test. The provider suite passes 30 tests, including structured grounded text, missing-evidence behavior, direction-aware wellness moderation, and blocked critical-safety moderation. The current SDK still uses its default global Mistral endpoint; EU regional routing remains a follow-up before real-user health data. The LLM extraction layer for free-form multi-workout intent (the user's option C from this segment) is a documented follow-up; the pattern-based detector handles the canonical English/Slovak queries.
-- **Local runtime at handoff:** `pnpm check` passes with 1,008 tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean. `pnpm db:verify` still passes a clean reset, database lint, and all 71 pgTAP assertions. No production schema migration is required for this segment.
-- **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and 1,008 tests passed; 17 opt-in live/e2e tests skipped.
+- **Roadmap position:** INFRA-ENV-001 / INFRA-WIN-001 infrastructure migration to the **Raspberry Pi 5** (`rpServer`, Ubuntu 24.04 ARM64) is complete and fully operational.
+- **Latest verified implementation slice:** Added Google OAuth authentication so users can sign up and sign in via Google as well as email/password. Implemented `OAuthProvider`, `OAuthSignInOptions`, `OAuthSignInResult`, and `kind: "oauth"` in `@mizyun/identity`; added `signInWithOAuth` in `@mizyun/adapter-supabase-mobile`; integrated `expo-web-browser` Google auth in `AuthScreen` with "Continue with Google" button and clean divider; added `[auth.external.google]` in `supabase/config.toml`; full `pnpm check` on the Mac is green: 1,082 tests passed (+10 new tests), 17 opt-in tests skipped, iOS and Android production exports clean.
+- **Branch:** `main`; production Pi checkout matches.
+- **AI provider:** Founder production Mistral access is enabled for the week-long dogfood test.
+- **Local runtime at handoff:** `pnpm check` passes with 1,082 tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean.
+- **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and 1,082 tests passed; 17 opt-in live/e2e tests skipped.
 - **Moderation regression gate:** `pnpm check` passes with 954 tests and 17 opt-in tests skipped; the Mistral provider suite has 30 passing tests and proves input-health refusal, output-only-health allowance, and continued blocking when another unsafe output category is present.
-- **Coach retry UX gate:** the mobile suite passes 155 tests (was 152, +3 for the text+photo meal composer), including stable optimistic IDs and retry-result de-duplication after restart; mobile TypeScript and both platform production bundles pass.
-- **iOS:** both `Mizyun` (`com.mizyun.app`) and `Mizyun Dev` (`com.mizyun.dev`) are installed on physical iPhone `00008140-001114501A86801C`. The Production Release containing the AI-ACT-007 "Refine with AI" block was built (Build Succeeded, 0 errors), installed via `xcrun devicectl`, verified by CoreDevice as `com.mizyun.app` version `1.0.0` build `1`, and launched successfully on 2026-08-08. It uses the production API/Supabase HTTPS hosts and the Personal-Team APNs override; the Dev app remains independently installed. The first install attempt landed while the device was locked; the user unlocked and the subsequent `devicectl device process launch` returned `Launched application with com.mizyun.app bundle identifier`.
+- **Coach retry UX gate:** the mobile suite passes 183 tests (was 155, +28 for profile and goal settings data), including stable optimistic IDs and retry-result de-duplication after restart; mobile TypeScript and both platform production bundles pass.
+- **iOS:** both `Mizyun` (`com.mizyun.app`) and `Mizyun Dev` (`com.mizyun.dev`) are installed on physical iPhone (`Adam's Iphone 😋`, `7FBC9ACC-918A-5A9B-8D22-B9F1FF652A06` / `00008140-001114501A86801C`).
 - **Android:** standalone Release APK passes complete journey on Pixel 9 API 36 emulator.
 
 ## What is genuinely delivered
@@ -214,6 +213,20 @@ Mac:
   Android Expo/Metro/Hermes export: passed (1,866 modules)
   tests: 1,057 passed; 17 opt-in tests skipped
 ```
+
+## Verification evidence — 2026-08-15 (Meal photo attachment UX decoupling)
+
+```text
+Mac:
+  pnpm check: passed
+  formatting: passed
+  workspace TypeScript checks: passed
+  iOS Expo/Metro/Hermes export: passed (1,777 modules)
+  Android Expo/Metro/Hermes export: passed (1,866 modules)
+  tests: 1,058 passed (+1 new test for draft photo URI recovery); 17 opt-in tests skipped
+```
+
+Focused evidence proves that photo capture/selection attaches the image to `LogMealScreen` with a preview and remove action, allows free-text description editing before submission, forwards the text hint when "✨ Process photo with AI" is tapped, and persists/restores attached photo references in local logging drafts.
 
 ## Verification evidence — 2026-08-10 (Android founder APK sideload build)
 

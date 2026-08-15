@@ -17,6 +17,8 @@ import {
   type AuthSession,
   type AuthStateListener,
   type DeepLinkPayload,
+  type OAuthSignInOptions,
+  type OAuthSignInResult,
   type PasswordCredentials,
   type SignUpResult,
 } from "@mizyun/identity";
@@ -130,6 +132,26 @@ export class SupabaseMobileAuthClient implements AuthClient {
     if (error) throw asIdentityError(error);
     const session = toAuthSession(data.session);
     return { session, emailConfirmationRequired: session === null };
+  }
+
+  async signInWithOAuth(
+    options: OAuthSignInOptions,
+  ): Promise<OAuthSignInResult> {
+    const { data, error } = await this.client.auth.signInWithOAuth({
+      provider: options.provider,
+      options: {
+        redirectTo: options.redirectTo ?? this.redirectUri,
+        skipBrowserRedirect: true,
+      },
+    });
+    if (error) throw asIdentityError(error);
+    if (!data.url) {
+      throw new IdentityError(
+        "AUTH_PROVIDER_ERROR",
+        "OAuth sign-in returned no authorization URL.",
+      );
+    }
+    return { url: data.url };
   }
 
   async signOut(): Promise<void> {

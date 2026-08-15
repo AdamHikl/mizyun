@@ -252,6 +252,7 @@ const stubAuthClient = (accessToken: string): AuthClient => ({
     }) satisfies AuthSession,
   signInWithPassword: () => Promise.reject(new Error("unused")),
   signUpWithPassword: () => Promise.reject(new Error("unused")),
+  signInWithOAuth: () => Promise.reject(new Error("unused")),
   signOut: () => Promise.resolve(),
   consumeDeepLink: () => Promise.reject(new Error("unused")),
   updatePassword: () => Promise.reject(new Error("unused")),
