@@ -7,14 +7,14 @@
 - **Product stage:** technical pre-alpha; the architecture, domain/API foundation, and native mobile UI are verified and polished.
 - **Roadmap position:** INFRA-ENV-001 / INFRA-WIN-001 infrastructure migration to the **Raspberry Pi 5** (`rpServer`, Ubuntu 24.04 ARM64) is complete and fully operational.
 - **Latest verified implementation slice:** Added Google OAuth authentication so users can sign up and sign in via Google as well as email/password. Implemented `OAuthProvider`, `OAuthSignInOptions`, `OAuthSignInResult`, and `kind: "oauth"` in `@mizyun/identity`; added `signInWithOAuth` in `@mizyun/adapter-supabase-mobile`; integrated `expo-web-browser` Google auth in `AuthScreen` with "Continue with Google" button and clean divider; added `[auth.external.google]` in `supabase/config.toml`; full `pnpm check` on the Mac is green: 1,082 tests passed (+10 new tests), 17 opt-in tests skipped, iOS and Android production exports clean.
-- **Branch:** `main`; production Pi checkout matches.
-- **AI provider:** Founder production Mistral access is enabled for the week-long dogfood test.
+- **Branch:** `main` (`c24f0a3`); production Raspberry Pi 5 checkout matches and is verified live (`https://mizyun-api.phiskel.com/v1/health`).
+- **Production Host:** Raspberry Pi 5 (`rpserver`, Ubuntu 24.04 ARM64, Tailscale IP `100.116.142.1`). Remote deployment `pnpm deploy:remote` is verified green.
 - **Local runtime at handoff:** `pnpm check` passes with 1,082 tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean.
 - **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and 1,082 tests passed; 17 opt-in live/e2e tests skipped.
 - **Moderation regression gate:** `pnpm check` passes with 954 tests and 17 opt-in tests skipped; the Mistral provider suite has 30 passing tests and proves input-health refusal, output-only-health allowance, and continued blocking when another unsafe output category is present.
 - **Coach retry UX gate:** the mobile suite passes 183 tests (was 155, +28 for profile and goal settings data), including stable optimistic IDs and retry-result de-duplication after restart; mobile TypeScript and both platform production bundles pass.
-- **iOS:** both `Mizyun` (`com.mizyun.app`) and `Mizyun Dev` (`com.mizyun.dev`) are installed on physical iPhone (`Adam's Iphone 😋`, `7FBC9ACC-918A-5A9B-8D22-B9F1FF652A06` / `00008140-001114501A86801C`).
-- **Android:** standalone Release APK passes complete journey on Pixel 9 API 36 emulator.
+- **iOS:** both `Mizyun` (`com.mizyun.app`) and `Mizyun Dev` (`com.mizyun.dev`) are installed on physical iPhone (`Adam's Iphone 😋`, `7FBC9ACC-918A-5A9B-8D22-B9F1FF652A06` / `00008140-001114501A86801C`). The latest Production Release containing Google OAuth support was built (Build Succeeded, 0 errors) and installed via `xcrun devicectl`.
+- **Android:** Standalone Production Release APK (`app-release.apk`, 103MB) compiled cleanly via `pnpm mobile:founder-production:android:assembleRelease` for commit `c24f0a3` targeting the production hosts.
 
 ## What is genuinely delivered
 
