@@ -8,7 +8,7 @@ import { spawnSync } from "node:child_process";
 import { exit } from "node:process";
 
 const dryRun = process.argv.includes("--dry-run");
-const sshAlias = process.env.MIZYUN_PRODUCTION_SSH_ALIAS ?? "mizyun-pc";
+const sshAlias = process.env.MIZYUN_PRODUCTION_SSH_ALIAS ?? "rpserver";
 const remoteDir = process.env.MIZYUN_REMOTE_DIR ?? "/home/mizyun/mizyun";
 const publicApiUrl = process.env.MIZYUN_PRODUCTION_API_URL;
 

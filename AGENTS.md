@@ -35,22 +35,23 @@ New features should be vertical modules with explicit public exports. Do not imp
 
 ## Primary working environment
 
-For Mizyun, the **Founder production PC** (Windows host, WSL2 Ubuntu
-22.04, reachable from this Mac over SSH as `mizyun-pc`, repo at
-`/home/mizyun/mizyun`) is the primary testing environment for the
-duration of the single-founder alpha. The Mac remains the code-edit
-and pre-promotion verification machine; it does not run the local
-Supabase/API stack for daily testing. This rule stays in effect until
-the user explicitly changes it.
+For Mizyun, the **Founder Raspberry Pi 5** (Ubuntu Server 24.04 ARM64,
+reachable from this Mac over SSH as `rpserver` / `mizyun-pi`, repo at
+`/home/mizyun/mizyun` -> `/var/lib/mizyun/repo`) is the primary testing
+environment for the duration of the single-founder alpha. The Mac remains
+the code-edit and pre-promotion verification machine; it does not run the
+local Supabase/API stack for daily testing. The Windows PC (`mizyun-pc`) is
+kept as a hot backup. This rule stays in effect until the user explicitly
+changes it.
 
 Default workflow for every commit:
 
 - implement + format/typecheck/test on the Mac (`pnpm check` must
   pass);
 - commit on `main` and push the exact SHA to `origin/main`;
-- promote the SHA to the production PC via
+- promote the SHA to the production Raspberry Pi via
   `pnpm deploy:remote <sha>` (which calls
-  `scripts/promote-production.sh` on the PC);
+  `scripts/promote-production.sh` on the Pi);
 - test on the installed `com.mizyun.app` Production iPhone build
   against the public production API/Supabase hosts
   (`https://mizyun-api.phiskel.com`,
@@ -60,7 +61,7 @@ Default workflow for every commit:
 
 Consequences and expectations:
 
-- the production PC is expected to keep running even when the Mac is
+- the Raspberry Pi is expected to keep running even when the Mac is
   off — the Production iPhone app and public API are the durable
   testing surface;
 - the local Mac dev Supabase/API is reserved for schema and migration
