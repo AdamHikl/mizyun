@@ -541,7 +541,7 @@ export function CoachSetupScreen() {
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
         <KeyboardAvoidingView
           style={styles.safeArea}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
         >
           {/* AI-MOB-002 — screen-reader live region */}

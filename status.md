@@ -1,12 +1,12 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-08-23** (Coach off-topic gym scope refinement & tool error fallback).
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-08-23** (Coach off-topic gym scope refinement & Android keyboard avoiding fix).
 
 ## Executive snapshot
 
 - **Product stage:** technical pre-alpha; the architecture, domain/API foundation, and native mobile UI are verified and polished.
 - **Roadmap position:** INFRA-ENV-001 / INFRA-WIN-001 infrastructure migration to the **Raspberry Pi 5** (`rpServer`, Ubuntu 24.04 ARM64) is complete and fully operational.
-- **Latest verified implementation slice:** Added explicit fitness and nutrition domain-scoping policy to `COACH_SYSTEM_POLICY` so off-topic/general questions are declined politely with direction to gym/nutrition topics ("I can only help with fitness and nutrition questions. Ask me something gym-related!"), and hardened `AgentOrchestrator` tool execution error handling to always supply fallback assistant text if provider response text is empty (preventing empty string Zod validation errors on unhandled tool calls). `pnpm check` is green with 1,115 tests passing, 17 opt-in tests skipped.
+- **Latest verified implementation slice:** Fixed Android Coach keyboard occlusion by setting `KeyboardAvoidingView` behavior to `"height"` on Android (and `"padding"` on iOS) so the message composer stays pinned directly above the software keyboard instead of being covered on edge-to-edge Android devices. Also added explicit fitness/nutrition domain-scoping policy to `COACH_SYSTEM_POLICY` and hardened `AgentOrchestrator` tool execution error handling. `pnpm check` is green with 1,115 tests passing, 17 opt-in tests skipped.
 - **Branch:** `main`; production Raspberry Pi 5 checkout matches and is verified live (`https://mizyun-api.phiskel.com/v1/health`).
 - **Production Host:** Raspberry Pi 5 (`rpserver`, Ubuntu 24.04 ARM64, Tailscale IP `100.116.142.1`). Remote deployment `pnpm deploy:remote` is verified green.
 - **Local runtime at handoff:** `pnpm check` passes with 1,115 tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean.
