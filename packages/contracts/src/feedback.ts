@@ -43,6 +43,11 @@ export const createFeedbackSchema = z
       .min(1, "Message cannot be empty")
       .max(4000, "Message cannot exceed 4000 characters"),
     context: z.record(z.unknown()).optional().default({}),
+    mediaAssetIds: z
+      .array(z.string().uuid())
+      .max(3, "Cannot attach more than 3 photos")
+      .optional()
+      .default([]),
   })
   .strict();
 
@@ -59,6 +64,7 @@ export const feedbackItemSchema = z.object({
   rating: feedbackRatingSchema,
   message: z.string(),
   context: z.record(z.unknown()),
+  mediaAssetIds: z.array(z.string().uuid()).default([]),
   createdAt: z.string().datetime(),
 });
 

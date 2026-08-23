@@ -58,6 +58,7 @@ const seedFeedback = (
     rating: 5,
     message: "Great work on the app!",
     context: { platform: "ios" },
+    mediaAssetIds: [],
     createdAt: new Date("2026-08-24T10:00:00Z"),
     ...overrides,
   };
@@ -175,6 +176,51 @@ describe("POST /v1/feedback", () => {
         category: "dislike",
         rating: 6,
         message: "Too high rating",
+      },
+    });
+    expect(response.statusCode).toBe(422);
+  });
+
+  it("creates feedback with mediaAssetIds", async () => {
+    const { app } = build(tokenVerifierFor({ userId: userA }));
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/feedback",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: {
+        category: "bug",
+        message: "Layout broken on smaller screen",
+        mediaAssetIds: ["00000000-0000-4000-8000-00000000a001"],
+      },
+    });
+    expect(response.statusCode).toBe(201);
+    const body = response.json();
+    expect(body.feedback.mediaAssetIds).toEqual([
+      "00000000-0000-4000-8000-00000000a001",
+    ]);
+  });
+
+  it("returns 422 when more than 3 attachments are sent", async () => {
+    const { app } = build(tokenVerifierFor({ userId: userA }));
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/feedback",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: {
+        category: "bug",
+        message: "Too many photos",
+        mediaAssetIds: [
+          "00000000-0000-4000-8000-00000000a001",
+          "00000000-0000-4000-8000-00000000a002",
+          "00000000-0000-4000-8000-00000000a003",
+          "00000000-0000-4000-8000-00000000a004",
+        ],
       },
     });
     expect(response.statusCode).toBe(422);

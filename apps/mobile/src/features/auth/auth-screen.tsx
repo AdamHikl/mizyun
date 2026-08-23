@@ -99,16 +99,20 @@ export function AuthScreen() {
       {mode !== "forgot" ? (
         <>
           <Pressable
+            accessibilityLabel="Continue with Google"
             accessibilityRole="button"
             disabled={busy}
             onPress={submitGoogleAuth}
-            style={styles.googleButton}
+            style={({ pressed }) => [
+              styles.googleButton,
+              pressed && styles.googleButtonPressed,
+            ]}
           >
             {googleBusy ? (
-              <ActivityIndicator color="#132019" />
+              <ActivityIndicator color="#1f1f1f" />
             ) : (
               <>
-                <GoogleIcon size={18} />
+                <GoogleIcon size={20} />
                 <Text style={styles.googleButtonText}>
                   Continue with Google
                 </Text>
@@ -230,19 +234,25 @@ const styles = StyleSheet.create({
   googleButton: {
     minHeight: 52,
     borderRadius: 14,
-    backgroundColor: "#fff",
+    backgroundColor: "#ffffff",
     borderWidth: 1,
-    borderColor: "#d6ded8",
+    borderColor: "#747775",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
+    gap: 12,
     marginTop: 4,
+    paddingHorizontal: 16,
+  },
+  googleButtonPressed: {
+    backgroundColor: "#f8f9fa",
+    borderColor: "#5e615f",
   },
   googleButtonText: {
-    color: "#132019",
+    color: "#1f1f1f",
     fontWeight: "600",
     fontSize: 16,
+    letterSpacing: 0.15,
   },
   dividerRow: {
     flexDirection: "row",

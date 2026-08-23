@@ -94,8 +94,10 @@ Native acceptance evidence: standalone iOS and Android Release apps pass real si
 | BODY-001  | P1       | done   | Weight/measurement tracking and trends        | Profile vertical slice     |
 | MEDIA-001 | P0       | done   | Private upload/sign/delete adapter            | SEC-002                    |
 | MEDIA-002 | P1       | done   | Progress photo timeline/comparison            | MEDIA-001                  |
-| DATA-001  | P0       | done   | Define export/account deletion lifecycle      | Stable repositories/media  |
-| PROF-001+ | P1       | done   | Profile follow-up: activityLevel + sexAtBirth | PROF-001                   |
+| DATA-001     | P0       | done   | Define export/account deletion lifecycle      | Stable repositories/media  |
+| PROF-001+    | P1       | done   | Profile follow-up: activityLevel + sexAtBirth | PROF-001                   |
+| FEEDBACK-001 | P1       | done   | In-app user reviews and feedback submissions  | UI and API slice           |
+| FEEDBACK-002 | P1       | done   | Feedback screenshot and photo attachments     | FEEDBACK-001, MEDIA-001    |
 
 ## Later — Phases 6–9
 

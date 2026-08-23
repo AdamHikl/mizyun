@@ -13,6 +13,7 @@ export const mediaPurposeSchema = z.enum([
   "progress",
   "workout",
   "profile",
+  "feedback",
 ]);
 
 export const mediaAssetSchema = z.object({

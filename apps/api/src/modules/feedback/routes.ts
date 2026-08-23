@@ -57,6 +57,13 @@ const validationErrorToApi = (
         message: `Feedback message length (${error.length}) exceeds 4000 characters maximum.`,
         requestId,
       };
+    case "too_many_attachments":
+      return {
+        status: 422,
+        code: "VALIDATION_ERROR",
+        message: `Too many attachments (${error.count}). Maximum 3 allowed.`,
+        requestId,
+      };
   }
 };
 
@@ -69,6 +76,7 @@ const toWire = (item: UserFeedback): CreateFeedbackResponse =>
       rating: item.rating,
       message: item.message,
       context: { ...item.context },
+      mediaAssetIds: [...item.mediaAssetIds],
       createdAt: item.createdAt.toISOString(),
     },
   });
@@ -124,6 +132,7 @@ export const feedbackRoutes: FastifyPluginAsync<FeedbackRoutesOptions> = async (
         rating: parsed.data.rating ?? null,
         message: parsed.data.message,
         context: parsed.data.context ? { ...parsed.data.context } : {},
+        mediaAssetIds: parsed.data.mediaAssetIds ?? [],
         createdAt: now,
       };
       const saved = await options.feedbackRepository.create(

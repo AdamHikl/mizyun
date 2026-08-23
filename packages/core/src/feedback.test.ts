@@ -93,4 +93,17 @@ describe("feedback domain validation", () => {
       length: 4001,
     });
   });
+
+  it("fails validation when more than 3 media attachments are provided", () => {
+    expect(
+      validateFeedback({
+        category: "bug",
+        message: "Bug with 4 attachments",
+        mediaAssetIds: ["id-1", "id-2", "id-3", "id-4"],
+      }),
+    ).toEqual({
+      kind: "too_many_attachments",
+      count: 4,
+    });
+  });
 });

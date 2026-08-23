@@ -15,6 +15,7 @@ const feedbackRow = {
   rating: 5,
   message: "I love the clean interface!",
   context: { platform: "ios" },
+  media_asset_ids: ["00000000-0000-4000-8000-00000000m001"],
   created_at: "2026-08-24T10:00:00.000Z",
 };
 
@@ -64,6 +65,7 @@ describe("SupabaseFeedbackRepository.create", () => {
       rating: 5,
       message: "I love the clean interface!",
       context: { platform: "ios" },
+      mediaAssetIds: ["00000000-0000-4000-8000-00000000m001"],
       createdAt: new Date("2026-08-24T10:00:00.000Z"),
     };
     const result = await repo.create(
@@ -76,6 +78,9 @@ describe("SupabaseFeedbackRepository.create", () => {
     expect(result.rating).toBe(5);
     expect(result.message).toBe("I love the clean interface!");
     expect(result.context).toEqual({ platform: "ios" });
+    expect(result.mediaAssetIds).toEqual([
+      "00000000-0000-4000-8000-00000000m001",
+    ]);
   });
 });
 

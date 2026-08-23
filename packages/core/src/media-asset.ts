@@ -17,7 +17,8 @@ import type { UserId } from "./index";
  * server-side responsibility.
  */
 
-export type MediaPurpose = "food" | "progress" | "workout" | "profile";
+export type MediaPurpose =
+  "food" | "progress" | "workout" | "profile" | "feedback";
 
 /** Closed set mirroring the SQL `purpose` check constraint. */
 export const MEDIA_PURPOSES: ReadonlyArray<MediaPurpose> = [
@@ -25,6 +26,7 @@ export const MEDIA_PURPOSES: ReadonlyArray<MediaPurpose> = [
   "progress",
   "workout",
   "profile",
+  "feedback",
 ];
 
 /** Plausible mime-type cap (15 MiB). Matches the SQL bucket limit. */

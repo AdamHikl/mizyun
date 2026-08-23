@@ -1,17 +1,14 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import {
-  BottomTabInset,
-  Colors,
-  MaxContentWidth,
-  Spacing,
-} from "@/constants/theme";
+import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import type { FeedbackCategory, FeedbackItem } from "@mizyun/contracts";
+import * as ImagePicker from "expo-image-picker";
 import { router, Stack } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -20,7 +17,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { loadUserFeedback, submitFeedback } from "./feedback-data";
+import {
+  loadUserFeedback,
+  submitFeedback,
+  uploadFeedbackAttachment,
+  type PreparedFeedbackAttachment,
+} from "./feedback-data";
 
 interface CategoryOption {
   readonly key: FeedbackCategory;
@@ -61,7 +63,11 @@ export function FeedbackScreen() {
   const [category, setCategory] = useState<FeedbackCategory>("like");
   const [rating, setRating] = useState<number | null>(null);
   const [message, setMessage] = useState("");
+  const [attachments, setAttachments] = useState<
+    readonly PreparedFeedbackAttachment[]
+  >([]);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [pastFeedback, setPastFeedback] = useState<readonly FeedbackItem[]>([]);
@@ -87,6 +93,36 @@ export function FeedbackScreen() {
     setRating((prev) => (prev === star ? null : star));
   };
 
+  const onPickImages = async () => {
+    if (attachments.length >= 3) {
+      setError("You can attach up to 3 screenshots or photos.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsMultipleSelection: true,
+      selectionLimit: 3 - attachments.length,
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      const newItems: PreparedFeedbackAttachment[] = result.assets.map(
+        (asset) => ({
+          uri: asset.uri,
+          mimeType: asset.mimeType ?? "image/jpeg",
+          byteSize: asset.fileSize ?? 1024 * 100,
+          width: asset.width ?? 800,
+          height: asset.height ?? 600,
+        }),
+      );
+      setAttachments((prev) => [...prev, ...newItems].slice(0, 3));
+      setError(null);
+    }
+  };
+
+  const onRemoveAttachment = (index: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const onSubmit = useCallback(async () => {
     if (message.trim().length === 0) {
       setError("Please enter your feedback message before sending.");
@@ -96,10 +132,27 @@ export function FeedbackScreen() {
     setSubmitting(true);
     setError(null);
 
+    const mediaAssetIds: string[] = [];
+    if (attachments.length > 0) {
+      setUploadingPhotos(true);
+      for (const attachment of attachments) {
+        const uploadResult = await uploadFeedbackAttachment(attachment);
+        if (!uploadResult.ok) {
+          setUploadingPhotos(false);
+          setSubmitting(false);
+          setError(uploadResult.message);
+          return;
+        }
+        mediaAssetIds.push(uploadResult.assetId);
+      }
+      setUploadingPhotos(false);
+    }
+
     const result = await submitFeedback({
       category,
       rating,
       message: message.trim(),
+      mediaAssetIds,
     });
 
     setSubmitting(false);
@@ -108,17 +161,19 @@ export function FeedbackScreen() {
       setSubmitted(true);
       setMessage("");
       setRating(null);
+      setAttachments([]);
       void refreshHistory();
     } else {
       setError(result.message);
     }
-  }, [category, message, rating, refreshHistory]);
+  }, [attachments, category, message, rating, refreshHistory]);
 
   const onReset = () => {
     setSubmitted(false);
     setError(null);
     setMessage("");
     setRating(null);
+    setAttachments([]);
   };
 
   return (
@@ -146,8 +201,8 @@ export function FeedbackScreen() {
                 Thank you! 🙌
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                Your feedback has been recorded and will help shape upcoming
-                updates and improvements.
+                Your feedback and screenshots have been recorded and will help
+                shape upcoming updates and improvements.
               </ThemedText>
               <View style={styles.successActions}>
                 <Pressable
@@ -273,6 +328,61 @@ export function FeedbackScreen() {
                 </View>
               </View>
 
+              <View style={styles.attachmentSection}>
+                <ThemedText type="smallBold">
+                  Screenshots / Photos (optional, max 3)
+                </ThemedText>
+                {attachments.length > 0 ? (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.thumbnailRow}
+                  >
+                    {attachments.map((att, idx) => (
+                      <View key={att.uri} style={styles.thumbnailContainer}>
+                        <Image
+                          source={{ uri: att.uri }}
+                          style={styles.thumbnail}
+                          resizeMode="cover"
+                        />
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel="Remove photo"
+                          onPress={() => onRemoveAttachment(idx)}
+                          style={styles.removeThumbnailBadge}
+                        >
+                          <ThemedText style={styles.removeThumbnailText}>
+                            ✕
+                          </ThemedText>
+                        </Pressable>
+                      </View>
+                    ))}
+                  </ScrollView>
+                ) : null}
+
+                {attachments.length < 3 ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Attach photo or screenshot"
+                    onPress={() => void onPickImages()}
+                    style={({ pressed }) => [
+                      styles.attachButton,
+                      pressed && styles.buttonPressed,
+                    ]}
+                  >
+                    <ThemedText
+                      type="smallBold"
+                      style={styles.attachButtonText}
+                    >
+                      📷{" "}
+                      {attachments.length === 0
+                        ? "Attach screenshot or photo"
+                        : `Add another (${attachments.length}/3)`}
+                    </ThemedText>
+                  </Pressable>
+                ) : null}
+              </View>
+
               {error !== null ? (
                 <ThemedText
                   type="small"
@@ -296,7 +406,17 @@ export function FeedbackScreen() {
                 ]}
               >
                 {submitting ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
+                  <View style={styles.submittingRow}>
+                    <ActivityIndicator color="#000000" size="small" />
+                    <ThemedText
+                      type="smallBold"
+                      style={styles.primaryButtonText}
+                    >
+                      {uploadingPhotos
+                        ? "Uploading screenshots..."
+                        : "Submitting..."}
+                    </ThemedText>
+                  </View>
                 ) : (
                   <ThemedText type="smallBold" style={styles.primaryButtonText}>
                     Submit feedback
@@ -322,6 +442,16 @@ export function FeedbackScreen() {
                         {item.rating !== null ? (
                           <ThemedText type="small" style={styles.ratingBadge}>
                             {"★".repeat(item.rating)}
+                          </ThemedText>
+                        ) : null}
+                        {item.mediaAssetIds && item.mediaAssetIds.length > 0 ? (
+                          <ThemedText
+                            type="small"
+                            themeColor="textSecondary"
+                            style={styles.photoCountBadge}
+                          >
+                            📎 {item.mediaAssetIds.length} photo
+                            {item.mediaAssetIds.length > 1 ? "s" : ""}
                           </ThemedText>
                         ) : null}
                         <ThemedText
@@ -457,6 +587,56 @@ const styles = StyleSheet.create({
   charCountRow: {
     alignItems: "flex-end",
   },
+  attachmentSection: {
+    gap: Spacing.two,
+  },
+  thumbnailRow: {
+    flexDirection: "row",
+    gap: Spacing.two,
+    paddingVertical: Spacing.one,
+  },
+  thumbnailContainer: {
+    position: "relative",
+    width: 72,
+    height: 72,
+    borderRadius: 10,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.3)",
+  },
+  thumbnail: {
+    width: "100%",
+    height: "100%",
+  },
+  removeThumbnailBadge: {
+    position: "absolute",
+    top: 3,
+    right: 3,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "rgba(0, 0, 0, 0.75)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  removeThumbnailText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "700",
+    lineHeight: 13,
+  },
+  attachButton: {
+    borderRadius: 12,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.4)",
+    backgroundColor: "rgba(16, 185, 129, 0.08)",
+  },
+  attachButtonText: {
+    color: "#10B981",
+  },
   errorText: {
     color: "#EF4444",
   },
@@ -466,6 +646,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#10B981",
     marginTop: Spacing.one,
+  },
+  submittingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
   },
   primaryButton: {
     flex: 1,
@@ -516,6 +701,9 @@ const styles = StyleSheet.create({
   ratingBadge: {
     color: "#F59E0B",
     fontSize: 13,
+  },
+  photoCountBadge: {
+    fontSize: 12,
   },
   historyDate: {
     marginLeft: "auto",

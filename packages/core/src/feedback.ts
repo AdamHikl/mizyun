@@ -10,6 +10,7 @@ export interface UserFeedback {
   readonly rating: number | null;
   readonly message: string;
   readonly context: Readonly<Record<string, unknown>>;
+  readonly mediaAssetIds: ReadonlyArray<string>;
   readonly createdAt: Date;
 }
 
@@ -18,13 +19,15 @@ export interface NewFeedback {
   readonly rating?: number | null;
   readonly message: string;
   readonly context?: Readonly<Record<string, unknown>>;
+  readonly mediaAssetIds?: ReadonlyArray<string>;
 }
 
 export type FeedbackValidationError =
   | { readonly kind: "invalid_category"; readonly received: string }
   | { readonly kind: "rating_out_of_range"; readonly received: number }
   | { readonly kind: "empty_message" }
-  | { readonly kind: "message_too_long"; readonly length: number };
+  | { readonly kind: "message_too_long"; readonly length: number }
+  | { readonly kind: "too_many_attachments"; readonly count: number };
 
 export const validateFeedback = (
   input: NewFeedback,
@@ -54,6 +57,9 @@ export const validateFeedback = (
   }
   if (input.message.length > 4000) {
     return { kind: "message_too_long", length: input.message.length };
+  }
+  if (input.mediaAssetIds && input.mediaAssetIds.length > 3) {
+    return { kind: "too_many_attachments", count: input.mediaAssetIds.length };
   }
   return null;
 };

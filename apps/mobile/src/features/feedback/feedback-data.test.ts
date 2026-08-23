@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ApiClient } from "@mizyun/api-client";
 import { apiClient } from "@/composition/api-client";
-import { submitFeedback, loadUserFeedback } from "./feedback-data";
+import {
+  submitFeedback,
+  loadUserFeedback,
+  uploadFeedbackAttachment,
+  type PreparedFeedbackAttachment,
+} from "./feedback-data";
 
 vi.mock("@/composition/api-client", () => ({
   apiClient: {
@@ -12,6 +18,7 @@ describe("feedback-data", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
+
   it("submits valid feedback successfully", async () => {
     const mockResponse = {
       feedback: {
@@ -21,6 +28,7 @@ describe("feedback-data", () => {
         rating: 5,
         message: "Amazing app!",
         context: {},
+        mediaAssetIds: ["00000000-0000-4000-8000-00000000a001"],
         createdAt: "2026-08-24T10:00:00.000Z",
       },
     };
@@ -34,12 +42,16 @@ describe("feedback-data", () => {
       category: "like",
       rating: 5,
       message: "Amazing app!",
+      mediaAssetIds: ["00000000-0000-4000-8000-00000000a001"],
     });
 
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.feedback.id).toBe("00000000-0000-4000-8000-000000000001");
       expect(result.feedback.category).toBe("like");
+      expect(result.feedback.mediaAssetIds).toEqual([
+        "00000000-0000-4000-8000-00000000a001",
+      ]);
     }
   });
 
@@ -84,6 +96,7 @@ describe("feedback-data", () => {
         rating: null,
         message: "Add watch support",
         context: {},
+        mediaAssetIds: [],
         createdAt: "2026-08-24T10:00:00.000Z",
       },
     ];
@@ -98,5 +111,35 @@ describe("feedback-data", () => {
     if (result.ok) {
       expect(result.feedback).toHaveLength(1);
     }
+  });
+
+  it("uploads feedback attachment successfully", async () => {
+    const request = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      value: {
+        assetId: "00000000-0000-4000-8000-00000000a001",
+        uploadUrl: "https://upload.example.com/asset-1",
+      },
+    });
+    const client = { request } as unknown as ApiClient;
+    const uploadFile = vi.fn().mockResolvedValueOnce({ ok: true, status: 200 });
+
+    const photo: PreparedFeedbackAttachment = {
+      uri: "file:///path/to/screenshot.jpg",
+      mimeType: "image/jpeg",
+      byteSize: 204800,
+      width: 1080,
+      height: 1920,
+    };
+
+    const result = await uploadFeedbackAttachment(photo, client, uploadFile);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.assetId).toBe("00000000-0000-4000-8000-00000000a001");
+    }
+    expect(uploadFile).toHaveBeenCalledWith(
+      "https://upload.example.com/asset-1",
+      photo,
+    );
   });
 });

@@ -168,6 +168,7 @@ const accountExportToWire = (
         rating: fb.rating,
         message: fb.message,
         context: { ...fb.context },
+        mediaAssetIds: [...fb.mediaAssetIds],
         createdAt: fb.createdAt.toISOString(),
       })),
     },

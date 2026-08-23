@@ -15,6 +15,7 @@ interface FeedbackRow extends Record<string, unknown> {
   readonly rating: number | null;
   readonly message: string;
   readonly context: Record<string, unknown>;
+  readonly media_asset_ids?: readonly string[];
   readonly created_at: string;
 }
 
@@ -25,6 +26,9 @@ const fromRow = (row: FeedbackRow): UserFeedback => ({
   rating: row.rating,
   message: row.message,
   context: { ...row.context },
+  mediaAssetIds: Array.isArray(row.media_asset_ids)
+    ? [...row.media_asset_ids]
+    : [],
   createdAt: new Date(row.created_at),
 });
 
@@ -38,6 +42,7 @@ const toInsertRow = (
   rating: feedback.rating,
   message: feedback.message,
   context: { ...feedback.context },
+  media_asset_ids: [...feedback.mediaAssetIds],
 });
 
 export interface SupabaseFeedbackRepositoryOptions {
