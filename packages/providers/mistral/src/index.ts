@@ -175,12 +175,19 @@ const sdkClient = (apiKey: string): MistralChatClient => {
                 : null;
           let parsed: z.infer<typeof coachOutputSchema> | null = null;
           if (!hasToolCalls && assistantText !== null) {
+            const cleaned = assistantText
+              .replace(/^```(?:json)?\s*/i, "")
+              .replace(/\s*```$/, "")
+              .trim();
             try {
-              const candidate: unknown = JSON.parse(assistantText);
+              const candidate: unknown = JSON.parse(cleaned);
               const result = coachOutputSchema.safeParse(candidate);
               parsed = result.success ? result.data : null;
             } catch {
               parsed = null;
+            }
+            if (parsed === null && assistantText.trim().length > 0) {
+              parsed = { answer: assistantText.trim() };
             }
           }
           return {

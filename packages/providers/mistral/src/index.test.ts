@@ -201,6 +201,70 @@ describe("MistralAgentProvider", () => {
     });
   });
 
+  it("accepts plain text assistant responses directly when the SDK does not format as JSON", async () => {
+    sdkComplete.mockResolvedValue({
+      id: "request-plain-text",
+      model: "mistral-medium-latest",
+      usage: { promptTokens: 50, completionTokens: 10, totalTokens: 60 },
+      choices: [
+        {
+          finishReason: "stop",
+          message: {
+            content:
+              "I can only help with fitness and nutrition questions. Ask me something gym-related!",
+            toolCalls: null,
+          },
+        },
+      ],
+    });
+    const provider = new MistralAgentProvider({
+      apiKey: "test-key-that-is-long-enough",
+      model: "mistral-medium-latest",
+      timeoutMs: 5_000,
+      maxOutputTokens: 1_000,
+      externalAccess: true,
+    });
+
+    await expect(provider.respond(request)).resolves.toMatchObject({
+      message: {
+        text: "I can only help with fitness and nutrition questions. Ask me something gym-related!",
+      },
+      provider: "mistral",
+    });
+  });
+
+  it("parses markdown code-fenced JSON responses from the SDK", async () => {
+    sdkComplete.mockResolvedValue({
+      id: "request-fenced-json",
+      model: "mistral-medium-latest",
+      usage: { promptTokens: 50, completionTokens: 10, totalTokens: 60 },
+      choices: [
+        {
+          finishReason: "stop",
+          message: {
+            content:
+              '```json\n{"answer":"I can only help with gym questions."}\n```',
+            toolCalls: null,
+          },
+        },
+      ],
+    });
+    const provider = new MistralAgentProvider({
+      apiKey: "test-key-that-is-long-enough",
+      model: "mistral-medium-latest",
+      timeoutMs: 5_000,
+      maxOutputTokens: 1_000,
+      externalAccess: true,
+    });
+
+    await expect(provider.respond(request)).resolves.toMatchObject({
+      message: {
+        text: "I can only help with gym questions.",
+      },
+      provider: "mistral",
+    });
+  });
+
   it("labels prompt injection inside memories and tool evidence as untrusted data", async () => {
     const parse = vi.fn<MistralChatClient["parse"]>(async () => validResponse);
     const provider = new MistralAgentProvider({
