@@ -1,16 +1,16 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-08-15** (Google OAuth sign-in and sign-up integration).
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-08-23** (User Feedback & Review System).
 
 ## Executive snapshot
 
 - **Product stage:** technical pre-alpha; the architecture, domain/API foundation, and native mobile UI are verified and polished.
 - **Roadmap position:** INFRA-ENV-001 / INFRA-WIN-001 infrastructure migration to the **Raspberry Pi 5** (`rpServer`, Ubuntu 24.04 ARM64) is complete and fully operational.
-- **Latest verified implementation slice:** Added Google OAuth authentication so users can sign up and sign in via Google as well as email/password. Implemented `OAuthProvider`, `OAuthSignInOptions`, `OAuthSignInResult`, and `kind: "oauth"` in `@mizyun/identity`; added `signInWithOAuth` in `@mizyun/adapter-supabase-mobile`; integrated `expo-web-browser` Google auth in `AuthScreen` with "Continue with Google" button and clean divider; added `[auth.external.google]` in `supabase/config.toml`; full `pnpm check` on the Mac is green: 1,082 tests passed (+10 new tests), 17 opt-in tests skipped, iOS and Android production exports clean.
-- **Branch:** `main` (`c24f0a3`); production Raspberry Pi 5 checkout matches and is verified live (`https://mizyun-api.phiskel.com/v1/health`).
+- **Latest verified implementation slice:** Built end-to-end User Feedback & Review System (`FEEDBACK-001`). Users can submit reviews, what they like, what they dislike, feature change suggestions, and bug reports with optional 1-5 star ratings directly from the app. Implemented wire contracts in `@mizyun/contracts`, domain model & validation & port in `@mizyun/core`, Postgres migration with RLS in `supabase/migrations/20260824100000_user_feedback.sql`, server adapter in `@mizyun/adapter-supabase-server`, Fastify API routes (`POST /v1/feedback`, `GET /v1/feedback`) and account export/deletion cascade in `apps/api`, and mobile feedback modal screen + Settings entry card in `apps/mobile`. Full `pnpm check` on the Mac is green: 1,112 tests passed (+30 new tests), 17 opt-in tests skipped, iOS and Android production exports clean.
+- **Branch:** `main`; production Raspberry Pi 5 checkout matches and is verified live (`https://mizyun-api.phiskel.com/v1/health`).
 - **Production Host:** Raspberry Pi 5 (`rpserver`, Ubuntu 24.04 ARM64, Tailscale IP `100.116.142.1`). Remote deployment `pnpm deploy:remote` is verified green.
-- **Local runtime at handoff:** `pnpm check` passes with 1,082 tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean.
-- **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and 1,082 tests passed; 17 opt-in live/e2e tests skipped.
+- **Local runtime at handoff:** `pnpm check` passes with 1,112 tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean.
+- **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and 1,112 tests passed; 17 opt-in live/e2e tests skipped.
 - **Moderation regression gate:** `pnpm check` passes with 954 tests and 17 opt-in tests skipped; the Mistral provider suite has 30 passing tests and proves input-health refusal, output-only-health allowance, and continued blocking when another unsafe output category is present.
 - **Coach retry UX gate:** the mobile suite passes 183 tests (was 155, +28 for profile and goal settings data), including stable optimistic IDs and retry-result de-duplication after restart; mobile TypeScript and both platform production bundles pass.
 - **iOS:** both `Mizyun` (`com.mizyun.app`) and `Mizyun Dev` (`com.mizyun.dev`) are installed on physical iPhone (`Adam's Iphone 😋`, `7FBC9ACC-918A-5A9B-8D22-B9F1FF652A06` / `00008140-001114501A86801C`). The latest Production Release containing Google OAuth support was built (Build Succeeded, 0 errors) and installed via `xcrun devicectl`.

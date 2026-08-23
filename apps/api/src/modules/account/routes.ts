@@ -161,6 +161,15 @@ const accountExportToWire = (
         id: m.id,
         createdAt: m.createdAt.toISOString(),
       })),
+      feedback: (exportDoc.feedback ?? []).map((fb) => ({
+        id: fb.id,
+        userId: fb.userId,
+        category: fb.category,
+        rating: fb.rating,
+        message: fb.message,
+        context: { ...fb.context },
+        createdAt: fb.createdAt.toISOString(),
+      })),
     },
   });
 

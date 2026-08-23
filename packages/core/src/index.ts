@@ -240,3 +240,12 @@ export {
   type StoredBodyMeasurement,
   type WeightTrendSummary,
 } from "./body-measurement";
+
+export {
+  validateFeedback,
+  type FeedbackCategory,
+  type FeedbackRepository,
+  type FeedbackValidationError,
+  type NewFeedback,
+  type UserFeedback,
+} from "./feedback";

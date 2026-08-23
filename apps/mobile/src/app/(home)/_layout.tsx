@@ -26,6 +26,10 @@ export default function HomeStackLayout() {
         name="edit-meal"
         options={{ title: "Edit meal", presentation: "modal" }}
       />
+      <Stack.Screen
+        name="feedback"
+        options={{ title: "Feedback & Reviews", presentation: "modal" }}
+      />
       <Stack.Screen name="nutrition" options={{ title: "Today's meals" }} />
     </Stack>
   );

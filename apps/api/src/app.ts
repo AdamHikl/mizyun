@@ -23,6 +23,7 @@ import {
   type BodyMeasurementRepository,
   type ConversationRepository,
   type ExerciseRepository,
+  type FeedbackRepository,
   type FoodEntryRepository,
   type GoalRepository,
   type MediaAssetRepository,
@@ -63,6 +64,7 @@ import { buildCoachToolRegistry } from "./modules/coach/tools.js";
 import { energyRoutes } from "./modules/energy/routes.js";
 import type { MemoryStore } from "@mizyun/memory";
 import { exercisesRoutes } from "./modules/exercises/routes.js";
+import { feedbackRoutes } from "./modules/feedback/routes.js";
 import { foodEntriesRoutes } from "./modules/food-entries/routes.js";
 import { foodDraftRoutes } from "./modules/food-entries/draft-route.js";
 import { FoodDraftRateLimiter } from "./modules/food-entries/draft-rate-limit.js";
@@ -77,6 +79,7 @@ import { authenticationPlugin } from "./plugins/authentication.js";
 import { InMemoryBodyMeasurementRepository } from "./body-measurement-repository.js";
 import { InMemoryConversationRepository } from "./conversation-repository.js";
 import { InMemoryExerciseRepository } from "./exercise-repository.js";
+import { InMemoryFeedbackRepository } from "./feedback-repository.js";
 import { InMemoryFoodEntryRepository } from "./food-entry-repository.js";
 import { InMemoryMediaAssetRepository } from "./media-asset-repository.js";
 import { InMemoryProfileRepository } from "./profile-repository.js";
@@ -87,6 +90,7 @@ import {
   SupabaseGoalRepository,
   SupabaseFoodEntryRepository,
   SupabaseExerciseRepository,
+  SupabaseFeedbackRepository,
   SupabaseWorkoutRepository,
   SupabaseWorkoutSetRepository,
   SupabaseBodyMeasurementRepository,
@@ -210,6 +214,7 @@ export interface AppDependencies {
   readonly workoutSetRepository?: WorkoutSetRepository;
   readonly bodyMeasurementRepository?: BodyMeasurementRepository;
   readonly conversationRepository?: ConversationRepository;
+  readonly feedbackRepository?: FeedbackRepository;
   readonly accountRepository?: AccountRepository;
   readonly mediaAssetRepository?: MediaAssetRepository;
   readonly mediaStorage?: MediaStorage;
@@ -320,6 +325,7 @@ const defaultDependencies = (): AppDependencies => {
     workoutRepository: new InMemoryWorkoutRepository(),
     workoutSetRepository: new InMemoryWorkoutSetRepository(),
     bodyMeasurementRepository: new InMemoryBodyMeasurementRepository(),
+    feedbackRepository: new InMemoryFeedbackRepository(),
   };
 };
 
@@ -461,6 +467,11 @@ export const buildApp = (
     (sp
       ? new SupabaseConversationRepository({ clientFor: sp.clientFor })
       : new InMemoryConversationRepository());
+  const feedbackRepository =
+    dependencies.feedbackRepository ??
+    (sp
+      ? new SupabaseFeedbackRepository({ clientFor: sp.clientFor })
+      : new InMemoryFeedbackRepository());
   const accountRepository =
     dependencies.accountRepository ??
     new InMemoryAccountRepository({
@@ -472,6 +483,7 @@ export const buildApp = (
       workoutSetRepository,
       bodyMeasurementRepository,
       conversationRepository,
+      feedbackRepository,
     });
   const mediaAssetRepository =
     dependencies.mediaAssetRepository ??
@@ -619,6 +631,10 @@ export const buildApp = (
     mediaAssetRepository,
     mediaStorage,
     bucketId: MEDIA_BUCKET_ID,
+  });
+  void app.register(feedbackRoutes, {
+    prefix: "/v1/feedback",
+    feedbackRepository,
   });
 
   // MEM-001 — the long-lived memory store used by both the

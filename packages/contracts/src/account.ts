@@ -68,6 +68,7 @@ export const accountExportSchema = z.object({
   conversations: z.array(conversationStubSchema),
   memories: z.array(z.unknown()),
   privateMedia: z.array(privateMediaStubSchema),
+  feedback: z.array(z.unknown()).default([]),
 });
 
 export type AccountExport = z.infer<typeof accountExportSchema>;

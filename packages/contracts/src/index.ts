@@ -635,3 +635,19 @@ export {
   type BodyMeasurementResponse,
   type BodyMeasurementSource,
 } from "./body-measurement";
+
+export {
+  createFeedbackResponseSchema,
+  createFeedbackSchema,
+  feedbackCategorySchema,
+  feedbackItemSchema,
+  feedbackRatingSchema,
+  listFeedbackResponseSchema,
+  type CreateFeedbackBody,
+  type CreateFeedbackInput,
+  type CreateFeedbackResponse,
+  type FeedbackCategory,
+  type FeedbackItem,
+  type FeedbackRating,
+  type ListFeedbackResponse,
+} from "./feedback";

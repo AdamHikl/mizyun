@@ -5,6 +5,7 @@ import {
   type BodyMeasurementRepository,
   type ConversationRepository,
   type ExerciseRepository,
+  type FeedbackRepository,
   type FoodEntryRepository,
   type GoalRepository,
   type ProfileRepository,
@@ -46,6 +47,7 @@ export interface InMemoryAccountRepositoryOptions {
   readonly workoutSetRepository: WorkoutSetRepository;
   readonly bodyMeasurementRepository: BodyMeasurementRepository;
   readonly conversationRepository?: ConversationRepository;
+  readonly feedbackRepository?: FeedbackRepository;
   /**
    * Clock; defaults to `() => new Date()`. Production callers
    * should not need this; tests inject a fixed clock so they
@@ -63,6 +65,7 @@ export class InMemoryAccountRepository implements AccountRepository {
   readonly #workoutSetRepository: WorkoutSetRepository;
   readonly #bodyMeasurementRepository: BodyMeasurementRepository;
   readonly #conversationRepository: ConversationRepository | null;
+  readonly #feedbackRepository: FeedbackRepository | null;
   readonly #clock: { readonly now: () => Date };
   readonly #challenges = new Map<UserId, ChallengeRecord>();
 
@@ -75,6 +78,7 @@ export class InMemoryAccountRepository implements AccountRepository {
     this.#workoutSetRepository = options.workoutSetRepository;
     this.#bodyMeasurementRepository = options.bodyMeasurementRepository;
     this.#conversationRepository = options.conversationRepository ?? null;
+    this.#feedbackRepository = options.feedbackRepository ?? null;
     this.#clock = options.clock ?? { now: () => new Date() };
   }
 
@@ -152,6 +156,13 @@ export class InMemoryAccountRepository implements AccountRepository {
               })),
             })),
           );
+    const feedback =
+      this.#feedbackRepository === null
+        ? []
+        : await this.#feedbackRepository.listForUser(userId, {
+            accessToken: "",
+            limit: 10_000,
+          });
     return {
       userId,
       generatedAt: this.#clock.now(),
@@ -164,6 +175,7 @@ export class InMemoryAccountRepository implements AccountRepository {
       bodyMeasurements,
       conversations,
       privateMedia: [],
+      feedback,
     };
   }
 
@@ -210,6 +222,11 @@ export class InMemoryAccountRepository implements AccountRepository {
     this.#challenges.delete(userId);
     if (this.#conversationRepository !== null) {
       await this.#conversationRepository.deleteAllForUser(userId, {
+        accessToken: "",
+      });
+    }
+    if (this.#feedbackRepository !== null) {
+      await this.#feedbackRepository.deleteAllForUser(userId, {
         accessToken: "",
       });
     }

@@ -244,6 +244,7 @@ export { SupabaseExerciseRepository } from "./exercise-repository.js";
 export { SupabaseWorkoutRepository } from "./workout-repository.js";
 export { SupabaseWorkoutSetRepository } from "./workout-set-repository.js";
 export { SupabaseBodyMeasurementRepository } from "./body-measurement-repository.js";
+export { SupabaseFeedbackRepository } from "./feedback-repository.js";
 export { SupabaseMediaAssetRepository } from "./media-asset-repository.js";
 export { SupabaseConversationRepository } from "./conversation-repository.js";
 export {

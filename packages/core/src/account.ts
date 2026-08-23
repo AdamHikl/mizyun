@@ -6,6 +6,7 @@ import type { StoredGoal } from "./goal";
 import type { StoredProfile } from "./profile";
 import type { StoredWorkout } from "./workout";
 import type { StoredWorkoutSet } from "./workout-set";
+import type { UserFeedback } from "./feedback";
 
 /**
  * Account-level domain types (DATA-001).
@@ -64,6 +65,7 @@ export interface AccountExport {
     readonly id: string;
     readonly createdAt: Date;
   }>;
+  readonly feedback: ReadonlyArray<UserFeedback>;
 }
 
 /**

@@ -6,6 +6,7 @@ import { ThemedView } from "@/components/themed-view";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { useAuth } from "@/features/auth/auth-context";
 import { meResponseSchema, type AuthPrincipalWire } from "@mizyun/contracts";
+import { router, type Href } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -126,6 +127,7 @@ export function SettingsScreen() {
             <CoachRemindersCard userId={session.user.id} />
           ) : null}
           <MemoryControlsCard />
+          <FeedbackCard />
           <AnalyticsCard />
           <SignOutCard
             disabled={state.kind === "disabled"}
@@ -140,6 +142,31 @@ export function SettingsScreen() {
           </ThemedView>
         </ScrollView>
       </SafeAreaView>
+    </ThemedView>
+  );
+}
+
+function FeedbackCard() {
+  return (
+    <ThemedView type="backgroundElement" style={styles.feedbackCard}>
+      <ThemedText type="smallBold">Feedback & Reviews</ThemedText>
+      <ThemedText type="small" themeColor="textSecondary">
+        Help improve Mizyun. Tell us what you like, what you dislike, or ideas
+        and bug reports directly.
+      </ThemedText>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Send feedback or review"
+        onPress={() => router.push("/feedback" as Href)}
+        style={({ pressed }) => [
+          styles.feedbackButton,
+          pressed && styles.feedbackButtonPressed,
+        ]}
+      >
+        <ThemedText type="smallBold" style={{ color: "#10B981" }}>
+          Send feedback or review →
+        </ThemedText>
+      </Pressable>
     </ThemedView>
   );
 }
@@ -464,6 +491,25 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
     borderWidth: 1,
     borderColor: "rgba(148, 163, 184, 0.2)",
+  },
+  feedbackCard: {
+    borderRadius: 18,
+    padding: Spacing.four,
+    gap: Spacing.two,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.2)",
+  },
+  feedbackButton: {
+    marginTop: Spacing.two,
+    borderRadius: 12,
+    paddingVertical: Spacing.three,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#10B981",
+    backgroundColor: "rgba(16, 185, 129, 0.08)",
+  },
+  feedbackButtonPressed: {
+    opacity: 0.75,
   },
   finishSetupCard: {
     borderRadius: 18,
