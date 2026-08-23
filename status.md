@@ -1,16 +1,16 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-08-23** (User reviews, feedback submission & screenshot attachments — FEEDBACK-001/002).
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-08-23** (Coach off-topic gym scope refinement & tool error fallback).
 
 ## Executive snapshot
 
 - **Product stage:** technical pre-alpha; the architecture, domain/API foundation, and native mobile UI are verified and polished.
 - **Roadmap position:** INFRA-ENV-001 / INFRA-WIN-001 infrastructure migration to the **Raspberry Pi 5** (`rpServer`, Ubuntu 24.04 ARM64) is complete and fully operational.
-- **Latest verified implementation slice:** Delivered in-app user reviews and feedback submissions (`FEEDBACK-001`) with screenshot and photo attachments (`FEEDBACK-002`). Includes contracts, core domain models and validators, database migrations (`20260824100000_user_feedback.sql`, `20260824110000_feedback_media_attachments.sql`), Supabase repository adapters with RLS, Fastify routes (`POST /v1/feedback`, `GET /v1/feedback`), account export/deletion cascade integration, and native mobile `FeedbackScreen` modal with category chips, star rating, 4000-char message, image picker (up to 3 photos), thumbnail previews with remove buttons, upload progress, and past feedback history. Full `pnpm check` is green: 1,114 tests passed, 17 opt-in tests skipped, iOS and Android production bundles export cleanly.
+- **Latest verified implementation slice:** Added explicit fitness and nutrition domain-scoping policy to `COACH_SYSTEM_POLICY` so off-topic/general questions are declined politely with direction to gym/nutrition topics ("I can only help with fitness and nutrition questions. Ask me something gym-related!"), and hardened `AgentOrchestrator` tool execution error handling to always supply fallback assistant text if provider response text is empty (preventing empty string Zod validation errors on unhandled tool calls). `pnpm check` is green with 1,115 tests passing, 17 opt-in tests skipped.
 - **Branch:** `main`; production Raspberry Pi 5 checkout matches and is verified live (`https://mizyun-api.phiskel.com/v1/health`).
 - **Production Host:** Raspberry Pi 5 (`rpserver`, Ubuntu 24.04 ARM64, Tailscale IP `100.116.142.1`). Remote deployment `pnpm deploy:remote` is verified green.
-- **Local runtime at handoff:** `pnpm check` passes with 1,114 tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean.
-- **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and 1,114 tests passed; 17 opt-in live/e2e tests skipped.
+- **Local runtime at handoff:** `pnpm check` passes with 1,115 tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean.
+- **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and 1,115 tests passed; 17 opt-in live/e2e tests skipped.
 - **Moderation regression gate:** `pnpm check` passes with 954 tests and 17 opt-in tests skipped; the Mistral provider suite has 30 passing tests and proves input-health refusal, output-only-health allowance, and continued blocking when another unsafe output category is present.
 - **Coach retry UX gate:** the mobile suite passes 183 tests (was 155, +28 for profile and goal settings data), including stable optimistic IDs and retry-result de-duplication after restart; mobile TypeScript and both platform production bundles pass.
 - **iOS:** both `Mizyun` (`com.mizyun.app`) and `Mizyun Dev` (`com.mizyun.dev`) are installed on physical iPhone (`Adam's Iphone 😋`, `7FBC9ACC-918A-5A9B-8D22-B9F1FF652A06` / `00008140-001114501A86801C`). The latest Production Release containing Google OAuth support was built (Build Succeeded, 0 errors) and installed via `xcrun devicectl`.

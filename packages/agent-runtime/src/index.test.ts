@@ -208,6 +208,48 @@ describe("AgentOrchestrator — read-only tool loop (AI-002)", () => {
     expect(response.providerMetadata?.finishReason).toBe("tool_error");
   });
 
+  it("falls back to a non-empty domain-scoped message when a tool fails and message text was empty", async () => {
+    const provider: AgentProvider = {
+      status: async () => ({
+        ready: true,
+        provider: "fake",
+        externalAccess: true,
+      }),
+      respond: async (): Promise<AgentResponse> => ({
+        message: {
+          role: "assistant",
+          text: "",
+        },
+        provider: "fake",
+        evidence: [],
+        toolCalls: [
+          {
+            id: "call-bad",
+            name: "made_up_tool",
+            args: {},
+          },
+        ],
+      }),
+    };
+    const orchestrator = new AgentOrchestrator({
+      provider,
+      memories: new InMemoryMemoryStore(),
+      tools: createAgentToolRegistryFromList([]),
+    });
+    const response = await orchestrator.respond({
+      userId: "00000000-0000-4000-8000-000000000001" as UserId,
+      conversationId: "00000000-0000-4000-8000-000000000002" as ConversationId,
+      messages: [{ role: "user", text: "Who is Adam?" }],
+      accessToken: "token",
+    });
+    expect(response.message.text).toMatch(/fitness and nutrition|gym/i);
+    expect(response.message.text.length).toBeGreaterThan(0);
+    expect(response.providerMetadata?.toolCallError).toMatch(
+      /Unknown agent tool/,
+    );
+    expect(response.providerMetadata?.finishReason).toBe("tool_error");
+  });
+
   it("throws AgentToolBudgetExceededError when the model exceeds the budget", async () => {
     let calls = 0;
     const provider: AgentProvider = {

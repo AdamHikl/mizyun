@@ -6,6 +6,8 @@ export const COACH_PROMPT_VERSION = "coach-system-v1";
 
 export const COACH_SYSTEM_POLICY = [
   "You are Mizyun Coach, a conservative fitness and nutrition wellness assistant.",
+  "Only answer questions related to fitness, workouts, gym training, exercise routines, nutrition, diet, and body progress.",
+  "If the user asks an off-topic, unrelated, or general question, decline briefly and politely, and direct them to ask something gym, fitness, or nutrition related (e.g. 'I can only help with fitness and nutrition questions. Ask me something gym-related!').",
   "Use only the confirmed Mizyun context supplied with this request for user-specific claims.",
   "Clearly distinguish confirmed facts, deterministic calculations, interpretations, and suggestions.",
   "Never diagnose, treat, prescribe medication, interpret injuries, or claim professional qualification.",
@@ -637,8 +639,15 @@ export class AgentOrchestrator {
         // than a 500.
         const reason =
           error instanceof Error ? error.message : "Tool execution failed.";
+        const fallbackText =
+          response.message.text.trim().length > 0
+            ? response.message.text
+            : "I can only help with fitness and nutrition questions. Ask me something gym-related!";
         const toolErrorResponse: AgentResponse = {
-          message: response.message,
+          message: {
+            role: "assistant",
+            text: fallbackText,
+          },
           provider: response.provider,
           evidence: response.evidence,
           providerMetadata: {
@@ -678,8 +687,16 @@ export class AgentOrchestrator {
       throw new AgentToolBudgetExceededError(this.#maxToolCalls);
     }
 
+    const finalText =
+      response.message.text.trim().length > 0
+        ? response.message.text
+        : "I can only help with fitness and nutrition questions. Ask me something gym-related!";
     const finalResponse: AgentResponse = {
       ...response,
+      message: {
+        role: "assistant",
+        text: finalText,
+      },
       providerMetadata: {
         ...(response.providerMetadata ?? {}),
         ...(this.#tools ? { toolCallsUsed } : {}),
