@@ -209,7 +209,7 @@ const baseServerSchema = z.object({
   geminiVisionModel: z
     .string()
     .min(1, "GEMINI_VISION_MODEL must not be empty")
-    .default("gemini-3.7-flash"),
+    .default("gemini-3.6-flash"),
   geminiVisionTimeoutMs: z.coerce
     .number()
     .int("GEMINI_VISION_TIMEOUT_MS must be an integer")

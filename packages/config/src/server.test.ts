@@ -502,7 +502,7 @@ describe("loadServerConfig — closed-world", () => {
       },
       geminiVisionConfig: {
         apiKey: "test-gemini-key-12345",
-        model: "gemini-3.7-flash",
+        model: "gemini-3.6-flash",
       },
     });
   });
