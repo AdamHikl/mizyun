@@ -966,7 +966,10 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
               id: crypto.randomUUID(),
               conversationId,
               role: "assistant",
-              text: response.message.text,
+              text:
+                response.message.text.trim().length > 0
+                  ? response.message.text
+                  : "Here is the plan built for your goals and available equipment.",
               status: "complete",
               idempotencyKey: null,
               providerMetadata: {

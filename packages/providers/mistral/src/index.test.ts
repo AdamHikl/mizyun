@@ -163,7 +163,7 @@ describe("MistralAgentProvider", () => {
     });
     expect(sdkComplete).toHaveBeenCalledWith(
       expect.objectContaining({
-        responseFormat: expect.objectContaining({ type: "json_schema" }),
+        responseFormat: expect.objectContaining({ type: "json_object" }),
       }),
       expect.anything(),
     );

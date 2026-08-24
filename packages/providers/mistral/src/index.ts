@@ -16,19 +16,7 @@ const coachOutputSchema = z.object({
 });
 
 const coachResponseFormat = {
-  type: "json_schema" as const,
-  jsonSchema: {
-    name: "mizyun_coach_output",
-    schemaDefinition: {
-      type: "object",
-      properties: {
-        answer: { type: "string", minLength: 1, maxLength: 8_000 },
-      },
-      required: ["answer"],
-      additionalProperties: false,
-    },
-    strict: true,
-  },
+  type: "json_object" as const,
 };
 
 const toolCallItemSchema = z.object({
@@ -97,12 +85,14 @@ type MistralRequestMessage =
       role: "assistant";
       content?: string | null;
       toolCalls?: MistralRequestToolCall[];
+      tool_calls?: MistralRequestToolCall[];
     }
   | {
       role: "tool";
       content: string;
       name?: string;
       toolCallId?: string;
+      tool_call_id?: string;
     };
 
 export interface MistralChatClient {
@@ -183,7 +173,18 @@ const sdkClient = (apiKey: string): MistralChatClient => {
             try {
               const candidate: unknown = JSON.parse(cleaned);
               const result = coachOutputSchema.safeParse(candidate);
-              parsed = result.success ? result.data : null;
+              if (result.success) {
+                parsed = result.data;
+              } else if (
+                typeof candidate === "object" &&
+                candidate !== null &&
+                "answer" in candidate &&
+                typeof (candidate as { answer: unknown }).answer === "string"
+              ) {
+                parsed = {
+                  answer: (candidate as { answer: string }).answer.trim(),
+                };
+              }
             } catch {
               parsed = null;
             }
@@ -378,6 +379,7 @@ const toolMessagesFor = (
   content: string;
   name: string;
   toolCallId: string;
+  tool_call_id: string;
 }> => {
   if (results === undefined || results.length === 0) return [];
   return results.map((result) => ({
@@ -389,6 +391,7 @@ const toolMessagesFor = (
     }),
     name: result.name,
     toolCallId: result.id,
+    tool_call_id: result.id,
   }));
 };
 
@@ -406,20 +409,30 @@ const requestedToolCallMessageFor = (
           arguments: string;
         };
       }>;
+      tool_calls: Array<{
+        id?: string;
+        type: "function";
+        function: {
+          name: string;
+          arguments: string;
+        };
+      }>;
     }
   | undefined => {
   if (calls === undefined || calls.length === 0) return undefined;
+  const list = calls.map((call) => ({
+    ...(call.id !== undefined ? { id: call.id } : {}),
+    type: "function" as const,
+    function: {
+      name: call.name,
+      arguments: JSON.stringify(call.args),
+    },
+  }));
   return {
     role: "assistant",
     content: null,
-    toolCalls: calls.map((call) => ({
-      ...(call.id !== undefined ? { id: call.id } : {}),
-      type: "function",
-      function: {
-        name: call.name,
-        arguments: JSON.stringify(call.args),
-      },
-    })),
+    toolCalls: list,
+    tool_calls: list,
   };
 };
 

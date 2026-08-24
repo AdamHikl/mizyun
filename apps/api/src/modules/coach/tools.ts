@@ -32,6 +32,8 @@ import {
   summariseFoodEntries,
   summariseWeightTrend,
   systemClock,
+  EQUIPMENT_OPTIONS,
+  TRAINING_LIMITATION_OPTIONS,
   type BodyMeasurementRepository,
   type Clock,
   type CoachingPreferences,
@@ -810,6 +812,97 @@ export interface GetTrainingPrescriptionArgs {
   readonly limitations?: readonly TrainingLimitation[];
 }
 
+const normalizeEquipmentItem = (raw: unknown): EquipmentOption | null => {
+  if (typeof raw !== "string") return null;
+  const s = raw.toLowerCase().trim();
+  if (s === "dumbbell" || s === "dumbbells") return "dumbbells";
+  if (s === "barbell" || s === "barbells") return "barbell";
+  if (s === "bench" || s === "workout bench") return "bench";
+  if (s === "rack" || s === "squat rack" || s === "power rack") return "rack";
+  if (
+    s === "cable" ||
+    s === "cables" ||
+    s === "cable_machine" ||
+    s === "cable machine"
+  )
+    return "cable_machine";
+  if (
+    s === "band" ||
+    s === "bands" ||
+    s === "resistance_bands" ||
+    s === "resistance bands"
+  )
+    return "resistance_bands";
+  if (
+    s === "pullup_bar" ||
+    s === "pull up bar" ||
+    s === "pull-up bar" ||
+    s === "pullup bar"
+  )
+    return "pullup_bar";
+  if (
+    s === "cardio_machine" ||
+    s === "cardio machine" ||
+    s === "treadmill" ||
+    s === "bike"
+  )
+    return "cardio_machine";
+  if (s === "full_gym" || s === "gym") return "full_gym";
+  if (s === "bodyweight") return "bodyweight";
+  return (EQUIPMENT_OPTIONS as readonly string[]).includes(s)
+    ? (s as EquipmentOption)
+    : null;
+};
+
+const normalizeFocusPreference = (
+  raw: unknown,
+): TrainingFocusPreference | null => {
+  if (typeof raw !== "string") return null;
+  const s = raw.toLowerCase().trim();
+  if (
+    s.includes("hypertrophy") ||
+    s.includes("v-shape") ||
+    s.includes("v shape") ||
+    s.includes("muscle") ||
+    s.includes("bulk")
+  ) {
+    return "hypertrophy";
+  }
+  if (s.includes("strength") || s.includes("power")) {
+    return "strength";
+  }
+  if (
+    s.includes("endurance") ||
+    s.includes("stamina") ||
+    s.includes("cardio")
+  ) {
+    return "endurance";
+  }
+  if (s.includes("balanced") || s.includes("general")) {
+    return "balanced";
+  }
+  return null;
+};
+
+const normalizeSessionDistributionItem = (
+  raw: unknown,
+): SessionFocus | null => {
+  if (typeof raw !== "string") return null;
+  const s = raw.toLowerCase().trim();
+  if (s.includes("upper")) return "upper";
+  if (s.includes("lower") || s.includes("leg")) return "lower";
+  if (s.includes("full")) return "full";
+  return null;
+};
+
+const normalizeLimitation = (raw: unknown): TrainingLimitation | null => {
+  if (typeof raw !== "string") return null;
+  const s = raw.toLowerCase().trim();
+  return ((TRAINING_LIMITATION_OPTIONS as readonly string[]).find(
+    (v) => v === s,
+  ) ?? null) as TrainingLimitation | null;
+};
+
 export const buildGetTrainingPrescriptionTool = (
   deps: CoachToolDeps,
 ): AgentTool<GetTrainingPrescriptionArgs> => ({
@@ -898,24 +991,48 @@ export const buildGetTrainingPrescriptionTool = (
       trainingLimitations?: readonly TrainingLimitation[];
     } = {};
     if (typeof typedArgs.days_per_week === "number") {
-      preferenceOverride.trainingDaysPerWeek = typedArgs.days_per_week;
+      preferenceOverride.trainingDaysPerWeek = Math.max(
+        1,
+        Math.min(7, Math.round(typedArgs.days_per_week)),
+      );
     }
     if (typeof typedArgs.session_duration_minutes === "number") {
-      preferenceOverride.sessionDurationMinutes =
-        typedArgs.session_duration_minutes;
+      preferenceOverride.sessionDurationMinutes = Math.max(
+        15,
+        Math.min(180, Math.round(typedArgs.session_duration_minutes)),
+      );
     }
-    if (typeof typedArgs.training_focus === "string") {
-      preferenceOverride.trainingFocus = typedArgs.training_focus;
+    if (typedArgs.training_focus !== undefined) {
+      const focus = normalizeFocusPreference(typedArgs.training_focus);
+      if (focus !== null) {
+        preferenceOverride.trainingFocus = focus;
+      }
     }
     if (Array.isArray(typedArgs.available_equipment)) {
-      preferenceOverride.availableEquipment = typedArgs.available_equipment;
+      const normalizedEquipment = typedArgs.available_equipment
+        .map(normalizeEquipmentItem)
+        .filter((eq): eq is EquipmentOption => eq !== null);
+      if (normalizedEquipment.length > 0) {
+        preferenceOverride.availableEquipment = Array.from(
+          new Set(normalizedEquipment),
+        );
+      }
     }
     if (Array.isArray(typedArgs.limitations)) {
-      preferenceOverride.trainingLimitations = typedArgs.limitations;
+      const normalizedLimitations = typedArgs.limitations
+        .map(normalizeLimitation)
+        .filter((lim): lim is TrainingLimitation => lim !== null);
+      if (normalizedLimitations.length > 0) {
+        preferenceOverride.trainingLimitations = Array.from(
+          new Set(normalizedLimitations),
+        );
+      }
     }
 
     const sessionDistribution = Array.isArray(typedArgs.session_distribution)
       ? typedArgs.session_distribution
+          .map(normalizeSessionDistributionItem)
+          .filter((dist): dist is SessionFocus => dist !== null)
       : undefined;
 
     const data = await buildTrainingPrescriptionForUser(
@@ -925,7 +1042,9 @@ export const buildGetTrainingPrescriptionTool = (
       now,
       {
         preferenceOverride,
-        ...(sessionDistribution ? { sessionDistribution } : {}),
+        ...(sessionDistribution && sessionDistribution.length > 0
+          ? { sessionDistribution }
+          : {}),
       },
     );
 
