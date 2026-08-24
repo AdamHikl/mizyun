@@ -169,6 +169,60 @@ describe("MistralAgentProvider", () => {
     );
   });
 
+  it("normalizes snake_case tool_calls returned from the live Mistral SDK", async () => {
+    sdkComplete.mockResolvedValue({
+      id: "request-snake-tool-call",
+      model: "mistral-medium-latest",
+      usage: { promptTokens: 50, completionTokens: 10, totalTokens: 60 },
+      choices: [
+        {
+          finishReason: "tool_calls",
+          message: {
+            content: "",
+            tool_calls: [
+              {
+                id: "hnR73oX7R",
+                type: "function",
+                function: {
+                  name: "get_training_prescription",
+                  arguments: JSON.stringify({ days_per_week: 3 }),
+                },
+              },
+            ],
+          },
+        },
+      ],
+    });
+    const provider = new MistralAgentProvider({
+      apiKey: "test-key-that-is-long-enough",
+      model: "mistral-medium-latest",
+      timeoutMs: 5_000,
+      maxOutputTokens: 1_000,
+      externalAccess: true,
+    });
+
+    await expect(
+      provider.respond({
+        ...request,
+        tools: [
+          {
+            name: "get_training_prescription",
+            description: "Build workout prescription",
+            parameters: { type: "object", properties: {} },
+          },
+        ],
+      }),
+    ).resolves.toMatchObject({
+      toolCalls: [
+        {
+          id: "hnR73oX7R",
+          name: "get_training_prescription",
+          args: { days_per_week: 3 },
+        },
+      ],
+    });
+  });
+
   it("parses a structured final answer returned as SDK text chunks", async () => {
     sdkComplete.mockResolvedValue({
       id: "request-chunked-answer",

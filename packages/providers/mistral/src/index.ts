@@ -31,9 +31,20 @@ const coachResponseFormat = {
   },
 };
 
+const toolCallItemSchema = z.object({
+  id: z.string().optional(),
+  type: z.string().optional(),
+  function: z.object({
+    name: z.string(),
+    // Mistral may send either a JSON string or an
+    // already-parsed object. We coerce both.
+    arguments: z.union([z.string(), z.record(z.unknown())]),
+  }),
+});
+
 const providerResponseSchema = z.object({
   id: z.string(),
-  model: z.string(),
+  model: z.string().optional(),
   usage: z.object({
     promptTokens: z.number().int().nonnegative().optional(),
     completionTokens: z.number().int().nonnegative().optional(),
@@ -42,27 +53,16 @@ const providerResponseSchema = z.object({
   choices: z
     .array(
       z.object({
-        finishReason: z.string(),
+        finishReason: z.string().optional(),
         message: z.object({
           // When the model returns a final answer (no tool calls),
           // Mistral puts a parsed payload here. When the model
           // returns tool_calls, this is `null` and the
           // `tool_calls` array carries the request.
           parsed: coachOutputSchema.nullish(),
-          toolCalls: z
-            .array(
-              z.object({
-                id: z.string(),
-                type: z.string().optional(),
-                function: z.object({
-                  name: z.string(),
-                  // Mistral may send either a JSON string or an
-                  // already-parsed object. We coerce both.
-                  arguments: z.union([z.string(), z.record(z.unknown())]),
-                }),
-              }),
-            )
-            .nullish(),
+          content: z.union([z.string(), z.array(z.unknown())]).nullish(),
+          toolCalls: z.array(toolCallItemSchema).nullish(),
+          tool_calls: z.array(toolCallItemSchema).nullish(),
         }),
       }),
     )
@@ -155,10 +155,11 @@ const sdkClient = (apiKey: string): MistralChatClient => {
       return {
         ...response,
         choices: response.choices.map((choice) => {
+          const rawToolCalls =
+            choice.message.toolCalls ??
+            (choice.message as { tool_calls?: unknown }).tool_calls;
           const hasToolCalls =
-            choice.message.toolCalls !== undefined &&
-            choice.message.toolCalls !== null &&
-            choice.message.toolCalls.length > 0;
+            Array.isArray(rawToolCalls) && rawToolCalls.length > 0;
           const assistantText =
             typeof choice.message.content === "string"
               ? choice.message.content
@@ -194,6 +195,8 @@ const sdkClient = (apiKey: string): MistralChatClient => {
             ...choice,
             message: {
               ...choice.message,
+              toolCalls: rawToolCalls,
+              tool_calls: rawToolCalls,
               parsed,
             },
           };
@@ -454,7 +457,7 @@ const parseToolArguments = (
 const toolCallsFromChoice = (
   rawToolCalls:
     | ReadonlyArray<{
-        readonly id: string;
+        readonly id?: string | undefined;
         readonly type?: string | undefined;
         readonly function: {
           readonly name: string;
@@ -482,7 +485,9 @@ const validatedProviderResponse = (raw: unknown) => {
   const parsed = providerResponseSchema.safeParse(raw);
   const choice = parsed.success ? parsed.data.choices[0] : undefined;
   if (!parsed.success || choice === undefined) return null;
-  const toolCalls = toolCallsFromChoice(choice.message.toolCalls);
+  const toolCalls = toolCallsFromChoice(
+    choice.message.toolCalls ?? choice.message.tool_calls,
+  );
   if (toolCalls === undefined && choice.message.parsed?.answer === undefined) {
     return null;
   }
