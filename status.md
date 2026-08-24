@@ -13,7 +13,7 @@
 - **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and 966 tests passed; 17 opt-in live/e2e tests skipped.
 - **Moderation regression gate:** `pnpm check` passes with 966 tests and 17 opt-in tests skipped; the Mistral and Gemini provider suites pass and prove tool calling, input-health refusal, output-only-health allowance, and continued blocking when another unsafe output category is present.
 - **Coach retry UX gate:** the mobile suite passes 188 tests, including stable optimistic IDs and retry-result de-duplication after restart; mobile TypeScript and both platform production bundles pass.
-- **iOS:** both `Mizyun` (`com.mizyun.app`) and `Mizyun Dev` (`com.mizyun.dev`) are installed on physical iPhone (`Adam's Iphone 😋`, `7FBC9ACC-918A-5A9B-8D22-B9F1FF652A06` / `00008140-001114501A86801C`). Production API runs commit `ab4b302`.
+- **iOS:** both `Mizyun` (`com.mizyun.app`) and `Mizyun Dev` (`com.mizyun.dev`) are installed on physical iPhone (`Adam's Iphone 😋`, `7FBC9ACC-918A-5A9B-8D22-B9F1FF652A06` / `00008140-001114501A86801C`). The latest Production Release (commit `ab4b302` with Gemini 3.7 Flash default) was built cleanly with Xcode (`BUILD SUCCEEDED`), installed via `xcrun devicectl`, and launched. Production API runs commit `ab4b302`.
 - **Android:** Standalone Production Release APK (`app-release.apk`, 103MB) compiled cleanly via `pnpm mobile:founder-production:android:assembleRelease` for commit `d6e36ce` targeting the production hosts.
 
 ## What is genuinely delivered
