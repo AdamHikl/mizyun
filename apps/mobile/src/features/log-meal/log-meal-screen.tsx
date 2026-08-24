@@ -399,12 +399,66 @@ export function LogMealScreen() {
     }
   }, [refineInstruction, aiDraft, refining, submitting]);
 
+  const hasContent =
+    name.trim().length > 0 ||
+    calories.trim().length > 0 ||
+    protein.trim().length > 0 ||
+    carbs.trim().length > 0 ||
+    fat.trim().length > 0 ||
+    mealDescription.trim().length > 0 ||
+    attachedPhoto !== null ||
+    aiDraft !== null ||
+    refineInstruction.trim().length > 0;
+
+  const onClear = useCallback(async () => {
+    setName("");
+    setCalories("");
+    setProtein("");
+    setCarbs("");
+    setFat("");
+    setMealDescription("");
+    setAttachedPhoto(null);
+    setDraftWarnings([]);
+    setAiDraft(null);
+    setSourceProposalId(null);
+    setRefineInstruction("");
+    setError(null);
+    if (userId !== null) {
+      await clearLoggingDraft(userId, "meal");
+    }
+  }, [userId]);
+
   const calorieHint =
     calories.trim().length > 0 ? "calories recorded" : "calories optional";
 
   return (
     <ThemedView style={styles.page}>
-      <Stack.Screen options={{ title: "Log a meal" }} />
+      <Stack.Screen
+        options={{
+          title: "Log a meal",
+          headerRight: () =>
+            hasContent ? (
+              <Pressable
+                testID="clear-meal-header-button"
+                accessibilityRole="button"
+                accessibilityLabel="Clear meal"
+                accessibilityHint="Clears all meal fields, photo, and draft"
+                disabled={submitting || snapping || refining}
+                onPress={() => {
+                  void onClear();
+                }}
+                style={({ pressed }) => [
+                  styles.headerClearButton,
+                  pressed && styles.snapPressed,
+                ]}
+              >
+                <ThemedText type="smallBold" themeColor="textSecondary">
+                  Clear
+                </ThemedText>
+              </Pressable>
+            ) : null,
+        }}
+      />
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
         <ScrollView
           automaticallyAdjustKeyboardInsets
@@ -725,22 +779,53 @@ export function LogMealScreen() {
             </ThemedText>
           ) : null}
 
-          <Pressable
-            accessibilityRole="button"
-            disabled={submitting}
-            accessibilityState={{ disabled: submitting, busy: submitting }}
-            onPress={() => {
-              void onSubmit();
-            }}
-            style={({ pressed }) => [
-              styles.submit,
-              (pressed || submitting) && styles.submitPressed,
-            ]}
-          >
-            <ThemedText type="smallBold">
-              {submitting ? "Saving…" : "Save meal"}
-            </ThemedText>
-          </Pressable>
+          <View style={styles.actionsRow}>
+            {hasContent ? (
+              <Pressable
+                accessibilityRole="button"
+                testID="clear-meal-button"
+                accessibilityLabel="Clear meal"
+                accessibilityHint="Clears all meal fields, photo, and draft"
+                disabled={submitting || snapping || refining}
+                accessibilityState={{
+                  disabled: submitting || snapping || refining,
+                }}
+                onPress={() => {
+                  void onClear();
+                }}
+                style={({ pressed }) => [
+                  styles.clearButton,
+                  pressed && styles.snapPressed,
+                ]}
+              >
+                <ThemedText type="smallBold" themeColor="textSecondary">
+                  Clear
+                </ThemedText>
+              </Pressable>
+            ) : null}
+
+            <Pressable
+              accessibilityRole="button"
+              testID="submit-meal-button"
+              disabled={submitting || snapping || refining}
+              accessibilityState={{
+                disabled: submitting || snapping || refining,
+                busy: submitting,
+              }}
+              onPress={() => {
+                void onSubmit();
+              }}
+              style={({ pressed }) => [
+                styles.submit,
+                hasContent && styles.submitWithClear,
+                (pressed || submitting) && styles.submitPressed,
+              ]}
+            >
+              <ThemedText type="smallBold" style={styles.submitText}>
+                {submitting ? "Saving…" : "Save meal"}
+              </ThemedText>
+            </Pressable>
+          </View>
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
@@ -808,6 +893,24 @@ const styles = StyleSheet.create({
   description: { minHeight: 76, textAlignVertical: "top" },
   macroRow: { flexDirection: "row", gap: Spacing.two },
   macroField: { flex: 1 },
+  actionsRow: {
+    flexDirection: "row",
+    gap: Spacing.two,
+    alignItems: "center",
+  },
+  clearButton: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#8A8D91",
+    borderRadius: Spacing.three,
+    paddingVertical: Spacing.three,
+    paddingHorizontal: Spacing.four,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerClearButton: {
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.one,
+  },
   submit: {
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "#1F1F23",
@@ -815,6 +918,11 @@ const styles = StyleSheet.create({
     padding: Spacing.three,
     alignItems: "center",
     backgroundColor: "#1F1F23",
+  },
+  submitWithClear: {
+    flex: 1,
+  },
+  submitText: {
     color: "#FFFFFF",
   },
   submitPressed: { opacity: 0.65 },
