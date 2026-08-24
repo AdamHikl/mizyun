@@ -19,6 +19,7 @@
     "@mizyun/core": "workspace:*",
     "@mizyun/identity": "workspace:*",
     "@mizyun/memory": "workspace:*",
+    "@mizyun/provider-gemini": "workspace:*",
     "@mizyun/provider-mistral": "workspace:*",
     "fastify": "^5.0.0",
     "fastify-plugin": "^5.0.1",

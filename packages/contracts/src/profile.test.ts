@@ -41,4 +41,22 @@ describe("coachingPreferencesSchema", () => {
       }).success,
     ).toBe(true);
   });
+
+  it("accepts aiProvider in profile patch", () => {
+    expect(
+      profilePatchSchema.safeParse({
+        aiProvider: "gemini",
+      }).success,
+    ).toBe(true);
+    expect(
+      profilePatchSchema.safeParse({
+        aiProvider: "mistral",
+      }).success,
+    ).toBe(true);
+    expect(
+      profilePatchSchema.safeParse({
+        aiProvider: "unsupported",
+      }).success,
+    ).toBe(false);
+  });
 });

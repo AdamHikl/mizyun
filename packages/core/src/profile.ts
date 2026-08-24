@@ -122,6 +122,12 @@ export type PlanTier = "free" | "paid";
 
 export const DEFAULT_PLAN_TIER: PlanTier = "free";
 
+/** Closed set of AI model providers. */
+export const AI_PROVIDERS = ["mistral", "gemini"] as const;
+export type AiProvider = (typeof AI_PROVIDERS)[number];
+
+export const DEFAULT_AI_PROVIDER: AiProvider = "mistral";
+
 /**
  * Plain profile shape. The wire schema in `@mizyun/contracts` is the
  * superset (it also carries `userId`, `createdAt`, `updatedAt`). This
@@ -137,6 +143,7 @@ export interface ProfileCore {
   readonly sexAtBirth: ProfileSexAtBirth | null;
   readonly coachingPreferences: CoachingPreferences;
   readonly planTier: PlanTier;
+  readonly aiProvider: AiProvider;
 }
 
 /**
@@ -171,6 +178,7 @@ export type ProfilePatch = {
   readonly activityLevel?: ProfileActivityLevel | null | undefined;
   readonly sexAtBirth?: ProfileSexAtBirth | null | undefined;
   readonly coachingPreferences?: CoachingPreferences | undefined;
+  readonly aiProvider?: AiProvider | undefined;
 };
 
 /**
@@ -196,7 +204,8 @@ export type ProfileValidationError =
   | { readonly kind: "invalid_unit_system"; readonly value: string }
   | { readonly kind: "invalid_activity_level"; readonly value: string }
   | { readonly kind: "invalid_sex_at_birth"; readonly value: string }
-  | { readonly kind: "invalid_coaching_preferences" };
+  | { readonly kind: "invalid_coaching_preferences" }
+  | { readonly kind: "invalid_ai_provider"; readonly value: string };
 
 const TIMEZONE_PATTERN = /^[A-Za-z][A-Za-z0-9_+\-/]*$/;
 const MAX_BIRTH_YEAR = () => new Date().getUTCFullYear();
@@ -339,6 +348,16 @@ const validateCoachingPreferences = (
   return null;
 };
 
+const validateAiProvider = (
+  value: AiProvider | undefined,
+): ProfileValidationError | null => {
+  if (value === undefined) return null;
+  if (!AI_PROVIDERS.includes(value)) {
+    return { kind: "invalid_ai_provider", value };
+  }
+  return null;
+};
+
 /**
  * Validate the patch as a whole. Returns `null` on success or the
  * first failure reason encountered. The route layer wraps the failure
@@ -364,6 +383,8 @@ export const validateProfilePatch = (
   if (e7 !== null) errors.push(e7);
   const e8 = validateCoachingPreferences(patch.coachingPreferences);
   if (e8 !== null) errors.push(e8);
+  const e9 = validateAiProvider(patch.aiProvider);
+  if (e9 !== null) errors.push(e9);
 
   if (errors.length === 0) {
     // Empty patch is still rejected because it has no effect.
@@ -375,7 +396,8 @@ export const validateProfilePatch = (
       patch.heightCm !== undefined ||
       patch.activityLevel !== undefined ||
       patch.sexAtBirth !== undefined ||
-      patch.coachingPreferences !== undefined;
+      patch.coachingPreferences !== undefined ||
+      patch.aiProvider !== undefined;
     return anyTouched ? null : { kind: "empty_patch" };
   }
   return errors[0] as ProfileValidationError;
@@ -415,6 +437,8 @@ export const applyProfilePatch = (
       ? stored.coachingPreferences
       : patch.coachingPreferences,
   planTier: stored.planTier,
+  aiProvider:
+    patch.aiProvider === undefined ? stored.aiProvider : patch.aiProvider,
   createdAt: stored.createdAt,
   updatedAt: now,
 });

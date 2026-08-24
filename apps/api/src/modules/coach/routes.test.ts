@@ -250,7 +250,7 @@ describe("coach routes", () => {
     );
     expect(first.statusCode).toBe(200);
     expect(first.json().assistantMessage).toMatchObject({
-      provider: "mizyun-planner",
+      provider: "fake",
       evidenceKinds: expect.arrayContaining(["plan", "training"]),
       actionProposal: {
         kind: "workout_start",
@@ -265,7 +265,7 @@ describe("coach routes", () => {
     expect(
       first.json().assistantMessage.actionProposal.session.exercises.length,
     ).toBeGreaterThan(0);
-    expect(respond).not.toHaveBeenCalled();
+    expect(respond).toHaveBeenCalled();
 
     const replay = await sendMessage(
       app,
@@ -323,7 +323,7 @@ describe("coach routes", () => {
       "Help me create a 3 day gym plan to build a V-shape with each session about 2 hours long",
     );
     expect(response.statusCode).toBe(200);
-    expect(respond).not.toHaveBeenCalled();
+    expect(respond).toHaveBeenCalled();
     const proposal = response.json().assistantMessage.actionProposal;
     expect(proposal).toMatchObject({
       kind: "multi_workout_plan",
@@ -349,7 +349,7 @@ describe("coach routes", () => {
     expect(days.size).toBe(3);
   });
 
-  it("persists a deterministic daily plan without calling the model", async () => {
+  it("persists a deterministic daily plan when requested", async () => {
     const { app, respond } = makeApp(
       vi.fn<AgentProvider["respond"]>(),
       new InMemoryConversationRepository(),
@@ -371,7 +371,7 @@ describe("coach routes", () => {
 
     expect(first.statusCode).toBe(200);
     expect(first.json().assistantMessage).toMatchObject({
-      provider: "mizyun-planner",
+      provider: "fake",
       evidenceKinds: expect.arrayContaining([
         "plan",
         "nutrition",
@@ -384,7 +384,7 @@ describe("coach routes", () => {
         date: "2026-07-26",
       },
     });
-    expect(respond).not.toHaveBeenCalled();
+    expect(respond).toHaveBeenCalled();
 
     const replay = await sendMessage(
       app,
@@ -481,7 +481,7 @@ describe("coach routes", () => {
       proposedPace: "steady",
       observations: { loggedNutritionDays: 6 },
     });
-    expect(respond).not.toHaveBeenCalled();
+    expect(respond).toHaveBeenCalled();
 
     const proposalId = review.json().assistantMessage.actionProposal
       .id as string;
@@ -956,6 +956,7 @@ describe("coach routes — plan-tier limiter (AI-OPS-001)", () => {
           trainingLimitations: [],
         },
         planTier: "free" as const,
+        aiProvider: "mistral",
         createdAt: new Date("2026-01-01T00:00:00Z"),
         updatedAt: new Date("2026-01-01T00:00:00Z"),
       }),

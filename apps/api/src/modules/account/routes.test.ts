@@ -270,6 +270,7 @@ describe("DELETE /v1/account", () => {
         trainingLimitations: [],
       },
       planTier: "free",
+      aiProvider: "mistral",
       createdAt: new Date("2026-07-10T08:00:00Z"),
       updatedAt: new Date("2026-07-10T08:00:00Z"),
     });

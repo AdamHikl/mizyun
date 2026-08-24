@@ -34,17 +34,27 @@ import {
   systemClock,
   type BodyMeasurementRepository,
   type Clock,
+  type CoachingPreferences,
+  type EquipmentOption,
   type FoodEntryRepository,
   type GoalRepository,
   type ProfileRepository,
   type SessionFocus,
+  type TrainingFocusPreference,
+  type TrainingLimitation,
   type UserId,
   type WorkoutRepository,
   type WorkoutSetRepository,
 } from "@mizyun/core";
-import { coachingPlanSchema } from "@mizyun/contracts";
-import { trainingPrescriptionSchema } from "@mizyun/contracts";
-import type { CoachingPreferences } from "@mizyun/core";
+import {
+  coachActionProposalSchema,
+  coachMultiWorkoutPlanProposalSchema,
+  coachingPlanSchema,
+  trainingPrescriptionSchema,
+  type CoachActionProposal,
+  type CoachMultiWorkoutPlanProposal,
+  type TrainingPrescriptionResponse,
+} from "@mizyun/contracts";
 
 const MAX_DAYS_BACK = 28;
 const DEFAULT_DAYS_BACK = 7;
@@ -738,31 +748,220 @@ export const buildGetCoachingPlanTool = (
   },
 });
 
+export const buildMultiWorkoutProposalFromPrescription = (
+  prescription: TrainingPrescriptionResponse["prescription"],
+  now: Date,
+  options?: {
+    readonly requestedSessions?: number;
+    readonly sessionMinutes?: number;
+    readonly focus?: string | null;
+    readonly sessionDistribution?: readonly SessionFocus[] | null;
+  },
+): CoachMultiWorkoutPlanProposal => {
+  const requestedSessions = Math.min(
+    Math.max(1, options?.requestedSessions ?? prescription.sessions.length),
+    7,
+  );
+  const sessionsToReturn = prescription.sessions.slice(0, requestedSessions);
+  const startDay = new Date(now.getTime());
+  const stepDays = Math.max(
+    1,
+    Math.floor(7 / Math.max(sessionsToReturn.length, 1)),
+  );
+  const sessionsWithDays = sessionsToReturn.map((session, idx) => {
+    const day = new Date(startDay.getTime() + idx * stepDays * 86_400_000);
+    const targetDay = day.toISOString().slice(0, 10);
+    const sessionFocus =
+      options?.sessionDistribution?.[idx] ?? options?.focus ?? null;
+    return {
+      ...session,
+      focus: sessionFocus,
+      targetDay,
+    };
+  });
+  const endDay =
+    sessionsWithDays[sessionsWithDays.length - 1]?.targetDay ??
+    startDay.toISOString().slice(0, 10);
+  const sessionMinutes =
+    options?.sessionMinutes ?? sessionsToReturn[0]?.estimatedMinutes ?? 60;
+  return coachMultiWorkoutPlanProposalSchema.parse({
+    id: crypto.randomUUID(),
+    kind: "multi_workout_plan",
+    prescriptionVersion: prescription.version,
+    volumeAction: prescription.volumeAction,
+    focus: options?.focus ?? null,
+    requestedSessions: sessionsToReturn.length,
+    sessionMinutes,
+    rationale:
+      prescription.assumptions[0] ??
+      `Built ${sessionsToReturn.length} sessions of about ${sessionMinutes} minutes from your confirmed goal, equipment, and recent load.`,
+    sessions: sessionsWithDays,
+    startDay: startDay.toISOString().slice(0, 10),
+    endDay,
+  });
+};
+
+export interface GetTrainingPrescriptionArgs {
+  readonly days_per_week?: number;
+  readonly session_duration_minutes?: number;
+  readonly session_distribution?: readonly SessionFocus[];
+  readonly training_focus?: TrainingFocusPreference;
+  readonly available_equipment?: readonly EquipmentOption[];
+  readonly limitations?: readonly TrainingLimitation[];
+}
+
 export const buildGetTrainingPrescriptionTool = (
   deps: CoachToolDeps,
-): AgentTool<Record<string, never>> => ({
+): AgentTool<GetTrainingPrescriptionArgs> => ({
   name: "get_training_prescription",
   description:
-    "Return a deterministic, editable weekly exercise prescription using the user's confirmed goal, experience, schedule, equipment, movement constraints, and recent session/set/RPE load. The result caps volume and never interprets injury or pain.",
+    "Build and return a deterministic, safe exercise prescription using the user's confirmed goal, experience, schedule, equipment, movement constraints, and recent session/set/RPE load. Pass explicit parameters (days_per_week, session_duration_minutes, session_distribution, training_focus, available_equipment, limitations) when requested by the user.",
   parameters: {
     type: "object",
     additionalProperties: false,
-    properties: {},
+    properties: {
+      days_per_week: {
+        type: "integer",
+        minimum: 1,
+        maximum: 7,
+        description:
+          "Target number of training sessions or days per week (1 to 7).",
+      },
+      session_duration_minutes: {
+        type: "integer",
+        minimum: 15,
+        maximum: 180,
+        description:
+          "Target duration per workout session in minutes (e.g. 30, 45, 60, 90, 120, 150).",
+      },
+      session_distribution: {
+        type: "array",
+        items: {
+          type: "string",
+          enum: ["upper", "lower", "full"],
+        },
+        description:
+          "Per-session focus distribution across days (e.g. ['upper', 'upper', 'lower'] for two upper and one lower body day).",
+      },
+      training_focus: {
+        type: "string",
+        enum: ["balanced", "strength", "hypertrophy", "endurance"],
+        description:
+          "Target training style / focus (use 'hypertrophy' for muscle building / V-shape, 'strength', 'endurance', 'balanced').",
+      },
+      available_equipment: {
+        type: "array",
+        items: {
+          type: "string",
+          enum: [
+            "bodyweight",
+            "dumbbells",
+            "barbell",
+            "bench",
+            "rack",
+            "cable_machine",
+            "resistance_bands",
+            "pullup_bar",
+            "cardio_machine",
+            "full_gym",
+          ],
+        },
+        description:
+          "Available equipment for the plan (e.g. ['dumbbells', 'barbell', 'cable_machine', 'bench', 'pullup_bar']).",
+      },
+      limitations: {
+        type: "array",
+        items: {
+          type: "string",
+          enum: [
+            "low_impact_only",
+            "no_overhead_work",
+            "no_running",
+            "no_jumping",
+            "limited_knee_flexion",
+            "limited_spinal_loading",
+          ],
+        },
+        description: "Movement limitations or constraints to avoid.",
+      },
+    },
   },
-  execute: async ({ principalUserId, accessToken, clock }) => {
+  execute: async ({ principalUserId, args, accessToken, clock }) => {
     const now = resolveClock(deps, clock).now();
+    const typedArgs = (args ?? {}) as Partial<GetTrainingPrescriptionArgs>;
+
+    const preferenceOverride: {
+      trainingDaysPerWeek?: number;
+      sessionDurationMinutes?: number;
+      trainingFocus?: TrainingFocusPreference;
+      availableEquipment?: readonly EquipmentOption[];
+      trainingLimitations?: readonly TrainingLimitation[];
+    } = {};
+    if (typeof typedArgs.days_per_week === "number") {
+      preferenceOverride.trainingDaysPerWeek = typedArgs.days_per_week;
+    }
+    if (typeof typedArgs.session_duration_minutes === "number") {
+      preferenceOverride.sessionDurationMinutes =
+        typedArgs.session_duration_minutes;
+    }
+    if (typeof typedArgs.training_focus === "string") {
+      preferenceOverride.trainingFocus = typedArgs.training_focus;
+    }
+    if (Array.isArray(typedArgs.available_equipment)) {
+      preferenceOverride.availableEquipment = typedArgs.available_equipment;
+    }
+    if (Array.isArray(typedArgs.limitations)) {
+      preferenceOverride.trainingLimitations = typedArgs.limitations;
+    }
+
+    const sessionDistribution = Array.isArray(typedArgs.session_distribution)
+      ? typedArgs.session_distribution
+      : undefined;
+
     const data = await buildTrainingPrescriptionForUser(
       deps,
       principalUserId,
       accessToken,
       now,
+      {
+        preferenceOverride,
+        ...(sessionDistribution ? { sessionDistribution } : {}),
+      },
     );
+
+    let actionProposal: CoachActionProposal | null = null;
+    if (data.sessions.length > 0) {
+      if (data.sessions.length === 1 && typedArgs.days_per_week === 1) {
+        actionProposal = coachActionProposalSchema.parse({
+          id: crypto.randomUUID(),
+          kind: "workout_start",
+          prescriptionVersion: data.version,
+          volumeAction: data.volumeAction,
+          session: data.sessions[0],
+        });
+      } else {
+        const proposal = buildMultiWorkoutProposalFromPrescription(data, now, {
+          requestedSessions: typedArgs.days_per_week ?? data.sessions.length,
+          sessionMinutes:
+            typedArgs.session_duration_minutes ??
+            data.sessions[0]?.estimatedMinutes ??
+            60,
+          focus: typedArgs.training_focus ?? null,
+          sessionDistribution: sessionDistribution ?? null,
+        });
+        actionProposal = proposal;
+      }
+    }
+
     return {
       kind: "plan",
       label: "Deterministic weekly training prescription",
       confirmed: true,
       freshness: freshnessOf(now),
-      data,
+      data: {
+        ...data,
+        actionProposal,
+      },
     } satisfies AgentGroundingItem;
   },
 });

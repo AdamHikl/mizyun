@@ -170,6 +170,7 @@ describe("SupabaseProfileRepository.update", () => {
           },
           created_at: "2026-01-01T00:00:00.000Z",
           updated_at: "2026-07-17T12:00:00.000Z",
+          ai_provider: "gemini",
         },
         error: null,
       },
@@ -199,6 +200,7 @@ describe("SupabaseProfileRepository.update", () => {
           trainingLimitations: [],
         },
         planTier: "free",
+        aiProvider: "gemini",
         createdAt: new Date("2026-01-01T00:00:00.000Z"),
         updatedAt: new Date("2026-07-17T12:00:00.000Z"),
       },
@@ -207,6 +209,7 @@ describe("SupabaseProfileRepository.update", () => {
     expect(stored.unitSystem).toBe("imperial");
     expect(stored.activityLevel).toBe("moderately_active");
     expect(stored.sexAtBirth).toBe("male");
+    expect(stored.aiProvider).toBe("gemini");
     expect(stored.coachingPreferences.trainingFocus).toBe("strength");
   });
 
@@ -243,6 +246,7 @@ describe("SupabaseProfileRepository.update", () => {
             trainingLimitations: [],
           },
           planTier: "free",
+          aiProvider: "mistral",
           createdAt: new Date(),
           updatedAt: new Date(),
         },

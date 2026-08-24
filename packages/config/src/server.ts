@@ -40,16 +40,35 @@ export interface ServerMistralVisionConfiguration {
   readonly maxOutputTokens: number;
 }
 
+export interface ServerGeminiConfiguration {
+  readonly apiKey: string;
+  readonly model: string;
+  readonly timeoutMs: number;
+  readonly maxOutputTokens: number;
+  readonly dailyUserTokenBudget: number;
+  readonly userRequestsPerMinute: number;
+  readonly userMaxConcurrentRequests: number;
+}
+
+export interface ServerGeminiVisionConfiguration {
+  readonly apiKey: string;
+  readonly model: string;
+  readonly timeoutMs: number;
+  readonly maxOutputTokens: number;
+}
+
 export interface ServerConfig {
   readonly host: string;
   readonly port: number;
   readonly env: NodeEnv;
   readonly supabase: AuthConfigurationStatus;
   readonly supabaseConfig: ServerSupabaseConfiguration | null;
-  readonly agentProvider: "disabled" | "mistral";
+  readonly agentProvider: "disabled" | "mistral" | "gemini" | "multi";
   readonly visionProvider: "disabled" | "stub";
   readonly mistralConfig: ServerMistralConfiguration | null;
   readonly mistralVisionConfig: ServerMistralVisionConfiguration | null;
+  readonly geminiConfig: ServerGeminiConfiguration | null;
+  readonly geminiVisionConfig: ServerGeminiVisionConfiguration | null;
   readonly aiExternalAccess: boolean;
 }
 
@@ -73,6 +92,14 @@ export const SERVER_ENV_KEYS = {
   mistralVisionModel: "MISTRAL_VISION_MODEL",
   mistralVisionTimeoutMs: "MISTRAL_VISION_TIMEOUT_MS",
   mistralVisionMaxOutputTokens: "MISTRAL_VISION_MAX_OUTPUT_TOKENS",
+  geminiApiKey: "GEMINI_API_KEY",
+  geminiModel: "GEMINI_MODEL",
+  geminiTimeoutMs: "GEMINI_TIMEOUT_MS",
+  geminiMaxOutputTokens: "GEMINI_MAX_OUTPUT_TOKENS",
+  geminiVisionApiKey: "GEMINI_VISION_API_KEY",
+  geminiVisionModel: "GEMINI_VISION_MODEL",
+  geminiVisionTimeoutMs: "GEMINI_VISION_TIMEOUT_MS",
+  geminiVisionMaxOutputTokens: "GEMINI_VISION_MAX_OUTPUT_TOKENS",
   aiDailyUserTokenBudget: "AI_DAILY_USER_TOKEN_BUDGET",
   aiUserRequestsPerMinute: "AI_USER_REQUESTS_PER_MINUTE",
   aiUserMaxConcurrentRequests: "AI_USER_MAX_CONCURRENT_REQUESTS",
@@ -99,15 +126,16 @@ const baseServerSchema = z.object({
     .string()
     .min(20, "SUPABASE_SERVICE_ROLE_KEY must be at least 20 characters")
     .nullish(),
-  agentProvider: z.enum(["disabled", "mistral"]).default("disabled"),
+  agentProvider: z
+    .enum(["disabled", "mistral", "gemini", "multi"])
+    .default("disabled"),
   /**
    * VISION-001 — overrides the photo-draft vision provider.
    * `disabled` (default) returns 503 AI_CONFIGURATION_ERROR on
    * the /v1/food-entries/draft endpoint. `stub` wires the
    * deterministic StubVisionProvider for local dev + smoke. The
-   * Mistral vision provider is selected by setting
-   * `MISTRAL_VISION_API_KEY`; `VISION_PROVIDER` is ignored in
-   * that case (production always uses Mistral).
+   * vision provider is selected by setting `MISTRAL_VISION_API_KEY`
+   * or `GEMINI_VISION_API_KEY`/`GEMINI_API_KEY`.
    */
   visionProvider: z.enum(["disabled", "stub"]).default("disabled"),
   mistralApiKey: z
@@ -154,6 +182,46 @@ const baseServerSchema = z.object({
     .min(128, "MISTRAL_VISION_MAX_OUTPUT_TOKENS must be >= 128")
     .max(8_192, "MISTRAL_VISION_MAX_OUTPUT_TOKENS must be <= 8192")
     .default(1_200),
+  geminiApiKey: z
+    .string()
+    .min(10, "GEMINI_API_KEY must not be empty")
+    .optional(),
+  geminiModel: z
+    .string()
+    .min(1, "GEMINI_MODEL must not be empty")
+    .default("gemini-2.5-flash"),
+  geminiTimeoutMs: z.coerce
+    .number()
+    .int("GEMINI_TIMEOUT_MS must be an integer")
+    .min(1_000, "GEMINI_TIMEOUT_MS must be >= 1000")
+    .max(120_000, "GEMINI_TIMEOUT_MS must be <= 120000")
+    .default(30_000),
+  geminiMaxOutputTokens: z.coerce
+    .number()
+    .int("GEMINI_MAX_OUTPUT_TOKENS must be an integer")
+    .min(128, "GEMINI_MAX_OUTPUT_TOKENS must be >= 128")
+    .max(32_768, "GEMINI_MAX_OUTPUT_TOKENS must be <= 32768")
+    .default(8_192),
+  geminiVisionApiKey: z
+    .string()
+    .min(10, "GEMINI_VISION_API_KEY must not be empty")
+    .optional(),
+  geminiVisionModel: z
+    .string()
+    .min(1, "GEMINI_VISION_MODEL must not be empty")
+    .default("gemini-2.5-flash"),
+  geminiVisionTimeoutMs: z.coerce
+    .number()
+    .int("GEMINI_VISION_TIMEOUT_MS must be an integer")
+    .min(1_000, "GEMINI_VISION_TIMEOUT_MS must be >= 1000")
+    .max(120_000, "GEMINI_VISION_TIMEOUT_MS must be <= 120000")
+    .default(45_000),
+  geminiVisionMaxOutputTokens: z.coerce
+    .number()
+    .int("GEMINI_VISION_MAX_OUTPUT_TOKENS must be an integer")
+    .min(128, "GEMINI_VISION_MAX_OUTPUT_TOKENS must be >= 128")
+    .max(32_768, "GEMINI_VISION_MAX_OUTPUT_TOKENS must be <= 32768")
+    .default(8_192),
   aiDailyUserTokenBudget: z.coerce
     .number()
     .int("AI_DAILY_USER_TOKEN_BUDGET must be an integer")
@@ -248,6 +316,24 @@ export const loadServerConfig = (
   ) {
     issues.push({ kind: "missing", keys: [SERVER_ENV_KEYS.mistralApiKey] });
   }
+  if (
+    parsed.success &&
+    parsed.data.agentProvider === "gemini" &&
+    parsed.data.geminiApiKey === undefined
+  ) {
+    issues.push({ kind: "missing", keys: [SERVER_ENV_KEYS.geminiApiKey] });
+  }
+  if (
+    parsed.success &&
+    parsed.data.agentProvider === "multi" &&
+    parsed.data.mistralApiKey === undefined &&
+    parsed.data.geminiApiKey === undefined
+  ) {
+    issues.push({
+      kind: "missing",
+      keys: [SERVER_ENV_KEYS.mistralApiKey, SERVER_ENV_KEYS.geminiApiKey],
+    });
+  }
   if (parsed.success && parsed.data.env === "production") {
     if (!bothPresent) {
       issues.push({
@@ -287,7 +373,7 @@ export const loadServerConfig = (
       ? { url, publishableKey, ...(serviceRoleKey ? { serviceRoleKey } : {}) }
       : null;
   const mistralConfig: ServerMistralConfiguration | null =
-    value.agentProvider === "mistral" && value.mistralApiKey !== undefined
+    value.mistralApiKey !== undefined
       ? {
           apiKey: value.mistralApiKey,
           model: value.mistralModel,
@@ -308,6 +394,29 @@ export const loadServerConfig = (
           maxOutputTokens: value.mistralVisionMaxOutputTokens,
         }
       : null;
+  const geminiConfig: ServerGeminiConfiguration | null =
+    value.geminiApiKey !== undefined
+      ? {
+          apiKey: value.geminiApiKey,
+          model: value.geminiModel,
+          timeoutMs: value.geminiTimeoutMs,
+          maxOutputTokens: value.geminiMaxOutputTokens,
+          dailyUserTokenBudget: value.aiDailyUserTokenBudget,
+          userRequestsPerMinute: value.aiUserRequestsPerMinute,
+          userMaxConcurrentRequests: value.aiUserMaxConcurrentRequests,
+        }
+      : null;
+  const geminiVisionApiKeyResolved =
+    value.geminiVisionApiKey ?? value.geminiApiKey;
+  const geminiVisionConfig: ServerGeminiVisionConfiguration | null =
+    geminiVisionApiKeyResolved !== undefined
+      ? {
+          apiKey: geminiVisionApiKeyResolved,
+          model: value.geminiVisionModel,
+          timeoutMs: value.geminiVisionTimeoutMs,
+          maxOutputTokens: value.geminiVisionMaxOutputTokens,
+        }
+      : null;
 
   return ok({
     env: value.env,
@@ -319,6 +428,8 @@ export const loadServerConfig = (
     visionProvider: value.visionProvider,
     mistralConfig,
     mistralVisionConfig,
+    geminiConfig,
+    geminiVisionConfig,
     aiExternalAccess: value.aiExternalAccess,
   });
 };

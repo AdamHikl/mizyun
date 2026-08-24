@@ -480,4 +480,42 @@ describe("loadServerConfig — closed-world", () => {
       );
     }
   });
+
+  it("builds a bounded Gemini configuration with external access default-off", () => {
+    const result = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.agentProvider]: "gemini",
+        [SERVER_ENV_KEYS.geminiApiKey]: "test-gemini-key-12345",
+      },
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).toMatchObject({
+      agentProvider: "gemini",
+      aiExternalAccess: false,
+      geminiConfig: {
+        apiKey: "test-gemini-key-12345",
+        model: "gemini-2.5-flash",
+        timeoutMs: 30_000,
+        maxOutputTokens: 8_192,
+      },
+      geminiVisionConfig: {
+        apiKey: "test-gemini-key-12345",
+        model: "gemini-2.5-flash",
+      },
+    });
+  });
+
+  it("requires GEMINI_API_KEY when AGENT_PROVIDER=gemini", () => {
+    const result = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.agentProvider]: "gemini",
+      },
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error[0]?.kind).toBe("missing");
+  });
 });

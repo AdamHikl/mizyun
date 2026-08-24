@@ -37,6 +37,7 @@ import {
   coachProviderStatusSchema,
   coachThreadResponseSchema,
   trainingPrescriptionResponseSchema,
+  type CoachActionProposal,
   type CoachConversation,
   type CoachMessage,
   type TrainingPrescriptionResponse,
@@ -51,20 +52,24 @@ import type { CoachLimitService } from "./limits.js";
 import { isExplicitMealLoggingIntent } from "./nutrition-action.js";
 import {
   buildDailyActionPlanForUser,
+  buildMultiWorkoutProposalFromPrescription,
   buildTrainingPrescriptionForUser,
   buildWeeklyAdaptationForUser,
 } from "./tools.js";
-import { isExplicitWorkoutProposalIntent } from "./workout-action.js";
-import { isExplicitWeeklyAdaptationIntent } from "./weekly-adaptation-action.js";
 import {
   defaultMultiWorkoutParams,
   extractMultiWorkoutParamsFromText,
   isMultiWorkoutProposalIntent,
   type MultiWorkoutParams,
 } from "./multi-workout-action.js";
+import { isExplicitWorkoutProposalIntent } from "./workout-action.js";
+import { isExplicitWeeklyAdaptationIntent } from "./weekly-adaptation-action.js";
 
 interface CoachRoutesOptions {
   readonly agent: AgentOrchestrator;
+  readonly resolveAgent?: (
+    provider: import("@mizyun/contracts").AiProvider,
+  ) => AgentOrchestrator;
   readonly conversationRepository: ConversationRepository;
   readonly profileRepository: ProfileRepository;
   readonly goalRepository: GoalRepository;
@@ -74,6 +79,9 @@ interface CoachRoutesOptions {
   readonly bodyMeasurementRepository: BodyMeasurementRepository;
   readonly limits: CoachLimitService;
   readonly nutritionDraftProvider: VisionDraftProvider;
+  readonly resolveNutritionDraftProvider?: (
+    provider: import("@mizyun/contracts").AiProvider,
+  ) => VisionDraftProvider;
   readonly nutritionDraftRateLimiter: FoodDraftRateLimiter;
   /**
    * Optional. When supplied (MEM-001), the grounding build pulls
@@ -607,20 +615,22 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
             "Meal drafts are limited. Try again shortly.",
           );
         }
+        const draftProvider = options.resolveNutritionDraftProvider
+          ? options.resolveNutritionDraftProvider(profile.aiProvider)
+          : options.nutritionDraftProvider;
         try {
-          if (options.nutritionDraftProvider.generateTextDraft === undefined) {
+          if (draftProvider.generateTextDraft === undefined) {
             throw new VisionProviderError(
               "not_configured",
               "Text nutrition drafts are not configured on this server.",
               false,
             );
           }
-          const candidate =
-            await options.nutritionDraftProvider.generateTextDraft({
-              userId: principal.userId as UserId,
-              description: parsed.data.text,
-              requestId: crypto.randomUUID(),
-            });
+          const candidate = await draftProvider.generateTextDraft({
+            userId: principal.userId as UserId,
+            description: parsed.data.text,
+            requestId: crypto.randomUUID(),
+          });
           const actionProposal = coachNutritionProposalSchema.parse({
             id: crypto.randomUUID(),
             kind: "meal_log",
@@ -679,307 +689,6 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
           }
           throw error;
         }
-      }
-
-      if (isExplicitWorkoutProposalIntent(parsed.data.text)) {
-        const prescription = await buildTrainingPrescriptionForUser(
-          options,
-          principal.userId,
-          principal.accessToken,
-          now(),
-        );
-        const session =
-          prescription.sessions.length === 0
-            ? null
-            : (prescription.sessions[
-                prescription.recentLoad.completedSessionsLast7Days %
-                  prescription.sessions.length
-              ] ??
-              prescription.sessions[0] ??
-              null);
-        const actionProposal =
-          session === null
-            ? null
-            : coachActionProposalSchema.parse({
-                id: crypto.randomUUID(),
-                kind: "workout_start",
-                prescriptionVersion: prescription.version,
-                volumeAction: prescription.volumeAction,
-                session,
-              });
-        const assistantMessage =
-          await options.conversationRepository.addMessage(
-            principal.userId,
-            {
-              id: crypto.randomUUID(),
-              conversationId,
-              role: "assistant",
-              text:
-                actionProposal === null
-                  ? `I need ${prescription.missingInputs.join(
-                      ", ",
-                    )} before I can build a workout. Add those Coach preferences first.`
-                  : `I prepared ${session?.label ?? "today’s workout"} from your confirmed goal, schedule, equipment, limitations, and recent training load. Review it before starting.`,
-              status: "complete",
-              idempotencyKey: null,
-              providerMetadata: {
-                provider: "mizyun-planner",
-                replyTo: userMessage.id,
-                evidenceKinds: ["plan", "training", "profile", "goal"],
-                ...(actionProposal === null ? {} : { actionProposal }),
-              },
-            },
-            { accessToken: principal.accessToken, now: now() },
-          );
-        const latestConversation =
-          (await options.conversationRepository.get(
-            principal.userId,
-            conversationId,
-            { accessToken: principal.accessToken },
-          )) ?? conversation;
-        return coachMessageResponseSchema.parse({
-          conversation: toConversationWire(latestConversation),
-          userMessage: toMessageWire(userMessage),
-          assistantMessage: toMessageWire(assistantMessage),
-        });
-      }
-
-      // AI-ACT-006 — multi-session workout plan.
-      //
-      // The Coach detects explicit multi-session requests ("3 day
-      // plan", "Push Pull Legs split", "V-shape with 2-hour sessions")
-      // and asks the deterministic training-prescription engine to
-      // build an ordered list of N sessions, auto-scheduled across
-      // the next 7 days. The user can save them all (or per session)
-      // and get a real interactive workout for each one.
-      if (isMultiWorkoutProposalIntent(parsed.data.text)) {
-        const patternParams = extractMultiWorkoutParamsFromText(
-          parsed.data.text,
-        );
-        const profile = await options.profileRepository.getOrCreate(
-          principal.userId,
-          { now: now(), accessToken: principal.accessToken },
-        );
-        const params: MultiWorkoutParams =
-          patternParams ??
-          defaultMultiWorkoutParams({
-            trainingDaysPerWeek:
-              profile.coachingPreferences.trainingDaysPerWeek,
-            sessionDurationMinutes:
-              profile.coachingPreferences.sessionDurationMinutes,
-          });
-
-        const prescription = await buildTrainingPrescriptionForUser(
-          options,
-          principal.userId,
-          principal.accessToken,
-          now(),
-          {
-            preferenceOverride: {
-              trainingDaysPerWeek: params.requestedSessions,
-              sessionDurationMinutes: params.sessionMinutes,
-              ...(params.focus === "general_hypertrophy"
-                ? { trainingFocus: "hypertrophy" }
-                : {}),
-            },
-            ...(params.sessionDistribution === null
-              ? {}
-              : { sessionDistribution: params.sessionDistribution }),
-          },
-        );
-
-        if (prescription.sessions.length === 0) {
-          // Deterministic engine refused (profile incomplete).
-          // Fall through to grounded text; the existing single-workout
-          // / daily-plan / weekly-adaptation paths cover most cases.
-        } else {
-          const sessionsToReturn = prescription.sessions.slice(
-            0,
-            params.requestedSessions,
-          );
-          const startDay = new Date(now().getTime());
-          const stepDays = Math.max(
-            1,
-            Math.floor(7 / Math.max(sessionsToReturn.length, 1)),
-          );
-          const sessionsWithDays = sessionsToReturn.map((session, idx) => {
-            const day = new Date(
-              startDay.getTime() + idx * stepDays * 86_400_000,
-            );
-            const targetDay = day.toISOString().slice(0, 10);
-            // Per-session focus: prefer the engine's distribution if
-            // we passed one down, otherwise fall back to the
-            // global MultiWorkoutFocus. The wire `focus` field is
-            // human-readable and the mobile UI displays it
-            // directly above each session.
-            const sessionFocus =
-              params.sessionDistribution?.[idx] ??
-              (params.focus === "unknown" ? null : params.focus);
-            return {
-              ...session,
-              focus: sessionFocus,
-              targetDay,
-            };
-          });
-          const endDay =
-            sessionsWithDays[sessionsWithDays.length - 1]?.targetDay ??
-            startDay.toISOString().slice(0, 10);
-          const actionProposal = coachMultiWorkoutPlanProposalSchema.parse({
-            id: crypto.randomUUID(),
-            kind: "multi_workout_plan",
-            prescriptionVersion: prescription.version,
-            volumeAction: prescription.volumeAction,
-            focus: params.focus === "unknown" ? null : params.focus,
-            requestedSessions: sessionsToReturn.length,
-            sessionMinutes: params.sessionMinutes,
-            rationale:
-              prescription.assumptions[0] ??
-              `Built ${sessionsToReturn.length} sessions of about ${params.sessionMinutes} minutes from your confirmed goal, equipment, and recent load.`,
-            sessions: sessionsWithDays,
-            startDay: startDay.toISOString().slice(0, 10),
-            endDay,
-          });
-          const assistantMessage =
-            await options.conversationRepository.addMessage(
-              principal.userId,
-              {
-                id: crypto.randomUUID(),
-                conversationId,
-                role: "assistant",
-                text: `Here is your ${sessionsToReturn.length}-session plan, auto-scheduled across the next 7 days. Save it to create the workouts, then open any session to start, reorder exercises, change weights, or add/remove sets.`,
-                status: "complete",
-                idempotencyKey: null,
-                providerMetadata: {
-                  provider: "mizyun-planner",
-                  replyTo: userMessage.id,
-                  evidenceKinds: ["plan", "training", "profile", "goal"],
-                  actionProposal,
-                },
-              },
-              { accessToken: principal.accessToken, now: now() },
-            );
-          const latestConversation =
-            (await options.conversationRepository.get(
-              principal.userId,
-              conversationId,
-              { accessToken: principal.accessToken },
-            )) ?? conversation;
-          return coachMessageResponseSchema.parse({
-            conversation: toConversationWire(latestConversation),
-            userMessage: toMessageWire(userMessage),
-            assistantMessage: toMessageWire(assistantMessage),
-          });
-        }
-      }
-
-      if (isExplicitDailyPlanIntent(parsed.data.text)) {
-        const dailyPlan = await buildDailyActionPlanForUser(
-          options,
-          principal.userId,
-          principal.accessToken,
-          now(),
-        );
-        const actionProposal = coachDailyPlanProposalSchema.parse({
-          id: crypto.randomUUID(),
-          kind: "daily_plan",
-          ...dailyPlan,
-        });
-        const assistantMessage =
-          await options.conversationRepository.addMessage(
-            principal.userId,
-            {
-              id: crypto.randomUUID(),
-              conversationId,
-              role: "assistant",
-              text:
-                dailyPlan.nextAction === "complete_setup"
-                  ? "Your daily plan needs a few confirmed inputs before it can be complete."
-                  : "Here is today’s plan from your confirmed meals, targets, and training. The priority is deterministic and will update as you log.",
-              status: "complete",
-              idempotencyKey: null,
-              providerMetadata: {
-                provider: "mizyun-planner",
-                replyTo: userMessage.id,
-                evidenceKinds: [
-                  "plan",
-                  "nutrition",
-                  "training",
-                  "profile",
-                  "goal",
-                  "energy",
-                ],
-                actionProposal,
-              },
-            },
-            { accessToken: principal.accessToken, now: now() },
-          );
-        const latestConversation =
-          (await options.conversationRepository.get(
-            principal.userId,
-            conversationId,
-            { accessToken: principal.accessToken },
-          )) ?? conversation;
-        return coachMessageResponseSchema.parse({
-          conversation: toConversationWire(latestConversation),
-          userMessage: toMessageWire(userMessage),
-          assistantMessage: toMessageWire(assistantMessage),
-        });
-      }
-
-      if (isExplicitWeeklyAdaptationIntent(parsed.data.text)) {
-        const weekly = await buildWeeklyAdaptationForUser(
-          options,
-          principal.userId,
-          principal.accessToken,
-          now(),
-        );
-        const actionProposal = coachWeeklyAdaptationProposalSchema.parse({
-          id: crypto.randomUUID(),
-          kind: "weekly_adaptation",
-          ...weekly,
-        });
-        const assistantMessage =
-          await options.conversationRepository.addMessage(
-            principal.userId,
-            {
-              id: crypto.randomUUID(),
-              conversationId,
-              role: "assistant",
-              text:
-                weekly.readiness === "insufficient_data"
-                  ? "I reviewed the confirmed week, but there is not enough reliable adherence and weight-trend evidence to change the plan."
-                  : weekly.proposedPace !== weekly.currentPace
-                    ? "The confirmed week supports one conservative goal-pace adjustment. Review it before accepting; nothing has changed yet."
-                    : "The confirmed week supports holding your current goal pace. Training volume is shown separately from calorie adaptation.",
-              status: "complete",
-              idempotencyKey: null,
-              providerMetadata: {
-                provider: "mizyun-planner",
-                replyTo: userMessage.id,
-                evidenceKinds: [
-                  "plan",
-                  "nutrition",
-                  "training",
-                  "body",
-                  "goal",
-                  "energy",
-                ],
-                actionProposal,
-              },
-            },
-            { accessToken: principal.accessToken, now: now() },
-          );
-        const latestConversation =
-          (await options.conversationRepository.get(
-            principal.userId,
-            conversationId,
-            { accessToken: principal.accessToken },
-          )) ?? conversation;
-        return coachMessageResponseSchema.parse({
-          conversation: toConversationWire(latestConversation),
-          userMessage: toMessageWire(userMessage),
-          assistantMessage: toMessageWire(assistantMessage),
-        });
       }
 
       // Acquire a durable slot via the AI-OPS-001 limiter service.
@@ -1078,7 +787,10 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
         // user-edited and may contain untrusted content. The model
         // still sees the grounding; the mobile UI just doesn't
         // claim "Used confirmed: memory".
-        const response = await options.agent.respond({
+        const activeAgent = options.resolveAgent
+          ? options.resolveAgent(profile.aiProvider)
+          : options.agent;
+        const response = await activeAgent.respond({
           userId: principal.userId,
           accessToken: principal.accessToken,
           conversationId,
@@ -1088,6 +800,136 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
           })),
           grounding,
         });
+
+        // Inspect tool results in evidence for attached action proposals
+        let actionProposal: CoachActionProposal | null = null;
+        for (const item of response.evidence) {
+          if (
+            item.data &&
+            typeof item.data === "object" &&
+            "actionProposal" in item.data &&
+            item.data.actionProposal
+          ) {
+            const parsedProposal = coachActionProposalSchema.safeParse(
+              item.data.actionProposal,
+            );
+            if (parsedProposal.success) {
+              actionProposal = parsedProposal.data;
+              break;
+            }
+          }
+        }
+
+        // If the model did not invoke a tool directly but the user's intent was a plan/workout proposal,
+        // construct the deterministic action proposal so the interactive card is attached!
+        if (
+          actionProposal === null &&
+          isMultiWorkoutProposalIntent(parsed.data.text)
+        ) {
+          const patternParams = extractMultiWorkoutParamsFromText(
+            parsed.data.text,
+          );
+          const params: MultiWorkoutParams =
+            patternParams ??
+            defaultMultiWorkoutParams({
+              trainingDaysPerWeek:
+                profile.coachingPreferences.trainingDaysPerWeek,
+              sessionDurationMinutes:
+                profile.coachingPreferences.sessionDurationMinutes,
+            });
+          const prescription = await buildTrainingPrescriptionForUser(
+            options,
+            principal.userId,
+            principal.accessToken,
+            now(),
+            {
+              preferenceOverride: {
+                trainingDaysPerWeek: params.requestedSessions,
+                sessionDurationMinutes: params.sessionMinutes,
+                ...(params.focus === "general_hypertrophy"
+                  ? { trainingFocus: "hypertrophy" }
+                  : {}),
+                ...(params.equipmentOverrides !== null
+                  ? { availableEquipment: params.equipmentOverrides }
+                  : {}),
+              },
+              ...(params.sessionDistribution === null
+                ? {}
+                : { sessionDistribution: params.sessionDistribution }),
+            },
+          );
+          if (prescription.sessions.length > 0) {
+            actionProposal = buildMultiWorkoutProposalFromPrescription(
+              prescription,
+              now(),
+              {
+                requestedSessions: params.requestedSessions,
+                sessionMinutes: params.sessionMinutes,
+                focus: params.focus === "unknown" ? null : params.focus,
+                sessionDistribution: params.sessionDistribution,
+              },
+            );
+          }
+        } else if (
+          actionProposal === null &&
+          isExplicitWorkoutProposalIntent(parsed.data.text)
+        ) {
+          const prescription = await buildTrainingPrescriptionForUser(
+            options,
+            principal.userId,
+            principal.accessToken,
+            now(),
+          );
+          const session =
+            prescription.sessions.length === 0
+              ? null
+              : (prescription.sessions[
+                  prescription.recentLoad.completedSessionsLast7Days %
+                    prescription.sessions.length
+                ] ??
+                prescription.sessions[0] ??
+                null);
+          if (session !== null) {
+            actionProposal = coachActionProposalSchema.parse({
+              id: crypto.randomUUID(),
+              kind: "workout_start",
+              prescriptionVersion: prescription.version,
+              volumeAction: prescription.volumeAction,
+              session,
+            });
+          }
+        } else if (
+          actionProposal === null &&
+          isExplicitDailyPlanIntent(parsed.data.text)
+        ) {
+          const dailyPlan = await buildDailyActionPlanForUser(
+            options,
+            principal.userId,
+            principal.accessToken,
+            now(),
+          );
+          actionProposal = coachDailyPlanProposalSchema.parse({
+            id: crypto.randomUUID(),
+            kind: "daily_plan",
+            ...dailyPlan,
+          });
+        } else if (
+          actionProposal === null &&
+          isExplicitWeeklyAdaptationIntent(parsed.data.text)
+        ) {
+          const weekly = await buildWeeklyAdaptationForUser(
+            options,
+            principal.userId,
+            principal.accessToken,
+            now(),
+          );
+          actionProposal = coachWeeklyAdaptationProposalSchema.parse({
+            id: crypto.randomUUID(),
+            kind: "weekly_adaptation",
+            ...weekly,
+          });
+        }
+
         const evidenceKinds = [...grounding, ...response.evidence]
           .map((item) => item.kind)
           .filter(
@@ -1103,6 +945,16 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
               | "plan" => kind !== "memory" && kind !== "tool",
           )
           .filter((kind, index, all) => all.indexOf(kind) === index);
+
+        if (actionProposal !== null && !evidenceKinds.includes("plan")) {
+          evidenceKinds.push("plan");
+        }
+        if (
+          actionProposal?.kind === "daily_plan" &&
+          !evidenceKinds.includes("energy")
+        ) {
+          evidenceKinds.push("energy");
+        }
         const totalTokens =
           typeof response.providerMetadata?.totalTokens === "number"
             ? response.providerMetadata.totalTokens
@@ -1121,6 +973,7 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
                 provider: response.provider,
                 replyTo: userMessage.id,
                 evidenceKinds,
+                ...(actionProposal === null ? {} : { actionProposal }),
                 ...(response.providerMetadata ?? {}),
               },
             },
@@ -1158,6 +1011,257 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
             // overwrite the slot state.
           });
         if (error instanceof AgentProviderError) {
+          // Graceful fallback for disabled or unconfigured model environments
+          if (
+            error.kind === "not_configured" ||
+            error.kind === "external_access_disabled"
+          ) {
+            if (isMultiWorkoutProposalIntent(parsed.data.text)) {
+              const patternParams = extractMultiWorkoutParamsFromText(
+                parsed.data.text,
+              );
+              const params: MultiWorkoutParams =
+                patternParams ??
+                defaultMultiWorkoutParams({
+                  trainingDaysPerWeek:
+                    profile.coachingPreferences.trainingDaysPerWeek,
+                  sessionDurationMinutes:
+                    profile.coachingPreferences.sessionDurationMinutes,
+                });
+              const prescription = await buildTrainingPrescriptionForUser(
+                options,
+                principal.userId,
+                principal.accessToken,
+                now(),
+                {
+                  preferenceOverride: {
+                    trainingDaysPerWeek: params.requestedSessions,
+                    sessionDurationMinutes: params.sessionMinutes,
+                    ...(params.focus === "general_hypertrophy"
+                      ? { trainingFocus: "hypertrophy" }
+                      : {}),
+                    ...(params.equipmentOverrides !== null
+                      ? { availableEquipment: params.equipmentOverrides }
+                      : {}),
+                  },
+                  ...(params.sessionDistribution === null
+                    ? {}
+                    : { sessionDistribution: params.sessionDistribution }),
+                },
+              );
+              if (prescription.sessions.length > 0) {
+                const actionProposal =
+                  buildMultiWorkoutProposalFromPrescription(
+                    prescription,
+                    now(),
+                    {
+                      requestedSessions: params.requestedSessions,
+                      sessionMinutes: params.sessionMinutes,
+                      focus: params.focus === "unknown" ? null : params.focus,
+                      sessionDistribution: params.sessionDistribution,
+                    },
+                  );
+                const assistantMessage =
+                  await options.conversationRepository.addMessage(
+                    principal.userId,
+                    {
+                      id: crypto.randomUUID(),
+                      conversationId,
+                      role: "assistant",
+                      text: `Here is your ${actionProposal.sessions.length}-session plan, auto-scheduled across the next 7 days. Save it to create the workouts, then open any session to start, reorder exercises, change weights, or add/remove sets.`,
+                      status: "complete",
+                      idempotencyKey: null,
+                      providerMetadata: {
+                        provider: "mizyun-planner",
+                        replyTo: userMessage.id,
+                        evidenceKinds: ["plan", "training", "profile", "goal"],
+                        actionProposal,
+                      },
+                    },
+                    { accessToken: principal.accessToken, now: now() },
+                  );
+                const latestConversation =
+                  (await options.conversationRepository.get(
+                    principal.userId,
+                    conversationId,
+                    { accessToken: principal.accessToken },
+                  )) ?? conversation;
+                return coachMessageResponseSchema.parse({
+                  conversation: toConversationWire(latestConversation),
+                  userMessage: toMessageWire(userMessage),
+                  assistantMessage: toMessageWire(assistantMessage),
+                });
+              }
+            } else if (isExplicitWorkoutProposalIntent(parsed.data.text)) {
+              const prescription = await buildTrainingPrescriptionForUser(
+                options,
+                principal.userId,
+                principal.accessToken,
+                now(),
+              );
+              const session =
+                prescription.sessions.length === 0
+                  ? null
+                  : (prescription.sessions[
+                      prescription.recentLoad.completedSessionsLast7Days %
+                        prescription.sessions.length
+                    ] ??
+                    prescription.sessions[0] ??
+                    null);
+              const actionProposal =
+                session === null
+                  ? null
+                  : coachActionProposalSchema.parse({
+                      id: crypto.randomUUID(),
+                      kind: "workout_start",
+                      prescriptionVersion: prescription.version,
+                      volumeAction: prescription.volumeAction,
+                      session,
+                    });
+              const assistantMessage =
+                await options.conversationRepository.addMessage(
+                  principal.userId,
+                  {
+                    id: crypto.randomUUID(),
+                    conversationId,
+                    role: "assistant",
+                    text:
+                      actionProposal === null
+                        ? `I need ${prescription.missingInputs.join(
+                            ", ",
+                          )} before I can build a workout. Add those Coach preferences first.`
+                        : `I prepared ${session?.label ?? "today’s workout"} from your confirmed goal, schedule, equipment, limitations, and recent training load. Review it before starting.`,
+                    status: "complete",
+                    idempotencyKey: null,
+                    providerMetadata: {
+                      provider: "mizyun-planner",
+                      replyTo: userMessage.id,
+                      evidenceKinds: ["plan", "training", "profile", "goal"],
+                      ...(actionProposal === null ? {} : { actionProposal }),
+                    },
+                  },
+                  { accessToken: principal.accessToken, now: now() },
+                );
+              const latestConversation =
+                (await options.conversationRepository.get(
+                  principal.userId,
+                  conversationId,
+                  { accessToken: principal.accessToken },
+                )) ?? conversation;
+              return coachMessageResponseSchema.parse({
+                conversation: toConversationWire(latestConversation),
+                userMessage: toMessageWire(userMessage),
+                assistantMessage: toMessageWire(assistantMessage),
+              });
+            } else if (isExplicitDailyPlanIntent(parsed.data.text)) {
+              const dailyPlan = await buildDailyActionPlanForUser(
+                options,
+                principal.userId,
+                principal.accessToken,
+                now(),
+              );
+              const actionProposal = coachDailyPlanProposalSchema.parse({
+                id: crypto.randomUUID(),
+                kind: "daily_plan",
+                ...dailyPlan,
+              });
+              const assistantMessage =
+                await options.conversationRepository.addMessage(
+                  principal.userId,
+                  {
+                    id: crypto.randomUUID(),
+                    conversationId,
+                    role: "assistant",
+                    text:
+                      dailyPlan.nextAction === "complete_setup"
+                        ? "Your daily plan needs a few confirmed inputs before it can be complete."
+                        : "Here is today’s plan from your confirmed meals, targets, and training. The priority is deterministic and will update as you log.",
+                    status: "complete",
+                    idempotencyKey: null,
+                    providerMetadata: {
+                      provider: "mizyun-planner",
+                      replyTo: userMessage.id,
+                      evidenceKinds: [
+                        "plan",
+                        "nutrition",
+                        "training",
+                        "profile",
+                        "goal",
+                        "energy",
+                      ],
+                      actionProposal,
+                    },
+                  },
+                  { accessToken: principal.accessToken, now: now() },
+                );
+              const latestConversation =
+                (await options.conversationRepository.get(
+                  principal.userId,
+                  conversationId,
+                  { accessToken: principal.accessToken },
+                )) ?? conversation;
+              return coachMessageResponseSchema.parse({
+                conversation: toConversationWire(latestConversation),
+                userMessage: toMessageWire(userMessage),
+                assistantMessage: toMessageWire(assistantMessage),
+              });
+            } else if (isExplicitWeeklyAdaptationIntent(parsed.data.text)) {
+              const weekly = await buildWeeklyAdaptationForUser(
+                options,
+                principal.userId,
+                principal.accessToken,
+                now(),
+              );
+              const actionProposal = coachWeeklyAdaptationProposalSchema.parse({
+                id: crypto.randomUUID(),
+                kind: "weekly_adaptation",
+                ...weekly,
+              });
+              const assistantMessage =
+                await options.conversationRepository.addMessage(
+                  principal.userId,
+                  {
+                    id: crypto.randomUUID(),
+                    conversationId,
+                    role: "assistant",
+                    text:
+                      weekly.readiness === "insufficient_data"
+                        ? "I reviewed the confirmed week, but there is not enough reliable adherence and weight-trend evidence to change the plan."
+                        : weekly.proposedPace !== weekly.currentPace
+                          ? "The confirmed week supports one conservative goal-pace adjustment. Review it before accepting; nothing has changed yet."
+                          : "The confirmed week supports holding your current goal pace. Training volume is shown separately from calorie adaptation.",
+                    status: "complete",
+                    idempotencyKey: null,
+                    providerMetadata: {
+                      provider: "mizyun-planner",
+                      replyTo: userMessage.id,
+                      evidenceKinds: [
+                        "plan",
+                        "nutrition",
+                        "training",
+                        "body",
+                        "goal",
+                        "energy",
+                      ],
+                      actionProposal,
+                    },
+                  },
+                  { accessToken: principal.accessToken, now: now() },
+                );
+              const latestConversation =
+                (await options.conversationRepository.get(
+                  principal.userId,
+                  conversationId,
+                  { accessToken: principal.accessToken },
+                )) ?? conversation;
+              return coachMessageResponseSchema.parse({
+                conversation: toConversationWire(latestConversation),
+                userMessage: toMessageWire(userMessage),
+                assistantMessage: toMessageWire(assistantMessage),
+              });
+            }
+          }
+
           const configurationError =
             error.kind === "authentication" ||
             error.kind === "payment_required" ||

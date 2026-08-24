@@ -14,7 +14,7 @@
  * (3 sessions, 60 minutes, unknown focus).
  */
 
-import type { SessionFocus } from "@mizyun/core";
+import type { EquipmentOption, SessionFocus } from "@mizyun/core";
 
 export type MultiWorkoutFocus =
   "ppl" | "upper_lower" | "full_body" | "general_hypertrophy" | "unknown";
@@ -33,6 +33,7 @@ export interface MultiWorkoutParams {
    * Null when the user did not specify a distribution.
    */
   readonly sessionDistribution: readonly SessionFocus[] | null;
+  readonly equipmentOverrides: readonly EquipmentOption[] | null;
   readonly confidence: "pattern" | "llm" | "default";
 }
 
@@ -59,7 +60,8 @@ const dayCountPattern =
 const sessionMinutesPattern =
   // "each session 2 hours" / "every session 60 min" / "per session 90 minutes"
   // "90 min each" / "2 hours each" / "about 60 minutes each"
-  /(?:(?:each|every|per)\s+session\s+(?:about\s+|around\s+|roughly\s+)?(\d{1,3})\s*(?:min|minute|hour|hr)s?|\b(\d{1,3})\s*(?:min|minute|hour|hr)s?\s+(?:each|every|long))/i;
+  // "each session to be around 150 minutes"
+  /(?:(?:each|every|per)\s+session\s+(?:to\s+be\s+)?(?:about\s+|around\s+|roughly\s+)?(\d{1,3})\s*(?:min|minute|hour|hr)s?|\b(\d{1,3})\s*(?:min|minute|hour|hr)s?\s+(?:each|every|long|per\s+session))/i;
 
 const hourToMinutes = (hours: number): number => Math.round(hours * 60);
 
@@ -175,6 +177,38 @@ export const isMultiWorkoutProposalIntent = (text: string): boolean => {
   return multiWorkoutIntentPatterns.some((pattern) => pattern.test(normalized));
 };
 
+export const extractEquipmentOverrides = (
+  text: string,
+): readonly EquipmentOption[] | null => {
+  const normalized = text.toLowerCase();
+  const options: EquipmentOption[] = [];
+  if (/\b(?:dumbbell|dumbbells)\b/.test(normalized)) {
+    options.push("dumbbells");
+  }
+  if (/\b(?:barbell|barbells)\b/.test(normalized)) {
+    options.push("barbell");
+  }
+  if (/\b(?:cable|cables|cable\s+machine)\b/.test(normalized)) {
+    options.push("cable_machine");
+  }
+  if (/\b(?:pull[-\s]?up\s+bar|pullup\s+bar|pullups?)\b/.test(normalized)) {
+    options.push("pullup_bar");
+  }
+  if (/\b(?:bench)\b/.test(normalized)) {
+    options.push("bench");
+  }
+  if (/\b(?:rack|squat\s+rack)\b/.test(normalized)) {
+    options.push("rack");
+  }
+  if (/\b(?:bands?|resistance\s+bands?)\b/.test(normalized)) {
+    options.push("resistance_bands");
+  }
+  if (/\b(?:bodyweight)\b/.test(normalized)) {
+    options.push("bodyweight");
+  }
+  return options.length > 0 ? options : null;
+};
+
 /**
  * Pure pattern-based parameter extraction. Always runs, even if the
  * LLM extraction is enabled (the pattern result is the safety net
@@ -209,6 +243,7 @@ export const extractMultiWorkoutParamsFromText = (
     sessionMinutes,
     focus: detectFocus(text),
     sessionDistribution: extractSessionDistribution(text, requestedSessions),
+    equipmentOverrides: extractEquipmentOverrides(text),
     confidence: "pattern",
   };
 };
@@ -230,5 +265,6 @@ export const defaultMultiWorkoutParams = (profileFallback: {
   ),
   focus: "unknown",
   sessionDistribution: null,
+  equipmentOverrides: null,
   confidence: "default",
 });

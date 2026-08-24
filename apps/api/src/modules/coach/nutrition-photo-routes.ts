@@ -27,6 +27,9 @@ interface CoachNutritionPhotoRoutesOptions {
   readonly conversationRepository: ConversationRepository;
   readonly profileRepository: ProfileRepository;
   readonly nutritionDraftProvider: VisionDraftProvider;
+  readonly resolveNutritionDraftProvider?: (
+    provider: import("@mizyun/contracts").AiProvider,
+  ) => VisionDraftProvider;
   readonly nutritionDraftRateLimiter: FoodDraftRateLimiter;
   readonly planTierOverride?: PlanTier | undefined;
   readonly now?: (() => Date) | undefined;
@@ -255,8 +258,12 @@ export const coachNutritionPhotoRoutes: FastifyPluginAsync<
         );
       }
 
+      const draftProvider = options.resolveNutritionDraftProvider
+        ? options.resolveNutritionDraftProvider(profile.aiProvider)
+        : options.nutritionDraftProvider;
+
       try {
-        const candidate = await options.nutritionDraftProvider.generateDraft({
+        const candidate = await draftProvider.generateDraft({
           userId: principal.userId as UserId,
           photo: new Uint8Array(photo),
           mimeType,

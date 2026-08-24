@@ -1,4 +1,5 @@
 import type {
+  AiProvider,
   CoachingPreferences,
   PlanTier,
   ProfileActivityLevel,
@@ -33,6 +34,7 @@ interface ProfileRow extends Record<string, unknown> {
   readonly sex_at_birth: ProfileSexAtBirth | null;
   readonly coaching_preferences: CoachingPreferences | null;
   readonly plan_tier: PlanTier | null;
+  readonly ai_provider: AiProvider | null;
   readonly created_at: string;
   readonly updated_at: string;
 }
@@ -56,6 +58,7 @@ const fromRow = (row: ProfileRow): StoredProfile => ({
     trainingLimitations: [],
   },
   planTier: (row.plan_tier ?? "free") as PlanTier,
+  aiProvider: (row.ai_provider ?? "mistral") as AiProvider,
   createdAt: new Date(row.created_at),
   updatedAt: new Date(row.updated_at),
 });
@@ -127,6 +130,7 @@ export class SupabaseProfileRepository implements ProfileRepository {
         activity_level: next.activityLevel,
         sex_at_birth: next.sexAtBirth,
         coaching_preferences: next.coachingPreferences,
+        ai_provider: next.aiProvider,
       })
       .eq("id", userId)
       .select("*")

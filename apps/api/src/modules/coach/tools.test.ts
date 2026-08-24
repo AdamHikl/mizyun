@@ -100,6 +100,7 @@ const seedCompletePlanningContext = (deps: ReturnType<typeof buildDeps>) => {
       trainingLimitations: [],
     },
     planTier: "free",
+    aiProvider: "mistral",
     createdAt: new Date("2026-07-01T00:00:00Z"),
     updatedAt: new Date("2026-07-20T00:00:00Z"),
   });
@@ -218,6 +219,68 @@ describe("CoachTools — deterministic planning", () => {
         (session) => session.exercises.length > 0,
       ),
     ).toBe(true);
+  });
+
+  it("applies parameter overrides (equipment, duration, split distribution) and produces actionProposal", async () => {
+    const deps = buildDeps();
+    seedCompletePlanningContext(deps);
+    const evidence = await buildGetTrainingPrescriptionTool(deps).execute({
+      principalUserId: userId,
+      args: {
+        days_per_week: 3,
+        session_duration_minutes: 90,
+        session_distribution: ["upper", "upper", "lower"],
+        training_focus: "hypertrophy",
+        available_equipment: [
+          "dumbbells",
+          "barbell",
+          "cable_machine",
+          "bench",
+          "pullup_bar",
+        ],
+      },
+      accessToken: "token",
+      clock: { now: clock },
+    });
+
+    expect(evidence.kind).toBe("plan");
+    expect(evidence.data).toMatchObject({
+      complete: true,
+      requestedDaysPerWeek: 3,
+      resistanceDaysPerWeek: 3,
+    });
+    const proposal = (evidence.data as Record<string, unknown>)
+      .actionProposal as Record<string, unknown>;
+    expect(proposal).toBeDefined();
+    expect(proposal).toMatchObject({
+      kind: "multi_workout_plan",
+      requestedSessions: 3,
+      sessionMinutes: 90,
+      sessions: expect.any(Array),
+    });
+    expect((proposal.sessions as unknown[]).length).toBe(3);
+    const sessions = proposal.sessions as Array<{
+      focus: string;
+      exercises: Array<{ equipment: string[] }>;
+    }>;
+    expect(sessions[0]?.focus).toBe("upper");
+    expect(sessions[1]?.focus).toBe("upper");
+    expect(sessions[2]?.focus).toBe("lower");
+    // Verify no machines were used beyond allowed equipment
+    for (const session of sessions) {
+      for (const exercise of session.exercises) {
+        for (const eq of exercise.equipment) {
+          expect([
+            "dumbbells",
+            "barbell",
+            "cable_machine",
+            "bench",
+            "pullup_bar",
+            "bodyweight",
+          ]).toContain(eq);
+        }
+      }
+    }
   });
 
   it("uses recent confirmed set exertion to reduce prescribed volume", async () => {

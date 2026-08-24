@@ -224,6 +224,9 @@ export const coachingPreferencesSchema = z
 
 export type CoachingPreferences = z.infer<typeof coachingPreferencesSchema>;
 
+export const aiProviderSchema = z.enum(["mistral", "gemini"]);
+export type AiProvider = z.infer<typeof aiProviderSchema>;
+
 export const profileSchema = z.object({
   userId: z.string().uuid(),
   displayName: z.string().trim().min(1).max(80).nullable().optional(),
@@ -265,6 +268,7 @@ export const profileSchema = z.object({
    */
   sexAtBirth: z.enum(["male", "female"]).nullable().optional(),
   coachingPreferences: coachingPreferencesSchema,
+  aiProvider: aiProviderSchema.default("mistral"),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
@@ -297,6 +301,7 @@ export const profilePatchSchema = z
     activityLevel: profileSchema.shape.activityLevel.optional(),
     sexAtBirth: profileSchema.shape.sexAtBirth.optional(),
     coachingPreferences: coachingPreferencesSchema.optional(),
+    aiProvider: aiProviderSchema.optional(),
   })
   .strict()
   .refine(
@@ -308,7 +313,8 @@ export const profilePatchSchema = z
       patch.heightCm !== undefined ||
       patch.activityLevel !== undefined ||
       patch.sexAtBirth !== undefined ||
-      patch.coachingPreferences !== undefined,
+      patch.coachingPreferences !== undefined ||
+      patch.aiProvider !== undefined,
     { message: "at least one field must be present" },
   );
 

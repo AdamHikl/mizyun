@@ -44,6 +44,12 @@ import {
   MistralContentModerator,
   MistralVisionProvider,
 } from "@mizyun/provider-mistral";
+import {
+  GeminiAgentProvider,
+  GeminiContentModerator,
+  GeminiVisionProvider,
+} from "@mizyun/provider-gemini";
+import type { AiProvider } from "@mizyun/contracts";
 
 import { InMemoryAccountRepository } from "./account-repository.js";
 import { InMemoryGoalRepository } from "./goal-repository.js";
@@ -250,20 +256,32 @@ const defaultDependencies = (): AppDependencies => {
         visionProvider: "disabled",
         mistralConfig: null,
         mistralVisionConfig: null,
+        geminiConfig: null,
+        geminiVisionConfig: null,
         aiExternalAccess: false,
       };
-  const mistralConfig =
-    config.agentProvider === "mistral" ? config.mistralConfig : null;
+  const mistralConfig = config.mistralConfig;
+  const geminiConfig = config.geminiConfig;
   const provider =
-    mistralConfig !== null
-      ? new MistralAgentProvider({
-          apiKey: mistralConfig.apiKey,
-          model: mistralConfig.model,
-          timeoutMs: mistralConfig.timeoutMs,
-          maxOutputTokens: mistralConfig.maxOutputTokens,
+    geminiConfig !== null && config.agentProvider === "gemini"
+      ? new GeminiAgentProvider({
+          apiKey: geminiConfig.apiKey,
+          model: geminiConfig.model,
+          timeoutMs: geminiConfig.timeoutMs,
+          maxOutputTokens: geminiConfig.maxOutputTokens,
           externalAccess: config.aiExternalAccess,
         })
-      : new DisabledAgentProvider();
+      : mistralConfig !== null &&
+          (config.agentProvider === "mistral" ||
+            config.agentProvider === "multi")
+        ? new MistralAgentProvider({
+            apiKey: mistralConfig.apiKey,
+            model: mistralConfig.model,
+            timeoutMs: mistralConfig.timeoutMs,
+            maxOutputTokens: mistralConfig.maxOutputTokens,
+            externalAccess: config.aiExternalAccess,
+          })
+        : new DisabledAgentProvider();
   // The default memory store is in-memory. When Supabase is
   // configured, the buildApp step swaps it for a Supabase-backed
   // store below; we leave the in-memory default here so dev/test
@@ -272,16 +290,22 @@ const defaultDependencies = (): AppDependencies => {
     provider,
     memories: new InMemoryMemoryStore() as MemoryStore,
     tokenVerifier: tokenVerifierFromConfig(config),
-    ...(mistralConfig !== null
+    ...(geminiConfig !== null && config.agentProvider === "gemini"
       ? {
-          moderator: new MistralContentModerator({
-            apiKey: mistralConfig.apiKey,
-            model: mistralConfig.moderationModel,
-            timeoutMs: mistralConfig.timeoutMs,
+          moderator: new GeminiContentModerator({
             externalAccess: config.aiExternalAccess,
           }),
         }
-      : {}),
+      : mistralConfig !== null
+        ? {
+            moderator: new MistralContentModerator({
+              apiKey: mistralConfig.apiKey,
+              model: mistralConfig.moderationModel,
+              timeoutMs: mistralConfig.timeoutMs,
+              externalAccess: config.aiExternalAccess,
+            }),
+          }
+        : {}),
   };
   // VISION-001 — default vision provider for the dev/test path.
   // When `VISION_PROVIDER=stub` is set we wire the deterministic
@@ -359,7 +383,7 @@ const resolveMemoryStore = (dependencies: AppDependencies): MemoryStore =>
  * when the registry has at least one definition; empty
  * registries skip the tool-loop entirely (cheaper for tests).
  */
-const resolveAgent = (
+const createAgentOrchestrator = (
   dependencies: AppDependencies,
   defaultToolSet: AgentToolRegistry,
 ): AgentOrchestrator => {
@@ -515,7 +539,7 @@ export const buildApp = (
     foodEntryRepository,
     bodyMeasurementRepository,
   });
-  const agent = resolveAgent(dependencies, defaultToolSet);
+  const agent = createAgentOrchestrator(dependencies, defaultToolSet);
 
   void app.register(authenticationPlugin, {
     tokenVerifier: dependencies.tokenVerifier,
@@ -537,28 +561,113 @@ export const buildApp = (
   // so the route returns 503 AI_CONFIGURATION_ERROR). The dev
   // stub returns a deterministic candidate. MistralVisionProvider
   // is wired when MISTRAL_VISION_API_KEY is configured.
+  const mistralVisionProvider =
+    configResult.ok && configResult.value.mistralVisionConfig !== null
+      ? new MistralVisionProvider({
+          apiKey: configResult.value.mistralVisionConfig.apiKey,
+          model: configResult.value.mistralVisionConfig.model,
+          timeoutMs: configResult.value.mistralVisionConfig.timeoutMs,
+          maxOutputTokens:
+            configResult.value.mistralVisionConfig.maxOutputTokens,
+          externalAccess: configResult.value.aiExternalAccess,
+        })
+      : null;
+
+  const geminiVisionProvider =
+    configResult.ok && configResult.value.geminiVisionConfig !== null
+      ? new GeminiVisionProvider({
+          apiKey: configResult.value.geminiVisionConfig.apiKey,
+          model: configResult.value.geminiVisionConfig.model,
+          timeoutMs: configResult.value.geminiVisionConfig.timeoutMs,
+          maxOutputTokens:
+            configResult.value.geminiVisionConfig.maxOutputTokens,
+          externalAccess: configResult.value.aiExternalAccess,
+        })
+      : null;
+
   const visionProvider: VisionDraftProvider = dependencies.coachControls
     ?.visionProvider
     ? dependencies.coachControls.visionProvider
     : dependencies.visionProvider
       ? dependencies.visionProvider
-      : (() => {
-          const mistralVisionConfig = configResult.ok
-            ? configResult.value.mistralVisionConfig
-            : null;
-          if (mistralVisionConfig !== null) {
-            return new MistralVisionProvider({
-              apiKey: mistralVisionConfig.apiKey,
-              model: mistralVisionConfig.model,
-              timeoutMs: mistralVisionConfig.timeoutMs,
-              maxOutputTokens: mistralVisionConfig.maxOutputTokens,
-              externalAccess: configResult.ok
-                ? configResult.value.aiExternalAccess
-                : false,
-            });
-          }
-          return new DisabledVisionProvider();
-        })();
+      : (mistralVisionProvider ??
+        geminiVisionProvider ??
+        new DisabledVisionProvider());
+
+  const resolveVisionProvider = (
+    providerKind: AiProvider,
+  ): VisionDraftProvider => {
+    if (dependencies.coachControls?.visionProvider) {
+      return dependencies.coachControls.visionProvider;
+    }
+    if (dependencies.visionProvider) {
+      return dependencies.visionProvider;
+    }
+    if (providerKind === "gemini" && geminiVisionProvider !== null) {
+      return geminiVisionProvider;
+    }
+    if (providerKind === "mistral" && mistralVisionProvider !== null) {
+      return mistralVisionProvider;
+    }
+    return visionProvider;
+  };
+
+  const mistralAgent =
+    configResult.ok && configResult.value.mistralConfig !== null
+      ? new AgentOrchestrator({
+          provider: new MistralAgentProvider({
+            apiKey: configResult.value.mistralConfig.apiKey,
+            model: configResult.value.mistralConfig.model,
+            timeoutMs: configResult.value.mistralConfig.timeoutMs,
+            maxOutputTokens: configResult.value.mistralConfig.maxOutputTokens,
+            externalAccess: configResult.value.aiExternalAccess,
+          }),
+          memories: resolveMemoryStore(dependencies),
+          moderator: new MistralContentModerator({
+            apiKey: configResult.value.mistralConfig.apiKey,
+            model: configResult.value.mistralConfig.moderationModel,
+            timeoutMs: configResult.value.mistralConfig.timeoutMs,
+            externalAccess: configResult.value.aiExternalAccess,
+          }),
+          ...(defaultToolSet.list().length > 0
+            ? { tools: defaultToolSet }
+            : {}),
+        })
+      : null;
+
+  const geminiAgent =
+    configResult.ok && configResult.value.geminiConfig !== null
+      ? new AgentOrchestrator({
+          provider: new GeminiAgentProvider({
+            apiKey: configResult.value.geminiConfig.apiKey,
+            model: configResult.value.geminiConfig.model,
+            timeoutMs: configResult.value.geminiConfig.timeoutMs,
+            maxOutputTokens: configResult.value.geminiConfig.maxOutputTokens,
+            externalAccess: configResult.value.aiExternalAccess,
+          }),
+          memories: resolveMemoryStore(dependencies),
+          moderator: new GeminiContentModerator({
+            externalAccess: configResult.value.aiExternalAccess,
+          }),
+          ...(defaultToolSet.list().length > 0
+            ? { tools: defaultToolSet }
+            : {}),
+        })
+      : null;
+
+  const resolveAgent = (providerKind: AiProvider): AgentOrchestrator => {
+    if (dependencies.agent !== undefined) {
+      return dependencies.agent;
+    }
+    if (providerKind === "gemini" && geminiAgent !== null) {
+      return geminiAgent;
+    }
+    if (providerKind === "mistral" && mistralAgent !== null) {
+      return mistralAgent;
+    }
+    return agent;
+  };
+
   const draftRateLimiter =
     dependencies.coachControls?.draftRateLimiter ?? new FoodDraftRateLimiter();
   const resolvePlanTier =
@@ -591,6 +700,8 @@ export const buildApp = (
   void app.register(foodDraftRoutes, {
     prefix: "/v1/food-entries",
     visionProvider,
+    resolveVisionProvider,
+    profileRepository,
     rateLimiter: draftRateLimiter,
     resolvePlanTier,
   });
@@ -701,6 +812,7 @@ export const buildApp = (
   void app.register(coachRoutes, {
     prefix: "/v1/coach",
     agent,
+    resolveAgent,
     conversationRepository,
     profileRepository,
     goalRepository,
@@ -710,6 +822,7 @@ export const buildApp = (
     bodyMeasurementRepository,
     limits: buildLimits(),
     nutritionDraftProvider: visionProvider,
+    resolveNutritionDraftProvider: resolveVisionProvider,
     nutritionDraftRateLimiter: draftRateLimiter,
     memoryStore,
     ...(dependencies.coachControls?.planTierOverride
@@ -726,6 +839,7 @@ export const buildApp = (
     conversationRepository,
     profileRepository,
     nutritionDraftProvider: visionProvider,
+    resolveNutritionDraftProvider: resolveVisionProvider,
     nutritionDraftRateLimiter: draftRateLimiter,
     ...(dependencies.coachControls?.planTierOverride
       ? { planTierOverride: dependencies.coachControls.planTierOverride }

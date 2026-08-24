@@ -1,16 +1,16 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-08-23** (Mistral provider plain text & code block response resilience).
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-08-24** (Hybrid LLM + deterministic prescription engine workout generation & tool calling).
 
 ## Executive snapshot
 
 - **Product stage:** technical pre-alpha; the architecture, domain/API foundation, and native mobile UI are verified and polished.
 - **Roadmap position:** INFRA-ENV-001 / INFRA-WIN-001 infrastructure migration to the **Raspberry Pi 5** (`rpServer`, Ubuntu 24.04 ARM64) is complete and fully operational.
-- **Latest verified implementation slice:** Resilient response parsing in `@mizyun/provider-mistral` sdkClient to parse code-fenced JSON and accept direct non-empty plain-text assistant responses when Mistral omits raw JSON framing for off-topic/advisory refusals, eliminating 503 `malformed_response` retries and timeouts. `pnpm check` is green with 1,117 tests passing, 17 opt-in tests skipped.
+- **Latest verified implementation slice:** Combined the LLM orchestrator with the deterministic prescription engine for workout routine / plan generation. Parameterized `get_training_prescription` tool (`days_per_week`, `session_duration_minutes`, `session_distribution`, `training_focus`, `available_equipment`, `limitations`), removed early hardcoded short-circuits in API routes, wired tool-calling evidence into message metadata (`actionProposal`), updated system prompt guidelines, enhanced pattern regex with equipment overrides, and added graceful offline fallback. `pnpm check` is 100% green across all 15 workspace packages (965 tests passing, 17 opt-in tests skipped, iOS/Android production bundles compiling cleanly).
 - **Branch:** `main`; production Raspberry Pi 5 checkout matches and is verified live (`https://mizyun-api.phiskel.com/v1/health`).
 - **Production Host:** Raspberry Pi 5 (`rpserver`, Ubuntu 24.04 ARM64, Tailscale IP `100.116.142.1`). Remote deployment `pnpm deploy:remote` is verified green.
-- **Local runtime at handoff:** `pnpm check` passes with 1,117 tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean.
-- **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and 1,117 tests passed; 17 opt-in live/e2e tests skipped.
+- **Local runtime at handoff:** `pnpm check` passes with 965 tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean.
+- **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and 965 tests passed; 17 opt-in live/e2e tests skipped.
 - **Moderation regression gate:** `pnpm check` passes with 954 tests and 17 opt-in tests skipped; the Mistral provider suite has 30 passing tests and proves input-health refusal, output-only-health allowance, and continued blocking when another unsafe output category is present.
 - **Coach retry UX gate:** the mobile suite passes 183 tests (was 155, +28 for profile and goal settings data), including stable optimistic IDs and retry-result de-duplication after restart; mobile TypeScript and both platform production bundles pass.
 - **iOS:** both `Mizyun` (`com.mizyun.app`) and `Mizyun Dev` (`com.mizyun.dev`) are installed on physical iPhone (`Adam's Iphone 😋`, `7FBC9ACC-918A-5A9B-8D22-B9F1FF652A06` / `00008140-001114501A86801C`). The latest Production Release for commit `d6e36ce` was built (Build Succeeded, 0 errors), installed via `xcrun devicectl`, and launched.

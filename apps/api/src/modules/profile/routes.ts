@@ -109,6 +109,13 @@ const validationErrorToApi = (
           "coachingPreferences contains an unsupported value or out-of-range schedule.",
         requestId,
       };
+    case "invalid_ai_provider":
+      return {
+        status: 422,
+        code: "VALIDATION_ERROR",
+        message: `aiProvider '${error.value}' must be 'mistral' or 'gemini'.`,
+        requestId,
+      };
   }
 };
 
@@ -137,6 +144,7 @@ const toWire = (stored: StoredProfile): ProfileResponse =>
           ...stored.coachingPreferences.trainingLimitations,
         ],
       },
+      aiProvider: stored.aiProvider,
       createdAt: stored.createdAt.toISOString(),
       updatedAt: stored.updatedAt.toISOString(),
     },

@@ -20,7 +20,7 @@
  */
 
 import type { FastifyPluginAsync } from "fastify";
-import type { PlanTier, UserId } from "@mizyun/core";
+import type { PlanTier, ProfileRepository, UserId } from "@mizyun/core";
 import {
   screenCoachInput,
   VisionProviderError,
@@ -32,6 +32,7 @@ import {
   foodDraftResponseSchema,
   foodRefineDraftRequestSchema,
   foodTextDraftRequestSchema,
+  type AiProvider,
   type FoodDraftResponse,
 } from "@mizyun/contracts";
 import { randomUUID } from "node:crypto";
@@ -41,6 +42,10 @@ import { FoodDraftRateLimiter } from "./draft-rate-limit.js";
 
 interface FoodDraftRoutesOptions {
   readonly visionProvider: VisionDraftProvider;
+  readonly resolveVisionProvider?: (
+    provider: AiProvider,
+  ) => VisionDraftProvider;
+  readonly profileRepository?: ProfileRepository;
   readonly rateLimiter: FoodDraftRateLimiter;
   /**
    * Resolves the plan tier for the principal. Production wires
@@ -85,6 +90,24 @@ const visionFailureToHttpStatus = (
 export const foodDraftRoutes: FastifyPluginAsync<
   FoodDraftRoutesOptions
 > = async (app, options) => {
+  const resolveActiveVisionProvider = async (
+    userId: UserId,
+    accessToken: string,
+  ): Promise<VisionDraftProvider> => {
+    if (options.resolveVisionProvider && options.profileRepository) {
+      try {
+        const profile = await options.profileRepository.getOrCreate(userId, {
+          now: new Date(),
+          accessToken,
+        });
+        return options.resolveVisionProvider(profile.aiProvider);
+      } catch {
+        return options.visionProvider;
+      }
+    }
+    return options.visionProvider;
+  };
+
   app.post(
     "/draft/text",
     { preHandler: app.authenticate },
@@ -123,15 +146,19 @@ export const foodDraftRoutes: FastifyPluginAsync<
         );
       }
       const requestId = randomUUID();
+      const vision = await resolveActiveVisionProvider(
+        principal.userId as UserId,
+        principal.accessToken,
+      );
       try {
-        if (options.visionProvider.generateTextDraft === undefined) {
+        if (vision.generateTextDraft === undefined) {
           throw new VisionProviderError(
             "not_configured",
             "Text nutrition drafts are not configured on this server.",
             false,
           );
         }
-        const candidate = await options.visionProvider.generateTextDraft({
+        const candidate = await vision.generateTextDraft({
           userId: principal.userId as UserId,
           description: parsed.data.description,
           requestId,
@@ -202,15 +229,19 @@ export const foodDraftRoutes: FastifyPluginAsync<
         );
       }
       const requestId = randomUUID();
+      const vision = await resolveActiveVisionProvider(
+        principal.userId as UserId,
+        principal.accessToken,
+      );
       try {
-        if (options.visionProvider.refineDraft === undefined) {
+        if (vision.refineDraft === undefined) {
           throw new VisionProviderError(
             "not_configured",
             "Draft refinement is not configured on this server.",
             false,
           );
         }
-        const candidate = await options.visionProvider.refineDraft({
+        const candidate = await vision.refineDraft({
           userId: principal.userId as UserId,
           currentDraft: parsed.data.currentDraft,
           instruction: parsed.data.instruction,
@@ -353,9 +384,13 @@ export const foodDraftRoutes: FastifyPluginAsync<
         requestId,
       };
 
+      const vision = await resolveActiveVisionProvider(
+        principal.userId as UserId,
+        principal.accessToken,
+      );
+
       try {
-        const candidate =
-          await options.visionProvider.generateDraft(visionRequest);
+        const candidate = await vision.generateDraft(visionRequest);
         return reply
           .status(200)
           .send(foodDraftResponseSchema.parse({ draft: candidate, requestId }));

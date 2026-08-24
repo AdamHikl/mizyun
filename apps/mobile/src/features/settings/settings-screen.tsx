@@ -22,6 +22,7 @@ import {
   reducePrincipalState,
   type PrincipalRenderState,
 } from "./principal-state";
+import { AiProviderCard } from "./ai-provider-card";
 import { CoachPreferencesCard } from "./coach-preferences-card";
 import { CoachRemindersCard } from "./coach-reminders-card";
 import { GoalSettingsCard } from "./goal-settings-card";
@@ -116,6 +117,9 @@ export function SettingsScreen() {
           {profile?.displayName ? null : <SetupWizardCard />}
           {profile !== null ? (
             <ProfileSettingsCard profile={profile} onSaved={refreshProfile} />
+          ) : null}
+          {profile !== null ? (
+            <AiProviderCard profile={profile} onSaved={refreshProfile} />
           ) : null}
           {profile !== null ? (
             <GoalSettingsCard unitSystem={profile.unitSystem} />
