@@ -175,15 +175,15 @@ const sdkClient = (apiKey: string): MistralChatClient => {
               const result = coachOutputSchema.safeParse(candidate);
               if (result.success) {
                 parsed = result.data;
-              } else if (
-                typeof candidate === "object" &&
-                candidate !== null &&
-                "answer" in candidate &&
-                typeof (candidate as { answer: unknown }).answer === "string"
-              ) {
-                parsed = {
-                  answer: (candidate as { answer: string }).answer.trim(),
-                };
+              } else if (typeof candidate === "object" && candidate !== null) {
+                const cand = candidate as Record<string, unknown>;
+                const textVal =
+                  cand.answer ?? cand.response ?? cand.message ?? cand.text;
+                if (typeof textVal === "string" && textVal.trim().length > 0) {
+                  parsed = {
+                    answer: textVal.trim(),
+                  };
+                }
               }
             } catch {
               parsed = null;
