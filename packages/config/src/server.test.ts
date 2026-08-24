@@ -496,13 +496,13 @@ describe("loadServerConfig — closed-world", () => {
       aiExternalAccess: false,
       geminiConfig: {
         apiKey: "test-gemini-key-12345",
-        model: "gemini-3.6-flash",
+        model: "gemini-3.7-flash",
         timeoutMs: 30_000,
         maxOutputTokens: 8_192,
       },
       geminiVisionConfig: {
         apiKey: "test-gemini-key-12345",
-        model: "gemini-3.6-flash",
+        model: "gemini-3.7-flash",
       },
     });
   });
