@@ -1,19 +1,19 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-08-25** (Workout navigation, planned exercise auto-resolution, Coach multi-session execution, and future-scheduled completion).
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-08-25** (Conversational AI Workout Edits, CoachWorkoutEditProposal, in-app update & execution, Simulator E2E verified).
 
 ## Executive snapshot
 
 - **Product stage:** technical pre-alpha; the architecture, domain/API foundation, and native mobile UI are verified and polished.
 - **Roadmap position:** INFRA-ENV-001 / INFRA-WIN-001 infrastructure migration to the **Raspberry Pi 5** (`rpServer`, Ubuntu 24.04 ARM64) is complete and fully operational.
-- **Latest verified implementation slice:** Fixed workout navigation to respect `targetWorkoutId`, added planned exercise cards with set badges and one-tap selection/creation, exempted input health moderation on fitness prompts (`mistral-moderation-2603`), and adjusted future `startedAt` when completing planned workouts early. `pnpm check` is 100% green across all 15 workspace packages (977 tests passing, 17 opt-in tests skipped, iOS/Android production bundles compiling cleanly).
-- **Branch:** `main`; production Raspberry Pi 5 checkout matches commit `d29b062` and is verified live (`https://mizyun-api.phiskel.com/v1/health`).
+- **Latest verified implementation slice:** Added conversational workout editing via AI Coach (`coachWorkoutEditProposalSchema`, `workout_edit` action proposal, `WorkoutEditProposalCard`), allowing athletes to substitute exercises, modify reps/sets, and update workouts conversationally. Verified end-to-end on iOS Simulator (`iPhone 17 Pro`): requested exercise replacement via chat, received interactive proposal card, applied changes via `PUT /v1/workouts/:id`, opened the updated workout directly in the workout logger with planned exercise badges, logged sets on the modified exercise, and completed the session back to Home Dashboard. `pnpm check` is 100% green across all 15 workspace packages (978 tests passing, 17 opt-in tests skipped, iOS/Android production bundles compiling cleanly).
+- **Branch:** `main`; production Raspberry Pi 5 checkout matches commit `a051631` and is verified live (`https://mizyun-api.phiskel.com/v1/health`).
 - **Production Host:** Raspberry Pi 5 (`rpserver`, Ubuntu 24.04 ARM64, Tailscale IP `100.116.142.1`). Remote deployment `pnpm deploy:remote` is verified green.
-- **Local runtime at handoff:** `pnpm check` passes with 977 tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean.
-- **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and 977 tests passed; 17 opt-in live/e2e tests skipped.
-- **Moderation regression gate:** `pnpm check` passes with 977 tests and 17 opt-in tests skipped; the Mistral provider allows fitness and wellness input queries without false health rejections while maintaining deterministic emergency and medical safety filters.
-- **Coach & Workout UX gate:** verified end-to-end on iOS Simulator (`iPhone 17 Pro`): custom workout creation/logging, Coach multi-session 3-day plan generation, saving all 3 sessions, opening specific scheduled sessions with planned exercise targets, logging planned sets, and finishing workouts back to Home Dashboard.
-- **iOS:** both `Mizyun` (`com.mizyun.app`) and `Mizyun Dev` (`com.mizyun.dev`) verified on iOS Simulator and physical iPhone. Production API runs commit `d29b062`.
+- **Local runtime at handoff:** `pnpm check` passes with 978 tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean.
+- **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and 978 tests passed; 17 opt-in live/e2e tests skipped.
+- **Moderation regression gate:** `pnpm check` passes with 978 tests and 17 opt-in tests skipped; the Mistral provider allows fitness and wellness input queries without false health rejections while maintaining deterministic emergency and medical safety filters.
+- **Coach & Workout UX gate:** verified end-to-end on iOS Simulator (`iPhone 17 Pro`): custom workout creation/logging, Coach multi-session plan generation, conversational workout modification with proposal cards, applying modifications to stored workouts, and opening/logging modified exercises.
+- **iOS:** both `Mizyun` (`com.mizyun.app`) and `Mizyun Dev` (`com.mizyun.dev`) verified on iOS Simulator and physical iPhone. Production API runs commit `a051631`.
 - **Android:** Standalone Production Release APK (`app-release.apk`, 103MB) compiled cleanly via `pnpm mobile:founder-production:android:assembleRelease` for commit `d6e36ce` targeting the production hosts.
 
 ## What is genuinely delivered
