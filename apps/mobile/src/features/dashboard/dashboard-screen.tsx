@@ -164,7 +164,7 @@ const actions = [
     hint: "What did you eat?",
   },
   {
-    label: "Today's meals",
+    label: "Logged meals",
     path: "/nutrition" as Href,
     hint: "Review or edit entries",
   },

@@ -443,3 +443,65 @@ export type CoachMemoryListResponse = z.infer<
 export type CoachMemoryResponse = z.infer<typeof coachMemoryResponseSchema>;
 export type CoachMemoryStatus = z.infer<typeof coachMemoryStatusSchema>;
 export type CoachMemoryKind = z.infer<typeof coachMemoryKindSchema>;
+
+/**
+ * Trims redundant markdown exercise/routine lists and verbose section breakdowns
+ * from the assistant text when an interactive action proposal card (e.g. multi-session
+ * workout plan or workout proposal) is attached.
+ *
+ * When an interactive proposal is attached, the widget itself renders the structured
+ * sessions, exercises, sets, reps, and actions. Having the assistant message repeat
+ * all exercises in a massive markdown text creates unnecessary clutter and pushes
+ * the interactive widget off-screen.
+ */
+export const cleanAssistantProposalText = (
+  rawText: string | null | undefined,
+  proposal: CoachActionProposal | null | undefined,
+): string => {
+  if (!proposal) {
+    return (rawText ?? "").trim();
+  }
+
+  const text = (rawText ?? "").trim();
+
+  if (text.length > 0) {
+    // If the text contains markdown horizontal dividers (---, ***, ___),
+    // headers (### Day 1), session markers, or exercise list items, strip
+    // everything from the first divider / list / day header onwards.
+    const splitRegex =
+      /(?:\r?\n\s*[-*_]{3,}\s*(?:\r?\n|$))|(?:\r?\n\s*#{1,6}\s+)|(?:\r?\n\s*(?:\*\*|\*)?(?:Day|Session|Workout)\s+\d+)|(?:\r?\n\s*(?:\d+\.|\*|-)\s+(?:\*\*|\*)?[A-Z])/i;
+
+    const match = text.search(splitRegex);
+    let candidateIntro = (match !== -1 ? text.slice(0, match) : text).trim();
+
+    // If it ends with a hanging colon (e.g. "Here's your 3-day split:"), replace with a period.
+    candidateIntro = candidateIntro.replace(/:\s*$/, ".");
+
+    // If the introductory text is clean and not excessively long (<= 350 chars), keep it.
+    if (
+      candidateIntro.length > 0 &&
+      candidateIntro.length <= 350 &&
+      !/^(?:Day|Session|Workout|\d+\.|\*|-|#{1,6})/i.test(candidateIntro)
+    ) {
+      return candidateIntro;
+    }
+  }
+
+  // Otherwise, return a short fallback based on proposal kind.
+  switch (proposal.kind) {
+    case "multi_workout_plan":
+      return `Here is your ${proposal.sessions.length}-session plan. Review and save your sessions below.`;
+    case "workout_start":
+      return `Here is your planned ${proposal.session.label} workout. Review and start below.`;
+    case "daily_plan":
+      return "Here is your daily action plan. Review your targets and next action below.";
+    case "weekly_adaptation":
+      return "Here is your weekly progress review and adaptation proposal.";
+    case "meal_log":
+      return "I drafted that meal from your description. Review the portion, calories, and macros before logging it.";
+    case "workout_edit":
+      return "I updated the workout with your requested changes. Review the edits below.";
+    default:
+      return "";
+  }
+};

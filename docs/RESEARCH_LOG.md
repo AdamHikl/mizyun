@@ -6,6 +6,29 @@
 
 Each entry records date, scope/version, primary sources, findings that affected implementation, and any resulting ADR. Inferences must be labeled as such.
 
+## 2026-08-25 — GEMINI-VISION-002 Gemini 3.7 Flash thinking budget and capacity fallback
+
+### Scope
+
+Google AI Studio REST API `generateContent`, Gemini 3.7 Flash hybrid thinking model latency optimization, and automated fallback to Gemini 3.6 Flash on high demand / capacity exhaustion.
+
+### Primary sources
+
+- Google AI Studio API: `generateContent` reference and `generationConfig.thinkingConfig` (`thinkingBudget: 0` to disable reasoning tokens).
+- Google AI Studio Model Overview: Gemini 3.7 Flash default dynamic thinking behavior and multimodal capabilities.
+- Google Generative AI API error handling: HTTP 429 / 503 `MODEL_CAPACITY_EXHAUSTED` / `RESOURCE_EXHAUSTED` and capacity recovery semantics.
+
+### Findings used
+
+- Gemini 3.7 Flash defaults to dynamic reasoning / thinking mode, allocating thousands of internal reasoning tokens before generating output. For fast nutrition/calorie estimation from photos, this internal reasoning process caused ~120s latency.
+- Setting `generationConfig: { thinkingConfig: { thinkingBudget: 0 } }` explicitly disables internal reasoning tokens in Gemini 3.7 Flash, bringing inference latency from ~120s down to ~4–6s (matching Gemini 3.6 Flash speed).
+- When Gemini 3.7 Flash encounters high demand spikes (HTTP 429, HTTP 503, `MODEL_CAPACITY_EXHAUSTED`, `RESOURCE_EXHAUSTED`, "The model is overloaded", or timeout), `GeminiVisionProvider` automatically catches the condition and executes the request against the configured fallback model (`gemini-3.6-flash`), preserving seamless logging UX.
+- The returned draft candidate provenance accurately reflects the resolved model (`gemini-3.7-flash` or `gemini-3.6-flash`).
+
+### Result
+
+Implemented in `@mizyun/provider-gemini` and `@mizyun/config` under ADR-0019 extensions. No schema changes required.
+
 ## 2026-07-26 — AI-ACT-001 conversational meal proposal handoff
 
 ### Scope

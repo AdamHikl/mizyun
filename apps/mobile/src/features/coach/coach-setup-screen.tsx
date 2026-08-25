@@ -14,16 +14,17 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, type Href, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import type {
-  CoachConversation,
-  CoachDailyPlanProposal,
-  CoachMessage,
-  CoachMultiWorkoutPlanProposal,
-  CoachNutritionProposal,
-  CoachProviderStatus,
-  CoachWorkoutProposal,
-  CoachWorkoutEditProposal,
-  CoachWeeklyAdaptationProposal,
+import {
+  cleanAssistantProposalText,
+  type CoachConversation,
+  type CoachDailyPlanProposal,
+  type CoachMessage,
+  type CoachMultiWorkoutPlanProposal,
+  type CoachNutritionProposal,
+  type CoachProviderStatus,
+  type CoachWorkoutProposal,
+  type CoachWorkoutEditProposal,
+  type CoachWeeklyAdaptationProposal,
 } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
@@ -960,6 +961,11 @@ function MessageBubble({
   ) => void;
 }) {
   const assistant = message.role === "assistant";
+  const displayText =
+    assistant && message.actionProposal
+      ? cleanAssistantProposalText(message.text, message.actionProposal)
+      : message.text;
+
   return (
     <View
       style={[
@@ -970,7 +976,9 @@ function MessageBubble({
       <ThemedText type="smallBold">
         {assistant ? "Mizyun Coach" : "You"}
       </ThemedText>
-      <ThemedText>{message.text}</ThemedText>
+      {displayText.trim().length > 0 ? (
+        <ThemedText>{displayText}</ThemedText>
+      ) : null}
       {onRetry !== undefined ? (
         <View style={styles.failedMessageActions}>
           <ThemedText type="small" themeColor="textSecondary">
@@ -1214,16 +1222,22 @@ function MultiWorkoutPlanCard({
         // focus. We humanize it for the row subtitle so the user
         // never sees raw snake_case.
         const sessionFocusLabel = humanFocusLabel(session.focus);
+        const isDuplicateLabel =
+          sessionFocusLabel !== null &&
+          sessionFocusLabel.toLowerCase().trim() ===
+            session.label.toLowerCase().trim();
         return (
           <View
             key={session.index}
             style={styles.multiWorkoutRow}
-            accessibilityLabel={`Session ${session.index}: ${session.label}${sessionFocusLabel === null ? "" : `, ${sessionFocusLabel}`} on ${formatTargetDay(session.targetDay)}, ${session.estimatedMinutes} minutes, ${session.exercises.length} exercises`}
+            accessibilityLabel={`Session ${session.index}: ${session.label}${sessionFocusLabel === null || isDuplicateLabel ? "" : `, ${sessionFocusLabel}`} on ${formatTargetDay(session.targetDay)}, ${session.estimatedMinutes} minutes, ${session.exercises.length} exercises`}
           >
             <View style={{ flex: 1, gap: Spacing.one }}>
               <ThemedText type="smallBold">
                 Day {session.index} · {session.label}
-                {sessionFocusLabel === null ? "" : ` · ${sessionFocusLabel}`}
+                {sessionFocusLabel === null || isDuplicateLabel
+                  ? ""
+                  : ` · ${sessionFocusLabel}`}
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
                 {formatTargetDay(session.targetDay)} ·{" "}

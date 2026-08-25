@@ -216,4 +216,154 @@ describe("GeminiVisionProvider", () => {
       expect.arrayContaining([expect.stringContaining("safety policy")]),
     );
   });
+
+  it("disables thinking tokens for gemini-3.7-flash with thinkingBudget: 0", async () => {
+    const generateContent = vi.fn<GeminiVisionClient["generateContent"]>(
+      async () => ({
+        modelVersion: "gemini-3.7-flash",
+        candidates: [
+          {
+            content: {
+              role: "model",
+              parts: [{ text: JSON.stringify(candidateOutput) }],
+            },
+          },
+        ],
+      }),
+    );
+    const provider = new GeminiVisionProvider({
+      apiKey: "test-key",
+      model: "gemini-3.7-flash",
+      fallbackModel: "gemini-3.6-flash",
+      thinkingBudget: 0,
+      timeoutMs: 5_000,
+      maxOutputTokens: 500,
+      externalAccess: true,
+      client: { generateContent },
+    });
+
+    const result = await provider.generateDraft(request);
+    expect(result.name).toBe("Chicken and rice");
+    expect(result.provenance.model).toBe("gemini-3.7-flash");
+
+    // Verify thinkingConfig was passed in generationConfig with thinkingBudget: 0
+    const callArgs = generateContent.mock.calls[0]?.[0];
+    expect(callArgs?.generationConfig).toMatchObject({
+      thinkingConfig: {
+        thinkingBudget: 0,
+      },
+    });
+  });
+
+  it("automatically falls back to gemini-3.6-flash when gemini-3.7-flash reports 429 rate limit", async () => {
+    const error429 = new Error("Resource has been exhausted / high demand");
+    (error429 as { statusCode?: number }).statusCode = 429;
+
+    const generateContent = vi
+      .fn<GeminiVisionClient["generateContent"]>()
+      .mockImplementation(async (req) => {
+        if (req.model === "gemini-3.7-flash") {
+          throw error429;
+        }
+        return {
+          modelVersion: "gemini-3.6-flash",
+          candidates: [
+            {
+              content: {
+                role: "model",
+                parts: [{ text: JSON.stringify(candidateOutput) }],
+              },
+            },
+          ],
+        };
+      });
+
+    const provider = new GeminiVisionProvider({
+      apiKey: "test-key",
+      model: "gemini-3.7-flash",
+      fallbackModel: "gemini-3.6-flash",
+      timeoutMs: 5_000,
+      maxOutputTokens: 500,
+      externalAccess: true,
+      client: { generateContent },
+      sleep: vi.fn(async () => {}),
+    });
+
+    const result = await provider.generateDraft(request);
+    expect(result.name).toBe("Chicken and rice");
+    expect(result.provenance.model).toBe("gemini-3.6-flash");
+
+    // Verify both primary and fallback were called
+    const calledModels = generateContent.mock.calls.map((c) => c[0].model);
+    expect(calledModels).toContain("gemini-3.7-flash");
+    expect(calledModels).toContain("gemini-3.6-flash");
+  });
+
+  it("automatically falls back to gemini-3.6-flash when gemini-3.7-flash reports 503 capacity exhausted", async () => {
+    const error503 = new Error(
+      "MODEL_CAPACITY_EXHAUSTED: No capacity available for model gemini-3.7-flash",
+    );
+    (error503 as { statusCode?: number }).statusCode = 503;
+
+    const generateContent = vi
+      .fn<GeminiVisionClient["generateContent"]>()
+      .mockImplementation(async (req) => {
+        if (req.model === "gemini-3.7-flash") {
+          throw error503;
+        }
+        return {
+          modelVersion: "gemini-3.6-flash",
+          candidates: [
+            {
+              content: {
+                role: "model",
+                parts: [{ text: JSON.stringify(candidateOutput) }],
+              },
+            },
+          ],
+        };
+      });
+
+    const provider = new GeminiVisionProvider({
+      apiKey: "test-key",
+      model: "gemini-3.7-flash",
+      fallbackModel: "gemini-3.6-flash",
+      timeoutMs: 5_000,
+      maxOutputTokens: 500,
+      externalAccess: true,
+      client: { generateContent },
+      sleep: vi.fn(async () => {}),
+    });
+
+    const result = await provider.generateDraft(request);
+    expect(result.name).toBe("Chicken and rice");
+    expect(result.provenance.model).toBe("gemini-3.6-flash");
+  });
+
+  it("does not trigger fallback on client 400 errors", async () => {
+    const error400 = new Error("Invalid image format");
+    (error400 as { statusCode?: number }).statusCode = 400;
+
+    const generateContent = vi
+      .fn<GeminiVisionClient["generateContent"]>()
+      .mockRejectedValue(error400);
+
+    const provider = new GeminiVisionProvider({
+      apiKey: "test-key",
+      model: "gemini-3.7-flash",
+      fallbackModel: "gemini-3.6-flash",
+      timeoutMs: 5_000,
+      maxOutputTokens: 500,
+      externalAccess: true,
+      client: { generateContent },
+    });
+
+    await expect(provider.generateDraft(request)).rejects.toMatchObject({
+      kind: "invalid_request",
+    });
+
+    // Verify only primary was called (1 attempt, 0 fallback calls)
+    expect(generateContent).toHaveBeenCalledTimes(1);
+    expect(generateContent.mock.calls[0]?.[0].model).toBe("gemini-3.7-flash");
+  });
 });

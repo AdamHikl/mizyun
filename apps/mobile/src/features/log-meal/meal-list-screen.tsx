@@ -2,7 +2,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { router, Stack, useFocusEffect, type Href } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCallback, useState } from "react";
-import type { DailyFoodSummary, FoodEntry } from "@mizyun/contracts";
+import type { FoodEntry } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -12,32 +12,24 @@ import { analyticsClient } from "@/composition/analytics-client";
 import {
   copyFoodEntry,
   deleteFoodEntry,
-  fetchFoodDay,
+  fetchFoodHistory,
+  type DayGroupSummary,
+  type FoodDayGroup,
 } from "./meal-lifecycle-data";
 
 interface MealListState {
+  readonly groups: ReadonlyArray<FoodDayGroup>;
   readonly entries: ReadonlyArray<FoodEntry>;
-  readonly summary: DailyFoodSummary | null;
   readonly loading: boolean;
   readonly message: string | null;
 }
 
 const INITIAL_STATE: MealListState = {
+  groups: [],
   entries: [],
-  summary: null,
   loading: true,
   message: null,
 };
-
-const isoLocalDate = (now: Date): string => {
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
-
-const formatTotal = (value: number | null, suffix: string): string =>
-  value === null ? "Incomplete" : `${Math.round(value)} ${suffix}`;
 
 const formatEntryNutrition = (entry: FoodEntry): string => {
   const values = [
@@ -51,6 +43,16 @@ const formatEntryNutrition = (entry: FoodEntry): string => {
     : values.join(" · ");
 };
 
+const formatGroupNutrition = (summary: DayGroupSummary): string => {
+  const values = [
+    summary.caloriesKcal === null ? null : `${summary.caloriesKcal} kcal`,
+    summary.proteinG === null ? null : `${summary.proteinG}P`,
+    summary.carbohydrateG === null ? null : `${summary.carbohydrateG}C`,
+    summary.fatG === null ? null : `${summary.fatG}F`,
+  ].filter((value): value is string => value !== null);
+  return values.length === 0 ? "No nutrition totals" : values.join(" · ");
+};
+
 const formatMealTime = (instant: string): string =>
   new Date(instant).toLocaleTimeString([], {
     hour: "2-digit",
@@ -58,20 +60,19 @@ const formatMealTime = (instant: string): string =>
   });
 
 export function MealListScreen() {
-  const date = isoLocalDate(new Date());
   const [state, setState] = useState<MealListState>(INITIAL_STATE);
   const [busyEntryId, setBusyEntryId] = useState<string | null>(null);
 
   const load = useCallback(async (): Promise<void> => {
     setState((current) => ({ ...current, loading: true, message: null }));
-    const result = await fetchFoodDay(date);
+    const result = await fetchFoodHistory();
     setState({
+      groups: result.groups,
       entries: result.entries,
-      summary: result.summary,
       loading: false,
       message: result.message,
     });
-  }, [date]);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -115,37 +116,31 @@ export function MealListScreen() {
 
   const confirmDelete = useCallback(
     (entry: FoodEntry): void => {
-      Alert.alert(
-        "Delete meal?",
-        `This permanently removes “${entry.name}” from today's totals.`,
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Delete",
-            style: "destructive",
-            onPress: () => {
-              void remove(entry.id);
-            },
+      Alert.alert("Delete meal?", `This permanently removes “${entry.name}”.`, [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            void remove(entry.id);
           },
-        ],
-      );
+        },
+      ]);
     },
     [remove],
   );
 
   return (
     <ThemedView style={styles.page}>
-      <Stack.Screen options={{ title: "Today's meals" }} />
+      <Stack.Screen options={{ title: "Logged meals" }} />
       <SafeAreaView style={styles.safeArea} edges={["left", "right"]}>
         <ScrollView contentContainerStyle={styles.content}>
           <View style={styles.header}>
-            <ThemedText type="subtitle">Today's nutrition</ThemedText>
+            <ThemedText type="subtitle">Logged meals</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              Confirmed manual entries for your current calendar day.
+              All confirmed entries organized by day.
             </ThemedText>
           </View>
-
-          <SummaryCard summary={state.summary} />
 
           {state.message !== null ? (
             <ThemedView type="backgroundElement" style={styles.messageCard}>
@@ -154,7 +149,7 @@ export function MealListScreen() {
               </ThemedText>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Retry loading today's meals"
+                accessibilityLabel="Retry loading logged meals"
                 onPress={() => void load()}
                 style={styles.inlineButton}
               >
@@ -164,117 +159,115 @@ export function MealListScreen() {
           ) : null}
 
           <View style={styles.sectionHeader}>
-            <ThemedText type="smallBold">Entries</ThemedText>
+            <ThemedText type="smallBold">History</ThemedText>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Add another meal"
               onPress={() => router.push("/log-meal" as Href)}
               style={styles.inlineButton}
             >
-              <ThemedText type="smallBold">＋ Add</ThemedText>
+              <ThemedText type="smallBold">＋ Add meal</ThemedText>
             </Pressable>
           </View>
 
-          {state.loading && state.entries.length === 0 ? (
+          {state.loading && state.groups.length === 0 ? (
             <ThemedText type="small" themeColor="textSecondary">
-              Loading today's meals…
+              Loading logged meals…
             </ThemedText>
           ) : null}
 
           {!state.loading &&
-          state.entries.length === 0 &&
+          state.groups.length === 0 &&
           state.message === null ? (
             <ThemedView type="backgroundElement" style={styles.emptyCard}>
               <ThemedText type="smallBold">Nothing logged yet</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                Add your first meal to start today's totals.
+                Meals you log will appear here grouped by day.
               </ThemedText>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Log your first meal"
+                onPress={() => router.push("/log-meal" as Href)}
+                style={styles.emptyAddButton}
+              >
+                <ThemedText type="smallBold">＋ Log your first meal</ThemedText>
+              </Pressable>
             </ThemedView>
           ) : null}
 
-          <View style={styles.entryList}>
-            {state.entries.map((entry) => {
-              const busy = busyEntryId === entry.id;
-              return (
-                <ThemedView
-                  key={entry.id}
-                  type="backgroundElement"
-                  style={styles.entryCard}
-                >
-                  <View style={styles.entryHeader}>
-                    <ThemedText type="smallBold" style={styles.entryName}>
-                      {entry.name}
+          <View style={styles.groupList}>
+            {state.groups.map((group) => (
+              <View key={group.date} style={styles.dayGroup}>
+                <View style={styles.dayHeader}>
+                  <View style={styles.dayTitleRow}>
+                    <ThemedText type="smallBold" style={styles.dayTitle}>
+                      {group.displayDate}
                     </ThemedText>
                     <ThemedText type="small" themeColor="textSecondary">
-                      {formatMealTime(entry.consumedAt)}
+                      {group.summary.entryCount}{" "}
+                      {group.summary.entryCount === 1 ? "meal" : "meals"}
                     </ThemedText>
                   </View>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {formatEntryNutrition(entry)}
+                  <ThemedText
+                    type="small"
+                    themeColor="textSecondary"
+                    style={styles.dayTotals}
+                  >
+                    {formatGroupNutrition(group.summary)}
                   </ThemedText>
-                  <View style={styles.entryActions}>
-                    <EntryAction
-                      label="Edit"
-                      disabled={busy}
-                      onPress={() =>
-                        router.push(
-                          `/edit-meal?id=${encodeURIComponent(entry.id)}` as Href,
-                        )
-                      }
-                    />
-                    <EntryAction
-                      label={busy ? "Working…" : "Copy"}
-                      disabled={busy}
-                      onPress={() => void copy(entry)}
-                    />
-                    <EntryAction
-                      label="Delete"
-                      disabled={busy}
-                      destructive
-                      onPress={() => confirmDelete(entry)}
-                    />
-                  </View>
-                </ThemedView>
-              );
-            })}
+                </View>
+
+                <View style={styles.dayEntries}>
+                  {group.entries.map((entry) => {
+                    const busy = busyEntryId === entry.id;
+                    return (
+                      <ThemedView
+                        key={entry.id}
+                        type="backgroundElement"
+                        style={styles.entryCard}
+                      >
+                        <View style={styles.entryHeader}>
+                          <ThemedText type="smallBold" style={styles.entryName}>
+                            {entry.name}
+                          </ThemedText>
+                          <ThemedText type="small" themeColor="textSecondary">
+                            {formatMealTime(entry.consumedAt)}
+                          </ThemedText>
+                        </View>
+                        <ThemedText type="small" themeColor="textSecondary">
+                          {formatEntryNutrition(entry)}
+                        </ThemedText>
+                        <View style={styles.entryActions}>
+                          <EntryAction
+                            label="Edit"
+                            disabled={busy}
+                            onPress={() =>
+                              router.push(
+                                `/edit-meal?id=${encodeURIComponent(entry.id)}` as Href,
+                              )
+                            }
+                          />
+                          <EntryAction
+                            label={busy ? "Working…" : "Copy"}
+                            disabled={busy}
+                            onPress={() => void copy(entry)}
+                          />
+                          <EntryAction
+                            label="Delete"
+                            disabled={busy}
+                            destructive
+                            onPress={() => confirmDelete(entry)}
+                          />
+                        </View>
+                      </ThemedView>
+                    );
+                  })}
+                </View>
+              </View>
+            ))}
           </View>
         </ScrollView>
       </SafeAreaView>
-    </ThemedView>
-  );
-}
-
-function SummaryCard({
-  summary,
-}: {
-  readonly summary: DailyFoodSummary | null;
-}) {
-  return (
-    <ThemedView type="backgroundElement" style={styles.summaryCard}>
-      <View style={styles.summaryPrimary}>
-        <ThemedText type="small" themeColor="textSecondary">
-          Calories
-        </ThemedText>
-        <ThemedText type="subtitle">
-          {formatTotal(summary?.caloriesKcal ?? null, "kcal")}
-        </ThemedText>
-        <ThemedText type="small" themeColor="textSecondary">
-          {summary === null
-            ? "Waiting for totals"
-            : `${summary.entryCount} ${summary.entryCount === 1 ? "entry" : "entries"}`}
-        </ThemedText>
-      </View>
-      <View style={styles.macroTotals}>
-        <ThemedText type="small">
-          Protein {formatTotal(summary?.proteinG ?? null, "g")}
-        </ThemedText>
-        <ThemedText type="small">
-          Carbs {formatTotal(summary?.carbohydrateG ?? null, "g")}
-        </ThemedText>
-        <ThemedText type="small">
-          Fat {formatTotal(summary?.fatG ?? null, "g")}
-        </ThemedText>
-      </View>
     </ThemedView>
   );
 }
@@ -320,13 +313,6 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
   },
   header: { gap: Spacing.one },
-  summaryCard: {
-    borderRadius: Spacing.four,
-    padding: Spacing.four,
-    gap: Spacing.three,
-  },
-  summaryPrimary: { gap: Spacing.one },
-  macroTotals: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.three },
   messageCard: {
     borderRadius: Spacing.three,
     padding: Spacing.three,
@@ -347,9 +333,36 @@ const styles = StyleSheet.create({
   emptyCard: {
     borderRadius: Spacing.three,
     padding: Spacing.four,
-    gap: Spacing.one,
+    gap: Spacing.two,
   },
-  entryList: { gap: Spacing.two },
+  emptyAddButton: {
+    minHeight: 44,
+    justifyContent: "center",
+    alignItems: "flex-start",
+    paddingTop: Spacing.one,
+  },
+  groupList: { gap: Spacing.four },
+  dayGroup: {
+    gap: Spacing.two,
+  },
+  dayHeader: {
+    gap: Spacing.half,
+    paddingBottom: Spacing.half,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(100, 116, 139, 0.2)",
+  },
+  dayTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  dayTitle: {
+    fontSize: 15,
+  },
+  dayTotals: {
+    fontSize: 13,
+  },
+  dayEntries: { gap: Spacing.two },
   entryCard: {
     borderRadius: Spacing.three,
     padding: Spacing.three,

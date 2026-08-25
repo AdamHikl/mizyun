@@ -30,7 +30,7 @@ export default function HomeStackLayout() {
         name="feedback"
         options={{ title: "Feedback & Reviews", presentation: "modal" }}
       />
-      <Stack.Screen name="nutrition" options={{ title: "Today's meals" }} />
+      <Stack.Screen name="nutrition" options={{ title: "Logged meals" }} />
     </Stack>
   );
 }

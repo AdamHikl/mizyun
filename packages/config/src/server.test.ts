@@ -502,8 +502,30 @@ describe("loadServerConfig — closed-world", () => {
       },
       geminiVisionConfig: {
         apiKey: "test-gemini-key-12345",
-        model: "gemini-3.6-flash",
+        model: "gemini-3.7-flash",
+        fallbackModel: "gemini-3.6-flash",
+        thinkingBudget: 0,
       },
+    });
+  });
+
+  it("respects custom Gemini vision model, fallback model, and thinking budget", () => {
+    const result = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.agentProvider]: "gemini",
+        [SERVER_ENV_KEYS.geminiApiKey]: "test-gemini-key-12345",
+        [SERVER_ENV_KEYS.geminiVisionModel]: "gemini-3.7-flash",
+        [SERVER_ENV_KEYS.geminiVisionFallbackModel]: "gemini-3.6-flash",
+        [SERVER_ENV_KEYS.geminiVisionThinkingBudget]: "512",
+      },
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.geminiVisionConfig).toMatchObject({
+      model: "gemini-3.7-flash",
+      fallbackModel: "gemini-3.6-flash",
+      thinkingBudget: 512,
     });
   });
 

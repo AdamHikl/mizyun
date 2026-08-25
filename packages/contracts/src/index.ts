@@ -73,6 +73,7 @@ export {
   coachThreadResponseSchema,
   coachWorkoutProposalSchema,
   coachWorkoutEditProposalSchema,
+  cleanAssistantProposalText,
   type CoachActionProposal,
   type CoachDailyPlanProposal,
   type CoachMultiWorkoutPlanProposal,

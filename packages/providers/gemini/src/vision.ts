@@ -18,26 +18,56 @@ import {
 import { z } from "zod";
 
 const visionOutputSchema = z.object({
-  name: z.string().trim().min(1).max(200).nullable(),
-  caloriesKcal: z.number().nonnegative().lte(20_000).nullable(),
-  proteinG: z.number().nonnegative().lte(10_000).nullable(),
-  carbohydrateG: z.number().nonnegative().lte(10_000).nullable(),
-  fatG: z.number().nonnegative().lte(10_000).nullable(),
+  name: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .nullish()
+    .transform((v) => v ?? null),
+  caloriesKcal: z
+    .number()
+    .nonnegative()
+    .lte(20_000)
+    .nullish()
+    .transform((v) => v ?? null),
+  proteinG: z
+    .number()
+    .nonnegative()
+    .lte(10_000)
+    .nullish()
+    .transform((v) => v ?? null),
+  carbohydrateG: z
+    .number()
+    .nonnegative()
+    .lte(10_000)
+    .nullish()
+    .transform((v) => v ?? null),
+  fatG: z
+    .number()
+    .nonnegative()
+    .lte(10_000)
+    .nullish()
+    .transform((v) => v ?? null),
   calorieRangeKcal: z
     .object({ low: z.number().nonnegative(), high: z.number().nonnegative() })
-    .nullable(),
+    .nullish()
+    .transform((v) => v ?? null),
   proteinRangeG: z
     .object({ low: z.number().nonnegative(), high: z.number().nonnegative() })
-    .nullable(),
+    .nullish()
+    .transform((v) => v ?? null),
   carbohydrateRangeG: z
     .object({ low: z.number().nonnegative(), high: z.number().nonnegative() })
-    .nullable(),
+    .nullish()
+    .transform((v) => v ?? null),
   fatRangeG: z
     .object({ low: z.number().nonnegative(), high: z.number().nonnegative() })
-    .nullable(),
-  confidence: z.number().min(0).max(1),
-  warnings: z.array(z.string().trim().min(1).max(500)).max(8),
-  assumptions: z.array(z.string().trim().min(1).max(500)).max(8),
+    .nullish()
+    .transform((v) => v ?? null),
+  confidence: z.number().min(0).max(1).default(0.8),
+  warnings: z.array(z.string().trim().min(1).max(500)).max(8).default([]),
+  assumptions: z.array(z.string().trim().min(1).max(500)).max(8).default([]),
 });
 type VisionModelOutput = z.infer<typeof visionOutputSchema>;
 
@@ -143,13 +173,15 @@ const refineUserPrompt = (
 export interface GeminiVisionProviderOptions {
   readonly apiKey: string;
   readonly model: string;
+  readonly fallbackModel?: string | undefined;
+  readonly thinkingBudget?: number | undefined;
   readonly timeoutMs: number;
   readonly maxOutputTokens: number;
   readonly externalAccess: boolean;
-  readonly client?: GeminiVisionClient;
-  readonly now?: () => number;
-  readonly random?: () => number;
-  readonly sleep?: (milliseconds: number) => Promise<void>;
+  readonly client?: GeminiVisionClient | undefined;
+  readonly now?: (() => number) | undefined;
+  readonly random?: (() => number) | undefined;
+  readonly sleep?: ((milliseconds: number) => Promise<void>) | undefined;
 }
 
 export type GeminiVisionPart =
@@ -174,6 +206,9 @@ export interface GeminiVisionClient {
         readonly maxOutputTokens?: number;
         readonly responseMimeType?: string;
         readonly responseSchema?: Readonly<Record<string, unknown>>;
+        readonly thinkingConfig?: {
+          readonly thinkingBudget?: number;
+        };
       };
     },
     options: { readonly timeoutMs: number; readonly apiKey: string },
@@ -314,6 +349,33 @@ const normalizeError = (error: unknown): VisionProviderError => {
   );
 };
 
+const isHighDemandError = (
+  error: unknown,
+  normalized: VisionProviderError,
+): boolean => {
+  const status = statusCodeOf(error);
+  if (
+    status === 429 ||
+    status === 503 ||
+    status === 500 ||
+    status === 502 ||
+    status === 504
+  ) {
+    return true;
+  }
+  if (
+    normalized.kind === "rate_limited" ||
+    normalized.kind === "unavailable" ||
+    normalized.kind === "timeout"
+  ) {
+    return true;
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  return /(MODEL_CAPACITY_EXHAUSTED|RESOURCE_EXHAUSTED|overloaded|capacity|high demand|temporarily unavailable|quota)/i.test(
+    message,
+  );
+};
+
 const toBase64 = (bytes: Readonly<Uint8Array>): string => {
   if (typeof Buffer !== "undefined") {
     return Buffer.from(bytes).toString("base64");
@@ -379,6 +441,8 @@ const parseGeminiVisionResponse = (
 export class GeminiVisionProvider implements VisionDraftProvider {
   readonly #apiKey: string;
   readonly #model: string;
+  readonly #fallbackModel: string | undefined;
+  readonly #thinkingBudget: number;
   readonly #timeoutMs: number;
   readonly #maxOutputTokens: number;
   readonly #externalAccess: boolean;
@@ -390,6 +454,12 @@ export class GeminiVisionProvider implements VisionDraftProvider {
   constructor(options: GeminiVisionProviderOptions) {
     this.#apiKey = options.apiKey;
     this.#model = options.model;
+    this.#fallbackModel =
+      options.fallbackModel !== undefined &&
+      options.fallbackModel !== options.model
+        ? options.fallbackModel
+        : undefined;
+    this.#thinkingBudget = options.thinkingBudget ?? 0;
     this.#timeoutMs = options.timeoutMs;
     this.#maxOutputTokens = options.maxOutputTokens;
     this.#externalAccess = options.externalAccess;
@@ -498,44 +568,74 @@ export class GeminiVisionProvider implements VisionDraftProvider {
     const promptVersion =
       overrides.promptVersion ?? NUTRITION_DRAFT_PROMPT_VERSION;
 
-    const call = () =>
-      this.#client.generateContent(
-        {
-          model: this.#model,
-          systemInstruction: {
-            parts: [{ text: systemPolicy }],
-          },
-          contents: [
-            {
-              role: "user",
-              parts,
-            },
-          ],
-          generationConfig: {
-            temperature: 0.2,
-            maxOutputTokens: this.#maxOutputTokens,
-            responseMimeType: "application/json",
-            responseSchema: geminiVisionOutputJsonSchema,
-          },
-        },
-        { timeoutMs: this.#timeoutMs, apiKey: this.#apiKey },
-      );
+    const executeCallForModel = async (
+      targetModel: string,
+    ): Promise<{ readonly raw: unknown; readonly usedModel: string }> => {
+      const isThinkingCapable =
+        targetModel.includes("3.7") ||
+        targetModel.includes("thinking") ||
+        this.#thinkingBudget > 0;
+      const generationConfig: Record<string, unknown> = {
+        temperature: 0.2,
+        maxOutputTokens: this.#maxOutputTokens,
+        responseMimeType: "application/json",
+        responseSchema: geminiVisionOutputJsonSchema,
+        ...(isThinkingCapable
+          ? { thinkingConfig: { thinkingBudget: this.#thinkingBudget } }
+          : {}),
+      };
 
-    let raw: unknown;
-    try {
-      raw = await call();
-    } catch (firstError) {
-      const normalized = normalizeError(firstError);
-      if (!normalized.retryable) throw normalized;
-      await this.#sleep(retryDelayMilliseconds(firstError, this.#random));
+      const call = () =>
+        this.#client.generateContent(
+          {
+            model: targetModel,
+            systemInstruction: {
+              parts: [{ text: systemPolicy }],
+            },
+            contents: [
+              {
+                role: "user",
+                parts,
+              },
+            ],
+            generationConfig,
+          },
+          { timeoutMs: this.#timeoutMs, apiKey: this.#apiKey },
+        );
+
       try {
-        raw = await call();
-      } catch (secondError) {
-        throw normalizeError(secondError);
+        const result = await call();
+        return { raw: result, usedModel: targetModel };
+      } catch (firstError) {
+        const normalized = normalizeError(firstError);
+        if (!normalized.retryable) throw firstError;
+        await this.#sleep(retryDelayMilliseconds(firstError, this.#random));
+        try {
+          const result = await call();
+          return { raw: result, usedModel: targetModel };
+        } catch (secondError) {
+          throw secondError;
+        }
+      }
+    };
+
+    let callResult: { readonly raw: unknown; readonly usedModel: string };
+    try {
+      callResult = await executeCallForModel(this.#model);
+    } catch (primaryError) {
+      const normalized = normalizeError(primaryError);
+      if (this.#fallbackModel && isHighDemandError(primaryError, normalized)) {
+        try {
+          callResult = await executeCallForModel(this.#fallbackModel);
+        } catch (fallbackError) {
+          throw normalizeError(fallbackError);
+        }
+      } else {
+        throw normalized;
       }
     }
 
-    const parsedResponse = parseGeminiVisionResponse(raw);
+    const parsedResponse = parseGeminiVisionResponse(callResult.raw);
     if (parsedResponse === null) {
       throw new VisionProviderError(
         "malformed_response",
@@ -544,7 +644,7 @@ export class GeminiVisionProvider implements VisionDraftProvider {
       );
     }
     const parsed = parsedResponse.candidate;
-    const resolvedModel = parsedResponse.resolvedModel ?? this.#model;
+    const resolvedModel = parsedResponse.resolvedModel ?? callResult.usedModel;
 
     if (isUnsafeOutput(parsed)) {
       return {

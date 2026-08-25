@@ -38,6 +38,7 @@ import {
   coachProviderStatusSchema,
   coachThreadResponseSchema,
   trainingPrescriptionResponseSchema,
+  cleanAssistantProposalText,
   type CoachActionProposal,
   type CoachConversation,
   type CoachMessage,
@@ -982,6 +983,13 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
           typeof response.providerMetadata?.totalTokens === "number"
             ? response.providerMetadata.totalTokens
             : 0;
+        const rawAssistantText = extractAssistantText(response.message.text);
+        const assistantText =
+          actionProposal !== null
+            ? cleanAssistantProposalText(rawAssistantText, actionProposal)
+            : rawAssistantText && rawAssistantText.trim().length > 0
+              ? rawAssistantText
+              : "I can only help with fitness and nutrition questions. Ask me something gym-related!";
         const assistantMessage =
           await options.conversationRepository.addMessage(
             principal.userId,
@@ -989,13 +997,7 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
               id: crypto.randomUUID(),
               conversationId,
               role: "assistant",
-              text:
-                extractAssistantText(response.message.text) ??
-                (actionProposal !== null
-                  ? "Here is the plan built for your goals and available equipment."
-                  : response.message.text.trim().length > 0
-                    ? response.message.text
-                    : "Here is the plan built for your goals and available equipment."),
+              text: assistantText,
               status: "complete",
               idempotencyKey: null,
               providerMetadata: {

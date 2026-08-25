@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { coachMessageSchema } from "./coach";
+import { cleanAssistantProposalText, coachMessageSchema } from "./coach";
 
 describe("Coach action proposal contracts", () => {
   it("accepts a schema-validated editable meal proposal", () => {
@@ -199,6 +199,206 @@ describe("Coach action proposal contracts", () => {
     );
     expect(parsed.actionProposal.exercises[0]?.name).toBe(
       "Incline dumbbell press",
+    );
+  });
+});
+
+describe("cleanAssistantProposalText", () => {
+  it("passes through raw text untouched when no proposal is attached", () => {
+    const raw =
+      "Here are three tips for protein intake:\n1. Eggs\n2. Chicken\n3. Greek yogurt";
+    expect(cleanAssistantProposalText(raw, null)).toBe(raw);
+    expect(cleanAssistantProposalText(raw, undefined)).toBe(raw);
+  });
+
+  it("trims markdown dividers, headers, and exercise lists when multi_workout_plan is attached", () => {
+    const raw = `Here's your **3-day hypertrophy-focused split** (2 upper, 1 lower) using **dumbbells, barbells, and cables** to emphasize a **V-shape** (prioritizing lats, delts, and upper back). Each session is ~150 minutes with controlled tempo and rest.
+
+---
+
+### Day 1: Upper Body (Back & Shoulders focus)
+* Barbell Bent-Over Row: 4 sets x 8-10 reps (Rest: 2-3 mins)
+* Dumbbell Incline Bench Press: 4 sets x 8-10 reps (Rest: 2 mins)
+* Lat Pulldowns: 4 sets x 10-12 reps
+
+### Day 2: Lower Body
+* Barbell Squat: 4 sets x 6-8 reps`;
+
+    const proposal: import("./coach").CoachMultiWorkoutPlanProposal = {
+      id: "00000000-0000-4000-8000-000000000001",
+      kind: "multi_workout_plan",
+      prescriptionVersion: "v1",
+      volumeAction: "build",
+      focus: "hypertrophy",
+      requestedSessions: 3,
+      sessionMinutes: 150,
+      rationale: "Hypertrophy split",
+      sessions: [
+        {
+          index: 1,
+          label: "Upper body",
+          estimatedMinutes: 150,
+          focus: "upper",
+          targetDay: "2026-08-25",
+          exercises: [
+            {
+              catalogId: "barbell-row",
+              name: "Barbell row",
+              movementPattern: "horizontal_pull",
+              equipment: ["barbell"],
+              sets: 4,
+              repsMin: 8,
+              repsMax: 10,
+              durationMinutes: null,
+              restSeconds: 120,
+              progression: "double_progression",
+            },
+          ],
+        },
+      ],
+      startDay: "2026-08-25",
+      endDay: "2026-08-31",
+    };
+
+    const cleaned = cleanAssistantProposalText(raw, proposal);
+    expect(cleaned).toBe(
+      "Here's your **3-day hypertrophy-focused split** (2 upper, 1 lower) using **dumbbells, barbells, and cables** to emphasize a **V-shape** (prioritizing lats, delts, and upper back). Each session is ~150 minutes with controlled tempo and rest.",
+    );
+    expect(cleaned).not.toContain("---");
+    expect(cleaned).not.toContain("Barbell Bent-Over Row");
+    expect(cleaned).not.toContain("Day 1");
+  });
+
+  it("replaces a trailing colon with a period when trimming lists", () => {
+    const raw = `Here is your customized workout routine:
+1. Incline Dumbbell Press: 3 sets
+2. Cable Lateral Raise: 4 sets`;
+
+    const proposal: import("./coach").CoachWorkoutProposal = {
+      id: "00000000-0000-4000-8000-000000000002",
+      kind: "workout_start",
+      prescriptionVersion: "v1",
+      volumeAction: "hold",
+      session: {
+        index: 1,
+        label: "Upper body",
+        estimatedMinutes: 60,
+        exercises: [],
+      },
+    };
+
+    const cleaned = cleanAssistantProposalText(raw, proposal);
+    expect(cleaned).toBe("Here is your customized workout routine.");
+  });
+
+  it("returns a proposal-specific fallback when the raw text begins immediately with a list or is empty", () => {
+    const raw = `### 3-Day Workout Split
+* Push-ups: 3x10
+* Squats: 3x10`;
+
+    const proposal: import("./coach").CoachMultiWorkoutPlanProposal = {
+      id: "00000000-0000-4000-8000-000000000003",
+      kind: "multi_workout_plan",
+      prescriptionVersion: "v1",
+      volumeAction: "build",
+      focus: null,
+      requestedSessions: 3,
+      sessionMinutes: 60,
+      rationale: "Plan",
+      sessions: [
+        {
+          index: 1,
+          label: "Session 1",
+          estimatedMinutes: 60,
+          focus: null,
+          targetDay: "2026-08-25",
+          exercises: [],
+        },
+        {
+          index: 2,
+          label: "Session 2",
+          estimatedMinutes: 60,
+          focus: null,
+          targetDay: "2026-08-27",
+          exercises: [],
+        },
+        {
+          index: 3,
+          label: "Session 3",
+          estimatedMinutes: 60,
+          focus: null,
+          targetDay: "2026-08-29",
+          exercises: [],
+        },
+      ],
+      startDay: "2026-08-25",
+      endDay: "2026-08-31",
+    };
+
+    expect(cleanAssistantProposalText(raw, proposal)).toBe(
+      "Here is your 3-session plan. Review and save your sessions below.",
+    );
+    expect(cleanAssistantProposalText("", proposal)).toBe(
+      "Here is your 3-session plan. Review and save your sessions below.",
+    );
+    expect(cleanAssistantProposalText(null, proposal)).toBe(
+      "Here is your 3-session plan. Review and save your sessions below.",
+    );
+  });
+
+  it("returns fallback text for workout_start, daily_plan, meal_log, and workout_edit", () => {
+    expect(
+      cleanAssistantProposalText("", {
+        id: "00000000-0000-4000-8000-000000000004",
+        kind: "workout_start",
+        prescriptionVersion: "v1",
+        volumeAction: "hold",
+        session: {
+          index: 1,
+          label: "Full body",
+          estimatedMinutes: 45,
+          exercises: [],
+        },
+      }),
+    ).toBe("Here is your planned Full body workout. Review and start below.");
+
+    expect(
+      cleanAssistantProposalText("", {
+        id: "00000000-0000-4000-8000-000000000005",
+        kind: "daily_plan",
+        version: "v1",
+        date: "2026-08-25",
+        calorie: null,
+        protein: null,
+        training: null,
+        missingInputs: [],
+        nextAction: "train",
+      }),
+    ).toBe(
+      "Here is your daily action plan. Review your targets and next action below.",
+    );
+
+    expect(
+      cleanAssistantProposalText("", {
+        id: "00000000-0000-4000-8000-000000000006",
+        kind: "meal_log",
+        candidate: {} as unknown as import("./food-entry").FoodDraftCandidate,
+      }),
+    ).toBe(
+      "I drafted that meal from your description. Review the portion, calories, and macros before logging it.",
+    );
+
+    expect(
+      cleanAssistantProposalText("", {
+        id: "00000000-0000-4000-8000-000000000007",
+        kind: "workout_edit",
+        workoutId: "00000000-0000-4000-8000-000000000008",
+        targetName: "Session",
+        exercises: [],
+        summary: "Updated exercises",
+      }),
+    ).toBe(
+      "I updated the workout with your requested changes. Review the edits below.",
     );
   });
 });

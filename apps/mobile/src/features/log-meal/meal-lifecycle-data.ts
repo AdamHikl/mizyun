@@ -23,12 +23,147 @@ export interface FoodDayResult {
   readonly message: string | null;
 }
 
+export interface DayGroupSummary {
+  readonly entryCount: number;
+  readonly caloriesKcal: number | null;
+  readonly proteinG: number | null;
+  readonly carbohydrateG: number | null;
+  readonly fatG: number | null;
+}
+
+export interface FoodDayGroup {
+  readonly date: string;
+  readonly displayDate: string;
+  readonly summary: DayGroupSummary;
+  readonly entries: ReadonlyArray<FoodEntry>;
+}
+
+export interface FoodHistoryResult {
+  readonly groups: ReadonlyArray<FoodDayGroup>;
+  readonly entries: ReadonlyArray<FoodEntry>;
+  readonly message: string | null;
+}
+
 export type FoodEntryLoadResult =
   | { readonly ok: true; readonly entry: FoodEntry }
   | { readonly ok: false; readonly message: string };
 
 export type FoodMutationResult =
   { readonly ok: true } | { readonly ok: false; readonly message: string };
+
+export const isoLocalDate = (now: Date): string => {
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+export const entryLocalDate = (entry: FoodEntry): string =>
+  isoLocalDate(new Date(entry.consumedAt));
+
+export const formatDisplayDate = (
+  dateStr: string,
+  today: Date = new Date(),
+): string => {
+  const todayIso = isoLocalDate(today);
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayIso = isoLocalDate(yesterday);
+
+  const parts = dateStr.split("-").map((p) => Number.parseInt(p, 10));
+  const [year, month, day] = parts as [number, number, number];
+  const dateObj = new Date(year, month - 1, day, 12, 0, 0);
+  const weekday = dateObj.toLocaleDateString("en-US", { weekday: "short" });
+  const monthDay = dateObj.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+  const isCurrentYear = year === today.getFullYear();
+
+  if (dateStr === todayIso) {
+    return `Today · ${weekday}, ${monthDay}`;
+  }
+  if (dateStr === yesterdayIso) {
+    return `Yesterday · ${weekday}, ${monthDay}`;
+  }
+  if (isCurrentYear) {
+    return `${weekday}, ${monthDay}`;
+  }
+  return `${weekday}, ${monthDay}, ${year}`;
+};
+
+export const groupFoodEntriesByDay = (
+  entries: ReadonlyArray<FoodEntry>,
+  now: Date = new Date(),
+): ReadonlyArray<FoodDayGroup> => {
+  const groupsMap = new Map<string, FoodEntry[]>();
+
+  for (const entry of entries) {
+    const d = entryLocalDate(entry);
+    const list = groupsMap.get(d);
+    if (list === undefined) {
+      groupsMap.set(d, [entry]);
+    } else {
+      list.push(entry);
+    }
+  }
+
+  const sortedDates = Array.from(groupsMap.keys()).sort((a, b) =>
+    b.localeCompare(a),
+  );
+
+  return sortedDates.map((dateStr) => {
+    const dayEntries = groupsMap.get(dateStr) ?? [];
+    dayEntries.sort(
+      (a, b) =>
+        new Date(b.consumedAt).getTime() - new Date(a.consumedAt).getTime(),
+    );
+
+    let calories = 0;
+    let protein = 0;
+    let carbs = 0;
+    let fat = 0;
+
+    let hasAnyCalories = false;
+    let hasAnyProtein = false;
+    let hasAnyCarbs = false;
+    let hasAnyFat = false;
+
+    for (const entry of dayEntries) {
+      if (entry.caloriesKcal !== null) {
+        hasAnyCalories = true;
+        calories += entry.caloriesKcal;
+      }
+      if (entry.proteinG !== null) {
+        hasAnyProtein = true;
+        protein += entry.proteinG;
+      }
+      if (entry.carbohydrateG !== null) {
+        hasAnyCarbs = true;
+        carbs += entry.carbohydrateG;
+      }
+      if (entry.fatG !== null) {
+        hasAnyFat = true;
+        fat += entry.fatG;
+      }
+    }
+
+    const summary: DayGroupSummary = {
+      entryCount: dayEntries.length,
+      caloriesKcal: hasAnyCalories ? Math.round(calories) : null,
+      proteinG: hasAnyProtein ? Math.round(protein * 10) / 10 : null,
+      carbohydrateG: hasAnyCarbs ? Math.round(carbs * 10) / 10 : null,
+      fatG: hasAnyFat ? Math.round(fat * 10) / 10 : null,
+    };
+
+    return {
+      date: dateStr,
+      displayDate: formatDisplayDate(dateStr, now),
+      summary,
+      entries: dayEntries,
+    };
+  });
+};
 
 const humanizeApiError = (error: ApiError, action: string): string => {
   switch (error.kind) {
@@ -48,6 +183,37 @@ const humanizeApiError = (error: ApiError, action: string): string => {
     case "no_session":
       return "You're signed out. Sign in and try again.";
   }
+};
+
+export const fetchFoodHistory = async (): Promise<FoodHistoryResult> =>
+  fetchFoodHistoryWith(apiClient, -new Date().getTimezoneOffset());
+
+export const fetchFoodHistoryWith = async (
+  client: ApiClient,
+  _utcOffsetMinutes = 0,
+  now: Date = new Date(),
+): Promise<FoodHistoryResult> => {
+  const result = await client.request<FoodEntryListResponse>({
+    method: "GET",
+    path: "/v1/food-entries?limit=200",
+    schema: foodEntryListResponseSchema,
+  });
+
+  if (!result.ok) {
+    return {
+      groups: [],
+      entries: [],
+      message: humanizeApiError(result.error, "Refresh your meals"),
+    };
+  }
+
+  const entries = result.value.foodEntries;
+  const groups = groupFoodEntriesByDay(entries, now);
+  return {
+    groups,
+    entries,
+    message: null,
+  };
 };
 
 export const fetchFoodDay = async (date: string): Promise<FoodDayResult> =>

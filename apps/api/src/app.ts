@@ -578,6 +578,8 @@ export const buildApp = (
       ? new GeminiVisionProvider({
           apiKey: configResult.value.geminiVisionConfig.apiKey,
           model: configResult.value.geminiVisionConfig.model,
+          fallbackModel: configResult.value.geminiVisionConfig.fallbackModel,
+          thinkingBudget: configResult.value.geminiVisionConfig.thinkingBudget,
           timeoutMs: configResult.value.geminiVisionConfig.timeoutMs,
           maxOutputTokens:
             configResult.value.geminiVisionConfig.maxOutputTokens,

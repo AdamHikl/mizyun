@@ -53,6 +53,8 @@ export interface ServerGeminiConfiguration {
 export interface ServerGeminiVisionConfiguration {
   readonly apiKey: string;
   readonly model: string;
+  readonly fallbackModel?: string | undefined;
+  readonly thinkingBudget?: number | undefined;
   readonly timeoutMs: number;
   readonly maxOutputTokens: number;
 }
@@ -98,6 +100,8 @@ export const SERVER_ENV_KEYS = {
   geminiMaxOutputTokens: "GEMINI_MAX_OUTPUT_TOKENS",
   geminiVisionApiKey: "GEMINI_VISION_API_KEY",
   geminiVisionModel: "GEMINI_VISION_MODEL",
+  geminiVisionFallbackModel: "GEMINI_VISION_FALLBACK_MODEL",
+  geminiVisionThinkingBudget: "GEMINI_VISION_THINKING_BUDGET",
   geminiVisionTimeoutMs: "GEMINI_VISION_TIMEOUT_MS",
   geminiVisionMaxOutputTokens: "GEMINI_VISION_MAX_OUTPUT_TOKENS",
   aiDailyUserTokenBudget: "AI_DAILY_USER_TOKEN_BUDGET",
@@ -209,7 +213,17 @@ const baseServerSchema = z.object({
   geminiVisionModel: z
     .string()
     .min(1, "GEMINI_VISION_MODEL must not be empty")
+    .default("gemini-3.7-flash"),
+  geminiVisionFallbackModel: z
+    .string()
+    .min(1, "GEMINI_VISION_FALLBACK_MODEL must not be empty")
     .default("gemini-3.6-flash"),
+  geminiVisionThinkingBudget: z.coerce
+    .number()
+    .int("GEMINI_VISION_THINKING_BUDGET must be an integer")
+    .min(0, "GEMINI_VISION_THINKING_BUDGET must be >= 0")
+    .max(32_768, "GEMINI_VISION_THINKING_BUDGET must be <= 32768")
+    .default(0),
   geminiVisionTimeoutMs: z.coerce
     .number()
     .int("GEMINI_VISION_TIMEOUT_MS must be an integer")
@@ -413,6 +427,10 @@ export const loadServerConfig = (
       ? {
           apiKey: geminiVisionApiKeyResolved,
           model: value.geminiVisionModel,
+          ...(value.geminiVisionFallbackModel
+            ? { fallbackModel: value.geminiVisionFallbackModel }
+            : {}),
+          thinkingBudget: value.geminiVisionThinkingBudget,
           timeoutMs: value.geminiVisionTimeoutMs,
           maxOutputTokens: value.geminiVisionMaxOutputTokens,
         }
