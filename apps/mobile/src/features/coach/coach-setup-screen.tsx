@@ -1028,12 +1028,7 @@ function MessageBubble({
         />
       ) : null}
       {assistant && message.evidenceKinds.length > 0 ? (
-        <View style={{ marginTop: Spacing.two, gap: Spacing.one }}>
-          <ThemedText type="small" themeColor="textSecondary">
-            Used confirmed
-          </ThemedText>
-          <EvidenceChips kinds={message.evidenceKinds} />
-        </View>
+        <EvidenceChips kinds={message.evidenceKinds} />
       ) : null}
     </View>
   );
