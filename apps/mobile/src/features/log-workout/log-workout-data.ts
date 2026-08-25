@@ -329,14 +329,28 @@ export const loadRecentPerformanceWith = async (
 
 export const completeWorkout = async (
   workoutId: string,
-): Promise<WorkoutMutationResult> => completeWorkoutWith(apiClient, workoutId);
+  workoutStartedAt?: string,
+): Promise<WorkoutMutationResult> =>
+  completeWorkoutWith(apiClient, workoutId, () => new Date(), workoutStartedAt);
 
 export const completeWorkoutWith = async (
   client: ApiClient,
   workoutId: string,
   now: () => Date = () => new Date(),
+  workoutStartedAt?: string,
 ): Promise<WorkoutMutationResult> => {
-  const body = workoutPatchSchema.parse({ completedAt: now().toISOString() });
+  const completionTime = now();
+  const startedAtDate = workoutStartedAt ? new Date(workoutStartedAt) : null;
+  const updateStartedAt =
+    startedAtDate !== null &&
+    !Number.isNaN(startedAtDate.getTime()) &&
+    startedAtDate > completionTime
+      ? completionTime.toISOString()
+      : undefined;
+  const body = workoutPatchSchema.parse({
+    completedAt: completionTime.toISOString(),
+    ...(updateStartedAt ? { startedAt: updateStartedAt } : {}),
+  });
   const result = await client.request<WorkoutResponse>({
     method: "PUT",
     path: `/v1/workouts/${encodeURIComponent(workoutId)}`,

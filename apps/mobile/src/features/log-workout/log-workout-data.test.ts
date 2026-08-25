@@ -273,4 +273,27 @@ describe("workout lifecycle", () => {
       body: { completedAt: NOW.toISOString() },
     });
   });
+
+  it("adjusts startedAt when completing a future-scheduled workout today", async () => {
+    const requests: RequestOptions[] = [];
+    const client = queuedClient(
+      [{ ok: true, value: { workout: { ...WORKOUT, completedAt: NOW } } }],
+      requests,
+    );
+    const FUTURE_STARTED_AT = "2026-08-29T12:00:00.000Z";
+    const completed = await completeWorkoutWith(
+      client,
+      WORKOUT_ID,
+      () => NOW,
+      FUTURE_STARTED_AT,
+    );
+    expect(completed.ok).toBe(true);
+    expect(requests[0]).toMatchObject({
+      method: "PUT",
+      body: {
+        completedAt: NOW.toISOString(),
+        startedAt: NOW.toISOString(),
+      },
+    });
+  });
 });

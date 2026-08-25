@@ -407,7 +407,10 @@ export function LogWorkoutScreen() {
       hadFailure.current = false;
     }
     setBusy(true);
-    const result = await completeWorkout(workspace.workout.id);
+    const result = await completeWorkout(
+      workspace.workout.id,
+      workspace.workout.startedAt,
+    );
     setBusy(false);
     if (!result.ok) {
       hadFailure.current = true;
