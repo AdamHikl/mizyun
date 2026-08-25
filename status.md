@@ -7,7 +7,7 @@
 - **Product stage:** technical pre-alpha; the architecture, domain/API foundation, and native mobile UI are verified and polished.
 - **Roadmap position:** INFRA-ENV-001 / INFRA-WIN-001 infrastructure migration to the **Raspberry Pi 5** (`rpServer`, Ubuntu 24.04 ARM64) is complete and fully operational.
 - **Latest verified implementation slice:** Fixed Coach check-in raw JSON leak by enforcing `{"answer": "..."}` schema in `COACH_SYSTEM_POLICY`, implementing universal `extractAssistantText` in `@mizyun/agent-runtime`, and integrating sanitization across Mistral, Gemini, and Fastify coach routes. `pnpm check` is 100% green across all 15 workspace packages (975 tests passing, 17 opt-in tests skipped, iOS/Android production bundles compiling cleanly).
-- **Branch:** `main`; production Raspberry Pi 5 checkout matches commit `47562cd` and is verified live (`https://mizyun-api.phiskel.com/v1/health`).
+- **Branch:** `main`; production Raspberry Pi 5 checkout matches commit `667c970` and is verified live (`https://mizyun-api.phiskel.com/v1/health`).
 - **Production Host:** Raspberry Pi 5 (`rpserver`, Ubuntu 24.04 ARM64, Tailscale IP `100.116.142.1`). Remote deployment `pnpm deploy:remote` is verified green.
 - **Local runtime at handoff:** `pnpm check` passes with 975 tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean.
 - **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and 975 tests passed; 17 opt-in live/e2e tests skipped.
