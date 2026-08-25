@@ -155,4 +155,50 @@ describe("Coach action proposal contracts", () => {
     });
     expect(parsed.actionProposal?.kind).toBe("weekly_adaptation");
   });
+
+  it("accepts a structured workout edit proposal", () => {
+    const parsed = coachMessageSchema.parse({
+      id: "00000000-0000-4000-8000-000000000041",
+      conversationId: "00000000-0000-4000-8000-000000000042",
+      role: "assistant",
+      text: "I adjusted your workout.",
+      status: "complete",
+      provider: "mizyun-planner",
+      evidenceKinds: ["plan", "training"],
+      actionProposal: {
+        id: "00000000-0000-4000-8000-000000000043",
+        kind: "workout_edit",
+        workoutId: "00000000-0000-4000-8000-000000000044",
+        targetName: "Full body (Updated)",
+        notes: "Shoulder focus",
+        exercises: [
+          {
+            catalogId: "incline-dumbbell-press",
+            name: "Incline dumbbell press",
+            movementPattern: "horizontal_push",
+            equipment: ["dumbbells"],
+            sets: 3,
+            repsMin: 8,
+            repsMax: 12,
+            durationMinutes: null,
+            restSeconds: 90,
+            progression: "double_progression",
+          },
+        ],
+        summary:
+          "Replaced Barbell bench press with Incline dumbbell press at 3 sets.",
+      },
+      createdAt: "2026-07-26T10:00:00.000Z",
+    });
+    expect(parsed.actionProposal?.kind).toBe("workout_edit");
+    if (parsed.actionProposal?.kind !== "workout_edit") {
+      throw new Error("expected workout_edit proposal");
+    }
+    expect(parsed.actionProposal.workoutId).toBe(
+      "00000000-0000-4000-8000-000000000044",
+    );
+    expect(parsed.actionProposal.exercises[0]?.name).toBe(
+      "Incline dumbbell press",
+    );
+  });
 });

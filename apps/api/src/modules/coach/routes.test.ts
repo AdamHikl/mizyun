@@ -7,7 +7,12 @@ import {
   type ContentModerator,
   type VisionDraftProvider,
 } from "@mizyun/agent-runtime";
-import type { PlanTier, ProfileRepository, UserId } from "@mizyun/core";
+import type {
+  PlanTier,
+  ProfileRepository,
+  UserId,
+  WorkoutRepository,
+} from "@mizyun/core";
 import type { AccessTokenVerifier } from "@mizyun/identity";
 import { InMemoryMemoryStore } from "@mizyun/memory";
 
@@ -41,6 +46,7 @@ const makeApp = (
   },
   verifier: AccessTokenVerifier = tokenVerifier,
   profileRepository?: ProfileRepository,
+  workoutRepository?: WorkoutRepository,
 ) => {
   if (respond.getMockImplementation() === undefined) {
     respond.mockImplementation(async (request) => ({
@@ -65,6 +71,7 @@ const makeApp = (
     tokenVerifier: verifier,
     conversationRepository,
     ...(profileRepository ? { profileRepository } : {}),
+    ...(workoutRepository ? { workoutRepository } : {}),
     ...(coachControls ? { coachControls } : {}),
     agent: new AgentOrchestrator({
       provider,
@@ -1015,5 +1022,78 @@ describe("coach routes — plan-tier limiter (AI-OPS-001)", () => {
     expect((await sendMessage(app, id, "fb-key-00003")).statusCode).toBe(200);
     const limited = await sendMessage(app, id, "fb-key-00004");
     expect(limited.statusCode).toBe(429);
+  });
+
+  it("attaches a workout_edit action proposal when user asks to edit or substitute an exercise in a planned workout", async () => {
+    const workoutRepository: WorkoutRepository = {
+      list: async () => [
+        {
+          id: "00000000-0000-4000-8000-000000000055",
+          userId,
+          source: "manual",
+          name: "Full body",
+          startedAt: new Date("2026-08-27T12:00:00.000Z"),
+          completedAt: null,
+          notes: "Coach plan",
+          details: {
+            coachPlan: {
+              sessionIndex: 2,
+              targetDay: "2026-08-27",
+              exercises: [
+                {
+                  catalogId: "barbell-bench-press",
+                  name: "Barbell bench press",
+                  movementPattern: "horizontal_push",
+                  sets: 3,
+                  repsMin: 8,
+                  repsMax: 12,
+                  durationMinutes: null,
+                  restSeconds: 90,
+                },
+              ],
+            },
+          },
+          createdAt: new Date("2026-08-25T10:00:00.000Z"),
+          updatedAt: new Date("2026-08-25T10:00:00.000Z"),
+        },
+      ],
+      getById: async () => null,
+      create: async () => {
+        throw new Error("not implemented");
+      },
+      update: async () => {
+        throw new Error("not implemented");
+      },
+      delete: async () => true,
+    };
+
+    const { app } = makeApp(
+      undefined,
+      undefined,
+      undefined,
+      tokenVerifier,
+      undefined,
+      workoutRepository,
+    );
+
+    const id = await createConversation(app);
+    const response = await sendMessage(
+      app,
+      id,
+      "workout-edit-key-0001",
+      "Replace Barbell bench press with Incline dumbbell press in my Full body workout",
+    );
+    expect(response.statusCode).toBe(200);
+    expect(response.json().assistantMessage.actionProposal).toMatchObject({
+      kind: "workout_edit",
+      workoutId: "00000000-0000-4000-8000-000000000055",
+      targetName: "Full body",
+      exercises: [
+        {
+          name: "Incline dumbbell press",
+          movementPattern: "horizontal_push",
+        },
+      ],
+    });
   });
 });

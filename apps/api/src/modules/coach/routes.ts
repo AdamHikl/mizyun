@@ -65,6 +65,11 @@ import {
 } from "./multi-workout-action.js";
 import { isExplicitWorkoutProposalIntent } from "./workout-action.js";
 import { isExplicitWeeklyAdaptationIntent } from "./weekly-adaptation-action.js";
+import {
+  buildWorkoutEditProposal,
+  findTargetWorkout,
+  isWorkoutEditProposalIntent,
+} from "./workout-edit-action.js";
 
 interface CoachRoutesOptions {
   readonly agent: AgentOrchestrator;
@@ -914,6 +919,23 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
             kind: "daily_plan",
             ...dailyPlan,
           });
+        } else if (
+          actionProposal === null &&
+          isWorkoutEditProposalIntent(parsed.data.text)
+        ) {
+          const workouts = await options.workoutRepository.list(
+            principal.userId,
+            {
+              from: new Date(now().getTime() - 28 * 86_400_000),
+              to: new Date(now().getTime() + 14 * 86_400_000),
+              limit: 50,
+              accessToken: principal.accessToken,
+            },
+          );
+          const target = findTargetWorkout(workouts, parsed.data.text);
+          if (target !== null) {
+            actionProposal = buildWorkoutEditProposal(target, parsed.data.text);
+          }
         } else if (
           actionProposal === null &&
           isExplicitWeeklyAdaptationIntent(parsed.data.text)

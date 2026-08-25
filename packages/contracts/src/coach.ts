@@ -168,12 +168,53 @@ export const coachMultiWorkoutPlanProposalSchema = z
   })
   .strict();
 
+export const coachWorkoutEditProposalSchema = z
+  .object({
+    id: z.string().uuid(),
+    kind: z.literal("workout_edit"),
+    workoutId: z.string().uuid(),
+    targetName: z.string().trim().min(1).max(120),
+    notes: z.string().trim().max(2000).nullable().optional(),
+    exercises: z
+      .array(
+        z.object({
+          catalogId: z.string().min(1).max(120),
+          name: z.string().min(1).max(120),
+          movementPattern: z.enum([
+            "knee_dominant",
+            "hip_hinge",
+            "horizontal_push",
+            "horizontal_pull",
+            "vertical_push",
+            "vertical_pull",
+            "core",
+            "aerobic",
+            "mobility",
+          ]),
+          equipment: z.array(z.string().min(1).max(40)).max(4).optional(),
+          sets: z.number().int().gte(1).lte(10),
+          repsMin: z.number().int().gte(1).lte(100).nullable(),
+          repsMax: z.number().int().gte(1).lte(100).nullable(),
+          durationMinutes: z.number().int().gte(1).lte(180).nullable(),
+          restSeconds: z.number().int().gte(0).lte(600),
+          progression: z
+            .enum(["double_progression", "time_progression"])
+            .optional(),
+        }),
+      )
+      .min(1)
+      .max(20),
+    summary: z.string().trim().min(1).max(500),
+  })
+  .strict();
+
 export const coachActionProposalSchema = z.discriminatedUnion("kind", [
   coachNutritionProposalSchema,
   coachWorkoutProposalSchema,
   coachDailyPlanProposalSchema,
   coachWeeklyAdaptationProposalSchema,
   coachMultiWorkoutPlanProposalSchema,
+  coachWorkoutEditProposalSchema,
 ]);
 
 export const coachConversationSchema = z.object({
@@ -271,6 +312,9 @@ export type CoachMultiWorkoutPlanProposalSession = z.infer<
 >;
 export type CoachMultiWorkoutPlanProposal = z.infer<
   typeof coachMultiWorkoutPlanProposalSchema
+>;
+export type CoachWorkoutEditProposal = z.infer<
+  typeof coachWorkoutEditProposalSchema
 >;
 export type CoachActionProposal = z.infer<typeof coachActionProposalSchema>;
 export type CoachConversation = z.infer<typeof coachConversationSchema>;

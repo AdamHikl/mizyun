@@ -72,6 +72,7 @@ export {
   coachProviderStatusSchema,
   coachThreadResponseSchema,
   coachWorkoutProposalSchema,
+  coachWorkoutEditProposalSchema,
   type CoachActionProposal,
   type CoachDailyPlanProposal,
   type CoachMultiWorkoutPlanProposal,
@@ -98,6 +99,7 @@ export {
   type CoachProviderStatus,
   type CoachThreadResponse,
   type CoachWorkoutProposal,
+  type CoachWorkoutEditProposal,
 } from "./coach";
 
 /**

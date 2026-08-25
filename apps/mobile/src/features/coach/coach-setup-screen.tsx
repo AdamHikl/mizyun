@@ -22,6 +22,7 @@ import type {
   CoachNutritionProposal,
   CoachProviderStatus,
   CoachWorkoutProposal,
+  CoachWorkoutEditProposal,
   CoachWeeklyAdaptationProposal,
 } from "@mizyun/contracts";
 
@@ -67,6 +68,7 @@ import {
   saveMultiWorkoutPlan,
   type MultiWorkoutPlanSaveResult,
 } from "./multi-workout-plan";
+import { applyWorkoutEditProposal } from "./workout-edit-proposal";
 
 // AI-MOB-002 — error taxonomy. The data layer returns humanized
 // text for any failure; the screen additionally surfaces a
@@ -1008,6 +1010,9 @@ function MessageBubble({
       {message.actionProposal?.kind === "daily_plan" ? (
         <DailyPlanCard proposal={message.actionProposal} />
       ) : null}
+      {message.actionProposal?.kind === "workout_edit" ? (
+        <WorkoutEditProposalCard proposal={message.actionProposal} />
+      ) : null}
       {message.actionProposal?.kind === "weekly_adaptation" ? (
         <WeeklyAdaptationCard
           proposal={message.actionProposal}
@@ -1422,6 +1427,115 @@ function WeeklyAdaptationCard({
         <ThemedText type="small" themeColor="textSecondary">
           No goal change is available to accept.
         </ThemedText>
+      )}
+    </View>
+  );
+}
+
+function WorkoutEditProposalCard({
+  proposal,
+}: {
+  readonly proposal: CoachWorkoutEditProposal;
+}) {
+  const [applying, setApplying] = useState(false);
+  const [applied, setApplied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const onApply = useCallback(async () => {
+    if (applying) return;
+    setApplying(true);
+    setError(null);
+    try {
+      const result = await applyWorkoutEditProposal(proposal);
+      if (result.ok) {
+        setApplied(true);
+      } else {
+        setError(
+          result.message ?? "Could not apply changes. Please try again.",
+        );
+      }
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? `Could not apply changes: ${cause.message}`
+          : "Could not apply changes.",
+      );
+    } finally {
+      setApplying(false);
+    }
+  }, [applying, proposal]);
+
+  const onOpen = useCallback(() => {
+    router.push(`/log-workout?workoutId=${proposal.workoutId}` as Href);
+  }, [proposal.workoutId]);
+
+  return (
+    <View style={styles.proposalCard}>
+      <ThemedText type="smallBold">
+        Proposed workout changes · {proposal.targetName}
+      </ThemedText>
+      <ThemedText type="small" themeColor="textSecondary">
+        {proposal.summary}
+      </ThemedText>
+      <View style={{ gap: Spacing.one }}>
+        {proposal.exercises.map((exercise) => (
+          <ThemedText
+            key={exercise.catalogId}
+            type="small"
+            themeColor="textSecondary"
+          >
+            · {exercise.name} · {exercise.sets}×
+            {exercise.repsMin === null
+              ? `${exercise.durationMinutes} min`
+              : `${exercise.repsMin}–${exercise.repsMax}`}{" "}
+            · {exercise.restSeconds}s rest
+          </ThemedText>
+        ))}
+      </View>
+      {error !== null ? (
+        <ThemedText
+          type="small"
+          themeColor="textSecondary"
+          accessibilityRole="alert"
+        >
+          {error}
+        </ThemedText>
+      ) : null}
+      {!applied ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Apply changes to workout"
+          disabled={applying}
+          accessibilityState={{ disabled: applying, busy: applying }}
+          onPress={onApply}
+          style={({ pressed }) => [
+            styles.proposalButton,
+            pressed && { opacity: 0.8 },
+          ]}
+        >
+          <ThemedText type="smallBold" style={{ color: "#FFFFFF" }}>
+            {applying ? "Applying…" : "Apply changes to workout"}
+          </ThemedText>
+        </Pressable>
+      ) : (
+        <View style={{ gap: Spacing.one }}>
+          <ThemedText type="smallBold" style={{ color: "#34C759" }}>
+            ✓ Changes applied to workout
+          </ThemedText>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Open ${proposal.targetName}`}
+            onPress={onOpen}
+            style={({ pressed }) => [
+              styles.proposalButton,
+              pressed && { opacity: 0.8 },
+            ]}
+          >
+            <ThemedText type="smallBold" style={{ color: "#FFFFFF" }}>
+              Open workout
+            </ThemedText>
+          </Pressable>
+        </View>
       )}
     </View>
   );
