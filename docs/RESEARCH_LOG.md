@@ -1677,3 +1677,13 @@ no API changes. The segment closes the gap between "Coach works"
 - Google AI Studio's `v1beta/models/<model>:generateContent` supports `systemInstruction` for policy guidance, `tools: [{ functionDeclarations: [...] }]` for structured tool calling with `functionResponse` parts, and structured JSON output schemas (`responseMimeType: "application/json"`, `responseSchema`).
 - Multimodal requests accept inline image data via `inlineData: { mimeType: string, data: string }` where data is base64 encoded bytes.
 - Implementation consequence: created isolated provider `@mizyun/provider-gemini` implementing `GeminiAgentProvider`, `GeminiVisionProvider`, and `GeminiContentModerator`; added `ai_provider` (`'mistral' | 'gemini'`) column to `public.profiles`; updated `@mizyun/core`, `@mizyun/contracts`, `@mizyun/config`, `@mizyun/adapter-supabase-server`, and `apps/api` to dynamically dispatch Coach chat and nutrition drafting to the user's active provider preference; created `AiProviderCard` in `apps/mobile/src/features/settings` allowing instant one-button switching between Mistral and Gemini.
+
+## 2026-08-24 — Coach structured output policy and raw JSON sanitization
+
+- **Primary sources:** [Mistral JSON mode](https://docs.mistral.ai/capabilities/structured-output/), [Google AI Studio Structured Output](https://ai.google.dev/gemini-api/docs/structured-output), accessed 2026-08-24.
+- In Mistral and other LLMs configured with JSON output mode (`responseFormat: { type: "json_object" }`), models will generate arbitrary JSON schema structures (such as `{"response": {"workout_plan": ...}}`) when prompted for structured outputs unless the system policy explicitly defines the expected `{ answer: string }` envelope.
+- If a model's response parses as valid JSON but lacks a direct string value under `answer` / `response`, previous provider logic fell back to treating the full raw JSON string as the plain text message, leaking raw JSON syntax into the mobile chat bubble while the interactive proposal card rendered beneath.
+- Implementation consequence:
+  1. Updated `COACH_SYSTEM_POLICY` in `@mizyun/agent-runtime` to explicitly require `{"answer": "<conversational markdown reply>"}` and prohibit raw JSON structures or schemas as text.
+  2. Implemented `extractAssistantText` in `@mizyun/agent-runtime` to parse nested structures (`workout_plan`, `response`, `summary`), synthesize clean human-readable text for structured plans, and return `null` for unparseable data objects (triggering provider retry/malformed recovery).
+  3. Integrated `extractAssistantText` across `@mizyun/provider-mistral`, `@mizyun/provider-gemini`, and `apps/api/src/modules/coach/routes.ts` for defense-in-depth sanitization.

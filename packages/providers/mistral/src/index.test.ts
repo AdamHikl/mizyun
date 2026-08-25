@@ -319,6 +319,48 @@ describe("MistralAgentProvider", () => {
     });
   });
 
+  it("synthesizes clean message for structured workout_plan JSON instead of raw JSON", async () => {
+    sdkComplete.mockResolvedValue({
+      id: "request-structured-plan",
+      model: "mistral-medium-latest",
+      usage: { promptTokens: 50, completionTokens: 10, totalTokens: 60 },
+      choices: [
+        {
+          finishReason: "stop",
+          message: {
+            content: JSON.stringify({
+              response: {
+                workout_plan: {
+                  focus: "hypertrophy",
+                  goal: "V-shape (upper body emphasis with back and shoulder development)",
+                  equipment: ["dumbbells", "barbell", "cable_machine"],
+                  session_duration_minutes: 150,
+                  sessions: [{ day: "Upper Body 1" }],
+                },
+              },
+            }),
+            toolCalls: null,
+          },
+        },
+      ],
+    });
+    const provider = new MistralAgentProvider({
+      apiKey: "test-key-that-is-long-enough",
+      model: "mistral-medium-latest",
+      timeoutMs: 5_000,
+      maxOutputTokens: 1_000,
+      externalAccess: true,
+    });
+
+    const response = await provider.respond(request);
+    expect(response.message.text).not.toContain('{"response":');
+    expect(response.message.text).not.toContain('"workout_plan":');
+    expect(response.message.text).toContain("V-shape");
+    expect(response.message.text).toContain(
+      "Review the detailed training prescription below",
+    );
+  });
+
   it("labels prompt injection inside memories and tool evidence as untrusted data", async () => {
     const parse = vi.fn<MistralChatClient["parse"]>(async () => validResponse);
     const provider = new MistralAgentProvider({

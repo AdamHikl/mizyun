@@ -349,6 +349,43 @@ describe("coach routes", () => {
     expect(days.size).toBe(3);
   });
 
+  it("sanitizes assistant text when provider returns raw workout plan JSON", async () => {
+    const rawJsonText = JSON.stringify({
+      response: {
+        workout_plan: {
+          focus: "hypertrophy",
+          goal: "V-shape (upper body emphasis with back and shoulder development)",
+          equipment: ["dumbbells", "barbell", "cable_machine"],
+          session_duration_minutes: 150,
+          sessions: [{ day: "Upper Body 1" }],
+        },
+      },
+    });
+    const { app, respond } = makeApp(
+      vi.fn<AgentProvider["respond"]>().mockImplementation(async (request) => ({
+        message: { role: "assistant", text: rawJsonText },
+        provider: "mistral",
+        evidence: request.grounding,
+        providerMetadata: {
+          totalTokens: 42,
+          resolvedModel: "mistral-medium-latest",
+        },
+      })),
+    );
+    const id = await createConversation(app);
+    const response = await sendMessage(
+      app,
+      id,
+      "raw-json-sanitize-test-key",
+      "Can you help me create a 3 day split workout. I want two upper body and one lower body day. I want to target a V shape.",
+    );
+    expect(response.statusCode).toBe(200);
+    const assistantMessage = response.json().assistantMessage;
+    expect(assistantMessage.text).not.toContain('{"response":');
+    expect(assistantMessage.text).not.toContain('"workout_plan":');
+    expect(assistantMessage.text).toContain("V-shape");
+  });
+
   it("persists a deterministic daily plan when requested", async () => {
     const { app, respond } = makeApp(
       vi.fn<AgentProvider["respond"]>(),

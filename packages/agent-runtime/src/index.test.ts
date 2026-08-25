@@ -7,6 +7,7 @@ import {
   DisabledAgentProvider,
   coachSafetyEvaluationCases,
   createAgentToolRegistryFromList,
+  extractAssistantText,
   screenCoachInput,
   type AgentProvider,
   type AgentResponse,
@@ -513,5 +514,72 @@ describe("coach safety boundary", () => {
       safetyCategory: "moderation_unavailable",
       moderationDirection: "input",
     });
+  });
+});
+
+describe("extractAssistantText", () => {
+  it("returns plain text unchanged", () => {
+    expect(
+      extractAssistantText("Here is your confirmed daily nutrition."),
+    ).toBe("Here is your confirmed daily nutrition.");
+  });
+
+  it("extracts text from standard { answer } JSON", () => {
+    expect(
+      extractAssistantText(
+        JSON.stringify({ answer: "You have 2 workouts this week." }),
+      ),
+    ).toBe("You have 2 workouts this week.");
+  });
+
+  it("extracts text from fenced JSON { answer }", () => {
+    expect(
+      extractAssistantText(
+        '```json\n{"answer": "Fenced workout answer."}\n```',
+      ),
+    ).toBe("Fenced workout answer.");
+  });
+
+  it("extracts text from nested { response: { message: '...' } }", () => {
+    expect(
+      extractAssistantText(
+        JSON.stringify({ response: { message: "Nested text reply." } }),
+      ),
+    ).toBe("Nested text reply.");
+  });
+
+  it("synthesizes clean conversational text from nested workout_plan objects instead of leaking raw JSON", () => {
+    const rawPayload = JSON.stringify({
+      response: {
+        workout_plan: {
+          focus: "hypertrophy",
+          goal: "V-shape (upper body emphasis with back and shoulder development)",
+          equipment: ["dumbbells", "barbell", "cable_machine"],
+          session_duration_minutes: 150,
+          sessions: [
+            {
+              day: "Upper Body 1",
+              exercises: [
+                { name: "Barbell Bench Press", sets: 3, reps: "8-12" },
+              ],
+            },
+          ],
+        },
+      },
+    });
+
+    const result = extractAssistantText(rawPayload);
+    expect(result).not.toContain('{"response":');
+    expect(result).not.toContain('"workout_plan":');
+    expect(result).toContain("V-shape");
+    expect(result).toContain("Review the detailed training prescription below");
+  });
+
+  it("returns null for arbitrary data-only JSON with no text or known structure", () => {
+    expect(
+      extractAssistantText(
+        JSON.stringify({ unknown_field: 42, random_data: true }),
+      ),
+    ).toBeNull();
   });
 });

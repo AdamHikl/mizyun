@@ -16,7 +16,106 @@ export const COACH_SYSTEM_POLICY = [
   "Do not invent measurements, meals, workouts, goals, calculations, or memories.",
   "If context is missing or contradictory, say so and ask one focused question.",
   "Offer at most one practical, conservative, reversible next action.",
+  'Always format your final answer as a JSON object with a single string field \'answer\' containing your conversational markdown response: {"answer": "<your conversational markdown response>"}. Never output raw JSON data structures or schemas as your answer.',
 ].join("\n");
+
+/**
+ * Safely extracts a clean assistant text string from raw text,
+ * JSON objects, or structured model responses.
+ *
+ * Prevents raw JSON payloads (e.g. `{"response": {"workout_plan": ...}}`)
+ * from leaking into the user-facing chat bubble.
+ */
+export const extractAssistantText = (candidate: unknown): string | null => {
+  if (typeof candidate === "string") {
+    const trimmed = candidate
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/\s*```$/, "")
+      .trim();
+    if (trimmed.length === 0) return null;
+    if (
+      (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+      (trimmed.startsWith("[") && trimmed.endsWith("]"))
+    ) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        const fromParsed = extractAssistantText(parsed);
+        if (fromParsed !== null) return fromParsed;
+        return null;
+      } catch {
+        return trimmed;
+      }
+    }
+    return trimmed;
+  }
+
+  if (typeof candidate !== "object" || candidate === null) {
+    return null;
+  }
+
+  const record = candidate as Record<string, unknown>;
+
+  // 1. Direct string keys
+  for (const key of [
+    "answer",
+    "response",
+    "message",
+    "text",
+    "summary",
+    "content",
+  ]) {
+    const val = record[key];
+    if (typeof val === "string" && val.trim().length > 0) {
+      const nested = extractAssistantText(val);
+      if (nested !== null) return nested;
+    }
+  }
+
+  // 2. Nested object keys
+  for (const key of [
+    "answer",
+    "response",
+    "message",
+    "text",
+    "summary",
+    "content",
+    "data",
+    "result",
+    "output",
+  ]) {
+    const val = record[key];
+    if (typeof val === "object" && val !== null) {
+      const nested = extractAssistantText(val);
+      if (nested !== null) return nested;
+    }
+  }
+
+  // 3. Known structured objects (e.g. workout_plan / prescription)
+  if ("workout_plan" in record || "sessions" in record || "days" in record) {
+    const planObj = (record.workout_plan ?? record) as Record<string, unknown>;
+    const focus = typeof planObj.focus === "string" ? planObj.focus : null;
+    const goal = typeof planObj.goal === "string" ? planObj.goal : null;
+    const sessions = Array.isArray(planObj.sessions) ? planObj.sessions : null;
+    if (focus || goal || sessions) {
+      const parts: string[] = [];
+      if (goal) {
+        parts.push(`I have put together a workout plan tailored for ${goal}.`);
+      } else if (focus) {
+        parts.push(`I have put together a ${focus} workout plan for you.`);
+      } else {
+        parts.push(
+          "I have put together a workout plan based on your preferences.",
+        );
+      }
+      parts.push(
+        "Review the detailed training prescription below to get started.",
+      );
+      return parts.join(" ");
+    }
+  }
+
+  return null;
+};
 
 export type AgentProviderStatus =
   | {

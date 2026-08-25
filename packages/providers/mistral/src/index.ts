@@ -1,6 +1,7 @@
 import { Mistral } from "@mistralai/mistralai";
 import {
   AgentProviderError,
+  extractAssistantText,
   type AgentProvider,
   type AgentProviderStatus,
   type AgentRequest,
@@ -166,30 +167,9 @@ const sdkClient = (apiKey: string): MistralChatClient => {
                 : null;
           let parsed: z.infer<typeof coachOutputSchema> | null = null;
           if (!hasToolCalls && assistantText !== null) {
-            const cleaned = assistantText
-              .replace(/^```(?:json)?\s*/i, "")
-              .replace(/\s*```$/, "")
-              .trim();
-            try {
-              const candidate: unknown = JSON.parse(cleaned);
-              const result = coachOutputSchema.safeParse(candidate);
-              if (result.success) {
-                parsed = result.data;
-              } else if (typeof candidate === "object" && candidate !== null) {
-                const cand = candidate as Record<string, unknown>;
-                const textVal =
-                  cand.answer ?? cand.response ?? cand.message ?? cand.text;
-                if (typeof textVal === "string" && textVal.trim().length > 0) {
-                  parsed = {
-                    answer: textVal.trim(),
-                  };
-                }
-              }
-            } catch {
-              parsed = null;
-            }
-            if (parsed === null && assistantText.trim().length > 0) {
-              parsed = { answer: assistantText.trim() };
+            const extracted = extractAssistantText(assistantText);
+            if (extracted !== null) {
+              parsed = { answer: extracted };
             }
           }
           return {

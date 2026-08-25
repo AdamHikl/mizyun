@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from "fastify";
 import {
   AgentProviderError,
   COACH_PROMPT_VERSION,
+  extractAssistantText,
   screenCoachInput,
   type AgentOrchestrator,
   type VisionDraftProvider,
@@ -967,9 +968,12 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
               conversationId,
               role: "assistant",
               text:
-                response.message.text.trim().length > 0
-                  ? response.message.text
-                  : "Here is the plan built for your goals and available equipment.",
+                extractAssistantText(response.message.text) ??
+                (actionProposal !== null
+                  ? "Here is the plan built for your goals and available equipment."
+                  : response.message.text.trim().length > 0
+                    ? response.message.text
+                    : "Here is the plan built for your goals and available equipment."),
               status: "complete",
               idempotencyKey: null,
               providerMetadata: {

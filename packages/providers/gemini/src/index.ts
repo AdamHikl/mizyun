@@ -1,5 +1,6 @@
 import {
   AgentProviderError,
+  extractAssistantText,
   type AgentProvider,
   type AgentProviderStatus,
   type AgentRequest,
@@ -565,26 +566,13 @@ export class GeminiAgentProvider implements AgentProvider {
       );
     }
 
-    let finalAnswer: string = rawText;
-    const cleaned = rawText
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/\s*```$/, "")
-      .trim();
-    try {
-      const parsedJson: unknown = JSON.parse(cleaned);
-      const structured = coachOutputSchema.safeParse(parsedJson);
-      if (structured.success) {
-        finalAnswer = structured.data.answer;
-      } else if (typeof parsedJson === "object" && parsedJson !== null) {
-        const cand = parsedJson as Record<string, unknown>;
-        const textVal =
-          cand.answer ?? cand.response ?? cand.message ?? cand.text;
-        if (typeof textVal === "string" && textVal.trim().length > 0) {
-          finalAnswer = textVal.trim();
-        }
-      }
-    } catch {
-      // Use raw text directly if not structured JSON
+    const finalAnswer = extractAssistantText(rawText);
+    if (finalAnswer === null) {
+      throw new AgentProviderError(
+        "malformed_response",
+        "The AI provider returned an invalid response.",
+        false,
+      );
     }
 
     const elapsed = Math.max(0, this.#now() - startedAt);

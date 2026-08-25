@@ -221,4 +221,50 @@ describe("GeminiAgentProvider", () => {
     expect(response.message.text).toContain("1,800");
     expect(generateContent).toHaveBeenCalledTimes(2);
   });
+
+  it("synthesizes clean message for structured workout_plan JSON instead of raw JSON", async () => {
+    const generateContent = vi.fn<GeminiChatClient["generateContent"]>(
+      async () => ({
+        candidates: [
+          {
+            content: {
+              role: "model",
+              parts: [
+                {
+                  text: JSON.stringify({
+                    response: {
+                      workout_plan: {
+                        focus: "hypertrophy",
+                        goal: "V-shape (upper body emphasis with back and shoulder development)",
+                        equipment: ["dumbbells", "barbell", "cable_machine"],
+                        session_duration_minutes: 150,
+                        sessions: [{ day: "Upper Body 1" }],
+                      },
+                    },
+                  }),
+                },
+              ],
+            },
+            finishReason: "STOP",
+          },
+        ],
+      }),
+    );
+    const provider = new GeminiAgentProvider({
+      apiKey: "test-gemini-key-12345",
+      model: "gemini-2.5-flash",
+      timeoutMs: 5_000,
+      maxOutputTokens: 1_000,
+      externalAccess: true,
+      client: { generateContent },
+    });
+
+    const response = await provider.respond(request);
+    expect(response.message.text).not.toContain('{"response":');
+    expect(response.message.text).not.toContain('"workout_plan":');
+    expect(response.message.text).toContain("V-shape");
+    expect(response.message.text).toContain(
+      "Review the detailed training prescription below",
+    );
+  });
 });
