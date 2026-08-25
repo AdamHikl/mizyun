@@ -1,19 +1,19 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-08-24** (Coach structured output policy enforcement & raw JSON response sanitization).
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-08-25** (Workout navigation, planned exercise auto-resolution, Coach multi-session execution, and future-scheduled completion).
 
 ## Executive snapshot
 
 - **Product stage:** technical pre-alpha; the architecture, domain/API foundation, and native mobile UI are verified and polished.
 - **Roadmap position:** INFRA-ENV-001 / INFRA-WIN-001 infrastructure migration to the **Raspberry Pi 5** (`rpServer`, Ubuntu 24.04 ARM64) is complete and fully operational.
-- **Latest verified implementation slice:** Fixed Coach check-in raw JSON leak by enforcing `{"answer": "..."}` schema in `COACH_SYSTEM_POLICY`, implementing universal `extractAssistantText` in `@mizyun/agent-runtime`, and integrating sanitization across Mistral, Gemini, and Fastify coach routes. `pnpm check` is 100% green across all 15 workspace packages (975 tests passing, 17 opt-in tests skipped, iOS/Android production bundles compiling cleanly).
-- **Branch:** `main`; production Raspberry Pi 5 checkout matches commit `667c970` and is verified live (`https://mizyun-api.phiskel.com/v1/health`).
+- **Latest verified implementation slice:** Fixed workout navigation to respect `targetWorkoutId`, added planned exercise cards with set badges and one-tap selection/creation, exempted input health moderation on fitness prompts (`mistral-moderation-2603`), and adjusted future `startedAt` when completing planned workouts early. `pnpm check` is 100% green across all 15 workspace packages (977 tests passing, 17 opt-in tests skipped, iOS/Android production bundles compiling cleanly).
+- **Branch:** `main`; production Raspberry Pi 5 checkout matches commit `d29b062` and is verified live (`https://mizyun-api.phiskel.com/v1/health`).
 - **Production Host:** Raspberry Pi 5 (`rpserver`, Ubuntu 24.04 ARM64, Tailscale IP `100.116.142.1`). Remote deployment `pnpm deploy:remote` is verified green.
-- **Local runtime at handoff:** `pnpm check` passes with 975 tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean.
-- **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and 975 tests passed; 17 opt-in live/e2e tests skipped.
-- **Moderation regression gate:** `pnpm check` passes with 966 tests and 17 opt-in tests skipped; the Mistral and Gemini provider suites pass and prove tool calling, input-health refusal, output-only-health allowance, and continued blocking when another unsafe output category is present.
-- **Coach retry UX gate:** the mobile suite passes 188 tests, including stable optimistic IDs and retry-result de-duplication after restart; mobile TypeScript and both platform production bundles pass.
-- **iOS:** both `Mizyun` (`com.mizyun.app`) and `Mizyun Dev` (`com.mizyun.dev`) are installed on physical iPhone (`Adam's Iphone 😋`, `7FBC9ACC-918A-5A9B-8D22-B9F1FF652A06` / `00008140-001114501A86801C`). The latest Production Release (commit `91a88c9` with "Clear" meal button) was built cleanly with Xcode (`BUILD SUCCEEDED`), installed via `xcrun devicectl`, and launched. Production API runs commit `47562cd`.
+- **Local runtime at handoff:** `pnpm check` passes with 977 tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean.
+- **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and 977 tests passed; 17 opt-in live/e2e tests skipped.
+- **Moderation regression gate:** `pnpm check` passes with 977 tests and 17 opt-in tests skipped; the Mistral provider allows fitness and wellness input queries without false health rejections while maintaining deterministic emergency and medical safety filters.
+- **Coach & Workout UX gate:** verified end-to-end on iOS Simulator (`iPhone 17 Pro`): custom workout creation/logging, Coach multi-session 3-day plan generation, saving all 3 sessions, opening specific scheduled sessions with planned exercise targets, logging planned sets, and finishing workouts back to Home Dashboard.
+- **iOS:** both `Mizyun` (`com.mizyun.app`) and `Mizyun Dev` (`com.mizyun.dev`) verified on iOS Simulator and physical iPhone. Production API runs commit `d29b062`.
 - **Android:** Standalone Production Release APK (`app-release.apk`, 103MB) compiled cleanly via `pnpm mobile:founder-production:android:assembleRelease` for commit `d6e36ce` targeting the production hosts.
 
 ## What is genuinely delivered
