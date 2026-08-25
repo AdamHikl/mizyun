@@ -72,7 +72,7 @@ describe("MistralContentModerator", () => {
     });
   });
 
-  it("keeps health blocking on input", async () => {
+  it("allows health category on input for wellness and fitness planning", async () => {
     const moderate = vi.fn(async () =>
       response(
         { dangerous: false, health: true, selfharm: false },
@@ -82,14 +82,13 @@ describe("MistralContentModerator", () => {
 
     await expect(
       moderator({ moderate }).moderateText({
-        text: "Give me tailored medical advice.",
+        text: "Please propose my 3-day training plan for this week.",
         direction: "input",
       }),
     ).resolves.toEqual({
-      allowed: false,
+      allowed: true,
       provider: "mistral",
       model: "mistral-moderation-2603",
-      category: "health",
     });
   });
 

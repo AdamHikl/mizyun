@@ -115,10 +115,10 @@ export class MistralContentModerator implements ContentModerator {
       .filter(
         ([category, blocked]) =>
           // The provider's `health` category covers tailored medical advice,
-          // which overlaps grounded nutrition/fitness wellness output. Medical
-          // inputs remain blocked, while generated text is still protected by
-          // the adapter's deterministic unsafe-output screen.
-          blocked && !(input.direction === "output" && category === "health"),
+          // which overlaps grounded nutrition/fitness wellness conversations.
+          // Emergency and diagnostic safety is enforced deterministically by
+          // the agent runtime and safety screen.
+          blocked && category !== "health",
       )
       .map(([category]) => category)
       .sort((left, right) => {

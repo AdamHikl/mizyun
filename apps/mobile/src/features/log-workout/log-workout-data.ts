@@ -78,11 +78,14 @@ const humanize = (error: ApiError, action: string): string => {
   }
 };
 
-export const loadWorkoutWorkspace = async (): Promise<WorkoutWorkspace> =>
-  loadWorkoutWorkspaceWith(apiClient);
+export const loadWorkoutWorkspace = async (
+  targetWorkoutId?: string,
+): Promise<WorkoutWorkspace> =>
+  loadWorkoutWorkspaceWith(apiClient, targetWorkoutId);
 
 export const loadWorkoutWorkspaceWith = async (
   client: ApiClient,
+  targetWorkoutId?: string,
 ): Promise<WorkoutWorkspace> => {
   const [exerciseResult, workoutResult] = await Promise.all([
     client.request<ExerciseListResponse>({
@@ -112,10 +115,49 @@ export const loadWorkoutWorkspaceWith = async (
       message: humanize(workoutResult.error, "Refresh your workout"),
     };
   }
-  const workout = workoutResult.value.workouts.find(
-    (candidate) => candidate.completedAt === null,
-  );
-  if (workout === undefined) {
+  let workout: Workout | null = null;
+  if (
+    typeof targetWorkoutId === "string" &&
+    targetWorkoutId.trim().length > 0
+  ) {
+    const trimmedId = targetWorkoutId.trim();
+    workout =
+      workoutResult.value.workouts.find(
+        (candidate) => candidate.id === trimmedId,
+      ) ?? null;
+    if (workout === null) {
+      const singleWorkoutResult = await client.request<WorkoutResponse>({
+        method: "GET",
+        path: `/v1/workouts/${encodeURIComponent(trimmedId)}`,
+        schema: workoutResponseSchema,
+      });
+      if (singleWorkoutResult.ok) {
+        workout = singleWorkoutResult.value.workout;
+      }
+    }
+  } else {
+    const incomplete = workoutResult.value.workouts.filter(
+      (candidate) => candidate.completedAt === null,
+    );
+    if (incomplete.length > 0) {
+      const todayIso = new Date().toISOString().slice(0, 10);
+      // Prefer workout matching today's startedAt date (YYYY-MM-DD),
+      // otherwise pick the earliest incomplete workout (sorted by startedAt ascending)
+      const matchingToday = incomplete.find(
+        (candidate) => candidate.startedAt.slice(0, 10) === todayIso,
+      );
+      if (matchingToday !== undefined) {
+        workout = matchingToday;
+      } else {
+        const sortedIncomplete = [...incomplete].sort(
+          (a, b) =>
+            new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime(),
+        );
+        workout = sortedIncomplete[0] ?? null;
+      }
+    }
+  }
+  if (workout === null) {
     return {
       exercises: exerciseResult.value.exercises,
       workout: null,

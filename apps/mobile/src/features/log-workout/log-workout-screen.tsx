@@ -9,7 +9,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { router, Stack } from "expo-router";
+import { router, Stack, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
@@ -17,6 +17,7 @@ import {
   type CoachWorkoutProposal,
   type Exercise,
   type ExerciseRecentSetsResponse,
+  type Workout,
   type WorkoutSet,
 } from "@mizyun/contracts";
 
@@ -45,6 +46,68 @@ import {
   startWorkout,
   type WorkoutWorkspace,
 } from "./log-workout-data";
+
+interface PlannedExercise {
+  readonly catalogId: string;
+  readonly name: string;
+  readonly sets: number;
+  readonly repsMin: number | null;
+  readonly repsMax: number | null;
+  readonly durationMinutes: number | null;
+  readonly restSeconds: number;
+}
+
+const extractPlannedExercises = (
+  workout: Workout | null,
+  draftProposal?: CoachWorkoutProposal,
+): ReadonlyArray<PlannedExercise> => {
+  if (
+    draftProposal?.session?.exercises &&
+    draftProposal.session.exercises.length > 0
+  ) {
+    return draftProposal.session.exercises;
+  }
+  const details = workout?.details;
+  if (!details || typeof details !== "object") return [];
+
+  // 1. MultiWorkoutPlan (coachPlan)
+  const coachPlan = (details as Record<string, unknown>).coachPlan;
+  if (
+    coachPlan &&
+    typeof coachPlan === "object" &&
+    Array.isArray((coachPlan as Record<string, unknown>).exercises)
+  ) {
+    return (coachPlan as { exercises: PlannedExercise[] }).exercises;
+  }
+
+  // 2. Single workout start (aiDraft)
+  const aiDraft = (details as Record<string, unknown>).aiDraft;
+  if (aiDraft && typeof aiDraft === "object") {
+    const session = (aiDraft as Record<string, unknown>).session;
+    if (
+      session &&
+      typeof session === "object" &&
+      Array.isArray((session as Record<string, unknown>).exercises)
+    ) {
+      return (session as { exercises: PlannedExercise[] }).exercises;
+    }
+  }
+
+  // 3. workoutProposal
+  const workoutProposal = (details as Record<string, unknown>).workoutProposal;
+  if (workoutProposal && typeof workoutProposal === "object") {
+    const session = (workoutProposal as Record<string, unknown>).session;
+    if (
+      session &&
+      typeof session === "object" &&
+      Array.isArray((session as Record<string, unknown>).exercises)
+    ) {
+      return (session as { exercises: PlannedExercise[] }).exercises;
+    }
+  }
+
+  return [];
+};
 
 interface WorkoutDraft {
   readonly name: string;
@@ -77,6 +140,7 @@ const EMPTY_WORKSPACE: WorkoutWorkspace = {
 };
 
 export function LogWorkoutScreen() {
+  const { workoutId } = useLocalSearchParams<{ workoutId?: string }>();
   const { profile, session } = useAuth();
   const theme = useTheme();
   const userId = session?.user.id ?? null;
@@ -111,9 +175,14 @@ export function LogWorkoutScreen() {
     [draft.selectedExerciseId, workspace.exercises],
   );
 
+  const plannedExercises = useMemo(
+    () => extractPlannedExercises(workspace.workout, draft.workoutProposal),
+    [workspace.workout, draft.workoutProposal],
+  );
+
   const refresh = useCallback(async () => {
     setLoading(true);
-    const next = await loadWorkoutWorkspace();
+    const next = await loadWorkoutWorkspace(workoutId);
     setWorkspace(next);
     setMessage(next.message);
     if (next.message !== null) {
@@ -125,7 +194,7 @@ export function LogWorkoutScreen() {
       );
     }
     setLoading(false);
-  }, []);
+  }, [workoutId]);
 
   useEffect(() => {
     void refresh();
@@ -171,6 +240,50 @@ export function LogWorkoutScreen() {
   const patchDraft = useCallback((patch: Partial<WorkoutDraft>) => {
     setDraft((current) => ({ ...current, ...patch }));
   }, []);
+
+  const onSelectPlannedExercise = useCallback(
+    async (planned: PlannedExercise) => {
+      measurement.current?.tap();
+      const existing = workspace.exercises.find(
+        (e) =>
+          e.name.trim().toLowerCase() === planned.name.trim().toLowerCase(),
+      );
+      let targetExerciseId = existing?.id;
+      if (!targetExerciseId) {
+        setBusy(true);
+        const created = await createExercise(planned.name, "");
+        setBusy(false);
+        if (created.ok) {
+          setWorkspace((current) => ({
+            ...current,
+            exercises: [...current.exercises, created.exercise].sort((a, b) =>
+              a.name.localeCompare(b.name),
+            ),
+          }));
+          targetExerciseId = created.exercise.id;
+        } else {
+          setMessage(created.message);
+          return;
+        }
+      }
+      const targetReps =
+        planned.repsMax !== null
+          ? String(planned.repsMax)
+          : planned.repsMin !== null
+            ? String(planned.repsMin)
+            : "";
+      const targetDuration =
+        planned.durationMinutes !== null
+          ? String(planned.durationMinutes * 60)
+          : "";
+      patchDraft({
+        selectedExerciseId: targetExerciseId,
+        repetitions: targetReps,
+        durationSeconds: targetDuration,
+      });
+    },
+    [patchDraft, workspace.exercises],
+  );
 
   const onStart = useCallback(async () => {
     measurement.current?.tap();
@@ -387,6 +500,7 @@ export function LogWorkoutScreen() {
             <ActiveSection
               workoutName={workspace.workout.name}
               exercises={workspace.exercises}
+              plannedExercises={plannedExercises}
               selectedExercise={selectedExercise}
               draft={draft}
               sets={workspace.sets}
@@ -399,6 +513,7 @@ export function LogWorkoutScreen() {
               onExerciseName={setExerciseName}
               onExerciseInstructions={setExerciseInstructions}
               onPatch={patchDraft}
+              onSelectPlannedExercise={onSelectPlannedExercise}
               onCreateExercise={onCreateExercise}
               onAddSet={onAddSet}
               onRemoveSet={removeSet}
@@ -518,6 +633,7 @@ function StartSection(props: {
 function ActiveSection(props: {
   readonly workoutName: string;
   readonly exercises: ReadonlyArray<Exercise>;
+  readonly plannedExercises: ReadonlyArray<PlannedExercise>;
   readonly selectedExercise: Exercise | null;
   readonly draft: WorkoutDraft;
   readonly sets: ReadonlyArray<WorkoutSet>;
@@ -530,6 +646,7 @@ function ActiveSection(props: {
   readonly onExerciseName: (next: string) => void;
   readonly onExerciseInstructions: (next: string) => void;
   readonly onPatch: (patch: Partial<WorkoutDraft>) => void;
+  readonly onSelectPlannedExercise: (planned: PlannedExercise) => void;
   readonly onCreateExercise: () => void;
   readonly onAddSet: () => void;
   readonly onRemoveSet: (set: WorkoutSet) => void;
@@ -547,18 +664,68 @@ function ActiveSection(props: {
         </ThemedText>
       </View>
 
-      {props.draft.workoutProposal !== undefined ? (
+      {props.plannedExercises.length > 0 ? (
         <View style={styles.planCard}>
-          <ThemedText type="smallBold">Planned session</ThemedText>
-          {props.draft.workoutProposal.session.exercises.map((exercise) => (
-            <ThemedText key={exercise.catalogId} type="small">
-              {exercise.name} · {exercise.sets}×
-              {exercise.repsMin === null
-                ? `${exercise.durationMinutes} min`
-                : `${exercise.repsMin}–${exercise.repsMax}`}{" "}
-              · {exercise.restSeconds}s rest
-            </ThemedText>
-          ))}
+          <ThemedText type="smallBold">Planned exercises</ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">
+            Tap an exercise to select it and start logging sets.
+          </ThemedText>
+          <View style={styles.planExerciseList}>
+            {props.plannedExercises.map((exercise) => {
+              const matchedExercise = props.exercises.find(
+                (e) =>
+                  e.name.trim().toLowerCase() ===
+                  exercise.name.trim().toLowerCase(),
+              );
+              const isSelected =
+                matchedExercise !== undefined &&
+                props.draft.selectedExerciseId === matchedExercise.id;
+              const loggedCount = matchedExercise
+                ? props.sets.filter((s) => s.exerciseId === matchedExercise.id)
+                    .length
+                : 0;
+              return (
+                <Pressable
+                  key={exercise.catalogId}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Select ${exercise.name}`}
+                  onPress={() => {
+                    props.onInteraction();
+                    props.onSelectPlannedExercise(exercise);
+                  }}
+                  style={[
+                    styles.planExerciseRow,
+                    isSelected && styles.planExerciseRowSelected,
+                  ]}
+                >
+                  <View style={styles.setCopy}>
+                    <ThemedText type="smallBold">
+                      {exercise.name}
+                      {isSelected ? " (Selected)" : ""}
+                    </ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      Target: {exercise.sets} sets ·{" "}
+                      {exercise.repsMin === null
+                        ? `${exercise.durationMinutes} min`
+                        : `${exercise.repsMin}–${exercise.repsMax} reps`}{" "}
+                      · {exercise.restSeconds}s rest
+                    </ThemedText>
+                    {loggedCount > 0 ? (
+                      <ThemedText
+                        type="small"
+                        style={styles.completedSetsBadge}
+                      >
+                        ✓ {loggedCount} / {exercise.sets} sets logged
+                      </ThemedText>
+                    ) : null}
+                  </View>
+                  <ThemedText type="smallBold" style={styles.selectButtonText}>
+                    {isSelected ? "Selected" : "Log set →"}
+                  </ThemedText>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
       ) : null}
 
@@ -859,6 +1026,31 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.three,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "#18633d",
+  },
+  planExerciseList: {
+    gap: Spacing.two,
+  },
+  planExerciseRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: Spacing.two,
+    borderRadius: Spacing.two,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(16, 185, 129, 0.2)",
+    backgroundColor: "rgba(16, 185, 129, 0.05)",
+    gap: Spacing.two,
+  },
+  planExerciseRowSelected: {
+    borderColor: "#10B981",
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+  },
+  completedSetsBadge: {
+    color: "#10B981",
+    fontWeight: "600",
+  },
+  selectButtonText: {
+    color: "#10B981",
   },
   planExercise: {
     flexDirection: "row",

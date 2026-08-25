@@ -81,6 +81,60 @@ describe("workout workspace", () => {
     );
     expect(workspace.message).toMatch(/Network unavailable/);
   });
+
+  it("loads a specific workout when targetWorkoutId is provided", async () => {
+    const OTHER_WORKOUT_ID = "00000000-0000-4000-8000-000000000099";
+    const otherWorkout: Workout = {
+      ...WORKOUT,
+      id: OTHER_WORKOUT_ID,
+      name: "Day 1 Upper",
+    };
+    const requests: RequestOptions[] = [];
+    const workspace = await loadWorkoutWorkspaceWith(
+      queuedClient(
+        [
+          { ok: true, value: { exercises: [EXERCISE] } },
+          { ok: true, value: { workouts: [WORKOUT, otherWorkout] } },
+          { ok: true, value: { workoutSets: [] } },
+        ],
+        requests,
+      ),
+      OTHER_WORKOUT_ID,
+    );
+    expect(workspace.workout?.id).toBe(OTHER_WORKOUT_ID);
+    expect(workspace.workout?.name).toBe("Day 1 Upper");
+    expect(requests[2]?.path).toBe(`/v1/workouts/${OTHER_WORKOUT_ID}/sets`);
+  });
+
+  it("prioritizes the earliest incomplete workout when no target is provided", async () => {
+    const day1: Workout = {
+      ...WORKOUT,
+      id: "00000000-0000-4000-8000-000000000001",
+      name: "Day 1 Upper",
+      startedAt: "2026-08-25T12:00:00.000Z",
+    };
+    const day3: Workout = {
+      ...WORKOUT,
+      id: "00000000-0000-4000-8000-000000000003",
+      name: "Day 3 Lower",
+      startedAt: "2026-08-29T12:00:00.000Z",
+    };
+    const requests: RequestOptions[] = [];
+    // Workouts returned newest-first from API (day3 first, then day1)
+    const workspace = await loadWorkoutWorkspaceWith(
+      queuedClient(
+        [
+          { ok: true, value: { exercises: [EXERCISE] } },
+          { ok: true, value: { workouts: [day3, day1] } },
+          { ok: true, value: { workoutSets: [] } },
+        ],
+        requests,
+      ),
+    );
+    // Should pick day1 (earliest or matching today) instead of day3
+    expect(workspace.workout?.id).toBe(day1.id);
+    expect(workspace.workout?.name).toBe("Day 1 Upper");
+  });
 });
 
 describe("workout lifecycle", () => {
