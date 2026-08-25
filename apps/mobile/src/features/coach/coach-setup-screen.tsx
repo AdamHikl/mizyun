@@ -1239,7 +1239,7 @@ function MultiWorkoutPlanCard({
                 {session.estimatedMinutes} min · {session.exercises.length}{" "}
                 exercises
               </ThemedText>
-              {session.exercises.slice(0, 3).map((exercise) => (
+              {session.exercises.map((exercise) => (
                 <ThemedText
                   key={`${session.index}-${exercise.catalogId}`}
                   type="small"
@@ -1251,11 +1251,6 @@ function MultiWorkoutPlanCard({
                     : `${exercise.repsMin}–${exercise.repsMax}`}
                 </ThemedText>
               ))}
-              {session.exercises.length > 3 ? (
-                <ThemedText type="small" themeColor="textSecondary">
-                  + {session.exercises.length - 3} more
-                </ThemedText>
-              ) : null}
               {isSaved ? (
                 <ThemedText type="small" themeColor="textSecondary">
                   Saved · ready to open and edit
