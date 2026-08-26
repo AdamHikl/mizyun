@@ -386,4 +386,92 @@ describe("GeminiAgentProvider", () => {
     expect(turn2Req.tools).toBeDefined();
     expect(turn2Req.generationConfig?.responseSchema).toBeUndefined();
   });
+
+  it("falls back to fallbackModel when primary model encounters high demand (429/503)", async () => {
+    const error429 = new Error("The model is overloaded. RESOURCE_EXHAUSTED");
+    (error429 as { statusCode?: number }).statusCode = 429;
+
+    let callCount = 0;
+    const generateContent = vi.fn<GeminiChatClient["generateContent"]>(
+      async (req) => {
+        callCount++;
+        if (req.model === "gemini-3.7-flash") {
+          throw error429;
+        }
+        return {
+          candidates: [
+            {
+              content: {
+                role: "model",
+                parts: [
+                  { text: '{"answer":"Fallback response from 3.6 Flash"}' },
+                ],
+              },
+              finishReason: "STOP",
+            },
+          ],
+          modelVersion: "gemini-3.6-flash",
+        };
+      },
+    );
+
+    const provider = new GeminiAgentProvider({
+      apiKey: "test-gemini-key-12345",
+      model: "gemini-3.7-flash",
+      fallbackModel: "gemini-3.6-flash",
+      timeoutMs: 5_000,
+      maxOutputTokens: 1_000,
+      externalAccess: true,
+      maxRetries: 0,
+      client: { generateContent },
+    });
+
+    const response = await provider.respond(request);
+    expect(response.message.text).toBe("Fallback response from 3.6 Flash");
+    expect(response.providerMetadata?.resolvedModel).toBe("gemini-3.6-flash");
+    expect(callCount).toBe(2);
+  });
+
+  it("passes thinkingConfig with thinkingBudget: 0 for gemini-3.7-flash", async () => {
+    let capturedReq: unknown;
+    const generateContent = vi.fn<GeminiChatClient["generateContent"]>(
+      async (req) => {
+        capturedReq = req;
+        return {
+          candidates: [
+            {
+              content: {
+                role: "model",
+                parts: [
+                  { text: '{"answer":"Fast response with 0 thinking budget"}' },
+                ],
+              },
+              finishReason: "STOP",
+            },
+          ],
+          modelVersion: "gemini-3.7-flash",
+        };
+      },
+    );
+
+    const provider = new GeminiAgentProvider({
+      apiKey: "test-gemini-key-12345",
+      model: "gemini-3.7-flash",
+      thinkingBudget: 0,
+      timeoutMs: 5_000,
+      maxOutputTokens: 1_000,
+      externalAccess: true,
+      client: { generateContent },
+    });
+
+    const response = await provider.respond(request);
+    expect(response.message.text).toBe("Fast response with 0 thinking budget");
+    expect(
+      (
+        capturedReq as {
+          generationConfig?: { thinkingConfig?: { thinkingBudget?: number } };
+        }
+      ).generationConfig?.thinkingConfig?.thinkingBudget,
+    ).toBe(0);
+  });
 });

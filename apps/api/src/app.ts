@@ -267,6 +267,10 @@ const defaultDependencies = (): AppDependencies => {
       ? new GeminiAgentProvider({
           apiKey: geminiConfig.apiKey,
           model: geminiConfig.model,
+          ...(geminiConfig.fallbackModel
+            ? { fallbackModel: geminiConfig.fallbackModel }
+            : {}),
+          thinkingBudget: geminiConfig.thinkingBudget,
           timeoutMs: geminiConfig.timeoutMs,
           maxOutputTokens: geminiConfig.maxOutputTokens,
           externalAccess: config.aiExternalAccess,
@@ -643,6 +647,12 @@ export const buildApp = (
           provider: new GeminiAgentProvider({
             apiKey: configResult.value.geminiConfig.apiKey,
             model: configResult.value.geminiConfig.model,
+            ...(configResult.value.geminiConfig.fallbackModel
+              ? {
+                  fallbackModel: configResult.value.geminiConfig.fallbackModel,
+                }
+              : {}),
+            thinkingBudget: configResult.value.geminiConfig.thinkingBudget,
             timeoutMs: configResult.value.geminiConfig.timeoutMs,
             maxOutputTokens: configResult.value.geminiConfig.maxOutputTokens,
             externalAccess: configResult.value.aiExternalAccess,

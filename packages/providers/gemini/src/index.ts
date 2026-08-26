@@ -56,6 +56,8 @@ const geminiResponseSchema = z.object({
 export interface GeminiProviderOptions {
   readonly apiKey: string;
   readonly model: string;
+  readonly fallbackModel?: string | undefined;
+  readonly thinkingBudget?: number | undefined;
   readonly timeoutMs: number;
   readonly maxOutputTokens: number;
   readonly externalAccess: boolean;
@@ -114,6 +116,9 @@ export interface GeminiChatClient {
         readonly maxOutputTokens?: number;
         readonly responseMimeType?: string;
         readonly responseSchema?: Readonly<Record<string, unknown>>;
+        readonly thinkingConfig?: {
+          readonly thinkingBudget?: number;
+        };
       };
     },
     options: { readonly timeoutMs: number; readonly apiKey: string },
@@ -273,6 +278,33 @@ const normalizeError = (error: unknown): AgentProviderError => {
   );
 };
 
+const isHighDemandError = (
+  error: unknown,
+  normalized: AgentProviderError,
+): boolean => {
+  const status = statusCodeOf(error);
+  if (
+    status === 429 ||
+    status === 503 ||
+    status === 500 ||
+    status === 502 ||
+    status === 504
+  ) {
+    return true;
+  }
+  if (
+    normalized.kind === "rate_limited" ||
+    normalized.kind === "unavailable" ||
+    normalized.kind === "timeout"
+  ) {
+    return true;
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  return /(MODEL_CAPACITY_EXHAUSTED|RESOURCE_EXHAUSTED|overloaded|capacity|high demand|temporarily unavailable|quota)/i.test(
+    message,
+  );
+};
+
 const latencyBucket = (milliseconds: number): string => {
   if (milliseconds < 1_000) return "under_1s";
   if (milliseconds < 3_000) return "1_to_3s";
@@ -389,6 +421,8 @@ const unsafeOutput = (text: string): boolean =>
 export class GeminiAgentProvider implements AgentProvider {
   readonly #apiKey: string;
   readonly #model: string;
+  readonly #fallbackModel: string | undefined;
+  readonly #thinkingBudget: number;
   readonly #timeoutMs: number;
   readonly #maxOutputTokens: number;
   readonly #externalAccess: boolean;
@@ -401,6 +435,12 @@ export class GeminiAgentProvider implements AgentProvider {
   constructor(options: GeminiProviderOptions) {
     this.#apiKey = options.apiKey;
     this.#model = options.model;
+    this.#fallbackModel =
+      options.fallbackModel !== undefined &&
+      options.fallbackModel !== options.model
+        ? options.fallbackModel
+        : undefined;
+    this.#thinkingBudget = options.thinkingBudget ?? 0;
     this.#timeoutMs = options.timeoutMs;
     this.#maxOutputTokens = options.maxOutputTokens;
     this.#externalAccess = options.externalAccess;
@@ -472,65 +512,96 @@ export class GeminiAgentProvider implements AgentProvider {
           ] as const)
         : undefined;
 
-    const call = () =>
-      this.#client.generateContent(
-        {
-          model: this.#model,
-          systemInstruction: {
-            parts: [{ text: request.systemPolicy }],
-          },
-          contents: buildContents(request),
-          ...(toolsPayload ? { tools: toolsPayload } : {}),
-          generationConfig: {
-            temperature: 0.2,
-            maxOutputTokens: this.#maxOutputTokens,
-            // When not using function calls and no tool results in history, request strict structured JSON
-            ...(!hasTools && !hasToolHistory
-              ? {
-                  responseMimeType: "application/json",
-                  responseSchema: {
-                    type: "OBJECT",
-                    properties: {
-                      answer: { type: "STRING" },
-                    },
-                    required: ["answer"],
-                  },
-                }
-              : {}),
-          },
-        },
-        { timeoutMs: this.#timeoutMs, apiKey: this.#apiKey },
-      );
+    const executeCallForModel = async (
+      targetModel: string,
+    ): Promise<{ readonly raw: unknown; readonly usedModel: string }> => {
+      const isThinkingCapable =
+        targetModel.includes("3.7") ||
+        targetModel.includes("thinking") ||
+        this.#thinkingBudget > 0;
 
-    let raw: unknown;
-    let retryUsed = false;
+      const generationConfig: Record<string, unknown> = {
+        temperature: 0.2,
+        maxOutputTokens: this.#maxOutputTokens,
+        ...(isThinkingCapable
+          ? { thinkingConfig: { thinkingBudget: this.#thinkingBudget } }
+          : {}),
+        ...(!hasTools && !hasToolHistory
+          ? {
+              responseMimeType: "application/json",
+              responseSchema: {
+                type: "OBJECT",
+                properties: {
+                  answer: { type: "STRING" },
+                },
+                required: ["answer"],
+              },
+            }
+          : {}),
+      };
+
+      const call = () =>
+        this.#client.generateContent(
+          {
+            model: targetModel,
+            systemInstruction: {
+              parts: [{ text: request.systemPolicy }],
+            },
+            contents: buildContents(request),
+            ...(toolsPayload ? { tools: toolsPayload } : {}),
+            generationConfig,
+          },
+          { timeoutMs: this.#timeoutMs, apiKey: this.#apiKey },
+        );
+
+      let raw: unknown;
+      let retryUsed = false;
+      try {
+        raw = await call();
+      } catch (firstError) {
+        const normalized = normalizeError(firstError);
+        if (!normalized.retryable || this.#maxRetries === 0) throw firstError;
+        await this.#sleep(
+          retryDelayMilliseconds(firstError, this.#now, this.#random),
+        );
+        retryUsed = true;
+        try {
+          raw = await call();
+        } catch (secondError) {
+          throw secondError;
+        }
+      }
+
+      const parsedGemini = geminiResponseSchema.safeParse(raw);
+      if (!parsedGemini.success && this.#maxRetries === 1 && !retryUsed) {
+        retryUsed = true;
+        try {
+          raw = await call();
+        } catch (retryError) {
+          throw retryError;
+        }
+      }
+
+      return { raw, usedModel: targetModel };
+    };
+
+    let callResult: { readonly raw: unknown; readonly usedModel: string };
     try {
-      raw = await call();
-    } catch (firstError) {
-      const normalized = normalizeError(firstError);
-      if (!normalized.retryable || this.#maxRetries === 0) throw normalized;
-      await this.#sleep(
-        retryDelayMilliseconds(firstError, this.#now, this.#random),
-      );
-      retryUsed = true;
-      try {
-        raw = await call();
-      } catch (secondError) {
-        throw normalizeError(secondError);
+      callResult = await executeCallForModel(this.#model);
+    } catch (primaryError) {
+      const normalized = normalizeError(primaryError);
+      if (this.#fallbackModel && isHighDemandError(primaryError, normalized)) {
+        try {
+          callResult = await executeCallForModel(this.#fallbackModel);
+        } catch (fallbackError) {
+          throw normalizeError(fallbackError);
+        }
+      } else {
+        throw normalized;
       }
     }
 
-    const parsedGemini = geminiResponseSchema.safeParse(raw);
-    if (!parsedGemini.success && this.#maxRetries === 1 && !retryUsed) {
-      retryUsed = true;
-      try {
-        raw = await call();
-      } catch (retryError) {
-        throw normalizeError(retryError);
-      }
-    }
-
-    const validated = geminiResponseSchema.safeParse(raw);
+    const validated = geminiResponseSchema.safeParse(callResult.raw);
     if (!validated.success) {
       throw new AgentProviderError(
         "malformed_response",
@@ -571,7 +642,7 @@ export class GeminiAgentProvider implements AgentProvider {
         toolCalls,
         providerMetadata: {
           configuredModel: this.#model,
-          resolvedModel: validated.data.modelVersion ?? this.#model,
+          resolvedModel: validated.data.modelVersion ?? callResult.usedModel,
           finishReason: firstCandidate?.finishReason ?? "STOP",
           promptVersion: request.promptVersion,
           promptTokens: usage?.promptTokenCount ?? 0,
@@ -609,7 +680,7 @@ export class GeminiAgentProvider implements AgentProvider {
     const usage = validated.data.usageMetadata;
     const metadata = {
       configuredModel: this.#model,
-      resolvedModel: validated.data.modelVersion ?? this.#model,
+      resolvedModel: validated.data.modelVersion ?? callResult.usedModel,
       finishReason: firstCandidate?.finishReason ?? "STOP",
       promptVersion: request.promptVersion,
       promptTokens: usage?.promptTokenCount ?? 0,

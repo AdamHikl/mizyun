@@ -21,7 +21,7 @@ Backend integration context for Google Cloud project `smartiqi-team`, pinned mod
 ### Findings used
 
 - Scoped to Google Cloud project `smartiqi-team` with API key restricted to `generativelanguage.googleapis.com` under an enforced EUR 50/month project-wide spend cap (notifications at 50%, 80%, 100%). Spend cap enforcement is delayed, requiring server-side rate safeguards.
-- Model policy is pinned strictly to **`gemini-3.7-flash`** (primary vision drafting with `thinkingBudget: 0` for fast 4–6s latency) and **`gemini-3.6-flash`** (Coach agent conversation, tool execution, and vision high-demand fallback). No other models are permitted.
+- Model policy is pinned strictly to **`gemini-3.7-flash`** as the default model for all AI (Coach chat, tool execution, and multimodal vision drafting, with `thinkingBudget: 0` for sub-5s latency) and **`gemini-3.6-flash`** exclusively as the automatic fallback on high demand or capacity exhaustion. No other models are permitted.
 - Secret governance: `GEMINI_API_KEY` is loaded exclusively into backend server environments (`apps/api`), never in frontend or mobile bundles (`EXPO_PUBLIC_*`).
 - Error handling & resilience: 400, 401, and 403 errors are treated as fatal configuration failures and not retried; 408, 429, and transient 5xx errors are retried with bounded jittered backoff.
 - Privacy & logging: Request IDs, user IDs, token counts, latency, and resolved model versions are recorded; image payloads, prompts, model outputs, and API keys are strictly excluded from logs.

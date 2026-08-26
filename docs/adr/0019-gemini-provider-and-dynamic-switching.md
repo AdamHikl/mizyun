@@ -13,7 +13,7 @@ Domain calculations (Mifflin-St Jeor daily targets, training prescription, progr
 
 1. **Provider Isolation & Pinned Models**:
    - Implement `@mizyun/provider-gemini` adhering strictly to `@mizyun/agent-runtime` ports (`AgentProvider`, `VisionDraftProvider`, `ContentModerator`).
-   - Strictly pin model usage to **`gemini-3.7-flash`** (primary vision drafting with `thinkingBudget: 0`) and **`gemini-3.6-flash`** (Coach agent conversation and automatic high-demand vision fallback). No other models are permitted.
+   - Strictly pin model usage across all AI (Coach conversation, tool calling, and multimodal vision) to **`gemini-3.7-flash`** as default (with `thinkingBudget: 0` for sub-5s latency) and **`gemini-3.6-flash`** exclusively as the automated fallback on high demand (HTTP 429/503/capacity limits). No other models are permitted.
    - Use Google AI Studio HTTP REST APIs (`generativelanguage.googleapis.com/v1beta`) with `generateContent`, `systemInstruction`, function declarations, and structured JSON output schemas (`responseMimeType: "application/json"`).
    - Secret governance: `GEMINI_API_KEY` lives exclusively in backend environment variables/secret stores for the `smartiqi-team` Google Cloud project (under an enforced EUR 50/month spend cap with Gemini API-only restriction).
 

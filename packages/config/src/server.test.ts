@@ -496,7 +496,9 @@ describe("loadServerConfig — closed-world", () => {
       aiExternalAccess: false,
       geminiConfig: {
         apiKey: "test-gemini-key-12345",
-        model: "gemini-3.6-flash",
+        model: "gemini-3.7-flash",
+        fallbackModel: "gemini-3.6-flash",
+        thinkingBudget: 0,
         timeoutMs: 30_000,
         maxOutputTokens: 8_192,
       },

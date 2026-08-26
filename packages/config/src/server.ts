@@ -43,6 +43,8 @@ export interface ServerMistralVisionConfiguration {
 export interface ServerGeminiConfiguration {
   readonly apiKey: string;
   readonly model: string;
+  readonly fallbackModel?: string | undefined;
+  readonly thinkingBudget?: number | undefined;
   readonly timeoutMs: number;
   readonly maxOutputTokens: number;
   readonly dailyUserTokenBudget: number;
@@ -96,6 +98,8 @@ export const SERVER_ENV_KEYS = {
   mistralVisionMaxOutputTokens: "MISTRAL_VISION_MAX_OUTPUT_TOKENS",
   geminiApiKey: "GEMINI_API_KEY",
   geminiModel: "GEMINI_MODEL",
+  geminiFallbackModel: "GEMINI_FALLBACK_MODEL",
+  geminiThinkingBudget: "GEMINI_THINKING_BUDGET",
   geminiTimeoutMs: "GEMINI_TIMEOUT_MS",
   geminiMaxOutputTokens: "GEMINI_MAX_OUTPUT_TOKENS",
   geminiVisionApiKey: "GEMINI_VISION_API_KEY",
@@ -193,7 +197,17 @@ const baseServerSchema = z.object({
   geminiModel: z
     .string()
     .min(1, "GEMINI_MODEL must not be empty")
+    .default("gemini-3.7-flash"),
+  geminiFallbackModel: z
+    .string()
+    .min(1, "GEMINI_FALLBACK_MODEL must not be empty")
     .default("gemini-3.6-flash"),
+  geminiThinkingBudget: z.coerce
+    .number()
+    .int("GEMINI_THINKING_BUDGET must be an integer")
+    .min(0, "GEMINI_THINKING_BUDGET must be >= 0")
+    .max(32_768, "GEMINI_THINKING_BUDGET must be <= 32768")
+    .default(0),
   geminiTimeoutMs: z.coerce
     .number()
     .int("GEMINI_TIMEOUT_MS must be an integer")
@@ -414,6 +428,10 @@ export const loadServerConfig = (
       ? {
           apiKey: geminiApiKeyResolved,
           model: value.geminiModel,
+          ...(value.geminiFallbackModel
+            ? { fallbackModel: value.geminiFallbackModel }
+            : {}),
+          thinkingBudget: value.geminiThinkingBudget,
           timeoutMs: value.geminiTimeoutMs,
           maxOutputTokens: value.geminiMaxOutputTokens,
           dailyUserTokenBudget: value.aiDailyUserTokenBudget,

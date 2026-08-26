@@ -7,7 +7,7 @@
 
 - Official server-side adapters for both **Mistral** (`@mizyun/provider-mistral`) and **Gemini** (`@mizyun/provider-gemini`) pass all offline and boundary tests.
 - Dynamic provider switching allows users to select between Mistral and Gemini in settings (`AGENT_PROVIDER=multi` or individual provider).
-- Pinned Gemini models: **`gemini-3.7-flash`** (multimodal nutrition photo analysis with `GEMINI_VISION_THINKING_BUDGET=0`) and **`gemini-3.6-flash`** (Coach text conversation, tool calling, and automated high-demand vision fallback).
+- Pinned Gemini models: **`gemini-3.7-flash`** (default for Coach chat, tool execution, and multimodal nutrition photo analysis with `thinkingBudget: 0`) and **`gemini-3.6-flash`** (automatic fallback on high demand/capacity overload).
 - External access is enabled in the founder testing mode and remains disabled in release-oriented environments.
 
 The live test fixtures contain no real user record, account identifier, photo, or secret. Do not reinterpret this as approval for real-user traffic.
@@ -30,7 +30,9 @@ MISTRAL_MAX_OUTPUT_TOKENS=1200
 
 # Gemini Configuration (Project: smartiqi-team)
 GEMINI_API_KEY=<development key>
-GEMINI_MODEL=gemini-3.6-flash
+GEMINI_MODEL=gemini-3.7-flash
+GEMINI_FALLBACK_MODEL=gemini-3.6-flash
+GEMINI_THINKING_BUDGET=0
 GEMINI_VISION_MODEL=gemini-3.7-flash
 GEMINI_VISION_FALLBACK_MODEL=gemini-3.6-flash
 GEMINI_VISION_THINKING_BUDGET=0
@@ -87,7 +89,7 @@ Expected shape when `AGENT_PROVIDER=gemini` or resolved to Gemini:
 {
   "ready": true,
   "provider": "gemini",
-  "model": "gemini-3.6-flash",
+  "model": "gemini-3.7-flash",
   "externalAccess": true
 }
 ```
