@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AgentRequest } from "@mizyun/agent-runtime";
-import { GeminiAgentProvider, type GeminiChatClient } from "./index.js";
+import {
+  cleanGeminiSchema,
+  GeminiAgentProvider,
+  type GeminiChatClient,
+} from "./index.js";
 
 const request: AgentRequest = {
   userId: "00000000-0000-4000-8000-000000000001" as AgentRequest["userId"],
@@ -473,5 +477,159 @@ describe("GeminiAgentProvider", () => {
         }
       ).generationConfig?.thinkingConfig?.thinkingBudget,
     ).toBe(0);
+  });
+
+  it("sanitizes tool schema parameters removing additionalProperties and normalizing uppercase types", async () => {
+    let capturedReq: unknown;
+    const generateContent = vi.fn<GeminiChatClient["generateContent"]>(
+      async (req) => {
+        capturedReq = req;
+        return {
+          candidates: [
+            {
+              content: {
+                role: "model",
+                parts: [
+                  {
+                    functionCall: {
+                      name: "get_training_prescription",
+                      args: { days_per_week: 3 },
+                    },
+                  },
+                ],
+              },
+              finishReason: "STOP",
+            },
+          ],
+        };
+      },
+    );
+
+    const provider = new GeminiAgentProvider({
+      apiKey: "test-gemini-key-12345",
+      model: "gemini-3.7-flash",
+      timeoutMs: 5_000,
+      maxOutputTokens: 1_000,
+      externalAccess: true,
+      client: { generateContent },
+    });
+
+    const response = await provider.respond({
+      ...request,
+      tools: [
+        {
+          name: "get_training_prescription",
+          description: "Build a prescription",
+          parameters: {
+            $schema: "http://json-schema.org/draft-07/schema#",
+            title: "PrescriptionParams",
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              days_per_week: {
+                type: "integer",
+                minimum: 1,
+                maximum: 7,
+              },
+              available_equipment: {
+                type: "array",
+                items: {
+                  type: "string",
+                  enum: ["dumbbells", "barbell"],
+                },
+              },
+            },
+          },
+        },
+      ],
+    });
+
+    expect(response.toolCalls).toHaveLength(1);
+    const toolsPayload = (
+      capturedReq as {
+        tools: {
+          functionDeclarations: {
+            name: string;
+            parameters: Record<string, unknown>;
+          }[];
+        }[];
+      }
+    ).tools;
+
+    const fnDecl = toolsPayload[0]?.functionDeclarations[0];
+    expect(fnDecl?.name).toBe("get_training_prescription");
+    expect(fnDecl?.parameters).toEqual({
+      type: "OBJECT",
+      properties: {
+        days_per_week: {
+          type: "INTEGER",
+          minimum: 1,
+          maximum: 7,
+        },
+        available_equipment: {
+          type: "ARRAY",
+          items: {
+            type: "STRING",
+            enum: ["dumbbells", "barbell"],
+          },
+        },
+      },
+    });
+    expect(JSON.stringify(fnDecl?.parameters)).not.toContain(
+      "additionalProperties",
+    );
+    expect(JSON.stringify(fnDecl?.parameters)).not.toContain("$schema");
+    expect(JSON.stringify(fnDecl?.parameters)).not.toContain("title");
+  });
+});
+
+describe("cleanGeminiSchema", () => {
+  it("returns undefined for non-objects or arrays", () => {
+    expect(cleanGeminiSchema(undefined)).toBeUndefined();
+    expect(cleanGeminiSchema(null as unknown as undefined)).toBeUndefined();
+    expect(cleanGeminiSchema([] as unknown as undefined)).toBeUndefined();
+  });
+
+  it("recursively removes additionalProperties, $schema, and title and converts types to uppercase", () => {
+    const rawSchema = {
+      $schema: "https://json-schema.org/draft/2020-12/schema",
+      title: "NestedConfig",
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        level1: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            count: { type: "integer", minimum: 0 },
+            tags: {
+              type: "array",
+              items: { type: "string" },
+            },
+          },
+          required: ["count"],
+        },
+      },
+      required: ["level1"],
+    };
+
+    const cleaned = cleanGeminiSchema(rawSchema);
+    expect(cleaned).toEqual({
+      type: "OBJECT",
+      properties: {
+        level1: {
+          type: "OBJECT",
+          properties: {
+            count: { type: "INTEGER", minimum: 0 },
+            tags: {
+              type: "ARRAY",
+              items: { type: "STRING" },
+            },
+          },
+          required: ["count"],
+        },
+      },
+      required: ["level1"],
+    });
   });
 });

@@ -6,6 +6,28 @@
 
 Each entry records date, scope/version, primary sources, findings that affected implementation, and any resulting ADR. Inferences must be labeled as such.
 
+## 2026-08-26 — GEMINI-TOOL-001 Gemini function declaration Schema compatibility
+
+### Scope
+
+Google AI Studio REST API `generateContent` tool calling schema requirements and parameter sanitization for `GeminiAgentProvider`.
+
+### Primary sources
+
+- Google AI Studio Function Calling documentation: https://ai.google.dev/docs/function_calling
+- Google Cloud Generative AI Schema proto definition: `google.ai.generativelanguage.v1beta.Schema`
+
+### Findings used
+
+- Google AI Studio's `FunctionDeclaration.parameters` maps to a strict protobuf `Schema` definition rather than standard OpenAPI/JSON Schema.
+- Fields such as `additionalProperties`, `$schema`, and `title` are not defined in the proto and cause Gemini API to return `HTTP 400: Invalid JSON payload received. Unknown name "additionalProperties" at 'tools[0].function_declarations[...].parameters': Cannot find field.`
+- Types in the Gemini Schema proto are enum values (`OBJECT`, `STRING`, `NUMBER`, `INTEGER`, `BOOLEAN`, `ARRAY`).
+- Added recursive `cleanGeminiSchema` in `@mizyun/provider-gemini` to strip unrecognized properties (`additionalProperties`, `$schema`, `title`) and uppercase schema types before sending function declarations to Google Gemini API.
+
+### Result
+
+Resolved Coach 503 `AI_CONFIGURATION_ERROR` on workout plan generation requests when using the Gemini provider. Tested with 100% pass rate in `@mizyun/provider-gemini` unit tests and end-to-end `pnpm check`.
+
 ## 2026-08-26 — GEMINI-OPS-001 Gemini API backend context, model pinning, and project governance
 
 ### Scope

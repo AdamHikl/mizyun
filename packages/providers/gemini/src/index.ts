@@ -107,7 +107,7 @@ export interface GeminiChatClient {
           readonly functionDeclarations: readonly {
             readonly name: string;
             readonly description: string;
-            readonly parameters?: Readonly<Record<string, unknown>>;
+            readonly parameters?: Readonly<Record<string, unknown>> | undefined;
           }[];
         },
       ];
@@ -418,6 +418,49 @@ const unsafeOutput = (text: string): boolean =>
     /\btrain through (sharp|severe) pain\b/i,
   ].some((pattern) => pattern.test(text));
 
+export const cleanGeminiSchema = (
+  schema: Readonly<Record<string, unknown>> | undefined,
+): Readonly<Record<string, unknown>> | undefined => {
+  if (typeof schema !== "object" || schema === null) return undefined;
+  if (Array.isArray(schema)) return undefined;
+
+  const sanitize = (val: unknown): unknown => {
+    if (typeof val !== "object" || val === null) return val;
+    if (Array.isArray(val)) return val.map(sanitize);
+
+    const record = val as Record<string, unknown>;
+    const cleaned: Record<string, unknown> = {};
+
+    for (const [k, v] of Object.entries(record)) {
+      if (k === "additionalProperties" || k === "$schema" || k === "title") {
+        continue;
+      }
+      if (k === "type" && typeof v === "string") {
+        cleaned.type = v.toUpperCase();
+        continue;
+      }
+      if (k === "properties" && typeof v === "object" && v !== null) {
+        const props: Record<string, unknown> = {};
+        for (const [propKey, propVal] of Object.entries(
+          v as Record<string, unknown>,
+        )) {
+          props[propKey] = sanitize(propVal);
+        }
+        cleaned.properties = props;
+        continue;
+      }
+      if (k === "items" && typeof v === "object" && v !== null) {
+        cleaned.items = sanitize(v);
+        continue;
+      }
+      cleaned[k] = sanitize(v);
+    }
+    return cleaned;
+  };
+
+  return sanitize(schema) as Readonly<Record<string, unknown>>;
+};
+
 export class GeminiAgentProvider implements AgentProvider {
   readonly #apiKey: string;
   readonly #model: string;
@@ -491,11 +534,14 @@ export class GeminiAgentProvider implements AgentProvider {
     const toolsPayload = hasTools
       ? ([
           {
-            functionDeclarations: request.tools!.map((tool) => ({
-              name: tool.name,
-              description: tool.description,
-              parameters: tool.parameters,
-            })),
+            functionDeclarations: request.tools!.map((tool) => {
+              const cleaned = cleanGeminiSchema(tool.parameters);
+              return {
+                name: tool.name,
+                description: tool.description,
+                ...(cleaned !== undefined ? { parameters: cleaned } : {}),
+              };
+            }),
           },
         ] as const)
       : hasToolHistory &&
@@ -506,7 +552,7 @@ export class GeminiAgentProvider implements AgentProvider {
               functionDeclarations: request.requestedToolCalls.map((call) => ({
                 name: call.name,
                 description: `Tool ${call.name}`,
-                parameters: { type: "object" },
+                parameters: { type: "OBJECT" },
               })),
             },
           ] as const)
