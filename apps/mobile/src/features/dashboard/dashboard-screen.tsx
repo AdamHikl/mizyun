@@ -171,7 +171,12 @@ const actions = [
   {
     label: "Start a workout",
     path: "/log-workout" as Href,
-    hint: "Name your session",
+    hint: "Active session",
+  },
+  {
+    label: "Workouts hub",
+    path: "/workouts" as Href,
+    hint: "All workouts & routines",
   },
   {
     label: "Add weight",
@@ -325,16 +330,19 @@ export function DashboardScreen() {
               label="Calories today"
               value={formatCalories(metrics.caloriesToday)}
               detail={caloriesDetail(metrics.macros, metrics.energy)}
+              onPress={() => void router.push("/nutrition" as Href)}
             />
             <MetricCard
               label="Current weight"
               value={formatWeight(metrics.latestWeightKg, unitSystem)}
               detail="Latest measurement"
+              onPress={() => void router.push("/body" as Href)}
             />
             <MetricCard
               label="Training"
               value={formatCount(metrics.workoutsInReview)}
               detail={`completed this ${reviewPeriod}`}
+              onPress={() => void router.push("/workouts" as Href)}
             />
           </View>
 
@@ -595,8 +603,9 @@ function MetricCard(props: {
   readonly label: string;
   readonly value: string;
   readonly detail: string;
+  readonly onPress?: () => void;
 }) {
-  return (
+  const content = (
     <ThemedView type="backgroundElement" style={styles.metricCard}>
       <ThemedText type="smallBold" themeColor="textSecondary">
         {props.label}
@@ -609,6 +618,21 @@ function MetricCard(props: {
       </ThemedText>
     </ThemedView>
   );
+
+  if (props.onPress) {
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={props.label}
+        onPress={props.onPress}
+        style={{ flex: 1 }}
+      >
+        {content}
+      </Pressable>
+    );
+  }
+
+  return content;
 }
 
 const styles = StyleSheet.create({

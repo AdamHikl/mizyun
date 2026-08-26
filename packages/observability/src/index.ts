@@ -5,6 +5,7 @@ export type CoreRecordKind = LoggingFlow;
 export type FeatureName =
   | "dashboard"
   | "nutrition_history"
+  | "workout_history"
   | "body_history"
   | "progress_photos"
   | "settings";
@@ -548,6 +549,7 @@ const TAP_BUCKETS: readonly TapCountBucket[] = [
 const FEATURES: readonly FeatureName[] = [
   "dashboard",
   "nutrition_history",
+  "workout_history",
   "body_history",
   "progress_photos",
   "settings",

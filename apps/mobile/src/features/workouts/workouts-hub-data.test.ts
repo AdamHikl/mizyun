@@ -1,0 +1,209 @@
+import { describe, expect, it, vi } from "vitest";
+import type { ApiClient } from "@mizyun/api-client";
+import type { Exercise, Workout, WorkoutSet } from "@mizyun/contracts";
+
+import {
+  calculateWorkoutVolume,
+  extractPlannedExercisesFromWorkout,
+  formatWorkoutDisplayDate,
+  processWorkout,
+  fetchWorkoutsHubData,
+  deleteWorkout,
+  createBlankWorkout,
+} from "./workouts-hub-data";
+
+describe("workouts-hub-data", () => {
+  const mockExercise: Exercise = {
+    id: "ex-1",
+    userId: "usr-1",
+    name: "Barbell Bench Press",
+    instructions: null,
+    metadata: {},
+    createdAt: "2026-08-01T10:00:00.000Z",
+    updatedAt: "2026-08-01T10:00:00.000Z",
+  };
+
+  const mockPlannedWorkout: Workout = {
+    id: "w-planned-1",
+    userId: "usr-1",
+    name: "Session 1: Upper Body",
+    startedAt: "2026-08-26T08:00:00.000Z",
+    completedAt: null,
+    source: "manual",
+    notes: "Planned upper body push/pull routine",
+    details: {
+      coachPlan: {
+        exercises: [
+          {
+            name: "Barbell Bench Press",
+            targetSets: 3,
+            targetReps: "8-10",
+            targetLoad: "70 kg",
+          },
+          {
+            name: "Pull Up",
+            targetSets: 3,
+            targetReps: "6-8",
+          },
+        ],
+      },
+    },
+    createdAt: "2026-08-26T08:00:00.000Z",
+    updatedAt: "2026-08-26T08:00:00.000Z",
+  };
+
+  const mockCompletedWorkout: Workout = {
+    id: "w-completed-1",
+    userId: "usr-1",
+    name: "Full Body Strength",
+    startedAt: "2026-08-25T09:00:00.000Z",
+    completedAt: "2026-08-25T10:00:00.000Z",
+    source: "manual",
+    notes: null,
+    details: {},
+    createdAt: "2026-08-25T09:00:00.000Z",
+    updatedAt: "2026-08-25T10:00:00.000Z",
+  };
+
+  const mockSets: WorkoutSet[] = [
+    {
+      id: "set-1",
+      userId: "usr-1",
+      workoutId: "w-completed-1",
+      exerciseId: "ex-1",
+      sequence: 1,
+      repetitions: 10,
+      loadKg: 80,
+      durationSeconds: null,
+      distanceMeters: null,
+      perceivedExertion: 8,
+      completedAt: null,
+      createdAt: "2026-08-25T09:15:00.000Z",
+    },
+    {
+      id: "set-2",
+      userId: "usr-1",
+      workoutId: "w-completed-1",
+      exerciseId: "ex-1",
+      sequence: 2,
+      repetitions: 8,
+      loadKg: 85,
+      durationSeconds: null,
+      distanceMeters: null,
+      perceivedExertion: 9,
+      completedAt: null,
+      createdAt: "2026-08-25T09:20:00.000Z",
+    },
+  ];
+
+  it("extracts planned exercises from coachPlan details", () => {
+    const planned = extractPlannedExercisesFromWorkout(mockPlannedWorkout);
+    expect(planned).toHaveLength(2);
+    expect(planned[0]?.name).toBe("Barbell Bench Press");
+    expect(planned[0]?.targetSets).toBe(3);
+    expect(planned[0]?.targetReps).toBe("8-10");
+    expect(planned[0]?.targetLoad).toBe("70 kg");
+  });
+
+  it("formats display dates with Today/Yesterday relative labels", () => {
+    const fixedToday = new Date("2026-08-26T12:00:00.000Z");
+    expect(
+      formatWorkoutDisplayDate("2026-08-26T08:00:00.000Z", fixedToday),
+    ).toContain("Today");
+    expect(
+      formatWorkoutDisplayDate("2026-08-25T08:00:00.000Z", fixedToday),
+    ).toContain("Yesterday");
+    expect(
+      formatWorkoutDisplayDate("2026-08-27T08:00:00.000Z", fixedToday),
+    ).toContain("Tomorrow");
+  });
+
+  it("calculates total volume correctly for completed sets", () => {
+    const volume = calculateWorkoutVolume(mockSets);
+    // 10 * 80 + 8 * 85 = 800 + 680 = 1480 kg
+    expect(volume).toBe(1480);
+  });
+
+  it("processes workouts into correct status and exercise summaries", () => {
+    const today = new Date("2026-08-26T12:00:00.000Z");
+    const processedPlanned = processWorkout(
+      mockPlannedWorkout,
+      [],
+      [mockExercise],
+      today,
+    );
+    expect(processedPlanned.status).toBe("planned");
+    expect(processedPlanned.plannedExercises).toHaveLength(2);
+    expect(processedPlanned.completedSetCount).toBe(0);
+
+    const processedCompleted = processWorkout(
+      mockCompletedWorkout,
+      mockSets,
+      [mockExercise],
+      today,
+    );
+    expect(processedCompleted.status).toBe("completed");
+    expect(processedCompleted.completedSetCount).toBe(2);
+    expect(processedCompleted.totalVolumeKg).toBe(1480);
+    expect(processedCompleted.durationMinutes).toBe(60);
+    expect(processedCompleted.exerciseSummaries).toHaveLength(1);
+    expect(processedCompleted.exerciseSummaries[0]?.exerciseName).toBe(
+      "Barbell Bench Press",
+    );
+    expect(processedCompleted.exerciseSummaries[0]?.topLoadKg).toBe(85);
+  });
+
+  it("fetches workouts and separates active/planned and completed", async () => {
+    const client: ApiClient = {
+      request: vi
+        .fn()
+        .mockImplementation(async ({ path }: { path: string }) => {
+          if (path.startsWith("/v1/workouts?")) {
+            return {
+              ok: true,
+              value: { workouts: [mockPlannedWorkout, mockCompletedWorkout] },
+            };
+          }
+          if (path.startsWith("/v1/exercises?")) {
+            return {
+              ok: true,
+              value: { exercises: [mockExercise] },
+            };
+          }
+          if (path.includes("/sets")) {
+            return {
+              ok: true,
+              value: { workoutSets: mockSets },
+            };
+          }
+          return { ok: true, value: {} };
+        }),
+    } as unknown as ApiClient;
+
+    const result = await fetchWorkoutsHubData(client);
+    expect(result.message).toBeNull();
+    expect(result.activeAndPlanned).toHaveLength(1);
+    expect(result.activeAndPlanned[0]?.workout.id).toBe("w-planned-1");
+    expect(result.completed).toHaveLength(1);
+    expect(result.completed[0]?.workout.id).toBe("w-completed-1");
+  });
+
+  it("handles delete workout and create blank workout", async () => {
+    const deleteClient: ApiClient = {
+      request: vi.fn().mockResolvedValue({ ok: true }),
+    } as unknown as ApiClient;
+
+    const deleteRes = await deleteWorkout("w-planned-1", deleteClient);
+    expect(deleteRes.ok).toBe(true);
+
+    const createClient: ApiClient = {
+      request: vi.fn().mockResolvedValue({
+        ok: true,
+        value: { workout: mockPlannedWorkout },
+      }),
+    } as unknown as ApiClient;
+
+    const createRes = await createBlankWorkout("New Session", createClient);
+    expect(createRes.ok).toBe(true);
+  });
+});
