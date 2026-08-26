@@ -7,7 +7,7 @@
 - **Product stage:** technical pre-alpha; the architecture, domain/API foundation, and native mobile UI are verified and polished.
 - **Roadmap position:** INFRA-ENV-001 / INFRA-WIN-001 infrastructure migration to the **Raspberry Pi 5** (`rpServer`, Ubuntu 24.04 ARM64) is complete and fully operational.
 - **Latest verified implementation slice:** Delivered LLM-driven custom workout generation (`AI-ACT-009`): added `search_exercises` and `propose_workout_plan` Coach tools, built `findCatalogExercise` and `searchExerciseCatalog` with alias and fuzzy resolution in `@mizyun/core`, upgraded `COACH_SYSTEM_POLICY` to empower the AI Coach to design customized single/multi-session workout splits picking from the 888-exercise database, and diversified the deterministic prescription fallback engine. All 15 workspace packages pass `pnpm check` (1,014 tests passing, 17 opt-in tests skipped, iOS/Android production bundles compiling cleanly).
-- **Branch:** `main`; production Raspberry Pi 5 checkout is operational.
+- **Branch:** `main`; production Raspberry Pi 5 checkout matches commit `8757e63` and is verified live (`https://mizyun-api.phiskel.com/v1/health`).
 - **Production Host:** Raspberry Pi 5 (`rpserver`, Ubuntu 24.04 ARM64, Tailscale IP `100.116.142.1`). Remote deployment `pnpm deploy:remote` is verified green.
 - **Local runtime at handoff:** `pnpm check` passes with 1014 tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean.
 - **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and 1014 tests passed; 17 opt-in live/e2e tests skipped.
