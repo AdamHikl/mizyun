@@ -7,7 +7,7 @@
 - **Product stage:** technical pre-alpha; the architecture, domain/API foundation, and native mobile UI are verified and polished.
 - **Roadmap position:** INFRA-ENV-001 / INFRA-WIN-001 infrastructure migration to the **Raspberry Pi 5** (`rpServer`, Ubuntu 24.04 ARM64) is complete and fully operational.
 - **Latest verified implementation slice:** Fixed Gemini tool schema compatibility (`packages/providers/gemini/src/index.ts`). Google AI Studio Gemini API function declaration parameter schemas strictly follow proto `Schema` and reject standard JSON Schema keywords such as `additionalProperties`, `$schema`, and `title`. Added `cleanGeminiSchema` to strip unsupported keywords and normalize types to uppercase (`OBJECT`, `STRING`, `INTEGER`, etc.) before passing to `generateContent`. All 15 workspace packages pass `pnpm check` (996 tests passing, 17 opt-in tests skipped, iOS/Android production bundles compiling cleanly).
-- **Branch:** `main`; production Raspberry Pi 5 checkout matches commit `8726953` and is verified live (`https://mizyun-api.phiskel.com/v1/health`).
+- **Branch:** `main`; production Raspberry Pi 5 checkout matches commit `93ba122` and is verified live (`https://mizyun-api.phiskel.com/v1/health`).
 - **Production Host:** Raspberry Pi 5 (`rpserver`, Ubuntu 24.04 ARM64, Tailscale IP `100.116.142.1`). Remote deployment `pnpm deploy:remote` is verified green.
 - **Local runtime at handoff:** `pnpm check` passes with 996 tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean.
 - **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and 996 tests passed; 17 opt-in live/e2e tests skipped.
