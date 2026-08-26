@@ -23,6 +23,8 @@ import {
   buildGetRecentWorkoutsTool,
   buildGetCoachingPlanTool,
   buildGetTrainingPrescriptionTool,
+  buildSearchExercisesTool,
+  buildProposeWorkoutPlanTool,
 } from "./tools.js";
 
 const userId = "00000000-0000-4000-8000-000000000001" as UserId;
@@ -51,7 +53,7 @@ const buildDeps = () => {
 };
 
 describe("CoachTools — registry", () => {
-  it("exposes the eight expected tool names", () => {
+  it("exposes the nine expected tool names", () => {
     const deps = buildDeps();
     const registry = buildCoachToolRegistry(deps);
     const names = registry.list().map((tool) => tool.name);
@@ -63,6 +65,8 @@ describe("CoachTools — registry", () => {
       "compute_energy",
       "get_coaching_plan",
       "get_training_prescription",
+      "search_exercises",
+      "propose_workout_plan",
     ]);
   });
 
@@ -547,5 +551,148 @@ describe("CoachTools — defence in depth", () => {
       clock: { now: clock },
     });
     expect(evidence.data).toEqual({ active: false });
+  });
+});
+
+describe("CoachTools — search_exercises", () => {
+  it("searches through catalog exercises and returns matched results with movement patterns", async () => {
+    const deps = buildDeps();
+    const tool = buildSearchExercisesTool(deps);
+    const evidence = await tool.execute({
+      principalUserId: userId,
+      args: { query: "incline dumbbell", limit: 5 },
+      accessToken: "token",
+      clock: { now: clock },
+    });
+
+    expect(evidence.kind).toBe("training");
+    const data = evidence.data as {
+      count: number;
+      exercises: Array<{ name: string; movementPattern: string }>;
+    };
+    expect(data.count).toBeGreaterThan(0);
+    expect(data.exercises[0]?.name.toLowerCase()).toContain("incline");
+  });
+});
+
+describe("CoachTools — propose_workout_plan", () => {
+  it("builds a single workout proposal with matched exercises from catalog", async () => {
+    const deps = buildDeps();
+    const tool = buildProposeWorkoutPlanTool(deps);
+    const evidence = await tool.execute({
+      principalUserId: userId,
+      args: {
+        rationale: "Chest and triceps focused routine.",
+        sessions: [
+          {
+            label: "Chest & Triceps",
+            focus: "push",
+            estimated_minutes: 45,
+            exercises: [
+              {
+                name: "Incline dumbbell press",
+                sets: 4,
+                reps_min: 8,
+                reps_max: 10,
+              },
+              { name: "Cable crossover", sets: 3, reps_min: 12, reps_max: 15 },
+              { name: "Triceps pushdown", sets: 3, reps_min: 10, reps_max: 12 },
+            ],
+          },
+        ],
+      },
+      accessToken: "token",
+      clock: { now: clock },
+    });
+
+    const data = evidence.data as {
+      actionProposal: {
+        kind: string;
+        session: {
+          label: string;
+          exercises: Array<{ name: string; catalogId: string }>;
+        };
+      };
+    };
+    expect(data.actionProposal).toBeDefined();
+    expect(data.actionProposal.kind).toBe("workout_start");
+    expect(data.actionProposal.session.label).toBe("Chest & Triceps");
+    expect(data.actionProposal.session.exercises).toHaveLength(3);
+    expect(
+      data.actionProposal.session.exercises[0]?.name.toLowerCase(),
+    ).toContain("incline");
+    expect(data.actionProposal.session.exercises[0]?.catalogId).toBe(
+      "incline-dumbbell-press",
+    );
+  });
+
+  it("builds a multi-session workout plan with target days and specific exercises", async () => {
+    const deps = buildDeps();
+    const tool = buildProposeWorkoutPlanTool(deps);
+    const evidence = await tool.execute({
+      principalUserId: userId,
+      args: {
+        rationale: "3-day push pull legs split.",
+        sessions: [
+          {
+            label: "Push: Chest & Shoulders",
+            focus: "push",
+            estimated_minutes: 60,
+            exercises: [
+              {
+                name: "Barbell bench press",
+                sets: 4,
+                reps_min: 6,
+                reps_max: 8,
+              },
+              {
+                name: "Side lateral raise",
+                sets: 4,
+                reps_min: 12,
+                reps_max: 15,
+              },
+            ],
+          },
+          {
+            label: "Pull: Back & Biceps",
+            focus: "pull",
+            estimated_minutes: 60,
+            exercises: [
+              { name: "Pullups", sets: 3, reps_min: 6, reps_max: 8 },
+              { name: "Hammer curls", sets: 3, reps_min: 10, reps_max: 12 },
+            ],
+          },
+          {
+            label: "Legs & Core",
+            focus: "legs",
+            estimated_minutes: 60,
+            exercises: [
+              { name: "Romanian deadlift", sets: 4, reps_min: 8, reps_max: 10 },
+              { name: "Plank", sets: 3, duration_minutes: 1 },
+            ],
+          },
+        ],
+      },
+      accessToken: "token",
+      clock: { now: clock },
+    });
+
+    const data = evidence.data as {
+      actionProposal: {
+        kind: string;
+        requestedSessions: number;
+        sessions: Array<{ label: string; exercises: Array<{ name: string }> }>;
+      };
+    };
+    expect(data.actionProposal).toBeDefined();
+    expect(data.actionProposal.kind).toBe("multi_workout_plan");
+    expect(data.actionProposal.requestedSessions).toBe(3);
+    expect(data.actionProposal.sessions).toHaveLength(3);
+    expect(data.actionProposal.sessions[0]?.label).toBe(
+      "Push: Chest & Shoulders",
+    );
+    expect(
+      data.actionProposal.sessions[1]?.exercises[1]?.name.toLowerCase(),
+    ).toContain("curl");
   });
 });

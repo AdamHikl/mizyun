@@ -3,6 +3,7 @@ import {
   EXERCISE_CATALOG,
   getExerciseFromCatalog,
   searchExerciseCatalog,
+  findCatalogExercise,
 } from "./exercise-catalog";
 import { EQUIPMENT_OPTIONS, TRAINING_LIMITATION_OPTIONS } from "./profile";
 
@@ -95,5 +96,38 @@ describe("exercise-catalog", () => {
           ex.equipment.every((eq) => eq === "dumbbells" || eq === "bodyweight"),
       ),
     ).toBe(true);
+  });
+
+  it("finds exercises by alias, common shorthand, and fuzzy matching via findCatalogExercise", () => {
+    const rdl = findCatalogExercise("rdl");
+    expect(rdl).not.toBeNull();
+    expect(rdl?.name.toLowerCase()).toContain("deadlift");
+
+    const dbBench = findCatalogExercise("db bench");
+    expect(dbBench).not.toBeNull();
+    expect(dbBench?.name.toLowerCase()).toContain("dumbbell bench");
+
+    const incline = findCatalogExercise("incline db press");
+    expect(incline).not.toBeNull();
+    expect(incline?.name.toLowerCase()).toContain("incline");
+
+    const latRaise = findCatalogExercise("cable lateral raise");
+    expect(latRaise).not.toBeNull();
+    expect(latRaise?.name.toLowerCase()).toContain("lateral raise");
+
+    const bicepCurl = findCatalogExercise("bicep curls");
+    expect(bicepCurl).not.toBeNull();
+    expect(bicepCurl?.name.toLowerCase()).toContain("curl");
+
+    const bulgarian = findCatalogExercise("bulgarian split squats");
+    expect(bulgarian).not.toBeNull();
+    expect(bulgarian?.name.toLowerCase()).toContain("squat");
+
+    const exactMatch = findCatalogExercise("Barbell bench press");
+    expect(exactMatch).not.toBeNull();
+    expect(exactMatch?.id).toBe("barbell-bench-press");
+
+    const nonMatch = findCatalogExercise("unknown non existent exercise 12345");
+    expect(nonMatch).toBeNull();
   });
 });

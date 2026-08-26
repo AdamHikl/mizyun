@@ -207,6 +207,7 @@ export {
   EXERCISE_CATALOG,
   getExerciseFromCatalog,
   searchExerciseCatalog,
+  findCatalogExercise,
   type CatalogExercise,
   type ExerciseSearchOptions,
 } from "./exercise-catalog";

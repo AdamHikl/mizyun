@@ -305,7 +305,7 @@ export const buildTrainingPrescription = (input: {
           allowedForFocus[(index + sessionIndex * 2) % allowedForFocus.length]!,
       );
       const exercises = rotated
-        .map((pattern) => {
+        .map((pattern, patternIdx) => {
           const choices = available.filter(
             (candidate) => candidate.movementPattern === pattern,
           );
@@ -313,7 +313,9 @@ export const buildTrainingPrescription = (input: {
             candidate.focusFit.includes(focus),
           );
           const pool = preferred.length > 0 ? preferred : choices;
-          return pool[sessionIndex % Math.max(1, pool.length)] ?? null;
+          const offset =
+            (sessionIndex * 3 + patternIdx * 2) % Math.max(1, pool.length);
+          return pool[offset] ?? null;
         })
         .filter((exercise): exercise is CatalogExercise => exercise !== null)
         .slice(0, exerciseCount)

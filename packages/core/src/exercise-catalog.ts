@@ -17849,3 +17849,145 @@ export const searchExerciseCatalog = (
 
   return results.slice(0, limit);
 };
+
+const COMMON_EXERCISE_ALIASES: Readonly<Record<string, string>> = {
+  rdl: "romanian-deadlift",
+  "romanian deadlift": "romanian-deadlift",
+  "db bench": "dumbbell-bench-press",
+  "dumbbell bench": "dumbbell-bench-press",
+  "incline db press": "incline-dumbbell-press",
+  "incline dumbbell bench press": "incline-dumbbell-press",
+  "db incline press": "incline-dumbbell-press",
+  "db row": "one-arm-dumbbell-row",
+  "dumbbell row": "one-arm-dumbbell-row",
+  "one arm dumbbell row": "one-arm-dumbbell-row",
+  ohp: "standing-military-press",
+  "overhead press": "standing-military-press",
+  "military press": "standing-military-press",
+  "lat raise": "side-lateral-raise",
+  "lateral raise": "side-lateral-raise",
+  "lateral raises": "side-lateral-raise",
+  "side lateral raise": "side-lateral-raise",
+  "side lateral raises": "side-lateral-raise",
+  "cable lateral raise": "cable-lateral-raise",
+  "cable lateral raises": "cable-lateral-raise",
+  "cable fly": "cable-crossover",
+  "cable flyes": "cable-crossover",
+  "cable flys": "cable-crossover",
+  "cable crossovers": "cable-crossover",
+  "face pull": "face-pull",
+  "face pulls": "face-pull",
+  "bicep curl": "dumbbell-bicep-curl",
+  "bicep curls": "dumbbell-bicep-curl",
+  "dumbbell curls": "dumbbell-bicep-curl",
+  "dumbbell curl": "dumbbell-bicep-curl",
+  "hammer curl": "hammer-curls",
+  "hammer curls": "hammer-curls",
+  "tricep pushdown": "triceps-pushdown",
+  "tricep pushdowns": "triceps-pushdown",
+  "rope pushdown": "triceps-pushdown-rope-attachment",
+  "rope pushdowns": "triceps-pushdown-rope-attachment",
+  "tricep extension": "triceps-overhead-extension-with-rope",
+  "triceps extension": "triceps-overhead-extension-with-rope",
+  "skull crusher": "ez-bar-skullcrusher",
+  "skull crushers": "ez-bar-skullcrusher",
+  "bulgarian split squat": "split-squat-with-dumbbells",
+  "bulgarian split squats": "split-squat-with-dumbbells",
+  "split squat": "split-squat-with-dumbbells",
+  "leg press": "leg-press",
+  "leg curl": "seated-leg-curl",
+  "leg curls": "seated-leg-curl",
+  "hamstring curl": "seated-leg-curl",
+  "hamstring curls": "seated-leg-curl",
+  "leg extension": "leg-extensions",
+  "leg extensions": "leg-extensions",
+  "calf raise": "standing-calf-raises",
+  "calf raises": "standing-calf-raises",
+  pullup: "pullups",
+  pullups: "pullups",
+  "pull ups": "pullups",
+  "pull up": "pullups",
+  chinup: "chin-up",
+  chinups: "chin-up",
+  "chin up": "chin-up",
+  "chin ups": "chin-up",
+  pushup: "pushups",
+  pushups: "pushups",
+  "push ups": "pushups",
+  "push up": "pushups",
+  dip: "dips-chest-version",
+  dips: "dips-chest-version",
+  squat: "barbell-squat",
+  squats: "barbell-squat",
+  "barbell squat": "barbell-squat",
+  "back squat": "barbell-squat",
+  "front squat": "front-barbell-squat",
+  deadlift: "barbell-deadlift",
+  deadlifts: "barbell-deadlift",
+  "bench press": "barbell-bench-press-medium-grip",
+  "barbell bench press": "barbell-bench-press-medium-grip",
+  "lat pulldown": "lat-pulldown",
+  "lat pulldowns": "lat-pulldown",
+  plank: "plank",
+  "dead bug": "dead-bug",
+  "seated cable row": "seated-cable-rows",
+  "cable row": "seated-cable-rows",
+  "cable rows": "seated-cable-rows",
+};
+
+/**
+ * Finds a catalog exercise by name, alias, or closest match in the 888-exercise library.
+ */
+export const findCatalogExercise = (
+  rawNameOrQuery: string,
+): CatalogExercise | null => {
+  const trimmed = rawNameOrQuery.trim().toLowerCase();
+  if (!trimmed) return null;
+
+  // 1. Direct ID lookup
+  const byId = getExerciseFromCatalog(trimmed);
+  if (byId) return byId;
+
+  // 2. Direct exact name lookup
+  const exactName = EXERCISE_CATALOG.find(
+    (ex) => ex.name.toLowerCase() === trimmed,
+  );
+  if (exactName) return exactName;
+
+  // 3. Alias lookup
+  const aliasId = COMMON_EXERCISE_ALIASES[trimmed];
+  if (aliasId) {
+    const fromAlias = getExerciseFromCatalog(aliasId);
+    if (fromAlias) return fromAlias;
+  }
+
+  // 4. Clean punctuation / normalized phrase lookup
+  const cleaned = trimmed.replace(/[-_/,.]+/g, " ").replace(/\s+/g, " ");
+  const cleanedAlias = COMMON_EXERCISE_ALIASES[cleaned];
+  if (cleanedAlias) {
+    const fromCleanedAlias = getExerciseFromCatalog(cleanedAlias);
+    if (fromCleanedAlias) return fromCleanedAlias;
+  }
+
+  const cleanedExact = EXERCISE_CATALOG.find(
+    (ex) => ex.name.toLowerCase().replace(/[-_/,.]+/g, " ") === cleaned,
+  );
+  if (cleanedExact) return cleanedExact;
+
+  // 5. Token subset matching (find best matching exercise where all query tokens exist)
+  const tokens = cleaned.split(" ").filter((t) => t.length > 1);
+  if (tokens.length > 0) {
+    const candidates = EXERCISE_CATALOG.filter((ex) => {
+      const exName = ex.name.toLowerCase();
+      return tokens.every((tok) => exName.includes(tok));
+    });
+
+    if (candidates.length > 0) {
+      // Pick the shortest name candidate (most concise match)
+      candidates.sort((a, b) => a.name.length - b.name.length);
+      return candidates[0]!;
+    }
+  }
+
+  return null;
+};

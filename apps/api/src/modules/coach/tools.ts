@@ -29,6 +29,8 @@ import {
   buildWeeklyAdaptation,
   buildTrainingPrescription,
   computeEnergy,
+  findCatalogExercise,
+  searchExerciseCatalog,
   summariseFoodEntries,
   summariseWeightTrend,
   systemClock,
@@ -40,6 +42,7 @@ import {
   type EquipmentOption,
   type FoodEntryRepository,
   type GoalRepository,
+  type MovementPattern,
   type ProfileRepository,
   type SessionFocus,
   type TrainingFocusPreference,
@@ -1085,6 +1088,380 @@ export const buildGetTrainingPrescriptionTool = (
   },
 });
 
+export interface SearchExercisesArgs {
+  readonly query?: string;
+  readonly movement_pattern?: string;
+  readonly category?: string;
+  readonly limit?: number;
+}
+
+export const buildSearchExercisesTool = (
+  deps: CoachToolDeps,
+): AgentTool<SearchExercisesArgs> => ({
+  name: "search_exercises",
+  description:
+    "Search through the 888 verified exercises in the Mizyun library by name, keyword (e.g. 'incline bench', 'cable fly', 'lateral raise', 'curl', 'squat', 'romanian deadlift', 'pullup', 'tricep pushdown', 'bicep', 'quads'), movement pattern, or category.",
+  parameters: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      query: {
+        type: "string",
+        description:
+          "Keywords or exercise name to search for (e.g. 'incline dumbbell', 'lateral raise', 'cable', 'romanian deadlift', 'hammer curl').",
+      },
+      movement_pattern: {
+        type: "string",
+        enum: [
+          "knee_dominant",
+          "hip_hinge",
+          "horizontal_push",
+          "horizontal_pull",
+          "vertical_push",
+          "vertical_pull",
+          "core",
+          "aerobic",
+          "mobility",
+        ],
+        description: "Filter by movement pattern category.",
+      },
+      category: {
+        type: "string",
+        description:
+          "Filter by category (e.g. 'strength', 'stretching', 'cardio', 'plyometrics', 'powerlifting', 'strongman').",
+      },
+      limit: {
+        type: "integer",
+        minimum: 1,
+        maximum: 25,
+        description:
+          "Maximum number of exercise results to return (default 10).",
+      },
+    },
+  },
+  execute: async ({ clock, args }) => {
+    const now = resolveClock(deps, clock).now();
+    const typedArgs = (args ?? {}) as Partial<SearchExercisesArgs>;
+    const exercises = searchExerciseCatalog({
+      query: typedArgs.query,
+      movementPattern: typedArgs.movement_pattern as
+        MovementPattern | undefined,
+      category: typedArgs.category,
+      limit: Math.min(25, typedArgs.limit ?? 10),
+    });
+    return {
+      kind: "training",
+      label: "Exercise library search results",
+      confirmed: true,
+      freshness: freshnessOf(now),
+      data: {
+        count: exercises.length,
+        exercises: exercises.map((ex) => ({
+          id: ex.id,
+          name: ex.name,
+          movementPattern: ex.movementPattern,
+          equipment: ex.equipment,
+          primaryMuscles: ex.primaryMuscles,
+          instructions: ex.instructions.slice(0, 3),
+        })),
+      },
+    } satisfies AgentGroundingItem;
+  },
+});
+
+export interface ProposeWorkoutPlanExerciseInput {
+  readonly name: string;
+  readonly sets?: number;
+  readonly reps_min?: number | null;
+  readonly reps_max?: number | null;
+  readonly duration_minutes?: number | null;
+  readonly rest_seconds?: number;
+  readonly notes?: string | null;
+}
+
+export interface ProposeWorkoutPlanSessionInput {
+  readonly label: string;
+  readonly focus?: string | null;
+  readonly estimated_minutes?: number;
+  readonly exercises: readonly ProposeWorkoutPlanExerciseInput[];
+}
+
+export interface ProposeWorkoutPlanArgs {
+  readonly rationale: string;
+  readonly sessions: readonly ProposeWorkoutPlanSessionInput[];
+  readonly volume_action?: "build" | "hold" | "reduce";
+}
+
+const resolveProposedExercise = (
+  input: ProposeWorkoutPlanExerciseInput,
+): {
+  catalogId: string;
+  name: string;
+  movementPattern: MovementPattern;
+  equipment: EquipmentOption[];
+  sets: number;
+  repsMin: number | null;
+  repsMax: number | null;
+  durationMinutes: number | null;
+  restSeconds: number;
+  progression: "double_progression" | "time_progression";
+} => {
+  const matched = findCatalogExercise(input.name);
+  const catalogId =
+    matched?.id ??
+    input.name
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-");
+  const name = matched?.name ?? input.name.trim();
+  const movementPattern = matched?.movementPattern ?? "horizontal_push";
+  const equipment =
+    matched?.equipment && matched.equipment.length > 0
+      ? [...matched.equipment]
+      : (["dumbbells"] as EquipmentOption[]);
+
+  const sets = Math.min(5, Math.max(1, Math.round(input.sets ?? 3)));
+  const durationMinutes =
+    typeof input.duration_minutes === "number" && input.duration_minutes > 0
+      ? Math.round(input.duration_minutes)
+      : null;
+  const repsMin =
+    durationMinutes !== null
+      ? null
+      : typeof input.reps_min === "number"
+        ? Math.max(1, Math.min(100, Math.round(input.reps_min)))
+        : 8;
+  const repsMax =
+    durationMinutes !== null
+      ? null
+      : typeof input.reps_max === "number"
+        ? Math.max(1, Math.min(100, Math.round(input.reps_max)))
+        : repsMin !== null
+          ? Math.max(repsMin, repsMin + 2)
+          : 12;
+  const restSeconds =
+    typeof input.rest_seconds === "number"
+      ? Math.max(0, Math.min(600, Math.round(input.rest_seconds)))
+      : repsMin !== null && repsMin <= 5
+        ? 150
+        : 90;
+  const progression =
+    durationMinutes !== null ? "time_progression" : "double_progression";
+
+  return {
+    catalogId,
+    name,
+    movementPattern,
+    equipment,
+    sets,
+    repsMin,
+    repsMax,
+    durationMinutes,
+    restSeconds,
+    progression,
+  };
+};
+
+export const buildProposeWorkoutPlanTool = (
+  deps: CoachToolDeps,
+): AgentTool<ProposeWorkoutPlanArgs> => ({
+  name: "propose_workout_plan",
+  description:
+    "Propose a customized, specific workout routine (single workout or multi-day split like PPL, Upper/Lower, Full Body, Chest & Triceps, Back & Biceps, Legs) tailored to the user's explicit request, target muscles, equipment, and fitness level using the 888-exercise library. Attaches an interactive action proposal card to the chat allowing the user to review and save the plan with 1 tap.",
+  parameters: {
+    type: "object",
+    required: ["rationale", "sessions"],
+    additionalProperties: false,
+    properties: {
+      rationale: {
+        type: "string",
+        description:
+          "Summary explaining why this custom routine and exercise selection fits the user's specific request and training goals.",
+      },
+      volume_action: {
+        type: "string",
+        enum: ["build", "hold", "reduce"],
+        description:
+          "Training volume directive (default 'hold', or 'build' when progressing).",
+      },
+      sessions: {
+        type: "array",
+        minItems: 1,
+        maxItems: 7,
+        description: "List of 1 to 7 workout sessions in the routine.",
+        items: {
+          type: "object",
+          required: ["label", "exercises"],
+          additionalProperties: false,
+          properties: {
+            label: {
+              type: "string",
+              description:
+                "Name of the session (e.g. 'Push: Chest, Shoulders & Triceps', 'Pull: Back & Biceps', 'Legs & Core', 'Upper Body Hypertrophy').",
+            },
+            focus: {
+              type: "string",
+              description:
+                "Primary focus tag (e.g. 'push', 'pull', 'legs', 'upper', 'lower', 'chest_triceps', 'full_body').",
+            },
+            estimated_minutes: {
+              type: "integer",
+              minimum: 15,
+              maximum: 180,
+              description:
+                "Estimated session duration in minutes (e.g. 45, 60, 75, 90).",
+            },
+            exercises: {
+              type: "array",
+              minItems: 1,
+              maxItems: 15,
+              description: "List of exercises in this session.",
+              items: {
+                type: "object",
+                required: ["name"],
+                additionalProperties: false,
+                properties: {
+                  name: {
+                    type: "string",
+                    description:
+                      "Name of the exercise (e.g. 'Incline dumbbell press', 'Cable crossover', 'Side lateral raise', 'Barbell deadlift', 'Bulgarian split squat', 'Triceps pushdown').",
+                  },
+                  sets: {
+                    type: "integer",
+                    minimum: 1,
+                    maximum: 10,
+                    description: "Target number of sets (typically 3 to 4).",
+                  },
+                  reps_min: {
+                    type: "integer",
+                    minimum: 1,
+                    maximum: 100,
+                    description: "Minimum target repetitions (e.g. 8).",
+                  },
+                  reps_max: {
+                    type: "integer",
+                    minimum: 1,
+                    maximum: 100,
+                    description: "Maximum target repetitions (e.g. 12).",
+                  },
+                  duration_minutes: {
+                    type: "integer",
+                    minimum: 1,
+                    maximum: 180,
+                    description:
+                      "Duration in minutes (for aerobic/mobility exercises).",
+                  },
+                  rest_seconds: {
+                    type: "integer",
+                    minimum: 0,
+                    maximum: 600,
+                    description:
+                      "Target rest time in seconds between sets (e.g. 90, 120, 150).",
+                  },
+                  notes: {
+                    type: "string",
+                    description:
+                      "Form cues or coaching notes for this exercise.",
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  execute: async ({ clock, args }) => {
+    const now = resolveClock(deps, clock).now();
+    const typedArgs = (args ?? {}) as Partial<ProposeWorkoutPlanArgs>;
+    const sessions = typedArgs.sessions ?? [];
+    if (sessions.length === 0) {
+      return {
+        kind: "plan",
+        label: "Empty workout proposal",
+        confirmed: false,
+        freshness: freshnessOf(now),
+        data: { error: "No sessions provided" },
+      } satisfies AgentGroundingItem;
+    }
+
+    let actionProposal: CoachActionProposal | null = null;
+    if (sessions.length === 1) {
+      const session = sessions[0]!;
+      const resolvedExercises = session.exercises.map(resolveProposedExercise);
+      actionProposal = coachActionProposalSchema.parse({
+        id: crypto.randomUUID(),
+        kind: "workout_start",
+        prescriptionVersion: "v1-llm-custom-2026-08",
+        volumeAction: typedArgs.volume_action ?? "hold",
+        session: {
+          index: 1,
+          label: session.label.trim(),
+          estimatedMinutes: Math.min(
+            180,
+            Math.max(15, session.estimated_minutes ?? 60),
+          ),
+          exercises: resolvedExercises,
+        },
+      });
+    } else {
+      const startDay = new Date(now.getTime());
+      const stepDays = Math.max(
+        1,
+        Math.floor(7 / Math.max(sessions.length, 1)),
+      );
+      const sessionsWithDays = sessions.map((session, idx) => {
+        const day = new Date(startDay.getTime() + idx * stepDays * 86_400_000);
+        const targetDay = day.toISOString().slice(0, 10);
+        const resolvedExercises = session.exercises.map(
+          resolveProposedExercise,
+        );
+        return {
+          index: idx + 1,
+          label: session.label.trim(),
+          estimatedMinutes: Math.min(
+            180,
+            Math.max(15, session.estimated_minutes ?? 60),
+          ),
+          focus: session.focus ?? null,
+          targetDay,
+          exercises: resolvedExercises,
+        };
+      });
+      const endDay =
+        sessionsWithDays[sessionsWithDays.length - 1]?.targetDay ??
+        startDay.toISOString().slice(0, 10);
+      actionProposal = coachMultiWorkoutPlanProposalSchema.parse({
+        id: crypto.randomUUID(),
+        kind: "multi_workout_plan",
+        prescriptionVersion: "v1-llm-custom-2026-08",
+        volumeAction: typedArgs.volume_action ?? "hold",
+        focus: sessions[0]?.focus ?? null,
+        requestedSessions: sessions.length,
+        sessionMinutes: sessions[0]?.estimated_minutes ?? 60,
+        rationale: (
+          typedArgs.rationale ?? "Custom workout plan designed for your goals."
+        ).trim(),
+        sessions: sessionsWithDays,
+        startDay: startDay.toISOString().slice(0, 10),
+        endDay,
+      });
+    }
+
+    return {
+      kind: "plan",
+      label: "Custom Coach Workout Plan Proposal",
+      confirmed: true,
+      freshness: freshnessOf(now),
+      data: {
+        actionProposal,
+        sessions: sessions.length,
+        rationale: typedArgs.rationale,
+      },
+    } satisfies AgentGroundingItem;
+  },
+});
+
 /**
  * Build the full registry for the Coach route. Exposed for tests
  * + composition root. Returns an `AgentToolRegistry` that the
@@ -1101,6 +1478,8 @@ export const buildCoachToolRegistry = (
     buildComputeEnergyTool(deps),
     buildGetCoachingPlanTool(deps),
     buildGetTrainingPrescriptionTool(deps),
+    buildSearchExercisesTool(deps),
+    buildProposeWorkoutPlanTool(deps),
   ]);
 
 export type CoachToolRegistrySet = ReturnType<typeof buildCoachToolRegistry>;

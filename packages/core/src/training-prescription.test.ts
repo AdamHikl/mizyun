@@ -30,10 +30,13 @@ describe("buildTrainingPrescription", () => {
     expect(result.resistanceDaysPerWeek).toBe(4);
     expect(result.volumeAction).toBe("hold");
     expect(result.sessions).toHaveLength(4);
-    expect(result.sessions.flatMap((session) => session.exercises)).toEqual(
+    const allExercises = result.sessions.flatMap(
+      (session) => session.exercises,
+    );
+    expect(allExercises.length).toBeGreaterThanOrEqual(12);
+    expect(allExercises).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          name: "Dumbbell bench press",
           sets: 3,
           repsMin: 8,
           repsMax: 12,

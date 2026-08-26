@@ -7,17 +7,26 @@ import {
   type ContentModerator,
   type VisionDraftProvider,
 } from "@mizyun/agent-runtime";
-import type {
-  PlanTier,
-  ProfileRepository,
-  UserId,
-  WorkoutRepository,
+import {
+  DEFAULT_TIMEZONE,
+  DEFAULT_UNIT_SYSTEM,
+  type PlanTier,
+  type ProfileRepository,
+  type UserId,
+  type WorkoutRepository,
 } from "@mizyun/core";
 import type { AccessTokenVerifier } from "@mizyun/identity";
 import { InMemoryMemoryStore } from "@mizyun/memory";
 
 import { buildApp } from "../../app.js";
 import { InMemoryConversationRepository } from "../../conversation-repository.js";
+import { InMemoryGoalRepository } from "../../goal-repository.js";
+import { InMemoryProfileRepository } from "../../profile-repository.js";
+import { InMemoryWorkoutRepository } from "../../workout-repository.js";
+import { InMemoryWorkoutSetRepository } from "../../workout-set-repository.js";
+import { InMemoryFoodEntryRepository } from "../../food-entry-repository.js";
+import { InMemoryBodyMeasurementRepository } from "../../body-measurement-repository.js";
+import { buildCoachToolRegistry } from "./tools.js";
 import type { CoachLimitService } from "./limits.js";
 
 const userId = "00000000-0000-4000-8000-000000000001" as UserId;
@@ -43,8 +52,11 @@ const makeApp = (
     readonly planTierOverride?: PlanTier;
     readonly limits?: CoachLimitService;
     readonly visionProvider?: VisionDraftProvider;
+    readonly capOverrides?: {
+      readonly minuteCapForTier?: (tier: PlanTier) => number;
+    };
   },
-  verifier: AccessTokenVerifier = tokenVerifier,
+  verifier = tokenVerifier,
   profileRepository?: ProfileRepository,
   workoutRepository?: WorkoutRepository,
 ) => {
@@ -67,15 +79,33 @@ const makeApp = (
     }),
     respond,
   };
+  const resolvedProfileRepo =
+    profileRepository ??
+    new InMemoryProfileRepository({
+      defaultTimezone: DEFAULT_TIMEZONE,
+      defaultUnitSystem: DEFAULT_UNIT_SYSTEM,
+      clock: { now: () => new Date() },
+    });
+  const resolvedWorkoutRepo =
+    workoutRepository ?? new InMemoryWorkoutRepository();
+  const tools = buildCoachToolRegistry({
+    profileRepository: resolvedProfileRepo,
+    goalRepository: new InMemoryGoalRepository(),
+    workoutRepository: resolvedWorkoutRepo,
+    workoutSetRepository: new InMemoryWorkoutSetRepository(),
+    foodEntryRepository: new InMemoryFoodEntryRepository(),
+    bodyMeasurementRepository: new InMemoryBodyMeasurementRepository(),
+  });
   const app = buildApp({
     tokenVerifier: verifier,
     conversationRepository,
-    ...(profileRepository ? { profileRepository } : {}),
-    ...(workoutRepository ? { workoutRepository } : {}),
+    profileRepository: resolvedProfileRepo,
+    workoutRepository: resolvedWorkoutRepo,
     ...(coachControls ? { coachControls } : {}),
     agent: new AgentOrchestrator({
       provider,
       memories: new InMemoryMemoryStore(),
+      tools,
     }),
   });
   apps.push(app);
@@ -391,6 +421,121 @@ describe("coach routes", () => {
     expect(assistantMessage.text).not.toContain('{"response":');
     expect(assistantMessage.text).not.toContain('"workout_plan":');
     expect(assistantMessage.text).toContain("V-shape");
+  });
+
+  it("handles custom workout plan proposed directly by LLM via propose_workout_plan tool", async () => {
+    let callCount = 0;
+    const { app } = makeApp(
+      vi.fn<AgentProvider["respond"]>().mockImplementation(async (request) => {
+        callCount += 1;
+        if (callCount === 1) {
+          return {
+            message: { role: "assistant", text: "" },
+            provider: "gemini",
+            evidence: request.grounding,
+            toolCalls: [
+              {
+                name: "propose_workout_plan",
+                args: {
+                  rationale:
+                    "Chest and back hypertrophy routine with specific compound and isolation exercises.",
+                  sessions: [
+                    {
+                      label: "Chest & Shoulders",
+                      focus: "push",
+                      estimated_minutes: 60,
+                      exercises: [
+                        {
+                          name: "Incline dumbbell press",
+                          sets: 4,
+                          reps_min: 8,
+                          reps_max: 10,
+                        },
+                        {
+                          name: "Cable crossover",
+                          sets: 3,
+                          reps_min: 12,
+                          reps_max: 15,
+                        },
+                        {
+                          name: "Side lateral raise",
+                          sets: 4,
+                          reps_min: 12,
+                          reps_max: 15,
+                        },
+                      ],
+                    },
+                    {
+                      label: "Back & Arms",
+                      focus: "pull",
+                      estimated_minutes: 60,
+                      exercises: [
+                        { name: "Pullups", sets: 3, reps_min: 6, reps_max: 8 },
+                        {
+                          name: "Hammer curls",
+                          sets: 3,
+                          reps_min: 10,
+                          reps_max: 12,
+                        },
+                        {
+                          name: "Triceps pushdown",
+                          sets: 3,
+                          reps_min: 10,
+                          reps_max: 12,
+                        },
+                      ],
+                    },
+                  ],
+                },
+              },
+            ],
+            providerMetadata: {
+              totalTokens: 50,
+              resolvedModel: "gemini-3.7-flash",
+            },
+          };
+        }
+
+        return {
+          message: {
+            role: "assistant",
+            text: "I have designed a custom 2-day Chest/Shoulders and Back/Arms routine tailored with your requested cable and dumbbell exercises. Review the plan below!",
+          },
+          provider: "gemini",
+          evidence: request.grounding,
+          providerMetadata: {
+            totalTokens: 100,
+            resolvedModel: "gemini-3.7-flash",
+          },
+        };
+      }),
+    );
+
+    const id = await createConversation(app);
+    const response = await sendMessage(
+      app,
+      id,
+      "custom-llm-plan-key-001",
+      "Give me a 2-day routine with incline dumbbell press, cable crossovers, and lateral raises on day 1, and pullups, hammer curls, and tricep pushdowns on day 2.",
+    );
+
+    expect(response.statusCode).toBe(200);
+    const assistantMessage = response.json().assistantMessage;
+    expect(assistantMessage.actionProposal).toBeDefined();
+    expect(assistantMessage.actionProposal.kind).toBe("multi_workout_plan");
+    expect(assistantMessage.actionProposal.sessions).toHaveLength(2);
+    expect(
+      assistantMessage.actionProposal.sessions[0].exercises[0].name.toLowerCase(),
+    ).toContain("incline");
+    expect(
+      assistantMessage.actionProposal.sessions[0].exercises[0].catalogId,
+    ).toBe("incline-dumbbell-press");
+    expect(
+      assistantMessage.actionProposal.sessions[1].exercises[1].name.toLowerCase(),
+    ).toContain("curl");
+    expect(
+      assistantMessage.actionProposal.sessions[1].exercises[2].name.toLowerCase(),
+    ).toContain("triceps");
   });
 
   it("persists a deterministic daily plan when requested", async () => {
