@@ -169,19 +169,19 @@ export interface AgentRequest {
    * filtered the registry to user-bound tools; the provider
    * must NOT expose the userId or any unsafe parameter.
    */
-  readonly tools?: readonly AgentToolDefinition[];
+  readonly tools?: readonly AgentToolDefinition[] | undefined;
   /**
    * Prior tool results appended to the next round-trip. The
    * runtime folds these into `grounding` for the next call so
    * the model sees them as confirmed context.
    */
-  readonly toolResults?: readonly AgentToolResult[];
+  readonly toolResults?: readonly AgentToolResult[] | undefined;
   /**
    * The provider tool calls that produced `toolResults`. Providers whose chat
    * protocol requires an assistant tool-call message before tool-result
    * messages use this to replay the complete round-trip.
    */
-  readonly requestedToolCalls?: readonly AgentToolCall[];
+  readonly requestedToolCalls?: readonly AgentToolCall[] | undefined;
 }
 
 export interface AgentResponse {
@@ -273,9 +273,10 @@ export interface AgentTool<TArgs> {
 }
 
 export interface AgentToolCall {
-  readonly id?: string;
+  readonly id?: string | undefined;
   readonly name: string;
   readonly args: Readonly<Record<string, unknown>>;
+  readonly thoughtSignature?: string | undefined;
 }
 
 export interface AgentToolResult {

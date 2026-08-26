@@ -5,15 +5,17 @@
 
 ## Context
 
-Mizyun previously utilized Mistral as its sole AI backend across Coach text chat, tool calling, and multimodal nutrition photo drafting. To support high-speed and cost-efficient multimodal reasoning (including Gemini 3.7 / 2.5 Flash via Google AI Studio) while preserving Mistral, users need the ability to dynamically choose their active AI provider across the entire application with a single toggle in Settings.
+Mizyun previously utilized Mistral as its sole AI backend across Coach text chat, tool calling, and multimodal nutrition photo drafting. To support high-speed and cost-efficient multimodal reasoning (using pinned `gemini-3.7-flash` and `gemini-3.6-flash` models via Google AI Studio) while preserving Mistral, users need the ability to dynamically choose their active AI provider across the entire application with a single toggle in Settings.
 
 Domain calculations (Mifflin-St Jeor daily targets, training prescription, progressive overload, rate limits) remain deterministic in `@mizyun/core` and cannot be coupled to any model vendor.
 
 ## Decision
 
-1. **Provider Isolation**:
+1. **Provider Isolation & Pinned Models**:
    - Implement `@mizyun/provider-gemini` adhering strictly to `@mizyun/agent-runtime` ports (`AgentProvider`, `VisionDraftProvider`, `ContentModerator`).
-   - Use Google AI Studio HTTP APIs with `generateContent`, `systemInstruction`, function declarations, and structured JSON output schemas (`responseMimeType: "application/json"`).
+   - Strictly pin model usage to **`gemini-3.7-flash`** (primary vision drafting with `thinkingBudget: 0`) and **`gemini-3.6-flash`** (Coach agent conversation and automatic high-demand vision fallback). No other models are permitted.
+   - Use Google AI Studio HTTP REST APIs (`generativelanguage.googleapis.com/v1beta`) with `generateContent`, `systemInstruction`, function declarations, and structured JSON output schemas (`responseMimeType: "application/json"`).
+   - Secret governance: `GEMINI_API_KEY` lives exclusively in backend environment variables/secret stores for the `smartiqi-team` Google Cloud project (under an enforced EUR 50/month spend cap with Gemini API-only restriction).
 
 2. **Persistence & Schema**:
    - Add `ai_provider text not null default 'mistral' check (ai_provider in ('mistral', 'gemini'))` column to `public.profiles`.
@@ -33,3 +35,4 @@ Domain calculations (Mifflin-St Jeor daily targets, training prescription, progr
 - The user can switch between Mistral and Gemini models at any time for the entire app.
 - System prompt safety rules, input screening, medical fallbacks, and deterministic calculations remain identical regardless of the selected provider.
 - Mobile bundles contain zero vendor SDKs or API keys.
+- Model usage is strictly bounded to `gemini-3.7-flash` and `gemini-3.6-flash`.

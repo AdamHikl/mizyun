@@ -267,4 +267,123 @@ describe("GeminiAgentProvider", () => {
       "Review the detailed training prescription below",
     );
   });
+
+  it("captures thoughtSignature on tool calls and preserves it during Turn 2 replaying", async () => {
+    let capturedRequestTurn1: unknown;
+    let capturedRequestTurn2: unknown;
+
+    const generateContent = vi
+      .fn()
+      .mockImplementationOnce(async (req) => {
+        capturedRequestTurn1 = req;
+        return {
+          candidates: [
+            {
+              content: {
+                role: "model",
+                parts: [
+                  {
+                    thoughtSignature: "sig_abc123_xyz",
+                    functionCall: {
+                      id: "call_999",
+                      name: "get_training_prescription",
+                      args: { days_per_week: 3 },
+                    },
+                  },
+                ],
+              },
+              finishReason: "STOP",
+            },
+          ],
+        };
+      })
+      .mockImplementationOnce(async (req) => {
+        capturedRequestTurn2 = req;
+        return {
+          candidates: [
+            {
+              content: {
+                role: "model",
+                parts: [
+                  {
+                    text: '{"answer":"Here is your 3-day workout plan"}',
+                  },
+                ],
+              },
+              finishReason: "STOP",
+            },
+          ],
+        };
+      });
+
+    const provider = new GeminiAgentProvider({
+      apiKey: "test-gemini-key-12345",
+      model: "gemini-3.6-flash",
+      timeoutMs: 5_000,
+      maxOutputTokens: 1_000,
+      externalAccess: true,
+      client: { generateContent },
+    });
+
+    const res1 = await provider.respond({
+      ...request,
+      tools: [
+        {
+          name: "get_training_prescription",
+          description: "Get prescription",
+          parameters: { type: "object" },
+        },
+      ],
+    });
+
+    expect(res1.toolCalls).toHaveLength(1);
+    expect(res1.toolCalls![0]!).toMatchObject({
+      id: "call_999",
+      name: "get_training_prescription",
+      args: { days_per_week: 3 },
+      thoughtSignature: "sig_abc123_xyz",
+    });
+
+    const res2 = await provider.respond({
+      ...request,
+      requestedToolCalls: res1.toolCalls,
+      toolResults: [
+        {
+          id: "call_999",
+          name: "get_training_prescription",
+          evidence: {
+            kind: "training",
+            label: "Prescription",
+            confirmed: true,
+            freshness: "2026-08-25T00:00:00Z",
+            data: { sessions: 3 },
+          },
+        },
+      ],
+    });
+
+    expect(res2.message.text).toBe("Here is your 3-day workout plan");
+
+    const turn2Req = capturedRequestTurn2 as {
+      contents: { role: string; parts: Record<string, unknown>[] }[];
+      tools?: unknown;
+      generationConfig?: Record<string, unknown>;
+    };
+
+    const replayedModelPart = turn2Req.contents.find(
+      (c) => c.role === "model" && c.parts[0]?.functionCall !== undefined,
+    )?.parts[0];
+
+    expect(replayedModelPart).toMatchObject({
+      thoughtSignature: "sig_abc123_xyz",
+      functionCall: {
+        id: "call_999",
+        name: "get_training_prescription",
+        args: { days_per_week: 3 },
+      },
+    });
+
+    expect(turn2Req.tools).toBeDefined();
+    expect(turn2Req.generationConfig?.responseSchema).toBeUndefined();
+  });
 });

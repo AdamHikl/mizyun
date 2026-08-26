@@ -408,10 +408,11 @@ export const loadServerConfig = (
           maxOutputTokens: value.mistralVisionMaxOutputTokens,
         }
       : null;
+  const geminiApiKeyResolved = value.geminiApiKey ?? value.geminiVisionApiKey;
   const geminiConfig: ServerGeminiConfiguration | null =
-    value.geminiApiKey !== undefined
+    geminiApiKeyResolved !== undefined
       ? {
-          apiKey: value.geminiApiKey,
+          apiKey: geminiApiKeyResolved,
           model: value.geminiModel,
           timeoutMs: value.geminiTimeoutMs,
           maxOutputTokens: value.geminiMaxOutputTokens,
@@ -420,12 +421,10 @@ export const loadServerConfig = (
           userMaxConcurrentRequests: value.aiUserMaxConcurrentRequests,
         }
       : null;
-  const geminiVisionApiKeyResolved =
-    value.geminiVisionApiKey ?? value.geminiApiKey;
   const geminiVisionConfig: ServerGeminiVisionConfiguration | null =
-    geminiVisionApiKeyResolved !== undefined
+    geminiApiKeyResolved !== undefined
       ? {
-          apiKey: geminiVisionApiKeyResolved,
+          apiKey: geminiApiKeyResolved,
           model: value.geminiVisionModel,
           ...(value.geminiVisionFallbackModel
             ? { fallbackModel: value.geminiVisionFallbackModel }

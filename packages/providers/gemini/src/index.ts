@@ -25,8 +25,10 @@ const geminiCandidateSchema = z.object({
         .array(
           z.object({
             text: z.string().optional(),
+            thoughtSignature: z.string().optional(),
             functionCall: z
               .object({
+                id: z.string().optional(),
                 name: z.string(),
                 args: z.union([z.record(z.unknown()), z.string()]).optional(),
               })
@@ -71,12 +73,15 @@ export type GeminiPart =
     }
   | {
       readonly functionCall: {
+        readonly id?: string | undefined;
         readonly name: string;
         readonly args: Readonly<Record<string, unknown>>;
       };
+      readonly thoughtSignature?: string | undefined;
     }
   | {
       readonly functionResponse: {
+        readonly id?: string | undefined;
         readonly name: string;
         readonly response: Readonly<Record<string, unknown>>;
       };
@@ -342,9 +347,13 @@ const buildContents = (request: AgentRequest): GeminiContent[] => {
       role: "model",
       parts: request.requestedToolCalls.map((call) => ({
         functionCall: {
+          ...(call.id !== undefined ? { id: call.id } : {}),
           name: call.name,
           args: call.args,
         },
+        ...(call.thoughtSignature !== undefined
+          ? { thoughtSignature: call.thoughtSignature }
+          : {}),
       })),
     });
   }
@@ -355,6 +364,7 @@ const buildContents = (request: AgentRequest): GeminiContent[] => {
       role: "user",
       parts: request.toolResults.map((result) => ({
         functionResponse: {
+          ...(result.id !== undefined ? { id: result.id } : {}),
           name: result.name,
           response: {
             evidence: result.evidence,
@@ -434,6 +444,10 @@ export class GeminiAgentProvider implements AgentProvider {
     const startedAt = this.#now();
 
     const hasTools = request.tools !== undefined && request.tools.length > 0;
+    const hasToolHistory =
+      (request.requestedToolCalls !== undefined &&
+        request.requestedToolCalls.length > 0) ||
+      (request.toolResults !== undefined && request.toolResults.length > 0);
     const toolsPayload = hasTools
       ? ([
           {
@@ -444,7 +458,19 @@ export class GeminiAgentProvider implements AgentProvider {
             })),
           },
         ] as const)
-      : undefined;
+      : hasToolHistory &&
+          request.requestedToolCalls !== undefined &&
+          request.requestedToolCalls.length > 0
+        ? ([
+            {
+              functionDeclarations: request.requestedToolCalls.map((call) => ({
+                name: call.name,
+                description: `Tool ${call.name}`,
+                parameters: { type: "object" },
+              })),
+            },
+          ] as const)
+        : undefined;
 
     const call = () =>
       this.#client.generateContent(
@@ -458,8 +484,8 @@ export class GeminiAgentProvider implements AgentProvider {
           generationConfig: {
             temperature: 0.2,
             maxOutputTokens: this.#maxOutputTokens,
-            // When not using function calls, request strict structured JSON
-            ...(!hasTools
+            // When not using function calls and no tool results in history, request strict structured JSON
+            ...(!hasTools && !hasToolHistory
               ? {
                   responseMimeType: "application/json",
                   responseSchema: {
@@ -529,8 +555,12 @@ export class GeminiAgentProvider implements AgentProvider {
     );
     if (functionCallParts.length > 0) {
       const toolCalls: AgentToolCall[] = functionCallParts.map((part) => ({
+        id: part.functionCall!.id,
         name: part.functionCall!.name,
         args: parseToolArguments(part.functionCall!.args),
+        ...(part.thoughtSignature !== undefined
+          ? { thoughtSignature: part.thoughtSignature }
+          : {}),
       }));
       const elapsed = Math.max(0, this.#now() - startedAt);
       const usage = validated.data.usageMetadata;

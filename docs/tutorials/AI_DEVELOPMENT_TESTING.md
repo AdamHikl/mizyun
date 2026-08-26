@@ -1,35 +1,43 @@
-# Mistral AI development testing
+# AI development testing (Mistral & Gemini)
 
 > Development-team workflow for the founder testing mode. Use only the
 > founder's own data; external users remain gated by `docs/BEFORE_TESTING.md`.
 
 ## Current proven state
 
-As of 2026-07-23:
+- Official server-side adapters for both **Mistral** (`@mizyun/provider-mistral`) and **Gemini** (`@mizyun/provider-gemini`) pass all offline and boundary tests.
+- Dynamic provider switching allows users to select between Mistral and Gemini in settings (`AGENT_PROVIDER=multi` or individual provider).
+- Pinned Gemini models: **`gemini-3.7-flash`** (multimodal nutrition photo analysis with `GEMINI_VISION_THINKING_BUDGET=0`) and **`gemini-3.6-flash`** (Coach text conversation, tool calling, and automated high-demand vision fallback).
+- External access is enabled in the founder testing mode and remains disabled in release-oriented environments.
 
-- the official server-side Mistral adapter passes fake-boundary tests;
-- the API reports `mistral-medium-latest` ready when explicitly enabled;
-- one direct live request passed with a fictional nutrition fixture;
-- authenticated mobile/native AI acceptance has not run;
-- persistent AI memory and photo-based nutrition AI are implemented behind the
-  same server-side provider boundary;
-- external access is enabled in the founder testing mode and remains disabled
-  in release-oriented environments.
-
-The live fixture contained no real user record, account identifier, photo, or secret. Do not reinterpret this as approval for real-user traffic.
+The live test fixtures contain no real user record, account identifier, photo, or secret. Do not reinterpret this as approval for real-user traffic.
 
 ## Secret location
 
-Store the development key only in the ignored repository-root `.env`:
+Store development keys only in the ignored repository-root `.env`:
 
 ```dotenv
-AGENT_PROVIDER=mistral
+# Provider selection: 'mistral' | 'gemini' | 'multi'
+AGENT_PROVIDER=multi
+
+# Mistral Configuration
 MISTRAL_API_KEY=<development key>
 MISTRAL_MODEL=mistral-medium-latest
 MISTRAL_VISION_API_KEY=<development vision key>
 MISTRAL_VISION_MODEL=mistral-medium-2508
 MISTRAL_TIMEOUT_MS=30000
 MISTRAL_MAX_OUTPUT_TOKENS=1200
+
+# Gemini Configuration (Project: smartiqi-team)
+GEMINI_API_KEY=<development key>
+GEMINI_MODEL=gemini-3.6-flash
+GEMINI_VISION_MODEL=gemini-3.7-flash
+GEMINI_VISION_FALLBACK_MODEL=gemini-3.6-flash
+GEMINI_VISION_THINKING_BUDGET=0
+GEMINI_TIMEOUT_MS=30000
+GEMINI_MAX_OUTPUT_TOKENS=8192
+
+# Guardrails
 AI_DAILY_USER_TOKEN_BUDGET=100000
 AI_USER_REQUESTS_PER_MINUTE=6
 AI_USER_MAX_CONCURRENT_REQUESTS=1
@@ -48,7 +56,7 @@ Protect the file:
 chmod 600 .env
 ```
 
-Never put the key in:
+Never put keys in:
 
 - `.env.example`;
 - `apps/mobile/.env.local`;
@@ -73,18 +81,18 @@ curl --fail --silent --show-error \
   http://127.0.0.1:4000/v1/coach/status
 ```
 
-Expected shape:
+Expected shape when `AGENT_PROVIDER=gemini` or resolved to Gemini:
 
 ```json
 {
   "ready": true,
-  "provider": "mistral",
-  "model": "mistral-medium-latest",
+  "provider": "gemini",
+  "model": "gemini-3.6-flash",
   "externalAccess": true
 }
 ```
 
-This proves local configuration only. The status route does not contact Mistral or validate the key.
+This proves local configuration only. The status route does not contact external APIs or validate the key.
 
 ## Port 4000 is already in use
 
