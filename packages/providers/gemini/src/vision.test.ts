@@ -366,4 +366,53 @@ describe("GeminiVisionProvider", () => {
     expect(generateContent).toHaveBeenCalledTimes(1);
     expect(generateContent.mock.calls[0]?.[0].model).toBe("gemini-3.7-flash");
   });
+
+  it("reconciles null point estimates from ranges and infers residual missing macro", async () => {
+    const rawWithNullPointEstimates = {
+      name: "Open-faced Ham Sandwiches",
+      caloriesKcal: 485,
+      proteinG: null,
+      carbohydrateG: null,
+      fatG: null,
+      calorieRangeKcal: { low: 420, high: 550 },
+      proteinRangeG: { low: 18, high: 25 },
+      carbohydrateRangeG: { low: 35, high: 45 },
+      fatRangeG: null,
+      confidence: 0.8,
+      warnings: [],
+      assumptions: ["Two bread slices with ham and cheese."],
+    };
+
+    const generateContent = vi.fn<GeminiVisionClient["generateContent"]>(
+      async () => ({
+        modelVersion: "gemini-3.7-flash",
+        candidates: [
+          {
+            content: {
+              role: "model",
+              parts: [{ text: JSON.stringify(rawWithNullPointEstimates) }],
+            },
+          },
+        ],
+      }),
+    );
+
+    const provider = new GeminiVisionProvider({
+      apiKey: "test-key",
+      model: "gemini-3.7-flash",
+      timeoutMs: 5_000,
+      maxOutputTokens: 500,
+      externalAccess: true,
+      client: { generateContent },
+    });
+
+    const result = await provider.generateDraft(request);
+    // Protein derived from midpoint of 18..25 = 21.5
+    expect(result.proteinG).toBe(21.5);
+    // Carbs derived from midpoint of 35..45 = 40
+    expect(result.carbohydrateG).toBe(40);
+    // Calories 485 - (21.5 * 4 + 40 * 4 = 246) = 239 kcal / 9 = 26.6 g fat
+    expect(result.fatG).toBe(26.6);
+    expect(result.fatRangeG).not.toBeNull();
+  });
 });

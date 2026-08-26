@@ -71,20 +71,154 @@ const visionOutputSchema = z.object({
 });
 type VisionModelOutput = z.infer<typeof visionOutputSchema>;
 
+export const normalizeCandidateValues = (
+  candidate: VisionModelOutput,
+): VisionModelOutput => {
+  let {
+    name,
+    caloriesKcal,
+    proteinG,
+    carbohydrateG,
+    fatG,
+    calorieRangeKcal,
+    proteinRangeG,
+    carbohydrateRangeG,
+    fatRangeG,
+    confidence,
+    warnings,
+    assumptions,
+  } = candidate;
+
+  // 1. If ranges are present but point estimates are null, derive point estimate as the midpoint
+  if (caloriesKcal === null && calorieRangeKcal !== null) {
+    caloriesKcal = Math.round(
+      (calorieRangeKcal.low + calorieRangeKcal.high) / 2,
+    );
+  }
+  if (proteinG === null && proteinRangeG !== null) {
+    proteinG =
+      Math.round(((proteinRangeG.low + proteinRangeG.high) / 2) * 10) / 10;
+  }
+  if (carbohydrateG === null && carbohydrateRangeG !== null) {
+    carbohydrateG =
+      Math.round(
+        ((carbohydrateRangeG.low + carbohydrateRangeG.high) / 2) * 10,
+      ) / 10;
+  }
+  if (fatG === null && fatRangeG !== null) {
+    fatG = Math.round(((fatRangeG.low + fatRangeG.high) / 2) * 10) / 10;
+  }
+
+  // 2. If calories are known and two macros are known but one is null/missing (and food is identified),
+  // infer the missing macro from the calorie balance.
+  if (caloriesKcal !== null) {
+    if (proteinG !== null && carbohydrateG !== null && fatG === null) {
+      const remainingKcal = caloriesKcal - (proteinG * 4 + carbohydrateG * 4);
+      if (remainingKcal >= 0) {
+        fatG = Math.round((remainingKcal / 9) * 10) / 10;
+      }
+    } else if (proteinG !== null && fatG !== null && carbohydrateG === null) {
+      const remainingKcal = caloriesKcal - (proteinG * 4 + fatG * 9);
+      if (remainingKcal >= 0) {
+        carbohydrateG = Math.round((remainingKcal / 4) * 10) / 10;
+      }
+    } else if (carbohydrateG !== null && fatG !== null && proteinG === null) {
+      const remainingKcal = caloriesKcal - (carbohydrateG * 4 + fatG * 9);
+      if (remainingKcal >= 0) {
+        proteinG = Math.round((remainingKcal / 4) * 10) / 10;
+      }
+    }
+  }
+
+  // 3. If point estimates are present but ranges are null, derive plausible conservative ranges (+/- 15%)
+  if (caloriesKcal !== null && calorieRangeKcal === null) {
+    const delta = Math.max(20, Math.round(caloriesKcal * 0.15));
+    calorieRangeKcal = {
+      low: Math.max(0, caloriesKcal - delta),
+      high: caloriesKcal + delta,
+    };
+  }
+  if (proteinG !== null && proteinRangeG === null) {
+    const delta = Math.max(2, Math.round(proteinG * 0.15 * 10) / 10);
+    proteinRangeG = {
+      low: Math.max(0, Math.round((proteinG - delta) * 10) / 10),
+      high: Math.round((proteinG + delta) * 10) / 10,
+    };
+  }
+  if (carbohydrateG !== null && carbohydrateRangeG === null) {
+    const delta = Math.max(2, Math.round(carbohydrateG * 0.15 * 10) / 10);
+    carbohydrateRangeG = {
+      low: Math.max(0, Math.round((carbohydrateG - delta) * 10) / 10),
+      high: Math.round((carbohydrateG + delta) * 10) / 10,
+    };
+  }
+  if (fatG !== null && fatRangeG === null) {
+    const delta = Math.max(1, Math.round(fatG * 0.15 * 10) / 10);
+    fatRangeG = {
+      low: Math.max(0, Math.round((fatG - delta) * 10) / 10),
+      high: Math.round((fatG + delta) * 10) / 10,
+    };
+  }
+
+  return {
+    name,
+    caloriesKcal,
+    proteinG,
+    carbohydrateG,
+    fatG,
+    calorieRangeKcal,
+    proteinRangeG,
+    carbohydrateRangeG,
+    fatRangeG,
+    confidence,
+    warnings,
+    assumptions,
+  };
+};
+
 const geminiVisionOutputJsonSchema = {
   type: "OBJECT",
   properties: {
-    name: { type: "STRING", nullable: true },
-    caloriesKcal: { type: "NUMBER", nullable: true },
-    proteinG: { type: "NUMBER", nullable: true },
-    carbohydrateG: { type: "NUMBER", nullable: true },
-    fatG: { type: "NUMBER", nullable: true },
+    name: {
+      type: "STRING",
+      nullable: true,
+      description: "Name of the meal or food item identified.",
+    },
+    caloriesKcal: {
+      type: "NUMBER",
+      nullable: true,
+      description: "Best estimate total calories in kcal (integer midpoint).",
+    },
+    proteinG: {
+      type: "NUMBER",
+      nullable: true,
+      description:
+        "Best estimate total protein in grams (1 decimal place midpoint).",
+    },
+    carbohydrateG: {
+      type: "NUMBER",
+      nullable: true,
+      description:
+        "Best estimate total carbohydrates in grams (1 decimal place midpoint).",
+    },
+    fatG: {
+      type: "NUMBER",
+      nullable: true,
+      description:
+        "Best estimate total fat in grams (1 decimal place midpoint).",
+    },
     calorieRangeKcal: {
       type: "OBJECT",
       nullable: true,
       properties: {
-        low: { type: "NUMBER" },
-        high: { type: "NUMBER" },
+        low: {
+          type: "NUMBER",
+          description: "Conservative lower bound for calories in kcal.",
+        },
+        high: {
+          type: "NUMBER",
+          description: "Conservative upper bound for calories in kcal.",
+        },
       },
       required: ["low", "high"],
     },
@@ -92,8 +226,14 @@ const geminiVisionOutputJsonSchema = {
       type: "OBJECT",
       nullable: true,
       properties: {
-        low: { type: "NUMBER" },
-        high: { type: "NUMBER" },
+        low: {
+          type: "NUMBER",
+          description: "Conservative lower bound for protein in grams.",
+        },
+        high: {
+          type: "NUMBER",
+          description: "Conservative upper bound for protein in grams.",
+        },
       },
       required: ["low", "high"],
     },
@@ -101,8 +241,14 @@ const geminiVisionOutputJsonSchema = {
       type: "OBJECT",
       nullable: true,
       properties: {
-        low: { type: "NUMBER" },
-        high: { type: "NUMBER" },
+        low: {
+          type: "NUMBER",
+          description: "Conservative lower bound for carbohydrates in grams.",
+        },
+        high: {
+          type: "NUMBER",
+          description: "Conservative upper bound for carbohydrates in grams.",
+        },
       },
       required: ["low", "high"],
     },
@@ -110,16 +256,38 @@ const geminiVisionOutputJsonSchema = {
       type: "OBJECT",
       nullable: true,
       properties: {
-        low: { type: "NUMBER" },
-        high: { type: "NUMBER" },
+        low: {
+          type: "NUMBER",
+          description: "Conservative lower bound for fat in grams.",
+        },
+        high: {
+          type: "NUMBER",
+          description: "Conservative upper bound for fat in grams.",
+        },
       },
       required: ["low", "high"],
     },
-    confidence: { type: "NUMBER" },
+    confidence: {
+      type: "NUMBER",
+      description: "Confidence score between 0.0 and 1.0.",
+    },
     warnings: { type: "ARRAY", items: { type: "STRING" } },
     assumptions: { type: "ARRAY", items: { type: "STRING" } },
   },
-  required: ["name", "confidence", "warnings", "assumptions"],
+  required: [
+    "name",
+    "caloriesKcal",
+    "proteinG",
+    "carbohydrateG",
+    "fatG",
+    "calorieRangeKcal",
+    "proteinRangeG",
+    "carbohydrateRangeG",
+    "fatRangeG",
+    "confidence",
+    "warnings",
+    "assumptions",
+  ],
 };
 
 const NUTRITION_DRAFT_PROMPT_VERSION = "nutrition-draft-v2";
@@ -128,9 +296,10 @@ const NUTRITION_DRAFT_REFINE_PROMPT_VERSION = "nutrition-draft-refine-v1";
 const visionSystemPolicy = [
   "You are a nutrition photo analyzer. Use only the photo and the user's hint.",
   "Identify the food or drink in the photo. If you cannot, set name to null.",
-  "Estimate calories and macros conservatively. Round to one decimal place for grams, integer for kcal.",
-  "For every non-null estimate, return a plausible low/high range and list the portion or ingredient assumptions that drive it.",
-  "Prefer null over a guess you are not confident about.",
+  "Estimate total calories (caloriesKcal) and all three macronutrients (proteinG, carbohydrateG, fatG) for the identified meal.",
+  "Round to one decimal place for macro grams, integer for kcal. Always supply non-null point estimates (midpoint) whenever food is identified.",
+  "For every estimate, return a plausible low/high range and list the portion or ingredient assumptions that drive it.",
+  "Set all numeric fields to null only if you cannot identify any food or drink.",
   "Never make medical claims or suggest a daily calorie target.",
   "Output strictly the JSON schema requested.",
 ].join("\n");
@@ -145,6 +314,7 @@ const refineSystemPolicy = [
   "Use the current draft as the starting point. Do not invent new ingredients, portions, or meals.",
   "Apply the user's instruction conservatively: change only the values the instruction clearly targets.",
   "When the instruction references a current value (e.g. '200g instead of 100g'), scale the affected macros proportionally and surface the new low/high range.",
+  "Always supply non-null point estimates (caloriesKcal, proteinG, carbohydrateG, fatG) and ranges for all nutrition values.",
   "When the instruction is ambiguous or unsafe, leave the draft unchanged, lower the confidence, and add a warning describing why.",
   "Preserve the same JSON schema. Keep inputKind from the original draft unless the instruction explicitly switches input kind.",
   "Never make medical claims, diagnose, or suggest a daily calorie target.",
@@ -430,7 +600,10 @@ const parseGeminiVisionResponse = (
     const parsed: unknown = JSON.parse(cleaned);
     const result = visionOutputSchema.safeParse(parsed);
     if (result.success) {
-      return { candidate: result.data, resolvedModel };
+      return {
+        candidate: normalizeCandidateValues(result.data),
+        resolvedModel,
+      };
     }
   } catch {
     // Parse failed

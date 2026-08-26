@@ -647,7 +647,7 @@ export function LogMealScreen() {
             value={name}
             onChangeText={setName}
             onFocus={() => measurement.current?.tap()}
-            placeholder="Toast"
+            placeholder="e.g. Toast with butter"
             autoFocus
             inputColor={theme.text}
           />
@@ -658,7 +658,7 @@ export function LogMealScreen() {
             value={calories}
             onChangeText={setCalories}
             onFocus={() => measurement.current?.tap()}
-            placeholder="200"
+            placeholder="0"
             keyboardType="numeric"
             helperText={calorieHint}
             inputColor={theme.text}
@@ -672,7 +672,7 @@ export function LogMealScreen() {
                 value={protein}
                 onChangeText={setProtein}
                 onFocus={() => measurement.current?.tap()}
-                placeholder="5"
+                placeholder="0"
                 keyboardType="numeric"
                 inputColor={theme.text}
               />
@@ -684,7 +684,7 @@ export function LogMealScreen() {
                 value={carbs}
                 onChangeText={setCarbs}
                 onFocus={() => measurement.current?.tap()}
-                placeholder="30"
+                placeholder="0"
                 keyboardType="numeric"
                 inputColor={theme.text}
               />
@@ -696,7 +696,7 @@ export function LogMealScreen() {
                 value={fat}
                 onChangeText={setFat}
                 onFocus={() => measurement.current?.tap()}
-                placeholder="4"
+                placeholder="0"
                 keyboardType="numeric"
                 inputColor={theme.text}
               />

@@ -51,6 +51,48 @@ describe("mealFormStringsFromEntry", () => {
   });
 });
 
+describe("mealFormStringsFromDraft", () => {
+  it("populates point values directly when present", () => {
+    expect(
+      mealFormStringsFromDraft({
+        name: "Chicken and rice",
+        caloriesKcal: 420,
+        proteinG: 38,
+        carbohydrateG: 45,
+        fatG: 9,
+      }),
+    ).toEqual({
+      name: "Chicken and rice",
+      calories: "420",
+      protein: "38",
+      carbs: "45",
+      fat: "9",
+    });
+  });
+
+  it("derives midpoint values from ranges when point values are null", () => {
+    expect(
+      mealFormStringsFromDraft({
+        name: "Open-faced Sandwich",
+        caloriesKcal: null,
+        proteinG: null,
+        carbohydrateG: null,
+        fatG: null,
+        calorieRangeKcal: { low: 420, high: 550 },
+        proteinRangeG: { low: 18, high: 25 },
+        carbohydrateRangeG: { low: 35, high: 45 },
+        fatRangeG: { low: 10, high: 20 },
+      }),
+    ).toEqual({
+      name: "Open-faced Sandwich",
+      calories: "485",
+      protein: "21.5",
+      carbs: "40",
+      fat: "15",
+    });
+  });
+});
+
 describe("recoverable AI meal drafts", () => {
   const candidate = {
     name: "Tuna",
