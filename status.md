@@ -1,18 +1,18 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-08-26** (GEMINI-OPS-001: Pinned Gemini model policy to gemini-3.7-flash and gemini-3.6-flash, project governance and development runbook alignment).
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-08-26** (GEMINI-OPS-002: Default Gemini model set to gemini-3.7-flash with automatic gemini-3.6-flash fallback on high demand across all AI features).
 
 ## Executive snapshot
 
 - **Product stage:** technical pre-alpha; the architecture, domain/API foundation, and native mobile UI are verified and polished.
 - **Roadmap position:** INFRA-ENV-001 / INFRA-WIN-001 infrastructure migration to the **Raspberry Pi 5** (`rpServer`, Ubuntu 24.04 ARM64) is complete and fully operational.
-- **Latest verified implementation slice:** Fixed Gemini agent tool calling and reasoning turn handling in `GeminiAgentProvider` and `AgentOrchestrator`. When Gemini models (`gemini-3.6-flash` / `gemini-3.7-flash`) invoke tools (e.g. `get_training_prescription`), they attach a `thoughtSignature` to the `functionCall` part. Replaying this history on Turn 2 requires preserving `thoughtSignature` and `id` on the model `functionCall` parts and maintaining `functionDeclarations` without `responseSchema` forcing. Updated `@mizyun/agent-runtime`, `@mizyun/provider-gemini`, and `@mizyun/config` to resolve `geminiApiKey` and preserve `thoughtSignature`. All 15 workspace packages pass `pnpm check` (988 tests passing, 17 opt-in tests skipped, iOS/Android production bundles compiling cleanly).
-- **Branch:** `main`; production Raspberry Pi 5 checkout matches commit `37e8382` and is verified live (`https://mizyun-api.phiskel.com/v1/health`).
+- **Latest verified implementation slice:** Default AI model configured to **`gemini-3.7-flash`** across all AI (Coach conversation, tool calling, and multimodal vision drafting, with `thinkingBudget: 0` for fast sub-5s latency). Implemented automatic graceful fallback to **`gemini-3.6-flash`** in `GeminiAgentProvider` and `GeminiVisionProvider` on high-demand / capacity exhaustion errors (HTTP 429, HTTP 503, `RESOURCE_EXHAUSTED`). Updated `@mizyun/config`, `@mizyun/provider-gemini`, `apps/api`, `.env`, and `/etc/mizyun/production.env`. All 15 workspace packages pass `pnpm check` (990 tests passing, 17 opt-in tests skipped, iOS/Android production bundles compiling cleanly).
+- **Branch:** `main`; production Raspberry Pi 5 checkout matches commit `472cad4` and is verified live (`https://mizyun-api.phiskel.com/v1/health`).
 - **Production Host:** Raspberry Pi 5 (`rpserver`, Ubuntu 24.04 ARM64, Tailscale IP `100.116.142.1`). Remote deployment `pnpm deploy:remote` is verified green.
-- **Local runtime at handoff:** `pnpm check` passes with 988 tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean.
-- **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and 988 tests passed; 17 opt-in live/e2e tests skipped.
-- **Vision & Agent provider gate:** `GeminiAgentProvider` and `GeminiVisionProvider` support `gemini-3.6-flash` and `gemini-3.7-flash` with `thoughtSignature` preservation, `thinkingBudget: 0`, and auto-fallback on HTTP 429/503.
-- **Moderation regression gate:** `pnpm check` passes with 988 tests and 17 opt-in tests skipped; the Mistral and Gemini providers allow fitness and wellness queries without false health rejections while maintaining deterministic emergency and medical safety filters.
+- **Local runtime at handoff:** `pnpm check` passes with 990 tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean.
+- **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and 990 tests passed; 17 opt-in live/e2e tests skipped.
+- **Vision & Agent provider gate:** `GeminiAgentProvider` and `GeminiVisionProvider` default to `gemini-3.7-flash` with `thoughtSignature` preservation, `thinkingBudget: 0`, and auto-fallback to `gemini-3.6-flash` on HTTP 429/503/overload.
+- **Moderation regression gate:** `pnpm check` passes with 990 tests and 17 opt-in tests skipped; the Mistral and Gemini providers allow fitness and wellness queries without false health rejections while maintaining deterministic emergency and medical safety filters.
 - **Coach & Workout UX gate:** verified end-to-end on iOS Simulator (`iPhone 17 Pro`): custom workout creation/logging, Coach multi-session plan generation, conversational workout modification with proposal cards, applying modifications to stored workouts, and opening/logging modified exercises.
 - **iOS:** both `Mizyun` (`com.mizyun.app`) and `Mizyun Dev` (`com.mizyun.dev`) verified on iOS Simulator and physical iPhone.
 - **Android:** Standalone Production Release APK (`app-release.apk`, 103MB) compiled cleanly via `pnpm mobile:founder-production:android:assembleRelease` for commit `d6e36ce` targeting the production hosts.
