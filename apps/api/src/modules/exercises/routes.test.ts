@@ -466,3 +466,40 @@ describe("DELETE /v1/exercises/:id", () => {
     expect(response.statusCode).toBe(404);
   });
 });
+
+describe("GET /v1/exercises/catalog", () => {
+  it("returns search results from the prefilled catalog", async () => {
+    const { app } = build(tokenVerifierFor({ userId: userA }));
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/exercises/catalog?query=bench+press",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.exercises.length).toBeGreaterThan(0);
+    expect(
+      body.exercises.some((e: { name: string }) =>
+        e.name.toLowerCase().includes("bench"),
+      ),
+    ).toBe(true);
+  });
+
+  it("filters catalog exercises by movementPattern", async () => {
+    const { app } = build(tokenVerifierFor({ userId: userA }));
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/exercises/catalog?movementPattern=knee_dominant",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.exercises.length).toBeGreaterThan(0);
+    expect(
+      body.exercises.every(
+        (e: { movementPattern: string }) =>
+          e.movementPattern === "knee_dominant",
+      ),
+    ).toBe(true);
+  });
+});

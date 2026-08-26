@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import {
   applyExercisePatch,
+  searchExerciseCatalog,
   validateExerciseCreate,
   validateExercisePatch,
   type ExercisePatch,
@@ -9,11 +10,14 @@ import {
   type StoredExercise,
 } from "@mizyun/core";
 import {
+  exerciseCatalogQuerySchema,
+  exerciseCatalogResponseSchema,
   exerciseCreateSchema,
   exerciseListQuerySchema,
   exerciseListResponseSchema,
   exercisePatchSchema,
   exerciseResponseSchema,
+  type ExerciseCatalogResponse,
   type ExerciseListResponse,
   type ExerciseResponse,
 } from "@mizyun/contracts";
@@ -204,6 +208,48 @@ export const exercisesRoutes: FastifyPluginAsync<
         { accessToken: principal.accessToken },
       );
       return toWire(saved);
+    },
+  );
+
+  // GET /v1/exercises/catalog — search the prefilled exercise catalog
+  // by query string, movement pattern, or category.
+  app.get(
+    "/catalog",
+    { preHandler: app.authenticate },
+    async (request, reply): Promise<ExerciseCatalogResponse | void> => {
+      const parsed = exerciseCatalogQuerySchema.safeParse(request.query);
+      if (!parsed.success) {
+        await sendApiError(
+          reply,
+          request,
+          422,
+          "VALIDATION_ERROR",
+          `Invalid catalog query: ${parsed.error.issues.map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`).join("; ")}`,
+        );
+        return;
+      }
+      const results = searchExerciseCatalog({
+        query: parsed.data.query,
+        movementPattern: parsed.data.movementPattern,
+        category: parsed.data.category,
+        limit: parsed.data.limit ?? DEFAULT_LIMIT,
+      });
+      return exerciseCatalogResponseSchema.parse({
+        exercises: results.map((ex) => ({
+          id: ex.id,
+          name: ex.name,
+          movementPattern: ex.movementPattern,
+          equipment: [...ex.equipment],
+          blockedBy: [...ex.blockedBy],
+          focusFit: [...ex.focusFit],
+          primaryMuscles: [...ex.primaryMuscles],
+          secondaryMuscles: [...ex.secondaryMuscles],
+          instructions: [...ex.instructions],
+          category: ex.category,
+          level: ex.level,
+          mechanic: ex.mechanic,
+        })),
+      });
     },
   );
 

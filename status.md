@@ -1,12 +1,12 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-08-26** (GEMINI-TOOL-001: Fixed Gemini function declaration schema compatibility by sanitizing tool parameters and stripping `additionalProperties`, resolving Coach workout plan generation 503 `AI_CONFIGURATION_ERROR`).
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-08-26** (EX-CAT-001: Integrated Candidate 1 `free-exercise-db` ~888 exercise catalog into `@mizyun/core`, connected deterministic training prescription engine, added `GET /v1/exercises/catalog` API search endpoint, and added instant mobile workout logging autocomplete).
 
 ## Executive snapshot
 
 - **Product stage:** technical pre-alpha; the architecture, domain/API foundation, and native mobile UI are verified and polished.
 - **Roadmap position:** INFRA-ENV-001 / INFRA-WIN-001 infrastructure migration to the **Raspberry Pi 5** (`rpServer`, Ubuntu 24.04 ARM64) is complete and fully operational.
-- **Latest verified implementation slice:** Fixed Gemini tool schema compatibility (`packages/providers/gemini/src/index.ts`). Google AI Studio Gemini API function declaration parameter schemas strictly follow proto `Schema` and reject standard JSON Schema keywords such as `additionalProperties`, `$schema`, and `title`. Added `cleanGeminiSchema` to strip unsupported keywords and normalize types to uppercase (`OBJECT`, `STRING`, `INTEGER`, etc.) before passing to `generateContent`. All 15 workspace packages pass `pnpm check` (996 tests passing, 17 opt-in tests skipped, iOS/Android production bundles compiling cleanly).
+- **Latest verified implementation slice:** Integrated Candidate 1 (`free-exercise-db`) expanded exercise catalog into Mizyun (`packages/core/src/exercise-catalog.ts`). The catalog provides 888 exercises with full movement patterns (`knee_dominant`, `hip_hinge`, `horizontal_push`, `horizontal_pull`, `vertical_push`, `vertical_pull`, `core`, `aerobic`, `mobility`), equipment requirements, contraindications/safety limitations (`no_overhead_work`, `limited_knee_flexion`, `limited_spinal_loading`), and step-by-step cueing. Connected to `buildTrainingPrescription`, added `GET /v1/exercises/catalog` endpoint, and wired instant autocomplete into mobile `LogWorkoutScreen`. All 15 workspace packages pass `pnpm check` (1002 tests passing, 17 opt-in tests skipped, iOS/Android production bundles compiling cleanly).
 - **Branch:** `main`; production Raspberry Pi 5 checkout matches commit `93ba122` and is verified live (`https://mizyun-api.phiskel.com/v1/health`).
 - **Production Host:** Raspberry Pi 5 (`rpserver`, Ubuntu 24.04 ARM64, Tailscale IP `100.116.142.1`). Remote deployment `pnpm deploy:remote` is verified green.
 - **Local runtime at handoff:** `pnpm check` passes with 996 tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean.

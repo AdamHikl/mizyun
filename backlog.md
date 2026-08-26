@@ -100,6 +100,7 @@ Native acceptance evidence: standalone iOS and Android Release apps pass real si
 | PROF-001+    | P1       | done   | Profile follow-up: activityLevel + sexAtBirth | PROF-001                   |
 | FEEDBACK-001 | P1       | done   | In-app user reviews and feedback submissions  | UI and API slice           |
 | FEEDBACK-002 | P1       | done   | Feedback screenshot and photo attachments     | FEEDBACK-001, MEDIA-001    |
+| EX-CAT-001   | P1       | done   | Expanded exercise catalog (~888 exercises)    | EX-001, WO-001             |
 
 ## Later — Phases 6–9
 

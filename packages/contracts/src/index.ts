@@ -512,6 +512,9 @@ export {
 } from "./food-entry";
 
 export {
+  exerciseCatalogItemSchema,
+  exerciseCatalogQuerySchema,
+  exerciseCatalogResponseSchema,
   exerciseCreateSchema,
   exerciseListQuerySchema,
   exerciseListResponseSchema,
@@ -519,6 +522,9 @@ export {
   exerciseResponseSchema,
   exerciseSchema,
   type Exercise,
+  type ExerciseCatalogItem,
+  type ExerciseCatalogQuery,
+  type ExerciseCatalogResponse,
   type ExerciseCreate,
   type ExerciseListQuery,
   type ExerciseListResponse,

@@ -91,3 +91,61 @@ export const exerciseListQuerySchema = z
   .strict();
 
 export type ExerciseListQuery = z.infer<typeof exerciseListQuerySchema>;
+
+export const exerciseCatalogItemSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  movementPattern: z.enum([
+    "knee_dominant",
+    "hip_hinge",
+    "horizontal_push",
+    "horizontal_pull",
+    "vertical_push",
+    "vertical_pull",
+    "core",
+    "aerobic",
+    "mobility",
+  ]),
+  equipment: z.array(z.string()),
+  blockedBy: z.array(z.string()),
+  focusFit: z.array(z.string()),
+  primaryMuscles: z.array(z.string()),
+  secondaryMuscles: z.array(z.string()),
+  instructions: z.array(z.string()),
+  category: z.string(),
+  level: z.enum(["beginner", "intermediate", "expert"]),
+  mechanic: z.enum(["compound", "isolation"]).nullable(),
+});
+
+export type ExerciseCatalogItem = z.infer<typeof exerciseCatalogItemSchema>;
+
+export const exerciseCatalogResponseSchema = z.object({
+  exercises: z.array(exerciseCatalogItemSchema),
+});
+
+export type ExerciseCatalogResponse = z.infer<
+  typeof exerciseCatalogResponseSchema
+>;
+
+export const exerciseCatalogQuerySchema = z
+  .object({
+    query: z.string().optional(),
+    movementPattern: z
+      .enum([
+        "knee_dominant",
+        "hip_hinge",
+        "horizontal_push",
+        "horizontal_pull",
+        "vertical_push",
+        "vertical_pull",
+        "core",
+        "aerobic",
+        "mobility",
+      ])
+      .optional(),
+    category: z.string().optional(),
+    limit: z.coerce.number().int().gte(1).lte(200).optional(),
+  })
+  .strict();
+
+export type ExerciseCatalogQuery = z.infer<typeof exerciseCatalogQuerySchema>;

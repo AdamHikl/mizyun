@@ -204,6 +204,14 @@ export {
 } from "./training-prescription";
 
 export {
+  EXERCISE_CATALOG,
+  getExerciseFromCatalog,
+  searchExerciseCatalog,
+  type CatalogExercise,
+  type ExerciseSearchOptions,
+} from "./exercise-catalog";
+
+export {
   MEDIA_ALLOWED_MIME_TYPES,
   MEDIA_MAX_BYTE_SIZE,
   MEDIA_MAX_DIMENSION,

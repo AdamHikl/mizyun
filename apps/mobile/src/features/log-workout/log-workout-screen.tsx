@@ -23,6 +23,7 @@ import {
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { searchExerciseCatalog } from "@mizyun/core";
 import { analyticsClient } from "@/composition/analytics-client";
 import { classifyAnalyticsFailure } from "@/features/analytics/classify-failure";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
@@ -658,6 +659,12 @@ function ActiveSection(props: {
   readonly onInteraction: () => void;
 }) {
   const unit = weightUnitLabel(props.unitSystem);
+  const catalogSuggestions = useMemo(() => {
+    const trimmed = props.exerciseName.trim();
+    if (trimmed.length < 2) return [];
+    return searchExerciseCatalog({ query: trimmed, limit: 5 });
+  }, [props.exerciseName]);
+
   return (
     <>
       <View style={styles.section}>
@@ -771,6 +778,35 @@ function ActiveSection(props: {
           placeholder="Back squat"
           inputColor={props.inputColor}
         />
+        {catalogSuggestions.length > 0 ? (
+          <View style={styles.catalogSuggestions}>
+            <ThemedText type="small" themeColor="textSecondary">
+              Suggestions from 870+ exercise catalog:
+            </ThemedText>
+            <View style={styles.catalogList}>
+              {catalogSuggestions.map((item) => (
+                <Pressable
+                  key={item.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Select catalog exercise ${item.name}`}
+                  onPress={() => {
+                    props.onInteraction();
+                    props.onExerciseName(item.name);
+                    if (item.instructions.length > 0) {
+                      props.onExerciseInstructions(item.instructions.join(" "));
+                    }
+                  }}
+                  style={styles.catalogItem}
+                >
+                  <ThemedText type="smallBold">{item.name}</ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {item.category} · {item.primaryMuscles.join(", ")}
+                  </ThemedText>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        ) : null}
         <Field
           testID="exercise-instructions-input"
           label="Instructions (optional)"
@@ -1079,6 +1115,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   choiceSelected: { borderColor: "#18633d", backgroundColor: "#18633d" },
+  catalogSuggestions: {
+    gap: Spacing.one,
+    paddingVertical: Spacing.one,
+  },
+  catalogList: {
+    gap: Spacing.one,
+  },
+  catalogItem: {
+    padding: Spacing.two,
+    borderRadius: Spacing.two,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#8A8D91",
+    gap: 2,
+  },
   button: {
     minHeight: 50,
     borderRadius: Spacing.three,
