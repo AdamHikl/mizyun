@@ -97,7 +97,10 @@ const alertCategoryFromMessage = (message: string | null): AlertCategory => {
 };
 
 export function CoachSetupScreen() {
-  const params = useLocalSearchParams<{ prompt?: string }>();
+  const params = useLocalSearchParams<{
+    prompt?: string;
+    autoSend?: string;
+  }>();
   const { session } = useAuth();
   const userId = session?.user.id ?? null;
   const [status, setStatus] = useState<CoachProviderStatus | null>(null);
@@ -131,7 +134,7 @@ export function CoachSetupScreen() {
   // arrives so the screen-reader live region announces it.
   const [liveRegionTick, setLiveRegionTick] = useState(0);
   const [now, setNow] = useState(() => new Date());
-  const reminderPromptApplied = useRef(false);
+  const lastHandledPrompt = useRef<string | null>(null);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   useEffect(() => {
@@ -149,17 +152,6 @@ export function CoachSetupScreen() {
     };
   }, []);
 
-  useEffect(() => {
-    if (
-      !reminderPromptApplied.current &&
-      typeof params.prompt === "string" &&
-      params.prompt.trim().length > 0
-    ) {
-      reminderPromptApplied.current = true;
-      setDraft(params.prompt.trim());
-    }
-  }, [params.prompt]);
-
   const refresh = useCallback(async () => {
     setLoading(true);
     const result = await loadCoach();
@@ -171,22 +163,31 @@ export function CoachSetupScreen() {
     setStatus(result.status);
     setConversations(result.conversations);
     setMessage(null);
-    if (result.status.ready && result.conversations[0]) {
-      const thread = await loadCoachThread(result.conversations[0].id);
-      if (thread.ok) {
-        setActive(thread.conversation);
-        setMessages(thread.messages);
-        setMessagesByConversation((current) => {
-          const next = new Map(current);
-          next.set(thread.conversation.id, thread.messages);
-          return next;
-        });
-      } else {
-        setMessage(thread.message);
+    if (result.status.ready) {
+      if (result.conversations[0]) {
+        const thread = await loadCoachThread(result.conversations[0].id);
+        if (thread.ok) {
+          setActive(thread.conversation);
+          setMessages(thread.messages);
+          setMessagesByConversation((current) => {
+            const next = new Map(current);
+            next.set(thread.conversation.id, thread.messages);
+            return next;
+          });
+        } else {
+          setMessage(thread.message);
+        }
+      } else if (params.autoSend === "true") {
+        const created = await createCoachConversation();
+        if (created.ok) {
+          setActive(created.conversation);
+          setMessages([]);
+          setConversations([created.conversation]);
+        }
       }
     }
     setLoading(false);
-  }, []);
+  }, [params.autoSend]);
 
   useEffect(() => {
     void refresh();
@@ -267,10 +268,10 @@ export function CoachSetupScreen() {
   );
 
   const send = useCallback(
-    async (retryDraft?: CoachPendingDraft) => {
+    async (retryDraft?: CoachPendingDraft, textOverride?: string) => {
       const retry =
         retryDraft?.conversationId === active?.id ? retryDraft : undefined;
-      const text = retry?.text ?? draft.trim();
+      const text = (retry?.text ?? textOverride ?? draft).trim();
       if (
         !active ||
         text.length === 0 ||
@@ -362,6 +363,27 @@ export function CoachSetupScreen() {
     },
     [active, draft, pendingDraft, sending, userId],
   );
+
+  useEffect(() => {
+    if (
+      typeof params.prompt === "string" &&
+      params.prompt.trim().length > 0 &&
+      lastHandledPrompt.current !== params.prompt
+    ) {
+      if (params.autoSend === "true") {
+        if (!loading && active !== null && !sending && !sendLock.current) {
+          lastHandledPrompt.current = params.prompt;
+          void send(undefined, params.prompt.trim());
+        }
+      } else {
+        lastHandledPrompt.current = params.prompt;
+        setDraft(params.prompt.trim());
+        requestAnimationFrame(() => {
+          inputRef.current?.focus();
+        });
+      }
+    }
+  }, [active, loading, params.autoSend, params.prompt, send, sending]);
 
   const activeRetry =
     active !== null && pendingDraft?.conversationId === active.id
@@ -1225,18 +1247,17 @@ function MultiWorkoutPlanCard({
           <View
             key={session.index}
             style={styles.multiWorkoutRow}
-            accessibilityLabel={`Session ${session.index}: ${session.label}${sessionFocusLabel === null || isDuplicateLabel ? "" : `, ${sessionFocusLabel}`} on ${formatTargetDay(session.targetDay)}, ${session.estimatedMinutes} minutes, ${session.exercises.length} exercises`}
+            accessibilityLabel={`Routine ${session.index}: ${session.label}${sessionFocusLabel === null || isDuplicateLabel ? "" : `, ${sessionFocusLabel}`}, ${session.estimatedMinutes} minutes, ${session.exercises.length} exercises`}
           >
             <View style={{ flex: 1, gap: Spacing.one }}>
               <ThemedText type="smallBold">
-                Day {session.index} · {session.label}
+                Routine {session.index} · {session.label}
                 {sessionFocusLabel === null || isDuplicateLabel
                   ? ""
                   : ` · ${sessionFocusLabel}`}
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                {formatTargetDay(session.targetDay)} ·{" "}
-                {session.estimatedMinutes} min · {session.exercises.length}{" "}
+                ~{session.estimatedMinutes} min · {session.exercises.length}{" "}
                 exercises
               </ThemedText>
               {session.exercises.map((exercise) => (
@@ -1253,7 +1274,7 @@ function MultiWorkoutPlanCard({
               ))}
               {isSaved ? (
                 <ThemedText type="small" themeColor="textSecondary">
-                  Saved · ready to open and edit
+                  Saved · ready to start anytime
                 </ThemedText>
               ) : null}
               {isFailed ? (
@@ -1268,7 +1289,7 @@ function MultiWorkoutPlanCard({
             {isSaved ? (
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`Open ${session.label} on ${formatTargetDay(session.targetDay)}`}
+                accessibilityLabel={`Open ${session.label}`}
                 onPress={() =>
                   saved.result.ok && onOpenWorkout(saved.result.workout.id)
                 }
@@ -1389,34 +1410,98 @@ function WeeklyAdaptationCard({
     proposal.currentPace !== null &&
     proposal.proposedPace !== null &&
     proposal.currentPace !== proposal.proposedPace;
+
+  const obs = proposal.observations;
+  const nutritionSummary =
+    obs.averageCaloriesKcal !== null &&
+    obs.targetKcal !== null &&
+    obs.averageCaloriesKcal !== undefined &&
+    obs.targetKcal !== undefined
+      ? `${obs.loggedNutritionDays}/7 days · Avg ${obs.averageCaloriesKcal} / ${obs.targetKcal} kcal (${obs.averageCalorieAdherencePercent ?? "—"}%)`
+      : `${obs.loggedNutritionDays}/7 days logged · ${obs.averageCalorieAdherencePercent ?? "—"}% calories`;
+
+  const proteinSummary =
+    obs.averageProteinG !== null &&
+    obs.targetProteinG !== null &&
+    obs.averageProteinG !== undefined &&
+    obs.targetProteinG !== undefined
+      ? `Avg ${obs.averageProteinG}g / ${obs.targetProteinG}g target (${obs.averageProteinAdherencePercent ?? "—"}%)`
+      : `${obs.averageProteinAdherencePercent ?? "—"}% protein adherence`;
+
+  const trainingSummary =
+    obs.completedWorkoutsCount !== null &&
+    obs.completedWorkoutsCount !== undefined
+      ? `${obs.completedWorkoutsCount} workouts completed · ${proposal.trainingVolumeAction} volume`
+      : `${proposal.trainingVolumeAction} volume`;
+
+  const weightSummary =
+    obs.weeklyWeightChangeKg !== null
+      ? `${obs.smoothedWeightKg ? `${obs.smoothedWeightKg} kg smoothed · ` : ""}${obs.weeklyWeightChangeKg > 0 ? "+" : ""}${obs.weeklyWeightChangeKg} kg/week`
+      : obs.smoothedWeightKg
+        ? `${obs.smoothedWeightKg} kg smoothed · Need 3+ weigh-ins for rate`
+        : "Pending weight data";
+
+  const actionBadgeColor =
+    proposal.calorieAction === "hold"
+      ? "rgba(16, 185, 129, 0.2)"
+      : proposal.calorieAction === "increase"
+        ? "rgba(59, 130, 246, 0.2)"
+        : "rgba(245, 158, 11, 0.2)";
+
   return (
     <View style={styles.proposalCard}>
-      <ThemedText type="smallBold">Weekly adaptation</ThemedText>
+      {/* Header with Title & Action Badge */}
+      <View
+        style={{
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <ThemedText type="smallBold">Weekly Summary & Adaptation</ThemedText>
+        <View
+          style={{
+            backgroundColor: actionBadgeColor,
+            paddingHorizontal: 8,
+            paddingVertical: 3,
+            borderRadius: 6,
+          }}
+        >
+          <ThemedText type="smallBold">
+            {proposal.calorieAction.toUpperCase()}
+          </ThemedText>
+        </View>
+      </View>
+
+      {/* Goal Pace Status */}
       <ThemedText type="small">
-        Calories · {proposal.calorieAction}
-        {proposal.currentPace === null
-          ? ""
-          : ` · ${proposal.currentPace}${canApply ? ` → ${proposal.proposedPace}` : ""}`}
+        Goal Pace · {proposal.currentPace ?? "steady"}
+        {canApply ? ` → ${proposal.proposedPace}` : " (maintained)"}
       </ThemedText>
-      <ThemedText type="small">
-        Training volume · {proposal.trainingVolumeAction}
-      </ThemedText>
-      <ThemedText type="small">
-        Evidence · {proposal.observations.loggedNutritionDays} nutrition days ·{" "}
-        {proposal.observations.averageCalorieAdherencePercent ?? "—"}% calories
-        · {proposal.observations.averageProteinAdherencePercent ?? "—"}% protein
-      </ThemedText>
-      <ThemedText type="small">
-        Weight trend ·{" "}
-        {proposal.observations.weeklyWeightChangeKg === null
-          ? "not ready"
-          : `${proposal.observations.weeklyWeightChangeKg} kg/week`}
-      </ThemedText>
+
+      {/* Metric Breakdown Rows */}
+      <View
+        style={{
+          backgroundColor: "rgba(0, 0, 0, 0.2)",
+          padding: Spacing.two,
+          borderRadius: 8,
+          gap: 6,
+        }}
+      >
+        <ThemedText type="small">🥗 Nutrition: {nutritionSummary}</ThemedText>
+        <ThemedText type="small">🥩 Protein: {proteinSummary}</ThemedText>
+        <ThemedText type="small">🏋️ Training: {trainingSummary}</ThemedText>
+        <ThemedText type="small">⚖️ Weight Trend: {weightSummary}</ThemedText>
+      </View>
+
+      {/* Rationale & Reasons */}
       {proposal.reasons.map((reason) => (
         <ThemedText key={reason} type="small" themeColor="textSecondary">
-          {reason}
+          • {reason}
         </ThemedText>
       ))}
+
+      {/* Action button */}
       {canApply ? (
         <Pressable
           accessibilityRole="button"
@@ -1429,7 +1514,9 @@ function WeeklyAdaptationCard({
         </Pressable>
       ) : (
         <ThemedText type="small" themeColor="textSecondary">
-          No goal change is available to accept.
+          {proposal.readiness === "ready"
+            ? "Current pace is on track. No changes needed."
+            : "No goal change available. Continue logging next week."}
         </ThemedText>
       )}
     </View>

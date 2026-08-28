@@ -316,9 +316,19 @@ export const buildWeeklyAdaptationForUser = async (
 ) => {
   const { breakdown, profile, activeGoal, measurements } =
     await loadEnergyContext(deps, userId, accessToken, now);
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 86_400_000);
+  const workoutsLast7Days = await deps.workoutRepository.list(userId, {
+    from: sevenDaysAgo,
+    to: now,
+    limit: 50,
+    accessToken,
+  });
+  const completedWorkoutsLast7Days = workoutsLast7Days.filter(
+    (w) => w.completedAt !== null,
+  ).length;
   const coachingPlan = buildCoachingPlan({
     energy: breakdown,
-    completedWorkoutsLast7Days: 0,
+    completedWorkoutsLast7Days,
   });
   const prescription = await buildTrainingPrescriptionForUser(
     deps,
@@ -368,6 +378,7 @@ export const buildWeeklyAdaptationForUser = async (
     nutritionDays,
     weightTrend: summariseWeightTrend(measurements),
     trainingVolumeAction: prescription.volumeAction,
+    completedWorkoutsLast7Days,
     now,
   });
   const { computedAt: _computedAt, ...proposal } = adaptation;

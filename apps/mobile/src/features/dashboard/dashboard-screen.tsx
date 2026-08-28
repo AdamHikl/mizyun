@@ -161,37 +161,26 @@ const actions = [
   {
     label: "Log a meal",
     path: "/log-meal" as Href,
-    hint: "What did you eat?",
+    hint: "Photo or manual entry",
+    icon: "🥗",
   },
   {
-    label: "Logged meals",
-    path: "/nutrition" as Href,
-    hint: "Review or edit entries",
-  },
-  {
-    label: "Start a workout",
+    label: "Start workout",
     path: "/log-workout" as Href,
-    hint: "Active session",
+    hint: "Active training session",
+    icon: "🏋️",
   },
   {
-    label: "Workouts hub",
-    path: "/workouts" as Href,
-    hint: "All workouts & routines",
-  },
-  {
-    label: "Add weight",
+    label: "Log weight",
     path: "/log-weight" as Href,
-    hint: "Just today's reading",
+    hint: "Today's scale reading",
+    icon: "⚖️",
   },
   {
-    label: "Weight history",
-    path: "/body" as Href,
-    hint: "Raw readings and trend",
-  },
-  {
-    label: "Progress photos",
+    label: "Progress photo",
     path: "/progress-photos" as Href,
-    hint: "Private timeline and compare",
+    hint: "Private photo & compare",
+    icon: "📷",
   },
 ] as const;
 
@@ -203,10 +192,6 @@ export function DashboardScreen() {
   const accessToken = session?.accessToken ?? null;
   const unitSystem = profile?.unitSystem ?? "metric";
 
-  // AuthSession carries the access token the API client reads on
-  // each request. When the session is null we render the
-  // placeholder UX (the SessionGate has already routed the user
-  // out of this screen).
   const principal =
     userId === null || accessToken === null
       ? null
@@ -259,8 +244,6 @@ export function DashboardScreen() {
     });
   }, [accessToken, reviewPeriod, userId]);
 
-  // Re-fetch every time the screen gains focus so the user sees
-  // their entry as soon as they navigate back from the log form.
   useFocusEffect(
     useCallback(() => {
       void analyticsClient.track({
@@ -278,26 +261,20 @@ export function DashboardScreen() {
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
+          {/* Top Header */}
           <View style={styles.header}>
             <View style={styles.headerTopRow}>
               <ThemedText type="smallBold" themeColor="textSecondary">
                 MIZYUN
               </ThemedText>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Open Account settings"
-                onPress={() => void router.push("/settings" as Href)}
-                style={styles.headerSettingsButton}
-              >
-                <ThemedText type="smallBold" style={styles.headerSettingsText}>
-                  ⚙️ Account
-                </ThemedText>
-              </Pressable>
             </View>
-            <ThemedText type="subtitle">Your day, in one place.</ThemedText>
-            <ThemedText themeColor="textSecondary">
-              Explore tracking and tools freely. Set up your primary goal
-              whenever you're ready.
+            <ThemedText type="subtitle">
+              {profile?.displayName
+                ? `Welcome back, ${profile.displayName}`
+                : "Your day, in one place."}
+            </ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              Confirmed food, training, and body metrics for your goal.
             </ThemedText>
           </View>
 
@@ -325,32 +302,73 @@ export function DashboardScreen() {
             </Pressable>
           ) : null}
 
-          <View style={styles.metrics}>
-            <MetricCard
-              label="Calories today"
-              value={formatCalories(metrics.caloriesToday)}
-              detail={caloriesDetail(metrics.macros, metrics.energy)}
-              onPress={() => void router.push("/nutrition" as Href)}
-            />
+          {/* 1. Daily Nutrition & Macro Visual Card */}
+          <DailyNutritionCard
+            summary={metrics.macros}
+            energy={metrics.energy}
+            caloriesToday={metrics.caloriesToday}
+            onPress={() => void router.push("/meals" as Href)}
+          />
+
+          {/* 2. Key Signals Grid (Weight & Training) */}
+          <View style={styles.signalsGrid}>
             <MetricCard
               label="Current weight"
               value={formatWeight(metrics.latestWeightKg, unitSystem)}
-              detail="Latest measurement"
+              detail="Raw scale reading →"
               onPress={() => void router.push("/body" as Href)}
             />
             <MetricCard
               label="Training"
               value={formatCount(metrics.workoutsInReview)}
-              detail={`completed this ${reviewPeriod}`}
+              detail={`this ${reviewPeriod} →`}
               onPress={() => void router.push("/workouts" as Href)}
             />
           </View>
 
+          {/* 3. Quick Log Action Dock */}
+          <View style={styles.section}>
+            <ThemedText type="smallBold" style={styles.sectionTitle}>
+              QUICK LOG
+            </ThemedText>
+            <View style={styles.actionGrid}>
+              {actions.map((action) => (
+                <Pressable
+                  key={action.label}
+                  accessibilityRole="button"
+                  accessibilityLabel={action.label}
+                  onPress={() => {
+                    void router.push(action.path);
+                  }}
+                  style={({ pressed }) => [
+                    styles.action,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <View style={styles.actionIconContainer}>
+                    <ThemedText style={styles.actionIcon}>
+                      {action.icon}
+                    </ThemedText>
+                  </View>
+                  <View style={styles.actionBody}>
+                    <ThemedText type="smallBold">{action.label}</ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      {action.hint}
+                    </ThemedText>
+                  </View>
+                  <ThemedText style={styles.actionPlus}>＋</ThemedText>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          {/* 4. Energy Balance & Formula Breakdown */}
           <EnergyCard
             summary={metrics.energy}
             caloriesToday={metrics.caloriesToday}
           />
 
+          {/* 5. Weekly/Monthly Progress Review */}
           <ProgressReviewCard
             nutrition={metrics.nutritionReview}
             workouts={metrics.workoutsInReview}
@@ -384,34 +402,6 @@ export function DashboardScreen() {
             </View>
           ) : null}
 
-          <View style={styles.section}>
-            <ThemedText type="smallBold">Quick add</ThemedText>
-            <View style={styles.actionGrid}>
-              {actions.map((action) => (
-                <Pressable
-                  key={action.label}
-                  accessibilityRole="button"
-                  accessibilityLabel={action.label}
-                  onPress={() => {
-                    void router.push(action.path);
-                  }}
-                  style={({ pressed }) => [
-                    styles.action,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <View style={styles.actionBody}>
-                    <ThemedText type="smallBold">{action.label}</ThemedText>
-                    <ThemedText type="small" themeColor="textSecondary">
-                      {action.hint}
-                    </ThemedText>
-                  </View>
-                  <ThemedText themeColor="textSecondary">＋</ThemedText>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-
           <ThemedView type="backgroundElement" style={styles.foundationCard}>
             <ThemedText type="smallBold">Foundation mode</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
@@ -420,24 +410,207 @@ export function DashboardScreen() {
               boundary.
             </ThemedText>
           </ThemedView>
-
-          {profile?.displayName === null ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Finish setting up Mizyun"
-              onPress={() => void router.push("/onboarding" as Href)}
-              style={styles.foundationCard}
-            >
-              <ThemedText type="smallBold">Finish setting up Mizyun</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                Add your display name, units, height, baseline weight, and goal
-                so the dashboard and energy targets become useful.
-              </ThemedText>
-            </Pressable>
-          ) : null}
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
+  );
+}
+
+function DailyNutritionCard(props: {
+  readonly summary: DailySummary | null;
+  readonly energy: EnergySummary | null;
+  readonly caloriesToday: number | null;
+  readonly onPress: () => void;
+}) {
+  const { summary, energy, caloriesToday, onPress } = props;
+  const targetKcal = energy?.dailyTargetKcal
+    ? Math.round(energy.dailyTargetKcal)
+    : null;
+  const consumedKcal = caloriesToday !== null ? Math.round(caloriesToday) : 0;
+  const kcalPercent =
+    targetKcal && targetKcal > 0
+      ? Math.min(Math.round((consumedKcal / targetKcal) * 100), 100)
+      : 0;
+
+  const protein = summary?.proteinG ?? 0;
+  const targetProtein = energy?.targetProteinG
+    ? Math.round(energy.targetProteinG)
+    : null;
+  const proteinPercent =
+    targetProtein && targetProtein > 0
+      ? Math.min(Math.round((protein / targetProtein) * 100), 100)
+      : 0;
+
+  const carbs = summary?.carbohydrateG ?? 0;
+  const targetCarbs = energy?.targetCarbohydrateG
+    ? Math.round(energy.targetCarbohydrateG)
+    : null;
+  const carbsPercent =
+    targetCarbs && targetCarbs > 0
+      ? Math.min(Math.round((carbs / targetCarbs) * 100), 100)
+      : 0;
+
+  const fat = summary?.fatG ?? 0;
+  const targetFat = energy?.targetFatG ? Math.round(energy.targetFatG) : null;
+  const fatPercent =
+    targetFat && targetFat > 0
+      ? Math.min(Math.round((fat / targetFat) * 100), 100)
+      : 0;
+
+  const remainingKcal = targetKcal !== null ? targetKcal - consumedKcal : null;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="View Meals Hub"
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.dailyNutritionCardWrapper,
+        pressed && styles.pressed,
+      ]}
+    >
+      <ThemedView type="backgroundElement" style={styles.dailyNutritionCard}>
+        <View style={styles.dailyNutritionHeader}>
+          <View style={styles.actionBody}>
+            <ThemedText type="smallBold" themeColor="textSecondary">
+              TODAY'S NUTRITION
+            </ThemedText>
+            <View style={styles.calorieRow}>
+              <ThemedText type="title" style={styles.dailyCalorieValue}>
+                {caloriesToday !== null ? `${consumedKcal}` : "—"}
+              </ThemedText>
+              <ThemedText
+                type="small"
+                themeColor="textSecondary"
+                style={styles.dailyTargetSub}
+              >
+                {targetKcal !== null ? ` / ${targetKcal} kcal` : " kcal"}
+              </ThemedText>
+            </View>
+          </View>
+          {remainingKcal !== null ? (
+            <View
+              style={[
+                styles.remainingBadge,
+                remainingKcal < 0 && styles.remainingBadgeOver,
+              ]}
+            >
+              <ThemedText
+                type="smallBold"
+                style={[
+                  styles.remainingBadgeText,
+                  remainingKcal < 0 && styles.remainingBadgeTextOver,
+                ]}
+              >
+                {remainingKcal >= 0
+                  ? `${remainingKcal} kcal left`
+                  : `${Math.abs(remainingKcal)} kcal over`}
+              </ThemedText>
+            </View>
+          ) : (
+            <View style={styles.remainingBadge}>
+              <ThemedText type="smallBold" style={styles.remainingBadgeText}>
+                Meals Hub →
+              </ThemedText>
+            </View>
+          )}
+        </View>
+
+        {/* Calorie Progress Bar */}
+        {targetKcal !== null ? (
+          <View style={styles.progressBarTrack}>
+            <View
+              style={[
+                styles.progressBarFill,
+                { width: `${kcalPercent}%` },
+                consumedKcal > targetKcal && styles.progressBarFillOver,
+              ]}
+            />
+          </View>
+        ) : null}
+
+        {/* Macro Columns */}
+        <View style={styles.macroBarsRow}>
+          <MacroBar
+            label="Protein"
+            current={protein}
+            target={targetProtein}
+            color="#10B981"
+            percent={proteinPercent}
+          />
+          <MacroBar
+            label="Carbs"
+            current={carbs}
+            target={targetCarbs}
+            color="#F59E0B"
+            percent={carbsPercent}
+          />
+          <MacroBar
+            label="Fat"
+            current={fat}
+            target={targetFat}
+            color="#8B5CF6"
+            percent={fatPercent}
+          />
+        </View>
+      </ThemedView>
+    </Pressable>
+  );
+}
+
+function MacroBar(props: {
+  readonly label: string;
+  readonly current: number;
+  readonly target: number | null;
+  readonly color: string;
+  readonly percent: number;
+}) {
+  const { label, current, target, color, percent } = props;
+  const roundedCurrent = Math.round(current);
+  const roundedTarget = target !== null ? Math.round(target) : null;
+
+  return (
+    <View style={styles.macroBarItem}>
+      <View style={styles.macroHeaderRow}>
+        <View style={[styles.macroColorDot, { backgroundColor: color }]} />
+        <ThemedText
+          type="smallBold"
+          numberOfLines={1}
+          style={[styles.macroLabelText, { color }]}
+        >
+          {label}
+        </ThemedText>
+      </View>
+      <View style={styles.macroTrack}>
+        <View
+          style={[
+            styles.macroFill,
+            { backgroundColor: color, width: target ? `${percent}%` : "0%" },
+          ]}
+        />
+      </View>
+      <View style={styles.macroValueRow}>
+        <ThemedText
+          type="small"
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          style={styles.macroValueContainer}
+        >
+          <ThemedText type="smallBold" style={styles.macroCurrentNum}>
+            {roundedCurrent}g
+          </ThemedText>
+          {roundedTarget !== null ? (
+            <ThemedText
+              type="small"
+              themeColor="textSecondary"
+              style={styles.macroTargetNum}
+            >
+              {` / ${roundedTarget}g`}
+            </ThemedText>
+          ) : null}
+        </ThemedText>
+      </View>
+    </View>
   );
 }
 
@@ -645,23 +818,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.four,
     paddingBottom: BottomTabInset + Spacing.six,
-    gap: Spacing.five,
+    gap: Spacing.four,
   },
   header: { gap: Spacing.one },
   headerTopRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-  },
-  headerSettingsButton: {
-    paddingHorizontal: Spacing.two,
-    paddingVertical: 4,
-    borderRadius: 8,
-    backgroundColor: "rgba(16, 185, 129, 0.1)",
-  },
-  headerSettingsText: {
-    color: "#10B981",
-    fontSize: 12,
   },
   setupBanner: {
     borderRadius: 16,
@@ -683,7 +846,121 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
   },
   setupBannerAction: { color: "#ffffff" },
-  metrics: { gap: Spacing.three },
+  dailyNutritionCardWrapper: { width: "100%" },
+  dailyNutritionCard: {
+    borderRadius: 18,
+    padding: Spacing.four,
+    gap: Spacing.three,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.18)",
+  },
+  dailyNutritionHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: Spacing.two,
+  },
+  calorieRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 4,
+    marginTop: 2,
+  },
+  dailyCalorieValue: {
+    fontSize: 26,
+    fontWeight: "800",
+    letterSpacing: -0.5,
+  },
+  dailyTargetSub: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  remainingBadge: {
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  remainingBadgeOver: {
+    backgroundColor: "rgba(239, 68, 68, 0.12)",
+  },
+  remainingBadgeText: {
+    fontSize: 12,
+    color: "#10B981",
+  },
+  remainingBadgeTextOver: {
+    color: "#EF4444",
+  },
+  progressBarTrack: {
+    height: 8,
+    backgroundColor: "rgba(148, 163, 184, 0.2)",
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  progressBarFill: {
+    height: "100%",
+    backgroundColor: "#10B981",
+    borderRadius: 4,
+  },
+  progressBarFillOver: {
+    backgroundColor: "#EF4444",
+  },
+  macroBarsRow: {
+    flexDirection: "row",
+    gap: Spacing.two,
+    marginTop: Spacing.half,
+  },
+  macroBarItem: {
+    flex: 1,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.two,
+    borderRadius: 12,
+    backgroundColor: "rgba(148, 163, 184, 0.08)",
+    gap: 6,
+  },
+  macroHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  macroColorDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  macroLabelText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  macroTrack: {
+    height: 4,
+    backgroundColor: "rgba(148, 163, 184, 0.2)",
+    borderRadius: 2,
+    overflow: "hidden",
+  },
+  macroFill: {
+    height: "100%",
+    borderRadius: 2,
+  },
+  macroValueRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  macroValueContainer: {
+    fontSize: 11,
+  },
+  macroCurrentNum: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  macroTargetNum: {
+    fontSize: 11,
+    fontWeight: "400",
+  },
+  signalsGrid: {
+    flexDirection: "row",
+    gap: Spacing.three,
+  },
   metricCard: {
     borderRadius: 18,
     padding: Spacing.four,
@@ -692,11 +969,16 @@ const styles = StyleSheet.create({
     borderColor: "rgba(16, 185, 129, 0.12)",
   },
   metricValue: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: "800",
     letterSpacing: -0.5,
   },
-  section: { gap: Spacing.three },
+  section: { gap: Spacing.two },
+  sectionTitle: {
+    letterSpacing: 0.8,
+    fontSize: 11,
+    opacity: 0.75,
+  },
   actionGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.two },
   action: {
     minWidth: "47%",
@@ -707,7 +989,23 @@ const styles = StyleSheet.create({
     padding: Spacing.three,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: Spacing.two,
+  },
+  actionIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: "rgba(16, 185, 129, 0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  actionIcon: {
+    fontSize: 16,
+  },
+  actionPlus: {
+    color: "#10B981",
+    fontSize: 16,
+    fontWeight: "700",
   },
   pressed: { opacity: 0.7, transform: [{ scale: 0.98 }] },
   foundationCard: {

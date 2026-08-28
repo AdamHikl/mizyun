@@ -130,17 +130,54 @@ export function MealListScreen() {
     [remove],
   );
 
+  const totalDaysTracked = state.groups.length;
+
   return (
     <ThemedView style={styles.page}>
-      <Stack.Screen options={{ title: "Logged meals" }} />
-      <SafeAreaView style={styles.safeArea} edges={["left", "right"]}>
-        <ScrollView contentContainerStyle={styles.content}>
+      <Stack.Screen options={{ title: "Meals" }} />
+      <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Top Header */}
           <View style={styles.header}>
-            <ThemedText type="subtitle">Logged meals</ThemedText>
+            <View style={styles.headerTopRow}>
+              <ThemedText type="smallBold" themeColor="textSecondary">
+                MIZYUN
+              </ThemedText>
+            </View>
+            <ThemedText type="subtitle">Meals</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              All confirmed entries organized by day.
+              Manage daily nutrition, logged foods, and history.
             </ThemedText>
           </View>
+
+          {/* Primary Action Card: Log a Meal */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Log a meal"
+            onPress={() => router.push("/log-meal" as Href)}
+            style={({ pressed }) => [
+              styles.logMealHeroCard,
+              pressed && styles.pressed,
+            ]}
+          >
+            <View style={styles.logMealIconContainer}>
+              <ThemedText style={styles.logMealIcon}>🥗</ThemedText>
+            </View>
+            <View style={styles.logMealBody}>
+              <ThemedText type="smallBold">Log a Meal</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                Scan photo with AI or manual ingredient entry
+              </ThemedText>
+            </View>
+            <View style={styles.logMealBadge}>
+              <ThemedText type="smallBold" style={styles.logMealBadgeText}>
+                ＋ Log
+              </ThemedText>
+            </View>
+          </Pressable>
 
           {state.message !== null ? (
             <ThemedView type="backgroundElement" style={styles.messageCard}>
@@ -158,113 +195,168 @@ export function MealListScreen() {
             </ThemedView>
           ) : null}
 
-          <View style={styles.sectionHeader}>
-            <ThemedText type="smallBold">History</ThemedText>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Add another meal"
-              onPress={() => router.push("/log-meal" as Href)}
-              style={styles.inlineButton}
-            >
-              <ThemedText type="smallBold">＋ Add meal</ThemedText>
-            </Pressable>
-          </View>
-
-          {state.loading && state.groups.length === 0 ? (
-            <ThemedText type="small" themeColor="textSecondary">
-              Loading logged meals…
-            </ThemedText>
-          ) : null}
-
-          {!state.loading &&
-          state.groups.length === 0 &&
-          state.message === null ? (
-            <ThemedView type="backgroundElement" style={styles.emptyCard}>
-              <ThemedText type="smallBold">Nothing logged yet</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                Meals you log will appear here grouped by day.
+          {/* 3. History Section */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderRow}>
+              <ThemedText type="smallBold" style={styles.sectionTitle}>
+                HISTORY BY DAY
               </ThemedText>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Log your first meal"
-                onPress={() => router.push("/log-meal" as Href)}
-                style={styles.emptyAddButton}
-              >
-                <ThemedText type="smallBold">＋ Log your first meal</ThemedText>
-              </Pressable>
-            </ThemedView>
-          ) : null}
+              <ThemedText type="small" themeColor="textSecondary">
+                {totalDaysTracked} {totalDaysTracked === 1 ? "day" : "days"}
+              </ThemedText>
+            </View>
 
-          <View style={styles.groupList}>
-            {state.groups.map((group) => (
-              <View key={group.date} style={styles.dayGroup}>
-                <View style={styles.dayHeader}>
-                  <View style={styles.dayTitleRow}>
-                    <ThemedText type="smallBold" style={styles.dayTitle}>
-                      {group.displayDate}
-                    </ThemedText>
-                    <ThemedText type="small" themeColor="textSecondary">
-                      {group.summary.entryCount}{" "}
-                      {group.summary.entryCount === 1 ? "meal" : "meals"}
+            {state.loading && state.groups.length === 0 ? (
+              <ThemedText type="small" themeColor="textSecondary">
+                Loading logged meals…
+              </ThemedText>
+            ) : null}
+
+            {!state.loading &&
+            state.groups.length === 0 &&
+            state.message === null ? (
+              <ThemedView type="backgroundElement" style={styles.emptyCard}>
+                <ThemedText type="smallBold">Nothing logged yet</ThemedText>
+                <ThemedText
+                  type="small"
+                  themeColor="textSecondary"
+                  style={styles.emptyStateDesc}
+                >
+                  Meals you log manually or scan with AI will appear here
+                  grouped by day with detailed calorie and macro breakdowns.
+                </ThemedText>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Log your first meal"
+                  onPress={() => router.push("/log-meal" as Href)}
+                  style={styles.emptyAddButton}
+                >
+                  <ThemedText
+                    type="smallBold"
+                    style={styles.emptyAddButtonText}
+                  >
+                    ＋ Log your first meal
+                  </ThemedText>
+                </Pressable>
+              </ThemedView>
+            ) : null}
+
+            <View style={styles.groupList}>
+              {state.groups.map((group) => (
+                <ThemedView
+                  key={group.date}
+                  type="backgroundElement"
+                  style={styles.dayGroupCard}
+                >
+                  <View style={styles.dayHeader}>
+                    <View style={styles.dayTitleRow}>
+                      <ThemedText type="smallBold" style={styles.dayTitle}>
+                        {group.displayDate}
+                      </ThemedText>
+                      <View style={styles.dayCountBadge}>
+                        <ThemedText type="small" themeColor="textSecondary">
+                          {group.summary.entryCount}{" "}
+                          {group.summary.entryCount === 1 ? "meal" : "meals"}
+                        </ThemedText>
+                      </View>
+                    </View>
+                    <ThemedText
+                      type="small"
+                      themeColor="textSecondary"
+                      style={styles.dayTotals}
+                    >
+                      {formatGroupNutrition(group.summary)}
                     </ThemedText>
                   </View>
-                  <ThemedText
-                    type="small"
-                    themeColor="textSecondary"
-                    style={styles.dayTotals}
-                  >
-                    {formatGroupNutrition(group.summary)}
-                  </ThemedText>
-                </View>
 
-                <View style={styles.dayEntries}>
-                  {group.entries.map((entry) => {
-                    const busy = busyEntryId === entry.id;
-                    return (
-                      <ThemedView
-                        key={entry.id}
-                        type="backgroundElement"
-                        style={styles.entryCard}
-                      >
-                        <View style={styles.entryHeader}>
-                          <ThemedText type="smallBold" style={styles.entryName}>
-                            {entry.name}
-                          </ThemedText>
-                          <ThemedText type="small" themeColor="textSecondary">
-                            {formatMealTime(entry.consumedAt)}
-                          </ThemedText>
+                  <View style={styles.dayEntries}>
+                    {group.entries.map((entry) => {
+                      const busy = busyEntryId === entry.id;
+                      return (
+                        <View key={entry.id} style={styles.entryCard}>
+                          <View style={styles.entryHeader}>
+                            <ThemedText
+                              type="smallBold"
+                              style={styles.entryName}
+                            >
+                              {entry.name}
+                            </ThemedText>
+                            <ThemedText type="small" themeColor="textSecondary">
+                              {formatMealTime(entry.consumedAt)}
+                            </ThemedText>
+                          </View>
+                          {/* Semantic Macro Badges */}
+                          <View style={styles.macroBadgesRow}>
+                            {entry.caloriesKcal !== null ? (
+                              <View style={styles.calorieBadge}>
+                                <ThemedText
+                                  type="smallBold"
+                                  style={styles.calorieBadgeText}
+                                >
+                                  {entry.caloriesKcal} kcal
+                                </ThemedText>
+                              </View>
+                            ) : null}
+                            {entry.proteinG !== null ? (
+                              <View style={styles.proteinBadge}>
+                                <ThemedText
+                                  type="small"
+                                  style={styles.proteinBadgeText}
+                                >
+                                  {entry.proteinG}g P
+                                </ThemedText>
+                              </View>
+                            ) : null}
+                            {entry.carbohydrateG !== null ? (
+                              <View style={styles.carbsBadge}>
+                                <ThemedText
+                                  type="small"
+                                  style={styles.carbsBadgeText}
+                                >
+                                  {entry.carbohydrateG}g C
+                                </ThemedText>
+                              </View>
+                            ) : null}
+                            {entry.fatG !== null ? (
+                              <View style={styles.fatBadge}>
+                                <ThemedText
+                                  type="small"
+                                  style={styles.fatBadgeText}
+                                >
+                                  {entry.fatG}g F
+                                </ThemedText>
+                              </View>
+                            ) : null}
+                          </View>
+                          <View style={styles.entryActions}>
+                            <EntryAction
+                              label="Edit"
+                              disabled={busy}
+                              onPress={() =>
+                                router.push(
+                                  `/edit-meal?id=${encodeURIComponent(entry.id)}` as Href,
+                                )
+                              }
+                            />
+                            <EntryAction
+                              label={busy ? "Working…" : "Copy to Today"}
+                              disabled={busy}
+                              onPress={() => void copy(entry)}
+                            />
+                            <EntryAction
+                              label="Delete"
+                              disabled={busy}
+                              destructive
+                              onPress={() => confirmDelete(entry)}
+                            />
+                          </View>
                         </View>
-                        <ThemedText type="small" themeColor="textSecondary">
-                          {formatEntryNutrition(entry)}
-                        </ThemedText>
-                        <View style={styles.entryActions}>
-                          <EntryAction
-                            label="Edit"
-                            disabled={busy}
-                            onPress={() =>
-                              router.push(
-                                `/edit-meal?id=${encodeURIComponent(entry.id)}` as Href,
-                              )
-                            }
-                          />
-                          <EntryAction
-                            label={busy ? "Working…" : "Copy"}
-                            disabled={busy}
-                            onPress={() => void copy(entry)}
-                          />
-                          <EntryAction
-                            label="Delete"
-                            disabled={busy}
-                            destructive
-                            onPress={() => confirmDelete(entry)}
-                          />
-                        </View>
-                      </ThemedView>
-                    );
-                  })}
-                </View>
-              </View>
-            ))}
+                      );
+                    })}
+                  </View>
+                </ThemedView>
+              ))}
+            </View>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -287,12 +379,16 @@ function EntryAction(props: {
       onPress={props.onPress}
       style={({ pressed }) => [
         styles.entryAction,
+        props.destructive === true && styles.entryActionDestructive,
         (pressed || props.disabled) && styles.pressed,
       ]}
     >
       <ThemedText
-        type="smallBold"
-        style={props.destructive === true ? styles.destructiveText : undefined}
+        type="small"
+        style={[
+          styles.entryActionLabel,
+          props.destructive === true ? styles.destructiveText : undefined,
+        ]}
       >
         {props.label}
       </ThemedText>
@@ -307,49 +403,111 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.four,
+    padding: Spacing.four,
     paddingBottom: BottomTabInset + Spacing.six,
-    gap: Spacing.three,
+    gap: Spacing.four,
   },
   header: { gap: Spacing.one },
-  messageCard: {
-    borderRadius: Spacing.three,
-    padding: Spacing.three,
-    gap: Spacing.two,
+  headerTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
-  sectionHeader: {
+  logMealHeroCard: {
+    width: "100%",
     flexDirection: "row",
     alignItems: "center",
+    gap: Spacing.three,
+    padding: Spacing.three,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.2)",
+    backgroundColor: "rgba(16, 185, 129, 0.05)",
+  },
+  logMealIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logMealIcon: {
+    fontSize: 20,
+  },
+  logMealBody: {
+    flex: 1,
+    gap: 2,
+  },
+  logMealBadge: {
+    backgroundColor: "#10B981",
+    paddingHorizontal: Spacing.three,
+    paddingVertical: 7,
+    borderRadius: 10,
+  },
+  logMealBadgeText: {
+    color: "#ffffff",
+    fontSize: 12,
+  },
+  section: {
+    gap: Spacing.two,
+  },
+  sectionTitle: {
+    fontSize: 11,
+    letterSpacing: 0.8,
+    color: "#64748B",
+  },
+  sectionHeaderRow: {
+    flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
+  },
+  messageCard: {
+    borderRadius: 16,
+    padding: Spacing.three,
+    gap: Spacing.two,
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.3)",
   },
   inlineButton: {
-    minHeight: 44,
-    minWidth: 44,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: Spacing.two,
-  },
-  emptyCard: {
-    borderRadius: Spacing.three,
-    padding: Spacing.four,
-    gap: Spacing.two,
-  },
-  emptyAddButton: {
-    minHeight: 44,
+    minHeight: 36,
     justifyContent: "center",
     alignItems: "flex-start",
-    paddingTop: Spacing.one,
+  },
+  emptyCard: {
+    borderRadius: 18,
+    padding: Spacing.four,
+    gap: Spacing.two,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.15)",
+  },
+  emptyStateDesc: {
+    lineHeight: 19,
+  },
+  emptyAddButton: {
+    backgroundColor: "#10B981",
+    paddingVertical: 9,
+    paddingHorizontal: Spacing.three,
+    borderRadius: 12,
+    alignSelf: "flex-start",
+    marginTop: Spacing.one,
+  },
+  emptyAddButtonText: {
+    color: "#ffffff",
   },
   groupList: { gap: Spacing.four },
-  dayGroup: {
-    gap: Spacing.two,
+  dayGroupCard: {
+    borderRadius: 18,
+    padding: Spacing.four,
+    gap: Spacing.three,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.15)",
   },
   dayHeader: {
-    gap: Spacing.half,
-    paddingBottom: Spacing.half,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(100, 116, 139, 0.2)",
+    gap: 3,
+    paddingBottom: Spacing.two,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(148, 163, 184, 0.12)",
   },
   dayTitleRow: {
     flexDirection: "row",
@@ -357,16 +515,25 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   dayTitle: {
-    fontSize: 15,
+    fontSize: 16,
+  },
+  dayCountBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    backgroundColor: "rgba(148, 163, 184, 0.1)",
   },
   dayTotals: {
     fontSize: 13,
   },
   dayEntries: { gap: Spacing.two },
   entryCard: {
-    borderRadius: Spacing.three,
+    borderRadius: 14,
     padding: Spacing.three,
     gap: Spacing.two,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.12)",
+    backgroundColor: "rgba(148, 163, 184, 0.04)",
   },
   entryHeader: {
     flexDirection: "row",
@@ -374,13 +541,77 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: Spacing.two,
   },
-  entryName: { flex: 1 },
-  entryActions: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.one },
-  entryAction: {
-    minHeight: 44,
-    justifyContent: "center",
-    paddingHorizontal: Spacing.two,
+  entryName: { flex: 1, fontSize: 15 },
+  macroBadgesRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    alignItems: "center",
   },
-  pressed: { opacity: 0.55 },
-  destructiveText: { color: "#C83232" },
+  calorieBadge: {
+    backgroundColor: "rgba(148, 163, 184, 0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  calorieBadgeText: {
+    fontSize: 12,
+  },
+  proteinBadge: {
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  proteinBadgeText: {
+    fontSize: 11,
+    color: "#10B981",
+    fontWeight: "700",
+  },
+  carbsBadge: {
+    backgroundColor: "rgba(245, 158, 11, 0.12)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  carbsBadgeText: {
+    fontSize: 11,
+    color: "#F59E0B",
+    fontWeight: "700",
+  },
+  fatBadge: {
+    backgroundColor: "rgba(139, 92, 246, 0.12)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  fatBadgeText: {
+    fontSize: 11,
+    color: "#8B5CF6",
+    fontWeight: "700",
+  },
+  entryActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.two,
+    marginTop: 2,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(148, 163, 184, 0.1)",
+    paddingTop: Spacing.one,
+  },
+  entryAction: {
+    paddingVertical: 4,
+    paddingHorizontal: Spacing.two,
+    borderRadius: 8,
+    backgroundColor: "rgba(148, 163, 184, 0.1)",
+  },
+  entryActionDestructive: {
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
+  },
+  entryActionLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  pressed: { opacity: 0.6 },
+  destructiveText: { color: "#EF4444" },
 });

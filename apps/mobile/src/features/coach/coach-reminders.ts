@@ -6,6 +6,7 @@ export interface CoachReminderSettings {
   readonly dailyEnabled: boolean;
   readonly weeklyEnabled: boolean;
   readonly hour: number;
+  readonly minute: number;
   /** Expo weekday: 1 Sunday through 7 Saturday. */
   readonly weeklyWeekday: number;
   readonly notificationIds: readonly string[];
@@ -15,6 +16,7 @@ export const DEFAULT_COACH_REMINDERS: CoachReminderSettings = {
   dailyEnabled: false,
   weeklyEnabled: false,
   hour: 19,
+  minute: 0,
   weeklyWeekday: 1,
   notificationIds: [],
 };
@@ -31,6 +33,7 @@ export interface ReminderScheduler {
   schedule(input: {
     readonly kind: "daily" | "weekly";
     readonly hour: number;
+    readonly minute?: number;
     readonly weekday?: number;
   }): Promise<string>;
   cancel(id: string): Promise<void>;
@@ -49,6 +52,10 @@ export const isCoachReminderSettings = (
     Number.isInteger(candidate.hour) &&
     (candidate.hour as number) >= 0 &&
     (candidate.hour as number) <= 23 &&
+    (candidate.minute === undefined ||
+      (Number.isInteger(candidate.minute) &&
+        (candidate.minute as number) >= 0 &&
+        (candidate.minute as number) <= 59)) &&
     Number.isInteger(candidate.weeklyWeekday) &&
     (candidate.weeklyWeekday as number) >= 1 &&
     (candidate.weeklyWeekday as number) <= 7 &&
@@ -65,7 +72,11 @@ export const loadCoachReminders = async (
     const raw = await store.getItemAsync(keyFor(userId));
     if (raw === null) return DEFAULT_COACH_REMINDERS;
     const parsed: unknown = JSON.parse(raw);
-    return isCoachReminderSettings(parsed) ? parsed : DEFAULT_COACH_REMINDERS;
+    if (!isCoachReminderSettings(parsed)) return DEFAULT_COACH_REMINDERS;
+    return {
+      ...parsed,
+      minute: parsed.minute ?? 0,
+    };
   } catch {
     return DEFAULT_COACH_REMINDERS;
   }
@@ -73,7 +84,13 @@ export const loadCoachReminders = async (
 
 export const applyCoachReminders = async (
   userId: string,
-  requested: Omit<CoachReminderSettings, "notificationIds">,
+  requested: {
+    readonly dailyEnabled: boolean;
+    readonly weeklyEnabled: boolean;
+    readonly hour: number;
+    readonly minute?: number;
+    readonly weeklyWeekday: number;
+  },
   scheduler: ReminderScheduler = expoReminderScheduler,
   store: ReminderStore = SecureStore,
 ): Promise<
@@ -98,6 +115,7 @@ export const applyCoachReminders = async (
         await scheduler.schedule({
           kind: "daily",
           hour: requested.hour,
+          minute: requested.minute,
         }),
       );
     }
@@ -106,6 +124,7 @@ export const applyCoachReminders = async (
         await scheduler.schedule({
           kind: "weekly",
           hour: requested.hour,
+          minute: requested.minute,
           weekday: requested.weeklyWeekday,
         }),
       );
@@ -113,7 +132,11 @@ export const applyCoachReminders = async (
     await Promise.all(
       previous.notificationIds.map((id) => scheduler.cancel(id)),
     );
-    const settings = { ...requested, notificationIds: nextIds };
+    const settings = {
+      ...requested,
+      minute: requested.minute ?? 0,
+      notificationIds: nextIds,
+    };
     await store.setItemAsync(keyFor(userId), JSON.stringify(settings));
     return { ok: true, settings };
   } catch {
@@ -122,7 +145,7 @@ export const applyCoachReminders = async (
   }
 };
 
-const expoReminderScheduler: ReminderScheduler = {
+export const expoReminderScheduler: ReminderScheduler = {
   ensureChannel: async () => {
     if (Platform.OS !== "android") return;
     await Notifications.setNotificationChannelAsync("coach-reminders", {
@@ -140,26 +163,34 @@ const expoReminderScheduler: ReminderScheduler = {
           ? {
               title: "Your Mizyun day",
               body: "Open Coach to review what remains for nutrition and training.",
-              data: { url: "/coach", prompt: "What should I do today?" },
+              data: {
+                url: "/coach",
+                prompt: "What should I do today?",
+                autoSend: "true",
+              },
             }
           : {
               title: "Review your confirmed week",
               body: "Open Coach for an evidence-gated weekly adaptation.",
-              data: { url: "/coach", prompt: "Review my week" },
+              data: {
+                url: "/coach",
+                prompt: "Review my week",
+                autoSend: "true",
+              },
             },
       trigger:
         input.kind === "daily"
           ? {
               type: Notifications.SchedulableTriggerInputTypes.DAILY,
               hour: input.hour,
-              minute: 0,
+              minute: input.minute ?? 0,
               channelId: "coach-reminders",
             }
           : {
               type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
               weekday: input.weekday ?? 1,
               hour: input.hour,
-              minute: 0,
+              minute: input.minute ?? 0,
               channelId: "coach-reminders",
             },
     }),

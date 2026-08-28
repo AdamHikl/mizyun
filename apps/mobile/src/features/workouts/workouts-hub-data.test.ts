@@ -8,8 +8,11 @@ import {
   formatWorkoutDisplayDate,
   processWorkout,
   fetchWorkoutsHubData,
+  fetchWorkout,
   deleteWorkout,
   createBlankWorkout,
+  createCustomWorkout,
+  updateWorkoutDetails,
 } from "./workouts-hub-data";
 
 describe("workouts-hub-data", () => {
@@ -42,8 +45,9 @@ describe("workouts-hub-data", () => {
           },
           {
             name: "Pull Up",
-            targetSets: 3,
-            targetReps: "6-8",
+            sets: 3,
+            repsMin: 6,
+            repsMax: 8,
           },
         ],
       },
@@ -96,13 +100,16 @@ describe("workouts-hub-data", () => {
     },
   ];
 
-  it("extracts planned exercises from coachPlan details", () => {
+  it("extracts planned exercises from coachPlan details with targetSets or sets/repsMin/repsMax", () => {
     const planned = extractPlannedExercisesFromWorkout(mockPlannedWorkout);
     expect(planned).toHaveLength(2);
     expect(planned[0]?.name).toBe("Barbell Bench Press");
     expect(planned[0]?.targetSets).toBe(3);
     expect(planned[0]?.targetReps).toBe("8-10");
     expect(planned[0]?.targetLoad).toBe("70 kg");
+    expect(planned[1]?.name).toBe("Pull Up");
+    expect(planned[1]?.targetSets).toBe(3);
+    expect(planned[1]?.targetReps).toBe("6-8");
   });
 
   it("formats display dates with Today/Yesterday relative labels", () => {
@@ -188,6 +195,21 @@ describe("workouts-hub-data", () => {
     expect(result.completed[0]?.workout.id).toBe("w-completed-1");
   });
 
+  it("handles fetchWorkout by id", async () => {
+    const client: ApiClient = {
+      request: vi.fn().mockResolvedValue({
+        ok: true,
+        value: { workout: mockPlannedWorkout },
+      }),
+    } as unknown as ApiClient;
+
+    const res = await fetchWorkout("w-planned-1", client);
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.workout.id).toBe("w-planned-1");
+    }
+  });
+
   it("handles delete workout and create blank workout", async () => {
     const deleteClient: ApiClient = {
       request: vi.fn().mockResolvedValue({ ok: true }),
@@ -205,5 +227,71 @@ describe("workouts-hub-data", () => {
 
     const createRes = await createBlankWorkout("New Session", createClient);
     expect(createRes.ok).toBe(true);
+  });
+
+  it("creates custom workout with planned exercises and notes", async () => {
+    const client: ApiClient = {
+      request: vi.fn().mockImplementation(async ({ body }: { body: any }) => {
+        expect(body.name).toBe("Push Day Focus");
+        expect(body.notes).toBe("Heavy chest focus");
+        expect(body.details.coachPlan.exercises).toHaveLength(2);
+        expect(body.details.coachPlan.exercises[0].name).toBe(
+          "Incline Dumbbell Press",
+        );
+        expect(body.details.coachPlan.exercises[0].sets).toBe(4);
+        return {
+          ok: true,
+          value: { workout: { ...mockPlannedWorkout, name: body.name } },
+        };
+      }),
+    } as unknown as ApiClient;
+
+    const res = await createCustomWorkout(
+      {
+        name: "Push Day Focus",
+        notes: "Heavy chest focus",
+        plannedExercises: [
+          { name: "Incline Dumbbell Press", targetSets: 4, targetReps: "8-12" },
+          { name: "Dips", targetSets: 3, targetReps: "10-15" },
+        ],
+      },
+      client,
+    );
+
+    expect(res.ok).toBe(true);
+  });
+
+  it("updates workout details and planned exercises", async () => {
+    const client: ApiClient = {
+      request: vi
+        .fn()
+        .mockImplementation(
+          async ({ path, body }: { path: string; body: any }) => {
+            expect(path).toBe("/v1/workouts/w-planned-1");
+            expect(body.name).toBe("Updated Upper Body");
+            expect(body.details.coachPlan.exercises[0].name).toBe(
+              "Overhead Press",
+            );
+            return {
+              ok: true,
+              value: { workout: { ...mockPlannedWorkout, name: body.name } },
+            };
+          },
+        ),
+    } as unknown as ApiClient;
+
+    const res = await updateWorkoutDetails(
+      "w-planned-1",
+      {
+        name: "Updated Upper Body",
+        notes: "New notes",
+        plannedExercises: [
+          { name: "Overhead Press", targetSets: 4, targetReps: "6-8" },
+        ],
+      },
+      client,
+    );
+
+    expect(res.ok).toBe(true);
   });
 });

@@ -35,6 +35,7 @@ import {
 } from "@/features/logging-draft-storage";
 import { useTheme } from "@/hooks/use-theme";
 import { kilogramsToDisplayWeight, weightUnitLabel } from "@/lib/weight-units";
+import { ExerciseProgressionModal } from "@/features/workouts/exercise-progression-modal";
 
 import {
   abandonWorkout,
@@ -155,6 +156,9 @@ export function LogWorkoutScreen() {
   const [busy, setBusy] = useState(false);
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [progressionExerciseName, setProgressionExerciseName] = useState<
+    string | null
+  >(null);
   const measurement = useRef<LoggingFlowMeasurement | null>(null);
   const hadFailure = useRef(false);
 
@@ -523,6 +527,7 @@ export function LogWorkoutScreen() {
               onRemoveSet={removeSet}
               onFinish={finish}
               onAbandon={confirmAbandon}
+              onViewProgression={(name) => setProgressionExerciseName(name)}
               onInteraction={() => measurement.current?.tap()}
             />
           )}
@@ -543,6 +548,14 @@ export function LogWorkoutScreen() {
           ) : null}
         </ScrollView>
       </SafeAreaView>
+
+      {progressionExerciseName !== null ? (
+        <ExerciseProgressionModal
+          visible={progressionExerciseName !== null}
+          onClose={() => setProgressionExerciseName(null)}
+          exerciseName={progressionExerciseName}
+        />
+      ) : null}
     </ThemedView>
   );
 }
@@ -656,6 +669,7 @@ function ActiveSection(props: {
   readonly onRemoveSet: (set: WorkoutSet) => void;
   readonly onFinish: () => void;
   readonly onAbandon: () => void;
+  readonly onViewProgression: (exerciseName: string) => void;
   readonly onInteraction: () => void;
 }) {
   const unit = weightUnitLabel(props.unitSystem);
@@ -825,9 +839,23 @@ function ActiveSection(props: {
 
       {props.selectedExercise !== null ? (
         <View style={styles.section}>
-          <ThemedText type="smallBold">
-            Previous · {props.selectedExercise.name}
-          </ThemedText>
+          <View style={styles.previousHeaderRow}>
+            <ThemedText type="smallBold">
+              Previous · {props.selectedExercise.name}
+            </ThemedText>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`View full progress and target load for ${props.selectedExercise.name}`}
+              onPress={() =>
+                props.onViewProgression(props.selectedExercise!.name)
+              }
+              style={styles.progressionLinkButton}
+            >
+              <ThemedText type="smallBold" style={styles.progressionLinkText}>
+                📈 Target & History →
+              </ThemedText>
+            </Pressable>
+          </View>
           {props.recent === null ? (
             <ThemedText type="small" themeColor="textSecondary">
               No previous performance yet.
@@ -1162,5 +1190,20 @@ const styles = StyleSheet.create({
     borderColor: "#A13A25",
     borderRadius: Spacing.three,
     padding: Spacing.three,
+  },
+  previousHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  progressionLinkButton: {
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  progressionLinkText: {
+    color: "#10B981",
+    fontSize: 12,
   },
 });

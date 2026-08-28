@@ -218,11 +218,14 @@ export function CoachPreferencesCard({
           <ChoiceChip
             key={value}
             label={label}
-            selected={draft.availableEquipment.includes(value)}
+            selected={draft.availableEquipment?.includes(value) ?? false}
             onPress={() =>
               setDraft({
                 ...draft,
-                availableEquipment: toggle(draft.availableEquipment, value),
+                availableEquipment: toggle(
+                  draft.availableEquipment ?? [],
+                  value,
+                ),
               })
             }
           />
@@ -234,11 +237,14 @@ export function CoachPreferencesCard({
           <ChoiceChip
             key={value}
             label={label}
-            selected={draft.dietaryPreferences.includes(value)}
+            selected={draft.dietaryPreferences?.includes(value) ?? false}
             onPress={() =>
               setDraft({
                 ...draft,
-                dietaryPreferences: toggleDiet(draft.dietaryPreferences, value),
+                dietaryPreferences: toggleDiet(
+                  draft.dietaryPreferences ?? [],
+                  value,
+                ),
               })
             }
           />
@@ -250,11 +256,14 @@ export function CoachPreferencesCard({
           <ChoiceChip
             key={value}
             label={label}
-            selected={draft.trainingLimitations.includes(value)}
+            selected={draft.trainingLimitations?.includes(value) ?? false}
             onPress={() =>
               setDraft({
                 ...draft,
-                trainingLimitations: toggle(draft.trainingLimitations, value),
+                trainingLimitations: toggle(
+                  draft.trainingLimitations ?? [],
+                  value,
+                ),
               })
             }
           />

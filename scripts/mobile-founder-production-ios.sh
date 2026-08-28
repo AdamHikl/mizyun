@@ -63,7 +63,7 @@ case "$action" in
         -workspace "$repo_root/apps/mobile/ios/Mizyun.xcworkspace"
         -scheme Mizyun
         -configuration Release
-        -destination "id=00008140-001114501A86801C"
+        -destination "generic/platform=iOS"
         -allowProvisioningUpdates
         CODE_SIGN_STYLE=Automatic
         DEVELOPMENT_TEAM=PP89XZBW4U

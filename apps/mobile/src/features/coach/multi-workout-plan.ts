@@ -97,7 +97,7 @@ const sessionNotes = (
   const focusLabel = humanFocusLabel(session.focus);
   const focusTag = focusLabel === null ? "" : ` · focus ${focusLabel}`;
   return [
-    `Coach plan · ${proposal.prescriptionVersion} · ${session.targetDay}${focusTag}`,
+    `Coach routine · ${proposal.prescriptionVersion}${focusTag}`,
     `Volume action: ${proposal.volumeAction}`,
     `Suggested exercises: ${session.exercises.length}`,
   ].join("\n");

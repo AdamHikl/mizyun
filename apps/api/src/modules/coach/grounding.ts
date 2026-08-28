@@ -68,6 +68,41 @@ export const buildCoachGrounding = async (
     from: today,
     to: today,
   })[0];
+
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 86_400_000);
+  const recentWorkouts7Days = workouts.filter(
+    (workout) =>
+      workout.startedAt >= sevenDaysAgo && workout.completedAt !== null,
+  );
+  const recentFoodEntries7Days = foodEntries.filter(
+    (entry) => entry.consumedAt >= sevenDaysAgo,
+  );
+  const sevenDaysNutrition = summariseFoodEntries(recentFoodEntries7Days, {
+    from: dayIso(sevenDaysAgo),
+    to: today,
+  }).filter((day) => day.entryCount > 0);
+
+  const totalCalories7d = sevenDaysNutrition
+    .map((day) => day.caloriesKcal)
+    .filter((v): v is number => v !== null);
+  const totalProtein7d = sevenDaysNutrition
+    .map((day) => day.proteinG)
+    .filter((v): v is number => v !== null);
+  const avgCalories7d =
+    totalCalories7d.length > 0
+      ? Math.round(
+          totalCalories7d.reduce((sum, val) => sum + val, 0) /
+            totalCalories7d.length,
+        )
+      : null;
+  const avgProtein7d =
+    totalProtein7d.length > 0
+      ? Math.round(
+          totalProtein7d.reduce((sum, val) => sum + val, 0) /
+            totalProtein7d.length,
+        )
+      : null;
+
   let totalSets = 0;
   for (const workout of workouts) {
     const sets = await dependencies.workoutSetRepository.listForWorkout(
@@ -94,7 +129,7 @@ export const buildCoachGrounding = async (
     },
     {
       kind: "nutrition",
-      label: "Confirmed nutrition logged today",
+      label: "Confirmed nutrition logged today and last 7 days",
       confirmed: true,
       freshness: now.toISOString(),
       data: {
@@ -103,11 +138,16 @@ export const buildCoachGrounding = async (
         proteinG: todayNutrition?.proteinG ?? null,
         carbohydrateG: todayNutrition?.carbohydrateG ?? null,
         fatG: todayNutrition?.fatG ?? null,
+        last7Days: {
+          loggedDaysCount: sevenDaysNutrition.length,
+          averageCaloriesKcal: avgCalories7d,
+          averageProteinG: avgProtein7d,
+        },
       },
     },
     {
       kind: "training",
-      label: "Confirmed training in the last 28 days",
+      label: "Confirmed training in the last 28 days and last 7 days",
       confirmed: true,
       freshness: now.toISOString(),
       data: {
@@ -117,6 +157,13 @@ export const buildCoachGrounding = async (
         ).length,
         totalSets,
         latestWorkoutAt: workouts[0]?.startedAt.toISOString() ?? null,
+        last7Days: {
+          completedWorkoutCount: recentWorkouts7Days.length,
+          completedWorkouts: recentWorkouts7Days.map((workout) => ({
+            name: workout.name,
+            startedAt: workout.startedAt.toISOString(),
+          })),
+        },
       },
     },
     {

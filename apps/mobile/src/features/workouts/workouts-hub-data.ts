@@ -3,6 +3,7 @@ import {
   exerciseListResponseSchema,
   workoutCreateSchema,
   workoutListResponseSchema,
+  workoutPatchSchema,
   workoutResponseSchema,
   workoutSetListResponseSchema,
   type Exercise,
@@ -18,9 +19,12 @@ import { apiClient } from "@/composition/api-client";
 
 export interface PlannedExerciseItem {
   readonly name: string;
+  readonly catalogId?: string;
+  readonly movementPattern?: string;
   readonly targetSets?: number;
   readonly targetReps?: string;
   readonly targetLoad?: string;
+  readonly restSeconds?: number;
   readonly notes?: string;
 }
 
@@ -50,6 +54,21 @@ export interface WorkoutsHubResult {
   readonly completed: ReadonlyArray<ProcessedWorkout>;
   readonly exercises: ReadonlyArray<Exercise>;
   readonly message: string | null;
+}
+
+export interface CreateWorkoutPayload {
+  readonly name: string;
+  readonly notes?: string | null;
+  readonly startedAt?: string;
+  readonly plannedExercises?: ReadonlyArray<PlannedExerciseItem>;
+}
+
+export interface UpdateWorkoutPayload {
+  readonly name?: string;
+  readonly notes?: string | null;
+  readonly startedAt?: string;
+  readonly completedAt?: string | null;
+  readonly plannedExercises?: ReadonlyArray<PlannedExerciseItem>;
 }
 
 export type WorkoutActionMutationResult =
@@ -82,6 +101,40 @@ export const extractPlannedExercisesFromWorkout = (
   const details = workout.details;
   if (!details || typeof details !== "object") return [];
 
+  const mapExercise = (e: Record<string, unknown>): PlannedExerciseItem => {
+    let targetReps: string | undefined = undefined;
+    if (typeof e.targetReps === "string" || typeof e.targetReps === "number") {
+      targetReps = String(e.targetReps);
+    } else if (typeof e.repsMin === "number" && typeof e.repsMax === "number") {
+      targetReps = `${e.repsMin}-${e.repsMax}`;
+    } else if (typeof e.repsMin === "number") {
+      targetReps = String(e.repsMin);
+    } else if (typeof e.repsMax === "number") {
+      targetReps = String(e.repsMax);
+    } else if (typeof e.durationMinutes === "number") {
+      targetReps = `${e.durationMinutes} min`;
+    }
+
+    return {
+      name: String(e.name ?? "Exercise"),
+      ...(typeof e.catalogId === "string" ? { catalogId: e.catalogId } : {}),
+      ...(typeof e.movementPattern === "string"
+        ? { movementPattern: e.movementPattern }
+        : {}),
+      ...(typeof e.targetSets === "number"
+        ? { targetSets: e.targetSets }
+        : typeof e.sets === "number"
+          ? { targetSets: e.sets }
+          : {}),
+      ...(targetReps ? { targetReps } : {}),
+      ...(typeof e.targetLoad === "string" ? { targetLoad: e.targetLoad } : {}),
+      ...(typeof e.restSeconds === "number"
+        ? { restSeconds: e.restSeconds }
+        : {}),
+      ...(typeof e.notes === "string" ? { notes: e.notes } : {}),
+    };
+  };
+
   // 1. MultiWorkoutPlan (coachPlan)
   const coachPlan = (details as Record<string, unknown>).coachPlan;
   if (
@@ -91,15 +144,7 @@ export const extractPlannedExercisesFromWorkout = (
   ) {
     return (
       coachPlan as { exercises: Array<Record<string, unknown>> }
-    ).exercises.map((e) => ({
-      name: String(e.name ?? "Exercise"),
-      ...(typeof e.targetSets === "number" ? { targetSets: e.targetSets } : {}),
-      ...(typeof e.targetReps === "string" || typeof e.targetReps === "number"
-        ? { targetReps: String(e.targetReps) }
-        : {}),
-      ...(typeof e.targetLoad === "string" ? { targetLoad: e.targetLoad } : {}),
-      ...(typeof e.notes === "string" ? { notes: e.notes } : {}),
-    }));
+    ).exercises.map(mapExercise);
   }
 
   // 2. Single workout start (aiDraft)
@@ -113,19 +158,7 @@ export const extractPlannedExercisesFromWorkout = (
     ) {
       return (
         session as { exercises: Array<Record<string, unknown>> }
-      ).exercises.map((e) => ({
-        name: String(e.name ?? "Exercise"),
-        ...(typeof e.targetSets === "number"
-          ? { targetSets: e.targetSets }
-          : {}),
-        ...(typeof e.targetReps === "string" || typeof e.targetReps === "number"
-          ? { targetReps: String(e.targetReps) }
-          : {}),
-        ...(typeof e.targetLoad === "string"
-          ? { targetLoad: e.targetLoad }
-          : {}),
-        ...(typeof e.notes === "string" ? { notes: e.notes } : {}),
-      }));
+      ).exercises.map(mapExercise);
     }
   }
 
@@ -140,19 +173,7 @@ export const extractPlannedExercisesFromWorkout = (
     ) {
       return (
         session as { exercises: Array<Record<string, unknown>> }
-      ).exercises.map((e) => ({
-        name: String(e.name ?? "Exercise"),
-        ...(typeof e.targetSets === "number"
-          ? { targetSets: e.targetSets }
-          : {}),
-        ...(typeof e.targetReps === "string" || typeof e.targetReps === "number"
-          ? { targetReps: String(e.targetReps) }
-          : {}),
-        ...(typeof e.targetLoad === "string"
-          ? { targetLoad: e.targetLoad }
-          : {}),
-        ...(typeof e.notes === "string" ? { notes: e.notes } : {}),
-      }));
+      ).exercises.map(mapExercise);
     }
   }
 
@@ -394,15 +415,71 @@ export const deleteWorkout = async (
     : { ok: false, message: humanize(result.error, "Delete workout") };
 };
 
-export const createBlankWorkout = async (
-  name: string = "Custom Workout",
+export const fetchWorkout = async (
+  workoutId: string,
+  client: ApiClient = apiClient,
+): Promise<
+  | { readonly ok: true; readonly workout: Workout }
+  | { readonly ok: false; readonly message: string }
+> => {
+  const result = await client.request<WorkoutResponse>({
+    method: "GET",
+    path: `/v1/workouts/${encodeURIComponent(workoutId)}`,
+    schema: workoutResponseSchema,
+  });
+
+  return result.ok
+    ? { ok: true, workout: result.value.workout }
+    : { ok: false, message: humanize(result.error, "Fetch workout") };
+};
+
+export const createCustomWorkout = async (
+  payload: CreateWorkoutPayload,
   client: ApiClient = apiClient,
 ): Promise<WorkoutActionMutationResult> => {
-  const parsed = workoutCreateSchema.safeParse({
-    name: name.trim() || "Custom Workout",
-  });
+  const name = payload.name.trim() || "Custom Workout";
+  const exercises = payload.plannedExercises ?? [];
+
+  const body = {
+    name,
+    ...(payload.notes && payload.notes.trim().length > 0
+      ? { notes: payload.notes.trim() }
+      : {}),
+    ...(payload.startedAt ? { startedAt: payload.startedAt } : {}),
+    details: {
+      coachPlan: {
+        exercises: exercises.map((e) => ({
+          catalogId: e.catalogId ?? e.name.toLowerCase().replace(/\s+/g, "_"),
+          name: e.name,
+          movementPattern: e.movementPattern ?? "general",
+          sets: e.targetSets ?? 3,
+          targetSets: e.targetSets ?? 3,
+          targetReps: e.targetReps ?? "8-12",
+          repsMin:
+            typeof e.targetReps === "string" && e.targetReps.includes("-")
+              ? Number.parseInt(e.targetReps.split("-")[0] ?? "8", 10)
+              : null,
+          repsMax:
+            typeof e.targetReps === "string" && e.targetReps.includes("-")
+              ? Number.parseInt(e.targetReps.split("-")[1] ?? "12", 10)
+              : typeof e.targetReps === "string" &&
+                  !Number.isNaN(Number.parseInt(e.targetReps, 10))
+                ? Number.parseInt(e.targetReps, 10)
+                : null,
+          targetLoad: e.targetLoad,
+          restSeconds: e.restSeconds ?? 90,
+          notes: e.notes,
+        })),
+      },
+    },
+  };
+
+  const parsed = workoutCreateSchema.safeParse(body);
   if (!parsed.success) {
-    return { ok: false, message: "Invalid workout name." };
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Invalid workout details.",
+    };
   }
 
   const result = await client.request<WorkoutResponse>({
@@ -416,3 +493,80 @@ export const createBlankWorkout = async (
     ? { ok: true, workout: result.value.workout }
     : { ok: false, message: humanize(result.error, "Create workout") };
 };
+
+export const updateWorkoutDetails = async (
+  workoutId: string,
+  payload: UpdateWorkoutPayload,
+  client: ApiClient = apiClient,
+): Promise<WorkoutActionMutationResult> => {
+  const exercises = payload.plannedExercises;
+
+  const body: Record<string, unknown> = {
+    ...(payload.name !== undefined ? { name: payload.name.trim() } : {}),
+    ...(payload.notes !== undefined
+      ? { notes: payload.notes ? payload.notes.trim() : null }
+      : {}),
+    ...(payload.startedAt !== undefined
+      ? { startedAt: payload.startedAt }
+      : {}),
+    ...(payload.completedAt !== undefined
+      ? { completedAt: payload.completedAt }
+      : {}),
+    ...(exercises !== undefined
+      ? {
+          details: {
+            coachPlan: {
+              exercises: exercises.map((e) => ({
+                catalogId:
+                  e.catalogId ?? e.name.toLowerCase().replace(/\s+/g, "_"),
+                name: e.name,
+                movementPattern: e.movementPattern ?? "general",
+                sets: e.targetSets ?? 3,
+                targetSets: e.targetSets ?? 3,
+                targetReps: e.targetReps ?? "8-12",
+                repsMin:
+                  typeof e.targetReps === "string" && e.targetReps.includes("-")
+                    ? Number.parseInt(e.targetReps.split("-")[0] ?? "8", 10)
+                    : null,
+                repsMax:
+                  typeof e.targetReps === "string" && e.targetReps.includes("-")
+                    ? Number.parseInt(e.targetReps.split("-")[1] ?? "12", 10)
+                    : typeof e.targetReps === "string" &&
+                        !Number.isNaN(Number.parseInt(e.targetReps, 10))
+                      ? Number.parseInt(e.targetReps, 10)
+                      : null,
+                targetLoad: e.targetLoad,
+                restSeconds: e.restSeconds ?? 90,
+                notes: e.notes,
+              })),
+            },
+          },
+        }
+      : {}),
+  };
+
+  const parsed = workoutPatchSchema.safeParse(body);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Invalid workout changes.",
+    };
+  }
+
+  const result = await client.request<WorkoutResponse>({
+    method: "PUT",
+    path: `/v1/workouts/${encodeURIComponent(workoutId)}`,
+    body: parsed.data,
+    schema: workoutResponseSchema,
+  });
+
+  return result.ok
+    ? { ok: true, workout: result.value.workout }
+    : { ok: false, message: humanize(result.error, "Update workout") };
+};
+
+export const createBlankWorkout = async (
+  name: string = "Custom Workout",
+  client: ApiClient = apiClient,
+): Promise<WorkoutActionMutationResult> =>
+  createCustomWorkout({ name }, client);

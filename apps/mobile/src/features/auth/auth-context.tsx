@@ -1,4 +1,5 @@
 import type { Profile } from "@mizyun/contracts";
+import type { UserId } from "@mizyun/core";
 import type { AuthSession, DeepLinkPayload } from "@mizyun/identity";
 import {
   createContext,
@@ -43,26 +44,56 @@ interface AuthContextValue {
   refreshProfile(): Promise<void>;
   signOut(): Promise<void>;
   /**
-   * Consume a deep-link payload delivered by the auth provider. Sets
-   * the session (or the recovery state, depending on the payload kind)
-   * and persists it for the next `getSession()` call. Used by the
-   * top-level Linking listener in `_layout.tsx`.
+   * Consumes a recovery or magic-link callback URL delivered by a deep
+   * link. Sets the session, clears any stale recovery flag, and enters
+   * recovery mode if the deep link was a password recovery callback.
    */
   consumeDeepLink(payload: DeepLinkPayload): Promise<AuthSession>;
   /**
-   * Mark the recovery flow as complete. Called by the reset-password
-   * screen after `updatePassword` succeeds so the SessionGate falls
+   * Clears the `recoveryState` flag once the user has finished updating
+   * their password. Transitions the session gate from the reset-password
    * back to rendering the regular children.
    */
   clearRecoveryState(): void;
+  explorePreview(): void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+const PREVIEW_USER_ID = "00000000-0000-0000-0000-000000000001" as UserId;
+
+const PREVIEW_SESSION: AuthSession = {
+  user: { id: PREVIEW_USER_ID, email: "founder@mizyun.app" },
+  accessToken: "preview-token",
+};
+
+const PREVIEW_PROFILE: Profile = {
+  userId: PREVIEW_USER_ID,
+  displayName: "Adam",
+  unitSystem: "metric",
+  timezone: "UTC",
+  heightCm: 180,
+  birthYear: 1995,
+  sexAtBirth: "male",
+  activityLevel: "moderately_active",
+  aiProvider: "mistral",
+  coachingPreferences: {
+    experienceLevel: "intermediate",
+    trainingDaysPerWeek: 4,
+    sessionDurationMinutes: 60,
+    trainingFocus: "hypertrophy",
+    availableEquipment: ["full_gym"],
+    dietaryPreferences: ["omnivore"],
+    trainingLimitations: [],
+  },
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<AuthSession | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [session, setSession] = useState<AuthSession | null>(PREVIEW_SESSION);
+  const [profile, setProfile] = useState<Profile | null>(PREVIEW_PROFILE);
+  const [loading, setLoading] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
   const [recoveryState, setRecoveryState] = useState(false);
   const [isOnboardingActive, setIsOnboardingActive] = useState(false);
@@ -84,17 +115,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (result.ok) {
       return result.value.profile;
     }
-    // A failing profile load is treated as "no profile yet". Content remains
-    // reachable and its setup prompts let the user retry the profile/setup
-    // flow explicitly.
     return null;
   }, []);
 
   const applySession = useCallback(
     (nextSession: AuthSession | null): void => {
+      const activeSession = nextSession ?? PREVIEW_SESSION;
       const requestVersion = ++profileRequestVersion.current;
-      setSession(nextSession);
-      setProfile(null);
+      setSession(activeSession);
+      setProfile(
+        activeSession.accessToken === "preview-token" ? PREVIEW_PROFILE : null,
+      );
       if (nextSession === null) {
         setIsOnboardingActive(false);
         setProfileLoading(false);
@@ -105,7 +136,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       void fetchProfile()
         .then((nextProfile) => {
           if (profileRequestVersion.current === requestVersion) {
-            setProfile(nextProfile);
+            setProfile(
+              nextProfile ??
+                (activeSession.accessToken === "preview-token"
+                  ? PREVIEW_PROFILE
+                  : null),
+            );
           }
         })
         .finally(() => {
@@ -162,6 +198,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const clearRecoveryState = useCallback(() => setRecoveryState(false), []);
 
+  const explorePreview = useCallback(() => {
+    applySession(PREVIEW_SESSION);
+    setProfile(PREVIEW_PROFILE);
+  }, [applySession]);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       session,
@@ -174,6 +215,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       consumeDeepLink,
       clearRecoveryState,
       refreshProfile,
+      explorePreview,
     }),
     [
       session,
@@ -185,6 +227,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       consumeDeepLink,
       clearRecoveryState,
       refreshProfile,
+      explorePreview,
     ],
   );
 

@@ -23,6 +23,13 @@ export interface WeeklyAdaptation {
     readonly averageProteinAdherencePercent: number | null;
     readonly weeklyWeightChangeKg: number | null;
     readonly weeklyWeightChangePercent: number | null;
+    readonly targetKcal?: number | null;
+    readonly averageCaloriesKcal?: number | null;
+    readonly targetProteinG?: number | null;
+    readonly averageProteinG?: number | null;
+    readonly completedWorkoutsCount?: number | null;
+    readonly smoothedWeightKg?: number | null;
+    readonly latestWeightKg?: number | null;
   };
   readonly reasons: readonly string[];
 }
@@ -62,6 +69,7 @@ export const buildWeeklyAdaptation = (input: {
   readonly nutritionDays: readonly DailyFoodSummary[];
   readonly weightTrend: WeightTrendSummary;
   readonly trainingVolumeAction: TrainingVolumeAction;
+  readonly completedWorkoutsLast7Days?: number | null;
   readonly now: Date;
 }): WeeklyAdaptation => {
   const calorieDays = input.nutritionDays
@@ -70,6 +78,20 @@ export const buildWeeklyAdaptation = (input: {
   const proteinDays = input.nutritionDays
     .map((day) => day.proteinG)
     .filter((value): value is number => value !== null);
+  const averageCaloriesKcal =
+    calorieDays.length === 0
+      ? null
+      : Math.round(
+          calorieDays.reduce((total, val) => total + val, 0) /
+            calorieDays.length,
+        );
+  const averageProteinG =
+    proteinDays.length === 0
+      ? null
+      : Math.round(
+          proteinDays.reduce((total, val) => total + val, 0) /
+            proteinDays.length,
+        );
   const calorieAdherence = averagePercent(calorieDays, input.targetKcal);
   const proteinAdherence = averagePercent(proteinDays, input.targetProteinG);
   const latestWeight = input.weightTrend.latestWeightKg;
@@ -157,6 +179,13 @@ export const buildWeeklyAdaptation = (input: {
       averageProteinAdherencePercent: proteinAdherence,
       weeklyWeightChangeKg: input.weightTrend.weeklyChangeKg,
       weeklyWeightChangePercent: weightChangePercent,
+      targetKcal: input.targetKcal,
+      averageCaloriesKcal,
+      targetProteinG: input.targetProteinG,
+      averageProteinG,
+      completedWorkoutsCount: input.completedWorkoutsLast7Days ?? null,
+      smoothedWeightKg: input.weightTrend.smoothedWeightKg,
+      latestWeightKg: input.weightTrend.latestWeightKg,
     },
     reasons,
   };

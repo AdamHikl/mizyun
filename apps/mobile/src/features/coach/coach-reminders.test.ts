@@ -16,6 +16,7 @@ vi.mock("expo-secure-store", () => ({
 vi.mock("react-native", () => ({ Platform: { OS: "ios" } }));
 import {
   applyCoachReminders,
+  expoReminderScheduler,
   loadCoachReminders,
   type ReminderScheduler,
 } from "./coach-reminders";
@@ -144,5 +145,53 @@ describe("Coach reminders", () => {
       ),
     ).toEqual({ ok: false, reason: "unavailable" });
     expect(cancelled).toEqual(["new-notification"]);
+  });
+
+  it("configures scheduled notifications with autoSend enabled and exact minute/weekday", async () => {
+    const notifications = await import("expo-notifications");
+    await expoReminderScheduler.schedule({
+      kind: "weekly",
+      hour: 19,
+      minute: 45,
+      weekday: 7,
+    });
+    expect(notifications.scheduleNotificationAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.objectContaining({
+          data: expect.objectContaining({
+            url: "/coach",
+            prompt: "Review my week",
+            autoSend: "true",
+          }),
+        }),
+        trigger: expect.objectContaining({
+          type: "weekly",
+          hour: 19,
+          minute: 45,
+          weekday: 7,
+        }),
+      }),
+    );
+    await expoReminderScheduler.schedule({
+      kind: "daily",
+      hour: 8,
+      minute: 15,
+    });
+    expect(notifications.scheduleNotificationAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.objectContaining({
+          data: expect.objectContaining({
+            url: "/coach",
+            prompt: "What should I do today?",
+            autoSend: "true",
+          }),
+        }),
+        trigger: expect.objectContaining({
+          type: "daily",
+          hour: 8,
+          minute: 15,
+        }),
+      }),
+    );
   });
 });

@@ -148,12 +148,23 @@ describe("Coach action proposal contracts", () => {
           averageProteinAdherencePercent: 95,
           weeklyWeightChangeKg: -0.05,
           weeklyWeightChangePercent: -0.06,
+          targetKcal: 2200,
+          averageCaloriesKcal: 2180,
+          targetProteinG: 160,
+          averageProteinG: 152,
+          completedWorkoutsCount: 4,
+          smoothedWeightKg: 78.5,
+          latestWeightKg: 78.3,
         },
         reasons: ["Confirmed trend is below the conservative band."],
       },
       createdAt: "2026-07-26T10:00:00.000Z",
     });
     expect(parsed.actionProposal?.kind).toBe("weekly_adaptation");
+    if (parsed.actionProposal?.kind === "weekly_adaptation") {
+      expect(parsed.actionProposal.observations.targetKcal).toBe(2200);
+      expect(parsed.actionProposal.observations.completedWorkoutsCount).toBe(4);
+    }
   });
 
   it("accepts a structured workout edit proposal", () => {
@@ -399,6 +410,35 @@ describe("cleanAssistantProposalText", () => {
       }),
     ).toBe(
       "I updated the workout with your requested changes. Review the edits below.",
+    );
+
+    const weeklyReviewText =
+      "### Weekly Review\n- Calorie average: 2100 kcal\n- Training: 3 workouts completed\n- Meal recommendation: Add Greek yogurt to hit protein.";
+    const weeklyProposal: import("./coach").CoachWeeklyAdaptationProposal = {
+      id: "00000000-0000-4000-8000-000000000009",
+      kind: "weekly_adaptation",
+      version: "v1",
+      goalId: null,
+      readiness: "ready",
+      goalKind: "cut",
+      currentPace: "gradual",
+      proposedPace: "steady",
+      calorieAction: "decrease",
+      trainingVolumeAction: "hold",
+      observations: {
+        loggedNutritionDays: 6,
+        averageCalorieAdherencePercent: 95,
+        averageProteinAdherencePercent: 90,
+        weeklyWeightChangeKg: -0.4,
+        weeklyWeightChangePercent: -0.5,
+      },
+      reasons: ["Rate is on track."],
+    };
+    expect(cleanAssistantProposalText(weeklyReviewText, weeklyProposal)).toBe(
+      weeklyReviewText,
+    );
+    expect(cleanAssistantProposalText("", weeklyProposal)).toBe(
+      "Here is your weekly progress review and adaptation proposal.",
     );
   });
 });

@@ -87,7 +87,7 @@
 - **COACH-08:** An explicit workout-planning request can produce a persistent, editable action proposal derived from the deterministic training prescription; the user can change or remove proposed content, and no workout becomes authoritative until the user explicitly starts it.
 - **COACH-09:** An explicit daily-plan request produces a persistent, versioned summary of confirmed calorie/protein progress, training state, missing inputs, and one deterministic next action; missing meal logs are not treated as zero intake, and generating the plan never mutates authoritative records.
 - **COACH-10:** An explicit weekly-review request produces a persistent, versioned adaptation proposal from complete nutrition days, deterministic weight trend, active goal, and recent training load. Insufficient or poorly adherent data forces a hold; an applicable goal-pace change requires explicit authenticated acceptance and stale proposals cannot overwrite a changed goal.
-- **COACH-11:** Proactive Coach reminders are off by default, device-local, permission-aware, individually configurable for daily and weekly check-ins, and fully removable. Opening one only prefills the corresponding Coach request; no provider call, health analysis, logging, or authoritative mutation happens in the background.
+- **COACH-11:** Proactive Coach reminders are off by default, device-local, permission-aware, individually configurable for daily and weekly check-ins, and fully removable. Opening one automatically submits the corresponding Coach request upon entering the chat; no provider call, health analysis, logging, or authoritative mutation happens in the background.
 
 ### Durable memory
 

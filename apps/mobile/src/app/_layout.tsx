@@ -56,12 +56,19 @@ function AnalyticsSessionBridge() {
  * `Linking.addEventListener("url", ...)` (warm start).
  */
 function DeepLinkBridge() {
-  const { consumeDeepLink } = useAuth();
+  const { consumeDeepLink, explorePreview } = useAuth();
 
   useEffect(() => {
     let active = true;
     const handle = (rawUrl: string | null) => {
       if (!rawUrl) return;
+      if (
+        rawUrl.includes("mizyun://preview") ||
+        rawUrl.includes("mizyun://dev")
+      ) {
+        explorePreview();
+        return;
+      }
       const payload = parseDeepLinkFragment(rawUrl);
       if (!payload) return;
       void consumeDeepLink(payload).catch(() => {
@@ -80,7 +87,7 @@ function DeepLinkBridge() {
       active = false;
       subscription.remove();
     };
-  }, [consumeDeepLink]);
+  }, [consumeDeepLink, explorePreview]);
 
   return null;
 }
@@ -94,6 +101,9 @@ function CoachNotificationBridge() {
         pathname: "/coach",
         params: {
           ...(typeof data.prompt === "string" ? { prompt: data.prompt } : {}),
+          ...(data.autoSend === "true" || data.autoSend === true
+            ? { autoSend: "true" }
+            : {}),
         },
       });
     };

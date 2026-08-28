@@ -16,10 +16,12 @@ import { authClient } from "@/composition/auth-client";
 import { mobileConfigResult } from "@/composition/mobile-config";
 
 import { authErrorMessage } from "./auth-error-message";
+import { useAuth } from "./auth-context";
 
 WebBrowser.maybeCompleteAuthSession();
 
 export function AuthScreen() {
+  const { explorePreview } = useAuth();
   const passwordInput = useRef<TextInput>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -212,6 +214,15 @@ export function AuthScreen() {
               : "Back to sign in"}
         </Text>
       </Pressable>
+
+      <Pressable
+        accessibilityLabel="Explore app in preview mode"
+        accessibilityRole="button"
+        onPress={explorePreview}
+        style={styles.previewButton}
+      >
+        <Text style={styles.previewText}>✨ Explore App Preview →</Text>
+      </Pressable>
     </ScrollView>
   );
 }
@@ -292,7 +303,23 @@ const styles = StyleSheet.create({
   switch: {
     textAlign: "center",
     color: "#18633d",
-    padding: 10,
+    padding: 8,
     fontWeight: "600",
+  },
+  previewButton: {
+    marginTop: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: "rgba(24, 99, 61, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(24, 99, 61, 0.25)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  previewText: {
+    color: "#18633d",
+    fontWeight: "700",
+    fontSize: 14,
   },
 });

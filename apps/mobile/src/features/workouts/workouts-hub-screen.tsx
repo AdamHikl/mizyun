@@ -2,6 +2,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { router, Stack, useFocusEffect, type Href } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCallback, useState } from "react";
+import type { Workout } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -17,6 +18,8 @@ import {
   type WorkoutsHubResult,
 } from "./workouts-hub-data";
 import { ExerciseLibraryModal } from "./exercise-library-modal";
+import { WorkoutEditorModal } from "./workout-editor-modal";
+import { ExerciseProgressionModal } from "./exercise-progression-modal";
 
 type WorkoutsTab = "all" | "planned" | "history";
 
@@ -35,6 +38,13 @@ export function WorkoutsHubScreen() {
   const [activeTab, setActiveTab] = useState<WorkoutsTab>("all");
   const [busyWorkoutId, setBusyWorkoutId] = useState<string | null>(null);
   const [libraryVisible, setLibraryVisible] = useState(false);
+  const [editorVisible, setEditorVisible] = useState(false);
+  const [editingWorkout, setEditingWorkout] = useState<ProcessedWorkout | null>(
+    null,
+  );
+  const [progressionExerciseName, setProgressionExerciseName] = useState<
+    string | null
+  >(null);
 
   const loadData = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -51,6 +61,29 @@ export function WorkoutsHubScreen() {
       });
       void loadData();
     }, [loadData]),
+  );
+
+  const handleCreateRoutine = useCallback(() => {
+    setEditingWorkout(null);
+    setEditorVisible(true);
+  }, []);
+
+  const handleEditWorkout = useCallback((workout: ProcessedWorkout) => {
+    setEditingWorkout(workout);
+    setEditorVisible(true);
+  }, []);
+
+  const handleSavedWorkout = useCallback(
+    (workout: Workout, autoStart: boolean) => {
+      void loadData();
+      if (autoStart) {
+        router.push({
+          pathname: "/log-workout",
+          params: { workoutId: workout.id },
+        });
+      }
+    },
+    [loadData],
   );
 
   const handleStartBlank = useCallback(async () => {
@@ -101,98 +134,82 @@ export function WorkoutsHubScreen() {
     [loadData],
   );
 
-  const totalSetsAllTime = data.completed.reduce(
-    (sum, w) => sum + w.completedSetCount,
-    0,
-  );
-
   const showPlanned = activeTab === "all" || activeTab === "planned";
   const showHistory = activeTab === "all" || activeTab === "history";
 
   return (
     <ThemedView style={styles.page}>
       <Stack.Screen options={{ title: "Workouts" }} />
-      <SafeAreaView style={styles.safeArea} edges={["left", "right"]}>
+      <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
         <ScrollView
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          {/* Header */}
+          {/* Top Header */}
           <View style={styles.header}>
-            <ThemedText type="subtitle">Your Workouts</ThemedText>
+            <View style={styles.headerTopRow}>
+              <ThemedText type="smallBold" themeColor="textSecondary">
+                MIZYUN
+              </ThemedText>
+            </View>
+            <ThemedText type="subtitle">Workouts</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              Manage your routines, planned sessions, and completed history.
+              Manage your routines, on-demand sessions, and history.
             </ThemedText>
           </View>
 
-          {/* Quick Action Buttons */}
-          <View style={styles.actionRow}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Start blank workout"
-              onPress={handleStartBlank}
-              style={styles.primaryActionButton}
-            >
-              <ThemedText type="smallBold" style={styles.primaryActionText}>
-                ＋ New Session
-              </ThemedText>
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Plan with AI Coach"
-              onPress={() =>
-                router.push({
-                  pathname: "/coach",
-                  params: { prompt: "Can you design a workout plan for me?" },
-                })
-              }
-              style={styles.secondaryActionButton}
-            >
-              <ThemedText type="smallBold" style={styles.secondaryActionText}>
-                💬 Coach Plan
-              </ThemedText>
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Browse exercise library"
-              onPress={() => setLibraryVisible(true)}
-              style={styles.secondaryActionButton}
-            >
-              <ThemedText type="smallBold" style={styles.secondaryActionText}>
-                📚 880+ Catalog
-              </ThemedText>
-            </Pressable>
-          </View>
-
-          {/* Metrics Summary */}
-          <ThemedView type="backgroundElement" style={styles.metricsCard}>
-            <View style={styles.metricItem}>
-              <ThemedText type="subtitle">
-                {data.activeAndPlanned.length}
-              </ThemedText>
+          {/* Primary Action Card: Create Workout Routine */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Create custom workout routine"
+            onPress={handleCreateRoutine}
+            style={({ pressed }) => [
+              styles.createRoutineHeroCard,
+              pressed && styles.pressed,
+            ]}
+          >
+            <View style={styles.createRoutineIconContainer}>
+              <ThemedText style={styles.createRoutineIcon}>🏋️</ThemedText>
+            </View>
+            <View style={styles.createRoutineBody}>
+              <ThemedText type="smallBold">Create Routine</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                Planned / Active
+                Design custom routine with 880+ exercises & target sets
               </ThemedText>
             </View>
-            <View style={styles.metricDivider} />
-            <View style={styles.metricItem}>
-              <ThemedText type="subtitle">{data.completed.length}</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                Completed
+            <View style={styles.createRoutineBadge}>
+              <ThemedText
+                type="smallBold"
+                style={styles.createRoutineBadgeText}
+              >
+                ＋ Create
               </ThemedText>
             </View>
-            <View style={styles.metricDivider} />
-            <View style={styles.metricItem}>
-              <ThemedText type="subtitle">{totalSetsAllTime}</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                Total Sets Logged
-              </ThemedText>
-            </View>
-          </ThemedView>
+          </Pressable>
 
-          {/* Tab Filter Chips */}
+          {/* Exercise Library Shortcut */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Browse exercise library"
+            onPress={() => setLibraryVisible(true)}
+            style={({ pressed }) => [
+              styles.libraryCard,
+              pressed && styles.pressed,
+            ]}
+          >
+            <View style={styles.libraryIconContainer}>
+              <ThemedText style={styles.libraryIcon}>📚</ThemedText>
+            </View>
+            <View style={styles.libraryBody}>
+              <ThemedText type="smallBold">Exercise Library</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                Search 880+ exercises with instructions & muscle targets
+              </ThemedText>
+            </View>
+            <ThemedText style={styles.libraryArrow}>→</ThemedText>
+          </Pressable>
+
+          {/* 3. Tab Filter Chips */}
           <View style={styles.tabsRow}>
             <Pressable
               accessibilityRole="button"
@@ -216,7 +233,7 @@ export function WorkoutsHubScreen() {
 
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Show planned and active workouts"
+              accessibilityLabel="Show available routines"
               onPress={() => setActiveTab("planned")}
               style={[
                 styles.tabChip,
@@ -230,7 +247,7 @@ export function WorkoutsHubScreen() {
                   activeTab === "planned" && styles.tabChipTextActive,
                 ]}
               >
-                Active & Planned ({data.activeAndPlanned.length})
+                Routines ({data.activeAndPlanned.length})
               </ThemedText>
             </Pressable>
 
@@ -261,13 +278,16 @@ export function WorkoutsHubScreen() {
             </ThemedText>
           ) : null}
 
-          {/* Section 1: Active & Planned Sessions */}
+          {/* Section 1: Available Routines & Sessions */}
           {showPlanned ? (
             <View style={styles.section}>
               <View style={styles.sectionHeaderRow}>
-                <ThemedText type="smallBold">ACTIVE & PLANNED</ThemedText>
+                <ThemedText type="smallBold" style={styles.sectionTitle}>
+                  AVAILABLE ROUTINES
+                </ThemedText>
                 <ThemedText type="small" themeColor="textSecondary">
-                  {data.activeAndPlanned.length} sessions
+                  {data.activeAndPlanned.length}{" "}
+                  {data.activeAndPlanned.length === 1 ? "routine" : "routines"}
                 </ThemedText>
               </View>
 
@@ -277,37 +297,37 @@ export function WorkoutsHubScreen() {
                   style={styles.emptyStateCard}
                 >
                   <ThemedText type="smallBold">
-                    No active or planned workouts
+                    No available routines
                   </ThemedText>
                   <ThemedText
                     type="small"
                     themeColor="textSecondary"
                     style={styles.emptyStateDesc}
                   >
-                    Ask the AI Coach to build a personalized multi-day routine,
-                    or start a blank custom workout right away.
+                    Create a custom workout routine or ask the AI Coach to build
+                    a personalized multi-day plan.
                   </ThemedText>
                   <View style={styles.emptyActionsRow}>
                     <Pressable
                       accessibilityRole="button"
-                      accessibilityLabel="Ask Coach for routine"
-                      onPress={() => router.push("/coach" as Href)}
+                      accessibilityLabel="Create custom routine"
+                      onPress={handleCreateRoutine}
                       style={styles.emptyActionButton}
                     >
                       <ThemedText
                         type="smallBold"
                         style={styles.emptyActionText}
                       >
-                        Ask Coach
+                        ＋ Create Routine
                       </ThemedText>
                     </Pressable>
                     <Pressable
                       accessibilityRole="button"
-                      accessibilityLabel="Start custom session"
-                      onPress={handleStartBlank}
+                      accessibilityLabel="Ask Coach for routine"
+                      onPress={() => router.push("/coach" as Href)}
                       style={styles.emptyActionButtonSecondary}
                     >
-                      <ThemedText type="smallBold">Start Custom</ThemedText>
+                      <ThemedText type="smallBold">Ask Coach →</ThemedText>
                     </Pressable>
                   </View>
                 </ThemedView>
@@ -318,7 +338,9 @@ export function WorkoutsHubScreen() {
                     item={item}
                     isBusy={busyWorkoutId === item.workout.id}
                     onOpen={() => handleOpenWorkout(item.workout.id)}
+                    onEdit={() => handleEditWorkout(item)}
                     onDelete={() => handleConfirmDelete(item)}
+                    onPressExercise={(name) => setProgressionExerciseName(name)}
                   />
                 ))
               )}
@@ -329,9 +351,14 @@ export function WorkoutsHubScreen() {
           {showHistory ? (
             <View style={styles.section}>
               <View style={styles.sectionHeaderRow}>
-                <ThemedText type="smallBold">COMPLETED HISTORY</ThemedText>
+                <ThemedText type="smallBold" style={styles.sectionTitle}>
+                  COMPLETED HISTORY
+                </ThemedText>
                 <ThemedText type="small" themeColor="textSecondary">
-                  {data.completed.length} logged workouts
+                  {data.completed.length}{" "}
+                  {data.completed.length === 1
+                    ? "logged workout"
+                    : "logged workouts"}
                 </ThemedText>
               </View>
 
@@ -360,7 +387,9 @@ export function WorkoutsHubScreen() {
                     unitSystem={unitSystem}
                     isBusy={busyWorkoutId === item.workout.id}
                     onOpen={() => handleOpenWorkout(item.workout.id)}
+                    onEdit={() => handleEditWorkout(item)}
                     onDelete={() => handleConfirmDelete(item)}
+                    onPressExercise={(name) => setProgressionExerciseName(name)}
                   />
                 ))
               )}
@@ -373,6 +402,21 @@ export function WorkoutsHubScreen() {
         visible={libraryVisible}
         onClose={() => setLibraryVisible(false)}
       />
+
+      <WorkoutEditorModal
+        visible={editorVisible}
+        onClose={() => setEditorVisible(false)}
+        workoutToEdit={editingWorkout}
+        onSaved={handleSavedWorkout}
+      />
+
+      {progressionExerciseName !== null ? (
+        <ExerciseProgressionModal
+          visible={progressionExerciseName !== null}
+          onClose={() => setProgressionExerciseName(null)}
+          exerciseName={progressionExerciseName}
+        />
+      ) : null}
     </ThemedView>
   );
 }
@@ -381,20 +425,26 @@ function PlannedWorkoutCard(props: {
   readonly item: ProcessedWorkout;
   readonly isBusy: boolean;
   readonly onOpen: () => void;
+  readonly onEdit: () => void;
   readonly onDelete: () => void;
+  readonly onPressExercise?: (exerciseName: string) => void;
 }) {
-  const { item, onOpen, onDelete } = props;
+  const { item, onOpen, onEdit, onDelete, onPressExercise } = props;
   const isStarted = item.status === "in_progress";
 
   return (
-    <ThemedView type="backgroundElement" style={styles.workoutCard}>
+    <ThemedView type="backgroundElement" style={styles.routineCard}>
       <View style={styles.cardTopRow}>
         <View style={styles.cardTitleBlock}>
           <ThemedText type="smallBold" style={styles.workoutName}>
             {item.workout.name}
           </ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
-            {item.displayDate}
+            {item.plannedExercises.length > 0
+              ? `${item.plannedExercises.length} exercises · Available routine`
+              : isStarted
+                ? `${item.completedSetCount} sets logged · In progress`
+                : "Available routine"}
           </ThemedText>
         </View>
 
@@ -415,7 +465,7 @@ function PlannedWorkoutCard(props: {
           >
             {isStarted
               ? `In Progress (${item.completedSetCount} sets)`
-              : "Planned"}
+              : "Ready"}
           </ThemedText>
         </View>
       </View>
@@ -424,16 +474,22 @@ function PlannedWorkoutCard(props: {
       {item.plannedExercises.length > 0 ? (
         <View style={styles.plannedExercisesList}>
           <ThemedText type="smallBold" themeColor="textSecondary">
-            Planned Routine ({item.plannedExercises.length} exercises):
+            Suggested exercises (tap to track progress):
           </ThemedText>
           <View style={styles.exerciseChipsGrid}>
             {item.plannedExercises.map((ex, index) => (
-              <View key={`${ex.name}-${index}`} style={styles.exerciseChip}>
+              <Pressable
+                key={`${ex.name}-${index}`}
+                accessibilityRole="button"
+                accessibilityLabel={`View progress for ${ex.name}`}
+                onPress={() => onPressExercise?.(ex.name)}
+                style={styles.exerciseChip}
+              >
                 <ThemedText type="small" style={styles.exerciseChipText}>
                   {ex.name}
-                  {ex.targetSets ? ` (${ex.targetSets} sets)` : ""}
+                  {ex.targetSets ? ` (${ex.targetSets} sets)` : ""} 📈
                 </ThemedText>
-              </View>
+              </Pressable>
             ))}
           </View>
         </View>
@@ -441,16 +497,27 @@ function PlannedWorkoutCard(props: {
 
       {/* Action Buttons */}
       <View style={styles.cardActionsRow}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Open ${item.workout.name}`}
-          onPress={onOpen}
-          style={styles.startSessionButton}
-        >
-          <ThemedText type="smallBold" style={styles.startSessionText}>
-            {isStarted ? "Continue Session →" : "Start Session →"}
-          </ThemedText>
-        </Pressable>
+        <View style={styles.cardActionsLeft}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Open ${item.workout.name}`}
+            onPress={onOpen}
+            style={styles.startSessionButton}
+          >
+            <ThemedText type="smallBold" style={styles.startSessionText}>
+              {isStarted ? "Continue Session →" : "Start Session →"}
+            </ThemedText>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Edit ${item.workout.name}`}
+            onPress={onEdit}
+            style={styles.editRoutineButton}
+          >
+            <ThemedText type="smallBold">Edit Routine</ThemedText>
+          </Pressable>
+        </View>
 
         <Pressable
           accessibilityRole="button"
@@ -472,16 +539,18 @@ function CompletedWorkoutCard(props: {
   readonly unitSystem: "metric" | "imperial";
   readonly isBusy: boolean;
   readonly onOpen: () => void;
+  readonly onEdit: () => void;
   readonly onDelete: () => void;
+  readonly onPressExercise?: (exerciseName: string) => void;
 }) {
-  const { item, unitSystem, onOpen, onDelete } = props;
+  const { item, unitSystem, onOpen, onEdit, onDelete, onPressExercise } = props;
   const volumeDisplay =
     unitSystem === "imperial"
       ? `${Math.round(item.totalVolumeKg * 2.20462)} lb`
       : `${Math.round(item.totalVolumeKg)} kg`;
 
   return (
-    <ThemedView type="backgroundElement" style={styles.workoutCard}>
+    <ThemedView type="backgroundElement" style={styles.historyCard}>
       <View style={styles.cardTopRow}>
         <View style={styles.cardTitleBlock}>
           <ThemedText type="smallBold" style={styles.workoutName}>
@@ -524,9 +593,15 @@ function CompletedWorkoutCard(props: {
       {item.exerciseSummaries.length > 0 ? (
         <View style={styles.completedExercisesList}>
           {item.exerciseSummaries.map((ex) => (
-            <View key={ex.exerciseId} style={styles.completedExerciseRow}>
+            <Pressable
+              key={ex.exerciseId}
+              accessibilityRole="button"
+              accessibilityLabel={`View progress for ${ex.exerciseName}`}
+              onPress={() => onPressExercise?.(ex.exerciseName)}
+              style={styles.completedExerciseRow}
+            >
               <ThemedText type="small" style={styles.completedExName}>
-                {ex.exerciseName}
+                {ex.exerciseName} 📈
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
                 {ex.setCount} sets
@@ -534,21 +609,32 @@ function CompletedWorkoutCard(props: {
                   ? ` · max ${unitSystem === "imperial" ? `${Math.round(ex.topLoadKg * 2.20462)}lb` : `${ex.topLoadKg}kg`}`
                   : ""}
               </ThemedText>
-            </View>
+            </Pressable>
           ))}
         </View>
       ) : null}
 
       {/* Actions */}
       <View style={styles.cardActionsRow}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`View ${item.workout.name}`}
-          onPress={onOpen}
-          style={styles.reviewButton}
-        >
-          <ThemedText type="smallBold">View & Edit Sets</ThemedText>
-        </Pressable>
+        <View style={styles.cardActionsLeft}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`View ${item.workout.name}`}
+            onPress={onOpen}
+            style={styles.reviewButton}
+          >
+            <ThemedText type="smallBold">View & Edit Sets</ThemedText>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Edit details of ${item.workout.name}`}
+            onPress={onEdit}
+            style={styles.editDetailsButton}
+          >
+            <ThemedText type="smallBold">Edit Details</ThemedText>
+          </Pressable>
+        </View>
 
         <Pressable
           accessibilityRole="button"
@@ -573,9 +659,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.four,
-    gap: Spacing.three,
+    padding: Spacing.four,
+    paddingBottom: BottomTabInset + Spacing.six,
+    gap: Spacing.four,
     maxWidth: MaxContentWidth,
     width: "100%",
     alignSelf: "center",
@@ -583,94 +669,123 @@ const styles = StyleSheet.create({
   header: {
     gap: Spacing.one,
   },
-  actionRow: {
+  headerTopRow: {
     flexDirection: "row",
-    gap: Spacing.two,
-  },
-  primaryActionButton: {
-    flex: 1.2,
-    backgroundColor: "#18633d",
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.two,
-    borderRadius: Spacing.two,
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 44,
-  },
-  primaryActionText: {
-    color: "#ffffff",
-  },
-  secondaryActionButton: {
-    flex: 1,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#8A8D91",
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.two,
-    borderRadius: Spacing.two,
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 44,
-  },
-  secondaryActionText: {
-    fontSize: 13,
-  },
-  metricsCard: {
-    flexDirection: "row",
-    padding: Spacing.three,
-    borderRadius: Spacing.three,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(138, 141, 145, 0.3)",
-    alignItems: "center",
     justifyContent: "space-between",
-  },
-  metricItem: {
-    flex: 1,
     alignItems: "center",
+  },
+  createRoutineHeroCard: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.three,
+    padding: Spacing.three,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.3)",
+    backgroundColor: "rgba(16, 185, 129, 0.08)",
+  },
+  createRoutineIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "rgba(16, 185, 129, 0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  createRoutineIcon: {
+    fontSize: 20,
+  },
+  createRoutineBody: {
+    flex: 1,
     gap: 2,
   },
-  metricDivider: {
-    width: StyleSheet.hairlineWidth,
-    height: 32,
-    backgroundColor: "#8A8D91",
+  createRoutineBadge: {
+    backgroundColor: "#10B981",
+    paddingHorizontal: Spacing.three,
+    paddingVertical: 7,
+    borderRadius: 10,
   },
-  tabsRow: {
-    flexDirection: "row",
-    gap: Spacing.two,
-  },
-  tabChip: {
-    paddingVertical: 6,
-    paddingHorizontal: Spacing.two,
-    borderRadius: Spacing.two,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#8A8D91",
-  },
-  tabChipActive: {
-    backgroundColor: "#18633d",
-    borderColor: "#18633d",
-  },
-  tabChipText: {
+  createRoutineBadgeText: {
+    color: "#ffffff",
     fontSize: 12,
   },
-  tabChipTextActive: {
-    color: "#ffffff",
+  libraryCard: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.three,
+    padding: Spacing.three,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.15)",
+    backgroundColor: "rgba(148, 163, 184, 0.05)",
+  },
+  libraryIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "rgba(148, 163, 184, 0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  libraryIcon: {
+    fontSize: 20,
+  },
+  libraryBody: {
+    flex: 1,
+    gap: 2,
+  },
+  libraryArrow: {
+    fontSize: 16,
+    color: "#8A8D91",
+    fontWeight: "700",
   },
   section: {
     gap: Spacing.two,
+  },
+  sectionTitle: {
+    fontSize: 11,
+    letterSpacing: 0.8,
+    color: "#64748B",
   },
   sectionHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
+  tabsRow: {
+    flexDirection: "row",
+    gap: Spacing.two,
+  },
+  tabChip: {
+    paddingVertical: 7,
+    paddingHorizontal: Spacing.three,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.15)",
+    backgroundColor: "rgba(148, 163, 184, 0.05)",
+  },
+  tabChipActive: {
+    backgroundColor: "#10B981",
+    borderColor: "#10B981",
+  },
+  tabChipText: {
+    fontSize: 12,
+  },
+  tabChipTextActive: {
+    color: "#ffffff",
+    fontWeight: "700",
+  },
   emptyStateCard: {
-    padding: Spacing.three,
-    borderRadius: Spacing.two,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(138, 141, 145, 0.3)",
+    padding: Spacing.four,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.15)",
     gap: Spacing.two,
   },
   emptyStateDesc: {
-    lineHeight: 18,
+    lineHeight: 19,
   },
   emptyActionsRow: {
     flexDirection: "row",
@@ -678,27 +793,34 @@ const styles = StyleSheet.create({
     marginTop: Spacing.one,
   },
   emptyActionButton: {
-    backgroundColor: "#18633d",
-    paddingVertical: Spacing.one,
+    backgroundColor: "#10B981",
+    paddingVertical: 9,
     paddingHorizontal: Spacing.three,
-    borderRadius: Spacing.two,
+    borderRadius: 12,
   },
   emptyActionText: {
     color: "#ffffff",
   },
   emptyActionButtonSecondary: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#8A8D91",
-    paddingVertical: Spacing.one,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.25)",
+    paddingVertical: 9,
     paddingHorizontal: Spacing.three,
-    borderRadius: Spacing.two,
+    borderRadius: 12,
   },
-  workoutCard: {
-    padding: Spacing.three,
-    borderRadius: Spacing.two,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(138, 141, 145, 0.3)",
-    gap: Spacing.two,
+  routineCard: {
+    padding: Spacing.four,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.2)",
+    gap: Spacing.three,
+  },
+  historyCard: {
+    padding: Spacing.four,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.15)",
+    gap: Spacing.three,
   },
   cardTopRow: {
     flexDirection: "row",
@@ -707,7 +829,7 @@ const styles = StyleSheet.create({
   },
   cardTitleBlock: {
     flex: 1,
-    gap: 2,
+    gap: 3,
   },
   workoutName: {
     fontSize: 16,
@@ -715,40 +837,40 @@ const styles = StyleSheet.create({
   statusBadge: {
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 6,
+    borderRadius: 8,
   },
   statusBadgePlanned: {
-    backgroundColor: "rgba(138, 141, 145, 0.15)",
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
   },
   statusBadgeStarted: {
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
   },
   statusBadgeText: {
     fontSize: 11,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   statusBadgeTextPlanned: {
-    color: "#8A8D91",
-  },
-  statusBadgeTextStarted: {
     color: "#10B981",
   },
+  statusBadgeTextStarted: {
+    color: "#F59E0B",
+  },
   completedBadge: {
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 6,
+    borderRadius: 8,
   },
   completedBadgeText: {
     fontSize: 11,
-    fontWeight: "600",
+    fontWeight: "700",
     color: "#10B981",
   },
   plannedExercisesList: {
     gap: Spacing.one,
-    backgroundColor: "rgba(0,0,0,0.02)",
+    backgroundColor: "rgba(148, 163, 184, 0.06)",
     padding: Spacing.two,
-    borderRadius: Spacing.one,
+    borderRadius: 12,
   },
   exerciseChipsGrid: {
     flexDirection: "row",
@@ -757,10 +879,10 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   exerciseChip: {
-    backgroundColor: "rgba(16, 185, 129, 0.1)",
+    backgroundColor: "rgba(16, 185, 129, 0.08)",
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 4,
+    borderRadius: 6,
   },
   exerciseChipText: {
     fontSize: 12,
@@ -771,14 +893,14 @@ const styles = StyleSheet.create({
   },
   statPill: {
     flexDirection: "row",
-    backgroundColor: "rgba(138, 141, 145, 0.1)",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
+    backgroundColor: "rgba(148, 163, 184, 0.1)",
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 8,
     alignItems: "center",
   },
   completedExercisesList: {
-    gap: 4,
+    gap: 5,
     paddingVertical: 2,
   },
   completedExerciseRow: {
@@ -793,28 +915,53 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: Spacing.one,
-    paddingTop: Spacing.one,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(138, 141, 145, 0.2)",
+    marginTop: Spacing.half,
+    paddingTop: Spacing.two,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(148, 163, 184, 0.12)",
+  },
+  cardActionsLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+    flexWrap: "wrap",
   },
   startSessionButton: {
-    backgroundColor: "#18633d",
-    paddingVertical: Spacing.two,
+    backgroundColor: "#10B981",
+    paddingVertical: 8,
     paddingHorizontal: Spacing.three,
-    borderRadius: Spacing.two,
+    borderRadius: 12,
   },
   startSessionText: {
     color: "#ffffff",
   },
-  reviewButton: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#8A8D91",
-    paddingVertical: Spacing.one,
+  editRoutineButton: {
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.25)",
+    paddingVertical: 7,
     paddingHorizontal: Spacing.two,
-    borderRadius: Spacing.two,
+    borderRadius: 12,
+    backgroundColor: "rgba(148, 163, 184, 0.06)",
+  },
+  reviewButton: {
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.25)",
+    paddingVertical: 7,
+    paddingHorizontal: Spacing.two,
+    borderRadius: 12,
+  },
+  editDetailsButton: {
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.25)",
+    paddingVertical: 7,
+    paddingHorizontal: Spacing.two,
+    borderRadius: 12,
+    backgroundColor: "rgba(148, 163, 184, 0.06)",
   },
   deleteButton: {
     padding: Spacing.one,
+  },
+  pressed: {
+    opacity: 0.75,
   },
 });

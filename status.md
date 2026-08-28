@@ -1,20 +1,26 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-08-26** (AI-ACT-009: LLM-driven workout generation from the 888-exercise library, with `search_exercises` and `propose_workout_plan` Coach tools, exact/fuzzy/alias catalog resolution in `@mizyun/core`, diversified rotation fallback, and verified action proposal cards).
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-08-28** (COACH-REV-001: Enhanced Informative Weekly Reviews, Meal & Training Recommendations, 7-Day Grounding, and Redesigned Scorecard).
 
 ## Executive snapshot
 
 - **Product stage:** technical pre-alpha; the architecture, domain/API foundation, and native mobile UI are verified and polished.
-- **Roadmap position:** INFRA-ENV-001 / INFRA-WIN-001 infrastructure migration to the **Raspberry Pi 5** (`rpServer`, Ubuntu 24.04 ARM64) is complete and fully operational.
-- **Latest verified implementation slice:** Delivered LLM-driven custom workout generation (`AI-ACT-009`): added `search_exercises` and `propose_workout_plan` Coach tools, built `findCatalogExercise` and `searchExerciseCatalog` with alias and fuzzy resolution in `@mizyun/core`, upgraded `COACH_SYSTEM_POLICY` to empower the AI Coach to design customized single/multi-session workout splits picking from the 888-exercise database, and diversified the deterministic prescription fallback engine. All 15 workspace packages pass `pnpm check` (1,014 tests passing, 17 opt-in tests skipped, iOS/Android production bundles compiling cleanly).
+- **Roadmap position:** COACH-REV-001 Informative Weekly Reviews and Recommendations complete. Transformed minimal weekly reviews into a comprehensive coaching experience with 7-day retrospective grounding, structured reviews (Wins, Nutrition & Meal Suggestions, Training Guidance, Next Week Focus), markdown preservation in `cleanAssistantProposalText`, and a redesigned `WeeklyAdaptationCard` mobile scorecard with nutrition, protein, workout, and trend badges.
+- **Latest verified implementation slice:**
+  1. Updated `packages/contracts/src/coach.ts` to exempt `weekly_adaptation` from markdown stripping in `cleanAssistantProposalText` and enriched `coachWeeklyAdaptationProposalSchema.observations` with calorie/protein averages/targets, workout counts, and weights.
+  2. Updated `packages/core/src/weekly-adaptation.ts` to calculate and expose full 7-day nutrition averages vs targets, workout counts, and smoothed weight trends in `buildWeeklyAdaptation`.
+  3. Added structured weekly review coaching instructions to `COACH_SYSTEM_POLICY` in `packages/agent-runtime/src/index.ts` (Wins, Nutrition & Meal Recommendations with practical food ideas, Training & Volume Guidance, Next Week Focus).
+  4. Enhanced `buildCoachGrounding` in `apps/api/src/modules/coach/grounding.ts` with 7-day retrospective nutrition and workout summaries, and updated `buildWeeklyAdaptationForUser` in `apps/api/src/modules/coach/tools.ts`.
+  5. Redesigned `WeeklyAdaptationCard` in `apps/mobile/src/features/coach/coach-setup-screen.tsx` into a structured scorecard widget with nutrition/protein/workout/trend metric rows, action badges, and 1-tap pace change acceptance.
+  6. Verified entire monorepo with `pnpm check` (1,032 unit tests passing, 0 errors, iOS (5.9MB) and Android production bundles cleanly compiled).
 - **Branch:** `main`; production Raspberry Pi 5 checkout matches commit `8757e63` and is verified live (`https://mizyun-api.phiskel.com/v1/health`).
 - **Production Host:** Raspberry Pi 5 (`rpserver`, Ubuntu 24.04 ARM64, Tailscale IP `100.116.142.1`). Remote deployment `pnpm deploy:remote` is verified green.
-- **Local runtime at handoff:** `pnpm check` passes with 1014 tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean.
-- **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and 1014 tests passed; 17 opt-in live/e2e tests skipped.
+- **Local runtime at handoff:** `pnpm check` passes with 1,032 tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean.
+- **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and 1,032 tests passed; 17 opt-in live/e2e tests skipped.
 - **Vision & Agent provider gate:** `GeminiAgentProvider` and `GeminiVisionProvider` default to `gemini-3.7-flash` with `thoughtSignature` preservation, `thinkingBudget: 0`, automatic fallback to `gemini-3.6-flash` on HTTP 429/503/overload, candidate macro normalization/reconciliation, and tool parameter schema sanitization.
 - **Moderation regression gate:** `pnpm check` passes with 994 tests and 17 opt-in tests skipped; the Mistral and Gemini providers allow fitness and wellness queries without false health rejections while maintaining deterministic emergency and medical safety filters.
 - **Coach & Workout UX gate:** verified end-to-end on iOS Simulator (`iPhone 17 Pro`): custom workout creation/logging, Coach multi-session plan generation, conversational workout modification with proposal cards, applying modifications to stored workouts, and opening/logging modified exercises.
-- **iOS:** both `Mizyun` (`com.mizyun.app`) and `Mizyun Dev` (`com.mizyun.dev`) verified on iOS Simulator and physical iPhone.
+- **iOS:** physical iPhone 16 Pro (`Adam's Iphone 😋`) running fresh Production Release build `com.mizyun.app` with custom workout creation, in-place routine editing, and redesigned Workouts, Meals, Home, and Account hubs.
 - **Android:** Standalone Production Release APK (`app-release.apk`, 103MB) compiled cleanly via `pnpm mobile:founder-production:android:assembleRelease` for commit `d6e36ce` targeting the production hosts.
 
 ## What is genuinely delivered

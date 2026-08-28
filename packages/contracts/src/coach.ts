@@ -94,6 +94,13 @@ export const coachWeeklyAdaptationProposalSchema = z
       averageProteinAdherencePercent: z.number().nonnegative().nullable(),
       weeklyWeightChangeKg: z.number().nullable(),
       weeklyWeightChangePercent: z.number().nullable(),
+      targetKcal: z.number().nullable().optional(),
+      averageCaloriesKcal: z.number().nullable().optional(),
+      targetProteinG: z.number().nullable().optional(),
+      averageProteinG: z.number().nullable().optional(),
+      completedWorkoutsCount: z.number().nullable().optional(),
+      smoothedWeightKg: z.number().nullable().optional(),
+      latestWeightKg: z.number().nullable().optional(),
     }),
     reasons: z.array(z.string().min(1).max(500)).min(1).max(5),
   })
@@ -464,6 +471,15 @@ export const cleanAssistantProposalText = (
 
   const text = (rawText ?? "").trim();
 
+  // For weekly adaptations, the conversational assistant text is the rich coaching review
+  // (weekly snapshot, nutrition & meal recommendations, training guidance, next week focus).
+  // Do not strip markdown or truncate it; only fall back if the text is empty.
+  if (proposal.kind === "weekly_adaptation") {
+    return text.length > 0
+      ? text
+      : "Here is your weekly progress review and adaptation proposal.";
+  }
+
   if (text.length > 0) {
     // If the text contains markdown horizontal dividers (---, ***, ___),
     // headers (### Day 1), session markers, or exercise list items, strip
@@ -495,8 +511,6 @@ export const cleanAssistantProposalText = (
       return `Here is your planned ${proposal.session.label} workout. Review and start below.`;
     case "daily_plan":
       return "Here is your daily action plan. Review your targets and next action below.";
-    case "weekly_adaptation":
-      return "Here is your weekly progress review and adaptation proposal.";
     case "meal_log":
       return "I drafted that meal from your description. Review the portion, calories, and macros before logging it.";
     case "workout_edit":
