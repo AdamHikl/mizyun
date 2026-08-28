@@ -13,7 +13,8 @@
   4. Enhanced `buildCoachGrounding` in `apps/api/src/modules/coach/grounding.ts` with 7-day retrospective nutrition and workout summaries, and updated `buildWeeklyAdaptationForUser` in `apps/api/src/modules/coach/tools.ts`.
   5. Redesigned `WeeklyAdaptationCard` in `apps/mobile/src/features/coach/coach-setup-screen.tsx` into a structured scorecard widget with nutrition/protein/workout/trend metric rows, action badges, and 1-tap pace change acceptance.
   6. Verified entire monorepo with `pnpm check` (1,032 unit tests passing, 0 errors, iOS (5.9MB) and Android production bundles cleanly compiled).
-- **Branch:** `main`; production Raspberry Pi 5 checkout matches commit `8757e63` and is verified live (`https://mizyun-api.phiskel.com/v1/health`).
+  7. Promoted commit `7c890c8` to Raspberry Pi 5 (`rpserver`) with automated backup (`/srv/mizyun/backups/20260828T104657Z`) and verified public health (`https://mizyun-api.phiskel.com/v1/health` -> HTTP 200).
+- **Branch:** `main`; production Raspberry Pi 5 checkout matches commit `7c890c8` and is verified live (`https://mizyun-api.phiskel.com/v1/health`).
 - **Production Host:** Raspberry Pi 5 (`rpserver`, Ubuntu 24.04 ARM64, Tailscale IP `100.116.142.1`). Remote deployment `pnpm deploy:remote` is verified green.
 - **Local runtime at handoff:** `pnpm check` passes with 1,032 tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean.
 - **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and 1,032 tests passed; 17 opt-in live/e2e tests skipped.
