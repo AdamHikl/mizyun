@@ -261,3 +261,15 @@ export {
   type NewFeedback,
   type UserFeedback,
 } from "./feedback";
+
+export {
+  DisabledEmailSender,
+  InMemoryEmailSender,
+  isValidEmailAddress,
+  validateSendEmailInput,
+  type EmailSendError,
+  type EmailSendErrorKind,
+  type EmailSendResult,
+  type EmailSender,
+  type SendEmailInput,
+} from "./email";

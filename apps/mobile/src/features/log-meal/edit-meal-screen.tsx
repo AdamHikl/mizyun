@@ -220,7 +220,7 @@ export function EditMealScreen() {
                 (pressed || submitting) && styles.pressed,
               ]}
             >
-              <ThemedText type="smallBold">
+              <ThemedText type="smallBold" style={styles.submitText}>
                 {submitting ? "Saving…" : "Save changes"}
               </ThemedText>
             </Pressable>
@@ -286,6 +286,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#1F1F23",
+  },
+  submitText: {
+    color: "#FFFFFF",
   },
   pressed: { opacity: 0.6 },
 });

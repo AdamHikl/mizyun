@@ -182,7 +182,7 @@ export function LogWeightScreen() {
               (pressed || submitting) && styles.submitPressed,
             ]}
           >
-            <ThemedText type="smallBold">
+            <ThemedText type="smallBold" style={styles.submitText}>
               {submitting ? "Saving…" : "Save measurement"}
             </ThemedText>
           </Pressable>
@@ -251,6 +251,8 @@ const styles = StyleSheet.create({
     padding: Spacing.three,
     alignItems: "center",
     backgroundColor: "#1F1F23",
+  },
+  submitText: {
     color: "#FFFFFF",
   },
   submitPressed: { opacity: 0.65 },

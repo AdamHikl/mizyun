@@ -1,4 +1,10 @@
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import {
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect, type Href } from "expo-router";
 import { useCallback, useState } from "react";
@@ -625,7 +631,7 @@ function EnergyCard(props: {
       <View style={styles.cardHeading}>
         <View style={styles.actionBody}>
           <ThemedText type="smallBold">Energy balance</ThemedText>
-          <ThemedText type="subtitle">
+          <ThemedText type="subtitle" style={styles.energySubtitle}>
             {complete ? formatEnergyBalance(summary) : "Needs confirmed inputs"}
           </ThemedText>
         </View>
@@ -869,7 +875,7 @@ const styles = StyleSheet.create({
   dailyCalorieValue: {
     fontSize: 26,
     fontWeight: "800",
-    letterSpacing: -0.5,
+    letterSpacing: Platform.select({ ios: -0.5, default: 0 }),
   },
   dailyTargetSub: {
     fontSize: 14,
@@ -959,11 +965,12 @@ const styles = StyleSheet.create({
   },
   signalsGrid: {
     flexDirection: "row",
-    gap: Spacing.three,
+    gap: Spacing.two,
   },
   metricCard: {
     borderRadius: 18,
-    padding: Spacing.four,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.three,
     gap: Spacing.half,
     borderWidth: 1,
     borderColor: "rgba(16, 185, 129, 0.12)",
@@ -971,7 +978,7 @@ const styles = StyleSheet.create({
   metricValue: {
     fontSize: 24,
     fontWeight: "800",
-    letterSpacing: -0.5,
+    letterSpacing: Platform.select({ ios: -0.5, default: 0 }),
   },
   section: { gap: Spacing.two },
   sectionTitle: {
@@ -1028,6 +1035,11 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
     borderWidth: 1,
     borderColor: "rgba(16, 185, 129, 0.12)",
+  },
+  energySubtitle: {
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: "700",
   },
   cardHeading: {
     flexDirection: "row",

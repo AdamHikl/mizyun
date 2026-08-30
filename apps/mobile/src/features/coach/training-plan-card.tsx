@@ -154,9 +154,7 @@ export function TrainingPlanCard() {
 
 const styles = StyleSheet.create({
   card: {
-    width: "auto",
-    marginHorizontal: Spacing.four,
-    marginBottom: Spacing.two,
+    width: "100%",
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "rgba(16, 185, 129, 0.18)",
@@ -171,9 +169,13 @@ const styles = StyleSheet.create({
   },
   headingCopy: { flex: 1, gap: 2 },
   compactButton: {
-    minHeight: 44,
+    minHeight: 32,
     justifyContent: "center",
-    paddingHorizontal: Spacing.three,
+    alignItems: "center",
+    paddingHorizontal: Spacing.two,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
   },
   section: { gap: Spacing.two },
   row: {
@@ -188,6 +190,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#10B981",
+    backgroundColor: "rgba(16, 185, 129, 0.08)",
   },
   sessions: { gap: Spacing.three },
   sessionScroll: { maxHeight: 320 },

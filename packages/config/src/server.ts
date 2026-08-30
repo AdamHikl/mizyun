@@ -61,6 +61,13 @@ export interface ServerGeminiVisionConfiguration {
   readonly maxOutputTokens: number;
 }
 
+export interface ServerSesConfiguration {
+  readonly region: string;
+  readonly accessKeyId: string;
+  readonly secretAccessKey: string;
+  readonly fromEmail: string;
+}
+
 export interface ServerConfig {
   readonly host: string;
   readonly port: number;
@@ -73,6 +80,7 @@ export interface ServerConfig {
   readonly mistralVisionConfig: ServerMistralVisionConfiguration | null;
   readonly geminiConfig: ServerGeminiConfiguration | null;
   readonly geminiVisionConfig: ServerGeminiVisionConfiguration | null;
+  readonly sesConfig: ServerSesConfiguration | null;
   readonly aiExternalAccess: boolean;
 }
 
@@ -108,6 +116,10 @@ export const SERVER_ENV_KEYS = {
   geminiVisionThinkingBudget: "GEMINI_VISION_THINKING_BUDGET",
   geminiVisionTimeoutMs: "GEMINI_VISION_TIMEOUT_MS",
   geminiVisionMaxOutputTokens: "GEMINI_VISION_MAX_OUTPUT_TOKENS",
+  sesRegion: "SES_REGION",
+  sesAccessKeyId: "SES_ACCESS_KEY_ID",
+  sesSecretAccessKey: "SES_SECRET_ACCESS_KEY",
+  sesFromEmail: "SES_FROM_EMAIL",
   aiDailyUserTokenBudget: "AI_DAILY_USER_TOKEN_BUDGET",
   aiUserRequestsPerMinute: "AI_USER_REQUESTS_PER_MINUTE",
   aiUserMaxConcurrentRequests: "AI_USER_MAX_CONCURRENT_REQUESTS",
@@ -250,6 +262,22 @@ const baseServerSchema = z.object({
     .min(128, "GEMINI_VISION_MAX_OUTPUT_TOKENS must be >= 128")
     .max(32_768, "GEMINI_VISION_MAX_OUTPUT_TOKENS must be <= 32768")
     .default(8_192),
+  sesRegion: z
+    .string()
+    .min(1, "SES_REGION must not be empty")
+    .default("eu-west-1"),
+  sesAccessKeyId: z
+    .string()
+    .min(10, "SES_ACCESS_KEY_ID must be at least 10 characters")
+    .optional(),
+  sesSecretAccessKey: z
+    .string()
+    .min(20, "SES_SECRET_ACCESS_KEY must be at least 20 characters")
+    .optional(),
+  sesFromEmail: z
+    .string()
+    .min(3, "SES_FROM_EMAIL must not be empty")
+    .default("no-reply@phiskel.com"),
   aiDailyUserTokenBudget: z.coerce
     .number()
     .int("AI_DAILY_USER_TOKEN_BUDGET must be an integer")
@@ -286,6 +314,24 @@ const collectRawServerInput = (snapshot: EnvSnapshot): BaseServerShape => {
   for (const [field, envKey] of Object.entries(SERVER_ENV_KEYS)) {
     input[field as keyof BaseServerShape] = readString(snapshot, envKey);
   }
+
+  // Support alias environment variables for SES
+  input.sesRegion =
+    readString(snapshot, "SES_REGION") ??
+    readString(snapshot, "AWS_REGION") ??
+    undefined;
+  input.sesAccessKeyId =
+    readString(snapshot, "SES_ACCESS_KEY_ID") ??
+    readString(snapshot, "PHISKEL_SES_AWS_ACCESS_KEY_ID") ??
+    readString(snapshot, "AWS_ACCESS_KEY_ID") ??
+    undefined;
+  input.sesSecretAccessKey =
+    readString(snapshot, "SES_SECRET_ACCESS_KEY") ??
+    readString(snapshot, "PHISKEL_SES_AWS_SECRET_ACCESS_KEY") ??
+    readString(snapshot, "AWS_SECRET_ACCESS_KEY") ??
+    undefined;
+  input.sesFromEmail = readString(snapshot, "SES_FROM_EMAIL") ?? undefined;
+
   return input;
 };
 
@@ -386,6 +432,18 @@ export const loadServerConfig = (
       });
     }
   }
+  if (parsed.success) {
+    const hasSesKey = parsed.data.sesAccessKeyId !== undefined;
+    const hasSesSecret = parsed.data.sesSecretAccessKey !== undefined;
+    if (hasSesKey !== hasSesSecret) {
+      issues.push({
+        kind: "malformed",
+        key: SERVER_ENV_KEYS.sesAccessKeyId,
+        reason:
+          "SES_ACCESS_KEY_ID and SES_SECRET_ACCESS_KEY must be set together or both omitted.",
+      });
+    }
+  }
   if (issues.length > 0 || !parsed.success) return err(issues);
 
   const value = parsed.data;
@@ -452,6 +510,15 @@ export const loadServerConfig = (
           maxOutputTokens: value.geminiVisionMaxOutputTokens,
         }
       : null;
+  const sesConfig: ServerSesConfiguration | null =
+    value.sesAccessKeyId !== undefined && value.sesSecretAccessKey !== undefined
+      ? {
+          region: value.sesRegion,
+          accessKeyId: value.sesAccessKeyId,
+          secretAccessKey: value.sesSecretAccessKey,
+          fromEmail: value.sesFromEmail,
+        }
+      : null;
 
   return ok({
     env: value.env,
@@ -465,6 +532,7 @@ export const loadServerConfig = (
     mistralVisionConfig,
     geminiConfig,
     geminiVisionConfig,
+    sesConfig,
     aiExternalAccess: value.aiExternalAccess,
   });
 };

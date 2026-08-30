@@ -76,21 +76,32 @@ export function ThreadListSheet({
             justifyContent: "space-between",
             paddingHorizontal: Spacing.four,
             paddingVertical: Spacing.three,
-            borderBottomColor: Colors.dark.backgroundElement,
+            borderBottomColor: "rgba(148, 163, 184, 0.15)",
             borderBottomWidth: 1,
           }}
         >
-          <ThemedText type="subtitle">Coach conversations</ThemedText>
+          <View style={{ gap: 2 }}>
+            <ThemedText type="smallBold" themeColor="textSecondary">
+              MIZYUN COACH
+            </ThemedText>
+            <ThemedText type="subtitle">Conversations</ThemedText>
+          </View>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Close thread list"
             onPress={onClose}
             hitSlop={8}
-            style={{ minHeight: 44, justifyContent: "center" }}
+            style={{
+              minHeight: 36,
+              paddingHorizontal: Spacing.three,
+              paddingVertical: Spacing.one,
+              borderRadius: 10,
+              backgroundColor: "rgba(148, 163, 184, 0.12)",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
           >
-            <ThemedText type="smallBold" themeColor="textSecondary">
-              Close
-            </ThemedText>
+            <ThemedText type="smallBold">Close</ThemedText>
           </Pressable>
         </View>
         <ScrollView
@@ -122,21 +133,51 @@ export function ThreadListSheet({
                   accessibilityLabel={`Open ${conversation.title ?? "Coach check-in"}, last activity ${timestamp}`}
                   accessibilityState={{ selected: isActive }}
                   onPress={() => onSelect(conversation.id)}
-                  style={{
-                    borderRadius: Spacing.three,
-                    padding: Spacing.three,
-                    backgroundColor: Colors.dark.backgroundElement,
-                    borderWidth: isActive ? 2 : 0.5,
-                    borderColor: isActive
-                      ? Colors.dark.text
-                      : Colors.dark.backgroundElement,
-                    gap: Spacing.one,
-                    minHeight: 64,
-                  }}
+                  style={({ pressed }) => [
+                    {
+                      borderRadius: 16,
+                      padding: Spacing.three,
+                      borderWidth: isActive ? 1.5 : 1,
+                      borderColor: isActive
+                        ? "#10B981"
+                        : "rgba(148, 163, 184, 0.2)",
+                      backgroundColor: isActive
+                        ? "rgba(16, 185, 129, 0.08)"
+                        : "rgba(148, 163, 184, 0.06)",
+                      gap: Spacing.half,
+                      minHeight: 64,
+                    },
+                    pressed && { opacity: 0.8 },
+                  ]}
                 >
-                  <ThemedText type="smallBold">
-                    {conversation.title ?? "Coach check-in"}
-                  </ThemedText>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
+                    <ThemedText type="smallBold">
+                      {conversation.title ?? "Coach check-in"}
+                    </ThemedText>
+                    {isActive ? (
+                      <View
+                        style={{
+                          backgroundColor: "rgba(16, 185, 129, 0.15)",
+                          paddingHorizontal: 8,
+                          paddingVertical: 2,
+                          borderRadius: 6,
+                        }}
+                      >
+                        <ThemedText
+                          type="smallBold"
+                          style={{ color: "#10B981", fontSize: 11 }}
+                        >
+                          Active
+                        </ThemedText>
+                      </View>
+                    ) : null}
+                  </View>
                   <ThemedText
                     type="small"
                     themeColor="textSecondary"
@@ -155,7 +196,7 @@ export function ThreadListSheet({
         <View
           style={{
             padding: Spacing.four,
-            borderTopColor: Colors.dark.backgroundElement,
+            borderTopColor: "rgba(148, 163, 184, 0.15)",
             borderTopWidth: 1,
           }}
         >
@@ -163,15 +204,20 @@ export function ThreadListSheet({
             accessibilityRole="button"
             accessibilityLabel="Start a new conversation"
             onPress={onNew}
-            style={{
-              minHeight: 48,
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: Spacing.three,
-              backgroundColor: "#3D7BFF",
-            }}
+            style={({ pressed }) => [
+              {
+                minHeight: 48,
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: 14,
+                backgroundColor: "#10B981",
+              },
+              pressed && { opacity: 0.8 },
+            ]}
           >
-            <ThemedText type="smallBold">New conversation</ThemedText>
+            <ThemedText type="smallBold" style={{ color: "#FFFFFF" }}>
+              ＋ New conversation
+            </ThemedText>
           </Pressable>
         </View>
       </SafeAreaView>

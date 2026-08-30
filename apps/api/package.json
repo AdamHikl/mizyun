@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@fastify/multipart": "^9.0.0",
+    "@mizyun/adapter-ses": "workspace:*",
     "@mizyun/adapter-supabase-server": "workspace:*",
     "@mizyun/agent-runtime": "workspace:*",
     "@mizyun/api-client": "workspace:*",

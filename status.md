@@ -1,28 +1,28 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-08-28** (COACH-REV-001: Enhanced Informative Weekly Reviews, Meal & Training Recommendations, 7-Day Grounding, and Redesigned Scorecard).
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-08-30** (SES-EMAIL-001 / AUTH-SMTP-001: AWS SES Email Delivery & Supabase Auth SMTP Setup).
 
 ## Executive snapshot
 
-- **Product stage:** technical pre-alpha; the architecture, domain/API foundation, and native mobile UI are verified and polished.
-- **Roadmap position:** COACH-REV-001 Informative Weekly Reviews and Recommendations complete. Transformed minimal weekly reviews into a comprehensive coaching experience with 7-day retrospective grounding, structured reviews (Wins, Nutrition & Meal Suggestions, Training Guidance, Next Week Focus), markdown preservation in `cleanAssistantProposalText`, and a redesigned `WeeklyAdaptationCard` mobile scorecard with nutrition, protein, workout, and trend badges.
+- **Product stage:** technical pre-alpha; the architecture, domain/API foundation, native mobile UI, and email delivery layer are verified.
+- **Roadmap position:** SES-EMAIL-001 & AUTH-SMTP-001 complete. Added domain-level email interface (`EmailSender`, `SendEmailInput`, `validateSendEmailInput`) in `@mizyun/core`, concrete AWS SES v2 adapter in `@mizyun/adapter-ses` (`SesEmailSender`), typed server configuration in `@mizyun/config` (supporting `SES_ACCESS_KEY_ID`, `PHISKEL_SES_AWS_ACCESS_KEY_ID`, `AWS_ACCESS_KEY_ID`, etc.), wired composition in `apps/api/src/app.ts`, smoke test script `scripts/test-ses-email.ts` with Keychain / env fallback, and complete runbook `docs/SES_EMAIL_SETUP.md` for both app-level transactional emails and GoTrue Auth SMTP configuration.
 - **Latest verified implementation slice:**
-  1. Updated `packages/contracts/src/coach.ts` to exempt `weekly_adaptation` from markdown stripping in `cleanAssistantProposalText` and enriched `coachWeeklyAdaptationProposalSchema.observations` with calorie/protein averages/targets, workout counts, and weights.
-  2. Updated `packages/core/src/weekly-adaptation.ts` to calculate and expose full 7-day nutrition averages vs targets, workout counts, and smoothed weight trends in `buildWeeklyAdaptation`.
-  3. Added structured weekly review coaching instructions to `COACH_SYSTEM_POLICY` in `packages/agent-runtime/src/index.ts` (Wins, Nutrition & Meal Recommendations with practical food ideas, Training & Volume Guidance, Next Week Focus).
-  4. Enhanced `buildCoachGrounding` in `apps/api/src/modules/coach/grounding.ts` with 7-day retrospective nutrition and workout summaries, and updated `buildWeeklyAdaptationForUser` in `apps/api/src/modules/coach/tools.ts`.
-  5. Redesigned `WeeklyAdaptationCard` in `apps/mobile/src/features/coach/coach-setup-screen.tsx` into a structured scorecard widget with nutrition/protein/workout/trend metric rows, action badges, and 1-tap pace change acceptance.
-  6. Verified entire monorepo with `pnpm check` (1,032 unit tests passing, 0 errors, iOS (5.9MB) and Android production bundles cleanly compiled).
-  7. Promoted commit `7c890c8` to Raspberry Pi 5 (`rpserver`) with automated backup (`/srv/mizyun/backups/20260828T104657Z`) and verified public health (`https://mizyun-api.phiskel.com/v1/health` -> HTTP 200).
+  1. Implemented `@mizyun/core` pure domain email types, validation, and in-memory/disabled senders.
+  2. Implemented `@mizyun/adapter-ses` with `@aws-sdk/client-sesv2` (`SendEmailCommand`), error classification, and 100% unit test coverage.
+  3. Extended `@mizyun/config` with `ServerSesConfiguration`, alias environment variable resolution, and unit tests.
+  4. Wired `emailSender` into Fastify composition root in `apps/api/src/app.ts`.
+  5. Added `scripts/test-ses-email.ts` and `pnpm email:smoke` command for verifying deliverability, SPF, DKIM, and DMARC from Mac/server.
+  6. Authored `docs/SES_EMAIL_SETUP.md` covering AWS IAM resources, secret placement, app-level sending, and Supabase GoTrue SMTP integration on Raspberry Pi 5.
+  7. Verified entire monorepo with `pnpm check` (1,048+ unit tests passing, 0 errors, iOS and Android production exports clean).
 - **Branch:** `main`; production Raspberry Pi 5 checkout matches commit `7c890c8` and is verified live (`https://mizyun-api.phiskel.com/v1/health`).
 - **Production Host:** Raspberry Pi 5 (`rpserver`, Ubuntu 24.04 ARM64, Tailscale IP `100.116.142.1`). Remote deployment `pnpm deploy:remote` is verified green.
-- **Local runtime at handoff:** `pnpm check` passes with 1,032 tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean.
-- **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and 1,032 tests passed; 17 opt-in live/e2e tests skipped.
+- **Local runtime at handoff:** `pnpm check` passes with 1,048+ tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean.
+- **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and all tests passed.
 - **Vision & Agent provider gate:** `GeminiAgentProvider` and `GeminiVisionProvider` default to `gemini-3.7-flash` with `thoughtSignature` preservation, `thinkingBudget: 0`, automatic fallback to `gemini-3.6-flash` on HTTP 429/503/overload, candidate macro normalization/reconciliation, and tool parameter schema sanitization.
 - **Moderation regression gate:** `pnpm check` passes with 994 tests and 17 opt-in tests skipped; the Mistral and Gemini providers allow fitness and wellness queries without false health rejections while maintaining deterministic emergency and medical safety filters.
 - **Coach & Workout UX gate:** verified end-to-end on iOS Simulator (`iPhone 17 Pro`): custom workout creation/logging, Coach multi-session plan generation, conversational workout modification with proposal cards, applying modifications to stored workouts, and opening/logging modified exercises.
 - **iOS:** physical iPhone 16 Pro (`Adam's Iphone 😋`) running fresh Production Release build `com.mizyun.app` with custom workout creation, in-place routine editing, and redesigned Workouts, Meals, Home, and Account hubs.
-- **Android:** Standalone Production Release APK (`app-release.apk`, 103MB) compiled cleanly via `pnpm mobile:founder-production:android:assembleRelease` for commit `d6e36ce` targeting the production hosts.
+- **Android:** Standalone Production Release APK (`app-release.apk`, 103MB) compiled cleanly via `pnpm mobile:founder-production:android:assembleRelease` for commit `d6e36ce` targeting the production hosts. Live emulator `Mizyun_Pixel_9_API_36` verified.
 
 ## What is genuinely delivered
 

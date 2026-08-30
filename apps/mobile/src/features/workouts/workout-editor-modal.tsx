@@ -8,6 +8,7 @@ import {
   View,
 } from "react-native";
 import { useCallback, useEffect, useState } from "react";
+import { SafeAreaView } from "react-native-safe-area-context";
 import type { CatalogExercise } from "@mizyun/core";
 import type { Workout } from "@mizyun/contracts";
 
@@ -192,230 +193,233 @@ export function WorkoutEditorModal({
       visible={visible}
       animationType="slide"
       presentationStyle="pageSheet"
+      statusBarTranslucent={true}
       onRequestClose={onClose}
     >
       <ThemedView style={styles.modalContainer}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Cancel editing"
-            onPress={onClose}
-            style={styles.headerButton}
-          >
-            <ThemedText type="small" themeColor="textSecondary">
-              Cancel
-            </ThemedText>
-          </Pressable>
-
-          <ThemedText type="smallBold" style={styles.headerTitle}>
-            {isEditing ? "Edit Workout Routine" : "Create Workout Routine"}
-          </ThemedText>
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Save workout"
-            disabled={busy}
-            onPress={() => void handleSave(false)}
-            style={[styles.headerButton, busy && styles.disabled]}
-          >
-            <ThemedText type="smallBold" style={styles.saveHeaderText}>
-              {busy ? "Saving…" : "Save"}
-            </ThemedText>
-          </Pressable>
-        </View>
-
-        <ScrollView
-          contentContainerStyle={styles.content}
-          keyboardDismissMode="on-drag"
-          keyboardShouldPersistTaps="handled"
-        >
-          {errorMessage ? (
-            <View style={styles.errorBanner} accessibilityRole="alert">
-              <ThemedText style={styles.errorText}>{errorMessage}</ThemedText>
-            </View>
-          ) : null}
-
-          {/* Workout Metadata Section */}
-          <ThemedView type="backgroundElement" style={styles.card}>
-            <ThemedText type="smallBold" style={styles.cardLabel}>
-              WORKOUT DETAILS
-            </ThemedText>
-
-            <View style={styles.field}>
-              <ThemedText type="small" themeColor="textSecondary">
-                Workout Name
-              </ThemedText>
-              <TextInput
-                style={[styles.input, { color: theme.text }]}
-                placeholder="e.g. Push Day A, Upper Body Hypertrophy"
-                placeholderTextColor="#8A8D91"
-                value={name}
-                onChangeText={setName}
-                autoFocus={!isEditing}
-              />
-            </View>
-
-            <View style={styles.field}>
-              <ThemedText type="small" themeColor="textSecondary">
-                Notes / Instructions (optional)
-              </ThemedText>
-              <TextInput
-                style={[
-                  styles.input,
-                  styles.multilineInput,
-                  { color: theme.text },
-                ]}
-                placeholder="e.g. Focus on progressive overload, 2 min rest between heavy sets"
-                placeholderTextColor="#8A8D91"
-                value={notes}
-                onChangeText={setNotes}
-                multiline
-                numberOfLines={3}
-              />
-            </View>
-          </ThemedView>
-
-          {/* Planned Exercises Section */}
-          <ThemedView type="backgroundElement" style={styles.card}>
-            <View style={styles.cardHeaderRow}>
-              <View>
-                <ThemedText type="smallBold" style={styles.cardLabel}>
-                  PLANNED EXERCISES ({plannedExercises.length})
-                </ThemedText>
-                <ThemedText type="small" themeColor="textSecondary">
-                  Add and configure the exercises for this routine.
-                </ThemedText>
-              </View>
-            </View>
-
-            {plannedExercises.length === 0 ? (
-              <View style={styles.emptyExercisesBlock}>
-                <ThemedText type="small" themeColor="textSecondary">
-                  No exercises added yet. Pick from the 880+ exercise library or
-                  type a custom exercise name below.
-                </ThemedText>
-              </View>
-            ) : (
-              <View style={styles.exercisesList}>
-                {plannedExercises.map((exercise, index) => (
-                  <PlannedExerciseRow
-                    key={`${exercise.name}-${index}`}
-                    index={index}
-                    total={plannedExercises.length}
-                    item={exercise}
-                    inputColor={theme.text}
-                    onUpdate={(patch) => handleUpdateExercise(index, patch)}
-                    onRemove={() => handleRemoveExercise(index)}
-                    onMoveUp={() => handleMoveExercise(index, index - 1)}
-                    onMoveDown={() => handleMoveExercise(index, index + 1)}
-                  />
-                ))}
-              </View>
-            )}
-
-            {/* Add Exercise Actions */}
-            {customInputVisible ? (
-              <View style={styles.customAddBlock}>
-                <TextInput
-                  style={[styles.input, { color: theme.text }]}
-                  placeholder="Enter custom exercise name…"
-                  placeholderTextColor="#8A8D91"
-                  value={customName}
-                  onChangeText={setCustomName}
-                  autoFocus
-                />
-                <View style={styles.customAddActions}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Add custom exercise"
-                    onPress={handleAddCustomExercise}
-                    style={styles.confirmCustomButton}
-                  >
-                    <ThemedText
-                      type="smallBold"
-                      style={styles.confirmCustomText}
-                    >
-                      Add
-                    </ThemedText>
-                  </Pressable>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Cancel custom exercise"
-                    onPress={() => {
-                      setCustomInputVisible(false);
-                      setCustomName("");
-                    }}
-                    style={styles.cancelCustomButton}
-                  >
-                    <ThemedText type="small" themeColor="textSecondary">
-                      Cancel
-                    </ThemedText>
-                  </Pressable>
-                </View>
-              </View>
-            ) : (
-              <View style={styles.addButtonsRow}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Browse exercise library"
-                  onPress={() => setLibraryVisible(true)}
-                  style={styles.addLibraryButton}
-                >
-                  <ThemedText type="smallBold" style={styles.addLibraryText}>
-                    📚 Add from Library
-                  </ThemedText>
-                </Pressable>
-
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Add custom exercise name"
-                  onPress={() => setCustomInputVisible(true)}
-                  style={styles.addCustomButton}
-                >
-                  <ThemedText type="smallBold" style={styles.addCustomText}>
-                    ＋ Custom Name
-                  </ThemedText>
-                </Pressable>
-              </View>
-            )}
-          </ThemedView>
-
-          {/* Primary Bottom Actions */}
-          <View style={styles.bottomActions}>
+        <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
+          {/* Header */}
+          <View style={styles.header}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Save and start workout session"
-              disabled={busy}
-              onPress={() => void handleSave(true)}
-              style={({ pressed }) => [
-                styles.saveAndStartButton,
-                pressed && styles.pressed,
-                busy && styles.disabled,
-              ]}
+              accessibilityLabel="Cancel editing"
+              onPress={onClose}
+              style={styles.headerButton}
             >
-              <ThemedText type="smallBold" style={styles.saveAndStartText}>
-                {busy ? "Saving…" : "Save & Start Session →"}
+              <ThemedText type="small" themeColor="textSecondary">
+                Cancel
               </ThemedText>
             </Pressable>
 
+            <ThemedText type="smallBold" style={styles.headerTitle}>
+              {isEditing ? "Edit Workout Routine" : "Create Workout Routine"}
+            </ThemedText>
+
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Save workout routine"
+              accessibilityLabel="Save workout"
               disabled={busy}
               onPress={() => void handleSave(false)}
-              style={({ pressed }) => [
-                styles.saveRoutineButton,
-                pressed && styles.pressed,
-                busy && styles.disabled,
-              ]}
+              style={[styles.headerButton, busy && styles.disabled]}
             >
-              <ThemedText type="smallBold" style={styles.saveRoutineText}>
-                {isEditing ? "Save Changes" : "Save as Routine"}
+              <ThemedText type="smallBold" style={styles.saveHeaderText}>
+                {busy ? "Saving…" : "Save"}
               </ThemedText>
             </Pressable>
           </View>
-        </ScrollView>
+
+          <ScrollView
+            contentContainerStyle={styles.content}
+            keyboardDismissMode="on-drag"
+            keyboardShouldPersistTaps="handled"
+          >
+            {errorMessage ? (
+              <View style={styles.errorBanner} accessibilityRole="alert">
+                <ThemedText style={styles.errorText}>{errorMessage}</ThemedText>
+              </View>
+            ) : null}
+
+            {/* Workout Metadata Section */}
+            <ThemedView type="backgroundElement" style={styles.card}>
+              <ThemedText type="smallBold" style={styles.cardLabel}>
+                WORKOUT DETAILS
+              </ThemedText>
+
+              <View style={styles.field}>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Workout Name
+                </ThemedText>
+                <TextInput
+                  style={[styles.input, { color: theme.text }]}
+                  placeholder="e.g. Push Day A, Upper Body Hypertrophy"
+                  placeholderTextColor="#8A8D91"
+                  value={name}
+                  onChangeText={setName}
+                  autoFocus={!isEditing}
+                />
+              </View>
+
+              <View style={styles.field}>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Notes / Instructions (optional)
+                </ThemedText>
+                <TextInput
+                  style={[
+                    styles.input,
+                    styles.multilineInput,
+                    { color: theme.text },
+                  ]}
+                  placeholder="e.g. Focus on progressive overload, 2 min rest between heavy sets"
+                  placeholderTextColor="#8A8D91"
+                  value={notes}
+                  onChangeText={setNotes}
+                  multiline
+                  numberOfLines={3}
+                />
+              </View>
+            </ThemedView>
+
+            {/* Planned Exercises Section */}
+            <ThemedView type="backgroundElement" style={styles.card}>
+              <View style={styles.cardHeaderRow}>
+                <View>
+                  <ThemedText type="smallBold" style={styles.cardLabel}>
+                    PLANNED EXERCISES ({plannedExercises.length})
+                  </ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    Add and configure the exercises for this routine.
+                  </ThemedText>
+                </View>
+              </View>
+
+              {plannedExercises.length === 0 ? (
+                <View style={styles.emptyExercisesBlock}>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    No exercises added yet. Pick from the 880+ exercise library
+                    or type a custom exercise name below.
+                  </ThemedText>
+                </View>
+              ) : (
+                <View style={styles.exercisesList}>
+                  {plannedExercises.map((exercise, index) => (
+                    <PlannedExerciseRow
+                      key={`${exercise.name}-${index}`}
+                      index={index}
+                      total={plannedExercises.length}
+                      item={exercise}
+                      inputColor={theme.text}
+                      onUpdate={(patch) => handleUpdateExercise(index, patch)}
+                      onRemove={() => handleRemoveExercise(index)}
+                      onMoveUp={() => handleMoveExercise(index, index - 1)}
+                      onMoveDown={() => handleMoveExercise(index, index + 1)}
+                    />
+                  ))}
+                </View>
+              )}
+
+              {/* Add Exercise Actions */}
+              {customInputVisible ? (
+                <View style={styles.customAddBlock}>
+                  <TextInput
+                    style={[styles.input, { color: theme.text }]}
+                    placeholder="Enter custom exercise name…"
+                    placeholderTextColor="#8A8D91"
+                    value={customName}
+                    onChangeText={setCustomName}
+                    autoFocus
+                  />
+                  <View style={styles.customAddActions}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Add custom exercise"
+                      onPress={handleAddCustomExercise}
+                      style={styles.confirmCustomButton}
+                    >
+                      <ThemedText
+                        type="smallBold"
+                        style={styles.confirmCustomText}
+                      >
+                        Add
+                      </ThemedText>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Cancel custom exercise"
+                      onPress={() => {
+                        setCustomInputVisible(false);
+                        setCustomName("");
+                      }}
+                      style={styles.cancelCustomButton}
+                    >
+                      <ThemedText type="small" themeColor="textSecondary">
+                        Cancel
+                      </ThemedText>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.addButtonsRow}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Browse exercise library"
+                    onPress={() => setLibraryVisible(true)}
+                    style={styles.addLibraryButton}
+                  >
+                    <ThemedText type="smallBold" style={styles.addLibraryText}>
+                      📚 Add from Library
+                    </ThemedText>
+                  </Pressable>
+
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Add custom exercise name"
+                    onPress={() => setCustomInputVisible(true)}
+                    style={styles.addCustomButton}
+                  >
+                    <ThemedText type="smallBold" style={styles.addCustomText}>
+                      ＋ Custom Name
+                    </ThemedText>
+                  </Pressable>
+                </View>
+              )}
+            </ThemedView>
+
+            {/* Primary Bottom Actions */}
+            <View style={styles.bottomActions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Save and start workout session"
+                disabled={busy}
+                onPress={() => void handleSave(true)}
+                style={({ pressed }) => [
+                  styles.saveAndStartButton,
+                  pressed && styles.pressed,
+                  busy && styles.disabled,
+                ]}
+              >
+                <ThemedText type="smallBold" style={styles.saveAndStartText}>
+                  {busy ? "Saving…" : "Save & Start Session →"}
+                </ThemedText>
+              </Pressable>
+
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Save workout routine"
+                disabled={busy}
+                onPress={() => void handleSave(false)}
+                style={({ pressed }) => [
+                  styles.saveRoutineButton,
+                  pressed && styles.pressed,
+                  busy && styles.disabled,
+                ]}
+              >
+                <ThemedText type="smallBold" style={styles.saveRoutineText}>
+                  {isEditing ? "Save Changes" : "Save as Routine"}
+                </ThemedText>
+              </Pressable>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
       </ThemedView>
 
       <ExerciseLibraryModal
@@ -582,6 +586,9 @@ function PlannedExerciseRow(props: {
 
 const styles = StyleSheet.create({
   modalContainer: {
+    flex: 1,
+  },
+  safeArea: {
     flex: 1,
   },
   header: {

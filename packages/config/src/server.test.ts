@@ -543,3 +543,68 @@ describe("loadServerConfig — closed-world", () => {
     expect(result.error[0]?.kind).toBe("missing");
   });
 });
+
+describe("loadServerConfig — SES email configuration", () => {
+  it("defaults sesConfig to null when SES keys are omitted", () => {
+    const result = loadServerConfig({ env: baseSnapshot });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.sesConfig).toBeNull();
+  });
+
+  it("parses valid SES configuration with defaults", () => {
+    const result = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.sesAccessKeyId]: "AKIAIOSFODNN7EXAMPLE",
+        [SERVER_ENV_KEYS.sesSecretAccessKey]:
+          "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+      },
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.sesConfig).toEqual({
+      region: "eu-west-1",
+      accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+      secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+      fromEmail: "no-reply@phiskel.com",
+    });
+  });
+
+  it("accepts PHISKEL_SES_AWS_* alias environment variables and custom settings", () => {
+    const result = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        PHISKEL_SES_AWS_ACCESS_KEY_ID: "AKIAIOSFODNN7EXAMPLE",
+        PHISKEL_SES_AWS_SECRET_ACCESS_KEY:
+          "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+        SES_REGION: "eu-central-1",
+        SES_FROM_EMAIL: "custom-sender@phiskel.com",
+      },
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.sesConfig).toEqual({
+      region: "eu-central-1",
+      accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+      secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+      fromEmail: "custom-sender@phiskel.com",
+    });
+  });
+
+  it("fails if only one of SES key ID or secret is provided", () => {
+    const result = loadServerConfig({
+      env: {
+        ...baseSnapshot,
+        [SERVER_ENV_KEYS.sesAccessKeyId]: "AKIAIOSFODNN7EXAMPLE",
+      },
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    const issue = result.error[0];
+    expect(issue?.kind).toBe("malformed");
+    if (issue?.kind === "malformed") {
+      expect(issue.key).toBe(SERVER_ENV_KEYS.sesAccessKeyId);
+    }
+  });
+});

@@ -8,6 +8,7 @@ import {
   View,
 } from "react-native";
 import { useCallback, useEffect, useState } from "react";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -135,322 +136,338 @@ export function ExerciseProgressionModal({
       visible={visible}
       animationType="slide"
       presentationStyle="pageSheet"
+      statusBarTranslucent={true}
       onRequestClose={onClose}
     >
       <ThemedView style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerTitleRow}>
-            <View style={styles.headerTitleBlock}>
-              <ThemedText type="subtitle">{exerciseName}</ThemedText>
-              <View style={styles.badgesRow}>
-                {movementPattern ? (
-                  <View style={styles.badge}>
-                    <ThemedText type="small" style={styles.badgeText}>
-                      {movementPattern.replace("_", " ")}
-                    </ThemedText>
-                  </View>
-                ) : null}
-                {category ? (
-                  <View style={styles.badgeSecondary}>
-                    <ThemedText type="small" style={styles.badgeSecondaryText}>
-                      {category}
-                    </ThemedText>
-                  </View>
-                ) : null}
-              </View>
-            </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Close modal"
-              onPress={onClose}
-              style={styles.closeButton}
-            >
-              <ThemedText type="smallBold" themeColor="primary">
-                Done
-              </ThemedText>
-            </Pressable>
-          </View>
-        </View>
-
-        <ScrollView
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-        >
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator />
-              <ThemedText type="small" themeColor="textSecondary">
-                Loading progression & load history…
-              </ThemedText>
-            </View>
-          ) : (
-            <>
-              {errorMessage ? (
-                <View style={styles.errorBanner} accessibilityRole="alert">
-                  <ThemedText style={styles.errorText}>
-                    {errorMessage}
-                  </ThemedText>
-                </View>
-              ) : null}
-
-              {/* 1. Target Load Card */}
-              <ThemedView type="backgroundElement" style={styles.targetCard}>
-                <View style={styles.cardHeaderRow}>
-                  <View>
-                    <ThemedText type="smallBold" style={styles.cardLabel}>
-                      TARGET LOAD TRACKER
-                    </ThemedText>
-                    <ThemedText type="small" themeColor="textSecondary">
-                      Your current target weight and rep goal
-                    </ThemedText>
-                  </View>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={
-                      isEditingTarget
-                        ? "Cancel editing target"
-                        : "Edit target load"
-                    }
-                    onPress={() => {
-                      setIsEditingTarget(!isEditingTarget);
-                      setErrorMessage(null);
-                    }}
-                    style={styles.editTargetButton}
-                  >
-                    <ThemedText type="smallBold" style={styles.editTargetText}>
-                      {isEditingTarget ? "Cancel" : "✏️ Set Target"}
-                    </ThemedText>
-                  </Pressable>
-                </View>
-
-                {isEditingTarget ? (
-                  <View style={styles.targetEditBlock}>
-                    <View style={styles.targetInputRow}>
-                      <View style={styles.targetInputField}>
-                        <ThemedText type="small" themeColor="textSecondary">
-                          Target Load ({unit})
-                        </ThemedText>
-                        <TextInput
-                          style={[styles.input, { color: theme.text }]}
-                          placeholder={`e.g. 85`}
-                          placeholderTextColor="#8A8D91"
-                          value={targetLoadInput}
-                          onChangeText={setTargetLoadInput}
-                          keyboardType="decimal-pad"
-                          autoFocus
-                        />
-                      </View>
-
-                      <View style={styles.targetInputField}>
-                        <ThemedText type="small" themeColor="textSecondary">
-                          Target Reps (opt)
-                        </ThemedText>
-                        <TextInput
-                          style={[styles.input, { color: theme.text }]}
-                          placeholder="e.g. 8-10"
-                          placeholderTextColor="#8A8D91"
-                          value={targetRepsInput}
-                          onChangeText={setTargetRepsInput}
-                        />
-                      </View>
+        <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.headerTitleRow}>
+              <View style={styles.headerTitleBlock}>
+                <ThemedText type="subtitle">{exerciseName}</ThemedText>
+                <View style={styles.badgesRow}>
+                  {movementPattern ? (
+                    <View style={styles.badge}>
+                      <ThemedText type="small" style={styles.badgeText}>
+                        {movementPattern.replace("_", " ")}
+                      </ThemedText>
                     </View>
+                  ) : null}
+                  {category ? (
+                    <View style={styles.badgeSecondary}>
+                      <ThemedText
+                        type="small"
+                        style={styles.badgeSecondaryText}
+                      >
+                        {category}
+                      </ThemedText>
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Close modal"
+                onPress={onClose}
+                style={styles.closeButton}
+              >
+                <ThemedText type="smallBold" themeColor="primary">
+                  Done
+                </ThemedText>
+              </Pressable>
+            </View>
+          </View>
 
+          <ScrollView
+            contentContainerStyle={styles.content}
+            showsVerticalScrollIndicator={false}
+          >
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator />
+                <ThemedText type="small" themeColor="textSecondary">
+                  Loading progression & load history…
+                </ThemedText>
+              </View>
+            ) : (
+              <>
+                {errorMessage ? (
+                  <View style={styles.errorBanner} accessibilityRole="alert">
+                    <ThemedText style={styles.errorText}>
+                      {errorMessage}
+                    </ThemedText>
+                  </View>
+                ) : null}
+
+                {/* 1. Target Load Card */}
+                <ThemedView type="backgroundElement" style={styles.targetCard}>
+                  <View style={styles.cardHeaderRow}>
+                    <View>
+                      <ThemedText type="smallBold" style={styles.cardLabel}>
+                        TARGET LOAD TRACKER
+                      </ThemedText>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        Your current target weight and rep goal
+                      </ThemedText>
+                    </View>
                     <Pressable
                       accessibilityRole="button"
-                      accessibilityLabel="Save target load"
-                      disabled={savingTarget}
-                      onPress={handleSaveTargetLoad}
-                      style={styles.saveTargetButton}
+                      accessibilityLabel={
+                        isEditingTarget
+                          ? "Cancel editing target"
+                          : "Edit target load"
+                      }
+                      onPress={() => {
+                        setIsEditingTarget(!isEditingTarget);
+                        setErrorMessage(null);
+                      }}
+                      style={styles.editTargetButton}
                     >
                       <ThemedText
                         type="smallBold"
-                        style={styles.saveTargetText}
+                        style={styles.editTargetText}
                       >
-                        {savingTarget ? "Saving…" : "Save Target Load"}
+                        {isEditingTarget ? "Cancel" : "✏️ Set Target"}
                       </ThemedText>
                     </Pressable>
                   </View>
-                ) : (
-                  <View style={styles.targetDisplayBlock}>
-                    <View style={styles.targetMainRow}>
-                      <ThemedText type="title" style={styles.targetLoadNumber}>
-                        {progression?.currentTargetLoadKg !== null &&
-                        progression?.currentTargetLoadKg !== undefined
-                          ? `${kilogramsToDisplayWeight(progression.currentTargetLoadKg, unitSystem)} ${unit}`
-                          : "No target set"}
-                      </ThemedText>
-                      {progression?.currentTargetReps ? (
-                        <View style={styles.repsBadge}>
-                          <ThemedText
-                            type="smallBold"
-                            style={styles.repsBadgeText}
-                          >
-                            {progression.currentTargetReps} reps
+
+                  {isEditingTarget ? (
+                    <View style={styles.targetEditBlock}>
+                      <View style={styles.targetInputRow}>
+                        <View style={styles.targetInputField}>
+                          <ThemedText type="small" themeColor="textSecondary">
+                            Target Load ({unit})
                           </ThemedText>
+                          <TextInput
+                            style={[styles.input, { color: theme.text }]}
+                            placeholder={`e.g. 85`}
+                            placeholderTextColor="#8A8D91"
+                            value={targetLoadInput}
+                            onChangeText={setTargetLoadInput}
+                            keyboardType="decimal-pad"
+                            autoFocus
+                          />
+                        </View>
+
+                        <View style={styles.targetInputField}>
+                          <ThemedText type="small" themeColor="textSecondary">
+                            Target Reps (opt)
+                          </ThemedText>
+                          <TextInput
+                            style={[styles.input, { color: theme.text }]}
+                            placeholder="e.g. 8-10"
+                            placeholderTextColor="#8A8D91"
+                            value={targetRepsInput}
+                            onChangeText={setTargetRepsInput}
+                          />
+                        </View>
+                      </View>
+
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Save target load"
+                        disabled={savingTarget}
+                        onPress={handleSaveTargetLoad}
+                        style={styles.saveTargetButton}
+                      >
+                        <ThemedText
+                          type="smallBold"
+                          style={styles.saveTargetText}
+                        >
+                          {savingTarget ? "Saving…" : "Save Target Load"}
+                        </ThemedText>
+                      </Pressable>
+                    </View>
+                  ) : (
+                    <View style={styles.targetDisplayBlock}>
+                      <View style={styles.targetMainRow}>
+                        <ThemedText
+                          type="title"
+                          style={styles.targetLoadNumber}
+                        >
+                          {progression?.currentTargetLoadKg !== null &&
+                          progression?.currentTargetLoadKg !== undefined
+                            ? `${kilogramsToDisplayWeight(progression.currentTargetLoadKg, unitSystem)} ${unit}`
+                            : "No target set"}
+                        </ThemedText>
+                        {progression?.currentTargetReps ? (
+                          <View style={styles.repsBadge}>
+                            <ThemedText
+                              type="smallBold"
+                              style={styles.repsBadgeText}
+                            >
+                              {progression.currentTargetReps} reps
+                            </ThemedText>
+                          </View>
+                        ) : null}
+                      </View>
+
+                      {/* Comparison Status */}
+                      {progression?.currentTargetLoadKg !== null &&
+                      progression?.currentTargetLoadKg !== undefined ? (
+                        <View style={styles.targetStatusBox}>
+                          {progression.allTimeBestLoadKg !== null &&
+                          progression.allTimeBestLoadKg >=
+                            progression.currentTargetLoadKg ? (
+                            <ThemedText
+                              type="smallBold"
+                              style={styles.targetAchievedText}
+                            >
+                              🎯 Target achieved! Current PR:{" "}
+                              {progression.allTimeBestLoadDisplay}
+                            </ThemedText>
+                          ) : progression.allTimeBestLoadKg !== null ? (
+                            <ThemedText type="small" themeColor="textSecondary">
+                              📈 Best load is{" "}
+                              {progression.allTimeBestLoadDisplay} (
+                              {kilogramsToDisplayWeight(
+                                progression.currentTargetLoadKg -
+                                  progression.allTimeBestLoadKg,
+                                unitSystem,
+                              )}{" "}
+                              {unit} to goal)
+                            </ThemedText>
+                          ) : (
+                            <ThemedText type="small" themeColor="textSecondary">
+                              🎯 Target configured for upcoming workouts
+                            </ThemedText>
+                          )}
                         </View>
                       ) : null}
                     </View>
-
-                    {/* Comparison Status */}
-                    {progression?.currentTargetLoadKg !== null &&
-                    progression?.currentTargetLoadKg !== undefined ? (
-                      <View style={styles.targetStatusBox}>
-                        {progression.allTimeBestLoadKg !== null &&
-                        progression.allTimeBestLoadKg >=
-                          progression.currentTargetLoadKg ? (
-                          <ThemedText
-                            type="smallBold"
-                            style={styles.targetAchievedText}
-                          >
-                            🎯 Target achieved! Current PR:{" "}
-                            {progression.allTimeBestLoadDisplay}
-                          </ThemedText>
-                        ) : progression.allTimeBestLoadKg !== null ? (
-                          <ThemedText type="small" themeColor="textSecondary">
-                            📈 Best load is {progression.allTimeBestLoadDisplay}{" "}
-                            (
-                            {kilogramsToDisplayWeight(
-                              progression.currentTargetLoadKg -
-                                progression.allTimeBestLoadKg,
-                              unitSystem,
-                            )}{" "}
-                            {unit} to goal)
-                          </ThemedText>
-                        ) : (
-                          <ThemedText type="small" themeColor="textSecondary">
-                            🎯 Target configured for upcoming workouts
-                          </ThemedText>
-                        )}
-                      </View>
-                    ) : null}
-                  </View>
-                )}
-              </ThemedView>
-
-              {/* 2. Key Performance Metrics Grid */}
-              <View style={styles.statsGrid}>
-                <ThemedView
-                  type="backgroundElement"
-                  style={styles.statMetricCard}
-                >
-                  <ThemedText type="small" themeColor="textSecondary">
-                    🏆 All-Time PR
-                  </ThemedText>
-                  <ThemedText type="subtitle">
-                    {progression?.allTimeBestLoadDisplay ?? "—"}
-                  </ThemedText>
+                  )}
                 </ThemedView>
 
-                <ThemedView
-                  type="backgroundElement"
-                  style={styles.statMetricCard}
-                >
-                  <ThemedText type="small" themeColor="textSecondary">
-                    ⚡ Estimated 1RM
-                  </ThemedText>
-                  <ThemedText type="subtitle">
-                    {progression?.allTimeBest1RMDisplay ?? "—"}
-                  </ThemedText>
-                </ThemedView>
-
-                <ThemedView
-                  type="backgroundElement"
-                  style={styles.statMetricCard}
-                >
-                  <ThemedText type="small" themeColor="textSecondary">
-                    📊 Logged Sessions
-                  </ThemedText>
-                  <ThemedText type="subtitle">
-                    {progression?.totalSessionsCount ?? 0}
-                  </ThemedText>
-                </ThemedView>
-
-                <ThemedView
-                  type="backgroundElement"
-                  style={styles.statMetricCard}
-                >
-                  <ThemedText type="small" themeColor="textSecondary">
-                    🏋️ Total Volume
-                  </ThemedText>
-                  <ThemedText type="subtitle">
-                    {progression?.totalVolumeDisplay ?? "—"}
-                  </ThemedText>
-                </ThemedView>
-              </View>
-
-              {/* 3. Load Progression Visual Chart */}
-              {progression && progression.sessionsChronological.length >= 2 ? (
-                <ThemedView
-                  type="backgroundElement"
-                  style={styles.progressionChartCard}
-                >
-                  <View style={styles.cardHeaderRow}>
-                    <ThemedText type="smallBold" style={styles.cardLabel}>
-                      LOAD PROGRESSION OVER TIME
-                    </ThemedText>
-                    {progression.loadDeltaKg !== null && (
-                      <ThemedText
-                        type="smallBold"
-                        style={
-                          progression.loadDeltaKg >= 0
-                            ? styles.positiveDelta
-                            : styles.negativeDelta
-                        }
-                      >
-                        {progression.loadDeltaKg >= 0 ? "▲ +" : "▼ "}
-                        {kilogramsToDisplayWeight(
-                          Math.abs(progression.loadDeltaKg),
-                          unitSystem,
-                        )}{" "}
-                        {unit} ({progression.loadDeltaPercent}%)
-                      </ThemedText>
-                    )}
-                  </View>
-
-                  <ProgressionChart
-                    sessions={progression.sessionsChronological}
-                    targetLoadKg={progression.currentTargetLoadKg}
-                    unitSystem={unitSystem}
-                  />
-                </ThemedView>
-              ) : null}
-
-              {/* 4. Session History List */}
-              <View style={styles.historySection}>
-                <ThemedText type="smallBold" style={styles.cardLabel}>
-                  SESSION HISTORY ({progression?.totalSessionsCount ?? 0})
-                </ThemedText>
-
-                {!progression ||
-                progression.sessionsNewestFirst.length === 0 ? (
+                {/* 2. Key Performance Metrics Grid */}
+                <View style={styles.statsGrid}>
                   <ThemedView
                     type="backgroundElement"
-                    style={styles.emptyHistoryCard}
+                    style={styles.statMetricCard}
                   >
-                    <ThemedText type="smallBold">No logged sets yet</ThemedText>
-                    <ThemedText
-                      type="small"
-                      themeColor="textSecondary"
-                      style={styles.emptyHistoryDesc}
-                    >
-                      Sets logged for this exercise during workout sessions will
-                      appear here with load, reps, and volume progression.
+                    <ThemedText type="small" themeColor="textSecondary">
+                      🏆 All-Time PR
+                    </ThemedText>
+                    <ThemedText type="subtitle">
+                      {progression?.allTimeBestLoadDisplay ?? "—"}
                     </ThemedText>
                   </ThemedView>
-                ) : (
-                  progression.sessionsNewestFirst.map((session, index) => (
-                    <SessionProgressionCard
-                      key={`${session.workoutId}-${index}`}
-                      session={session}
+
+                  <ThemedView
+                    type="backgroundElement"
+                    style={styles.statMetricCard}
+                  >
+                    <ThemedText type="small" themeColor="textSecondary">
+                      ⚡ Estimated 1RM
+                    </ThemedText>
+                    <ThemedText type="subtitle">
+                      {progression?.allTimeBest1RMDisplay ?? "—"}
+                    </ThemedText>
+                  </ThemedView>
+
+                  <ThemedView
+                    type="backgroundElement"
+                    style={styles.statMetricCard}
+                  >
+                    <ThemedText type="small" themeColor="textSecondary">
+                      📊 Logged Sessions
+                    </ThemedText>
+                    <ThemedText type="subtitle">
+                      {progression?.totalSessionsCount ?? 0}
+                    </ThemedText>
+                  </ThemedView>
+
+                  <ThemedView
+                    type="backgroundElement"
+                    style={styles.statMetricCard}
+                  >
+                    <ThemedText type="small" themeColor="textSecondary">
+                      🏋️ Total Volume
+                    </ThemedText>
+                    <ThemedText type="subtitle">
+                      {progression?.totalVolumeDisplay ?? "—"}
+                    </ThemedText>
+                  </ThemedView>
+                </View>
+
+                {/* 3. Load Progression Visual Chart */}
+                {progression &&
+                progression.sessionsChronological.length >= 2 ? (
+                  <ThemedView
+                    type="backgroundElement"
+                    style={styles.progressionChartCard}
+                  >
+                    <View style={styles.cardHeaderRow}>
+                      <ThemedText type="smallBold" style={styles.cardLabel}>
+                        LOAD PROGRESSION OVER TIME
+                      </ThemedText>
+                      {progression.loadDeltaKg !== null && (
+                        <ThemedText
+                          type="smallBold"
+                          style={
+                            progression.loadDeltaKg >= 0
+                              ? styles.positiveDelta
+                              : styles.negativeDelta
+                          }
+                        >
+                          {progression.loadDeltaKg >= 0 ? "▲ +" : "▼ "}
+                          {kilogramsToDisplayWeight(
+                            Math.abs(progression.loadDeltaKg),
+                            unitSystem,
+                          )}{" "}
+                          {unit} ({progression.loadDeltaPercent}%)
+                        </ThemedText>
+                      )}
+                    </View>
+
+                    <ProgressionChart
+                      sessions={progression.sessionsChronological}
+                      targetLoadKg={progression.currentTargetLoadKg}
                       unitSystem={unitSystem}
                     />
-                  ))
-                )}
-              </View>
-            </>
-          )}
-        </ScrollView>
+                  </ThemedView>
+                ) : null}
+
+                {/* 4. Session History List */}
+                <View style={styles.historySection}>
+                  <ThemedText type="smallBold" style={styles.cardLabel}>
+                    SESSION HISTORY ({progression?.totalSessionsCount ?? 0})
+                  </ThemedText>
+
+                  {!progression ||
+                  progression.sessionsNewestFirst.length === 0 ? (
+                    <ThemedView
+                      type="backgroundElement"
+                      style={styles.emptyHistoryCard}
+                    >
+                      <ThemedText type="smallBold">
+                        No logged sets yet
+                      </ThemedText>
+                      <ThemedText
+                        type="small"
+                        themeColor="textSecondary"
+                        style={styles.emptyHistoryDesc}
+                      >
+                        Sets logged for this exercise during workout sessions
+                        will appear here with load, reps, and volume
+                        progression.
+                      </ThemedText>
+                    </ThemedView>
+                  ) : (
+                    progression.sessionsNewestFirst.map((session, index) => (
+                      <SessionProgressionCard
+                        key={`${session.workoutId}-${index}`}
+                        session={session}
+                        unitSystem={unitSystem}
+                      />
+                    ))
+                  )}
+                </View>
+              </>
+            )}
+          </ScrollView>
+        </SafeAreaView>
       </ThemedView>
     </Modal>
   );
@@ -591,6 +608,9 @@ function SessionProgressionCard(props: {
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  safeArea: {
     flex: 1,
   },
   header: {

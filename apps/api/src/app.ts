@@ -16,12 +16,15 @@ import {
   createSupabaseServiceRoleClient,
   createSupabaseStorageClient,
 } from "@mizyun/adapter-supabase-server";
+import { SesEmailSender } from "@mizyun/adapter-ses";
 import {
   DEFAULT_TIMEZONE,
   DEFAULT_UNIT_SYSTEM,
+  InMemoryEmailSender,
   type AccountRepository,
   type BodyMeasurementRepository,
   type ConversationRepository,
+  type EmailSender,
   type ExerciseRepository,
   type FeedbackRepository,
   type FoodEntryRepository,
@@ -224,6 +227,7 @@ export interface AppDependencies {
   readonly accountRepository?: AccountRepository;
   readonly mediaAssetRepository?: MediaAssetRepository;
   readonly mediaStorage?: MediaStorage;
+  readonly emailSender?: EmailSender;
   readonly coachControls?: CoachControlOptions;
   /**
    * When provided, the per-feature adapters swap to the Supabase
@@ -258,10 +262,22 @@ const defaultDependencies = (): AppDependencies => {
         mistralVisionConfig: null,
         geminiConfig: null,
         geminiVisionConfig: null,
+        sesConfig: null,
         aiExternalAccess: false,
       };
   const mistralConfig = config.mistralConfig;
   const geminiConfig = config.geminiConfig;
+  const emailSender: EmailSender =
+    config.sesConfig !== null
+      ? new SesEmailSender({
+          region: config.sesConfig.region,
+          defaultFromEmail: config.sesConfig.fromEmail,
+          credentials: {
+            accessKeyId: config.sesConfig.accessKeyId,
+            secretAccessKey: config.sesConfig.secretAccessKey,
+          },
+        })
+      : new InMemoryEmailSender();
   const provider =
     geminiConfig !== null && config.agentProvider === "gemini"
       ? new GeminiAgentProvider({
@@ -292,6 +308,7 @@ const defaultDependencies = (): AppDependencies => {
   // paths stay zero-config.
   const base = {
     provider,
+    emailSender,
     memories: new InMemoryMemoryStore() as MemoryStore,
     tokenVerifier: tokenVerifierFromConfig(config),
     ...(geminiConfig !== null && config.agentProvider === "gemini"
@@ -527,6 +544,19 @@ export const buildApp = (
       ? new SupabaseMediaStorage({ clientFor: sp.storageClientFor })
       : new InMemoryMediaStorage());
   const MEDIA_BUCKET_ID = "private-media";
+
+  const emailSender =
+    dependencies.emailSender ??
+    (configResult.ok && configResult.value.sesConfig !== null
+      ? new SesEmailSender({
+          region: configResult.value.sesConfig.region,
+          defaultFromEmail: configResult.value.sesConfig.fromEmail,
+          credentials: {
+            accessKeyId: configResult.value.sesConfig.accessKeyId,
+            secretAccessKey: configResult.value.sesConfig.secretAccessKey,
+          },
+        })
+      : new InMemoryEmailSender());
 
   // AI-002: build the read-only Coach tool registry against
   // the resolved repositories. When `dependencies.agent` is

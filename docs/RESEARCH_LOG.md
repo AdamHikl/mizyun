@@ -6,6 +6,31 @@
 
 Each entry records date, scope/version, primary sources, findings that affected implementation, and any resulting ADR. Inferences must be labeled as such.
 
+## 2026-08-30 — SES-EMAIL-001 AWS SES transactional & auth email delivery
+
+### Scope
+
+AWS SES v2 client integration (`@aws-sdk/client-sesv2`), domain-authenticated email delivery for `phiskel.com` (region `eu-west-1`), IAM credential validation, and Supabase GoTrue SMTP configuration for sign-up confirmation and password recovery.
+
+### Primary sources
+
+- AWS SES v2 SDK documentation: https://docs.aws.amazon.com/sdk-for-javascript/v3/developer-guide/javascript_ses_code_examples.html
+- AWS SES Custom MAIL FROM domain: https://docs.aws.amazon.com/ses/latest/dg/mail-from.html
+- AWS SES sending quotas & error troubleshooting: https://docs.aws.amazon.com/ses/latest/dg/troubleshoot-error-messages.html
+- Supabase GoTrue SMTP Auth configuration: https://supabase.com/docs/guides/auth/auth-smtp
+
+### Findings used
+
+- AWS SES identity `phiskel.com` in `eu-west-1` requires sender addresses matching `*@phiskel.com`.
+- Pure domain interfaces for email (`EmailSender`, `SendEmailInput`, `validateSendEmailInput`) in `@mizyun/core` decouple app business logic from the AWS SDK.
+- Concrete `SesEmailSender` in `@mizyun/adapter-ses` translates AWS throttling and client errors into structured typed `EmailSendError` domain results.
+- macOS Keychain and process environment (`SES_ACCESS_KEY_ID`, `PHISKEL_SES_AWS_ACCESS_KEY_ID`, `AWS_ACCESS_KEY_ID`) allow seamless local smoke-testing without committing credentials to Git.
+- Supabase GoTrue on self-hosted instances requires standard SES SMTP endpoint (`email-smtp.eu-west-1.amazonaws.com:587`) and generated SES SMTP credentials to enable real email confirmation (`ENABLE_EMAIL_AUTOCONFIRM=false`).
+
+### Result
+
+Created `@mizyun/adapter-ses`, added server configuration in `@mizyun/config`, wired email sender in `apps/api`, created smoke test script `scripts/test-ses-email.ts`, and authored runbook `docs/SES_EMAIL_SETUP.md`.
+
 ## 2026-08-26 — GEMINI-TOOL-001 Gemini function declaration Schema compatibility
 
 ### Scope
