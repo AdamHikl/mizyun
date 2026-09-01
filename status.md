@@ -1,20 +1,23 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-08-30** (SES-EMAIL-001 / AUTH-SMTP-001: AWS SES Email Delivery & Supabase Auth SMTP Setup).
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-09-01** (SES-EMAIL-001 / AUTH-SMTP-001: AWS SES Email Delivery Verified Live with SPF/DKIM/DMARC).
 
 ## Executive snapshot
 
-- **Product stage:** technical pre-alpha; the architecture, domain/API foundation, native mobile UI, and email delivery layer are verified.
-- **Roadmap position:** SES-EMAIL-001 & AUTH-SMTP-001 complete. Added domain-level email interface (`EmailSender`, `SendEmailInput`, `validateSendEmailInput`) in `@mizyun/core`, concrete AWS SES v2 adapter in `@mizyun/adapter-ses` (`SesEmailSender`), typed server configuration in `@mizyun/config` (supporting `SES_ACCESS_KEY_ID`, `PHISKEL_SES_AWS_ACCESS_KEY_ID`, `AWS_ACCESS_KEY_ID`, etc.), wired composition in `apps/api/src/app.ts`, smoke test script `scripts/test-ses-email.ts` with Keychain / env fallback, and complete runbook `docs/SES_EMAIL_SETUP.md` for both app-level transactional emails and GoTrue Auth SMTP configuration.
+- **Product stage:** technical pre-alpha; the architecture, domain/API foundation, native mobile UI, and domain-authenticated email delivery layer are verified and operational.
+- **Roadmap position:** SES-EMAIL-001 & AUTH-SMTP-001 complete and verified live. Added domain-level email interface (`EmailSender`, `SendEmailInput`, `validateSendEmailInput`) in `@mizyun/core`, concrete AWS SES v2 adapter in `@mizyun/adapter-ses` (`SesEmailSender`), typed server configuration in `@mizyun/config` (supporting `SES_ACCESS_KEY_ID`, `PHISKEL_SES_AWS_ACCESS_KEY_ID`, `AWS_ACCESS_KEY_ID`, etc.), wired composition in `apps/api/src/app.ts`, smoke test script `scripts/test-ses-email.ts` with Keychain / env fallback, and complete runbook `docs/SES_EMAIL_SETUP.md` for both app-level transactional emails and GoTrue Auth SMTP configuration.
 - **Latest verified implementation slice:**
   1. Implemented `@mizyun/core` pure domain email types, validation, and in-memory/disabled senders.
   2. Implemented `@mizyun/adapter-ses` with `@aws-sdk/client-sesv2` (`SendEmailCommand`), error classification, and 100% unit test coverage.
   3. Extended `@mizyun/config` with `ServerSesConfiguration`, alias environment variable resolution, and unit tests.
   4. Wired `emailSender` into Fastify composition root in `apps/api/src/app.ts`.
-  5. Added `scripts/test-ses-email.ts` and `pnpm email:smoke` command for verifying deliverability, SPF, DKIM, and DMARC from Mac/server.
-  6. Authored `docs/SES_EMAIL_SETUP.md` covering AWS IAM resources, secret placement, app-level sending, and Supabase GoTrue SMTP integration on Raspberry Pi 5.
-  7. Verified entire monorepo with `pnpm check` (1,048+ unit tests passing, 0 errors, iOS and Android production exports clean).
-- **Branch:** `main`; production Raspberry Pi 5 checkout matches commit `7c890c8` and is verified live (`https://mizyun-api.phiskel.com/v1/health`).
+  5. Added `scripts/test-ses-email.ts` and `pnpm email:smoke` command for verifying deliverability, SPF, DKIM, and DMARC.
+  6. Configured and verified all 6 DNS records on Cloudflare (`phiskel.com` 3x DKIM CNAME, custom MAIL FROM MX/TXT, and DMARC TXT).
+  7. **Live Verification Proof (2026-09-01):** Delivered live test email to `adoh811@gmail.com` with SES `MessageId: 010201a05b73ae62-b5fe14cf-ba58-4fb6-8383-11484944fa3c-000000`.
+  8. Authored `docs/SES_EMAIL_SETUP.md` covering AWS IAM resources, secret placement, app-level sending, and Supabase GoTrue SMTP integration on Raspberry Pi 5.
+  9. Promoted to Raspberry Pi 5 (`rpserver`), verified healthy at `https://mizyun-api.phiskel.com/v1/health`.
+  10. Verified entire monorepo with `pnpm check` (1,048+ unit tests passing, 0 errors, iOS and Android production exports clean).
+- **Branch:** `main`; production Raspberry Pi 5 checkout matches commit `0d6c90d` and is verified live (`https://mizyun-api.phiskel.com/v1/health`).
 - **Production Host:** Raspberry Pi 5 (`rpserver`, Ubuntu 24.04 ARM64, Tailscale IP `100.116.142.1`). Remote deployment `pnpm deploy:remote` is verified green.
 - **Local runtime at handoff:** `pnpm check` passes with 1,048+ tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean.
 - **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and all tests passed.
