@@ -1,21 +1,24 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-09-02** (AUTH-VERIF-001: Mobile Email Verification Reintroduced with Dedicated Confirmation Screen & Supabase GoTrue SES SMTP Live Delivery).
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-09-02** (AUTH-RESET-001: In-App Password Reset & Security Management for Email Users).
 
 ## Executive snapshot
 
-- **Product stage:** technical pre-alpha; the architecture, domain/API foundation, native mobile UI, and domain-authenticated email verification layer are verified and operational.
-- **Roadmap position:** AUTH-VERIF-001 & AUTH-SMTP-001 complete and verified live. Mobile app unauthenticated startup restored (no automatic bypass to preview), dedicated "Check your inbox" verification screen with resend and back-to-login actions added to `AuthScreen`, friendly error messaging for unconfirmed sign-in attempts, and self-hosted Supabase GoTrue Auth connected live to AWS SES SMTP on Raspberry Pi 5 with `ENABLE_EMAIL_AUTOCONFIRM=false`.
+- **Product stage:** technical pre-alpha; the architecture, domain/API foundation, native mobile UI, email verification, and password security layer are verified and operational.
+- **Roadmap position:** AUTH-RESET-001 complete. Added `PasswordSecurityCard` in Settings (`apps/mobile/src/features/settings/password-security-card.tsx`), allowing email/password authenticated users to trigger password recovery emails (via AWS SES SMTP) or update passwords directly in-app, while clearly indicating to Google OAuth users that security is managed via Google Account. Updated `AuthUser` in `@mizyun/identity` and `@mizyun/adapter-supabase-mobile` to propagate provider metadata and allow in-app password updates.
 - **Latest verified implementation slice:**
-  1. Updated `AuthProvider` in `apps/mobile/src/features/auth/auth-context.tsx` to default to `session: null` and `profile: null` on cold start, querying stored session from SecureStore or rendering `AuthScreen`.
-  2. Preserved guest preview exploration via explicit `explorePreview()` tap ("✨ Explore App Preview →").
-  3. Added dedicated "Check your inbox" verification pending card in `AuthScreen` with email display, explanation, resend confirmation button, and back-to-login transition.
-  4. Added specific detection for "email not confirmed" error states in `authErrorMessage` with actionable copy.
-  5. Configured Supabase GoTrue on Raspberry Pi 5 with `ENABLE_EMAIL_AUTOCONFIRM=false` and SigV4-derived AWS SES SMTP credentials (`email-smtp.eu-west-1.amazonaws.com:587`).
-  6. **Live Verification Proof (2026-09-02):** Successfully triggered signup on production Supabase (`adoh811+testemail@gmail.com`), verified GoTrue dispatched confirmation email via AWS SES SMTP with HTTP 200 OK (`confirmation_sent_at: 2026-09-02T11:03:24Z`).
-  7. Promoted to Raspberry Pi 5 (`rpserver`), verified healthy at `https://mizyun-api.phiskel.com/v1/health`.
-  8. Verified entire monorepo with `pnpm check` (1,049+ unit tests passing, 0 errors, iOS and Android production exports clean).
-- **Branch:** `main`; production Raspberry Pi 5 checkout matches commit `643cc37` and is verified live (`https://mizyun-api.phiskel.com/v1/health`).
+  1. Extended `AuthUser` in `@mizyun/identity` with `provider?: string`.
+  2. Updated `toAuthSession` in `@mizyun/adapter-supabase-mobile` to extract provider metadata and allowed `updatePassword` when an active user session exists.
+  3. Created `PasswordSecurityCard` in `apps/mobile/src/features/settings/password-security-card.tsx` with:
+     - Email/password user badge, "Send Reset Link via Email" button (calling `requestPasswordRecovery` via SES), and expandable "Change Password In-App" form with min-length and match validation.
+     - Google OAuth user badge and informational security note.
+  4. Embedded `PasswordSecurityCard` into the Account & Session section of `SettingsScreen`.
+  5. Promoted commit `097064c` to Raspberry Pi 5 (`rpserver`), verified healthy at `https://mizyun-api.phiskel.com/v1/health`.
+  6. Verified entire monorepo with `pnpm check` (1,049+ unit tests passing, 0 errors, iOS and Android production exports clean).
+- **Branch:** `main`; production Raspberry Pi 5 checkout matches commit `097064c` and is verified live (`https://mizyun-api.phiskel.com/v1/health`).
+- **Production Host:** Raspberry Pi 5 (`rpserver`, Ubuntu 24.04 ARM64, Tailscale IP `100.116.142.1`). Remote deployment `pnpm deploy:remote` is verified green.
+- **Local runtime at handoff:** `pnpm check` passes with 1,049+ tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean.
+- **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and all tests passed.
 - **Production Host:** Raspberry Pi 5 (`rpserver`, Ubuntu 24.04 ARM64, Tailscale IP `100.116.142.1`). Remote deployment `pnpm deploy:remote` is verified green.
 - **Local runtime at handoff:** `pnpm check` passes with 1,049+ tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean.
 - **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and all tests passed.
