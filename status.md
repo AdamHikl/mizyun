@@ -1,20 +1,15 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-09-02** (AUTH-RESET-001: In-App Password Reset & Security Management for Email Users).
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-09-02** (FIX-MODAL-001: Fix Exercise Library Track Target Load & Progress Modal Presentation on iOS).
 
 ## Executive snapshot
 
 - **Product stage:** technical pre-alpha; the architecture, domain/API foundation, native mobile UI, email verification, and password security layer are verified and operational.
-- **Roadmap position:** AUTH-RESET-001 complete. Added `PasswordSecurityCard` in Settings (`apps/mobile/src/features/settings/password-security-card.tsx`), allowing email/password authenticated users to trigger password recovery emails (via AWS SES SMTP) or update passwords directly in-app, while clearly indicating to Google OAuth users that security is managed via Google Account. Updated `AuthUser` in `@mizyun/identity` and `@mizyun/adapter-supabase-mobile` to propagate provider metadata and allow in-app password updates.
+- **Roadmap position:** FIX-MODAL-001 complete. Fixed `ExerciseProgressionModal` failing to present from the "Track Target Load & Progress" button in `ExerciseLibraryModal` on iOS by moving the progression modal inside `ExerciseLibraryModal`'s `<Modal>` hierarchy instead of rendering it as a sibling in the root React tree.
 - **Latest verified implementation slice:**
-  1. Extended `AuthUser` in `@mizyun/identity` with `provider?: string`.
-  2. Updated `toAuthSession` in `@mizyun/adapter-supabase-mobile` to extract provider metadata and allowed `updatePassword` when an active user session exists.
-  3. Created `PasswordSecurityCard` in `apps/mobile/src/features/settings/password-security-card.tsx` with:
-     - Email/password user badge, "Send Reset Link via Email" button (calling `requestPasswordRecovery` via SES), and expandable "Change Password In-App" form with min-length and match validation.
-     - Google OAuth user badge and informational security note.
-  4. Embedded `PasswordSecurityCard` into the Account & Session section of `SettingsScreen`.
-  5. Promoted commit `097064c` to Raspberry Pi 5 (`rpserver`), verified healthy at `https://mizyun-api.phiskel.com/v1/health`.
-  6. Verified entire monorepo with `pnpm check` (1,049+ unit tests passing, 0 errors, iOS and Android production exports clean).
+  1. Identified that `ExerciseProgressionModal` was rendered as a sibling outside `ExerciseLibraryModal`'s `<Modal>`, which caused iOS UIKit to reject presentation on the root view controller while another modal was already active.
+  2. Moved `ExerciseProgressionModal` inside `ExerciseLibraryModal`'s `<Modal>`, enabling iOS to correctly present the progression sheet on top of the exercise library.
+  3. Verified entire monorepo with `pnpm check` (1,049+ unit tests passing, 0 errors, iOS and Android production exports clean).
 - **Branch:** `main`; production Raspberry Pi 5 checkout matches commit `097064c` and is verified live (`https://mizyun-api.phiskel.com/v1/health`).
 - **Production Host:** Raspberry Pi 5 (`rpserver`, Ubuntu 24.04 ARM64, Tailscale IP `100.116.142.1`). Remote deployment `pnpm deploy:remote` is verified green.
 - **Local runtime at handoff:** `pnpm check` passes with 1,049+ tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean.
