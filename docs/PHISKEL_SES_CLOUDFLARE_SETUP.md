@@ -16,13 +16,13 @@ Open Cloudflare, select `phiskel.com`, and go to **DNS > Records**. Add these
 five records exactly. Cloudflare may display only the host part in the Name
 column after saving; that is expected.
 
-| Type | Name | Target or content | Priority | Proxy | TTL |
-|---|---|---|---:|---|---|
-| CNAME | `6mc44iv6ptn5lhupnafk6erxcpkhilfu._domainkey` | `6mc44iv6ptn5lhupnafk6erxcpkhilfu.dkim.amazonses.com` | - | DNS only | Auto |
-| CNAME | `yuop4a3e3emcyax2otbe5zlevrhjbukx._domainkey` | `yuop4a3e3emcyax2otbe5zlevrhjbukx.dkim.amazonses.com` | - | DNS only | Auto |
-| CNAME | `zr7chg2gyrbiputfpjskhdb5sxtb464x._domainkey` | `zr7chg2gyrbiputfpjskhdb5sxtb464x.dkim.amazonses.com` | - | DNS only | Auto |
-| MX | `mail` | `feedback-smtp.eu-west-1.amazonses.com` | 10 | N/A | Auto |
-| TXT | `mail` | `v=spf1 include:amazonses.com ~all` | - | N/A | Auto |
+| Type  | Name                                          | Target or content                                     | Priority | Proxy    | TTL  |
+| ----- | --------------------------------------------- | ----------------------------------------------------- | -------: | -------- | ---- |
+| CNAME | `6mc44iv6ptn5lhupnafk6erxcpkhilfu._domainkey` | `6mc44iv6ptn5lhupnafk6erxcpkhilfu.dkim.amazonses.com` |        - | DNS only | Auto |
+| CNAME | `yuop4a3e3emcyax2otbe5zlevrhjbukx._domainkey` | `yuop4a3e3emcyax2otbe5zlevrhjbukx.dkim.amazonses.com` |        - | DNS only | Auto |
+| CNAME | `zr7chg2gyrbiputfpjskhdb5sxtb464x._domainkey` | `zr7chg2gyrbiputfpjskhdb5sxtb464x.dkim.amazonses.com` |        - | DNS only | Auto |
+| MX    | `mail`                                        | `feedback-smtp.eu-west-1.amazonses.com`               |       10 | N/A      | Auto |
+| TXT   | `mail`                                        | `v=spf1 include:amazonses.com ~all`                   |        - | N/A      | Auto |
 
 Important:
 
@@ -42,9 +42,9 @@ invalid. This prevents silent fallback to an Amazon-owned MAIL FROM domain.
 No DMARC record currently exists. After adding the required records, add this
 monitoring policy:
 
-| Type | Name | Content | TTL |
-|---|---|---|---|
-| TXT | `_dmarc` | `v=DMARC1; p=none; pct=100` | Auto |
+| Type | Name     | Content                     | TTL  |
+| ---- | -------- | --------------------------- | ---- |
+| TXT  | `_dmarc` | `v=DMARC1; p=none; pct=100` | Auto |
 
 This begins with monitoring rather than rejecting messages. After legitimate
 senders for `phiskel.com` are inventoried and pass SPF or DKIM alignment, the

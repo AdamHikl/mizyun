@@ -91,9 +91,9 @@ const PREVIEW_PROFILE: Profile = {
 };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<AuthSession | null>(PREVIEW_SESSION);
-  const [profile, setProfile] = useState<Profile | null>(PREVIEW_PROFILE);
-  const [loading, setLoading] = useState(false);
+  const [session, setSession] = useState<AuthSession | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
   const [recoveryState, setRecoveryState] = useState(false);
   const [isOnboardingActive, setIsOnboardingActive] = useState(false);
@@ -120,13 +120,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const applySession = useCallback(
     (nextSession: AuthSession | null): void => {
-      const activeSession = nextSession ?? PREVIEW_SESSION;
       const requestVersion = ++profileRequestVersion.current;
-      setSession(activeSession);
-      setProfile(
-        activeSession.accessToken === "preview-token" ? PREVIEW_PROFILE : null,
-      );
+      setSession(nextSession);
       if (nextSession === null) {
+        setProfile(null);
+        setIsOnboardingActive(false);
+        setProfileLoading(false);
+        return;
+      }
+      if (nextSession.accessToken === "preview-token") {
+        setProfile(PREVIEW_PROFILE);
         setIsOnboardingActive(false);
         setProfileLoading(false);
         return;
@@ -136,12 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       void fetchProfile()
         .then((nextProfile) => {
           if (profileRequestVersion.current === requestVersion) {
-            setProfile(
-              nextProfile ??
-                (activeSession.accessToken === "preview-token"
-                  ? PREVIEW_PROFILE
-                  : null),
-            );
+            setProfile(nextProfile);
           }
         })
         .finally(() => {
@@ -200,8 +198,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const explorePreview = useCallback(() => {
     applySession(PREVIEW_SESSION);
-    setProfile(PREVIEW_PROFILE);
   }, [applySession]);
+
+  const signOut = useCallback(async () => {
+    if (session?.accessToken === "preview-token") {
+      applySession(null);
+      return;
+    }
+    await authClient.signOut();
+    applySession(null);
+  }, [applySession, session?.accessToken]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -211,7 +217,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isOnboardingActive,
       openOnboarding,
       closeOnboarding,
-      signOut: () => authClient.signOut(),
+      signOut,
       consumeDeepLink,
       clearRecoveryState,
       refreshProfile,
@@ -224,6 +230,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isOnboardingActive,
       openOnboarding,
       closeOnboarding,
+      signOut,
       consumeDeepLink,
       clearRecoveryState,
       refreshProfile,

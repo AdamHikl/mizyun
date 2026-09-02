@@ -15,6 +15,21 @@ export const authErrorMessage = (
     return "Authentication is not available in this build.";
   }
 
+  const errorString =
+    error instanceof Error
+      ? error.message.toLowerCase()
+      : typeof error === "string"
+        ? error.toLowerCase()
+        : "";
+
+  if (
+    errorString.includes("email not confirmed") ||
+    errorString.includes("email_not_confirmed") ||
+    errorString.includes("not confirmed")
+  ) {
+    return "Please confirm your email address before signing in. Check your inbox for the confirmation link.";
+  }
+
   switch (action) {
     case "sign-in":
       return "We couldn't sign you in. Check your email and password, then try again.";

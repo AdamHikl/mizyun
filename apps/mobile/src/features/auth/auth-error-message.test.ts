@@ -31,6 +31,20 @@ describe("authErrorMessage", () => {
     );
   });
 
+  it("identifies unconfirmed email errors specifically", () => {
+    expect(authErrorMessage("sign-in", new Error("Email not confirmed"))).toBe(
+      "Please confirm your email address before signing in. Check your inbox for the confirmation link.",
+    );
+    expect(
+      authErrorMessage(
+        "sign-in",
+        new IdentityError("AUTH_PROVIDER_ERROR", "email_not_confirmed"),
+      ),
+    ).toBe(
+      "Please confirm your email address before signing in. Check your inbox for the confirmation link.",
+    );
+  });
+
   it("preserves the explicit configuration-required state", () => {
     expect(
       authErrorMessage(

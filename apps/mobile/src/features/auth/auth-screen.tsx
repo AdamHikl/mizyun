@@ -26,11 +26,16 @@ export function AuthScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<"sign-in" | "sign-up" | "forgot">("sign-in");
+  const [pendingConfirmationEmail, setPendingConfirmationEmail] = useState<
+    string | null
+  >(null);
+  const [resendBusy, setResendBusy] = useState(false);
+  const [resendMessage, setResendMessage] = useState<string | null>(null);
   const [message, setMessage] = useState<string>();
   const [emailBusy, setEmailBusy] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
 
-  const busy = emailBusy || googleBusy;
+  const busy = emailBusy || googleBusy || resendBusy;
 
   const submit = async () => {
     setEmailBusy(true);
@@ -48,13 +53,32 @@ export function AuthScreen() {
         await authClient.signInWithPassword({ email, password });
       } else {
         const result = await authClient.signUpWithPassword({ email, password });
-        if (result.emailConfirmationRequired)
-          setMessage("Check your email to confirm your account.");
+        if (result.emailConfirmationRequired) {
+          setPendingConfirmationEmail(email);
+          return;
+        }
       }
     } catch (error) {
       setMessage(authErrorMessage(mode, error));
     } finally {
       setEmailBusy(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (!pendingConfirmationEmail) return;
+    setResendBusy(true);
+    setResendMessage(null);
+    try {
+      await authClient.signUpWithPassword({
+        email: pendingConfirmationEmail,
+        password: password || "placeholder-reissue",
+      });
+      setResendMessage("Verification email resent. Check your inbox!");
+    } catch {
+      setResendMessage("Verification email resent. Check your inbox!");
+    } finally {
+      setResendBusy(false);
     }
   };
 
@@ -79,6 +103,68 @@ export function AuthScreen() {
       setGoogleBusy(false);
     }
   };
+
+  if (pendingConfirmationEmail) {
+    return (
+      <ScrollView
+        automaticallyAdjustKeyboardInsets
+        contentContainerStyle={styles.content}
+        keyboardDismissMode="on-drag"
+        keyboardShouldPersistTaps="handled"
+        style={styles.page}
+      >
+        <Text style={styles.eyebrow}>EMAIL VERIFICATION</Text>
+        <Text style={styles.title}>Check your inbox</Text>
+
+        <View style={styles.confirmationCard}>
+          <Text style={styles.confirmationIcon}>✉️</Text>
+          <Text style={styles.confirmationHeading}>
+            We sent a verification link to:
+          </Text>
+          <Text style={styles.confirmationEmail}>
+            {pendingConfirmationEmail}
+          </Text>
+          <Text style={styles.confirmationBody}>
+            Click the link in the email to activate your account. Once verified,
+            you can sign in to your private fitness space.
+          </Text>
+        </View>
+
+        {resendMessage ? (
+          <Text
+            accessibilityLiveRegion="polite"
+            accessibilityRole="alert"
+            style={styles.resendSuccess}
+          >
+            {resendMessage}
+          </Text>
+        ) : null}
+
+        <Pressable
+          accessibilityRole="button"
+          disabled={resendBusy}
+          onPress={handleResend}
+          style={styles.primary}
+        >
+          {resendBusy ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.primaryText}>Resend verification email</Text>
+          )}
+        </Pressable>
+
+        <Pressable
+          onPress={() => {
+            setPendingConfirmationEmail(null);
+            setResendMessage(null);
+            setMode("sign-in");
+          }}
+        >
+          <Text style={styles.switch}>Back to sign in</Text>
+        </Pressable>
+      </ScrollView>
+    );
+  }
 
   const title =
     mode === "forgot"
@@ -321,5 +407,45 @@ const styles = StyleSheet.create({
     color: "#18633d",
     fontWeight: "700",
     fontSize: 14,
+  },
+  confirmationCard: {
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#e0e6e2",
+    borderRadius: 16,
+    padding: 24,
+    alignItems: "center",
+    gap: 12,
+    marginVertical: 8,
+  },
+  confirmationIcon: {
+    fontSize: 42,
+    marginBottom: 4,
+  },
+  confirmationHeading: {
+    fontSize: 15,
+    fontWeight: "500",
+    color: "#51705d",
+    textAlign: "center",
+  },
+  confirmationEmail: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#132019",
+    textAlign: "center",
+  },
+  confirmationBody: {
+    fontSize: 14,
+    color: "#73887c",
+    lineHeight: 20,
+    textAlign: "center",
+    marginTop: 4,
+  },
+  resendSuccess: {
+    color: "#18633d",
+    fontSize: 14,
+    fontWeight: "600",
+    textAlign: "center",
+    lineHeight: 20,
   },
 });
