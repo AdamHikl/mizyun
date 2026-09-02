@@ -10,16 +10,14 @@ import {
 
 import { ThemedText } from "@/components/themed-text";
 import { authClient } from "@/composition/auth-client";
+import { Spacing } from "@/constants/theme";
 import { useAuth } from "@/features/auth/auth-context";
 
 /**
  * Password & Security Settings Card.
  *
- * Displays the active authentication method. If the user signed in
- * with email/password, provides both an outbound password reset email
- * trigger (via AWS SES) and direct in-app password update. If the user
- * signed in with Google OAuth, clarifies that password management is
- * handled through their Google Account.
+ * Designed to live inside a CollapsibleSection in the Account & Session hub.
+ * Fully theme-aware with dark mode compliance.
  */
 export function PasswordSecurityCard() {
   const { session } = useAuth();
@@ -98,14 +96,12 @@ export function PasswordSecurityCard() {
 
   if (isGoogle) {
     return (
-      <View style={styles.card}>
-        <View style={styles.headerRow}>
-          <View style={styles.badgeRow}>
-            <View style={styles.googleBadge}>
-              <ThemedText type="smallBold" style={styles.googleBadgeText}>
-                GOOGLE ACCOUNT
-              </ThemedText>
-            </View>
+      <View style={styles.container}>
+        <View style={styles.badgeRow}>
+          <View style={styles.googleBadge}>
+            <ThemedText type="smallBold" style={styles.googleBadgeText}>
+              GOOGLE ACCOUNT
+            </ThemedText>
           </View>
         </View>
         <ThemedText type="small" themeColor="textSecondary" style={styles.body}>
@@ -117,31 +113,32 @@ export function PasswordSecurityCard() {
   }
 
   return (
-    <View style={styles.card}>
-      <View style={styles.headerRow}>
-        <View style={styles.badgeRow}>
-          <View style={styles.emailBadge}>
-            <ThemedText type="smallBold" style={styles.emailBadgeText}>
-              EMAIL & PASSWORD
-            </ThemedText>
-          </View>
+    <View style={styles.container}>
+      <View style={styles.badgeRow}>
+        <View style={styles.emailBadge}>
+          <ThemedText type="smallBold" style={styles.emailBadgeText}>
+            EMAIL & PASSWORD
+          </ThemedText>
         </View>
       </View>
 
       <ThemedText type="small" themeColor="textSecondary" style={styles.body}>
-        Manage your password or request a reset link sent to your registered
-        email address ({email ?? "your email"}).
+        Manage your password or request an official reset link sent to{" "}
+        <ThemedText type="smallBold" style={styles.highlightEmail}>
+          {email ?? "your email"}
+        </ThemedText>
+        .
       </ThemedText>
 
       {message ? (
         <ThemedText type="smallBold" style={styles.successText}>
-          {message}
+          ✓ {message}
         </ThemedText>
       ) : null}
 
       {error ? (
         <ThemedText type="smallBold" style={styles.errorText}>
-          {error}
+          ⚠️ {error}
         </ThemedText>
       ) : null}
 
@@ -158,7 +155,7 @@ export function PasswordSecurityCard() {
             ]}
           >
             {emailBusy ? (
-              <ActivityIndicator color="#18633d" size="small" />
+              <ActivityIndicator color="#10B981" size="small" />
             ) : (
               <ThemedText type="smallBold" style={styles.secondaryButtonText}>
                 ✉️ Send Reset Link via Email
@@ -186,15 +183,13 @@ export function PasswordSecurityCard() {
         </View>
       ) : (
         <View style={styles.formContainer}>
-          <ThemedText type="smallBold" style={styles.formTitle}>
-            Set a new password
-          </ThemedText>
+          <ThemedText type="smallBold">Choose a new password</ThemedText>
 
           <TextInput
             autoCapitalize="none"
             autoComplete="new-password"
             placeholder="New password (min 8 characters)"
-            placeholderTextColor="#8E8E93"
+            placeholderTextColor="#64748B"
             returnKeyType="next"
             secureTextEntry
             value={newPassword}
@@ -207,7 +202,7 @@ export function PasswordSecurityCard() {
             autoCapitalize="none"
             autoComplete="new-password"
             placeholder="Confirm new password"
-            placeholderTextColor="#8E8E93"
+            placeholderTextColor="#64748B"
             ref={confirmInput}
             returnKeyType="done"
             secureTextEntry
@@ -263,114 +258,109 @@ export function PasswordSecurityCard() {
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: "#ffffff",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#e0e6e2",
-    padding: 18,
-    gap: 12,
-  },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+  container: {
+    padding: Spacing.four,
+    gap: Spacing.three,
   },
   badgeRow: {
     flexDirection: "row",
-    gap: 8,
   },
   emailBadge: {
-    backgroundColor: "rgba(24, 99, 61, 0.1)",
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.3)",
   },
   emailBadgeText: {
-    color: "#18633d",
+    color: "#10B981",
     fontSize: 11,
     letterSpacing: 0.5,
   },
   googleBadge: {
-    backgroundColor: "rgba(66, 133, 244, 0.1)",
+    backgroundColor: "rgba(59, 130, 246, 0.15)",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(59, 130, 246, 0.3)",
   },
   googleBadgeText: {
-    color: "#1a73e8",
+    color: "#60A5FA",
     fontSize: 11,
     letterSpacing: 0.5,
   },
   body: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  highlightEmail: {
+    color: "#E2E8F0",
   },
   buttonRow: {
-    gap: 10,
-    marginTop: 4,
+    gap: Spacing.two,
+    marginTop: Spacing.one,
   },
   actionButton: {
-    minHeight: 44,
+    minHeight: 46,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 16,
+    paddingHorizontal: Spacing.three,
   },
   primaryButton: {
-    backgroundColor: "#18633d",
+    backgroundColor: "#10B981",
   },
   primaryButtonText: {
     color: "#ffffff",
     fontWeight: "700",
+    fontSize: 14,
   },
   secondaryButton: {
-    backgroundColor: "#f2f6f4",
+    backgroundColor: "rgba(16, 185, 129, 0.1)",
     borderWidth: 1,
-    borderColor: "#d6ded8",
+    borderColor: "rgba(16, 185, 129, 0.25)",
   },
   secondaryButtonText: {
-    color: "#18633d",
+    color: "#34D399",
     fontWeight: "600",
+    fontSize: 14,
   },
   cancelButton: {
     backgroundColor: "transparent",
   },
   cancelButtonText: {
-    color: "#73887c",
+    color: "#94A3B8",
     fontWeight: "600",
+    fontSize: 14,
   },
   pressed: {
     opacity: 0.8,
   },
   formContainer: {
-    gap: 10,
-    marginTop: 4,
-  },
-  formTitle: {
-    fontSize: 14,
-    color: "#132019",
-    marginBottom: 2,
+    gap: Spacing.two,
+    marginTop: Spacing.one,
   },
   input: {
-    backgroundColor: "#f7f8f4",
-    borderColor: "#d6ded8",
+    backgroundColor: "rgba(148, 163, 184, 0.08)",
+    borderColor: "rgba(148, 163, 184, 0.2)",
     borderWidth: 1,
     borderRadius: 12,
-    padding: 14,
+    padding: Spacing.three,
     fontSize: 15,
-    color: "#132019",
+    color: "#F8FAFC",
   },
   formButtonRow: {
-    gap: 8,
-    marginTop: 4,
+    gap: Spacing.two,
+    marginTop: Spacing.one,
   },
   successText: {
-    color: "#18633d",
+    color: "#10B981",
     fontSize: 13,
   },
   errorText: {
-    color: "#a13a25",
+    color: "#EF4444",
     fontSize: 13,
   },
 });

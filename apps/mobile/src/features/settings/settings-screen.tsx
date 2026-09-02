@@ -61,6 +61,7 @@ export function SettingsScreen() {
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>("all");
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     identity: false,
+    security: false,
     profile: true,
     goal: true,
     aiProvider: true,
@@ -624,7 +625,20 @@ export function SettingsScreen() {
               <PrincipalCard state={state} onRetry={refresh} />
             </CollapsibleSection>
 
-            <PasswordSecurityCard />
+            <CollapsibleSection
+              id="security"
+              icon="🔒"
+              title="Password & Security"
+              subtitle={
+                session?.user?.provider === "google"
+                  ? "Google Account · Managed via Google"
+                  : "Email & Password · Reset or change password"
+              }
+              isOpen={!!openSections.security}
+              onToggle={() => toggleSection("security")}
+            >
+              <PasswordSecurityCard />
+            </CollapsibleSection>
 
             <FeedbackCard />
             <SignOutCard
