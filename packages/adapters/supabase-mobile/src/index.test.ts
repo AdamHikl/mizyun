@@ -207,6 +207,7 @@ describe("SupabaseMobileAuthClient", () => {
         user: {
           id: "00000000-0000-4000-8000-000000000001",
           email: "test@example.com",
+          provider: "email",
         },
         accessToken: "mock-access-token",
         expiresAt: new Date(1784197009 * 1000),

@@ -3,6 +3,7 @@ import type { UserId } from "@mizyun/core";
 export interface AuthUser {
   readonly id: UserId;
   readonly email?: string;
+  readonly provider?: string;
 }
 
 export interface AuthSession {

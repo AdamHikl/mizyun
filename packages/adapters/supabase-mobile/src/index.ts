@@ -35,10 +35,15 @@ const secureStorePrimitive: StringStorage = {
 const toAuthSession = (session: Session | null): AuthSession | null => {
   if (!session) return null;
   const email = session.user.email;
+  const provider =
+    (session.user.app_metadata?.provider as string | undefined) ??
+    (session.user.identities?.[0]?.provider as string | undefined) ??
+    "email";
   return {
     user: {
       id: session.user.id as UserId,
       ...(email ? { email } : {}),
+      provider,
     },
     accessToken: session.access_token,
     ...(session.expires_at
@@ -178,10 +183,11 @@ export class SupabaseMobileAuthClient implements AuthClient {
   }
 
   async updatePassword(newPassword: { password: string }): Promise<void> {
-    if (!this.#inRecovery) {
+    const currentSession = await this.client.auth.getSession();
+    if (!this.#inRecovery && !currentSession.data.session) {
       throw new IdentityError(
         "AUTH_NOT_IN_RECOVERY",
-        "updatePassword is only valid after a recovery deep link is consumed.",
+        "updatePassword is only valid after a recovery deep link is consumed or with an active session.",
       );
     }
     const { error } = await this.client.auth.updateUser({

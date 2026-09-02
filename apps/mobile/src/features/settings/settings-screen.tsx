@@ -28,6 +28,7 @@ import { CoachPreferencesCard } from "./coach-preferences-card";
 import { CoachRemindersCard } from "./coach-reminders-card";
 import { GoalSettingsCard } from "./goal-settings-card";
 import { MemoryControlsCard } from "./memory-controls-card";
+import { PasswordSecurityCard } from "./password-security-card";
 import { ProfileSettingsCard } from "./profile-settings-card";
 import {
   applyCoachReminders,
@@ -622,6 +623,8 @@ export function SettingsScreen() {
             >
               <PrincipalCard state={state} onRetry={refresh} />
             </CollapsibleSection>
+
+            <PasswordSecurityCard />
 
             <FeedbackCard />
             <SignOutCard
