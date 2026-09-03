@@ -79,6 +79,7 @@ import { foodDraftRoutes } from "./modules/food-entries/draft-route.js";
 import { FoodDraftRateLimiter } from "./modules/food-entries/draft-rate-limit.js";
 import { goalsRoutes } from "./modules/goals/routes.js";
 import { identityRoutes } from "./modules/identity/routes.js";
+import { legalRoutes } from "./modules/legal/routes.js";
 import { mediaRoutes } from "./modules/media/routes.js";
 import { profileRoutes } from "./modules/profile/routes.js";
 import { systemRoutes } from "./modules/system/routes.js";
@@ -726,6 +727,7 @@ export const buildApp = (
   const memoryStore: MemoryStore = resolveMemoryStore(dependencies);
 
   void app.register(systemRoutes, { prefix: "/v1" });
+  void app.register(legalRoutes, { prefix: "/legal" });
   void app.register(identityRoutes, { prefix: "/v1" });
   void app.register(profileRoutes, {
     prefix: "/v1/profile",

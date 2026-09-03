@@ -25,6 +25,7 @@ import {
   type CoachWorkoutProposal,
   type CoachWorkoutEditProposal,
   type CoachWeeklyAdaptationProposal,
+  type Workout,
 } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
@@ -71,6 +72,10 @@ import {
   type MultiWorkoutPlanSaveResult,
 } from "./multi-workout-plan";
 import { applyWorkoutEditProposal } from "./workout-edit-proposal";
+import {
+  createCustomWorkout,
+  type PlannedExerciseItem,
+} from "@/features/workouts/workouts-hub-data";
 
 // AI-MOB-002 — error taxonomy. The data layer returns humanized
 // text for any failure; the screen additionally surfaces a
@@ -1343,6 +1348,58 @@ function WorkoutProposalCard({
   readonly proposal: CoachWorkoutProposal;
   readonly onReview: (proposal: CoachWorkoutProposal) => void;
 }) {
+  const [saving, setSaving] = useState(false);
+  const [savedWorkout, setSavedWorkout] = useState<Workout | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const handleSaveToRoutines = useCallback(async () => {
+    if (saving || savedWorkout !== null) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const plannedExercises: PlannedExerciseItem[] =
+        proposal.session.exercises.map((e) => ({
+          name: e.name,
+          catalogId: e.catalogId,
+          movementPattern: e.movementPattern,
+          targetSets: e.sets,
+          targetReps:
+            e.repsMin !== null && e.repsMax !== null
+              ? `${e.repsMin}–${e.repsMax}`
+              : e.durationMinutes
+                ? `${e.durationMinutes} min`
+                : "8–12",
+          restSeconds: e.restSeconds,
+        }));
+
+      const result = await createCustomWorkout({
+        name: proposal.session.label,
+        notes: `Coach plan · ${proposal.volumeAction} volume · ~${proposal.session.estimatedMinutes} min`,
+        plannedExercises,
+      });
+
+      if (result.ok && result.workout) {
+        setSavedWorkout(result.workout);
+      } else if (!result.ok) {
+        setSaveError(result.message);
+      }
+    } catch (cause) {
+      setSaveError(
+        cause instanceof Error
+          ? cause.message
+          : "Could not save routine. Please try again.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }, [proposal, savedWorkout, saving]);
+
+  const onOpenSaved = useCallback(() => {
+    if (savedWorkout) {
+      router.push(`/log-workout?workoutId=${savedWorkout.id}` as Href);
+    }
+  }, [savedWorkout]);
+
   return (
     <View style={styles.proposalCard}>
       <View style={styles.proposalHeaderRow}>
@@ -1358,7 +1415,7 @@ function WorkoutProposalCard({
         </View>
         <View style={styles.proposalBadge}>
           <ThemedText type="smallBold" style={styles.proposalBadgeText}>
-            ＋ START
+            {savedWorkout !== null ? "✓ SAVED" : "＋ ROUTINE"}
           </ThemedText>
         </View>
       </View>
@@ -1375,20 +1432,73 @@ function WorkoutProposalCard({
         ))}
       </View>
 
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Review and start ${proposal.session.label}`}
-        accessibilityHint="Opens an editable workout plan. Nothing is started until you confirm."
-        onPress={() => onReview(proposal)}
-        style={({ pressed }) => [
-          styles.proposalButton,
-          pressed && styles.pressed,
-        ]}
-      >
-        <ThemedText type="smallBold" style={styles.proposalButtonText}>
-          Review &amp; start workout
+      {saveError !== null ? (
+        <ThemedText
+          type="small"
+          themeColor="textSecondary"
+          accessibilityRole="alert"
+          style={styles.proposalErrorText}
+        >
+          {saveError}
         </ThemedText>
-      </Pressable>
+      ) : null}
+
+      {savedWorkout !== null ? (
+        <View style={{ gap: Spacing.one }}>
+          <ThemedText type="smallBold" style={{ color: "#10B981" }}>
+            ✓ Added to your workout routines
+          </ThemedText>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Start ${proposal.session.label}`}
+            onPress={onOpenSaved}
+            style={({ pressed }) => [
+              styles.proposalButton,
+              pressed && styles.pressed,
+            ]}
+          >
+            <ThemedText type="smallBold" style={styles.proposalButtonText}>
+              Start Workout Now →
+            </ThemedText>
+          </Pressable>
+        </View>
+      ) : (
+        <View style={{ gap: Spacing.two, marginTop: Spacing.one }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Save ${proposal.session.label} to my routines`}
+            disabled={saving}
+            onPress={() => void handleSaveToRoutines()}
+            style={({ pressed }) => [
+              styles.proposalButton,
+              pressed && styles.pressed,
+              saving && { opacity: 0.6 },
+            ]}
+          >
+            <ThemedText type="smallBold" style={styles.proposalButtonText}>
+              {saving ? "Saving to Routines…" : "💾 Save to My Routines"}
+            </ThemedText>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Review and start ${proposal.session.label}`}
+            accessibilityHint="Opens the live workout tracker directly."
+            onPress={() => onReview(proposal)}
+            style={({ pressed }) => [
+              styles.proposalSecondaryButton,
+              pressed && styles.pressed,
+            ]}
+          >
+            <ThemedText
+              type="smallBold"
+              style={styles.proposalSecondaryButtonText}
+            >
+              ⚡ Start Live Session Directly
+            </ThemedText>
+          </Pressable>
+        </View>
+      )}
     </View>
   );
 }
@@ -2294,6 +2404,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
   },
   proposalButtonText: { color: "#FFFFFF" },
+  proposalSecondaryButton: {
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.4)",
+    backgroundColor: "rgba(16, 185, 129, 0.08)",
+    paddingHorizontal: Spacing.three,
+  },
+  proposalSecondaryButtonText: {
+    color: "#10B981",
+    fontSize: 14,
+  },
+  proposalErrorText: {
+    color: "#E8A230",
+    fontSize: 13,
+  },
   pendingRow: {
     flexDirection: "row",
     alignItems: "center",

@@ -1,24 +1,23 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-09-02** (FIX-MODAL-001: Fix Exercise Library Track Target Load & Progress Modal Presentation on iOS).
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-09-03** (PRE-LAUNCH-001: App Store & Play Store Pre-Release Readiness, Legal Compliance, Beta Pro Tier & EAS Pipeline).
 
 ## Executive snapshot
 
-- **Product stage:** technical pre-alpha; the architecture, domain/API foundation, native mobile UI, email verification, and password security layer are verified and operational.
-- **Roadmap position:** FIX-MODAL-001 complete. Fixed `ExerciseProgressionModal` failing to present from the "Track Target Load & Progress" button in `ExerciseLibraryModal` on iOS by moving the progression modal inside `ExerciseLibraryModal`'s `<Modal>` hierarchy instead of rendering it as a sibling in the root React tree.
+- **Product stage:** technical pre-alpha; pre-release launch preparation complete (legal compliance, App Store & Play Store disclosure questionnaire guide, Beta Pro Pass in-app status, hosted legal endpoints, and EAS build configuration ready).
+- **Roadmap position:** PRE-LAUNCH-001 complete.
 - **Latest verified implementation slice:**
-  1. Identified that `ExerciseProgressionModal` was rendered as a sibling outside `ExerciseLibraryModal`'s `<Modal>`, which caused iOS UIKit to reject presentation on the root view controller while another modal was already active.
-  2. Moved `ExerciseProgressionModal` inside `ExerciseLibraryModal`'s `<Modal>`, enabling iOS to correctly present the progression sheet on top of the exercise library.
-  3. Verified entire monorepo with `pnpm check` (1,049+ unit tests passing, 0 errors, iOS and Android production exports clean).
-- **Branch:** `main`; production Raspberry Pi 5 checkout matches commit `986524b` and is verified live (`https://mizyun-api.phiskel.com/v1/health`).
-- **Production Host:** Raspberry Pi 5 (`rpserver`, Ubuntu 24.04 ARM64, Tailscale IP `100.116.142.1`). Remote git checkout updated to commit `986524b`.
-- **Local runtime at handoff:** `pnpm check` passes with 1,049+ tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean.
+  1. Drafted comprehensive `docs/PRIVACY_POLICY.md` and `docs/TERMS_OF_SERVICE.md` with explicit health/fitness data ownership, private progress photo isolation, zero public-model training disclosures, and two-step account deletion guarantees.
+  2. Created `docs/STORE_LISTING_DISCLOSURES.md` containing copy-pasteable metadata, iOS App Privacy "Nutrition Labels", Google Play Data Safety form answers, and App Store Reviewer Notes (human-in-the-loop AI draft explanation and test credentials).
+  3. Implemented `/legal/privacy`, `/legal/terms`, and `/legal/support` responsive HTML routes in `@mizyun/api` with full unit test coverage.
+  4. Added "✨ Beta Pro Pass" status badges in `OnboardingScreen` and `SettingsScreen` to establish premium feature perception during complimentary testing.
+  5. Added "Legal, Terms & Health Advisory" in `SettingsScreen` with in-app browser links to legal endpoints and explicit non-medical disclaimer satisfying Apple Guideline 1.4.1.
+  6. Configured `apps/mobile/eas.json` and added EAS cloud/local packaging scripts (`pnpm mobile:eas:build:ios`, `pnpm mobile:eas:build:android`).
+  7. Verified entire monorepo with `pnpm check` (1,052+ unit tests passing, 0 errors, iOS 1,808 modules and Android 1,900 modules exported clean).
+- **iOS:** physical iPhone 16 Pro (`Adam's Iphone 😋`, `7FBC9ACC-918A-5A9B-8D22-B9F1FF652A06`) running fresh Production Release build `com.mizyun.app` with pre-launch legal routes, Beta Pro Pass in-app indicators, and legal/medical disclaimers.
+- **Branch:** `main`.
+- **Local runtime at handoff:** `pnpm check` passes with 1,052+ tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean.
 - **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and all tests passed.
-- **Vision & Agent provider gate:** `GeminiAgentProvider` and `GeminiVisionProvider` default to `gemini-3.7-flash` with `thoughtSignature` preservation, `thinkingBudget: 0`, automatic fallback to `gemini-3.6-flash` on HTTP 429/503/overload, candidate macro normalization/reconciliation, and tool parameter schema sanitization.
-- **Moderation regression gate:** `pnpm check` passes with 994 tests and 17 opt-in tests skipped; the Mistral and Gemini providers allow fitness and wellness queries without false health rejections while maintaining deterministic emergency and medical safety filters.
-- **Coach & Workout UX gate:** verified end-to-end on iOS Simulator (`iPhone 17 Pro`): custom workout creation/logging, Coach multi-session plan generation, conversational workout modification with proposal cards, applying modifications to stored workouts, and opening/logging modified exercises.
-- **iOS:** physical iPhone 16 Pro (`Adam's Iphone 😋`, `7FBC9ACC-918A-5A9B-8D22-B9F1FF652A06`) running fresh Production Release build `com.mizyun.app` with nested exercise progression modal presentation fix (commit `986524b`), email verification, in-app password reset/security management, and live AWS SES SMTP integration.
-- **Android:** Standalone Production Release APK (`app-release.apk`, 103MB) compiled cleanly via `pnpm mobile:founder-production:android:assembleRelease` for commit `d6e36ce` targeting the production hosts. Live emulator `Mizyun_Pixel_9_API_36` verified.
 
 ## What is genuinely delivered
 

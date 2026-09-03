@@ -7,6 +7,10 @@ import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { useAuth } from "@/features/auth/auth-context";
 import { meResponseSchema, type AuthPrincipalWire } from "@mizyun/contracts";
 import { router, type Href } from "expo-router";
+import {
+  openBrowserAsync,
+  WebBrowserPresentationStyle,
+} from "expo-web-browser";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -69,6 +73,7 @@ export function SettingsScreen() {
     reminders: false,
     memory: false,
     analytics: false,
+    legal: false,
   });
 
   const refresh = useCallback(async () => {
@@ -236,6 +241,11 @@ export function SettingsScreen() {
 
           {/* Quick Status Pill Badges */}
           <View style={styles.heroBadgesRow}>
+            <View style={[styles.heroPill, styles.betaPill]}>
+              <ThemedText type="smallBold" style={styles.betaPillText}>
+                ✨ Beta Pro Pass
+              </ThemedText>
+            </View>
             <View style={styles.heroPill}>
               <ThemedText type="smallBold" style={styles.heroPillText}>
                 📏 {unitSystemDisplay}
@@ -640,6 +650,17 @@ export function SettingsScreen() {
               <PasswordSecurityCard />
             </CollapsibleSection>
 
+            <CollapsibleSection
+              id="legal"
+              icon="⚖️"
+              title="Legal, Terms & Health Advisory"
+              subtitle="Privacy policy, terms & medical disclaimer"
+              isOpen={!!openSections.legal}
+              onToggle={() => toggleSection("legal")}
+            >
+              <LegalCard />
+            </CollapsibleSection>
+
             <FeedbackCard />
             <SignOutCard
               disabled={state.kind === "disabled"}
@@ -737,6 +758,99 @@ function FeedbackCard() {
         </ThemedText>
       </Pressable>
     </ThemedView>
+  );
+}
+
+function LegalCard() {
+  const baseUrl = apiConfiguration.configured
+    ? apiConfiguration.baseUrl
+    : "https://mizyun-api.phiskel.com";
+
+  const openUrl = async (path: string) => {
+    try {
+      await openBrowserAsync(`${baseUrl}${path}`, {
+        presentationStyle: WebBrowserPresentationStyle.AUTOMATIC,
+      });
+    } catch {
+      // Graceful fallback if browser cannot be launched
+    }
+  };
+
+  return (
+    <View style={styles.legalCard}>
+      <ThemedView type="backgroundElement" style={styles.disclaimerContainer}>
+        <ThemedText style={styles.disclaimerIcon}>⚠️</ThemedText>
+        <View style={styles.disclaimerTextBlock}>
+          <ThemedText type="smallBold" style={styles.disclaimerTitle}>
+            Health & Medical Advisory
+          </ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">
+            Mizyun is an informational fitness and nutrition tool and is not a
+            medical device. Always consult a physician or qualified healthcare
+            provider before starting any new diet or training program.
+          </ThemedText>
+        </View>
+      </ThemedView>
+
+      <View style={styles.legalLinksList}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open Privacy Policy"
+          onPress={() => void openUrl("/legal/privacy")}
+          style={({ pressed }) => [
+            styles.legalLinkRow,
+            pressed && styles.pressed,
+          ]}
+        >
+          <ThemedText style={styles.legalLinkIcon}>📄</ThemedText>
+          <View style={styles.legalLinkTextBlock}>
+            <ThemedText type="smallBold">Privacy Policy</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              How your health and photo data is protected
+            </ThemedText>
+          </View>
+          <ThemedText style={styles.legalLinkArrow}>↗</ThemedText>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open Terms of Service"
+          onPress={() => void openUrl("/legal/terms")}
+          style={({ pressed }) => [
+            styles.legalLinkRow,
+            pressed && styles.pressed,
+          ]}
+        >
+          <ThemedText style={styles.legalLinkIcon}>⚖️</ThemedText>
+          <View style={styles.legalLinkTextBlock}>
+            <ThemedText type="smallBold">Terms of Service</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              Service conditions and beta access terms
+            </ThemedText>
+          </View>
+          <ThemedText style={styles.legalLinkArrow}>↗</ThemedText>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open Support and Inquiries"
+          onPress={() => void openUrl("/legal/support")}
+          style={({ pressed }) => [
+            styles.legalLinkRow,
+            pressed && styles.pressed,
+          ]}
+        >
+          <ThemedText style={styles.legalLinkIcon}>💬</ThemedText>
+          <View style={styles.legalLinkTextBlock}>
+            <ThemedText type="smallBold">Support & Inquiries</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              Contact us via email or support channels
+            </ThemedText>
+          </View>
+          <ThemedText style={styles.legalLinkArrow}>↗</ThemedText>
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -1330,6 +1444,63 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: Spacing.three,
     gap: Spacing.two,
+  },
+  betaPill: {
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    borderColor: "rgba(16, 185, 129, 0.35)",
+  },
+  betaPillText: {
+    color: "#059669",
+    fontSize: 12,
+  },
+  legalCard: {
+    padding: Spacing.four,
+    gap: Spacing.four,
+  },
+  disclaimerContainer: {
+    flexDirection: "row",
+    gap: Spacing.three,
+    padding: Spacing.three,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.25)",
+    backgroundColor: "rgba(239, 68, 68, 0.04)",
+  },
+  disclaimerIcon: {
+    fontSize: 18,
+    marginTop: 2,
+  },
+  disclaimerTextBlock: {
+    flex: 1,
+    gap: 2,
+  },
+  disclaimerTitle: {
+    color: "#B91C1C",
+    fontSize: 13,
+  },
+  legalLinksList: {
+    gap: Spacing.two,
+  },
+  legalLinkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.three,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.two,
+    borderRadius: 12,
+    backgroundColor: "rgba(148, 163, 184, 0.06)",
+  },
+  legalLinkIcon: {
+    fontSize: 16,
+  },
+  legalLinkTextBlock: {
+    flex: 1,
+    gap: 2,
+  },
+  legalLinkArrow: {
+    fontSize: 16,
+    color: "#64748B",
+    paddingRight: Spacing.two,
   },
   pressed: { opacity: 0.75 },
 });

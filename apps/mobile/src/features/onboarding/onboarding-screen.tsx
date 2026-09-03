@@ -312,8 +312,22 @@ function WelcomeBody() {
         primary goal so the math stays honest. Set up your starting point in
         five short steps.
       </ThemedText>
+
+      <ThemedView type="backgroundElement" style={styles.betaCard}>
+        <View style={styles.betaHeaderRow}>
+          <ThemedText style={styles.betaBadge}>✨ BETA PRO PASS</ThemedText>
+        </View>
+        <ThemedText type="smallBold">
+          Full complimentary Pro access included during the testing period.
+        </ThemedText>
+        <ThemedText type="small" themeColor="textSecondary">
+          Enjoy unlimited AI meal photo drafts, full 880+ workout routines, and
+          memory-aware coaching.
+        </ThemedText>
+      </ThemedView>
+
       <ThemedText type="small" themeColor="textSecondary">
-        You can change anything later from the Account tab.
+        You can change any profile detail later from the Account tab.
       </ThemedText>
     </View>
   );
@@ -635,6 +649,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   body: { gap: Spacing.three },
+  betaCard: {
+    borderRadius: 14,
+    padding: Spacing.four,
+    gap: Spacing.two,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.3)",
+    backgroundColor: "rgba(16, 185, 129, 0.05)",
+  },
+  betaHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  betaBadge: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#059669",
+    letterSpacing: 0.8,
+  },
   analyticsPrompt: {
     borderRadius: 14,
     padding: Spacing.four,

@@ -3,6 +3,8 @@ import { LoggingFlowMeasurement } from "@mizyun/observability";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -20,10 +22,10 @@ import {
   type Workout,
   type WorkoutSet,
 } from "@mizyun/contracts";
+import type { CatalogExercise } from "@mizyun/core";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { searchExerciseCatalog } from "@mizyun/core";
 import { analyticsClient } from "@/composition/analytics-client";
 import { classifyAnalyticsFailure } from "@/features/analytics/classify-failure";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
@@ -34,7 +36,12 @@ import {
   saveLoggingDraft,
 } from "@/features/logging-draft-storage";
 import { useTheme } from "@/hooks/use-theme";
-import { kilogramsToDisplayWeight, weightUnitLabel } from "@/lib/weight-units";
+import {
+  displayWeightToKilograms,
+  kilogramsToDisplayWeight,
+  weightUnitLabel,
+} from "@/lib/weight-units";
+import { ExerciseLibraryModal } from "@/features/workouts/exercise-library-modal";
 import { ExerciseProgressionModal } from "@/features/workouts/exercise-progression-modal";
 
 import {
@@ -49,7 +56,7 @@ import {
   type WorkoutWorkspace,
 } from "./log-workout-data";
 
-interface PlannedExercise {
+export interface PlannedExercise {
   readonly catalogId: string;
   readonly name: string;
   readonly sets: number;
@@ -141,6 +148,32 @@ const EMPTY_WORKSPACE: WorkoutWorkspace = {
   message: null,
 };
 
+export interface ExerciseEntry {
+  readonly id: string;
+  readonly name: string;
+  readonly catalogId: string;
+  readonly targetSets: number;
+  readonly repsMin: number | null;
+  readonly repsMax: number | null;
+  readonly durationMinutes: number | null;
+  readonly restSeconds: number;
+  readonly isPlanned: boolean;
+}
+
+interface PendingSetInput {
+  load: string;
+  reps: string;
+  durationSeconds: string;
+  distanceMeters: string;
+  rpe: string;
+}
+
+interface RestTimerState {
+  remaining: number;
+  total: number;
+  exerciseName: string;
+}
+
 export function LogWorkoutScreen() {
   const { workoutId } = useLocalSearchParams<{ workoutId?: string }>();
   const { profile, session } = useAuth();
@@ -149,16 +182,28 @@ export function LogWorkoutScreen() {
   const unitSystem = profile?.unitSystem ?? "metric";
   const [workspace, setWorkspace] = useState<WorkoutWorkspace>(EMPTY_WORKSPACE);
   const [draft, setDraft] = useState<WorkoutDraft>(EMPTY_DRAFT);
-  const [exerciseName, setExerciseName] = useState("");
-  const [exerciseInstructions, setExerciseInstructions] = useState("");
-  const [recent, setRecent] = useState<ExerciseRecentSetsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  // Live session state
+  const [extraExercises, setExtraExercises] = useState<
+    ReadonlyArray<ExerciseEntry>
+  >([]);
+  const [pendingInputs, setPendingInputs] = useState<
+    Record<string, PendingSetInput>
+  >({});
+  const [recentPerformanceMap, setRecentPerformanceMap] = useState<
+    Record<string, ExerciseRecentSetsResponse | null>
+  >({});
   const [progressionExerciseName, setProgressionExerciseName] = useState<
     string | null
   >(null);
+  const [libraryVisible, setLibraryVisible] = useState(false);
+  const [restTimer, setRestTimer] = useState<RestTimerState | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
   const measurement = useRef<LoggingFlowMeasurement | null>(null);
   const hadFailure = useRef(false);
 
@@ -171,14 +216,6 @@ export function LogWorkoutScreen() {
       measurement.current = null;
     };
   }, []);
-
-  const selectedExercise = useMemo(
-    () =>
-      workspace.exercises.find(
-        (exercise) => exercise.id === draft.selectedExerciseId,
-      ) ?? null,
-    [draft.selectedExerciseId, workspace.exercises],
-  );
 
   const plannedExercises = useMemo(
     () => extractPlannedExercises(workspace.workout, draft.workoutProposal),
@@ -205,6 +242,7 @@ export function LogWorkoutScreen() {
     void refresh();
   }, [refresh]);
 
+  // Draft save/load
   useEffect(() => {
     if (userId === null) return;
     let active = true;
@@ -225,71 +263,111 @@ export function LogWorkoutScreen() {
     void saveLoggingDraft(userId, "workout", draft);
   }, [draft, draftLoaded, userId]);
 
+  // Stopwatch duration ticker
   useEffect(() => {
-    if (draft.selectedExerciseId.length === 0) {
-      setRecent(null);
+    if (!workspace.workout || workspace.workout.completedAt !== null) {
+      setElapsedSeconds(0);
       return;
     }
-    let active = true;
-    void loadRecentPerformance(
-      draft.selectedExerciseId,
-      workspace.workout?.id,
-    ).then((value) => {
-      if (active) setRecent(value);
-    });
-    return () => {
-      active = false;
+    const startTime = new Date(workspace.workout.startedAt).getTime();
+    const updateElapsed = () => {
+      const now = Date.now();
+      setElapsedSeconds(Math.max(0, Math.floor((now - startTime) / 1000)));
     };
-  }, [draft.selectedExerciseId, workspace.workout?.id]);
+    updateElapsed();
+    const interval = setInterval(updateElapsed, 1000);
+    return () => clearInterval(interval);
+  }, [workspace.workout]);
+
+  // Rest timer ticker
+  useEffect(() => {
+    if (!restTimer || restTimer.remaining <= 0) return;
+    const interval = setInterval(() => {
+      setRestTimer((curr) => {
+        if (!curr || curr.remaining <= 1) return null;
+        return { ...curr, remaining: curr.remaining - 1 };
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [restTimer]);
 
   const patchDraft = useCallback((patch: Partial<WorkoutDraft>) => {
     setDraft((current) => ({ ...current, ...patch }));
   }, []);
 
-  const onSelectPlannedExercise = useCallback(
-    async (planned: PlannedExercise) => {
-      measurement.current?.tap();
-      const existing = workspace.exercises.find(
-        (e) =>
-          e.name.trim().toLowerCase() === planned.name.trim().toLowerCase(),
+  // Compute unified exercises list for the active workout
+  const exerciseEntries: ReadonlyArray<ExerciseEntry> = useMemo(() => {
+    const map = new Map<string, ExerciseEntry>();
+
+    // 1. Add planned exercises
+    plannedExercises.forEach((p) => {
+      const matched = workspace.exercises.find(
+        (e) => e.name.trim().toLowerCase() === p.name.trim().toLowerCase(),
       );
-      let targetExerciseId = existing?.id;
-      if (!targetExerciseId) {
-        setBusy(true);
-        const created = await createExercise(planned.name, "");
-        setBusy(false);
-        if (created.ok) {
-          setWorkspace((current) => ({
-            ...current,
-            exercises: [...current.exercises, created.exercise].sort((a, b) =>
-              a.name.localeCompare(b.name),
-            ),
-          }));
-          targetExerciseId = created.exercise.id;
-        } else {
-          setMessage(created.message);
-          return;
+      const id = matched?.id ?? `planned-${p.catalogId || p.name}`;
+      map.set(p.name.trim().toLowerCase(), {
+        id,
+        name: p.name,
+        catalogId: p.catalogId,
+        targetSets: p.sets || 3,
+        repsMin: p.repsMin,
+        repsMax: p.repsMax,
+        durationMinutes: p.durationMinutes,
+        restSeconds: p.restSeconds || 90,
+        isPlanned: true,
+      });
+    });
+
+    // 2. Add exercises that already have logged sets
+    workspace.sets.forEach((set) => {
+      const matched = workspace.exercises.find((e) => e.id === set.exerciseId);
+      if (matched) {
+        const key = matched.name.trim().toLowerCase();
+        if (!map.has(key)) {
+          map.set(key, {
+            id: matched.id,
+            name: matched.name,
+            catalogId: "",
+            targetSets: 3,
+            repsMin: null,
+            repsMax: null,
+            durationMinutes: null,
+            restSeconds: 90,
+            isPlanned: false,
+          });
         }
       }
-      const targetReps =
-        planned.repsMax !== null
-          ? String(planned.repsMax)
-          : planned.repsMin !== null
-            ? String(planned.repsMin)
-            : "";
-      const targetDuration =
-        planned.durationMinutes !== null
-          ? String(planned.durationMinutes * 60)
-          : "";
-      patchDraft({
-        selectedExerciseId: targetExerciseId,
-        repetitions: targetReps,
-        durationSeconds: targetDuration,
-      });
-    },
-    [patchDraft, workspace.exercises],
-  );
+    });
 
+    // 3. Add any dynamically added exercises
+    extraExercises.forEach((extra) => {
+      const key = extra.name.trim().toLowerCase();
+      if (!map.has(key)) {
+        map.set(key, extra);
+      }
+    });
+
+    return Array.from(map.values());
+  }, [extraExercises, plannedExercises, workspace.exercises, workspace.sets]);
+
+  // Pre-load recent performance for all active exercises
+  useEffect(() => {
+    if (!workspace.workout) return;
+    const workoutIdVal = workspace.workout.id;
+    exerciseEntries.forEach((entry) => {
+      if (entry.id.startsWith("planned-")) return;
+      if (recentPerformanceMap[entry.id] === undefined) {
+        void loadRecentPerformance(entry.id, workoutIdVal).then((perf) => {
+          setRecentPerformanceMap((curr) => ({
+            ...curr,
+            [entry.id]: perf,
+          }));
+        });
+      }
+    });
+  }, [exerciseEntries, recentPerformanceMap, workspace.workout]);
+
+  // Start workout action
   const onStart = useCallback(async () => {
     measurement.current?.tap();
     if (hadFailure.current) {
@@ -326,138 +404,210 @@ export function LogWorkoutScreen() {
       sets: [],
       message: null,
     }));
-  }, [draft.name, draft.notes]);
+  }, [draft.name, draft.notes, draft.workoutProposal]);
 
-  const onCreateExercise = useCallback(async () => {
-    measurement.current?.tap();
-    if (hadFailure.current) {
-      measurement.current?.retry();
-      hadFailure.current = false;
-    }
-    setBusy(true);
-    setMessage(null);
-    const result = await createExercise(exerciseName, exerciseInstructions);
-    setBusy(false);
-    if (!result.ok) {
-      hadFailure.current = true;
-      measurement.current?.fail(
-        "submit",
-        classifyAnalyticsFailure(result.message),
-        true,
+  // Add exercise from library or catalog
+  const handleSelectCatalogExercise = useCallback(
+    async (catalogEx: CatalogExercise) => {
+      setLibraryVisible(false);
+      measurement.current?.tap();
+
+      let targetExercise = workspace.exercises.find(
+        (e) =>
+          e.name.trim().toLowerCase() === catalogEx.name.trim().toLowerCase(),
       );
-      return setMessage(result.message);
-    }
-    setWorkspace((current) => ({
-      ...current,
-      exercises: [...current.exercises, result.exercise].sort((a, b) =>
-        a.name.localeCompare(b.name),
-      ),
-    }));
-    patchDraft({ selectedExerciseId: result.exercise.id });
-    setExerciseName("");
-    setExerciseInstructions("");
-  }, [exerciseInstructions, exerciseName, patchDraft]);
 
-  const onAddSet = useCallback(async () => {
-    if (workspace.workout === null) return;
-    measurement.current?.tap();
-    if (hadFailure.current) {
-      measurement.current?.retry();
-      hadFailure.current = false;
-    }
-    setBusy(true);
-    setMessage(null);
-    const result = await addWorkoutSet(workspace.workout.id, {
-      exerciseId: draft.selectedExerciseId,
-      repetitions: draft.repetitions,
-      load: draft.load,
-      durationSeconds: draft.durationSeconds,
-      distanceMeters: draft.distanceMeters,
-      perceivedExertion: draft.perceivedExertion,
+      if (!targetExercise) {
+        setBusy(true);
+        const created = await createExercise(
+          catalogEx.name,
+          catalogEx.instructions.join(" "),
+        );
+        setBusy(false);
+        if (created.ok) {
+          targetExercise = created.exercise;
+          setWorkspace((curr) => ({
+            ...curr,
+            exercises: [...curr.exercises, created.exercise].sort((a, b) =>
+              a.name.localeCompare(b.name),
+            ),
+          }));
+        } else {
+          setMessage(created.message);
+          return;
+        }
+      }
+
+      const newEntry: ExerciseEntry = {
+        id: targetExercise.id,
+        name: targetExercise.name,
+        catalogId: catalogEx.id,
+        targetSets: 3,
+        repsMin: 8,
+        repsMax: 12,
+        durationMinutes: null,
+        restSeconds: 90,
+        isPlanned: false,
+      };
+
+      setExtraExercises((curr) => [...curr, newEntry]);
+    },
+    [workspace.exercises],
+  );
+
+  // Update pending set input for an exercise
+  const updatePendingInput = useCallback(
+    (exerciseIdOrName: string, patch: Partial<PendingSetInput>) => {
+      setPendingInputs((curr) => {
+        const existing = curr[exerciseIdOrName] ?? {
+          load: "",
+          reps: "",
+          durationSeconds: "",
+          distanceMeters: "",
+          rpe: "",
+        };
+        return {
+          ...curr,
+          [exerciseIdOrName]: { ...existing, ...patch },
+        };
+      });
+    },
+    [],
+  );
+
+  // Complete / log an inline set for an exercise
+  const handleLogSet = useCallback(
+    async (entry: ExerciseEntry) => {
+      if (workspace.workout === null) return;
+      measurement.current?.tap();
+
+      // Ensure the exercise exists in the database
+      let resolvedExerciseId = entry.id;
+      if (entry.id.startsWith("planned-")) {
+        const existing = workspace.exercises.find(
+          (e) =>
+            e.name.trim().toLowerCase() === entry.name.trim().toLowerCase(),
+        );
+        if (existing) {
+          resolvedExerciseId = existing.id;
+        } else {
+          setBusy(true);
+          const created = await createExercise(entry.name, "");
+          setBusy(false);
+          if (created.ok) {
+            setWorkspace((current) => ({
+              ...current,
+              exercises: [...current.exercises, created.exercise].sort((a, b) =>
+                a.name.localeCompare(b.name),
+              ),
+            }));
+            resolvedExerciseId = created.exercise.id;
+          } else {
+            setMessage(created.message);
+            return;
+          }
+        }
+      }
+
+      // Read current input values or fallback to smart defaults
+      const currentInput = pendingInputs[entry.id] ??
+        pendingInputs[entry.name] ?? {
+          load: "",
+          reps: "",
+          durationSeconds: "",
+          distanceMeters: "",
+          rpe: "",
+        };
+
+      const completedSets = workspace.sets.filter(
+        (s) => s.exerciseId === resolvedExerciseId,
+      );
+
+      // Smart defaults: previous completed set or target
+      let loadVal = currentInput.load.trim();
+      let repsVal = currentInput.reps.trim();
+
+      if (loadVal.length === 0 && completedSets.length > 0) {
+        const lastSet = completedSets[completedSets.length - 1];
+        if (lastSet?.loadKg !== null && lastSet?.loadKg !== undefined) {
+          loadVal = String(
+            kilogramsToDisplayWeight(lastSet.loadKg, unitSystem),
+          );
+        }
+      }
+
+      if (repsVal.length === 0) {
+        if (completedSets.length > 0) {
+          const lastSet = completedSets[completedSets.length - 1];
+          if (
+            lastSet?.repetitions !== null &&
+            lastSet?.repetitions !== undefined
+          ) {
+            repsVal = String(lastSet.repetitions);
+          }
+        } else if (entry.repsMax !== null) {
+          repsVal = String(entry.repsMax);
+        } else if (entry.repsMin !== null) {
+          repsVal = String(entry.repsMin);
+        }
+      }
+
+      setBusy(true);
+      setMessage(null);
+      const result = await addWorkoutSet(workspace.workout.id, {
+        exerciseId: resolvedExerciseId,
+        repetitions: repsVal,
+        load: loadVal,
+        durationSeconds: currentInput.durationSeconds,
+        distanceMeters: currentInput.distanceMeters,
+        perceivedExertion: currentInput.rpe,
+        unitSystem,
+      });
+      setBusy(false);
+
+      if (!result.ok) {
+        hadFailure.current = true;
+        measurement.current?.fail(
+          "submit",
+          classifyAnalyticsFailure(result.message),
+          true,
+        );
+        return setMessage(result.message);
+      }
+
+      // Start rest timer
+      const restDuration = entry.restSeconds > 0 ? entry.restSeconds : 90;
+      setRestTimer({
+        remaining: restDuration,
+        total: restDuration,
+        exerciseName: entry.name,
+      });
+
+      // Refresh workspace data to get new set
+      await refresh();
+
+      // Keep load and reps prefilled for next set so next tap is ready!
+      updatePendingInput(entry.id, {
+        load: loadVal,
+        reps: repsVal,
+      });
+    },
+    [
+      pendingInputs,
+      refresh,
       unitSystem,
-    });
-    setBusy(false);
-    if (!result.ok) {
-      hadFailure.current = true;
-      measurement.current?.fail(
-        "submit",
-        classifyAnalyticsFailure(result.message),
-        true,
-      );
-      return setMessage(result.message);
-    }
-    patchDraft({
-      repetitions: "",
-      load: "",
-      durationSeconds: "",
-      distanceMeters: "",
-      perceivedExertion: "",
-    });
-    await refresh();
-    if (draft.selectedExerciseId.length > 0) {
-      setRecent(
-        await loadRecentPerformance(
-          draft.selectedExerciseId,
-          workspace.workout.id,
-        ),
-      );
-    }
-  }, [draft, patchDraft, refresh, unitSystem, workspace.workout]);
+      updatePendingInput,
+      workspace.exercises,
+      workspace.sets,
+      workspace.workout,
+    ],
+  );
 
-  const finish = useCallback(async () => {
-    if (workspace.workout === null) return;
-    measurement.current?.tap();
-    if (hadFailure.current) {
-      measurement.current?.retry();
-      hadFailure.current = false;
-    }
-    setBusy(true);
-    const result = await completeWorkout(
-      workspace.workout.id,
-      workspace.workout.startedAt,
-    );
-    setBusy(false);
-    if (!result.ok) {
-      hadFailure.current = true;
-      measurement.current?.fail(
-        "submit",
-        classifyAnalyticsFailure(result.message),
-        true,
-      );
-      return setMessage(result.message);
-    }
-    measurement.current?.complete();
-    if (userId !== null) await clearLoggingDraft(userId, "workout");
-    router.back();
-  }, [userId, workspace.workout]);
-
-  const confirmAbandon = useCallback(() => {
-    if (workspace.workout === null) return;
-    Alert.alert(
-      "Delete this workout?",
-      "The workout and its logged sets will be permanently removed.",
-      [
-        { text: "Keep workout", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            void (async () => {
-              const result = await abandonWorkout(workspace.workout!.id);
-              if (!result.ok) return setMessage(result.message);
-              if (userId !== null) await clearLoggingDraft(userId, "workout");
-              router.back();
-            })();
-          },
-        },
-      ],
-    );
-  }, [userId, workspace.workout]);
-
-  const removeSet = useCallback(
+  // Remove / delete a completed set
+  const handleRemoveSet = useCallback(
     (set: WorkoutSet) => {
       if (workspace.workout === null) return;
-      Alert.alert("Delete set?", `Remove set ${set.sequence}?`, [
+      Alert.alert("Delete Set?", `Remove set ${set.sequence}?`, [
         { text: "Cancel", style: "cancel" },
         {
           text: "Delete",
@@ -478,77 +628,191 @@ export function LogWorkoutScreen() {
     [refresh, workspace.workout],
   );
 
+  // Complete workout
+  const handleFinish = useCallback(async () => {
+    if (workspace.workout === null) return;
+    measurement.current?.tap();
+
+    const totalSets = workspace.sets.length;
+    const formattedDuration = formatStopwatch(elapsedSeconds);
+
+    Alert.alert(
+      "Finish Workout?",
+      `Completed in ${formattedDuration} with ${totalSets} saved sets.`,
+      [
+        { text: "Keep Logging", style: "cancel" },
+        {
+          text: "Finish & Save",
+          onPress: () => {
+            void (async () => {
+              setBusy(true);
+              const result = await completeWorkout(
+                workspace.workout!.id,
+                workspace.workout!.startedAt,
+              );
+              setBusy(false);
+              if (!result.ok) {
+                hadFailure.current = true;
+                measurement.current?.fail(
+                  "submit",
+                  classifyAnalyticsFailure(result.message),
+                  true,
+                );
+                return setMessage(result.message);
+              }
+              measurement.current?.complete();
+              if (userId !== null) await clearLoggingDraft(userId, "workout");
+              router.back();
+            })();
+          },
+        },
+      ],
+    );
+  }, [elapsedSeconds, userId, workspace.sets.length, workspace.workout]);
+
+  // Confirm abandon
+  const confirmAbandon = useCallback(() => {
+    if (workspace.workout === null) return;
+    Alert.alert(
+      "Discard Workout?",
+      "The entire workout and all logged sets will be permanently deleted.",
+      [
+        { text: "Keep Logging", style: "cancel" },
+        {
+          text: "Discard",
+          style: "destructive",
+          onPress: () => {
+            void (async () => {
+              const result = await abandonWorkout(workspace.workout!.id);
+              if (!result.ok) return setMessage(result.message);
+              if (userId !== null) await clearLoggingDraft(userId, "workout");
+              router.back();
+            })();
+          },
+        },
+      ],
+    );
+  }, [userId, workspace.workout]);
+
   return (
     <ThemedView style={styles.page}>
-      <Stack.Screen options={{ title: "Workout" }} />
+      <Stack.Screen
+        options={{
+          title: workspace.workout?.name || "Live Workout",
+          headerRight: () =>
+            workspace.workout !== null ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Finish Workout"
+                onPress={handleFinish}
+                style={styles.headerFinishButton}
+              >
+                <ThemedText type="smallBold" style={styles.headerFinishText}>
+                  Finish
+                </ThemedText>
+              </Pressable>
+            ) : null,
+        }}
+      />
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-        <ScrollView
-          automaticallyAdjustKeyboardInsets
-          contentContainerStyle={styles.content}
-          keyboardDismissMode="on-drag"
-          keyboardShouldPersistTaps="handled"
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={styles.keyboardContainer}
         >
-          {loading ? (
-            <View style={styles.center}>
-              <ActivityIndicator />
-              <ThemedText type="small" themeColor="textSecondary">
-                Recovering your workout…
-              </ThemedText>
-            </View>
-          ) : workspace.workout === null ? (
-            <StartSection
-              draft={draft}
-              inputColor={theme.text}
-              busy={busy}
-              onPatch={patchDraft}
-              onStart={onStart}
-              onInteraction={() => measurement.current?.tap()}
-            />
-          ) : (
-            <ActiveSection
-              workoutName={workspace.workout.name}
-              exercises={workspace.exercises}
-              plannedExercises={plannedExercises}
-              selectedExercise={selectedExercise}
-              draft={draft}
-              sets={workspace.sets}
-              recent={recent}
-              unitSystem={unitSystem}
-              inputColor={theme.text}
-              busy={busy}
-              exerciseName={exerciseName}
-              exerciseInstructions={exerciseInstructions}
-              onExerciseName={setExerciseName}
-              onExerciseInstructions={setExerciseInstructions}
-              onPatch={patchDraft}
-              onSelectPlannedExercise={onSelectPlannedExercise}
-              onCreateExercise={onCreateExercise}
-              onAddSet={onAddSet}
-              onRemoveSet={removeSet}
-              onFinish={finish}
-              onAbandon={confirmAbandon}
-              onViewProgression={(name) => setProgressionExerciseName(name)}
-              onInteraction={() => measurement.current?.tap()}
-            />
-          )}
-
-          {message !== null ? (
-            <View style={styles.message} accessibilityRole="alert">
-              <ThemedText>{message}</ThemedText>
-              <Button
-                label="Retry"
-                onPress={() => {
-                  measurement.current?.tap();
-                  measurement.current?.retry();
-                  hadFailure.current = false;
-                  void refresh();
-                }}
+          <ScrollView
+            automaticallyAdjustKeyboardInsets
+            contentContainerStyle={[
+              styles.content,
+              restTimer !== null && styles.contentWithRestTimer,
+            ]}
+            keyboardDismissMode="on-drag"
+            keyboardShouldPersistTaps="handled"
+          >
+            {loading ? (
+              <View style={styles.center}>
+                <ActivityIndicator />
+                <ThemedText type="small" themeColor="textSecondary">
+                  Loading workout session…
+                </ThemedText>
+              </View>
+            ) : workspace.workout === null ? (
+              <StartSection
+                draft={draft}
+                inputColor={theme.text}
+                busy={busy}
+                onPatch={patchDraft}
+                onStart={onStart}
+                onInteraction={() => measurement.current?.tap()}
               />
-            </View>
-          ) : null}
-        </ScrollView>
+            ) : (
+              <ActiveWorkoutFeed
+                workout={workspace.workout}
+                exercises={exerciseEntries}
+                allExercises={workspace.exercises}
+                savedSets={workspace.sets}
+                recentPerformanceMap={recentPerformanceMap}
+                pendingInputs={pendingInputs}
+                unitSystem={unitSystem}
+                inputColor={theme.text}
+                busy={busy}
+                elapsedSeconds={elapsedSeconds}
+                onUpdatePendingInput={updatePendingInput}
+                onLogSet={handleLogSet}
+                onRemoveSet={handleRemoveSet}
+                onOpenProgression={(name) => setProgressionExerciseName(name)}
+                onOpenLibrary={() => setLibraryVisible(true)}
+                onFinish={handleFinish}
+                onAbandon={confirmAbandon}
+                onInteraction={() => measurement.current?.tap()}
+              />
+            )}
+
+            {message !== null ? (
+              <View style={styles.message} accessibilityRole="alert">
+                <ThemedText>{message}</ThemedText>
+                <Button
+                  label="Retry"
+                  onPress={() => {
+                    measurement.current?.tap();
+                    measurement.current?.retry();
+                    hadFailure.current = false;
+                    void refresh();
+                  }}
+                />
+              </View>
+            ) : null}
+          </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
 
+      {/* Floating Rest Timer Bar */}
+      {restTimer !== null ? (
+        <FloatingRestTimer
+          rest={restTimer}
+          onAdjust={(delta) =>
+            setRestTimer((curr) =>
+              curr
+                ? {
+                    ...curr,
+                    remaining: Math.max(0, curr.remaining + delta),
+                  }
+                : null,
+            )
+          }
+          onSkip={() => setRestTimer(null)}
+        />
+      ) : null}
+
+      {/* Exercise Library Modal to Add Exercises */}
+      {libraryVisible ? (
+        <ExerciseLibraryModal
+          visible={libraryVisible}
+          onClose={() => setLibraryVisible(false)}
+          onSelectExercise={(ex) => void handleSelectCatalogExercise(ex)}
+        />
+      ) : null}
+
+      {/* Exercise Progression Sheet */}
       {progressionExerciseName !== null ? (
         <ExerciseProgressionModal
           visible={progressionExerciseName !== null}
@@ -560,6 +824,9 @@ export function LogWorkoutScreen() {
   );
 }
 
+// ==========================================
+// Start Workout Section (When no active session)
+// ==========================================
 function StartSection(props: {
   readonly draft: WorkoutDraft;
   readonly inputColor: string;
@@ -570,10 +837,10 @@ function StartSection(props: {
 }) {
   return (
     <View style={styles.section}>
-      <ThemedText type="subtitle">Start a recoverable session.</ThemedText>
+      <ThemedText type="subtitle">Start a workout session.</ThemedText>
       <ThemedText type="small" themeColor="textSecondary">
-        Once started, the workout and every saved set are authoritative on the
-        server. Unsaved field text stays encrypted on this device.
+        Track sets, weight, and reps live. Sets are securely saved to your
+        account in real time.
       </ThemedText>
       <Field
         testID="workout-name-input"
@@ -581,12 +848,12 @@ function StartSection(props: {
         value={props.draft.name}
         onChangeText={(name) => props.onPatch({ name })}
         onFocus={props.onInteraction}
-        placeholder="Leg day"
+        placeholder="Upper Body A"
         inputColor={props.inputColor}
       />
       {props.draft.workoutProposal !== undefined ? (
         <View style={styles.planCard}>
-          <ThemedText type="smallBold">Coach workout proposal</ThemedText>
+          <ThemedText type="smallBold">Coach Workout Proposal</ThemedText>
           {props.draft.workoutProposal.session.exercises.map((exercise) => (
             <View key={exercise.catalogId} style={styles.planExercise}>
               <View style={styles.setCopy}>
@@ -599,34 +866,8 @@ function StartSection(props: {
                   · {exercise.restSeconds}s rest
                 </ThemedText>
               </View>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Remove ${exercise.name} from proposal`}
-                onPress={() =>
-                  props.onPatch({
-                    workoutProposal: {
-                      ...props.draft.workoutProposal!,
-                      session: {
-                        ...props.draft.workoutProposal!.session,
-                        exercises:
-                          props.draft.workoutProposal!.session.exercises.filter(
-                            (candidate) =>
-                              candidate.catalogId !== exercise.catalogId,
-                          ),
-                      },
-                    },
-                  })
-                }
-                style={styles.deleteButton}
-              >
-                <ThemedText type="smallBold">Remove</ThemedText>
-              </Pressable>
             </View>
           ))}
-          <ThemedText type="small" themeColor="textSecondary">
-            Edit the name or notes, remove exercises, then start. Actual sets
-            remain editable as you log them.
-          </ThemedText>
         </View>
       ) : null}
       <Field
@@ -635,11 +876,11 @@ function StartSection(props: {
         value={props.draft.notes}
         onChangeText={(notes) => props.onPatch({ notes })}
         onFocus={props.onInteraction}
-        placeholder="Strength focus"
+        placeholder="Focus on controlled eccentrics"
         inputColor={props.inputColor}
       />
       <Button
-        label={props.busy ? "Starting…" : "Start workout"}
+        label={props.busy ? "Starting…" : "Start Workout"}
         disabled={props.busy}
         onPress={props.onStart}
       />
@@ -647,332 +888,434 @@ function StartSection(props: {
   );
 }
 
-function ActiveSection(props: {
-  readonly workoutName: string;
-  readonly exercises: ReadonlyArray<Exercise>;
-  readonly plannedExercises: ReadonlyArray<PlannedExercise>;
-  readonly selectedExercise: Exercise | null;
-  readonly draft: WorkoutDraft;
-  readonly sets: ReadonlyArray<WorkoutSet>;
-  readonly recent: ExerciseRecentSetsResponse | null;
+// ==========================================
+// Active Workout Feed (Hevy/Strong Card Design)
+// ==========================================
+function ActiveWorkoutFeed(props: {
+  readonly workout: Workout;
+  readonly exercises: ReadonlyArray<ExerciseEntry>;
+  readonly allExercises: ReadonlyArray<Exercise>;
+  readonly savedSets: ReadonlyArray<WorkoutSet>;
+  readonly recentPerformanceMap: Record<
+    string,
+    ExerciseRecentSetsResponse | null
+  >;
+  readonly pendingInputs: Record<string, PendingSetInput>;
   readonly unitSystem: "metric" | "imperial";
   readonly inputColor: string;
   readonly busy: boolean;
-  readonly exerciseName: string;
-  readonly exerciseInstructions: string;
-  readonly onExerciseName: (next: string) => void;
-  readonly onExerciseInstructions: (next: string) => void;
-  readonly onPatch: (patch: Partial<WorkoutDraft>) => void;
-  readonly onSelectPlannedExercise: (planned: PlannedExercise) => void;
-  readonly onCreateExercise: () => void;
-  readonly onAddSet: () => void;
+  readonly elapsedSeconds: number;
+  readonly onUpdatePendingInput: (
+    idOrName: string,
+    patch: Partial<PendingSetInput>,
+  ) => void;
+  readonly onLogSet: (exercise: ExerciseEntry) => void;
   readonly onRemoveSet: (set: WorkoutSet) => void;
+  readonly onOpenProgression: (name: string) => void;
+  readonly onOpenLibrary: () => void;
   readonly onFinish: () => void;
   readonly onAbandon: () => void;
-  readonly onViewProgression: (exerciseName: string) => void;
   readonly onInteraction: () => void;
 }) {
   const unit = weightUnitLabel(props.unitSystem);
-  const catalogSuggestions = useMemo(() => {
-    const trimmed = props.exerciseName.trim();
-    if (trimmed.length < 2) return [];
-    return searchExerciseCatalog({ query: trimmed, limit: 5 });
-  }, [props.exerciseName]);
+  const totalSets = props.savedSets.length;
+  const totalVolumeKg = useMemo(() => {
+    return props.savedSets.reduce((acc, s) => {
+      if (s.loadKg !== null && s.repetitions !== null) {
+        return acc + s.loadKg * s.repetitions;
+      }
+      return acc;
+    }, 0);
+  }, [props.savedSets]);
+
+  const displayVolume = kilogramsToDisplayWeight(
+    totalVolumeKg,
+    props.unitSystem,
+  );
 
   return (
-    <>
-      <View style={styles.section}>
-        <ThemedText type="subtitle">{props.workoutName}</ThemedText>
-        <ThemedText type="small" themeColor="textSecondary">
-          Active session · {props.sets.length} saved sets
-        </ThemedText>
-      </View>
-
-      {props.plannedExercises.length > 0 ? (
-        <View style={styles.planCard}>
-          <ThemedText type="smallBold">Planned exercises</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            Tap an exercise to select it and start logging sets.
-          </ThemedText>
-          <View style={styles.planExerciseList}>
-            {props.plannedExercises.map((exercise) => {
-              const matchedExercise = props.exercises.find(
-                (e) =>
-                  e.name.trim().toLowerCase() ===
-                  exercise.name.trim().toLowerCase(),
-              );
-              const isSelected =
-                matchedExercise !== undefined &&
-                props.draft.selectedExerciseId === matchedExercise.id;
-              const loggedCount = matchedExercise
-                ? props.sets.filter((s) => s.exerciseId === matchedExercise.id)
-                    .length
-                : 0;
-              return (
-                <Pressable
-                  key={exercise.catalogId}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Select ${exercise.name}`}
-                  onPress={() => {
-                    props.onInteraction();
-                    props.onSelectPlannedExercise(exercise);
-                  }}
-                  style={[
-                    styles.planExerciseRow,
-                    isSelected && styles.planExerciseRowSelected,
-                  ]}
-                >
-                  <View style={styles.setCopy}>
-                    <ThemedText type="smallBold">
-                      {exercise.name}
-                      {isSelected ? " (Selected)" : ""}
-                    </ThemedText>
-                    <ThemedText type="small" themeColor="textSecondary">
-                      Target: {exercise.sets} sets ·{" "}
-                      {exercise.repsMin === null
-                        ? `${exercise.durationMinutes} min`
-                        : `${exercise.repsMin}–${exercise.repsMax} reps`}{" "}
-                      · {exercise.restSeconds}s rest
-                    </ThemedText>
-                    {loggedCount > 0 ? (
-                      <ThemedText
-                        type="small"
-                        style={styles.completedSetsBadge}
-                      >
-                        ✓ {loggedCount} / {exercise.sets} sets logged
-                      </ThemedText>
-                    ) : null}
-                  </View>
-                  <ThemedText type="smallBold" style={styles.selectButtonText}>
-                    {isSelected ? "Selected" : "Log set →"}
-                  </ThemedText>
-                </Pressable>
-              );
-            })}
+    <View style={styles.feedContainer}>
+      {/* Live Header Bar */}
+      <View style={styles.liveHeader}>
+        <View style={styles.liveHeaderTop}>
+          <View style={styles.liveStopwatchRow}>
+            <View style={styles.livePulseDot} />
+            <ThemedText type="subtitle">
+              {formatStopwatch(props.elapsedSeconds)}
+            </ThemedText>
           </View>
+          <ThemedText type="small" themeColor="textSecondary">
+            {totalSets} sets · {displayVolume} {unit} volume
+          </ThemedText>
         </View>
-      ) : null}
-
-      <View style={styles.section}>
-        <ThemedText type="smallBold">Choose an exercise</ThemedText>
-        {props.exercises.length === 0 ? (
-          <ThemedText type="small" themeColor="textSecondary">
-            Create your first exercise below.
-          </ThemedText>
-        ) : (
-          <View style={styles.choices}>
-            {props.exercises.map((exercise) => (
-              <Pressable
-                key={exercise.id}
-                accessibilityRole="button"
-                accessibilityState={{
-                  selected: props.draft.selectedExerciseId === exercise.id,
-                }}
-                onPress={() => {
-                  props.onInteraction();
-                  props.onPatch({ selectedExerciseId: exercise.id });
-                }}
-                style={[
-                  styles.choice,
-                  props.draft.selectedExerciseId === exercise.id &&
-                    styles.choiceSelected,
-                ]}
-              >
-                <ThemedText type="smallBold">{exercise.name}</ThemedText>
-              </Pressable>
-            ))}
-          </View>
-        )}
-        <Field
-          testID="exercise-name-input"
-          label="New exercise name"
-          value={props.exerciseName}
-          onChangeText={props.onExerciseName}
-          onFocus={props.onInteraction}
-          placeholder="Back squat"
-          inputColor={props.inputColor}
-        />
-        {catalogSuggestions.length > 0 ? (
-          <View style={styles.catalogSuggestions}>
-            <ThemedText type="small" themeColor="textSecondary">
-              Suggestions from 870+ exercise catalog:
-            </ThemedText>
-            <View style={styles.catalogList}>
-              {catalogSuggestions.map((item) => (
-                <Pressable
-                  key={item.id}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Select catalog exercise ${item.name}`}
-                  onPress={() => {
-                    props.onInteraction();
-                    props.onExerciseName(item.name);
-                    if (item.instructions.length > 0) {
-                      props.onExerciseInstructions(item.instructions.join(" "));
-                    }
-                  }}
-                  style={styles.catalogItem}
-                >
-                  <ThemedText type="smallBold">{item.name}</ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {item.category} · {item.primaryMuscles.join(", ")}
-                  </ThemedText>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-        ) : null}
-        <Field
-          testID="exercise-instructions-input"
-          label="Instructions (optional)"
-          value={props.exerciseInstructions}
-          onChangeText={props.onExerciseInstructions}
-          onFocus={props.onInteraction}
-          placeholder="Brace before descending"
-          inputColor={props.inputColor}
-        />
-        <Button
-          label={props.busy ? "Creating…" : "Create exercise"}
-          disabled={props.busy}
-          onPress={props.onCreateExercise}
-        />
       </View>
 
-      {props.selectedExercise !== null ? (
-        <View style={styles.section}>
-          <View style={styles.previousHeaderRow}>
-            <ThemedText type="smallBold">
-              Previous · {props.selectedExercise.name}
-            </ThemedText>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`View full progress and target load for ${props.selectedExercise.name}`}
-              onPress={() =>
-                props.onViewProgression(props.selectedExercise!.name)
+      {/* Exercise Cards */}
+      {props.exercises.length === 0 ? (
+        <View style={styles.emptyExercisesCard}>
+          <ThemedText type="smallBold">
+            No exercises in this workout yet.
+          </ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">
+            Tap "+ Add Exercise" below to pick from 870+ exercises.
+          </ThemedText>
+        </View>
+      ) : (
+        props.exercises.map((entry, index) => {
+          const matchingDbExercise = props.allExercises.find(
+            (e) =>
+              e.id === entry.id ||
+              e.name.trim().toLowerCase() === entry.name.trim().toLowerCase(),
+          );
+          const resolvedDbId = matchingDbExercise?.id ?? entry.id;
+
+          const completedSets = props.savedSets
+            .filter((s) => s.exerciseId === resolvedDbId)
+            .sort((a, b) => a.sequence - b.sequence);
+
+          const recentPerf = props.recentPerformanceMap[resolvedDbId] ?? null;
+
+          return (
+            <LiveExerciseCard
+              key={`${entry.name}-${index}`}
+              entry={entry}
+              completedSets={completedSets}
+              recentPerformance={recentPerf}
+              pendingInput={
+                props.pendingInputs[entry.id] ??
+                props.pendingInputs[entry.name] ?? {
+                  load: "",
+                  reps: "",
+                  durationSeconds: "",
+                  distanceMeters: "",
+                  rpe: "",
+                }
               }
-              style={styles.progressionLinkButton}
-            >
-              <ThemedText type="smallBold" style={styles.progressionLinkText}>
-                📈 Target & History →
-              </ThemedText>
-            </Pressable>
-          </View>
-          {props.recent === null ? (
-            <ThemedText type="small" themeColor="textSecondary">
-              No previous performance yet.
-            </ThemedText>
-          ) : (
-            <ThemedText type="small" themeColor="textSecondary">
-              Best load{" "}
-              {formatLoad(props.recent.summary.bestLoadKg, props.unitSystem)} ·
-              Last volume{" "}
-              {formatLoad(
-                props.recent.summary.lastSessionVolumeKg,
-                props.unitSystem,
-              )}{" "}
-              · {props.recent.summary.totalSetCount} total sets
-            </ThemedText>
-          )}
-          <View style={styles.grid}>
-            <Field
-              testID="workout-reps-input"
-              label="Reps"
-              value={props.draft.repetitions}
-              onChangeText={(repetitions) => props.onPatch({ repetitions })}
-              onFocus={props.onInteraction}
-              keyboardType="decimal-pad"
+              unitSystem={props.unitSystem}
               inputColor={props.inputColor}
-            />
-            <Field
-              testID="workout-load-input"
-              label={`Load (${unit})`}
-              value={props.draft.load}
-              onChangeText={(load) => props.onPatch({ load })}
-              onFocus={props.onInteraction}
-              keyboardType="decimal-pad"
-              inputColor={props.inputColor}
-            />
-            <Field
-              testID="workout-duration-input"
-              label="Duration (sec)"
-              value={props.draft.durationSeconds}
-              onChangeText={(durationSeconds) =>
-                props.onPatch({ durationSeconds })
+              busy={props.busy}
+              onUpdatePendingInput={(patch) =>
+                props.onUpdatePendingInput(entry.id, patch)
               }
-              onFocus={props.onInteraction}
-              keyboardType="number-pad"
-              inputColor={props.inputColor}
+              onLogSet={() => props.onLogSet(entry)}
+              onRemoveSet={props.onRemoveSet}
+              onOpenProgression={() => props.onOpenProgression(entry.name)}
+              onInteraction={props.onInteraction}
             />
-            <Field
-              testID="workout-distance-input"
-              label="Distance (m)"
-              value={props.draft.distanceMeters}
-              onChangeText={(distanceMeters) =>
-                props.onPatch({ distanceMeters })
-              }
-              onFocus={props.onInteraction}
-              keyboardType="decimal-pad"
-              inputColor={props.inputColor}
-            />
-            <Field
-              testID="workout-rpe-input"
-              label="RPE (0–10)"
-              value={props.draft.perceivedExertion}
-              onChangeText={(perceivedExertion) =>
-                props.onPatch({ perceivedExertion })
-              }
-              onFocus={props.onInteraction}
-              keyboardType="decimal-pad"
-              inputColor={props.inputColor}
-            />
-          </View>
+          );
+        })
+      )}
+
+      {/* Add Exercise & Workout Controls */}
+      <View style={styles.bottomControls}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Add Exercise to Workout"
+          onPress={() => {
+            props.onInteraction();
+            props.onOpenLibrary();
+          }}
+          style={styles.addExerciseButton}
+        >
+          <ThemedText type="smallBold" style={styles.addExerciseText}>
+            + Add Exercise
+          </ThemedText>
+        </Pressable>
+
+        <View style={styles.finishActions}>
           <Button
-            label={props.busy ? "Saving…" : "Save set"}
+            label={props.busy ? "Finishing…" : "Finish Workout"}
             disabled={props.busy}
-            onPress={props.onAddSet}
+            onPress={props.onFinish}
+          />
+          <Button
+            label="Discard Workout"
+            destructive
+            onPress={props.onAbandon}
           />
         </View>
-      ) : null}
-
-      <View style={styles.section}>
-        <ThemedText type="smallBold">Saved sets</ThemedText>
-        {props.sets.length === 0 ? (
-          <ThemedText type="small" themeColor="textSecondary">
-            No sets saved yet.
-          </ThemedText>
-        ) : (
-          props.sets.map((set) => (
-            <View key={set.id} style={styles.setRow}>
-              <View style={styles.setCopy}>
-                <ThemedText type="smallBold">Set {set.sequence}</ThemedText>
-                <ThemedText type="small" themeColor="textSecondary">
-                  {formatSet(set, props.exercises, props.unitSystem)}
-                </ThemedText>
-              </View>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Delete set ${set.sequence}`}
-                onPress={() => props.onRemoveSet(set)}
-                style={styles.deleteButton}
-              >
-                <ThemedText type="smallBold">Delete</ThemedText>
-              </Pressable>
-            </View>
-          ))
-        )}
       </View>
-
-      <View style={styles.actions}>
-        <Button
-          label={props.busy ? "Finishing…" : "Finish workout"}
-          disabled={props.busy}
-          onPress={props.onFinish}
-        />
-        <Button label="Delete workout" destructive onPress={props.onAbandon} />
-      </View>
-    </>
+    </View>
   );
 }
 
+// ==========================================
+// Individual Exercise Card with Inline Set Table
+// ==========================================
+function LiveExerciseCard(props: {
+  readonly entry: ExerciseEntry;
+  readonly completedSets: ReadonlyArray<WorkoutSet>;
+  readonly recentPerformance: ExerciseRecentSetsResponse | null;
+  readonly pendingInput: PendingSetInput;
+  readonly unitSystem: "metric" | "imperial";
+  readonly inputColor: string;
+  readonly busy: boolean;
+  readonly onUpdatePendingInput: (patch: Partial<PendingSetInput>) => void;
+  readonly onLogSet: () => void;
+  readonly onRemoveSet: (set: WorkoutSet) => void;
+  readonly onOpenProgression: () => void;
+  readonly onInteraction: () => void;
+}) {
+  const unit = weightUnitLabel(props.unitSystem);
+  const nextSetSequence = props.completedSets.length + 1;
+
+  // Compute smart placeholder for next set
+  const previousSet =
+    props.completedSets.length > 0
+      ? props.completedSets[props.completedSets.length - 1]
+      : null;
+
+  const previousBestLoad = props.recentPerformance?.summary.bestLoadKg ?? null;
+
+  const smartPlaceholderLoad =
+    previousSet?.loadKg !== null && previousSet?.loadKg !== undefined
+      ? String(kilogramsToDisplayWeight(previousSet.loadKg, props.unitSystem))
+      : previousBestLoad !== null
+        ? String(kilogramsToDisplayWeight(previousBestLoad, props.unitSystem))
+        : "—";
+
+  const smartPlaceholderReps =
+    previousSet?.repetitions !== null && previousSet?.repetitions !== undefined
+      ? String(previousSet.repetitions)
+      : props.entry.repsMax !== null
+        ? String(props.entry.repsMax)
+        : props.entry.repsMin !== null
+          ? String(props.entry.repsMin)
+          : "10";
+
+  return (
+    <View style={styles.exerciseCard}>
+      {/* Exercise Card Header */}
+      <View style={styles.exerciseCardHeader}>
+        <View style={styles.exerciseTitleBlock}>
+          <ThemedText type="default" style={styles.exerciseNameText}>
+            {props.entry.name}
+          </ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">
+            Target: {props.entry.targetSets} sets ·{" "}
+            {props.entry.repsMin === null
+              ? props.entry.durationMinutes
+                ? `${props.entry.durationMinutes} min`
+                : "reps"
+              : `${props.entry.repsMin}–${props.entry.repsMax} reps`}{" "}
+            · {props.entry.restSeconds}s rest
+          </ThemedText>
+        </View>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`View progression for ${props.entry.name}`}
+          onPress={props.onOpenProgression}
+          style={styles.progressionBadge}
+        >
+          <ThemedText type="smallBold" style={styles.progressionBadgeText}>
+            📈 History →
+          </ThemedText>
+        </Pressable>
+      </View>
+
+      {/* Set Table */}
+      <View style={styles.setTable}>
+        {/* Table Header */}
+        <View style={styles.setTableHeaderRow}>
+          <ThemedText type="small" style={styles.colSetHeader}>
+            SET
+          </ThemedText>
+          <ThemedText type="small" style={styles.colPrevHeader}>
+            PREVIOUS
+          </ThemedText>
+          <ThemedText type="small" style={styles.colInputHeader}>
+            {unit.toUpperCase()}
+          </ThemedText>
+          <ThemedText type="small" style={styles.colInputHeader}>
+            REPS
+          </ThemedText>
+          <ThemedText type="small" style={styles.colCheckHeader}>
+            ✓
+          </ThemedText>
+        </View>
+
+        {/* Completed Sets */}
+        {props.completedSets.map((set, i) => {
+          const loadStr =
+            set.loadKg !== null
+              ? kilogramsToDisplayWeight(set.loadKg, props.unitSystem)
+              : "—";
+          const repsStr = set.repetitions !== null ? `${set.repetitions}` : "—";
+
+          return (
+            <View key={set.id} style={styles.completedSetRow}>
+              <ThemedText type="smallBold" style={styles.colSet}>
+                {i + 1}
+              </ThemedText>
+              <ThemedText
+                type="small"
+                themeColor="textSecondary"
+                style={styles.colPrev}
+              >
+                {loadStr} {unit} × {repsStr}
+              </ThemedText>
+              <ThemedText type="smallBold" style={styles.colInputDone}>
+                {loadStr}
+              </ThemedText>
+              <ThemedText type="smallBold" style={styles.colInputDone}>
+                {repsStr}
+              </ThemedText>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Delete completed set ${i + 1}`}
+                onPress={() => props.onRemoveSet(set)}
+                style={styles.checkedCircle}
+              >
+                <ThemedText type="smallBold" style={styles.checkIconText}>
+                  ✓
+                </ThemedText>
+              </Pressable>
+            </View>
+          );
+        })}
+
+        {/* Active / Pending Set Row */}
+        <View style={styles.activeSetRow}>
+          <ThemedText type="smallBold" style={styles.colSet}>
+            {nextSetSequence}
+          </ThemedText>
+
+          <ThemedText
+            type="small"
+            themeColor="textSecondary"
+            style={styles.colPrev}
+            numberOfLines={1}
+          >
+            {smartPlaceholderLoad !== "—"
+              ? `${smartPlaceholderLoad} ${unit} × ${smartPlaceholderReps}`
+              : "First set"}
+          </ThemedText>
+
+          <View style={styles.colInputCell}>
+            <TextInput
+              testID={`set-load-input-${props.entry.id}`}
+              value={props.pendingInput.load}
+              onChangeText={(load) => props.onUpdatePendingInput({ load })}
+              onFocus={props.onInteraction}
+              placeholder={
+                smartPlaceholderLoad !== "—" ? smartPlaceholderLoad : "0"
+              }
+              placeholderTextColor="#6B7280"
+              keyboardType="decimal-pad"
+              style={[styles.tableInput, { color: props.inputColor }]}
+            />
+          </View>
+
+          <View style={styles.colInputCell}>
+            <TextInput
+              testID={`set-reps-input-${props.entry.id}`}
+              value={props.pendingInput.reps}
+              onChangeText={(reps) => props.onUpdatePendingInput({ reps })}
+              onFocus={props.onInteraction}
+              placeholder={smartPlaceholderReps}
+              placeholderTextColor="#6B7280"
+              keyboardType="decimal-pad"
+              style={[styles.tableInput, { color: props.inputColor }]}
+            />
+          </View>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Log set ${nextSetSequence} for ${props.entry.name}`}
+            disabled={props.busy}
+            onPress={props.onLogSet}
+            style={styles.checkButton}
+          >
+            <ThemedText type="smallBold" style={styles.checkButtonText}>
+              ✓
+            </ThemedText>
+          </Pressable>
+        </View>
+      </View>
+
+      {/* Add Set Footer */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Add Set for ${props.entry.name}`}
+        onPress={props.onLogSet}
+        style={styles.addSetRow}
+      >
+        <ThemedText type="smallBold" style={styles.addSetText}>
+          + Add Set {nextSetSequence}
+        </ThemedText>
+      </Pressable>
+    </View>
+  );
+}
+
+// ==========================================
+// Floating Rest Timer Bar
+// ==========================================
+function FloatingRestTimer(props: {
+  readonly rest: RestTimerState;
+  readonly onAdjust: (delta: number) => void;
+  readonly onSkip: () => void;
+}) {
+  const percent = Math.min(
+    100,
+    Math.max(0, (props.rest.remaining / Math.max(1, props.rest.total)) * 100),
+  );
+
+  return (
+    <View style={styles.floatingTimerContainer}>
+      <View style={styles.floatingTimerBar}>
+        <View style={styles.timerInfoBlock}>
+          <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+            ⏱ Rest ({props.rest.exerciseName})
+          </ThemedText>
+          <ThemedText type="subtitle" style={styles.timerCountdown}>
+            {formatStopwatch(props.rest.remaining)}
+          </ThemedText>
+        </View>
+
+        <View style={styles.timerActions}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Subtract 15 seconds"
+            onPress={() => props.onAdjust(-15)}
+            style={styles.timerAdjustButton}
+          >
+            <ThemedText type="smallBold">-15s</ThemedText>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Add 15 seconds"
+            onPress={() => props.onAdjust(15)}
+            style={styles.timerAdjustButton}
+          >
+            <ThemedText type="smallBold">+15s</ThemedText>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Skip rest timer"
+            onPress={props.onSkip}
+            style={styles.timerSkipButton}
+          >
+            <ThemedText type="smallBold" style={styles.timerSkipText}>
+              Skip
+            </ThemedText>
+          </Pressable>
+        </View>
+      </View>
+      {/* Progress line */}
+      <View style={styles.timerProgressTrack}>
+        <View style={[styles.timerProgressFill, { width: `${percent}%` }]} />
+      </View>
+    </View>
+  );
+}
+
+// ==========================================
+// Form & Button Helpers
+// ==========================================
 function Field(props: {
   readonly testID?: string;
   readonly label: string;
@@ -1026,31 +1369,15 @@ function Button(props: {
   );
 }
 
-const formatLoad = (
-  kg: number | null,
-  unitSystem: "metric" | "imperial",
-): string =>
-  kg === null
-    ? "—"
-    : `${kilogramsToDisplayWeight(kg, unitSystem)} ${weightUnitLabel(unitSystem)}`;
-
-const formatSet = (
-  set: WorkoutSet,
-  exercises: ReadonlyArray<Exercise>,
-  unitSystem: "metric" | "imperial",
-): string => {
-  const exercise = exercises.find(
-    (candidate) => candidate.id === set.exerciseId,
-  );
-  const values = [
-    exercise?.name ?? "Exercise",
-    set.repetitions !== null ? `${set.repetitions} reps` : null,
-    set.loadKg !== null ? formatLoad(set.loadKg, unitSystem) : null,
-    set.durationSeconds !== null ? `${set.durationSeconds}s` : null,
-    set.distanceMeters !== null ? `${set.distanceMeters}m` : null,
-    set.perceivedExertion !== null ? `RPE ${set.perceivedExertion}` : null,
-  ];
-  return values.filter((value): value is string => value !== null).join(" · ");
+const formatStopwatch = (totalSeconds: number): string => {
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = totalSeconds % 60;
+  if (mins >= 60) {
+    const hrs = Math.floor(mins / 60);
+    const remMins = mins % 60;
+    return `${hrs}:${remMins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  }
+  return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 };
 
 type StoredWorkoutDraft = WorkoutDraft | Pick<WorkoutDraft, "name" | "notes">;
@@ -1069,17 +1396,24 @@ const isStoredWorkoutDraft = (value: unknown): value is StoredWorkoutDraft => {
   return stringsValid && proposalValid;
 };
 
+// ==========================================
+// Styles
+// ==========================================
 const styles = StyleSheet.create({
   page: { flex: 1 },
   safeArea: { flex: 1 },
+  keyboardContainer: { flex: 1 },
   content: {
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
     paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.four,
+    paddingTop: Spacing.three,
     paddingBottom: BottomTabInset + Spacing.six,
     gap: Spacing.four,
+  },
+  contentWithRestTimer: {
+    paddingBottom: BottomTabInset + Spacing.six + 90,
   },
   center: {
     alignItems: "center",
@@ -1087,6 +1421,218 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.six,
   },
   section: { gap: Spacing.three },
+  feedContainer: {
+    gap: Spacing.four,
+  },
+  headerFinishButton: {
+    backgroundColor: "#10B981",
+    paddingHorizontal: Spacing.three,
+    paddingVertical: 6,
+    borderRadius: Spacing.two,
+    marginRight: Spacing.two,
+  },
+  headerFinishText: {
+    color: "#FFFFFF",
+  },
+  liveHeader: {
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    borderRadius: Spacing.three,
+    padding: Spacing.three,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+  },
+  liveHeaderTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  liveStopwatchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+  },
+  livePulseDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#10B981",
+  },
+  emptyExercisesCard: {
+    padding: Spacing.six,
+    borderRadius: Spacing.three,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+    alignItems: "center",
+    gap: Spacing.two,
+  },
+  exerciseCard: {
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    borderRadius: Spacing.three,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+    padding: Spacing.three,
+    gap: Spacing.three,
+  },
+  exerciseCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  exerciseTitleBlock: {
+    flex: 1,
+    gap: 2,
+  },
+  exerciseNameText: {
+    fontSize: 17,
+    fontWeight: "700",
+  },
+  progressionBadge: {
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  progressionBadgeText: {
+    color: "#10B981",
+    fontSize: 12,
+  },
+  setTable: {
+    gap: Spacing.one,
+  },
+  setTableHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.two,
+    paddingBottom: Spacing.one,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255, 255, 255, 0.1)",
+  },
+  colSetHeader: {
+    width: 36,
+    color: "#8A8D91",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  colPrevHeader: {
+    flex: 1,
+    color: "#8A8D91",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  colInputHeader: {
+    width: 64,
+    textAlign: "center",
+    color: "#8A8D91",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  colCheckHeader: {
+    width: 44,
+    textAlign: "center",
+    color: "#8A8D91",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  completedSetRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.two,
+    borderRadius: Spacing.two,
+    backgroundColor: "rgba(16, 185, 129, 0.08)",
+  },
+  activeSetRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.two,
+    paddingVertical: 6,
+    borderRadius: Spacing.two,
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+  },
+  colSet: {
+    width: 36,
+    color: "#8A8D91",
+  },
+  colPrev: {
+    flex: 1,
+    paddingRight: Spacing.one,
+    fontSize: 12,
+  },
+  colInputDone: {
+    width: 64,
+    textAlign: "center",
+    color: "#FFFFFF",
+  },
+  colInputCell: {
+    width: 64,
+    paddingHorizontal: 3,
+  },
+  tableInput: {
+    height: 38,
+    borderRadius: 6,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255, 255, 255, 0.2)",
+    textAlign: "center",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  checkedCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#10B981",
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 6,
+  },
+  checkIconText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+  },
+  checkButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 2,
+    borderColor: "#10B981",
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 6,
+  },
+  checkButtonText: {
+    color: "#10B981",
+    fontSize: 16,
+  },
+  addSetRow: {
+    paddingVertical: Spacing.two,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: Spacing.two,
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+  },
+  addSetText: {
+    color: "#10B981",
+  },
+  bottomControls: {
+    gap: Spacing.three,
+    marginTop: Spacing.two,
+  },
+  addExerciseButton: {
+    paddingVertical: Spacing.three,
+    borderRadius: Spacing.three,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: "#10B981",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addExerciseText: {
+    color: "#10B981",
+  },
+  finishActions: {
+    gap: Spacing.two,
+  },
   planCard: {
     gap: Spacing.two,
     padding: Spacing.three,
@@ -1094,36 +1640,12 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "#18633d",
   },
-  planExerciseList: {
-    gap: Spacing.two,
-  },
-  planExerciseRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: Spacing.two,
-    borderRadius: Spacing.two,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(16, 185, 129, 0.2)",
-    backgroundColor: "rgba(16, 185, 129, 0.05)",
-    gap: Spacing.two,
-  },
-  planExerciseRowSelected: {
-    borderColor: "#10B981",
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-  },
-  completedSetsBadge: {
-    color: "#10B981",
-    fontWeight: "600",
-  },
-  selectButtonText: {
-    color: "#10B981",
-  },
   planExercise: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.two,
   },
+  setCopy: { flex: 1, gap: Spacing.one },
   field: { flex: 1, minWidth: 140, gap: Spacing.one },
   input: {
     borderWidth: StyleSheet.hairlineWidth,
@@ -1131,31 +1653,6 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.two,
     padding: Spacing.three,
     fontSize: 16,
-  },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.two },
-  choices: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.two },
-  choice: {
-    minHeight: 48,
-    borderRadius: Spacing.two,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#8A8D91",
-    paddingHorizontal: Spacing.three,
-    justifyContent: "center",
-  },
-  choiceSelected: { borderColor: "#18633d", backgroundColor: "#18633d" },
-  catalogSuggestions: {
-    gap: Spacing.one,
-    paddingVertical: Spacing.one,
-  },
-  catalogList: {
-    gap: Spacing.one,
-  },
-  catalogItem: {
-    padding: Spacing.two,
-    borderRadius: Spacing.two,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#8A8D91",
-    gap: 2,
   },
   button: {
     minHeight: 50,
@@ -1168,22 +1665,6 @@ const styles = StyleSheet.create({
   },
   buttonDestructive: { borderColor: "#A13A25" },
   buttonPressed: { opacity: 0.6 },
-  setRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.two,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#8A8D91",
-    paddingTop: Spacing.two,
-  },
-  setCopy: { flex: 1, gap: Spacing.one },
-  deleteButton: {
-    minHeight: 44,
-    minWidth: 64,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  actions: { gap: Spacing.two },
   message: {
     gap: Spacing.two,
     borderWidth: StyleSheet.hairlineWidth,
@@ -1191,19 +1672,63 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.three,
     padding: Spacing.three,
   },
-  previousHeaderRow: {
+  floatingTimerContainer: {
+    position: "absolute",
+    bottom: Spacing.four + BottomTabInset,
+    left: Spacing.four,
+    right: Spacing.four,
+    backgroundColor: "#18181B",
+    borderRadius: Spacing.three,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(16, 185, 129, 0.4)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 8,
+    overflow: "hidden",
+  },
+  floatingTimerBar: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    justifyContent: "space-between",
+    padding: Spacing.three,
   },
-  progressionLinkButton: {
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+  timerInfoBlock: {
+    flex: 1,
+    gap: 2,
   },
-  progressionLinkText: {
+  timerCountdown: {
     color: "#10B981",
-    fontSize: 12,
+    fontWeight: "700",
+  },
+  timerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+  },
+  timerAdjustButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+  },
+  timerSkipButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
+  },
+  timerSkipText: {
+    color: "#EF4444",
+  },
+  timerProgressTrack: {
+    height: 3,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    width: "100%",
+  },
+  timerProgressFill: {
+    height: "100%",
+    backgroundColor: "#10B981",
   },
 });
