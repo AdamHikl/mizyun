@@ -1334,6 +1334,83 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
             { error: error.message },
             "Coach agent exceeded tool-call budget",
           );
+
+          if (isMultiWorkoutProposalIntent(parsed.data.text)) {
+            const patternParams = extractMultiWorkoutParamsFromText(
+              parsed.data.text,
+            );
+            const params: MultiWorkoutParams =
+              patternParams ??
+              defaultMultiWorkoutParams({
+                trainingDaysPerWeek:
+                  profile.coachingPreferences.trainingDaysPerWeek,
+                sessionDurationMinutes:
+                  profile.coachingPreferences.sessionDurationMinutes,
+              });
+            const prescription = await buildTrainingPrescriptionForUser(
+              options,
+              principal.userId,
+              principal.accessToken,
+              now(),
+              {
+                preferenceOverride: {
+                  trainingDaysPerWeek: params.requestedSessions,
+                  sessionDurationMinutes: params.sessionMinutes,
+                  ...(params.focus === "general_hypertrophy"
+                    ? { trainingFocus: "hypertrophy" }
+                    : {}),
+                  ...(params.equipmentOverrides !== null
+                    ? { availableEquipment: params.equipmentOverrides }
+                    : {}),
+                },
+              },
+            );
+            const actionProposal = buildMultiWorkoutProposalFromPrescription(
+              prescription,
+              now(),
+              {
+                requestedSessions: params.requestedSessions,
+                sessionMinutes: params.sessionMinutes,
+                focus: params.focus === "unknown" ? null : params.focus,
+                sessionDistribution: params.sessionDistribution,
+              },
+            );
+            const assistantMessage =
+              await options.conversationRepository.addMessage(
+                principal.userId,
+                {
+                  id: crypto.randomUUID(),
+                  conversationId,
+                  role: "assistant",
+                  text: cleanAssistantProposalText(
+                    "I have designed a custom workout routine tailored to your request. Review the sessions, exercises, and volume in the interactive widget below.",
+                    actionProposal,
+                  ),
+                  status: "complete",
+                  idempotencyKey: null,
+                  providerMetadata: {
+                    provider: "mizyun-deterministic",
+                    replyTo: userMessage.id,
+                    evidenceKinds: ["training", "plan"],
+                    actionProposal,
+                    promptVersion: COACH_PROMPT_VERSION,
+                  },
+                },
+                { accessToken: principal.accessToken, now: now() },
+              );
+            const latestConversation =
+              (await options.conversationRepository.get(
+                principal.userId,
+                conversationId,
+                { accessToken: principal.accessToken },
+              )) ?? conversation;
+            return coachMessageResponseSchema.parse({
+              conversation: toConversationWire(latestConversation),
+              userMessage: toMessageWire(userMessage),
+              assistantMessage: toMessageWire(assistantMessage),
+            });
+          }
+
           return sendApiError(
             reply,
             request,

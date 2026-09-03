@@ -375,7 +375,7 @@ const resolveMemoryStore = (dependencies: AppDependencies): MemoryStore =>
  * when the registry has at least one definition; empty
  * registries skip the tool-loop entirely (cheaper for tests).
  */
-const COACH_MAX_TOOL_ROUND_TRIPS = 3;
+const COACH_MAX_TOOL_ROUND_TRIPS = 5;
 
 const createAgentOrchestrator = (
   dependencies: AppDependencies,
