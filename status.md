@@ -14,9 +14,10 @@
   5. Added "Legal, Terms & Health Advisory" in `SettingsScreen` with in-app browser links to legal endpoints and explicit non-medical disclaimer satisfying Apple Guideline 1.4.1.
   6. Configured `apps/mobile/eas.json` and added EAS cloud/local packaging scripts (`pnpm mobile:eas:build:ios`, `pnpm mobile:eas:build:android`).
   7. Verified entire monorepo with `pnpm check` (1,052+ unit tests passing, 0 errors, iOS 1,808 modules and Android 1,900 modules exported clean).
+  8. Configured automated daily off-host backup sync via macOS LaunchAgent (`com.mizyun.backup-sync.plist`) and `scripts/mac-daily-backup-sync.sh`. Whenever the Mac powers on or wakes up, it triggers a fresh database/storage snapshot on the Pi, rsyncs archives to `~/Backups/mizyun/`, cryptographically verifies SHA-256 checksums, and records the daily completion marker.
 - **iOS:** physical iPhone 16 Pro (`Adam's Iphone 😋`, `7FBC9ACC-918A-5A9B-8D22-B9F1FF652A06`) running fresh Production Release build `com.mizyun.app` with pre-launch legal routes, Beta Pro Pass in-app indicators, and legal/medical disclaimers.
 - **Production Host:** Raspberry Pi 5 (`rpserver`, Ubuntu 24.04 ARM64, Tailscale IP `100.116.142.1`). Remote git checkout updated to commit `574395b` (`574395bb9f737adb23c6376c85547221815bc49c`). Public health (`https://mizyun-api.phiskel.com/v1/health`) and legal endpoints (`/legal/privacy`, `/legal/terms`, `/legal/support`) verified live (HTTP 200).
-- **Branch:** `main` (commit `574395b` pushed to `origin/main`).
+- **Branch:** `main` (commit `f709597` pushed to `origin/main`).
 - **Local runtime at handoff:** `pnpm check` passes with 1,052+ tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean.
 - **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and all tests passed.
 
