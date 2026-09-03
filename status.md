@@ -1,22 +1,24 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-09-03** (AI-PROV-002: Remove Mistral AI, Standardize Exclusively on Google Gemini 3.7 Flash).
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-09-03** (AI-PROV-002: Standardize on Google Gemini 3.8 Flash, Purge Mistral AI, Deploy to Production Host & iPhone).
 
 ## Executive snapshot
 
-- **Product stage:** technical pre-alpha; pre-release launch preparation complete; AI stack fully consolidated on Google Gemini.
+- **Product stage:** technical pre-alpha; pre-release launch preparation complete; AI stack fully consolidated on Google Gemini 3.8 Flash.
 - **Roadmap position:** AI-PROV-002 complete.
 - **Latest verified implementation slice:**
   1. Purged package `packages/providers/mistral` and all dependencies in `apps/api/package.json`, root `package.json`, and `pnpm-lock.yaml`.
   2. Updated `@mizyun/contracts` and `@mizyun/core` so `aiProviderSchema` and `DEFAULT_AI_PROVIDER` accept only `"gemini"`, defaulting all user profiles to Gemini.
-  3. Cleaned server configuration (`@mizyun/config`): removed `ServerMistralConfiguration`, `ServerMistralVisionConfiguration`, and all `MISTRAL_*` environment variable parsers, strictly validating `GEMINI_*`.
+  3. Cleaned server configuration (`@mizyun/config`): removed `ServerMistralConfiguration`, `ServerMistralVisionConfiguration`, and all `MISTRAL_*` environment variable parsers, standardizing defaults to `gemini-3.8-flash`.
   4. Updated composition root (`@mizyun/api`) to wire `GeminiAgentProvider`, `GeminiContentModerator`, and `GeminiVisionProvider` exclusively as the active engine for Coach conversations, safety moderation, and photo meal drafting.
-  5. Deleted mobile `AiProviderCard` switcher component and removed it from `SettingsScreen`, cleanly displaying `🤖 Gemini 3.7` in the hero badge.
+  5. Deleted mobile `AiProviderCard` switcher component and simplified `SettingsScreen`, cleanly displaying `🤖 Gemini 3.8` in the hero badge.
   6. Added forward database migration `supabase/migrations/20260903120000_remove_mistral_provider.sql` migrating any existing rows from `mistral` to `gemini`, changing the column default to `gemini`, and updating the PostgreSQL check constraint.
-  7. Updated `.env.example`, local `.env`, and `deploy/windows-wsl/production.env.example` to set `AGENT_PROVIDER=gemini` and remove all Mistral keys.
+  7. Updated `.env.example`, local `.env`, `/etc/mizyun/production.env` (Pi), and `deploy/windows-wsl/production.env.example` to set `AGENT_PROVIDER=gemini`, `GEMINI_MODEL=gemini-3.8-flash`, and remove all Mistral keys.
   8. Ran full monorepo quality gate (`pnpm check`): 100% passing across Prettier format check, all 15 package typechecks, iOS and Android production Hermes bundle builds, and 1,061+ unit tests.
-- **iOS:** physical iPhone 16 Pro (`Adam's Iphone 😋`, `7FBC9ACC-918A-5A9B-8D22-B9F1FF652A06`) running Production Release build `com.mizyun.app`.
-- **Production Host:** Raspberry Pi 5 (`rpserver`, Ubuntu 24.04 ARM64, Tailscale IP `100.116.142.1`).
+  9. Promoted commit `f9d095d` to the Raspberry Pi 5 (`rpserver`) via `scripts/promote-production.sh`: automatic release backup created, forward migration applied to Postgres, `mizyun-api` restarted, and public health verified live (`https://mizyun-api.phiskel.com/v1/health` HTTP 200).
+- **iOS:** physical iPhone 16 Pro (`Adam's Iphone 😋`, `7FBC9ACC-918A-5A9B-8D22-B9F1FF652A06`) running fresh Production Release build `com.mizyun.app` with Gemini 3.8 Flash, verified installed via `xcrun devicectl`.
+- **Production Host:** Raspberry Pi 5 (`rpserver`, Ubuntu 24.04 ARM64, Tailscale IP `100.116.142.1`). Remote git checkout updated to commit `f9d095d` (`f9d095df8b308a594af9bddc88ea5884492571cd`). Database migration `20260903120000_remove_mistral_provider.sql` applied cleanly (all 6 existing profiles migrated to `gemini`). Public health (`https://mizyun-api.phiskel.com/v1/health`) verified live (HTTP 200).
+- **Branch:** `main` (commit `f9d095d` pushed to `origin/main`).
 - **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and all tests passed.
 
 ## What is genuinely delivered
