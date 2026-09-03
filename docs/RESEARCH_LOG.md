@@ -6,6 +6,28 @@
 
 Each entry records date, scope/version, primary sources, findings that affected implementation, and any resulting ADR. Inferences must be labeled as such.
 
+## 2026-09-03 — GEMINI-TOOL-002 Deduplication of tool function declarations on parallel tool round-trips
+
+### Scope
+
+Google AI Studio REST API `generateContent` tool calling schema validation: preventing duplicate `functionDeclarations` when replaying parallel tool execution history in `GeminiAgentProvider`.
+
+### Primary sources
+
+- Google AI Studio Function Calling API reference: https://ai.google.dev/api/rest/v1beta/models/generateContent
+- Google Cloud Generative Language API error reference: `INVALID_ARGUMENT: Duplicate function declaration found: <name>` (HTTP 400).
+
+### Findings used
+
+- When Gemini 3.8 Flash returns multiple tool calls in parallel targeting the same tool name (e.g. parallel `search_exercises` calls for multiple exercise names in a workout generation request), replaying `requestedToolCalls` to generate the final assistant text must declare each unique function name at most once in `tools[0].functionDeclarations`.
+- Repeating identical declarations causes Google's API to immediately fail with `HTTP 400: Duplicate function declaration found: <name>`, which was previously converted to `AgentProviderError("invalid_request")` and surfaced as `503 AI_CONFIGURATION_ERROR` in Coach.
+- Added deduplication via `Map` keyed on tool name across both `request.tools` and `request.requestedToolCalls` in `packages/providers/gemini/src/index.ts`.
+- Added structured error warning in `apps/api/src/modules/coach/routes.ts` before `sendApiError` for server-side observability.
+
+### Result
+
+Resolved Coach 503 `AI_CONFIGURATION_ERROR` on multi-workout requests triggering parallel exercise catalog searches. Unit tests and full monorepo `pnpm check` verified passing 100%.
+
 ## 2026-08-30 — SES-EMAIL-001 AWS SES transactional & auth email delivery
 
 ### Scope

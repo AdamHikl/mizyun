@@ -624,6 +624,127 @@ describe("GeminiAgentProvider", () => {
     expect(JSON.stringify(fnDecl?.parameters)).not.toContain("$schema");
     expect(JSON.stringify(fnDecl?.parameters)).not.toContain("title");
   });
+
+  it("deduplicates function declarations when requestedToolCalls contains parallel calls to the same tool", async () => {
+    let capturedReq: unknown;
+    const generateContent = vi.fn().mockImplementation(async (r) => {
+      capturedReq = r;
+      return validGeminiResponse;
+    });
+
+    const provider = new GeminiAgentProvider({
+      apiKey: "test-gemini-key-12345",
+      model: "gemini-3.8-flash",
+      timeoutMs: 5_000,
+      maxOutputTokens: 1_000,
+      externalAccess: true,
+      client: { generateContent },
+    });
+
+    await provider.respond({
+      ...request,
+      requestedToolCalls: [
+        {
+          id: "call_1",
+          name: "search_exercises",
+          args: { query: "lat pulldown" },
+        },
+        {
+          id: "call_2",
+          name: "search_exercises",
+          args: { query: "lateral raise" },
+        },
+        {
+          id: "call_3",
+          name: "search_exercises",
+          args: { query: "cable row" },
+        },
+        { id: "call_4", name: "get_active_goal", args: {} },
+      ],
+      toolResults: [
+        {
+          id: "call_1",
+          name: "search_exercises",
+          evidence: {
+            kind: "training",
+            label: "Search",
+            confirmed: true,
+            freshness: "2026-07-23T10:00:00.000Z",
+            data: {},
+          },
+        },
+      ],
+    });
+
+    const toolsPayload = (
+      capturedReq as {
+        tools: {
+          functionDeclarations: {
+            name: string;
+            parameters: Record<string, unknown>;
+          }[];
+        }[];
+      }
+    ).tools;
+
+    expect(toolsPayload).toHaveLength(1);
+    const declNames = toolsPayload[0]?.functionDeclarations.map((d) => d.name);
+    // Even though search_exercises was called 3 times, it must appear only once.
+    expect(declNames).toEqual(["search_exercises", "get_active_goal"]);
+  });
+
+  it("deduplicates function declarations when tools contains duplicate tool definitions", async () => {
+    let capturedReq: unknown;
+    const generateContent = vi.fn().mockImplementation(async (r) => {
+      capturedReq = r;
+      return validGeminiResponse;
+    });
+
+    const provider = new GeminiAgentProvider({
+      apiKey: "test-gemini-key-12345",
+      model: "gemini-3.8-flash",
+      timeoutMs: 5_000,
+      maxOutputTokens: 1_000,
+      externalAccess: true,
+      client: { generateContent },
+    });
+
+    await provider.respond({
+      ...request,
+      tools: [
+        {
+          name: "search_exercises",
+          description: "Search",
+          parameters: { type: "object" },
+        },
+        {
+          name: "search_exercises",
+          description: "Search duplicate",
+          parameters: { type: "object" },
+        },
+        {
+          name: "get_active_goal",
+          description: "Goal",
+          parameters: { type: "object" },
+        },
+      ],
+    });
+
+    const toolsPayload = (
+      capturedReq as {
+        tools: {
+          functionDeclarations: {
+            name: string;
+            parameters: Record<string, unknown>;
+          }[];
+        }[];
+      }
+    ).tools;
+
+    expect(toolsPayload).toHaveLength(1);
+    const declNames = toolsPayload[0]?.functionDeclarations.map((d) => d.name);
+    expect(declNames).toEqual(["search_exercises", "get_active_goal"]);
+  });
 });
 
 describe("cleanGeminiSchema", () => {

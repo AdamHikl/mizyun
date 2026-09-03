@@ -1308,6 +1308,13 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
                 ? 503
                 : 502;
           if (error.kind === "rate_limited") reply.header("retry-after", "1");
+          request.log.warn(
+            {
+              errorKind: error.kind,
+              errorMessage: error.message,
+            },
+            "Coach agent provider error",
+          );
           return sendApiError(
             reply,
             request,

@@ -534,14 +534,21 @@ export class GeminiAgentProvider implements AgentProvider {
     const toolsPayload = hasTools
       ? ([
           {
-            functionDeclarations: request.tools!.map((tool) => {
-              const cleaned = cleanGeminiSchema(tool.parameters);
-              return {
-                name: tool.name,
-                description: tool.description,
-                ...(cleaned !== undefined ? { parameters: cleaned } : {}),
-              };
-            }),
+            functionDeclarations: Array.from(
+              new Map(
+                request.tools!.map((tool) => {
+                  const cleaned = cleanGeminiSchema(tool.parameters);
+                  return [
+                    tool.name,
+                    {
+                      name: tool.name,
+                      description: tool.description,
+                      ...(cleaned !== undefined ? { parameters: cleaned } : {}),
+                    },
+                  ];
+                }),
+              ).values(),
+            ),
           },
         ] as const)
       : hasToolHistory &&
@@ -549,11 +556,18 @@ export class GeminiAgentProvider implements AgentProvider {
           request.requestedToolCalls.length > 0
         ? ([
             {
-              functionDeclarations: request.requestedToolCalls.map((call) => ({
-                name: call.name,
-                description: `Tool ${call.name}`,
-                parameters: { type: "OBJECT" },
-              })),
+              functionDeclarations: Array.from(
+                new Map(
+                  request.requestedToolCalls.map((call) => [
+                    call.name,
+                    {
+                      name: call.name,
+                      description: `Tool ${call.name}`,
+                      parameters: { type: "OBJECT" },
+                    },
+                  ]),
+                ).values(),
+              ),
             },
           ] as const)
         : undefined;
