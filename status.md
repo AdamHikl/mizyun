@@ -11,6 +11,11 @@
   2. Added structured warning logging for `AgentProviderError` in `apps/api/src/modules/coach/routes.ts` before `sendApiError` response.
   3. Added unit test coverage in `@mizyun/provider-gemini` testing parallel `requestedToolCalls` and `tools` deduplication.
   4. Monorepo quality gate (`pnpm check`): 100% passing across Prettier, all 15 package typechecks, iOS and Android Hermes bundle builds, and 1,061+ unit tests.
+  5. Promoted commit `726b9cd` (`726b9cdcb5ad88b7c166b1f78ad87b3f2693d116`) to the Raspberry Pi 5 (`rpserver`) via `scripts/promote-production.sh`: automatic release backup created (`/srv/mizyun/backups/20260903T083122Z`), `mizyun-api` restarted, and public health verified live (`https://mizyun-api.phiskel.com/v1/health` HTTP 200).
+- **iOS:** physical iPhone 16 Pro (`Adam's Iphone 😋`, `7FBC9ACC-918A-5A9B-8D22-B9F1FF652A06`) running fresh Production Release build `com.mizyun.app` with Gemini 3.8 Flash, verified installed via `xcrun devicectl`.
+- **Production Host:** Raspberry Pi 5 (`rpserver`, Ubuntu 24.04 ARM64, Tailscale IP `100.116.142.1`). Remote git checkout updated to commit `726b9cd` (`726b9cdcb5ad88b7c166b1f78ad87b3f2693d116`). Public health (`https://mizyun-api.phiskel.com/v1/health`) verified live (HTTP 200).
+- **Branch:** `main` (commit `726b9cd` pushed to `origin/main`).
+- **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and all tests passed.
 
 ## What is genuinely delivered
 
