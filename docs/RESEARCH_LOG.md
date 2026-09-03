@@ -6,6 +6,33 @@
 
 Each entry records date, scope/version, primary sources, findings that affected implementation, and any resulting ADR. Inferences must be labeled as such.
 
+## 2026-09-03 — GEMINI-TOOL-003 Multi-round tool continuation, budget enforcement, and retry freshness
+
+### Scope
+
+Coach multi-turn tool calling workflow: enabling multi-step search + proposal sequences up to 3 round-trips in `AgentOrchestrator`, graceful mapping of `AgentToolBudgetExceededError` in API routes, and fresh idempotency keys on mobile retry.
+
+### Primary sources
+
+- Mizyun Coach system policy (`COACH_SYSTEM_POLICY` in `packages/agent-runtime/src/index.ts`): requires discovering exercises with `search_exercises` and then formulating/proposing the routine with `propose_workout_plan`.
+- Fastify & mobile error handling contract (`docs/LOGGING_POLICY.md` & `apps/mobile/src/features/coach/coach-data.ts`).
+
+### Findings used
+
+- In `COACH_SYSTEM_POLICY`, workout generation is inherently a multi-step sequence: the model first searches for exercises (step 1), formulates the custom 3-day split and calls `propose_workout_plan` (step 2), and finally produces concise summary markdown directing to the interactive card (step 3).
+- Because `apps/api/src/app.ts` did not pass `maxToolCalls`, it defaulted to 1. On round 2, the orchestrator also omitted `tools` (an artifact from Mistral), preventing the model from invoking `propose_workout_plan` and causing it to either search again or exceed budget, throwing `AgentToolBudgetExceededError(1)`.
+- `coachRoutes` in `apps/api` did not catch `AgentToolBudgetExceededError`, bubbling it as an uncaught 500 error to Fastify.
+- In addition, mobile `CoachSetupScreen` previously resent the original idempotency key on retry; because `ai_reserve_provider_call` records failed attempts as `failed` / `conflict`, the API rejected retries with 409 Conflict.
+- Implementation consequences:
+  1. Configured `COACH_MAX_TOOL_ROUND_TRIPS = 3` in `apps/api/src/app.ts`.
+  2. In `packages/agent-runtime/src/index.ts`, passed tools during subsequent rounds when `toolCallsUsed < this.#maxToolCalls` so `propose_workout_plan` is reachable.
+  3. In `apps/api/src/modules/coach/routes.ts`, caught `AgentToolBudgetExceededError` and mapped it to 503 `AI_UNAVAILABLE` with structured warning logging.
+  4. In `apps/mobile/src/features/coach/coach-setup-screen.tsx`, generated a fresh idempotency key when retrying and replaced the old failed optimistic bubble.
+
+### Result
+
+Live end-to-end trace with production credentials confirmed Gemini completes the entire 3-round flow: searches exercises in round 1 and 2, proposes the 3-day V-shape workout plan in round 3, and generates the final text in round 4 with `PROPOSAL ATTACHED: true`. 100% passing across all quality gates.
+
 ## 2026-09-03 — GEMINI-TOOL-002 Deduplication of tool function declarations on parallel tool round-trips
 
 ### Scope

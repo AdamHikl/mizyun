@@ -375,6 +375,8 @@ const resolveMemoryStore = (dependencies: AppDependencies): MemoryStore =>
  * when the registry has at least one definition; empty
  * registries skip the tool-loop entirely (cheaper for tests).
  */
+const COACH_MAX_TOOL_ROUND_TRIPS = 3;
+
 const createAgentOrchestrator = (
   dependencies: AppDependencies,
   defaultToolSet: AgentToolRegistry,
@@ -388,6 +390,7 @@ const createAgentOrchestrator = (
   return new AgentOrchestrator({
     provider,
     memories,
+    maxToolCalls: COACH_MAX_TOOL_ROUND_TRIPS,
     ...(dependencies.moderator ? { moderator: dependencies.moderator } : {}),
     ...(tools ? { tools } : {}),
   });
@@ -619,6 +622,7 @@ export const buildApp = (
             externalAccess: configResult.value.aiExternalAccess,
           }),
           memories: resolveMemoryStore(dependencies),
+          maxToolCalls: COACH_MAX_TOOL_ROUND_TRIPS,
           moderator: new GeminiContentModerator({
             externalAccess: configResult.value.aiExternalAccess,
           }),

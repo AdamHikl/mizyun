@@ -789,6 +789,9 @@ export class AgentOrchestrator {
         promptVersion: COACH_PROMPT_VERSION,
         requestedToolCalls: response.toolCalls,
         toolResults,
+        ...(this.#tools && toolCallsUsed < this.#maxToolCalls
+          ? { tools: this.#tools.list() }
+          : {}),
       });
     }
 

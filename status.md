@@ -1,17 +1,17 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-09-03** (AI-PROV-003: Deduplicate Gemini tool function declarations on parallel execution, Fix Coach 503 error).
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-09-03** (AI-PROV-004: Enable multi-round tool continuation for Coach workout proposals & fix retry freshness).
 
 ## Executive snapshot
 
 - **Product stage:** technical pre-alpha; pre-release launch preparation complete; AI stack fully consolidated on Google Gemini 3.8 Flash.
-- **Roadmap position:** AI-PROV-003 complete.
+- **Roadmap position:** AI-PROV-004 complete.
 - **Latest verified implementation slice:**
-  1. Resolved Coach 503 `AI_CONFIGURATION_ERROR` occurring on parallel tool calls (e.g. multi-exercise searches for workout split generation) by deduplicating `functionDeclarations` by tool name in `@mizyun/provider-gemini`.
-  2. Added structured warning logging for `AgentProviderError` in `apps/api/src/modules/coach/routes.ts` before `sendApiError` response.
-  3. Added unit test coverage in `@mizyun/provider-gemini` testing parallel `requestedToolCalls` and `tools` deduplication.
-  4. Monorepo quality gate (`pnpm check`): 100% passing across Prettier, all 15 package typechecks, iOS and Android Hermes bundle builds, and 1,061+ unit tests.
-  5. Promoted commit `726b9cd` (`726b9cdcb5ad88b7c166b1f78ad87b3f2693d116`) to the Raspberry Pi 5 (`rpserver`) via `scripts/promote-production.sh`: automatic release backup created (`/srv/mizyun/backups/20260903T083122Z`), `mizyun-api` restarted, and public health verified live (`https://mizyun-api.phiskel.com/v1/health` HTTP 200).
+  1. Configured `COACH_MAX_TOOL_ROUND_TRIPS = 3` in `apps/api/src/app.ts` so multi-turn workout generation (searching catalog + proposing routine) has the required round-trip budget.
+  2. Updated `AgentOrchestrator.respond` in `packages/agent-runtime/src/index.ts` to pass available tools during subsequent rounds when `toolCallsUsed < this.#maxToolCalls`, allowing the model to call `propose_workout_plan` after exercise searches.
+  3. Added graceful handling in `apps/api/src/modules/coach/routes.ts` mapping `AgentToolBudgetExceededError` to 503 `AI_UNAVAILABLE` with structured warning logging instead of an uncaught 500 error.
+  4. Updated mobile `CoachSetupScreen` to generate fresh idempotency keys upon retry and replace failed optimistic bubbles, avoiding 409 Conflict rejection.
+  5. Monorepo quality gate (`pnpm check`): 100% passing across Prettier, all 15 package typechecks, iOS and Android Hermes bundle builds, and 1,062+ unit tests.
 - **iOS:** physical iPhone 16 Pro (`Adam's Iphone 😋`, `7FBC9ACC-918A-5A9B-8D22-B9F1FF652A06`) running fresh Production Release build `com.mizyun.app` with Gemini 3.8 Flash, verified installed via `xcrun devicectl`.
 - **Production Host:** Raspberry Pi 5 (`rpserver`, Ubuntu 24.04 ARM64, Tailscale IP `100.116.142.1`). Remote git checkout updated to commit `726b9cd` (`726b9cdcb5ad88b7c166b1f78ad87b3f2693d116`). Public health (`https://mizyun-api.phiskel.com/v1/health`) verified live (HTTP 200).
 - **Branch:** `main` (commit `726b9cd` pushed to `origin/main`).

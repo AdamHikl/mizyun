@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AgentOrchestrator,
   AgentProviderError,
+  AgentToolBudgetExceededError,
   StubVisionProvider,
   type AgentProvider,
   type ContentModerator,
@@ -970,6 +971,23 @@ describe("coach routes", () => {
     // successful assistant = 3 messages; provider called twice.
     expect(thread.json().messages).toHaveLength(3);
     expect(respond).toHaveBeenCalledTimes(2);
+  });
+
+  it("maps AgentToolBudgetExceededError to 503 AI_UNAVAILABLE", async () => {
+    const respond = vi.fn().mockImplementationOnce(async () => {
+      throw new AgentToolBudgetExceededError(3);
+    });
+    const { app } = makeApp(respond);
+    const id = await createConversation(app);
+    const response = await sendMessage(app, id, "exceeded-budget-key");
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toMatchObject({
+      error: {
+        code: "AI_UNAVAILABLE",
+        message:
+          "Coach took too many steps to complete that request. Try again.",
+      },
+    });
   });
 
   it("keeps request windows isolated between users", async () => {

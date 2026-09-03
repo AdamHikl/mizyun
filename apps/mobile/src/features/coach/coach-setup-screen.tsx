@@ -292,13 +292,11 @@ export function CoachSetupScreen() {
       draftLoadGeneration.current += 1;
       setSending(true);
       const sentAt = Date.now();
-      const idempotencyKey =
+      const retryBubbleId =
         retry !== undefined
-          ? retry.idempotencyKey
-          : pendingDraft?.conversationId === active.id &&
-              pendingDraft.text === text
-            ? pendingDraft.idempotencyKey
-            : newCoachMessageIdempotencyKey();
+          ? optimisticCoachMessageId(retry.idempotencyKey)
+          : undefined;
+      const idempotencyKey = newCoachMessageIdempotencyKey();
       const nextPending: CoachPendingDraft = {
         conversationId: active.id,
         text,
@@ -326,11 +324,14 @@ export function CoachSetupScreen() {
           actionProposal: null,
           createdAt: new Date().toISOString(),
         };
-        setMessages((current) =>
-          current.some((item) => item.id === userBubble.id)
-            ? current
-            : [...current, userBubble],
-        );
+        setMessages((current) => {
+          const base = retryBubbleId
+            ? current.filter((item) => item.id !== retryBubbleId)
+            : current;
+          return base.some((item) => item.id === userBubble.id)
+            ? base
+            : [...base, userBubble];
+        });
         const result = await sendCoachMessage(active.id, text, idempotencyKey);
         if (result.ok) {
           setActive(result.conversation);

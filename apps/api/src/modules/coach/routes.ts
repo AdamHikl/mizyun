@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import {
   AgentProviderError,
+  AgentToolBudgetExceededError,
   COACH_PROMPT_VERSION,
   extractAssistantText,
   screenCoachInput,
@@ -1325,6 +1326,20 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
                 ? "AI_CONFIGURATION_ERROR"
                 : "AI_UNAVAILABLE",
             error.message,
+          );
+        }
+
+        if (error instanceof AgentToolBudgetExceededError) {
+          request.log.warn(
+            { error: error.message },
+            "Coach agent exceeded tool-call budget",
+          );
+          return sendApiError(
+            reply,
+            request,
+            503,
+            "AI_UNAVAILABLE",
+            "Coach took too many steps to complete that request. Try again.",
           );
         }
         throw error;
