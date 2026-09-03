@@ -6,7 +6,7 @@
 #   - free tier on :4000 (3 req/min, 5k tokens/day)
 #   - paid tier on :4001 (6 req/min, 100k tokens/day)
 #
-# Asserts the per-tier limits without ever calling Mistral
+# Asserts the per-tier limits without ever calling an external model
 # (`AGENT_PROVIDER=disabled`, `AI_EXTERNAL_ACCESS=false`). The
 # script tears both replicas down on exit and is safe to run
 # repeatedly.

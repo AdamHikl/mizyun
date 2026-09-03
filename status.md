@@ -1,24 +1,22 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-09-03** (PRE-LAUNCH-001: App Store & Play Store Pre-Release Readiness, Legal Compliance, Beta Pro Tier & EAS Pipeline).
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-09-03** (AI-PROV-002: Remove Mistral AI, Standardize Exclusively on Google Gemini 3.7 Flash).
 
 ## Executive snapshot
 
-- **Product stage:** technical pre-alpha; pre-release launch preparation complete (legal compliance, App Store & Play Store disclosure questionnaire guide, Beta Pro Pass in-app status, hosted legal endpoints, and EAS build configuration ready).
-- **Roadmap position:** PRE-LAUNCH-001 complete.
+- **Product stage:** technical pre-alpha; pre-release launch preparation complete; AI stack fully consolidated on Google Gemini.
+- **Roadmap position:** AI-PROV-002 complete.
 - **Latest verified implementation slice:**
-  1. Drafted comprehensive `docs/PRIVACY_POLICY.md` and `docs/TERMS_OF_SERVICE.md` with explicit health/fitness data ownership, private progress photo isolation, zero public-model training disclosures, and two-step account deletion guarantees.
-  2. Created `docs/STORE_LISTING_DISCLOSURES.md` containing copy-pasteable metadata, iOS App Privacy "Nutrition Labels", Google Play Data Safety form answers, and App Store Reviewer Notes (human-in-the-loop AI draft explanation and test credentials).
-  3. Implemented `/legal/privacy`, `/legal/terms`, and `/legal/support` responsive HTML routes in `@mizyun/api` with full unit test coverage.
-  4. Added "✨ Beta Pro Pass" status badges in `OnboardingScreen` and `SettingsScreen` to establish premium feature perception during complimentary testing.
-  5. Added "Legal, Terms & Health Advisory" in `SettingsScreen` with in-app browser links to legal endpoints and explicit non-medical disclaimer satisfying Apple Guideline 1.4.1.
-  6. Configured `apps/mobile/eas.json` and added EAS cloud/local packaging scripts (`pnpm mobile:eas:build:ios`, `pnpm mobile:eas:build:android`).
-  7. Verified entire monorepo with `pnpm check` (1,052+ unit tests passing, 0 errors, iOS 1,808 modules and Android 1,900 modules exported clean).
-  8. Configured automated daily off-host backup sync via macOS LaunchAgent (`com.mizyun.backup-sync.plist`) and `scripts/mac-daily-backup-sync.sh`. Whenever the Mac powers on or wakes up, it triggers a fresh database/storage snapshot on the Pi, rsyncs archives to `~/Backups/mizyun/`, cryptographically verifies SHA-256 checksums, and records the daily completion marker.
-- **iOS:** physical iPhone 16 Pro (`Adam's Iphone 😋`, `7FBC9ACC-918A-5A9B-8D22-B9F1FF652A06`) running fresh Production Release build `com.mizyun.app` with pre-launch legal routes, Beta Pro Pass in-app indicators, and legal/medical disclaimers.
-- **Production Host:** Raspberry Pi 5 (`rpserver`, Ubuntu 24.04 ARM64, Tailscale IP `100.116.142.1`). Remote git checkout updated to commit `574395b` (`574395bb9f737adb23c6376c85547221815bc49c`). Public health (`https://mizyun-api.phiskel.com/v1/health`) and legal endpoints (`/legal/privacy`, `/legal/terms`, `/legal/support`) verified live (HTTP 200).
-- **Branch:** `main` (commit `f709597` pushed to `origin/main`).
-- **Local runtime at handoff:** `pnpm check` passes with 1,052+ tests and 17 opt-in tests skipped; iOS and Android production bundles compile clean.
+  1. Purged package `packages/providers/mistral` and all dependencies in `apps/api/package.json`, root `package.json`, and `pnpm-lock.yaml`.
+  2. Updated `@mizyun/contracts` and `@mizyun/core` so `aiProviderSchema` and `DEFAULT_AI_PROVIDER` accept only `"gemini"`, defaulting all user profiles to Gemini.
+  3. Cleaned server configuration (`@mizyun/config`): removed `ServerMistralConfiguration`, `ServerMistralVisionConfiguration`, and all `MISTRAL_*` environment variable parsers, strictly validating `GEMINI_*`.
+  4. Updated composition root (`@mizyun/api`) to wire `GeminiAgentProvider`, `GeminiContentModerator`, and `GeminiVisionProvider` exclusively as the active engine for Coach conversations, safety moderation, and photo meal drafting.
+  5. Deleted mobile `AiProviderCard` switcher component and removed it from `SettingsScreen`, cleanly displaying `🤖 Gemini 3.7` in the hero badge.
+  6. Added forward database migration `supabase/migrations/20260903120000_remove_mistral_provider.sql` migrating any existing rows from `mistral` to `gemini`, changing the column default to `gemini`, and updating the PostgreSQL check constraint.
+  7. Updated `.env.example`, local `.env`, and `deploy/windows-wsl/production.env.example` to set `AGENT_PROVIDER=gemini` and remove all Mistral keys.
+  8. Ran full monorepo quality gate (`pnpm check`): 100% passing across Prettier format check, all 15 package typechecks, iOS and Android production Hermes bundle builds, and 1,061+ unit tests.
+- **iOS:** physical iPhone 16 Pro (`Adam's Iphone 😋`, `7FBC9ACC-918A-5A9B-8D22-B9F1FF652A06`) running Production Release build `com.mizyun.app`.
+- **Production Host:** Raspberry Pi 5 (`rpserver`, Ubuntu 24.04 ARM64, Tailscale IP `100.116.142.1`).
 - **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and all tests passed.
 
 ## What is genuinely delivered

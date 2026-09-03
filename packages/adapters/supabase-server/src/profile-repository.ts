@@ -58,7 +58,7 @@ const fromRow = (row: ProfileRow): StoredProfile => ({
     trainingLimitations: [],
   },
   planTier: (row.plan_tier ?? "free") as PlanTier,
-  aiProvider: (row.ai_provider ?? "mistral") as AiProvider,
+  aiProvider: (row.ai_provider ?? "gemini") as AiProvider,
   createdAt: new Date(row.created_at),
   updatedAt: new Date(row.updated_at),
 });

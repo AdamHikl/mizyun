@@ -115,7 +115,7 @@ describe("GET /v1/profile", () => {
         trainingLimitations: [],
       },
       planTier: "free",
-      aiProvider: "mistral",
+      aiProvider: "gemini",
       createdAt: new Date("2026-01-01T00:00:00Z"),
       updatedAt: new Date("2026-01-01T00:00:00Z"),
     });
@@ -405,10 +405,10 @@ describe("PUT /v1/profile", () => {
       dietaryPreferences: [],
       trainingLimitations: [],
     });
-    expect(response.json().profile.aiProvider).toBe("mistral");
+    expect(response.json().profile.aiProvider).toBe("gemini");
   });
 
-  it("updates aiProvider when a valid provider is supplied", async () => {
+  it("updates aiProvider when gemini is supplied", async () => {
     const { app } = build(tokenVerifierFor({ userId: userA }));
     const response = await app.inject({
       method: "PUT",
@@ -423,9 +423,20 @@ describe("PUT /v1/profile", () => {
     expect(response.json().profile.aiProvider).toBe("gemini");
   });
 
-  it("rejects an invalid aiProvider value", async () => {
+  it("rejects mistral or an invalid aiProvider value", async () => {
     const { app } = build(tokenVerifierFor({ userId: userA }));
-    const response = await app.inject({
+    const responseMistral = await app.inject({
+      method: "PUT",
+      url: "/v1/profile",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: { aiProvider: "mistral" },
+    });
+    expect(responseMistral.statusCode).toBe(422);
+
+    const responseUnsupported = await app.inject({
       method: "PUT",
       url: "/v1/profile",
       headers: {
@@ -434,6 +445,6 @@ describe("PUT /v1/profile", () => {
       },
       payload: { aiProvider: "unsupported_provider" },
     });
-    expect(response.statusCode).toBe(422);
+    expect(responseUnsupported.statusCode).toBe(422);
   });
 });

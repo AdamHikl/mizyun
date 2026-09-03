@@ -382,76 +382,19 @@ describe("loadServerConfig — closed-world", () => {
     }
   });
 
-  it("requires a server-only key when Mistral is selected", () => {
-    const result = loadServerConfig({
-      env: {
-        ...baseSnapshot,
-        [SERVER_ENV_KEYS.agentProvider]: "mistral",
-      },
-    });
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.error).toContainEqual({
-      kind: "missing",
-      keys: [SERVER_ENV_KEYS.mistralApiKey],
-    });
-  });
-
-  it("builds a bounded Mistral configuration with external access default-off", () => {
-    const result = loadServerConfig({
-      env: {
-        ...baseSnapshot,
-        [SERVER_ENV_KEYS.agentProvider]: "mistral",
-        [SERVER_ENV_KEYS.mistralApiKey]: "test-key-that-is-long-enough",
-      },
-    });
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.value).toMatchObject({
-      agentProvider: "mistral",
-      aiExternalAccess: false,
-      mistralConfig: {
-        model: "mistral-medium-latest",
-        moderationModel: "mistral-moderation-2603",
-        timeoutMs: 30_000,
-        maxOutputTokens: 1_200,
-        dailyUserTokenBudget: 100_000,
-        userRequestsPerMinute: 6,
-        userMaxConcurrentRequests: 1,
-      },
-    });
-  });
-
-  it("accepts an explicit Mistral moderation model", () => {
-    const result = loadServerConfig({
-      env: {
-        ...baseSnapshot,
-        [SERVER_ENV_KEYS.agentProvider]: "mistral",
-        [SERVER_ENV_KEYS.mistralApiKey]: "test-key-that-is-long-enough",
-        [SERVER_ENV_KEYS.mistralModerationModel]:
-          "mistral-moderation-release-candidate",
-      },
-    });
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.value.mistralConfig?.moderationModel).toBe(
-      "mistral-moderation-release-candidate",
-    );
-  });
-
   it("validates bounded per-user AI request controls", () => {
     const configured = loadServerConfig({
       env: {
         ...baseSnapshot,
-        [SERVER_ENV_KEYS.agentProvider]: "mistral",
-        [SERVER_ENV_KEYS.mistralApiKey]: "test-key-that-is-long-enough",
+        [SERVER_ENV_KEYS.agentProvider]: "gemini",
+        [SERVER_ENV_KEYS.geminiApiKey]: "test-gemini-key-12345",
         [SERVER_ENV_KEYS.aiUserRequestsPerMinute]: "12",
         [SERVER_ENV_KEYS.aiUserMaxConcurrentRequests]: "1",
       },
     });
     expect(configured.ok).toBe(true);
     if (configured.ok) {
-      expect(configured.value.mistralConfig).toMatchObject({
+      expect(configured.value.geminiConfig).toMatchObject({
         userRequestsPerMinute: 12,
         userMaxConcurrentRequests: 1,
       });
@@ -496,7 +439,7 @@ describe("loadServerConfig — closed-world", () => {
       aiExternalAccess: false,
       geminiConfig: {
         apiKey: "test-gemini-key-12345",
-        model: "gemini-3.7-flash",
+        model: "gemini-3.8-flash",
         fallbackModel: "gemini-3.6-flash",
         thinkingBudget: 0,
         timeoutMs: 30_000,
@@ -504,7 +447,7 @@ describe("loadServerConfig — closed-world", () => {
       },
       geminiVisionConfig: {
         apiKey: "test-gemini-key-12345",
-        model: "gemini-3.7-flash",
+        model: "gemini-3.8-flash",
         fallbackModel: "gemini-3.6-flash",
         thinkingBudget: 0,
       },

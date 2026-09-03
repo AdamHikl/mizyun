@@ -41,12 +41,6 @@ import {
   RejectingAccessTokenVerifier,
   type AccessTokenVerifier,
 } from "@mizyun/identity";
-import { InMemoryMemoryStore } from "@mizyun/memory";
-import {
-  MistralAgentProvider,
-  MistralContentModerator,
-  MistralVisionProvider,
-} from "@mizyun/provider-mistral";
 import {
   GeminiAgentProvider,
   GeminiContentModerator,
@@ -71,7 +65,7 @@ import {
 } from "./modules/coach/limits.js";
 import { buildCoachToolRegistry } from "./modules/coach/tools.js";
 import { energyRoutes } from "./modules/energy/routes.js";
-import type { MemoryStore } from "@mizyun/memory";
+import { InMemoryMemoryStore, type MemoryStore } from "@mizyun/memory";
 import { exercisesRoutes } from "./modules/exercises/routes.js";
 import { feedbackRoutes } from "./modules/feedback/routes.js";
 import { foodEntriesRoutes } from "./modules/food-entries/routes.js";
@@ -159,9 +153,9 @@ export interface CoachControlOptions {
   /**
    * Optional injection of the photo-draft vision provider
    * (VISION-001). When omitted, the composition root builds a
-   * `MistralVisionProvider` (if `MISTRAL_VISION_API_KEY` is
-   * configured) or a `DisabledVisionProvider` otherwise. Tests
-   * pass a `StubVisionProvider` to drive deterministic drafts.
+   * `GeminiVisionProvider` (if `GEMINI_VISION_API_KEY` or
+   * `GEMINI_API_KEY` is configured) or a `DisabledVisionProvider`
+   * otherwise. Tests pass a `StubVisionProvider` to drive deterministic drafts.
    */
   readonly visionProvider?: VisionDraftProvider;
   /**
@@ -196,16 +190,14 @@ export interface AppDependencies {
   readonly memories?: import("@mizyun/memory").MemoryStore;
   /**
    * Optional provider-neutral input/output moderator used only when
-   * `agent` is not supplied. The default composition wires Mistral
-   * moderation only alongside a configured Mistral text provider.
+   * `agent` is not supplied. The default composition wires Gemini
+   * moderation alongside a configured Gemini text provider.
    */
   readonly moderator?: ContentModerator;
   /**
    * Optional pre-constructed vision provider (VISION-001).
-   * `defaultDependencies` sets this to a `StubVisionProvider`
-   * when `AGENT_PROVIDER=vision-dev`; production wires
-   * `MistralVisionProvider` (when `MISTRAL_VISION_API_KEY` is
-   * configured) or a `DisabledVisionProvider` (otherwise).
+   * Production wires `GeminiVisionProvider` (when `GEMINI_VISION_API_KEY`
+   * or `GEMINI_API_KEY` is configured) or a `DisabledVisionProvider` (otherwise).
    */
   readonly visionProvider?: import("@mizyun/agent-runtime").VisionDraftProvider;
   readonly tokenVerifier: AccessTokenVerifier;
@@ -259,14 +251,11 @@ const defaultDependencies = (): AppDependencies => {
         supabaseConfig: null,
         agentProvider: "disabled",
         visionProvider: "disabled",
-        mistralConfig: null,
-        mistralVisionConfig: null,
         geminiConfig: null,
         geminiVisionConfig: null,
         sesConfig: null,
         aiExternalAccess: false,
       };
-  const mistralConfig = config.mistralConfig;
   const geminiConfig = config.geminiConfig;
   const emailSender: EmailSender =
     config.sesConfig !== null
@@ -292,17 +281,7 @@ const defaultDependencies = (): AppDependencies => {
           maxOutputTokens: geminiConfig.maxOutputTokens,
           externalAccess: config.aiExternalAccess,
         })
-      : mistralConfig !== null &&
-          (config.agentProvider === "mistral" ||
-            config.agentProvider === "multi")
-        ? new MistralAgentProvider({
-            apiKey: mistralConfig.apiKey,
-            model: mistralConfig.model,
-            timeoutMs: mistralConfig.timeoutMs,
-            maxOutputTokens: mistralConfig.maxOutputTokens,
-            externalAccess: config.aiExternalAccess,
-          })
-        : new DisabledAgentProvider();
+      : new DisabledAgentProvider();
   // The default memory store is in-memory. When Supabase is
   // configured, the buildApp step swaps it for a Supabase-backed
   // store below; we leave the in-memory default here so dev/test
@@ -318,22 +297,13 @@ const defaultDependencies = (): AppDependencies => {
             externalAccess: config.aiExternalAccess,
           }),
         }
-      : mistralConfig !== null
-        ? {
-            moderator: new MistralContentModerator({
-              apiKey: mistralConfig.apiKey,
-              model: mistralConfig.moderationModel,
-              timeoutMs: mistralConfig.timeoutMs,
-              externalAccess: config.aiExternalAccess,
-            }),
-          }
-        : {}),
+      : {}),
   };
   // VISION-001 — default vision provider for the dev/test path.
   // When `VISION_PROVIDER=stub` is set we wire the deterministic
   // StubVisionProvider so the smoke can hit the
-  // /v1/food-entries/draft endpoint without a Mistral vision
-  // key. Production wires MistralVisionProvider via `coachControls`
+  // /v1/food-entries/draft endpoint without an external Gemini
+  // key. Production wires GeminiVisionProvider via `coachControls`
   // (see buildApp).
   if (config.visionProvider === "stub") {
     Object.assign(base, {
@@ -594,20 +564,8 @@ export const buildApp = (
   // VISION-001 — build the vision provider. Default is the
   // disabled provider (returns VisionProviderError("not_configured")
   // so the route returns 503 AI_CONFIGURATION_ERROR). The dev
-  // stub returns a deterministic candidate. MistralVisionProvider
-  // is wired when MISTRAL_VISION_API_KEY is configured.
-  const mistralVisionProvider =
-    configResult.ok && configResult.value.mistralVisionConfig !== null
-      ? new MistralVisionProvider({
-          apiKey: configResult.value.mistralVisionConfig.apiKey,
-          model: configResult.value.mistralVisionConfig.model,
-          timeoutMs: configResult.value.mistralVisionConfig.timeoutMs,
-          maxOutputTokens:
-            configResult.value.mistralVisionConfig.maxOutputTokens,
-          externalAccess: configResult.value.aiExternalAccess,
-        })
-      : null;
-
+  // stub returns a deterministic candidate. GeminiVisionProvider
+  // is wired when GEMINI_VISION_API_KEY or GEMINI_API_KEY is configured.
   const geminiVisionProvider =
     configResult.ok && configResult.value.geminiVisionConfig !== null
       ? new GeminiVisionProvider({
@@ -627,12 +585,10 @@ export const buildApp = (
     ? dependencies.coachControls.visionProvider
     : dependencies.visionProvider
       ? dependencies.visionProvider
-      : (mistralVisionProvider ??
-        geminiVisionProvider ??
-        new DisabledVisionProvider());
+      : (geminiVisionProvider ?? new DisabledVisionProvider());
 
   const resolveVisionProvider = (
-    providerKind: AiProvider,
+    _providerKind?: AiProvider,
   ): VisionDraftProvider => {
     if (dependencies.coachControls?.visionProvider) {
       return dependencies.coachControls.visionProvider;
@@ -640,37 +596,11 @@ export const buildApp = (
     if (dependencies.visionProvider) {
       return dependencies.visionProvider;
     }
-    if (providerKind === "gemini" && geminiVisionProvider !== null) {
+    if (geminiVisionProvider !== null) {
       return geminiVisionProvider;
-    }
-    if (providerKind === "mistral" && mistralVisionProvider !== null) {
-      return mistralVisionProvider;
     }
     return visionProvider;
   };
-
-  const mistralAgent =
-    configResult.ok && configResult.value.mistralConfig !== null
-      ? new AgentOrchestrator({
-          provider: new MistralAgentProvider({
-            apiKey: configResult.value.mistralConfig.apiKey,
-            model: configResult.value.mistralConfig.model,
-            timeoutMs: configResult.value.mistralConfig.timeoutMs,
-            maxOutputTokens: configResult.value.mistralConfig.maxOutputTokens,
-            externalAccess: configResult.value.aiExternalAccess,
-          }),
-          memories: resolveMemoryStore(dependencies),
-          moderator: new MistralContentModerator({
-            apiKey: configResult.value.mistralConfig.apiKey,
-            model: configResult.value.mistralConfig.moderationModel,
-            timeoutMs: configResult.value.mistralConfig.timeoutMs,
-            externalAccess: configResult.value.aiExternalAccess,
-          }),
-          ...(defaultToolSet.list().length > 0
-            ? { tools: defaultToolSet }
-            : {}),
-        })
-      : null;
 
   const geminiAgent =
     configResult.ok && configResult.value.geminiConfig !== null
@@ -698,15 +628,12 @@ export const buildApp = (
         })
       : null;
 
-  const resolveAgent = (providerKind: AiProvider): AgentOrchestrator => {
+  const resolveAgent = (_providerKind?: AiProvider): AgentOrchestrator => {
     if (dependencies.agent !== undefined) {
       return dependencies.agent;
     }
-    if (providerKind === "gemini" && geminiAgent !== null) {
+    if (geminiAgent !== null) {
       return geminiAgent;
-    }
-    if (providerKind === "mistral" && mistralAgent !== null) {
-      return mistralAgent;
     }
     return agent;
   };

@@ -113,7 +113,7 @@ const validationErrorToApi = (
       return {
         status: 422,
         code: "VALIDATION_ERROR",
-        message: `aiProvider '${error.value}' must be 'mistral' or 'gemini'.`,
+        message: `aiProvider '${error.value}' must be 'gemini'.`,
         requestId,
       };
   }

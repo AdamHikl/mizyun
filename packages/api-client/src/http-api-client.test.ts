@@ -525,7 +525,7 @@ describe("HttpApiClient — food photo drafts", () => {
       assumptions: ["Assumes one plate."],
       provenance: {
         inputKind: "photo" as const,
-        provider: "mistral",
+        provider: "gemini",
         model: "resolved-model",
         promptVersion: "nutrition-draft-v2",
       },
@@ -722,7 +722,7 @@ describe("HttpApiClient — Coach meal photo proposals", () => {
         id: "00000000-0000-4000-8000-000000000003",
         role: "assistant" as const,
         text: "Review this meal estimate.",
-        provider: "mistral",
+        provider: "gemini",
         actionProposal: {
           id: "00000000-0000-4000-8000-000000000004",
           kind: "meal_log" as const,
@@ -741,8 +741,8 @@ describe("HttpApiClient — Coach meal photo proposals", () => {
             assumptions: ["Assumes drained tuna."],
             provenance: {
               inputKind: "photo" as const,
-              provider: "mistral",
-              model: "mistral-medium-latest",
+              provider: "gemini",
+              model: "gemini-3.7-flash",
               promptVersion: "nutrition-draft-v2",
             },
           },

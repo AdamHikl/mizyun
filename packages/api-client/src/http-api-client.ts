@@ -72,7 +72,7 @@ export class HttpApiClient implements ApiClient {
 
   /**
    * VISION-001 — post a meal photo + optional text hint to the
-   * Mistral vision workspace. The API returns a structured
+   * vision workspace. The API returns a structured
    * candidate the user can edit before saving via
    * `request({ method: "POST", path: "/v1/food-entries", ... })`.
    *

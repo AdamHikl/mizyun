@@ -104,7 +104,7 @@ const seedCompletePlanningContext = (deps: ReturnType<typeof buildDeps>) => {
       trainingLimitations: [],
     },
     planTier: "free",
-    aiProvider: "mistral",
+    aiProvider: "gemini",
     createdAt: new Date("2026-07-01T00:00:00Z"),
     updatedAt: new Date("2026-07-20T00:00:00Z"),
   });

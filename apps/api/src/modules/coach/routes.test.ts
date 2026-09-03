@@ -401,11 +401,11 @@ describe("coach routes", () => {
     const { app, respond } = makeApp(
       vi.fn<AgentProvider["respond"]>().mockImplementation(async (request) => ({
         message: { role: "assistant", text: rawJsonText },
-        provider: "mistral",
+        provider: "gemini",
         evidence: request.grounding,
         providerMetadata: {
           totalTokens: 42,
-          resolvedModel: "mistral-medium-latest",
+          resolvedModel: "gemini-3.7-flash",
         },
       })),
     );
@@ -1145,7 +1145,7 @@ describe("coach routes — plan-tier limiter (AI-OPS-001)", () => {
           trainingLimitations: [],
         },
         planTier: "free" as const,
-        aiProvider: "mistral",
+        aiProvider: "gemini",
         createdAt: new Date("2026-01-01T00:00:00Z"),
         updatedAt: new Date("2026-01-01T00:00:00Z"),
       }),

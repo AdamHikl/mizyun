@@ -37,7 +37,7 @@ const assistantMessage = {
   id: "00000000-0000-4000-8000-000000000003",
   role: "assistant" as const,
   text: "One conservative next step.",
-  provider: "mistral",
+  provider: "gemini",
   evidenceKinds: ["nutrition" as const],
   createdAt: "2026-07-23T10:01:02.000Z",
 };
@@ -47,8 +47,8 @@ describe("coach data boundary", () => {
     const request = vi.fn(async () =>
       ok({
         ready: false as const,
-        provider: "mistral",
-        model: "mistral-medium-latest",
+        provider: "gemini",
+        model: "gemini-3.8-flash",
         externalAccess: false as const,
         reason: "External access is disabled.",
       }),

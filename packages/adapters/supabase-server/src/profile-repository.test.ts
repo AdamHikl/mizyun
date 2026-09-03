@@ -246,7 +246,7 @@ describe("SupabaseProfileRepository.update", () => {
             trainingLimitations: [],
           },
           planTier: "free",
-          aiProvider: "mistral",
+          aiProvider: "gemini",
           createdAt: new Date(),
           updatedAt: new Date(),
         },

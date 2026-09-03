@@ -196,7 +196,7 @@ export const buildCoachGrounding = async (
   }
 
   // MEM-001 — surface active memories as `kind: "memory"`. The
-  // Mistral provider already wraps memory text as untrusted data
+  // Gemini provider already wraps memory text as untrusted data
   // inside the groundingMessage envelope, so the model treats
   // these as facts-not-instructions. The route filters
   // `kind: "memory"` out of the response's `evidenceKinds`

@@ -10,7 +10,7 @@ describe("Coach action proposal contracts", () => {
       role: "assistant",
       text: "Review this draft.",
       status: "complete",
-      provider: "mistral",
+      provider: "gemini",
       evidenceKinds: [],
       actionProposal: {
         id: "00000000-0000-4000-8000-000000000003",
@@ -30,8 +30,8 @@ describe("Coach action proposal contracts", () => {
           assumptions: ["Assumes drained tuna in water."],
           provenance: {
             inputKind: "text",
-            provider: "mistral",
-            model: "mistral-medium-latest",
+            provider: "gemini",
+            model: "gemini-3.7-flash",
             promptVersion: "nutrition-draft-v2",
           },
         },

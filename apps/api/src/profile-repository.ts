@@ -72,7 +72,7 @@ export class InMemoryProfileRepository implements ProfileRepository {
         trainingLimitations: [],
       } satisfies CoachingPreferences,
       planTier: this.#defaultPlanTier,
-      aiProvider: "mistral",
+      aiProvider: "gemini",
       createdAt: now,
       updatedAt: now,
     };

@@ -840,8 +840,7 @@ export {
  * then discards. Photo bytes NEVER land on disk, in logs, in
  * analytics, or in the user-visible chat prompt (per
  * `docs/AI_IMPLEMENTATION_PLAN.md` §"exclude progress-photo bytes
- * and URLs from the text-coach phase"). The Mistral workspace is
- * separate from the text-coach workspace per ADR-0017.
+ * and URLs from the text-coach phase").
  */
 export type VisionMimeType = "image/jpeg" | "image/png" | "image/webp";
 
@@ -971,7 +970,7 @@ export class VisionProviderError extends Error {
 }
 
 /**
- * Default provider when no Mistral vision workspace is configured.
+ * Default provider when no vision provider is configured.
  * Returns a candidate with `name: null` and a "not configured"
  * warning; the route maps that to a 503 with a safe
  * "AI vision is not configured" message.
@@ -986,7 +985,7 @@ export class DisabledVisionProvider implements VisionDraftProvider {
   async generateDraft(): Promise<VisionDraftCandidate> {
     throw new VisionProviderError(
       "not_configured",
-      "AI vision is not configured. Set MISTRAL_VISION_API_KEY and MISTRAL_VISION_MODEL to enable photo drafts.",
+      "AI vision is not configured. Set GEMINI_VISION_API_KEY or GEMINI_API_KEY to enable photo drafts.",
       false,
     );
   }

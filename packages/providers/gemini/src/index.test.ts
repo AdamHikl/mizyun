@@ -479,6 +479,49 @@ describe("GeminiAgentProvider", () => {
     ).toBe(0);
   });
 
+  it("passes thinkingConfig with thinkingBudget: 0 for gemini-3.8-flash", async () => {
+    let capturedReq: unknown;
+    const generateContent = vi.fn<GeminiChatClient["generateContent"]>(
+      async (req) => {
+        capturedReq = req;
+        return {
+          candidates: [
+            {
+              content: {
+                role: "model",
+                parts: [
+                  { text: '{"answer":"Fast response with 0 thinking budget"}' },
+                ],
+              },
+              finishReason: "STOP",
+            },
+          ],
+          modelVersion: "gemini-3.8-flash",
+        };
+      },
+    );
+
+    const provider = new GeminiAgentProvider({
+      apiKey: "test-gemini-key-12345",
+      model: "gemini-3.8-flash",
+      thinkingBudget: 0,
+      timeoutMs: 5_000,
+      maxOutputTokens: 1_000,
+      externalAccess: true,
+      client: { generateContent },
+    });
+
+    const response = await provider.respond(request);
+    expect(response.message.text).toBe("Fast response with 0 thinking budget");
+    expect(
+      (
+        capturedReq as {
+          generationConfig?: { thinkingConfig?: { thinkingBudget?: number } };
+        }
+      ).generationConfig?.thinkingConfig?.thinkingBudget,
+    ).toBe(0);
+  });
+
   it("sanitizes tool schema parameters removing additionalProperties and normalizing uppercase types", async () => {
     let capturedReq: unknown;
     const generateContent = vi.fn<GeminiChatClient["generateContent"]>(

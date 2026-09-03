@@ -745,6 +745,7 @@ export class GeminiVisionProvider implements VisionDraftProvider {
       targetModel: string,
     ): Promise<{ readonly raw: unknown; readonly usedModel: string }> => {
       const isThinkingCapable =
+        targetModel.includes("3.8") ||
         targetModel.includes("3.7") ||
         targetModel.includes("thinking") ||
         this.#thinkingBudget > 0;

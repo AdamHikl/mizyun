@@ -47,7 +47,7 @@ describe("nutrition draft contracts", () => {
         assumptions: ["Assumes two large eggs."],
         provenance: {
           inputKind: "text",
-          provider: "mistral",
+          provider: "gemini",
           model: "resolved-model",
           promptVersion: "nutrition-draft-v2",
         },
@@ -103,7 +103,7 @@ describe("foodRefineDraftRequestSchema (AI-ACT-007)", () => {
     assumptions: ["Assumes 100g chicken breast."],
     provenance: {
       inputKind: "text" as const,
-      provider: "mistral",
+      provider: "gemini",
       model: "test",
       promptVersion: "nutrition-draft-v2",
     },

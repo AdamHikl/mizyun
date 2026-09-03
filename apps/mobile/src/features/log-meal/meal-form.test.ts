@@ -109,8 +109,8 @@ describe("recoverable AI meal drafts", () => {
     assumptions: ["Assumes tuna in water."],
     provenance: {
       inputKind: "text" as const,
-      provider: "mistral",
-      model: "mistral-medium-latest",
+      provider: "gemini",
+      model: "gemini-3.8-flash",
       promptVersion: "nutrition-draft-v2",
     },
   };

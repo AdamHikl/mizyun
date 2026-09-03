@@ -22,24 +22,6 @@ export interface ServerSupabaseConfiguration {
   readonly serviceRoleKey?: string;
 }
 
-export interface ServerMistralConfiguration {
-  readonly apiKey: string;
-  readonly model: string;
-  readonly moderationModel: string;
-  readonly timeoutMs: number;
-  readonly maxOutputTokens: number;
-  readonly dailyUserTokenBudget: number;
-  readonly userRequestsPerMinute: number;
-  readonly userMaxConcurrentRequests: number;
-}
-
-export interface ServerMistralVisionConfiguration {
-  readonly apiKey: string;
-  readonly model: string;
-  readonly timeoutMs: number;
-  readonly maxOutputTokens: number;
-}
-
 export interface ServerGeminiConfiguration {
   readonly apiKey: string;
   readonly model: string;
@@ -74,10 +56,8 @@ export interface ServerConfig {
   readonly env: NodeEnv;
   readonly supabase: AuthConfigurationStatus;
   readonly supabaseConfig: ServerSupabaseConfiguration | null;
-  readonly agentProvider: "disabled" | "mistral" | "gemini" | "multi";
+  readonly agentProvider: "disabled" | "gemini";
   readonly visionProvider: "disabled" | "stub";
-  readonly mistralConfig: ServerMistralConfiguration | null;
-  readonly mistralVisionConfig: ServerMistralVisionConfiguration | null;
   readonly geminiConfig: ServerGeminiConfiguration | null;
   readonly geminiVisionConfig: ServerGeminiVisionConfiguration | null;
   readonly sesConfig: ServerSesConfiguration | null;
@@ -95,15 +75,6 @@ export const SERVER_ENV_KEYS = {
   supabaseServiceRoleKey: "SUPABASE_SERVICE_ROLE_KEY",
   agentProvider: "AGENT_PROVIDER",
   visionProvider: "VISION_PROVIDER",
-  mistralApiKey: "MISTRAL_API_KEY",
-  mistralModel: "MISTRAL_MODEL",
-  mistralModerationModel: "MISTRAL_MODERATION_MODEL",
-  mistralTimeoutMs: "MISTRAL_TIMEOUT_MS",
-  mistralMaxOutputTokens: "MISTRAL_MAX_OUTPUT_TOKENS",
-  mistralVisionApiKey: "MISTRAL_VISION_API_KEY",
-  mistralVisionModel: "MISTRAL_VISION_MODEL",
-  mistralVisionTimeoutMs: "MISTRAL_VISION_TIMEOUT_MS",
-  mistralVisionMaxOutputTokens: "MISTRAL_VISION_MAX_OUTPUT_TOKENS",
   geminiApiKey: "GEMINI_API_KEY",
   geminiModel: "GEMINI_MODEL",
   geminiFallbackModel: "GEMINI_FALLBACK_MODEL",
@@ -146,62 +117,16 @@ const baseServerSchema = z.object({
     .string()
     .min(20, "SUPABASE_SERVICE_ROLE_KEY must be at least 20 characters")
     .nullish(),
-  agentProvider: z
-    .enum(["disabled", "mistral", "gemini", "multi"])
-    .default("disabled"),
+  agentProvider: z.enum(["disabled", "gemini"]).default("disabled"),
   /**
    * VISION-001 — overrides the photo-draft vision provider.
    * `disabled` (default) returns 503 AI_CONFIGURATION_ERROR on
    * the /v1/food-entries/draft endpoint. `stub` wires the
    * deterministic StubVisionProvider for local dev + smoke. The
-   * vision provider is selected by setting `MISTRAL_VISION_API_KEY`
-   * or `GEMINI_VISION_API_KEY`/`GEMINI_API_KEY`.
+   * vision provider is selected by setting `GEMINI_VISION_API_KEY`
+   * or `GEMINI_API_KEY`.
    */
   visionProvider: z.enum(["disabled", "stub"]).default("disabled"),
-  mistralApiKey: z
-    .string()
-    .min(20, "MISTRAL_API_KEY must not be empty")
-    .optional(),
-  mistralModel: z
-    .string()
-    .min(1, "MISTRAL_MODEL must not be empty")
-    .default("mistral-medium-latest"),
-  mistralModerationModel: z
-    .string()
-    .min(1, "MISTRAL_MODERATION_MODEL must not be empty")
-    .default("mistral-moderation-2603"),
-  mistralTimeoutMs: z.coerce
-    .number()
-    .int("MISTRAL_TIMEOUT_MS must be an integer")
-    .min(1_000, "MISTRAL_TIMEOUT_MS must be >= 1000")
-    .max(120_000, "MISTRAL_TIMEOUT_MS must be <= 120000")
-    .default(30_000),
-  mistralMaxOutputTokens: z.coerce
-    .number()
-    .int("MISTRAL_MAX_OUTPUT_TOKENS must be an integer")
-    .min(128, "MISTRAL_MAX_OUTPUT_TOKENS must be >= 128")
-    .max(8_192, "MISTRAL_MAX_OUTPUT_TOKENS must be <= 8192")
-    .default(1_200),
-  mistralVisionApiKey: z
-    .string()
-    .min(20, "MISTRAL_VISION_API_KEY must not be empty")
-    .optional(),
-  mistralVisionModel: z
-    .string()
-    .min(1, "MISTRAL_VISION_MODEL must not be empty")
-    .default("mistral-medium-2508"),
-  mistralVisionTimeoutMs: z.coerce
-    .number()
-    .int("MISTRAL_VISION_TIMEOUT_MS must be an integer")
-    .min(1_000, "MISTRAL_VISION_TIMEOUT_MS must be >= 1000")
-    .max(120_000, "MISTRAL_VISION_TIMEOUT_MS must be <= 120000")
-    .default(45_000),
-  mistralVisionMaxOutputTokens: z.coerce
-    .number()
-    .int("MISTRAL_VISION_MAX_OUTPUT_TOKENS must be an integer")
-    .min(128, "MISTRAL_VISION_MAX_OUTPUT_TOKENS must be >= 128")
-    .max(8_192, "MISTRAL_VISION_MAX_OUTPUT_TOKENS must be <= 8192")
-    .default(1_200),
   geminiApiKey: z
     .string()
     .min(10, "GEMINI_API_KEY must not be empty")
@@ -209,7 +134,7 @@ const baseServerSchema = z.object({
   geminiModel: z
     .string()
     .min(1, "GEMINI_MODEL must not be empty")
-    .default("gemini-3.7-flash"),
+    .default("gemini-3.8-flash"),
   geminiFallbackModel: z
     .string()
     .min(1, "GEMINI_FALLBACK_MODEL must not be empty")
@@ -239,7 +164,7 @@ const baseServerSchema = z.object({
   geminiVisionModel: z
     .string()
     .min(1, "GEMINI_VISION_MODEL must not be empty")
-    .default("gemini-3.7-flash"),
+    .default("gemini-3.8-flash"),
   geminiVisionFallbackModel: z
     .string()
     .min(1, "GEMINI_VISION_FALLBACK_MODEL must not be empty")
@@ -385,28 +310,10 @@ export const loadServerConfig = (
   }
   if (
     parsed.success &&
-    parsed.data.agentProvider === "mistral" &&
-    parsed.data.mistralApiKey === undefined
-  ) {
-    issues.push({ kind: "missing", keys: [SERVER_ENV_KEYS.mistralApiKey] });
-  }
-  if (
-    parsed.success &&
     parsed.data.agentProvider === "gemini" &&
     parsed.data.geminiApiKey === undefined
   ) {
     issues.push({ kind: "missing", keys: [SERVER_ENV_KEYS.geminiApiKey] });
-  }
-  if (
-    parsed.success &&
-    parsed.data.agentProvider === "multi" &&
-    parsed.data.mistralApiKey === undefined &&
-    parsed.data.geminiApiKey === undefined
-  ) {
-    issues.push({
-      kind: "missing",
-      keys: [SERVER_ENV_KEYS.mistralApiKey, SERVER_ENV_KEYS.geminiApiKey],
-    });
   }
   if (parsed.success && parsed.data.env === "production") {
     if (!bothPresent) {
@@ -458,28 +365,6 @@ export const loadServerConfig = (
     url !== null && publishableKey !== null
       ? { url, publishableKey, ...(serviceRoleKey ? { serviceRoleKey } : {}) }
       : null;
-  const mistralConfig: ServerMistralConfiguration | null =
-    value.mistralApiKey !== undefined
-      ? {
-          apiKey: value.mistralApiKey,
-          model: value.mistralModel,
-          moderationModel: value.mistralModerationModel,
-          timeoutMs: value.mistralTimeoutMs,
-          maxOutputTokens: value.mistralMaxOutputTokens,
-          dailyUserTokenBudget: value.aiDailyUserTokenBudget,
-          userRequestsPerMinute: value.aiUserRequestsPerMinute,
-          userMaxConcurrentRequests: value.aiUserMaxConcurrentRequests,
-        }
-      : null;
-  const mistralVisionConfig: ServerMistralVisionConfiguration | null =
-    value.mistralVisionApiKey !== undefined
-      ? {
-          apiKey: value.mistralVisionApiKey,
-          model: value.mistralVisionModel,
-          timeoutMs: value.mistralVisionTimeoutMs,
-          maxOutputTokens: value.mistralVisionMaxOutputTokens,
-        }
-      : null;
   const geminiApiKeyResolved = value.geminiApiKey ?? value.geminiVisionApiKey;
   const geminiConfig: ServerGeminiConfiguration | null =
     geminiApiKeyResolved !== undefined
@@ -528,8 +413,6 @@ export const loadServerConfig = (
     supabaseConfig,
     agentProvider: value.agentProvider,
     visionProvider: value.visionProvider,
-    mistralConfig,
-    mistralVisionConfig,
     geminiConfig,
     geminiVisionConfig,
     sesConfig,

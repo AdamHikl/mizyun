@@ -27,7 +27,6 @@ import {
   reducePrincipalState,
   type PrincipalRenderState,
 } from "./principal-state";
-import { AiProviderCard } from "./ai-provider-card";
 import { CoachPreferencesCard } from "./coach-preferences-card";
 import { CoachRemindersCard } from "./coach-reminders-card";
 import { GoalSettingsCard } from "./goal-settings-card";
@@ -170,12 +169,7 @@ export function SettingsScreen() {
     profile?.unitSystem === "imperial"
       ? "Imperial (lb, in)"
       : "Metric (kg, cm)";
-  const aiProviderDisplay =
-    profile?.aiProvider === "gemini"
-      ? "Gemini 3.7"
-      : profile?.aiProvider === "mistral"
-        ? "Mistral Medium"
-        : "AI Enabled";
+  const aiProviderDisplay = "Gemini 3.8";
 
   const showProfileGroup =
     activeCategory === "all" || activeCategory === "profile";
@@ -537,19 +531,6 @@ export function SettingsScreen() {
                 AI COACH & INTELLIGENCE
               </ThemedText>
             </View>
-
-            {profile !== null ? (
-              <CollapsibleSection
-                id="aiProvider"
-                icon="🤖"
-                title="AI Model Provider"
-                subtitle={`Active: ${aiProviderDisplay}`}
-                isOpen={!!openSections.aiProvider}
-                onToggle={() => toggleSection("aiProvider")}
-              >
-                <AiProviderCard profile={profile} onSaved={refreshProfile} />
-              </CollapsibleSection>
-            ) : null}
 
             {profile !== null ? (
               <CollapsibleSection

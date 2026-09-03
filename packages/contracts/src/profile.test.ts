@@ -52,7 +52,7 @@ describe("coachingPreferencesSchema", () => {
       profilePatchSchema.safeParse({
         aiProvider: "mistral",
       }).success,
-    ).toBe(true);
+    ).toBe(false);
     expect(
       profilePatchSchema.safeParse({
         aiProvider: "unsupported",

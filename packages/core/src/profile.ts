@@ -123,10 +123,10 @@ export type PlanTier = "free" | "paid";
 export const DEFAULT_PLAN_TIER: PlanTier = "free";
 
 /** Closed set of AI model providers. */
-export const AI_PROVIDERS = ["mistral", "gemini"] as const;
+export const AI_PROVIDERS = ["gemini"] as const;
 export type AiProvider = (typeof AI_PROVIDERS)[number];
 
-export const DEFAULT_AI_PROVIDER: AiProvider = "mistral";
+export const DEFAULT_AI_PROVIDER: AiProvider = "gemini";
 
 /**
  * Plain profile shape. The wire schema in `@mizyun/contracts` is the

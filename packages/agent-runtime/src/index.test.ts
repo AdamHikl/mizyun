@@ -369,8 +369,8 @@ describe("coach safety boundary", () => {
     const moderator: ContentModerator = {
       moderateText: async () => ({
         allowed: false,
-        provider: "mistral",
-        model: "mistral-moderation-2603",
+        provider: "gemini",
+        model: "gemini-safety",
         category: "dangerous",
       }),
     };
@@ -446,14 +446,14 @@ describe("coach safety boundary", () => {
         return direction === "output"
           ? {
               allowed: false,
-              provider: "mistral",
-              model: "mistral-moderation-2603",
+              provider: "gemini",
+              model: "gemini-safety",
               category: "health",
             }
           : {
               allowed: true,
-              provider: "mistral",
-              model: "mistral-moderation-2603",
+              provider: "gemini",
+              model: "gemini-safety",
             };
       },
     };

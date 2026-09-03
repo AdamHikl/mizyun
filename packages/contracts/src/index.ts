@@ -227,7 +227,7 @@ export const coachingPreferencesSchema = z
 
 export type CoachingPreferences = z.infer<typeof coachingPreferencesSchema>;
 
-export const aiProviderSchema = z.enum(["mistral", "gemini"]);
+export const aiProviderSchema = z.enum(["gemini"]);
 export type AiProvider = z.infer<typeof aiProviderSchema>;
 
 export const profileSchema = z.object({
@@ -271,7 +271,7 @@ export const profileSchema = z.object({
    */
   sexAtBirth: z.enum(["male", "female"]).nullable().optional(),
   coachingPreferences: coachingPreferencesSchema,
-  aiProvider: aiProviderSchema.default("mistral"),
+  aiProvider: aiProviderSchema.default("gemini"),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });

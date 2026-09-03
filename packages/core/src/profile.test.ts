@@ -27,7 +27,7 @@ const baseStored = (overrides: Partial<StoredProfile> = {}): StoredProfile => ({
     trainingLimitations: [],
   },
   planTier: "free",
-  aiProvider: "mistral",
+  aiProvider: "gemini",
   createdAt: new Date("2026-01-01T00:00:00Z"),
   updatedAt: new Date("2026-01-01T00:00:00Z"),
   ...overrides,
@@ -268,21 +268,20 @@ describe("applyProfilePatch", () => {
     expect(next.sexAtBirth).toBeNull();
   });
 
-  it("accepts valid aiProvider patches (mistral and gemini)", () => {
-    expect(validateProfilePatch({ aiProvider: "mistral" })).toBeNull();
+  it("accepts valid aiProvider patch (gemini)", () => {
     expect(validateProfilePatch({ aiProvider: "gemini" })).toBeNull();
   });
 
   it("rejects an invalid aiProvider value", () => {
     expect(
       validateProfilePatch({
-        aiProvider: "openai" as unknown as never,
+        aiProvider: "mistral" as unknown as never,
       }),
-    ).toEqual({ kind: "invalid_ai_provider", value: "openai" });
+    ).toEqual({ kind: "invalid_ai_provider", value: "mistral" });
   });
 
   it("applies aiProvider via applyProfilePatch", () => {
-    const stored = baseStored({ aiProvider: "mistral" });
+    const stored = baseStored({ aiProvider: "gemini" });
     const next = applyProfilePatch(
       stored,
       { aiProvider: "gemini" },
