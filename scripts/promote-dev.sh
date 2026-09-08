@@ -23,6 +23,7 @@ source "$dev_env"
 set +a
 
 : "${MIZYUN_DEV_DB_URL:?missing MIZYUN_DEV_DB_URL}"
+: "${MIZYUN_DEV_DB_SSLMODE:=disable}"
 : "${MIZYUN_API_SERVICE:=mizyun-api-dev}"
 : "${MIZYUN_LOCAL_API_URL:=http://127.0.0.1:4100}"
 
@@ -55,7 +56,17 @@ pnpm install --frozen-lockfile
 
 if [[ "$previous_sha" == "none" ]] || [[ -n "$(git diff --name-only "$previous_sha" "$target_sha" -- supabase/migrations)" ]]; then
   echo "Applying pending migrations to Dev database..."
-  pnpm exec supabase db push --db-url "$MIZYUN_DEV_DB_URL"
+  dev_db_url="$MIZYUN_DEV_DB_URL"
+  if [[ "$dev_db_url" != *"sslmode="* ]]; then
+    if [[ "$dev_db_url" == *"?"* ]]; then
+      dev_db_url="${dev_db_url}&sslmode=${MIZYUN_DEV_DB_SSLMODE}"
+    else
+      dev_db_url="${dev_db_url}?sslmode=${MIZYUN_DEV_DB_SSLMODE}"
+    fi
+  fi
+  export PGSSLMODE="$MIZYUN_DEV_DB_SSLMODE"
+
+  pnpm exec supabase db push --db-url "$dev_db_url"
   migrations_applied=true
 else
   echo "No migration changes between $previous_sha and $target_sha; skipping database push."
