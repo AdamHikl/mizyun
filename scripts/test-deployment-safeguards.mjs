@@ -458,7 +458,10 @@ await test("promote-dev.sh: Health-check failure triggers rollback (regression f
     ? readFileSync(journalPath, "utf8").trim().split("\n").length
     : 0;
 
-  const res = runPromoteDev({ targetSha: commit2 });
+  const res = runPromoteDev({
+    targetSha: commit2,
+    extraEnv: { MIZYUN_HEALTH_RETRIES: "2", MIZYUN_HEALTH_SLEEP: "0" },
+  });
   rmSync(curlFailFlag); // cleanup flag
 
   assert(

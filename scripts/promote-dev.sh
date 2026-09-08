@@ -146,17 +146,19 @@ migrations_applied=true
 
 sudo -n systemctl restart "$MIZYUN_API_SERVICE"
 api_ready=false
-for _attempt in {1..20}; do
+max_attempts="${MIZYUN_HEALTH_RETRIES:-40}"
+sleep_duration="${MIZYUN_HEALTH_SLEEP:-1}"
+for _attempt in $(seq 1 "$max_attempts"); do
   if curl --silent --show-error --fail --max-time 2 \
     "$MIZYUN_LOCAL_API_URL/v1/health" >/dev/null 2>&1; then
     api_ready=true
     break
   fi
-  sleep 1
+  sleep "$sleep_duration"
 done
 
 if [[ "$api_ready" != true ]]; then
-  echo "Dev API did not become healthy within 20 seconds." >&2
+  echo "Dev API did not become healthy within ${max_attempts} attempts." >&2
   rollback_code "$LINENO"
   exit 1
 fi

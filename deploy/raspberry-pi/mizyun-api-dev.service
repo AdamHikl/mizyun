@@ -29,8 +29,8 @@ InaccessiblePaths=/etc/mizyun/production.env /var/lib/mizyun/repo /srv/mizyun/su
 ReadWritePaths=/var/lib/mizyun/dev/repo /tmp
 
 # Resource limits
-MemoryMax=400M
-CPUQuota=50%
+MemoryMax=1G
+CPUQuota=200%
 
 [Install]
 WantedBy=multi-user.target
