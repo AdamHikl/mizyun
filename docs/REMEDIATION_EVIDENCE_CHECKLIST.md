@@ -450,9 +450,11 @@ Open defects/dependencies:
 - Next session: Session E1 (Q4 deletion contract, state machine, and adapter).
 
 Next exact action:
+
 - Commit and promote Session E1 to Dev on Pi.
 
 Production changes, if any (separate scope/evidence):
+
 - Zero changes to Production code, services, or data.
 
 ### Q4 (Session E1) — 2026-09-08
@@ -464,6 +466,7 @@ Goal/requirement IDs: REL-AUD-001, REL-AUD-002, AUTH-04, SEC-06
 Branch and full implementation SHA: main
 Final merged/accepted SHA (if different): pending commit
 Changed files and behavior:
+
 - `docs/adr/0021-durable-account-deletion-lifecycle.md`: Architectural record for durable deletion state machine, tombstones, and multi-stage execution.
 - `supabase/migrations/20260908150000_durable_account_deletion.sql`: Persistent table `public.account_deletion_jobs` with RLS, indexes, and no cascade to `auth.users` so tombstones survive Auth deletion.
 - `supabase/tests/database/0004_account_deletion.test.sql`: 6 pgTAP tests verifying table, RLS, authenticated access control, and tombstone survival across Auth deletion.
@@ -477,32 +480,39 @@ Changed files and behavior:
 - `apps/api/src/modules/account/routes.test.ts`: Updated tests for idempotent recovery and verified memory deletion via repository.
 
 Original regression reproduction:
+
 - In-memory deletion challenges lost on process restart.
 - Challenge consumed before deletion completed; dropped connection retry failed with 409 `confirmation_token_missing`.
 - Storage and memory failures caught and silently swallowed; auth deletion proceeded with orphaned data.
 - Dual orchestration between routes and repository.
 
 Post-fix regression result:
+
 - Persistent jobs in `public.account_deletion_jobs` survive process restarts.
 - Completed deletion yields immutable tombstone; client retrying with valid token receives 200 `{ deleted: true }` without repeating cascades.
 - Storage and memory failures halt the pipeline, record stage failure, and leave the auth user intact for retry.
 - Fastify routes delegate exclusively to `AccountRepository.deleteUser`.
 
 Full pnpm check command/result and skipped-suite explanation:
+
 - `pnpm check`: 100% PASS (format check clean, all 15 package typechecks clean, iOS & Android Hermes bundle check clean, 1,200+ unit/integration tests clean, 17 deployment safeguard tests clean).
 - `pnpm db:test`: PASS (4 files, 89 pgTAP assertions passing).
 
 Database clean/upgrade checks (disposable target identity):
+
 - Local Docker database (`supabase_db_mizyun` on port 54322) clean reset via `pnpm db:reset` and `pnpm db:lint` (0 errors).
 - Forward migration `20260908150000_durable_account_deletion.sql` applied cleanly.
 
 Dev deployed SHA/migrations/service configuration:
+
 - Forward migration ready for promotion to Dev on Pi (`rpserver`).
 
 Before/after Production preservation evidence:
+
 - Pi Production service `mizyun-api.service` untouched on port 4000 (uptime 5 days), commit `c02a67a`.
 
 Failure/rollback cases tested:
+
 - Storage outage halts before Auth deletion (fault test passed).
 - Vector memory store outage halts before Auth deletion (fault test passed).
 - Missing auth admin capability fails closed with RepositoryError (fault test passed).
@@ -511,15 +521,19 @@ Failure/rollback cases tested:
 - Client reconnect after network drop recovers with 200 `{ deleted: true }` (test passed).
 
 Unperformed tests and reason:
+
 - Mobile client UI end-to-end deletion flow (reserved for Session E2).
 
 Open defects/dependencies:
+
 - Session E2: Settings deletion UI, local session/draft cache clearing, and two-user deletion journey on Dev.
 
 Next exact action:
+
 - Commit Session D + E1 to Git, push to remote, deploy to Pi Dev via `pnpm deploy:dev`, and verify migration on Dev.
 
 Production changes, if any (separate scope/evidence):
+
 - Zero changes to Production code, services, or data.
 
 ```markdown

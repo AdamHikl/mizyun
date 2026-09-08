@@ -30,7 +30,6 @@ Session E1 implemented the durable account deletion state machine, database tomb
 
 Next exact action: deploy forward migration to Dev on Pi via `pnpm deploy:dev`, then proceed to Session E2 (Settings deletion UI, local session/draft cache clearing, and two-user deletion journey on Dev).
 
-
 Session D resolved the mutation retry deduplication finding (REL-AUD-007 / Q2 / R7):
 
 - **Client Durable Draft & Identity Lifecycle**:
