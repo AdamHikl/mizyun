@@ -47,6 +47,7 @@ import {
 } from "@mizyun/contracts";
 import type { MemoryStore } from "@mizyun/memory";
 
+import { isAdultEligibleForAi } from "../../ai-eligibility.js";
 import { sendApiError } from "../../errors.js";
 import type { FoodDraftRateLimiter } from "../food-entries/draft-rate-limit.js";
 import { buildCoachGrounding } from "./grounding.js";
@@ -606,6 +607,15 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
         principal.userId,
         { now: now(), accessToken: principal.accessToken },
       );
+      if (!isAdultEligibleForAi(profile, now())) {
+        return sendApiError(
+          reply,
+          request,
+          403,
+          "AI_AGE_RESTRICTED",
+          "AI features require adult eligibility (18 years or older) under provider terms.",
+        );
+      }
       const planTier: PlanTier = planTierOverride ?? profile.planTier;
 
       if (isExplicitMealLoggingIntent(parsed.data.text)) {

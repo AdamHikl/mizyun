@@ -58,6 +58,7 @@ export interface FoodEntryCore {
 export interface StoredFoodEntry extends FoodEntryCore {
   readonly id: string;
   readonly userId: UserId;
+  readonly clientOperationId?: string | null | undefined;
   readonly source: FoodSource;
   readonly confidence: number | null;
   readonly confirmedByUser: boolean;
@@ -366,6 +367,15 @@ export interface FoodEntryRepository {
     id: string,
     options: { readonly accessToken: string },
   ): Promise<boolean>;
+  /**
+   * Return a stored entry for a user matching the given clientOperationId,
+   * or `null` if none exists. Used for idempotent retry deduplication (REL-AUD-007).
+   */
+  findByClientOperationId?(
+    userId: UserId,
+    clientOperationId: string,
+    options: { readonly accessToken: string },
+  ): Promise<StoredFoodEntry | null>;
 }
 
 /**

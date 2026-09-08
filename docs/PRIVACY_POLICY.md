@@ -47,9 +47,11 @@ We use your data solely to provide, personalize, and improve your fitness tracki
 
 ## 3. Privacy-First AI & Third-Party Processing
 
-- **Advisory Drafts Only**: AI output (e.g. meal photo scans) is presented strictly as editable drafts. No AI estimate becomes authoritative or modifies your timeline without your explicit confirmation.
+- **Advisory Drafts Only**: AI output (e.g. meal photo scans and coaching suggestions) is presented strictly as editable drafts. No AI estimate becomes authoritative or modifies your timeline without your explicit confirmation.
 - **No Training on Your Private Photos or Health Data**: We do not use your private progress photos or personal health records to train third-party public models.
-- **Trusted LLM & Vision Providers**: We transmit required context (such as meal descriptions or photo drafts) to our secure model providers (e.g., Google Gemini, Mistral AI) using enterprise zero-retention / API-level agreements where data is processed ephemerally and not retained for vendor training.
+- **Google Gemini API Subprocessor**: AI features are powered by Google LLC (&ldquo;Google Gemini API&rdquo;). When you use AI Coach or meal photo drafting, your prompt, photo bytes, and relevant confirmed fitness logs (workout summaries, goals, confirmed meals, weight trends) are transmitted securely to Google for inference.
+- **Processing & Retention**: Under Google Gemini API commercial terms, data is processed transiently to generate responses and is not used to train Google&rsquo;s public foundation models. Logs may be retained by Google for abuse monitoring for up to 30 days. Processing may occur in data centers internationally.
+- **Adult Eligibility (18+)**: Under Google API Terms of Service, AI features require adult eligibility (18 years of age or older).
 
 ---
 
@@ -71,9 +73,9 @@ You have full ownership of your data. Directly within the Mizyun app (under **Ac
 
 ---
 
-## 6. Children’s Privacy
+## 6. Children’s Privacy & Age Restrictions
 
-Mizyun is not intended for use by children under the age of 13 (or under 16 in the EEA/UK). We do not knowingly collect personal information from children.
+Mizyun is not directed to children under 13 (or under 16 in the EEA/UK). Furthermore, all third-party AI features (AI Coach and meal photo drafting) strictly require users to be at least 18 years of age in accordance with provider API terms. Minors are not permitted to use AI features.
 
 ---
 

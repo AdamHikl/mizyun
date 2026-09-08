@@ -20,6 +20,7 @@ import {
   type CoachMessage,
 } from "@mizyun/contracts";
 
+import { isAdultEligibleForAi } from "../../ai-eligibility.js";
 import { sendApiError } from "../../errors.js";
 import type { FoodDraftRateLimiter } from "../food-entries/draft-rate-limit.js";
 
@@ -166,6 +167,15 @@ export const coachNutritionPhotoRoutes: FastifyPluginAsync<
         principal.userId,
         { now: now(), accessToken: principal.accessToken },
       );
+      if (!isAdultEligibleForAi(profile, now())) {
+        return sendApiError(
+          reply,
+          request,
+          403,
+          "AI_AGE_RESTRICTED",
+          "AI features require adult eligibility (18 years or older) under provider terms.",
+        );
+      }
       const tier = options.planTierOverride ?? profile.planTier;
       const rate = options.nutritionDraftRateLimiter.acquire(
         principal.userId,

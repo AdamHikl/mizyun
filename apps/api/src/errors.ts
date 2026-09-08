@@ -17,6 +17,7 @@ export type ApiErrorCode =
   | "RATE_LIMITED"
   | "AI_UNAVAILABLE"
   | "AI_CONFIGURATION_ERROR"
+  | "AI_AGE_RESTRICTED"
   | "INTERNAL_ERROR";
 
 interface ApiErrorBody {

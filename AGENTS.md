@@ -36,45 +36,43 @@ New features should be vertical modules with explicit public exports. Do not imp
 ## Primary working environment
 
 For Mizyun, the **Founder Raspberry Pi 5** (Ubuntu Server 24.04 ARM64,
-reachable from this Mac over SSH as `rpserver` / `mizyun-pi`, repo at
-`/home/mizyun/mizyun` -> `/var/lib/mizyun/repo`) is the primary testing
-environment for the duration of the single-founder alpha. The Mac remains
-the code-edit and pre-promotion verification machine; it does not run the
-local Supabase/API stack for daily testing. The Windows PC (`mizyun-pc`) is
-kept as a hot backup. This rule stays in effect until the user explicitly
-changes it.
+reachable from this Mac over SSH as `rpserver` / `mizyun-pi`) hosts two
+strictly isolated environments running side-by-side:
 
-Default workflow for every commit:
+1. **Development (`dev`)**:
+   - Repo checkout: `/var/lib/mizyun/dev/repo`
+   - Services: `mizyun-api-dev.service` (port 4100), `mizyun-supabase-dev.service` (port 8100 Kong, port 5433 Postgres)
+   - Public hostnames: `https://mizyun-api-dev.phiskel.com`, `https://mizyun-supabase-dev.phiskel.com`
+   - Mobile app: `com.mizyun.dev` ("Mizyun Dev", built via `pnpm mobile:founder-dev:ios`)
+   - Deployment: `pnpm deploy:dev [sha]` (via `scripts/deploy-dev.mjs` and `scripts/promote-dev.sh`)
 
-- implement + format/typecheck/test on the Mac (`pnpm check` must
-  pass);
-- commit on `main` and push the exact SHA to `origin/main`;
-- promote the SHA to the production Raspberry Pi via
-  `pnpm deploy:remote <sha>` (which calls
-  `scripts/promote-production.sh` on the Pi);
-- test on the installed `com.mizyun.app` Production iPhone build
-  against the public production API/Supabase hosts
-  (`https://mizyun-api.phiskel.com`,
-  `https://mizyun-supabase.phiskel.com`);
-- record evidence (commit SHA, public health, device journey) in
-  `status.md`.
+2. **Production (`production`)**:
+   - Repo checkout: `/home/mizyun/mizyun` (`/var/lib/mizyun/repo`)
+   - Services: `mizyun-api.service` (port 4000), `mizyun-supabase.service` (port 8000 Kong, port 5432 Postgres)
+   - Public hostnames: `https://mizyun-api.phiskel.com`, `https://mizyun-supabase.phiskel.com`
+   - Mobile app: `com.mizyun.app` ("Mizyun", built via `pnpm mobile:founder-production:ios`)
+   - Deployment: `pnpm deploy:production <sha>` (via `scripts/deploy-remote.mjs` and `scripts/promote-production.sh`)
+
+The Windows PC (`mizyun-pc`) is kept as a hot backup.
+
+Daily workflow:
+
+- **Feature development & daily test loop**:
+  - Implement and verify on the Mac (`pnpm check` must pass).
+  - Push commit to remote and deploy to Dev on the Pi via `pnpm deploy:dev [sha]`.
+  - Test on the installed `com.mizyun.dev` iPhone app against the public Dev API/Supabase hosts.
+- **Production release milestone**:
+  - Once features are verified on Dev and merged into `main`, promote the exact accepted SHA to Production via `pnpm deploy:production <sha>`.
+  - Production promotion takes a database/storage backup before any schema changes, applies forward migrations, restarts `mizyun-api.service`, and checks public production health.
+  - Test on the installed `com.mizyun.app` Production iPhone build.
+  - Record evidence (commit SHA, public health, device journey) in `status.md`.
 
 Consequences and expectations:
 
-- the Raspberry Pi is expected to keep running even when the Mac is
-  off — the Production iPhone app and public API are the durable
-  testing surface;
-- the local Mac dev Supabase/API is reserved for schema and migration
-  work and for one-off debugging; do not treat it as a long-running
-  parallel test stack;
-- a founder-only enablement model means mistakes hit the founder
-  directly, not real users, so the faster promote→test loop is
-  acceptable; this is **not** a paying-user posture, and the
-  managed/hosted/second-operator gates from `docs/INFRASTRUCTURE_EVOLUTION_PLAN.md`
-  still apply before any cutover;
-- before any promote, run `pnpm check` on the Mac; before any
-  production migration, run `pnpm db:verify` on the Mac against a
-  clean local reset to keep the schema diff honest.
+- The Raspberry Pi keeps running even when the Mac is off; both public endpoints and both installed mobile apps coexist seamlessly on the founder's iPhone.
+- Never run destructive commands (`db:reset`, `db:verify`, volume pruning) against the Pi. `pnpm db:verify` runs only against the local disposable Mac database.
+- Dev and Production databases and auth tenants are completely isolated; credentials and tokens are strictly non-interchangeable.
+- Before any deployment, `pnpm check` must pass on the Mac.
 
 ## Verification
 

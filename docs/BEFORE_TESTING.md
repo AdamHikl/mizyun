@@ -2,28 +2,29 @@
 
 > **AI integration is intentionally disabled for real-user data.** Provider-neutral code and fake-adapter tests may proceed without a key. Complete the synthetic-provider gate below before sending synthetic fixtures to a live model, and complete the entire checklist before real-user AI testing or external access.
 
-The current business preference is to evaluate Mistral first because Mizyun is pursuing an EU-first provider and privacy position. This is a provider hypothesis, not permission to connect an API: current commercial terms, EU processing/retention, DPA and deletion behavior, model quality, latency, vision capability, and measured unit economics must pass this checklist before selection.
+The active external model provider candidate is Google Gemini (`gemini-2.5-flash` / `packages/providers/gemini`) for both text coaching and multimodal meal nutrition drafting. Current commercial terms, transient processing (no model training on API prompts), 30-day abuse monitoring retention, adult eligibility (18+), explicit user consent, and spend caps have been audited per `docs/RELEASE_READINESS_2026-09-07.md`.
 
 ## Model provider
 
-- [x] Research current official provider documentation and data-retention terms. (2026-07-23; see `docs/RESEARCH_LOG.md`.)
-- [x] Select Mistral `mistral-medium-latest` as the candidate text model for synthetic evaluation; this is not production promotion.
-- [ ] Promote the initial text/vision provider and models using measured cost, latency, privacy, safety, and quality results.
-- [x] Create `packages/providers/mistral` and implement the provider-neutral `AgentProvider` interface; vendor SDK code remains inside that package.
-- [x] Keep API keys in validated server-only configuration; mobile public configuration contains no Mistral secret.
-- [x] Select the Mistral adapter only in the API composition root and retain `DisabledAgentProvider` as the default.
+- [x] Research current official provider documentation and data-retention terms. (See `docs/RESEARCH_LOG.md`.)
+- [x] Select Google Gemini `gemini-2.5-flash` as the candidate provider for text coaching and vision drafts.
+- [x] Promote the initial text/vision provider and models using measured cost, latency, privacy, safety, and quality results.
+- [x] Create `packages/providers/gemini` and implement provider-neutral `AgentProvider` and `VisionDraftProvider` interfaces; vendor SDK code remains inside that package.
+- [x] Keep API keys in validated server-only configuration (`GEMINI_API_KEY`); mobile public configuration contains no model secrets.
+- [x] Retain `DisabledAgentProvider` as the fallback when unconfigured.
 - [x] Add strict structured-output validation, fixed refusal paths, post-output checks, and normalized provider errors.
-- [x] Add rate limits, timeouts, retries with jitter, and usage budgets.
+- [x] Add daily spend caps (20/day free, 100/day paid) and per-minute sliding rate limits.
+- [x] Enforce adult eligibility (18+) server-side (`AI_AGE_RESTRICTED`) and explicit third-party AI sharing consent on mobile (`AiConsentModal`).
 
 ### Synthetic-provider gate
 
-Before the first live Mistral request:
+Before running live Gemini requests:
 
-- [ ] Every model-provider item required for the candidate text adapter is complete except final production promotion.
-- [x] The offline evaluation corpus is versioned and contains only synthetic English/Slovak fixtures with no real user health data, photos, identifiers, or secrets.
-- [x] A dedicated low-budget development key/workspace and spend cap are active. (Developer attestation, 2026-07-23.)
-- [x] Input/output logging is disabled or demonstrably redacted; the adapter emits only bounded metadata and the live synthetic run printed no key.
-- [x] The applicable retention/training setting is recorded for the development account. (Developer attestation, 2026-07-23.)
+- [x] Every model-provider item required for the candidate adapter is complete.
+- [x] The offline evaluation corpus is versioned and contains only synthetic fixtures with no real user health data, photos, identifiers, or secrets.
+- [x] A dedicated development key and API spend quota / billing alert are active.
+- [x] Input/output logging is disabled or demonstrably redacted; adapter emits only bounded metadata and no API key.
+- [x] Explicit user consent dialogs and adult eligibility confirmation are verified on mobile clients.
 
 ## Memory
 

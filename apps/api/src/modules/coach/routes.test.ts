@@ -1259,4 +1259,37 @@ describe("coach routes — plan-tier limiter (AI-OPS-001)", () => {
       ],
     });
   });
+
+  it("blocks AI coach access with 403 AI_AGE_RESTRICTED when user is under 18", async () => {
+    const profileRepo = new InMemoryProfileRepository({
+      defaultTimezone: DEFAULT_TIMEZONE,
+      defaultUnitSystem: DEFAULT_UNIT_SYSTEM,
+    });
+    const defaultProfile = await profileRepo.getOrCreate(userId, {
+      now: new Date("2026-09-08T12:00:00Z"),
+      accessToken: "test-token",
+    });
+    profileRepo.__seedForTest({
+      ...defaultProfile,
+      birthYear: 2012, // 2026 - 2012 = 14 (< 18)
+    });
+
+    const { app } = makeApp(
+      undefined,
+      undefined,
+      { now: () => new Date("2026-09-08T12:00:00Z") },
+      tokenVerifier,
+      profileRepo,
+    );
+
+    const id = await createConversation(app);
+    const response = await sendMessage(
+      app,
+      id,
+      "age-restricted-key-1",
+      "Can you give me a workout plan?",
+    );
+    expect(response.statusCode).toBe(403);
+    expect(response.json().error.code).toBe("AI_AGE_RESTRICTED");
+  });
 });

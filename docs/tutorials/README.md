@@ -4,6 +4,8 @@
 
 ## Pick the workflow you need
 
+**Requested future setup:** [Dual Dev/Production on the Pi, Mac and iPhone](./DEV_PRODUCTION_PI_GUIDE.md) is the implementation guide for the user's 2026-09-07 target. It is not yet provisioned and does not supersede working production commands until adopted and verified.
+
 | Goal                                                  | Runbook                                           |
 | ----------------------------------------------------- | ------------------------------------------------- |
 | Start a normal coding session                         | [Daily quickstart](./QUICKSTART.md)               |

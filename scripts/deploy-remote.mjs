@@ -7,18 +7,14 @@
 import { spawnSync } from "node:child_process";
 import { exit } from "node:process";
 
-const dryRun = process.argv.includes("--dry-run");
+const args = process.argv.slice(2);
+const dryRun = args.includes("--dry-run");
+const positionalSha = args.find((arg) => !arg.startsWith("--"));
 const sshAlias = process.env.MIZYUN_PRODUCTION_SSH_ALIAS ?? "rpserver";
 const remoteDir = process.env.MIZYUN_REMOTE_DIR ?? "/home/mizyun/mizyun";
-const publicApiUrl = process.env.MIZYUN_PRODUCTION_API_URL;
+const publicApiUrl =
+  process.env.MIZYUN_PRODUCTION_API_URL ?? "https://mizyun-api.phiskel.com";
 
-if (!publicApiUrl && !dryRun) {
-  // eslint-disable-next-line no-console
-  console.error(
-    "Set MIZYUN_PRODUCTION_API_URL to the public production API origin.",
-  );
-  exit(2);
-}
 if (!/^[A-Za-z0-9_./-]+$/.test(remoteDir) || !remoteDir.startsWith("/")) {
   // eslint-disable-next-line no-console
   console.error("MIZYUN_REMOTE_DIR must be a safe absolute Linux path.");
@@ -78,9 +74,29 @@ if (branch !== "main") {
   );
 }
 
-const targetSha = output("git", ["rev-parse", "HEAD"]);
-if (!/^[0-9a-f]{40}$/.test(targetSha))
+let targetSha = positionalSha;
+if (!targetSha || targetSha === "HEAD") {
+  targetSha = output("git", ["rev-parse", "HEAD"]);
+} else {
+  try {
+    targetSha = output("git", ["rev-parse", `${targetSha}^{commit}`]);
+  } catch {
+    fail(`Could not resolve '${positionalSha}' to a valid commit.`);
+  }
+}
+if (!/^[0-9a-f]{40}$/.test(targetSha)) {
   fail("could not resolve a valid commit SHA");
+}
+
+const isAncestor = run("git", [
+  "merge-base",
+  "--is-ancestor",
+  targetSha,
+  "HEAD",
+]);
+if (isAncestor.status !== 0) {
+  fail(`target commit ${targetSha} is not in current main branch history`);
+}
 
 const sshCheck = run("ssh", ["-o", "BatchMode=yes", sshAlias, "true"]);
 if (sshCheck.status !== 0) fail(`SSH host ${sshAlias} is not reachable`);

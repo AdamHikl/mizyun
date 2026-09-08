@@ -21,53 +21,94 @@
 import type { PlanTier } from "@mizyun/core";
 
 const WINDOW_MS = 60_000;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 export interface DraftRateLimitOptions {
   readonly clock?: () => number;
   readonly freePerMinute?: number;
   readonly paidPerMinute?: number;
+  readonly freePerDay?: number;
+  readonly paidPerDay?: number;
 }
 
 export interface DraftRateLimitResult {
   readonly allowed: boolean;
   readonly retryAfter: number;
   readonly remaining: number;
+  readonly reason?: "minute_limit_exceeded" | "daily_limit_exceeded";
 }
 
 export class FoodDraftRateLimiter {
   readonly #clock: () => number;
   readonly #freePerMinute: number;
   readonly #paidPerMinute: number;
+  readonly #freePerDay: number;
+  readonly #paidPerDay: number;
   readonly #byUser = new Map<string, number[]>();
 
   constructor(options: DraftRateLimitOptions = {}) {
     this.#clock = options.clock ?? Date.now;
     this.#freePerMinute = options.freePerMinute ?? 1;
     this.#paidPerMinute = options.paidPerMinute ?? 3;
+    this.#freePerDay = options.freePerDay ?? 20;
+    this.#paidPerDay = options.paidPerDay ?? 100;
   }
 
   acquire(userId: string, tier: PlanTier): DraftRateLimitResult {
-    const limit = tier === "paid" ? this.#paidPerMinute : this.#freePerMinute;
+    const minuteLimit =
+      tier === "paid" ? this.#paidPerMinute : this.#freePerMinute;
+    const dailyLimit = tier === "paid" ? this.#paidPerDay : this.#freePerDay;
     const now = this.#clock();
-    const cutoff = now - WINDOW_MS;
+
+    const dailyCutoff = now - DAY_MS;
+    const minuteCutoff = now - WINDOW_MS;
+
+    // Prune entries older than 24h
     const existing = (this.#byUser.get(userId) ?? []).filter(
-      (timestamp) => timestamp > cutoff,
+      (timestamp) => timestamp > dailyCutoff,
     );
-    if (existing.length >= limit) {
-      const oldest = existing[0] as number;
+
+    // 1. Check daily budget cap
+    if (existing.length >= dailyLimit) {
+      const oldestDaily = existing[0] as number;
       const retryAfter = Math.max(
         1,
-        Math.ceil((oldest + WINDOW_MS - now) / 1_000),
+        Math.ceil((oldestDaily + DAY_MS - now) / 1_000),
       );
       this.#byUser.set(userId, existing);
-      return { allowed: false, retryAfter, remaining: 0 };
+      return {
+        allowed: false,
+        retryAfter,
+        remaining: 0,
+        reason: "daily_limit_exceeded",
+      };
     }
+
+    // 2. Check minute sliding window
+    const recentMinute = existing.filter(
+      (timestamp) => timestamp > minuteCutoff,
+    );
+    if (recentMinute.length >= minuteLimit) {
+      const oldestMinute = recentMinute[0] as number;
+      const retryAfter = Math.max(
+        1,
+        Math.ceil((oldestMinute + WINDOW_MS - now) / 1_000),
+      );
+      this.#byUser.set(userId, existing);
+      return {
+        allowed: false,
+        retryAfter,
+        remaining: 0,
+        reason: "minute_limit_exceeded",
+      };
+    }
+
     existing.push(now);
     this.#byUser.set(userId, existing);
     return {
       allowed: true,
       retryAfter: 0,
-      remaining: limit - existing.length,
+      remaining: minuteLimit - recentMinute.length - 1,
     };
   }
 

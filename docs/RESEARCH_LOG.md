@@ -2,6 +2,52 @@
 
 > Index of primary documentation reviewed before implementation. Recheck sources when a new segment begins; platform behavior, pricing, policies, SDKs, and provider terms change over time.
 
+## 2026-09-08 — Dual Pi environments and exact-SHA release implementation
+
+Scope: Implementation of Dual Pi development and production environments on Raspberry Pi 5 (INFRA-DUAL-001–005).
+
+Primary sources and platform behavior verified 2026-09-08:
+
+- [Linux Swap and Swappiness (kernel.org)](https://docs.kernel.org/admin-guide/sysctl/vm.html#swappiness): 4.0 GiB swapfile enabled with `vm.swappiness=10` to protect against burst OOM while keeping working set memory primarily in RAM.
+- [PostgREST 14 Administration](https://postgrest.org/en/v14/references/configuration.html#admin-server-port): `postgrest --ready` requires `PGRST_ADMIN_SERVER_PORT: 3001` and `PGRST_ADMIN_SERVER_HOST: localhost`.
+- [Supabase Storage API](https://github.com/supabase/storage-api): Healthcheck requires explicit IPv4 `http://127.0.0.1:5000/status` to avoid IPv6 `[::1]` ECONNREFUSED in minimal Linux container images.
+- [Kong Gateway Declarative DB-less](https://docs.konghq.com/gateway/latest/production/deployment-topologies/db-less-and-declarative-config/): Configured lean route mapping for Auth, PostgREST, and Storage under 60MB RAM.
+- [Cloudflare Tunnels Public Hostnames](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/routing-to-tunnel/): Standard Published Application public routes (no Access login wall) for `mizyun-api-dev.phiskel.com` (port 4100) and `mizyun-supabase-dev.phiskel.com` (port 8100) provide transparent public edge connectivity for iOS Dev builds.
+
+## 2026-09-07 — Friends-beta distribution and release-readiness audit
+
+Scope: current repository and live read-only settings; Expo/EAS app variants, Apple/Google tester distribution and review requirements, Gemini API external-use terms. No provider call or production mutation.
+
+Primary sources accessed 2026-09-07:
+
+- [Expo build variants](https://docs.expo.dev/build-reference/variants/)
+- [Apple TestFlight external testers](https://developer.apple.com/help/app-store-connect/test-a-beta-version/invite-external-testers/)
+- [Apple review guidelines](https://developer.apple.com/app-store/review/guidelines/)
+- [Google Play test tracks](https://support.google.com/googleplay/android-developer/answer/9845334?hl=en)
+- [Google personal-account testing requirements](https://support.google.com/googleplay/android-developer/answer/14151465)
+- [Google account-deletion requirements](https://support.google.com/googleplay/android-developer/answer/13327111)
+- [Gemini API terms](https://ai.google.dev/gemini-api/terms)
+
+Findings, source-specific interpretation, concrete code evidence, and implementation consequences are recorded in [the release audit](RELEASE_READINESS_2026-09-07.md), particularly R2–R6 and Distribution options. The audit identifies work; it does not accept a new architecture decision or authorize external AI. Follow-up implementation must recheck its affected versioned documentation and amend provider ADRs when resolving the current drift.
+
+## 2026-09-07 — Dual Pi environments and explicit release workflow
+
+Scope: requested future configuration guide, not infrastructure implementation. Inspected the current mobile config/profiles, mobile public-env validator, production deployment/backup scripts, systemd/env templates, and ADR-0018. The deploy wrapper currently chooses HEAD instead of parsing the documented SHA argument.
+
+Primary documentation reviewed:
+
+- [GitHub flow](https://docs.github.com/en/get-started/using-github/github-flow) and [Git worktrees](https://git-scm.com/docs/git-worktree)
+- [Expo SDK 57](https://docs.expo.dev/versions/v57.0.0/), [development builds](https://docs.expo.dev/develop/development-builds/introduction/), [EAS environments](https://docs.expo.dev/eas/environment-variables/), and [internal distribution](https://docs.expo.dev/build/internal-distribution/)
+- [Supabase Docker self-hosting](https://supabase.com/docs/guides/self-hosting/docker) and [Auth redirects](https://supabase.com/docs/guides/auth/redirect-urls)
+- [Compose project naming](https://docs.docker.com/compose/how-tos/project-name/)
+- [Cloudflare tunnel configuration](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/local-management/configuration-file/)
+
+Implementation consequences and project-specific recommendations are recorded in [the guide](tutorials/DEV_PRODUCTION_PI_GUIDE.md) and proposed [ADR-0020](adr/0020-dual-pi-environments-and-explicit-releases.md). Versioned sources and actual Pi resources must be rechecked at implementation. This session does not mark those deployment gates complete.
+
+## 2026-09-08 — R3 scope and release-fix sequencing
+
+Rechecked [EAS environment configuration](https://docs.expo.dev/eas/environment-variables/) and [internal distribution](https://docs.expo.dev/build/internal-distribution/), plus current local `eas.json` and `app.config.js`. Configuration remains unchanged. Consequence: R3 has a shared isolation/configuration implementation under INFRA-DUAL-003 and a separate final signed-candidate acceptance gate. Recommendation: minimum safe separation before integrated release patches; local fixes can continue against disposable data if Pi access is blocked. This is a documentation/planning change, not new deployment evidence.
+
 ## Entry format
 
 Each entry records date, scope/version, primary sources, findings that affected implementation, and any resulting ADR. Inferences must be labeled as such.

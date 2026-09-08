@@ -3,6 +3,7 @@ import { analyticsClient } from "@/composition/analytics-client";
 import { authConfiguration } from "@/composition/auth-client";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { FeedbackHeaderButton } from "@/components/feedback-header-button";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { useAuth } from "@/features/auth/auth-context";
 import { meResponseSchema, type AuthPrincipalWire } from "@mizyun/contracts";
@@ -27,6 +28,7 @@ import {
   reducePrincipalState,
   type PrincipalRenderState,
 } from "./principal-state";
+import { AccountDataCard } from "./account-data-card";
 import { CoachPreferencesCard } from "./coach-preferences-card";
 import { CoachRemindersCard } from "./coach-reminders-card";
 import { GoalSettingsCard } from "./goal-settings-card";
@@ -72,6 +74,7 @@ export function SettingsScreen() {
     reminders: false,
     memory: false,
     analytics: false,
+    accountData: false,
     legal: false,
   });
 
@@ -124,9 +127,18 @@ export function SettingsScreen() {
         reminders: true,
       }));
     } else if (cat === "privacy") {
-      setOpenSections((prev) => ({ ...prev, memory: true, analytics: true }));
+      setOpenSections((prev) => ({
+        ...prev,
+        memory: true,
+        analytics: true,
+        accountData: true,
+      }));
     } else if (cat === "session") {
-      setOpenSections((prev) => ({ ...prev, identity: true }));
+      setOpenSections((prev) => ({
+        ...prev,
+        identity: true,
+        accountData: true,
+      }));
     }
   }, []);
 
@@ -200,11 +212,14 @@ export function SettingsScreen() {
             <ThemedText type="smallBold" themeColor="textSecondary">
               MIZYUN
             </ThemedText>
-            <View style={styles.verifiedBadge}>
-              <View style={styles.verifiedDot} />
-              <ThemedText type="small" style={styles.verifiedText}>
-                Authenticated
-              </ThemedText>
+            <View style={styles.headerActions}>
+              <FeedbackHeaderButton />
+              <View style={styles.verifiedBadge}>
+                <View style={styles.verifiedDot} />
+                <ThemedText type="small" style={styles.verifiedText}>
+                  Authenticated
+                </ThemedText>
+              </View>
             </View>
           </View>
           <ThemedText type="subtitle">Account & Settings</ThemedText>
@@ -593,6 +608,17 @@ export function SettingsScreen() {
             >
               <AnalyticsCard />
             </CollapsibleSection>
+
+            <CollapsibleSection
+              id="accountData"
+              icon="📦"
+              title="Account Data & Erasure"
+              subtitle="Export all personal records or delete account"
+              isOpen={!!openSections.accountData}
+              onToggle={() => toggleSection("accountData")}
+            >
+              <AccountDataCard disabled={state.kind === "disabled"} />
+            </CollapsibleSection>
           </View>
         ) : null}
 
@@ -630,6 +656,19 @@ export function SettingsScreen() {
             >
               <PasswordSecurityCard />
             </CollapsibleSection>
+
+            {activeCategory === "session" ? (
+              <CollapsibleSection
+                id="accountData"
+                icon="📦"
+                title="Account Data & Erasure"
+                subtitle="Export all personal records or delete account"
+                isOpen={!!openSections.accountData}
+                onToggle={() => toggleSection("accountData")}
+              >
+                <AccountDataCard disabled={state.kind === "disabled"} />
+              </CollapsibleSection>
+            ) : null}
 
             <CollapsibleSection
               id="legal"
@@ -826,6 +865,25 @@ function LegalCard() {
             <ThemedText type="smallBold">Support & Inquiries</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
               Contact us via email or support channels
+            </ThemedText>
+          </View>
+          <ThemedText style={styles.legalLinkArrow}>↗</ThemedText>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open Account Deletion Instructions"
+          onPress={() => void openUrl("/legal/delete-account")}
+          style={({ pressed }) => [
+            styles.legalLinkRow,
+            pressed && styles.pressed,
+          ]}
+        >
+          <ThemedText style={styles.legalLinkIcon}>🗑️</ThemedText>
+          <View style={styles.legalLinkTextBlock}>
+            <ThemedText type="smallBold">Account Deletion</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              External data erasure request pathway
             </ThemedText>
           </View>
           <ThemedText style={styles.legalLinkArrow}>↗</ThemedText>
@@ -1140,6 +1198,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   verifiedBadge: {
     flexDirection: "row",

@@ -359,6 +359,151 @@ describe("POST /v1/food-entries", () => {
     });
     expect(response.statusCode).toBe(401);
   });
+
+  it("deduplicates identical meal submissions with the same clientOperationId on retry (REL-AUD-007)", async () => {
+    const { app, foodEntryRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    const clientOperationId = "11111111-2222-4333-8444-555555555555";
+    const payload = {
+      name: "Post-workout shake",
+      caloriesKcal: 300,
+      proteinG: 30,
+      clientOperationId,
+    };
+
+    // First POST succeeds
+    const first = await app.inject({
+      method: "POST",
+      url: "/v1/food-entries",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload,
+    });
+    expect(first.statusCode).toBe(200);
+    const firstBody = first.json();
+    const createdId = firstBody.foodEntry.id;
+    expect(firstBody.foodEntry.name).toBe("Post-workout shake");
+    expect(firstBody.foodEntry.clientOperationId).toBe(clientOperationId);
+
+    // Second POST (lost response retry) returns the same entry without creating a duplicate
+    const retry = await app.inject({
+      method: "POST",
+      url: "/v1/food-entries",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload,
+    });
+    expect(retry.statusCode).toBe(200);
+    const retryBody = retry.json();
+    expect(retryBody.foodEntry.id).toBe(createdId);
+
+    // Verify only ONE entry exists in the repository
+    const list = await foodEntryRepository.list(userA, {
+      from: null,
+      to: null,
+      limit: 10,
+      accessToken: "valid",
+    });
+    expect(list.length).toBe(1);
+  });
+
+  it("deduplicates identical meal submissions with Idempotency-Key header on retry (REL-AUD-007)", async () => {
+    const { app, foodEntryRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    const idempotencyKey = "22222222-3333-4444-8555-666666666666";
+    const payload = {
+      name: "Oatmeal with blueberries",
+      caloriesKcal: 350,
+      carbohydrateG: 60,
+    };
+
+    const first = await app.inject({
+      method: "POST",
+      url: "/v1/food-entries",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+        "idempotency-key": idempotencyKey,
+      },
+      payload,
+    });
+    expect(first.statusCode).toBe(200);
+    const firstId = first.json().foodEntry.id;
+
+    const retry = await app.inject({
+      method: "POST",
+      url: "/v1/food-entries",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+        "idempotency-key": idempotencyKey,
+      },
+      payload,
+    });
+    expect(retry.statusCode).toBe(200);
+    expect(retry.json().foodEntry.id).toBe(firstId);
+
+    const list = await foodEntryRepository.list(userA, {
+      from: null,
+      to: null,
+      limit: 10,
+      accessToken: "valid",
+    });
+    expect(list.length).toBe(1);
+  });
+
+  it("preserves intentionally separate identical meals when operation IDs differ (REL-AUD-007)", async () => {
+    const { app, foodEntryRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    const payload1 = {
+      name: "Espresso",
+      caloriesKcal: 5,
+      clientOperationId: "33333333-4444-4555-8666-777777777777",
+    };
+    const payload2 = {
+      name: "Espresso",
+      caloriesKcal: 5,
+      clientOperationId: "44444444-5555-4666-8777-888888888888",
+    };
+
+    const first = await app.inject({
+      method: "POST",
+      url: "/v1/food-entries",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: payload1,
+    });
+    const second = await app.inject({
+      method: "POST",
+      url: "/v1/food-entries",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: payload2,
+    });
+
+    expect(first.statusCode).toBe(200);
+    expect(second.statusCode).toBe(200);
+    expect(first.json().foodEntry.id).not.toBe(second.json().foodEntry.id);
+
+    const list = await foodEntryRepository.list(userA, {
+      from: null,
+      to: null,
+      limit: 10,
+      accessToken: "valid",
+    });
+    expect(list.length).toBe(2);
+  });
 });
 
 describe("GET /v1/food-entries/:id", () => {

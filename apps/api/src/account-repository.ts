@@ -8,11 +8,13 @@ import {
   type FeedbackRepository,
   type FoodEntryRepository,
   type GoalRepository,
+  type MediaAssetRepository,
   type ProfileRepository,
   type UserId,
   type WorkoutRepository,
   type WorkoutSetRepository,
 } from "@mizyun/core";
+import type { MediaStorage } from "./media-storage.js";
 
 /**
  * In-memory implementation of the `AccountRepository` port.
@@ -48,6 +50,8 @@ export interface InMemoryAccountRepositoryOptions {
   readonly bodyMeasurementRepository: BodyMeasurementRepository;
   readonly conversationRepository?: ConversationRepository;
   readonly feedbackRepository?: FeedbackRepository;
+  readonly mediaAssetRepository?: MediaAssetRepository;
+  readonly mediaStorage?: MediaStorage;
   /**
    * Clock; defaults to `() => new Date()`. Production callers
    * should not need this; tests inject a fixed clock so they
@@ -66,6 +70,8 @@ export class InMemoryAccountRepository implements AccountRepository {
   readonly #bodyMeasurementRepository: BodyMeasurementRepository;
   readonly #conversationRepository: ConversationRepository | null;
   readonly #feedbackRepository: FeedbackRepository | null;
+  readonly #mediaAssetRepository: MediaAssetRepository | null;
+  readonly #mediaStorage: MediaStorage | null;
   readonly #clock: { readonly now: () => Date };
   readonly #challenges = new Map<UserId, ChallengeRecord>();
 
@@ -79,41 +85,43 @@ export class InMemoryAccountRepository implements AccountRepository {
     this.#bodyMeasurementRepository = options.bodyMeasurementRepository;
     this.#conversationRepository = options.conversationRepository ?? null;
     this.#feedbackRepository = options.feedbackRepository ?? null;
+    this.#mediaAssetRepository = options.mediaAssetRepository ?? null;
+    this.#mediaStorage = options.mediaStorage ?? null;
     this.#clock = options.clock ?? { now: () => new Date() };
   }
 
-  async exportForUser(userId: UserId): Promise<AccountExport> {
+  async exportForUser(
+    userId: UserId,
+    options?: { readonly accessToken?: string },
+  ): Promise<AccountExport> {
+    const token = options?.accessToken ?? "";
     const profile = await this.#profileRepository.getOrCreate(userId, {
       now: this.#clock.now(),
-      // The account-export path doesn't carry an end-user
-      // access token; the in-memory adapter ignores it. The
-      // Supabase adapter would need the service-role key at
-      // this layer (DATA-001+PERSIST-002 follow-up).
-      accessToken: "",
+      accessToken: token,
     });
     const goals = await this.#goalRepository.getHistory(userId, {
-      accessToken: "",
+      accessToken: token,
     });
     const foodEntries = await this.#foodEntryRepository.list(userId, {
       from: null,
       to: null,
       limit: 10_000,
-      accessToken: "",
+      accessToken: token,
     });
     const exercises = await this.#exerciseRepository.list(userId, {
       limit: 10_000,
-      accessToken: "",
+      accessToken: token,
     });
     const workouts = await this.#workoutRepository.list(userId, {
       from: null,
       to: null,
       limit: 10_000,
-      accessToken: "",
+      accessToken: token,
     });
     const workoutSets: import("@mizyun/core").StoredWorkoutSet[] = [];
     for (const w of workouts) {
       const sets = await this.#workoutSetRepository.listForWorkout(w.id, {
-        accessToken: "",
+        accessToken: token,
       });
       workoutSets.push(...sets);
     }
@@ -123,7 +131,7 @@ export class InMemoryAccountRepository implements AccountRepository {
         from: null,
         to: null,
         limit: 10_000,
-        accessToken: "",
+        accessToken: token,
       },
     );
     const conversations =
@@ -132,7 +140,7 @@ export class InMemoryAccountRepository implements AccountRepository {
         : await Promise.all(
             (
               await this.#conversationRepository.list(userId, {
-                accessToken: "",
+                accessToken: token,
                 limit: 10_000,
               })
             ).map(async (conversation) => ({
@@ -145,7 +153,7 @@ export class InMemoryAccountRepository implements AccountRepository {
                 await this.#conversationRepository!.listMessages(
                   userId,
                   conversation.id,
-                  { accessToken: "", limit: 10_000 },
+                  { accessToken: token, limit: 10_000 },
                 )
               ).map((message) => ({
                 id: message.id,
@@ -160,9 +168,22 @@ export class InMemoryAccountRepository implements AccountRepository {
       this.#feedbackRepository === null
         ? []
         : await this.#feedbackRepository.listForUser(userId, {
-            accessToken: "",
+            accessToken: token,
             limit: 10_000,
           });
+    const privateMedia =
+      this.#mediaAssetRepository === null
+        ? []
+        : (
+            await this.#mediaAssetRepository.list(userId, {
+              purpose: null,
+              limit: 10_000,
+              accessToken: token,
+            })
+          ).map((asset) => ({
+            id: asset.id,
+            createdAt: asset.createdAt,
+          }));
     return {
       userId,
       generatedAt: this.#clock.now(),
@@ -174,7 +195,7 @@ export class InMemoryAccountRepository implements AccountRepository {
       workoutSets,
       bodyMeasurements,
       conversations,
-      privateMedia: [],
+      privateMedia,
       feedback,
     };
   }
@@ -194,6 +215,7 @@ export class InMemoryAccountRepository implements AccountRepository {
     options: {
       readonly confirmationToken: string;
       readonly now: Date;
+      readonly accessToken?: string;
     },
   ): Promise<
     | { readonly deleted: true }
@@ -220,14 +242,38 @@ export class InMemoryAccountRepository implements AccountRepository {
     // returns `confirmation_token_missing` rather than silently
     // running the cascade again.
     this.#challenges.delete(userId);
+
+    const token = options.accessToken ?? "";
+
+    if (this.#mediaAssetRepository !== null && this.#mediaStorage !== null) {
+      try {
+        const assets = await this.#mediaAssetRepository.list(userId, {
+          purpose: null,
+          limit: 10_000,
+          accessToken: token,
+        });
+        for (const asset of assets) {
+          try {
+            await this.#mediaStorage.remove(asset.bucketId, asset.objectPath, {
+              accessToken: token,
+            });
+          } catch {
+            // Silently ignore individual missing objects in storage
+          }
+        }
+      } catch {
+        // Silently ignore media list errors during cascade
+      }
+    }
+
     if (this.#conversationRepository !== null) {
       await this.#conversationRepository.deleteAllForUser(userId, {
-        accessToken: "",
+        accessToken: token,
       });
     }
     if (this.#feedbackRepository !== null) {
       await this.#feedbackRepository.deleteAllForUser(userId, {
-        accessToken: "",
+        accessToken: token,
       });
     }
 
@@ -240,53 +286,47 @@ export class InMemoryAccountRepository implements AccountRepository {
     //   6. goals (FK to profile)
     //   7. profile (last; the row lives in `public.profiles` which
     //      is the user's primary identifier at the storage layer)
-    //
-    // The per-feature repositories in v1 are in-memory; we walk
-    // the user's partitions and delete every record. SQL cascades
-    // through the migration's `ON DELETE CASCADE` clauses; the
-    // Supabase adapter (future segment) will simply remove the
-    // `auth.users` row and let the FKs do the work.
     const workouts = await this.#workoutRepository.list(userId, {
       from: null,
       to: null,
       limit: 10_000,
-      accessToken: "",
+      accessToken: token,
     });
     for (const w of workouts) {
       await this.#workoutSetRepository.deleteAllForWorkout(w.id, {
-        accessToken: "",
+        accessToken: token,
       });
     }
     for (const w of workouts) {
-      await this.#workoutRepository.delete(w.id, { accessToken: "" });
+      await this.#workoutRepository.delete(w.id, { accessToken: token });
     }
     const exercises = await this.#exerciseRepository.list(userId, {
       limit: 10_000,
-      accessToken: "",
+      accessToken: token,
     });
     for (const e of exercises) {
-      await this.#exerciseRepository.delete(e.id, { accessToken: "" });
+      await this.#exerciseRepository.delete(e.id, { accessToken: token });
     }
     const foodEntries = await this.#foodEntryRepository.list(userId, {
       from: null,
       to: null,
       limit: 10_000,
-      accessToken: "",
+      accessToken: token,
     });
     for (const f of foodEntries) {
-      await this.#foodEntryRepository.delete(f.id, { accessToken: "" });
+      await this.#foodEntryRepository.delete(f.id, { accessToken: token });
     }
     const bodyMeasurements = await this.#bodyMeasurementRepository.list(
       userId,
-      { from: null, to: null, limit: 10_000, accessToken: "" },
+      { from: null, to: null, limit: 10_000, accessToken: token },
     );
     for (const m of bodyMeasurements) {
       await this.#bodyMeasurementRepository.delete(m.id, {
-        accessToken: "",
+        accessToken: token,
       });
     }
     const goals = await this.#goalRepository.getHistory(userId, {
-      accessToken: "",
+      accessToken: token,
     });
     for (const g of goals) {
       // The GoalRepository does not expose `delete` on its public

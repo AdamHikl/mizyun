@@ -1,0 +1,23 @@
+[Unit]
+Description=Mizyun development API
+Wants=network-online.target
+After=network-online.target mizyun-supabase-dev.service
+Requires=mizyun-supabase-dev.service
+
+[Service]
+Type=simple
+User=mizyun
+Group=mizyun
+WorkingDirectory=/var/lib/mizyun/dev/repo
+EnvironmentFile=/etc/mizyun/dev.env
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/local/bin/pnpm --filter @mizyun/api start
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+MemoryMax=400M
+CPUQuota=50%
+
+[Install]
+WantedBy=multi-user.target

@@ -247,6 +247,7 @@ export { SupabaseBodyMeasurementRepository } from "./body-measurement-repository
 export { SupabaseFeedbackRepository } from "./feedback-repository.js";
 export { SupabaseMediaAssetRepository } from "./media-asset-repository.js";
 export { SupabaseConversationRepository } from "./conversation-repository.js";
+export { SupabaseAccountRepository } from "./account-repository.js";
 export {
   SupabaseMediaStorage,
   MediaStorageError,

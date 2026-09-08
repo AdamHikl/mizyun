@@ -87,7 +87,10 @@ export interface AccountRepository {
    * Gather every user-owned record into a single export envelope.
    * Pure read; no side effects.
    */
-  exportForUser(userId: UserId): Promise<AccountExport>;
+  exportForUser(
+    userId: UserId,
+    options?: { readonly accessToken?: string },
+  ): Promise<AccountExport>;
   /**
    * Issue a short-lived confirmation token that the client must
    * echo back to `deleteUser` within `ttlSeconds`. Returns the
@@ -107,7 +110,11 @@ export interface AccountRepository {
    */
   deleteUser(
     userId: UserId,
-    options: { readonly confirmationToken: string; readonly now: Date },
+    options: {
+      readonly confirmationToken: string;
+      readonly now: Date;
+      readonly accessToken?: string;
+    },
   ): Promise<
     | { readonly deleted: true }
     | { readonly deleted: false; readonly reason: AccountDeletionError }

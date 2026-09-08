@@ -16,6 +16,7 @@ import { RepositoryError } from "./repository-error.js";
 interface FoodEntryRow extends Record<string, unknown> {
   readonly id: string;
   readonly user_id: string;
+  readonly client_operation_id?: string | null;
   readonly consumed_at: string;
   readonly name: string;
   readonly calories_kcal: number | null;
@@ -35,6 +36,7 @@ interface FoodEntryRow extends Record<string, unknown> {
 const fromRow = (row: FoodEntryRow): StoredFoodEntry => ({
   id: row.id,
   userId: row.user_id as UserId,
+  clientOperationId: row.client_operation_id ?? null,
   consumedAt: new Date(row.consumed_at),
   name: row.name,
   caloriesKcal: row.calories_kcal,
@@ -55,6 +57,7 @@ const toInsertRow = (
 ): Partial<FoodEntryRow> => ({
   id: entry.id,
   user_id: userId,
+  client_operation_id: entry.clientOperationId ?? null,
   consumed_at: entry.consumedAt.toISOString(),
   name: entry.name,
   calories_kcal: entry.caloriesKcal,
@@ -78,6 +81,24 @@ export class SupabaseFoodEntryRepository implements FoodEntryRepository {
     this.#clientFor = options.clientFor;
   }
 
+  async findByClientOperationId(
+    userId: UserId,
+    clientOperationId: string,
+    options: { readonly accessToken: string },
+  ): Promise<StoredFoodEntry | null> {
+    const client = this.#clientFor(options.accessToken);
+    const { data, error } = await client
+      .from<FoodEntryRow>("food_entries")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("client_operation_id", clientOperationId)
+      .maybeSingle();
+    if (error) {
+      throw new RepositoryError(error.message);
+    }
+    return data === null ? null : fromRow(data);
+  }
+
   async create(
     userId: UserId,
     entry: StoredFoodEntry,
@@ -90,6 +111,17 @@ export class SupabaseFoodEntryRepository implements FoodEntryRepository {
       .select("*")
       .single();
     if (error || data === null) {
+      // If unique violation on client_operation_id, return existing row
+      if (entry.clientOperationId) {
+        const existing = await this.findByClientOperationId(
+          userId,
+          entry.clientOperationId,
+          options,
+        );
+        if (existing !== null) {
+          return existing;
+        }
+      }
       throw new RepositoryError(
         error?.message ?? "food entry insert returned no row",
       );

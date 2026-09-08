@@ -139,6 +139,7 @@ const toWire = (entry: StoredFoodEntry): FoodEntryResponse =>
       source: entry.source,
       confidence: entry.confidence,
       confirmedByUser: entry.confirmedByUser,
+      clientOperationId: entry.clientOperationId ?? null,
       details: { ...entry.details },
       createdAt: entry.createdAt.toISOString(),
       updatedAt: entry.updatedAt.toISOString(),
@@ -252,11 +253,35 @@ export const foodEntriesRoutes: FastifyPluginAsync<
         );
         return;
       }
+
+      const clientOpHeader = request.headers["idempotency-key"];
+      const clientOperationId =
+        parsed.data.clientOperationId ??
+        (typeof clientOpHeader === "string" && clientOpHeader.trim().length > 0
+          ? clientOpHeader.trim()
+          : undefined);
+
+      if (
+        clientOperationId &&
+        options.foodEntryRepository.findByClientOperationId
+      ) {
+        const existing =
+          await options.foodEntryRepository.findByClientOperationId(
+            principal.userId,
+            clientOperationId,
+            { accessToken: principal.accessToken },
+          );
+        if (existing !== null) {
+          return toWire(existing);
+        }
+      }
+
       const now = new Date();
       const id = crypto.randomUUID();
       const stored: StoredFoodEntry = {
         id,
         userId: principal.userId,
+        clientOperationId: clientOperationId ?? null,
         source: "manual" as FoodSource,
         confidence: null,
         confirmedByUser: true,

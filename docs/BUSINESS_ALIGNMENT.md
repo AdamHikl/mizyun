@@ -2,7 +2,11 @@
 
 > Stable bridge between the business plan and engineering execution. Revisit after material customer research, pricing evidence, or product-positioning changes. Last audited: **2026-07-23**.
 
-## Executive verdict
+## Current evidence note — 2026-09-07
+
+The strategy and customer goals below remain unchanged. The implementation matrix and operational blockers are historical: Raspberry Pi is now the primary host, Gemini is the implemented provider, public endpoints respond, and live Auth requires email confirmation. The [current release audit](RELEASE_READINESS_2026-09-07.md) compares those advances with concrete account-lifecycle, build, AI, reliability, and acceptance gaps. It recommends closing those gates before inviting friends with personal data; the existing product breadth is sufficient for a narrowly scoped pilot afterward.
+
+## Executive verdict (2026-07-23 audit)
 
 The repository supports the intended business **architecturally**, but not yet as a customer-ready product.
 

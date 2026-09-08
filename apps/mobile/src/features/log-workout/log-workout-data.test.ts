@@ -6,6 +6,7 @@ import type { Exercise, Workout } from "@mizyun/contracts";
 
 import {
   addWorkoutSetWith,
+  cloneRoutineFromWorkoutWith,
   completeWorkoutWith,
   createExerciseWith,
   loadRecentPerformanceWith,
@@ -210,6 +211,9 @@ describe("workout lifecycle", () => {
       () => NOW,
     );
     expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.workoutSet).toBeDefined();
+    }
     expect(requests[0]).toMatchObject({
       method: "POST",
       body: {
@@ -295,5 +299,122 @@ describe("workout lifecycle", () => {
         startedAt: NOW.toISOString(),
       },
     });
+  });
+});
+
+describe("clone-on-complete routine", () => {
+  it("clones a workout with coachPlan exercises into a new planned routine", async () => {
+    const requests: RequestOptions[] = [];
+    const routineWorkout: Workout = {
+      ...WORKOUT,
+      completedAt: NOW.toISOString(),
+      details: {
+        coachPlan: {
+          exercises: [
+            {
+              name: "Squat",
+              catalogId: "squat",
+              sets: 3,
+              repsMin: 8,
+              repsMax: 12,
+              restSeconds: 90,
+            },
+            {
+              name: "Bench Press",
+              catalogId: "bench_press",
+              sets: 4,
+              repsMin: 6,
+              repsMax: 8,
+              restSeconds: 120,
+            },
+          ],
+        },
+      },
+    };
+    const result = await cloneRoutineFromWorkoutWith(
+      queuedClient(
+        [{ ok: true, value: { workout: { ...WORKOUT, id: "new-clone-id" } } }],
+        requests,
+      ),
+      routineWorkout,
+    );
+    expect(result.ok).toBe(true);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toMatchObject({
+      method: "POST",
+      path: "/v1/workouts",
+    });
+    const body = requests[0]!.body as Record<string, unknown>;
+    expect(body.name).toBe(WORKOUT.name);
+    expect(body.details).toEqual(routineWorkout.details);
+  });
+
+  it("clones a workout with aiDraft session exercises", async () => {
+    const requests: RequestOptions[] = [];
+    const routineWorkout: Workout = {
+      ...WORKOUT,
+      completedAt: NOW.toISOString(),
+      details: {
+        aiDraft: {
+          session: {
+            exercises: [
+              {
+                name: "Deadlift",
+                catalogId: "deadlift",
+                sets: 3,
+                repsMin: 5,
+                repsMax: 5,
+                restSeconds: 180,
+              },
+            ],
+          },
+        },
+      },
+    };
+    const result = await cloneRoutineFromWorkoutWith(
+      queuedClient(
+        [
+          {
+            ok: true,
+            value: { workout: { ...WORKOUT, id: "new-clone-id-2" } },
+          },
+        ],
+        requests,
+      ),
+      routineWorkout,
+    );
+    expect(result.ok).toBe(true);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.method).toBe("POST");
+  });
+
+  it("skips cloning for an ad-hoc workout with no planned exercises", async () => {
+    const requests: RequestOptions[] = [];
+    const adHocWorkout: Workout = {
+      ...WORKOUT,
+      completedAt: NOW.toISOString(),
+      details: {},
+    };
+    const result = await cloneRoutineFromWorkoutWith(
+      queuedClient([], requests),
+      adHocWorkout,
+    );
+    expect(result.ok).toBe(true);
+    expect(requests).toHaveLength(0);
+  });
+
+  it("skips cloning when coachPlan exercises array is empty", async () => {
+    const requests: RequestOptions[] = [];
+    const emptyRoutine: Workout = {
+      ...WORKOUT,
+      completedAt: NOW.toISOString(),
+      details: { coachPlan: { exercises: [] } },
+    };
+    const result = await cloneRoutineFromWorkoutWith(
+      queuedClient([], requests),
+      emptyRoutine,
+    );
+    expect(result.ok).toBe(true);
+    expect(requests).toHaveLength(0);
   });
 });

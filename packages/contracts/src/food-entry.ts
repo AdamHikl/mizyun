@@ -58,6 +58,7 @@ export const foodEntrySchema = z.object({
   source: foodSourceSchema,
   confidence: z.number().gte(0).lte(1).nullable(),
   confirmedByUser: z.boolean(),
+  clientOperationId: z.string().uuid().nullable().optional(),
   details: z.record(z.unknown()),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
@@ -89,6 +90,7 @@ export type FoodEntryListResponse = z.infer<typeof foodEntryListResponseSchema>;
  */
 export const foodEntryCreateSchema = z
   .object({
+    clientOperationId: z.string().uuid().optional(),
     name: foodEntrySchema.shape.name,
     consumedAt: isoInstantSchema.optional(),
     caloriesKcal: foodEntrySchema.shape.caloriesKcal.optional(),

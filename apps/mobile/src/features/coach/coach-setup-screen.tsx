@@ -30,6 +30,7 @@ import {
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { FeedbackHeaderButton } from "@/components/feedback-header-button";
 import {
   BottomTabInset,
   Colors,
@@ -47,6 +48,8 @@ import { useAuth } from "@/features/auth/auth-context";
 import { mealFormStringsFromDraft } from "@/features/log-meal/meal-form";
 import { normalizeMealPhoto } from "@/features/log-meal/meal-photo";
 
+import { loadAiConsent, saveAiConsent } from "./ai-consent";
+import { AiConsentModal } from "./ai-consent-modal";
 import { EvidenceChips } from "./evidence-chips";
 import {
   acceptWeeklyAdaptation,
@@ -143,6 +146,37 @@ export function CoachSetupScreen() {
   const [now, setNow] = useState(() => new Date());
   const lastHandledPrompt = useRef<string | null>(null);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const [aiConsentGranted, setAiConsentGranted] = useState(false);
+  const [aiConsentModalVisible, setAiConsentModalVisible] = useState(false);
+  const pendingAiAction = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    if (userId === null) return;
+    void loadAiConsent(userId).then((status) => {
+      setAiConsentGranted(status.granted && status.confirmedAdult);
+    });
+  }, [userId]);
+
+  const handleAiConsent = useCallback(async () => {
+    if (userId !== null) {
+      await saveAiConsent(userId, true, true);
+    }
+    setAiConsentGranted(true);
+    setAiConsentModalVisible(false);
+    if (pendingAiAction.current) {
+      const action = pendingAiAction.current;
+      pendingAiAction.current = null;
+      action();
+    }
+  }, [userId]);
+
+  const handleAiDecline = useCallback(() => {
+    setAiConsentModalVisible(false);
+    pendingAiAction.current = null;
+    setMessage(
+      "AI Coach requires consent to third-party AI processing and adult eligibility.",
+    );
+  }, []);
 
   useEffect(() => {
     const showSub = Keyboard.addListener(
@@ -276,6 +310,11 @@ export function CoachSetupScreen() {
 
   const send = useCallback(
     async (retryDraft?: CoachPendingDraft, textOverride?: string) => {
+      if (!aiConsentGranted) {
+        pendingAiAction.current = () => void send(retryDraft, textOverride);
+        setAiConsentModalVisible(true);
+        return;
+      }
       const retry =
         retryDraft?.conversationId === active?.id ? retryDraft : undefined;
       const text = (retry?.text ?? textOverride ?? draft).trim();
@@ -369,7 +408,7 @@ export function CoachSetupScreen() {
         inputRef.current?.focus();
       }
     },
-    [active, draft, pendingDraft, sending, userId],
+    [active, aiConsentGranted, draft, pendingDraft, sending, userId],
   );
 
   useEffect(() => {
@@ -514,6 +553,11 @@ export function CoachSetupScreen() {
   );
 
   const attachMealPhoto = useCallback(async () => {
+    if (!aiConsentGranted) {
+      pendingAiAction.current = () => void attachMealPhoto();
+      setAiConsentModalVisible(true);
+      return;
+    }
     if (
       active === null ||
       sending ||
@@ -561,7 +605,7 @@ export function CoachSetupScreen() {
       sendLock.current = false;
       setSending(false);
     }
-  }, [active, deleting, sending]);
+  }, [active, aiConsentGranted, deleting, sending]);
   const sendPrompt = useCallback((promptText: string) => {
     setDraft(promptText);
     requestAnimationFrame(() => {
@@ -590,91 +634,101 @@ export function CoachSetupScreen() {
               : ""}
           </View>
 
-          {/* Compact Top Navigation Bar */}
-          <View style={styles.topNavBar}>
-            {active !== null ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Open thread list"
-                onPress={() => {
-                  setNow(new Date());
-                  setThreadListVisible(true);
-                }}
-                style={({ pressed }) => [
-                  styles.topBarThreadPill,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <ThemedText style={styles.navChatIcon}>💬</ThemedText>
-                <ThemedText
-                  type="smallBold"
-                  numberOfLines={1}
-                  style={styles.navThreadTitle}
-                >
-                  {active.title ?? "Coach check-in"}
-                </ThemedText>
-                <ThemedText
-                  type="small"
-                  themeColor="textSecondary"
-                  style={styles.navChevron}
-                >
-                  ▾
-                </ThemedText>
-              </Pressable>
-            ) : (
-              <ThemedText type="smallBold" style={styles.navStaticTitle}>
-                Coach
+          {/* Top Header */}
+          <View style={styles.header}>
+            <View style={styles.headerTopRow}>
+              <ThemedText type="smallBold" themeColor="textSecondary">
+                MIZYUN
               </ThemedText>
-            )}
-
-            <View style={styles.navActions}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Toggle training plan & advisory info"
-                onPress={() => setPlanExpanded((expanded) => !expanded)}
-                style={({ pressed }) => [
-                  styles.navIconButton,
-                  planExpanded && styles.navIconButtonActive,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <ThemedText
-                  style={[
-                    styles.navIconText,
-                    planExpanded && styles.navIconTextActive,
-                  ]}
-                >
-                  ⚡
-                </ThemedText>
-              </Pressable>
-
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="New conversation"
-                onPress={() => void create()}
-                style={({ pressed }) => [
-                  styles.navIconButton,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <ThemedText style={styles.navIconText}>＋</ThemedText>
-              </Pressable>
-
-              {active !== null ? (
+              <View style={styles.headerActions}>
+                <FeedbackHeaderButton />
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Delete conversation"
-                  disabled={sending || deleting}
-                  onPress={remove}
+                  accessibilityLabel="Toggle training plan & advisory info"
+                  onPress={() => setPlanExpanded((expanded) => !expanded)}
+                  style={({ pressed }) => [
+                    styles.navIconButton,
+                    planExpanded && styles.navIconButtonActive,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <ThemedText
+                    style={[
+                      styles.navIconText,
+                      planExpanded && styles.navIconTextActive,
+                    ]}
+                  >
+                    ⚡
+                  </ThemedText>
+                </Pressable>
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="New conversation"
+                  onPress={() => void create()}
                   style={({ pressed }) => [
                     styles.navIconButton,
                     pressed && styles.pressed,
                   ]}
                 >
-                  <ThemedText style={styles.navIconText}>🗑️</ThemedText>
+                  <ThemedText style={styles.navIconText}>＋</ThemedText>
+                </Pressable>
+
+                {active !== null ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Delete conversation"
+                    disabled={sending || deleting}
+                    onPress={remove}
+                    style={({ pressed }) => [
+                      styles.navIconButton,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <ThemedText style={styles.navIconText}>🗑️</ThemedText>
+                  </Pressable>
+                ) : null}
+              </View>
+            </View>
+
+            <View style={styles.headerTitleRow}>
+              <ThemedText type="subtitle">Coach</ThemedText>
+              {active !== null ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Open thread list"
+                  onPress={() => {
+                    setNow(new Date());
+                    setThreadListVisible(true);
+                  }}
+                  style={({ pressed }) => [
+                    styles.topBarThreadPill,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <ThemedText style={styles.navChatIcon}>💬</ThemedText>
+                  <ThemedText
+                    type="smallBold"
+                    numberOfLines={1}
+                    style={styles.navThreadTitle}
+                  >
+                    {active.title ?? "Coach check-in"}
+                  </ThemedText>
+                  <ThemedText
+                    type="small"
+                    themeColor="textSecondary"
+                    style={styles.navChevron}
+                  >
+                    ▾
+                  </ThemedText>
                 </Pressable>
               ) : null}
             </View>
+
+            <ThemedText type="small" themeColor="textSecondary">
+              Private fitness &amp; nutrition guidance grounded in your
+              confirmed data.
+            </ThemedText>
           </View>
 
           {/* Expandable Plan & Advisory Info Drawer */}
@@ -760,36 +814,37 @@ export function CoachSetupScreen() {
               >
                 {messages.length === 0 ? (
                   <View style={styles.emptyStateContainer}>
-                    <ThemedView
-                      type="backgroundElement"
-                      style={styles.emptyHeroCard}
+                    {/* Primary Action Card: Ask AI Coach */}
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Ask AI Coach"
+                      onPress={() => {
+                        inputRef.current?.focus();
+                      }}
+                      style={({ pressed }) => [
+                        styles.coachHeroCard,
+                        pressed && styles.pressed,
+                      ]}
                     >
-                      <View style={styles.emptyHeroTopRow}>
-                        <View style={styles.emptyHeroIconContainer}>
-                          <ThemedText style={styles.emptyHeroIcon}>
-                            ✨
-                          </ThemedText>
-                        </View>
-                        <View style={styles.emptyHeroIdentity}>
-                          <ThemedText
-                            type="smallBold"
-                            style={styles.emptyHeroTracker}
-                          >
-                            MIZYUN COACH
-                          </ThemedText>
-                          <ThemedText
-                            type="subtitle"
-                            style={styles.emptyStateTitle}
-                          >
-                            How can I help you?
-                          </ThemedText>
-                          <ThemedText type="small" themeColor="textSecondary">
-                            Private fitness &amp; nutrition guidance grounded in
-                            your confirmed data.
-                          </ThemedText>
-                        </View>
+                      <View style={styles.coachHeroIconContainer}>
+                        <ThemedText style={styles.coachHeroIcon}>✨</ThemedText>
                       </View>
-                    </ThemedView>
+                      <View style={styles.coachHeroBody}>
+                        <ThemedText type="smallBold">Ask AI Coach</ThemedText>
+                        <ThemedText type="small" themeColor="textSecondary">
+                          Personalized insights, meal analysis, and workout
+                          plans
+                        </ThemedText>
+                      </View>
+                      <View style={styles.coachHeroBadge}>
+                        <ThemedText
+                          type="smallBold"
+                          style={styles.coachHeroBadgeText}
+                        >
+                          💬 Ask
+                        </ThemedText>
+                      </View>
+                    </Pressable>
 
                     <View style={styles.section}>
                       <ThemedText type="smallBold" style={styles.sectionTitle}>
@@ -1061,6 +1116,12 @@ export function CoachSetupScreen() {
           void create();
         }}
         onClose={() => setThreadListVisible(false)}
+      />
+
+      <AiConsentModal
+        visible={aiConsentModalVisible}
+        onConsent={() => void handleAiConsent()}
+        onDecline={handleAiDecline}
       />
     </ThemedView>
   );
@@ -2062,18 +2123,30 @@ function WorkoutEditProposalCard({
 const styles = StyleSheet.create({
   page: { flex: 1 },
   safeArea: { flex: 1 },
-  topNavBar: {
+  header: {
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
+    paddingHorizontal: Spacing.four,
+    paddingTop: Spacing.two,
+    paddingBottom: Spacing.two,
+    gap: Spacing.one,
+  },
+  headerTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  headerTitleRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.two,
-    minHeight: 48,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(148, 163, 184, 0.15)",
+    gap: Spacing.two,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   topBarThreadPill: {
     flexDirection: "row",
@@ -2088,9 +2161,8 @@ const styles = StyleSheet.create({
     maxWidth: "60%",
   },
   navChatIcon: { fontSize: 13 },
-  navThreadTitle: { fontSize: 13, color: "#FFFFFF" },
+  navThreadTitle: { fontSize: 13 },
   navChevron: { fontSize: 11, marginLeft: 2 },
-  navStaticTitle: { fontSize: 18, color: "#FFFFFF" },
   navActions: {
     flexDirection: "row",
     alignItems: "center",
@@ -2201,43 +2273,47 @@ const styles = StyleSheet.create({
     gap: Spacing.four,
     paddingVertical: Spacing.two,
   },
-  emptyHeroCard: {
-    borderRadius: 18,
-    padding: Spacing.four,
-    gap: Spacing.two,
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.18)",
-  },
-  emptyHeroTopRow: {
+  coachHeroCard: {
+    width: "100%",
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.three,
+    padding: Spacing.three,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.2)",
+    backgroundColor: "rgba(16, 185, 129, 0.05)",
   },
-  emptyHeroIconContainer: {
-    width: 44,
-    height: 44,
+  coachHeroIconContainer: {
+    width: 40,
+    height: 40,
     borderRadius: 12,
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
     alignItems: "center",
     justifyContent: "center",
   },
-  emptyHeroIcon: { fontSize: 22 },
-  emptyHeroIdentity: { flex: 1, gap: 2 },
-  emptyHeroTracker: {
-    letterSpacing: 0.8,
-    fontSize: 11,
-    color: "#10B981",
-  },
-  emptyStateTitle: {
+  coachHeroIcon: {
     fontSize: 20,
-    fontWeight: "700",
-    letterSpacing: Platform.select({ ios: -0.4, default: 0 }),
+  },
+  coachHeroBody: {
+    flex: 1,
+    gap: 2,
+  },
+  coachHeroBadge: {
+    backgroundColor: "#10B981",
+    paddingHorizontal: Spacing.three,
+    paddingVertical: 7,
+    borderRadius: 10,
+  },
+  coachHeroBadgeText: {
+    color: "#ffffff",
+    fontSize: 12,
   },
   section: { gap: Spacing.two },
   sectionTitle: {
     letterSpacing: 0.8,
     fontSize: 11,
-    opacity: 0.75,
+    color: "#64748B",
   },
   actionGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.two },
   actionCard: {
@@ -2285,6 +2361,7 @@ const styles = StyleSheet.create({
   assistantBubble: {
     alignSelf: "stretch",
     width: "100%",
+    maxWidth: "100%",
     backgroundColor: "rgba(148, 163, 184, 0.08)",
     borderWidth: 1,
     borderColor: "rgba(148, 163, 184, 0.15)",

@@ -146,6 +146,60 @@ describe("submitLogMealWith", () => {
       message: "Network unavailable. Try again when you're online.",
     });
   });
+
+  it("attaches clientOperationId and Idempotency-Key header for retry deduplication (REL-AUD-007)", async () => {
+    const requests: RequestOptions[] = [];
+    const clientOpId = "00000000-0000-4000-8000-000000000099";
+    const result = await submitLogMealWith(
+      {
+        name: "Eggs and coffee",
+        caloriesKcal: 250,
+        proteinG: 14,
+        carbohydrateG: 2,
+        fatG: 18,
+        consumedAt: NOW.toISOString(),
+        clientOperationId: clientOpId,
+      },
+      fakeClient(
+        {
+          ok: true,
+          value: {
+            foodEntry: {
+              id: "meal-123",
+              userId: "00000000-0000-4000-8000-000000000002",
+              name: "Eggs and coffee",
+              consumedAt: NOW.toISOString(),
+              caloriesKcal: 250,
+              proteinG: 14,
+              carbohydrateG: 2,
+              fatG: 18,
+              source: "manual",
+              confidence: null,
+              confirmedByUser: true,
+              clientOperationId: clientOpId,
+              details: {},
+              createdAt: NOW.toISOString(),
+              updatedAt: NOW.toISOString(),
+            },
+          },
+        },
+        requests,
+      ),
+      () => NOW,
+    );
+
+    expect(result).toEqual({ ok: true, id: "meal-123" });
+    expect(requests[0]).toMatchObject({
+      method: "POST",
+      path: "/v1/food-entries",
+      headers: {
+        "Idempotency-Key": clientOpId,
+      },
+    });
+    expect(
+      (requests[0]?.body as { clientOperationId?: string }).clientOperationId,
+    ).toBe(clientOpId);
+  });
 });
 
 // =========================================================================

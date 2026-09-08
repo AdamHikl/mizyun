@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(40);
+select plan(42);
 
 select has_table(
   'public',
@@ -99,6 +99,20 @@ select has_index(
   'messages',
   'messages_user_conversation_idempotency_idx',
   'messages enforce one user message per idempotency key'
+);
+
+select has_column(
+  'public',
+  'food_entries',
+  'client_operation_id',
+  'food_entries has client_operation_id'
+);
+
+select has_index(
+  'public',
+  'food_entries',
+  'food_entries_user_client_op_idx',
+  'food_entries enforces unique client_operation_id per user'
 );
 
 select * from finish();

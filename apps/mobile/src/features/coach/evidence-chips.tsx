@@ -81,12 +81,22 @@ const EVIDENCE_META: Readonly<Record<string, EvidenceMeta>> = {
   },
 };
 
-const resolveMeta = (kind: string): EvidenceMeta =>
+export const resolveMeta = (kind: string): EvidenceMeta =>
   EVIDENCE_META[kind] ?? {
     label: kind.charAt(0).toUpperCase() + kind.slice(1),
     icon: "📋",
     description: `Verified ${kind} records.`,
   };
+
+export function formatEvidenceSummary(kinds: readonly string[]): string {
+  const uniqueKinds = Array.from(new Set(kinds));
+  if (uniqueKinds.length === 0) return "";
+  const labels = uniqueKinds.map((k) => resolveMeta(k).label);
+  const remainingCount = labels.length - 1;
+  return remainingCount <= 0
+    ? labels[0]
+    : `${labels[0]} +${remainingCount} more`;
+}
 
 export interface EvidenceChipsProps {
   readonly kinds: readonly string[];
@@ -94,18 +104,16 @@ export interface EvidenceChipsProps {
 
 export function EvidenceChips({ kinds }: EvidenceChipsProps) {
   const [expanded, setExpanded] = useState(false);
-  if (kinds.length === 0) return null;
+  const uniqueKinds = Array.from(new Set(kinds));
+  if (uniqueKinds.length === 0) return null;
 
   const toggle = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setExpanded((prev) => !prev);
   };
 
-  const labels = kinds.map((k) => resolveMeta(k).label);
-  const summaryText =
-    labels.length <= 2
-      ? labels.join(" & ")
-      : `${labels.slice(0, 2).join(", ")} +${labels.length - 2} more`;
+  const labels = uniqueKinds.map((k) => resolveMeta(k).label);
+  const summaryText = formatEvidenceSummary(uniqueKinds);
 
   return (
     <View style={styles.container}>
@@ -120,6 +128,8 @@ export function EvidenceChips({ kinds }: EvidenceChipsProps) {
         <ThemedText
           type="small"
           themeColor="textSecondary"
+          numberOfLines={1}
+          ellipsizeMode="tail"
           style={styles.toggleLabel}
         >
           Based on {summaryText}
@@ -174,6 +184,7 @@ export function EvidenceChips({ kinds }: EvidenceChipsProps) {
 const styles = StyleSheet.create({
   container: {
     marginTop: Spacing.two,
+    maxWidth: "100%",
   },
   toggleRow: {
     flexDirection: "row",
@@ -185,6 +196,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(16, 185, 129, 0.2)",
     borderRadius: 8,
     alignSelf: "flex-start",
+    maxWidth: "100%",
     gap: 6,
   },
   badgeIcon: {
@@ -192,6 +204,7 @@ const styles = StyleSheet.create({
   },
   toggleLabel: {
     fontSize: 12,
+    flexShrink: 1,
   },
   chevron: {
     fontSize: 10,
@@ -205,6 +218,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(16, 185, 129, 0.18)",
     gap: Spacing.two,
+    maxWidth: "100%",
   },
   cardHeading: {
     fontSize: 13,

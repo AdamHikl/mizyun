@@ -9,7 +9,9 @@ import {
 } from "@mizyun/agent-runtime";
 import type { AccessTokenVerifier } from "@mizyun/identity";
 
+import type { ProfileRepository } from "@mizyun/core";
 import { buildApp } from "../../app.js";
+import { InMemoryProfileRepository } from "../../profile-repository.js";
 import { FoodDraftRateLimiter } from "./draft-rate-limit.js";
 
 const userId = "00000000-0000-4000-8000-000000000001";
@@ -26,10 +28,14 @@ const makeApps = (options: {
   readonly visionProvider: VisionDraftProvider;
   readonly rateLimiter?: FoodDraftRateLimiter;
   readonly resolvePlanTier?: () => "free" | "paid";
+  readonly profileRepository?: ProfileRepository;
 }) => {
   const rateLimiter = options.rateLimiter ?? new FoodDraftRateLimiter();
   const app = buildApp({
     tokenVerifier,
+    ...(options.profileRepository
+      ? { profileRepository: options.profileRepository }
+      : {}),
     coachControls: {
       visionProvider: options.visionProvider,
       draftRateLimiter: rateLimiter,
@@ -512,5 +518,70 @@ describe("Food draft route — rate limit", () => {
     const fourth = await postDraft(app, form);
     expect(fourth.statusCode).toBe(429);
     rateLimiter.__resetForTest();
+  });
+
+  it("enforces daily budget cap to prevent unbounded spend (REL-AUD-006)", async () => {
+    const rateLimiter = new FoodDraftRateLimiter({
+      freePerMinute: 100,
+      freePerDay: 2,
+    });
+    const { app } = makeApps({
+      visionProvider: new StubVisionProvider(),
+      rateLimiter,
+      resolvePlanTier: () => "free",
+    });
+    const form = buildForm({
+      name: "meal.png",
+      content: ONE_PIXEL_PNG,
+      type: "image/png",
+    });
+    const r1 = await postDraft(app, form);
+    expect(r1.statusCode).toBe(200);
+    const r2 = await postDraft(app, form);
+    expect(r2.statusCode).toBe(200);
+    const r3 = await postDraft(app, form);
+    expect(r3.statusCode).toBe(429);
+    expect(r3.headers["retry-after"]).toBeDefined();
+    rateLimiter.__resetForTest();
+  });
+
+  it("blocks food draft access with 403 AI_AGE_RESTRICTED when user is under 18 (Finding R5)", async () => {
+    const profileRepo = new InMemoryProfileRepository({
+      defaultTimezone: "UTC",
+      defaultUnitSystem: "metric",
+    });
+    const defaultProfile = await profileRepo.getOrCreate(userId as never, {
+      now: new Date(),
+      accessToken: "test-token",
+    });
+    profileRepo.__seedForTest({
+      ...defaultProfile,
+      birthYear: 2012, // 2026 - 2012 = 14 (< 18)
+    });
+
+    const { app } = makeApps({
+      visionProvider: new StubVisionProvider(),
+      profileRepository: profileRepo,
+    });
+
+    // Test text draft
+    const textResponse = await app.inject({
+      method: "POST",
+      url: "/v1/food-entries/draft/text",
+      headers: { ...auth, "content-type": "application/json" },
+      payload: { description: "Two eggs and toast" },
+    });
+    expect(textResponse.statusCode).toBe(403);
+    expect(textResponse.json().error.code).toBe("AI_AGE_RESTRICTED");
+
+    // Test photo draft
+    const form = buildForm({
+      name: "meal.png",
+      content: ONE_PIXEL_PNG,
+      type: "image/png",
+    });
+    const photoResponse = await postDraft(app, form);
+    expect(photoResponse.statusCode).toBe(403);
+    expect(photoResponse.json().error.code).toBe("AI_AGE_RESTRICTED");
   });
 });

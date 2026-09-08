@@ -11,6 +11,7 @@ import { useCallback, useState } from "react";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { FeedbackHeaderButton } from "@/components/feedback-header-button";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { apiClient } from "@/composition/api-client";
 import { analyticsClient } from "@/composition/analytics-client";
@@ -273,6 +274,7 @@ export function DashboardScreen() {
               <ThemedText type="smallBold" themeColor="textSecondary">
                 MIZYUN
               </ThemedText>
+              <FeedbackHeaderButton />
             </View>
             <ThemedText type="subtitle">
               {profile?.displayName

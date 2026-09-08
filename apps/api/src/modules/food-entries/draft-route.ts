@@ -37,6 +37,7 @@ import {
 } from "@mizyun/contracts";
 import { randomUUID } from "node:crypto";
 
+import { isAdultEligibleForAi } from "../../ai-eligibility.js";
 import { sendApiError } from "../../errors.js";
 import { FoodDraftRateLimiter } from "./draft-rate-limit.js";
 
@@ -108,6 +109,22 @@ export const foodDraftRoutes: FastifyPluginAsync<
     return options.visionProvider;
   };
 
+  const checkAdultEligibility = async (
+    userId: UserId,
+    accessToken: string,
+  ): Promise<boolean> => {
+    if (!options.profileRepository) return true;
+    try {
+      const profile = await options.profileRepository.getOrCreate(userId, {
+        now: new Date(),
+        accessToken,
+      });
+      return isAdultEligibleForAi(profile, new Date());
+    } catch {
+      return true;
+    }
+  };
+
   app.post(
     "/draft/text",
     { preHandler: app.authenticate },
@@ -121,6 +138,20 @@ export const foodDraftRoutes: FastifyPluginAsync<
           422,
           "VALIDATION_ERROR",
           "Describe the meal in 2 to 1,000 characters.",
+        );
+      }
+      if (
+        !(await checkAdultEligibility(
+          principal.userId as UserId,
+          principal.accessToken,
+        ))
+      ) {
+        return sendApiError(
+          reply,
+          request,
+          403,
+          "AI_AGE_RESTRICTED",
+          "AI features require adult eligibility (18 years or older) under provider terms.",
         );
       }
       const safety = screenCoachInput(parsed.data.description);
@@ -206,6 +237,20 @@ export const foodDraftRoutes: FastifyPluginAsync<
           "Provide a current draft and a 2-to-1,000 character instruction.",
         );
       }
+      if (
+        !(await checkAdultEligibility(
+          principal.userId as UserId,
+          principal.accessToken,
+        ))
+      ) {
+        return sendApiError(
+          reply,
+          request,
+          403,
+          "AI_AGE_RESTRICTED",
+          "AI features require adult eligibility (18 years or older) under provider terms.",
+        );
+      }
       const safety = screenCoachInput(parsed.data.instruction);
       if (!safety.allowed) {
         return sendApiError(
@@ -284,6 +329,20 @@ export const foodDraftRoutes: FastifyPluginAsync<
           422,
           "VALIDATION_ERROR",
           "Photo drafts require multipart/form-data with an `image` field.",
+        );
+      }
+      if (
+        !(await checkAdultEligibility(
+          principal.userId as UserId,
+          principal.accessToken,
+        ))
+      ) {
+        return sendApiError(
+          reply,
+          request,
+          403,
+          "AI_AGE_RESTRICTED",
+          "AI features require adult eligibility (18 years or older) under provider terms.",
         );
       }
 

@@ -6,6 +6,7 @@ import type { FoodEntry } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { FeedbackHeaderButton } from "@/components/feedback-header-button";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { analyticsClient } from "@/composition/analytics-client";
 
@@ -146,6 +147,7 @@ export function MealListScreen() {
               <ThemedText type="smallBold" themeColor="textSecondary">
                 MIZYUN
               </ThemedText>
+              <FeedbackHeaderButton />
             </View>
             <ThemedText type="subtitle">Meals</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">

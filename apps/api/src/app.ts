@@ -13,7 +13,6 @@ import {
 import {
   createSupabaseAccessTokenVerifier,
   createSupabaseRepositoryClient,
-  createSupabaseServiceRoleClient,
   createSupabaseStorageClient,
 } from "@mizyun/adapter-supabase-server";
 import { SesEmailSender } from "@mizyun/adapter-ses";
@@ -100,7 +99,9 @@ import {
   SupabaseBodyMeasurementRepository,
   SupabaseConversationRepository,
   SupabaseMediaAssetRepository,
+  SupabaseAccountRepository,
   SupabaseMediaStorage,
+  createSupabaseServiceRoleClient,
   type RepositorySupabaseClient,
   type StorageSupabaseClient,
 } from "@mizyun/adapter-supabase-server";
@@ -114,6 +115,7 @@ export interface SupabasePersistenceOptions {
    */
   readonly clientFor: (accessToken: string) => RepositorySupabaseClient;
   readonly storageClientFor: (accessToken: string) => StorageSupabaseClient;
+  readonly serviceRoleClient?: RepositorySupabaseClient | null;
 }
 
 export interface CoachControlOptions {
@@ -312,6 +314,14 @@ const defaultDependencies = (): AppDependencies => {
   }
   if (config.supabase.configured && config.supabaseConfig) {
     const supabaseConfig = config.supabaseConfig;
+    const serviceRoleClient =
+      supabaseConfig.serviceRoleKey !== undefined
+        ? createSupabaseServiceRoleClient({
+            url: supabaseConfig.url,
+            publishableKey: supabaseConfig.publishableKey,
+            serviceRoleKey: supabaseConfig.serviceRoleKey,
+          })
+        : null;
     return {
       ...base,
       memories: new SupabaseMemoryStore({
@@ -323,6 +333,7 @@ const defaultDependencies = (): AppDependencies => {
           createSupabaseRepositoryClient(supabaseConfig, accessToken),
         storageClientFor: (accessToken: string) =>
           createSupabaseStorageClient(supabaseConfig, accessToken),
+        serviceRoleClient,
       },
     };
   }
@@ -491,19 +502,6 @@ export const buildApp = (
     (sp
       ? new SupabaseFeedbackRepository({ clientFor: sp.clientFor })
       : new InMemoryFeedbackRepository());
-  const accountRepository =
-    dependencies.accountRepository ??
-    new InMemoryAccountRepository({
-      profileRepository,
-      goalRepository,
-      foodEntryRepository,
-      exerciseRepository,
-      workoutRepository,
-      workoutSetRepository,
-      bodyMeasurementRepository,
-      conversationRepository,
-      feedbackRepository,
-    });
   const mediaAssetRepository =
     dependencies.mediaAssetRepository ??
     (sp
@@ -518,6 +516,38 @@ export const buildApp = (
       ? new SupabaseMediaStorage({ clientFor: sp.storageClientFor })
       : new InMemoryMediaStorage());
   const MEDIA_BUCKET_ID = "private-media";
+
+  const accountRepository =
+    dependencies.accountRepository ??
+    (sp
+      ? new SupabaseAccountRepository({
+          profileRepository,
+          goalRepository,
+          foodEntryRepository,
+          exerciseRepository,
+          workoutRepository,
+          workoutSetRepository,
+          bodyMeasurementRepository,
+          conversationRepository,
+          feedbackRepository,
+          mediaAssetRepository,
+          mediaStorage,
+          memoryStore: resolveMemoryStore(dependencies),
+          serviceRoleClient: sp.serviceRoleClient ?? null,
+        })
+      : new InMemoryAccountRepository({
+          profileRepository,
+          goalRepository,
+          foodEntryRepository,
+          exerciseRepository,
+          workoutRepository,
+          workoutSetRepository,
+          bodyMeasurementRepository,
+          conversationRepository,
+          feedbackRepository,
+          mediaAssetRepository,
+          mediaStorage,
+        }));
 
   const emailSender =
     dependencies.emailSender ??

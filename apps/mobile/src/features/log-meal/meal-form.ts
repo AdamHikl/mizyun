@@ -27,6 +27,7 @@ export interface MealFormStrings {
 }
 
 export interface RecoverableMealDraft extends MealFormStrings {
+  readonly clientOperationId?: string;
   readonly description?: string;
   readonly aiDraft?: FoodDraftCandidate;
   readonly sourceProposalId?: string;
@@ -42,6 +43,9 @@ export const isRecoverableMealDraft = (
   const stringsValid = ["name", "calories", "protein", "carbs", "fat"].every(
     (field) => typeof record[field] === "string",
   );
+  const clientOpIdValid =
+    record.clientOperationId === undefined ||
+    typeof record.clientOperationId === "string";
   const descriptionValid =
     record.description === undefined || typeof record.description === "string";
   const aiDraftValid =
@@ -58,6 +62,7 @@ export const isRecoverableMealDraft = (
     typeof record.attachedPhotoUri === "string";
   return (
     stringsValid &&
+    clientOpIdValid &&
     descriptionValid &&
     aiDraftValid &&
     proposalIdValid &&

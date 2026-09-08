@@ -6,6 +6,7 @@ import type { Workout } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { FeedbackHeaderButton } from "@/components/feedback-header-button";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { analyticsClient } from "@/composition/analytics-client";
 import { useAuth } from "@/features/auth/auth-context";
@@ -151,6 +152,7 @@ export function WorkoutsHubScreen() {
               <ThemedText type="smallBold" themeColor="textSecondary">
                 MIZYUN
               </ThemedText>
+              <FeedbackHeaderButton />
             </View>
             <ThemedText type="subtitle">Workouts</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">

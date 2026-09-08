@@ -43,6 +43,8 @@ import {
   parseOptionalNutritionNumber,
 } from "./meal-form";
 import { normalizeMealPhoto } from "./meal-photo";
+import { loadAiConsent, saveAiConsent } from "@/features/coach/ai-consent";
+import { AiConsentModal } from "@/features/coach/ai-consent-modal";
 
 const draftEvidenceLines = (
   draft: import("@mizyun/contracts").FoodDraftCandidate,
@@ -106,6 +108,37 @@ export function LogMealScreen() {
   const measurement = useRef<LoggingFlowMeasurement | null>(null);
   const hadFailure = useRef(false);
   const userId = session?.user.id ?? null;
+  const [aiConsentGranted, setAiConsentGranted] = useState(false);
+  const [aiConsentModalVisible, setAiConsentModalVisible] = useState(false);
+  const pendingAiAction = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    if (userId === null) return;
+    void loadAiConsent(userId).then((status) => {
+      setAiConsentGranted(status.granted && status.confirmedAdult);
+    });
+  }, [userId]);
+
+  const handleAiConsent = useCallback(async () => {
+    if (userId !== null) {
+      await saveAiConsent(userId, true, true);
+    }
+    setAiConsentGranted(true);
+    setAiConsentModalVisible(false);
+    if (pendingAiAction.current) {
+      const action = pendingAiAction.current;
+      pendingAiAction.current = null;
+      action();
+    }
+  }, [userId]);
+
+  const handleAiDecline = useCallback(() => {
+    setAiConsentModalVisible(false);
+    pendingAiAction.current = null;
+    setError(
+      "AI meal drafting requires consent to third-party AI processing and adult eligibility.",
+    );
+  }, []);
 
   useEffect(() => {
     measurement.current = new LoggingFlowMeasurement("meal", analyticsClient);
@@ -287,6 +320,11 @@ export function LogMealScreen() {
 
   const onProcessPhoto = useCallback(async () => {
     if (attachedPhoto === null) return;
+    if (!aiConsentGranted) {
+      pendingAiAction.current = () => void onProcessPhoto();
+      setAiConsentModalVisible(true);
+      return;
+    }
     measurement.current?.tap();
     if (hadFailure.current) measurement.current?.retry();
     setSnapping(true);
@@ -327,10 +365,15 @@ export function LogMealScreen() {
     } finally {
       setSnapping(false);
     }
-  }, [attachedPhoto, mealDescription]);
+  }, [aiConsentGranted, attachedPhoto, mealDescription]);
 
   const onTextDraft = useCallback(async () => {
     if (mealDescription.trim().length < 2) return;
+    if (!aiConsentGranted) {
+      pendingAiAction.current = () => void onTextDraft();
+      setAiConsentModalVisible(true);
+      return;
+    }
     measurement.current?.tap();
     if (hadFailure.current) measurement.current?.retry();
     setSnapping(true);
@@ -361,7 +404,7 @@ export function LogMealScreen() {
     } finally {
       setSnapping(false);
     }
-  }, [mealDescription]);
+  }, [aiConsentGranted, mealDescription]);
 
   // AI-ACT-007 — refine the current AI draft with a follow-up
   // instruction. The endpoint takes the current draft as
@@ -373,6 +416,11 @@ export function LogMealScreen() {
   const onRefineDraft = useCallback(async () => {
     const instruction = refineInstruction.trim();
     if (instruction.length < 2 || aiDraft === null || refining || submitting) {
+      return;
+    }
+    if (!aiConsentGranted) {
+      pendingAiAction.current = () => void onRefineDraft();
+      setAiConsentModalVisible(true);
       return;
     }
     setRefining(true);
@@ -397,7 +445,7 @@ export function LogMealScreen() {
     } finally {
       setRefining(false);
     }
-  }, [refineInstruction, aiDraft, refining, submitting]);
+  }, [aiConsentGranted, refineInstruction, aiDraft, refining, submitting]);
 
   const hasContent =
     name.trim().length > 0 ||
@@ -828,6 +876,12 @@ export function LogMealScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
+
+      <AiConsentModal
+        visible={aiConsentModalVisible}
+        onConsent={() => void handleAiConsent()}
+        onDecline={handleAiDecline}
+      />
     </ThemedView>
   );
 }

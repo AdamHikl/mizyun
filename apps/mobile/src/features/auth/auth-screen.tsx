@@ -9,6 +9,7 @@ import {
   Text,
   TextInput,
   View,
+  Platform,
 } from "react-native";
 
 import { GoogleIcon } from "@/components/google-icon";
@@ -184,7 +185,7 @@ export function AuthScreen() {
       <Text style={styles.eyebrow}>YOUR PRIVATE FITNESS SPACE</Text>
       <Text style={styles.title}>{title}</Text>
 
-      {mode !== "forgot" ? (
+      {mode !== "forgot" && Platform.OS !== "ios" ? (
         <>
           <Pressable
             accessibilityLabel="Continue with Google"

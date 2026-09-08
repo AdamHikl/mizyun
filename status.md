@@ -1,21 +1,76 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-09-03** (AI-PROV-004: Enable multi-round tool continuation for Coach workout proposals & fix retry freshness).
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-09-08** (Milestones 1, 2, & 3 complete: Account export/deletion lifecycle, database plan tier protection, idempotent meal logging, iOS Apple 4.8 compliance, Gemini adult gate & explicit AI consent modal, spend quotas, and accurate legal disclosures verified 100% green via `pnpm check`).
 
-## Executive snapshot
+## Release Readiness Remediations (Milestones 1–3) — 2026-09-08
+
+Milestones 1, 2, and 3 of [`docs/RELEASE_READINESS_2026-09-07.md`](docs/RELEASE_READINESS_2026-09-07.md) are complete and verified:
+
+1. **Account Export & Deletion Lifecycle (REL-AUD-001 & REL-AUD-002 / R1 & R2)**:
+   - `packages/core/src/account.ts`: `AccountRepository` widened to accept authenticated caller `accessToken`.
+   - `packages/adapters/supabase-server/src/account-repository.ts`: Implemented `SupabaseAccountRepository`:
+     - Exports user data across all tables under RLS.
+     - Deletion challenge with TTL.
+     - Cascade deletion: private storage files purged via `mediaStorage.remove`, memories purged via `memoryStore.delete`, and auth user + cascading db records purged via `serviceRoleClient.auth.admin.deleteUser`.
+   - `apps/api/src/modules/account/routes.ts`: Wired `SupabaseAccountRepository`, forwarded `accessToken`, and honest error handling for memory deletion.
+   - `apps/mobile/src/features/settings/account-data-management.ts` & `account-data-card.tsx`: Added JSON archive export via native Share sheet and 2-step account erasure with logout.
+   - `apps/mobile/src/features/settings/settings-screen.tsx`: Integrated `AccountDataCard`.
+   - `apps/api/src/modules/legal/routes.ts`: Added external deletion pathway route `/legal/delete-account` for Google Play compliance.
+
+2. **Data Integrity & Security Lockdown (REL-AUD-006 & REL-AUD-007 / R6 & R7)**:
+   - `supabase/migrations/20260908120000_security_and_retry_integrity.sql`:
+     - Revoked column-level update on `profiles.plan_tier` from `authenticated` and `anon`.
+     - Added PostgreSQL function & trigger `trg_protect_profile_plan_tier` preventing non-service_role updates to `plan_tier`.
+     - Added column `client_operation_id uuid null` to `public.food_entries` with unique partial index `food_entries_user_client_op_idx`.
+   - `packages/contracts/src/food-entry.ts`: Added `clientOperationId` to `foodEntryCreateSchema` and `foodEntrySchema`.
+   - `packages/core/src/food-entry.ts`: Added `clientOperationId` to `StoredFoodEntry` and `findByClientOperationId` to `FoodEntryRepository`.
+   - `packages/adapters/supabase-server/src/food-entry-repository.ts` & `apps/api/src/food-entry-repository.ts`: Implemented `findByClientOperationId` and collision-safe insert returning existing row on retry.
+   - `apps/api/src/modules/food-entries/routes.ts`: Idempotency handling on `POST /v1/food-entries` via `clientOperationId` and `Idempotency-Key` header.
+   - `apps/mobile/src/features/log-meal/meal-form.ts` & `log-meal-data.ts`: Attached stable `clientOperationId` to drafts and requests; header sent on retries.
+   - `apps/api/src/modules/food-entries/draft-rate-limit.ts`: Added daily budget caps (20 calls/day free, 100 calls/day paid) preventing unbounded vision spend.
+   - `packages/providers/gemini/src/index.ts`: Documented `GeminiContentModerator` / `LocalHeuristicContentModerator` accurately as a local fast-path safety screen.
+
+3. **Store & AI Compliance Gates (REL-AUD-004 & REL-AUD-005 / R4 & R5)**:
+   - `apps/mobile/src/features/auth/auth-screen.tsx`: Modified Google Sign-In to render only when `Platform.OS !== "ios"`, ensuring iOS release candidate relies solely on native email/password per Apple Guideline 4.8 without needing Apple developer keys.
+   - `apps/mobile/src/features/coach/ai-consent.ts` & `ai-consent-modal.tsx`: Explicit third-party AI sharing and adult eligibility consent dialog disclosing Google LLC (Gemini API), transient processing, no public model training, and 30-day abuse monitoring retention. Enforced in `coach-setup-screen.tsx` and `log-meal-screen.tsx`.
+   - `apps/api/src/ai-eligibility.ts`: Server-side adult age check (`isAdultEligibleForAi`) returning 403 `AI_AGE_RESTRICTED` in `coach/routes.ts`, `coach/nutrition-photo-routes.ts`, and `food-entries/draft-route.ts`.
+   - Updated legal disclosures in `apps/api/src/modules/legal/routes.ts`, `docs/PRIVACY_POLICY.md`, and `docs/BEFORE_TESTING.md`.
+
+4. **Monorepo Verification**:
+   - `pnpm check`: 100% green (Prettier formatting, 15 workspace typechecks, iOS and Android Hermes bundle exports, 1,274 passing tests across 34 suites).
+
+**Next exact action**: Commit release candidate and deploy to Dev on the Raspberry Pi via `pnpm deploy:dev`.
+
+## Release audit — 2026-09-07
+
+### Follow-up: dual-environment implementation guide
+
+The user requested a guide for separate Dev and Production backends on the Pi and both iPhone variants from one Mac repository. [The guide](docs/tutorials/DEV_PRODUCTION_PI_GUIDE.md) and proposed [ADR-0020](docs/adr/0020-dual-pi-environments-and-explicit-releases.md) specify isolated resources, feature branches, exact-SHA releases, Metro versus standalone Dev builds, migration compatibility, and acceptance work packages INFRA-DUAL-001–005. No environments, app configurations, branches, signing, or deployment rules were changed. The future implementation starts with existing SSH access recovery and read-only Pi capacity/backup inventory; production records must remain intact. The old automatic per-commit promotion rule is to be amended when the requested workflow is adopted. Guide verification: Markdown formatting, relative links, and diff checks; application checks passed earlier in this session as recorded below.
+
+### Current release audit result
+
+The [friends-beta readiness audit](docs/RELEASE_READINESS_2026-09-07.md) supersedes earlier release-readiness claims below. **Current build: not ready for unsupervised external testing with personal data.** Product functionality is sufficient to justify a small pilot after the listed gates pass.
+
+- Audited `main` at `108234c` plus preserved pre-existing mobile/Coach/feedback/workout and documentation edits. No application code was changed, committed, pushed, or promoted by this audit.
+- Fresh `pnpm check` passed: formatting, workspace typechecks, both mobile bundle exports, **1,269 tests**, **13 Auth/persistence tests skipped**. No clean database reset, live AI evaluation, or physical-device journey was performed.
+- Network-free probes reproduced production-composition account export/deletion HTTP 500 (empty repository token), and duplicate meal records on identical repeated POSTs. Mobile has no full account export/delete entry point. Checked-in EAS production settings resolve to the Dev identity unless externally overridden.
+- Public API/Auth health and legal pages returned 200; protected anonymous requests returned 401. Live Auth has confirmation enabled, open signup, Google enabled, Apple disabled. Coach reports Gemini 3.8 Flash with external access enabled. Email delivery and OAuth completion remain unverified.
+- Pi SSH failed with `Permission denied (publickey)`, preventing current SHA/service/backup inspection. Simulator controls failed and the isolated web preview hit an Expo render error; this audit does not claim fresh visual/native acceptance.
+- First release patch after the separation checkpoint: **REL-AUD-001 / REL-001 — repair the authenticated persistent account export/deletion lifecycle**, then add its mobile controls and two-user end-to-end acceptance. Resolve the signing, retry, AI and operational findings before invitations. Existing AI founder-only permission remains founder-only.
+- Audit report and research/backlog updates are local documentation changes. Prior uncommitted user work remains intact. No release or invitation was made.
+
+## Executive snapshot (historical; see current audit above)
 
 - **Product stage:** technical pre-alpha; pre-release launch preparation complete; AI stack fully consolidated on Google Gemini 3.8 Flash.
-- **Roadmap position:** AI-PROV-004 complete.
+- **Roadmap position:** FEEDBACK-UX-003 complete.
 - **Latest verified implementation slice:**
-  1. Configured `COACH_MAX_TOOL_ROUND_TRIPS = 5` in `apps/api/src/app.ts` so multi-turn workout generation (searching catalog + proposing routine) has sufficient round-trip budget for deep queries.
-  2. Updated `AgentOrchestrator.respond` in `packages/agent-runtime/src/index.ts` to pass available tools during subsequent rounds when `toolCallsUsed < this.#maxToolCalls`, allowing the model to call `propose_workout_plan` after exercise searches.
-  3. Added deterministic workout plan fallback in `apps/api/src/modules/coach/routes.ts` if `AgentToolBudgetExceededError` occurs on workout proposal requests so the user never sees an error and always receives their plan.
-  4. Updated mobile `CoachSetupScreen` to generate fresh idempotency keys upon retry and replace failed optimistic bubbles, avoiding 409 Conflict rejection.
-  5. Monorepo quality gate (`pnpm check`): 100% passing across Prettier, all 15 package typechecks, iOS and Android Hermes bundle builds, and 1,062+ unit tests.
-  6. Promoted commit `c02a67a` (`c02a67ab31a101c06c9a3ebdf275f9d0cee4a992`) to Raspberry Pi 5 (`rpserver`) via `scripts/promote-production.sh`. Live end-to-end verification via public API (`https://mizyun-api.phiskel.com`) with real user credentials produced HTTP 200 and attached the 3-day V-shape split proposal card.
-- **iOS:** physical iPhone 16 Pro (`Adam's Iphone 😋`, `7FBC9ACC-918A-5A9B-8D22-B9F1FF652A06`) running fresh Production Release build `com.mizyun.app` with Gemini 3.8 Flash, verified installed via `xcrun devicectl`.
+  1. Created reusable `FeedbackHeaderButton` (`apps/mobile/src/components/feedback-header-button.tsx`) styled as a sleek capsule pill (`💬 Feedback`) with theme-aware background/border/text and active pressed opacity.
+  2. Integrated `FeedbackHeaderButton` into the top header row (`styles.headerTopRow`) to the right of the `MIZYUN` eyebrow across all 5 main app tabs: Home (Dashboard), Workouts, Meals, Coach (alongside action icons `⚡`, `＋`, `🗑️`), and Account (Settings, alongside `Authenticated` badge).
+  3. Added component unit test `apps/mobile/src/components/feedback-header-button.test.ts` verifying accessibility attributes and `router.push("/feedback")` navigation.
+  4. Monorepo quality gate (`pnpm check`): 100% passing across Prettier, all 15 package typechecks, iOS (1,777 modules) and Android (1,866 modules) Hermes bundle builds, and 1,072 unit tests.
+- **iOS:** physical iPhone 16 Pro (`Adam's Iphone 😋`, `7FBC9ACC-918A-5A9B-8D22-B9F1FF652A06`) running Production Release build `com.mizyun.app`.
 - **Production Host:** Raspberry Pi 5 (`rpserver`, Ubuntu 24.04 ARM64, Tailscale IP `100.116.142.1`). Remote git checkout updated to commit `c02a67a` (`c02a67ab31a101c06c9a3ebdf275f9d0cee4a992`). Public health (`https://mizyun-api.phiskel.com/v1/health`) verified live (HTTP 200).
-- **Branch:** `main` (commit `c02a67a` pushed to `origin/main`).
+- **Branch:** `main`.
 - **Dev loop (current focus):** `pnpm check` green: formatting, all workspace typechecks, iOS and Android production exports, and all tests passed.
 
 ## What is genuinely delivered

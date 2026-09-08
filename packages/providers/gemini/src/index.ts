@@ -782,13 +782,24 @@ export interface GeminiModerationOptions {
   readonly model?: string;
 }
 
+/**
+ * LocalHeuristicContentModerator (REL-AUD-006).
+ *
+ * NOTE: This is a fast, local-heuristic screen designed to catch critical self-harm
+ * and non-wellness emergency language before external model calls are made. It is
+ * NOT an external Gemini Moderation API endpoint (Google Gemini does not offer a
+ * standalone moderation endpoint analogous to OpenAI's or Mistral's; Gemini instead
+ * enforces content safety at the model inference boundary using safetySettings
+ * for HARM_CATEGORY_HARASSMENT, HARM_CATEGORY_HATE_SPEECH,
+ * HARM_CATEGORY_SEXUALLY_EXPLICIT, and HARM_CATEGORY_DANGEROUS_CONTENT).
+ */
 export class GeminiContentModerator implements ContentModerator {
   readonly #externalAccess: boolean;
   readonly #model: string;
 
   constructor(options: GeminiModerationOptions) {
     this.#externalAccess = options.externalAccess;
-    this.#model = options.model ?? "gemini-moderation";
+    this.#model = options.model ?? "local-heuristic-moderation";
   }
 
   async moderateText(input: {
@@ -798,7 +809,7 @@ export class GeminiContentModerator implements ContentModerator {
     if (!this.#externalAccess) {
       throw new Error("External moderation access is disabled.");
     }
-    // Screen for severe non-wellness harms
+    // Fast-path heuristic screen for severe non-wellness emergency harms
     const lower = input.text.toLowerCase();
     if (
       lower.includes("suicide") ||
@@ -819,6 +830,9 @@ export class GeminiContentModerator implements ContentModerator {
     };
   }
 }
+
+/** Alias for semantic clarity */
+export const LocalHeuristicContentModerator = GeminiContentModerator;
 
 export {
   GeminiVisionProvider,

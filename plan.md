@@ -13,11 +13,9 @@
 
 ## Current focus
 
-🚧 **Cross-cutting infrastructure checkpoint — establish isolated Mac development and Windows founder production.**
+✅ **Dual Pi Dev/Production separation complete (2026-09-08):** INFRA-DUAL-001 through INFRA-DUAL-005 and Finding R9 resolved. Dev backend (`mizyun-api-dev.phiskel.com`, `mizyun-supabase-dev.phiskel.com`), `com.mizyun.dev` local Xcode mobile build, and exact-SHA deployment tooling (`deploy:dev`, `deploy:production`) are operational.
 
-ADR-0018 separates the disposable Mac Supabase/API development loop from a persistent founder-production environment on the Windows PC. Configuration and exact-commit promotion guards are implemented; the next active step is one-time Windows/WSL2 provisioning, official self-hosted Supabase installation, reboot proof, first backup/restore drill, and authenticated synthetic acceptance. The AI completion audit resumes after this stable device-reachable backend exists. Real-user AI access remains blocked until the provider policy/privacy, safety, deletion/isolation, budget, and two-platform gates pass.
-
-Founder production temporarily auto-confirms new email/password accounts because outbound email is not configured. This is an explicit single-founder alpha exception, not an external-release design: AUTH-SMTP-001 must add domain-authenticated confirmation and recovery email from `no-reply@phiskel.com` before design-partner beta.
+🚧 **Next work package: REL-AUD-001 (persistent complete account export and deletion lifecycle)**, followed by REL-AUD-002 (mobile data controls) and REL-AUD-007 (idempotent logging retries) on Dev. Finish R3 signed-artifact and R8 device/operational acceptance on the final candidate before external friends-beta invitations.
 
 ## Dependency sequence
 

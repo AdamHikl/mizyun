@@ -92,7 +92,7 @@ const renderLayout = (title: string, contentHtml: string): string => `
     </div>
     ${contentHtml}
     <div class="footer">
-      &copy; 2026 Mizyun · <a href="/legal/privacy">Privacy Policy</a> · <a href="/legal/terms">Terms of Service</a> · <a href="/legal/support">Support</a>
+      &copy; 2026 Mizyun · <a href="/legal/privacy">Privacy Policy</a> · <a href="/legal/terms">Terms of Service</a> · <a href="/legal/delete-account">Delete Account</a> · <a href="/legal/support">Support</a>
     </div>
   </div>
 </body>
@@ -130,7 +130,16 @@ export const legalRoutes: FastifyPluginAsync = async (app) => {
         </p>
       </div>
 
-      <h2>3. Data Ownership & Deletion (GDPR / CCPA)</h2>
+      <h2>3. Third-Party AI Subprocessor (Google Gemini)</h2>
+      <p>Mizyun integrates third-party artificial intelligence services to power the conversational AI Coach and photo-based meal nutrition drafting:</p>
+      <ul>
+        <li><strong>Subprocessor:</strong> Google LLC (&ldquo;Google Gemini API&rdquo;).</li>
+        <li><strong>Data Transmitted:</strong> When you use Coach or submit meal photos or descriptions, your prompt text, photo bytes, and relevant confirmed fitness logs (active goals, recent confirmed meals, workout summaries, and weight trends) are transmitted securely to Google for inference.</li>
+        <li><strong>Transient Processing &amp; No Model Training:</strong> Under Google Gemini API commercial terms, data is processed transiently to return inferences and is <strong>not</strong> used to train Google&rsquo;s public foundation models. API logs may be retained by Google for abuse monitoring for up to 30 days. Processing may occur internationally.</li>
+        <li><strong>Adult Eligibility (18+):</strong> Under Google API terms, AI features are strictly restricted to adults aged 18 and older. Minors are not eligible to access AI features.</li>
+      </ul>
+
+      <h2>4. Data Ownership & Deletion (GDPR / CCPA)</h2>
       <p>You own your data completely. Directly in the Mizyun mobile app under <strong>Account > Settings & Privacy</strong>, you can:</p>
       <ul>
         <li><strong>Export Data:</strong> Download a full JSON archive of all your records.</li>
@@ -138,7 +147,7 @@ export const legalRoutes: FastifyPluginAsync = async (app) => {
         <li><strong>Delete Account:</strong> Permanently erase your account, login identity, database rows, and media files with instant two-step deletion.</li>
       </ul>
 
-      <h2>4. Contact Us</h2>
+      <h2>5. Contact Us</h2>
       <p>If you have any questions or data requests, please contact us at <a href="mailto:support@phiskel.com">support@phiskel.com</a>.</p>
       `,
     );
@@ -191,6 +200,49 @@ export const legalRoutes: FastifyPluginAsync = async (app) => {
         <li><strong>In-App Feedback:</strong> Go to <strong>Account > Settings > Send Feedback</strong> to send direct ratings, bug reports, and suggestions.</li>
         <li><strong>Website:</strong> <a href="https://phiskel.com" target="_blank">phiskel.com</a></li>
       </ul>
+      `,
+    );
+    void reply.type("text/html").send(html);
+  });
+
+  app.get("/delete-account", async (_request, reply) => {
+    const html = renderLayout(
+      "Account & Data Deletion",
+      `
+      <p><strong>Last Updated:</strong> September 8, 2026</p>
+      <p>At <strong>Mizyun</strong>, you retain full ownership and control over your personal fitness, health, and account records. In compliance with Google Play Developer Policies and global privacy regulations (GDPR, CCPA), you can permanently delete your account and all associated data at any time.</p>
+
+      <h2>What Data Is Deleted</h2>
+      <p>When you request account deletion, the following data is permanently purged:</p>
+      <ul>
+        <li><strong>Authentication & Identity:</strong> Your email address, password hashes, and active auth sessions.</li>
+        <li><strong>Profile & Physical Metrics:</strong> Name, birth date, sex, height, unit preferences, and nutrition targets.</li>
+        <li><strong>Nutrition & Food Logs:</strong> All logged meals, custom foods, macro breakdowns, and time stamps.</li>
+        <li><strong>Training & Workouts:</strong> All workout routines, logged exercises, completed sets, reps, weight loads, and RPE scores.</li>
+        <li><strong>Body Progress & Photos:</strong> Weight history, circumference measurements, and all private progress photo files in cloud storage.</li>
+        <li><strong>AI Conversations & Memories:</strong> All conversation transcripts with the AI Coach and learned durable memory embeddings.</li>
+      </ul>
+      <p>Deletion is immediate, irrevocable, and completely purges all records across our database and storage systems.</p>
+
+      <h2>How to Request Deletion</h2>
+
+      <h3>Option 1: In the Mobile App (Instant)</h3>
+      <ol>
+        <li>Open the <strong>Mizyun</strong> app on your device.</li>
+        <li>Navigate to the <strong>Account & Settings</strong> screen (top right avatar or bottom tab).</li>
+        <li>Under <strong>Privacy, Data & Memory</strong>, tap <strong>Account Data & Erasure</strong>.</li>
+        <li>Tap the red <strong>Delete Account & All Data</strong> button and confirm the prompt.</li>
+        <li>Your account and data are instantly and permanently erased, and you are signed out.</li>
+      </ol>
+
+      <h3>Option 2: Web / Email Request</h3>
+      <p>If you have uninstalled the app or cannot access your account, you can request manual deletion by sending an email:</p>
+      <ul>
+        <li><strong>To:</strong> <a href="mailto:support@phiskel.com?subject=Account%20Deletion%20Request">support@phiskel.com</a></li>
+        <li><strong>Subject:</strong> Account Deletion Request</li>
+        <li><strong>Body:</strong> Please send the request from the email address registered with your Mizyun account.</li>
+      </ul>
+      <p>Manual deletion requests sent via email will be verified and processed within 48 hours, followed by an email confirmation once erasure is complete.</p>
       `,
     );
     void reply.type("text/html").send(html);

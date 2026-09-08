@@ -30,6 +30,19 @@ export class InMemoryFoodEntryRepository implements FoodEntryRepository {
   readonly #byUser = new Map<UserId, StoredFoodEntry[]>();
   readonly #byId = new Map<string, StoredFoodEntry>();
 
+  async findByClientOperationId(
+    userId: UserId,
+    clientOperationId: string,
+    options: { readonly accessToken: string },
+  ): Promise<StoredFoodEntry | null> {
+    void options.accessToken;
+    const list = this.#byUser.get(userId) ?? [];
+    return (
+      list.find((entry) => entry.clientOperationId === clientOperationId) ??
+      null
+    );
+  }
+
   async create(
     userId: UserId,
     entry: StoredFoodEntry,
@@ -41,6 +54,16 @@ export class InMemoryFoodEntryRepository implements FoodEntryRepository {
     }
     if (this.#byId.has(entry.id)) {
       throw new Error(`food entry id collision ${entry.id}`);
+    }
+    if (entry.clientOperationId) {
+      const existing = await this.findByClientOperationId(
+        userId,
+        entry.clientOperationId,
+        options,
+      );
+      if (existing !== null) {
+        return existing;
+      }
     }
     const list = this.#byUser.get(userId) ?? [];
     this.#byUser.set(userId, [...list, entry]);

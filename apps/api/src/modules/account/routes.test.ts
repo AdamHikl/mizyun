@@ -373,4 +373,66 @@ describe("DELETE /v1/account", () => {
     });
     expect(second.statusCode).toBe(409);
   });
+
+  it("passes the caller's accessToken to exportForUser and deleteUser", async () => {
+    let capturedExportOptions: { readonly accessToken?: string } | undefined;
+    let capturedDeleteOptions: { readonly accessToken?: string } | undefined;
+
+    const mockAccountRepo = {
+      exportForUser: async (
+        _userId: UserId,
+        options?: { readonly accessToken?: string },
+      ) => {
+        capturedExportOptions = options;
+        return {
+          userId: userA,
+          generatedAt: new Date(),
+          profile: null,
+          goals: [],
+          foodEntries: [],
+          exercises: [],
+          workouts: [],
+          workoutSets: [],
+          bodyMeasurements: [],
+          conversations: [],
+          privateMedia: [],
+          feedback: [],
+        };
+      },
+      issueDeletionChallenge: async () => "challenge-token-123",
+      deleteUser: async (
+        _userId: UserId,
+        options: { readonly accessToken?: string },
+      ) => {
+        capturedDeleteOptions = options;
+        return { deleted: true as const };
+      },
+    };
+
+    const app = buildApp({
+      tokenVerifier: tokenVerifierFor({ userId: userA }),
+      accountRepository: mockAccountRepo,
+    });
+    apps.push(app);
+
+    const exportRes = await app.inject({
+      method: "GET",
+      url: "/v1/account/export",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(exportRes.statusCode).toBe(200);
+    expect(capturedExportOptions?.accessToken).toBe("test-token");
+
+    const deleteRes = await app.inject({
+      method: "DELETE",
+      url: "/v1/account",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: { confirmationToken: "challenge-token-123" },
+    });
+    expect(deleteRes.statusCode).toBe(200);
+    expect(capturedDeleteOptions?.accessToken).toBe("test-token");
+  });
 });

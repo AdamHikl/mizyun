@@ -26,6 +26,7 @@ export type LogMealResult =
   | { readonly ok: false; readonly message: string };
 
 export interface LogMealForm {
+  readonly clientOperationId?: string;
   readonly name: string;
   readonly caloriesKcal: number | null;
   readonly proteinG: number | null;
@@ -74,7 +75,9 @@ export const submitLogMealWith = async (
   if (trimmedName.length === 0) {
     return { ok: false, message: "Name a meal first." };
   }
+  const clientOperationId = form.clientOperationId ?? crypto.randomUUID();
   const payload: FoodEntryCreate = {
+    clientOperationId,
     name: trimmedName,
     consumedAt: form.consumedAt ?? now().toISOString(),
     ...(form.caloriesKcal !== null ? { caloriesKcal: form.caloriesKcal } : {}),
@@ -96,6 +99,9 @@ export const submitLogMealWith = async (
     method: "POST",
     path: "/v1/food-entries",
     body: parsed.data,
+    headers: {
+      "Idempotency-Key": clientOperationId,
+    },
     schema: foodEntryResponseSchema,
   });
   if (!result.ok) {

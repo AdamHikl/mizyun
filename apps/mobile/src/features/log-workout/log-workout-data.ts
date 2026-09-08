@@ -36,6 +36,10 @@ export interface WorkoutWorkspace {
 export type WorkoutMutationResult =
   { readonly ok: true } | { readonly ok: false; readonly message: string };
 
+export type AddWorkoutSetResult =
+  | { readonly ok: true; readonly workoutSet: WorkoutSet }
+  | { readonly ok: false; readonly message: string };
+
 export type StartWorkoutResult =
   | { readonly ok: true; readonly workout: Workout }
   | { readonly ok: false; readonly message: string };
@@ -251,7 +255,7 @@ const optionalNumber = (raw: string): number | null | "invalid" => {
 export const addWorkoutSet = async (
   workoutId: string,
   form: WorkoutSetForm,
-): Promise<WorkoutMutationResult> =>
+): Promise<AddWorkoutSetResult> =>
   addWorkoutSetWith(apiClient, workoutId, form);
 
 export const addWorkoutSetWith = async (
@@ -259,7 +263,7 @@ export const addWorkoutSetWith = async (
   workoutId: string,
   form: WorkoutSetForm,
   now: () => Date = () => new Date(),
-): Promise<WorkoutMutationResult> => {
+): Promise<AddWorkoutSetResult> => {
   const repetitions = optionalNumber(form.repetitions);
   const load = optionalNumber(form.load);
   const durationSeconds = optionalNumber(form.durationSeconds);
@@ -300,7 +304,7 @@ export const addWorkoutSetWith = async (
     schema: workoutSetResponseSchema,
   });
   return result.ok
-    ? { ok: true }
+    ? { ok: true, workoutSet: result.value.workoutSet }
     : { ok: false, message: humanize(result.error, "Save that set") };
 };
 
@@ -397,4 +401,92 @@ export const abandonWorkoutWith = async (
   return result.ok
     ? { ok: true }
     : { ok: false, message: humanize(result.error, "Delete that workout") };
+};
+
+/**
+ * WO-UX-002 — Clone-on-complete routine preservation.
+ *
+ * When a workout that originated from a routine (has planned exercises
+ * in `details.coachPlan`, `details.aiDraft`, or
+ * `details.workoutProposal`) is finished, this function creates a fresh
+ * "planned" workout with the same name, notes, and exercise template so
+ * the routine stays available for re-use. Ad-hoc workouts (no planned
+ * exercises) are silently skipped.
+ */
+export const cloneRoutineFromWorkout = async (
+  workout: Workout,
+): Promise<WorkoutMutationResult> =>
+  cloneRoutineFromWorkoutWith(apiClient, workout);
+
+export const cloneRoutineFromWorkoutWith = async (
+  client: ApiClient,
+  workout: Workout,
+): Promise<WorkoutMutationResult> => {
+  const details = workout.details;
+  if (!details || typeof details !== "object") return { ok: true };
+
+  // Preserve the original details blob (coachPlan, aiDraft, etc.) verbatim
+  // so the cloned routine has the same structure the logger expects.
+  const hasPlannedExercises = (() => {
+    const d = details as Record<string, unknown>;
+
+    const coachPlan = d.coachPlan;
+    if (
+      coachPlan &&
+      typeof coachPlan === "object" &&
+      Array.isArray((coachPlan as Record<string, unknown>).exercises) &&
+      ((coachPlan as Record<string, unknown>).exercises as unknown[]).length > 0
+    ) {
+      return true;
+    }
+
+    const aiDraft = d.aiDraft;
+    if (aiDraft && typeof aiDraft === "object") {
+      const session = (aiDraft as Record<string, unknown>).session;
+      if (
+        session &&
+        typeof session === "object" &&
+        Array.isArray((session as Record<string, unknown>).exercises) &&
+        ((session as Record<string, unknown>).exercises as unknown[]).length > 0
+      ) {
+        return true;
+      }
+    }
+
+    const workoutProposal = d.workoutProposal;
+    if (workoutProposal && typeof workoutProposal === "object") {
+      const session = (workoutProposal as Record<string, unknown>).session;
+      if (
+        session &&
+        typeof session === "object" &&
+        Array.isArray((session as Record<string, unknown>).exercises) &&
+        ((session as Record<string, unknown>).exercises as unknown[]).length > 0
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  })();
+
+  if (!hasPlannedExercises) return { ok: true };
+
+  const body = workoutCreateSchema.safeParse({
+    name: workout.name,
+    ...(workout.notes ? { notes: workout.notes } : {}),
+    details,
+  });
+
+  if (!body.success) return { ok: true };
+
+  const result = await client.request<WorkoutResponse>({
+    method: "POST",
+    path: "/v1/workouts",
+    body: body.data,
+    schema: workoutResponseSchema,
+  });
+
+  return result.ok
+    ? { ok: true }
+    : { ok: false, message: humanize(result.error, "Re-create routine") };
 };

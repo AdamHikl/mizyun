@@ -47,6 +47,7 @@ import { ExerciseProgressionModal } from "@/features/workouts/exercise-progressi
 import {
   abandonWorkout,
   addWorkoutSet,
+  cloneRoutineFromWorkout,
   completeWorkout,
   createExercise,
   deleteWorkoutSet,
@@ -222,21 +223,40 @@ export function LogWorkoutScreen() {
     [workspace.workout, draft.workoutProposal],
   );
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    const next = await loadWorkoutWorkspace(workoutId);
-    setWorkspace(next);
-    setMessage(next.message);
-    if (next.message !== null) {
-      hadFailure.current = true;
-      measurement.current?.fail(
-        "load",
-        classifyAnalyticsFailure(next.message),
-        true,
-      );
-    }
-    setLoading(false);
-  }, [workoutId]);
+  const refreshCounter = useRef(0);
+
+  const refresh = useCallback(
+    async (options?: { showLoading?: boolean }) => {
+      const requestId = ++refreshCounter.current;
+      if (options?.showLoading) {
+        setLoading(true);
+      }
+      const next = await loadWorkoutWorkspace(workoutId);
+      if (requestId !== refreshCounter.current) {
+        return;
+      }
+      setWorkspace((current) => {
+        if (next.workout === null && current.workout !== null) {
+          return {
+            ...current,
+            message: next.message,
+          };
+        }
+        return next;
+      });
+      setMessage(next.message);
+      if (next.message !== null) {
+        hadFailure.current = true;
+        measurement.current?.fail(
+          "load",
+          classifyAnalyticsFailure(next.message),
+          true,
+        );
+      }
+      setLoading(false);
+    },
+    [workoutId],
+  );
 
   useEffect(() => {
     void refresh();
@@ -583,14 +603,26 @@ export function LogWorkoutScreen() {
         exerciseName: entry.name,
       });
 
-      // Refresh workspace data to get new set
-      await refresh();
+      // Immediately append the newly created set into workspace state so UI updates without reload
+      setWorkspace((current) => ({
+        ...current,
+        sets: [...current.sets, result.workoutSet],
+      }));
 
       // Keep load and reps prefilled for next set so next tap is ready!
       updatePendingInput(entry.id, {
         load: loadVal,
         reps: repsVal,
       });
+      if (resolvedExerciseId !== entry.id) {
+        updatePendingInput(resolvedExerciseId, {
+          load: loadVal,
+          reps: repsVal,
+        });
+      }
+
+      // Silently reconcile with backend in the background without unmounting or resetting scroll
+      void refresh();
     },
     [
       pendingInputs,
@@ -619,7 +651,11 @@ export function LogWorkoutScreen() {
                 set.id,
               );
               if (!result.ok) return setMessage(result.message);
-              await refresh();
+              setWorkspace((current) => ({
+                ...current,
+                sets: current.sets.filter((s) => s.id !== set.id),
+              }));
+              void refresh();
             })();
           },
         },
@@ -662,6 +698,9 @@ export function LogWorkoutScreen() {
               }
               measurement.current?.complete();
               if (userId !== null) await clearLoggingDraft(userId, "workout");
+              // WO-UX-002: Clone the routine so it stays available for re-use.
+              // Fire-and-forget — don't block navigation if the clone fails.
+              void cloneRoutineFromWorkout(workspace.workout!);
               router.back();
             })();
           },
@@ -1238,6 +1277,7 @@ function LiveExerciseCard(props: {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Add Set for ${props.entry.name}`}
+        disabled={props.busy}
         onPress={props.onLogSet}
         style={styles.addSetRow}
       >

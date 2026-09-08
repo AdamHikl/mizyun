@@ -82,7 +82,7 @@ export function ThreadListSheet({
         >
           <View style={{ gap: 2 }}>
             <ThemedText type="smallBold" themeColor="textSecondary">
-              MIZYUN COACH
+              MIZYUN
             </ThemedText>
             <ThemedText type="subtitle">Conversations</ThemedText>
           </View>

@@ -191,6 +191,7 @@ export const accountRoutes: FastifyPluginAsync<AccountRoutesOptions> = async (
       }
       const exportDoc = await options.accountRepository.exportForUser(
         principal.userId,
+        { accessToken: principal.accessToken },
       );
       const memories = await options.memoryStore.list(principal.userId, {
         accessToken: principal.accessToken,
@@ -250,20 +251,31 @@ export const accountRoutes: FastifyPluginAsync<AccountRoutesOptions> = async (
       }
       const result = await options.accountRepository.deleteUser(
         principal.userId,
-        { confirmationToken: parsed.data.confirmationToken, now: new Date() },
+        {
+          confirmationToken: parsed.data.confirmationToken,
+          now: new Date(),
+          accessToken: principal.accessToken,
+        },
       );
       if (result.deleted) {
-        const memories = await options.memoryStore.list(principal.userId, {
-          accessToken: principal.accessToken,
-          includeSuperseded: true,
-        });
-        await Promise.allSettled(
-          memories.map((memory) =>
-            options.memoryStore.delete(principal.userId, memory.id, {
-              accessToken: principal.accessToken,
-            }),
-          ),
-        );
+        try {
+          const memories = await options.memoryStore.list(principal.userId, {
+            accessToken: principal.accessToken,
+            includeSuperseded: true,
+          });
+          await Promise.all(
+            memories.map((memory) =>
+              options.memoryStore.delete(principal.userId, memory.id, {
+                accessToken: principal.accessToken,
+              }),
+            ),
+          );
+        } catch (error) {
+          request.log.warn(
+            { error },
+            "memory deletion cleanup reported warning during account delete",
+          );
+        }
         return accountDeleteResponseSchema.parse({ deleted: true });
       }
       const reason = result.reason;
