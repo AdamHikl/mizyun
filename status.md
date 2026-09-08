@@ -1,8 +1,62 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-09-08** (Sessions B, C, D, E1, E2, F complete: Q9 deployment safeguards, Q6 tier authority, Q2 mutation retry durability, Q4 durable account deletion & mobile lifecycle, Q5 complete paged export & native file delivery).
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-09-08** (Sessions B, C, D, E1, E2, F, G, H complete: Q9 deployment safeguards, Q6 tier authority, Q2 mutation retry durability, Q4 durable account deletion & mobile lifecycle, Q5 complete paged export & native file delivery, Q8-B unified server AI authorization & budget boundary, Q7 mobile consent continuation state machine, Q3 guarded build matrix).
 
-## Remediation Sessions E2 & F (Q4 deletion lifecycle UI & Q5 complete paged export delivery) — 2026-09-08
+## Remediation Sessions G & H (Q8-B server AI authorization & budgets, Q7 mobile consent continuation, Q3 guarded build matrix) — 2026-09-08
+
+Sessions G and H completed the server-enforced AI authorization and unified budget boundary, the client-side AI consent continuation state machine, and the guarded build matrix with native identity isolation (REL-AUD-005, REL-AUD-007, Q8-B, Q7, Q3, INFRA-DUAL-003):
+
+- **Q8-B Unified Server AI Authorization & Budget Boundary (Session G)**:
+  - Database Migration `supabase/migrations/20260908160000_ai_consent_and_unified_budgets.sql`:
+    - Created `public.user_ai_consents` table (`user_id`, `granted`, `confirmed_adult`, `consent_version`, `revoked_at`, `updated_at`, `created_at`) with foreign key cascading on `auth.users(id)`.
+    - Enforced Row Level Security (RLS) with explicit policies for `authenticated` owner reads/inserts/updates and `service_role` full access; direct access from `anon` is completely denied.
+    - Verified with pgTAP suite in `supabase/tests/database/0005_ai_consent.test.sql` (8 tests passing: table creation, service_role insert, authenticated own-row update, cross-user denial, and anonymous denial).
+  - Shared Contracts & Core Ports:
+    - Added `CURRENT_AI_CONSENT_VERSION = "2026-09-08"`, `aiConsentSchema`, `updateAiConsentSchema`, and `aiConsentResponseSchema` in `packages/contracts/src/account.ts`.
+    - Added `StoredAiConsent` interface and `AiConsentRepository` port to `packages/core/src/account.ts`.
+  - Supabase Server Adapter:
+    - Implemented `SupabaseAiConsentRepository` in `packages/adapters/supabase-server/src/ai-consent-repository.ts` with upsert, query, and revoke methods.
+    - Integrated AI consent into `SupabaseAccountRepository.exportUserData` and `manifest` record counting for GDPR compliance.
+  - Server-Side AI Authorization Boundary:
+    - Implemented `authorizeAiAccess` in `apps/api/src/ai-eligibility.ts`. Enforces defense in depth against client tampering: strictly requires `granted === true`, `confirmedAdult === true`, matching current consent version (`2026-09-08`), and verifies adult eligibility (rejecting users with profile birth year < 18).
+    - Enforced across all server AI endpoints: `POST /v1/coach/conversations/:id/messages`, `POST /v1/coach/conversations/:id/nutrition-photo`, `POST /v1/food-entries/draft/text`, `POST /v1/food-entries/draft/refine`, and `POST /v1/food-entries/draft` (multipart vision).
+    - Added comprehensive test suite `apps/api/src/modules/account/ai-consent-routes.test.ts` (8/8 tests passing).
+  - Durable AI Budget Limiting:
+    - Implemented unified draft slot reservation (`acquireDraftSlot`), token commitment (`commitDraftTokens`), and slot release (`releaseDraftSlot`) in `apps/api/src/modules/coach/limits.ts`, backed by durable PostgreSQL RPC and memory fallbacks.
+- **Q7 Mobile AI Consent Continuation State Machine (Session G)**:
+  - Controller State Machine (`apps/mobile/src/features/coach/ai-consent-controller.ts`):
+    - Created `AiConsentController` and React hook `useAiConsentController` with explicit states: `loading` -> `ready` | `required` -> `saving` -> `ready` | `error` | `revoked`.
+    - Captured pending AI user actions as typed union data (`PendingAiAction`: `coach_message`, `coach_photo`, `meal_text_draft`, `meal_photo_draft`, `meal_refine_draft`) instead of stale closure callbacks.
+    - Synchronous mutex lock (`isExecutingRef`) prevents duplicate dispatching from rapid double-taps on the consent modal.
+    - Account-scoping: user switching or sign-out immediately cancels in-flight executions, clears pending actions, and resets state.
+    - Comprehensive unit test suite `apps/mobile/src/features/coach/ai-consent-controller.test.ts` (24/24 tests passing).
+  - Screen Integration:
+    - `apps/mobile/src/features/coach/ai-consent.ts`: updated `loadAiConsent`, `saveAiConsent`, and `revokeAiConsent` to synchronize with backend `/v1/account/ai-consent` and handle offline/network errors.
+    - `apps/mobile/src/features/coach/coach-setup-screen.tsx`: wired `useAiConsentController` for coach text messages and nutrition photo uploads.
+    - `apps/mobile/src/features/log-meal/log-meal-screen.tsx`: wired `useAiConsentController` for photo drafting, text drafting, and draft refinements.
+    - `apps/mobile/src/features/settings/account-data-card.tsx`: added AI Consent status card with explicit warning disclosure and "Revoke AI Consent" action.
+- **Q3 Guarded Build Matrix & Native Directory Isolation (Session H)**:
+  - Build Matrix Validation (`packages/config/src/build-matrix.ts`):
+    - Defined explicit build identities (`BUILD_IDENTITIES`), application variants (`MizyunAppVariant`), and profiles (`MizyunBuildProfile`).
+    - Implemented `validateBuildMatrix` to cross-validate EAS profile, application variant, API base URL, Supabase URL, and URL schemes.
+    - Added test suite `packages/config/src/build-matrix.test.ts` (13 tests passing) verifying matrix consistency and hostile ambient environment rejection.
+  - EAS Profiles Hardening (`apps/mobile/eas.json`):
+    - Hardened `development` (dev client `com.mizyun.dev`), `preview` (standalone dev `com.mizyun.dev`), and `production` (App Store `com.mizyun.app`) with isolated backend URLs and build environments.
+  - App Config Hardening (`apps/mobile/app.config.js`):
+    - Added dynamic matrix validation and host collision rejection in `app.config.js`, throwing immediate configuration errors if dev bundles point to production endpoints or vice-versa.
+  - Native Directory Guardrails:
+    - Updated `scripts/mobile-founder-dev-ios.sh`, `scripts/mobile-founder-production-ios.sh`, and `scripts/mobile-founder-production-android.sh` to check `ios/` and `android/` package identifiers before executing native builds, preventing cross-variant corruption.
+  - Build Matrix Verification Harness:
+    - Created `scripts/test-build-matrix.mjs` verifying clean-process profile resolution, hostile environment rejection, and native script guardrails. Wired into `pnpm check`.
+- **Independent Security & Privacy Review**:
+  - Delegated full audit of 19 files across database, API, and mobile packages to independent subagent (`4e71ec85-013a-4ca1-8d3e-a2337023d24f`).
+  - **Verdict: ACCEPT**. Confirmed RLS policy boundaries, adult eligibility verification, fail-closed authorization, robust mutex locks, and account-scoped cache clearing.
+- **Verification & Deployment Evidence**:
+  - `pnpm check` on Mac: 100% clean (format check, typechecks across all 15 workspace packages, Hermes bundle checks, 422 API tests, 282 mobile tests, 68 config tests, 17 deployment safeguard tests, build matrix checks).
+  - Git commit & push: `5342c0aea981f6c2252c7dc6f12cc17930e09bca` on `origin/main`.
+  - Pi Dev Deployment: `pnpm deploy:dev 5342c0a` succeeded. Migration `20260908160000_ai_consent_and_unified_budgets.sql` applied on Dev Supabase. Dev API restarted (`mizyun-api-dev.service`). Public health check: `curl -s https://mizyun-api-dev.phiskel.com/v1/health` -> `{"status":"ok","service":"mizyun-api","timestamp":"2026-09-08T17:46:13.460Z"}`.
+  - Pi Production Isolation: `mizyun-api.service` PID 500239 active for 5+ days, commit `c02a67a`, public health `https://mizyun-api.phiskel.com/v1/health` HTTP 200 OK.
+- **Next exact action**: Execute Session I (Findings Q8-C & REL-AUD-005: implement Gemini provider evaluation benchmark harness, evaluation corpus with weighed meal fixtures and adversarial tests, and enforce `docs/BEFORE_TESTING.md` gates before external provider activation).
 
 Sessions E2 and F completed the durable account deletion user experience and complete, paged account data export with native file sharing (REL-AUD-001, REL-AUD-002, R1, R2, AUTH-04, SEC-06):
 

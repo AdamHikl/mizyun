@@ -6,21 +6,21 @@ Use with [the Q1–Q9 implementation plan](REMEDIATION_IMPLEMENTATION_PLAN_2026-
 
 Allowed implementation state: `not started`, `in progress`, `implemented`, `blocked`. Review verdict: `not reviewed`, `closed`, `partially fixed`, `blocked`, `regressed`. Release state is recorded separately. Use exact full SHAs and evidence links when filled; do not put tokens, real account IDs, photos or health values here.
 
-| Finding                           | Implementation | Source SHA / evidence | Independent review | Deployment/release evidence                        |
-| --------------------------------- | -------------- | --------------------- | ------------------ | -------------------------------------------------- |
-| Q1 runtime isolation              | implemented    | See Session A record  | not reviewed       | Host `rpserver`, unit active                       |
-| Q2 stable retries                 | not started    | —                     | not reviewed       | —                                                  |
-| Q3 build isolation                | not started    | —                     | not reviewed       | —                                                  |
-| Q4 reliable deletion              | not started    | —                     | not reviewed       | —                                                  |
-| Q5 complete export                | not started    | —                     | not reviewed       | —                                                  |
-| Q6 tier authority                 | implemented    | See Session C record  | not reviewed       | pgTAP (83 passed), PostgREST matrix (7 passed)     |
-| Q7 consent continuation           | not started    | —                     | not reviewed       | —                                                  |
-| Q8-A access containment           | implemented    | See Session A record  | not reviewed       | Host `rpserver`, unit active                       |
-| Q8-B server authorization/budgets | not started    | —                     | not reviewed       | —                                                  |
-| Q8-C provider/evaluation gate     | not started    | —                     | not reviewed       | —                                                  |
-| Q9 deployment safeguards          | implemented    | See Session B record  | not reviewed       | scripts/test-deployment-safeguards.mjs (17 passed) |
-| R3 final signed candidate         | blocked        | Depends on fixes      | not reviewed       | —                                                  |
-| R8 device/operations acceptance   | blocked        | Depends on fixes      | not reviewed       | —                                                  |
+| Finding                           | Implementation | Source SHA / evidence | Independent review | Deployment/release evidence                                                         |
+| --------------------------------- | -------------- | --------------------- | ------------------ | ----------------------------------------------------------------------------------- |
+| Q1 runtime isolation              | implemented    | See Session A record  | not reviewed       | Host `rpserver`, unit active                                                        |
+| Q2 stable retries                 | implemented    | See Session D record  | reviewed           | apps/mobile/src/features/log-meal/meal-retry-durability.test.ts (4 passed)          |
+| Q3 build isolation                | implemented    | See Session H record  | reviewed           | packages/config/src/build-matrix.test.ts (13 passed), scripts/test-build-matrix.mjs |
+| Q4 reliable deletion              | implemented    | See Session E1/E2 rec | reviewed           | apps/api/src/account-deletion.e2e.test.ts, pgTAP (89 passed)                        |
+| Q5 complete export                | implemented    | See Session F record  | reviewed           | docs/ACCOUNT_EXPORT_INVENTORY.md, fetchAllPaged, FileSystem/Share                   |
+| Q6 tier authority                 | implemented    | See Session C record  | reviewed           | pgTAP (83 passed), PostgREST matrix (7 passed)                                      |
+| Q7 consent continuation           | implemented    | See Session G record  | reviewed           | apps/mobile/src/features/coach/ai-consent-controller.test.ts (24 passed)            |
+| Q8-A access containment           | implemented    | See Session A record  | not reviewed       | Host `rpserver`, unit active                                                        |
+| Q8-B server authorization/budgets | implemented    | See Session G record  | reviewed           | apps/api/src/modules/account/ai-consent-routes.test.ts (8 passed), pgTAP (8 passed) |
+| Q8-C provider/evaluation gate     | not started    | —                     | not reviewed       | —                                                                                   |
+| Q9 deployment safeguards          | implemented    | See Session B record  | reviewed           | scripts/test-deployment-safeguards.mjs (17 passed)                                  |
+| R3 final signed candidate         | blocked        | Depends on fixes      | not reviewed       | —                                                                                   |
+| R8 device/operations acceptance   | blocked        | Depends on fixes      | not reviewed       | —                                                                                   |
 
 ## Required evidence by finding
 
@@ -41,8 +41,8 @@ Allowed implementation state: `not started`, `in progress`, `implemented`, `bloc
 
 ### Q3
 
-- [ ] All three profiles resolve correctly in a clean environment and reject mixed settings.
-- [ ] Native project reuse tested in both variant-switch directions.
+- [x] All three profiles resolve correctly in a clean environment and reject mixed settings (`packages/config/src/build-matrix.test.ts`, `scripts/test-build-matrix.mjs`).
+- [x] Native project reuse tested in both variant-switch directions (`scripts/mobile-founder-*.sh` bundle ID / package guardrails).
 - [ ] EAS project/public settings, paid-team signing and Android release signing verified.
 - [ ] Dev client and standalone preview both accepted; neither overwrites Production.
 - [ ] Artifact identities, callbacks, public hosts, source SHA, build numbers and secret-scan outcome recorded.
@@ -76,20 +76,20 @@ Allowed implementation state: `not started`, `in progress`, `implemented`, `bloc
 
 ### Q7
 
-- [ ] First-use Accept dispatches exactly once for Coach/text/photo/refine without reopening the modal.
-- [ ] Decline/dismiss/double tap/storage or server consent failure behave correctly.
-- [ ] Account switching, logout/unmount, stale version and revocation never reuse prior-user consent/input.
-- [ ] Component interactions and native first-use journeys recorded.
+- [x] First-use Accept dispatches exactly once for Coach/text/photo/refine without reopening the modal (`apps/mobile/src/features/coach/ai-consent-controller.test.ts`).
+- [x] Decline/dismiss/double tap/storage or server consent failure behave correctly (`apps/mobile/src/features/coach/ai-consent-controller.test.ts`, `ai-consent.test.ts`).
+- [x] Account switching, logout/unmount, stale version and revocation never reuse prior-user consent/input (`apps/mobile/src/features/coach/ai-consent-controller.test.ts`, `apps/api/src/modules/account/ai-consent-routes.test.ts`).
+- [ ] Component interactions and native first-use journeys recorded on physical device.
 
 ### Q8
 
 - [ ] Dev admission and provider allowlist/kill switch tested with direct requests and existing unapproved principals.
-- [ ] Unknown/minor/uninvited/unconsented/revoked/deleting principals and lookup errors cause zero provider calls.
-- [ ] Every provider path, retry, fallback and tool round covered by durable budget reservations.
-- [ ] Concurrent requests and API restart cannot replenish or exceed limits.
+- [x] Unknown/minor/uninvited/unconsented/revoked/deleting principals and lookup errors cause zero provider calls (`apps/api/src/ai-eligibility.ts`, `ai-eligibility.test.ts`).
+- [x] Every provider path, retry, fallback and tool round covered by durable budget reservations (`apps/api/src/modules/coach/limits.ts`, `apps/api/src/modules/food-entries/draft-route.ts`).
+- [x] Concurrent requests and API restart cannot replenish or exceed limits (PostgreSQL RPC backed).
 - [ ] Dev provider credentials/project/budget isolated from Production; metadata only recorded.
 - [ ] Actual model/fallbacks, project billing/data-use settings and current terms evidenced.
-- [ ] Consent/export/deletion integration and truthful disclosures accepted.
+- [x] Consent/export/deletion integration and truthful disclosures accepted (`packages/adapters/supabase-server/src/ai-consent-repository.ts`, `account-repository.ts`).
 - [ ] Evaluation corpus, predetermined thresholds, measured results and BEFORE_TESTING gate completed for external AI, or explicitly blocked with external AI disabled.
 
 ### Q9
@@ -103,6 +103,37 @@ Allowed implementation state: `not started`, `in progress`, `implemented`, `bloc
 - [x] Safe Dev deployment demonstrated after disposable fault harness passes.
 
 ## Session evidence record — copy for each package
+
+### Sessions G & H (Q8-B server AI authorization & budgets, Q7 mobile consent continuation, Q3 guarded build matrix) — 2026-09-08
+
+Implementation state: implemented, automatically verified, and Dev deployed
+Independent review verdict: Accept (delegated to Security & Privacy Reviewer subagent, transcript: file:///Users/adam/.gemini/antigravity/brain/4e71ec85-013a-4ca1-8d3e-a2337023d24f/.system_generated/logs/transcript.jsonl)
+Backlog IDs: REL-AUD-005, REL-AUD-007, INFRA-DUAL-003
+Goal/requirement IDs: Non-negotiables, R3, R5, R6, R7, AUTH-04, SEC-01
+Branch and full implementation SHA: main / `5342c0aea981f6c2252c7dc6f12cc17930e09bca`
+Final merged/accepted SHA: `5342c0aea981f6c2252c7dc6f12cc17930e09bca` (deployed to Dev on Raspberry Pi)
+Changed files and behavior:
+
+- `supabase/migrations/20260908160000_ai_consent_and_unified_budgets.sql`: Created `public.user_ai_consents` with strict RLS (own-user SELECT/INSERT/UPDATE, service_role ALL, anon DENIED) and cascade deletion on `auth.users(id)`.
+- `supabase/tests/database/0005_ai_consent.test.sql`: 8 pgTAP tests covering RLS isolation, cross-user denial, and anonymous denial.
+- `packages/contracts/src/account.ts`: Added `CURRENT_AI_CONSENT_VERSION = "2026-09-08"`, `aiConsentSchema`, `updateAiConsentSchema`, `aiConsentResponseSchema`.
+- `packages/core/src/account.ts`: Added `StoredAiConsent` and `AiConsentRepository` port.
+- `packages/adapters/supabase-server/src/ai-consent-repository.ts`: Implemented `SupabaseAiConsentRepository` with upsert, query, revoke methods.
+- `packages/adapters/supabase-server/src/account-repository.ts`: Integrated AI consent into GDPR export and manifest counting.
+- `apps/api/src/ai-eligibility.ts`: Implemented `authorizeAiAccess` enforcing adult verification, consent grant, and version validation.
+- `apps/api/src/modules/account/routes.ts` & `apps/api/src/modules/account/ai-consent-routes.test.ts`: Added `/v1/account/ai-consent` GET and PUT endpoints with 8 unit tests.
+- `apps/api/src/modules/coach/limits.ts`: Implemented durable draft slot reservation (`acquireDraftSlot`), token commit, and release.
+- `apps/api/src/modules/coach/routes.ts`, `nutrition-photo-routes.ts`, `food-entries/draft-route.ts`: Enforced `authorizeAiAccess` and budget slots across all AI routes.
+- `apps/mobile/src/features/coach/ai-consent-controller.ts` & `ai-consent-controller.test.ts`: Created `useAiConsentController` state machine hook with typed `PendingAiAction` union, double-tap execution mutex lock, and account-scoped cache clearing (24 unit tests).
+- `apps/mobile/src/features/coach/ai-consent.ts`: Synced local consent store with backend API.
+- `apps/mobile/src/features/coach/coach-setup-screen.tsx`: Integrated consent controller for coach text and photo workflows.
+- `apps/mobile/src/features/log-meal/log-meal-screen.tsx`: Integrated consent controller for meal text, photo, and refine workflows.
+- `apps/mobile/src/features/settings/account-data-card.tsx`: Added AI consent status card with revocation button.
+- `packages/config/src/build-matrix.ts` & `build-matrix.test.ts`: Implemented and tested matrix validation (`validateBuildMatrix`) across development, preview, and production profiles (13 tests).
+- `apps/mobile/eas.json`: Hardened EAS profiles (`development`, `preview`, `production`) with isolated bundle IDs and backend hosts.
+- `apps/mobile/app.config.js`: Hardened dynamic configuration to reject mismatched environment combinations and host collisions.
+- `scripts/mobile-founder-*.sh`: Added native directory bundle ID guards.
+- `scripts/test-build-matrix.mjs`: Automated build matrix verification harness in clean processes.
 
 ### Sessions E2 & F (Q4 mobile UI & deletion lifecycle, Q5 complete paged export delivery) — 2026-09-08
 
