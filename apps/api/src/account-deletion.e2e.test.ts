@@ -118,9 +118,12 @@ describeIfE2E("Q4 Account Deletion two-user lifecycle (e2e)", () => {
     }
     userB.id = createdB.user.id;
 
-    // 3. Obtain access tokens
+    // 3. Obtain access tokens via dedicated clients to avoid mutating adminClient auth context
+    const authClientA = createClient(SUPABASE_URL, PUBLISHABLE_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
     const { data: signinA, error: signinErrA } =
-      await adminClient.auth.signInWithPassword({
+      await authClientA.auth.signInWithPassword({
         email: userA.email,
         password: userA.password,
       });
@@ -129,8 +132,11 @@ describeIfE2E("Q4 Account Deletion two-user lifecycle (e2e)", () => {
     }
     userA.accessToken = signinA.session.access_token;
 
+    const authClientB = createClient(SUPABASE_URL, PUBLISHABLE_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
     const { data: signinB, error: signinErrB } =
-      await adminClient.auth.signInWithPassword({
+      await authClientB.auth.signInWithPassword({
         email: userB.email,
         password: userB.password,
       });

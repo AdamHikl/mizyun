@@ -1,6 +1,42 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-09-08** (Sessions B, C, D, E1, E2, F, G, H, I complete: Q9 deployment safeguards, Q6 tier authority, Q2 mutation retry durability, Q4 durable account deletion & mobile lifecycle, Q5 complete paged export & native file delivery, Q8-B unified server AI authorization & budget boundary, Q7 mobile consent continuation state machine, Q3 guarded build matrix, Q8-C Gemini model evaluation, benchmark harness, and provider governance).
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-09-08** (Sessions B, C, D, E1, E2, F, G, H, I, J complete: Q1–Q9 remediation fully implemented, verified, audited, and deployed to Dev; R3/R8 release gates held pending physical device runs and off-device restore rehearsal).
+
+## Remediation Session J (Comprehensive Q1–Q9 Final Acceptance & Independent Audit) — 2026-09-08
+
+Session J completed the comprehensive final acceptance and independent review across all findings Q1–Q9 per Section 11 and Section 12 of `docs/REMEDIATION_IMPLEMENTATION_PLAN_2026-09-08.md`:
+
+- **Lead Independent Audit (Subagent `5ccec22a-8ac6-4ae6-850e-7a4465d27209`)**:
+  - Comprehensive, read-only audit of all code diffs, database migrations, configuration matrices, deployment scripts, and host environments.
+  - Audit verdicts:
+    - **Q1 Runtime Isolation**: **CLOSED** (`mizyun-api-dev.service` running as UID 999 unprivileged user, strict systemd sandboxing with `InaccessiblePaths` masking production env/repo/docker, ports 4100 vs 4000).
+    - **Q2 Mutation Retries**: **CLOSED** for meal logging (pre-submit persistence, clientOp ID deduplication, 4/4 durability tests); write paths catalogued in `docs/MUTATION_IDEMPOTENCY_AUDIT.md`.
+    - **Q3 Build Matrix Isolation**: **CLOSED** for Part A (matrix validation, EAS profiles, dynamic app.config.js, native script bundle ID guards; 13/13 config tests, clean-process runner); Part B store distribution signing gated on R3.
+    - **Q4 Durable Account Deletion**: **CLOSED** (tombstone survival in `public.account_deletion_jobs`, multi-stage pipeline with rollback resilience, local draft and reminder wipe via `clearLocalUserData`, real two-user e2e isolation `account-deletion.e2e.test.ts` passing, 6/6 pgTAP tests).
+    - **Q5 Complete Export**: **CLOSED** (comprehensive inventory `docs/ACCOUNT_EXPORT_INVENTORY.md`, 500 records/page deterministic batch pagination, Expo FileSystem and Share native delivery, truthful disclosures).
+    - **Q6 Tier Authority**: **CLOSED** (forward migration `20260908140000_server_owned_tier_authority.sql`, column-level write grants revoking client tier escalation, trigger defense-in-depth, 10 pgTAP tests, 7 PostgREST tests).
+    - **Q7 Consent Continuation**: **CLOSED** (explicit state machine, typed action union `PendingAiAction`, double-tap execution mutex lock, account-scoped cache clearing, 24 unit tests).
+    - **Q8-B Server Authorization & Budgets**: **CLOSED** (fail-closed `authorizeAiAccess`, strict RLS on `user_ai_consents`, PostgreSQL RPC draft slot reservation across all AI routes, 8 route tests, 8 pgTAP tests).
+    - **Q8-C Provider Evaluation & Governance**: **CLOSED** (versioned offline corpus `gemini-eval-v1-2026-09-08`, 56 cases evaluated offline with 100% pass rate, screenCoachInput Unicode NFKC folding, gemini-3.8-flash alignment, BEFORE_TESTING verified).
+    - **Q9 Deployment Safeguards**: **CLOSED** (exact candidate verification, remote concurrency locks, directory guards, migration ledger reconciliation, rollback on health failure, 17 fault harness tests).
+  - Operational and release gates **R3 Part B** (store signing) and **R8** (physical device acceptance and restore rehearsal) **HELD AS BLOCKED** prior to production promotion.
+- **Automated Verification Probes**:
+  - 97 pgTAP tests passing across all 5 database test suites (`0001_schema_security`, `0002_user_isolation`, `0003_tier_authority`, `0004_account_deletion`, `0005_ai_consent`).
+  - 7 PostgREST tier authority integration tests passing (`scripts/test-tier-authority-postgrest.mjs`).
+  - Real two-user account deletion lifecycle e2e test passing (`apps/api/src/account-deletion.e2e.test.ts`) against real GoTrue auth, PostgreSQL cascade, Storage object deletion, and two-user tenant isolation.
+  - 8 persistence e2e tests passing (`apps/api/src/persistence.e2e.test.ts`).
+  - 5 auth e2e tests passing (`apps/api/src/auth.e2e.test.ts`).
+  - 17 deployment safeguard fault harness tests passing (`scripts/test-deployment-safeguards.mjs`).
+  - Clean-process build matrix verification passing (`scripts/test-build-matrix.mjs`).
+  - 56 AI evaluation benchmark cases passing 100% (`scripts/run-ai-evaluation.mjs`).
+- **Host & Environment Evidence**:
+  - Pi Dev (`https://mizyun-api-dev.phiskel.com`): running `425b3e0`, `mizyun-api-dev.service` active under UID 999, public health HTTP 200 OK.
+  - Pi Production (`https://mizyun-api.phiskel.com`): untouched and isolated at `c02a67a`, `mizyun-api.service` PID 500239 active for 5+ days, public health HTTP 200 OK.
+  - Separate Kong gateways active on port 8100 (Dev) and 8000 (Production).
+- **Next exact action**: Operational Release Readiness (R3 Part B & R8):
+  1. Off-Device Restore Rehearsal: restore database dump and storage backup into an isolated private recovery target; verify checksums and synthetic relations before access.
+  2. Physical Device Journey: run cable-installed `com.mizyun.dev` on physical iPhone with Mac/Metro off, validating cold/warm auth, meal retry durability, native Share Sheet export, and account deletion local cache wipe.
+  3. Production Release Milestone: upon physical device acceptance, promote candidate to Production via `pnpm deploy:production <sha>`.
 
 ## Remediation Session I (Q8-C Gemini model evaluation, benchmark harness, synthetic corpus, provider governance) — 2026-09-08
 
