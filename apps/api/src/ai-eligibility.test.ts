@@ -29,9 +29,9 @@ const makeProfile = (birthYear: number | null): StoredProfile => ({
 describe("isAdultEligibleForAi", () => {
   const referenceNow = new Date("2026-09-08T12:00:00Z");
 
-  it("returns true when birthYear is null (age unspecified on profile)", () => {
+  it("returns false when birthYear is null (age unspecified on profile fails closed)", () => {
     const profile = makeProfile(null);
-    expect(isAdultEligibleForAi(profile, referenceNow)).toBe(true);
+    expect(isAdultEligibleForAi(profile, referenceNow)).toBe(false);
   });
 
   it("returns true when user is 18 or older", () => {

@@ -1,8 +1,87 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-09-08** (Milestones 1–4 implemented & deployed to Dev: Account export/deletion lifecycle, database plan tier protection, idempotent meal logging, iOS Apple 4.8 compliance, Gemini adult gate & explicit AI consent modal, spend quotas, and accurate legal disclosures deployed to Raspberry Pi Dev backend at commit `9b0f4a4` with live database verification).
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-09-08** (Sessions B and C complete: Q9 deployment safeguards & Q6 tier authority verified).
 
-## Release Readiness Remediations (Milestones 1–4) — 2026-09-08
+## Remediation Session C (Q6 server-owned tier authority) — 2026-09-08
+
+Session C resolved the authenticated write-path escalation finding (REL-AUD-006 / R6):
+
+- **Database Migration** (`supabase/migrations/20260908140000_server_owned_tier_authority.sql`):
+  - `service_role` granted full authority on `public.profiles`.
+  - Whole-table `INSERT`, `UPDATE`, and `DELETE` revoked from `authenticated` and `anon`.
+  - Column-level `INSERT` and `UPDATE` granted strictly on client-editable fields (`display_name`, `unit_system`, `timezone`, `birth_year`, `height_cm`, `activity_level`, `sex_at_birth`, `coaching_preferences`, `ai_provider`), explicitly withholding `plan_tier`, `created_at`, `updated_at`.
+  - Direct profile `DELETE` policy `profiles_delete_own` dropped and `DELETE` privilege revoked from client roles (account deletion is managed server-side).
+  - Hardened trigger `trg_protect_profile_plan_tier` to fire `BEFORE INSERT OR UPDATE`. Trigger validates caller credentials: only trusted direct maintenance connections (superuser without client JWT) or `service_role` JWT callers can write non-free tiers or modify `plan_tier`. Client attempts to insert non-free tiers or update `plan_tier` raise 42501 Unauthorized. Client inserts without tier safely default to `'free'`.
+- **Database Tests**:
+  - Added pgTAP test suite `supabase/tests/database/0003_tier_authority.test.sql` (10 tests, all passed). Total pgTAP test suite is 83/83 passed.
+  - `pnpm db:verify` (`db:reset && db:lint && db:test`) passed 100% clean on the disposable Mac database.
+- **PostgREST Integration Matrix**:
+  - Created automated test `scripts/test-tier-authority-postgrest.mjs` (7 tests, all passed). Verified: authenticated insert paid denied, update paid denied, delete denied, ordinary update permitted with free tier preserved, service-role tier update permitted, paid user ordinary update permitted with paid tier preserved, paid user tamper denied.
+- **Quality Gates & Production Preservation**:
+  - `pnpm check` passed 100% clean (format check, all 15 package typechecks, iOS and Android Hermes exports, 1,200+ unit tests, 17 deployment safeguard tests).
+  - Pi Production untouched: PID 500239 active (uptime 5 days), commit `c02a67ab31a101c06c9a3ebdf275f9d0cee4a992`, public health HTTP 200 OK.
+  - Pi Dev active: UID 999 (`mizyun-dev-api`), public health HTTP 200 OK.
+
+Next exact action: commit and push verified changes; deploy forward migration to Dev on the Pi via `pnpm deploy:dev`.
+
+## Remediation Session B (Q9 deployment safeguards) — 2026-09-08
+
+Session B implemented and fault-tested all candidate resolution and remote promotion safeguards:
+
+- **Deployment Manifest & Candidate Resolution** (`scripts/deployment-manifest.mjs`):
+  - Centralized environment configurations for `dev` and `production` (SSH aliases, remote paths, services, lockfiles, ports, and journal files).
+  - Strict argument parsing rejecting unrecognized flags or surplus positional parameters.
+  - Production promotion strictly enforces a mandatory 40-character commit SHA; omitting the SHA or passing `"HEAD"` is rejected.
+  - Production candidate commit must be an ancestor of `origin/main` (`git merge-base --is-ancestor`), preventing promotion of unmerged commits and preventing branch rewinds on older accepted commits.
+  - Candidate verification on Mac: if candidate SHA differs from HEAD, verification runs in an isolated temporary Git worktree (`git worktree add --detach`).
+- **Remote Promotion Safeguards** (`scripts/promote-dev.sh` & `scripts/promote-production.sh`):
+  - Remote concurrency locking via `flock -n 200` (with python `fcntl.flock` fallback for non-Linux test harnesses) on `/tmp/mizyun-deploy-dev.lock` and `/tmp/mizyun-deploy-production.lock`; conflicts exit immediately with code 75.
+  - Working directory mismatch guards canonicalized via `pwd -P`. Cross-environment dev path rejections (`/dev/`, `-dev/`) in production promotion.
+  - Cross-environment service guards: dev promotion rejects `mizyun-api`; production promotion rejects `mizyun-api-dev`. Production requires `NODE_ENV=production`.
+  - Migration ledger reconciliation: runs `pnpm exec supabase db push` unconditionally on every deployment to ensure schema ledger parity, rather than relying on Git file diffs.
+  - Fixed health-check timeout rollback bypass: in both scripts, API health failure explicitly invokes `rollback_code` before `exit 1` to ensure rollback is never skipped. Verified rollback health check loop.
+  - Protected release journal logging: appends structured JSON lines to `.git/mizyun-*-release-journal.jsonl` recording status (`success`, `rolled_back`), target SHA, previous SHA, service, and timestamp.
+  - Traps for `ERR`, `INT`, and `TERM` ensuring clean rollback on signal interruption.
+- **Disposable Fault Test Harness** (`scripts/test-deployment-safeguards.mjs`):
+  - Automated test harness covering all 17 fault scenarios (argument validation, candidate resolution, branch rewind prevention, lock collision exit 75, working directory mismatch, service guard mismatch, unconditional migration push, health timeout rollback regression, and release journal logging).
+  - All 17 tests passed (0 failed). Added `test:deployment-safeguards` script and integrated into `pnpm check`.
+- **Quality Gates & Environment Preservation**:
+  - `pnpm check` passed 100% clean (format check, all 15 package typechecks, iOS and Android Hermes exports, 1,200+ unit tests, 17 deployment safeguard tests).
+  - Pi Production untouched: PID 500239 active (uptime 5 days), commit `c02a67ab31a101c06c9a3ebdf275f9d0cee4a992`, public health HTTP 200 OK.
+  - Pi Dev active: UID 999 (`mizyun-dev-api`), public health HTTP 200 OK.
+
+Next exact action: execute Session C (Q6 tier authority: authenticated write-path database matrix).
+
+## Remediation Session A (Q1 runtime isolation & Q8-A access containment) — 2026-09-08
+
+Session A executed the containment and runtime isolation prerequisites:
+
+- **Q1 Dev runtime isolation**:
+  - Created unprivileged dedicated non-login system identity `mizyun-dev-api` (UID 999, GID 987). Group membership strictly restricted to `mizyun-dev-api` (no `sudo`, `docker`, or `mizyun`).
+  - `/etc/mizyun/dev.env` permissions set to `0640` owned by `root:mizyun-dev-api`.
+  - `/etc/mizyun/production.env` secured to `0640` owned by `root:mizyun`.
+  - `/var/lib/mizyun/repo` locked down from `0777` to `0750`.
+  - Systemd service `/etc/systemd/system/mizyun-api-dev.service` (and repo template `deploy/raspberry-pi/mizyun-api-dev.service`) updated with `User=mizyun-dev-api`, `Group=mizyun-dev-api`, `ProtectSystem=strict`, `ProtectHome=true`, `PrivateTmp=true`, `NoNewPrivileges=true`, `ProtectKernelTunables=true`, `ProtectControlGroups=true`, `RestrictSUIDSGID=true`, and explicit `InaccessiblePaths=/etc/mizyun/production.env /var/lib/mizyun/repo /srv/mizyun/supabase /var/run/docker.sock`.
+  - Tested privilege denials as `mizyun-dev-api`: attempts to read `production.env`, access `production repo`, write `docker.sock`, or run `sudo` all return permission denied.
+  - Mount namespace isolation verified via `nsenter` on the active Dev process.
+  - Dev API is active and running under UID 999; verified local (`http://127.0.0.1:4100/v1/health`) and public (`https://mizyun-api-dev.phiskel.com/v1/health` and `/v1/coach/status`) HTTP 200 responses.
+  - Production environment untouched: commit `c02a67a` running, public health HTTP 200.
+- **Q8-A Access Containment**:
+  - Hardened `isAdultEligibleForAi` (`apps/api/src/ai-eligibility.ts`) and `checkAdultEligibility` (`apps/api/src/modules/food-entries/draft-route.ts`) to fail closed on `birthYear === null` or repository errors.
+  - Added unit tests for fail-closed behavior; `pnpm check` passed 100% (all 15 package typechecks, iOS and Android Hermes exports, 1,200+ unit tests).
+  - Documented founder policy: Dev remains on shared Gemini project with `AI_EXTERNAL_ACCESS=true` for founder & design partner testing; app distributed solely via cable.
+
+Next exact action: execute Session B (Q9 deployment safeguards, developed and fault-tested locally). Do not promote or use deploy scripts until the deployment harness passes.
+
+## Implementation review — 2026-09-08 (supersedes completion claims below)
+
+**Both workstreams remain incomplete. Do not promote `9b0f4a4` based on the earlier milestone summary.** [The implementation review](docs/IMPLEMENTATION_REVIEW_2026-09-08.md) records nine findings and maps them to the guide and release gates.
+
+Fresh verification: clean source `dc8d6a5`; `pnpm check` passed (1,198 tests, 13 integration tests skipped, types and both mobile exports). Four network-free defect probes passed and were removed from source afterward. Read-only Pi inspection verified Dev `9b0f4a4`, Production `c02a67a`, separate database/Storage mounts, latest Dev migration, and public HTTP 200 health from the Mac. Both APIs use Linux user `mizyun`, which can read production secrets and access Docker. Dev signup is open/autoconfirmed; both report external AI enabled and share the Gemini key. No secrets were printed.
+
+Next exact action: reopen INFRA-DUAL-002 and REL-AUD-005; isolate the Dev runtime identity from production files/Docker and enforce founder-only Dev/AI access plus independent provider budgets. Then fix account cleanup/export, mobile retry IDs, tier INSERT protection and consent continuation before final build/deploy/device acceptance. No implementation, deployment, remote data mutation, live model call, or fresh native acceptance was performed in this review. Only review/continuity documentation was changed.
+
+## Historical remediation-session claims — 2026-09-08 (not release acceptance)
 
 All remediations across [`docs/RELEASE_READINESS_2026-09-07.md`](docs/RELEASE_READINESS_2026-09-07.md) are implemented, verified locally, and successfully deployed to the Raspberry Pi development environment at commit `9b0f4a40de445702475cb1e64327ca806cc3dafd`:
 

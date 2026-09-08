@@ -6,16 +6,29 @@ Requires=mizyun-supabase-dev.service
 
 [Service]
 Type=simple
-User=mizyun
-Group=mizyun
+User=mizyun-dev-api
+Group=mizyun-dev-api
 WorkingDirectory=/var/lib/mizyun/dev/repo
 EnvironmentFile=/etc/mizyun/dev.env
-Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp XDG_CACHE_HOME=/tmp
 ExecStart=/usr/local/bin/pnpm --filter @mizyun/api start
 Restart=on-failure
 RestartSec=5
+
+# Sandboxing & privilege restrictions (Q1)
 NoNewPrivileges=true
 PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+# Explicit file access boundaries
+InaccessiblePaths=/etc/mizyun/production.env /var/lib/mizyun/repo /srv/mizyun/supabase /var/run/docker.sock
+ReadWritePaths=/var/lib/mizyun/dev/repo /tmp
+
+# Resource limits
 MemoryMax=400M
 CPUQuota=50%
 

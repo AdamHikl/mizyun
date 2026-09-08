@@ -13,9 +13,9 @@
 
 ## Current focus
 
-✅ **Dual Pi Dev/Production separation complete (2026-09-08):** INFRA-DUAL-001 through INFRA-DUAL-005 and Finding R9 resolved. Dev backend (`mizyun-api-dev.phiskel.com`, `mizyun-supabase-dev.phiskel.com`), `com.mizyun.dev` local Xcode mobile build, and exact-SHA deployment tooling (`deploy:dev`, `deploy:production`) are operational.
+🚧 **2026-09-08 review: Dev/Production separation and release patches are partially implemented.** [The implementation review](docs/IMPLEMENTATION_REVIEW_2026-09-08.md) supersedes the previous blanket completion claim. Preserve the existing two stacks; repair Dev runtime privilege isolation and founder/AI access controls first (INFRA-DUAL-002, REL-AUD-005), then account lifecycle/export, mobile retries, tier INSERT protection and consent continuation. Finish guarded build/deployment tooling and R3/R8 signed-device/recovery acceptance before production promotion or invitations. No further feature expansion is needed for this checkpoint.
 
-🚧 **Next work package: REL-AUD-001 (persistent complete account export and deletion lifecycle)**, followed by REL-AUD-002 (mobile data controls) and REL-AUD-007 (idempotent logging retries) on Dev. Finish R3 signed-artifact and R8 device/operational acceptance on the final candidate before external friends-beta invitations.
+The executable follow-up is [the Q1–Q9 session plan](docs/REMEDIATION_IMPLEMENTATION_PLAN_2026-09-08.md). After initial access/runtime containment, repair and fault-test deployment tooling locally before using it to accept later patches on Dev. Track closure in [the evidence checklist](docs/REMEDIATION_EVIDENCE_CHECKLIST.md), then independently review the final candidate before promotion.
 
 ## Dependency sequence
 

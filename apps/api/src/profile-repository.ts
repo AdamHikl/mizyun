@@ -12,6 +12,7 @@ interface InMemoryProfileRepositoryOptions {
   readonly defaultTimezone: string;
   readonly defaultUnitSystem: UnitSystem;
   readonly defaultPlanTier?: PlanTier;
+  readonly defaultBirthYear?: number | null;
   readonly clock?: Clock;
 }
 
@@ -36,12 +37,15 @@ export class InMemoryProfileRepository implements ProfileRepository {
   readonly #defaultTimezone: string;
   readonly #defaultUnitSystem: UnitSystem;
   readonly #defaultPlanTier: PlanTier;
+  readonly #defaultBirthYear: number | null;
   readonly #clock: Clock;
 
   constructor(options: InMemoryProfileRepositoryOptions) {
     this.#defaultTimezone = options.defaultTimezone;
     this.#defaultUnitSystem = options.defaultUnitSystem;
     this.#defaultPlanTier = options.defaultPlanTier ?? "free";
+    this.#defaultBirthYear =
+      options.defaultBirthYear !== undefined ? options.defaultBirthYear : null;
     this.#clock = options.clock ?? { now: () => new Date() };
   }
 
@@ -58,7 +62,7 @@ export class InMemoryProfileRepository implements ProfileRepository {
       displayName: null,
       unitSystem: this.#defaultUnitSystem,
       timezone: this.#defaultTimezone,
-      birthYear: null,
+      birthYear: this.#defaultBirthYear,
       heightCm: null,
       activityLevel: null,
       sexAtBirth: null,

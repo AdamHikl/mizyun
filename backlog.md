@@ -7,17 +7,23 @@
 - Status: `ready`, `research`, `active`, `blocked`, `done`
 - Priority: P0 blocks safe progress/release; P1 is MVP-critical; P2 is valuable; P3 is optional/later.
 
-## Requested dual-environment setup — implementation pending
+## Q1–Q9 remediation execution
 
-See [the future-session guide](docs/tutorials/DEV_PRODUCTION_PI_GUIDE.md) and proposed ADR-0020. This is the user's target, not completed infrastructure or authorization to reset production.
+Follow [the detailed implementation plan](docs/REMEDIATION_IMPLEMENTATION_PLAN_2026-09-08.md) and maintain [the evidence checklist](docs/REMEDIATION_EVIDENCE_CHECKLIST.md). Q identifiers map to the existing INFRA-DUAL/REL-AUD rows below; they do not replace or renumber them. Start with Q8-A containment and Q1 runtime isolation, then Q9 locally tested deployment safeguards before later remote patch acceptance. Implementation, independent verification and release are separate states. This plan does not close or start any implementation item.
 
-| ID             | Priority | Status | Work item                                                         | Done when                                                                                                                             |
-| -------------- | -------- | ------ | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| INFRA-DUAL-001 | P1       | done   | Restore access, inventory Pi and adopt environment/release design | Capacity, production baseline, recovery and exact target manifest recorded; requested workflow reconciled with canonical instructions |
-| INFRA-DUAL-002 | P1       | done   | Separate Pi Dev API/Supabase/Auth/Storage and HTTPS               | 001 passes; distinct keys/mounts/ports/services/users and synthetic cross-environment rejection verified                              |
-| INFRA-DUAL-003 | P1       | done   | Both iPhone variants with guarded local/EAS profiles              | 002 passes; Dev Metro/standalone and Production identities, callbacks, signing and endpoint configuration verified                    |
-| INFRA-DUAL-004 | P1       | done   | Exact-SHA Dev and Production promotion with safe CI               | 002 passes; unsafe reset workflow removed; supplied SHA honored, explicit targets/locks/migrations/rollback proven                    |
-| INFRA-DUAL-005 | P1       | done   | Dual-environment acceptance and operational handoff               | 003/004 pass; device, Mac-off, resource, backup/isolation checks and canonical docs complete                                          |
+## Requested dual-environment setup — partially implemented, review reopened
+
+See [the guide](docs/tutorials/DEV_PRODUCTION_PI_GUIDE.md), ADR-0020 and [the 2026-09-08 implementation review](docs/IMPLEMENTATION_REVIEW_2026-09-08.md). Separate Pi stacks exist, but the review found incomplete runtime isolation, build profiles, deployment safeguards and acceptance. Reopened rows retain their implemented portions; `ready` means follow-up is required, not that implementation was discarded.
+
+| ID             | Priority | Status    | Work item                                                         | Done when                                                                                                                             |
+| -------------- | -------- | --------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| INFRA-DUAL-001 | P1       | ready     | Restore access, inventory Pi and adopt environment/release design | Capacity, production baseline, recovery and exact target manifest recorded; requested workflow reconciled with canonical instructions |
+| INFRA-DUAL-002 | P1       | ready     | Separate Pi Dev API/Supabase/Auth/Storage and HTTPS               | 001 passes; distinct keys/mounts/ports/services/users and synthetic cross-environment rejection verified                              |
+| INFRA-DUAL-003 | P1       | ready     | Both iPhone variants with guarded local/EAS profiles              | 002 passes; Dev Metro/standalone and Production identities, callbacks, signing and endpoint configuration verified                    |
+| INFRA-DUAL-004 | P1       | completed | Exact-SHA Dev and Production promotion with safe CI               | 002 passes; unsafe reset workflow removed; supplied SHA honored, explicit targets/locks/migrations/rollback proven                    |
+| INFRA-DUAL-005 | P1       | ready     | Dual-environment acceptance and operational handoff               | 003/004 pass; device, Mac-off, resource, backup/isolation checks and canonical docs complete                                          |
+
+Review follow-up: INFRA-DUAL-002 maps to Q1/Q8; 003 to Q3; 004 to Q9; 001/005 require recovery/resource/device evidence and adopted documentation. REL-AUD-001/002 map to Q4/Q5; 005 to Q7/Q8 and uncompleted model acceptance; 006 to Q6/Q8; 007 to Q2. REL-AUD-004 has the intended source change but still needs signed-device acceptance. REL-AUD-009 retains the verified removal of the old reset workflow.
 
 ## External-testing audit findings — 2026-09-07
 
@@ -25,19 +31,19 @@ The [release audit](docs/RELEASE_READINESS_2026-09-07.md) records evidence and c
 
 Sequencing update 2026-09-08: start with INFRA-DUAL-001 and the minimum isolated Dev/build/deploy acceptance. R3 configuration (Part A) is implemented through INFRA-DUAL-003; REL-AUD-003 retains final signed-release acceptance (Part B), so it cannot be completed merely by installing Dev. Then prioritize REL-AUD-001/002/007 before final release acceptance. Pure local patch work need not wait if Pi access is blocked. No item is newly marked active or done by this planning update.
 
-| ID          | Priority | Status | Work item                                                        | Done when                                                                                                                                                        |
-| ----------- | -------- | ------ | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| REL-AUD-001 | P1       | done   | Persistent complete account export/deletion (R1; REL-001)        | Authenticated lifecycle covers every durable category/Auth/Storage, retries safely, and passes two-user database tests                                           |
-| REL-AUD-002 | P1       | done   | Mobile account data controls and accurate disclosures (R2)       | REL-AUD-001 passes; native export/deletion works and live/repository/store copy plus external deletion pathway match                                             |
-| REL-AUD-003 | P1       | ready  | Reproducible signed tester build profiles (R3; REL-002)          | Explicit production variant, matching callbacks, public-key/EAS/signing setup, and exact TestFlight/Play artifacts accepted                                      |
-| REL-AUD-004 | P1       | done   | Resolve iOS Google-login parity (R4)                             | Qualifying privacy-preserving alternative works, or iOS uses only own-account login                                                                              |
-| REL-AUD-005 | P0       | done   | Current Gemini external eligibility/consent/evaluation gate (R5) | Actual project terms/retention/billing, adult eligibility, server-enforced access, sharing consent and model evaluation accepted; otherwise external AI disabled |
-| REL-AUD-006 | P1       | done   | Protect AI tier authority and budget every provider path (R6)    | Direct own-profile tier escalation denied; photo/text/refine budgets enforced; moderation accurately represented and evaluated                                   |
-| REL-AUD-007 | P1       | done   | Idempotent authoritative logging retries (R7)                    | Lost-response meal retry returns original record; weight/workout/set/multi-session paths audited and protected                                                   |
-| REL-AUD-008 | P1       | ready  | Current candidate device/operations acceptance (R8; REL-002/003) | Candidate fixes pass; Pi access restored; off-device backup/restore, alerts, auth/recovery, accessibility/network, and both native artifacts evidenced           |
-| REL-AUD-009 | P1       | done   | Remove persistent-host reset path from CI (R9)                   | Remote db verification targets only guarded disposable infrastructure; production/backup host cannot be reset by CI                                              |
-| REL-AUD-010 | P2       | done   | Reconcile stale operational/AI/product documents                 | Pi/Gemini/confirmed-email/current-feature evidence replaces obsolete Windows/Mistral/unhosted claims without marking open gates complete                         |
-| REL-AUD-011 | P2       | done   | Simplify Account language and distinguish demo/analytics         | User data controls are prominent, diagnostics use support disclosure, and preview state stays visibly synthetic                                                  |
+| ID          | Priority | Status  | Work item                                                        | Done when                                                                                                                                                        |
+| ----------- | -------- | ------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| REL-AUD-001 | P1       | ready   | Persistent complete account export/deletion (R1; REL-001)        | Authenticated lifecycle covers every durable category/Auth/Storage, retries safely, and passes two-user database tests                                           |
+| REL-AUD-002 | P1       | blocked | Mobile account data controls and accurate disclosures (R2)       | REL-AUD-001 passes; native export/deletion works and live/repository/store copy plus external deletion pathway match                                             |
+| REL-AUD-003 | P1       | ready   | Reproducible signed tester build profiles (R3; REL-002)          | Explicit production variant, matching callbacks, public-key/EAS/signing setup, and exact TestFlight/Play artifacts accepted                                      |
+| REL-AUD-004 | P1       | ready   | Resolve iOS Google-login parity (R4)                             | Qualifying privacy-preserving alternative works, or iOS uses only own-account login                                                                              |
+| REL-AUD-005 | P0       | blocked | Current Gemini external eligibility/consent/evaluation gate (R5) | Actual project terms/retention/billing, adult eligibility, server-enforced access, sharing consent and model evaluation accepted; otherwise external AI disabled |
+| REL-AUD-006 | P1       | ready   | Protect AI tier authority and budget every provider path (R6)    | Direct own-profile tier escalation denied; photo/text/refine budgets enforced; moderation accurately represented and evaluated                                   |
+| REL-AUD-007 | P1       | ready   | Idempotent authoritative logging retries (R7)                    | Lost-response meal retry returns original record; weight/workout/set/multi-session paths audited and protected                                                   |
+| REL-AUD-008 | P1       | ready   | Current candidate device/operations acceptance (R8; REL-002/003) | Candidate fixes pass; Pi access restored; off-device backup/restore, alerts, auth/recovery, accessibility/network, and both native artifacts evidenced           |
+| REL-AUD-009 | P1       | done    | Remove persistent-host reset path from CI (R9)                   | Remote db verification targets only guarded disposable infrastructure; production/backup host cannot be reset by CI                                              |
+| REL-AUD-010 | P2       | ready   | Reconcile stale operational/AI/product documents                 | Pi/Gemini/confirmed-email/current-feature evidence replaces obsolete Windows/Mistral/unhosted claims without marking open gates complete                         |
+| REL-AUD-011 | P2       | done    | Simplify Account language and distinguish demo/analytics         | User data controls are prominent, diagnostics use support disclosure, and preview state stays visibly synthetic                                                  |
 
 ## Now — Phase 1
 

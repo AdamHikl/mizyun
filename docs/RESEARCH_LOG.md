@@ -1,5 +1,73 @@
 # Research log
 
+## 2026-09-08 — Session A: Q1 runtime isolation and Q8-A access containment
+
+Scope: Implemented Q1 Dev runtime isolation on Raspberry Pi (`rpserver`) and Q8-A fail-closed adult eligibility logic.
+
+Primary sources consulted:
+
+- [systemd.exec manual](https://man7.org/linux/man-pages/man5/systemd.exec.5.html): Installed systemd 255 on Ubuntu 24.04 ARM64 supports `ProtectSystem=strict`, `ProtectHome=true`, `PrivateTmp=true`, `NoNewPrivileges=true`, `ProtectKernelTunables=true`, `ProtectControlGroups=true`, `RestrictSUIDSGID=true`, and path masking via `InaccessiblePaths=` and `ReadWritePaths=`.
+- [Google Gemini API Terms of Service](https://ai.google.dev/gemini-api/terms): Requires adult eligibility (18+) and restricts services likely to be accessed by minors.
+- [Linux File Permissions & DAC](https://docs.kernel.org/admin-guide/security-bugs.html): Discretionary access control enforced via non-login system identity `mizyun-dev-api` (UID 999, GID 987) without supplementary groups (`sudo`, `docker`, `mizyun`), isolating it from production files and Docker socket.
+
+Consequences:
+
+1. Created dedicated system identity `mizyun-dev-api` on the Raspberry Pi; confirmed UID 999, GID 987, groups: 987(mizyun-dev-api) only.
+2. Hardened `/etc/systemd/system/mizyun-api-dev.service` and repo template `deploy/raspberry-pi/mizyun-api-dev.service`. Added sandboxing and explicit `InaccessiblePaths=/etc/mizyun/production.env /var/lib/mizyun/repo /srv/mizyun/supabase /var/run/docker.sock`.
+3. Verified privilege denials as `mizyun-dev-api`: attempts to read `/etc/mizyun/production.env`, access `/var/lib/mizyun/repo`, write `/var/run/docker.sock`, or run `sudo` all return permission denied. Confirmed mount namespace isolation via `nsenter` (production paths masked to mode 0000).
+4. Hardened `isAdultEligibleForAi` in `apps/api/src/ai-eligibility.ts` and `draft-route.ts` to fail closed when `birthYear === null` or repository errors occur. Unit tests added; full `pnpm check` passed (1,200+ tests).
+5. Documented founder direction: Dev remains on shared Gemini project with `AI_EXTERNAL_ACCESS=true` for founder & design partner testing; app distributed solely via cable.
+
+## 2026-09-08 — Session B: Q9 deployment safeguards developed and fault-tested locally
+
+Scope: Hardened deployment candidate resolution, remote concurrency locking, working directory and cross-environment service guards, unconditional migration ledger reconciliation, rollback execution on health check timeout, and release journal logging (INFRA-DUAL-004 / Q9).
+
+Primary sources consulted:
+
+- [Linux util-linux flock(1)](https://man7.org/linux/man-pages/man1/flock.1.html): `flock -n 200` provides non-blocking advisory file locking on descriptor 200 that is tied to the open file description in the kernel and released automatically on process exit or termination. Python `fcntl.flock` provides an equivalent fallback for test environments lacking util-linux.
+- [Supabase CLI Migration Ledger Docs](https://supabase.com/docs/guides/local-development/cli/getting-started#database-migrations): `supabase db push` reconciles local migration scripts with the remote database's `schema_migrations` table. Bypassing `db push` based on Git file diffs risks omitting unapplied migrations when previous runs were interrupted.
+- [Bash Traps and Signals](https://www.gnu.org/software/bash/manual/html_node/Signals.html): `trap ... ERR` does not fire when a command fails as part of an explicit `exit 1` check. To guarantee rollback, scripts must explicitly invoke `rollback_code` before exit, and trap `INT` and `TERM`.
+
+Consequences:
+
+1. Created `scripts/deployment-manifest.mjs` defining environment specifications for dev and production, strict argument parsing, 40-character hex commit validation, ancestor reachability verification on `origin/main` without rewinding, and structured release journal formatting.
+2. Updated `scripts/promote-dev.sh` and `scripts/promote-production.sh`: added concurrency locks on dedicated lockfiles (`/tmp/mizyun-deploy-*.lock`), working directory guards canonicalized via `pwd -P`, cross-environment service guards (rejecting production service from dev and vice versa), unconditional migration ledger reconciliation via `supabase db push`, and explicit `rollback_code` execution on health timeout.
+3. Updated `scripts/deploy-remote.mjs` and `deploy-dev.mjs`: enforced mandatory 40-character commit SHA for production, verified candidate commits in isolated temporary worktrees when candidate differs from HEAD, and prevented accidental rewinds of `origin/main`.
+4. Created `scripts/test-deployment-safeguards.mjs` containing 17 automated fault tests covering all safeguard and regression paths (17 passed, 0 failed). Added `test:deployment-safeguards` to `package.json` and integrated it into `pnpm check`.
+5. Verified live Pi production and dev states: Production PID 500239 untouched (uptime 5 days), dev active and healthy.
+
+## 2026-09-08 — Session C: Q6 server-owned tier authority across authenticated write path
+
+Scope: Hardened `profiles.plan_tier` security against authenticated escalation across all write paths (INSERT, UPDATE, UPSERT, and DELETE/re-insert) via column-level grant lockdown and defense-in-depth trigger verification (REL-AUD-006 / R6).
+
+Primary sources consulted:
+
+- [PostgreSQL 17 GRANT / REVOKE Documentation](https://www.postgresql.org/docs/17/sql-grant.html): In PostgreSQL, a table-level privilege grants access to all columns; a column-level `REVOKE` does not override a table-level grant. To restrict specific columns, whole-table write privileges must be revoked and column-level privileges explicitly granted on only the allowed columns.
+- [PostgreSQL Triggers & SECURITY DEFINER Procedures](https://www.postgresql.org/docs/17/plpgsql-trigger.html): Inside a `SECURITY DEFINER` function, `current_user` evaluates to the function owner (e.g. `postgres`). Trust boundaries must inspect `session_user` and transaction-local Supabase JWT claims (`auth.role()` and `request.jwt.claim.role`).
+- [Supabase Data API & PostgREST Claims](https://supabase.com/docs/guides/api/securing-your-api): Authenticated clients connect under database role `authenticated` with JWT claim `role: "authenticated"`. Administrative operations execute under `service_role`.
+
+Consequences:
+
+1. Created forward migration `supabase/migrations/20260908140000_server_owned_tier_authority.sql`:
+   - Granted full authority on `public.profiles` to `service_role`.
+   - Revoked whole-table `INSERT`, `UPDATE`, and `DELETE` on `public.profiles` from `authenticated` and `anon`.
+   - Granted column-level `INSERT` and `UPDATE` strictly on client-editable fields (`id` for insert, `display_name`, `unit_system`, `timezone`, `birth_year`, `height_cm`, `activity_level`, `sex_at_birth`, `coaching_preferences`, `ai_provider`), explicitly withholding `plan_tier`, `created_at`, and `updated_at`.
+   - Dropped `profiles_delete_own` policy and revoked direct client `DELETE` (account deletion is managed server-side via service role).
+   - Upgraded `trg_protect_profile_plan_tier` trigger to fire on `BEFORE INSERT OR UPDATE`. Function allows only trusted maintenance callers (superuser without client JWT) or `service_role` JWT callers to set non-free tiers or modify `plan_tier`. Client attempts to insert paid tiers or update `plan_tier` raise 42501 Unauthorized. Client inserts without tier default to `free`.
+2. Created pgTAP test suite `supabase/tests/database/0003_tier_authority.test.sql` (10 tests, all passed). Total pgTAP assertions now 83/83 passed.
+3. Created automated PostgREST integration matrix `scripts/test-tier-authority-postgrest.mjs` (7 tests, all passed). Verified: authenticated insert paid denied, update paid denied, delete denied, ordinary update permitted with tier preserved, service-role tier update permitted, paid user ordinary update permitted with paid tier preserved.
+4. `pnpm db:verify` passed 100% clean on disposable Mac database. `pnpm check` passed 100% clean across all packages.
+
+## 2026-09-08 — Detailed remediation planning
+
+Reused the same-day primary-source review for Q1–Q9 and checked [Expo FileSystem](https://docs.expo.dev/versions/latest/sdk/filesystem/) and [Expo Sharing](https://docs.expo.dev/versions/latest/sdk/sharing/). Consequence: plan actual file/archive delivery through a native adapter, not JSON message sharing; verify installed SDK compatibility during implementation. Attempts to read freedesktop systemd manuals returned 403; attempted Supabase JavaScript range/limit URLs returned 404. No claims rely on those failed fetches; future sessions must consult installed systemd manuals and current official paging references. Project-specific lifecycle, budget and deployment recommendations are in [the plan](REMEDIATION_IMPLEMENTATION_PLAN_2026-09-08.md); no architectural implementation or provider activation occurred.
+
+## 2026-09-08 — Review of dual environments and release patches
+
+Primary sources rechecked: [Expo variants](https://docs.expo.dev/build-reference/variants/), [Supabase user deletion](https://supabase.com/docs/guides/auth/managing-user-data), [Gemini terms](https://ai.google.dev/gemini-api/terms), [React state snapshots](https://react.dev/learn/state-as-a-snapshot), [Docker group privileges](https://docs.docker.com/engine/install/linux-postinstall/), and [PostgreSQL grants](https://www.postgresql.org/docs/current/sql-grant.html).
+
+Consequences: explicit variant selection/native regeneration is required; owned Storage objects can block Auth deletion; callbacks retain render-time state; Docker-group access defeats the intended Dev process boundary; table privileges must be considered alongside column revokes. Gemini project/eligibility/evaluation evidence remains separate from UI consent. [The review](IMPLEMENTATION_REVIEW_2026-09-08.md) distinguishes source findings, local probes, read-only live observations and unverified acceptance. No architecture or infrastructure implementation was performed.
+
 > Index of primary documentation reviewed before implementation. Recheck sources when a new segment begins; platform behavior, pricing, policies, SDKs, and provider terms change over time.
 
 ## 2026-09-08 — Dual Pi environments and exact-SHA release implementation

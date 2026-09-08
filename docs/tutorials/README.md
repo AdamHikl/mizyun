@@ -4,7 +4,7 @@
 
 ## Pick the workflow you need
 
-**Requested future setup:** [Dual Dev/Production on the Pi, Mac and iPhone](./DEV_PRODUCTION_PI_GUIDE.md) is the implementation guide for the user's 2026-09-07 target. It is not yet provisioned and does not supersede working production commands until adopted and verified.
+**Dev/Production setup:** [the environment guide](./DEV_PRODUCTION_PI_GUIDE.md) defines the target. Both Pi stacks now exist, but [the implementation review](../IMPLEMENTATION_REVIEW_2026-09-08.md) found incomplete isolation and release patches. Use [the Q1–Q9 remediation plan](../REMEDIATION_IMPLEMENTATION_PLAN_2026-09-08.md) and [evidence checklist](../REMEDIATION_EVIDENCE_CHECKLIST.md) to finish and verify the work.
 
 | Goal                                                  | Runbook                                           |
 | ----------------------------------------------------- | ------------------------------------------------- |

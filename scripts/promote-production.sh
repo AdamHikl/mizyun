@@ -1,12 +1,34 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Runs inside Ubuntu on the Windows production PC. It is invoked by
-# deploy-remote.mjs and must never be run against the Mac development stack.
+# Runs inside Ubuntu on the Windows production PC or Raspberry Pi Production stack.
+# It is invoked by deploy-remote.mjs and must never be run against the Dev stack.
 
 target_sha="${1:-}"
 production_env="${MIZYUN_PRODUCTION_ENV_FILE:-/etc/mizyun/production.env}"
+lock_file="${MIZYUN_PRODUCTION_LOCK_FILE:-/tmp/mizyun-deploy-production.lock}"
+expected_dir="${MIZYUN_REMOTE_DIR:-/home/mizyun/mizyun}"
+journal_file=".git/mizyun-production-release-journal.jsonl"
 
+# 1. Acquire remote concurrency lock
+acquire_lock() {
+  local lockfile="$1"
+  exec 200>"$lockfile"
+  if command -v flock >/dev/null 2>&1; then
+    if ! flock -n 200; then
+      echo "Deployment lock $lockfile is held by another process; aborting." >&2
+      exit 75
+    fi
+  else
+    if ! python3 -c 'import sys, fcntl; fcntl.flock(200, fcntl.LOCK_EX | fcntl.LOCK_NB)' 2>/dev/null; then
+      echo "Deployment lock $lockfile is held by another process; aborting." >&2
+      exit 75
+    fi
+  fi
+}
+acquire_lock "$lock_file"
+
+# 2. Validation of target commit SHA
 if [[ ! "$target_sha" =~ ^[0-9a-f]{40}$ ]]; then
   echo "Expected one full 40-character production commit SHA." >&2
   exit 2
@@ -28,18 +50,52 @@ set +a
 : "${MIZYUN_API_SERVICE:=mizyun-api}"
 : "${MIZYUN_LOCAL_API_URL:=http://127.0.0.1:4000}"
 
+# 3. Cross-environment service guard
+if [[ "$MIZYUN_API_SERVICE" == "mizyun-api-dev" ]]; then
+  echo "FATAL: Refusing to run production promotion against dev service mizyun-api-dev." >&2
+  exit 2
+fi
+
+# 4. Working directory and environment guards
+current_dir="$(pwd -P)"
+if [[ "$current_dir" == *"/dev/"* ]] || [[ "$current_dir" == *"-dev/"* ]] || [[ "$current_dir" == *"/dev/repo"* ]]; then
+  echo "FATAL: Current directory ($current_dir) is a dev checkout! Refusing production promotion." >&2
+  exit 2
+fi
+
+if [[ -n "$expected_dir" ]]; then
+  expected_dir_canon="$(cd "$expected_dir" 2>/dev/null && pwd -P || echo "$expected_dir")"
+  if [[ "$current_dir" != "$expected_dir_canon" ]]; then
+    echo "Current directory ($current_dir) does not match expected production repository ($expected_dir_canon)." >&2
+    exit 2
+  fi
+fi
+
 if [[ "${NODE_ENV:-}" != "production" ]]; then
   echo "Refusing promotion because NODE_ENV is not production." >&2
   exit 2
 fi
 
 if [[ -n "$(git status --porcelain)" ]]; then
-  echo "Refusing promotion because the PC checkout is dirty." >&2
+  echo "Refusing promotion because the remote checkout is dirty." >&2
   exit 2
 fi
 
 previous_sha="$(git rev-parse HEAD)"
 migrations_applied=false
+
+record_journal() {
+  local status="$1"
+  local prev="$2"
+  local target="$3"
+  local message="$4"
+  local ts
+  ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  local entry
+  entry="$(printf '{"timestamp":"%s","status":"%s","targetSha":"%s","previousSha":"%s","service":"%s","migrationsApplied":%s,"message":"%s"}' \
+    "$ts" "$status" "$target" "$prev" "$MIZYUN_API_SERVICE" "$migrations_applied" "$message")"
+  echo "$entry" >> "$journal_file" 2>/dev/null || true
+}
 
 rollback_code() {
   local failure_line="$1"
@@ -47,11 +103,30 @@ rollback_code() {
   git checkout --detach "$previous_sha" >/dev/null 2>&1 || true
   pnpm install --frozen-lockfile >/dev/null 2>&1 || true
   sudo -n systemctl restart "$MIZYUN_API_SERVICE" >/dev/null 2>&1 || true
+
+  local rollback_healthy=false
+  for _attempt in {1..10}; do
+    if curl --silent --show-error --fail --max-time 2 \
+      "$MIZYUN_LOCAL_API_URL/v1/health" >/dev/null 2>&1; then
+      rollback_healthy=true
+      break
+    fi
+    sleep 1
+  done
+  if [[ "$rollback_healthy" == true ]]; then
+    echo "Rollback to $previous_sha succeeded and API is healthy." >&2
+  else
+    echo "WARNING: API is unhealthy after rollback to $previous_sha." >&2
+  fi
   if [[ "$migrations_applied" == true ]]; then
     echo "Database migrations are forward-only and were not reverted; inspect compatibility." >&2
   fi
+  record_journal "rolled_back" "$previous_sha" "$target_sha" "Failure near line $failure_line; rollback initiated"
 }
+
 trap 'rollback_code "$LINENO"' ERR
+trap 'rollback_code "$LINENO"; exit 130' INT
+trap 'rollback_code "$LINENO"; exit 143' TERM
 
 git fetch --prune origin main
 git cat-file -e "${target_sha}^{commit}"
@@ -59,29 +134,22 @@ git merge-base --is-ancestor "$target_sha" origin/main
 git checkout --detach "$target_sha"
 pnpm install --frozen-lockfile
 
-# A release backup is mandatory before schema mutation. This backs up the
-# database and private Storage bytes without resetting either environment.
+# 5. Mandatory release backup before schema mutation
 bash scripts/backup-production.sh
 
-if [[ -n "$(git diff --name-only "$previous_sha" "$target_sha" -- supabase/migrations)" ]]; then
-  # The self-hosted stack publishes Supavisor on localhost, but its tenant
-  # routing is intentionally not part of founder production. Resolve the
-  # database container directly so migrations do not depend on pooler SNI and
-  # use the local Postgres server's non-TLS endpoint.
-  production_db_url="$MIZYUN_PRODUCTION_DB_URL"
-  if [[ "${MIZYUN_PRODUCTION_DB_DIRECT_CONTAINER:-true}" == "true" ]]; then
-    db_container_ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$MIZYUN_DB_CONTAINER")"
-    [[ -n "$db_container_ip" ]] || die "could not resolve database container IP: $MIZYUN_DB_CONTAINER"
-    production_db_url="$(printf '%s' "$production_db_url" | sed "s#@127.0.0.1:5432/#@$db_container_ip:5432/#")"
-  fi
-  export PGSSLMODE="$MIZYUN_PRODUCTION_DB_SSLMODE"
-
-  pnpm exec supabase db push --db-url "$production_db_url" --dry-run
-  pnpm exec supabase db push --db-url "$production_db_url"
-  migrations_applied=true
-else
-  echo "No migration changes between $previous_sha and $target_sha; skipping database push."
+# 6. Reconcile database migration ledger unconditionally
+production_db_url="$MIZYUN_PRODUCTION_DB_URL"
+if [[ "${MIZYUN_PRODUCTION_DB_DIRECT_CONTAINER:-true}" == "true" ]]; then
+  db_container_ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$MIZYUN_DB_CONTAINER")"
+  [[ -n "$db_container_ip" ]] || { echo "could not resolve database container IP: $MIZYUN_DB_CONTAINER" >&2; exit 2; }
+  production_db_url="$(printf '%s' "$production_db_url" | sed "s#@127.0.0.1:5432/#@$db_container_ip:5432/#")"
 fi
+export PGSSLMODE="$MIZYUN_PRODUCTION_DB_SSLMODE"
+
+echo "Reconciling migration ledger with Production database..."
+pnpm exec supabase db push --db-url "$production_db_url" --dry-run
+pnpm exec supabase db push --db-url "$production_db_url"
+migrations_applied=true
 
 sudo -n systemctl restart "$MIZYUN_API_SERVICE"
 api_ready=false
@@ -93,11 +161,14 @@ for _attempt in {1..15}; do
   fi
   sleep 1
 done
+
 if [[ "$api_ready" != true ]]; then
   echo "API did not become healthy within 15 seconds." >&2
+  rollback_code "$LINENO"
   exit 1
 fi
 
 printf '%s\n' "$target_sha" > .git/mizyun-production-sha
-trap - ERR
+record_journal "success" "$previous_sha" "$target_sha" "Production promotion succeeded"
+trap - ERR INT TERM
 echo "Production promotion succeeded: $target_sha"

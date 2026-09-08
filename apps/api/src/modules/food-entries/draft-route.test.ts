@@ -584,4 +584,51 @@ describe("Food draft route — rate limit", () => {
     expect(photoResponse.statusCode).toBe(403);
     expect(photoResponse.json().error.code).toBe("AI_AGE_RESTRICTED");
   });
+
+  it("blocks food draft access with 403 AI_AGE_RESTRICTED when birthYear is null (unspecified age fails closed)", async () => {
+    const profileRepo = new InMemoryProfileRepository({
+      defaultTimezone: "UTC",
+      defaultUnitSystem: "metric",
+      defaultBirthYear: null,
+    });
+
+    const { app } = makeApps({
+      visionProvider: new StubVisionProvider(),
+      profileRepository: profileRepo,
+    });
+
+    const textResponse = await app.inject({
+      method: "POST",
+      url: "/v1/food-entries/draft/text",
+      headers: { ...auth, "content-type": "application/json" },
+      payload: { description: "Two eggs and toast" },
+    });
+    expect(textResponse.statusCode).toBe(403);
+    expect(textResponse.json().error.code).toBe("AI_AGE_RESTRICTED");
+  });
+
+  it("fails closed with 403 AI_AGE_RESTRICTED when profile repository lookup throws", async () => {
+    const failingProfileRepo: ProfileRepository = {
+      getOrCreate: async () => {
+        throw new Error("database unavailable");
+      },
+      update: async () => {
+        throw new Error("not reached");
+      },
+    };
+
+    const { app } = makeApps({
+      visionProvider: new StubVisionProvider(),
+      profileRepository: failingProfileRepo,
+    });
+
+    const textResponse = await app.inject({
+      method: "POST",
+      url: "/v1/food-entries/draft/text",
+      headers: { ...auth, "content-type": "application/json" },
+      payload: { description: "Two eggs and toast" },
+    });
+    expect(textResponse.statusCode).toBe(403);
+    expect(textResponse.json().error.code).toBe("AI_AGE_RESTRICTED");
+  });
 });

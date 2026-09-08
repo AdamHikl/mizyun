@@ -12,7 +12,7 @@ export const isAdultEligibleForAi = (
   now: Date = new Date(),
 ): boolean => {
   if (profile.birthYear === null) {
-    return true;
+    return false;
   }
   return ageFromBirthYear(profile.birthYear, now) >= 18;
 };

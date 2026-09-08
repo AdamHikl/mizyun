@@ -49,7 +49,9 @@
     "email:smoke": "tsx scripts/test-ses-email.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "pnpm format:check && pnpm typecheck && pnpm --filter @mizyun/mobile bundle:check && pnpm test"
+    "test:deployment-safeguards": "node scripts/test-deployment-safeguards.mjs",
+    "test:tier-authority": "node scripts/test-tier-authority-postgrest.mjs",
+    "check": "pnpm format:check && pnpm typecheck && pnpm --filter @mizyun/mobile bundle:check && pnpm test && pnpm test:deployment-safeguards"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

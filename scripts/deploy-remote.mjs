@@ -1,43 +1,45 @@
 #!/usr/bin/env node
 
-// Promote the exact verified commit on the Mac to the Windows/WSL production
-// host. The remote half lives in promote-production.sh so secrets never cross
-// the SSH command line.
+// Promote the exact verified commit to the production environment.
+// Production promotion strictly requires an explicit 40-character SHA that is
+// an accepted ancestor of origin/main. Secrets never cross the SSH command line.
 
 import { spawnSync } from "node:child_process";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { exit } from "node:process";
+import {
+  DEPLOYMENT_MANIFEST,
+  parseDeploymentArgs,
+  resolvePromotionCandidate,
+} from "./deployment-manifest.mjs";
 
-const args = process.argv.slice(2);
-const dryRun = args.includes("--dry-run");
-const positionalSha = args.find((arg) => !arg.startsWith("--"));
-const sshAlias = process.env.MIZYUN_PRODUCTION_SSH_ALIAS ?? "rpserver";
-const remoteDir = process.env.MIZYUN_REMOTE_DIR ?? "/home/mizyun/mizyun";
+const config = DEPLOYMENT_MANIFEST.production;
+
+let dryRun = false;
+let positionalSha = null;
+
+try {
+  const parsed = parseDeploymentArgs(process.argv.slice(2));
+  dryRun = parsed.dryRun;
+  positionalSha = parsed.positionalSha;
+} catch (err) {
+  // eslint-disable-next-line no-console
+  console.error(`\nInvalid deployment arguments: ${err.message}`);
+  exit(2);
+}
+
+const sshAlias =
+  process.env.MIZYUN_PRODUCTION_SSH_ALIAS ?? config.defaultSshAlias;
+const remoteDir = process.env.MIZYUN_REMOTE_DIR ?? config.defaultRemoteDir;
 const publicApiUrl =
-  process.env.MIZYUN_PRODUCTION_API_URL ?? "https://mizyun-api.phiskel.com";
+  process.env.MIZYUN_PRODUCTION_API_URL ?? config.publicApiUrl;
 
 if (!/^[A-Za-z0-9_./-]+$/.test(remoteDir) || !remoteDir.startsWith("/")) {
   // eslint-disable-next-line no-console
   console.error("MIZYUN_REMOTE_DIR must be a safe absolute Linux path.");
   exit(2);
-}
-
-const steps = [
-  "require a clean local main branch",
-  "run pnpm check on the Mac",
-  "run pnpm db:verify against the Mac development database",
-  "push the exact local commit to origin/main",
-  "ask the PC to back up, apply pending migrations, and restart the API",
-  `smoke-test ${publicApiUrl ?? "<MIZYUN_PRODUCTION_API_URL>"}/v1/health`,
-];
-
-if (dryRun) {
-  // eslint-disable-next-line no-console
-  console.log(
-    ["Production promotion dry run:", ...steps.map((s) => `  - ${s}`)].join(
-      "\n",
-    ),
-  );
-  exit(0);
 }
 
 const run = (command, args, options = {}) => {
@@ -46,8 +48,8 @@ const run = (command, args, options = {}) => {
   return spawnSync(command, args, { stdio: "inherit", ...options });
 };
 
-const output = (command, args) => {
-  const result = spawnSync(command, args, { encoding: "utf8" });
+const output = (command, args, options = {}) => {
+  const result = spawnSync(command, args, { encoding: "utf8", ...options });
   if (result.status !== 0) {
     process.stderr.write(result.stderr ?? "");
     exit(2);
@@ -67,56 +69,91 @@ if (output("git", ["status", "--porcelain"]) !== "") {
   );
 }
 
-const branch = output("git", ["branch", "--show-current"]);
-if (branch !== "main") {
-  fail(
-    `only main can be promoted; current branch is ${branch || "detached HEAD"}`,
+// Fetch canonical origin/main before resolving or checking candidate
+run("git", ["fetch", "origin", "main"]);
+
+let targetSha;
+try {
+  targetSha = resolvePromotionCandidate({
+    environment: "production",
+    positionalSha,
+  });
+} catch (err) {
+  fail(err.message);
+}
+
+const steps = [
+  `verify candidate commit ${targetSha}`,
+  `run pnpm check and db:verify on exact candidate ${targetSha}`,
+  `confirm candidate is accepted ancestor of origin/main (no branch rewinding)`,
+  `ask remote host to back up, apply pending migrations, and restart API`,
+  `smoke-test ${publicApiUrl}/v1/health`,
+];
+
+if (dryRun) {
+  // eslint-disable-next-line no-console
+  console.log(
+    ["Production promotion dry run:", ...steps.map((s) => `  - ${s}`)].join(
+      "\n",
+    ),
   );
+  exit(0);
 }
 
-let targetSha = positionalSha;
-if (!targetSha || targetSha === "HEAD") {
-  targetSha = output("git", ["rev-parse", "HEAD"]);
-} else {
-  try {
-    targetSha = output("git", ["rev-parse", `${targetSha}^{commit}`]);
-  } catch {
-    fail(`Could not resolve '${positionalSha}' to a valid commit.`);
+const currentHead = output("git", ["rev-parse", "HEAD"]);
+
+// Candidate verification: run on exact candidate commit
+if (currentHead === targetSha) {
+  if (run("pnpm", ["check"]).status !== 0)
+    fail("pnpm check failed on candidate commit");
+  if (run("pnpm", ["db:verify"]).status !== 0) {
+    fail(
+      "the disposable Mac development database verification failed on candidate commit",
+    );
   }
-}
-if (!/^[0-9a-f]{40}$/.test(targetSha)) {
-  fail("could not resolve a valid commit SHA");
-}
+} else {
+  // Use a temporary worktree to verify the candidate commit in complete isolation
+  // eslint-disable-next-line no-console
+  console.log(
+    `\n> verifying candidate commit ${targetSha} in isolated temporary worktree`,
+  );
+  const tempWorktree = mkdtempSync(path.join(tmpdir(), "mizyun-prod-verify-"));
+  try {
+    const addWorktree = run("git", [
+      "worktree",
+      "add",
+      "--detach",
+      tempWorktree,
+      targetSha,
+    ]);
+    if (addWorktree.status !== 0)
+      fail("failed to create temporary worktree for candidate");
 
-const isAncestor = run("git", [
-  "merge-base",
-  "--is-ancestor",
-  targetSha,
-  "HEAD",
-]);
-if (isAncestor.status !== 0) {
-  fail(`target commit ${targetSha} is not in current main branch history`);
+    const pnpmInstall = run("pnpm", ["install", "--frozen-lockfile"], {
+      cwd: tempWorktree,
+    });
+    if (pnpmInstall.status !== 0)
+      fail("pnpm install failed in candidate worktree");
+
+    const pnpmCheck = run("pnpm", ["check"], { cwd: tempWorktree });
+    if (pnpmCheck.status !== 0) fail("pnpm check failed on candidate commit");
+
+    const dbVerify = run("pnpm", ["db:verify"], { cwd: tempWorktree });
+    if (dbVerify.status !== 0)
+      fail("pnpm db:verify failed on candidate commit");
+  } finally {
+    run("git", ["worktree", "remove", "--force", tempWorktree]);
+  }
 }
 
 const sshCheck = run("ssh", ["-o", "BatchMode=yes", sshAlias, "true"]);
 if (sshCheck.status !== 0) fail(`SSH host ${sshAlias} is not reachable`);
 
-if (run("pnpm", ["check"]).status !== 0) fail("pnpm check failed");
-if (run("pnpm", ["db:verify"]).status !== 0) {
-  fail("the disposable Mac development database verification failed");
-}
-
-if (run("git", ["push", "origin", `${targetSha}:main`]).status !== 0) {
-  fail("git push failed", 3);
-}
-
 const promotionScript = output("git", [
   "show",
   `${targetSha}:scripts/promote-production.sh`,
 ]);
-// Stream the promotion code from the verified target commit. This also
-// bootstraps the first deployment where the PC checkout does not contain the
-// new script yet.
+
 // eslint-disable-next-line no-console
 console.log(`\n> promote ${targetSha} on ${sshAlias}`);
 const promote = spawnSync(
@@ -132,8 +169,9 @@ const promote = spawnSync(
     stdio: ["pipe", "inherit", "inherit"],
   },
 );
-if (promote.status !== 0)
-  fail("the PC promotion failed; production was rolled back where possible", 3);
+if (promote.status !== 0) {
+  fail("the remote promotion failed; inspect remote service logs", 3);
+}
 
 const smoke = run("curl", [
   "--silent",
@@ -144,7 +182,7 @@ const smoke = run("curl", [
   `${publicApiUrl}/v1/health`,
 ]);
 if (smoke.status !== 0) {
-  fail(`the public smoke test failed; inspect the PC service and tunnel`, 4);
+  fail(`the public smoke test failed; inspect the service and tunnel`, 4);
 }
 
 // eslint-disable-next-line no-console

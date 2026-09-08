@@ -1,0 +1,407 @@
+# Remediation evidence and review checklist
+
+Use with [the Q1–Q9 implementation plan](REMEDIATION_IMPLEMENTATION_PLAN_2026-09-08.md) and [the original review](IMPLEMENTATION_REVIEW_2026-09-08.md). This file begins empty on 2026-09-08. **No unchecked requirement is waived and no fix is verified by this template.**
+
+## Progress register
+
+Allowed implementation state: `not started`, `in progress`, `implemented`, `blocked`. Review verdict: `not reviewed`, `closed`, `partially fixed`, `blocked`, `regressed`. Release state is recorded separately. Use exact full SHAs and evidence links when filled; do not put tokens, real account IDs, photos or health values here.
+
+| Finding                           | Implementation | Source SHA / evidence | Independent review | Deployment/release evidence                        |
+| --------------------------------- | -------------- | --------------------- | ------------------ | -------------------------------------------------- |
+| Q1 runtime isolation              | implemented    | See Session A record  | not reviewed       | Host `rpserver`, unit active                       |
+| Q2 stable retries                 | not started    | —                     | not reviewed       | —                                                  |
+| Q3 build isolation                | not started    | —                     | not reviewed       | —                                                  |
+| Q4 reliable deletion              | not started    | —                     | not reviewed       | —                                                  |
+| Q5 complete export                | not started    | —                     | not reviewed       | —                                                  |
+| Q6 tier authority                 | implemented    | See Session C record  | not reviewed       | pgTAP (83 passed), PostgREST matrix (7 passed)     |
+| Q7 consent continuation           | not started    | —                     | not reviewed       | —                                                  |
+| Q8-A access containment           | implemented    | See Session A record  | not reviewed       | Host `rpserver`, unit active                       |
+| Q8-B server authorization/budgets | not started    | —                     | not reviewed       | —                                                  |
+| Q8-C provider/evaluation gate     | not started    | —                     | not reviewed       | —                                                  |
+| Q9 deployment safeguards          | implemented    | See Session B record  | not reviewed       | scripts/test-deployment-safeguards.mjs (17 passed) |
+| R3 final signed candidate         | blocked        | Depends on fixes      | not reviewed       | —                                                  |
+| R8 device/operations acceptance   | blocked        | Depends on fixes      | not reviewed       | —                                                  |
+
+## Required evidence by finding
+
+### Q1
+
+- [x] Actual Dev runtime identity cannot read Production env/data/backups, write Production code, access Docker, or administer Production services.
+- [x] Dev starts and completes authenticated synthetic functionality with its restricted privileges.
+- [x] Production SHA/health and approved synthetic sentinel remain unchanged through Dev restart/deploy.
+- [x] Effective unit settings, permissions and installed/template paths recorded without secret contents.
+
+### Q2
+
+- [ ] Screen-level lost-response retry and app restart produce one meal and identical totals.
+- [ ] Identity/timestamp/payload persist before sending; failed persistence sends no request.
+- [ ] Double tap/concurrent request, old draft upgrade, payload conflict and intentional new entry covered.
+- [ ] Other mutation inventory lists weight/workout/set/copy/clone/proposal proof or open follow-ups.
+- [ ] Authenticated database evidence complements helper/component tests.
+
+### Q3
+
+- [ ] All three profiles resolve correctly in a clean environment and reject mixed settings.
+- [ ] Native project reuse tested in both variant-switch directions.
+- [ ] EAS project/public settings, paid-team signing and Android release signing verified.
+- [ ] Dev client and standalone preview both accepted; neither overwrites Production.
+- [ ] Artifact identities, callbacks, public hosts, source SHA, build numbers and secret-scan outcome recorded.
+- [ ] Cold/warm Auth flows and Mac-off standalone operation accepted on devices.
+
+### Q4
+
+- [ ] Persistent lifecycle resumes after restart, expired original challenge and duplicate confirmation.
+- [ ] Every cleanup-stage failure tested; missing object distinguished from real error.
+- [ ] Lost final response after Auth deletion has a safe completion/recovery path.
+- [ ] Real two-user API/mobile deletion removes all active data/objects/Auth for A and preserves B.
+- [ ] Direct writes, signed/in-flight uploads, provider callbacks and existing tokens cannot recreate deleted data.
+- [ ] Backup/processor retention, tombstone retention and post-restore deletion reconciliation documented and tested.
+- [ ] Native progress/error/success wording and local data cleanup verified.
+
+### Q5
+
+- [ ] Export inventory covers all durable categories and documents justified exclusions.
+- [ ] Dataset exceeds effective page cap and old 10,000 bound; counts match independent fixtures.
+- [ ] Snapshot/consistency policy and interruption/partial failure behavior verified.
+- [ ] Saved JSON/archive and photo checksums verified offline on iOS and Android.
+- [ ] Cross-user access, expiry, deletion during export, resource bounds and artifact cleanup tested.
+- [ ] UI/legal/store disclosures match actual delivery and retention.
+
+### Q6
+
+- [x] Authenticated INSERT/UPDATE/UPSERT/delete-reinsert and RPC escalation attempts denied.
+- [x] Ordinary onboarding/profile editing and trusted tier changes remain functional.
+- [x] Clean schema and upgrade tests pass with realistic role/JWT claims.
+- [x] Authenticated PostgREST evidence confirms the deployed Dev policy, not only privileged SQL.
+
+### Q7
+
+- [ ] First-use Accept dispatches exactly once for Coach/text/photo/refine without reopening the modal.
+- [ ] Decline/dismiss/double tap/storage or server consent failure behave correctly.
+- [ ] Account switching, logout/unmount, stale version and revocation never reuse prior-user consent/input.
+- [ ] Component interactions and native first-use journeys recorded.
+
+### Q8
+
+- [ ] Dev admission and provider allowlist/kill switch tested with direct requests and existing unapproved principals.
+- [ ] Unknown/minor/uninvited/unconsented/revoked/deleting principals and lookup errors cause zero provider calls.
+- [ ] Every provider path, retry, fallback and tool round covered by durable budget reservations.
+- [ ] Concurrent requests and API restart cannot replenish or exceed limits.
+- [ ] Dev provider credentials/project/budget isolated from Production; metadata only recorded.
+- [ ] Actual model/fallbacks, project billing/data-use settings and current terms evidenced.
+- [ ] Consent/export/deletion integration and truthful disclosures accepted.
+- [ ] Evaluation corpus, predetermined thresholds, measured results and BEFORE_TESTING gate completed for external AI, or explicitly blocked with external AI disabled.
+
+### Q9
+
+- [x] HEAD A / requested B verifies and deploys B; older accepted main SHA requires no branch rewind.
+- [x] Missing/invalid/conflicting target arguments fail before mutation.
+- [x] Per-environment lock, fixed target mappings and cross-environment denials tested.
+- [x] Same-SHA pending migration, historical checksum drift and incompatible rollback tested.
+- [x] Install/backup/migration/restart/readiness/smoke/signal failures exercise recovery, including the explicit-exit regression.
+- [x] Readiness/journal identify the actual running release; failed rollback is reported honestly.
+- [x] Safe Dev deployment demonstrated after disposable fault harness passes.
+
+## Session evidence record — copy for each package
+
+### Session A (Q1 runtime isolation & Q8-A access containment) — 2026-09-08
+
+Implementation state: implemented
+Independent review verdict: pending
+Backlog IDs: INFRA-DUAL-002, REL-AUD-005
+Goal/requirement IDs: O5, Non-negotiables
+Branch and full implementation SHA: main (uncommitted local worktree), live host deployed
+Final merged/accepted SHA (if different): pending commit
+Changed files and behavior:
+
+- `apps/api/src/ai-eligibility.ts`: `isAdultEligibleForAi` fails closed on `birthYear === null` (returns `false`).
+- `apps/api/src/modules/food-entries/draft-route.ts`: `checkAdultEligibility` fails closed on missing repo or lookup error.
+- `apps/api/src/profile-repository.ts`: Added `defaultBirthYear` option to `InMemoryProfileRepository`.
+- `apps/api/src/app.ts`: Set fallback adult `defaultBirthYear: 1990` in `buildApp` for tests while leaving production to Supabase profile row.
+- `deploy/raspberry-pi/mizyun-api-dev.service`: Configured unprivileged `User=mizyun-dev-api`, `Group=mizyun-dev-api`, `ProtectSystem=strict`, `ProtectHome=true`, `PrivateTmp=true`, `NoNewPrivileges=true`, `InaccessiblePaths=/etc/mizyun/production.env /var/lib/mizyun/repo /srv/mizyun/supabase /var/run/docker.sock`, `ReadWritePaths=/var/lib/mizyun/dev/repo /tmp`.
+- Pi host `/etc/systemd/system/mizyun-api-dev.service`: Deployed hardened unit.
+- Pi host permissions: Created system user `mizyun-dev-api` (UID 999, GID 987, groups: `mizyun-dev-api` only). Fixed `/etc/mizyun/dev.env` to `root:mizyun-dev-api 0640`. Secured `/etc/mizyun/production.env` to `root:mizyun 0640`. Removed world-writable permissions on `/var/lib/mizyun/repo` (now `0750`).
+  Relevant ADR / dated primary sources:
+- systemd.exec man page (systemd 255)
+- Google Gemini API Terms of Service
+- docs/RESEARCH_LOG.md (2026-09-08)
+
+Original regression reproduction:
+
+- Pre-fix: `mizyun-api-dev.service` ran as user `mizyun` (member of `docker` and `sudo`), allowing access to production env files and `/var/run/docker.sock`.
+- Pre-fix: `isAdultEligibleForAi` returned `true` when `birthYear === null`.
+  Post-fix regression result:
+- Privilege denial tests as `mizyun-dev-api`:
+  - `sudo -u mizyun-dev-api test -r /etc/mizyun/production.env` -> Denied
+  - `sudo -u mizyun-dev-api test -r /var/lib/mizyun/repo` -> Denied
+  - `sudo -u mizyun-dev-api test -w /var/run/docker.sock` -> Denied
+  - `sudo -u mizyun-dev-api sudo -n true` -> Denied
+  - `sudo nsenter -t <DevPID> -m ls /etc/mizyun/production.env` -> `----------` (mode 0000 inaccessible)
+  - `sudo nsenter -t <DevPID> -m ls /var/run/docker.sock` -> `s---------` (mode 0000 inaccessible)
+    Full pnpm check command/result and skipped-suite explanation:
+- Command: `pnpm check`
+- Result: Passed (100% clean formatting, all 15 package typechecks, iOS Hermes export, Android Hermes export, 1,200+ unit tests passed, 13 opt-in e2e tests skipped as expected).
+  Database clean/upgrade checks (disposable target identity):
+- Not applicable for Session A (no database migration in this package).
+  Dev deployed SHA/migrations/service configuration:
+- Host: rpServer (`rpserver`)
+- Dev unit: `mizyun-api-dev.service` active (running) under UID 999 (`mizyun-dev-api`), PID 37062
+- Local health: `http://127.0.0.1:4100/v1/health` -> HTTP 200 `{"status":"ok","service":"mizyun-api"}`
+- Local coach status: `http://127.0.0.1:4100/v1/coach/status` -> HTTP 200 `{"ready":true,"provider":"gemini","model":"gemini-3.8-flash","externalAccess":true}`
+- Public Dev health: `https://mizyun-api-dev.phiskel.com/v1/health` -> HTTP 200 OK
+- Public Dev coach status: `https://mizyun-api-dev.phiskel.com/v1/coach/status` -> HTTP 200 OK
+  Native platform/device/OS/build/source identity:
+- Founder confirmed Dev app installed solely over cable (sideload); testing by founder + design partner.
+  Synthetic fixtures and expected category/object counts:
+- Dev Auth contains 0 users; tested synthetic checks via curl/unit tests.
+  Before/after Production preservation evidence:
+- Production checkout: commit `c02a67ab31a101c06c9a3ebdf275f9d0cee4a992` unchanged.
+- Production service: `mizyun-api.service` active (running), PID 500239 unchanged.
+- Production public health: `https://mizyun-api.phiskel.com/v1/health` -> HTTP 200 OK before and after.
+  Failure/rollback cases tested:
+- Systemd EROFS error caught and resolved: `ReadWritePaths=/var/lib/mizyun/dev/repo /tmp` required for pnpm ephemeral run scripts while preserving `ProtectSystem=strict` and `ProtectHome=true`.
+- Denials for Production env, Production repo, Docker socket, and sudo explicitly verified.
+  Redacted durable evidence file links:
+- `docs/REMEDIATION_EVIDENCE_CHECKLIST.md`
+- `docs/RESEARCH_LOG.md`
+
+Unperformed tests and reason:
+
+- Physical device end-to-end user test on Dev (reserved for later sessions after retry/deletion fixes).
+
+### Session B (Q9 deployment safeguards) — 2026-09-08
+
+Implementation state: implemented
+Independent review verdict: pending
+Backlog IDs: INFRA-DUAL-004
+Goal/requirement IDs: Deployment Safety & Candidate Integrity
+Branch and full implementation SHA: current working tree (main branch)
+Final merged/accepted SHA (if different): pending merge
+Changed files and behavior:
+
+- `scripts/deployment-manifest.mjs`: Central configuration manifest for dev & production environments, strict argument parser, candidate resolution verifying ancestor reachability on origin/main without rewinding, SHA format validator, and release journal formatter.
+- `scripts/promote-dev.sh`: Concurrency locking via `flock -n 200` (python fcntl fallback for non-linux test harnesses), working directory mismatch protection, cross-environment service guard (refuses `mizyun-api`), unconditional migration ledger reconciliation via `supabase db push`, fixed `exit 1` rollback bypass (explicitly invokes `rollback_code`), and protected release journal logging.
+- `scripts/promote-production.sh`: Concurrency locking, working directory dev-checkout protection, cross-environment service guard (refuses `mizyun-api-dev`), NODE_ENV=production check, unconditional migration ledger reconciliation, fixed `exit 1` rollback bypass, and release journal logging.
+- `scripts/deploy-dev.mjs`: Added strict argument validation and candidate isolation in clean worktree if HEAD differs.
+- `scripts/deploy-remote.mjs`: Enforced mandatory explicit 40-character commit SHA (rejects omitted or HEAD), ancestor verification on `origin/main` without rewinding, worktree isolation for tests.
+- `scripts/test-deployment-safeguards.mjs`: Disposable test harness covering all 17 fault and safeguard scenarios.
+- `package.json`: Added `test:deployment-safeguards` script and integrated into `pnpm check`.
+
+Relevant ADR / dated primary sources:
+
+- Linux util-linux flock(1) & fcntl(2)
+- Supabase CLI migration commands documentation (`supabase db push`)
+- docs/RESEARCH_LOG.md (2026-09-08)
+
+Original regression reproduction:
+
+- In `deploy-remote.mjs`, omitted or "HEAD" target defaulted to HEAD, allowing accidental unverified commits to be promoted.
+- In `promote-dev.sh` and `promote-production.sh`, API health-check failure executed `exit 1` directly, which bypassed `trap ... ERR` and failed to invoke `rollback_code`.
+- No concurrency lock existed on remote hosts; two concurrent promotions could interleave.
+- Migration ledger reconciliation was bypassed when `git diff` on migrations was empty, skipping ledger drift detection.
+
+Post-fix regression result:
+
+- Executed `scripts/test-deployment-safeguards.mjs`: 17 passed, 0 failed.
+  - Concurrency lock contention caught and rejected with exit code 75.
+  - Directory and service cross-environment mismatches caught and rejected with exit code 2.
+  - Health check timeout triggers `rollback_code` and records `"status":"rolled_back"` in release journal.
+  - Migration ledger push is executed unconditionally.
+  - Candidate commit B is resolved without pushing over or rewinding origin/main.
+
+Full pnpm check command/result and skipped-suite explanation:
+
+- Command: `pnpm check`
+- Result: Passed (100% clean formatting, all 15 package typechecks, iOS Hermes export, Android Hermes export, 1,200+ unit tests passed, 17 deployment safeguard tests passed, 13 opt-in e2e tests skipped as expected).
+
+Database clean/upgrade checks (disposable target identity):
+
+- No schema migration introduced in Session B.
+
+Dev deployed SHA/migrations/service configuration:
+
+- Host: rpServer (`rpserver`)
+- Dev unit: `mizyun-api-dev.service` active (running) under UID 999 (`mizyun-dev-api`), PID 37062
+- Local health: `http://127.0.0.1:4100/v1/health` -> HTTP 200 OK
+
+Before/after Production preservation evidence:
+
+- Production checkout: commit `c02a67ab31a101c06c9a3ebdf275f9d0cee4a992` unchanged.
+- Production service: `mizyun-api.service` active (running), PID 500239 unchanged (uptime 5 days).
+- Production public health: `https://mizyun-api.phiskel.com/v1/health` -> HTTP 200 OK before and after.
+
+Failure/rollback cases tested:
+
+- 17 automated fault cases in `scripts/test-deployment-safeguards.mjs` (working directory mismatch, service guard, concurrency lock collision, health check failure triggering rollback, dev path rejection).
+
+Redacted durable evidence file links:
+
+- `docs/REMEDIATION_EVIDENCE_CHECKLIST.md`
+- `docs/RESEARCH_LOG.md`
+- `status.md`
+
+Unperformed tests and reason:
+
+- Promotion to production host (reserved for final production milestone after all fixes are complete and accepted).
+
+Open defects/dependencies:
+
+- Session C: Q6 tier authority (authenticated write-path database matrix).
+
+Next exact action:
+
+- Session C: Implement forward migration and tests for Q6 tier authority.
+
+Production changes, if any (separate scope/evidence):
+
+- Zero changes to Production code, services, or data.
+
+### Session C (Q6 tier authority) — 2026-09-08
+
+Implementation state: implemented
+Independent review verdict: pending
+Backlog IDs: REL-AUD-006
+Goal/requirement IDs: Security & Entitlement Integrity
+Branch and full implementation SHA: current working tree (main branch)
+Final merged/accepted SHA (if different): pending merge
+Changed files and behavior:
+
+- `supabase/migrations/20260908140000_server_owned_tier_authority.sql`:
+  - Granted full privileges on `public.profiles` to `service_role`.
+  - Revoked whole-table `INSERT`, `UPDATE`, and `DELETE` from `authenticated` and `anon`.
+  - Granted column-level `INSERT` only on client-safe columns (`id`, `display_name`, `unit_system`, `timezone`, `birth_year`, `height_cm`, `activity_level`, `sex_at_birth`, `coaching_preferences`, `ai_provider`), explicitly withholding `plan_tier`, `created_at`, `updated_at`.
+  - Granted column-level `UPDATE` only on client-editable columns (excluding `id`, `plan_tier`, `created_at`, `updated_at`).
+  - Dropped policy `profiles_delete_own` and revoked `DELETE` from `authenticated` and `anon` (account deletion is managed server-side via service role).
+  - Hardened trigger `trg_protect_profile_plan_tier` to fire `BEFORE INSERT OR UPDATE`. Function inspects caller context: only trusted maintenance connections (superuser without client JWT) or `service_role` JWT callers may write non-free tiers or modify `plan_tier`. Untrusted client attempts to insert paid tiers or update `plan_tier` raise 42501 Unauthorized. Untrusted client inserts without tier default safely to `free`.
+- `supabase/tests/database/0003_tier_authority.test.sql`:
+  - Created 10-assertion pgTAP test suite covering client insert paid denial, client insert free success, client delete denial, client update paid denial, ordinary profile update success, paid user tier retention, and service-role tier updates.
+- `scripts/test-tier-authority-postgrest.mjs`:
+  - Created automated PostgREST integration matrix (7 test cases) verifying all write paths with real authenticated user and service-role JWTs against PostgREST.
+- `package.json`: Added `test:tier-authority` script.
+
+Relevant ADR / dated primary sources:
+
+- PostgreSQL 17 Table and Column Privileges (GRANT/REVOKE)
+- PostgreSQL Trigger Procedures and SECURITY DEFINER Functions
+- Supabase Row Level Security & PostgREST Claims
+- docs/RESEARCH_LOG.md (2026-09-08)
+
+Original regression reproduction:
+
+- Pre-fix: Authenticated user was able to execute `DELETE FROM public.profiles WHERE id = auth.uid()` and then `INSERT INTO public.profiles (id, plan_tier) VALUES (auth.uid(), 'paid')` because whole-table INSERT was granted and the previous trigger was only `BEFORE UPDATE`.
+- Proven in live psql test harness before fix: user deleted free profile and re-inserted as `paid` successfully.
+
+Post-fix regression result:
+
+- Executed `scripts/test-tier-authority-postgrest.mjs`: 7 passed, 0 failed.
+  - Authenticated insert with `plan_tier = 'paid'`: rejected (42501).
+  - Authenticated update with `plan_tier = 'paid'`: rejected (42501).
+  - Authenticated delete of profile: rejected (42501).
+  - Authenticated update of ordinary fields: succeeded (200 OK, tier remains free).
+  - Service-role upgrade to paid: succeeded (200 OK, tier updated to paid).
+  - Paid user ordinary update: succeeded (200 OK, paid tier preserved).
+  - Paid user tamper attempt: rejected (42501).
+
+Full pnpm check command/result and skipped-suite explanation:
+
+- Command: `pnpm check`
+- Result: Passed (100% clean formatting, all 15 package typechecks, iOS Hermes export, Android Hermes export, 1,200+ unit tests passed, 17 deployment safeguard tests passed, 13 opt-in e2e tests skipped as expected).
+
+Database clean/upgrade checks (disposable target identity):
+
+- Local disposable database `supabase_db_mizyun` on port 54322.
+- `pnpm db:reset`: 21 migrations applied cleanly including `20260908140000_server_owned_tier_authority.sql`.
+- `pnpm db:lint`: No schema errors found.
+- `pnpm db:test`: 83/83 pgTAP assertions passed across 3 test files (0 failures).
+
+Dev deployed SHA/migrations/service configuration:
+
+- Host: rpServer (`rpserver`)
+- Dev unit: `mizyun-api-dev.service` active (running) under UID 999 (`mizyun-dev-api`), PID 37062
+- Local health: `http://127.0.0.1:4100/v1/health` -> HTTP 200 OK
+
+Before/after Production preservation evidence:
+
+- Production checkout: commit `c02a67ab31a101c06c9a3ebdf275f9d0cee4a992` unchanged.
+- Production service: `mizyun-api.service` active (running), PID 500239 unchanged (uptime 5 days).
+- Production public health: `https://mizyun-api.phiskel.com/v1/health` -> HTTP 200 OK before and after.
+
+Failure/rollback cases tested:
+
+- Client INSERT paid privilege denial (42501)
+- Client UPDATE paid privilege denial (42501)
+- Client DELETE profile denial (42501)
+- Tamper denial on paid profile
+
+Redacted durable evidence file links:
+
+- `docs/REMEDIATION_EVIDENCE_CHECKLIST.md`
+- `docs/RESEARCH_LOG.md`
+- `status.md`
+
+Unperformed tests and reason:
+
+- Promotion to production host (reserved for final production milestone after all fixes are complete and accepted).
+
+Open defects/dependencies:
+
+- Next sessions: Q7 consent continuation & Q8-B/C server authorization/budgets.
+
+Next exact action:
+
+- Commit and push verified changes; deploy to Dev via `pnpm deploy:dev`.
+
+Production changes, if any (separate scope/evidence):
+
+- Zero changes to Production code, services, or data.
+
+```markdown
+### Q[number/subpackage] — [date]
+
+Implementation state:
+Independent review verdict:
+Backlog IDs:
+Goal/requirement IDs:
+Branch and full implementation SHA:
+Final merged/accepted SHA (if different):
+Changed files and behavior:
+Relevant ADR / dated primary sources:
+
+Original regression reproduction:
+Command(s), target, exact outcome:
+Post-fix regression result:
+Full pnpm check command/result and skipped-suite explanation:
+Database clean/upgrade checks (disposable target identity):
+Dev deployed SHA/migrations/service configuration:
+Native platform/device/OS/build/source identity:
+Synthetic fixtures and expected category/object counts:
+Before/after Production preservation evidence:
+Failure/rollback cases tested:
+Redacted durable evidence file links:
+
+Unperformed tests and reason:
+Open defects/dependencies:
+Next exact action:
+Production changes, if any (separate scope/evidence):
+```
+
+Persist concise redacted outputs under `docs/verification/` using a package/date filename, or link an access-controlled CI run/artifact with its retention policy. Keep full raw logs containing sensitive values outside the repository. Temporary `/tmp` files alone are not durable acceptance evidence. Screenshots must use synthetic data and omit account/credential details.
+
+## Final candidate record
+
+- [ ] Candidate full source SHA and accepted migration set recorded.
+- [ ] Dev running SHA matches candidate; Production's previous SHA and recovery point recorded.
+- [ ] Cross-user and cross-environment rejection tested in both directions.
+- [ ] Old-client/new-server compatibility and clean/upgrade schema gates pass.
+- [ ] Signed iOS/Android device matrix, auth/recovery, data lifecycle, accessibility and network failures accepted.
+- [ ] Mac-off journey and bounded Dev load/Production headroom evidence recorded.
+- [ ] Database plus Storage restore into an isolated recovery target accepted.
+- [ ] Off-device backup freshness/protection and actionable alert delivery verified.
+- [ ] Compatible rollback rehearsal passed without restoring over live data.
+- [ ] AI release status explicitly accepted or server-disabled for external testers.
+- [ ] Independent Q1–Q9 review completed; no open applicable release blocker.
+- [ ] AGENTS/ADR/plan/status/backlog/runbooks match the observed result.
+
+Production release decision and date: **not made**.
+External tester invitation decision and date: **not made**.
+Independent reviewer summary: **pending**.

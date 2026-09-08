@@ -113,7 +113,7 @@ export const foodDraftRoutes: FastifyPluginAsync<
     userId: UserId,
     accessToken: string,
   ): Promise<boolean> => {
-    if (!options.profileRepository) return true;
+    if (!options.profileRepository) return false;
     try {
       const profile = await options.profileRepository.getOrCreate(userId, {
         now: new Date(),
@@ -121,7 +121,7 @@ export const foodDraftRoutes: FastifyPluginAsync<
       });
       return isAdultEligibleForAi(profile, new Date());
     } catch {
-      return true;
+      return false;
     }
   };
 

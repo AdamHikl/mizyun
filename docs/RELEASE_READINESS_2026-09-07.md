@@ -1,5 +1,7 @@
 # Mizyun friends-beta readiness audit — 2026-09-07
 
+> Follow-up 2026-09-08: [implementation review](IMPLEMENTATION_REVIEW_2026-09-08.md) found partial remediation with remaining defects. R3 remains P1/open; its checked-in EAS production profile still resolves the Dev identity without an external override. Read the follow-up for current evidence; original findings below remain the closure baseline.
+
 ## Decision
 
 **Do not distribute the current build for unsupervised testing with friends' personal data yet.** The product has enough functionality to make a small private beta worthwhile. The blockers are account privacy controls, release configuration, AI eligibility/consent/evaluation, retry integrity, and operational acceptance. An architecture rewrite or completion of every future feature is unnecessary before a narrowly scoped manual-tracking pilot.

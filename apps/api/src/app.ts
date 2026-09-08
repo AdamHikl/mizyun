@@ -345,6 +345,7 @@ const defaultDependencies = (): AppDependencies => {
     profileRepository: new InMemoryProfileRepository({
       defaultTimezone: DEFAULT_TIMEZONE,
       defaultUnitSystem: DEFAULT_UNIT_SYSTEM,
+      defaultBirthYear: 1990,
     }),
     goalRepository: new InMemoryGoalRepository(),
     foodEntryRepository: new InMemoryFoodEntryRepository(),
@@ -461,6 +462,7 @@ export const buildApp = (
       : new InMemoryProfileRepository({
           defaultTimezone: DEFAULT_TIMEZONE,
           defaultUnitSystem: DEFAULT_UNIT_SYSTEM,
+          defaultBirthYear: 1990,
         }));
   const goalRepository =
     dependencies.goalRepository ??

@@ -4,17 +4,34 @@
 // Unlike production, dev deployment allows feature branches and commits under test.
 
 import { spawnSync } from "node:child_process";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { exit } from "node:process";
+import {
+  DEPLOYMENT_MANIFEST,
+  parseDeploymentArgs,
+  resolvePromotionCandidate,
+} from "./deployment-manifest.mjs";
 
-const args = process.argv.slice(2);
-const dryRun = args.includes("--dry-run");
-const positionalSha = args.find((arg) => !arg.startsWith("--"));
+const config = DEPLOYMENT_MANIFEST.dev;
 
-const sshAlias = process.env.MIZYUN_DEV_SSH_ALIAS ?? "rpserver";
-const remoteDir =
-  process.env.MIZYUN_DEV_REMOTE_DIR ?? "/var/lib/mizyun/dev/repo";
-const publicApiUrl =
-  process.env.MIZYUN_DEV_API_URL ?? "https://mizyun-api-dev.phiskel.com";
+let dryRun = false;
+let positionalSha = null;
+
+try {
+  const parsed = parseDeploymentArgs(process.argv.slice(2));
+  dryRun = parsed.dryRun;
+  positionalSha = parsed.positionalSha;
+} catch (err) {
+  // eslint-disable-next-line no-console
+  console.error(`\nInvalid deployment arguments: ${err.message}`);
+  exit(2);
+}
+
+const sshAlias = process.env.MIZYUN_DEV_SSH_ALIAS ?? config.defaultSshAlias;
+const remoteDir = process.env.MIZYUN_DEV_REMOTE_DIR ?? config.defaultRemoteDir;
+const publicApiUrl = process.env.MIZYUN_DEV_API_URL ?? config.publicApiUrl;
 
 if (!/^[A-Za-z0-9_./-]+$/.test(remoteDir) || !remoteDir.startsWith("/")) {
   // eslint-disable-next-line no-console
@@ -28,8 +45,8 @@ const run = (command, cmdArgs, options = {}) => {
   return spawnSync(command, cmdArgs, { stdio: "inherit", ...options });
 };
 
-const output = (command, cmdArgs) => {
-  const result = spawnSync(command, cmdArgs, { encoding: "utf8" });
+const output = (command, cmdArgs, options = {}) => {
+  const result = spawnSync(command, cmdArgs, { encoding: "utf8", ...options });
   if (result.status !== 0) {
     process.stderr.write(result.stderr ?? "");
     exit(2);
@@ -43,24 +60,25 @@ const fail = (message, code = 2) => {
   exit(code);
 };
 
-let targetSha = positionalSha;
-if (!targetSha || targetSha === "HEAD") {
-  targetSha = output("git", ["rev-parse", "HEAD"]);
-} else {
-  try {
-    targetSha = output("git", ["rev-parse", `${targetSha}^{commit}`]);
-  } catch {
-    fail(`Could not resolve '${positionalSha}' to a valid commit.`);
-  }
+if (output("git", ["status", "--porcelain"]) !== "") {
+  fail(
+    "the Mac working tree is dirty; commit or stash local-only changes before deploying",
+  );
 }
 
-if (!/^[0-9a-f]{40}$/.test(targetSha)) {
-  fail("Target SHA must be a valid 40-character commit hash.");
+let targetSha;
+try {
+  targetSha = resolvePromotionCandidate({
+    environment: "dev",
+    positionalSha,
+  });
+} catch (err) {
+  fail(err.message);
 }
 
 const steps = [
   `verify commit ${targetSha}`,
-  "run pnpm check on the Mac",
+  `run pnpm check on candidate commit ${targetSha}`,
   "ensure commit is pushed to origin",
   `deploy to Pi Dev at ${remoteDir}`,
   `smoke-test ${publicApiUrl}/v1/health`,
@@ -74,16 +92,44 @@ if (dryRun) {
   exit(0);
 }
 
-if (output("git", ["status", "--porcelain"]) !== "") {
-  fail(
-    "the Mac working tree is dirty; commit or stash local-only changes before deploying",
+const currentHead = output("git", ["rev-parse", "HEAD"]);
+
+// Candidate verification: run pnpm check on the exact candidate commit
+if (currentHead === targetSha) {
+  if (run("pnpm", ["check"]).status !== 0)
+    fail("pnpm check failed on candidate commit");
+} else {
+  // eslint-disable-next-line no-console
+  console.log(
+    `\n> verifying candidate commit ${targetSha} in isolated temporary worktree`,
   );
+  const tempWorktree = mkdtempSync(path.join(tmpdir(), "mizyun-dev-verify-"));
+  try {
+    const addWorktree = run("git", [
+      "worktree",
+      "add",
+      "--detach",
+      tempWorktree,
+      targetSha,
+    ]);
+    if (addWorktree.status !== 0)
+      fail("failed to create temporary worktree for candidate");
+
+    const pnpmInstall = run("pnpm", ["install", "--frozen-lockfile"], {
+      cwd: tempWorktree,
+    });
+    if (pnpmInstall.status !== 0)
+      fail("pnpm install failed in candidate worktree");
+
+    const pnpmCheck = run("pnpm", ["check"], { cwd: tempWorktree });
+    if (pnpmCheck.status !== 0) fail("pnpm check failed on candidate commit");
+  } finally {
+    run("git", ["worktree", "remove", "--force", tempWorktree]);
+  }
 }
 
 const sshCheck = run("ssh", ["-o", "BatchMode=yes", sshAlias, "true"]);
 if (sshCheck.status !== 0) fail(`SSH host ${sshAlias} is not reachable`);
-
-if (run("pnpm", ["check"]).status !== 0) fail("pnpm check failed");
 
 // Push commit to origin if needed so the Pi can fetch it
 const currentBranch = output("git", ["branch", "--show-current"]);

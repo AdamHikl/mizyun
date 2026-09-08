@@ -85,6 +85,7 @@ const makeApp = (
     new InMemoryProfileRepository({
       defaultTimezone: DEFAULT_TIMEZONE,
       defaultUnitSystem: DEFAULT_UNIT_SYSTEM,
+      defaultBirthYear: 1990,
       clock: { now: () => new Date() },
     });
   const resolvedWorkoutRepo =
@@ -1149,7 +1150,7 @@ describe("coach routes — plan-tier limiter (AI-OPS-001)", () => {
         displayName: null,
         unitSystem: "metric",
         timezone: "UTC",
-        birthYear: null,
+        birthYear: 1990,
         heightCm: null,
         activityLevel: null,
         sexAtBirth: null,
