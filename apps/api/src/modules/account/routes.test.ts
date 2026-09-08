@@ -117,6 +117,24 @@ describe("GET /v1/account/export", () => {
     expect(body.export.conversations).toEqual([]);
     expect(body.export.memories).toEqual([]);
     expect(body.export.privateMedia).toEqual([]);
+    expect(body.export.manifest).toMatchObject({
+      schemaVersion: "2026-09-08",
+      completeness: "complete",
+      counts: {
+        profiles: 1,
+        goals: 0,
+        foodEntries: 0,
+        exercises: 0,
+        workouts: 0,
+        workoutSets: 0,
+        bodyMeasurements: 0,
+        conversations: 0,
+        messages: 0,
+        memories: 0,
+        privateMedia: 0,
+        feedback: 0,
+      },
+    });
   });
 
   it("includes seeded records and the complete memory audit trail", async () => {
@@ -157,6 +175,8 @@ describe("GET /v1/account/export", () => {
       content: "Prefers morning training",
       status: "superseded",
     });
+    expect(response.json().export.manifest.counts.exercises).toBe(1);
+    expect(response.json().export.manifest.counts.memories).toBe(1);
   });
 
   it("returns 401 without a bearer token", async () => {

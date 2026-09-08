@@ -44,11 +44,44 @@ export const conversationStubSchema = z.object({
   ),
 });
 
-/** Private media stub: only `id`, `createdAt`. */
-export const privateMediaStubSchema = z.object({
+/** Export manifest containing version, timestamp, completeness, and item counts. */
+export const exportManifestSchema = z.object({
+  schemaVersion: z.literal("2026-09-08"),
+  generatedAt: z.string().datetime(),
+  completeness: z.enum(["complete", "partial"]),
+  counts: z.object({
+    profiles: z.number().int().nonnegative(),
+    goals: z.number().int().nonnegative(),
+    foodEntries: z.number().int().nonnegative(),
+    exercises: z.number().int().nonnegative(),
+    workouts: z.number().int().nonnegative(),
+    workoutSets: z.number().int().nonnegative(),
+    bodyMeasurements: z.number().int().nonnegative(),
+    conversations: z.number().int().nonnegative(),
+    messages: z.number().int().nonnegative(),
+    memories: z.number().int().nonnegative(),
+    privateMedia: z.number().int().nonnegative(),
+    feedback: z.number().int().nonnegative(),
+  }),
+});
+
+export type ExportManifest = z.infer<typeof exportManifestSchema>;
+
+/** Private media asset with download URL for offline export retrieval. */
+export const exportedMediaAssetSchema = z.object({
   id: z.string().uuid(),
+  objectPath: z.string().default(""),
+  purpose: z.string().nullable().optional(),
+  mimeType: z.string().nullable().optional(),
+  byteSize: z.number().int().nonnegative().nullable().optional(),
+  downloadUrl: z.string().nullable().optional(),
   createdAt: z.string().datetime(),
 });
+
+export type ExportedMediaAsset = z.infer<typeof exportedMediaAssetSchema>;
+
+/** Private media stub backwards compatibility alias. */
+export const privateMediaStubSchema = exportedMediaAssetSchema;
 
 /**
  * Exhaustive user export envelope. Every Phase 2 feature is
@@ -56,6 +89,7 @@ export const privateMediaStubSchema = z.object({
  * per-feature list endpoints land.
  */
 export const accountExportSchema = z.object({
+  manifest: exportManifestSchema.optional(),
   userId: z.string().uuid(),
   generatedAt: z.string().datetime(),
   profile: z.unknown().nullable(),
@@ -67,7 +101,7 @@ export const accountExportSchema = z.object({
   bodyMeasurements: z.array(z.unknown()),
   conversations: z.array(conversationStubSchema),
   memories: z.array(z.unknown()),
-  privateMedia: z.array(privateMediaStubSchema),
+  privateMedia: z.array(exportedMediaAssetSchema),
   feedback: z.array(z.unknown()).default([]),
 });
 

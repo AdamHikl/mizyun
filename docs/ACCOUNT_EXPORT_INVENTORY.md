@@ -1,0 +1,241 @@
+# Mizyun Account Data Export Inventory
+
+> Authoritative inventory of user-owned personal data categories, schema fields, exclusions, pagination controls, and delivery formats (REL-AUD-001 / REL-AUD-002 / Finding Q5 / R1 / R2).
+
+## 1. Export Overview & Consistency Model
+
+The Mizyun account export delivers an exhaustive, portable, and versioned JSON archive of all personal records and media metadata owned by the authenticated user (`user_id = auth.uid()`).
+
+- **Version**: `2026-09-08` (Manifest Schema Version 1)
+- **Consistency Guarantee**: Snapshot-consistent read per repository category under active user RLS session. Operations across independent tables are sequenced deterministically without blocking live writes.
+- **Resource Protection**: Deterministic batch pagination (500 records per chunk) ensures the export engine never exhausts Node.js or PostgreSQL memory on the Raspberry Pi 5 host, regardless of account lifetime volume.
+- **Exclusion Policy**: Strict exclusion of administrative secrets, authentication hashes, refresh tokens, and internal state machine challenges.
+
+---
+
+## 2. Category Inventory & Field Mappings
+
+### 2.1 Profile & Identity (`public.profiles`)
+
+- **Table**: `public.profiles`
+- **Ownership**: `id = auth.uid()`
+- **Included Fields**:
+  - `userId` (uuid)
+  - `displayName` (string | null)
+  - `unitSystem` ("metric" | "imperial")
+  - `timezone` (string)
+  - `birthYear` (number | null)
+  - `heightCm` (number | null)
+  - `activityLevel` ("sedentary" | "light" | "moderate" | "heavy" | "very_heavy" | null)
+  - `sexAtBirth` ("male" | "female" | null)
+  - `coachingPreferences` (json object)
+  - `aiProvider` (string | null)
+  - `planTier` ("free" | "paid")
+  - `createdAt` (ISO 8601 string)
+  - `updatedAt` (ISO 8601 string)
+- **Exclusions**: Internal database triggers and PostgREST metadata.
+
+### 2.2 Goals & Progression (`public.goals`)
+
+- **Table**: `public.goals`
+- **Ownership**: `user_id = auth.uid()`
+- **Pagination**: Batch size 500 ordered by `created_at ASC, id ASC`.
+- **Included Fields**:
+  - `id` (uuid)
+  - `userId` (uuid)
+  - `kind` ("cut" | "bulk" | "maintain")
+  - `status` ("active" | "completed" | "abandoned")
+  - `pace` ("conservative" | "moderate" | "aggressive")
+  - `target` (json: `{ weightKg, bodyFatPercent }`)
+  - `startsOn` (ISO 8601 date string)
+  - `targetDate` (ISO 8601 date string | null)
+  - `reviewDate` (ISO 8601 date string | null)
+  - `createdAt` (ISO 8601 string)
+  - `updatedAt` (ISO 8601 string)
+
+### 2.3 Food & Nutrition Entries (`public.food_entries`)
+
+- **Table**: `public.food_entries`
+- **Ownership**: `user_id = auth.uid()`
+- **Pagination**: Deterministic keyset/offset batch pagination (500 per chunk) ordered by `consumed_at DESC, id DESC`.
+- **Included Fields**:
+  - `id` (uuid)
+  - `userId` (uuid)
+  - `clientOperationId` (uuid | null) — idempotent submission key
+  - `name` (string)
+  - `consumedAt` (ISO 8601 string)
+  - `caloriesKcal` (number)
+  - `proteinG` (number)
+  - `carbohydrateG` (number)
+  - `fatG` (number)
+  - `source` ("manual" | "ai_vision" | "ai_text" | "barcode")
+  - `confidence` (number | null)
+  - `confirmedByUser` (boolean)
+  - `details` (json: serving details, ingredients)
+  - `createdAt` (ISO 8601 string)
+  - `updatedAt` (ISO 8601 string)
+
+### 2.4 Exercises Library (`public.exercises`)
+
+- **Table**: `public.exercises`
+- **Ownership**: `user_id = auth.uid()`
+- **Pagination**: Batch size 500 ordered by `name ASC, id ASC`.
+- **Included Fields**:
+  - `id` (uuid)
+  - `userId` (uuid)
+  - `name` (string)
+  - `instructions` (string | null)
+  - `metadata` (json: equipment, muscle groups, movement pattern)
+  - `createdAt` (ISO 8601 string)
+  - `updatedAt` (ISO 8601 string)
+
+### 2.5 Workouts & Set Logs (`public.workouts`, `public.workout_sets`)
+
+- **Tables**: `public.workouts`, `public.workout_sets`
+- **Ownership**: `user_id = auth.uid()`
+- **Pagination**: Workouts paginated in batches of 500 ordered by `started_at DESC, id DESC`. Sets fetched per workout or in ordered batches.
+- **Included Fields (Workouts)**:
+  - `id` (uuid)
+  - `userId` (uuid)
+  - `name` (string)
+  - `startedAt` (ISO 8601 string)
+  - `completedAt` (ISO 8601 string | null)
+  - `notes` (string | null)
+  - `source` ("manual" | "coach_plan")
+  - `createdAt` (ISO 8601 string)
+  - `updatedAt` (ISO 8601 string)
+- **Included Fields (Workout Sets)**:
+  - `id` (uuid)
+  - `userId` (uuid)
+  - `workoutId` (uuid)
+  - `exerciseId` (uuid)
+  - `sequence` (number)
+  - `repetitions` (number | null)
+  - `loadKg` (number | null)
+  - `distanceMeters` (number | null)
+  - `durationSeconds` (number | null)
+  - `rpe` (number | null)
+  - `notes` (string | null)
+  - `completedAt` (ISO 8601 string | null)
+  - `createdAt` (ISO 8601 string)
+  - `updatedAt` (ISO 8601 string)
+
+### 2.6 Body Measurements & Weight (`public.body_measurements`)
+
+- **Table**: `public.body_measurements`
+- **Ownership**: `user_id = auth.uid()`
+- **Pagination**: Batch size 500 ordered by `measured_at DESC, id DESC`.
+- **Included Fields**:
+  - `id` (uuid)
+  - `userId` (uuid)
+  - `measuredAt` (ISO 8601 string)
+  - `weightKg` (number | null)
+  - `measurements` (json: waistCm, chestCm, hipsCm, etc.)
+  - `source` ("manual" | "scale")
+  - `createdAt` (ISO 8601 string)
+  - `updatedAt` (ISO 8601 string)
+
+### 2.7 AI Coach Conversations & Messages (`public.conversations`, `public.messages`)
+
+- **Tables**: `public.conversations`, `public.messages`
+- **Ownership**: `user_id = auth.uid()`
+- **Pagination**: Conversations ordered by `updated_at DESC, id DESC`. Messages ordered by `sequence ASC, created_at ASC`.
+- **Included Fields (Conversations)**:
+  - `id` (uuid)
+  - `title` (string | null)
+  - `status` ("active" | "archived")
+  - `createdAt` (ISO 8601 string)
+  - `updatedAt` (ISO 8601 string)
+- **Included Fields (Messages)**:
+  - `id` (uuid)
+  - `role` ("user" | "assistant" | "system")
+  - `text` (string)
+  - `status` ("complete" | "failed")
+  - `evidence` (json array: cited facts and sources)
+  - `createdAt` (ISO 8601 string)
+
+### 2.8 Durable Learned Memories (`public.agent_memories` / MemoryStore)
+
+- **Store**: Vector/PostgreSQL Memory Store
+- **Ownership**: `userId = auth.uid()`
+- **Included Fields**:
+  - `id` (string)
+  - `kind` (string)
+  - `content` (string)
+  - `source` (string)
+  - `status` ("active" | "superseded" | "expired")
+  - `confidence` (number)
+  - `importance` (number)
+  - `createdAt` (ISO 8601 string)
+  - `updatedAt` (ISO 8601 string)
+  - `expiresAt` (ISO 8601 string | null)
+  - `metadata` (json object)
+
+### 2.9 User Feedback & Reviews (`public.user_feedback`)
+
+- **Table**: `public.user_feedback`
+- **Ownership**: `user_id = auth.uid()`
+- **Pagination**: Batch size 500 ordered by `created_at DESC, id DESC`.
+- **Included Fields**:
+  - `id` (uuid)
+  - `category` ("like" | "dislike" | "change" | "bug" | "general")
+  - `rating` (number 1-5 | null)
+  - `message` (string)
+  - `context` (json: app version, platform)
+  - `createdAt` (ISO 8601 string)
+
+### 2.10 Private Media Assets & Offline Download URLs (`public.media_assets`)
+
+- **Table**: `public.media_assets`
+- **Storage Bucket**: `private-media`
+- **Ownership**: `user_id = auth.uid()` and object path prefix `${user_id}/`
+- **Pagination**: Batch size 500 ordered by `created_at DESC, id DESC`.
+- **Included Fields**:
+  - `id` (uuid)
+  - `objectPath` (string)
+  - `purpose` ("progress" | "meal")
+  - `mimeType` (string)
+  - `byteSize` (number)
+  - `downloadUrl` (string | null) — 24-hour pre-signed authenticated URL for offline photo retrieval
+  - `createdAt` (ISO 8601 string)
+  - `updatedAt` (ISO 8601 string)
+
+---
+
+## 3. Deliberate & Justified Exclusions
+
+| Excluded Resource                              | Justification                                                                                   |
+| :--------------------------------------------- | :---------------------------------------------------------------------------------------------- |
+| `auth.users` Password Hashes & Salts           | Cryptographic credentials must never be exported to prevent offline brute-force attacks.        |
+| Supabase Auth Session Refresh Tokens           | Ephemeral session tokens are revoked on export or signout to prevent session hijacking.         |
+| `public.account_deletion_jobs` Tokens & Hashes | Internal challenge tokens are security controls for verification, not personal health records.  |
+| Server Secrets & API Keys                      | Infrastructure configuration is excluded by design.                                             |
+| Shared System Exercise Templates               | Universal exercise library definitions are public system records, not user-owned personal data. |
+
+---
+
+## 4. Export Manifest Schema
+
+Every export response includes a top-level `manifest` metadata block:
+
+```json
+{
+  "schemaVersion": "2026-09-08",
+  "generatedAt": "2026-09-08T16:25:00.000Z",
+  "completeness": "complete",
+  "counts": {
+    "profiles": 1,
+    "goals": 2,
+    "foodEntries": 145,
+    "exercises": 12,
+    "workouts": 34,
+    "workoutSets": 120,
+    "bodyMeasurements": 28,
+    "conversations": 6,
+    "messages": 54,
+    "memories": 8,
+    "feedback": 2,
+    "privateMedia": 5
+  }
+}
+```

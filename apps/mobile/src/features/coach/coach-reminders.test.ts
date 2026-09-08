@@ -17,6 +17,7 @@ vi.mock("react-native", () => ({ Platform: { OS: "ios" } }));
 import {
   applyCoachReminders,
   expoReminderScheduler,
+  clearCoachReminders,
   loadCoachReminders,
   type ReminderScheduler,
 } from "./coach-reminders";
@@ -29,6 +30,9 @@ const memoryStore = () => {
     getItemAsync: async (key: string) => values.get(key) ?? null,
     setItemAsync: async (key: string, value: string) => {
       values.set(key, value);
+    },
+    deleteItemAsync: async (key: string) => {
+      values.delete(key);
     },
   };
 };
@@ -193,5 +197,44 @@ describe("Coach reminders", () => {
         }),
       }),
     );
+  });
+
+  it("clearCoachReminders cancels all scheduled notifications and wipes storage", async () => {
+    const store = memoryStore();
+    const cancelled: string[] = [];
+    const scheduler: ReminderScheduler = {
+      ensureChannel: async () => undefined,
+      getPermission: async () => "granted",
+      requestPermission: async () => "granted",
+      schedule: async () => "notif-abc",
+      cancel: async (id) => {
+        cancelled.push(id);
+      },
+    };
+
+    // Pre-populate reminder settings
+    await applyCoachReminders(
+      userId,
+      {
+        dailyEnabled: true,
+        weeklyEnabled: false,
+        hour: 20,
+        weeklyWeekday: 1,
+      },
+      scheduler,
+      store,
+    );
+    expect(cancelled).toEqual([]);
+    expect(store.values.size).toBe(1);
+
+    // Now clear reminders
+    await clearCoachReminders(userId, scheduler, store);
+    expect(cancelled).toEqual(["notif-abc"]);
+    expect(store.values.size).toBe(0);
+    expect(await loadCoachReminders(userId, store)).toMatchObject({
+      dailyEnabled: false,
+      weeklyEnabled: false,
+      notificationIds: [],
+    });
   });
 });

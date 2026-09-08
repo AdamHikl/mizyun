@@ -19,7 +19,7 @@ interface FeedbackRow extends Record<string, unknown> {
   readonly created_at: string;
 }
 
-const fromRow = (row: FeedbackRow): UserFeedback => ({
+export const feedbackFromRow = (row: FeedbackRow): UserFeedback => ({
   id: row.id,
   userId: row.user_id as UserId,
   category: row.category as FeedbackCategory,
@@ -31,6 +31,7 @@ const fromRow = (row: FeedbackRow): UserFeedback => ({
     : [],
   createdAt: new Date(row.created_at),
 });
+const fromRow = feedbackFromRow;
 
 const toInsertRow = (
   userId: UserId,

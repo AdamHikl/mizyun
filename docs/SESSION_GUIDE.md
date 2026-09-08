@@ -40,10 +40,13 @@ Code is truth about what exists; it is not automatically truth about what should
 7. Research current official documentation for every platform/service materially affected.
 8. Add the sources and consequences to `docs/RESEARCH_LOG.md`; create an ADR if the result is durable.
 9. State assumptions and begin with the smallest vertical slice that can be verified end to end.
+10. For substantive work, follow AGENTS.md's required agent collaboration: assign a bounded independent subtask, explicit file ownership and acceptance checks while the coordinator progresses other useful work. Use agent tools rather than creating user-visible tasks. Record narrow/unavailable-tool exceptions honestly.
 
 ## During a session
 
-- Keep one active work package unless the user changes priority.
+- Keep one active work package unless the user changes priority. Independent agent subtasks within that package are encouraged and required for substantive work under AGENTS.md; they do not create competing work packages.
+- The coordinator owns shared continuity documents, integration, commits, remote mutations and final verification. Assign disjoint helper write ownership; serialize operations on shared database and native-build resources. Preserve work from other active sessions.
+- Get independent agent review for authentication, authorization, privacy lifecycle, migrations/RLS, AI access/budgets and deployment changes. Review findings must be resolved or recorded as open blockers, not hidden behind passing helper tests.
 - Prefer feature-vertical changes: contract/domain → port → adapter → API/UI → tests.
 - Do not bypass an interface merely because only one provider exists today.
 - Update tests with behavior, not afterward as cleanup.
@@ -73,6 +76,7 @@ For each affected technology:
    ```
 
 2. Review `git diff` for secrets, generated artifacts, unrelated edits, and architecture violations.
+   Inspect helper changes and evidence yourself after writes have settled. Record which work was delegated and any unresolved independent-review findings.
 3. Update:
    - `status.md` with completed work, verification evidence, blockers, next exact action, latest commit;
    - `backlog.md` statuses and newly discovered work;
@@ -90,11 +94,13 @@ For each affected technology:
 
 - What now works
 - What intentionally remains disabled/incomplete
+- Agent subtasks, independent review outcome, or the reason delegation was unavailable/inapplicable
 
 ### Verification
 
 - Commands and pass/fail counts
 - Simulator/device/database evidence
+- Separate implementation, automated verification, Dev deployment, device acceptance and Production release status; include skipped/unrun checks and reasons
 
 ### Repository
 

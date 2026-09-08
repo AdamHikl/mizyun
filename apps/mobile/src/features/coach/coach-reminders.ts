@@ -21,9 +21,10 @@ export const DEFAULT_COACH_REMINDERS: CoachReminderSettings = {
   notificationIds: [],
 };
 
-interface ReminderStore {
+export interface ReminderStore {
   getItemAsync(key: string): Promise<string | null>;
   setItemAsync(key: string, value: string): Promise<unknown>;
+  deleteItemAsync?(key: string): Promise<unknown>;
 }
 
 export interface ReminderScheduler {
@@ -142,6 +143,29 @@ export const applyCoachReminders = async (
   } catch {
     await Promise.allSettled(nextIds.map((id) => scheduler.cancel(id)));
     return { ok: false, reason: "unavailable" };
+  }
+};
+
+export const clearCoachReminders = async (
+  userId: string,
+  scheduler: ReminderScheduler = expoReminderScheduler,
+  store: ReminderStore = SecureStore,
+): Promise<void> => {
+  try {
+    const previous = await loadCoachReminders(userId, store);
+    await Promise.allSettled(
+      previous.notificationIds.map((id) => scheduler.cancel(id)),
+    );
+    if (typeof store.deleteItemAsync === "function") {
+      await store.deleteItemAsync(keyFor(userId));
+    } else {
+      await store.setItemAsync(
+        keyFor(userId),
+        JSON.stringify(DEFAULT_COACH_REMINDERS),
+      );
+    }
+  } catch {
+    // Best-effort cleanup during account deletion or logout.
   }
 };
 

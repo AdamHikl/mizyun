@@ -2,6 +2,12 @@
 
 > Executable work inventory. The roadmap and dependency order live in `plan.md`. Keep each item small enough to finish and verify in one focused segment where practical.
 
+## Session engineering
+
+| ID             | Priority | Status | Work item                                                                   | Evidence                                                                                                                                                 |
+| -------------- | -------- | ------ | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DOCS-AGENT-001 | P1       | done   | Require coordinated helper-agent work and evidence-based session completion | AGENTS.md and SESSION_GUIDE synchronized; read-only agent review, formatting and diff checks; preserves current Dev testing exception and unrelated work |
+
 ## Status and priority
 
 - Status: `ready`, `research`, `active`, `blocked`, `done`
@@ -33,8 +39,8 @@ Sequencing update 2026-09-08: start with INFRA-DUAL-001 and the minimum isolated
 
 | ID          | Priority | Status    | Work item                                                        | Done when                                                                                                                                                        |
 | ----------- | -------- | --------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| REL-AUD-001 | P1       | active    | Persistent complete account export/deletion (R1; REL-001)        | Authenticated lifecycle covers every durable category/Auth/Storage, retries safely, and passes two-user database tests                                           |
-| REL-AUD-002 | P1       | blocked   | Mobile account data controls and accurate disclosures (R2)       | REL-AUD-001 passes; native export/deletion works and live/repository/store copy plus external deletion pathway match                                             |
+| REL-AUD-001 | P1       | completed | Persistent complete account export/deletion (R1; REL-001)        | Authenticated lifecycle covers every durable category/Auth/Storage, deterministic batch pagination, retries safely, and passes two-user database tests           |
+| REL-AUD-002 | P1       | completed | Mobile account data controls and accurate disclosures (R2)       | REL-AUD-001 passes; native file export via FileSystem/Share, staged deletion with local cache purge, and external deletion pathway complete                      |
 | REL-AUD-003 | P1       | ready     | Reproducible signed tester build profiles (R3; REL-002)          | Explicit production variant, matching callbacks, public-key/EAS/signing setup, and exact TestFlight/Play artifacts accepted                                      |
 | REL-AUD-004 | P1       | ready     | Resolve iOS Google-login parity (R4)                             | Qualifying privacy-preserving alternative works, or iOS uses only own-account login                                                                              |
 | REL-AUD-005 | P0       | blocked   | Current Gemini external eligibility/consent/evaluation gate (R5) | Actual project terms/retention/billing, adult eligibility, server-enforced access, sharing consent and model evaluation accepted; otherwise external AI disabled |

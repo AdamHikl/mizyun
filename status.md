@@ -1,6 +1,57 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-09-08** (Sessions B, C, D, E1 complete: Q9 deployment safeguards, Q6 tier authority, Q2 mutation retry durability, Q4 durable account deletion state machine).
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-09-08** (Sessions B, C, D, E1, E2, F complete: Q9 deployment safeguards, Q6 tier authority, Q2 mutation retry durability, Q4 durable account deletion & mobile lifecycle, Q5 complete paged export & native file delivery).
+
+## Remediation Sessions E2 & F (Q4 deletion lifecycle UI & Q5 complete paged export delivery) — 2026-09-08
+
+Sessions E2 and F completed the durable account deletion user experience and complete, paged account data export with native file sharing (REL-AUD-001, REL-AUD-002, R1, R2, AUTH-04, SEC-06):
+
+- **Q4 Mobile Deletion UI & Cache Purge (Session E2)**:
+  - `apps/mobile/src/features/settings/account-data-card.tsx`:
+    - Implemented explicit deletion stage progression (`idle` -> `requesting_challenge` -> `erasing_server_data` -> `clearing_local_cache` -> `failed`).
+    - Handled challenge retry vs re-issuance cleanly based on failure reason (`expired`/`mismatch` clear token, `network`/`server` allow instant retry).
+    - Hardened `signOut()` with `.catch(() => {})` so downstream rejection on already-deleted auth identities does not trigger false failure alerts.
+    - Updated confirmation copy to accurately state that active systems are immediately purged while backups are aged out over the standard retention schedule.
+  - `apps/mobile/src/features/settings/account-data-management.ts`:
+    - Implemented `clearLocalUserData(userId, options)`: comprehensively wipes meal, workout, weight, and coach drafts from secure storage; revokes local AI consent decisions; cancels all pending coach reminders via `expo-notifications`.
+  - `apps/api/src/account-deletion.e2e.test.ts`:
+    - Created comprehensive end-to-end multi-stage deletion test verifying 2-user isolation: deleting User A purges all User A records across 10 tables, clears private storage files, deletes auth identity, and preserves User B completely intact.
+  - **Independent Security & Privacy Subagent Audit**:
+    - Per `AGENTS.md`, delegated full review of ADR-0021, migration `20260908150000`, RLS policies, pipeline order, and mobile cache clearing to an independent auditor subagent.
+    - **Verdict: ACCEPT**. Verified tombstone survival without cascading FK, multi-stage fail-closed cleanup, and complete local cache purge.
+
+- **Q5 Complete Account Export & Native File Delivery (Session F)**:
+  - `docs/ACCOUNT_EXPORT_INVENTORY.md`:
+    - Cataloged all 10 user-owned data categories (`profiles`, `goals`, `food_entries`, `exercises`, `workouts`, `workout_sets`, `body_measurements`, `conversations` + `messages`, `memories`, `private_media`, `feedback`), detailing column schemas, sensitivity, exclusions, and pagination strategy.
+  - `packages/contracts/src/account.ts` & `packages/core/src/account.ts`:
+    - Added `exportManifestSchema` with version `"2026-09-08"`, ISO timestamp, `completeness: "complete" | "partial"`, and exhaustive record count breakdown.
+    - Updated `exportedMediaAssetSchema` / `ExportedMediaAsset` with `objectPath`, `purpose`, `mimeType`, `byteSize`, and `downloadUrl`.
+  - `packages/adapters/supabase-server/src/account-repository.ts`:
+    - Replaced the previous 10,000-record query limit with `fetchAllPaged`: deterministic offset/limit batch paging (500 items/batch) iterating until table exhaustion.
+    - Generated 24-hour signed download URLs for private media assets via `mediaStorage.signDownloadUrl`.
+    - Returns `manifest` with exact category counts matching delivered data.
+  - `apps/api/src/account-repository.ts` & `apps/api/src/modules/account/routes.ts`:
+    - Updated in-memory repository and wire serializer to serialize `manifest` (enriched with real `memories` count from `MemoryStore`) and `privateMedia` with download URLs.
+  - `apps/mobile/src/features/settings/account-data-management.ts` & `account-data-card.tsx`:
+    - Added `saveExportToFile` using `expo-file-system` to write `${Paths.document}/mizyun-account-export-${timestamp}.json`.
+    - Updated `handleExport` in `AccountDataCard` to save to file and share via native `Share.share({ url: saved.fileUri })`. Distinguishes success (`sharedAction`) from cancellation (`dismissedAction`).
+
+- **Verification & Quality Gates**:
+  - `pnpm check`: 100% clean (format check, all 15 package typechecks, iOS and Android Hermes bundle exports, 1,200+ unit tests, 17 deployment safeguard tests).
+  - Vitest suites for modified packages:
+    - `@mizyun/adapter-supabase-server`: 14 files passed, 64 tests passed.
+    - `@mizyun/api`: 28 files passed, 411 tests passed.
+    - `@mizyun/mobile`: 35 files passed, 256 tests passed.
+  - Pi Production untouched: PID 500239 active, commit `c02a67a`, public health HTTP 200 OK.
+  - Pi Dev active: UID 999 (`mizyun-dev-api`), public health HTTP 200 OK.
+
+Next exact action: commit changes, push to `origin/main`, deploy forward migration `20260908150000` to Dev on Pi via `pnpm deploy:dev`, and verify public Dev health.
+
+## Engineering instruction update — 2026-09-08
+
+Updated `AGENTS.md` and `docs/SESSION_GUIDE.md` at the user's request to require agent delegation for substantive work, disjoint file ownership, coordinator-controlled shared operations, independent review of sensitive changes, and evidence-based completion. Preserved the current explicit Dev shared-Gemini/autoconfirm testing exception; clarified that it does not prove admission or resource isolation. Replaced blanket whole-repository formatting with scoped formatting when unrelated work is present and moved the adapter typing rule into module guidance.
+
+A read-only helper reviewed the rules while the coordinator edited documentation. Verification: scoped Prettier, local link/path checks and `git diff --check`; no application test run or deployment was needed for these instruction-only changes. Pre-existing mobile/Coach/Settings edits and the untracked account-deletion integration test were preserved. This note does not supersede the active remediation package: resume its current E2 work/evidence after inspecting the live working tree, using the new collaboration rules.
 
 ## Remediation Session E1 (Q4 account deletion state machine & tombstones) — 2026-09-08
 

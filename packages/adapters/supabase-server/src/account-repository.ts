@@ -9,12 +9,23 @@ import {
   type DeletionJobStage,
   type DeletionJobStatus,
   type ExerciseRepository,
+  type ExportManifest,
+  type ExportedMediaAsset,
   type FeedbackRepository,
   type FoodEntryRepository,
   type GoalRepository,
   type MediaAssetRepository,
   type ProfileRepository,
+  type StoredBodyMeasurement,
   type StoredDeletionJob,
+  type StoredExercise,
+  type StoredFoodEntry,
+  type StoredGoal,
+  type StoredProfile,
+  type StoredWorkout,
+  type StoredWorkoutSet,
+  type StoredConversationStub,
+  type UserFeedback,
   type UserId,
   type WorkoutRepository,
   type WorkoutSetRepository,
@@ -23,6 +34,14 @@ import type { MemoryStore } from "@mizyun/memory";
 
 import type { RepositorySupabaseClient } from "./index.js";
 import { RepositoryError } from "./repository-error.js";
+import { foodEntryFromRow } from "./food-entry-repository.js";
+import { exerciseFromRow } from "./exercise-repository.js";
+import { workoutFromRow } from "./workout-repository.js";
+import { workoutSetFromRow } from "./workout-set-repository.js";
+import { bodyMeasurementFromRow } from "./body-measurement-repository.js";
+import { feedbackFromRow } from "./feedback-repository.js";
+import { mediaAssetFromRow } from "./media-asset-repository.js";
+import { conversationFromRow } from "./conversation-repository.js";
 
 export interface AccountMediaStorage {
   remove(
@@ -30,6 +49,15 @@ export interface AccountMediaStorage {
     objectPath: string,
     options: { readonly accessToken: string },
   ): Promise<void>;
+  signDownloadUrl?(
+    bucketId: string,
+    objectPath: string,
+    options: {
+      readonly ttlSeconds: number;
+      readonly now: Date;
+      readonly accessToken: string;
+    },
+  ): Promise<{ readonly url: string; readonly expiresAt: Date }>;
 }
 
 interface AccountDeletionJobRow extends Record<string, unknown> {
@@ -48,6 +76,36 @@ interface AccountDeletionJobRow extends Record<string, unknown> {
 const hashToken = (token: string): string =>
   crypto.createHash("sha256").update(token).digest("hex");
 
+const EXPORT_PAGE_SIZE = 500;
+
+async function fetchAllPaged<T extends Record<string, unknown>>(
+  client: RepositorySupabaseClient,
+  table: string,
+  filterCol: string,
+  filterVal: string,
+  orderCol: string,
+  ascending = true,
+): Promise<ReadonlyArray<T>> {
+  const all: T[] = [];
+  let offset = 0;
+  while (true) {
+    const { data, error } = await client
+      .from<T>(table)
+      .select("*")
+      .eq(filterCol, filterVal)
+      .order(orderCol, { ascending })
+      .range(offset, offset + EXPORT_PAGE_SIZE - 1);
+    if (error) {
+      throw new RepositoryError(`Error exporting ${table}: ${error.message}`);
+    }
+    const chunk = (data ?? []) as readonly T[];
+    all.push(...chunk);
+    if (chunk.length < EXPORT_PAGE_SIZE) break;
+    offset += EXPORT_PAGE_SIZE;
+  }
+  return all;
+}
+
 export interface SupabaseAccountRepositoryOptions {
   readonly profileRepository: ProfileRepository;
   readonly goalRepository: GoalRepository;
@@ -62,6 +120,8 @@ export interface SupabaseAccountRepositoryOptions {
   readonly mediaStorage?: AccountMediaStorage | null | undefined;
   readonly memoryStore?: MemoryStore | null | undefined;
   readonly serviceRoleClient?: RepositorySupabaseClient | null | undefined;
+  readonly clientFor?:
+    ((accessToken: string) => RepositorySupabaseClient) | undefined;
   readonly clock?: { readonly now: () => Date } | undefined;
 }
 
@@ -101,6 +161,8 @@ export class SupabaseAccountRepository implements AccountRepository {
   readonly #mediaStorage: AccountMediaStorage | null;
   readonly #memoryStore: MemoryStore | null;
   readonly #serviceRoleClient: RepositorySupabaseClient | null;
+  readonly #clientFor:
+    ((accessToken: string) => RepositorySupabaseClient) | null;
   readonly #clock: { readonly now: () => Date };
 
   constructor(options: SupabaseAccountRepositoryOptions) {
@@ -117,6 +179,7 @@ export class SupabaseAccountRepository implements AccountRepository {
     this.#mediaStorage = options.mediaStorage ?? null;
     this.#memoryStore = options.memoryStore ?? null;
     this.#serviceRoleClient = options.serviceRoleClient ?? null;
+    this.#clientFor = options.clientFor ?? null;
     this.#clock = options.clock ?? { now: () => new Date() };
   }
 
@@ -131,99 +194,304 @@ export class SupabaseAccountRepository implements AccountRepository {
       );
     }
 
-    const profile = await this.#profileRepository.getOrCreate(userId, {
-      now: this.#clock.now(),
-      accessToken: token,
-    });
-    const goals = await this.#goalRepository.getHistory(userId, {
-      accessToken: token,
-    });
-    const foodEntries = await this.#foodEntryRepository.list(userId, {
-      from: null,
-      to: null,
-      limit: 10_000,
-      accessToken: token,
-    });
-    const exercises = await this.#exerciseRepository.list(userId, {
-      limit: 10_000,
-      accessToken: token,
-    });
-    const workouts = await this.#workoutRepository.list(userId, {
-      from: null,
-      to: null,
-      limit: 10_000,
-      accessToken: token,
-    });
-    const workoutSets: import("@mizyun/core").StoredWorkoutSet[] = [];
-    for (const w of workouts) {
-      const sets = await this.#workoutSetRepository.listForWorkout(w.id, {
+    const now = this.#clock.now();
+    let profile: StoredProfile | null;
+    let goals: ReadonlyArray<StoredGoal>;
+    let foodEntries: ReadonlyArray<StoredFoodEntry>;
+    let exercises: ReadonlyArray<StoredExercise>;
+    let workouts: ReadonlyArray<StoredWorkout>;
+    let workoutSets: ReadonlyArray<StoredWorkoutSet>;
+    let bodyMeasurements: ReadonlyArray<StoredBodyMeasurement>;
+    let conversations: ReadonlyArray<StoredConversationStub>;
+    let feedback: ReadonlyArray<UserFeedback>;
+    let privateMedia: ReadonlyArray<ExportedMediaAsset>;
+
+    if (this.#clientFor !== null) {
+      const client = this.#clientFor(token);
+
+      profile = await this.#profileRepository.getOrCreate(userId, {
+        now,
         accessToken: token,
       });
-      workoutSets.push(...sets);
-    }
-    const bodyMeasurements = await this.#bodyMeasurementRepository.list(
-      userId,
-      {
+      goals = await this.#goalRepository.getHistory(userId, {
+        accessToken: token,
+      });
+
+      const foodRows = await fetchAllPaged(
+        client,
+        "food_entries",
+        "user_id",
+        userId,
+        "consumed_at",
+        false,
+      );
+      foodEntries = foodRows.map((r: any) => foodEntryFromRow(r));
+
+      const exerciseRows = await fetchAllPaged(
+        client,
+        "exercises",
+        "user_id",
+        userId,
+        "created_at",
+        true,
+      );
+      exercises = exerciseRows.map((r: any) => exerciseFromRow(r));
+
+      const workoutRows = await fetchAllPaged(
+        client,
+        "workouts",
+        "user_id",
+        userId,
+        "started_at",
+        false,
+      );
+      workouts = workoutRows.map((r: any) => workoutFromRow(r));
+
+      const workoutSetRows = await fetchAllPaged(
+        client,
+        "workout_sets",
+        "user_id",
+        userId,
+        "sequence",
+        true,
+      );
+      workoutSets = workoutSetRows.map((r: any) => workoutSetFromRow(r));
+
+      const measurementRows = await fetchAllPaged(
+        client,
+        "body_measurements",
+        "user_id",
+        userId,
+        "measured_at",
+        false,
+      );
+      bodyMeasurements = measurementRows.map((r: any) =>
+        bodyMeasurementFromRow(r),
+      );
+
+      const conversationRows = await fetchAllPaged(
+        client,
+        "conversations",
+        "user_id",
+        userId,
+        "created_at",
+        false,
+      );
+      conversations = await Promise.all(
+        conversationRows.map(async (cRow) => {
+          const c = conversationFromRow(cRow as any);
+          const messageRows = await fetchAllPaged(
+            client,
+            "messages",
+            "conversation_id",
+            c.id,
+            "created_at",
+            true,
+          );
+          const messages = messageRows
+            .filter((m: any) => m.role === "user" || m.role === "assistant")
+            .map((m: any) => ({
+              id: m.id as string,
+              role: m.role as "user" | "assistant",
+              text: (m.content?.text as string) ?? "",
+              status: (m.status === "failed" ? "failed" : "complete") as
+                "complete" | "failed",
+              createdAt: new Date(m.created_at as string),
+            }));
+          return {
+            id: c.id,
+            title: c.title,
+            status: c.status,
+            createdAt: c.createdAt,
+            updatedAt: c.updatedAt,
+            messages,
+          };
+        }),
+      );
+
+      const feedbackRows = await fetchAllPaged(
+        client,
+        "feedback",
+        "user_id",
+        userId,
+        "created_at",
+        false,
+      );
+      feedback = feedbackRows.map((r: any) => feedbackFromRow(r));
+
+      const mediaRows = await fetchAllPaged(
+        client,
+        "media_assets",
+        "user_id",
+        userId,
+        "created_at",
+        false,
+      );
+      const activeMedia = mediaRows
+        .map((r: any) => mediaAssetFromRow(r))
+        .filter((a) => a.deletedAt === null);
+
+      privateMedia = await Promise.all(
+        activeMedia.map(async (asset) => {
+          let downloadUrl: string | null = null;
+          if (this.#mediaStorage?.signDownloadUrl) {
+            const signed = await this.#mediaStorage
+              .signDownloadUrl(asset.bucketId, asset.objectPath, {
+                ttlSeconds: 86400,
+                now,
+                accessToken: token,
+              })
+              .catch(() => null);
+            downloadUrl = signed?.url ?? null;
+          }
+          return {
+            id: asset.id,
+            objectPath: asset.objectPath,
+            purpose: asset.purpose,
+            mimeType: asset.mimeType,
+            byteSize: asset.byteSize,
+            downloadUrl,
+            createdAt: asset.createdAt,
+          };
+        }),
+      );
+    } else {
+      profile = await this.#profileRepository.getOrCreate(userId, {
+        now,
+        accessToken: token,
+      });
+      goals = await this.#goalRepository.getHistory(userId, {
+        accessToken: token,
+      });
+      foodEntries = await this.#foodEntryRepository.list(userId, {
         from: null,
         to: null,
         limit: 10_000,
         accessToken: token,
-      },
-    );
-    const conversations =
-      this.#conversationRepository === null
-        ? []
-        : await Promise.all(
-            (
-              await this.#conversationRepository.list(userId, {
-                accessToken: token,
-                limit: 10_000,
-              })
-            ).map(async (conversation) => ({
-              id: conversation.id,
-              title: conversation.title,
-              status: conversation.status,
-              createdAt: conversation.createdAt,
-              updatedAt: conversation.updatedAt,
-              messages: (
-                await this.#conversationRepository!.listMessages(
-                  userId,
-                  conversation.id,
-                  { accessToken: token, limit: 10_000 },
-                )
-              ).map((message) => ({
-                id: message.id,
-                role: message.role,
-                text: message.text,
-                status: message.status,
-                createdAt: message.createdAt,
+      });
+      exercises = await this.#exerciseRepository.list(userId, {
+        limit: 10_000,
+        accessToken: token,
+      });
+      workouts = await this.#workoutRepository.list(userId, {
+        from: null,
+        to: null,
+        limit: 10_000,
+        accessToken: token,
+      });
+      const collectedSets: StoredWorkoutSet[] = [];
+      for (const w of workouts) {
+        const sets = await this.#workoutSetRepository.listForWorkout(w.id, {
+          accessToken: token,
+        });
+        collectedSets.push(...sets);
+      }
+      workoutSets = collectedSets;
+      bodyMeasurements = await this.#bodyMeasurementRepository.list(userId, {
+        from: null,
+        to: null,
+        limit: 10_000,
+        accessToken: token,
+      });
+      conversations =
+        this.#conversationRepository === null
+          ? []
+          : await Promise.all(
+              (
+                await this.#conversationRepository.list(userId, {
+                  accessToken: token,
+                  limit: 10_000,
+                })
+              ).map(async (conversation) => ({
+                id: conversation.id,
+                title: conversation.title,
+                status: conversation.status,
+                createdAt: conversation.createdAt,
+                updatedAt: conversation.updatedAt,
+                messages: (
+                  await this.#conversationRepository!.listMessages(
+                    userId,
+                    conversation.id,
+                    { accessToken: token, limit: 10_000 },
+                  )
+                ).map((message) => ({
+                  id: message.id,
+                  role: message.role,
+                  text: message.text,
+                  status: message.status,
+                  createdAt: message.createdAt,
+                })),
               })),
-            })),
-          );
-    const feedback =
-      this.#feedbackRepository === null
-        ? []
-        : await this.#feedbackRepository.listForUser(userId, {
-            accessToken: token,
-            limit: 10_000,
-          });
-    const privateMedia =
-      this.#mediaAssetRepository === null
-        ? []
-        : (
-            await this.#mediaAssetRepository.list(userId, {
+            );
+      feedback =
+        this.#feedbackRepository === null
+          ? []
+          : await this.#feedbackRepository.listForUser(userId, {
+              accessToken: token,
+              limit: 10_000,
+            });
+      const mediaList =
+        this.#mediaAssetRepository === null
+          ? []
+          : await this.#mediaAssetRepository.list(userId, {
               purpose: null,
               limit: 10_000,
               accessToken: token,
-            })
-          ).map((asset) => ({
+            });
+      privateMedia = await Promise.all(
+        mediaList.map(async (asset) => {
+          let downloadUrl: string | null = null;
+          if (this.#mediaStorage?.signDownloadUrl) {
+            const signed = await this.#mediaStorage
+              .signDownloadUrl(asset.bucketId, asset.objectPath, {
+                ttlSeconds: 86400,
+                now,
+                accessToken: token,
+              })
+              .catch(() => null);
+            downloadUrl = signed?.url ?? null;
+          }
+          return {
             id: asset.id,
+            objectPath: asset.objectPath,
+            purpose: asset.purpose,
+            mimeType: asset.mimeType,
+            byteSize: asset.byteSize,
+            downloadUrl,
             createdAt: asset.createdAt,
-          }));
+          };
+        }),
+      );
+    }
+
+    const totalMessages = conversations.reduce(
+      (sum, c) => sum + c.messages.length,
+      0,
+    );
+    const manifest: ExportManifest = {
+      schemaVersion: "2026-09-08",
+      generatedAt: now,
+      completeness: "complete",
+      counts: {
+        profiles: profile ? 1 : 0,
+        goals: goals.length,
+        foodEntries: foodEntries.length,
+        exercises: exercises.length,
+        workouts: workouts.length,
+        workoutSets: workoutSets.length,
+        bodyMeasurements: bodyMeasurements.length,
+        conversations: conversations.length,
+        messages: totalMessages,
+        memories: 0,
+        privateMedia: privateMedia.length,
+        feedback: feedback.length,
+      },
+    };
 
     return {
+      manifest,
       userId,
-      generatedAt: this.#clock.now(),
+      generatedAt: now,
       profile,
       goals,
       foodEntries,

@@ -41,6 +41,17 @@ const accountExportToWire = (
 ): AccountExportResponse =>
   accountExportResponseSchema.parse({
     export: {
+      manifest: exportDoc.manifest
+        ? {
+            schemaVersion: exportDoc.manifest.schemaVersion,
+            generatedAt: exportDoc.manifest.generatedAt.toISOString(),
+            completeness: exportDoc.manifest.completeness,
+            counts: {
+              ...exportDoc.manifest.counts,
+              memories: memories.length,
+            },
+          }
+        : undefined,
       userId: exportDoc.userId,
       generatedAt: exportDoc.generatedAt.toISOString(),
       // `z.unknown()` carries the stored shape; we hand back the
@@ -159,6 +170,11 @@ const accountExportToWire = (
       memories: memories.map(memoryToWire),
       privateMedia: exportDoc.privateMedia.map((m) => ({
         id: m.id,
+        objectPath: m.objectPath ?? "",
+        purpose: m.purpose ?? null,
+        mimeType: m.mimeType ?? null,
+        byteSize: m.byteSize ?? null,
+        downloadUrl: m.downloadUrl ?? null,
         createdAt: m.createdAt.toISOString(),
       })),
       feedback: (exportDoc.feedback ?? []).map((fb) => ({

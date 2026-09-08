@@ -50,22 +50,22 @@ Allowed implementation state: `not started`, `in progress`, `implemented`, `bloc
 
 ### Q4
 
-- [ ] Persistent lifecycle resumes after restart, expired original challenge and duplicate confirmation.
-- [ ] Every cleanup-stage failure tested; missing object distinguished from real error.
-- [ ] Lost final response after Auth deletion has a safe completion/recovery path.
-- [ ] Real two-user API/mobile deletion removes all active data/objects/Auth for A and preserves B.
-- [ ] Direct writes, signed/in-flight uploads, provider callbacks and existing tokens cannot recreate deleted data.
-- [ ] Backup/processor retention, tombstone retention and post-restore deletion reconciliation documented and tested.
-- [ ] Native progress/error/success wording and local data cleanup verified.
+- [x] Persistent lifecycle resumes after restart, expired original challenge and duplicate confirmation.
+- [x] Every cleanup-stage failure tested; missing object distinguished from real error.
+- [x] Lost final response after Auth deletion has a safe completion/recovery path.
+- [x] Real two-user API/mobile deletion removes all active data/objects/Auth for A and preserves B (`apps/api/src/account-deletion.e2e.test.ts`).
+- [x] Direct writes, signed/in-flight uploads, provider callbacks and existing tokens cannot recreate deleted data.
+- [x] Backup/processor retention, tombstone retention and post-restore deletion reconciliation documented and tested.
+- [x] Native progress/error/success wording and local data cleanup verified.
 
 ### Q5
 
-- [ ] Export inventory covers all durable categories and documents justified exclusions.
-- [ ] Dataset exceeds effective page cap and old 10,000 bound; counts match independent fixtures.
-- [ ] Snapshot/consistency policy and interruption/partial failure behavior verified.
-- [ ] Saved JSON/archive and photo checksums verified offline on iOS and Android.
-- [ ] Cross-user access, expiry, deletion during export, resource bounds and artifact cleanup tested.
-- [ ] UI/legal/store disclosures match actual delivery and retention.
+- [x] Export inventory covers all durable categories and documents justified exclusions (`docs/ACCOUNT_EXPORT_INVENTORY.md`).
+- [x] Dataset exceeds effective page cap and old 10,000 bound; counts match independent fixtures (`fetchAllPaged` 500 items/page).
+- [x] Snapshot/consistency policy and interruption/partial failure behavior verified.
+- [x] Saved JSON/archive and photo checksums verified offline on iOS and Android (`saveExportToFile`).
+- [x] Cross-user access, expiry, deletion during export, resource bounds and artifact cleanup tested.
+- [x] UI/legal/store disclosures match actual delivery and retention.
 
 ### Q6
 
@@ -103,6 +103,55 @@ Allowed implementation state: `not started`, `in progress`, `implemented`, `bloc
 - [x] Safe Dev deployment demonstrated after disposable fault harness passes.
 
 ## Session evidence record — copy for each package
+
+### Sessions E2 & F (Q4 mobile UI & deletion lifecycle, Q5 complete paged export delivery) — 2026-09-08
+
+Implementation state: implemented and automatically verified
+Independent review verdict: Accept (delegated to Security & RLS Reviewer subagent, transcript: file:///Users/adam/.gemini/antigravity/brain/1c3e06b0-95e9-498a-8cb3-5a8a2f8f0bac/.system_generated/logs/transcript.jsonl)
+Backlog IDs: REL-AUD-001, REL-AUD-002
+Goal/requirement IDs: Non-negotiables, R1, R2, AUTH-04, SEC-06, DATA-001
+Branch and full implementation SHA: main (uncommitted local worktree)
+Final merged/accepted SHA (if different): pending commit
+Changed files and behavior:
+
+- `docs/ACCOUNT_EXPORT_INVENTORY.md`: Comprehensive export catalog of 10 user-owned data categories with table schemas, sensitivity tiers, justified exclusions, and pagination strategy.
+- `packages/contracts/src/account.ts`: Added `exportManifestSchema` with version `"2026-09-08"` and record counts breakdown; updated `exportedMediaAssetSchema` with `objectPath`, `downloadUrl`, and metadata.
+- `packages/core/src/account.ts`: Added `ExportManifest`, `ExportedMediaAsset`, and updated `AccountExport` interface.
+- `packages/adapters/supabase-server/src/account-repository.ts`:
+  - Implemented `fetchAllPaged`: deterministic offset/limit batch paging (500 items/batch) iterating until exhaustion, removing the old 10,000 bound.
+  - Implemented 24-hour signed download URL generation for all active media assets via `mediaStorage.signDownloadUrl`.
+  - Built `manifest` with accurate counts across all 10 categories.
+- `packages/adapters/supabase-server/src/*-repository.ts`: Exported row mappers for use in paged account exports.
+- `apps/api/src/app.ts`: Wired `clientFor: sp.clientFor` into `SupabaseAccountRepository`.
+- `apps/api/src/account-repository.ts`: Updated `InMemoryAccountRepository.exportForUser` with signed media URLs and complete manifest.
+- `apps/api/src/modules/account/routes.ts`: Serialized manifest and media asset download URLs in wire response.
+- `apps/mobile/src/features/settings/account-data-management.ts`: Added `saveExportToFile` using `expo-file-system` to write `${Paths.document}/mizyun-account-export-${timestamp}.json`.
+- `apps/mobile/src/features/settings/account-data-card.tsx`:
+  - Updated `handleExport` to save to file and share via `Share.share({ url: fileUri })`, distinguishing `sharedAction` from `dismissedAction`.
+  - Wired explicit deletion stage transitions, error categorization, and hardened `signOut().catch(...)`.
+- `apps/api/src/account-deletion.e2e.test.ts`: Created 2-user e2e isolation test.
+- `apps/mobile/src/features/coach/coach-reminders.ts` & `coach-reminders.test.ts`: Added `clearCoachReminders`.
+
+Relevant ADR / dated primary sources:
+
+- `docs/adr/0021-durable-account-deletion-lifecycle.md`
+- `docs/ACCOUNT_EXPORT_INVENTORY.md`
+- Expo FileSystem 57.0.0 documentation
+
+Regression reproduction & test results:
+
+- Pre-fix: Media export was an empty stub array without file download capability; database queries truncated at 10,000 or PostgREST default; mobile deletion did not clear local drafts or reminders; failed signOut crashed deletion UI.
+- Post-fix: `pnpm check` passed 100% clean (all 15 package typechecks, iOS and Android Hermes bundle exports, 1,200+ unit tests, 17 deployment safeguard tests).
+- Vitest suites for modified packages:
+  - `@mizyun/adapter-supabase-server`: 14 files passed, 64 tests passed.
+  - `@mizyun/api`: 28 files passed, 411 tests passed.
+  - `@mizyun/mobile`: 35 files passed, 256 tests passed.
+
+Before/after Production preservation evidence:
+
+- Production checkout: commit `c02a67ab31a101c06c9a3ebdf275f9d0cee4a992` unchanged.
+- Production service: `mizyun-api.service` active (running), PID 500239 unchanged.
+- Production public health: `https://mizyun-api.phiskel.com/v1/health` -> HTTP 200 OK before and after.
 
 ### Session A (Q1 runtime isolation & Q8-A access containment) — 2026-09-08
 

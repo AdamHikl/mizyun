@@ -33,7 +33,7 @@ interface FoodEntryRow extends Record<string, unknown> {
   readonly updated_at: string;
 }
 
-const fromRow = (row: FoodEntryRow): StoredFoodEntry => ({
+export const foodEntryFromRow = (row: FoodEntryRow): StoredFoodEntry => ({
   id: row.id,
   userId: row.user_id as UserId,
   clientOperationId: row.client_operation_id ?? null,
@@ -43,13 +43,14 @@ const fromRow = (row: FoodEntryRow): StoredFoodEntry => ({
   proteinG: row.protein_g,
   carbohydrateG: row.carbohydrate_g,
   fatG: row.fat_g,
-  details: { ...row.details },
   source: row.source,
   confidence: row.confidence,
   confirmedByUser: row.confirmed_by_user,
+  details: { ...row.details },
   createdAt: new Date(row.created_at),
   updatedAt: new Date(row.updated_at),
 });
+const fromRow = foodEntryFromRow;
 
 const toInsertRow = (
   userId: UserId,

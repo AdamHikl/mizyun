@@ -17,7 +17,9 @@ interface BodyMeasurementRow extends Record<string, unknown> {
   readonly created_at: string;
 }
 
-const fromRow = (row: BodyMeasurementRow): StoredBodyMeasurement => ({
+export const bodyMeasurementFromRow = (
+  row: BodyMeasurementRow,
+): StoredBodyMeasurement => ({
   id: row.id,
   userId: row.user_id as UserId,
   measuredAt: new Date(row.measured_at),
@@ -26,6 +28,7 @@ const fromRow = (row: BodyMeasurementRow): StoredBodyMeasurement => ({
   source: "manual",
   createdAt: new Date(row.created_at),
 });
+const fromRow = bodyMeasurementFromRow;
 
 const toInsertRow = (
   userId: UserId,

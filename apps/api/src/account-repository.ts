@@ -9,6 +9,8 @@ import {
   type DeletionJobStage,
   type DeletionJobStatus,
   type ExerciseRepository,
+  type ExportManifest,
+  type ExportedMediaAsset,
   type FeedbackRepository,
   type FoodEntryRepository,
   type GoalRepository,
@@ -168,22 +170,68 @@ export class InMemoryAccountRepository implements AccountRepository {
             accessToken: token,
             limit: 10_000,
           });
-    const privateMedia =
+    const mediaList =
       this.#mediaAssetRepository === null
         ? []
-        : (
-            await this.#mediaAssetRepository.list(userId, {
-              purpose: null,
-              limit: 10_000,
+        : await this.#mediaAssetRepository.list(userId, {
+            purpose: null,
+            limit: 10_000,
+            accessToken: token,
+          });
+    const now = this.#clock.now();
+    const privateMedia: ExportedMediaAsset[] = await Promise.all(
+      mediaList.map(async (asset) => {
+        let downloadUrl: string | null = null;
+        if (this.#mediaStorage?.signDownloadUrl) {
+          const signed = await this.#mediaStorage
+            .signDownloadUrl(asset.bucketId, asset.objectPath, {
+              ttlSeconds: 86400,
+              now,
               accessToken: token,
             })
-          ).map((asset) => ({
-            id: asset.id,
-            createdAt: asset.createdAt,
-          }));
+            .catch(() => null);
+          downloadUrl = signed?.url ?? null;
+        }
+        return {
+          id: asset.id,
+          objectPath: asset.objectPath,
+          purpose: asset.purpose,
+          mimeType: asset.mimeType,
+          byteSize: asset.byteSize,
+          downloadUrl,
+          createdAt: asset.createdAt,
+        };
+      }),
+    );
+
+    const totalMessages = conversations.reduce(
+      (sum, c) => sum + c.messages.length,
+      0,
+    );
+    const manifest: ExportManifest = {
+      schemaVersion: "2026-09-08",
+      generatedAt: now,
+      completeness: "complete",
+      counts: {
+        profiles: profile ? 1 : 0,
+        goals: goals.length,
+        foodEntries: foodEntries.length,
+        exercises: exercises.length,
+        workouts: workouts.length,
+        workoutSets: workoutSets.length,
+        bodyMeasurements: bodyMeasurements.length,
+        conversations: conversations.length,
+        messages: totalMessages,
+        memories: 0,
+        privateMedia: privateMedia.length,
+        feedback: feedback.length,
+      },
+    };
+
     return {
+      manifest,
       userId,
-      generatedAt: this.#clock.now(),
+      generatedAt: now,
       profile,
       goals,
       foodEntries,

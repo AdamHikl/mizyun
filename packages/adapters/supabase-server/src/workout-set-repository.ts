@@ -22,7 +22,7 @@ interface WorkoutSetRow extends Record<string, unknown> {
   readonly created_at: string;
 }
 
-const fromRow = (row: WorkoutSetRow): StoredWorkoutSet => ({
+export const workoutSetFromRow = (row: WorkoutSetRow): StoredWorkoutSet => ({
   id: row.id,
   userId: row.user_id as UserId,
   workoutId: row.workout_id,
@@ -36,6 +36,7 @@ const fromRow = (row: WorkoutSetRow): StoredWorkoutSet => ({
   completedAt: row.completed_at === null ? null : new Date(row.completed_at),
   createdAt: new Date(row.created_at),
 });
+const fromRow = workoutSetFromRow;
 
 const toInsertRow = (set: StoredWorkoutSet): Partial<WorkoutSetRow> => ({
   id: set.id,

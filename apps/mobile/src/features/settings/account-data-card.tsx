@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
   Share,
   StyleSheet,
@@ -11,21 +12,36 @@ import {
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { apiClient } from "@/composition/api-client";
-import { authClient } from "@/composition/auth-client";
 import { Spacing } from "@/constants/theme";
+import { useAuth } from "@/features/auth/auth-context";
 import {
+  clearLocalUserData,
   confirmAccountDeletion,
   fetchAccountExport,
   requestAccountDeletion,
+  saveExportToFile,
 } from "./account-data-management";
+
+type DeletionStage =
+  | "idle"
+  | "requesting_challenge"
+  | "erasing_server_data"
+  | "clearing_local_cache"
+  | "failed";
 
 export function AccountDataCard({
   disabled = false,
 }: {
   readonly disabled?: boolean;
 }) {
+  const { session, signOut } = useAuth();
   const [isExporting, setIsExporting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deletionStage, setDeletionStage] = useState<DeletionStage>("idle");
+  const [pendingChallenge, setPendingChallenge] = useState<{
+    token: string;
+    expiresAt: string;
+  } | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
 
   const handleExport = async () => {
@@ -37,11 +53,21 @@ export function AccountDataCard({
         setFeedbackMessage(result.message);
         return;
       }
-      await Share.share({
+      const saved = await saveExportToFile(result.data);
+      if (!saved.ok) {
+        setFeedbackMessage(saved.message);
+        return;
+      }
+      const shareResult = await Share.share({
         title: "Mizyun Account Data Export",
-        message: JSON.stringify(result.data.export, null, 2),
+        url: saved.fileUri,
+        message: Platform.OS === "android" ? saved.fileUri : undefined,
       });
-      setFeedbackMessage("Account data export opened in system share sheet.");
+      if (shareResult.action === Share.sharedAction) {
+        setFeedbackMessage("Account data export saved successfully.");
+      } else if (shareResult.action === Share.dismissedAction) {
+        setFeedbackMessage("Account data export share dismissed.");
+      }
     } catch {
       setFeedbackMessage("Could not open share sheet for account export.");
     } finally {
@@ -53,34 +79,57 @@ export function AccountDataCard({
     setIsDeleting(true);
     setFeedbackMessage(null);
     try {
-      const challenge = await requestAccountDeletion(apiClient);
-      if (!challenge.ok) {
-        Alert.alert("Deletion Error", challenge.message);
-        setFeedbackMessage(challenge.message);
-        setIsDeleting(false);
-        return;
+      let token = pendingChallenge?.token;
+      if (!token) {
+        setDeletionStage("requesting_challenge");
+        const challenge = await requestAccountDeletion(apiClient);
+        if (!challenge.ok) {
+          Alert.alert("Deletion Error", challenge.message);
+          setFeedbackMessage(challenge.message);
+          setDeletionStage("failed");
+          setIsDeleting(false);
+          return;
+        }
+        token = challenge.confirmationToken;
+        setPendingChallenge({
+          token: challenge.confirmationToken,
+          expiresAt: challenge.expiresAt,
+        });
       }
 
-      const confirmResult = await confirmAccountDeletion(
-        apiClient,
-        challenge.confirmationToken,
-      );
+      setDeletionStage("erasing_server_data");
+      const confirmResult = await confirmAccountDeletion(apiClient, token);
       if (!confirmResult.ok) {
+        if (
+          confirmResult.reason === "expired" ||
+          confirmResult.reason === "mismatch"
+        ) {
+          setPendingChallenge(null);
+        }
         Alert.alert("Deletion Error", confirmResult.message);
         setFeedbackMessage(confirmResult.message);
+        setDeletionStage("failed");
         setIsDeleting(false);
         return;
       }
 
-      await authClient.signOut();
+      setPendingChallenge(null);
+      setDeletionStage("clearing_local_cache");
+
+      if (session?.user.id) {
+        await clearLocalUserData(session.user.id).catch(() => {});
+      }
+
+      await signOut().catch(() => {});
       Alert.alert(
         "Account Deleted",
-        "Your account and all associated personal data have been permanently erased.",
+        "Your account and all associated personal data have been permanently erased from active systems.",
       );
     } catch {
       const errorMsg = "An unexpected error occurred during account deletion.";
       Alert.alert("Deletion Error", errorMsg);
       setFeedbackMessage(errorMsg);
+      setDeletionStage("failed");
       setIsDeleting(false);
     }
   };
@@ -88,16 +137,33 @@ export function AccountDataCard({
   const handleDeletePress = () => {
     Alert.alert(
       "Permanently Delete Account?",
-      "This action is irreversible. All of your profile details, goals, logged meals, workout history, body measurements, private progress photos, AI conversations, and login credentials will be permanently erased immediately.",
+      "• All active records (profile, goals, logged meals, workouts, body metrics, private photos, and AI chats) will be permanently erased immediately.\n\n• Rolling operational backups are automatically purged on a 30-day retention schedule.\n\n• Files previously exported to your device storage cannot be remotely erased and remain in your local files.",
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Delete My Account",
+          text: pendingChallenge ? "Retry Deletion" : "Delete My Account",
           style: "destructive",
           onPress: () => void executeDeletion(),
         },
       ],
     );
+  };
+
+  const deletionButtonLabel = () => {
+    switch (deletionStage) {
+      case "requesting_challenge":
+        return "Requesting Deletion...";
+      case "erasing_server_data":
+        return "Erasing Account Data...";
+      case "clearing_local_cache":
+        return "Clearing Local Session...";
+      case "failed":
+        return pendingChallenge
+          ? "⚠️ Retry Account Deletion"
+          : "🗑️ Delete Account & All Data";
+      default:
+        return "🗑️ Delete Account & All Data";
+    }
   };
 
   return (
@@ -139,7 +205,9 @@ export function AccountDataCard({
         </ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
           Permanently erase your account, login credentials, and all database
-          and photo records. This action cannot be undone.
+          and photo records immediately from active systems. Rolling operational
+          backups expire automatically on a 30-day retention schedule.
+          Previously exported local files are not remotely erased.
         </ThemedText>
         <Pressable
           accessibilityRole="button"
@@ -153,10 +221,15 @@ export function AccountDataCard({
           ]}
         >
           {isDeleting ? (
-            <ActivityIndicator size="small" color="#EF4444" />
+            <View style={styles.loadingRow}>
+              <ActivityIndicator size="small" color="#EF4444" />
+              <ThemedText type="smallBold" style={styles.deleteButtonText}>
+                {deletionButtonLabel()}
+              </ThemedText>
+            </View>
           ) : (
             <ThemedText type="smallBold" style={styles.deleteButtonText}>
-              🗑️ Delete Account & All Data
+              {deletionButtonLabel()}
             </ThemedText>
           )}
         </Pressable>
@@ -177,6 +250,12 @@ export function AccountDataCard({
 }
 
 const styles = StyleSheet.create({
+  loadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
   card: {
     padding: Spacing.two + 4,
     borderRadius: 14,

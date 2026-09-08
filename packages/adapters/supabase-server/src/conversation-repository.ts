@@ -31,7 +31,9 @@ interface MessageRow extends Record<string, unknown> {
   created_at: string;
 }
 
-const conversationFromRow = (row: ConversationRow): StoredConversation => ({
+export const conversationFromRow = (
+  row: ConversationRow,
+): StoredConversation => ({
   id: row.id as ConversationId,
   userId: row.user_id as UserId,
   title: row.title,
@@ -41,7 +43,7 @@ const conversationFromRow = (row: ConversationRow): StoredConversation => ({
   updatedAt: new Date(row.updated_at),
 });
 
-const messageFromRow = (row: MessageRow): StoredConversationMessage => {
+export const messageFromRow = (row: MessageRow): StoredConversationMessage => {
   const text = row.content.text;
   if (typeof text !== "string") {
     throw new RepositoryError("message content is missing text");

@@ -16,7 +16,7 @@ interface ExerciseRow extends Record<string, unknown> {
   readonly updated_at: string;
 }
 
-const fromRow = (row: ExerciseRow): StoredExercise => ({
+export const exerciseFromRow = (row: ExerciseRow): StoredExercise => ({
   id: row.id,
   userId: row.user_id as UserId,
   name: row.name,
@@ -25,6 +25,7 @@ const fromRow = (row: ExerciseRow): StoredExercise => ({
   createdAt: new Date(row.created_at),
   updatedAt: new Date(row.updated_at),
 });
+const fromRow = exerciseFromRow;
 
 const toInsertRow = (
   userId: UserId,

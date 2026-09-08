@@ -40,6 +40,36 @@ export interface StoredConversationStub {
   }>;
 }
 
+export interface ExportManifest {
+  readonly schemaVersion: "2026-09-08";
+  readonly generatedAt: Date;
+  readonly completeness: "complete" | "partial";
+  readonly counts: {
+    readonly profiles: number;
+    readonly goals: number;
+    readonly foodEntries: number;
+    readonly exercises: number;
+    readonly workouts: number;
+    readonly workoutSets: number;
+    readonly bodyMeasurements: number;
+    readonly conversations: number;
+    readonly messages: number;
+    readonly memories: number;
+    readonly privateMedia: number;
+    readonly feedback: number;
+  };
+}
+
+export interface ExportedMediaAsset {
+  readonly id: string;
+  readonly objectPath?: string;
+  readonly purpose?: string | null;
+  readonly mimeType?: string | null;
+  readonly byteSize?: number | null;
+  readonly downloadUrl?: string | null;
+  readonly createdAt: Date;
+}
+
 /**
  * Read-side envelope: every user-owned record, gathered at
  * request time. The shape is exhaustive across every Phase 2
@@ -47,6 +77,7 @@ export interface StoredConversationStub {
  * can render the full record set without a second round-trip.
  */
 export interface AccountExport {
+  readonly manifest?: ExportManifest;
   readonly userId: UserId;
   readonly generatedAt: Date;
   readonly profile: StoredProfile | null;
@@ -61,10 +92,7 @@ export interface AccountExport {
    * Memory is composed separately by the API route.
    */
   readonly conversations: ReadonlyArray<StoredConversationStub>;
-  readonly privateMedia: ReadonlyArray<{
-    readonly id: string;
-    readonly createdAt: Date;
-  }>;
+  readonly privateMedia: ReadonlyArray<ExportedMediaAsset>;
   readonly feedback: ReadonlyArray<UserFeedback>;
 }
 

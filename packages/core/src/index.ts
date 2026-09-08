@@ -148,6 +148,8 @@ export {
   type AccountRepository,
   type DeletionJobStage,
   type DeletionJobStatus,
+  type ExportManifest,
+  type ExportedMediaAsset,
   type StoredConversationStub,
   type StoredDeletionJob,
 } from "./account";

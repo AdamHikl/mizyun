@@ -23,7 +23,7 @@ interface MediaAssetRow extends Record<string, unknown> {
   readonly deleted_at: string | null;
 }
 
-const fromRow = (row: MediaAssetRow): StoredMediaAsset => ({
+export const mediaAssetFromRow = (row: MediaAssetRow): StoredMediaAsset => ({
   id: row.id,
   userId: row.user_id as UserId,
   bucketId: row.bucket_id,
@@ -37,6 +37,7 @@ const fromRow = (row: MediaAssetRow): StoredMediaAsset => ({
   createdAt: new Date(row.created_at),
   deletedAt: row.deleted_at === null ? null : new Date(row.deleted_at),
 });
+const fromRow = mediaAssetFromRow;
 
 const toInsertRow = (
   userId: UserId,

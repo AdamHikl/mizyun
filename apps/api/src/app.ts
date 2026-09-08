@@ -536,6 +536,7 @@ export const buildApp = (
           mediaStorage,
           memoryStore: resolveMemoryStore(dependencies),
           serviceRoleClient: sp.serviceRoleClient ?? null,
+          clientFor: sp.clientFor,
         })
       : new InMemoryAccountRepository({
           profileRepository,

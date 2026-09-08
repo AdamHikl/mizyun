@@ -537,4 +537,54 @@ describe("SupabaseAccountRepository", () => {
       "SupabaseAccountRepository requires auth.admin.deleteUser capability",
     );
   });
+
+  it("exportForUser returns complete manifest and signed URLs", async () => {
+    const mediaStorage = {
+      remove: vi.fn(),
+      signDownloadUrl: vi.fn().mockResolvedValue({
+        url: "https://signed.supabase.co/photo.jpg",
+        expiresAt: new Date("2026-09-09T10:00:00Z"),
+      }),
+    };
+    const mediaAssetRepository = {
+      list: vi.fn().mockResolvedValue([
+        {
+          id: "asset-1",
+          bucketId: "private-media",
+          objectPath: `${testUserId}/photo.jpg`,
+          purpose: "progress_photo",
+          mimeType: "image/jpeg",
+          byteSize: 1024,
+          createdAt: new Date("2026-09-08T10:00:00Z"),
+          deletedAt: null,
+        },
+      ]),
+    } as unknown as MediaAssetRepository;
+
+    const opts = createMockOptions({
+      mediaStorage,
+      mediaAssetRepository,
+    });
+    const repo = new SupabaseAccountRepository(opts);
+    const result = await repo.exportForUser(testUserId, {
+      accessToken: "valid-jwt",
+    });
+
+    expect(result.userId).toBe(testUserId);
+    expect(result.manifest).toMatchObject({
+      schemaVersion: "2026-09-08",
+      completeness: "complete",
+      counts: {
+        profiles: 1,
+        goals: 0,
+        conversations: 1,
+        messages: 1,
+        privateMedia: 1,
+      },
+    });
+    expect(result.privateMedia).toHaveLength(1);
+    expect(result.privateMedia[0]!.downloadUrl).toBe(
+      "https://signed.supabase.co/photo.jpg",
+    );
+  });
 });
