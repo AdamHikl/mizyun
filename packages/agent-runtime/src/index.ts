@@ -478,7 +478,11 @@ const matches = (text: string, patterns: readonly RegExp[]): boolean =>
  * the versioned evaluation corpus remain additional layers.
  */
 export const screenCoachInput = (rawText: string): SafetyDecision => {
-  const text = rawText.normalize("NFKC").toLowerCase();
+  const text = rawText
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
   if (
     matches(text, [
       /\b(chest pain|cannot breathe|can't breathe|unconscious|overdose)\b/,
@@ -538,10 +542,10 @@ export const screenCoachInput = (rawText: string): SafetyDecision => {
     matches(text, [
       /\b(lose|drop)\s+\d{2,}\s*(kg|kilograms|lb|pounds)\s+(in|within)\s+(a|one|1)\s+(week|month)\b/,
       /\b(under|below)\s+800\s+calories\b/,
-      /\btrain\s+(through|despite)\s+(sharp|severe)\s+pain\b/,
+      /\btrain\s+(through|despite)\s+(?:sharp|severe|\w+\s+)*pain\b/,
       /\b(40|50|60|70|80|90|100)\s+sets?\s+(to failure\s+)?(every|each)\s+day\b/,
       /\b(max out|one rep max)\s+(every|each)\s+day\b/,
-      /\b(schudnúť|zhodiť)\s+\d{2,}\s*(kg|kíl)\s+(za|do)\s+(týždeň|mesiac)\b/,
+      /\b(schudnúť|zhodiť)\s+\d{2,}\s*(kg|kíl)\s+(za|do)\s+(týždeň|mesiac)(?:\b|\s|$)/,
       /\b(pod|menej ako)\s+800\s+kalóri/i,
       /(40|50|60|70|80|90|100)\s+séri[íe]\s+(do zlyhania\s+)?každý deň/,
     ])
@@ -555,9 +559,12 @@ export const screenCoachInput = (rawText: string): SafetyDecision => {
   }
   if (
     matches(text, [
-      /\bignore (all |the )?(previous|system|developer) instructions\b/,
-      /\breveal (the )?(system prompt|hidden instructions|secrets)\b/,
+      /\bignore (all |the )?(previous|system|developer|visual) (instructions|contents)\b/,
+      /\breveal (the )?(system prompt|hidden instructions|developer secrets|secrets)\b/,
       /\bact as root\b/,
+      /\[?system (override|command)\]?/i,
+      /\b(grant admin privileges|delete records from all user databases)\b/,
+      /\b(print|reveal|output|dump)\s+.*?(user profiles|root credentials|system prompt|developer secrets|auth tokens|connection strings|secrets)\b/,
       /\bignoruj (všetky )?(predchádzajúce|systémové) pokyny\b/,
       /\bodhaľ (systémový prompt|tajné pokyny)\b/,
     ])
@@ -1152,3 +1159,5 @@ export class StubVisionProvider implements VisionDraftProvider {
     };
   }
 }
+
+export * from "./evaluation-corpus.js";

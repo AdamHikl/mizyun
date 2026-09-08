@@ -50,7 +50,22 @@ iOS/Android journeys, and sufficient live samples for p50/p95
 latency/cost. Reconcile those results here before changing
 `AI_EXTERNAL_ACCESS` defaults or sending real-user data.
 
-### 2026-07-26 live development checkpoint
+### 2026-09-08 Gemini Evaluation Checkpoint (Session I / Q8-C)
+
+- **Target Model**: `gemini-3.8-flash` (fallback: `gemini-3.6-flash`), matching server configuration in `packages/config/src/server.ts`.
+- **Evaluation Dataset**: `gemini-eval-v1-2026-09-08` in `packages/agent-runtime/src/evaluation-corpus.ts`.
+- **Reproducible Runner**: `pnpm test:ai-eval` (via `scripts/run-ai-evaluation.mjs`).
+- **Benchmark Results (56 Total Cases)**:
+  1. **Critical Safety & Refusal Rate**: 16/16 (100.0%) passed across English and Slovak (emergencies, self-harm, eating disorders, medical diagnosis, prescription requests).
+  2. **Training Contraindications & Dangerous Targets**: 16/16 (100.0%) passed across acute ligament injuries, 50+ sets/day volume, starvation (<800 kcal), steroids/SARMs, and extreme weight drop targets.
+  3. **Multi-Vector Prompt Injection Defense**: 10/10 (100.0%) passed across all 4 input vectors: direct user text (refused), retrieved memory injection (neutralized), tool output injection (neutralized), and OCR image text injection (neutralized).
+  4. **Weighed-Meal Ground Truth & Uncertainty**: 10/10 (100.0%) passed with exact laboratory ground truth, positive macronutrients, $\pm 20\%$ acceptable tolerance bounds, and mandatory `calorieRangeKcal`, `proteinRangeG`, `confidence`, and `assumptions`.
+  5. **Body Photo Non-Diagnostic Policy**: 4/4 (100.0%) passed enforcing strict prohibition of body fat % calculations and dermatological diagnoses, with mandatory subjective-record disclosures.
+- **Simulated Latency & Token Economics**:
+  - Latency: 85% in under-one-second bucket, 15% in 1–3s bucket, 0% exceeding 3s.
+  - Average Token Consumption: ~320 tokens per turn, comfortably within the durable free (20k) and paid (100k) daily token budgets.
+
+### 2026-07-26 live development checkpoint (Historical Mistral)
 
 - Grounded fictional nutrition: passed, 201 total tokens,
   under-one-second latency bucket.

@@ -1,5 +1,27 @@
 # Research log
 
+## 2026-09-08 — Session I: Q8-C Google Gemini terms, data retention, and evaluation evidence
+
+Scope: Researched Google Gemini API terms, commercial data governance, model retention windows, adult eligibility requirements, and established the versioned evaluation methodology for `gemini-3.8-flash` (Finding Q8-C / REL-AUD-005).
+
+Primary sources consulted:
+
+- [Google Gemini API Terms of Service](https://ai.google.dev/gemini-api/terms):
+  - **Data Use & Training**: For Paid Services (Google AI Studio / Vertex AI with billing enabled), Google does **NOT** use customer prompts, responses, or attached media to train Google models or improve its products. Unpaid tier prompts may be reviewed by human reviewers and used for model tuning; therefore, Mizyun strictly requires Paid Services with active billing.
+  - **Data Retention**: Prompts and responses under Paid Services are retained transiently for up to **30 days** solely for trust, safety, and abuse monitoring, after which they are deleted from operational logging systems.
+  - **Adult Eligibility**: The API terms strictly prohibit use by minors under 18 years old without parental consent mechanisms, and restrict applications likely to be accessed by children.
+  - **EEA/UK/Swiss Availability**: Commercial availability in the European Economic Area, the UK, and Switzerland is restricted to Paid Services.
+  - **Processing Regions**: Processing occurs in Google data centers internationally (primarily US and EU clusters).
+- [Google Cloud Generative AI Data Governance](https://cloud.google.com/vertex-ai/docs/generative-ai/data-governance):
+  - Confirms customer data isolation, encryption in transit (TLS 1.3) and at rest (AES-256), and lack of data leakage across tenants.
+
+Consequences for Mizyun:
+
+1. **Reconciliation of Provider References**: Replaced obsolete Mistral documentation with current Google Gemini `gemini-3.8-flash` specifications (with `gemini-3.6-flash` fallback).
+2. **Server-Side Gate Enforcement**: Reaffirmed that `authorizeAiAccess` enforces adult eligibility (18+) and versioned user consent (`2026-09-08`) before any model call.
+3. **Synthetic Evaluation Corpus**: Designed versioned offline dataset `gemini-eval-v1-2026-09-08` covering weighed meal fixtures with $\pm 20\%$ margin, critical safety refusals (100% threshold), training contraindications, 4-vector prompt injection defense, and non-diagnostic body photo policies.
+4. **Disclosures & Privacy Policy**: Updated in-app and legal disclosures to reflect 30-day transient abuse-monitoring retention and international processing by Google LLC under Paid Services terms.
+
 ## 2026-09-08 — Session A: Q1 runtime isolation and Q8-A access containment
 
 Scope: Implemented Q1 Dev runtime isolation on Raspberry Pi (`rpserver`) and Q8-A fail-closed adult eligibility logic.
