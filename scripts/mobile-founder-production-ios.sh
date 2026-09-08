@@ -48,6 +48,13 @@ case "$action" in
     ;;
   run)
     shift
+    if [[ -d "$repo_root/apps/mobile/ios" ]]; then
+      current_bundle_id="$(grep -m1 'PRODUCT_BUNDLE_IDENTIFIER =' "$repo_root/apps/mobile/ios/Mizyun.xcodeproj/project.pbxproj" | tr -d ';\t ' | cut -d= -f2 || true)"
+      if [[ -n "$current_bundle_id" && "$current_bundle_id" != "com.mizyun.app" ]]; then
+        echo "ERROR: Native iOS directory has bundle ID '$current_bundle_id', but requested variant is '$MIZYUN_APP_VARIANT' (expected 'com.mizyun.app'). Run prebuild first: pnpm mobile:founder-production:ios:prebuild" >&2
+        exit 1
+      fi
+    fi
     # AI-ACT-006 era: Apple's Personal Team provisioning profiles
     # expire after 7 days, so `expo run:ios` (which does not pass
     # `-allowProvisioningUpdates` to xcodebuild) fails on the

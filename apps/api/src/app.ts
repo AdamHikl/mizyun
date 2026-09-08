@@ -21,6 +21,7 @@ import {
   DEFAULT_UNIT_SYSTEM,
   InMemoryEmailSender,
   type AccountRepository,
+  type AiConsentRepository,
   type BodyMeasurementRepository,
   type ConversationRepository,
   type EmailSender,
@@ -48,6 +49,7 @@ import {
 import type { AiProvider } from "@mizyun/contracts";
 
 import { InMemoryAccountRepository } from "./account-repository.js";
+import { InMemoryAiConsentRepository } from "./ai-consent-repository.js";
 import { InMemoryGoalRepository } from "./goal-repository.js";
 import { loggerConfig } from "./logging.js";
 import { InMemoryMediaStorage, type MediaStorage } from "./media-storage.js";
@@ -100,6 +102,7 @@ import {
   SupabaseConversationRepository,
   SupabaseMediaAssetRepository,
   SupabaseAccountRepository,
+  SupabaseAiConsentRepository,
   SupabaseMediaStorage,
   createSupabaseServiceRoleClient,
   type RepositorySupabaseClient,
@@ -220,6 +223,7 @@ export interface AppDependencies {
   readonly conversationRepository?: ConversationRepository;
   readonly feedbackRepository?: FeedbackRepository;
   readonly accountRepository?: AccountRepository;
+  readonly aiConsentRepository?: AiConsentRepository;
   readonly mediaAssetRepository?: MediaAssetRepository;
   readonly mediaStorage?: MediaStorage;
   readonly emailSender?: EmailSender;
@@ -519,6 +523,15 @@ export const buildApp = (
       : new InMemoryMediaStorage());
   const MEDIA_BUCKET_ID = "private-media";
 
+  const aiConsentRepository =
+    dependencies.aiConsentRepository ??
+    (sp
+      ? new SupabaseAiConsentRepository({
+          clientFor: sp.clientFor,
+          ...(sp.serviceRoleClient ? { client: sp.serviceRoleClient } : {}),
+        })
+      : new InMemoryAiConsentRepository({ defaultGranted: true }));
+
   const accountRepository =
     dependencies.accountRepository ??
     (sp
@@ -535,6 +548,7 @@ export const buildApp = (
           mediaAssetRepository,
           mediaStorage,
           memoryStore: resolveMemoryStore(dependencies),
+          aiConsentRepository,
           serviceRoleClient: sp.serviceRoleClient ?? null,
           clientFor: sp.clientFor,
         })
@@ -551,6 +565,7 @@ export const buildApp = (
           mediaAssetRepository,
           mediaStorage,
           memoryStore: resolveMemoryStore(dependencies),
+          aiConsentRepository,
         }));
 
   const emailSender =
@@ -691,78 +706,6 @@ export const buildApp = (
   // operate on the exact same memory backing store.
   const memoryStore: MemoryStore = resolveMemoryStore(dependencies);
 
-  void app.register(systemRoutes, { prefix: "/v1" });
-  void app.register(legalRoutes, { prefix: "/legal" });
-  void app.register(identityRoutes, { prefix: "/v1" });
-  void app.register(profileRoutes, {
-    prefix: "/v1/profile",
-    profileRepository,
-  });
-  void app.register(goalsRoutes, {
-    prefix: "/v1/goals",
-    goalRepository,
-  });
-  void app.register(foodEntriesRoutes, {
-    prefix: "/v1/food-entries",
-    foodEntryRepository,
-  });
-  void app.register(foodDraftRoutes, {
-    prefix: "/v1/food-entries",
-    visionProvider,
-    resolveVisionProvider,
-    profileRepository,
-    rateLimiter: draftRateLimiter,
-    resolvePlanTier,
-  });
-  void app.register(exercisesRoutes, {
-    prefix: "/v1/exercises",
-    exerciseRepository,
-  });
-  void app.register(workoutsRoutes, {
-    prefix: "/v1/workouts",
-    workoutRepository,
-  });
-  void app.register(bodyMeasurementsRoutes, {
-    prefix: "/v1/body-measurements",
-    bodyMeasurementRepository,
-  });
-  void app.register(workoutSetsRoutes, {
-    prefix: "/v1",
-    workoutSetRepository,
-    workoutRepository,
-    exerciseRepository,
-  });
-  void app.register(accountRoutes, {
-    prefix: "/v1",
-    accountRepository,
-    memoryStore,
-  });
-  void app.register(energyRoutes, {
-    prefix: "/v1",
-    profileRepository,
-    goalRepository,
-    bodyMeasurementRepository,
-    workoutRepository,
-    workoutSetRepository,
-    foodEntryRepository,
-  });
-  void app.register(mediaRoutes, {
-    prefix: "/v1",
-    mediaAssetRepository,
-    mediaStorage,
-    bucketId: MEDIA_BUCKET_ID,
-  });
-  void app.register(feedbackRoutes, {
-    prefix: "/v1/feedback",
-    feedbackRepository,
-  });
-
-  // MEM-001 — the long-lived memory store used by both the
-  // orchestrator (prompt recall) and the user-facing
-  // /v1/coach/memories routes. Resolve once so both surfaces
-  // share the same backing store. The orchestrator's
-  // `dependencies.memories` is the default; tests may inject a
-  // custom store via `coachControls.memoryStore`.
   // Build the limiter service. Production wires the Supabase
   // implementation against the service-role client; tests fall back
   // to the in-memory implementation unless they pass an override.
@@ -818,18 +761,97 @@ export const buildApp = (
     });
   };
 
+  const coachLimits = buildLimits();
+
+  void app.register(systemRoutes, { prefix: "/v1" });
+  void app.register(legalRoutes, { prefix: "/legal" });
+  void app.register(identityRoutes, { prefix: "/v1" });
+  void app.register(profileRoutes, {
+    prefix: "/v1/profile",
+    profileRepository,
+  });
+  void app.register(goalsRoutes, {
+    prefix: "/v1/goals",
+    goalRepository,
+  });
+  void app.register(foodEntriesRoutes, {
+    prefix: "/v1/food-entries",
+    foodEntryRepository,
+  });
+  void app.register(foodDraftRoutes, {
+    prefix: "/v1/food-entries",
+    visionProvider,
+    resolveVisionProvider,
+    profileRepository,
+    aiConsentRepository,
+    rateLimiter: draftRateLimiter,
+    limits: coachLimits,
+    resolvePlanTier,
+  });
+  void app.register(exercisesRoutes, {
+    prefix: "/v1/exercises",
+    exerciseRepository,
+  });
+  void app.register(workoutsRoutes, {
+    prefix: "/v1/workouts",
+    workoutRepository,
+  });
+  void app.register(bodyMeasurementsRoutes, {
+    prefix: "/v1/body-measurements",
+    bodyMeasurementRepository,
+  });
+  void app.register(workoutSetsRoutes, {
+    prefix: "/v1",
+    workoutSetRepository,
+    workoutRepository,
+    exerciseRepository,
+  });
+  void app.register(accountRoutes, {
+    prefix: "/v1",
+    accountRepository,
+    memoryStore,
+    aiConsentRepository,
+    profileRepository,
+  });
+  void app.register(energyRoutes, {
+    prefix: "/v1",
+    profileRepository,
+    goalRepository,
+    bodyMeasurementRepository,
+    workoutRepository,
+    workoutSetRepository,
+    foodEntryRepository,
+  });
+  void app.register(mediaRoutes, {
+    prefix: "/v1",
+    mediaAssetRepository,
+    mediaStorage,
+    bucketId: MEDIA_BUCKET_ID,
+  });
+  void app.register(feedbackRoutes, {
+    prefix: "/v1/feedback",
+    feedbackRepository,
+  });
+
+  // MEM-001 — the long-lived memory store used by both the
+  // orchestrator (prompt recall) and the user-facing
+  // /v1/coach/memories routes. Resolve once so both surfaces
+  // share the same backing store. The orchestrator's
+  // `dependencies.memories` is the default; tests may inject a
+  // custom store via `coachControls.memoryStore`.
   void app.register(coachRoutes, {
     prefix: "/v1/coach",
     agent,
     resolveAgent,
     conversationRepository,
     profileRepository,
+    aiConsentRepository,
     goalRepository,
     foodEntryRepository,
     workoutRepository,
     workoutSetRepository,
     bodyMeasurementRepository,
-    limits: buildLimits(),
+    limits: coachLimits,
     nutritionDraftProvider: visionProvider,
     resolveNutritionDraftProvider: resolveVisionProvider,
     nutritionDraftRateLimiter: draftRateLimiter,
@@ -847,6 +869,8 @@ export const buildApp = (
     prefix: "/v1/coach",
     conversationRepository,
     profileRepository,
+    aiConsentRepository,
+    limits: coachLimits,
     nutritionDraftProvider: visionProvider,
     resolveNutritionDraftProvider: resolveVisionProvider,
     nutritionDraftRateLimiter: draftRateLimiter,

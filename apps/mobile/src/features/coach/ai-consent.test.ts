@@ -98,4 +98,111 @@ describe("ai-consent", () => {
     );
     expect(await revokeAiConsent("user-1", throwingStore)).toBe(false);
   });
+
+  it("syncs with ApiClient on load, save, and revoke", async () => {
+    const store = new MemorySecureStore();
+    const mockApiClient = {
+      request: async (options: {
+        readonly method: string;
+        readonly path: string;
+        readonly body?: unknown;
+      }) => {
+        if (
+          options.method === "GET" &&
+          options.path === "/v1/account/ai-consent"
+        ) {
+          return {
+            ok: true as const,
+            value: {
+              consent: {
+                granted: true,
+                confirmedAdult: true,
+                consentVersion: "2026-09-08",
+                consentedAt: "2026-09-08T12:00:00Z",
+                revokedAt: null,
+              },
+            },
+          };
+        }
+        if (
+          options.method === "PUT" &&
+          options.path === "/v1/account/ai-consent"
+        ) {
+          const body = options.body as {
+            granted: boolean;
+            confirmedAdult: boolean;
+          };
+          return {
+            ok: true as const,
+            value: {
+              consent: {
+                granted: body.granted,
+                confirmedAdult: body.confirmedAdult,
+                consentVersion: "2026-09-08",
+                consentedAt: body.granted ? "2026-09-08T12:00:00Z" : null,
+                revokedAt: body.granted ? null : "2026-09-08T12:05:00Z",
+              },
+            },
+          };
+        }
+        return {
+          ok: false as const,
+          error: { kind: "network_error" as const, message: "unknown" },
+        };
+      },
+      status: () => ({
+        configured: true as const,
+        baseUrl: "https://api.test",
+      }),
+    };
+
+    // Load fetches from server and caches in store
+    const loaded = await loadAiConsent("user-1", store, mockApiClient as any);
+    expect(loaded.granted).toBe(true);
+    expect(loaded.consentVersion).toBe("2026-09-08");
+
+    // Save calls PUT on server and writes to store
+    const saved = await saveAiConsent(
+      "user-1",
+      true,
+      true,
+      store,
+      mockApiClient as any,
+    );
+    expect(saved).toBe(true);
+
+    // Revoke calls PUT with granted: false and clears store
+    const revoked = await revokeAiConsent(
+      "user-1",
+      store,
+      mockApiClient as any,
+    );
+    expect(revoked).toBe(true);
+    const afterRevoke = await store.getItemAsync("mizyun.ai-consent.user-1");
+    expect(afterRevoke).toBeNull();
+  });
+
+  it("falls back to local store if server request fails", async () => {
+    const store = new MemorySecureStore();
+    await saveAiConsent("user-1", true, true, store);
+
+    const failingApiClient = {
+      request: async () => ({
+        ok: false as const,
+        error: { kind: "network_error" as const, message: "offline" },
+      }),
+      status: () => ({
+        configured: true as const,
+        baseUrl: "https://api.test",
+      }),
+    };
+
+    const loaded = await loadAiConsent(
+      "user-1",
+      store,
+      failingApiClient as any,
+    );
+    expect(loaded.granted).toBe(true);
+    expect(loaded.confirmedAdult).toBe(true);
+  });
 });

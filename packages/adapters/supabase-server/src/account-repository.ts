@@ -16,6 +16,8 @@ import {
   type GoalRepository,
   type MediaAssetRepository,
   type ProfileRepository,
+  type AiConsentRepository,
+  type StoredAiConsent,
   type StoredBodyMeasurement,
   type StoredDeletionJob,
   type StoredExercise,
@@ -42,6 +44,10 @@ import { bodyMeasurementFromRow } from "./body-measurement-repository.js";
 import { feedbackFromRow } from "./feedback-repository.js";
 import { mediaAssetFromRow } from "./media-asset-repository.js";
 import { conversationFromRow } from "./conversation-repository.js";
+import {
+  aiConsentFromRow,
+  type AiConsentRow,
+} from "./ai-consent-repository.js";
 
 export interface AccountMediaStorage {
   remove(
@@ -119,6 +125,7 @@ export interface SupabaseAccountRepositoryOptions {
   readonly mediaAssetRepository?: MediaAssetRepository | null | undefined;
   readonly mediaStorage?: AccountMediaStorage | null | undefined;
   readonly memoryStore?: MemoryStore | null | undefined;
+  readonly aiConsentRepository?: AiConsentRepository | null | undefined;
   readonly serviceRoleClient?: RepositorySupabaseClient | null | undefined;
   readonly clientFor?:
     ((accessToken: string) => RepositorySupabaseClient) | undefined;
@@ -160,6 +167,7 @@ export class SupabaseAccountRepository implements AccountRepository {
   readonly #mediaAssetRepository: MediaAssetRepository | null;
   readonly #mediaStorage: AccountMediaStorage | null;
   readonly #memoryStore: MemoryStore | null;
+  readonly #aiConsentRepository: AiConsentRepository | null;
   readonly #serviceRoleClient: RepositorySupabaseClient | null;
   readonly #clientFor:
     ((accessToken: string) => RepositorySupabaseClient) | null;
@@ -178,6 +186,7 @@ export class SupabaseAccountRepository implements AccountRepository {
     this.#mediaAssetRepository = options.mediaAssetRepository ?? null;
     this.#mediaStorage = options.mediaStorage ?? null;
     this.#memoryStore = options.memoryStore ?? null;
+    this.#aiConsentRepository = options.aiConsentRepository ?? null;
     this.#serviceRoleClient = options.serviceRoleClient ?? null;
     this.#clientFor = options.clientFor ?? null;
     this.#clock = options.clock ?? { now: () => new Date() };
@@ -205,6 +214,7 @@ export class SupabaseAccountRepository implements AccountRepository {
     let conversations: ReadonlyArray<StoredConversationStub>;
     let feedback: ReadonlyArray<UserFeedback>;
     let privateMedia: ReadonlyArray<ExportedMediaAsset>;
+    let aiConsent: StoredAiConsent | null = null;
 
     if (this.#clientFor !== null) {
       const client = this.#clientFor(token);
@@ -355,6 +365,15 @@ export class SupabaseAccountRepository implements AccountRepository {
           };
         }),
       );
+
+      const { data: consentRow } = await client
+        .from<AiConsentRow>("user_ai_consents")
+        .select("*")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (consentRow) {
+        aiConsent = aiConsentFromRow(consentRow);
+      }
     } else {
       profile = await this.#profileRepository.getOrCreate(userId, {
         now,
@@ -462,6 +481,11 @@ export class SupabaseAccountRepository implements AccountRepository {
           };
         }),
       );
+      if (this.#aiConsentRepository) {
+        aiConsent = await this.#aiConsentRepository.getConsent(userId, {
+          accessToken: token,
+        });
+      }
     }
 
     const totalMessages = conversations.reduce(
@@ -485,6 +509,7 @@ export class SupabaseAccountRepository implements AccountRepository {
         memories: 0,
         privateMedia: privateMedia.length,
         feedback: feedback.length,
+        aiConsents: aiConsent ? 1 : 0,
       },
     };
 
@@ -502,6 +527,7 @@ export class SupabaseAccountRepository implements AccountRepository {
       conversations,
       privateMedia,
       feedback,
+      aiConsent,
     };
   }
 

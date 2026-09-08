@@ -566,18 +566,29 @@ export {
 } from "./workout-set";
 
 export {
+  CURRENT_AI_CONSENT_VERSION,
   accountDeleteChallengeResponseSchema,
   accountDeleteResponseSchema,
   accountDeleteSchema,
   accountExportResponseSchema,
   accountExportSchema,
+  aiConsentResponseSchema,
+  aiConsentSchema,
   conversationStubSchema,
+  exportManifestSchema,
+  exportedMediaAssetSchema,
   privateMediaStubSchema,
+  updateAiConsentSchema,
   type AccountDeleteBody,
   type AccountDeleteChallengeResponse,
   type AccountDeleteResponse,
   type AccountExport,
   type AccountExportResponse,
+  type AiConsent,
+  type AiConsentResponse,
+  type ExportManifest,
+  type ExportedMediaAsset,
+  type UpdateAiConsent,
 } from "./account";
 
 export {

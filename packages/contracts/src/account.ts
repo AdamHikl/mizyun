@@ -62,6 +62,7 @@ export const exportManifestSchema = z.object({
     memories: z.number().int().nonnegative(),
     privateMedia: z.number().int().nonnegative(),
     feedback: z.number().int().nonnegative(),
+    aiConsents: z.number().int().nonnegative().optional(),
   }),
 });
 
@@ -103,6 +104,7 @@ export const accountExportSchema = z.object({
   memories: z.array(z.unknown()),
   privateMedia: z.array(exportedMediaAssetSchema),
   feedback: z.array(z.unknown()).default([]),
+  aiConsent: z.unknown().nullable().optional(),
 });
 
 export type AccountExport = z.infer<typeof accountExportSchema>;
@@ -140,6 +142,36 @@ export const accountDeleteChallengeResponseSchema = z.object({
 export type AccountDeleteChallengeResponse = z.infer<
   typeof accountDeleteChallengeResponseSchema
 >;
+
+/**
+ * Current authoritative version for third-party AI processing disclosures.
+ * (Finding R5 / REL-AUD-005 / Q8-B).
+ */
+export const CURRENT_AI_CONSENT_VERSION = "2026-09-08";
+
+export const aiConsentSchema = z.object({
+  granted: z.boolean(),
+  confirmedAdult: z.boolean(),
+  consentVersion: z.string(),
+  consentedAt: z.string().datetime().nullable(),
+  revokedAt: z.string().datetime().nullable(),
+});
+
+export type AiConsent = z.infer<typeof aiConsentSchema>;
+
+export const updateAiConsentSchema = z.object({
+  granted: z.boolean(),
+  confirmedAdult: z.boolean(),
+  consentVersion: z.string().default(CURRENT_AI_CONSENT_VERSION),
+});
+
+export type UpdateAiConsent = z.infer<typeof updateAiConsentSchema>;
+
+export const aiConsentResponseSchema = z.object({
+  consent: aiConsentSchema,
+});
+
+export type AiConsentResponse = z.infer<typeof aiConsentResponseSchema>;
 
 /**
  * Re-exports the `YYYY-MM-DD` schema for callers that need to

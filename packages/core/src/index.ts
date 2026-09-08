@@ -150,8 +150,10 @@ export {
   type DeletionJobStatus,
   type ExportManifest,
   type ExportedMediaAsset,
+  type StoredAiConsent,
   type StoredConversationStub,
   type StoredDeletionJob,
+  type AiConsentRepository,
 } from "./account";
 
 export {

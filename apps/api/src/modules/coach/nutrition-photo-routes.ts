@@ -5,6 +5,7 @@ import {
   type VisionMimeType,
 } from "@mizyun/agent-runtime";
 import type {
+  AiConsentRepository,
   ConversationId,
   ConversationRepository,
   PlanTier,
@@ -20,13 +21,16 @@ import {
   type CoachMessage,
 } from "@mizyun/contracts";
 
-import { isAdultEligibleForAi } from "../../ai-eligibility.js";
+import { authorizeAiAccess } from "../../ai-eligibility.js";
 import { sendApiError } from "../../errors.js";
 import type { FoodDraftRateLimiter } from "../food-entries/draft-rate-limit.js";
+import type { CoachLimitService } from "./limits.js";
 
 interface CoachNutritionPhotoRoutesOptions {
   readonly conversationRepository: ConversationRepository;
   readonly profileRepository: ProfileRepository;
+  readonly aiConsentRepository?: AiConsentRepository;
+  readonly limits?: CoachLimitService;
   readonly nutritionDraftProvider: VisionDraftProvider;
   readonly resolveNutritionDraftProvider?: (
     provider: import("@mizyun/contracts").AiProvider,
@@ -167,29 +171,57 @@ export const coachNutritionPhotoRoutes: FastifyPluginAsync<
         principal.userId,
         { now: now(), accessToken: principal.accessToken },
       );
-      if (!isAdultEligibleForAi(profile, now())) {
+      const consent = options.aiConsentRepository
+        ? await options.aiConsentRepository.getConsent(principal.userId, {
+            accessToken: principal.accessToken,
+          })
+        : null;
+      const authResult = authorizeAiAccess({ profile, consent, now: now() });
+      if (!authResult.authorized) {
         return sendApiError(
           reply,
           request,
-          403,
-          "AI_AGE_RESTRICTED",
-          "AI features require adult eligibility (18 years or older) under provider terms.",
+          authResult.statusCode,
+          authResult.code,
+          authResult.message,
         );
       }
       const tier = options.planTierOverride ?? profile.planTier;
-      const rate = options.nutritionDraftRateLimiter.acquire(
-        principal.userId,
-        tier,
-      );
-      if (!rate.allowed) {
-        reply.header("retry-after", String(rate.retryAfter));
-        return sendApiError(
-          reply,
-          request,
-          429,
-          "RATE_LIMITED",
-          "Meal photo drafts are limited. Try again shortly.",
+      let acquiredUnifiedLimit = false;
+      if (options.limits) {
+        const slot = await options.limits.acquireDraftSlot(
+          principal.userId,
+          tier,
+          "photo",
         );
+        if (!slot.allowed) {
+          if (slot.retryAfter) {
+            reply.header("retry-after", String(slot.retryAfter));
+          }
+          return sendApiError(
+            reply,
+            request,
+            429,
+            "RATE_LIMITED",
+            "Meal photo drafts are limited. Try again shortly.",
+          );
+        }
+        acquiredUnifiedLimit = true;
+      } else {
+        const rate = options.nutritionDraftRateLimiter.acquire(
+          principal.userId,
+          tier,
+        );
+        if (!rate.allowed) {
+          reply.header("retry-after", String(rate.retryAfter));
+          return sendApiError(
+            reply,
+            request,
+            429,
+            "RATE_LIMITED",
+            "Meal photo drafts are limited. Try again shortly.",
+          );
+        }
       }
 
       let photo: Buffer | null = null;
@@ -309,12 +341,18 @@ export const coachNutritionPhotoRoutes: FastifyPluginAsync<
             conversationId,
             { accessToken: principal.accessToken },
           )) ?? conversation;
+        if (acquiredUnifiedLimit && options.limits) {
+          await options.limits.commitDraftTokens(principal.userId, 1500);
+        }
         return coachMessageResponseSchema.parse({
           conversation: toConversationWire(latestConversation),
           userMessage: toMessageWire(userMessage),
           assistantMessage: toMessageWire(assistantMessage),
         });
       } catch (error) {
+        if (acquiredUnifiedLimit && options.limits) {
+          await options.limits.releaseDraftSlot(principal.userId);
+        }
         if (error instanceof VisionProviderError) {
           const status =
             error.kind === "rate_limited"

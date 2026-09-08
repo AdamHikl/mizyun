@@ -42,3 +42,12 @@ export {
   capsForTier,
   isAiPlanTier,
 } from "./ai-tier";
+
+export {
+  type BuildMatrixValidationInput,
+  type MizyunAppVariant,
+  type MizyunBuildProfile,
+  type MobileBuildIdentity,
+  BUILD_IDENTITIES,
+  validateBuildMatrix,
+} from "./build-matrix";

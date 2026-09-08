@@ -57,6 +57,7 @@ export interface ExportManifest {
     readonly memories: number;
     readonly privateMedia: number;
     readonly feedback: number;
+    readonly aiConsents?: number;
   };
 }
 
@@ -94,6 +95,7 @@ export interface AccountExport {
   readonly conversations: ReadonlyArray<StoredConversationStub>;
   readonly privateMedia: ReadonlyArray<ExportedMediaAsset>;
   readonly feedback: ReadonlyArray<UserFeedback>;
+  readonly aiConsent?: StoredAiConsent | null;
 }
 
 /**
@@ -170,4 +172,31 @@ export interface AccountRepository {
    * if any exists.
    */
   getDeletionJob?(userId: UserId): Promise<StoredDeletionJob | null>;
+}
+
+export interface StoredAiConsent {
+  readonly userId: UserId;
+  readonly granted: boolean;
+  readonly confirmedAdult: boolean;
+  readonly consentVersion: string;
+  readonly consentedAt: Date | null;
+  readonly revokedAt: Date | null;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+}
+
+export interface AiConsentRepository {
+  getConsent(
+    userId: UserId,
+    options?: { readonly accessToken?: string },
+  ): Promise<StoredAiConsent | null>;
+  saveConsent(
+    userId: UserId,
+    consent: {
+      readonly granted: boolean;
+      readonly confirmedAdult: boolean;
+      readonly consentVersion: string;
+    },
+    options?: { readonly accessToken?: string; readonly now?: Date },
+  ): Promise<StoredAiConsent>;
 }

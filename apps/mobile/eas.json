@@ -5,7 +5,14 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "MIZYUN_APP_VARIANT": "dev",
+        "MIZYUN_BUILD_PROFILE": "development",
+        "EXPO_PUBLIC_API_URL": "https://mizyun-api-dev.phiskel.com",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://mizyun-supabase-dev.phiskel.com",
+        "EXPO_PUBLIC_AUTH_REDIRECT_URI": "mizyun-dev://auth/callback"
+      }
     },
     "preview": {
       "distribution": "internal",
@@ -14,6 +21,13 @@
       },
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "MIZYUN_APP_VARIANT": "dev",
+        "MIZYUN_BUILD_PROFILE": "preview",
+        "EXPO_PUBLIC_API_URL": "https://mizyun-api-dev.phiskel.com",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://mizyun-supabase-dev.phiskel.com",
+        "EXPO_PUBLIC_AUTH_REDIRECT_URI": "mizyun-dev://auth/callback"
       }
     },
     "production": {
@@ -25,6 +39,8 @@
         "buildType": "app-bundle"
       },
       "env": {
+        "MIZYUN_APP_VARIANT": "production",
+        "MIZYUN_BUILD_PROFILE": "production",
         "EXPO_PUBLIC_API_URL": "https://mizyun-api.phiskel.com",
         "EXPO_PUBLIC_SUPABASE_URL": "https://mizyun-supabase.phiskel.com",
         "EXPO_PUBLIC_AUTH_REDIRECT_URI": "mizyun://auth/callback"

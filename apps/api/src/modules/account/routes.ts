@@ -1,21 +1,33 @@
 import type { FastifyPluginAsync } from "fastify";
-import type { AccountExport, AccountRepository } from "@mizyun/core";
+import type {
+  AccountExport,
+  AccountRepository,
+  AiConsentRepository,
+  ProfileRepository,
+} from "@mizyun/core";
 import type { MemoryRecord, MemoryStore } from "@mizyun/memory";
 import {
+  CURRENT_AI_CONSENT_VERSION,
   accountDeleteResponseSchema,
   accountDeleteSchema,
   accountExportResponseSchema,
   accountDeleteChallengeResponseSchema,
+  aiConsentResponseSchema,
+  updateAiConsentSchema,
   type AccountDeleteResponse,
   type AccountExportResponse,
   type AccountDeleteChallengeResponse,
+  type AiConsentResponse,
 } from "@mizyun/contracts";
 
+import { isAdultEligibleForAi } from "../../ai-eligibility.js";
 import { sendApiError } from "../../errors.js";
 
 interface AccountRoutesOptions {
   readonly accountRepository: AccountRepository;
   readonly memoryStore: MemoryStore;
+  readonly aiConsentRepository?: AiConsentRepository;
+  readonly profileRepository?: ProfileRepository;
 }
 
 const CHALLENGE_TTL_SECONDS = 5 * 60;
@@ -187,6 +199,22 @@ const accountExportToWire = (
         mediaAssetIds: [...fb.mediaAssetIds],
         createdAt: fb.createdAt.toISOString(),
       })),
+      aiConsent: exportDoc.aiConsent
+        ? {
+            userId: exportDoc.aiConsent.userId,
+            granted: exportDoc.aiConsent.granted,
+            confirmedAdult: exportDoc.aiConsent.confirmedAdult,
+            consentVersion: exportDoc.aiConsent.consentVersion,
+            consentedAt: exportDoc.aiConsent.consentedAt
+              ? exportDoc.aiConsent.consentedAt.toISOString()
+              : null,
+            revokedAt: exportDoc.aiConsent.revokedAt
+              ? exportDoc.aiConsent.revokedAt.toISOString()
+              : null,
+            createdAt: exportDoc.aiConsent.createdAt.toISOString(),
+            updatedAt: exportDoc.aiConsent.updatedAt.toISOString(),
+          }
+        : null,
     },
   });
 
@@ -294,6 +322,127 @@ export const accountRoutes: FastifyPluginAsync<AccountRoutesOptions> = async (
       }
       await sendApiError(reply, request, status, "VALIDATION_ERROR", message);
       return;
+    },
+  );
+
+  // GET /v1/account/ai-consent — retrieve explicit AI consent status
+  app.get(
+    "/account/ai-consent",
+    { preHandler: app.authenticate },
+    async (request): Promise<AiConsentResponse> => {
+      const principal = request.principal;
+      if (!principal) {
+        throw new Error("principal missing after authentication");
+      }
+      const consent = options.aiConsentRepository
+        ? await options.aiConsentRepository.getConsent(principal.userId, {
+            accessToken: principal.accessToken,
+          })
+        : null;
+
+      if (!consent) {
+        return aiConsentResponseSchema.parse({
+          consent: {
+            granted: false,
+            confirmedAdult: false,
+            consentVersion: CURRENT_AI_CONSENT_VERSION,
+            consentedAt: null,
+            revokedAt: null,
+          },
+        });
+      }
+
+      return aiConsentResponseSchema.parse({
+        consent: {
+          granted: consent.granted,
+          confirmedAdult: consent.confirmedAdult,
+          consentVersion: consent.consentVersion,
+          consentedAt: consent.consentedAt
+            ? consent.consentedAt.toISOString()
+            : null,
+          revokedAt: consent.revokedAt ? consent.revokedAt.toISOString() : null,
+        },
+      });
+    },
+  );
+
+  // PUT /v1/account/ai-consent — record or revoke explicit AI consent
+  app.put(
+    "/account/ai-consent",
+    { preHandler: app.authenticate },
+    async (request, reply): Promise<AiConsentResponse | void> => {
+      const principal = request.principal;
+      if (!principal) {
+        throw new Error("principal missing after authentication");
+      }
+      const parsed = updateAiConsentSchema.safeParse(request.body);
+      if (!parsed.success) {
+        await sendApiError(
+          reply,
+          request,
+          422,
+          "VALIDATION_ERROR",
+          `Invalid consent body: ${parsed.error.issues.map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`).join("; ")}`,
+        );
+        return;
+      }
+
+      const now = new Date();
+      if (parsed.data.granted) {
+        if (!parsed.data.confirmedAdult) {
+          await sendApiError(
+            reply,
+            request,
+            403,
+            "AI_AGE_RESTRICTED",
+            "Mizyun AI features require confirmed adult status (18+).",
+          );
+          return;
+        }
+
+        if (options.profileRepository) {
+          const profile = await options.profileRepository.getOrCreate(
+            principal.userId,
+            { now, accessToken: principal.accessToken },
+          );
+          if (!isAdultEligibleForAi(profile, now)) {
+            await sendApiError(
+              reply,
+              request,
+              403,
+              "AI_AGE_RESTRICTED",
+              "Mizyun AI features require adult eligibility (18 years or older) under provider terms.",
+            );
+            return;
+          }
+        }
+      }
+
+      if (!options.aiConsentRepository) {
+        throw new Error("aiConsentRepository not configured");
+      }
+
+      const saved = await options.aiConsentRepository.saveConsent(
+        principal.userId,
+        {
+          granted: parsed.data.granted,
+          confirmedAdult: parsed.data.confirmedAdult,
+          consentVersion: parsed.data.consentVersion,
+        },
+        { accessToken: principal.accessToken, now },
+      );
+
+      return aiConsentResponseSchema.parse({
+        consent: {
+          granted: saved.granted,
+          confirmedAdult: saved.confirmedAdult,
+          consentVersion: saved.consentVersion,
+          consentedAt: saved.consentedAt
+            ? saved.consentedAt.toISOString()
+            : null,
+          revokedAt: saved.revokedAt ? saved.revokedAt.toISOString() : null,
+        },
+      });
     },
   );
 };

@@ -68,6 +68,13 @@ case "$action" in
     ;;
   assembleRelease)
     shift
+    if [[ -d "$repo_root/apps/mobile/android" ]]; then
+      current_app_id="$(grep "applicationId" "$repo_root/apps/mobile/android/app/build.gradle" | head -n 1 | awk '{print $2}' | tr -d "'\"" || true)"
+      if [[ -n "$current_app_id" && "$current_app_id" != "com.mizyun.app" ]]; then
+        echo "ERROR: Native Android directory has application ID '$current_app_id', but requested variant is '$MIZYUN_APP_VARIANT' (expected 'com.mizyun.app'). Run prebuild first." >&2
+        exit 1
+      fi
+    fi
     # Direct gradle invocation: this is the iOS analogue of
     # `expo run:ios --configuration Release` but without requiring a
     # connected device. The release variant bakes the production JS

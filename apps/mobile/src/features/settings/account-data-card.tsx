@@ -21,6 +21,7 @@ import {
   requestAccountDeletion,
   saveExportToFile,
 } from "./account-data-management";
+import { useAiConsentController } from "@/features/coach/ai-consent-controller";
 
 type DeletionStage =
   | "idle"
@@ -43,6 +44,42 @@ export function AccountDataCard({
     expiresAt: string;
   } | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+  const [isRevokingConsent, setIsRevokingConsent] = useState(false);
+
+  const {
+    consentGranted: aiConsentGranted,
+    revokeConsent: executeRevokeAiConsent,
+  } = useAiConsentController({
+    userId: session?.user.id ?? null,
+    apiClient,
+  });
+
+  const handleRevokeConsent = () => {
+    Alert.alert(
+      "Revoke AI Consent",
+      "Revoking consent will disable AI Coach responses and photo meal estimation until consent is granted again. Your existing logs and workouts will remain untouched.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Revoke Consent",
+          style: "destructive",
+          onPress: async () => {
+            setIsRevokingConsent(true);
+            try {
+              await executeRevokeAiConsent();
+              setFeedbackMessage("AI consent has been revoked.");
+            } catch {
+              setFeedbackMessage(
+                "Could not revoke AI consent. Please try again.",
+              );
+            } finally {
+              setIsRevokingConsent(false);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   const handleExport = async () => {
     setIsExporting(true);
@@ -199,6 +236,41 @@ export function AccountDataCard({
 
       <View style={styles.divider} />
 
+      <View style={styles.consentSection}>
+        <ThemedText type="smallBold">Third-Party AI & Consent</ThemedText>
+        <ThemedText type="small" themeColor="textSecondary">
+          {aiConsentGranted
+            ? "Third-party AI processing (Google Gemini API) is currently enabled for Coach conversation and meal photo drafting. You confirmed adult eligibility (18+)."
+            : "Third-party AI processing is currently not enabled. You will be prompted for consent before using Coach or AI meal drafting."}
+        </ThemedText>
+        {aiConsentGranted ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Revoke AI consent"
+            disabled={
+              disabled || isExporting || isDeleting || isRevokingConsent
+            }
+            onPress={handleRevokeConsent}
+            style={({ pressed }) => [
+              styles.revokeButton,
+              pressed && styles.pressed,
+              (disabled || isExporting || isDeleting || isRevokingConsent) &&
+                styles.buttonDisabled,
+            ]}
+          >
+            {isRevokingConsent ? (
+              <ActivityIndicator size="small" color="#D97706" />
+            ) : (
+              <ThemedText type="smallBold" style={styles.revokeButtonText}>
+                Revoke AI Consent
+              </ThemedText>
+            )}
+          </Pressable>
+        ) : null}
+      </View>
+
+      <View style={styles.divider} />
+
       <View style={styles.deleteSection}>
         <ThemedText type="smallBold" style={styles.dangerTitle}>
           Permanent Account Erasure
@@ -283,6 +355,23 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: "rgba(148, 163, 184, 0.12)",
     marginVertical: 4,
+  },
+  consentSection: {
+    gap: Spacing.one,
+  },
+  revokeButton: {
+    marginTop: 4,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    backgroundColor: "rgba(245, 158, 11, 0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.3)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  revokeButtonText: {
+    color: "#D97706",
   },
   deleteSection: {
     gap: Spacing.one,

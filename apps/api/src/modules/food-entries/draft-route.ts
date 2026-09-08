@@ -20,7 +20,12 @@
  */
 
 import type { FastifyPluginAsync } from "fastify";
-import type { PlanTier, ProfileRepository, UserId } from "@mizyun/core";
+import type {
+  AiConsentRepository,
+  PlanTier,
+  ProfileRepository,
+  UserId,
+} from "@mizyun/core";
 import {
   screenCoachInput,
   VisionProviderError,
@@ -37,8 +42,12 @@ import {
 } from "@mizyun/contracts";
 import { randomUUID } from "node:crypto";
 
-import { isAdultEligibleForAi } from "../../ai-eligibility.js";
+import {
+  authorizeAiAccess,
+  type AiAuthorizationResult,
+} from "../../ai-eligibility.js";
 import { sendApiError } from "../../errors.js";
+import type { CoachLimitService, DraftKind } from "../coach/limits.js";
 import { FoodDraftRateLimiter } from "./draft-rate-limit.js";
 
 interface FoodDraftRoutesOptions {
@@ -47,7 +56,9 @@ interface FoodDraftRoutesOptions {
     provider: AiProvider,
   ) => VisionDraftProvider;
   readonly profileRepository?: ProfileRepository;
-  readonly rateLimiter: FoodDraftRateLimiter;
+  readonly aiConsentRepository?: AiConsentRepository;
+  readonly rateLimiter?: FoodDraftRateLimiter;
+  readonly limits?: CoachLimitService;
   /**
    * Resolves the plan tier for the principal. Production wires
    * this from `profiles.plan_tier`; tests inject a stub.
@@ -109,19 +120,82 @@ export const foodDraftRoutes: FastifyPluginAsync<
     return options.visionProvider;
   };
 
-  const checkAdultEligibility = async (
+  const checkAiAuthorization = async (
     userId: UserId,
     accessToken: string,
-  ): Promise<boolean> => {
-    if (!options.profileRepository) return false;
+  ): Promise<AiAuthorizationResult> => {
+    if (!options.profileRepository) {
+      return {
+        authorized: false,
+        statusCode: 403,
+        code: "AI_AGE_RESTRICTED",
+        message:
+          "AI features require adult eligibility (18 years or older) under provider terms.",
+      };
+    }
     try {
       const profile = await options.profileRepository.getOrCreate(userId, {
         now: new Date(),
         accessToken,
       });
-      return isAdultEligibleForAi(profile, new Date());
+      const consent = options.aiConsentRepository
+        ? await options.aiConsentRepository.getConsent(userId, { accessToken })
+        : null;
+      return authorizeAiAccess({ profile, consent, now: new Date() });
     } catch {
-      return false;
+      return {
+        authorized: false,
+        statusCode: 403,
+        code: "AI_AGE_RESTRICTED",
+        message:
+          "AI features require adult eligibility (18 years or older) under provider terms.",
+      };
+    }
+  };
+
+  const acquireDraftLimit = async (
+    userId: UserId,
+    tier: PlanTier,
+    draftKind: DraftKind,
+  ): Promise<{ allowed: boolean; retryAfter?: number }> => {
+    if (options.rateLimiter) {
+      const res = options.rateLimiter.acquire(userId, tier);
+      if (!res.allowed) {
+        return {
+          allowed: false,
+          ...(res.retryAfter !== undefined
+            ? { retryAfter: res.retryAfter }
+            : {}),
+        };
+      }
+    }
+    if (options.limits) {
+      const res = await options.limits.acquireDraftSlot(
+        userId,
+        tier,
+        draftKind,
+      );
+      if (!res.allowed) {
+        return {
+          allowed: false,
+          ...(res.retryAfter !== undefined
+            ? { retryAfter: res.retryAfter }
+            : {}),
+        };
+      }
+    }
+    return { allowed: true };
+  };
+
+  const commitDraftLimit = async (userId: UserId, tokens: number) => {
+    if (options.limits) {
+      await options.limits.commitDraftTokens(userId, tokens);
+    }
+  };
+
+  const releaseDraftLimit = async (userId: UserId) => {
+    if (options.limits) {
+      await options.limits.releaseDraftSlot(userId);
     }
   };
 
@@ -140,18 +214,17 @@ export const foodDraftRoutes: FastifyPluginAsync<
           "Describe the meal in 2 to 1,000 characters.",
         );
       }
-      if (
-        !(await checkAdultEligibility(
-          principal.userId as UserId,
-          principal.accessToken,
-        ))
-      ) {
+      const auth = await checkAiAuthorization(
+        principal.userId as UserId,
+        principal.accessToken,
+      );
+      if (!auth.authorized) {
         return sendApiError(
           reply,
           request,
-          403,
-          "AI_AGE_RESTRICTED",
-          "AI features require adult eligibility (18 years or older) under provider terms.",
+          auth.statusCode,
+          auth.code,
+          auth.message,
         );
       }
       const safety = screenCoachInput(parsed.data.description);
@@ -165,9 +238,15 @@ export const foodDraftRoutes: FastifyPluginAsync<
         );
       }
       const tier = options.resolvePlanTier(principal.userId as UserId);
-      const rate = options.rateLimiter.acquire(principal.userId, tier);
+      const rate = await acquireDraftLimit(
+        principal.userId as UserId,
+        tier,
+        "text",
+      );
       if (!rate.allowed) {
-        reply.header("retry-after", String(rate.retryAfter));
+        if (rate.retryAfter) {
+          reply.header("retry-after", String(rate.retryAfter));
+        }
         return sendApiError(
           reply,
           request,
@@ -194,10 +273,12 @@ export const foodDraftRoutes: FastifyPluginAsync<
           description: parsed.data.description,
           requestId,
         });
+        await commitDraftLimit(principal.userId as UserId, 500);
         return reply
           .status(200)
           .send(foodDraftResponseSchema.parse({ draft: candidate, requestId }));
       } catch (error) {
+        await releaseDraftLimit(principal.userId as UserId);
         if (error instanceof VisionProviderError) {
           const status = visionFailureToHttpStatus(error.kind);
           return sendApiError(
@@ -237,18 +318,17 @@ export const foodDraftRoutes: FastifyPluginAsync<
           "Provide a current draft and a 2-to-1,000 character instruction.",
         );
       }
-      if (
-        !(await checkAdultEligibility(
-          principal.userId as UserId,
-          principal.accessToken,
-        ))
-      ) {
+      const auth = await checkAiAuthorization(
+        principal.userId as UserId,
+        principal.accessToken,
+      );
+      if (!auth.authorized) {
         return sendApiError(
           reply,
           request,
-          403,
-          "AI_AGE_RESTRICTED",
-          "AI features require adult eligibility (18 years or older) under provider terms.",
+          auth.statusCode,
+          auth.code,
+          auth.message,
         );
       }
       const safety = screenCoachInput(parsed.data.instruction);
@@ -262,9 +342,15 @@ export const foodDraftRoutes: FastifyPluginAsync<
         );
       }
       const tier = options.resolvePlanTier(principal.userId as UserId);
-      const rate = options.rateLimiter.acquire(principal.userId, tier);
+      const rate = await acquireDraftLimit(
+        principal.userId as UserId,
+        tier,
+        "refine",
+      );
       if (!rate.allowed) {
-        reply.header("retry-after", String(rate.retryAfter));
+        if (rate.retryAfter) {
+          reply.header("retry-after", String(rate.retryAfter));
+        }
         return sendApiError(
           reply,
           request,
@@ -292,10 +378,12 @@ export const foodDraftRoutes: FastifyPluginAsync<
           instruction: parsed.data.instruction,
           requestId,
         });
+        await commitDraftLimit(principal.userId as UserId, 800);
         return reply
           .status(200)
           .send(foodDraftResponseSchema.parse({ draft: candidate, requestId }));
       } catch (error) {
+        await releaseDraftLimit(principal.userId as UserId);
         if (error instanceof VisionProviderError) {
           const status = visionFailureToHttpStatus(error.kind);
           return sendApiError(
@@ -331,18 +419,17 @@ export const foodDraftRoutes: FastifyPluginAsync<
           "Photo drafts require multipart/form-data with an `image` field.",
         );
       }
-      if (
-        !(await checkAdultEligibility(
-          principal.userId as UserId,
-          principal.accessToken,
-        ))
-      ) {
+      const auth = await checkAiAuthorization(
+        principal.userId as UserId,
+        principal.accessToken,
+      );
+      if (!auth.authorized) {
         return sendApiError(
           reply,
           request,
-          403,
-          "AI_AGE_RESTRICTED",
-          "AI features require adult eligibility (18 years or older) under provider terms.",
+          auth.statusCode,
+          auth.code,
+          auth.message,
         );
       }
 
@@ -350,9 +437,15 @@ export const foodDraftRoutes: FastifyPluginAsync<
       // 60-second window. Reject with 429 + Retry-After before
       // any photo bytes are read.
       const tier = options.resolvePlanTier(principal.userId as UserId);
-      const rate = options.rateLimiter.acquire(principal.userId, tier);
+      const rate = await acquireDraftLimit(
+        principal.userId as UserId,
+        tier,
+        "photo",
+      );
       if (!rate.allowed) {
-        reply.header("retry-after", String(rate.retryAfter));
+        if (rate.retryAfter) {
+          reply.header("retry-after", String(rate.retryAfter));
+        }
         return sendApiError(
           reply,
           request,
@@ -360,7 +453,7 @@ export const foodDraftRoutes: FastifyPluginAsync<
           "RATE_LIMITED",
           `Photo drafts are limited to ${
             tier === "paid" ? 3 : 1
-          } request per minute. Try again in ${rate.retryAfter} second(s).`,
+          } request per minute. Try again in ${rate.retryAfter ?? 1} second(s).`,
         );
       }
 
@@ -450,10 +543,12 @@ export const foodDraftRoutes: FastifyPluginAsync<
 
       try {
         const candidate = await vision.generateDraft(visionRequest);
+        await commitDraftLimit(principal.userId as UserId, 1500);
         return reply
           .status(200)
           .send(foodDraftResponseSchema.parse({ draft: candidate, requestId }));
       } catch (error) {
+        await releaseDraftLimit(principal.userId as UserId);
         if (error instanceof VisionProviderError) {
           const status = visionFailureToHttpStatus(error.kind);
           const code =

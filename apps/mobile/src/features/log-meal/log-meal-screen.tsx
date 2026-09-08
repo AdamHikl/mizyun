@@ -45,7 +45,11 @@ import {
   upgradeLegacyMealDraft,
 } from "./meal-form";
 import { normalizeMealPhoto } from "./meal-photo";
-import { loadAiConsent, saveAiConsent } from "@/features/coach/ai-consent";
+import { apiClient } from "@/composition/api-client";
+import {
+  useAiConsentController,
+  type PendingAiAction,
+} from "@/features/coach/ai-consent-controller";
 import { AiConsentModal } from "@/features/coach/ai-consent-modal";
 
 const draftEvidenceLines = (
@@ -110,37 +114,6 @@ export function LogMealScreen() {
   const measurement = useRef<LoggingFlowMeasurement | null>(null);
   const hadFailure = useRef(false);
   const userId = session?.user.id ?? null;
-  const [aiConsentGranted, setAiConsentGranted] = useState(false);
-  const [aiConsentModalVisible, setAiConsentModalVisible] = useState(false);
-  const pendingAiAction = useRef<(() => void) | null>(null);
-
-  useEffect(() => {
-    if (userId === null) return;
-    void loadAiConsent(userId).then((status) => {
-      setAiConsentGranted(status.granted && status.confirmedAdult);
-    });
-  }, [userId]);
-
-  const handleAiConsent = useCallback(async () => {
-    if (userId !== null) {
-      await saveAiConsent(userId, true, true);
-    }
-    setAiConsentGranted(true);
-    setAiConsentModalVisible(false);
-    if (pendingAiAction.current) {
-      const action = pendingAiAction.current;
-      pendingAiAction.current = null;
-      action();
-    }
-  }, [userId]);
-
-  const handleAiDecline = useCallback(() => {
-    setAiConsentModalVisible(false);
-    pendingAiAction.current = null;
-    setError(
-      "AI meal drafting requires consent to third-party AI processing and adult eligibility.",
-    );
-  }, []);
 
   useEffect(() => {
     measurement.current = new LoggingFlowMeasurement("meal", analyticsClient);
@@ -403,69 +376,64 @@ export function LogMealScreen() {
     setAttachedPhoto(null);
   }, []);
 
-  const onProcessPhoto = useCallback(async () => {
-    if (attachedPhoto === null) return;
-    if (!aiConsentGranted) {
-      pendingAiAction.current = () => void onProcessPhoto();
-      setAiConsentModalVisible(true);
-      return;
-    }
-    measurement.current?.tap();
-    if (hadFailure.current) measurement.current?.retry();
-    setSnapping(true);
-    setError(null);
-    setDraftWarnings([]);
-    try {
-      const hint = mealDescription.trim();
-      const photo = await normalizeMealPhoto(attachedPhoto);
-      const draft = await snapMealPhoto(
-        photo,
-        "image/jpeg",
-        hint.length > 0 ? hint : undefined,
-      );
-      if (!draft.ok) {
+  const executeProcessPhoto = useCallback(
+    async (photoUri?: string) => {
+      const photoSource =
+        attachedPhoto ?? (photoUri ? { uri: photoUri } : null);
+      if (photoSource === null) return;
+      measurement.current?.tap();
+      if (hadFailure.current) measurement.current?.retry();
+      setSnapping(true);
+      setError(null);
+      setDraftWarnings([]);
+      try {
+        const hint = mealDescription.trim();
+        const photo = await normalizeMealPhoto(photoSource);
+        const draft = await snapMealPhoto(
+          photo,
+          "image/jpeg",
+          hint.length > 0 ? hint : undefined,
+        );
+        if (!draft.ok) {
+          hadFailure.current = true;
+          measurement.current?.fail("upload", "unexpected", true);
+          setError(draft.message);
+          return;
+        }
+        const strings = mealFormStringsFromDraft(draft.draft);
+        setName(strings.name);
+        setCalories(strings.calories);
+        setProtein(strings.protein);
+        setCarbs(strings.carbs);
+        setFat(strings.fat);
+        setDraftWarnings(draftEvidenceLines(draft.draft));
+        setAiDraft(draft.draft);
+        setSourceProposalId(null);
+        measurement.current?.complete();
+      } catch (cause) {
         hadFailure.current = true;
         measurement.current?.fail("upload", "unexpected", true);
-        setError(draft.message);
-        return;
+        setError(
+          cause instanceof Error
+            ? `Couldn't read the photo: ${cause.message}`
+            : "Couldn't read the photo.",
+        );
+      } finally {
+        setSnapping(false);
       }
-      const strings = mealFormStringsFromDraft(draft.draft);
-      setName(strings.name);
-      setCalories(strings.calories);
-      setProtein(strings.protein);
-      setCarbs(strings.carbs);
-      setFat(strings.fat);
-      setDraftWarnings(draftEvidenceLines(draft.draft));
-      setAiDraft(draft.draft);
-      setSourceProposalId(null);
-      measurement.current?.complete();
-    } catch (cause) {
-      hadFailure.current = true;
-      measurement.current?.fail("upload", "unexpected", true);
-      setError(
-        cause instanceof Error
-          ? `Couldn't read the photo: ${cause.message}`
-          : "Couldn't read the photo.",
-      );
-    } finally {
-      setSnapping(false);
-    }
-  }, [aiConsentGranted, attachedPhoto, mealDescription]);
+    },
+    [attachedPhoto, mealDescription],
+  );
 
-  const onTextDraft = useCallback(async () => {
-    if (mealDescription.trim().length < 2) return;
-    if (!aiConsentGranted) {
-      pendingAiAction.current = () => void onTextDraft();
-      setAiConsentModalVisible(true);
-      return;
-    }
+  const executeTextDraft = useCallback(async (description: string) => {
+    if (description.trim().length < 2) return;
     measurement.current?.tap();
     if (hadFailure.current) measurement.current?.retry();
     setSnapping(true);
     setError(null);
     setDraftWarnings([]);
     try {
-      const result = await draftMealFromText(mealDescription);
+      const result = await draftMealFromText(description);
       if (!result.ok) {
         hadFailure.current = true;
         measurement.current?.fail("submit", "unexpected", true);
@@ -489,48 +457,93 @@ export function LogMealScreen() {
     } finally {
       setSnapping(false);
     }
-  }, [aiConsentGranted, mealDescription]);
+  }, []);
 
-  // AI-ACT-007 — refine the current AI draft with a follow-up
-  // instruction. The endpoint takes the current draft as
-  // context, so the user can type "make the chicken 200g instead
-  // of 100g" and the server returns a re-evaluated candidate.
-  // On success we patch the form fields + warnings so the user
-  // can confirm. The description field is intentionally left
-  // intact so the photo flow's `textHint` chain still works.
+  const executeRefineDraft = useCallback(
+    async (instruction: string) => {
+      if (
+        instruction.trim().length < 2 ||
+        aiDraft === null ||
+        refining ||
+        submitting
+      ) {
+        return;
+      }
+      setRefining(true);
+      setError(null);
+      try {
+        const result = await refineMealDraft(aiDraft, instruction);
+        if (!result.ok) {
+          setError(result.message);
+          return;
+        }
+        const strings = mealFormStringsFromDraft(result.draft);
+        setName(strings.name);
+        setCalories(strings.calories);
+        setProtein(strings.protein);
+        setCarbs(strings.carbs);
+        setFat(strings.fat);
+        setDraftWarnings(draftEvidenceLines(result.draft));
+        setAiDraft(result.draft);
+        measurement.current?.complete();
+      } finally {
+        setRefining(false);
+      }
+    },
+    [aiDraft, refining, submitting],
+  );
+
+  const executeAiAction = useCallback(
+    async (action: PendingAiAction) => {
+      if (action.kind === "meal_photo_draft") {
+        await executeProcessPhoto(action.photoUri);
+      } else if (action.kind === "meal_text_draft") {
+        await executeTextDraft(action.text);
+      } else if (action.kind === "meal_refine_draft") {
+        await executeRefineDraft(action.instruction);
+      }
+    },
+    [executeProcessPhoto, executeTextDraft, executeRefineDraft],
+  );
+
+  const {
+    isModalVisible: aiConsentModalVisible,
+    confirmConsent,
+    declineConsent,
+    requestAction,
+  } = useAiConsentController({
+    userId,
+    apiClient,
+    onExecuteAction: executeAiAction,
+  });
+
+  const onProcessPhoto = useCallback(async () => {
+    if (attachedPhoto === null) return;
+    await requestAction({
+      kind: "meal_photo_draft",
+      photoUri: attachedPhoto.uri,
+    });
+  }, [attachedPhoto, requestAction]);
+
+  const onTextDraft = useCallback(async () => {
+    const text = mealDescription.trim();
+    if (text.length < 2) return;
+    await requestAction({
+      kind: "meal_text_draft",
+      text,
+    });
+  }, [mealDescription, requestAction]);
+
   const onRefineDraft = useCallback(async () => {
     const instruction = refineInstruction.trim();
     if (instruction.length < 2 || aiDraft === null || refining || submitting) {
       return;
     }
-    if (!aiConsentGranted) {
-      pendingAiAction.current = () => void onRefineDraft();
-      setAiConsentModalVisible(true);
-      return;
-    }
-    setRefining(true);
-    setError(null);
-    try {
-      const result = await refineMealDraft(aiDraft, instruction);
-      if (!result.ok) {
-        setError(result.message);
-        return;
-      }
-      const strings = mealFormStringsFromDraft(result.draft);
-      setName(strings.name);
-      setCalories(strings.calories);
-      setProtein(strings.protein);
-      setCarbs(strings.carbs);
-      setFat(strings.fat);
-      setDraftWarnings(draftEvidenceLines(result.draft));
-      setAiDraft(result.draft);
-      // Keep the user's instruction visible so they can chain
-      // follow-up refinements (e.g. "now make the rice half").
-      measurement.current?.complete();
-    } finally {
-      setRefining(false);
-    }
-  }, [aiConsentGranted, refineInstruction, aiDraft, refining, submitting]);
+    await requestAction({
+      kind: "meal_refine_draft",
+      instruction,
+    });
+  }, [aiDraft, refining, submitting, refineInstruction, requestAction]);
 
   const hasContent =
     name.trim().length > 0 ||
@@ -966,8 +979,13 @@ export function LogMealScreen() {
 
       <AiConsentModal
         visible={aiConsentModalVisible}
-        onConsent={() => void handleAiConsent()}
-        onDecline={handleAiDecline}
+        onConsent={() => void confirmConsent()}
+        onDecline={() => {
+          declineConsent();
+          setError(
+            "AI meal drafting requires consent to third-party AI processing and adult eligibility.",
+          );
+        }}
       />
     </ThemedView>
   );

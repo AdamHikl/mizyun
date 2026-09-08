@@ -22,6 +22,7 @@ import type {
   UserId,
   WorkoutRepository,
   WorkoutSetRepository,
+  AiConsentRepository,
 } from "@mizyun/core";
 import {
   coachConversationCreateSchema,
@@ -47,7 +48,10 @@ import {
 } from "@mizyun/contracts";
 import type { MemoryStore } from "@mizyun/memory";
 
-import { isAdultEligibleForAi } from "../../ai-eligibility.js";
+import {
+  authorizeAiAccess,
+  isAdultEligibleForAi,
+} from "../../ai-eligibility.js";
 import { sendApiError } from "../../errors.js";
 import type { FoodDraftRateLimiter } from "../food-entries/draft-rate-limit.js";
 import { buildCoachGrounding } from "./grounding.js";
@@ -81,6 +85,7 @@ interface CoachRoutesOptions {
   ) => AgentOrchestrator;
   readonly conversationRepository: ConversationRepository;
   readonly profileRepository: ProfileRepository;
+  readonly aiConsentRepository?: AiConsentRepository;
   readonly goalRepository: GoalRepository;
   readonly foodEntryRepository: FoodEntryRepository;
   readonly workoutRepository: WorkoutRepository;
@@ -607,31 +612,59 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
         principal.userId,
         { now: now(), accessToken: principal.accessToken },
       );
-      if (!isAdultEligibleForAi(profile, now())) {
+      const consent = options.aiConsentRepository
+        ? await options.aiConsentRepository.getConsent(principal.userId, {
+            accessToken: principal.accessToken,
+          })
+        : null;
+      const authResult = authorizeAiAccess({ profile, consent, now: now() });
+      if (!authResult.authorized) {
         return sendApiError(
           reply,
           request,
-          403,
-          "AI_AGE_RESTRICTED",
-          "AI features require adult eligibility (18 years or older) under provider terms.",
+          authResult.statusCode,
+          authResult.code,
+          authResult.message,
         );
       }
       const planTier: PlanTier = planTierOverride ?? profile.planTier;
 
       if (isExplicitMealLoggingIntent(parsed.data.text)) {
-        const rate = options.nutritionDraftRateLimiter.acquire(
-          principal.userId,
-          planTier,
-        );
-        if (!rate.allowed) {
-          reply.header("retry-after", String(rate.retryAfter));
-          return sendApiError(
-            reply,
-            request,
-            429,
-            "RATE_LIMITED",
-            "Meal drafts are limited. Try again shortly.",
+        let acquiredUnifiedLimit = false;
+        if (options.limits) {
+          const slot = await options.limits.acquireDraftSlot(
+            principal.userId,
+            planTier,
+            "text",
           );
+          if (!slot.allowed) {
+            if (slot.retryAfter) {
+              reply.header("retry-after", String(slot.retryAfter));
+            }
+            return sendApiError(
+              reply,
+              request,
+              429,
+              "RATE_LIMITED",
+              "Meal drafts are limited. Try again shortly.",
+            );
+          }
+          acquiredUnifiedLimit = true;
+        } else {
+          const rate = options.nutritionDraftRateLimiter.acquire(
+            principal.userId,
+            planTier,
+          );
+          if (!rate.allowed) {
+            reply.header("retry-after", String(rate.retryAfter));
+            return sendApiError(
+              reply,
+              request,
+              429,
+              "RATE_LIMITED",
+              "Meal drafts are limited. Try again shortly.",
+            );
+          }
         }
         const draftProvider = options.resolveNutritionDraftProvider
           ? options.resolveNutritionDraftProvider(profile.aiProvider)
@@ -679,12 +712,18 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
               conversationId,
               { accessToken: principal.accessToken },
             )) ?? conversation;
+          if (acquiredUnifiedLimit && options.limits) {
+            await options.limits.commitDraftTokens(principal.userId, 500);
+          }
           return coachMessageResponseSchema.parse({
             conversation: toConversationWire(latestConversation),
             userMessage: toMessageWire(userMessage),
             assistantMessage: toMessageWire(assistantMessage),
           });
         } catch (error) {
+          if (acquiredUnifiedLimit && options.limits) {
+            await options.limits.releaseDraftSlot(principal.userId);
+          }
           if (error instanceof VisionProviderError) {
             const status =
               error.kind === "rate_limited"

@@ -48,7 +48,11 @@ import { useAuth } from "@/features/auth/auth-context";
 import { mealFormStringsFromDraft } from "@/features/log-meal/meal-form";
 import { normalizeMealPhoto } from "@/features/log-meal/meal-photo";
 
-import { loadAiConsent, saveAiConsent } from "./ai-consent";
+import { apiClient } from "@/composition/api-client";
+import {
+  useAiConsentController,
+  type PendingAiAction,
+} from "./ai-consent-controller";
 import { AiConsentModal } from "./ai-consent-modal";
 import { EvidenceChips } from "./evidence-chips";
 import {
@@ -146,37 +150,6 @@ export function CoachSetupScreen() {
   const [now, setNow] = useState(() => new Date());
   const lastHandledPrompt = useRef<string | null>(null);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
-  const [aiConsentGranted, setAiConsentGranted] = useState(false);
-  const [aiConsentModalVisible, setAiConsentModalVisible] = useState(false);
-  const pendingAiAction = useRef<(() => void) | null>(null);
-
-  useEffect(() => {
-    if (userId === null) return;
-    void loadAiConsent(userId).then((status) => {
-      setAiConsentGranted(status.granted && status.confirmedAdult);
-    });
-  }, [userId]);
-
-  const handleAiConsent = useCallback(async () => {
-    if (userId !== null) {
-      await saveAiConsent(userId, true, true);
-    }
-    setAiConsentGranted(true);
-    setAiConsentModalVisible(false);
-    if (pendingAiAction.current) {
-      const action = pendingAiAction.current;
-      pendingAiAction.current = null;
-      action();
-    }
-  }, [userId]);
-
-  const handleAiDecline = useCallback(() => {
-    setAiConsentModalVisible(false);
-    pendingAiAction.current = null;
-    setMessage(
-      "AI Coach requires consent to third-party AI processing and adult eligibility.",
-    );
-  }, []);
 
   useEffect(() => {
     const showSub = Keyboard.addListener(
@@ -308,13 +281,8 @@ export function CoachSetupScreen() {
     [active?.id],
   );
 
-  const send = useCallback(
+  const sendInternal = useCallback(
     async (retryDraft?: CoachPendingDraft, textOverride?: string) => {
-      if (!aiConsentGranted) {
-        pendingAiAction.current = () => void send(retryDraft, textOverride);
-        setAiConsentModalVisible(true);
-        return;
-      }
       const retry =
         retryDraft?.conversationId === active?.id ? retryDraft : undefined;
       const text = (retry?.text ?? textOverride ?? draft).trim();
@@ -408,8 +376,99 @@ export function CoachSetupScreen() {
         inputRef.current?.focus();
       }
     },
-    [active, aiConsentGranted, draft, pendingDraft, sending, userId],
+    [active, draft, pendingDraft, sending, userId],
   );
+
+  const pickAndSendMealPhoto = useCallback(async () => {
+    if (
+      active === null ||
+      sending ||
+      deleting ||
+      sendLock.current ||
+      deleteLock.current
+    ) {
+      return;
+    }
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      setMessage("Photo library access is required to choose a meal photo.");
+      return;
+    }
+    const selection = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      quality: 0.85,
+      allowsEditing: false,
+    });
+    if (selection.canceled || selection.assets?.[0] === undefined) return;
+    sendLock.current = true;
+    setSending(true);
+    setMessage(null);
+    try {
+      const photo = await normalizeMealPhoto(selection.assets[0]);
+      const result = await sendCoachMealPhoto(
+        active.id,
+        photo,
+        newCoachMessageIdempotencyKey(),
+      );
+      if (!result.ok) {
+        setMessage(result.message);
+        return;
+      }
+      setActive(result.conversation);
+      setMessages((current) => [...current, ...result.messages]);
+      setLiveRegionTick((tick) => tick + 1);
+    } catch (cause) {
+      setMessage(
+        cause instanceof Error
+          ? `Couldn't read the photo: ${cause.message}`
+          : "Couldn't read the photo.",
+      );
+    } finally {
+      sendLock.current = false;
+      setSending(false);
+    }
+  }, [active, deleting, sending]);
+
+  const executeAiAction = useCallback(
+    async (action: PendingAiAction) => {
+      if (action.kind === "coach_message") {
+        await sendInternal(undefined, action.text);
+      } else if (action.kind === "coach_photo") {
+        await pickAndSendMealPhoto();
+      }
+    },
+    [sendInternal, pickAndSendMealPhoto],
+  );
+
+  const {
+    isModalVisible: aiConsentModalVisible,
+    confirmConsent,
+    declineConsent,
+    requestAction,
+  } = useAiConsentController({
+    userId,
+    apiClient,
+    onExecuteAction: executeAiAction,
+  });
+
+  const send = useCallback(
+    async (retryDraft?: CoachPendingDraft, textOverride?: string) => {
+      const retry =
+        retryDraft?.conversationId === active?.id ? retryDraft : undefined;
+      const text = (retry?.text ?? textOverride ?? draft).trim();
+      if (text.length === 0) return;
+      await requestAction({
+        kind: "coach_message",
+        text,
+        idempotencyKey: retry?.idempotencyKey,
+      });
+    },
+    [active?.id, draft, requestAction],
+  );
+
+  const attachMealPhoto = useCallback(async () => {
+    await requestAction({ kind: "coach_photo", photoUri: "" });
+  }, [requestAction]);
 
   useEffect(() => {
     if (
@@ -551,61 +610,6 @@ export function CoachSetupScreen() {
     },
     [active, deleting, sending],
   );
-
-  const attachMealPhoto = useCallback(async () => {
-    if (!aiConsentGranted) {
-      pendingAiAction.current = () => void attachMealPhoto();
-      setAiConsentModalVisible(true);
-      return;
-    }
-    if (
-      active === null ||
-      sending ||
-      deleting ||
-      sendLock.current ||
-      deleteLock.current
-    ) {
-      return;
-    }
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      setMessage("Photo library access is required to choose a meal photo.");
-      return;
-    }
-    const selection = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      quality: 0.85,
-      allowsEditing: false,
-    });
-    if (selection.canceled || selection.assets?.[0] === undefined) return;
-    sendLock.current = true;
-    setSending(true);
-    setMessage(null);
-    try {
-      const photo = await normalizeMealPhoto(selection.assets[0]);
-      const result = await sendCoachMealPhoto(
-        active.id,
-        photo,
-        newCoachMessageIdempotencyKey(),
-      );
-      if (!result.ok) {
-        setMessage(result.message);
-        return;
-      }
-      setActive(result.conversation);
-      setMessages((current) => [...current, ...result.messages]);
-      setLiveRegionTick((tick) => tick + 1);
-    } catch (cause) {
-      setMessage(
-        cause instanceof Error
-          ? `Couldn't read the photo: ${cause.message}`
-          : "Couldn't read the photo.",
-      );
-    } finally {
-      sendLock.current = false;
-      setSending(false);
-    }
-  }, [active, aiConsentGranted, deleting, sending]);
   const sendPrompt = useCallback((promptText: string) => {
     setDraft(promptText);
     requestAnimationFrame(() => {
@@ -1120,8 +1124,13 @@ export function CoachSetupScreen() {
 
       <AiConsentModal
         visible={aiConsentModalVisible}
-        onConsent={() => void handleAiConsent()}
-        onDecline={handleAiDecline}
+        onConsent={() => void confirmConsent()}
+        onDecline={() => {
+          declineConsent();
+          setMessage(
+            "AI Coach requires consent to third-party AI processing and adult eligibility.",
+          );
+        }}
       />
     </ThemedView>
   );

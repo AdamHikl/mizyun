@@ -249,6 +249,12 @@ export { SupabaseMediaAssetRepository } from "./media-asset-repository.js";
 export { SupabaseConversationRepository } from "./conversation-repository.js";
 export { SupabaseAccountRepository } from "./account-repository.js";
 export {
+  SupabaseAiConsentRepository,
+  aiConsentFromRow,
+  type AiConsentRow,
+  type SupabaseAiConsentRepositoryOptions,
+} from "./ai-consent-repository.js";
+export {
   SupabaseMediaStorage,
   MediaStorageError,
   createSupabaseStorageClient,

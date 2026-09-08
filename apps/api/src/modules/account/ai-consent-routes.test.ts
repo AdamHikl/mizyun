@@ -1,0 +1,321 @@
+import { afterEach, describe, expect, it } from "vitest";
+
+import {
+  AgentOrchestrator,
+  DisabledAgentProvider,
+} from "@mizyun/agent-runtime";
+import { CURRENT_AI_CONSENT_VERSION } from "@mizyun/contracts";
+import type { UserId } from "@mizyun/core";
+import type { AccessTokenVerifier } from "@mizyun/identity";
+import { InMemoryMemoryStore } from "@mizyun/memory";
+
+import { InMemoryAiConsentRepository } from "../../ai-consent-repository.js";
+import { buildApp } from "../../app.js";
+import { InMemoryBodyMeasurementRepository } from "../../body-measurement-repository.js";
+import { InMemoryExerciseRepository } from "../../exercise-repository.js";
+import { InMemoryFoodEntryRepository } from "../../food-entry-repository.js";
+import { InMemoryGoalRepository } from "../../goal-repository.js";
+import { InMemoryProfileRepository } from "../../profile-repository.js";
+import { InMemoryWorkoutRepository } from "../../workout-repository.js";
+import { InMemoryWorkoutSetRepository } from "../../workout-set-repository.js";
+
+const userA: UserId = "00000000-0000-4000-8000-000000000001" as UserId;
+
+const apps: ReturnType<typeof buildApp>[] = [];
+
+afterEach(async () => {
+  await Promise.all(apps.splice(0).map((app) => app.close()));
+});
+
+const tokenVerifierFor = (
+  principal: { readonly userId: UserId } | null,
+): AccessTokenVerifier => ({
+  verify: async (token) =>
+    token === "valid"
+      ? {
+          userId: principal!.userId,
+          role: "authenticated",
+          accessToken: "test-token",
+        }
+      : null,
+});
+
+interface BuildTestContextOptions {
+  readonly defaultConsentGranted?: boolean;
+  readonly birthYear?: number | null;
+}
+
+const build = (options: BuildTestContextOptions = {}) => {
+  const profileRepository = new InMemoryProfileRepository({
+    defaultBirthYear: options.birthYear ?? 1990,
+    defaultTimezone: "UTC",
+    defaultUnitSystem: "metric",
+  });
+  const aiConsentRepository = new InMemoryAiConsentRepository({
+    defaultGranted: options.defaultConsentGranted ?? false,
+  });
+  const goalRepository = new InMemoryGoalRepository();
+  const foodEntryRepository = new InMemoryFoodEntryRepository();
+  const exerciseRepository = new InMemoryExerciseRepository();
+  const workoutRepository = new InMemoryWorkoutRepository();
+  const workoutSetRepository = new InMemoryWorkoutSetRepository();
+  const bodyMeasurementRepository = new InMemoryBodyMeasurementRepository();
+  const memoryStore = new InMemoryMemoryStore();
+
+  const app = buildApp({
+    tokenVerifier: tokenVerifierFor({ userId: userA }),
+    agent: new AgentOrchestrator({
+      provider: new DisabledAgentProvider(),
+      memories: memoryStore,
+    }),
+    profileRepository,
+    aiConsentRepository,
+    goalRepository,
+    foodEntryRepository,
+    exerciseRepository,
+    workoutRepository,
+    workoutSetRepository,
+    bodyMeasurementRepository,
+    memories: memoryStore,
+  });
+  apps.push(app);
+
+  return {
+    app,
+    profileRepository,
+    aiConsentRepository,
+  };
+};
+
+describe("AI Consent Endpoints & Authorization Boundary", () => {
+  describe("GET /v1/account/ai-consent", () => {
+    it("returns ungranted consent by default when no row exists", async () => {
+      const { app } = build({ defaultConsentGranted: false });
+      const response = await app.inject({
+        method: "GET",
+        url: "/v1/account/ai-consent",
+        headers: { authorization: "Bearer valid" },
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        consent: {
+          granted: false,
+          confirmedAdult: false,
+          consentVersion: CURRENT_AI_CONSENT_VERSION,
+          consentedAt: null,
+          revokedAt: null,
+        },
+      });
+    });
+  });
+
+  describe("PUT /v1/account/ai-consent", () => {
+    it("rejects when granting without confirming adult status", async () => {
+      const { app } = build({ defaultConsentGranted: false });
+      const response = await app.inject({
+        method: "PUT",
+        url: "/v1/account/ai-consent",
+        headers: {
+          authorization: "Bearer valid",
+          "content-type": "application/json",
+        },
+        payload: {
+          granted: true,
+          confirmedAdult: false,
+          consentVersion: CURRENT_AI_CONSENT_VERSION,
+        },
+      });
+      expect(response.statusCode).toBe(403);
+      expect(response.json()).toMatchObject({
+        error: {
+          code: "AI_AGE_RESTRICTED",
+        },
+      });
+    });
+
+    it("rejects when profile birthYear indicates a minor (< 18)", async () => {
+      const currentYear = new Date().getUTCFullYear();
+      const { app } = build({
+        defaultConsentGranted: false,
+        birthYear: currentYear - 15, // 15 years old
+      });
+      const response = await app.inject({
+        method: "PUT",
+        url: "/v1/account/ai-consent",
+        headers: {
+          authorization: "Bearer valid",
+          "content-type": "application/json",
+        },
+        payload: {
+          granted: true,
+          confirmedAdult: true,
+          consentVersion: CURRENT_AI_CONSENT_VERSION,
+        },
+      });
+      expect(response.statusCode).toBe(403);
+      expect(response.json()).toMatchObject({
+        error: {
+          code: "AI_AGE_RESTRICTED",
+        },
+      });
+    });
+
+    it("records valid granted consent and makes it queryable via GET", async () => {
+      const { app } = build({ defaultConsentGranted: false });
+      const putRes = await app.inject({
+        method: "PUT",
+        url: "/v1/account/ai-consent",
+        headers: {
+          authorization: "Bearer valid",
+          "content-type": "application/json",
+        },
+        payload: {
+          granted: true,
+          confirmedAdult: true,
+          consentVersion: CURRENT_AI_CONSENT_VERSION,
+        },
+      });
+      expect(putRes.statusCode).toBe(200);
+      const putBody = putRes.json();
+      expect(putBody.consent.granted).toBe(true);
+      expect(putBody.consent.confirmedAdult).toBe(true);
+      expect(putBody.consent.consentVersion).toBe(CURRENT_AI_CONSENT_VERSION);
+      expect(putBody.consent.consentedAt).toBeTruthy();
+      expect(putBody.consent.revokedAt).toBeNull();
+
+      // Verify GET returns the same state
+      const getRes = await app.inject({
+        method: "GET",
+        url: "/v1/account/ai-consent",
+        headers: { authorization: "Bearer valid" },
+      });
+      expect(getRes.statusCode).toBe(200);
+      expect(getRes.json()).toEqual(putBody);
+    });
+
+    it("records revocation and sets revokedAt", async () => {
+      const { app } = build({ defaultConsentGranted: true });
+      const revokeRes = await app.inject({
+        method: "PUT",
+        url: "/v1/account/ai-consent",
+        headers: {
+          authorization: "Bearer valid",
+          "content-type": "application/json",
+        },
+        payload: {
+          granted: false,
+          confirmedAdult: true,
+          consentVersion: CURRENT_AI_CONSENT_VERSION,
+        },
+      });
+      expect(revokeRes.statusCode).toBe(200);
+      const body = revokeRes.json();
+      expect(body.consent.granted).toBe(false);
+      expect(body.consent.revokedAt).toBeTruthy();
+      expect(body.consent.consentedAt).toBeNull();
+    });
+  });
+
+  describe("Server Authorization Boundary enforcement", () => {
+    it("rejects POST /v1/coach/conversations/:id/messages with 403 AI_CONSENT_REQUIRED when consent is ungranted", async () => {
+      const { app } = build({ defaultConsentGranted: false });
+      // 1. Create a conversation
+      const convRes = await app.inject({
+        method: "POST",
+        url: "/v1/coach/conversations",
+        headers: {
+          authorization: "Bearer valid",
+          "content-type": "application/json",
+        },
+        payload: { title: "Test conversation" },
+      });
+      expect(convRes.statusCode).toBe(201);
+      const conversationId = convRes.json().conversation.id;
+
+      // 2. Attempt to send a message without consent
+      const res = await app.inject({
+        method: "POST",
+        url: `/v1/coach/conversations/${conversationId}/messages`,
+        headers: {
+          authorization: "Bearer valid",
+          "content-type": "application/json",
+          "idempotency-key": "idemp-key-12345678",
+        },
+        payload: {
+          text: "What should I eat for dinner?",
+        },
+      });
+      expect(res.statusCode).toBe(403);
+      expect(res.json()).toMatchObject({
+        error: {
+          code: "AI_CONSENT_REQUIRED",
+        },
+      });
+    });
+
+    it("rejects POST /v1/food-entries/draft/text with 403 AI_CONSENT_REQUIRED when consent is ungranted", async () => {
+      const { app } = build({ defaultConsentGranted: false });
+      const res = await app.inject({
+        method: "POST",
+        url: "/v1/food-entries/draft/text",
+        headers: {
+          authorization: "Bearer valid",
+          "content-type": "application/json",
+        },
+        payload: {
+          description: "2 scrambled eggs and toast",
+        },
+      });
+      expect(res.statusCode).toBe(403);
+      expect(res.json()).toMatchObject({
+        error: {
+          code: "AI_CONSENT_REQUIRED",
+        },
+      });
+    });
+
+    it("rejects POST /v1/coach/conversations/:id/messages when user is underage even if consent row says granted", async () => {
+      const currentYear = new Date().getUTCFullYear();
+      const { app, aiConsentRepository } = build({
+        defaultConsentGranted: true,
+        birthYear: currentYear - 16, // 16 years old
+      });
+      // Force an explicit granted row in repo to test the server boundary defense-in-depth
+      await aiConsentRepository.saveConsent(userA, {
+        granted: true,
+        confirmedAdult: true,
+        consentVersion: CURRENT_AI_CONSENT_VERSION,
+      });
+
+      const convRes = await app.inject({
+        method: "POST",
+        url: "/v1/coach/conversations",
+        headers: {
+          authorization: "Bearer valid",
+          "content-type": "application/json",
+        },
+        payload: { title: "Test conversation" },
+      });
+      const conversationId = convRes.json().conversation.id;
+
+      const res = await app.inject({
+        method: "POST",
+        url: `/v1/coach/conversations/${conversationId}/messages`,
+        headers: {
+          authorization: "Bearer valid",
+          "content-type": "application/json",
+          "idempotency-key": "idemp-key-underage-1234",
+        },
+        payload: {
+          text: "Help me program squats",
+        },
+      });
+      expect(res.statusCode).toBe(403);
+      expect(res.json()).toMatchObject({
+        error: {
+          code: "AI_AGE_RESTRICTED",
+        },
+      });
+    });
+  });
+});

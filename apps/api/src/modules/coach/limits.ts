@@ -87,6 +87,20 @@ export interface FinalizeRequest {
   readonly tokensUsed: number;
 }
 
+export type DraftKind = "text" | "photo" | "refine";
+
+export const DRAFT_ESTIMATED_TOKENS: Record<DraftKind, number> = {
+  text: 500,
+  photo: 1500,
+  refine: 800,
+};
+
+export interface ReserveDraftResult {
+  readonly allowed: boolean;
+  readonly reason?: LimitReason;
+  readonly retryAfter?: number;
+}
+
 /**
  * Stateful limiter service. Every implementation owns its own
  * state (Maps for the in-memory implementation, RPC calls into
@@ -100,6 +114,13 @@ export interface CoachLimitService {
   acquireSlot(request: ReserveSlotRequest): Promise<ReserveSlotResult>;
   commitTokens(request: FinalizeRequest): Promise<void>;
   releaseSlot(request: FinalizeRequest): Promise<void>;
+  acquireDraftSlot(
+    userId: UserId,
+    planTier: PlanTier,
+    draftKind: DraftKind,
+  ): Promise<ReserveDraftResult>;
+  commitDraftTokens(userId: UserId, tokensUsed: number): Promise<void>;
+  releaseDraftSlot(userId: UserId): Promise<void>;
 }
 
 export class LimitsError extends Error {
@@ -281,6 +302,89 @@ export class SupabaseCoachLimitService implements CoachLimitService {
       p_user_id: request.userId,
     });
   }
+
+  async acquireDraftSlot(
+    userId: UserId,
+    planTier: PlanTier,
+    draftKind: DraftKind,
+  ): Promise<ReserveDraftResult> {
+    const cap = this.#resolveCap(planTier);
+    const now = this.#clock();
+    const day = sqlDay(now);
+
+    // Step 1: per-minute window
+    const minute = await rpcSingle<{ allowed: boolean; retry_after: number }>(
+      this.#client,
+      "ai_register_request",
+      {
+        p_user_id: userId,
+        p_now: now.toISOString(),
+        p_per_minute: cap.requestsPerMinute,
+      },
+    );
+    if (minute.allowed !== true) {
+      return {
+        allowed: false,
+        reason: "minute",
+        retryAfter: minute.retry_after,
+      };
+    }
+
+    // Step 2: in-flight slot
+    const inflight = await rpcSingle<{ allowed: boolean }>(
+      this.#client,
+      "ai_acquire_in_flight",
+      {
+        p_user_id: userId,
+        p_max: cap.maxConcurrentRequests,
+      },
+    );
+    if (inflight.allowed !== true) {
+      await runQuiet(() =>
+        this.#client.rpc("ai_release_in_flight", { p_user_id: userId }),
+      );
+      return { allowed: false, reason: "inflight", retryAfter: 1 };
+    }
+
+    // Step 3: daily token gate
+    const tokensEstimated = DRAFT_ESTIMATED_TOKENS[draftKind];
+    const tokens = await rpcSingle<{ allowed: boolean; retry_after: number }>(
+      this.#client,
+      "ai_reserve_tokens",
+      {
+        p_user_id: userId,
+        p_day: day,
+        p_budget: cap.dailyTokenBudget,
+        p_needed: tokensEstimated,
+      },
+    );
+    if (tokens.allowed !== true) {
+      await runQuiet(() =>
+        this.#client.rpc("ai_release_in_flight", { p_user_id: userId }),
+      );
+      return {
+        allowed: false,
+        reason: "tokens",
+        retryAfter: tokens.retry_after,
+      };
+    }
+
+    return { allowed: true };
+  }
+
+  async commitDraftTokens(userId: UserId, tokensUsed: number): Promise<void> {
+    const day = sqlDay(this.#clock());
+    await this.#client.rpc("ai_commit_tokens", {
+      p_user_id: userId,
+      p_day: day,
+      p_tokens: tokensUsed,
+    });
+    await this.#client.rpc("ai_release_in_flight", { p_user_id: userId });
+  }
+
+  async releaseDraftSlot(userId: UserId): Promise<void> {
+    await this.#client.rpc("ai_release_in_flight", { p_user_id: userId });
+  }
 }
 
 // --------------------------------------------------------------------------
@@ -461,6 +565,83 @@ export class InMemoryCoachLimitService implements CoachLimitService {
     }
     const active = this.#inFlight.get(request.userId) ?? 0;
     this.#inFlight.set(request.userId, Math.max(0, active - 1));
+  }
+
+  async acquireDraftSlot(
+    userId: UserId,
+    planTier: PlanTier,
+    draftKind: DraftKind,
+  ): Promise<ReserveDraftResult> {
+    const cap = this.resolveCap(planTier);
+    const now = this.#clock();
+    const day = sqlDay(now);
+
+    // Step 1: per-minute window
+    const windowMs = 60_000;
+    const prior = this.#windows.get(userId);
+    if (prior === undefined || now.getTime() - prior.startedAtMs >= windowMs) {
+      this.#windows.set(userId, {
+        startedAtMs: now.getTime(),
+        count: 0,
+      });
+    }
+    const w = this.#windows.get(userId)!;
+    if (w.count >= cap.requestsPerMinute) {
+      return {
+        allowed: false,
+        reason: "minute",
+        retryAfter: Math.max(
+          1,
+          Math.ceil((w.startedAtMs + windowMs - now.getTime()) / 1_000),
+        ),
+      };
+    }
+    w.count += 1;
+
+    // Step 2: in-flight slot
+    const active = this.#inFlight.get(userId) ?? 0;
+    if (active >= cap.maxConcurrentRequests) {
+      return { allowed: false, reason: "inflight", retryAfter: 1 };
+    }
+    this.#inFlight.set(userId, active + 1);
+
+    // Step 3: daily token gate
+    const tokensEstimated = DRAFT_ESTIMATED_TOKENS[draftKind];
+    const usage = this.#usage.get(userId);
+    const used = usage?.day === day ? usage.tokens : 0;
+    if (used + tokensEstimated > cap.dailyTokenBudget) {
+      this.#inFlight.set(userId, Math.max(0, active));
+      return {
+        allowed: false,
+        reason: "tokens",
+        retryAfter: Math.max(
+          1,
+          Math.ceil(
+            (Date.parse(`${day}T00:00:00.000Z`) + 86_400_000 - now.getTime()) /
+              1_000,
+          ),
+        ),
+      };
+    }
+
+    return { allowed: true };
+  }
+
+  async commitDraftTokens(userId: UserId, tokensUsed: number): Promise<void> {
+    const day = sqlDay(this.#clock());
+    const usage = this.#usage.get(userId);
+    const used = usage?.day === day ? usage.tokens : 0;
+    this.#usage.set(userId, {
+      day,
+      tokens: used + Math.max(0, tokensUsed),
+    });
+    const active = this.#inFlight.get(userId) ?? 0;
+    this.#inFlight.set(userId, Math.max(0, active - 1));
+  }
+
+  async releaseDraftSlot(userId: UserId): Promise<void> {
+    const active = this.#inFlight.get(userId) ?? 0;
+    this.#inFlight.set(userId, Math.max(0, active - 1));
   }
 
   #findCall(providerCallId: string): InMemoryProviderCall | undefined {
