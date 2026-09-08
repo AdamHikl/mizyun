@@ -38,9 +38,11 @@ import {
   type LogMealForm,
 } from "./log-meal-data";
 import {
+  createOperationId,
   isRecoverableMealDraft,
   mealFormStringsFromDraft,
   parseOptionalNutritionNumber,
+  upgradeLegacyMealDraft,
 } from "./meal-form";
 import { normalizeMealPhoto } from "./meal-photo";
 import { loadAiConsent, saveAiConsent } from "@/features/coach/ai-consent";
@@ -147,6 +149,13 @@ export function LogMealScreen() {
     };
   }, []);
 
+  const [clientOperationId, setClientOperationId] = useState<string | null>(
+    null,
+  );
+  const [consumedAt, setConsumedAt] = useState<string | null>(null);
+  const isSubmittingRef = useRef<boolean>(false);
+  const isCompletedRef = useRef<boolean>(false);
+
   useEffect(() => {
     if (userId === null) return;
     let active = true;
@@ -154,23 +163,29 @@ export function LogMealScreen() {
       (draft) => {
         if (!active) return;
         if (draft !== null) {
-          setName(draft.name);
-          setCalories(draft.calories);
-          setProtein(draft.protein);
-          setCarbs(draft.carbs);
-          setFat(draft.fat);
-          setMealDescription(draft.description ?? "");
-          setAiDraft(draft.aiDraft ?? null);
-          setSourceProposalId(draft.sourceProposalId ?? null);
-          setRefineInstruction(draft.refineInstruction ?? "");
-          if (draft.attachedPhotoUri) {
-            setAttachedPhoto({ uri: draft.attachedPhotoUri });
+          const upgraded = upgradeLegacyMealDraft(draft);
+          setClientOperationId(upgraded.clientOperationId);
+          setConsumedAt(upgraded.consumedAt);
+          setName(upgraded.name);
+          setCalories(upgraded.calories);
+          setProtein(upgraded.protein);
+          setCarbs(upgraded.carbs);
+          setFat(upgraded.fat);
+          setMealDescription(upgraded.description ?? "");
+          setAiDraft(upgraded.aiDraft ?? null);
+          setSourceProposalId(upgraded.sourceProposalId ?? null);
+          setRefineInstruction(upgraded.refineInstruction ?? "");
+          if (upgraded.attachedPhotoUri) {
+            setAttachedPhoto({ uri: upgraded.attachedPhotoUri });
           }
           setDraftWarnings(
-            draft.aiDraft === undefined
+            upgraded.aiDraft === undefined
               ? []
-              : draftEvidenceLines(draft.aiDraft),
+              : draftEvidenceLines(upgraded.aiDraft),
           );
+        } else {
+          setClientOperationId(createOperationId());
+          setConsumedAt(new Date().toISOString());
         }
         setDraftLoaded(true);
       },
@@ -181,13 +196,22 @@ export function LogMealScreen() {
   }, [userId]);
 
   useEffect(() => {
-    if (!draftLoaded || userId === null) return;
+    if (
+      !draftLoaded ||
+      userId === null ||
+      isCompletedRef.current ||
+      isSubmittingRef.current
+    )
+      return;
     void saveLoggingDraft(userId, "meal", {
       name,
       calories,
       protein,
       carbs,
       fat,
+      clientOperationId: clientOperationId ?? undefined,
+      consumedAt: consumedAt ?? undefined,
+      submissionVersion: 1,
       description: mealDescription,
       ...(aiDraft === null ? {} : { aiDraft }),
       ...(sourceProposalId === null ? {} : { sourceProposalId }),
@@ -201,6 +225,8 @@ export function LogMealScreen() {
     attachedPhoto,
     calories,
     carbs,
+    clientOperationId,
+    consumedAt,
     draftLoaded,
     fat,
     mealDescription,
@@ -212,6 +238,10 @@ export function LogMealScreen() {
   ]);
 
   const onSubmit = useCallback(async () => {
+    if (isSubmittingRef.current || isCompletedRef.current) return;
+    isSubmittingRef.current = true;
+    setSubmitting(true);
+
     measurement.current?.tap();
     if (hadFailure.current) measurement.current?.retry();
     setError(null);
@@ -225,19 +255,58 @@ export function LogMealScreen() {
       !parsedCarbs.ok ||
       !parsedFat.ok
     ) {
+      isSubmittingRef.current = false;
+      setSubmitting(false);
       hadFailure.current = true;
       measurement.current?.fail("validation", "invalid_input", false);
       setError("Calories and macros must be positive numbers or blank.");
       return;
     }
-    setSubmitting(true);
+
+    const opId = clientOperationId ?? createOperationId();
+    const fixedConsumedAt = consumedAt ?? new Date().toISOString();
+    if (clientOperationId === null) setClientOperationId(opId);
+    if (consumedAt === null) setConsumedAt(fixedConsumedAt);
+
+    // Await durable draft persistence before submitting (Requirement 2)
+    if (userId !== null) {
+      const persisted = await saveLoggingDraft(userId, "meal", {
+        name,
+        calories,
+        protein,
+        carbs,
+        fat,
+        clientOperationId: opId,
+        consumedAt: fixedConsumedAt,
+        submissionVersion: 1,
+        description: mealDescription,
+        ...(aiDraft === null ? {} : { aiDraft }),
+        ...(sourceProposalId === null ? {} : { sourceProposalId }),
+        ...(refineInstruction.trim().length > 0 ? { refineInstruction } : {}),
+        ...(attachedPhoto !== null
+          ? { attachedPhotoUri: attachedPhoto.uri }
+          : {}),
+      });
+      if (!persisted) {
+        isSubmittingRef.current = false;
+        setSubmitting(false);
+        hadFailure.current = true;
+        measurement.current?.fail("submit", "unexpected", true);
+        setError(
+          "Could not save meal draft to device storage before sending. Please check device storage and try again.",
+        );
+        return;
+      }
+    }
+
     const form: LogMealForm = {
+      clientOperationId: opId,
       name,
       caloriesKcal: parsedCalories.value,
       proteinG: parsedProtein.value,
       carbohydrateG: parsedCarbs.value,
       fatG: parsedFat.value,
-      consumedAt: null,
+      consumedAt: fixedConsumedAt,
       ...(aiDraft === null
         ? {}
         : {
@@ -251,13 +320,15 @@ export function LogMealScreen() {
           }),
     };
     const result = await submitLogMeal(form);
-    setSubmitting(false);
     if (result.ok) {
+      isCompletedRef.current = true;
       measurement.current?.complete();
       if (userId !== null) await clearLoggingDraft(userId, "meal");
       router.back();
       return;
     }
+    isSubmittingRef.current = false;
+    setSubmitting(false);
     hadFailure.current = true;
     const reason = classifyAnalyticsFailure(result.message);
     measurement.current?.fail(
@@ -266,7 +337,21 @@ export function LogMealScreen() {
       isRetryableAnalyticsFailure(reason),
     );
     setError(result.message);
-  }, [name, calories, protein, carbs, fat, userId, aiDraft, sourceProposalId]);
+  }, [
+    aiDraft,
+    calories,
+    carbs,
+    clientOperationId,
+    consumedAt,
+    fat,
+    mealDescription,
+    name,
+    protein,
+    refineInstruction,
+    sourceProposalId,
+    userId,
+    attachedPhoto,
+  ]);
 
   const onChoosePhoto = useCallback(async () => {
     measurement.current?.tap();
@@ -471,6 +556,8 @@ export function LogMealScreen() {
     setSourceProposalId(null);
     setRefineInstruction("");
     setError(null);
+    setClientOperationId(createOperationId());
+    setConsumedAt(new Date().toISOString());
     if (userId !== null) {
       await clearLoggingDraft(userId, "meal");
     }

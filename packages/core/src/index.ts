@@ -146,7 +146,10 @@ export {
   type AccountDeletionError,
   type AccountExport,
   type AccountRepository,
+  type DeletionJobStage,
+  type DeletionJobStatus,
   type StoredConversationStub,
+  type StoredDeletionJob,
 } from "./account";
 
 export {

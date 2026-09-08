@@ -8,6 +8,7 @@ import {
 import type { ApiClient, ApiError } from "@mizyun/api-client";
 import type { Result } from "@mizyun/core";
 import { apiClient } from "@/composition/api-client";
+import { isValidOperationId } from "./meal-form";
 
 /**
  * Pure reducer for the log-meal form. The screen calls
@@ -47,6 +48,9 @@ const humanizeError = (result: Result<unknown, ApiError>): string => {
         if (result.error.status === 422) {
           return "Please double-check the values and try again.";
         }
+        if (result.error.status === 409) {
+          return "This meal operation was already submitted with different details. Please start a new entry or review existing logs.";
+        }
         return "The server rejected the entry. Try again.";
       case "validation_error":
         return "Please double-check the values and try again.";
@@ -75,7 +79,14 @@ export const submitLogMealWith = async (
   if (trimmedName.length === 0) {
     return { ok: false, message: "Name a meal first." };
   }
-  const clientOperationId = form.clientOperationId ?? crypto.randomUUID();
+  if (!form.clientOperationId || !isValidOperationId(form.clientOperationId)) {
+    return {
+      ok: false,
+      message:
+        "Missing or invalid operation identity. Please try saving again.",
+    };
+  }
+  const clientOperationId = form.clientOperationId;
   const payload: FoodEntryCreate = {
     clientOperationId,
     name: trimmedName,

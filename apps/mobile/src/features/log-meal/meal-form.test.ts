@@ -5,6 +5,7 @@ import {
   mealFormStringsFromDraft,
   mealFormStringsFromEntry,
   parseOptionalNutritionNumber,
+  upgradeLegacyMealDraft,
 } from "./meal-form";
 
 describe("parseOptionalNutritionNumber", () => {
@@ -175,5 +176,56 @@ describe("recoverable AI meal drafts", () => {
         attachedPhotoUri: 12345,
       }),
     ).toBe(false);
+  });
+
+  it("validates clientOperationId as a UUID when present", () => {
+    const validDraft = {
+      ...mealFormStringsFromDraft(candidate),
+      clientOperationId: "11111111-2222-4333-8444-555555555555",
+      consumedAt: "2026-09-08T12:00:00.000Z",
+      submissionVersion: 1,
+    };
+    expect(isRecoverableMealDraft(validDraft)).toBe(true);
+
+    const invalidDraft = {
+      ...mealFormStringsFromDraft(candidate),
+      clientOperationId: "not-a-uuid",
+    };
+    expect(isRecoverableMealDraft(invalidDraft)).toBe(false);
+  });
+
+  it("upgrades legacy drafts without clientOperationId or consumedAt", () => {
+    const legacyDraft = {
+      name: "Tuna",
+      calories: "290",
+      protein: "63",
+      carbs: "0",
+      fat: "2",
+    };
+    const fixedDate = new Date("2026-09-08T12:30:00.000Z");
+    const upgraded = upgradeLegacyMealDraft(legacyDraft, () => fixedDate);
+    expect(upgraded.clientOperationId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+    expect(upgraded.consumedAt).toBe("2026-09-08T12:30:00.000Z");
+    expect(upgraded.submissionVersion).toBe(1);
+    expect(upgraded.name).toBe("Tuna");
+  });
+
+  it("preserves existing valid clientOperationId and consumedAt when upgrading", () => {
+    const existingOpId = "22222222-3333-4444-8555-666666666666";
+    const existingTime = "2026-09-08T10:00:00.000Z";
+    const draft = {
+      name: "Salad",
+      calories: "150",
+      protein: "3",
+      carbs: "10",
+      fat: "8",
+      clientOperationId: existingOpId,
+      consumedAt: existingTime,
+    };
+    const upgraded = upgradeLegacyMealDraft(draft);
+    expect(upgraded.clientOperationId).toBe(existingOpId);
+    expect(upgraded.consumedAt).toBe(existingTime);
   });
 });

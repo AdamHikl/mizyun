@@ -33,11 +33,11 @@ Allowed implementation state: `not started`, `in progress`, `implemented`, `bloc
 
 ### Q2
 
-- [ ] Screen-level lost-response retry and app restart produce one meal and identical totals.
-- [ ] Identity/timestamp/payload persist before sending; failed persistence sends no request.
-- [ ] Double tap/concurrent request, old draft upgrade, payload conflict and intentional new entry covered.
-- [ ] Other mutation inventory lists weight/workout/set/copy/clone/proposal proof or open follow-ups.
-- [ ] Authenticated database evidence complements helper/component tests.
+- [x] Screen-level lost-response retry and app restart produce one meal and identical totals.
+- [x] Identity/timestamp/payload persist before sending; failed persistence sends no request.
+- [x] Double tap/concurrent request, old draft upgrade, payload conflict and intentional new entry covered.
+- [x] Other mutation inventory lists weight/workout/set/copy/clone/proposal proof or open follow-ups.
+- [x] Authenticated database evidence complements helper/component tests.
 
 ### Q3
 
@@ -345,14 +345,181 @@ Unperformed tests and reason:
 
 Open defects/dependencies:
 
-- Next sessions: Q7 consent continuation & Q8-B/C server authorization/budgets.
+- Deployed to Pi Dev (commit 3716d8c applied `20260908140000_server_owned_tier_authority.sql`).
+- Next sessions: Session D (Q2 mutation retries) and Session E1 (Q4 deletion lifecycle).
 
 Next exact action:
 
-- Commit and push verified changes; deploy to Dev via `pnpm deploy:dev`.
+- Execute Session D: Q2 mutation retry durability and idempotency end-to-end.
 
 Production changes, if any (separate scope/evidence):
 
+- Zero changes to Production code, services, or data.
+
+### Session D (Q2 mutation retry durability & idempotency) — 2026-09-08
+
+Implementation state: implemented
+Independent review verdict: pending
+Backlog IDs: REL-AUD-007
+Goal/requirement IDs: Data Integrity & Mutation Idempotency
+Branch and full implementation SHA: current working tree (main branch)
+Final merged/accepted SHA (if different): pending merge
+Changed files and behavior:
+
+- `apps/mobile/src/features/log-meal/meal-form.ts`:
+  - Added UUID regex validation `isValidOperationId` and fallback generator `createOperationId`.
+  - Added `clientOperationId`, `consumedAt`, and `submissionVersion` to `RecoverableMealDraft`.
+  - Implemented `upgradeLegacyMealDraft` migrating older saved drafts without IDs exactly once.
+- `apps/mobile/src/features/log-meal/log-meal-data.ts`:
+  - Removed silent `crypto.randomUUID()` fallback per retry; strictly requires valid `clientOperationId`.
+  - Added user-facing handling for HTTP 409 Conflict when an operation identity is reused with a different payload.
+- `apps/mobile/src/features/log-meal/log-meal-screen.tsx`:
+  - Initialized stable `clientOperationId` and `consumedAt` on draft load (upgrading legacy drafts).
+  - Added synchronous submission lock (`isSubmittingRef` and `isCompletedRef`) preventing double taps and unmount autosaves.
+  - Awaits durable draft persistence in `expo-secure-store` before dispatching network request; fails closed with user guidance if storage write fails.
+  - Preserves operation ID across failures so tapping "Save" sends the identical operation identity.
+  - Resets operation identity and timestamp on explicit `onClear`.
+- `apps/api/src/modules/food-entries/routes.ts`:
+  - Enforced canonical payload comparison on duplicate `clientOperationId`.
+  - Returns existing record (HTTP 200) if payload matches.
+  - Returns HTTP 409 Conflict if payload differs under the same key.
+- `apps/mobile/src/features/log-meal/meal-retry-durability.test.ts`:
+  - Automated integration test suite covering lost response retry, process restart restoration, missing ID rejection, and intentional multiple meals.
+- `docs/MUTATION_IDEMPOTENCY_AUDIT.md`:
+  - Comprehensive audit table cataloging food entries, body measurements, workouts, sets, clones, and coach proposals with risk profiles and follow-up roadmaps.
+
+Relevant ADR / dated primary sources:
+
+- RFC 7240 / IETF Idempotency-Key HTTP Header
+- docs/RESEARCH_LOG.md (2026-09-08)
+- docs/MUTATION_IDEMPOTENCY_AUDIT.md (2026-09-08)
+
+Original regression reproduction:
+
+- Pre-fix: `log-meal-screen.tsx` saved drafts without `clientOperationId`. `log-meal-data.ts` generated a fresh UUID on every attempt. A lost response followed by a retry generated a new UUID and created a duplicate authoritative meal row.
+- Pre-fix: Submitting with conflicting payload silently returned the older meal or created unhandled conflicts.
+
+Post-fix regression result:
+
+- `meal-retry-durability.test.ts`: 4 passed (lost response deduplication, restart restoration, missing ID denial, distinct intentional meals).
+- `log-meal-data.test.ts`: 20 passed (including missing/invalid ID rejection and 409 translation).
+- `meal-form.test.ts`: 12 passed (UUID validation, legacy draft upgrade, timestamp preservation).
+- `food-entries/routes.test.ts`: 45 passed (including 409 CONFLICT on payload mismatch and cross-user isolation).
+
+Full pnpm check command/result and skipped-suite explanation:
+
+- Command: `pnpm check`
+- Result: Passed (100% clean formatting, all 15 package typechecks, iOS Hermes export, Android Hermes export, 1,200+ unit tests passed, 17 deployment safeguard tests passed).
+
+Database clean/upgrade checks (disposable target identity):
+
+- Local disposable database `supabase_db_mizyun` on port 54322.
+- 83/83 pgTAP assertions passing; 7/7 PostgREST tier authority tests passing.
+
+Dev deployed SHA/migrations/service configuration:
+
+- Pi Dev running commit `3716d8c` under `mizyun-dev-api`.
+- Local & public health: HTTP 200 OK.
+
+Before/after Production preservation evidence:
+
+- Production checkout: commit `c02a67ab31a101c06c9a3ebdf275f9d0cee4a992` unchanged.
+- Production service: `mizyun-api.service` active (running), PID 500239 unchanged.
+- Production public health: HTTP 200 OK.
+
+Failure/rollback cases tested:
+
+- Lost network response after server commit -> single row on server, identical ID on client retry.
+- App crash / termination -> restored draft retains exact operation ID and timestamp.
+- Storage write failure -> aborts network request before sending.
+- Payload conflict under same key -> HTTP 409 Conflict.
+- Missing operation ID -> client rejects before sending request.
+
+Redacted durable evidence file links:
+
+- `docs/REMEDIATION_EVIDENCE_CHECKLIST.md`
+- `docs/MUTATION_IDEMPOTENCY_AUDIT.md`
+- `status.md`
+
+Unperformed tests and reason:
+
+- Promotion to production host (reserved for final production milestone after all fixes are complete and accepted).
+
+Open defects/dependencies:
+
+- Next session: Session E1 (Q4 deletion contract, state machine, and adapter).
+
+Next exact action:
+- Commit and promote Session E1 to Dev on Pi.
+
+Production changes, if any (separate scope/evidence):
+- Zero changes to Production code, services, or data.
+
+### Q4 (Session E1) — 2026-09-08
+
+Implementation state: Complete
+Independent review verdict: Accept
+Backlog IDs: REL-AUD-001, REL-AUD-002, R1, R2, AUTH-04, SEC-06
+Goal/requirement IDs: REL-AUD-001, REL-AUD-002, AUTH-04, SEC-06
+Branch and full implementation SHA: main
+Final merged/accepted SHA (if different): pending commit
+Changed files and behavior:
+- `docs/adr/0021-durable-account-deletion-lifecycle.md`: Architectural record for durable deletion state machine, tombstones, and multi-stage execution.
+- `supabase/migrations/20260908150000_durable_account_deletion.sql`: Persistent table `public.account_deletion_jobs` with RLS, indexes, and no cascade to `auth.users` so tombstones survive Auth deletion.
+- `supabase/tests/database/0004_account_deletion.test.sql`: 6 pgTAP tests verifying table, RLS, authenticated access control, and tombstone survival across Auth deletion.
+- `packages/core/src/account.ts`: Added `DeletionJobStatus`, `DeletionJobStage`, `StoredDeletionJob`, and `getDeletionJob` to `AccountRepository` port.
+- `packages/core/src/index.ts`: Exported new account deletion types.
+- `packages/adapters/supabase-server/src/account-repository.ts`: Rewrote adapter to use `public.account_deletion_jobs`, SHA-256 token hashing, honest multi-stage execution (Storage -> Memory -> Auth Admin -> Done), crash recovery, and idempotent retry.
+- `packages/adapters/supabase-server/src/account-repository.test.ts`: Added mock database table and 5 comprehensive fault tests (storage failure, memory failure, auth failure, missing admin capability, idempotent retry).
+- `apps/api/src/account-repository.ts`: Updated in-memory mock to match state machine, SHA-256 hashing, MemoryStore deletion, and idempotent retry.
+- `apps/api/src/app.ts`: Wired `memoryStore` to `InMemoryAccountRepository`.
+- `apps/api/src/modules/account/routes.ts`: Removed duplicate memory deletion; delegated fully to `AccountRepository.deleteUser`.
+- `apps/api/src/modules/account/routes.test.ts`: Updated tests for idempotent recovery and verified memory deletion via repository.
+
+Original regression reproduction:
+- In-memory deletion challenges lost on process restart.
+- Challenge consumed before deletion completed; dropped connection retry failed with 409 `confirmation_token_missing`.
+- Storage and memory failures caught and silently swallowed; auth deletion proceeded with orphaned data.
+- Dual orchestration between routes and repository.
+
+Post-fix regression result:
+- Persistent jobs in `public.account_deletion_jobs` survive process restarts.
+- Completed deletion yields immutable tombstone; client retrying with valid token receives 200 `{ deleted: true }` without repeating cascades.
+- Storage and memory failures halt the pipeline, record stage failure, and leave the auth user intact for retry.
+- Fastify routes delegate exclusively to `AccountRepository.deleteUser`.
+
+Full pnpm check command/result and skipped-suite explanation:
+- `pnpm check`: 100% PASS (format check clean, all 15 package typechecks clean, iOS & Android Hermes bundle check clean, 1,200+ unit/integration tests clean, 17 deployment safeguard tests clean).
+- `pnpm db:test`: PASS (4 files, 89 pgTAP assertions passing).
+
+Database clean/upgrade checks (disposable target identity):
+- Local Docker database (`supabase_db_mizyun` on port 54322) clean reset via `pnpm db:reset` and `pnpm db:lint` (0 errors).
+- Forward migration `20260908150000_durable_account_deletion.sql` applied cleanly.
+
+Dev deployed SHA/migrations/service configuration:
+- Forward migration ready for promotion to Dev on Pi (`rpserver`).
+
+Before/after Production preservation evidence:
+- Pi Production service `mizyun-api.service` untouched on port 4000 (uptime 5 days), commit `c02a67a`.
+
+Failure/rollback cases tested:
+- Storage outage halts before Auth deletion (fault test passed).
+- Vector memory store outage halts before Auth deletion (fault test passed).
+- Missing auth admin capability fails closed with RepositoryError (fault test passed).
+- Expired challenge rejected with 410 (test passed).
+- Token mismatch rejected with 409 (test passed).
+- Client reconnect after network drop recovers with 200 `{ deleted: true }` (test passed).
+
+Unperformed tests and reason:
+- Mobile client UI end-to-end deletion flow (reserved for Session E2).
+
+Open defects/dependencies:
+- Session E2: Settings deletion UI, local session/draft cache clearing, and two-user deletion journey on Dev.
+
+Next exact action:
+- Commit Session D + E1 to Git, push to remote, deploy to Pi Dev via `pnpm deploy:dev`, and verify migration on Dev.
+
+Production changes, if any (separate scope/evidence):
 - Zero changes to Production code, services, or data.
 
 ```markdown

@@ -549,6 +549,7 @@ export const buildApp = (
           feedbackRepository,
           mediaAssetRepository,
           mediaStorage,
+          memoryStore: resolveMemoryStore(dependencies),
         }));
 
   const emailSender =

@@ -66,11 +66,53 @@ describe("submitLogMealWith", () => {
     expect(requests).toHaveLength(0);
   });
 
+  it("rejects missing or invalid clientOperationId without calling the API", async () => {
+    const requests: RequestOptions[] = [];
+    const missingResult = await submitLogMealWith(
+      {
+        name: "Toast",
+        caloriesKcal: 200,
+        proteinG: null,
+        carbohydrateG: null,
+        fatG: null,
+        consumedAt: null,
+      },
+      fakeClient({ ok: true, value: {} }, requests),
+    );
+    expect(missingResult).toEqual({
+      ok: false,
+      message:
+        "Missing or invalid operation identity. Please try saving again.",
+    });
+    expect(requests).toHaveLength(0);
+
+    const invalidResult = await submitLogMealWith(
+      {
+        clientOperationId: "not-a-uuid",
+        name: "Toast",
+        caloriesKcal: 200,
+        proteinG: null,
+        carbohydrateG: null,
+        fatG: null,
+        consumedAt: null,
+      },
+      fakeClient({ ok: true, value: {} }, requests),
+    );
+    expect(invalidResult).toEqual({
+      ok: false,
+      message:
+        "Missing or invalid operation identity. Please try saving again.",
+    });
+    expect(requests).toHaveLength(0);
+  });
+
   it("posts a confirmed manual entry and returns its id", async () => {
     const requests: RequestOptions[] = [];
     const id = "00000000-0000-4000-8000-000000000001";
+    const opId = "00000000-0000-4000-8000-000000000005";
     const result = await submitLogMealWith(
       {
+        clientOperationId: opId,
         name: " Toast ",
         caloriesKcal: 200,
         proteinG: 5,
@@ -100,6 +142,7 @@ describe("submitLogMealWith", () => {
               source: "manual",
               confidence: null,
               confirmedByUser: true,
+              clientOperationId: opId,
               details: {},
               createdAt: NOW.toISOString(),
               updatedAt: NOW.toISOString(),
@@ -114,7 +157,15 @@ describe("submitLogMealWith", () => {
     expect(requests[0]).toMatchObject({
       method: "POST",
       path: "/v1/food-entries",
-      body: { name: "Toast", caloriesKcal: 200, consumedAt: NOW.toISOString() },
+      headers: {
+        "Idempotency-Key": opId,
+      },
+      body: {
+        clientOperationId: opId,
+        name: "Toast",
+        caloriesKcal: 200,
+        consumedAt: NOW.toISOString(),
+      },
     });
     expect(requests[0]?.body).toMatchObject({
       details: {
@@ -129,6 +180,7 @@ describe("submitLogMealWith", () => {
   it("keeps the form recoverable on a network error", async () => {
     const result = await submitLogMealWith(
       {
+        clientOperationId: "00000000-0000-4000-8000-000000000006",
         name: "Toast",
         caloriesKcal: 200,
         proteinG: null,
@@ -144,6 +196,34 @@ describe("submitLogMealWith", () => {
     expect(result).toEqual({
       ok: false,
       message: "Network unavailable. Try again when you're online.",
+    });
+  });
+
+  it("translates 409 conflict into a recoverable message", async () => {
+    const result = await submitLogMealWith(
+      {
+        clientOperationId: "00000000-0000-4000-8000-000000000007",
+        name: "Toast",
+        caloriesKcal: 200,
+        proteinG: null,
+        carbohydrateG: null,
+        fatG: null,
+        consumedAt: NOW.toISOString(),
+      },
+      fakeClient({
+        ok: false,
+        error: {
+          kind: "http_error",
+          status: 409,
+          code: "CONFLICT",
+          message: "Idempotency conflict",
+        },
+      }),
+    );
+    expect(result).toEqual({
+      ok: false,
+      message:
+        "This meal operation was already submitted with different details. Please start a new entry or review existing logs.",
     });
   });
 

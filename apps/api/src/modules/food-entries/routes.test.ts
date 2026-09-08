@@ -504,6 +504,97 @@ describe("POST /v1/food-entries", () => {
     });
     expect(list.length).toBe(2);
   });
+
+  it("returns 409 CONFLICT when the same clientOperationId is submitted with a different payload (Q2)", async () => {
+    const { app, foodEntryRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    const clientOperationId = "55555555-6666-4777-8888-999999999999";
+    const originalPayload = {
+      name: "Chicken Salad",
+      caloriesKcal: 400,
+      proteinG: 35,
+      clientOperationId,
+    };
+    const conflictingPayload = {
+      name: "Chicken Salad with Dressing",
+      caloriesKcal: 550,
+      proteinG: 35,
+      clientOperationId,
+    };
+
+    const first = await app.inject({
+      method: "POST",
+      url: "/v1/food-entries",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: originalPayload,
+    });
+    expect(first.statusCode).toBe(200);
+
+    const conflict = await app.inject({
+      method: "POST",
+      url: "/v1/food-entries",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: conflictingPayload,
+    });
+    expect(conflict.statusCode).toBe(409);
+    expect(conflict.json().error.code).toBe("CONFLICT");
+    expect(conflict.json().error.message).toContain("different meal payload");
+
+    // Verify still only ONE entry exists in the repository
+    const list = await foodEntryRepository.list(userA, {
+      from: null,
+      to: null,
+      limit: 10,
+      accessToken: "valid",
+    });
+    expect(list.length).toBe(1);
+    expect(list[0]?.caloriesKcal).toBe(400);
+  });
+
+  it("allows different users to use the same clientOperationId without collision (Q2)", async () => {
+    const { app, foodEntryRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    const clientOperationId = "77777777-8888-4999-8aaa-bbbbbbbbbbbb";
+    const payload = {
+      name: "Oatmeal",
+      caloriesKcal: 200,
+      clientOperationId,
+    };
+
+    // User A posts
+    const resA = await app.inject({
+      method: "POST",
+      url: "/v1/food-entries",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload,
+    });
+    expect(resA.statusCode).toBe(200);
+
+    // User B posts with SAME clientOperationId
+    const { app: appB } = build(tokenVerifierFor({ userId: userB }));
+    const resB = await appB.inject({
+      method: "POST",
+      url: "/v1/food-entries",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload,
+    });
+    expect(resB.statusCode).toBe(200);
+    expect(resB.json().foodEntry.id).not.toBe(resA.json().foodEntry.id);
+  });
 });
 
 describe("GET /v1/food-entries/:id", () => {

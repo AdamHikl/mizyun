@@ -59,6 +59,7 @@ const build = (verifier: AccessTokenVerifier) => {
     workoutRepository,
     workoutSetRepository,
     bodyMeasurementRepository,
+    memoryStore,
   });
   const app = buildApp({
     tokenVerifier: verifier,
@@ -344,7 +345,7 @@ describe("DELETE /v1/account", () => {
     expect(response.statusCode).toBe(422);
   });
 
-  it("rejects reuse of an already-consumed challenge", async () => {
+  it("allows idempotent retry with confirmation token and rejects unknown token", async () => {
     const { app } = build(tokenVerifierFor({ userId: userA }));
     const challenge = await app.inject({
       method: "POST",
@@ -362,6 +363,9 @@ describe("DELETE /v1/account", () => {
       payload: { confirmationToken: token },
     });
     expect(first.statusCode).toBe(200);
+    expect(first.json()).toEqual({ deleted: true });
+
+    // Idempotent recovery (e.g. client dropped network connection before receiving 200)
     const second = await app.inject({
       method: "DELETE",
       url: "/v1/account",
@@ -371,7 +375,20 @@ describe("DELETE /v1/account", () => {
       },
       payload: { confirmationToken: token },
     });
-    expect(second.statusCode).toBe(409);
+    expect(second.statusCode).toBe(200);
+    expect(second.json()).toEqual({ deleted: true });
+
+    // An unrelated unknown token is rejected with 409
+    const unknownTokenRes = await app.inject({
+      method: "DELETE",
+      url: "/v1/account",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: { confirmationToken: "00000000-0000-4000-8000-999999999999" },
+    });
+    expect(unknownTokenRes.statusCode).toBe(409);
   });
 
   it("passes the caller's accessToken to exportForUser and deleteUser", async () => {

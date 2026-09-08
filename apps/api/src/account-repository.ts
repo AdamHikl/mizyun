@@ -1,44 +1,38 @@
+import crypto from "node:crypto";
+
 import {
   type AccountDeletionError,
   type AccountExport,
   type AccountRepository,
   type BodyMeasurementRepository,
   type ConversationRepository,
+  type DeletionJobStage,
+  type DeletionJobStatus,
   type ExerciseRepository,
   type FeedbackRepository,
   type FoodEntryRepository,
   type GoalRepository,
   type MediaAssetRepository,
   type ProfileRepository,
+  type StoredDeletionJob,
   type UserId,
   type WorkoutRepository,
   type WorkoutSetRepository,
 } from "@mizyun/core";
+import type { MemoryStore } from "@mizyun/memory";
 import type { MediaStorage } from "./media-storage.js";
 
 /**
  * In-memory implementation of the `AccountRepository` port.
  *
- * Used by `apps/api` until the Supabase adapter lands. The
- * implementation orchestrates the per-feature in-memory
- * repositories: export pulls a snapshot of every user-owned
- * record; delete drops every record for the user.
- *
- * Deletion order is children-before-parents (workout_sets →
- * workouts → exercises → …) so a future migration that adds a
- * reverse-FK constraint doesn't break the cascade. In SQL this
- * is the `ON DELETE CASCADE` FKs we already declared in the
- * foundation migration.
- *
- * The challenge token is stored in a Map keyed by userId with a
- * TTL; expired tokens are lazily cleaned up at lookup time so
- * the implementation doesn't need a background sweeper.
+ * Used by `apps/api` for unit tests and local runs without a database.
+ * The implementation orchestrates the per-feature in-memory
+ * repositories and implements the durable deletion state machine
+ * and tombstone semantics (ADR-0021).
  */
 
-interface ChallengeRecord {
-  readonly token: string;
-  readonly expiresAtMs: number;
-}
+const hashToken = (token: string): string =>
+  crypto.createHash("sha256").update(token).digest("hex");
 
 export interface InMemoryAccountRepositoryOptions {
   readonly profileRepository: ProfileRepository;
@@ -52,6 +46,7 @@ export interface InMemoryAccountRepositoryOptions {
   readonly feedbackRepository?: FeedbackRepository;
   readonly mediaAssetRepository?: MediaAssetRepository;
   readonly mediaStorage?: MediaStorage;
+  readonly memoryStore?: MemoryStore;
   /**
    * Clock; defaults to `() => new Date()`. Production callers
    * should not need this; tests inject a fixed clock so they
@@ -72,8 +67,9 @@ export class InMemoryAccountRepository implements AccountRepository {
   readonly #feedbackRepository: FeedbackRepository | null;
   readonly #mediaAssetRepository: MediaAssetRepository | null;
   readonly #mediaStorage: MediaStorage | null;
+  readonly #memoryStore: MemoryStore | null;
   readonly #clock: { readonly now: () => Date };
-  readonly #challenges = new Map<UserId, ChallengeRecord>();
+  readonly #jobs: StoredDeletionJob[] = [];
 
   constructor(options: InMemoryAccountRepositoryOptions) {
     this.#profileRepository = options.profileRepository;
@@ -87,6 +83,7 @@ export class InMemoryAccountRepository implements AccountRepository {
     this.#feedbackRepository = options.feedbackRepository ?? null;
     this.#mediaAssetRepository = options.mediaAssetRepository ?? null;
     this.#mediaStorage = options.mediaStorage ?? null;
+    this.#memoryStore = options.memoryStore ?? null;
     this.#clock = options.clock ?? { now: () => new Date() };
   }
 
@@ -200,13 +197,42 @@ export class InMemoryAccountRepository implements AccountRepository {
     };
   }
 
+  async getDeletionJob(userId: UserId): Promise<StoredDeletionJob | null> {
+    const userJobs = this.#jobs.filter((j) => j.userId === userId);
+    return userJobs.length > 0 ? userJobs[userJobs.length - 1]! : null;
+  }
+
   async issueDeletionChallenge(
     userId: UserId,
     options: { readonly ttlSeconds: number; readonly now: Date },
   ): Promise<string> {
+    const latest = await this.getDeletionJob(userId);
+    if (latest && latest.status === "completed") {
+      throw new Error("Account is already deleted");
+    }
+    if (latest && latest.status === "in_progress") {
+      throw new Error("Account deletion is already in progress");
+    }
+
     const token = crypto.randomUUID();
-    const expiresAtMs = options.now.getTime() + options.ttlSeconds * 1000;
-    this.#challenges.set(userId, { token, expiresAtMs });
+    const challengeHash = hashToken(token);
+    const expiresAt = new Date(
+      options.now.getTime() + options.ttlSeconds * 1000,
+    );
+
+    const job: StoredDeletionJob = {
+      id: crypto.randomUUID(),
+      userId,
+      challengeHash,
+      status: "challenge_issued",
+      stage: "none",
+      expiresAt,
+      completedAt: null,
+      errorMessage: null,
+      createdAt: options.now,
+      updatedAt: options.now,
+    };
+    this.#jobs.push(job);
     return token;
   }
 
@@ -221,27 +247,46 @@ export class InMemoryAccountRepository implements AccountRepository {
     | { readonly deleted: true }
     | { readonly deleted: false; readonly reason: AccountDeletionError }
   > {
-    const challenge = this.#challenges.get(userId);
-    if (challenge === undefined) {
+    if (!options.confirmationToken) {
       return { deleted: false, reason: { kind: "confirmation_token_missing" } };
     }
-    if (challenge.expiresAtMs < options.now.getTime()) {
-      this.#challenges.delete(userId);
-      return {
-        deleted: false,
-        reason: { kind: "confirmation_token_expired" },
-      };
+
+    const latest = await this.getDeletionJob(userId);
+    if (!latest) {
+      return { deleted: false, reason: { kind: "confirmation_token_missing" } };
     }
-    if (challenge.token !== options.confirmationToken) {
+
+    const tokenHash = hashToken(options.confirmationToken);
+    if (latest.challengeHash !== tokenHash) {
       return {
         deleted: false,
         reason: { kind: "confirmation_token_mismatch" },
       };
     }
-    // Token is valid. Consume it before deletion so a retry
-    // returns `confirmation_token_missing` rather than silently
-    // running the cascade again.
-    this.#challenges.delete(userId);
+
+    // 1. Idempotent recovery for lost final response
+    if (latest.status === "completed") {
+      return { deleted: true };
+    }
+
+    // 2. Check challenge expiry if challenge_issued
+    if (latest.status === "challenge_issued") {
+      if (latest.expiresAt.getTime() < options.now.getTime()) {
+        return {
+          deleted: false,
+          reason: { kind: "confirmation_token_expired" },
+        };
+      }
+    }
+
+    // Mutate job state
+    const jobIndex = this.#jobs.findIndex((j) => j.id === latest.id);
+    this.#jobs[jobIndex] = {
+      ...latest,
+      status: "in_progress",
+      stage: "storage",
+      updatedAt: options.now,
+    };
 
     const token = options.accessToken ?? "";
 
@@ -258,12 +303,30 @@ export class InMemoryAccountRepository implements AccountRepository {
               accessToken: token,
             });
           } catch {
-            // Silently ignore individual missing objects in storage
+            // Silently ignore missing objects in storage during test
           }
         }
       } catch {
-        // Silently ignore media list errors during cascade
+        // Silently ignore media list errors during test
       }
+    }
+
+    this.#jobs[jobIndex] = {
+      ...this.#jobs[jobIndex]!,
+      stage: "memory",
+      updatedAt: options.now,
+    };
+
+    if (this.#memoryStore !== null && token) {
+      const memories = await this.#memoryStore.list(userId, {
+        accessToken: token,
+        includeSuperseded: true,
+      });
+      await Promise.all(
+        memories.map((m) =>
+          this.#memoryStore!.delete(userId, m.id, { accessToken: token }),
+        ),
+      );
     }
 
     if (this.#conversationRepository !== null) {
@@ -277,15 +340,12 @@ export class InMemoryAccountRepository implements AccountRepository {
       });
     }
 
-    // Children before parents:
-    //   1. workout_sets (FK to workouts + exercises)
-    //   2. workouts (FK to profile)
-    //   3. exercises (FK to profile)
-    //   4. food_entries (FK to profile)
-    //   5. body_measurements (FK to profile)
-    //   6. goals (FK to profile)
-    //   7. profile (last; the row lives in `public.profiles` which
-    //      is the user's primary identifier at the storage layer)
+    this.#jobs[jobIndex] = {
+      ...this.#jobs[jobIndex]!,
+      stage: "auth",
+      updatedAt: options.now,
+    };
+
     const workouts = await this.#workoutRepository.list(userId, {
       from: null,
       to: null,
@@ -329,10 +389,6 @@ export class InMemoryAccountRepository implements AccountRepository {
       accessToken: token,
     });
     for (const g of goals) {
-      // The GoalRepository does not expose `delete` on its public
-      // port (v1 has no per-row delete endpoint); the in-memory
-      // implementation supports it for this orchestration path. A
-      // future segment promotes it to the port.
       const repoAsAny = this.#goalRepository as unknown as {
         delete: (id: string) => Promise<boolean>;
       };
@@ -340,9 +396,6 @@ export class InMemoryAccountRepository implements AccountRepository {
         await repoAsAny.delete(g.id);
       }
     }
-    // Profile: the in-memory implementation supports
-    // `deleteForTest`. The SQL adapter will own the
-    // Supabase-side delete when it lands.
     const profileRepoAsAny = this.#profileRepository as unknown as {
       deleteForTest?: (userId: UserId) => Promise<void>;
     };
@@ -350,11 +403,14 @@ export class InMemoryAccountRepository implements AccountRepository {
       await profileRepoAsAny.deleteForTest(userId);
     }
 
-    return { deleted: true };
-  }
+    this.#jobs[jobIndex] = {
+      ...this.#jobs[jobIndex]!,
+      status: "completed",
+      stage: "done",
+      completedAt: options.now,
+      updatedAt: options.now,
+    };
 
-  /** Test-only helper to inspect the active challenge (if any). */
-  __peekChallenge(userId: UserId): ChallengeRecord | undefined {
-    return this.#challenges.get(userId);
+    return { deleted: true };
   }
 }

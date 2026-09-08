@@ -1,6 +1,62 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-09-08** (Sessions B and C complete: Q9 deployment safeguards & Q6 tier authority verified).
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-09-08** (Sessions B, C, D, E1 complete: Q9 deployment safeguards, Q6 tier authority, Q2 mutation retry durability, Q4 durable account deletion state machine).
+
+## Remediation Session E1 (Q4 account deletion state machine & tombstones) — 2026-09-08
+
+Session E1 implemented the durable account deletion state machine, database tombstones, and multi-stage execution pipeline (REL-AUD-001, REL-AUD-002, R1, R2, AUTH-04, SEC-06):
+
+- **ADR-0021 Recorded**: `docs/adr/0021-durable-account-deletion-lifecycle.md` documents persistent state machine, durable tombstones, honest multi-stage cleanup, single orchestration authority, and lost final response recovery.
+- **Database Migration & Tombstones** (`supabase/migrations/20260908150000_durable_account_deletion.sql`):
+  - Created `public.account_deletion_jobs` (`id`, `user_id`, `challenge_hash`, `status`, `stage`, `expires_at`, `completed_at`, `error_message`, `created_at`, `updated_at`).
+  - Intentionally omitted `ON DELETE CASCADE` foreign key to `auth.users(id)` so the tombstone job row survives Auth deletion as permanent audit proof.
+  - Granted full privileges to `service_role`; granted `SELECT` to `authenticated` guarded by RLS policy `user_id = auth.uid()`; revoked direct client writes.
+- **Database Tests**:
+  - `supabase/tests/database/0004_account_deletion.test.sql` (6 tests, all passed): Table existence, service_role insert, authenticated direct insert denial (42501), own job select allowed, cross-user job select denied, and **tombstone survival after `auth.users` deletion**.
+  - All 89 pgTAP assertions passing across all 4 database test files.
+- **Core Domain & Ports**:
+  - `packages/core/src/account.ts`: Added `DeletionJobStatus`, `DeletionJobStage`, `StoredDeletionJob`, and `getDeletionJob` to `AccountRepository` port.
+- **Supabase Server Adapter**:
+  - `packages/adapters/supabase-server/src/account-repository.ts`: Rewrote adapter to use `public.account_deletion_jobs`, SHA-256 token hashing, atomic confirmation, honest multi-stage pipeline (`storage` -> `memory` -> `auth` -> `tombstone`), crash resilience, and idempotent retry.
+- **In-Memory Mock Adapter & Route Single Authority**:
+  - `apps/api/src/account-repository.ts`: Updated to mirror the state machine, SHA-256 hashing, memory store cleanup, and idempotent retry.
+  - `apps/api/src/app.ts`: Injected `memoryStore` into `InMemoryAccountRepository`.
+  - `apps/api/src/modules/account/routes.ts`: Removed duplicate memory cleanup; delegated fully to `AccountRepository.deleteUser`.
+- **Fault Tests & Verification**:
+  - `packages/adapters/supabase-server/src/account-repository.test.ts` (11 passed): Storage failure halts before auth, memory failure halts before auth, auth failure recorded, missing admin capability fails closed, idempotent retry on completed returns `{ deleted: true }`.
+  - `apps/api/src/modules/account/routes.test.ts` (11 passed): Complete deletion, memory deletion via repository, idempotent recovery for lost final response, random token rejection (409).
+  - `pnpm check`: 100% clean (format check, all 15 package typechecks, iOS & Android Hermes exports, 1,200+ unit tests, 17 deployment safeguard tests).
+  - `pnpm db:test`: 89/89 pgTAP assertions passing.
+
+Next exact action: deploy forward migration to Dev on Pi via `pnpm deploy:dev`, then proceed to Session E2 (Settings deletion UI, local session/draft cache clearing, and two-user deletion journey on Dev).
+
+
+Session D resolved the mutation retry deduplication finding (REL-AUD-007 / Q2 / R7):
+
+- **Client Durable Draft & Identity Lifecycle**:
+  - `apps/mobile/src/features/log-meal/meal-form.ts`: Added UUID validation (`isValidOperationId`), fallback UUID generator (`createOperationId`), and draft migration helper `upgradeLegacyMealDraft` which migrates legacy keyless drafts exactly once with stable `clientOperationId` and `consumedAt`.
+  - `apps/mobile/src/features/log-meal/log-meal-data.ts`: Removed the silent `crypto.randomUUID()` fallback on retry; now strictly requires a valid `clientOperationId`. Added user-facing error message for HTTP 409 Conflict.
+  - `apps/mobile/src/features/log-meal/log-meal-screen.tsx`:
+    - Generates stable `clientOperationId` and `consumedAt` upon initiating a draft, restoring them from `expo-secure-store`.
+    - Implemented synchronous submission lock (`isSubmittingRef` and `isCompletedRef`) preventing double taps and unmount autosaves.
+    - Awaits durable draft persistence in secure storage before making the network request; fails closed with user guidance if storage write fails.
+    - On network timeout or dropped connection, retains the exact same `clientOperationId` and `consumedAt` so subsequent Save attempts submit the identical operation identity.
+    - Explicit `onClear` resets operation identity and timestamp.
+- **Server Deduplication & Conflict Guard**:
+  - `apps/api/src/modules/food-entries/routes.ts`: Enforces canonical payload comparison on duplicate `clientOperationId`. If the meal payload matches, returns the existing record (HTTP 200). If the payload differs under the same key, returns HTTP 409 Conflict.
+- **Automated Tests**:
+  - `apps/mobile/src/features/log-meal/meal-retry-durability.test.ts`: Automated integration test suite covering lost-response retry survival, process restart restoration, missing ID rejection, and distinct intentional meals. (4 passed)
+  - `apps/mobile/src/features/log-meal/log-meal-data.test.ts`: Added missing/invalid ID rejection and 409 translation tests. (20 passed)
+  - `apps/mobile/src/features/log-meal/meal-form.test.ts`: Added UUID validation and draft upgrade tests. (12 passed)
+  - `apps/api/src/modules/food-entries/routes.test.ts`: Added 409 Conflict on payload mismatch and cross-user isolation tests. (45 passed)
+- **Mutation Idempotency Audit**:
+  - Created `docs/MUTATION_IDEMPOTENCY_AUDIT.md`: Cataloged all write paths (food entries, body measurements, workouts, sets, clones, and coach proposals) with risk profiles and follow-up roadmaps.
+- **Quality Gates & Production Preservation**:
+  - `pnpm check` passed 100% clean (all 15 package typechecks, iOS & Android Hermes exports, 1,200+ unit tests, 17 deployment safeguard tests).
+  - Pi Production untouched: PID 500239 active (uptime 5 days), commit `c02a67ab31a101c06c9a3ebdf275f9d0cee4a992`, public health HTTP 200 OK.
+  - Pi Dev active: commit `3716d8c` running under `mizyun-dev-api`, public health HTTP 200 OK.
+
+Next exact action: execute Session E1 (Q4 account deletion contract, state machine, and adapter).
 
 ## Remediation Session C (Q6 server-owned tier authority) — 2026-09-08
 

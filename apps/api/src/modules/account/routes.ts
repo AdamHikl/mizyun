@@ -258,24 +258,6 @@ export const accountRoutes: FastifyPluginAsync<AccountRoutesOptions> = async (
         },
       );
       if (result.deleted) {
-        try {
-          const memories = await options.memoryStore.list(principal.userId, {
-            accessToken: principal.accessToken,
-            includeSuperseded: true,
-          });
-          await Promise.all(
-            memories.map((memory) =>
-              options.memoryStore.delete(principal.userId, memory.id, {
-                accessToken: principal.accessToken,
-              }),
-            ),
-          );
-        } catch (error) {
-          request.log.warn(
-            { error },
-            "memory deletion cleanup reported warning during account delete",
-          );
-        }
         return accountDeleteResponseSchema.parse({ deleted: true });
       }
       const reason = result.reason;

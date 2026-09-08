@@ -261,6 +261,23 @@ export const foodEntriesRoutes: FastifyPluginAsync<
           ? clientOpHeader.trim()
           : undefined);
 
+      const matchesCanonicalPayload = (
+        existing: StoredFoodEntry,
+        incoming: typeof parsed.data,
+      ): boolean => {
+        if (existing.name.trim() !== incoming.name.trim()) return false;
+        if ((existing.caloriesKcal ?? null) !== (incoming.caloriesKcal ?? null))
+          return false;
+        if ((existing.proteinG ?? null) !== (incoming.proteinG ?? null))
+          return false;
+        if (
+          (existing.carbohydrateG ?? null) !== (incoming.carbohydrateG ?? null)
+        )
+          return false;
+        if ((existing.fatG ?? null) !== (incoming.fatG ?? null)) return false;
+        return true;
+      };
+
       if (
         clientOperationId &&
         options.foodEntryRepository.findByClientOperationId
@@ -272,6 +289,16 @@ export const foodEntriesRoutes: FastifyPluginAsync<
             { accessToken: principal.accessToken },
           );
         if (existing !== null) {
+          if (!matchesCanonicalPayload(existing, parsed.data)) {
+            await sendApiError(
+              reply,
+              request,
+              409,
+              "CONFLICT",
+              "The specified operation ID was already used with a different meal payload.",
+            );
+            return;
+          }
           return toWire(existing);
         }
       }
@@ -300,6 +327,20 @@ export const foodEntriesRoutes: FastifyPluginAsync<
         stored,
         { accessToken: principal.accessToken },
       );
+      if (
+        clientOperationId &&
+        saved.clientOperationId === clientOperationId &&
+        !matchesCanonicalPayload(saved, parsed.data)
+      ) {
+        await sendApiError(
+          reply,
+          request,
+          409,
+          "CONFLICT",
+          "The specified operation ID was already used with a different meal payload.",
+        );
+        return;
+      }
       return toWire(saved);
     },
   );

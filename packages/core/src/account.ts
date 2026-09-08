@@ -76,11 +76,29 @@ export type AccountDeletionError =
   | { readonly kind: "confirmation_token_mismatch" }
   | { readonly kind: "confirmation_token_expired" };
 
+export type DeletionJobStatus =
+  "challenge_issued" | "in_progress" | "completed" | "failed";
+
+export type DeletionJobStage = "none" | "storage" | "memory" | "auth" | "done";
+
+export interface StoredDeletionJob {
+  readonly id: string;
+  readonly userId: UserId;
+  readonly challengeHash: string;
+  readonly status: DeletionJobStatus;
+  readonly stage: DeletionJobStage;
+  readonly expiresAt: Date;
+  readonly completedAt: Date | null;
+  readonly errorMessage: string | null;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+}
+
 /**
  * Repository port. The in-memory implementation orchestrates the
- * per-feature repositories; the eventual Supabase implementation
- * cascades through FK constraints and deletes the `auth.users`
- * row last.
+ * per-feature repositories; the Supabase implementation
+ * manages the durable deletion state machine, cleans up external
+ * assets (storage, memory), and cascades through auth admin.
  */
 export interface AccountRepository {
   /**
@@ -105,8 +123,8 @@ export interface AccountRepository {
    * Permanently delete every user-owned record. The token must
    * match a previously-issued challenge and not be expired;
    * otherwise the implementation returns the typed reason and
-   * does NOT delete. On success the challenge is consumed and
-   * every record is gone.
+   * does NOT delete. Repeated confirmation requests return the
+   * current or completed state.
    */
   deleteUser(
     userId: UserId,
@@ -119,4 +137,9 @@ export interface AccountRepository {
     | { readonly deleted: true }
     | { readonly deleted: false; readonly reason: AccountDeletionError }
   >;
+  /**
+   * Look up the current or latest deletion job for the user,
+   * if any exists.
+   */
+  getDeletionJob?(userId: UserId): Promise<StoredDeletionJob | null>;
 }

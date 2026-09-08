@@ -18,6 +18,26 @@ export const parseOptionalNutritionNumber = (
     : { ok: false };
 };
 
+export const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export const isValidOperationId = (value: unknown): value is string =>
+  typeof value === "string" && UUID_REGEX.test(value);
+
+export const createOperationId = (): string => {
+  if (
+    typeof globalThis.crypto !== "undefined" &&
+    typeof globalThis.crypto.randomUUID === "function"
+  ) {
+    return globalThis.crypto.randomUUID();
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
+
 export interface MealFormStrings {
   readonly name: string;
   readonly calories: string;
@@ -28,6 +48,8 @@ export interface MealFormStrings {
 
 export interface RecoverableMealDraft extends MealFormStrings {
   readonly clientOperationId?: string;
+  readonly consumedAt?: string;
+  readonly submissionVersion?: number;
   readonly description?: string;
   readonly aiDraft?: FoodDraftCandidate;
   readonly sourceProposalId?: string;
@@ -45,7 +67,14 @@ export const isRecoverableMealDraft = (
   );
   const clientOpIdValid =
     record.clientOperationId === undefined ||
-    typeof record.clientOperationId === "string";
+    isValidOperationId(record.clientOperationId);
+  const consumedAtValid =
+    record.consumedAt === undefined ||
+    (typeof record.consumedAt === "string" &&
+      !Number.isNaN(Date.parse(record.consumedAt)));
+  const versionValid =
+    record.submissionVersion === undefined ||
+    typeof record.submissionVersion === "number";
   const descriptionValid =
     record.description === undefined || typeof record.description === "string";
   const aiDraftValid =
@@ -63,12 +92,39 @@ export const isRecoverableMealDraft = (
   return (
     stringsValid &&
     clientOpIdValid &&
+    consumedAtValid &&
+    versionValid &&
     descriptionValid &&
     aiDraftValid &&
     proposalIdValid &&
     refineValid &&
     photoUriValid
   );
+};
+
+export interface UpgradedMealDraft extends RecoverableMealDraft {
+  readonly clientOperationId: string;
+  readonly consumedAt: string;
+  readonly submissionVersion: number;
+}
+
+export const upgradeLegacyMealDraft = (
+  draft: RecoverableMealDraft,
+  now: () => Date = () => new Date(),
+): UpgradedMealDraft => {
+  const clientOperationId = isValidOperationId(draft.clientOperationId)
+    ? draft.clientOperationId
+    : createOperationId();
+  const consumedAt =
+    draft.consumedAt && !Number.isNaN(Date.parse(draft.consumedAt))
+      ? draft.consumedAt
+      : now().toISOString();
+  return {
+    ...draft,
+    clientOperationId,
+    consumedAt,
+    submissionVersion: 1,
+  };
 };
 
 const editableNumber = (value: number | null): string =>
