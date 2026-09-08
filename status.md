@@ -1,10 +1,10 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-09-08** (Milestones 1, 2, & 3 complete: Account export/deletion lifecycle, database plan tier protection, idempotent meal logging, iOS Apple 4.8 compliance, Gemini adult gate & explicit AI consent modal, spend quotas, and accurate legal disclosures verified 100% green via `pnpm check`).
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-09-08** (Milestones 1–4 implemented & deployed to Dev: Account export/deletion lifecycle, database plan tier protection, idempotent meal logging, iOS Apple 4.8 compliance, Gemini adult gate & explicit AI consent modal, spend quotas, and accurate legal disclosures deployed to Raspberry Pi Dev backend at commit `9b0f4a4` with live database verification).
 
-## Release Readiness Remediations (Milestones 1–3) — 2026-09-08
+## Release Readiness Remediations (Milestones 1–4) — 2026-09-08
 
-Milestones 1, 2, and 3 of [`docs/RELEASE_READINESS_2026-09-07.md`](docs/RELEASE_READINESS_2026-09-07.md) are complete and verified:
+All remediations across [`docs/RELEASE_READINESS_2026-09-07.md`](docs/RELEASE_READINESS_2026-09-07.md) are implemented, verified locally, and successfully deployed to the Raspberry Pi development environment at commit `9b0f4a40de445702475cb1e64327ca806cc3dafd`:
 
 1. **Account Export & Deletion Lifecycle (REL-AUD-001 & REL-AUD-002 / R1 & R2)**:
    - `packages/core/src/account.ts`: `AccountRepository` widened to accept authenticated caller `accessToken`.
@@ -15,7 +15,7 @@ Milestones 1, 2, and 3 of [`docs/RELEASE_READINESS_2026-09-07.md`](docs/RELEASE_
    - `apps/api/src/modules/account/routes.ts`: Wired `SupabaseAccountRepository`, forwarded `accessToken`, and honest error handling for memory deletion.
    - `apps/mobile/src/features/settings/account-data-management.ts` & `account-data-card.tsx`: Added JSON archive export via native Share sheet and 2-step account erasure with logout.
    - `apps/mobile/src/features/settings/settings-screen.tsx`: Integrated `AccountDataCard`.
-   - `apps/api/src/modules/legal/routes.ts`: Added external deletion pathway route `/legal/delete-account` for Google Play compliance.
+   - `apps/api/src/modules/legal/routes.ts`: Added external deletion pathway route `/legal/delete-account` for Google Play compliance (verified live returning HTTP 200).
 
 2. **Data Integrity & Security Lockdown (REL-AUD-006 & REL-AUD-007 / R6 & R7)**:
    - `supabase/migrations/20260908120000_security_and_retry_integrity.sql`:
@@ -36,10 +36,19 @@ Milestones 1, 2, and 3 of [`docs/RELEASE_READINESS_2026-09-07.md`](docs/RELEASE_
    - `apps/api/src/ai-eligibility.ts`: Server-side adult age check (`isAdultEligibleForAi`) returning 403 `AI_AGE_RESTRICTED` in `coach/routes.ts`, `coach/nutrition-photo-routes.ts`, and `food-entries/draft-route.ts`.
    - Updated legal disclosures in `apps/api/src/modules/legal/routes.ts`, `docs/PRIVACY_POLICY.md`, and `docs/BEFORE_TESTING.md`.
 
-4. **Monorepo Verification**:
-   - `pnpm check`: 100% green (Prettier formatting, 15 workspace typechecks, iOS and Android Hermes bundle exports, 1,274 passing tests across 34 suites).
+4. **Dev Deployment & Live Verification (Milestone 4)**:
+   - `pnpm deploy:dev` deployed commit `9b0f4a40de445702475cb1e64327ca806cc3dafd` to the Raspberry Pi development environment (`/var/lib/mizyun/dev/repo`).
+   - Forward migration `20260908120000_security_and_retry_integrity.sql` applied successfully to the isolated Dev database (`mizyun-dev-db`, port 5433).
+   - Public Dev API health check: `https://mizyun-api-dev.phiskel.com/v1/health` -> HTTP 200 OK (`{"status":"ok","service":"mizyun-api"}`).
+   - Public Dev Legal endpoints: `/legal/privacy`, `/legal/terms`, `/legal/support`, `/legal/delete-account` -> HTTP 200 OK.
+   - Public Dev Auth health: `https://mizyun-supabase-dev.phiskel.com/auth/v1/health` -> HTTP 200.
+   - Live database integrity verifications on Dev:
+     - `protect_profile_plan_tier`: Blocked unauthorized `authenticated` update with SQLSTATE 42501 (`insufficient_privilege`).
+     - `food_entries_user_client_op_idx`: Blocked duplicate meal inserts with SQLSTATE 23505 (`unique_violation`).
+     - `auth.users` deletion cascade: Verified `ON DELETE CASCADE` purges user profiles and food entries atomically.
+   - Production environment (`https://mizyun-api.phiskel.com/v1/health`) remained isolated and untouched (HTTP 200).
 
-**Next exact action**: Commit release candidate and deploy to Dev on the Raspberry Pi via `pnpm deploy:dev`.
+**Next exact action**: Test the candidate journey on the installed `com.mizyun.dev` iPhone build against the public Dev backend, then promote commit `9b0f4a4` to Production via `pnpm deploy:production <sha>`.
 
 ## Release audit — 2026-09-07
 
