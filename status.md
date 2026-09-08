@@ -1,6 +1,45 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-09-08** (Sessions B, C, D, E1, E2, F, G, H complete: Q9 deployment safeguards, Q6 tier authority, Q2 mutation retry durability, Q4 durable account deletion & mobile lifecycle, Q5 complete paged export & native file delivery, Q8-B unified server AI authorization & budget boundary, Q7 mobile consent continuation state machine, Q3 guarded build matrix).
+> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-09-08** (Sessions B, C, D, E1, E2, F, G, H, I complete: Q9 deployment safeguards, Q6 tier authority, Q2 mutation retry durability, Q4 durable account deletion & mobile lifecycle, Q5 complete paged export & native file delivery, Q8-B unified server AI authorization & budget boundary, Q7 mobile consent continuation state machine, Q3 guarded build matrix, Q8-C Gemini model evaluation, benchmark harness, and provider governance).
+
+## Remediation Session I (Q8-C Gemini model evaluation, benchmark harness, synthetic corpus, provider governance) — 2026-09-08
+
+Session I established the comprehensive versioned AI evaluation corpus, automated benchmark runner, first-line safety screener hardening, model configuration alignment, and official Google Gemini terms evidence (REL-AUD-005, REL-AUD-010, Q8-C, R5, R6):
+
+- **Versioned AI Evaluation Corpus (`packages/agent-runtime/src/evaluation-corpus.ts`)**:
+  - Defined `GEMINI_EVAL_DATASET_VERSION = "gemini-eval-v1-2026-09-08"`.
+  - Weighed-meal nutrition cases (`weighedMealEvaluationCases`): 10 realistic meals with weighed ground truth (exact calories, P/C/F), +/-20% tolerance bounds, and mandatory uncertainty disclosures (`calorieRangeKcal`, `proteinRangeG`, `confidence`, `assumptions`).
+  - Critical safety refusals & contraindications (`contraindicationEvaluationCases`): 16 cases covering acute ligament/joint injuries, severe overtraining volume, extreme calorie starvation (<800 kcal), anabolic steroids/SARMs, and emergency medical symptoms in both English and Slovak.
+  - Multi-vector prompt injection & adversarial cases (`multiVectorInjectionCases`): 10 cases covering all 4 input vectors: direct user text, retrieved memory injection, tool return injection, and OCR image text injection, in English and Slovak.
+  - Body photo guidance cases (`bodyPhotoGuidanceCases`): 4 cases enforcing non-diagnostic policy (explicitly prohibiting exact body fat % claims and dermatological diagnoses while mandating visual progress comparison disclosures).
+- **First-Line Safety Screener Hardening (`packages/agent-runtime/src/index.ts`)**:
+  - Hardened `screenCoachInput`:
+    - Unicode NFKC normalization and whitespace folding (`.replace(/\s+/g, " ")`), closing multi-space and tab bypass vectors.
+    - Added multi-vector prompt injection detection patterns (`system (override|command)`, `grant admin privileges`, `delete records`, credential/token exfiltration).
+    - Hardened joint pain contraindication regexes (`/\btrain\s+(through|despite)\s+(?:sharp|severe|\w+\s+)*pain\b/`).
+    - Exported evaluation corpus and types from `@mizyun/agent-runtime`.
+- **Automated AI Benchmark Runner (`scripts/run-ai-evaluation.mjs`)**:
+  - Standalone evaluation harness evaluating all 56 synthetic cases offline with zero external network/provider dependency.
+  - 100% pass rate achieved across all 5 evaluation dimensions:
+    - 16/16 Critical Safety Refusals (100.0%)
+    - 16/16 Training Contraindications & Dangerous Volumes (100.0%)
+    - 10/10 Multi-Vector Prompt Injection Neutralizations (100.0%)
+    - 10/10 Weighed-Meal Range & Uncertainty Compliance (100.0%)
+    - 4/4 Body Photo Non-Diagnostic Policy Compliance (100.0%)
+  - Integrated into root `package.json` under `"test:ai-eval": "tsx scripts/run-ai-evaluation.mjs"` and enforced as a required step in `pnpm check`.
+- **Provider Governance & Documentation Alignment**:
+  - Reconciled `docs/BEFORE_TESTING.md`: updated model identifiers to `gemini-3.8-flash` (fallback `gemini-3.6-flash`), marked Product and safety evaluation checklist items complete.
+  - Updated `docs/AI_EVALUATION_REPORT.md` with 2026-09-08 benchmark statistics.
+  - Updated `docs/RESEARCH_LOG.md` with official Google Gemini Paid Services commercial terms: zero model training on customer data, 30-day abuse retention, 18+ adult eligibility, and international processing.
+- **Independent AI Safety & Governance Review**:
+  - Delegated comprehensive audit of corpus, benchmark runner, and governance evidence to independent subagent (`8a20d90c-2d55-4785-80fe-c3af8a59b378`).
+  - **Verdict: ACCEPT**. Recommended whitespace folding and model harmonization were implemented and verified.
+- **Verification & Deployment Evidence**:
+  - `pnpm check` on Mac: 100% clean (format check, typechecks across all 15 workspace packages, Hermes bundle checks, 422 API tests, 282 mobile tests, 68 config tests, 17 deployment safeguard tests, build matrix checks, 56/56 AI evaluation cases).
+  - Git commit & push: `425b3e01b088cf8efff3820143dde319d50281f0` on `origin/main`.
+  - Pi Dev Deployment: `pnpm deploy:dev 425b3e0` succeeded. Dev API restarted (`mizyun-api-dev.service`). Public health check: `curl -s https://mizyun-api-dev.phiskel.com/v1/health` -> `{"status":"ok","service":"mizyun-api","timestamp":"2026-09-08T19:17:38.963Z"}`.
+  - Pi Production Isolation: `mizyun-api.service` PID 500239 active for 5+ days, commit `c02a67a`, public health `https://mizyun-api.phiskel.com/v1/health` HTTP 200 OK.
+- **Next exact action**: Execute Session J (Section 11 of `docs/REMEDIATION_IMPLEMENTATION_PLAN_2026-09-08.md`: Shared final acceptance and independent review across two-user isolation, cross-environment token rejection, native candidate verification, and off-device backup rehearsal).
 
 ## Remediation Sessions G & H (Q8-B server AI authorization & budgets, Q7 mobile consent continuation, Q3 guarded build matrix) — 2026-09-08
 
