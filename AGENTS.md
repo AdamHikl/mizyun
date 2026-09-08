@@ -32,6 +32,7 @@ New features should be vertical modules with explicit public exports. Do not imp
 - Every user-owned database table requires Row Level Security and a `user_id` index.
 - AI output is advisory and uncertain; deterministic calculations remain in domain code.
 - Photo-derived nutrition values require user confirmation before becoming authoritative.
+- Table row interfaces for `RepositorySupabaseClient.from<T>` in `packages/adapters/supabase-server` must explicitly extend `Record<string, unknown>` to satisfy TypeScript constraints.
 
 ## Primary working environment
 
@@ -45,6 +46,8 @@ strictly isolated environments running side-by-side:
    - Public hostnames: `https://mizyun-api-dev.phiskel.com`, `https://mizyun-supabase-dev.phiskel.com`
    - Mobile app: `com.mizyun.dev` ("Mizyun Dev", built via `pnpm mobile:founder-dev:ios`)
    - Deployment: `pnpm deploy:dev [sha]` (via `scripts/deploy-dev.mjs` and `scripts/promote-dev.sh`)
+   - AI policy: Dev shares the Gemini project with Production; `AI_EXTERNAL_ACCESS=true` is enabled for all accounts as testing is bounded to founder and testing partner.
+   - Identity: Dev uses auto-confirmed email authentication to satisfy Supabase Row Level Security (`user_id = auth.uid()`).
 
 2. **Production (`production`)**:
    - Repo checkout: `/home/mizyun/mizyun` (`/var/lib/mizyun/repo`)
@@ -73,6 +76,8 @@ Consequences and expectations:
 - Never run destructive commands (`db:reset`, `db:verify`, volume pruning) against the Pi. `pnpm db:verify` runs only against the local disposable Mac database.
 - Dev and Production databases and auth tenants are completely isolated; credentials and tokens are strictly non-interchangeable.
 - Before any deployment, `pnpm check` must pass on the Mac.
+- Always run `pnpm format` before committing and deploying so session documentation updates pass the pre-deployment `prettier --check .` gate.
+- The Pi dev checkout (`/var/lib/mizyun/dev/repo`) must remain pristine; never leave unstaged or modified files on the Pi during ad-hoc testing, as `promote-dev.sh` fails closed on dirty working trees.
 
 ## Verification
 
