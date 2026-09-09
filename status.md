@@ -18,25 +18,24 @@
 
 ## Environment & deployment snapshot
 
-| Environment       | Host & Location                | Deployed SHA                 | Health & Status                                           | Notes                                                            |
-| ----------------- | ------------------------------ | ---------------------------- | --------------------------------------------------------- | ---------------------------------------------------------------- |
-| **Local Mac**     | Apple Silicon (`darwin-arm64`) | `7faec30d` (dirty: docs/nav) | `pnpm check`: 100% clean                                  | Primary feature development & local verification                 |
-| **Pi Dev**        | Raspberry Pi 5 (`mizyun-pi`)   | `993c2df6`                   | HTTP 200 (`https://mizyun-api-dev.phiskel.com/v1/health`) | Port 4100 API / 8100 Kong / 5433 DB; UID 999 unprivileged        |
-| **Pi Production** | Raspberry Pi 5 (`mizyun-pi`)   | `c02a67ab`                   | HTTP 200 (`https://mizyun-api.phiskel.com/v1/health`)     | Port 4000 API / 8000 Kong / 5432 DB; PID 500239 (uptime 5+ days) |
-| **Windows PC**    | Windows / WSL2 (`mizyun-pc`)   | `—`                          | Standby hot backup                                        | Retained as secondary backup per ADR-0020                        |
+| Environment       | Host & Location                | Deployed SHA      | Health & Status                                           | Notes                                                                           |
+| ----------------- | ------------------------------ | ----------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| **Local Mac**     | Apple Silicon (`darwin-arm64`) | `fae9f05` (clean) | `pnpm check`: 100% clean                                  | Primary feature development & local verification                                |
+| **Pi Dev**        | Raspberry Pi 5 (`mizyun-pi`)   | `fae9f05`         | HTTP 200 (`https://mizyun-api-dev.phiskel.com/v1/health`) | Port 4100 API / 8100 Kong / 5433 DB; UID 999 unprivileged; worker leases active |
+| **Pi Production** | Raspberry Pi 5 (`mizyun-pi`)   | `c02a67ab`        | HTTP 200 (`https://mizyun-api.phiskel.com/v1/health`)     | Port 4000 API / 8000 Kong / 5432 DB; PID 500239 (uptime 5+ days)                |
+| **Windows PC**    | Windows / WSL2 (`mizyun-pc`)   | `—`               | Standby hot backup                                        | Retained as secondary backup per ADR-0020                                       |
 
 ## Implementation versus release gate status
 
-- **Implemented & Verified locally on Mac**:
+- **Implemented & Deployed to Dev on Pi (`fae9f05`)**:
+  - **Block 1 (Pi Runtime Isolation / Q1 Resolution)**: Live unprivileged execution verified on Pi Dev (`mizyun-dev-api` UID 999, GID 987). Permission probes fail closed: reading `/etc/mizyun/production.env` denied (EACCES), reading `/srv/mizyun/backups` denied (EACCES), reading `/var/lib/mizyun/repo` denied (EACCES), writing `/var/run/docker.sock` denied. Systemd unit in `/etc/systemd/system/mizyun-api-dev.service` verified identical to template.
   - **Block 2 (Local Native Release Builds & Device Acceptance / Gate R3)**: ADR-0023 accepted retiring EAS in favor of 100% local Xcode and Android Gradle builds; `with-android-release-signing` plugin enforcing fail-closed keystore configuration; `scripts/mobile-founder-dev-android.sh` with variant isolation; build matrix verification passing.
-  - **Block 3 (Account Deletion Durability / Finding Q4 Closure)**: Migration `20260909150000_account_deletion_worker_leases.sql` adding `worker_id` and `lease_expires_at` with composite index; atomic worker lease CAS preventing concurrent execution of destructive steps; resumable stage state machine (`storage` -> `memory` -> `auth` -> `done`) preventing regression to `'none'`; pre-auth orphaned media reconciliation sweep; mobile automatic session cleanup and signout upon detecting completed deletion; pgTAP tests updated and 100% passing.
+  - **Block 3 (Account Deletion Durability / Finding Q4 Closure)**: Migration `20260909150000_account_deletion_worker_leases.sql` applied cleanly on Dev DB (`mizyun-dev-db`), adding `worker_id` and `lease_expires_at` with composite index; atomic worker lease CAS preventing concurrent execution of destructive steps; resumable stage state machine (`storage` -> `memory` -> `auth` -> `done`) preventing regression to `'none'`; pre-auth orphaned media reconciliation sweep; mobile automatic session cleanup and signout upon detecting completed deletion; pgTAP tests passing.
   - **Block 4 (Account Export Completeness / Finding Q5 Closure — Pragmatic Scope)**: Raised memory store list ceiling to 10,000 for bounded exports; account export route fetches complete stored memories up to 10,000; manifest counts verified truthful; mobile settings copy updated to explicitly explain that records are exported as JSON and private photos are provided as temporary 24-hour signed download links rather than embedded files. Heavyweight streaming/checksums deferred per user directive.
-  - **AI Access & Cost Safeguards (Finding Q8 Verification)**: Verified `authorizeAiAccess` strictly enforces verified adult status (18+), explicit unrevoked consent version matching, and email allowlist admission. Daily token limits and conservative free-tier rate limits (5k tokens/day, 3 req/min, 1 in-flight) guard against runaway usage.
+  - **Block 5 (AI Access & Cost Safeguards / Finding Q8 Verification)**: Verified `authorizeAiAccess` strictly enforces verified adult status (18+), explicit unrevoked consent version matching, and email allowlist admission. Daily token limits and conservative free-tier rate limits (5k tokens/day, 3 req/min, 1 in-flight) guard against runaway usage.
   - Navigation & boundary suite: manifest coverage, realpath link resolution, pure core isolation, mobile adapter boundary, and synthetic fixture tests.
-  - Remediations Q1–Q9 implementations: Q1 systemd sandboxing template, Q2 canonical payload hashing & conflict detection, Q3 build matrix isolation (16/16), Q4 worker leased deletion, Q5 bounded export completeness, Q6 server-owned tier authority (PostgREST & pgTAP verified), Q7 consent state machine & generation barrier, Q8 adult eligibility & offline screener (56/56), Q9 deployment safeguards (23/23).
-  - All standard gates pass: format check, typecheck (14 packages), dual-platform bundle checks (iOS & Android Hermes), 748+ unit tests.
+  - All standard gates pass: format check, typecheck (14 packages), dual-platform bundle checks (iOS & Android Hermes), 23 deployment safeguards, 16 build matrix invariants, 56 AI invariants, 748+ unit tests.
 - **Open Implementation Work (Remediation Checklist)**:
-  - Q1: Re-verify Dev checkout removal from ReadWritePaths on Pi during deploy.
   - Q2: Durable unknown-outcome persistence for ambiguous retries.
   - Q7/Q8: Consent UI context preservation and live model evaluation.
   - Q9: Remote readiness probe identity and live promotion proof.
@@ -47,12 +46,15 @@
 
 ## Current blockers & known contradictions
 
-1. **Pi Containment / Q1 Resolution**: Block 1 sandbox configuration is deployed on Dev, but live probe verification noted Dev checkout in ReadWritePaths in earlier history. Re-verification scheduled during deployment block.
-2. **Release Gates R3/R8**: Physical device testing and off-device recovery rehearsal remain open dependencies before promoting candidate to Production.
+1. **Release Gates R3/R8**: Physical device testing and off-device recovery rehearsal remain open dependencies before promoting candidate to Production.
 
 ## Next exact action
 
-Execute Priority 1 & 2 (Deployment & Physical Device End-to-End Acceptance): Deploy current candidate with worker leases and export fixes to Pi Dev (`pnpm deploy:dev`), run remote permission and path isolation probes, compile signed standalone apps (`com.mizyun.dev` and `com.mizyun.app`), install on iPhone/Android, and execute end-to-end verification (login, logging, retry, export, deletion).
+Execute Priority 1 & 2 (Physical Device End-to-End Acceptance / Gate R3 & Gate R8):
+
+1. Connect physical iPhone via USB and compile/run the Dev build (`pnpm mobile:founder-dev:ios`).
+2. Sideload Dev release build on physical Android device (`pnpm mobile:founder-dev:android`).
+3. Follow `docs/PHYSICAL_DEVICE_ACCEPTANCE_GUIDE.md` to verify standalone launch (Mac/Metro off), Auth redirect (`mizyun-dev://auth/callback`), meal logging, bounded data export, and durable account deletion.
 
 ## Evidence & archive links
 
