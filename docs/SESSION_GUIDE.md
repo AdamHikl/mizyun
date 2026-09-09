@@ -16,31 +16,27 @@ When documents appear inconsistent, use this order and repair the lower source d
 8. `backlog.md` — executable inventory
 9. code, migrations, tests, and Git history — actual implementation evidence
 
-Code is truth about what exists; it is not automatically truth about what should exist. If implementation conflicts with a higher-level safety rule, stop and correct or escalate the conflict.
+### The two authority questions
+
+Always separate two distinct questions:
+
+1. **What should happen?** User instructions, applicable engineering rules (`AGENTS.md`), product requirements (`goals.md`, `PRODUCT_REQUIREMENTS.md`), and accepted decisions (`docs/adr/`) define intent and acceptance criteria.
+2. **What exists or passed?** Current code and reproducible evidence, qualified by source SHA, environment, and verification date, support implementation claims. A roadmap, old handoff, or retrieved summary cannot override contradictory evidence.
+
+If evidence is insufficient, label a claim unverified with a source link. Never turn old test runs into fresh results. Preserve Q1–Q9 IDs and their stated exit criteria until live proof is recorded.
 
 ## Start-of-session checklist
 
-1. Read completely:
-   - `AGENTS.md`
-   - `goals.md`
-   - `docs/BUSINESS_ALIGNMENT.md`
-   - `plan.md`
-   - `status.md`
-2. Read `backlog.md` and the requirements/ADR files relevant to the active work package.
-3. When the session needs local services, native builds, simulators/emulators, or acceptance tests, open [`docs/tutorials/README.md`](./tutorials/README.md) and follow the narrowest runbook instead of reconstructing commands from chat history.
-4. Inspect repository state:
-
+1. Read root `AGENTS.md` and inspect repository state:
    ```bash
    git status --short
-   git log --oneline --decorate -10
+   git log -n 5 --oneline
    ```
-
-5. Preserve any pre-existing user changes. Do not reset or overwrite unrelated work.
-6. Confirm the active work item and its definition of done from `status.md` and `backlog.md`.
-7. Research current official documentation for every platform/service materially affected.
-8. Add the sources and consequences to `docs/RESEARCH_LOG.md`; create an ADR if the result is durable.
-9. State assumptions and begin with the smallest vertical slice that can be verified end to end.
-10. For substantive work, follow AGENTS.md's required agent collaboration: assign a bounded independent subtask, explicit file ownership and acceptance checks while the coordinator progresses other useful work. Use agent tools rather than creating user-visible tasks. Record narrow/unavailable-tool exceptions honestly.
+   Preserve any pre-existing changes from another session.
+2. Read the compact current `status.md` and [`docs/START_HERE.md`](./START_HERE.md). (Read full `goals.md` and `docs/BUSINESS_ALIGNMENT.md` when addressing product direction, pricing, scope changes, or uncertain intent; read full `plan.md` when changing roadmap sequencing).
+3. Identify the active work item and its definition of done from `status.md` and `backlog.md`; read any applicable nested instructions (e.g. `apps/mobile/AGENTS.md`).
+4. Use [`docs/feature-map.json`](./feature-map.json) or `pnpm context <feature-id>` to select relevant requirements, ADRs, runbooks, open findings, source code, and tests.
+5. State expected impacts and delegate a bounded independent subtask with disjoint file ownership and acceptance checks, per `AGENTS.md`.
 
 ## During a session
 

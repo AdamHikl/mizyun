@@ -65,7 +65,7 @@ The coach can use current goals, confirmed records, preferences, limitations, an
 
 Authentication, model providers, memory retrieval, storage, and health-platform integrations remain behind explicit interfaces so one component can be upgraded without rewriting features.
 
-Managed services are acceptable for early product validation and production reliability. Durable user data must remain exportable and migratable to Mizyun-operated EU infrastructure without rewriting business features or surrendering user export/deletion guarantees.
+Managed services are acceptable for early product validation and production reliability. Durable user data must remain exportable and migratable to Mizyun-operated EU infrastructure without rewriting business features or surrendering user export/deletion guarantees. Mobile release artifacts are compiled and signed locally on founder macOS hardware via standard native platform tooling (Xcode & Gradle); no external Expo Application Services (EAS) cloud build or submission services are required or used for App Store or Google Play releases (ADR-0023).
 
 ## MVP scope
 
@@ -80,7 +80,7 @@ The first usable beta must include:
 - deterministic energy-target and surplus/deficit calculations with assumptions shown;
 - a conversational coach using confirmed user data and controllable memories;
 - export and deletion controls for user data and memories;
-- iOS and Android support from one Expo application.
+- iOS and Android support from one Expo application, built and signed locally on macOS (Xcode & Gradle) without EAS cloud dependencies (ADR-0023).
 
 Detailed requirements and identifiers live in `docs/PRODUCT_REQUIREMENTS.md`.
 

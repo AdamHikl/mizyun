@@ -1,0 +1,40 @@
+name: navigation-check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "docs/**"
+      - "scripts/navigation/**"
+      - "packages/**"
+      - "apps/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "status.md"
+      - "AGENTS.md"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run navigation structure and boundary check
+        run: pnpm navigation:check
+
+      - name: Run navigation fixture tests
+        run: pnpm test:navigation

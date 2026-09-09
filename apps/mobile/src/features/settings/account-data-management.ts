@@ -317,7 +317,7 @@ export const confirmAccountDeletion = async (
         reason = "unauthorized";
         retryable = false;
         message = "Your session expired. Please sign in again.";
-      } else if (result.error.status === 500 || result.error.status === 503) {
+      } else if (result.error.status >= 500 && result.error.status <= 504) {
         reason = "server_error";
         retryable = true;
         message =

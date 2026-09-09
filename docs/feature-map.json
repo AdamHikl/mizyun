@@ -1,0 +1,1065 @@
+{
+  "$schema": "./feature-map.schema.json",
+  "schemaVersion": 1,
+  "description": "Deterministic repository feature map for Mizyun",
+  "features": [
+    {
+      "id": "meal-logging",
+      "title": "Meal & Nutrition Logging",
+      "summary": "Manual food CRUD, macro/calorie calculations, local-day offsets, offline drafts, and photo/text draft generation.",
+      "aliases": ["food", "nutrition", "calories", "macros", "diet", "meal"],
+      "entryPoints": [
+        "apps/api/src/modules/food-entries/routes.ts",
+        "apps/mobile/src/features/log-meal/index.ts"
+      ],
+      "ownedPaths": [
+        "apps/api/src/modules/food-entries",
+        "apps/mobile/src/features/log-meal",
+        "apps/mobile/src/features/logging-draft-storage.ts"
+      ],
+      "contracts": ["packages/contracts/src/food-entry.ts"],
+      "domainPort": [
+        "packages/core/src/food-entry.ts",
+        "packages/core/src/energy.ts"
+      ],
+      "api": [
+        "apps/api/src/modules/food-entries/routes.ts",
+        "apps/api/src/modules/food-entries/draft-route.ts"
+      ],
+      "ui": [
+        "apps/mobile/src/app/meals.tsx",
+        "apps/mobile/src/app/nutrition.tsx",
+        "apps/mobile/src/features/log-meal/meal-form.ts",
+        "apps/mobile/src/features/log-meal/log-meal-data.ts"
+      ],
+      "adapters": [
+        "packages/adapters/supabase-server/src/food-entry-repository.ts"
+      ],
+      "dataTables": ["food_entries"],
+      "migrationPaths": [
+        "supabase/migrations/20260714101000_user_data.sql",
+        "supabase/migrations/20260718100000_persist_001_columns.sql",
+        "supabase/migrations/20260908120000_security_and_retry_integrity.sql"
+      ],
+      "tests": [
+        "apps/api/src/modules/food-entries/routes.test.ts",
+        "apps/api/src/modules/food-entries/draft-route.test.ts",
+        "apps/mobile/src/features/log-meal/meal-form.test.ts",
+        "apps/mobile/src/features/log-meal/meal-lifecycle-data.test.ts",
+        "apps/mobile/src/features/log-meal/meal-retry-durability.test.ts"
+      ],
+      "relations": [
+        {
+          "type": "dependsOn",
+          "target": "auth",
+          "reason": "Authenticated user context and RLS user_id filter"
+        },
+        {
+          "type": "dependsOn",
+          "target": "contracts-shared",
+          "reason": "Food schema, nutrition breakdown contracts, and mutation types"
+        },
+        {
+          "type": "affects",
+          "target": "profile-goals-energy",
+          "reason": "Daily nutrition totals aggregate into energy balance and surplus/deficit"
+        },
+        {
+          "type": "relatedTo",
+          "target": "coach-consent-budgets",
+          "reason": "AI nutrition drafting and Coach nutrition advice access food entries"
+        }
+      ],
+      "docs": [
+        "docs/adr/0007-local-day-offset-boundaries.md",
+        "docs/patterns/README.md#pat-001",
+        "docs/MUTATION_IDEMPOTENCY_AUDIT.md"
+      ],
+      "verificationCommands": [
+        "pnpm --filter @mizyun/api test src/modules/food-entries",
+        "pnpm --filter @mizyun/mobile test src/features/log-meal"
+      ],
+      "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
+      "lastReviewedDate": "2026-09-09",
+      "limitations": "Live vision model photo drafting requires external provider evaluation per BEFORE_TESTING.md",
+      "requirements": ["NUTR-01", "NUTR-02", "REL-AUD-007"],
+      "openAcceptance": [
+        "REL-AUD-007/Q2: Durable unknown-outcome persistence for ambiguous retries across network drops"
+      ]
+    },
+    {
+      "id": "workouts-sets",
+      "title": "Workouts & Sets Tracking",
+      "summary": "Custom exercises, workout templates, active workout session recovery, and progressive overload calculations.",
+      "aliases": ["workout", "exercise", "training", "sets", "gym", "routine"],
+      "entryPoints": [
+        "apps/api/src/modules/workouts/routes.ts",
+        "apps/api/src/modules/workout-sets/routes.ts",
+        "apps/api/src/modules/exercises/routes.ts",
+        "apps/mobile/src/features/workouts/index.ts"
+      ],
+      "ownedPaths": [
+        "apps/api/src/modules/workouts",
+        "apps/api/src/modules/workout-sets",
+        "apps/api/src/modules/exercises",
+        "apps/mobile/src/features/workouts",
+        "apps/mobile/src/features/log-workout"
+      ],
+      "contracts": [
+        "packages/contracts/src/workout.ts",
+        "packages/contracts/src/workout-set.ts",
+        "packages/contracts/src/exercise.ts"
+      ],
+      "domainPort": [
+        "packages/core/src/workout.ts",
+        "packages/core/src/workout-set.ts",
+        "packages/core/src/training-prescription.ts"
+      ],
+      "api": [
+        "apps/api/src/modules/workouts/routes.ts",
+        "apps/api/src/modules/workout-sets/routes.ts",
+        "apps/api/src/modules/exercises/routes.ts"
+      ],
+      "ui": [
+        "apps/mobile/src/app/workouts.tsx",
+        "apps/mobile/src/app/(home)/log-workout.tsx",
+        "apps/mobile/src/features/log-workout/log-workout-data.ts",
+        "apps/mobile/src/features/workouts/exercise-progression-data.ts"
+      ],
+      "adapters": [
+        "packages/adapters/supabase-server/src/workout-repository.ts",
+        "packages/adapters/supabase-server/src/workout-set-repository.ts",
+        "packages/adapters/supabase-server/src/exercise-repository.ts"
+      ],
+      "dataTables": ["exercises", "workouts", "workout_sets"],
+      "migrationPaths": [
+        "supabase/migrations/20260714101000_user_data.sql",
+        "supabase/migrations/20260721100000_persist_002_workout_columns.sql"
+      ],
+      "tests": [
+        "apps/api/src/modules/workouts/routes.test.ts",
+        "apps/api/src/modules/workout-sets/routes.test.ts",
+        "apps/api/src/modules/exercises/routes.test.ts",
+        "apps/mobile/src/features/workouts/exercise-progression-data.test.ts",
+        "apps/mobile/src/features/log-workout/log-workout-data.test.ts",
+        "packages/core/src/training-prescription.test.ts"
+      ],
+      "relations": [
+        {
+          "type": "dependsOn",
+          "target": "auth",
+          "reason": "User authentication and RLS ownership on exercise/workout records"
+        },
+        {
+          "type": "dependsOn",
+          "target": "contracts-shared",
+          "reason": "Training contracts, exercise enums, and set volume interfaces"
+        },
+        {
+          "type": "affects",
+          "target": "coach-consent-budgets",
+          "reason": "Coach workout recommendations read completed volume and workout sets"
+        }
+      ],
+      "docs": [
+        "docs/adr/0009-active-workout-authority-and-recovery.md",
+        "docs/patterns/README.md#pat-003"
+      ],
+      "verificationCommands": [
+        "pnpm --filter @mizyun/api test src/modules/workouts src/modules/workout-sets src/modules/exercises",
+        "pnpm --filter @mizyun/mobile test src/features/workouts src/features/log-workout"
+      ],
+      "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
+      "lastReviewedDate": "2026-09-09",
+      "limitations": "Active workout recovery is local-first in mobile state; cloud sync occurs on set/workout completion",
+      "requirements": ["TRAIN-01", "TRAIN-02", "TRAIN-03"],
+      "openAcceptance": []
+    },
+    {
+      "id": "profile-goals-energy",
+      "title": "Profile, Goals & Energy Engine",
+      "summary": "User onboarding profile, target goals, deterministic Mifflin-St Jeor TDEE/BMR calculations, surplus/deficit dashboard, and weight trends.",
+      "aliases": [
+        "profile",
+        "goals",
+        "energy",
+        "tdee",
+        "bmr",
+        "weight",
+        "dashboard"
+      ],
+      "entryPoints": [
+        "apps/api/src/modules/profile/routes.ts",
+        "apps/api/src/modules/goals/routes.ts",
+        "apps/api/src/modules/energy/routes.ts"
+      ],
+      "ownedPaths": [
+        "apps/api/src/modules/profile",
+        "apps/api/src/modules/goals",
+        "apps/api/src/modules/energy",
+        "apps/mobile/src/features/dashboard",
+        "apps/mobile/src/features/onboarding",
+        "apps/mobile/src/features/energy-setup"
+      ],
+      "contracts": ["packages/contracts/src/energy.ts"],
+      "domainPort": [
+        "packages/core/src/energy.ts",
+        "packages/core/src/profile.ts",
+        "packages/core/src/goal.ts"
+      ],
+      "api": [
+        "apps/api/src/modules/profile/routes.ts",
+        "apps/api/src/modules/goals/routes.ts",
+        "apps/api/src/modules/energy/routes.ts"
+      ],
+      "ui": [
+        "apps/mobile/src/app/(home)/index.tsx",
+        "apps/mobile/src/features/dashboard/dashboard-screen.tsx",
+        "apps/mobile/src/features/dashboard/dashboard-data.ts",
+        "apps/mobile/src/features/onboarding/onboarding-state.ts",
+        "apps/mobile/src/features/energy-setup/energy-profile-data.ts"
+      ],
+      "adapters": [
+        "packages/adapters/supabase-server/src/profile-repository.ts",
+        "packages/adapters/supabase-server/src/goal-repository.ts"
+      ],
+      "dataTables": ["profiles", "goals"],
+      "migrationPaths": [
+        "supabase/migrations/20260714100000_foundation.sql",
+        "supabase/migrations/20260714101000_user_data.sql",
+        "supabase/migrations/20260714104000_auth_profile_trigger.sql",
+        "supabase/migrations/20260908140000_server_owned_tier_authority.sql"
+      ],
+      "tests": [
+        "apps/api/src/modules/profile/routes.test.ts",
+        "apps/api/src/modules/goals/routes.test.ts",
+        "apps/api/src/modules/energy/routes.test.ts",
+        "apps/mobile/src/features/dashboard/dashboard-data.test.ts",
+        "apps/mobile/src/features/onboarding/onboarding-state.test.ts",
+        "packages/core/src/energy.test.ts",
+        "packages/core/src/profile.test.ts",
+        "packages/core/src/goal.test.ts"
+      ],
+      "relations": [
+        {
+          "type": "dependsOn",
+          "target": "auth",
+          "reason": "Profile creation tied to auth user lifecycle and JWT claims"
+        },
+        {
+          "type": "dependsOn",
+          "target": "contracts-shared",
+          "reason": "Shared profile, goals, and energy contracts"
+        },
+        {
+          "type": "affects",
+          "target": "coach-consent-budgets",
+          "reason": "Coach advice grounds on user profile limitations and energy targets"
+        }
+      ],
+      "docs": [
+        "docs/adr/0008-retry-safe-onboarding-commit.md",
+        "docs/adr/0010-weight-trend-semantics.md",
+        "docs/adr/0011-dashboard-review-and-local-energy-day.md",
+        "docs/patterns/README.md#pat-003"
+      ],
+      "verificationCommands": [
+        "pnpm --filter @mizyun/core test",
+        "pnpm --filter @mizyun/api test src/modules/profile src/modules/goals src/modules/energy",
+        "pnpm --filter @mizyun/mobile test src/features/dashboard src/features/onboarding"
+      ],
+      "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
+      "lastReviewedDate": "2026-09-09",
+      "limitations": "Body weight entries are retrieved from body_measurements; wearable live step integration is post-MVP",
+      "requirements": ["GOAL-01", "GOAL-02", "REL-AUD-006"],
+      "openAcceptance": []
+    },
+    {
+      "id": "body-media",
+      "title": "Body Measurements & Private Media",
+      "summary": "Weight and circumference tracking, user-scoped private media uploads, EXIF-stripped progress photos, and timeline comparison.",
+      "aliases": [
+        "body",
+        "media",
+        "photos",
+        "progress photos",
+        "weight tracking",
+        "measurements"
+      ],
+      "entryPoints": [
+        "apps/api/src/modules/body-measurements/routes.ts",
+        "apps/api/src/modules/media/routes.ts"
+      ],
+      "ownedPaths": [
+        "apps/api/src/modules/body-measurements",
+        "apps/api/src/modules/media",
+        "apps/mobile/src/features/progress-photos",
+        "apps/mobile/src/features/log-weight"
+      ],
+      "contracts": [
+        "packages/contracts/src/body-measurement.ts",
+        "packages/contracts/src/media-asset.ts"
+      ],
+      "domainPort": [
+        "packages/core/src/body-measurement.ts",
+        "packages/core/src/media-asset.ts"
+      ],
+      "api": [
+        "apps/api/src/modules/body-measurements/routes.ts",
+        "apps/api/src/modules/media/routes.ts"
+      ],
+      "ui": [
+        "apps/mobile/src/features/progress-photos/progress-photo-data.ts",
+        "apps/mobile/src/features/progress-photos/progress-photos-screen.tsx",
+        "apps/mobile/src/features/log-weight/log-weight-data.ts",
+        "apps/mobile/src/features/log-weight/body-history-data.ts"
+      ],
+      "adapters": [
+        "packages/adapters/supabase-server/src/body-measurement-repository.ts",
+        "packages/adapters/supabase-server/src/media-asset-repository.ts",
+        "packages/adapters/supabase-server/src/media-storage.ts"
+      ],
+      "dataTables": ["body_measurements", "media_assets"],
+      "migrationPaths": [
+        "supabase/migrations/20260714101000_user_data.sql",
+        "supabase/migrations/20260714103000_private_media.sql"
+      ],
+      "tests": [
+        "apps/api/src/modules/body-measurements/routes.test.ts",
+        "apps/api/src/modules/media/routes.test.ts",
+        "apps/mobile/src/features/progress-photos/progress-photo-data.test.ts",
+        "apps/mobile/src/features/log-weight/log-weight-data.test.ts"
+      ],
+      "relations": [
+        {
+          "type": "dependsOn",
+          "target": "auth",
+          "reason": "Supabase Storage bucket policy requires matching auth.uid() folder prefix"
+        },
+        {
+          "type": "affects",
+          "target": "profile-goals-energy",
+          "reason": "Weight trends drive TDEE adaptation and surplus/deficit progress"
+        },
+        {
+          "type": "affects",
+          "target": "account-lifecycle",
+          "reason": "Account deletion requires permanent deletion of user-scoped private media objects"
+        }
+      ],
+      "docs": [
+        "docs/adr/0012-user-scoped-private-media-persistence.md",
+        "docs/adr/0013-private-progress-photo-mobile-boundary.md",
+        "docs/patterns/README.md#pat-001"
+      ],
+      "verificationCommands": [
+        "pnpm --filter @mizyun/api test src/modules/body-measurements src/modules/media",
+        "pnpm --filter @mizyun/mobile test src/features/progress-photos src/features/log-weight"
+      ],
+      "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
+      "lastReviewedDate": "2026-09-09",
+      "limitations": "Physical camera hardware capture tested manually; CI validates media uploads via synthetic fixtures",
+      "requirements": ["PHOTO-01", "PHOTO-02", "REL-AUD-005"],
+      "openAcceptance": [
+        "REL-AUD-005: Non-diagnostic body photo policy evaluation with live provider"
+      ]
+    },
+    {
+      "id": "auth",
+      "title": "Authentication & Session Identity",
+      "summary": "GoTrue user registration, confirmation tokens, native SecureStore session persistence, token refresh, and session gate state.",
+      "aliases": [
+        "auth",
+        "login",
+        "signup",
+        "session",
+        "gotrue",
+        "jwt",
+        "tokens"
+      ],
+      "entryPoints": ["apps/api/src/modules/identity/routes.ts"],
+      "ownedPaths": [
+        "apps/api/src/modules/identity",
+        "apps/mobile/src/features/auth",
+        "packages/identity"
+      ],
+      "contracts": [],
+      "domainPort": ["packages/identity/src/index.ts"],
+      "api": ["apps/api/src/modules/identity/routes.ts"],
+      "ui": [
+        "apps/mobile/src/features/auth/auth-screen.tsx",
+        "apps/mobile/src/features/auth/session-gate-state.ts"
+      ],
+      "adapters": [
+        "packages/adapters/supabase-mobile/src/index.ts",
+        "packages/adapters/supabase-server/src/index.ts"
+      ],
+      "dataTables": [],
+      "migrationPaths": ["supabase/migrations/20260714100000_foundation.sql"],
+      "tests": [
+        "apps/mobile/src/features/auth/session-gate-state.test.ts",
+        "apps/mobile/src/features/auth/auth-error-message.test.ts"
+      ],
+      "relations": [
+        {
+          "type": "affects",
+          "target": "meal-logging",
+          "reason": "Supplies bearer token for authenticated API requests"
+        },
+        {
+          "type": "affects",
+          "target": "workouts-sets",
+          "reason": "Supplies bearer token for authenticated API requests"
+        },
+        {
+          "type": "affects",
+          "target": "account-lifecycle",
+          "reason": "Identity sign-out and GoTrue account removal"
+        }
+      ],
+      "docs": [
+        "docs/adr/0002-provider-neutral-identity.md",
+        "docs/adr/0005-provider-neutral-authenticated-transport.md",
+        "docs/AUTH_VERIFICATION.md"
+      ],
+      "verificationCommands": [
+        "pnpm --filter @mizyun/mobile test src/features/auth",
+        "pnpm --filter @mizyun/identity test"
+      ],
+      "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
+      "lastReviewedDate": "2026-09-09",
+      "limitations": "Dev uses auto-confirmed email policy; Production requires real SES email confirmation",
+      "requirements": ["AUTH-01", "AUTH-02", "AUTH-03", "REL-AUD-004"],
+      "openAcceptance": [
+        "REL-AUD-004: Native Google-login parity on iOS / own-account login"
+      ]
+    },
+    {
+      "id": "account-lifecycle",
+      "title": "Account Lifecycle (Export & Deletion)",
+      "summary": "GDPR-compliant full user data export (JSON/ZIP/share sheet), multi-stage tombstoned account deletion, status recovery, and cache clearance.",
+      "aliases": [
+        "account",
+        "export",
+        "deletion",
+        "gdpr",
+        "tombstone",
+        "data management"
+      ],
+      "entryPoints": [
+        "apps/api/src/modules/account/routes.ts",
+        "apps/mobile/src/features/settings/account-data-management.ts"
+      ],
+      "ownedPaths": [
+        "apps/api/src/modules/account",
+        "apps/mobile/src/features/settings"
+      ],
+      "contracts": ["packages/contracts/src/account.ts"],
+      "domainPort": ["packages/core/src/account.ts"],
+      "api": ["apps/api/src/modules/account/routes.ts"],
+      "ui": [
+        "apps/mobile/src/features/settings/account-data-management.ts",
+        "apps/mobile/src/features/settings/principal-state.ts"
+      ],
+      "adapters": [
+        "packages/adapters/supabase-server/src/account-repository.ts"
+      ],
+      "dataTables": ["account_deletion_jobs"],
+      "migrationPaths": [
+        "supabase/migrations/20260908150000_durable_account_deletion.sql"
+      ],
+      "tests": [
+        "apps/api/src/modules/account/routes.test.ts",
+        "apps/mobile/src/features/settings/account-data-management.test.ts",
+        "supabase/tests/database/0004_account_deletion.test.sql"
+      ],
+      "relations": [
+        {
+          "type": "dependsOn",
+          "target": "auth",
+          "reason": "Requires authenticated caller identity and issues deletion challenge tokens"
+        },
+        {
+          "type": "affects",
+          "target": "body-media",
+          "reason": "Purges Storage assets during account deletion Stage 2"
+        },
+        {
+          "type": "affects",
+          "target": "coach-consent-budgets",
+          "reason": "Purges conversational history and memory items"
+        }
+      ],
+      "docs": [
+        "docs/adr/0021-durable-account-deletion-lifecycle.md",
+        "docs/ACCOUNT_EXPORT_INVENTORY.md",
+        "docs/REMEDIATION_EVIDENCE_CHECKLIST.md"
+      ],
+      "verificationCommands": [
+        "pnpm --filter @mizyun/api test src/modules/account",
+        "pnpm --filter @mizyun/mobile test src/features/settings"
+      ],
+      "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
+      "lastReviewedDate": "2026-09-09",
+      "limitations": "Permanent deletion of external AI provider server logs is governed by Google Gemini 30-day abuse retention window",
+      "requirements": ["REL-AUD-001", "REL-AUD-002", "AUTH-04"],
+      "openAcceptance": [
+        "REL-AUD-001/Q4: Worker lease renewal & storage resume barriers",
+        "REL-AUD-002/Q5: Vector memory & private media archive export"
+      ]
+    },
+    {
+      "id": "coach-consent-budgets",
+      "title": "AI Coach, Consent & Token Budgets",
+      "summary": "Conversational AI trainer, input safety screening, user consent continuation, token budget accounting, and memory lifecycle.",
+      "aliases": [
+        "coach",
+        "ai",
+        "gemini",
+        "mistral",
+        "consent",
+        "memory",
+        "tokens",
+        "budgets"
+      ],
+      "entryPoints": ["apps/api/src/modules/coach/routes.ts"],
+      "ownedPaths": [
+        "apps/api/src/modules/coach",
+        "apps/mobile/src/features/coach",
+        "packages/agent-runtime",
+        "packages/memory",
+        "packages/providers/gemini"
+      ],
+      "contracts": [
+        "packages/contracts/src/coach.ts",
+        "packages/contracts/src/coaching-plan.ts"
+      ],
+      "domainPort": [
+        "packages/agent-runtime/src/index.ts",
+        "packages/memory/src/index.ts"
+      ],
+      "api": [
+        "apps/api/src/modules/coach/routes.ts",
+        "apps/api/src/modules/coach/memory-routes.ts",
+        "apps/api/src/modules/coach/nutrition-photo-routes.ts"
+      ],
+      "ui": [
+        "apps/mobile/src/features/coach/ai-consent-controller.ts",
+        "apps/mobile/src/features/coach/coach-data.ts",
+        "apps/mobile/src/features/coach/coach-reminders.ts"
+      ],
+      "adapters": [
+        "packages/providers/gemini/src/index.ts",
+        "packages/providers/gemini/src/vision.ts",
+        "packages/adapters/supabase-server/src/conversation-repository.ts",
+        "packages/adapters/supabase-server/src/memory-store.ts"
+      ],
+      "dataTables": [
+        "conversations",
+        "messages",
+        "memory_items",
+        "memory_provider_refs",
+        "ai_daily_token_ledger",
+        "ai_request_windows",
+        "ai_in_flight",
+        "ai_provider_calls",
+        "user_ai_consents"
+      ],
+      "migrationPaths": [
+        "supabase/migrations/20260714102000_conversations_and_memory.sql",
+        "supabase/migrations/20260724120000_ai_ops_001_limits.sql",
+        "supabase/migrations/20260726160000_memory_lifecycle.sql",
+        "supabase/migrations/20260908160000_ai_consent_and_unified_budgets.sql",
+        "supabase/migrations/20260909130000_ai_token_reservations.sql"
+      ],
+      "tests": [
+        "apps/api/src/modules/coach/routes.test.ts",
+        "apps/api/src/modules/coach/limits.test.ts",
+        "apps/mobile/src/features/coach/ai-consent-controller.test.ts",
+        "packages/agent-runtime/src/index.test.ts",
+        "scripts/run-ai-evaluation.mjs",
+        "supabase/tests/database/0005_ai_consent.test.sql"
+      ],
+      "relations": [
+        {
+          "type": "dependsOn",
+          "target": "auth",
+          "reason": "AI access authorization requires user authentication and email admission"
+        },
+        {
+          "type": "dependsOn",
+          "target": "profile-goals-energy",
+          "reason": "Coach advice grounds on profile constraints, goals, and energy targets"
+        },
+        {
+          "type": "relatedTo",
+          "target": "meal-logging",
+          "reason": "Multimodal photo drafting shares Gemini provider and token quota"
+        }
+      ],
+      "docs": [
+        "docs/adr/0015-stateless-mistral-coach.md",
+        "docs/adr/0017-ai-governance.md",
+        "docs/adr/0019-gemini-provider-and-dynamic-switching.md",
+        "docs/patterns/README.md#pat-002",
+        "docs/BEFORE_TESTING.md"
+      ],
+      "verificationCommands": [
+        "pnpm test:ai-eval",
+        "pnpm --filter @mizyun/agent-runtime test",
+        "pnpm --filter @mizyun/provider-gemini test",
+        "pnpm --filter @mizyun/api test src/modules/coach"
+      ],
+      "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
+      "lastReviewedDate": "2026-09-09",
+      "limitations": "Live Gemini evaluation gated per BEFORE_TESTING.md; offline screener evaluates 56 heuristic cases",
+      "requirements": ["REL-AUD-005", "REL-AUD-006"],
+      "openAcceptance": [
+        "REL-AUD-005/Q8: Live model benchmarking & reservation leases",
+        "REL-AUD-005/Q7: Consent UI context preservation across app restarts"
+      ]
+    },
+    {
+      "id": "user-feedback",
+      "title": "In-App User Feedback",
+      "summary": "User bug reports and suggestions with diagnostic client context, optional screenshot attachments, and unread admin status tracking.",
+      "aliases": ["feedback", "bug report", "suggestions", "triage"],
+      "entryPoints": ["apps/api/src/modules/feedback/routes.ts"],
+      "ownedPaths": [
+        "apps/api/src/modules/feedback",
+        "apps/mobile/src/features/feedback",
+        "scripts/check-user-feedback.mjs"
+      ],
+      "contracts": ["packages/contracts/src/feedback.ts"],
+      "domainPort": ["packages/core/src/feedback.ts"],
+      "api": ["apps/api/src/modules/feedback/routes.ts"],
+      "ui": [
+        "apps/mobile/src/features/feedback/feedback-data.ts",
+        "apps/mobile/src/features/feedback/feedback-screen.tsx",
+        "apps/mobile/src/components/feedback-header-button.tsx"
+      ],
+      "adapters": [
+        "packages/adapters/supabase-server/src/feedback-repository.ts"
+      ],
+      "dataTables": ["user_feedback"],
+      "migrationPaths": [
+        "supabase/migrations/20260824100000_user_feedback.sql",
+        "supabase/migrations/20260824110000_feedback_media_attachments.sql"
+      ],
+      "tests": [
+        "apps/api/src/modules/feedback/routes.test.ts",
+        "apps/mobile/src/features/feedback/feedback-data.test.ts"
+      ],
+      "relations": [
+        {
+          "type": "dependsOn",
+          "target": "auth",
+          "reason": "Feedback records are owned by the authenticated caller"
+        }
+      ],
+      "docs": ["docs/START_HERE.md"],
+      "verificationCommands": [
+        "pnpm --filter @mizyun/api test src/modules/feedback",
+        "pnpm --filter @mizyun/mobile test src/features/feedback"
+      ],
+      "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
+      "lastReviewedDate": "2026-09-09",
+      "limitations": "Feedback media attachments are capped at 5MB and stored in private user storage",
+      "requirements": ["FEED-01", "FEED-02"],
+      "openAcceptance": []
+    },
+    {
+      "id": "environment-build-deployment",
+      "title": "Environment, Build Matrix & Deployment Safeguards",
+      "summary": "Multi-profile EAS build matrix, environment schema validation, promotion scripts, deployment safeguards, systemd unit templates, and rollback.",
+      "aliases": [
+        "deploy",
+        "build",
+        "eas",
+        "systemd",
+        "promotion",
+        "safeguards",
+        "config",
+        "environment"
+      ],
+      "entryPoints": [
+        "scripts/deploy-dev.mjs",
+        "scripts/deploy-remote.mjs",
+        "scripts/promote-dev.sh",
+        "scripts/promote-production.sh"
+      ],
+      "ownedPaths": [
+        "deploy/raspberry-pi",
+        "scripts/deploy-dev.mjs",
+        "scripts/deploy-remote.mjs",
+        "scripts/promote-dev.sh",
+        "scripts/promote-production.sh",
+        "scripts/test-deployment-safeguards.mjs",
+        "scripts/test-build-matrix.mjs",
+        "packages/config",
+        "apps/mobile/src/features/dev"
+      ],
+      "contracts": [],
+      "domainPort": [],
+      "api": ["packages/config/src/server.ts"],
+      "ui": ["apps/mobile/app.config.js"],
+      "adapters": [],
+      "dataTables": [],
+      "migrationPaths": [],
+      "tests": [
+        "scripts/test-deployment-safeguards.mjs",
+        "scripts/test-build-matrix.mjs",
+        "packages/config/src/build-matrix.test.ts",
+        "packages/config/src/server.test.ts",
+        "packages/config/src/mobile.test.ts"
+      ],
+      "relations": [
+        {
+          "type": "affects",
+          "target": "composition-roots",
+          "reason": "Provides typed and validated environment variables to API and mobile composition roots"
+        }
+      ],
+      "docs": [
+        "docs/adr/0004-validated-environment-composition.md",
+        "docs/adr/0020-dual-pi-environments-and-explicit-releases.md",
+        "docs/adr/0022-git-backed-navigation-and-advisory-impact.md",
+        "docs/patterns/README.md#pat-004",
+        "docs/tutorials/DEV_PRODUCTION_PI_GUIDE.md"
+      ],
+      "verificationCommands": [
+        "pnpm test:deployment-safeguards",
+        "pnpm test:build-matrix",
+        "pnpm --filter @mizyun/config test"
+      ],
+      "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
+      "lastReviewedDate": "2026-09-09",
+      "limitations": "Dev and Prod run side-by-side on Pi 5; deployment scripts fail closed if ports or checkouts cross",
+      "requirements": ["INFRA-DUAL-004", "REL-AUD-003"],
+      "openAcceptance": [
+        "REL-AUD-003/R3 Part B: Store distribution signing keys and release build profiles",
+        "INFRA-DUAL-005/R8: Physical-device standalone journey and off-device backup restore rehearsal"
+      ]
+    },
+    {
+      "id": "contracts-shared",
+      "title": "Shared Process Contracts",
+      "summary": "Zod-validated versioned request, response, and domain entity schemas shared between server API and mobile client.",
+      "aliases": ["contracts", "schemas", "dto", "types", "zod"],
+      "entryPoints": ["packages/contracts/src/index.ts"],
+      "ownedPaths": ["packages/contracts"],
+      "contracts": [
+        "packages/contracts/src/food-entry.ts",
+        "packages/contracts/src/workout.ts",
+        "packages/contracts/src/workout-set.ts",
+        "packages/contracts/src/exercise.ts",
+        "packages/contracts/src/energy.ts",
+        "packages/contracts/src/body-measurement.ts",
+        "packages/contracts/src/media-asset.ts",
+        "packages/contracts/src/coach.ts",
+        "packages/contracts/src/account.ts",
+        "packages/contracts/src/feedback.ts"
+      ],
+      "domainPort": [],
+      "api": [],
+      "ui": [],
+      "adapters": [],
+      "dataTables": [],
+      "migrationPaths": [],
+      "tests": [
+        "packages/contracts/src/coach.test.ts",
+        "packages/contracts/src/food-entry.test.ts",
+        "packages/contracts/src/profile.test.ts"
+      ],
+      "relations": [
+        {
+          "type": "affects",
+          "target": "meal-logging",
+          "reason": "Provides typed schemas for meal mutation and nutrition payloads"
+        },
+        {
+          "type": "affects",
+          "target": "workouts-sets",
+          "reason": "Provides typed schemas for exercises and workout logs"
+        },
+        {
+          "type": "affects",
+          "target": "profile-goals-energy",
+          "reason": "Provides typed schemas for profile and energy payloads"
+        }
+      ],
+      "docs": ["docs/adr/0001-modular-monolith.md", "docs/ARCHITECTURE.md"],
+      "verificationCommands": ["pnpm --filter @mizyun/contracts test"],
+      "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
+      "lastReviewedDate": "2026-09-09",
+      "limitations": "Must never depend on frameworks, databases, or model vendors",
+      "requirements": ["ARCH-01"],
+      "openAcceptance": []
+    },
+    {
+      "id": "database-schema",
+      "title": "PostgreSQL Migrations & RLS Policies",
+      "summary": "Authoritative database migrations, Row Level Security policies, indexes, pgTAP tests, and database verification tooling.",
+      "aliases": [
+        "database",
+        "schema",
+        "migrations",
+        "rls",
+        "postgres",
+        "pgtap",
+        "sql"
+      ],
+      "entryPoints": ["supabase/migrations/20260714100000_foundation.sql"],
+      "ownedPaths": ["supabase/migrations", "supabase/tests/database"],
+      "contracts": [],
+      "domainPort": [],
+      "api": [],
+      "ui": [],
+      "adapters": [],
+      "dataTables": [
+        "profiles",
+        "goals",
+        "body_measurements",
+        "food_entries",
+        "exercises",
+        "workouts",
+        "workout_sets",
+        "media_assets",
+        "conversations",
+        "messages",
+        "memory_items",
+        "memory_provider_refs",
+        "ai_daily_token_ledger",
+        "ai_request_windows",
+        "ai_in_flight",
+        "ai_provider_calls",
+        "user_ai_consents",
+        "user_feedback",
+        "account_deletion_jobs"
+      ],
+      "migrationPaths": ["supabase/migrations"],
+      "tests": [
+        "supabase/tests/database/0001_schema_security.test.sql",
+        "supabase/tests/database/0002_user_isolation.test.sql",
+        "supabase/tests/database/0003_tier_authority.test.sql",
+        "supabase/tests/database/0004_account_deletion.test.sql",
+        "supabase/tests/database/0005_ai_consent.test.sql"
+      ],
+      "relations": [
+        {
+          "type": "affects",
+          "target": "account-lifecycle",
+          "reason": "Database cascade rules and tombstones govern deletion lifecycle"
+        },
+        {
+          "type": "affects",
+          "target": "meal-logging",
+          "reason": "RLS rules govern food_entries table"
+        },
+        {
+          "type": "affects",
+          "target": "workouts-sets",
+          "reason": "RLS rules govern workouts and workout_sets tables"
+        }
+      ],
+      "docs": [
+        "docs/adr/0003-local-first-supabase-development.md",
+        "docs/patterns/README.md#pat-001"
+      ],
+      "verificationCommands": ["pnpm db:lint", "pnpm db:test"],
+      "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
+      "lastReviewedDate": "2026-09-09",
+      "limitations": "Destructive verification (pnpm db:verify) runs strictly on local disposable Mac stack, never on Pi",
+      "requirements": ["DATA-01", "SEC-01", "REL-AUD-006"],
+      "openAcceptance": []
+    },
+    {
+      "id": "composition-roots",
+      "title": "Application Composition Roots",
+      "summary": "Server Fastify application initialization, route assembly, plugin registration, and mobile Expo Router application wiring.",
+      "aliases": [
+        "composition",
+        "roots",
+        "server",
+        "app",
+        "mobile app",
+        "fastify"
+      ],
+      "entryPoints": [
+        "apps/api/src/server.ts",
+        "apps/api/src/app.ts",
+        "apps/mobile/src/app/_layout.tsx"
+      ],
+      "ownedPaths": [
+        "apps/api/src/server.ts",
+        "apps/api/src/app.ts",
+        "apps/mobile/src/app"
+      ],
+      "contracts": [],
+      "domainPort": [],
+      "api": ["apps/api/src/server.ts", "apps/api/src/app.ts"],
+      "ui": [
+        "apps/mobile/src/app/_layout.tsx",
+        "apps/mobile/src/app/(home)/_layout.tsx"
+      ],
+      "adapters": [],
+      "dataTables": [],
+      "migrationPaths": [],
+      "tests": ["apps/api/src/app.test.ts"],
+      "relations": [
+        {
+          "type": "dependsOn",
+          "target": "environment-build-deployment",
+          "reason": "Loads validated runtime configuration from packages/config"
+        },
+        {
+          "type": "affects",
+          "target": "meal-logging",
+          "reason": "Mounts food entries API route plugin"
+        },
+        {
+          "type": "affects",
+          "target": "workouts-sets",
+          "reason": "Mounts workout API route plugin"
+        },
+        {
+          "type": "affects",
+          "target": "coach-consent-budgets",
+          "reason": "Mounts coach API route plugin and selects active model provider"
+        }
+      ],
+      "docs": [
+        "docs/adr/0001-modular-monolith.md",
+        "docs/adr/0006-home-stack-inside-native-tabs.md",
+        "docs/ARCHITECTURE.md"
+      ],
+      "verificationCommands": [
+        "pnpm --filter @mizyun/api test src/app.test.ts",
+        "pnpm --filter @mizyun/mobile bundle:check"
+      ],
+      "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
+      "lastReviewedDate": "2026-09-09",
+      "limitations": "Composition roots must select concrete adapters without leaking vendor SDKs into domain layers",
+      "requirements": ["ARCH-02"],
+      "openAcceptance": []
+    },
+    {
+      "id": "analytics-observability",
+      "title": "Privacy-First Analytics & Observability",
+      "summary": "Local event telemetry, coarse activation/retention metrics, crash/error classification, and diagnostic logging without user PII.",
+      "aliases": [
+        "analytics",
+        "observability",
+        "logging",
+        "telemetry",
+        "metrics"
+      ],
+      "entryPoints": ["packages/observability/src/index.ts"],
+      "ownedPaths": [
+        "packages/observability",
+        "apps/mobile/src/features/analytics"
+      ],
+      "contracts": [],
+      "domainPort": [],
+      "api": ["apps/api/src/logging.ts"],
+      "ui": ["apps/mobile/src/features/analytics/local-analytics-storage.ts"],
+      "adapters": [],
+      "dataTables": [],
+      "migrationPaths": [],
+      "tests": [
+        "apps/api/src/logging.test.ts",
+        "apps/mobile/src/features/analytics/local-analytics-storage.test.ts",
+        "apps/mobile/src/features/analytics/classify-failure.test.ts",
+        "packages/observability/src/index.test.ts"
+      ],
+      "relations": [
+        {
+          "type": "relatedTo",
+          "target": "composition-roots",
+          "reason": "Provides structured Pino logging to Fastify API and local event capture in mobile"
+        }
+      ],
+      "docs": [
+        "docs/adr/0014-local-consent-first-product-analytics.md",
+        "docs/LOGGING_POLICY.md"
+      ],
+      "verificationCommands": [
+        "pnpm --filter @mizyun/observability test",
+        "pnpm --filter @mizyun/mobile test src/features/analytics"
+      ],
+      "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
+      "lastReviewedDate": "2026-09-09",
+      "limitations": "Analytics events remain local-only; network transmission is disabled to protect user privacy",
+      "requirements": ["OBS-01", "PRIV-01"],
+      "openAcceptance": []
+    },
+    {
+      "id": "legal-compliance",
+      "title": "Legal, Privacy Policy & Terms of Service",
+      "summary": "Public terms of service, GDPR privacy policies, store listing disclosures, and legal compliance endpoint routes.",
+      "aliases": ["legal", "privacy", "terms", "tos", "disclosures"],
+      "entryPoints": ["apps/api/src/modules/legal/routes.ts"],
+      "ownedPaths": ["apps/api/src/modules/legal"],
+      "contracts": [],
+      "domainPort": [],
+      "api": ["apps/api/src/modules/legal/routes.ts"],
+      "ui": [],
+      "adapters": [],
+      "dataTables": [],
+      "migrationPaths": [],
+      "tests": ["apps/api/src/modules/legal/routes.test.ts"],
+      "relations": [
+        {
+          "type": "relatedTo",
+          "target": "account-lifecycle",
+          "reason": "Privacy policy governs data retention and deletion rights"
+        }
+      ],
+      "docs": [
+        "docs/PRIVACY_POLICY.md",
+        "docs/TERMS_OF_SERVICE.md",
+        "docs/STORE_LISTING_DISCLOSURES.md"
+      ],
+      "verificationCommands": [
+        "pnpm --filter @mizyun/api test src/modules/legal"
+      ],
+      "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
+      "lastReviewedDate": "2026-09-09",
+      "limitations": "Static legal markdown rendered publicly via API endpoints",
+      "requirements": ["LEGAL-01", "REL-AUD-004"],
+      "openAcceptance": []
+    },
+    {
+      "id": "system-health",
+      "title": "System Health & Diagnostics",
+      "summary": "Public health check endpoints (/v1/health) used by uptime monitors, deployment scripts, and rollback triggers.",
+      "aliases": ["health", "healthcheck", "ping", "system", "status endpoint"],
+      "entryPoints": ["apps/api/src/modules/system/routes.ts"],
+      "ownedPaths": ["apps/api/src/modules/system"],
+      "contracts": [],
+      "domainPort": [],
+      "api": ["apps/api/src/modules/system/routes.ts"],
+      "ui": [],
+      "adapters": [],
+      "dataTables": [],
+      "migrationPaths": [],
+      "tests": ["apps/api/src/app.test.ts"],
+      "relations": [
+        {
+          "type": "relatedTo",
+          "target": "environment-build-deployment",
+          "reason": "Health check endpoint queried during deployment verification and rollback evaluation"
+        }
+      ],
+      "docs": ["docs/tutorials/DEV_PRODUCTION_PI_GUIDE.md"],
+      "verificationCommands": [
+        "pnpm --filter @mizyun/api test src/app.test.ts"
+      ],
+      "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
+      "lastReviewedDate": "2026-09-09",
+      "limitations": "Returns service name, timestamp, and ok status; does not exercise database transaction isolation",
+      "requirements": ["INFRA-01"],
+      "openAcceptance": []
+    }
+  ]
+}

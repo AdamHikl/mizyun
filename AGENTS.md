@@ -2,7 +2,7 @@
 
 ## Session continuity
 
-Before starting implementation, read `goals.md`, `docs/BUSINESS_ALIGNMENT.md`, `plan.md`, and `status.md` completely, then inspect `backlog.md` and the relevant requirements/ADR files. Follow `docs/SESSION_GUIDE.md` for start, research, verification, and handoff procedures.
+Before starting implementation, inspect the working tree, read root `AGENTS.md`, the compact `status.md`, and `docs/START_HERE.md`. Use `docs/feature-map.json` or `pnpm context <feature-id>` to focus on relevant requirements, ADRs, runbooks, and code. Review full `goals.md` / `docs/BUSINESS_ALIGNMENT.md` when addressing product direction, pricing, or uncertain intent, and full `plan.md` when changing roadmap sequencing. Follow `docs/SESSION_GUIDE.md` for startup, research, verification, and handoff procedures.
 
 At the end of every development session, update `status.md` with evidence, the next exact action, and any blocker. Update `backlog.md` when work is discovered, started, blocked, or completed. Change `plan.md` only when sequencing or phase status changes, and change `goals.md` only when product direction changes.
 

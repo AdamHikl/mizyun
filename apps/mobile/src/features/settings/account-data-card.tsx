@@ -58,30 +58,55 @@ export function AccountDataCard({
       return;
     }
     void loadDeletionChallenge(userId)
-      .then((challenge) => {
+      .then(async (challenge) => {
         if (!active || !challenge) return;
         setPendingChallenge(challenge);
-        if (new Date(challenge.expiresAt).getTime() > Date.now()) return;
-        return checkAccountDeletionStatus(apiClient, challenge.token).then(
-          (status) => {
-            if (!active) return;
-            if (status.ok) {
-              setFeedbackMessage(
-                status.status === "completed"
-                  ? "Account deletion has completed."
-                  : status.status === "in_progress"
-                    ? "Account deletion is still in progress. You can retry after the server finishes."
-                    : "A previous account deletion request is still recoverable.",
-              );
-            }
-          },
+
+        const status = await checkAccountDeletionStatus(
+          apiClient,
+          challenge.token,
         );
+        if (!active) return;
+
+        if (status.ok) {
+          if (status.status === "completed") {
+            setPendingChallenge(null);
+            await clearDeletionChallenge(userId).catch(() => {});
+            await clearLocalUserData(userId).catch(() => {});
+            await signOut().catch(() => {});
+            Alert.alert(
+              "Account Deleted",
+              "Your account and all associated personal data have been permanently erased. You have been signed out.",
+            );
+            return;
+          }
+          if (status.status === "in_progress") {
+            setFeedbackMessage(
+              `Account deletion is in progress on the server (stage: ${status.stage}). You can check status or retry shortly.`,
+            );
+            return;
+          }
+          if (new Date(challenge.expiresAt).getTime() <= Date.now()) {
+            setFeedbackMessage(
+              "A previous account deletion challenge has expired.",
+            );
+          } else {
+            setFeedbackMessage(
+              "A pending account deletion challenge is active.",
+            );
+          }
+        } else if (status.notFound) {
+          if (new Date(challenge.expiresAt).getTime() <= Date.now()) {
+            await clearDeletionChallenge(userId).catch(() => {});
+            setPendingChallenge(null);
+          }
+        }
       })
       .catch(() => {});
     return () => {
       active = false;
     };
-  }, [session?.user.id]);
+  }, [session?.user.id, signOut]);
 
   const {
     consentGranted: aiConsentGranted,
@@ -160,6 +185,7 @@ export function AccountDataCard({
   };
 
   const executeDeletion = async () => {
+    const currentUserId = session?.user.id;
     setIsDeleting(true);
     setFeedbackMessage(null);
     try {
@@ -180,8 +206,8 @@ export function AccountDataCard({
           expiresAt: challenge.expiresAt,
         };
         setPendingChallenge(newChallenge);
-        if (session?.user.id) {
-          await saveDeletionChallenge(session.user.id, newChallenge).catch(
+        if (currentUserId) {
+          await saveDeletionChallenge(currentUserId, newChallenge).catch(
             () => {},
           );
         }
@@ -191,12 +217,39 @@ export function AccountDataCard({
       const confirmResult = await confirmAccountDeletion(apiClient, token);
       if (!confirmResult.ok) {
         if (
+          confirmResult.reason === "server_error" ||
+          confirmResult.reason === "network_error"
+        ) {
+          const status = await checkAccountDeletionStatus(
+            apiClient,
+            token,
+          ).catch(() => null);
+          if (status && status.ok && status.status === "completed") {
+            setPendingChallenge(null);
+            if (currentUserId) {
+              await clearDeletionChallenge(currentUserId).catch(() => {});
+            }
+            setDeletionStage("clearing_local_cache");
+            if (currentUserId) {
+              await clearLocalUserData(currentUserId).catch(() => {});
+            }
+            setIsDeleting(false);
+            await signOut().catch(() => {});
+            Alert.alert(
+              "Account Deleted",
+              "Your account and all associated personal data have been permanently erased from active systems.",
+            );
+            return;
+          }
+        }
+
+        if (
           confirmResult.reason === "expired" ||
           confirmResult.reason === "mismatch"
         ) {
           setPendingChallenge(null);
-          if (session?.user.id) {
-            await clearDeletionChallenge(session.user.id).catch(() => {});
+          if (currentUserId) {
+            await clearDeletionChallenge(currentUserId).catch(() => {});
           }
         }
         Alert.alert("Deletion Error", confirmResult.message);
@@ -207,15 +260,16 @@ export function AccountDataCard({
       }
 
       setPendingChallenge(null);
-      if (session?.user.id) {
-        await clearDeletionChallenge(session.user.id).catch(() => {});
+      if (currentUserId) {
+        await clearDeletionChallenge(currentUserId).catch(() => {});
       }
       setDeletionStage("clearing_local_cache");
 
-      if (session?.user.id) {
-        await clearLocalUserData(session.user.id).catch(() => {});
+      if (currentUserId) {
+        await clearLocalUserData(currentUserId).catch(() => {});
       }
 
+      setIsDeleting(false);
       await signOut().catch(() => {});
       Alert.alert(
         "Account Deleted",
@@ -294,9 +348,11 @@ export function AccountDataCard({
       </View>
 
       <ThemedText type="small" themeColor="textSecondary">
-        Export creates a JSON file containing all your records. For private
-        photos, 24-hour signed download URLs are provided for retrieval rather
-        than embedding full raw media in the export JSON.
+        Export creates a single JSON file containing all your profile, health
+        metrics, logged meals, workouts, AI chat history, and stored coach
+        memories. For private photos, temporary 24-hour signed download links
+        are included so you can save the original files before the links expire
+        (full raw media files are not directly embedded in the JSON export).
       </ThemedText>
 
       <View style={styles.divider} />

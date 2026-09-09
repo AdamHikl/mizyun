@@ -1,5 +1,32 @@
 # Research log
 
+## 2026-09-09 — Git-backed navigation, repository memory, and advisory impact analysis
+
+Scope: Researched and designed Git-backed developer navigation, deterministic feature manifest, context CLI, advisory impact graph, and structural/boundary validators without vector databases or background services (DOCS-NAV-001–004 / ADR-0022).
+
+Primary sources consulted:
+
+- [Git diff documentation](https://git-scm.com/docs/git-diff):
+  - Merge-base comparison (`git diff -z --name-status $(git merge-base <ref> HEAD) HEAD`) outputs machine-parseable, NUL-delimited records for committed changes between the merge base and current HEAD.
+  - Using `-z` ensures safe handling of paths with whitespace, quotes, or special characters without quoting escapes.
+  - Separate diff queries for index (`--cached`) and working tree capture uncommitted changes without modifying repository state.
+- [Git ls-files documentation](https://git-scm.com/docs/git-ls-files):
+  - `git ls-files -z --others --exclude-standard` discovers untracked, non-ignored files respecting `.gitignore` hierarchy.
+- [Node.js Child Process Documentation](https://nodejs.org/api/child_process.html):
+  - `execFileSync` and `spawnSync` with explicit argument arrays avoid shell command interpolation and prevent command injection or quote misparsing.
+  - Safe sandboxed execution requires explicit environment variables (`HOME=/tmp`, `GIT_CONFIG_NOSYSTEM=1`) when executing Git within restricted sandbox environments.
+- [Node.js Test Runner Documentation](https://nodejs.org/api/test.html):
+  - Built-in `node:test` and `node:assert/strict` allow fast, dependency-free fixture testing of navigation scripts and impact analyzers across isolated temporary directories without mutating the actual repository worktree.
+- [TypeScript Module Resolution](https://www.typescriptlang.org/docs/handbook/modules/reference.html):
+  - Static resolution of relative and alias-based imports allows extracting dependency reverse edges without full project compilation or AST generation overhead.
+
+Consequences for Mizyun:
+
+1. **Deterministic Developer Navigation**: Implemented `scripts/navigation/context.mjs` and `feature-map.json` covering 100% of API modules and mobile features, capping default terminal context output to $\le 120$ lines while providing complete JSON/`--all` alternatives.
+2. **Advisory Impact Tooling**: Implemented `scripts/navigation/impact.mjs` combining direct feature ownership, package-level reverse dependencies, and semantic forward affect edges (e.g. database schema changes affecting deletion lifecycle).
+3. **Automated Structural & Boundary Validation**: Integrated `pnpm navigation:check` and `pnpm test:navigation` into the repository-wide `pnpm check` gate to enforce manifest path existence, markdown link/anchor resolution, pure core isolation, and mobile secret isolation.
+4. **Architectural Decision Record**: Authored [ADR-0022](adr/0022-git-backed-navigation-and-advisory-impact.md) codifying Git-backed memory and advisory impact analysis.
+
 ## 2026-09-08 — Session I: Q8-C Google Gemini terms, data retention, and evaluation evidence
 
 Scope: Researched Google Gemini API terms, commercial data governance, model retention windows, adult eligibility requirements, and established the versioned evaluation methodology for `gemini-3.8-flash` (Finding Q8-C / REL-AUD-005).
@@ -1976,3 +2003,15 @@ no API changes. The segment closes the gap between "Coach works"
 ## 2026-09-09 — Round-3 deployment URL validation review
 
 Primary source: [PostgreSQL connection parameters and URI forms](https://www.postgresql.org/docs/current/libpq-connect.html), checked 2026-09-09. Omitted ports use connection defaults and connection strings can supply effective parameters separately. Implementation consequence: reject ambiguous/unapproved effective database targets before mutation; a literal forbidden-port substring is not an environment identity check. Fresh mocked actual Dev deployment accepted an omitted-port localhost URL; see `IMPLEMENTATION_REVIEW_2026-09-09_ROUND_3.md`. No real database mutation occurred.
+
+## 2026-09-09 — Mobile store signing and retirement of EAS cloud dependency (ADR-0023)
+
+- Primary sources:
+  - Apple Developer Documentation, **Distributing your app for beta testing and releases** (accessed 2026-09-09): https://developer.apple.com/documentation/xcode/distributing-your-app-for-beta-testing-and-releases
+  - Android Developers, **Sign your app** & **Android App Bundle** (accessed 2026-09-09): https://developer.android.com/studio/publish/app-signing, https://developer.android.com/guide/app-bundle
+  - Expo Documentation, **Continuous Native Generation (CNG)** (accessed 2026-09-09): https://docs.expo.dev/workflow/continuous-native-generation/
+- Verified findings and implementation consequences:
+  - Expo prebuild generates complete, standard iOS Xcode workspaces and Android Gradle projects. These native directories do not require Expo Application Services (EAS Build / EAS Submit) to generate release binaries or distribute to app stores.
+  - On iOS, `xcodebuild -workspace ios/Mizyun.xcworkspace -scheme Mizyun -configuration Release archive` creates standard archives that can be uploaded directly to App Store Connect / TestFlight via Xcode Organizer or `xcrun altool`. Sideloading for dev/preview testing uses USB cable installation via `scripts/mobile-founder-*-ios.sh`.
+  - On Android, `./gradlew :app:bundleRelease` generates a signed `.aab` (Android App Bundle) when configured with a local release keystore, ready for direct web upload to Google Play Console. Sideloading uses `./gradlew :app:assembleRelease` for `.apk` installation via USB.
+  - Decision formalized in ADR-0023: Mizyun uses 100% local native release compilation and signing on founder macOS hardware. EAS cloud services are explicitly retired, eliminating third-party build queues, remote credential storage, and paid cloud subscriptions. Release gates (Gate R3 / Block 2) verify local release compilation, local keystore configurations, and physical USB device journeys.

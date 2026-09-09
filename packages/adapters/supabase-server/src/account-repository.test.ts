@@ -32,6 +32,8 @@ interface JobRow {
   challenge_hash: string;
   status: string;
   stage: string;
+  worker_id?: string | null;
+  lease_expires_at?: string | null;
   expires_at: string;
   completed_at: string | null;
   error_message: string | null;
@@ -105,6 +107,8 @@ const createMockJobsTable = (initialRows: JobRow[] = []) => {
             challenge_hash: item.challenge_hash,
             status: item.status ?? "challenge_issued",
             stage: item.stage ?? "none",
+            worker_id: item.worker_id ?? null,
+            lease_expires_at: item.lease_expires_at ?? null,
             expires_at: item.expires_at,
             completed_at: item.completed_at ?? null,
             error_message: item.error_message ?? null,
@@ -707,5 +711,93 @@ describe("SupabaseAccountRepository", () => {
 
     const unknownJob = await repo.getDeletionJobByToken("non-existent-token");
     expect(unknownJob).toBeNull();
+  });
+
+  it("active in_progress lease blocks concurrent deleteUser attempt", async () => {
+    const opts = createMockOptions();
+    const repo = new SupabaseAccountRepository(opts);
+    const now = new Date("2026-09-08T10:00:00Z");
+    const token = await repo.issueDeletionChallenge(testUserId, {
+      ttlSeconds: 300,
+      now,
+    });
+
+    // Manually transition to in_progress with an active future lease
+    const serviceClient = opts.serviceRoleClient as any;
+    await serviceClient
+      .from("account_deletion_jobs")
+      .update({
+        status: "in_progress",
+        stage: "memory",
+        worker_id: "worker-alpha",
+        lease_expires_at: new Date("2026-09-08T10:02:00Z").toISOString(),
+      })
+      .eq("user_id", testUserId);
+
+    // Concurrent request at 10:01:00Z (lease still active)
+    const concurrentTime = new Date("2026-09-08T10:01:00Z");
+    await expect(
+      repo.deleteUser(testUserId, {
+        confirmationToken: token,
+        now: concurrentTime,
+        accessToken: "valid-jwt",
+      }),
+    ).rejects.toThrow("Account deletion is already in progress");
+
+    // Auth admin deleteUser MUST NOT have been called
+    expect(opts.deleteUserMock).not.toHaveBeenCalled();
+  });
+
+  it("expired in_progress lease can be resumed by another worker without stage regression", async () => {
+    const opts = createMockOptions();
+    const repo = new SupabaseAccountRepository(opts);
+    const now = new Date("2026-09-08T10:00:00Z");
+    const token = await repo.issueDeletionChallenge(testUserId, {
+      ttlSeconds: 600,
+      now,
+    });
+
+    // Worker alpha was working on memory stage, but crashed, leaving lease expired at 10:02:00Z
+    const serviceClient = opts.serviceRoleClient as any;
+    await serviceClient
+      .from("account_deletion_jobs")
+      .update({
+        status: "in_progress",
+        stage: "memory",
+        worker_id: "worker-alpha",
+        lease_expires_at: new Date("2026-09-08T10:02:00Z").toISOString(),
+      })
+      .eq("user_id", testUserId);
+
+    // Worker beta resumes at 10:03:00Z (lease expired)
+    const resumeTime = new Date("2026-09-08T10:03:00Z");
+    const res = await repo.deleteUser(testUserId, {
+      confirmationToken: token,
+      now: resumeTime,
+      accessToken: "valid-jwt",
+    });
+
+    expect(res).toEqual({ deleted: true });
+
+    // Storage removal should NOT have been run again because stage was already 'memory',
+    // but the pre-auth sweep runs to ensure no orphaned uploads
+    expect(opts.mediaStorage!.remove).toHaveBeenCalledWith(
+      "private-media",
+      `${testUserId}/photo.jpg`,
+      { accessToken: "valid-jwt" },
+    );
+
+    // Memory deletion executed
+    expect(opts.memoryStore!.delete).toHaveBeenCalledWith(testUserId, "mem-1", {
+      accessToken: "valid-jwt",
+    });
+
+    // Auth delete executed
+    expect(opts.deleteUserMock).toHaveBeenCalledWith(testUserId);
+
+    // Tombstone successfully written
+    const finalJob = await repo.getDeletionJob(testUserId);
+    expect(finalJob?.status).toBe("completed");
+    expect(finalJob?.stage).toBe("done");
   });
 });

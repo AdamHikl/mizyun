@@ -6,24 +6,30 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(6);
+select plan(8);
 
 -- 1. Verify table exists
 select has_table('public', 'account_deletion_jobs', 'account_deletion_jobs table exists');
 
--- 2. Setup synthetic test users in auth.users
+-- 2. Verify worker lease columns exist (Q4 worker leases)
+select has_column('public', 'account_deletion_jobs', 'worker_id', 'worker_id column exists');
+select has_column('public', 'account_deletion_jobs', 'lease_expires_at', 'lease_expires_at column exists');
+
+-- 3. Setup synthetic test users in auth.users
 insert into auth.users (id, email)
 values
   ('d0000000-0000-4000-8000-000000000001', 'del-a@mizyun.test'),
   ('d0000000-0000-4000-8000-000000000002', 'del-b@mizyun.test');
 
--- 3. Service role can insert a deletion job
+-- 4. Service role can insert a deletion job with lease fields
 insert into public.account_deletion_jobs (
   id,
   user_id,
   challenge_hash,
   status,
   stage,
+  worker_id,
+  lease_expires_at,
   expires_at
 ) values (
   '00000000-0000-4000-8000-000000000001'::uuid,
@@ -31,6 +37,8 @@ insert into public.account_deletion_jobs (
   'hash_a_123',
   'challenge_issued',
   'none',
+  null,
+  null,
   now() + interval '5 minutes'
 );
 
@@ -40,7 +48,7 @@ select is(
   'service_role can insert account_deletion_jobs'
 );
 
--- 4. Switch to authenticated user A
+-- 5. Switch to authenticated user A
 set local role authenticated;
 set local request.jwt.claim.sub = 'd0000000-0000-4000-8000-000000000001';
 set local request.jwt.claim.role = 'authenticated';
@@ -55,14 +63,14 @@ select throws_ok(
   'authenticated user cannot directly insert into account_deletion_jobs'
 );
 
--- 5. User can select own job
+-- 6. User can select own job
 select is(
   (select count(*)::int from public.account_deletion_jobs where user_id = 'd0000000-0000-4000-8000-000000000001'::uuid),
   1,
   'user can select own deletion job'
 );
 
--- 6. Switch to authenticated user B (cannot see User A's job)
+-- 7. Switch to authenticated user B (cannot see User A's job)
 set local request.jwt.claim.sub = 'd0000000-0000-4000-8000-000000000002';
 select is(
   (select count(*)::int from public.account_deletion_jobs where user_id = 'd0000000-0000-4000-8000-000000000001'::uuid),
@@ -70,7 +78,7 @@ select is(
   'user B cannot select user A deletion job'
 );
 
--- 7. Reset role and test tombstone survival: deleting user from auth.users does NOT delete account_deletion_jobs record
+-- 8. Reset role and test tombstone survival: deleting user from auth.users does NOT delete account_deletion_jobs record
 reset role;
 delete from auth.users where id = 'd0000000-0000-4000-8000-000000000001';
 

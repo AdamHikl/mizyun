@@ -193,7 +193,7 @@ export const isActiveMemory = (
 export const MEMORY_ACTIVE_CONFIDENCE = 0.5;
 export const MEMORY_ACTIVE_IMPORTANCE = 3;
 export const MEMORY_LIST_DEFAULT_LIMIT = 50;
-export const MEMORY_LIST_MAX_LIMIT = 200;
+export const MEMORY_LIST_MAX_LIMIT = 10_000;
 
 export const validateActiveMemoryThreshold = (
   memory: Pick<MemoryRecord, "status" | "confidence" | "importance">,

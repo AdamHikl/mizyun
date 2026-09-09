@@ -243,6 +243,7 @@ export const accountRoutes: FastifyPluginAsync<AccountRoutesOptions> = async (
       const memories = await options.memoryStore.list(principal.userId, {
         accessToken: principal.accessToken,
         includeSuperseded: true,
+        limit: 10_000,
       });
       return accountExportToWire(exportDoc, memories);
     },

@@ -73,12 +73,16 @@ interface AccountDeletionJobRow extends Record<string, unknown> {
   readonly challenge_hash: string;
   readonly status: DeletionJobStatus;
   readonly stage: DeletionJobStage;
+  readonly worker_id?: string | null;
+  readonly lease_expires_at?: string | null;
   readonly expires_at: string;
   readonly completed_at: string | null;
   readonly error_message: string | null;
   readonly created_at: string;
   readonly updated_at: string;
 }
+
+export const DELETION_WORKER_LEASE_MS = 120_000; // 2 minutes
 
 const hashToken = (token: string): string =>
   crypto.createHash("sha256").update(token).digest("hex");
@@ -600,6 +604,10 @@ export class SupabaseAccountRepository implements AccountRepository {
       challengeHash: row.challenge_hash,
       status: row.status,
       stage: row.stage,
+      workerId: row.worker_id ?? null,
+      leaseExpiresAt: row.lease_expires_at
+        ? new Date(row.lease_expires_at)
+        : null,
       expiresAt: new Date(row.expires_at),
       completedAt: row.completed_at ? new Date(row.completed_at) : null,
       errorMessage: row.error_message,
@@ -635,7 +643,12 @@ export class SupabaseAccountRepository implements AccountRepository {
       throw new RepositoryError("Account is already deleted");
     }
     if (latest && latest.status === "in_progress") {
-      throw new RepositoryError("Account deletion is already in progress");
+      const isLeaseActive =
+        latest.lease_expires_at &&
+        new Date(latest.lease_expires_at).getTime() > options.now.getTime();
+      if (isLeaseActive) {
+        throw new RepositoryError("Account deletion is already in progress");
+      }
     }
 
     const { error } = await this.#serviceRoleClient
@@ -645,6 +658,8 @@ export class SupabaseAccountRepository implements AccountRepository {
         challenge_hash: challengeHash,
         status: "challenge_issued",
         stage: "none",
+        worker_id: null,
+        lease_expires_at: null,
         expires_at: expiresAt.toISOString(),
         completed_at: null,
         error_message: null,
@@ -713,15 +728,65 @@ export class SupabaseAccountRepository implements AccountRepository {
       return { deleted: true };
     }
 
-    // Only the caller that atomically claimed a challenge may execute the
-    // cleanup pipeline. A second request observing an in-progress job must not
-    // repeat destructive side effects (especially Auth deletion).
-    if (job.status === "in_progress") {
-      throw new RepositoryError("Account deletion is already in progress");
-    }
+    const workerId = crypto.randomUUID();
+    const leaseExpiresAt = new Date(
+      options.now.getTime() + DELETION_WORKER_LEASE_MS,
+    );
 
-    // 2. If status is challenge_issued, check expiry before accepting
-    if (job.status === "challenge_issued") {
+    let activeStage: DeletionJobStage = job.stage;
+
+    if (job.status === "in_progress") {
+      const currentLeaseExpiry = job.lease_expires_at
+        ? new Date(job.lease_expires_at).getTime()
+        : 0;
+      const isLeaseActive = currentLeaseExpiry > options.now.getTime();
+      if (isLeaseActive) {
+        throw new RepositoryError("Account deletion is already in progress");
+      }
+
+      // Resume expired lease atomically, preserving existing stage
+      let resumeBuilder = this.#serviceRoleClient
+        .from<AccountDeletionJobRow>("account_deletion_jobs")
+        .update({
+          status: "in_progress",
+          worker_id: workerId,
+          lease_expires_at: leaseExpiresAt.toISOString(),
+          updated_at: options.now.toISOString(),
+        })
+        .eq("id", job.id)
+        .eq("status", "in_progress");
+
+      if (job.lease_expires_at) {
+        resumeBuilder = resumeBuilder.eq(
+          "lease_expires_at",
+          job.lease_expires_at,
+        );
+      } else {
+        resumeBuilder = resumeBuilder.is("lease_expires_at", null);
+      }
+
+      const { data: resumedRows, error: resumeError } =
+        await resumeBuilder.select();
+      if (resumeError) {
+        throw new RepositoryError(
+          `Failed to resume account deletion job: ${resumeError.message}`,
+        );
+      }
+
+      if (!resumedRows || resumedRows.length === 0) {
+        const { data: latestJobs } = await this.#serviceRoleClient
+          .from<AccountDeletionJobRow>("account_deletion_jobs")
+          .select("*")
+          .eq("id", job.id)
+          .limit(1);
+        const current = latestJobs?.[0];
+        if (current?.status === "completed") {
+          return { deleted: true };
+        }
+        throw new RepositoryError("Account deletion is already in progress");
+      }
+      activeStage = resumedRows[0]!.stage;
+    } else if (job.status === "challenge_issued") {
       const expiresAt = new Date(job.expires_at).getTime();
       if (expiresAt < options.now.getTime()) {
         return {
@@ -737,6 +802,8 @@ export class SupabaseAccountRepository implements AccountRepository {
           .update({
             status: "in_progress",
             stage: "none",
+            worker_id: workerId,
+            lease_expires_at: leaseExpiresAt.toISOString(),
             updated_at: options.now.toISOString(),
           })
           .eq("id", job.id)
@@ -767,67 +834,144 @@ export class SupabaseAccountRepository implements AccountRepository {
           reason: { kind: "confirmation_token_mismatch" },
         };
       }
+      activeStage = updatedRows[0]!.stage;
+    } else if (job.status === "failed") {
+      // Allow retrying a failed deletion job if challenge has not expired
+      const expiresAt = new Date(job.expires_at).getTime();
+      if (expiresAt < options.now.getTime()) {
+        return {
+          deleted: false,
+          reason: { kind: "confirmation_token_expired" },
+        };
+      }
+
+      const { data: retriedRows, error: retryError } =
+        await this.#serviceRoleClient
+          .from<AccountDeletionJobRow>("account_deletion_jobs")
+          .update({
+            status: "in_progress",
+            worker_id: workerId,
+            lease_expires_at: leaseExpiresAt.toISOString(),
+            error_message: null,
+            updated_at: options.now.toISOString(),
+          })
+          .eq("id", job.id)
+          .eq("status", "failed")
+          .select();
+
+      if (retryError) {
+        throw new RepositoryError(
+          `Failed to retry account deletion job: ${retryError.message}`,
+        );
+      }
+
+      if (!retriedRows || retriedRows.length === 0) {
+        const { data: latestJobs } = await this.#serviceRoleClient
+          .from<AccountDeletionJobRow>("account_deletion_jobs")
+          .select("*")
+          .eq("id", job.id)
+          .limit(1);
+        const current = latestJobs?.[0];
+        if (current?.status === "completed") {
+          return { deleted: true };
+        }
+        throw new RepositoryError("Account deletion is already in progress");
+      }
+      activeStage = retriedRows[0]!.stage;
     }
 
     const token = options.accessToken ?? "";
-    const shouldRunStorage = job.stage === "none" || job.stage === "storage";
-    const shouldRunMemory = shouldRunStorage || job.stage === "memory";
+    const shouldRunStorage =
+      activeStage === "none" || activeStage === "storage";
+    const shouldRunMemory = shouldRunStorage || activeStage === "memory";
+
+    const sweepUserMedia = async (sweepToken: string) => {
+      if (
+        this.#mediaAssetRepository !== null &&
+        this.#mediaStorage !== null &&
+        sweepToken
+      ) {
+        const assets = await this.#mediaAssetRepository.list(userId, {
+          purpose: null,
+          limit: 10_000,
+          accessToken: sweepToken,
+        });
+        for (const asset of assets) {
+          await this.#mediaStorage.remove(asset.bucketId, asset.objectPath, {
+            accessToken: sweepToken,
+          });
+        }
+      }
+    };
 
     // Stage 1: Storage
     if (shouldRunStorage) {
-      await this.#serviceRoleClient
+      const nowWallClock = new Date();
+      const { data: stageRows } = await this.#serviceRoleClient
         .from<AccountDeletionJobRow>("account_deletion_jobs")
         .update({
           status: "in_progress",
           stage: "storage",
-          updated_at: options.now.toISOString(),
+          worker_id: workerId,
+          lease_expires_at: new Date(
+            nowWallClock.getTime() + DELETION_WORKER_LEASE_MS,
+          ).toISOString(),
+          updated_at: nowWallClock.toISOString(),
         })
-        .eq("id", job.id);
+        .eq("id", job.id)
+        .eq("worker_id", workerId)
+        .select();
 
-      if (
-        this.#mediaAssetRepository !== null &&
-        this.#mediaStorage !== null &&
-        token
-      ) {
-        try {
-          const assets = await this.#mediaAssetRepository.list(userId, {
-            purpose: null,
-            limit: 10_000,
-            accessToken: token,
-          });
-          for (const asset of assets) {
-            await this.#mediaStorage.remove(asset.bucketId, asset.objectPath, {
-              accessToken: token,
-            });
-          }
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          await this.#serviceRoleClient
-            .from<AccountDeletionJobRow>("account_deletion_jobs")
-            .update({
-              status: "failed",
-              stage: "storage",
-              error_message: msg,
-              updated_at: options.now.toISOString(),
-            })
-            .eq("id", job.id);
-          throw new RepositoryError(
-            `Account deletion failed during storage cleanup: ${msg}`,
-          );
-        }
+      if (!stageRows || stageRows.length === 0) {
+        throw new RepositoryError(
+          "Worker lease lost or taken over by another worker during storage cleanup",
+        );
+      }
+
+      try {
+        await sweepUserMedia(token);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        await this.#serviceRoleClient
+          .from<AccountDeletionJobRow>("account_deletion_jobs")
+          .update({
+            status: "failed",
+            stage: "storage",
+            error_message: msg,
+            lease_expires_at: null,
+            updated_at: options.now.toISOString(),
+          })
+          .eq("id", job.id)
+          .eq("worker_id", workerId);
+        throw new RepositoryError(
+          `Account deletion failed during storage cleanup: ${msg}`,
+        );
       }
     }
 
     // Stage 2: Memory
     if (shouldRunMemory) {
-      await this.#serviceRoleClient
+      const nowWallClock = new Date();
+      const { data: stageRows } = await this.#serviceRoleClient
         .from<AccountDeletionJobRow>("account_deletion_jobs")
         .update({
           status: "in_progress",
           stage: "memory",
-          updated_at: options.now.toISOString(),
+          worker_id: workerId,
+          lease_expires_at: new Date(
+            nowWallClock.getTime() + DELETION_WORKER_LEASE_MS,
+          ).toISOString(),
+          updated_at: nowWallClock.toISOString(),
         })
-        .eq("id", job.id);
+        .eq("id", job.id)
+        .eq("worker_id", workerId)
+        .select();
+
+      if (!stageRows || stageRows.length === 0) {
+        throw new RepositoryError(
+          "Worker lease lost or taken over by another worker during memory cleanup",
+        );
+      }
 
       if (this.#memoryStore !== null && token) {
         try {
@@ -849,9 +993,11 @@ export class SupabaseAccountRepository implements AccountRepository {
               status: "failed",
               stage: "memory",
               error_message: msg,
+              lease_expires_at: null,
               updated_at: options.now.toISOString(),
             })
-            .eq("id", job.id);
+            .eq("id", job.id)
+            .eq("worker_id", workerId);
           throw new RepositoryError(
             `Account deletion failed during memory cleanup: ${msg}`,
           );
@@ -859,15 +1005,35 @@ export class SupabaseAccountRepository implements AccountRepository {
       }
     }
 
+    // Pre-Auth reconciliation: sweep any media uploaded or orphaned in-flight
+    try {
+      await sweepUserMedia(token);
+    } catch {
+      // Best-effort cleanup of any media before auth cascade
+    }
+
     // Stage 3: Auth admin deletion (cascades database rows)
-    await this.#serviceRoleClient
+    const nowWallClock = new Date();
+    const { data: stageRows } = await this.#serviceRoleClient
       .from<AccountDeletionJobRow>("account_deletion_jobs")
       .update({
         status: "in_progress",
         stage: "auth",
-        updated_at: options.now.toISOString(),
+        worker_id: workerId,
+        lease_expires_at: new Date(
+          nowWallClock.getTime() + DELETION_WORKER_LEASE_MS,
+        ).toISOString(),
+        updated_at: nowWallClock.toISOString(),
       })
-      .eq("id", job.id);
+      .eq("id", job.id)
+      .eq("worker_id", workerId)
+      .select();
+
+    if (!stageRows || stageRows.length === 0) {
+      throw new RepositoryError(
+        "Worker lease lost or taken over by another worker during auth deletion",
+      );
+    }
 
     const adminAuth = (
       this.#serviceRoleClient.auth as unknown as {
@@ -889,9 +1055,11 @@ export class SupabaseAccountRepository implements AccountRepository {
           status: "failed",
           stage: "auth",
           error_message: msg,
+          lease_expires_at: null,
           updated_at: options.now.toISOString(),
         })
-        .eq("id", job.id);
+        .eq("id", job.id)
+        .eq("worker_id", workerId);
       throw new RepositoryError(msg);
     }
 
@@ -910,9 +1078,11 @@ export class SupabaseAccountRepository implements AccountRepository {
             status: "failed",
             stage: "auth",
             error_message: authError.message,
+            lease_expires_at: null,
             updated_at: options.now.toISOString(),
           })
-          .eq("id", job.id);
+          .eq("id", job.id)
+          .eq("worker_id", workerId);
         throw new RepositoryError(
           `Account deletion failed during auth deletion: ${authError.message}`,
         );
@@ -926,6 +1096,8 @@ export class SupabaseAccountRepository implements AccountRepository {
       .update({
         status: "completed",
         stage: "done",
+        worker_id: null,
+        lease_expires_at: null,
         completed_at: options.now.toISOString(),
         updated_at: options.now.toISOString(),
         error_message: null,
@@ -965,6 +1137,10 @@ export class SupabaseAccountRepository implements AccountRepository {
       challengeHash: row.challenge_hash,
       status: row.status,
       stage: row.stage,
+      workerId: row.worker_id ?? null,
+      leaseExpiresAt: row.lease_expires_at
+        ? new Date(row.lease_expires_at)
+        : null,
       expiresAt: new Date(row.expires_at),
       completedAt: row.completed_at ? new Date(row.completed_at) : null,
       errorMessage: row.error_message,

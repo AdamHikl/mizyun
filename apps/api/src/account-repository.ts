@@ -273,7 +273,12 @@ export class InMemoryAccountRepository implements AccountRepository {
       throw new Error("Account is already deleted");
     }
     if (latest && latest.status === "in_progress") {
-      throw new Error("Account deletion is already in progress");
+      const isLeaseActive =
+        latest.leaseExpiresAt &&
+        latest.leaseExpiresAt.getTime() > options.now.getTime();
+      if (isLeaseActive) {
+        throw new Error("Account deletion is already in progress");
+      }
     }
 
     const token = crypto.randomUUID();
@@ -288,6 +293,8 @@ export class InMemoryAccountRepository implements AccountRepository {
       challengeHash,
       status: "challenge_issued",
       stage: "none",
+      workerId: null,
+      leaseExpiresAt: null,
       expiresAt,
       completedAt: null,
       errorMessage: null,
@@ -331,65 +338,131 @@ export class InMemoryAccountRepository implements AccountRepository {
       return { deleted: true };
     }
 
-    // 2. Check challenge expiry if challenge_issued
-    if (latest.status === "challenge_issued") {
+    const workerId = crypto.randomUUID();
+    const leaseExpiresAt = new Date(options.now.getTime() + 120_000);
+    const jobIndex = this.#jobs.findIndex((j) => j.id === latest.id);
+
+    let activeStage: DeletionJobStage = latest.stage;
+
+    if (latest.status === "in_progress") {
+      const isLeaseActive =
+        latest.leaseExpiresAt &&
+        latest.leaseExpiresAt.getTime() > options.now.getTime();
+      if (isLeaseActive) {
+        throw new Error("Account deletion is already in progress");
+      }
+      // Resume expired lease preserving existing stage
+      this.#jobs[jobIndex] = {
+        ...latest,
+        workerId,
+        leaseExpiresAt,
+        updatedAt: options.now,
+      };
+      activeStage = latest.stage;
+    } else if (latest.status === "challenge_issued") {
       if (latest.expiresAt.getTime() < options.now.getTime()) {
         return {
           deleted: false,
           reason: { kind: "confirmation_token_expired" },
         };
       }
+      this.#jobs[jobIndex] = {
+        ...latest,
+        status: "in_progress",
+        stage: "none",
+        workerId,
+        leaseExpiresAt,
+        updatedAt: options.now,
+      };
+      activeStage = "none";
+    } else if (latest.status === "failed") {
+      if (latest.expiresAt.getTime() < options.now.getTime()) {
+        return {
+          deleted: false,
+          reason: { kind: "confirmation_token_expired" },
+        };
+      }
+      this.#jobs[jobIndex] = {
+        ...latest,
+        status: "in_progress",
+        workerId,
+        leaseExpiresAt,
+        errorMessage: null,
+        updatedAt: options.now,
+      };
+      activeStage = latest.stage;
     }
 
-    // Mutate job state
-    const jobIndex = this.#jobs.findIndex((j) => j.id === latest.id);
-    this.#jobs[jobIndex] = {
-      ...latest,
-      status: "in_progress",
-      stage: "storage",
-      updatedAt: options.now,
+    const token = options.accessToken ?? "";
+    const shouldRunStorage =
+      activeStage === "none" || activeStage === "storage";
+    const shouldRunMemory = shouldRunStorage || activeStage === "memory";
+
+    const sweepUserMedia = async () => {
+      if (this.#mediaAssetRepository !== null && this.#mediaStorage !== null) {
+        try {
+          const assets = await this.#mediaAssetRepository.list(userId, {
+            purpose: null,
+            limit: 10_000,
+            accessToken: token,
+          });
+          for (const asset of assets) {
+            try {
+              await this.#mediaStorage.remove(
+                asset.bucketId,
+                asset.objectPath,
+                { accessToken: token },
+              );
+            } catch {
+              // Silently ignore missing objects in storage during test
+            }
+          }
+        } catch {
+          // Silently ignore media list errors during test
+        }
+      }
     };
 
-    const token = options.accessToken ?? "";
+    if (shouldRunStorage) {
+      this.#jobs[jobIndex] = {
+        ...this.#jobs[jobIndex]!,
+        stage: "storage",
+        leaseExpiresAt: new Date(options.now.getTime() + 120_000),
+        updatedAt: options.now,
+      };
+      await sweepUserMedia();
+    }
 
-    if (this.#mediaAssetRepository !== null && this.#mediaStorage !== null) {
-      try {
-        const assets = await this.#mediaAssetRepository.list(userId, {
-          purpose: null,
-          limit: 10_000,
+    if (shouldRunMemory) {
+      this.#jobs[jobIndex] = {
+        ...this.#jobs[jobIndex]!,
+        stage: "memory",
+        leaseExpiresAt: new Date(options.now.getTime() + 120_000),
+        updatedAt: options.now,
+      };
+
+      if (this.#memoryStore !== null && token) {
+        const memories = await this.#memoryStore.list(userId, {
           accessToken: token,
+          includeSuperseded: true,
         });
-        for (const asset of assets) {
-          try {
-            await this.#mediaStorage.remove(asset.bucketId, asset.objectPath, {
-              accessToken: token,
-            });
-          } catch {
-            // Silently ignore missing objects in storage during test
-          }
-        }
-      } catch {
-        // Silently ignore media list errors during test
+        await Promise.all(
+          memories.map((m) =>
+            this.#memoryStore!.delete(userId, m.id, { accessToken: token }),
+          ),
+        );
       }
     }
 
+    // Pre-Auth reconciliation sweep
+    await sweepUserMedia();
+
     this.#jobs[jobIndex] = {
       ...this.#jobs[jobIndex]!,
-      stage: "memory",
+      stage: "auth",
+      leaseExpiresAt: new Date(options.now.getTime() + 120_000),
       updatedAt: options.now,
     };
-
-    if (this.#memoryStore !== null && token) {
-      const memories = await this.#memoryStore.list(userId, {
-        accessToken: token,
-        includeSuperseded: true,
-      });
-      await Promise.all(
-        memories.map((m) =>
-          this.#memoryStore!.delete(userId, m.id, { accessToken: token }),
-        ),
-      );
-    }
 
     if (this.#conversationRepository !== null) {
       await this.#conversationRepository.deleteAllForUser(userId, {
@@ -401,12 +474,6 @@ export class InMemoryAccountRepository implements AccountRepository {
         accessToken: token,
       });
     }
-
-    this.#jobs[jobIndex] = {
-      ...this.#jobs[jobIndex]!,
-      stage: "auth",
-      updatedAt: options.now,
-    };
 
     const workouts = await this.#workoutRepository.list(userId, {
       from: null,
@@ -469,6 +536,8 @@ export class InMemoryAccountRepository implements AccountRepository {
       ...this.#jobs[jobIndex]!,
       status: "completed",
       stage: "done",
+      workerId: null,
+      leaseExpiresAt: null,
       completedAt: options.now,
       updatedAt: options.now,
     };

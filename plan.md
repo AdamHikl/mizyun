@@ -45,15 +45,15 @@ Nutrition, training, and progress can advance in parallel only after the product
 
 ## Cross-cutting infrastructure evolution
 
-ADR-0016, ADR-0018, and `docs/INFRASTRUCTURE_EVOLUTION_PLAN.md` establish a portable path with an explicit founder-production exception:
+ADR-0016, ADR-0020 (superseding ADR-0018), and `docs/INFRASTRUCTURE_EVOLUTION_PLAN.md` establish a portable path with an explicit founder-production exception:
 
-1. keep disposable local development on the Mac and persistent founder production on official self-hosted Supabase inside Windows/WSL2;
-2. promote exact verified commits without ever resetting or seeding the PC authority;
-3. keep business rules, identity, memory, media, and model providers behind replaceable ports;
-4. add off-device backups, restore proof, monitoring, and a second operator before other users rely on the PC;
+1. keep disposable local development on the Mac, and host isolated Dev (port 4100/8100) and Production (port 4000/8000) side-by-side on the Raspberry Pi 5 (`mizyun-pi`), with the Windows PC (`mizyun-pc`) kept as a hot backup;
+2. promote exact verified commits without ever resetting or seeding remote authorities;
+3. keep business rules, identity, memory, media, and model providers behind replaceable ports (Gemini active via ADR-0019);
+4. enforce deployment safeguards (port checks, mutex locks, rollback) and off-device backups before paying users rely on the service;
 5. return to the managed/redundant production gate before paying-user cutover, including 90 days of production-shaped staging and two rehearsals.
 
-The current milestone is `INFRA-WIN-001`: provision the Windows/WSL2 host and prove persistence, reboot recovery, backup/restore, Auth/RLS/Storage, and physical-device reachability. “Production” during this milestone means Adam's founder environment, not release-grade paying-user production.
+The current infrastructure topology is operational on the Raspberry Pi 5 under `INFRA-DUAL-001–005` / ADR-0020, with physical-device journey acceptance (R8) and store distribution signing (R3 Part B) remaining open release gates. “Production” during this phase means Adam's founder environment, not release-grade paying-user production.
 
 ## Phase 0 — Modular foundation ✅
 

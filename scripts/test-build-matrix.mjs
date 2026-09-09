@@ -358,6 +358,10 @@ const androidScript = readFileSync(
   resolve(repoRoot, "scripts/mobile-founder-production-android.sh"),
   "utf-8",
 );
+const devAndroidScript = readFileSync(
+  resolve(repoRoot, "scripts/mobile-founder-dev-android.sh"),
+  "utf-8",
+);
 
 if (
   !devScript.includes("com.mizyun.dev") ||
@@ -386,8 +390,33 @@ if (
     "scripts/mobile-founder-production-android.sh is missing fail-closed applicationId mismatch guard",
   );
 }
+if (
+  !devAndroidScript.includes("com.mizyun.dev") ||
+  !devAndroidScript.includes("applicationId") ||
+  !devAndroidScript.includes('-z "$current_app_id"')
+) {
+  throw new Error(
+    "scripts/mobile-founder-dev-android.sh is missing fail-closed applicationId mismatch guard",
+  );
+}
+
+// Verify fail-closed release signing in build.gradle
+const gradleScript = readFileSync(
+  resolve(repoRoot, "apps/mobile/android/app/build.gradle"),
+  "utf-8",
+);
+if (
+  !gradleScript.includes("signingConfig signingConfigs.release") ||
+  !gradleScript.includes("MIZYUN_RELEASE_KEYSTORE") ||
+  !gradleScript.includes("GradleException")
+) {
+  throw new Error(
+    "apps/mobile/android/app/build.gradle is missing fail-closed release signing configuration",
+  );
+}
+
 console.log(
-  "✓ Fail-closed native directory mismatch guards verified in founder scripts",
+  "✓ Fail-closed native directory mismatch guards and release signing verified in founder scripts",
 );
 
 console.log(

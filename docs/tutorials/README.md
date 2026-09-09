@@ -6,21 +6,22 @@
 
 **Dev/Production setup:** [the environment guide](./DEV_PRODUCTION_PI_GUIDE.md) defines the target. Both Pi stacks now exist, but [the implementation review](../IMPLEMENTATION_REVIEW_2026-09-08.md) found incomplete isolation and release patches. Use [the Q1–Q9 remediation plan](../REMEDIATION_IMPLEMENTATION_PLAN_2026-09-08.md) and [evidence checklist](../REMEDIATION_EVIDENCE_CHECKLIST.md) to finish and verify the work.
 
-| Goal                                                  | Runbook                                           |
-| ----------------------------------------------------- | ------------------------------------------------- |
-| Start a normal coding session                         | [Daily quickstart](./QUICKSTART.md)               |
-| Configure or diagnose local Supabase and the API      | [Local backend](./LOCAL_BACKEND.md)               |
-| Develop on Mac and operate/promote Windows production | [Windows production](./SELFHOSTED_RUNBOOK.md)     |
-| Run or build the app in an iOS Simulator              | [iOS Simulator](./IOS_SIMULATOR.md)               |
-| Run or build the app in an Android emulator           | [Android emulator](./ANDROID_EMULATOR.md)         |
-| Configure and test the development AI provider        | [Mistral AI testing](./AI_DEVELOPMENT_TESTING.md) |
-| Choose and execute the right test gate                | [Testing](./TESTING.md)                           |
-| Recover from a known setup/build/runtime failure      | [Troubleshooting](./TROUBLESHOOTING.md)           |
+| Goal                                                          | Runbook                                                 | Applicability                                    |
+| ------------------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------ |
+| Start a normal coding session                                 | [Daily quickstart](./QUICKSTART.md)                     | Daily Mac workflow                               |
+| Deploy & operate primary Pi host (Dev/Prod)                   | [Dev/Production Pi guide](./DEV_PRODUCTION_PI_GUIDE.md) | Primary operational host (ADR-0020)              |
+| Configure or diagnose local Supabase & API                    | [Local backend](./LOCAL_BACKEND.md)                     | Disposable Mac stack                             |
+| Run or build the app in an iOS Simulator                      | [iOS Simulator](./IOS_SIMULATOR.md)                     | iOS simulator testing                            |
+| Run or build the app in an Android emulator                   | [Android emulator](./ANDROID_EMULATOR.md)               | Android emulator testing                         |
+| Choose and execute the right test gate                        | [Testing](./TESTING.md)                                 | Verification gates                               |
+| Recover from a known setup/build/runtime failure              | [Troubleshooting](./TROUBLESHOOTING.md)                 | Troubleshooting                                  |
+| AI provider configuration (Gemini primary, Mistral secondary) | [AI development testing](./AI_DEVELOPMENT_TESTING.md)   | Pinned Gemini models (ADR-0019)                  |
+| Operate/promote Windows production (hot backup)               | [Windows production](./SELFHOSTED_RUNBOOK.md)           | Historical / Hot backup only (ADR-0018/ADR-0020) |
 
 The normal path is:
 
 1. [Daily quickstart](./QUICKSTART.md)
-2. The relevant platform runbook
+2. The relevant platform runbook ([DEV_PRODUCTION_PI_GUIDE.md](./DEV_PRODUCTION_PI_GUIDE.md) for remote Pi operations)
 3. [Testing](./TESTING.md)
 4. [Troubleshooting](./TROUBLESHOOTING.md) only if the expected checkpoint fails
 

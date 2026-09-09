@@ -88,8 +88,21 @@ case "$action" in
       --project-dir "$repo_root/apps/mobile/android" \
       :app:assembleRelease "$@"
     ;;
+  bundleRelease)
+    shift
+    if [[ -d "$repo_root/apps/mobile/android" ]]; then
+      current_app_id="$(grep "applicationId" "$repo_root/apps/mobile/android/app/build.gradle" | head -n 1 | awk '{print $2}' | tr -d "'\"" || true)"
+      if [[ -z "$current_app_id" || "$current_app_id" != "com.mizyun.app" ]]; then
+        echo "ERROR: Native Android directory has invalid or mismatched application ID '$current_app_id' (expected 'com.mizyun.app'). Run prebuild first." >&2
+        exit 1
+      fi
+    fi
+    exec "$repo_root/apps/mobile/android/gradlew" \
+      --project-dir "$repo_root/apps/mobile/android" \
+      :app:bundleRelease "$@"
+    ;;
   *)
-    echo "Usage: $0 <prebuild|assembleRelease> [Gradle arguments...]" >&2
+    echo "Usage: $0 <prebuild|assembleRelease|bundleRelease> [Gradle arguments...]" >&2
     exit 2
     ;;
 esac

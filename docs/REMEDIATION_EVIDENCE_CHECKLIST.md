@@ -10,21 +10,21 @@ Use with [the Q1–Q9 implementation plan](REMEDIATION_IMPLEMENTATION_PLAN_2026-
 
 Allowed implementation state: `not started`, `in progress`, `implemented`, `blocked`. Review verdict: `not reviewed`, `closed`, `partially fixed`, `blocked`, `regressed`. Release state is recorded separately. Use exact full SHAs and evidence links when filled; do not put tokens, real account IDs, photos or health values here.
 
-| Finding                           | Implementation | Independent review | Round-3 evidence / remaining gate                                                                           |
-| --------------------------------- | -------------- | ------------------ | ----------------------------------------------------------------------------------------------------------- |
+| Finding                           | Implementation | Independent review | Round-3 evidence / remaining gate                                                                                         |
+| --------------------------------- | -------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------- |
 | Q1 runtime isolation              | implemented    | closed             | Unit installed on live Pi; backups chmod 700; InaccessiblePaths active (d---------); UID 999 probes verified; Dev healthy |
-| Q2 stable retries                 | in progress    | partially fixed    | Edited ambiguous retry now stops safely; durable unknown-outcome persistence and screen-level proof remain  |
-| Q3 build isolation                | in progress    | partially fixed    | Key/HTTPS/callback/preview validation added; native/EAS/device acceptance remains                           |
-| Q4 reliable deletion              | in progress    | partially fixed    | CAS/receipt/status added; concurrent resume, expiry, recovery UI and barriers missing                       |
-| Q5 complete export                | in progress    | partially fixed    | Table/goals/sort corrected; delivered memories truncated, portable media/bounds incomplete                  |
-| Q6 tier authority                 | implemented    | partially fixed    | Source fix retained; expanded script is not deployed/upgrade evidence                                       |
-| Q7 consent continuation           | in progress    | partially fixed    | Key/version/generation fixed; failed revocation now reports failure; error/context UI remains               |
-| Q8-A access containment           | in progress    | partially fixed    | External AI configuration now requires a non-empty allowlist; direct helper semantics and live proof remain |
-| Q8-B server authorization/budgets | in progress    | partially fixed    | Atomic reserved-token migration added and locally verified; leases, aggregate cap and live migration remain |
-| Q8-C provider/evaluation gate     | in progress    | blocked            | Reporting corrected; actual measured candidate/fallback evaluation absent                                   |
-| Q9 deployment safeguards          | in progress    | partially fixed    | Canonical DB URL and rollback tracking added; readiness identity and remote deployment evidence remain      |
-| R3 final signed candidate         | blocked        | blocked            | Signed artifact/device acceptance outstanding                                                               |
-| R8 device/operations acceptance   | blocked        | blocked            | Physical journeys/off-device restore outstanding                                                            |
+| Q2 stable retries                 | in progress    | partially fixed    | Edited ambiguous retry now stops safely; durable unknown-outcome persistence and screen-level proof remain                |
+| Q3 build isolation                | in progress    | partially fixed    | Key/HTTPS/callback/preview validation added; native/EAS/device acceptance remains                                         |
+| Q4 reliable deletion              | in progress    | partially fixed    | CAS/receipt/status added; concurrent resume, expiry, recovery UI and barriers missing                                     |
+| Q5 complete export                | in progress    | partially fixed    | Table/goals/sort corrected; delivered memories truncated, portable media/bounds incomplete                                |
+| Q6 tier authority                 | implemented    | partially fixed    | Source fix retained; expanded script is not deployed/upgrade evidence                                                     |
+| Q7 consent continuation           | in progress    | partially fixed    | Key/version/generation fixed; failed revocation now reports failure; error/context UI remains                             |
+| Q8-A access containment           | in progress    | partially fixed    | External AI configuration now requires a non-empty allowlist; direct helper semantics and live proof remain               |
+| Q8-B server authorization/budgets | in progress    | partially fixed    | Atomic reserved-token migration added and locally verified; leases, aggregate cap and live migration remain               |
+| Q8-C provider/evaluation gate     | in progress    | blocked            | Reporting corrected; actual measured candidate/fallback evaluation absent                                                 |
+| Q9 deployment safeguards          | in progress    | partially fixed    | Canonical DB URL and rollback tracking added; readiness identity and remote deployment evidence remain                    |
+| R3 final signed candidate         | blocked        | blocked            | Signed artifact/device acceptance outstanding                                                                             |
+| R8 device/operations acceptance   | blocked        | blocked            | Physical journeys/off-device restore outstanding                                                                          |
 
 ## Required evidence by finding
 

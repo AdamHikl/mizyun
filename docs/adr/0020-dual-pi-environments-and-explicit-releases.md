@@ -1,6 +1,6 @@
 # ADR-0020: Dual Pi environments and explicit releases
 
-- Status: proposed implementation target; user requested the topology on 2026-09-07, provisioning and acceptance pending
+- Status: accepted; topology provisioned on Pi 5 (Dev 4100/8100, Prod 4000/8000), deployment safeguards active; physical-device acceptance and store signing keys remain open release gates
 - Date: 2026-09-07
 - Related: ADR-0018, current AGENTS.md Raspberry Pi policy, INFRA-DUAL-001–005
 

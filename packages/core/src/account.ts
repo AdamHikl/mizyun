@@ -117,6 +117,8 @@ export interface StoredDeletionJob {
   readonly challengeHash: string;
   readonly status: DeletionJobStatus;
   readonly stage: DeletionJobStage;
+  readonly workerId?: string | null;
+  readonly leaseExpiresAt?: Date | null;
   readonly expiresAt: Date;
   readonly completedAt: Date | null;
   readonly errorMessage: string | null;
