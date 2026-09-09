@@ -63,7 +63,16 @@ Table row interfaces for `RepositorySupabaseClient.from<T>` in `packages/adapter
 
 For Mizyun, the **Founder Raspberry Pi 5** (Ubuntu Server 24.04 ARM64,
 reachable from this Mac over SSH as `rpserver` / `mizyun-pi`) hosts Dev and
-Production side-by-side. The topology below is the operational reference;
+Production side-by-side.
+
+**Tailscale network connectivity**: Both this Mac and the Raspberry Pi 5 are connected
+via Tailscale. Tailscale is the required network and SSH transport for connecting to
+`rpserver` (configured in `~/.ssh/config` pointing to the Pi's Tailscale IP or MagicDNS
+hostname `mizyun-pi`). Ensure Tailscale is running on this Mac whenever executing
+deployments (`pnpm deploy:dev`, `pnpm deploy:production`), running remote probes,
+or performing Pi maintenance.
+
+The topology below is the operational reference;
 verify effective isolation and current configuration before relying on it.
 Current SHAs and acceptance evidence belong in `status.md`, not this file.
 

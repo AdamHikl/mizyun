@@ -1,17 +1,19 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Last updated: **2026-09-09, independent round-3 review**. Round-2 patches are partially effective, with residual implementation defects and a new meal-retry regression. The earlier blanket remediation-complete claim is superseded below.
+> Fast-changing session handoff. Last updated: **2026-09-09, Block 1 complete**. Pi Dev isolation installed and verified live; Tailscale documented; Block 1 complete. Proceeding with remaining blocks in order.
 
-## Current handoff — independent round-3 review
+## Current handoff — Block 1 (Pi isolation) installed & verified
 
-[Per-issue report](docs/IMPLEMENTATION_REVIEW_2026-09-09_ROUND_3.md) records fresh evidence for the current uncommitted implementation over `e41e2406929ec89a5328e7869466fd109e5b9b9b`; this coordinator pass adds fixes on top of that patch.
-
-- **Fixed portions:** export table name and paged goals; server timestamp/details conflicts; restore/storage queue guards; Coach retry key, consent-version and account-generation checks; original explicit wrong-port/service alias checks; truthful offline evaluation summary.
-- **Coordinator fixes:** edited retry now stops rather than creating a duplicate meal; expired deletion receipts are preserved and the mobile card queries durable deletion status for recovery messaging; Dev/Production promotion requires canonical explicit database URLs and rollback failures are tracked; Production/preview mobile profiles require publishable configuration, HTTPS and exact Production callback; failed consent revocation returns failure; external AI configuration now requires a non-empty allowlist; daily token reservations use a new atomic `reserved_tokens` ledger migration; text Coach commits provider-reported usage when available.
-- **Still implementation work:** Q4 receipt expiry/concurrent resume/unconnected recovery and write barriers; Q5 memory truncation/portable media/resource bounds; Q7 error presentation and mutable action context; Q8 reservation lease/aggregate cost settlement and live evaluation; Q1 unit installation; Q6 deployed/upgrade evidence; Q3 native/EAS/device acceptance; R3/R8.
-- **Fresh live read-only evidence:** Dev `425b3e01b088cf8efff3820143dde319d50281f0`, Production `c02a67ab31a101c06c9a3ebdf275f9d0cee4a992`; Dev unit still permits repo writes and does not mask backups; backup directory mode 777 and Dev identity can read Production dump. Template changes are not installed by ordinary API promotion.
-- **Verification:** `pnpm check` passed on 2026-09-09: formatting, all workspace typechecks, iOS/Android bundle exports, mobile 297 tests, API 433 tests (15 integration tests skipped), config 72 tests, 23 deployment safeguard tests, build matrix, and 56 offline AI invariant checks. `pnpm db:verify` also passed locally with 97 pgTAP tests across five suites, including the new token-reservation migration. The complete tested work is committed as `81ab9b8` and pushed to `origin/main`; Pi deployment was blocked by the session approval/usage limit before the deployment command ran. No fresh native/provider/restore acceptance.
-- **Next exact action:** after the approval limit resets, run `pnpm deploy:dev 81ab9b8`; verify the public Dev health endpoint and live Pi UID/path probes, including that Dev cannot read `/srv/mizyun/backups` or write its checkout. Preserve approved shared-provider/autoconfirm policy while enforcing intended admission/cost.
+- **Block 1 (Q1 Pi Isolation) CLOSED**:
+  - `mizyun-api-dev.service` installed with `InaccessiblePaths=/etc/mizyun/production.env /var/lib/mizyun/repo /srv/mizyun/supabase /srv/mizyun/backups /home/mizyun /var/run/docker.sock`, `ReadWritePaths=/var/lib/mizyun/dev/repo /tmp`, `ProtectSystem=strict`, `ProtectHome=true`.
+  - Host permissions: `/srv/mizyun/backups` chmod `700` (`root:mizyun`), `/etc/mizyun/production.env` mode `0640` (`root:mizyun`), `/var/lib/mizyun/repo` mode `0750` (`mizyun:mizyun`).
+  - Namespace verification via `nsenter -t <DevPID> -m`: `/srv/mizyun/backups` is masked `d---------` (mode 0000), `/etc/mizyun/production.env` is masked `----------` (mode 0000), `/var/lib/mizyun/repo` is `d---------`, `/var/run/docker.sock` is `s---------`, `/home/mizyun` is inaccessible.
+  - Direct privilege probes as unprivileged `mizyun-dev-api` (UID 999, GID 987): reading `/srv/mizyun/backups` denied (EACCES), reading production env denied (EACCES), writing docker socket denied, sudo denied.
+  - `scripts/promote-dev.sh` updated with step 6: automatically syncs the systemd unit file on future promotions if the repo template changes.
+  - Tailscale connectivity explicitly documented in `AGENTS.md` and `docs/tutorials/DEV_PRODUCTION_PI_GUIDE.md`.
+  - Pi Dev deployed SHA: `993c2df61e14ea846764623c8d1a8ee225a407ff`, health HTTP 200 OK (`https://mizyun-api-dev.phiskel.com/v1/health`), Coach status ready (`gemini-3.8-flash`).
+  - Production untouched at PID 500239, uptime since Sep 3, SHA `c02a67ab31a101c06c9a3ebdf275f9d0cee4a992`, health HTTP 200 OK.
+- **Next exact action**: Execute Block 2 (Signed release artifact & physical-device acceptance) and Block 3 (Durable account deletion with worker leases & resume barriers).
 
 ## Historical implementation handoff — Round 2 remediation claim (superseded by round 3)
 

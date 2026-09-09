@@ -12,7 +12,7 @@ Allowed implementation state: `not started`, `in progress`, `implemented`, `bloc
 
 | Finding                           | Implementation | Independent review | Round-3 evidence / remaining gate                                                                           |
 | --------------------------------- | -------------- | ------------------ | ----------------------------------------------------------------------------------------------------------- |
-| Q1 runtime isolation              | in progress    | partially fixed    | Template improved; live backup read/repo write still present                                                |
+| Q1 runtime isolation              | implemented    | closed             | Unit installed on live Pi; backups chmod 700; InaccessiblePaths active (d---------); UID 999 probes verified; Dev healthy |
 | Q2 stable retries                 | in progress    | partially fixed    | Edited ambiguous retry now stops safely; durable unknown-outcome persistence and screen-level proof remain  |
 | Q3 build isolation                | in progress    | partially fixed    | Key/HTTPS/callback/preview validation added; native/EAS/device acceptance remains                           |
 | Q4 reliable deletion              | in progress    | partially fixed    | CAS/receipt/status added; concurrent resume, expiry, recovery UI and barriers missing                       |
@@ -30,10 +30,10 @@ Allowed implementation state: `not started`, `in progress`, `implemented`, `bloc
 
 ### Q1
 
-- [ ] Actual Dev runtime identity cannot read Production env/data/backups, write Production code, access Docker, or administer Production services.
-- [ ] Dev starts and completes authenticated synthetic functionality with its restricted privileges.
-- [ ] Production SHA/health and approved synthetic sentinel remain unchanged through Dev restart/deploy.
-- [ ] Effective unit settings, permissions and installed/template paths recorded without secret contents.
+- [x] Actual Dev runtime identity cannot read Production env/data/backups, write Production code, access Docker, or administer Production services.
+- [x] Dev starts and completes authenticated synthetic functionality with its restricted privileges.
+- [x] Production SHA/health and approved synthetic sentinel remain unchanged through Dev restart/deploy.
+- [x] Effective unit settings, permissions and installed/template paths recorded without secret contents.
 
 ### Q2
 

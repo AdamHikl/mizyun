@@ -161,6 +161,22 @@ export PGSSLMODE="$MIZYUN_DEV_DB_SSLMODE"
 pnpm exec supabase db push --db-url "$dev_db_url"
 migrations_applied=true
 
+# 6. Sync systemd unit if the template has changed (Q1 isolation)
+unit_template="deploy/raspberry-pi/mizyun-api-dev.service"
+installed_unit="/etc/systemd/system/mizyun-api-dev.service"
+if [[ -f "$unit_template" ]]; then
+  template_hash="$(sha256sum "$unit_template" | cut -d' ' -f1)"
+  installed_hash="$(sha256sum "$installed_unit" 2>/dev/null | cut -d' ' -f1 || echo "none")"
+  if [[ "$template_hash" != "$installed_hash" ]]; then
+    echo "Updating systemd unit ($installed_unit) from template..."
+    sudo -n cp "$unit_template" "$installed_unit"
+    sudo -n systemctl daemon-reload
+    echo "Systemd unit updated and daemon reloaded."
+  else
+    echo "Systemd unit is already up to date."
+  fi
+fi
+
 sudo -n systemctl restart "$MIZYUN_API_SERVICE"
 api_ready=false
 max_attempts="${MIZYUN_HEALTH_RETRIES:-40}"

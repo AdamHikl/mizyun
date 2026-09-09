@@ -41,10 +41,9 @@ Gaps found while preparing this guide:
 
 - No verified second Pi API/Supabase environment, resource measurements, or environment-specific deployment commands.
 - EAS profiles do not explicitly select the production variant. Preview/development profiles lack the complete intended configuration. `expo-dev-client` is not in the app dependency manifest.
-- The founder iOS wrapper contains Personal Team assumptions, a hard-coded team in one path, and disables push capability. It is not the store-distribution workflow for the newly obtained membership.
+- **Tailscale and SSH connectivity**: Remote access to `rpserver` relies on Tailscale. Both the Mac and the Raspberry Pi 5 must be connected to Tailscale. The Mac's `~/.ssh/config` maps `rpserver` to the Pi's Tailscale IP or MagicDNS hostname (e.g. `mizyun-pi`). If SSH fails, first verify Tailscale status (`tailscale status`) on the Mac and ensure the Pi is online in Tailscale before touching keys or sshd.
 - **`pnpm deploy:remote <sha>` currently ignores the positional SHA**: the script reads local `HEAD`. It requires clean `main`, pushes, and runs `pnpm db:verify` even if no schema changed. Future tooling must implement its advertised exact-SHA contract rather than copy this invocation blindly.
 - Remote promotion defaults, service names, backup scripts, and old CI assume one environment. A Compose project name alone will not fix hard-coded Supabase container names or bind-mounted directories.
-- SSH to `rpserver` failed with `Permission denied (publickey)` during the audit. Start with access repair and read-only inventory; do not recreate keys or hosts blindly.
 
 The current AGENTS.md per-commit production-promotion rule needs an explicit amendment during implementation: feature commits go to Dev, and only accepted releases go to Production. The user's requested workflow is the reason for that change. Until the new tooling and rule are adopted, this document must not be treated as evidence that the old command can safely target Dev.
 
