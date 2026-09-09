@@ -297,6 +297,7 @@ export const foodDraftCandidateSchema = z.object({
       promptVersion: z.string().trim().min(1).max(100),
     })
     .strict(),
+  tokensUsed: z.number().int().nonnegative().optional(),
 });
 
 export type FoodDraftCandidate = z.infer<typeof foodDraftCandidateSchema>;

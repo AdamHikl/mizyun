@@ -50,7 +50,7 @@ const parseTarget = (raw: unknown): GoalTarget => {
   return { weightKg: 0 };
 };
 
-const fromRow = (row: GoalRow): StoredGoal => {
+export const goalFromRow = (row: GoalRow): StoredGoal => {
   if (row.pace === null) {
     throw new RepositoryError(
       `goal ${row.id} has null pace; pre-migration row needs backfill`,
@@ -70,6 +70,8 @@ const fromRow = (row: GoalRow): StoredGoal => {
     updatedAt: new Date(row.updated_at),
   };
 };
+
+const fromRow = goalFromRow;
 
 const toInsertRow = (userId: UserId, goal: StoredGoal): Partial<GoalRow> => ({
   id: goal.id,

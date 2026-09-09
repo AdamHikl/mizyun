@@ -472,4 +472,85 @@ describe("DELETE /v1/account", () => {
     expect(deleteRes.statusCode).toBe(200);
     expect(capturedDeleteOptions?.accessToken).toBe("test-token");
   });
+
+  describe("POST /v1/account/delete/status", () => {
+    it("returns deletion status unauthenticated using confirmationToken", async () => {
+      const { app } = build(tokenVerifierFor({ userId: userA }));
+
+      // Request deletion challenge
+      const challengeRes = await app.inject({
+        method: "POST",
+        url: "/v1/account/delete/request",
+        headers: { authorization: "Bearer valid" },
+      });
+      expect(challengeRes.statusCode).toBe(200);
+      const { confirmationToken } = challengeRes.json();
+
+      // Check status unauthenticated before deletion
+      const statusBefore = await app.inject({
+        method: "POST",
+        url: "/v1/account/delete/status",
+        headers: { "content-type": "application/json" },
+        payload: { confirmationToken },
+      });
+      expect(statusBefore.statusCode).toBe(200);
+      expect(statusBefore.json()).toMatchObject({
+        status: "challenge_issued",
+        stage: "none",
+        completedAt: null,
+      });
+
+      // Confirm deletion
+      const deleteRes = await app.inject({
+        method: "DELETE",
+        url: "/v1/account",
+        headers: {
+          authorization: "Bearer valid",
+          "content-type": "application/json",
+        },
+        payload: { confirmationToken },
+      });
+      expect(deleteRes.statusCode).toBe(200);
+
+      // Check status unauthenticated after deletion (proves post-auth recovery!)
+      const statusAfter = await app.inject({
+        method: "POST",
+        url: "/v1/account/delete/status",
+        headers: { "content-type": "application/json" },
+        payload: { confirmationToken },
+      });
+      expect(statusAfter.statusCode).toBe(200);
+      expect(statusAfter.json()).toMatchObject({
+        status: "completed",
+        stage: "done",
+      });
+      expect(statusAfter.json().completedAt).not.toBeNull();
+    });
+
+    it("returns 404 for unknown confirmation token", async () => {
+      const { app } = build(tokenVerifierFor({ userId: userA }));
+
+      const res = await app.inject({
+        method: "POST",
+        url: "/v1/account/delete/status",
+        headers: { "content-type": "application/json" },
+        payload: { confirmationToken: "non-existent-token" },
+      });
+      expect(res.statusCode).toBe(404);
+      expect(res.json().error.code).toBe("NOT_FOUND");
+    });
+
+    it("returns 422 for invalid request body", async () => {
+      const { app } = build(tokenVerifierFor({ userId: userA }));
+
+      const res = await app.inject({
+        method: "POST",
+        url: "/v1/account/delete/status",
+        headers: { "content-type": "application/json" },
+        payload: { confirmationToken: "" },
+      });
+      expect(res.statusCode).toBe(422);
+      expect(res.json().error.code).toBe("VALIDATION_ERROR");
+    });
+  });
 });

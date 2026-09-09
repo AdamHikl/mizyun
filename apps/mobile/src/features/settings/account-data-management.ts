@@ -1,5 +1,6 @@
 import type { ApiClient } from "@mizyun/api-client";
-import { File, Paths } from "expo-file-system";
+import { Directory, File, Paths } from "expo-file-system";
+import * as SecureStore from "expo-secure-store";
 import {
   accountDeleteChallengeResponseSchema,
   accountDeleteResponseSchema,
@@ -18,6 +19,71 @@ import {
   type ReminderScheduler,
   type ReminderStore,
 } from "../coach/coach-reminders";
+
+export interface SecureKeyValueStore {
+  getItemAsync(key: string): Promise<string | null>;
+  setItemAsync(key: string, value: string): Promise<unknown>;
+  deleteItemAsync(key: string): Promise<unknown>;
+}
+
+export interface StoredDeletionChallenge {
+  readonly token: string;
+  readonly expiresAt: string;
+}
+
+const deletionChallengeKey = (userId: string): string =>
+  `mizyun.deletion_challenge.${userId}`;
+
+export const saveDeletionChallenge = async (
+  userId: string,
+  challenge: StoredDeletionChallenge,
+  store: SecureKeyValueStore = SecureStore,
+): Promise<void> => {
+  await store.setItemAsync(
+    deletionChallengeKey(userId),
+    JSON.stringify(challenge),
+  );
+};
+
+export const loadDeletionChallenge = async (
+  userId: string,
+  store: SecureKeyValueStore = SecureStore,
+): Promise<StoredDeletionChallenge | null> => {
+  try {
+    const raw = await store.getItemAsync(deletionChallengeKey(userId));
+    if (raw === null) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      "token" in parsed &&
+      "expiresAt" in parsed &&
+      typeof (parsed as { token: unknown }).token === "string" &&
+      typeof (parsed as { expiresAt: unknown }).expiresAt === "string"
+    ) {
+      const challenge = parsed as StoredDeletionChallenge;
+      const expiryTime = new Date(challenge.expiresAt).getTime();
+      // Keep expired receipts so a restart can still query the server's
+      // durable deletion status. The confirmation endpoint will reject an
+      // expired challenge; status recovery must remain possible afterwards.
+      if (Number.isNaN(expiryTime)) return null;
+      return {
+        token: challenge.token,
+        expiresAt: challenge.expiresAt,
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+export const clearDeletionChallenge = async (
+  userId: string,
+  store: SecureKeyValueStore = SecureStore,
+): Promise<void> => {
+  await store.deleteItemAsync(deletionChallengeKey(userId)).catch(() => {});
+};
 
 export type ExportAccountDataResult =
   | { readonly ok: true; readonly data: AccountExportResponse }
@@ -52,18 +118,76 @@ export type ConfirmAccountDeletionResult =
       readonly reason: DeletionFailureReason;
     };
 
+export type AccountDeletionStatusResult =
+  | {
+      readonly ok: true;
+      readonly status:
+        "challenge_issued" | "in_progress" | "completed" | "failed";
+      readonly stage: "none" | "storage" | "memory" | "auth" | "done";
+      readonly completedAt: string | null;
+    }
+  | {
+      readonly ok: false;
+      readonly message: string;
+      readonly notFound?: boolean;
+    };
+
+interface DeletionStatusResponseBody {
+  readonly status: "challenge_issued" | "in_progress" | "completed" | "failed";
+  readonly stage: "none" | "storage" | "memory" | "auth" | "done";
+  readonly completedAt: string | null;
+}
+
+export const checkAccountDeletionStatus = async (
+  client: ApiClient,
+  confirmationToken: string,
+): Promise<AccountDeletionStatusResult> => {
+  const result = await client.request<DeletionStatusResponseBody>({
+    method: "POST",
+    path: "/v1/account/delete/status",
+    body: { confirmationToken },
+  });
+
+  if (!result.ok) {
+    if (result.error.kind === "http_error" && result.error.status === 404) {
+      return {
+        ok: false,
+        notFound: true,
+        message: "Deletion request not found.",
+      };
+    }
+    const message =
+      result.error.kind === "http_error"
+        ? result.error.message
+        : "Could not check deletion status. Please try again.";
+    return { ok: false, message };
+  }
+
+  return {
+    ok: true,
+    status: result.value.status,
+    stage: result.value.stage,
+    completedAt: result.value.completedAt,
+  };
+};
+
 export interface ClearLocalUserDataOptions {
   readonly draftStore?: Parameters<typeof clearLoggingDraft>[2];
   readonly consentStore?: Parameters<typeof revokeAiConsent>[1];
   readonly reminderScheduler?: ReminderScheduler;
   readonly reminderStore?: ReminderStore;
   readonly additionalDraftKinds?: readonly LoggingDraftKind[];
+  readonly challengeStore?: SecureKeyValueStore;
+  readonly listExportFiles?: () => ReadonlyArray<{
+    readonly name: string;
+    delete(): void;
+  }>;
 }
 
 /**
  * Clears all locally persisted state for the given user, including
- * meal/workout/weight/coach drafts, AI consent decisions, and scheduled
- * coach reminder notifications.
+ * meal/workout/weight/coach drafts, AI consent decisions, scheduled
+ * coach reminder notifications, deletion challenges, and local exported JSON files.
  */
 export const clearLocalUserData = async (
   userId: string,
@@ -80,6 +204,23 @@ export const clearLocalUserData = async (
     ...(options.additionalDraftKinds ?? []),
   ];
 
+  const exportFiles: ReadonlyArray<{ readonly name: string; delete(): void }> =
+    (() => {
+      try {
+        if (options.listExportFiles) {
+          return options.listExportFiles();
+        }
+        const dir = new Directory(Paths.document);
+        return dir.list() as Array<{ name: string; delete(): void }>;
+      } catch {
+        return [];
+      }
+    })();
+
+  const matchedFiles = exportFiles.filter((file) =>
+    /^mizyun-account-export-.*\.json$/.test(file.name),
+  );
+
   await Promise.allSettled([
     ...draftKinds.map((kind) =>
       clearLoggingDraft(userId, kind, options.draftStore),
@@ -90,6 +231,10 @@ export const clearLocalUserData = async (
       options.reminderScheduler,
       options.reminderStore,
     ),
+    clearDeletionChallenge(userId, options.challengeStore),
+    ...matchedFiles.map(async (file) => {
+      await file.delete();
+    }),
   ]);
 };
 

@@ -38,6 +38,7 @@ interface CoachNutritionPhotoRoutesOptions {
   readonly nutritionDraftRateLimiter: FoodDraftRateLimiter;
   readonly planTierOverride?: PlanTier | undefined;
   readonly now?: (() => Date) | undefined;
+  readonly allowedEmails?: readonly string[] | undefined;
 }
 
 const MAX_PHOTO_BYTES = 15 * 1024 * 1024;
@@ -176,7 +177,13 @@ export const coachNutritionPhotoRoutes: FastifyPluginAsync<
             accessToken: principal.accessToken,
           })
         : null;
-      const authResult = authorizeAiAccess({ profile, consent, now: now() });
+      const authResult = authorizeAiAccess({
+        profile,
+        consent,
+        now: now(),
+        userEmail: request.principal?.email,
+        allowedEmails: options.allowedEmails,
+      });
       if (!authResult.authorized) {
         return sendApiError(
           reply,
@@ -342,7 +349,10 @@ export const coachNutritionPhotoRoutes: FastifyPluginAsync<
             { accessToken: principal.accessToken },
           )) ?? conversation;
         if (acquiredUnifiedLimit && options.limits) {
-          await options.limits.commitDraftTokens(principal.userId, 1500);
+          await options.limits.commitDraftTokens(
+            principal.userId,
+            candidate.tokensUsed ?? 1500,
+          );
         }
         return coachMessageResponseSchema.parse({
           conversation: toConversationWire(latestConversation),

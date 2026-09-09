@@ -110,6 +110,7 @@ const devConfig = evalConfig({
   MIZYUN_BUILD_PROFILE: "development",
   EXPO_PUBLIC_API_URL: "https://mizyun-api-dev.phiskel.com",
   EXPO_PUBLIC_SUPABASE_URL: "https://mizyun-supabase-dev.phiskel.com",
+  EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "test-dev-publishable-key",
   EXPO_PUBLIC_AUTH_REDIRECT_URI: "mizyun-dev://auth/callback",
 });
 if (
@@ -132,6 +133,7 @@ const previewConfig = evalConfig({
   MIZYUN_BUILD_PROFILE: "preview",
   EXPO_PUBLIC_API_URL: "https://mizyun-api-dev.phiskel.com",
   EXPO_PUBLIC_SUPABASE_URL: "https://mizyun-supabase-dev.phiskel.com",
+  EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "test-preview-publishable-key",
   EXPO_PUBLIC_AUTH_REDIRECT_URI: "mizyun-dev://auth/callback",
 });
 if (
@@ -154,6 +156,7 @@ const prodConfig = evalConfig({
   MIZYUN_BUILD_PROFILE: "production",
   EXPO_PUBLIC_API_URL: "https://mizyun-api.phiskel.com",
   EXPO_PUBLIC_SUPABASE_URL: "https://mizyun-supabase.phiskel.com",
+  EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "test-production-publishable-key",
   EXPO_PUBLIC_AUTH_REDIRECT_URI: "mizyun://auth/callback",
 });
 if (
@@ -207,6 +210,8 @@ evalConfigExpectingError(
   {
     MIZYUN_APP_VARIANT: "production",
     EXPO_PUBLIC_API_URL: "https://mizyun-api-dev.phiskel.com",
+    EXPO_PUBLIC_SUPABASE_URL: "https://mizyun-supabase.phiskel.com",
+    EXPO_PUBLIC_AUTH_REDIRECT_URI: "mizyun://auth/callback",
   },
   "Production variant cannot point to Dev or local API",
 );
@@ -215,6 +220,8 @@ console.log("✓ Conflicting Production -> Dev API rejected");
 evalConfigExpectingError(
   {
     MIZYUN_APP_VARIANT: "production",
+    EXPO_PUBLIC_API_URL: "https://mizyun-api.phiskel.com",
+    EXPO_PUBLIC_SUPABASE_URL: "https://mizyun-supabase.phiskel.com",
     EXPO_PUBLIC_AUTH_REDIRECT_URI: "mizyun-dev://auth/callback",
   },
   "Production variant cannot use dev redirect scheme",
@@ -241,6 +248,102 @@ console.log(
   "✓ Incompatible EAS development profile with production variant rejected",
 );
 
+evalConfigExpectingError(
+  {
+    MIZYUN_BUILD_PROFILE: "unknown",
+    MIZYUN_APP_VARIANT: "production",
+  },
+  'Unknown MIZYUN_BUILD_PROFILE "unknown"',
+);
+console.log("✓ Unknown MIZYUN_BUILD_PROFILE rejected");
+
+evalConfigExpectingError(
+  {
+    EAS_BUILD_PROFILE: "unknown",
+    MIZYUN_APP_VARIANT: "dev",
+  },
+  'Unknown EAS_BUILD_PROFILE "unknown"',
+);
+console.log("✓ Unknown EAS_BUILD_PROFILE rejected");
+
+evalConfigExpectingError(
+  {
+    MIZYUN_BUILD_PROFILE: "production",
+    MIZYUN_APP_VARIANT: "production",
+    // Missing EXPO_PUBLIC_API_URL
+    EXPO_PUBLIC_SUPABASE_URL: "https://mizyun-supabase.phiskel.com",
+    EXPO_PUBLIC_AUTH_REDIRECT_URI: "mizyun://auth/callback",
+  },
+  "Production profile requires EXPO_PUBLIC_API_URL",
+);
+console.log("✓ Production profile missing API URL rejected");
+
+evalConfigExpectingError(
+  {
+    MIZYUN_BUILD_PROFILE: "production",
+    MIZYUN_APP_VARIANT: "production",
+    EXPO_PUBLIC_API_URL: "https://mizyun-api.phiskel.com",
+    // Missing EXPO_PUBLIC_SUPABASE_URL
+    EXPO_PUBLIC_AUTH_REDIRECT_URI: "mizyun://auth/callback",
+  },
+  "Production profile requires EXPO_PUBLIC_SUPABASE_URL",
+);
+console.log("✓ Production profile missing Supabase URL rejected");
+
+evalConfigExpectingError(
+  {
+    MIZYUN_BUILD_PROFILE: "production",
+    MIZYUN_APP_VARIANT: "production",
+    EXPO_PUBLIC_API_URL: "https://mizyun-api.phiskel.com",
+    EXPO_PUBLIC_SUPABASE_URL: "https://mizyun-supabase.phiskel.com",
+    // Missing EXPO_PUBLIC_AUTH_REDIRECT_URI
+  },
+  "Production profile requires EXPO_PUBLIC_AUTH_REDIRECT_URI",
+);
+console.log("✓ Production profile missing Auth redirect URI rejected");
+
+evalConfigExpectingError(
+  {
+    MIZYUN_APP_VARIANT: "dev",
+    EXPO_PUBLIC_API_URL: "https://evil.com/api",
+  },
+  "Dev variant cannot point to API host",
+);
+console.log("✓ Foreign API URL in Dev rejected");
+
+evalConfigExpectingError(
+  {
+    MIZYUN_APP_VARIANT: "production",
+    MIZYUN_BUILD_PROFILE: "production",
+    EXPO_PUBLIC_API_URL: "https://evil.com/api",
+    EXPO_PUBLIC_SUPABASE_URL: "https://mizyun-supabase.phiskel.com",
+    EXPO_PUBLIC_AUTH_REDIRECT_URI: "mizyun://auth/callback",
+  },
+  "Production variant cannot point to non-production API",
+);
+console.log("✓ Foreign API URL in Production rejected");
+
+evalConfigExpectingError(
+  {
+    MIZYUN_APP_VARIANT: "dev",
+    EXPO_PUBLIC_AUTH_REDIRECT_URI: "evil://auth/callback",
+  },
+  "Dev variant cannot use redirect scheme",
+);
+console.log("✓ Foreign redirect scheme in Dev rejected");
+
+evalConfigExpectingError(
+  {
+    MIZYUN_APP_VARIANT: "production",
+    MIZYUN_BUILD_PROFILE: "production",
+    EXPO_PUBLIC_API_URL: "https://mizyun-api.phiskel.com",
+    EXPO_PUBLIC_SUPABASE_URL: "https://mizyun-supabase.phiskel.com",
+    EXPO_PUBLIC_AUTH_REDIRECT_URI: "evil://auth/callback",
+  },
+  "Production variant cannot use redirect scheme",
+);
+console.log("✓ Foreign redirect scheme in Production rejected");
+
 // 4. Validate native directory guardrails in scripts
 console.log("\n4. Verifying native directory guardrails in founder scripts...");
 const devScript = readFileSync(
@@ -258,29 +361,34 @@ const androidScript = readFileSync(
 
 if (
   !devScript.includes("com.mizyun.dev") ||
-  !devScript.includes("PRODUCT_BUNDLE_IDENTIFIER")
+  !devScript.includes("PRODUCT_BUNDLE_IDENTIFIER") ||
+  !devScript.includes('-z "$current_bundle_id"')
 ) {
   throw new Error(
-    "scripts/mobile-founder-dev-ios.sh is missing bundle ID mismatch guard",
+    "scripts/mobile-founder-dev-ios.sh is missing fail-closed bundle ID mismatch guard",
   );
 }
 if (
   !prodScript.includes("com.mizyun.app") ||
-  !prodScript.includes("PRODUCT_BUNDLE_IDENTIFIER")
+  !prodScript.includes("PRODUCT_BUNDLE_IDENTIFIER") ||
+  !prodScript.includes('-z "$current_bundle_id"')
 ) {
   throw new Error(
-    "scripts/mobile-founder-production-ios.sh is missing bundle ID mismatch guard",
+    "scripts/mobile-founder-production-ios.sh is missing fail-closed bundle ID mismatch guard",
   );
 }
 if (
   !androidScript.includes("com.mizyun.app") ||
-  !androidScript.includes("applicationId")
+  !androidScript.includes("applicationId") ||
+  !androidScript.includes('-z "$current_app_id"')
 ) {
   throw new Error(
-    "scripts/mobile-founder-production-android.sh is missing applicationId mismatch guard",
+    "scripts/mobile-founder-production-android.sh is missing fail-closed applicationId mismatch guard",
   );
 }
-console.log("✓ Native directory mismatch guards verified in founder scripts");
+console.log(
+  "✓ Fail-closed native directory mismatch guards verified in founder scripts",
+);
 
 console.log(
   "\nAll build matrix, native identity, and environment isolation checks PASSED!",

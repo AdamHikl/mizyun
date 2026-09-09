@@ -475,4 +475,16 @@ export class InMemoryAccountRepository implements AccountRepository {
 
     return { deleted: true };
   }
+
+  async getDeletionJobByToken(
+    confirmationToken: string,
+  ): Promise<StoredDeletionJob | null> {
+    const hash = hashToken(confirmationToken);
+    for (let i = this.#jobs.length - 1; i >= 0; i--) {
+      if (this.#jobs[i]!.challengeHash === hash) {
+        return this.#jobs[i]!;
+      }
+    }
+    return null;
+  }
 }

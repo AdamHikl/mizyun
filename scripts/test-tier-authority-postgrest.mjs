@@ -308,6 +308,147 @@ await test("PostgREST: Paid user cannot tamper with own plan_tier", async () => 
   );
 });
 
+// Test 7: Anonymous request cannot update profile or escalate tier
+await test("PostgREST: Anonymous request cannot update profile or escalate tier", async () => {
+  const anonHeaders = {
+    apikey: anonKey,
+    "Content-Type": "application/json",
+  };
+  const res = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${userId}`, {
+    method: "PATCH",
+    headers: anonHeaders,
+    body: JSON.stringify({ display_name: "Hacked" }),
+  });
+  assert(
+    !res.ok || res.status === 401 || res.status === 403,
+    "Anonymous PATCH must fail",
+  );
+});
+
+// Test 8: Cross-user write rejection (User B cannot modify User A's profile)
+await test("PostgREST: Cross-user write is rejected", async () => {
+  const victimRes = await fetch(
+    `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}`,
+    {
+      method: "GET",
+      headers: serviceHeaders,
+    },
+  );
+  const victimBefore = (await victimRes.json())[0];
+
+  // User B signup
+  const uBEmail = `tier-b-${Date.now()}@mizyun.test`;
+  const uBPass = "TestPassB123!";
+  const uBRes = await fetch(`${supabaseUrl}/auth/v1/signup`, {
+    method: "POST",
+    headers: { apikey: anonKey, "Content-Type": "application/json" },
+    body: JSON.stringify({ email: uBEmail, password: uBPass }),
+  });
+  const uBData = await uBRes.json();
+  const uBId = uBData.id || uBData.user?.id;
+  let uBToken = uBData.access_token;
+  if (!uBToken) {
+    await fetch(`${supabaseUrl}/auth/v1/admin/users/${uBId}`, {
+      method: "PUT",
+      headers: serviceHeaders,
+      body: JSON.stringify({ email_confirm: true }),
+    });
+    const sRes = await fetch(
+      `${supabaseUrl}/auth/v1/token?grant_type=password`,
+      {
+        method: "POST",
+        headers: { apikey: anonKey, "Content-Type": "application/json" },
+        body: JSON.stringify({ email: uBEmail, password: uBPass }),
+      },
+    );
+    uBToken = (await sRes.json()).access_token;
+  }
+
+  const uBAuthHeaders = {
+    apikey: anonKey,
+    Authorization: `Bearer ${uBToken}`,
+    "Content-Type": "application/json",
+    Prefer: "return=representation",
+  };
+
+  // User B tries to update User A's profile
+  const crossRes = await fetch(
+    `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}`,
+    {
+      method: "PATCH",
+      headers: uBAuthHeaders,
+      body: JSON.stringify({ display_name: "Compromised by User B" }),
+    },
+  );
+  const crossData = crossRes.ok ? await crossRes.json() : [];
+  assert(
+    crossData.length === 0,
+    "Cross-user update must return 0 modified rows",
+  );
+
+  // Verify User A profile is unchanged
+  const victimCheck = await fetch(
+    `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}`,
+    {
+      method: "GET",
+      headers: serviceHeaders,
+    },
+  );
+  const victimAfter = (await victimCheck.json())[0];
+  assert(
+    victimAfter.display_name === victimBefore.display_name,
+    "User A display_name must remain unchanged",
+  );
+
+  // Cleanup User B
+  await fetch(`${supabaseUrl}/auth/v1/admin/users/${uBId}`, {
+    method: "DELETE",
+    headers: serviceHeaders,
+  });
+});
+
+// Test 9: Authenticated user cannot UPSERT profile with plan_tier = paid
+await test("PostgREST: Authenticated user cannot UPSERT profile with plan_tier = paid", async () => {
+  const upsertHeaders = {
+    ...authHeaders,
+    Prefer: "resolution=merge-duplicates,return=representation",
+  };
+  const res = await fetch(`${supabaseUrl}/rest/v1/profiles`, {
+    method: "POST",
+    headers: upsertHeaders,
+    body: JSON.stringify({ id: userId, plan_tier: "paid" }),
+  });
+  assert(
+    !res.ok,
+    `expected non-2xx response on paid upsert, got ${res.status}`,
+  );
+  const text = await res.text();
+  assert(
+    text.includes("permission denied") ||
+      text.includes("Unauthorized") ||
+      text.includes("42501"),
+    `expected permission denied or 42501 error, got: ${text}`,
+  );
+});
+
+// Test 10: Missing/invalid claims token cannot mutate profiles
+await test("PostgREST: Missing/invalid claims token cannot mutate profiles", async () => {
+  const invalidHeaders = {
+    apikey: anonKey,
+    Authorization: "Bearer invalid.jwt.token",
+    "Content-Type": "application/json",
+  };
+  const res = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${userId}`, {
+    method: "PATCH",
+    headers: invalidHeaders,
+    body: JSON.stringify({ display_name: "Spoofed" }),
+  });
+  assert(
+    !res.ok,
+    `expected non-2xx for invalid claims token, got ${res.status}`,
+  );
+});
+
 // Cleanup synthetic user
 await fetch(`${supabaseUrl}/auth/v1/admin/users/${userId}`, {
   method: "DELETE",

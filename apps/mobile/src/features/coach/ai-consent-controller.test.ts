@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { CURRENT_AI_CONSENT_VERSION } from "@mizyun/contracts";
+
+import { loadAiConsent } from "./ai-consent";
 import {
   AiConsentController,
   createAiConsentController,
@@ -469,7 +472,7 @@ describe("ai-consent-controller", () => {
   });
 
   describe("5. confirmConsent failure and retry", () => {
-    it("transitions to error state, preserves pending action, and allows retry", async () => {
+    it("transitions to error state, preserves pending action, keeps isModalVisible true, and allows retry", async () => {
       let saveOutcome = false;
       const saveConsent = vi.fn().mockImplementation(async () => saveOutcome);
       const onExecuteAction = vi.fn();
@@ -498,6 +501,7 @@ describe("ai-consent-controller", () => {
       expect(state.status).toBe("error");
       expect(state.error).toBe("Failed to save AI consent. Please try again.");
       expect(state.pendingAction).toEqual(action); // Preserved for retry!
+      expect(state.isModalVisible).toBe(true); // Modal remains visible for retry/dismiss
 
       // Attempt 2: retry via retryPendingAction after storage issue resolves
       saveOutcome = true;
@@ -511,10 +515,152 @@ describe("ai-consent-controller", () => {
       expect(state.status).toBe("ready");
       expect(state.error).toBeNull();
       expect(state.consentGranted).toBe(true);
+      expect(state.isModalVisible).toBe(false);
       expect(state.pendingAction).toBeNull();
     });
 
-    it("handles save exception safely as error state", async () => {
+    it("save failure sets status: 'error', preserves pendingAction, and keeps isModalVisible: true so user can retry", async () => {
+      const saveConsent = vi.fn().mockResolvedValue(false);
+      const onExecuteAction = vi.fn();
+
+      const controller = createAiConsentController({
+        userId: "user-1",
+        getConsent: async () => ({ granted: false, confirmedAdult: false }),
+        saveConsent,
+        onExecuteAction,
+      });
+      await controller.waitForLoad();
+
+      const action: PendingAiAction = {
+        kind: "coach_photo",
+        photoUri: "file:///lunch.jpg",
+      };
+      await controller.requestAction(action);
+      expect(controller.getState().isModalVisible).toBe(true);
+
+      await controller.confirmConsent();
+
+      const state = controller.getState();
+      expect(state.status).toBe("error");
+      expect(state.error).toBe("Failed to save AI consent. Please try again.");
+      expect(state.pendingAction).toEqual(action);
+      expect(state.isModalVisible).toBe(true);
+      expect(onExecuteAction).not.toHaveBeenCalled();
+    });
+
+    it("calling confirmConsent after error retries saving and dispatches pending action on success", async () => {
+      let failFirst = true;
+      const saveConsent = vi.fn().mockImplementation(async () => {
+        if (failFirst) {
+          failFirst = false;
+          return false;
+        }
+        return true;
+      });
+      const onExecuteAction = vi.fn();
+
+      const controller = createAiConsentController({
+        userId: "user-1",
+        getConsent: async () => ({ granted: false, confirmedAdult: false }),
+        saveConsent,
+        onExecuteAction,
+      });
+      await controller.waitForLoad();
+
+      const action: PendingAiAction = {
+        kind: "coach_message",
+        text: "Tell me about recovery",
+      };
+      await controller.requestAction(action);
+
+      // Attempt 1: fails
+      await controller.confirmConsent();
+      expect(controller.getState().status).toBe("error");
+      expect(controller.getState().isModalVisible).toBe(true);
+      expect(controller.getState().pendingAction).toEqual(action);
+
+      // Attempt 2: retry directly via confirmConsent
+      await controller.confirmConsent();
+
+      const state = controller.getState();
+      expect(state.status).toBe("ready");
+      expect(state.error).toBeNull();
+      expect(state.consentGranted).toBe(true);
+      expect(state.isModalVisible).toBe(false);
+      expect(state.pendingAction).toBeNull();
+      expect(onExecuteAction).toHaveBeenCalledTimes(1);
+      expect(onExecuteAction).toHaveBeenCalledWith(action);
+    });
+
+    it("calling retryPendingAction after error transitions to saving, retries saving, and dispatches on success", async () => {
+      let failFirst = true;
+      const saveConsent = vi.fn().mockImplementation(async () => {
+        if (failFirst) {
+          failFirst = false;
+          return false;
+        }
+        return true;
+      });
+      const onExecuteAction = vi.fn();
+
+      const controller = createAiConsentController({
+        userId: "user-1",
+        getConsent: async () => ({ granted: false, confirmedAdult: false }),
+        saveConsent,
+        onExecuteAction,
+      });
+      await controller.waitForLoad();
+
+      const action: PendingAiAction = {
+        kind: "meal_refine_draft",
+        instruction: "reduce sodium",
+      };
+      await controller.requestAction(action);
+
+      // Attempt 1: fails
+      await controller.confirmConsent();
+      expect(controller.getState().status).toBe("error");
+      expect(controller.getState().isModalVisible).toBe(true);
+
+      // Attempt 2: retry via retryPendingAction
+      await controller.retryPendingAction();
+
+      const state = controller.getState();
+      expect(state.status).toBe("ready");
+      expect(state.error).toBeNull();
+      expect(state.consentGranted).toBe(true);
+      expect(state.isModalVisible).toBe(false);
+      expect(state.pendingAction).toBeNull();
+      expect(onExecuteAction).toHaveBeenCalledTimes(1);
+      expect(onExecuteAction).toHaveBeenCalledWith(action);
+    });
+
+    it("clears error and hides modal on declineConsent from error state", async () => {
+      const saveConsent = vi.fn().mockResolvedValue(false);
+      const controller = createAiConsentController({
+        userId: "user-1",
+        getConsent: async () => ({ granted: false, confirmedAdult: false }),
+        saveConsent,
+      });
+      await controller.waitForLoad();
+
+      await controller.requestAction({
+        kind: "coach_message",
+        text: "Question",
+      });
+      await controller.confirmConsent();
+      expect(controller.getState().status).toBe("error");
+      expect(controller.getState().isModalVisible).toBe(true);
+
+      controller.declineConsent();
+      const state = controller.getState();
+      expect(state.status).toBe("ready");
+      expect(state.error).toBeNull();
+      expect(state.isModalVisible).toBe(false);
+      expect(state.pendingAction).toBeNull();
+    });
+
+    it("handles save exception safely as error state and keeps modal visible", async () => {
       const saveConsent = vi
         .fn()
         .mockRejectedValue(new Error("SecureStore exception"));
@@ -537,10 +683,11 @@ describe("ai-consent-controller", () => {
       expect(controller.getState().error).toBe(
         "Failed to save AI consent. Please try again.",
       );
+      expect(controller.getState().isModalVisible).toBe(true);
       expect(controller.getState().pendingAction).not.toBeNull();
     });
 
-    it("retryPendingAction is inert if not in error state or without pendingAction", async () => {
+    it("retryPendingAction is inert if not in error state", async () => {
       const saveConsent = vi.fn().mockResolvedValue(true);
       const controller = createAiConsentController({
         userId: "user-1",
@@ -721,6 +868,63 @@ describe("ai-consent-controller", () => {
       expect(controller.getState().pendingAction).toBeNull();
     });
 
+    it("discards stale completion from A->B->A account switching and does not dispatch an action under the new generation", async () => {
+      let resolveSaveUserA1!: (val: boolean) => void;
+      const saveConsent = vi.fn().mockImplementation(async (uid: string) => {
+        if (uid === "user-a") {
+          return new Promise<boolean>((resolve) => {
+            resolveSaveUserA1 = resolve;
+          });
+        }
+        return true;
+      });
+
+      const onExecuteAction = vi.fn();
+      const controller = createAiConsentController({
+        userId: "user-a",
+        getConsent: async () => ({ granted: false, confirmedAdult: false }),
+        saveConsent,
+        onExecuteAction,
+      });
+      await controller.waitForLoad();
+
+      const action1: PendingAiAction = {
+        kind: "coach_message",
+        text: "User A question 1",
+      };
+      await controller.requestAction(action1);
+
+      // User A taps confirm (in flight for User A, generation 1)
+      const savePromise1 = controller.confirmConsent();
+
+      // Account switch: User A -> User B
+      controller.updateUserId("user-b");
+      await controller.waitForLoad();
+      expect(controller.getState().pendingAction).toBeNull();
+
+      // Account switch: User B -> User A (A->B->A sequence)
+      controller.updateUserId("user-a");
+      await controller.waitForLoad();
+
+      // User A creates a new pending action under the new generation
+      const action2: PendingAiAction = {
+        kind: "coach_message",
+        text: "User A question 2 (new generation)",
+      };
+      await controller.requestAction(action2);
+      expect(controller.getState().pendingAction).toEqual(action2);
+
+      // Now the earlier save for User A finally resolves
+      resolveSaveUserA1(true);
+      await savePromise1;
+
+      // Stale completion from earlier generation must NOT dispatch action2:
+      expect(onExecuteAction).not.toHaveBeenCalled();
+      // action2 remains pending for the current generation
+      expect(controller.getState().pendingAction).toEqual(action2);
+      expect(controller.getState().status).toBe("required");
+    });
+
     it("resets state when user signs out (userId -> null)", async () => {
       const controller = createAiConsentController({
         userId: "user-1",
@@ -792,6 +996,144 @@ describe("ai-consent-controller", () => {
       expect(onExecuteAction).toHaveBeenCalledTimes(1);
 
       unmount();
+    });
+  });
+
+  describe("9. Consent version currency (CURRENT_AI_CONSENT_VERSION)", () => {
+    it("obsolete consent version is treated as unconsented in loadAiConsent", async () => {
+      const obsoleteStore = {
+        async getItemAsync() {
+          return JSON.stringify({
+            granted: true,
+            confirmedAdult: true,
+            consentedAt: "2025-01-01T00:00:00Z",
+            consentVersion: "2025-01-01", // obsolete!
+          });
+        },
+        async setItemAsync() {
+          return null;
+        },
+        async deleteItemAsync() {
+          return null;
+        },
+      };
+
+      const result = await loadAiConsent("user-1", obsoleteStore);
+      expect(result.granted).toBe(false);
+      expect(result.consentVersion).toBe("2025-01-01");
+    });
+
+    it("obsolete remote consent version is treated as unconsented", async () => {
+      const store = {
+        async getItemAsync() {
+          return null;
+        },
+        async setItemAsync() {
+          return null;
+        },
+        async deleteItemAsync() {
+          return null;
+        },
+      };
+      const obsoleteApiClient = {
+        request: async () => ({
+          ok: true as const,
+          value: {
+            consent: {
+              granted: true,
+              confirmedAdult: true,
+              consentVersion: "2025-01-01", // obsolete!
+              consentedAt: "2025-01-01T00:00:00Z",
+              revokedAt: null,
+            },
+          },
+        }),
+        status: () => ({
+          configured: true as const,
+          baseUrl: "https://api.test",
+        }),
+      };
+
+      const result = await loadAiConsent(
+        "user-1",
+        store,
+        obsoleteApiClient as any,
+      );
+      expect(result.granted).toBe(false);
+      expect(result.consentVersion).toBe("2025-01-01");
+    });
+
+    it("controller treats obsolete consent version as ungranted and requires consent on action", async () => {
+      const obsoleteStore = {
+        async getItemAsync() {
+          return JSON.stringify({
+            granted: true,
+            confirmedAdult: true,
+            consentedAt: "2025-01-01T00:00:00Z",
+            consentVersion: "2025-01-01", // obsolete
+          });
+        },
+        async setItemAsync() {
+          return null;
+        },
+        async deleteItemAsync() {
+          return null;
+        },
+      };
+
+      const onExecuteAction = vi.fn();
+      const controller = createAiConsentController({
+        userId: "user-1",
+        getConsent: async (uid) => {
+          const status = await loadAiConsent(uid, obsoleteStore);
+          return {
+            granted: status.granted,
+            confirmedAdult: status.confirmedAdult,
+          };
+        },
+        onExecuteAction,
+      });
+
+      await controller.waitForLoad();
+
+      const state = controller.getState();
+      expect(state.status).toBe("ready");
+      expect(state.consentGranted).toBe(false);
+
+      // Requesting an action must require consent
+      const action: PendingAiAction = {
+        kind: "coach_message",
+        text: "Help me with pushups",
+      };
+      await controller.requestAction(action);
+
+      expect(onExecuteAction).not.toHaveBeenCalled();
+      expect(controller.getState().status).toBe("required");
+      expect(controller.getState().isModalVisible).toBe(true);
+      expect(controller.getState().pendingAction).toEqual(action);
+    });
+
+    it("current consent version (CURRENT_AI_CONSENT_VERSION) is treated as granted", async () => {
+      const currentStore = {
+        async getItemAsync() {
+          return JSON.stringify({
+            granted: true,
+            confirmedAdult: true,
+            consentedAt: "2026-09-08T12:00:00Z",
+            consentVersion: CURRENT_AI_CONSENT_VERSION,
+          });
+        },
+        async setItemAsync() {
+          return null;
+        },
+        async deleteItemAsync() {
+          return null;
+        },
+      };
+
+      const result = await loadAiConsent("user-1", currentStore);
+      expect(result.granted).toBe(true);
+      expect(result.consentVersion).toBe(CURRENT_AI_CONSENT_VERSION);
     });
   });
 });

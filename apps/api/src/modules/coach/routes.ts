@@ -114,6 +114,7 @@ interface CoachRoutesOptions {
    */
   readonly planTierOverride?: PlanTier | undefined;
   readonly now?: (() => Date) | undefined;
+  readonly allowedEmails?: readonly string[] | undefined;
 }
 
 const toConversationWire = (stored: StoredConversation): CoachConversation => ({
@@ -617,7 +618,13 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
             accessToken: principal.accessToken,
           })
         : null;
-      const authResult = authorizeAiAccess({ profile, consent, now: now() });
+      const authResult = authorizeAiAccess({
+        profile,
+        consent,
+        now: now(),
+        userEmail: request.principal?.email,
+        allowedEmails: options.allowedEmails,
+      });
       if (!authResult.authorized) {
         return sendApiError(
           reply,
@@ -713,7 +720,10 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
               { accessToken: principal.accessToken },
             )) ?? conversation;
           if (acquiredUnifiedLimit && options.limits) {
-            await options.limits.commitDraftTokens(principal.userId, 500);
+            await options.limits.commitDraftTokens(
+              principal.userId,
+              candidate.tokensUsed ?? 500,
+            );
           }
           return coachMessageResponseSchema.parse({
             conversation: toConversationWire(latestConversation),

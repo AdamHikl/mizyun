@@ -58,6 +58,13 @@ export const loadAiConsent = async (
     // ignore read error
   }
 
+  if (localStatus.consentVersion !== CURRENT_AI_CONSENT_VERSION) {
+    localStatus = {
+      ...localStatus,
+      granted: false,
+    };
+  }
+
   if (apiClient) {
     try {
       const res = await apiClient.request<AiConsentResponse>({
@@ -66,12 +73,18 @@ export const loadAiConsent = async (
         schema: aiConsentResponseSchema,
       });
       if (res.ok) {
-        const remoteStatus: AiConsentStatus = {
+        let remoteStatus: AiConsentStatus = {
           granted: res.value.consent.granted,
           confirmedAdult: res.value.consent.confirmedAdult,
           consentedAt: res.value.consent.consentedAt,
           consentVersion: res.value.consent.consentVersion,
         };
+        if (remoteStatus.consentVersion !== CURRENT_AI_CONSENT_VERSION) {
+          remoteStatus = {
+            ...remoteStatus,
+            granted: false,
+          };
+        }
         try {
           await store.setItemAsync(
             consentKey(userId),

@@ -29,18 +29,42 @@ export const loadLoggingDraft = async <T>(
   }
 };
 
+const writeQueues = new Map<string, Promise<unknown>>();
+const storageGenerations = new Map<string, number>();
+
+const enqueueWrite = <T>(key: string, task: () => Promise<T>): Promise<T> => {
+  const previous = writeQueues.get(key) ?? Promise.resolve();
+  const current = previous.catch(() => {}).then(task);
+  writeQueues.set(key, current);
+  current.finally(() => {
+    if (writeQueues.get(key) === current) {
+      writeQueues.delete(key);
+    }
+  });
+  return current;
+};
+
 export const saveLoggingDraft = async <T extends object>(
   userId: string,
   kind: LoggingDraftKind,
   value: T,
   store: SecureKeyValueStore = SecureStore,
 ): Promise<boolean> => {
-  try {
-    await store.setItemAsync(draftKey(userId, kind), JSON.stringify(value));
-    return true;
-  } catch {
-    return false;
-  }
+  const key = draftKey(userId, kind);
+  const scheduledGen = storageGenerations.get(key) ?? 0;
+  return enqueueWrite(key, async () => {
+    const currentGen = storageGenerations.get(key) ?? 0;
+    if (currentGen !== scheduledGen) {
+      // A clear happened after this save was scheduled; drop this save.
+      return false;
+    }
+    try {
+      await store.setItemAsync(key, JSON.stringify(value));
+      return true;
+    } catch {
+      return false;
+    }
+  });
 };
 
 export const clearLoggingDraft = async (
@@ -48,10 +72,15 @@ export const clearLoggingDraft = async (
   kind: LoggingDraftKind,
   store: SecureKeyValueStore = SecureStore,
 ): Promise<boolean> => {
-  try {
-    await store.deleteItemAsync(draftKey(userId, kind));
-    return true;
-  } catch {
-    return false;
-  }
+  const key = draftKey(userId, kind);
+  const nextGen = (storageGenerations.get(key) ?? 0) + 1;
+  storageGenerations.set(key, nextGen);
+  return enqueueWrite(key, async () => {
+    try {
+      await store.deleteItemAsync(key);
+      return true;
+    } catch {
+      return false;
+    }
+  });
 };

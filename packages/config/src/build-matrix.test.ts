@@ -100,6 +100,8 @@ describe("validateBuildMatrix", () => {
         variant: "production",
         profile: "production",
         apiUrl: "https://mizyun-api-dev.phiskel.com",
+        supabaseUrl: "https://mizyun-supabase.phiskel.com",
+        authRedirectUri: "mizyun://auth/callback",
       });
       expect(result.ok).toBe(false);
       if (result.ok) return;
@@ -113,6 +115,8 @@ describe("validateBuildMatrix", () => {
         variant: "production",
         profile: "production",
         apiUrl: "http://localhost:4000",
+        supabaseUrl: "https://mizyun-supabase.phiskel.com",
+        authRedirectUri: "mizyun://auth/callback",
       });
       expect(result.ok).toBe(false);
       if (result.ok) return;
@@ -174,12 +178,45 @@ describe("validateBuildMatrix", () => {
       const result = validateBuildMatrix({
         variant: "production",
         profile: "production",
+        apiUrl: "https://mizyun-api.phiskel.com",
+        supabaseUrl: "https://mizyun-supabase.phiskel.com",
         authRedirectUri: "mizyun-dev://auth/callback",
       });
       expect(result.ok).toBe(false);
       if (result.ok) return;
       expect(result.error[0]).toMatchObject({
         key: "EXPO_PUBLIC_AUTH_REDIRECT_URI",
+      });
+    });
+
+    it("rejects production profile when API URL is missing", () => {
+      const result = validateBuildMatrix({
+        variant: "production",
+        profile: "production",
+        supabaseUrl: "https://mizyun-supabase.phiskel.com",
+        authRedirectUri: "mizyun://auth/callback",
+      });
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error[0]).toMatchObject({
+        kind: "missing",
+        keys: ["EXPO_PUBLIC_API_URL"],
+      });
+    });
+
+    it("rejects production profile when foreign API URL is given", () => {
+      const result = validateBuildMatrix({
+        variant: "production",
+        profile: "production",
+        apiUrl: "https://evil.com/api",
+        supabaseUrl: "https://mizyun-supabase.phiskel.com",
+        authRedirectUri: "mizyun://auth/callback",
+      });
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error[0]).toMatchObject({
+        kind: "malformed",
+        key: "EXPO_PUBLIC_API_URL",
       });
     });
   });

@@ -143,6 +143,25 @@ export type AccountDeleteChallengeResponse = z.infer<
   typeof accountDeleteChallengeResponseSchema
 >;
 
+export const accountDeleteStatusSchema = z
+  .object({
+    confirmationToken: z.string().trim().min(1).max(256),
+  })
+  .strict();
+
+export type AccountDeleteStatusBody = z.infer<typeof accountDeleteStatusSchema>;
+
+export const accountDeleteStatusResponseSchema = z.object({
+  status: z.enum(["challenge_issued", "in_progress", "completed", "failed"]),
+  stage: z.enum(["none", "storage", "memory", "auth", "done"]),
+  completedAt: z.string().datetime().nullable(),
+  createdAt: z.string().datetime(),
+});
+
+export type AccountDeleteStatusResponse = z.infer<
+  typeof accountDeleteStatusResponseSchema
+>;
+
 /**
  * Current authoritative version for third-party AI processing disclosures.
  * (Finding R5 / REL-AUD-005 / Q8-B).

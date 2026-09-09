@@ -935,6 +935,7 @@ export interface VisionDraftCandidate {
     readonly model: string;
     readonly promptVersion: string;
   };
+  readonly tokensUsed?: number | undefined;
 }
 
 export interface VisionDraftProvider {

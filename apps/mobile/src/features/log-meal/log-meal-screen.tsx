@@ -128,6 +128,7 @@ export function LogMealScreen() {
   const [consumedAt, setConsumedAt] = useState<string | null>(null);
   const isSubmittingRef = useRef<boolean>(false);
   const isCompletedRef = useRef<boolean>(false);
+  const submittedOperationRef = useRef<LogMealForm | null>(null);
 
   useEffect(() => {
     if (userId === null) return;
@@ -211,7 +212,8 @@ export function LogMealScreen() {
   ]);
 
   const onSubmit = useCallback(async () => {
-    if (isSubmittingRef.current || isCompletedRef.current) return;
+    if (!draftLoaded || isSubmittingRef.current || isCompletedRef.current)
+      return;
     isSubmittingRef.current = true;
     setSubmitting(true);
 
@@ -236,10 +238,47 @@ export function LogMealScreen() {
       return;
     }
 
-    const opId = clientOperationId ?? createOperationId();
     const fixedConsumedAt = consumedAt ?? new Date().toISOString();
-    if (clientOperationId === null) setClientOperationId(opId);
     if (consumedAt === null) setConsumedAt(fixedConsumedAt);
+
+    // Check if current form is an exact retry of the previously submitted operation
+    const prev = submittedOperationRef.current;
+    const isRetryOfPrev =
+      prev !== null &&
+      prev.name.trim() === name.trim() &&
+      prev.caloriesKcal === parsedCalories.value &&
+      prev.proteinG === parsedProtein.value &&
+      prev.carbohydrateG === parsedCarbs.value &&
+      prev.fatG === parsedFat.value &&
+      prev.consumedAt === fixedConsumedAt;
+
+    // A retryable failure may represent a committed request whose response was
+    // lost. Do not turn an edited form into a second authoritative meal until
+    // the original operation is reconciled.
+    if (prev !== null && !isRetryOfPrev && hadFailure.current) {
+      isSubmittingRef.current = false;
+      setSubmitting(false);
+      measurement.current?.fail("submit", "unexpected", true);
+      setError(
+        "This meal may already have been saved. Retry the submitted values first, or start a new meal entry after confirming the original result.",
+      );
+      return;
+    }
+
+    let opId: string;
+    if (isRetryOfPrev && prev !== null && prev.clientOperationId) {
+      // Re-use exact operation ID for immutable retry
+      opId = prev.clientOperationId;
+    } else {
+      // If previously submitted form differed or no previous attempt, ensure a fresh operation ID
+      opId =
+        prev !== null && prev.clientOperationId
+          ? createOperationId()
+          : (clientOperationId ?? createOperationId());
+      if (clientOperationId !== opId) {
+        setClientOperationId(opId);
+      }
+    }
 
     // Await durable draft persistence before submitting (Requirement 2)
     if (userId !== null) {
@@ -292,9 +331,12 @@ export function LogMealScreen() {
             },
           }),
     };
+    submittedOperationRef.current = form;
+
     const result = await submitLogMeal(form);
     if (result.ok) {
       isCompletedRef.current = true;
+      submittedOperationRef.current = null;
       measurement.current?.complete();
       if (userId !== null) await clearLoggingDraft(userId, "meal");
       router.back();
@@ -569,6 +611,7 @@ export function LogMealScreen() {
     setSourceProposalId(null);
     setRefineInstruction("");
     setError(null);
+    submittedOperationRef.current = null;
     setClientOperationId(createOperationId());
     setConsumedAt(new Date().toISOString());
     if (userId !== null) {
@@ -955,9 +998,9 @@ export function LogMealScreen() {
             <Pressable
               accessibilityRole="button"
               testID="submit-meal-button"
-              disabled={submitting || snapping || refining}
+              disabled={!draftLoaded || submitting || snapping || refining}
               accessibilityState={{
-                disabled: submitting || snapping || refining,
+                disabled: !draftLoaded || submitting || snapping || refining,
                 busy: submitting,
               }}
               onPress={() => {

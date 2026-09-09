@@ -257,6 +257,13 @@ writeFileSync(
 if [ -f "${path.join(tempBase, "mock_curl_fail")}" ]; then
   exit 1
 fi
+if [ -f "${path.join(tempBase, "mock_curl_fail_count")}" ]; then
+  count=$(cat "${path.join(tempBase, "mock_curl_fail_count")}")
+  if [ "$count" -gt 0 ]; then
+    echo $((count - 1)) > "${path.join(tempBase, "mock_curl_fail_count")}"
+    exit 1
+  fi
+fi
 exit 0
 `,
 );
@@ -365,6 +372,56 @@ MIZYUN_LOCAL_API_URL="http://127.0.0.1:4100"
       "Refusing to run dev promotion against production service",
     ),
     "expected service guard error",
+  );
+});
+
+await test("promote-dev.sh: Reject execution against production service with .service alias", () => {
+  const badEnvFile = path.join(tempBase, "bad-service-alias-dev.env");
+  writeFileSync(
+    badEnvFile,
+    `MIZYUN_DEV_DB_URL="postgresql://postgres:postgres@127.0.0.1:5433/postgres"
+MIZYUN_API_SERVICE="mizyun-api.service"
+MIZYUN_LOCAL_API_URL="http://127.0.0.1:4100"
+`,
+  );
+  const res = runPromoteDev({ envFile: badEnvFile });
+  assert(res.status === 2, `expected exit 2, got ${res.status}`);
+  assert(
+    res.stderr.includes(
+      "Refusing to run dev promotion against production service",
+    ),
+    "expected service guard error",
+  );
+});
+
+await test("promote-dev.sh: Reject execution when MIZYUN_DEV_DB_URL points to production DB port 5432", () => {
+  const badEnvFile = path.join(tempBase, "bad-port-dev.env");
+  writeFileSync(
+    badEnvFile,
+    `MIZYUN_DEV_DB_URL="postgresql://postgres:postgres@127.0.0.1:5432/postgres"
+MIZYUN_API_SERVICE="mizyun-api-dev"
+MIZYUN_LOCAL_API_URL="http://127.0.0.1:4100"
+`,
+  );
+  const res = runPromoteDev({ envFile: badEnvFile });
+  assert(res.status === 2, `expected exit 2, got ${res.status}`);
+  assert(
+    res.stderr.includes("points to production database port 5432"),
+    "expected port guard error",
+  );
+});
+
+await test("promote-dev.sh: Reject execution when Dev DB port is omitted", () => {
+  const badEnvFile = path.join(tempBase, "missing-port-dev.env");
+  writeFileSync(
+    badEnvFile,
+    `MIZYUN_DEV_DB_URL="postgresql://postgres:postgres@127.0.0.1/postgres"\nMIZYUN_API_SERVICE="mizyun-api-dev"\nMIZYUN_LOCAL_API_URL="http://127.0.0.1:4100"\n`,
+  );
+  const res = runPromoteDev({ envFile: badEnvFile });
+  assert(res.status === 2, `expected exit 2, got ${res.status}`);
+  assert(
+    res.stderr.includes("canonical localhost:5433"),
+    "expected canonical Dev DB guard",
   );
 });
 
@@ -477,7 +534,45 @@ await test("promote-dev.sh: Health-check failure triggers rollback (regression f
     "rollback_code MUST be invoked on timeout",
   );
 
-  // Verify journal logged rollback
+  // Verify journal logged rollback_failed because curl failed during rollback too
+  assert(existsSync(journalPath), "journal file should exist");
+  const linesAfter = readFileSync(journalPath, "utf8").trim().split("\n");
+  assert(
+    linesAfter.length > linesBefore,
+    "new journal entry should be appended",
+  );
+  const lastEntry = JSON.parse(linesAfter[linesAfter.length - 1]);
+  assert(
+    lastEntry.status === "rollback_failed",
+    `journal status should be rollback_failed, got ${lastEntry.status}`,
+  );
+});
+
+await test("promote-dev.sh: Rollback logs 'rolled_back' when rollback health check succeeds", () => {
+  // Fail only 2 attempts (the deployment health check), then succeed on rollback
+  const curlFailCount = path.join(tempBase, "mock_curl_fail_count");
+  writeFileSync(curlFailCount, "2");
+
+  const journalPath = path.join(
+    devRepoDir,
+    ".git/mizyun-dev-release-journal.jsonl",
+  );
+  const linesBefore = existsSync(journalPath)
+    ? readFileSync(journalPath, "utf8").trim().split("\n").length
+    : 0;
+
+  const res = runPromoteDev({
+    targetSha: commit2,
+    extraEnv: { MIZYUN_HEALTH_RETRIES: "2", MIZYUN_HEALTH_SLEEP: "0" },
+  });
+  if (existsSync(curlFailCount)) rmSync(curlFailCount);
+
+  assert(
+    res.status === 1,
+    `expected exit 1 on health failure, got ${res.status}`,
+  );
+  assert(res.stderr.includes("Rollback to"), "rollback must succeed");
+
   assert(existsSync(journalPath), "journal file should exist");
   const linesAfter = readFileSync(journalPath, "utf8").trim().split("\n");
   assert(
@@ -573,6 +668,42 @@ MIZYUN_API_SERVICE="mizyun-api-dev"
       "Refusing to run production promotion against dev service",
     ),
     "expected service guard error",
+  );
+});
+
+await test("promote-production.sh: Reject execution against dev service with .service alias", () => {
+  const badEnv = path.join(tempBase, "bad-service-alias-prod.env");
+  writeFileSync(
+    badEnv,
+    `NODE_ENV="production"
+MIZYUN_PRODUCTION_DB_URL="postgresql://..."
+MIZYUN_API_SERVICE="mizyun-api-dev.service"
+`,
+  );
+  const res = runPromoteProd({ envFile: badEnv });
+  assert(res.status === 2, `expected exit 2, got ${res.status}`);
+  assert(
+    res.stderr.includes(
+      "Refusing to run production promotion against dev service",
+    ),
+    "expected service guard error",
+  );
+});
+
+await test("promote-production.sh: Reject execution when MIZYUN_PRODUCTION_DB_URL points to dev DB port 5433", () => {
+  const badEnv = path.join(tempBase, "bad-port-prod.env");
+  writeFileSync(
+    badEnv,
+    `NODE_ENV="production"
+MIZYUN_PRODUCTION_DB_URL="postgresql://postgres:postgres@127.0.0.1:5433/postgres"
+MIZYUN_API_SERVICE="mizyun-api"
+`,
+  );
+  const res = runPromoteProd({ envFile: badEnv });
+  assert(res.status === 2, `expected exit 2, got ${res.status}`);
+  assert(
+    res.stderr.includes("points to dev database port 5433"),
+    "expected port guard error",
   );
 });
 

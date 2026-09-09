@@ -574,6 +574,7 @@ const parseGeminiVisionResponse = (
 ): {
   readonly candidate: VisionModelOutput;
   readonly resolvedModel: string | null;
+  readonly tokensUsed?: number | undefined;
 } | null => {
   if (typeof raw !== "object" || raw === null) return null;
   const record = raw as Record<string, unknown>;
@@ -581,6 +582,14 @@ const parseGeminiVisionResponse = (
     typeof record.modelVersion === "string" && record.modelVersion.length > 0
       ? record.modelVersion
       : null;
+  const usageMetadata = record.usageMetadata as
+    Record<string, unknown> | undefined;
+  const tokensUsed =
+    typeof usageMetadata?.totalTokenCount === "number" &&
+    Number.isFinite(usageMetadata.totalTokenCount) &&
+    usageMetadata.totalTokenCount >= 0
+      ? Math.round(usageMetadata.totalTokenCount)
+      : undefined;
   const candidates = record.candidates;
   if (!Array.isArray(candidates) || candidates.length === 0) return null;
   const first = candidates[0];
@@ -603,6 +612,7 @@ const parseGeminiVisionResponse = (
       return {
         candidate: normalizeCandidateValues(result.data),
         resolvedModel,
+        ...(tokensUsed !== undefined ? { tokensUsed } : {}),
       };
     }
   } catch {
@@ -837,6 +847,9 @@ export class GeminiVisionProvider implements VisionDraftProvider {
           "The AI suggestion was rejected by the safety policy. Please enter the values manually.",
         ],
         assumptions: [],
+        ...(parsedResponse.tokensUsed !== undefined
+          ? { tokensUsed: parsedResponse.tokensUsed }
+          : {}),
         provenance: {
           inputKind,
           provider: "gemini",
@@ -848,6 +861,9 @@ export class GeminiVisionProvider implements VisionDraftProvider {
 
     return {
       ...parsed,
+      ...(parsedResponse.tokensUsed !== undefined
+        ? { tokensUsed: parsedResponse.tokensUsed }
+        : {}),
       provenance: {
         inputKind,
         provider: "gemini",

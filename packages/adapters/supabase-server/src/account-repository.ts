@@ -36,6 +36,7 @@ import type { MemoryStore } from "@mizyun/memory";
 
 import type { RepositorySupabaseClient } from "./index.js";
 import { RepositoryError } from "./repository-error.js";
+import { goalFromRow } from "./goal-repository.js";
 import { foodEntryFromRow } from "./food-entry-repository.js";
 import { exerciseFromRow } from "./exercise-repository.js";
 import { workoutFromRow } from "./workout-repository.js";
@@ -83,6 +84,7 @@ const hashToken = (token: string): string =>
   crypto.createHash("sha256").update(token).digest("hex");
 
 const EXPORT_PAGE_SIZE = 500;
+const MAX_EXPORT_PAGES = 1000;
 
 async function fetchAllPaged<T extends Record<string, unknown>>(
   client: RepositorySupabaseClient,
@@ -94,20 +96,32 @@ async function fetchAllPaged<T extends Record<string, unknown>>(
 ): Promise<ReadonlyArray<T>> {
   const all: T[] = [];
   let offset = 0;
-  while (true) {
-    const { data, error } = await client
-      .from<T>(table)
-      .select("*")
-      .eq(filterCol, filterVal)
-      .order(orderCol, { ascending })
-      .range(offset, offset + EXPORT_PAGE_SIZE - 1);
+  let page = 0;
+  while (page < MAX_EXPORT_PAGES) {
+    page++;
+    let query = client.from<T>(table).select("*").eq(filterCol, filterVal);
+
+    if (orderCol === "id") {
+      query = query.order("id", { ascending });
+    } else {
+      query = query
+        .order(orderCol, { ascending })
+        .order("id", { ascending: true });
+    }
+
+    const { data, error } = await query.range(
+      offset,
+      offset + EXPORT_PAGE_SIZE - 1,
+    );
     if (error) {
       throw new RepositoryError(`Error exporting ${table}: ${error.message}`);
     }
     const chunk = (data ?? []) as readonly T[];
+    if (chunk.length === 0) break;
     all.push(...chunk);
+    offset += chunk.length;
+    // If the database returned fewer than the requested page size, we've reached the end
     if (chunk.length < EXPORT_PAGE_SIZE) break;
-    offset += EXPORT_PAGE_SIZE;
   }
   return all;
 }
@@ -215,6 +229,8 @@ export class SupabaseAccountRepository implements AccountRepository {
     let feedback: ReadonlyArray<UserFeedback>;
     let privateMedia: ReadonlyArray<ExportedMediaAsset>;
     let aiConsent: StoredAiConsent | null = null;
+    let memoryCount = 0;
+    let hasMediaSigningFailures = false;
 
     if (this.#clientFor !== null) {
       const client = this.#clientFor(token);
@@ -223,9 +239,15 @@ export class SupabaseAccountRepository implements AccountRepository {
         now,
         accessToken: token,
       });
-      goals = await this.#goalRepository.getHistory(userId, {
-        accessToken: token,
-      });
+      const goalRows = await fetchAllPaged(
+        client,
+        "goals",
+        "user_id",
+        userId,
+        "updated_at",
+        false,
+      );
+      goals = goalRows.map((r: any) => goalFromRow(r));
 
       const foodRows = await fetchAllPaged(
         client,
@@ -321,13 +343,23 @@ export class SupabaseAccountRepository implements AccountRepository {
 
       const feedbackRows = await fetchAllPaged(
         client,
-        "feedback",
+        "user_feedback",
         "user_id",
         userId,
         "created_at",
         false,
       );
       feedback = feedbackRows.map((r: any) => feedbackFromRow(r));
+
+      const memoryRows = await fetchAllPaged(
+        client,
+        "memory_items",
+        "user_id",
+        userId,
+        "created_at",
+        false,
+      );
+      memoryCount = memoryRows.length;
 
       const mediaRows = await fetchAllPaged(
         client,
@@ -353,6 +385,9 @@ export class SupabaseAccountRepository implements AccountRepository {
               })
               .catch(() => null);
             downloadUrl = signed?.url ?? null;
+            if (!downloadUrl) {
+              hasMediaSigningFailures = true;
+            }
           }
           return {
             id: asset.id,
@@ -469,6 +504,9 @@ export class SupabaseAccountRepository implements AccountRepository {
               })
               .catch(() => null);
             downloadUrl = signed?.url ?? null;
+            if (!downloadUrl) {
+              hasMediaSigningFailures = true;
+            }
           }
           return {
             id: asset.id,
@@ -481,6 +519,16 @@ export class SupabaseAccountRepository implements AccountRepository {
           };
         }),
       );
+      if (this.#memoryStore) {
+        const mems = await this.#memoryStore
+          .list(userId, {
+            accessToken: token,
+            includeSuperseded: true,
+            limit: 10_000,
+          })
+          .catch(() => []);
+        memoryCount = mems.length;
+      }
       if (this.#aiConsentRepository) {
         aiConsent = await this.#aiConsentRepository.getConsent(userId, {
           accessToken: token,
@@ -495,7 +543,7 @@ export class SupabaseAccountRepository implements AccountRepository {
     const manifest: ExportManifest = {
       schemaVersion: "2026-09-08",
       generatedAt: now,
-      completeness: "complete",
+      completeness: hasMediaSigningFailures ? "partial" : "complete",
       counts: {
         profiles: profile ? 1 : 0,
         goals: goals.length,
@@ -506,7 +554,7 @@ export class SupabaseAccountRepository implements AccountRepository {
         bodyMeasurements: bodyMeasurements.length,
         conversations: conversations.length,
         messages: totalMessages,
-        memories: 0,
+        memories: memoryCount,
         privateMedia: privateMedia.length,
         feedback: feedback.length,
         aiConsents: aiConsent ? 1 : 0,
@@ -665,6 +713,13 @@ export class SupabaseAccountRepository implements AccountRepository {
       return { deleted: true };
     }
 
+    // Only the caller that atomically claimed a challenge may execute the
+    // cleanup pipeline. A second request observing an in-progress job must not
+    // repeat destructive side effects (especially Auth deletion).
+    if (job.status === "in_progress") {
+      throw new RepositoryError("Account deletion is already in progress");
+    }
+
     // 2. If status is challenge_issued, check expiry before accepting
     if (job.status === "challenge_issued") {
       const expiresAt = new Date(job.expires_at).getTime();
@@ -675,103 +730,132 @@ export class SupabaseAccountRepository implements AccountRepository {
         };
       }
 
-      // Transition to in_progress. Once accepted, expiry no longer applies.
-      const { error: transitionError } = await this.#serviceRoleClient
-        .from<AccountDeletionJobRow>("account_deletion_jobs")
-        .update({
-          status: "in_progress",
-          stage: "none",
-          updated_at: options.now.toISOString(),
-        })
-        .eq("id", job.id);
+      // Transition to in_progress with atomic CAS on status = 'challenge_issued'
+      const { data: updatedRows, error: transitionError } =
+        await this.#serviceRoleClient
+          .from<AccountDeletionJobRow>("account_deletion_jobs")
+          .update({
+            status: "in_progress",
+            stage: "none",
+            updated_at: options.now.toISOString(),
+          })
+          .eq("id", job.id)
+          .eq("status", "challenge_issued")
+          .select();
 
       if (transitionError) {
         throw new RepositoryError(
           `Failed to transition account deletion job: ${transitionError.message}`,
         );
       }
+
+      if (!updatedRows || updatedRows.length === 0) {
+        const { data: latestJobs } = await this.#serviceRoleClient
+          .from<AccountDeletionJobRow>("account_deletion_jobs")
+          .select("*")
+          .eq("id", job.id)
+          .limit(1);
+        const current = latestJobs?.[0];
+        if (current?.status === "completed") {
+          return { deleted: true };
+        }
+        if (current?.status === "in_progress") {
+          throw new RepositoryError("Account deletion is already in progress");
+        }
+        return {
+          deleted: false,
+          reason: { kind: "confirmation_token_mismatch" },
+        };
+      }
     }
 
     const token = options.accessToken ?? "";
+    const shouldRunStorage = job.stage === "none" || job.stage === "storage";
+    const shouldRunMemory = shouldRunStorage || job.stage === "memory";
 
     // Stage 1: Storage
-    await this.#serviceRoleClient
-      .from<AccountDeletionJobRow>("account_deletion_jobs")
-      .update({
-        status: "in_progress",
-        stage: "storage",
-        updated_at: options.now.toISOString(),
-      })
-      .eq("id", job.id);
+    if (shouldRunStorage) {
+      await this.#serviceRoleClient
+        .from<AccountDeletionJobRow>("account_deletion_jobs")
+        .update({
+          status: "in_progress",
+          stage: "storage",
+          updated_at: options.now.toISOString(),
+        })
+        .eq("id", job.id);
 
-    if (
-      this.#mediaAssetRepository !== null &&
-      this.#mediaStorage !== null &&
-      token
-    ) {
-      try {
-        const assets = await this.#mediaAssetRepository.list(userId, {
-          purpose: null,
-          limit: 10_000,
-          accessToken: token,
-        });
-        for (const asset of assets) {
-          await this.#mediaStorage.remove(asset.bucketId, asset.objectPath, {
+      if (
+        this.#mediaAssetRepository !== null &&
+        this.#mediaStorage !== null &&
+        token
+      ) {
+        try {
+          const assets = await this.#mediaAssetRepository.list(userId, {
+            purpose: null,
+            limit: 10_000,
             accessToken: token,
           });
+          for (const asset of assets) {
+            await this.#mediaStorage.remove(asset.bucketId, asset.objectPath, {
+              accessToken: token,
+            });
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          await this.#serviceRoleClient
+            .from<AccountDeletionJobRow>("account_deletion_jobs")
+            .update({
+              status: "failed",
+              stage: "storage",
+              error_message: msg,
+              updated_at: options.now.toISOString(),
+            })
+            .eq("id", job.id);
+          throw new RepositoryError(
+            `Account deletion failed during storage cleanup: ${msg}`,
+          );
         }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        await this.#serviceRoleClient
-          .from<AccountDeletionJobRow>("account_deletion_jobs")
-          .update({
-            status: "failed",
-            stage: "storage",
-            error_message: msg,
-            updated_at: options.now.toISOString(),
-          })
-          .eq("id", job.id);
-        throw new RepositoryError(
-          `Account deletion failed during storage cleanup: ${msg}`,
-        );
       }
     }
 
     // Stage 2: Memory
-    await this.#serviceRoleClient
-      .from<AccountDeletionJobRow>("account_deletion_jobs")
-      .update({
-        status: "in_progress",
-        stage: "memory",
-        updated_at: options.now.toISOString(),
-      })
-      .eq("id", job.id);
+    if (shouldRunMemory) {
+      await this.#serviceRoleClient
+        .from<AccountDeletionJobRow>("account_deletion_jobs")
+        .update({
+          status: "in_progress",
+          stage: "memory",
+          updated_at: options.now.toISOString(),
+        })
+        .eq("id", job.id);
 
-    if (this.#memoryStore !== null && token) {
-      try {
-        const memories = await this.#memoryStore.list(userId, {
-          accessToken: token,
-          includeSuperseded: true,
-        });
-        await Promise.all(
-          memories.map((m) =>
-            this.#memoryStore!.delete(userId, m.id, { accessToken: token }),
-          ),
-        );
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        await this.#serviceRoleClient
-          .from<AccountDeletionJobRow>("account_deletion_jobs")
-          .update({
-            status: "failed",
-            stage: "memory",
-            error_message: msg,
-            updated_at: options.now.toISOString(),
-          })
-          .eq("id", job.id);
-        throw new RepositoryError(
-          `Account deletion failed during memory cleanup: ${msg}`,
-        );
+      if (this.#memoryStore !== null && token) {
+        try {
+          const memories = await this.#memoryStore.list(userId, {
+            accessToken: token,
+            includeSuperseded: true,
+            limit: 10_000,
+          });
+          await Promise.all(
+            memories.map((m) =>
+              this.#memoryStore!.delete(userId, m.id, { accessToken: token }),
+            ),
+          );
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          await this.#serviceRoleClient
+            .from<AccountDeletionJobRow>("account_deletion_jobs")
+            .update({
+              status: "failed",
+              stage: "memory",
+              error_message: msg,
+              updated_at: options.now.toISOString(),
+            })
+            .eq("id", job.id);
+          throw new RepositoryError(
+            `Account deletion failed during memory cleanup: ${msg}`,
+          );
+        }
       }
     }
 
@@ -790,7 +874,7 @@ export class SupabaseAccountRepository implements AccountRepository {
         admin?: {
           deleteUser?: (id: string) => Promise<{
             data?: unknown;
-            error?: { message: string } | null;
+            error?: { message: string; status?: number } | null;
           }>;
         };
       }
@@ -813,18 +897,27 @@ export class SupabaseAccountRepository implements AccountRepository {
 
     const { error: authError } = await adminAuth.deleteUser(userId);
     if (authError) {
-      await this.#serviceRoleClient
-        .from<AccountDeletionJobRow>("account_deletion_jobs")
-        .update({
-          status: "failed",
-          stage: "auth",
-          error_message: authError.message,
-          updated_at: options.now.toISOString(),
-        })
-        .eq("id", job.id);
-      throw new RepositoryError(
-        `Account deletion failed during auth deletion: ${authError.message}`,
-      );
+      const errMsg = authError.message || "";
+      const isAbsentUser =
+        errMsg.toLowerCase().includes("not found") ||
+        errMsg.toLowerCase().includes("does not exist") ||
+        (authError as any).status === 404;
+
+      if (!isAbsentUser) {
+        await this.#serviceRoleClient
+          .from<AccountDeletionJobRow>("account_deletion_jobs")
+          .update({
+            status: "failed",
+            stage: "auth",
+            error_message: authError.message,
+            updated_at: options.now.toISOString(),
+          })
+          .eq("id", job.id);
+        throw new RepositoryError(
+          `Account deletion failed during auth deletion: ${authError.message}`,
+        );
+      }
+      // If user was already absent from Auth, auth deletion is idempotently fulfilled.
     }
 
     // Stage 4: Mark job completed (tombstone)
@@ -846,5 +939,37 @@ export class SupabaseAccountRepository implements AccountRepository {
     }
 
     return { deleted: true };
+  }
+
+  async getDeletionJobByToken(
+    confirmationToken: string,
+  ): Promise<StoredDeletionJob | null> {
+    if (!this.#serviceRoleClient || !confirmationToken) {
+      return null;
+    }
+    const challengeHash = hashToken(confirmationToken);
+    const { data: jobs, error } = await this.#serviceRoleClient
+      .from<AccountDeletionJobRow>("account_deletion_jobs")
+      .select("*")
+      .eq("challenge_hash", challengeHash)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (error || !jobs || jobs.length === 0) {
+      return null;
+    }
+    const row = jobs[0]!;
+    return {
+      id: row.id,
+      userId: row.user_id as UserId,
+      challengeHash: row.challenge_hash,
+      status: row.status,
+      stage: row.stage,
+      expiresAt: new Date(row.expires_at),
+      completedAt: row.completed_at ? new Date(row.completed_at) : null,
+      errorMessage: row.error_message,
+      createdAt: new Date(row.created_at),
+      updatedAt: new Date(row.updated_at),
+    };
   }
 }

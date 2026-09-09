@@ -197,6 +197,12 @@ export const coachingPreferencesSchema = z
         ]),
       )
       .max(6),
+    countryCode: z
+      .string()
+      .trim()
+      .regex(/^[A-Z]{2}$/, "country code must be a 2-letter uppercase ISO code")
+      .nullable()
+      .optional(),
   })
   .strict()
   .superRefine((value, context) => {
@@ -570,6 +576,8 @@ export {
   accountDeleteChallengeResponseSchema,
   accountDeleteResponseSchema,
   accountDeleteSchema,
+  accountDeleteStatusResponseSchema,
+  accountDeleteStatusSchema,
   accountExportResponseSchema,
   accountExportSchema,
   aiConsentResponseSchema,
@@ -582,6 +590,8 @@ export {
   type AccountDeleteBody,
   type AccountDeleteChallengeResponse,
   type AccountDeleteResponse,
+  type AccountDeleteStatusBody,
+  type AccountDeleteStatusResponse,
   type AccountExport,
   type AccountExportResponse,
   type AiConsent,

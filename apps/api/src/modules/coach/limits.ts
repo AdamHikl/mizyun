@@ -276,15 +276,25 @@ export class SupabaseCoachLimitService implements CoachLimitService {
   }
 
   async commitTokens(request: FinalizeRequest): Promise<void> {
-    await this.#client.rpc("ai_complete_provider_call", {
+    const completeResult = await this.#client.rpc("ai_complete_provider_call", {
       p_provider_call_id: request.providerCallId,
       p_status: request.finalStatus,
       p_message_id: request.messageId,
       p_tokens: request.tokensUsed,
     });
-    await this.#client.rpc("ai_release_in_flight", {
+    if (completeResult.error) {
+      throw new LimitsError(
+        `rpc ai_complete_provider_call failed: ${completeResult.error.message}`,
+      );
+    }
+    const releaseResult = await this.#client.rpc("ai_release_in_flight", {
       p_user_id: request.userId,
     });
+    if (releaseResult.error) {
+      throw new LimitsError(
+        `rpc ai_release_in_flight failed: ${releaseResult.error.message}`,
+      );
+    }
   }
 
   async releaseSlot(request: FinalizeRequest): Promise<void> {
@@ -292,15 +302,25 @@ export class SupabaseCoachLimitService implements CoachLimitService {
     // tokens_used when `p_status = 'succeeded'`. Failed releases
     // therefore leave the daily ledger unchanged, so a re-attempt
     // with a fresh idempotency key is not penalised.
-    await this.#client.rpc("ai_complete_provider_call", {
+    const completeResult = await this.#client.rpc("ai_complete_provider_call", {
       p_provider_call_id: request.providerCallId,
       p_status: request.finalStatus,
       p_message_id: request.messageId,
       p_tokens: request.tokensUsed,
     });
-    await this.#client.rpc("ai_release_in_flight", {
+    if (completeResult.error) {
+      throw new LimitsError(
+        `rpc ai_complete_provider_call failed: ${completeResult.error.message}`,
+      );
+    }
+    const releaseResult = await this.#client.rpc("ai_release_in_flight", {
       p_user_id: request.userId,
     });
+    if (releaseResult.error) {
+      throw new LimitsError(
+        `rpc ai_release_in_flight failed: ${releaseResult.error.message}`,
+      );
+    }
   }
 
   async acquireDraftSlot(
@@ -374,16 +394,35 @@ export class SupabaseCoachLimitService implements CoachLimitService {
 
   async commitDraftTokens(userId: UserId, tokensUsed: number): Promise<void> {
     const day = sqlDay(this.#clock());
-    await this.#client.rpc("ai_commit_tokens", {
+    const commitResult = await this.#client.rpc("ai_commit_tokens", {
       p_user_id: userId,
       p_day: day,
       p_tokens: tokensUsed,
     });
-    await this.#client.rpc("ai_release_in_flight", { p_user_id: userId });
+    if (commitResult.error) {
+      throw new LimitsError(
+        `rpc ai_commit_tokens failed: ${commitResult.error.message}`,
+      );
+    }
+    const releaseResult = await this.#client.rpc("ai_release_in_flight", {
+      p_user_id: userId,
+    });
+    if (releaseResult.error) {
+      throw new LimitsError(
+        `rpc ai_release_in_flight failed: ${releaseResult.error.message}`,
+      );
+    }
   }
 
   async releaseDraftSlot(userId: UserId): Promise<void> {
-    await this.#client.rpc("ai_release_in_flight", { p_user_id: userId });
+    const releaseResult = await this.#client.rpc("ai_release_in_flight", {
+      p_user_id: userId,
+    });
+    if (releaseResult.error) {
+      throw new LimitsError(
+        `rpc ai_release_in_flight failed: ${releaseResult.error.message}`,
+      );
+    }
   }
 }
 

@@ -50,8 +50,8 @@ case "$action" in
     shift
     if [[ -d "$repo_root/apps/mobile/ios" ]]; then
       current_bundle_id="$(grep -m1 'PRODUCT_BUNDLE_IDENTIFIER =' "$repo_root/apps/mobile/ios/Mizyun.xcodeproj/project.pbxproj" | tr -d ';\t ' | cut -d= -f2 || true)"
-      if [[ -n "$current_bundle_id" && "$current_bundle_id" != "com.mizyun.dev" ]]; then
-        echo "ERROR: Native iOS directory has bundle ID '$current_bundle_id', but requested variant is '$MIZYUN_APP_VARIANT' (expected 'com.mizyun.dev'). Run prebuild first: pnpm mobile:founder-dev:ios:prebuild" >&2
+      if [[ -z "$current_bundle_id" || "$current_bundle_id" != "com.mizyun.dev" ]]; then
+        echo "ERROR: Native iOS directory has invalid or mismatched bundle ID '$current_bundle_id' (expected 'com.mizyun.dev'). Run prebuild first: pnpm mobile:founder-dev:ios:prebuild" >&2
         exit 1
       fi
     fi

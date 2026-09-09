@@ -172,6 +172,12 @@ export interface AccountRepository {
    * if any exists.
    */
   getDeletionJob?(userId: UserId): Promise<StoredDeletionJob | null>;
+  /**
+   * Look up a deletion job by its unhashed challenge token (for unauthenticated post-auth recovery).
+   */
+  getDeletionJobByToken?(
+    confirmationToken: string,
+  ): Promise<StoredDeletionJob | null>;
 }
 
 export interface StoredAiConsent {

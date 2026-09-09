@@ -157,4 +157,90 @@ describe("authorizeAiAccess", () => {
     });
     expect(res.authorized).toBe(true);
   });
+
+  describe("email allowlist admission boundary (Q8-A)", () => {
+    it("allows access when allowedEmails is empty (default / production)", () => {
+      const res1 = authorizeAiAccess({
+        profile: adultProfile,
+        consent: validConsent,
+        now: referenceNow,
+        allowedEmails: [],
+      });
+      expect(res1.authorized).toBe(true);
+
+      const res2 = authorizeAiAccess({
+        profile: adultProfile,
+        consent: validConsent,
+        now: referenceNow,
+        allowedEmails: [],
+        userEmail: "anybody@example.com",
+      });
+      expect(res2.authorized).toBe(true);
+    });
+
+    it("forbids with AI_NOT_INVITED when allowedEmails is non-empty and userEmail is undefined, null, or not in the list", () => {
+      const allowlist = ["founder@mizyun.com", "partner@mizyun.com"];
+
+      // undefined userEmail
+      const resUndefined = authorizeAiAccess({
+        profile: adultProfile,
+        consent: validConsent,
+        now: referenceNow,
+        allowedEmails: allowlist,
+      });
+      expect(resUndefined.authorized).toBe(false);
+      if (!resUndefined.authorized) {
+        expect(resUndefined.code).toBe("AI_NOT_INVITED");
+        expect(resUndefined.statusCode).toBe(403);
+      }
+
+      // null userEmail
+      const resNull = authorizeAiAccess({
+        profile: adultProfile,
+        consent: validConsent,
+        now: referenceNow,
+        allowedEmails: allowlist,
+        userEmail: null,
+      });
+      expect(resNull.authorized).toBe(false);
+      if (!resNull.authorized) {
+        expect(resNull.code).toBe("AI_NOT_INVITED");
+      }
+
+      // not in allowlist
+      const resUninvited = authorizeAiAccess({
+        profile: adultProfile,
+        consent: validConsent,
+        now: referenceNow,
+        allowedEmails: allowlist,
+        userEmail: "uninvited@example.com",
+      });
+      expect(resUninvited.authorized).toBe(false);
+      if (!resUninvited.authorized) {
+        expect(resUninvited.code).toBe("AI_NOT_INVITED");
+      }
+    });
+
+    it("allows access when allowedEmails is non-empty and userEmail matches (case-insensitively)", () => {
+      const allowlist = ["Founder@Mizyun.com", "partner@mizyun.com"];
+
+      const res1 = authorizeAiAccess({
+        profile: adultProfile,
+        consent: validConsent,
+        now: referenceNow,
+        allowedEmails: allowlist,
+        userEmail: "founder@mizyun.com",
+      });
+      expect(res1.authorized).toBe(true);
+
+      const res2 = authorizeAiAccess({
+        profile: adultProfile,
+        consent: validConsent,
+        now: referenceNow,
+        allowedEmails: allowlist,
+        userEmail: "PARTNER@MIZYUN.COM",
+      });
+      expect(res2.authorized).toBe(true);
+    });
+  });
 });

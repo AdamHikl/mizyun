@@ -1,30 +1,32 @@
 # Before testing AI features
 
-> **AI integration is intentionally disabled for real-user data.** Provider-neutral code and fake-adapter tests may proceed without a key. Complete the synthetic-provider gate below before sending synthetic fixtures to a live model, and complete the entire checklist before real-user AI testing or external access.
+> **Broader real-user AI acceptance remains blocked.** The explicitly approved founder/testing-partner Dev exception is recorded in AGENTS.md; do not infer that the live Dev service is disabled. Provider-neutral code and fake-adapter tests may proceed without a key. Complete the synthetic-provider gate before new live evaluation, and the entire checklist before broader external access.
 
-The active external model provider candidate is Google Gemini (`gemini-3.8-flash` / `packages/providers/gemini`) for both text coaching and multimodal meal nutrition drafting. Current commercial terms, transient processing (no model training on API prompts), 30-day abuse monitoring retention, adult eligibility (18+), explicit user consent, and spend caps have been audited per `docs/RELEASE_READINESS_2026-09-07.md`.
+The active external model provider candidate is Google Gemini (`gemini-3.8-flash` / `packages/providers/gemini`) for both text coaching and multimodal meal nutrition drafting. Current terms research is recorded in `docs/RESEARCH_LOG.md`; actual project settings, lifecycle/privacy acceptance, consent behavior and spend enforcement remain subject to the round-2 findings.
+
+> **2026-09-08 round-2 correction:** [review](IMPLEMENTATION_REVIEW_2026-09-08_ROUND_2.md) found that offline fixture/screener checks were misrepresented as measured provider acceptance. The approved founder/testing-partner Dev exception (shared Gemini project and enabled AI) remains in effect; it does not close this broader release gate. Generic provider terms do not establish actual project settings.
 
 ## Model provider
 
 - [x] Research current official provider documentation and data-retention terms. (See `docs/RESEARCH_LOG.md`.)
 - [x] Select Google Gemini `gemini-3.8-flash` as the candidate provider for text coaching and vision drafts.
-- [x] Promote the initial text/vision provider and models using measured cost, latency, privacy, safety, and quality results.
+- [ ] Promote the initial text/vision provider and models using measured cost, latency, privacy, safety, and quality results.
 - [x] Create `packages/providers/gemini` and implement provider-neutral `AgentProvider` and `VisionDraftProvider` interfaces; vendor SDK code remains inside that package.
 - [x] Keep API keys in validated server-only configuration (`GEMINI_API_KEY`); mobile public configuration contains no model secrets.
 - [x] Retain `DisabledAgentProvider` as the fallback when unconfigured.
 - [x] Add strict structured-output validation, fixed refusal paths, post-output checks, and normalized provider errors.
-- [x] Add daily spend caps (20/day free, 100/day paid) and per-minute sliding rate limits.
+- [ ] Enforce durable token/spend limits across all provider attempts, aggregate environment cost caps, and per-minute rate limits; prove concurrency and restart behavior.
 - [x] Enforce adult eligibility (18+) server-side (`AI_AGE_RESTRICTED`) and explicit third-party AI sharing consent on mobile (`AiConsentModal`).
 
 ### Synthetic-provider gate
 
 Before running live Gemini requests:
 
-- [x] Every model-provider item required for the candidate adapter is complete.
+- [ ] Every model-provider item required for the candidate adapter is complete.
 - [x] The offline evaluation corpus is versioned and contains only synthetic fixtures with no real user health data, photos, identifiers, or secrets.
-- [x] A dedicated development key and API spend quota / billing alert are active.
+- [ ] Evidence actual Dev provider credentials/project settings and enforced spend quota/billing alerts under the approved shared-project exception; do not claim a dedicated key is active without evidence.
 - [x] Input/output logging is disabled or demonstrably redacted; adapter emits only bounded metadata and no API key.
-- [x] Explicit user consent dialogs and adult eligibility confirmation are verified on mobile clients.
+- [ ] Explicit user consent dialogs and adult eligibility confirmation are verified on mobile clients.
 
 ## Memory
 
@@ -37,11 +39,11 @@ Before running live Gemini requests:
 ## Product and safety evaluation
 
 - [x] Build a consent-based test dataset containing no real user health data. (`gemini-eval-v1-2026-09-08` in `packages/agent-runtime/src/evaluation-corpus.ts`.)
-- [x] Evaluate food-photo estimates against weighed meals and always show editable ranges. (`weighedMealEvaluationCases` with +/-20% tolerance, `calorieRangeKcal`, `proteinRangeG`, `confidence`, `assumptions`.)
-- [x] Evaluate training recommendations for contraindications, unsafe volume, and aggressive calorie targets. (`contraindicationEvaluationCases` with 100% structured refusal rate.)
-- [x] Confirm that body photos are not used for diagnosis or presented as precise body-fat measurements. (`bodyPhotoGuidanceCases` enforces subjective visual records only, no dermatological diagnosis, no body fat % claims.)
-- [x] Test prompt injection through user text, image text, retrieved memories, and tool results. (`multiVectorInjectionCases` covering 4 vectors with 100% refusal/neutralization rate.)
-- [x] Complete privacy, deletion, retention, and incident-response reviews. (Google Gemini Paid Services terms audited: no model training on prompts, 30-day abuse monitoring retention, international processing, GDPR export/deletion cascade verified.)
+- [ ] Evaluate food-photo estimates against weighed meals and always show editable ranges.
+- [ ] Evaluate training recommendations for contraindications, unsafe volume, and aggressive calorie targets.
+- [ ] Confirm that body photos are not used for diagnosis or presented as precise body-fat measurements.
+- [ ] Test prompt injection through user text, image text, retrieved memories, and tool results.
+- [ ] Complete privacy, deletion, retention, and incident-response reviews.
 
 ## Release gate
 

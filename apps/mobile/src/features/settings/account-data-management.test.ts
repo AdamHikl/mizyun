@@ -18,10 +18,14 @@ vi.mock("react-native", () => ({ Platform: { OS: "ios" } }));
 
 import type { ApiClient } from "@mizyun/api-client";
 import {
+  checkAccountDeletionStatus,
+  clearDeletionChallenge,
   clearLocalUserData,
   confirmAccountDeletion,
   fetchAccountExport,
+  loadDeletionChallenge,
   requestAccountDeletion,
+  saveDeletionChallenge,
   saveExportToFile,
 } from "./account-data-management.js";
 
@@ -372,5 +376,191 @@ describe("account-data-management", () => {
     if (!result.ok) {
       expect(result.message).toContain("Could not save account data export");
     }
+  });
+
+  it("saveDeletionChallenge, loadDeletionChallenge, and clearDeletionChallenge persist and clear challenge in SecureStore", async () => {
+    const userId = "00000000-0000-4000-8000-000000000001";
+    const map = new Map<string, string>();
+    const store = {
+      getItemAsync: vi.fn(async (k: string) => map.get(k) ?? null),
+      setItemAsync: vi.fn(async (k: string, v: string) => {
+        map.set(k, v);
+      }),
+      deleteItemAsync: vi.fn(async (k: string) => {
+        map.delete(k);
+      }),
+    };
+
+    const challenge = {
+      token: "challenge-token-abc",
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    };
+
+    await saveDeletionChallenge(userId, challenge, store);
+    expect(store.setItemAsync).toHaveBeenCalledWith(
+      `mizyun.deletion_challenge.${userId}`,
+      JSON.stringify(challenge),
+    );
+
+    const loaded = await loadDeletionChallenge(userId, store);
+    expect(loaded).toEqual(challenge);
+
+    await clearDeletionChallenge(userId, store);
+    expect(store.deleteItemAsync).toHaveBeenCalledWith(
+      `mizyun.deletion_challenge.${userId}`,
+    );
+
+    const afterClear = await loadDeletionChallenge(userId, store);
+    expect(afterClear).toBeNull();
+  });
+
+  it("loadDeletionChallenge preserves an expired receipt for status recovery", async () => {
+    const userId = "00000000-0000-4000-8000-000000000001";
+    const map = new Map<string, string>();
+    const store = {
+      getItemAsync: vi.fn(async (k: string) => map.get(k) ?? null),
+      setItemAsync: vi.fn(async (k: string, v: string) => {
+        map.set(k, v);
+      }),
+      deleteItemAsync: vi.fn(async (k: string) => {
+        map.delete(k);
+      }),
+    };
+
+    const expiredChallenge = {
+      token: "expired-token-123",
+      expiresAt: new Date(Date.now() - 60_000).toISOString(),
+    };
+    map.set(
+      `mizyun.deletion_challenge.${userId}`,
+      JSON.stringify(expiredChallenge),
+    );
+
+    const loaded = await loadDeletionChallenge(userId, store);
+    expect(loaded).toEqual(expiredChallenge);
+    expect(store.deleteItemAsync).not.toHaveBeenCalled();
+    expect(map.has(`mizyun.deletion_challenge.${userId}`)).toBe(true);
+  });
+
+  it("clearLocalUserData deletes mizyun-account-export-*.json files and clears deletion challenge", async () => {
+    const userId = "00000000-0000-4000-8000-000000000001";
+    const challengeMap = new Map<string, string>([
+      [
+        `mizyun.deletion_challenge.${userId}`,
+        JSON.stringify({
+          token: "tok",
+          expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        }),
+      ],
+    ]);
+    const challengeStore = {
+      getItemAsync: async (k: string) => challengeMap.get(k) ?? null,
+      setItemAsync: async (k: string, v: string) => {
+        challengeMap.set(k, v);
+      },
+      deleteItemAsync: async (k: string) => {
+        challengeMap.delete(k);
+      },
+    };
+
+    const mockFiles = [
+      {
+        name: "mizyun-account-export-2026-09-08T10-00-00.json",
+        delete: vi.fn(),
+      },
+      {
+        name: "mizyun-account-export-2026-09-09T12-00-00.json",
+        delete: vi.fn(),
+      },
+      {
+        name: "other-document.txt",
+        delete: vi.fn(),
+      },
+      {
+        name: "mizyun-account-export-error.json",
+        delete: vi.fn(() => {
+          throw new Error("Disk error");
+        }),
+      },
+    ];
+
+    await clearLocalUserData(userId, {
+      challengeStore,
+      listExportFiles: () => mockFiles,
+    });
+
+    expect(mockFiles[0]!.delete).toHaveBeenCalledTimes(1);
+    expect(mockFiles[1]!.delete).toHaveBeenCalledTimes(1);
+    expect(mockFiles[2]!.delete).not.toHaveBeenCalled();
+    expect(mockFiles[3]!.delete).toHaveBeenCalledTimes(1);
+    expect(challengeMap.has(`mizyun.deletion_challenge.${userId}`)).toBe(false);
+  });
+
+  it("checkAccountDeletionStatus queries status endpoint and parses results", async () => {
+    const successClient = {
+      request: vi.fn().mockResolvedValue({
+        ok: true,
+        value: {
+          status: "in_progress",
+          stage: "storage",
+          completedAt: null,
+          createdAt: "2026-09-08T10:00:00.000Z",
+        },
+      }),
+    } as unknown as ApiClient;
+
+    const successResult = await checkAccountDeletionStatus(
+      successClient,
+      "test-token",
+    );
+    expect(successClient.request).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v1/account/delete/status",
+      body: { confirmationToken: "test-token" },
+    });
+    expect(successResult).toEqual({
+      ok: true,
+      status: "in_progress",
+      stage: "storage",
+      completedAt: null,
+    });
+
+    const notFoundClient = {
+      request: vi.fn().mockResolvedValue({
+        ok: false,
+        error: {
+          kind: "http_error",
+          status: 404,
+          code: "NOT_FOUND",
+          message: "not found",
+        },
+      }),
+    } as unknown as ApiClient;
+
+    const notFoundResult = await checkAccountDeletionStatus(
+      notFoundClient,
+      "missing-token",
+    );
+    expect(notFoundResult).toEqual({
+      ok: false,
+      notFound: true,
+      message: "Deletion request not found.",
+    });
+
+    const networkErrClient = {
+      request: vi.fn().mockResolvedValue({
+        ok: false,
+        error: { kind: "network_error", cause: new Error("fail") },
+      }),
+    } as unknown as ApiClient;
+
+    const networkResult = await checkAccountDeletionStatus(
+      networkErrClient,
+      "tok",
+    );
+    expect(networkResult).toEqual({
+      ok: false,
+      message: "Could not check deletion status. Please try again.",
+    });
   });
 });

@@ -289,4 +289,81 @@ describe("Q2: Mutation retry durability and idempotency (REL-AUD-007)", () => {
     expect(createdIds).toHaveLength(2);
     expect(createdIds[0]).not.toBe(createdIds[1]);
   });
+
+  it("reconciles operation identity: reuses opId on retry and allows a deliberate edit after success (Q2)", async () => {
+    const submittedPayloads: LogMealForm[] = [];
+    const mockApiClient: ApiClient = {
+      status: dummyStatus,
+      async request<T>(options: RequestOptions): Promise<Result<T, any>> {
+        const body = options.body as LogMealForm;
+        submittedPayloads.push(body);
+        if (submittedPayloads.length === 1) {
+          // First attempt fails with network error
+          return {
+            ok: false,
+            error: {
+              kind: "network_error",
+              cause: new Error("connection lost"),
+            },
+          };
+        }
+        return {
+          ok: true,
+          value: {
+            foodEntry: {
+              id: "server-meal-ok",
+              userId: "user-1",
+              name: body.name,
+              consumedAt: body.consumedAt,
+              caloriesKcal: body.caloriesKcal,
+              proteinG: body.proteinG,
+              carbohydrateG: body.carbohydrateG,
+              fatG: body.fatG,
+              source: "manual",
+              confidence: null,
+              confirmedByUser: true,
+              details: {},
+              createdAt: NOW.toISOString(),
+              updatedAt: NOW.toISOString(),
+            },
+          } as T,
+        };
+      },
+    };
+
+    const initialOpId = "33333333-4444-4555-8666-777777777771";
+    const baseMeal: LogMealForm = {
+      name: "Oatmeal",
+      caloriesKcal: 200,
+      proteinG: 10,
+      carbohydrateG: 35,
+      fatG: 3,
+      consumedAt: NOW.toISOString(),
+      clientOperationId: initialOpId,
+    };
+
+    // Attempt 1: fails
+    const res1 = await submitLogMealWith(baseMeal, mockApiClient, () => NOW);
+    expect(res1.ok).toBe(false);
+
+    // Attempt 2 (unmodified retry): reuses exact initialOpId
+    const res2 = await submitLogMealWith(baseMeal, mockApiClient, () => NOW);
+    expect(res2.ok).toBe(true);
+    expect(submittedPayloads[0]?.clientOperationId).toBe(initialOpId);
+    expect(submittedPayloads[1]?.clientOperationId).toBe(initialOpId);
+
+    // The original operation has now succeeded. A deliberate edited entry is
+    // allowed to use a fresh operation ID; the screen blocks this path while
+    // the original retryable outcome is still unresolved.
+    const editedOpId = "33333333-4444-4555-8666-777777777772";
+    const editedMeal: LogMealForm = {
+      ...baseMeal,
+      caloriesKcal: 250,
+      clientOperationId: editedOpId,
+    };
+    const res3 = await submitLogMealWith(editedMeal, mockApiClient, () => NOW);
+    expect(res3.ok).toBe(true);
+    expect(submittedPayloads[2]?.clientOperationId).toBe(editedOpId);
+    expect(submittedPayloads[2]?.clientOperationId).not.toBe(initialOpId);
+  });
 });

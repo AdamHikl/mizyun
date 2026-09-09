@@ -228,6 +228,7 @@ export interface AppDependencies {
   readonly mediaStorage?: MediaStorage;
   readonly emailSender?: EmailSender;
   readonly coachControls?: CoachControlOptions;
+  readonly aiAllowedEmails?: readonly string[];
   /**
    * When provided, the per-feature adapters swap to the Supabase
    * implementations. In-memory remains the default so the standard
@@ -261,6 +262,7 @@ const defaultDependencies = (): AppDependencies => {
         geminiVisionConfig: null,
         sesConfig: null,
         aiExternalAccess: false,
+        aiAllowedEmails: [],
       };
   const geminiConfig = config.geminiConfig;
   const emailSender: EmailSender =
@@ -427,6 +429,9 @@ export const buildApp = (
   // pass an explicit `dependencies` so the env is never read here.
   const configResult = loadServerConfig();
   const env = configResult.ok ? configResult.value.env : "development";
+  const aiAllowedEmails =
+    dependencies.aiAllowedEmails ??
+    (configResult.ok ? configResult.value.aiAllowedEmails : []);
   const logger = loggerConfig(env);
 
   const app = Fastify({
@@ -787,6 +792,7 @@ export const buildApp = (
     rateLimiter: draftRateLimiter,
     limits: coachLimits,
     resolvePlanTier,
+    allowedEmails: aiAllowedEmails,
   });
   void app.register(exercisesRoutes, {
     prefix: "/v1/exercises",
@@ -856,6 +862,7 @@ export const buildApp = (
     resolveNutritionDraftProvider: resolveVisionProvider,
     nutritionDraftRateLimiter: draftRateLimiter,
     memoryStore,
+    allowedEmails: aiAllowedEmails,
     ...(dependencies.coachControls?.planTierOverride
       ? { planTierOverride: dependencies.coachControls.planTierOverride }
       : readPlanTierOverride()
@@ -874,6 +881,7 @@ export const buildApp = (
     nutritionDraftProvider: visionProvider,
     resolveNutritionDraftProvider: resolveVisionProvider,
     nutritionDraftRateLimiter: draftRateLimiter,
+    allowedEmails: aiAllowedEmails,
     ...(dependencies.coachControls?.planTierOverride
       ? { planTierOverride: dependencies.coachControls.planTierOverride }
       : readPlanTierOverride()

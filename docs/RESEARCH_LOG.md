@@ -1966,3 +1966,13 @@ no API changes. The segment closes the gap between "Coach works"
   1. Updated `COACH_SYSTEM_POLICY` in `@mizyun/agent-runtime` to explicitly require `{"answer": "<conversational markdown reply>"}` and prohibit raw JSON structures or schemas as text.
   2. Implemented `extractAssistantText` in `@mizyun/agent-runtime` to parse nested structures (`workout_plan`, `response`, `summary`), synthesize clean human-readable text for structured plans, and return `null` for unparseable data objects (triggering provider retry/malformed recovery).
   3. Integrated `extractAssistantText` across `@mizyun/provider-mistral`, `@mizyun/provider-gemini`, and `apps/api/src/modules/coach/routes.ts` for defense-in-depth sanitization.
+
+## 2026-09-08 — Round-2 review: deletion tokens and async consent
+
+- Primary source: [Supabase user management](https://supabase.com/docs/guides/auth/managing-user-data), checked 2026-09-08. Deleting an Auth user does not invalidate already-issued JWTs before expiration. Consequence: deletion acceptance must exercise production token verification and deleting/deleted principal barriers, not substitute an online Auth user lookup in tests.
+- Primary source: [React useEffect](https://react.dev/reference/react/useEffect), checked 2026-09-08. Async effects need stale-result cleanup to prevent races. Consequence: consent load/save/action completion needs generation invalidation across account/context changes, including A→B→A, not just user-ID equality.
+- This segment is a review, not a new architectural decision. See `IMPLEMENTATION_REVIEW_2026-09-08_ROUND_2.md` for reproduced failures, evidence limits and remediation requirements. No live provider acceptance or project billing configuration was inferred from documentation.
+
+## 2026-09-09 — Round-3 deployment URL validation review
+
+Primary source: [PostgreSQL connection parameters and URI forms](https://www.postgresql.org/docs/current/libpq-connect.html), checked 2026-09-09. Omitted ports use connection defaults and connection strings can supply effective parameters separately. Implementation consequence: reject ambiguous/unapproved effective database targets before mutation; a literal forbidden-port substring is not an environment identity check. Fresh mocked actual Dev deployment accepted an omitted-port localhost URL; see `IMPLEMENTATION_REVIEW_2026-09-09_ROUND_3.md`. No real database mutation occurred.

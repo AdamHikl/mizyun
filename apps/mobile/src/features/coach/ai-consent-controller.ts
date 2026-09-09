@@ -57,7 +57,7 @@ export interface AiConsentControllerActions {
   readonly requestAction: (action: PendingAiAction) => Promise<void>;
   readonly confirmConsent: () => Promise<void>;
   readonly declineConsent: () => void;
-  readonly revokeConsent: () => Promise<void>;
+  readonly revokeConsent: () => Promise<boolean>;
   readonly retryPendingAction: () => Promise<void>;
 }
 
@@ -103,6 +103,7 @@ export class AiConsentController {
   private readonly listeners = new Set<() => void>();
   private activeUserId: string | null = null;
   private requestId = 0;
+  private currentGeneration = 0;
   private isSaving = false;
   private isExecuting = false;
   private isDestroyed = false;
@@ -152,14 +153,25 @@ export class AiConsentController {
     return this.currentLoadPromise ?? Promise.resolve();
   }
 
+  public loadConsent(): Promise<void> {
+    if (this.options.userId === null) {
+      return Promise.resolve();
+    }
+    return this.loadConsentForUser(this.options.userId);
+  }
+
   private loadConsentForUser(userId: string): Promise<void> {
     const currentRequestId = ++this.requestId;
+    const generation = this.currentGeneration;
+    const targetUserId = this.options.userId;
     const promise = this.options.getConsent(userId).then(
       (result) => {
         if (
           this.isDestroyed ||
+          this.currentGeneration !== generation ||
           this.requestId !== currentRequestId ||
-          this.activeUserId !== userId
+          this.activeUserId !== targetUserId ||
+          this.options.userId !== targetUserId
         ) {
           return;
         }
@@ -173,8 +185,10 @@ export class AiConsentController {
       (_error) => {
         if (
           this.isDestroyed ||
+          this.currentGeneration !== generation ||
           this.requestId !== currentRequestId ||
-          this.activeUserId !== userId
+          this.activeUserId !== targetUserId ||
+          this.options.userId !== targetUserId
         ) {
           return;
         }
@@ -197,7 +211,10 @@ export class AiConsentController {
     this.state = {
       ...this.state,
       ...partial,
-      isModalVisible: nextStatus === "required",
+      isModalVisible:
+        nextStatus === "required" ||
+        nextStatus === "error" ||
+        nextStatus === "saving",
     };
     for (const listener of this.listeners) {
       listener();
@@ -228,6 +245,10 @@ export class AiConsentController {
     }
   }
 
+  public setUserId(userId: string | null): void {
+    this.updateUserId(userId);
+  }
+
   public updateUserId(userId: string | null): void {
     if (this.isDestroyed) {
       return;
@@ -241,6 +262,7 @@ export class AiConsentController {
       ...this.options,
       userId,
     };
+    this.currentGeneration++;
     this.requestId++; // Cancels/ignores any in-flight promises from old user
 
     // Clear pendingAction and reset granted state
@@ -261,6 +283,8 @@ export class AiConsentController {
     if (this.isDestroyed || this.options.userId === null) {
       return;
     }
+
+    this.currentGeneration++;
 
     if (this.state.consentGranted && this.state.confirmedAdult) {
       if (this.isExecuting) {
@@ -294,6 +318,8 @@ export class AiConsentController {
     }
     this.isSaving = true;
 
+    const generation = this.currentGeneration;
+
     try {
       this.updateState({ status: "saving", error: null });
 
@@ -306,6 +332,7 @@ export class AiConsentController {
 
       if (
         this.isDestroyed ||
+        this.currentGeneration !== generation ||
         this.activeUserId !== targetUserId ||
         this.options.userId !== targetUserId
       ) {
@@ -355,16 +382,18 @@ export class AiConsentController {
     });
   }
 
-  public async revokeConsent(): Promise<void> {
+  public async revokeConsent(): Promise<boolean> {
     const targetUserId = this.options.userId;
     if (this.isDestroyed || targetUserId === null) {
-      return;
+      return false;
     }
 
     if (this.isSaving) {
-      return;
+      return false;
     }
     this.isSaving = true;
+
+    const generation = this.currentGeneration;
 
     try {
       this.updateState({ status: "saving", error: null });
@@ -378,10 +407,11 @@ export class AiConsentController {
 
       if (
         this.isDestroyed ||
+        this.currentGeneration !== generation ||
         this.activeUserId !== targetUserId ||
         this.options.userId !== targetUserId
       ) {
-        return;
+        return false;
       }
 
       if (revoked) {
@@ -392,11 +422,13 @@ export class AiConsentController {
           pendingAction: null,
           error: null,
         });
+        return true;
       } else {
         this.updateState({
           status: "error",
           error: "Failed to revoke AI consent. Please try again.",
         });
+        return false;
       }
     } finally {
       this.isSaving = false;
@@ -407,7 +439,8 @@ export class AiConsentController {
     if (this.isDestroyed) {
       return;
     }
-    if (this.state.status === "error" && this.state.pendingAction !== null) {
+    if (this.state.status === "error") {
+      this.updateState({ status: "saving", error: null });
       await this.confirmConsent();
     }
   }

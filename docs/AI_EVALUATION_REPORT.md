@@ -1,5 +1,7 @@
 # AI evaluation evidence
 
+> **Superseded acceptance claim — 2026-09-08 round 2:** The reported 56 passes below are fixture validation and deterministic text-screening checks. No model nutrition/body-photo response was scored; latency and token values are simulated. These results do not close provider safety, quality, cost or latency gates. See [Q8-C review](IMPLEMENTATION_REVIEW_2026-09-08_ROUND_2.md). Preserve the corpus as groundwork; obtain actual gated synthetic candidate/fallback evaluation before promotion.
+
 > Offline implementation evidence as of 2026-07-26. This is not a
 > provider promotion or authorization for real-user AI traffic.
 

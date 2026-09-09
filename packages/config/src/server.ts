@@ -62,6 +62,7 @@ export interface ServerConfig {
   readonly geminiVisionConfig: ServerGeminiVisionConfiguration | null;
   readonly sesConfig: ServerSesConfiguration | null;
   readonly aiExternalAccess: boolean;
+  readonly aiAllowedEmails: readonly string[];
 }
 
 export type ServerConfigResult = Result<ServerConfig, readonly ConfigIssue[]>;
@@ -95,6 +96,7 @@ export const SERVER_ENV_KEYS = {
   aiUserRequestsPerMinute: "AI_USER_REQUESTS_PER_MINUTE",
   aiUserMaxConcurrentRequests: "AI_USER_MAX_CONCURRENT_REQUESTS",
   aiExternalAccess: "AI_EXTERNAL_ACCESS",
+  aiAllowedEmails: "AI_ALLOWED_EMAILS",
 } as const;
 
 const DISABLED_REASON = "Supabase server configuration has not been provided.";
@@ -225,6 +227,17 @@ const baseServerSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((value) => value === "true"),
+  aiAllowedEmails: z
+    .string()
+    .optional()
+    .transform((val) =>
+      val
+        ? val
+            .split(",")
+            .map((s) => s.trim().toLowerCase())
+            .filter((s) => s.length > 0)
+        : [],
+    ),
 });
 
 type BaseServerShape = Record<keyof typeof SERVER_ENV_KEYS, string | undefined>;
@@ -340,6 +353,15 @@ export const loadServerConfig = (
     }
   }
   if (parsed.success) {
+    if (
+      parsed.data.aiExternalAccess &&
+      (parsed.data.aiAllowedEmails?.length ?? 0) === 0
+    ) {
+      issues.push({
+        kind: "missing",
+        keys: [SERVER_ENV_KEYS.aiAllowedEmails],
+      });
+    }
     const hasSesKey = parsed.data.sesAccessKeyId !== undefined;
     const hasSesSecret = parsed.data.sesSecretAccessKey !== undefined;
     if (hasSesKey !== hasSesSecret) {
@@ -417,6 +439,7 @@ export const loadServerConfig = (
     geminiVisionConfig,
     sesConfig,
     aiExternalAccess: value.aiExternalAccess,
+    aiAllowedEmails: value.aiAllowedEmails ?? [],
   });
 };
 

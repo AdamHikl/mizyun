@@ -282,10 +282,8 @@ export function CoachSetupScreen() {
   );
 
   const sendInternal = useCallback(
-    async (retryDraft?: CoachPendingDraft, textOverride?: string) => {
-      const retry =
-        retryDraft?.conversationId === active?.id ? retryDraft : undefined;
-      const text = (retry?.text ?? textOverride ?? draft).trim();
+    async (retryIdempotencyKey?: string, textOverride?: string) => {
+      const text = (textOverride ?? draft).trim();
       if (
         !active ||
         text.length === 0 ||
@@ -300,10 +298,11 @@ export function CoachSetupScreen() {
       setSending(true);
       const sentAt = Date.now();
       const retryBubbleId =
-        retry !== undefined
-          ? optimisticCoachMessageId(retry.idempotencyKey)
+        retryIdempotencyKey !== undefined
+          ? optimisticCoachMessageId(retryIdempotencyKey)
           : undefined;
-      const idempotencyKey = newCoachMessageIdempotencyKey();
+      const idempotencyKey =
+        retryIdempotencyKey ?? newCoachMessageIdempotencyKey();
       const nextPending: CoachPendingDraft = {
         conversationId: active.id,
         text,
@@ -432,7 +431,7 @@ export function CoachSetupScreen() {
   const executeAiAction = useCallback(
     async (action: PendingAiAction) => {
       if (action.kind === "coach_message") {
-        await sendInternal(undefined, action.text);
+        await sendInternal(action.idempotencyKey, action.text);
       } else if (action.kind === "coach_photo") {
         await pickAndSendMealPhoto();
       }

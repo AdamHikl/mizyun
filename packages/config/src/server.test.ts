@@ -550,4 +550,30 @@ describe("loadServerConfig — SES email configuration", () => {
       expect(issue.key).toBe(SERVER_ENV_KEYS.sesAccessKeyId);
     }
   });
+
+  describe("AI_ALLOWED_EMAILS parsing", () => {
+    it("defaults to empty array when unset", () => {
+      const result = loadServerConfig({ env: {} });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.aiAllowedEmails).toEqual([]);
+    });
+
+    it("parses comma-separated emails, trims whitespace, and lowercases them", () => {
+      const result = loadServerConfig({
+        env: {
+          ...baseSnapshot,
+          [SERVER_ENV_KEYS.aiAllowedEmails]:
+            " Founder@Example.com, partner@mizyun.com , , TEST@OTHER.ORG ",
+        },
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.aiAllowedEmails).toEqual([
+        "founder@example.com",
+        "partner@mizyun.com",
+        "test@other.org",
+      ]);
+    });
+  });
 });

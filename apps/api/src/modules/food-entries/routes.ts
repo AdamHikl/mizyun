@@ -261,6 +261,26 @@ export const foodEntriesRoutes: FastifyPluginAsync<
           ? clientOpHeader.trim()
           : undefined);
 
+      const canonicalJson = (val: unknown): string => {
+        if (val === null || typeof val !== "object") {
+          return JSON.stringify(val);
+        }
+        if (Array.isArray(val)) {
+          return "[" + val.map(canonicalJson).join(",") + "]";
+        }
+        const record = val as Record<string, unknown>;
+        const sortedKeys = Object.keys(record).sort();
+        const entries: string[] = [];
+        for (const key of sortedKeys) {
+          if (record[key] !== undefined) {
+            entries.push(
+              `${JSON.stringify(key)}:${canonicalJson(record[key])}`,
+            );
+          }
+        }
+        return "{" + entries.join(",") + "}";
+      };
+
       const matchesCanonicalPayload = (
         existing: StoredFoodEntry,
         incoming: typeof parsed.data,
@@ -275,6 +295,24 @@ export const foodEntriesRoutes: FastifyPluginAsync<
         )
           return false;
         if ((existing.fatG ?? null) !== (incoming.fatG ?? null)) return false;
+
+        if (incoming.consumedAt !== undefined) {
+          const incomingTime = new Date(incoming.consumedAt).getTime();
+          const existingTime =
+            existing.consumedAt instanceof Date
+              ? existing.consumedAt.getTime()
+              : new Date(existing.consumedAt).getTime();
+          if (isNaN(incomingTime) || incomingTime !== existingTime) {
+            return false;
+          }
+        }
+
+        const existingDetails = existing.details ?? {};
+        const incomingDetails = incoming.details ?? {};
+        if (canonicalJson(existingDetails) !== canonicalJson(incomingDetails)) {
+          return false;
+        }
+
         return true;
       };
 

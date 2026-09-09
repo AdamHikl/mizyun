@@ -13,6 +13,10 @@
 
 ## Current focus
 
+**Round-3 update (2026-09-09):** [current review](docs/IMPLEMENTATION_REVIEW_2026-09-09_ROUND_3.md) requires fixing Q2 duplicate retries and Q9 effective-target/rollback defects before candidate promotion, then explicitly installing/verifying Q1 containment and completing residual lifecycle, AI and build work. The latest implementation handoff is not final acceptance; the existing sequence and full exit criteria remain in force.
+
+**Round-2 sequencing:** [the new review](docs/IMPLEMENTATION_REVIEW_2026-09-08_ROUND_2.md) found residual runtime/deployment defects, a persistent export regression, and unsupported AI acceptance. Complete Q1/Q8-A containment and locally fault-tested Q9 guards first; Q4/Q5 data repairs, Q2/Q7 mobile reliability and Q3 actual build guards follow. Preserve Q6 source repair and verify deployed/upgrade behavior. Finish Q8-B accounting and Q8-C measured evaluation before R3/R8 final release acceptance. Session J did not close these requirements.
+
 🚧 **2026-09-08 review: Dev/Production separation and release patches are partially implemented.** [The implementation review](docs/IMPLEMENTATION_REVIEW_2026-09-08.md) supersedes the previous blanket completion claim. Preserve the existing two stacks; repair Dev runtime privilege isolation and founder/AI access controls first (INFRA-DUAL-002, REL-AUD-005), then account lifecycle/export, mobile retries, tier INSERT protection and consent continuation. Finish guarded build/deployment tooling and R3/R8 signed-device/recovery acceptance before production promotion or invitations. No further feature expansion is needed for this checkpoint.
 
 The executable follow-up is [the Q1–Q9 session plan](docs/REMEDIATION_IMPLEMENTATION_PLAN_2026-09-08.md). After initial access/runtime containment, repair and fault-test deployment tooling locally before using it to accept later patches on Dev. Track closure in [the evidence checklist](docs/REMEDIATION_EVIDENCE_CHECKLIST.md), then independently review the final candidate before promotion.

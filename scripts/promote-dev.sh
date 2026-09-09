@@ -65,8 +65,21 @@ set +a
 : "${MIZYUN_LOCAL_API_URL:=http://127.0.0.1:4100}"
 
 # 4. Cross-environment service guard
-if [[ "$MIZYUN_API_SERVICE" == "mizyun-api" ]]; then
-  echo "FATAL: Refusing to run dev promotion against production service mizyun-api." >&2
+normalized_service="${MIZYUN_API_SERVICE%.service}"
+if [[ "$normalized_service" == "mizyun-api" ]]; then
+  echo "FATAL: Refusing to run dev promotion against production service $MIZYUN_API_SERVICE." >&2
+  exit 2
+fi
+
+if [[ "$MIZYUN_DEV_DB_URL" =~ :5432(/|\?|$) ]]; then
+  echo "FATAL: MIZYUN_DEV_DB_URL points to production database port 5432! Refusing dev promotion." >&2
+  exit 2
+fi
+
+# Require an explicit, canonical Dev database endpoint. PostgreSQL/libpq uses
+# the default port when it is omitted, which could otherwise target Production.
+if [[ ! "$MIZYUN_DEV_DB_URL" =~ ^postgres(ql)?://[^/@]+:[^/@]+@127\.0\.0\.1:5433/postgres([?].*)?$ ]]; then
+  echo "FATAL: MIZYUN_DEV_DB_URL must be the canonical localhost:5433 Dev database URL." >&2
   exit 2
 fi
 
@@ -93,11 +106,12 @@ record_journal() {
 
 rollback_code() {
   local failure_line="$1"
+  local rollback_ok=true
   echo "Dev promotion failed near line $failure_line; restoring API code $previous_sha." >&2
   if [[ "$previous_sha" != "none" ]]; then
-    git checkout --detach "$previous_sha" >/dev/null 2>&1 || true
-    pnpm install --frozen-lockfile >/dev/null 2>&1 || true
-    sudo -n systemctl restart "$MIZYUN_API_SERVICE" >/dev/null 2>&1 || true
+    git checkout --detach "$previous_sha" >/dev/null 2>&1 || rollback_ok=false
+    pnpm install --frozen-lockfile >/dev/null 2>&1 || rollback_ok=false
+    sudo -n systemctl restart "$MIZYUN_API_SERVICE" >/dev/null 2>&1 || rollback_ok=false
 
     local rollback_healthy=false
     for _attempt in {1..10}; do
@@ -108,16 +122,19 @@ rollback_code() {
       fi
       sleep 1
     done
-    if [[ "$rollback_healthy" == true ]]; then
+    if [[ "$rollback_ok" == true && "$rollback_healthy" == true ]]; then
       echo "Rollback to $previous_sha succeeded and API is healthy." >&2
+      record_journal "rolled_back" "$previous_sha" "$target_sha" "Failure near line $failure_line; rollback succeeded"
     else
       echo "WARNING: API is unhealthy after rollback to $previous_sha." >&2
+      record_journal "rollback_failed" "$previous_sha" "$target_sha" "Failure near line $failure_line; rollback health check failed"
     fi
+  else
+    record_journal "rollback_failed" "$previous_sha" "$target_sha" "Failure near line $failure_line; no previous SHA to restore"
   fi
   if [[ "$migrations_applied" == true ]]; then
     echo "Database migrations are forward-only and were not reverted; inspect compatibility." >&2
   fi
-  record_journal "rolled_back" "$previous_sha" "$target_sha" "Failure near line $failure_line; rollback initiated"
 }
 
 trap 'rollback_code "$LINENO"' ERR

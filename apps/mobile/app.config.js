@@ -36,11 +36,31 @@ if (!variant) {
   );
 }
 
+const VALID_PROFILES = ["development", "preview", "production"];
+
+if (buildProfile && !VALID_PROFILES.includes(buildProfile)) {
+  throw new Error(
+    `Unknown MIZYUN_BUILD_PROFILE "${buildProfile}". Expected "development", "preview", or "production".`,
+  );
+}
+
+if (easProfile && !VALID_PROFILES.includes(easProfile)) {
+  throw new Error(
+    `Unknown EAS_BUILD_PROFILE "${easProfile}". Expected "development", "preview", or "production".`,
+  );
+}
+
 // Cross-profile validation
 const effectiveProfile =
   buildProfile ||
   easProfile ||
   (variantName === "production" ? "production" : "development");
+
+if (!VALID_PROFILES.includes(effectiveProfile)) {
+  throw new Error(
+    `Unknown build profile "${effectiveProfile}". Expected "development", "preview", or "production".`,
+  );
+}
 
 if (
   (effectiveProfile === "production" && variantName !== "production") ||
@@ -62,63 +82,165 @@ if (easProfile && buildProfile && easProfile !== buildProfile) {
 const apiUrl = process.env.EXPO_PUBLIC_API_URL;
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const authRedirectUri = process.env.EXPO_PUBLIC_AUTH_REDIRECT_URI;
+const publishableKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+if (effectiveProfile === "production" || effectiveProfile === "preview") {
+  if (!apiUrl) {
+    throw new Error(
+      "Production profile requires EXPO_PUBLIC_API_URL to be defined.",
+    );
+  }
+  if (!supabaseUrl) {
+    throw new Error(
+      "Production profile requires EXPO_PUBLIC_SUPABASE_URL to be defined.",
+    );
+  }
+  if (!authRedirectUri) {
+    throw new Error(
+      "Production profile requires EXPO_PUBLIC_AUTH_REDIRECT_URI to be defined.",
+    );
+  }
+}
+
+const parseHostname = (urlString) => {
+  try {
+    return new URL(urlString).hostname;
+  } catch {
+    return null;
+  }
+};
 
 if (apiUrl) {
-  if (
-    variantName === "dev" &&
-    /mizyun-api\.phiskel\.com(?::|\/|$)/.test(apiUrl)
-  ) {
-    throw new Error(`Dev variant cannot point to Production API "${apiUrl}".`);
+  const host = parseHostname(apiUrl);
+  if (!host) {
+    throw new Error(`Invalid EXPO_PUBLIC_API_URL "${apiUrl}".`);
   }
-  if (
-    variantName === "production" &&
-    (/mizyun-api-dev\.phiskel\.com/.test(apiUrl) ||
-      /localhost|127\.0\.0\.1|10\.0\.2\.2/.test(apiUrl))
-  ) {
-    throw new Error(
-      `Production variant cannot point to Dev or local API "${apiUrl}".`,
-    );
+  if (variantName === "production") {
+    if (new URL(apiUrl).protocol !== "https:") {
+      throw new Error(`Production API URL must use HTTPS: "${apiUrl}".`);
+    }
+    if (
+      host === "mizyun-api-dev.phiskel.com" ||
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "10.0.2.2"
+    ) {
+      throw new Error(
+        `Production variant cannot point to Dev or local API "${apiUrl}".`,
+      );
+    }
+    if (host !== "mizyun-api.phiskel.com") {
+      throw new Error(
+        `Production variant cannot point to non-production API "${apiUrl}". Expected host "mizyun-api.phiskel.com".`,
+      );
+    }
+  } else {
+    if (host === "mizyun-api.phiskel.com") {
+      throw new Error(
+        `Dev variant cannot point to Production API "${apiUrl}".`,
+      );
+    }
+    const allowedHosts = [
+      "mizyun-api-dev.phiskel.com",
+      "localhost",
+      "127.0.0.1",
+      "10.0.2.2",
+    ];
+    if (!allowedHosts.includes(host)) {
+      throw new Error(
+        `Dev variant cannot point to API host "${host}". Expected dev or local API host.`,
+      );
+    }
   }
 }
 
 if (supabaseUrl) {
-  if (
-    variantName === "dev" &&
-    /mizyun-supabase\.phiskel\.com(?::|\/|$)/.test(supabaseUrl)
-  ) {
-    throw new Error(
-      `Dev variant cannot point to Production Supabase "${supabaseUrl}".`,
-    );
+  const host = parseHostname(supabaseUrl);
+  if (!host) {
+    throw new Error(`Invalid EXPO_PUBLIC_SUPABASE_URL "${supabaseUrl}".`);
   }
-  if (
-    variantName === "production" &&
-    (/mizyun-supabase-dev\.phiskel\.com/.test(supabaseUrl) ||
-      /localhost|127\.0\.0\.1|10\.0\.2\.2/.test(supabaseUrl))
-  ) {
-    throw new Error(
-      `Production variant cannot point to Dev or local Supabase "${supabaseUrl}".`,
-    );
+  if (variantName === "production") {
+    if (new URL(supabaseUrl).protocol !== "https:") {
+      throw new Error(
+        `Production Supabase URL must use HTTPS: "${supabaseUrl}".`,
+      );
+    }
+    if (
+      host === "mizyun-supabase-dev.phiskel.com" ||
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "10.0.2.2"
+    ) {
+      throw new Error(
+        `Production variant cannot point to Dev or local Supabase "${supabaseUrl}".`,
+      );
+    }
+    if (host !== "mizyun-supabase.phiskel.com") {
+      throw new Error(
+        `Production variant cannot point to non-production Supabase "${supabaseUrl}". Expected host "mizyun-supabase.phiskel.com".`,
+      );
+    }
+  } else {
+    if (host === "mizyun-supabase.phiskel.com") {
+      throw new Error(
+        `Dev variant cannot point to Production Supabase "${supabaseUrl}".`,
+      );
+    }
+    const allowedHosts = [
+      "mizyun-supabase-dev.phiskel.com",
+      "localhost",
+      "127.0.0.1",
+      "10.0.2.2",
+    ];
+    if (!allowedHosts.includes(host)) {
+      throw new Error(
+        `Dev variant cannot point to Supabase host "${host}". Expected dev or local Supabase host.`,
+      );
+    }
   }
 }
 
 if (authRedirectUri) {
-  if (
-    variantName === "dev" &&
-    authRedirectUri.startsWith("mizyun://") &&
-    !authRedirectUri.startsWith("mizyun-dev://")
-  ) {
-    throw new Error(
-      `Dev variant cannot use production redirect scheme "mizyun://". Expected "mizyun-dev://".`,
-    );
+  if (variantName === "production") {
+    if (authRedirectUri.startsWith("mizyun-dev://")) {
+      throw new Error(
+        `Production variant cannot use dev redirect scheme "mizyun-dev://". Expected "mizyun://".`,
+      );
+    }
+    if (!authRedirectUri.startsWith("mizyun://")) {
+      throw new Error(
+        `Production variant cannot use redirect scheme "${authRedirectUri}". Expected scheme "mizyun://".`,
+      );
+    }
+    if (authRedirectUri !== "mizyun://auth/callback") {
+      throw new Error(
+        `Production variant requires redirect URI "mizyun://auth/callback".`,
+      );
+    }
+  } else {
+    if (
+      authRedirectUri.startsWith("mizyun://") &&
+      !authRedirectUri.startsWith("mizyun-dev://")
+    ) {
+      throw new Error(
+        `Dev variant cannot use production redirect scheme "mizyun://". Expected "mizyun-dev://".`,
+      );
+    }
+    if (!authRedirectUri.startsWith("mizyun-dev://")) {
+      throw new Error(
+        `Dev variant cannot use redirect scheme "${authRedirectUri}". Expected scheme "mizyun-dev://".`,
+      );
+    }
   }
-  if (
-    variantName === "production" &&
-    authRedirectUri.startsWith("mizyun-dev://")
-  ) {
-    throw new Error(
-      `Production variant cannot use dev redirect scheme "mizyun-dev://". Expected "mizyun://".`,
-    );
-  }
+}
+
+if (
+  (effectiveProfile === "production" || effectiveProfile === "preview") &&
+  !publishableKey
+) {
+  throw new Error(
+    `${effectiveProfile === "production" ? "Production" : "Preview"} profile requires EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY to be defined.`,
+  );
 }
 
 const baseExpo = baseConfig.expo;

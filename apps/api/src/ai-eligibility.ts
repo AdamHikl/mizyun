@@ -27,7 +27,8 @@ export type AiAuthorizationResult =
   | {
       readonly authorized: false;
       readonly statusCode: 403;
-      readonly code: "AI_AGE_RESTRICTED" | "AI_CONSENT_REQUIRED";
+      readonly code:
+        "AI_AGE_RESTRICTED" | "AI_CONSENT_REQUIRED" | "AI_NOT_INVITED";
       readonly message: string;
     };
 
@@ -37,18 +38,27 @@ export type AiAuthorizationResult =
  *
  * Enforces:
  *   1. Profile presence and verified adult status (18+).
- *   2. Explicit, granted, unrevoked consent matching the current consent version.
+ *   2. Allowlist admission boundary when configured (Q8-A).
+ *   3. Explicit, granted, unrevoked consent matching the current consent version.
  *
- * Fails closed on missing profile, lookup errors, or outdated disclosures.
- * (Q8-B / Finding R5 / REL-AUD-005)
+ * Fails closed on missing profile, lookup errors, uninvited accounts, or outdated disclosures.
+ * (Q8-A / Q8-B / Finding R5 / REL-AUD-005)
  */
 export const authorizeAiAccess = (options: {
   readonly profile: StoredProfile | null;
   readonly consent: StoredAiConsent | null;
-  readonly currentConsentVersion?: string;
-  readonly now?: Date;
+  readonly currentConsentVersion?: string | undefined;
+  readonly now?: Date | undefined;
+  readonly userEmail?: string | null | undefined;
+  readonly allowedEmails?: readonly string[] | undefined;
 }): AiAuthorizationResult => {
-  const { profile, consent, now = new Date() } = options;
+  const {
+    profile,
+    consent,
+    now = new Date(),
+    userEmail,
+    allowedEmails,
+  } = options;
   const currentVersion =
     options.currentConsentVersion ?? CURRENT_AI_CONSENT_VERSION;
 
@@ -60,6 +70,22 @@ export const authorizeAiAccess = (options: {
       message:
         "AI features require adult eligibility (18 years or older) under provider terms.",
     };
+  }
+
+  if (allowedEmails !== undefined && allowedEmails.length > 0) {
+    const normalizedAllowed = allowedEmails.map((e) => e.trim().toLowerCase());
+    if (
+      !userEmail ||
+      !normalizedAllowed.includes(userEmail.trim().toLowerCase())
+    ) {
+      return {
+        authorized: false,
+        statusCode: 403,
+        code: "AI_NOT_INVITED",
+        message:
+          "AI features are restricted to invited testing accounts in this environment.",
+      };
+    }
   }
 
   if (

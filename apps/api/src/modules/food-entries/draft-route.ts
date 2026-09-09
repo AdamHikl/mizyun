@@ -64,6 +64,7 @@ interface FoodDraftRoutesOptions {
    * this from `profiles.plan_tier`; tests inject a stub.
    */
   readonly resolvePlanTier: (userId: UserId) => PlanTier;
+  readonly allowedEmails?: readonly string[];
 }
 
 const MAX_PHOTO_BYTES = 15 * 1024 * 1024;
@@ -123,6 +124,7 @@ export const foodDraftRoutes: FastifyPluginAsync<
   const checkAiAuthorization = async (
     userId: UserId,
     accessToken: string,
+    userEmail?: string | null,
   ): Promise<AiAuthorizationResult> => {
     if (!options.profileRepository) {
       return {
@@ -141,7 +143,13 @@ export const foodDraftRoutes: FastifyPluginAsync<
       const consent = options.aiConsentRepository
         ? await options.aiConsentRepository.getConsent(userId, { accessToken })
         : null;
-      return authorizeAiAccess({ profile, consent, now: new Date() });
+      return authorizeAiAccess({
+        profile,
+        consent,
+        now: new Date(),
+        userEmail,
+        allowedEmails: options.allowedEmails,
+      });
     } catch {
       return {
         authorized: false,
@@ -217,6 +225,7 @@ export const foodDraftRoutes: FastifyPluginAsync<
       const auth = await checkAiAuthorization(
         principal.userId as UserId,
         principal.accessToken,
+        request.principal?.email,
       );
       if (!auth.authorized) {
         return sendApiError(
@@ -273,7 +282,10 @@ export const foodDraftRoutes: FastifyPluginAsync<
           description: parsed.data.description,
           requestId,
         });
-        await commitDraftLimit(principal.userId as UserId, 500);
+        await commitDraftLimit(
+          principal.userId as UserId,
+          candidate.tokensUsed ?? 500,
+        );
         return reply
           .status(200)
           .send(foodDraftResponseSchema.parse({ draft: candidate, requestId }));
@@ -321,6 +333,7 @@ export const foodDraftRoutes: FastifyPluginAsync<
       const auth = await checkAiAuthorization(
         principal.userId as UserId,
         principal.accessToken,
+        request.principal?.email,
       );
       if (!auth.authorized) {
         return sendApiError(
@@ -378,7 +391,10 @@ export const foodDraftRoutes: FastifyPluginAsync<
           instruction: parsed.data.instruction,
           requestId,
         });
-        await commitDraftLimit(principal.userId as UserId, 800);
+        await commitDraftLimit(
+          principal.userId as UserId,
+          candidate.tokensUsed ?? 800,
+        );
         return reply
           .status(200)
           .send(foodDraftResponseSchema.parse({ draft: candidate, requestId }));
@@ -422,6 +438,7 @@ export const foodDraftRoutes: FastifyPluginAsync<
       const auth = await checkAiAuthorization(
         principal.userId as UserId,
         principal.accessToken,
+        request.principal?.email,
       );
       if (!auth.authorized) {
         return sendApiError(
@@ -543,7 +560,10 @@ export const foodDraftRoutes: FastifyPluginAsync<
 
       try {
         const candidate = await vision.generateDraft(visionRequest);
-        await commitDraftLimit(principal.userId as UserId, 1500);
+        await commitDraftLimit(
+          principal.userId as UserId,
+          candidate.tokensUsed ?? 1500,
+        );
         return reply
           .status(200)
           .send(foodDraftResponseSchema.parse({ draft: candidate, requestId }));

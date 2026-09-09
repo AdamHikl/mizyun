@@ -91,6 +91,7 @@ export interface CoachingPreferences {
   readonly availableEquipment: readonly EquipmentOption[];
   readonly dietaryPreferences: readonly DietaryPreference[];
   readonly trainingLimitations: readonly TrainingLimitation[];
+  readonly countryCode?: string | null | undefined;
 }
 
 export const DEFAULT_COACHING_PREFERENCES: CoachingPreferences = {
@@ -101,6 +102,7 @@ export const DEFAULT_COACHING_PREFERENCES: CoachingPreferences = {
   availableEquipment: [],
   dietaryPreferences: [],
   trainingLimitations: [],
+  countryCode: null,
 };
 
 /** Plausible adult height range, in centimetres. Stored canonical. */
@@ -341,7 +343,10 @@ const validateCoachingPreferences = (
       value.trainingLimitations,
       TRAINING_LIMITATION_OPTIONS,
     ) ||
-    baseDietCount > 1
+    baseDietCount > 1 ||
+    (value.countryCode !== null &&
+      value.countryCode !== undefined &&
+      !/^[A-Z]{2}$/.test(value.countryCode))
   ) {
     return { kind: "invalid_coaching_preferences" };
   }

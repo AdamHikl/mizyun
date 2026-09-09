@@ -320,4 +320,72 @@ describe("InMemoryCoachLimitService — per-tier caps", () => {
     const free = capsForTier("free");
     expect(service.resolveCap("free" as PlanTier)).toEqual(free);
   });
+
+  describe("draft slot limits", () => {
+    it("acquires draft slot and commits tokens, updating daily usage", async () => {
+      const service = new InMemoryCoachLimitService({
+        clock: fixedClock("2026-07-23T10:00:00.000Z"),
+      });
+
+      // Free tier budget is 5,000 tokens
+      const slot = await service.acquireDraftSlot(userId, "free", "photo");
+      expect(slot.allowed).toBe(true);
+
+      // Commit 1500 tokens
+      await service.commitDraftTokens(userId, 1500);
+
+      // Subsequent draft slots succeed while under budget
+      const nextSlot = await service.acquireDraftSlot(userId, "free", "photo");
+      expect(nextSlot.allowed).toBe(true);
+      await service.commitDraftTokens(userId, 3000); // 1500 + 3000 = 4500 used
+
+      // Next photo needs 1500 -> 4500 + 1500 = 6000 > 5000 -> blocked
+      const blocked = await service.acquireDraftSlot(userId, "free", "photo");
+      expect(blocked.allowed).toBe(false);
+      if (!blocked.allowed) {
+        expect(blocked.reason).toBe("tokens");
+        expect(blocked.retryAfter).toBeGreaterThan(0);
+      }
+    });
+
+    it("enforces max concurrent in-flight requests for draft slots", async () => {
+      const service = new InMemoryCoachLimitService({
+        clock: fixedClock("2026-07-23T10:00:00.000Z"),
+      });
+
+      // Free tier maxConcurrentRequests is 1
+      const slot1 = await service.acquireDraftSlot(userId, "free", "text");
+      expect(slot1.allowed).toBe(true);
+
+      // Concurrent request while slot1 is in-flight is rejected
+      const slot2 = await service.acquireDraftSlot(userId, "free", "text");
+      expect(slot2.allowed).toBe(false);
+      if (!slot2.allowed) {
+        expect(slot2.reason).toBe("inflight");
+      }
+
+      // Releasing slot1 allows subsequent acquisition
+      await service.releaseDraftSlot(userId);
+      const slot3 = await service.acquireDraftSlot(userId, "free", "text");
+      expect(slot3.allowed).toBe(true);
+      await service.releaseDraftSlot(userId);
+    });
+
+    it("releaseDraftSlot frees in-flight slot without burning daily token budget", async () => {
+      const service = new InMemoryCoachLimitService({
+        clock: fixedClock("2026-07-23T10:00:00.000Z"),
+      });
+
+      const slot = await service.acquireDraftSlot(userId, "free", "photo");
+      expect(slot.allowed).toBe(true);
+
+      // Provider failed; release without commit
+      await service.releaseDraftSlot(userId);
+
+      // User still has full 5000 token budget available
+      const retrySlot = await service.acquireDraftSlot(userId, "free", "photo");
+      expect(retrySlot.allowed).toBe(true);
+      await service.releaseDraftSlot(userId);
+    });
+  });
 });

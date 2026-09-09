@@ -71,4 +71,50 @@ describe("logging draft storage", () => {
       false,
     );
   });
+
+  it("drops pending autosave if clear is called before save completes, preventing draft resurrection (Q2)", async () => {
+    const store = memoryStore();
+    let resolveSetItem = (): void => {};
+    const slowStore = {
+      ...store,
+      setItemAsync: async (key: string, value: string) => {
+        await new Promise<void>((resolve) => {
+          resolveSetItem = resolve;
+        });
+        store.values.set(key, value);
+      },
+    };
+
+    // 1. Initiate autosave (will block in slowStore.setItemAsync)
+    const savePromise = saveLoggingDraft(
+      USER_ID,
+      "meal",
+      { name: "In-flight meal" },
+      slowStore,
+    );
+
+    // 2. Immediately call clearLoggingDraft (e.g. user submitted or pressed Clear)
+    const clearPromise = clearLoggingDraft(USER_ID, "meal", store);
+
+    // 3. Resolve the pending save
+    resolveSetItem();
+
+    const [saveResult, clearResult] = await Promise.all([
+      savePromise,
+      clearPromise,
+    ]);
+
+    // Save should return false (dropped due to generation bump by clear)
+    expect(saveResult).toBe(false);
+    expect(clearResult).toBe(true);
+
+    // Storage must NOT contain the draft!
+    const loaded = await loadLoggingDraft(
+      USER_ID,
+      "meal",
+      (v): v is { name: string } => true,
+      store,
+    );
+    expect(loaded).toBeNull();
+  });
 });

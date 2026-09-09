@@ -185,34 +185,27 @@ console.log(
 );
 
 // -------------------------------------------------------------
-// Summary & Benchmark Metrics
+// Summary & Invariant Verification
 // -------------------------------------------------------------
-console.log(`${BOLD}${CYAN}=== Evaluation Benchmark Summary ===${RESET}`);
-console.log(`Total Cases Evaluated: ${totalTests}`);
+console.log(
+  `${BOLD}${CYAN}=== Offline Screener & Fixture Invariant Summary ===${RESET}`,
+);
+console.log(`Total Invariant Checks Evaluated: ${totalTests}`);
 console.log(
   `Passed: ${GREEN}${passedTests}${RESET} | Failed: ${failedTests > 0 ? RED : GREEN}${failedTests}${RESET}`,
 );
-
-const simulatedLatencyBuckets = {
-  under1s: "85%",
-  oneTo3s: "15%",
-  over3s: "0%",
-};
 console.log(
-  `Simulated Latency Distribution: <1s: ${simulatedLatencyBuckets.under1s}, 1-3s: ${simulatedLatencyBuckets.oneTo3s}, >3s: ${simulatedLatencyBuckets.over3s}`,
-);
-console.log(
-  `Simulated Average Tokens/Turn: ~320 tokens (Well within free 20k / paid 100k daily budgets)`,
+  `Scope: Offline first-line heuristic screener and dataset invariants. (Live model benchmarking remains gated per docs/BEFORE_TESTING.md).`,
 );
 
 if (failedTests > 0) {
   console.error(
-    `\n${RED}${BOLD}EVALUATION FAILED: ${failedTests} assertion(s) failed!${RESET}\n`,
+    `\n${RED}${BOLD}INVARIANT CHECKS FAILED: ${failedTests} assertion(s) failed!${RESET}\n`,
   );
   process.exit(1);
 } else {
   console.log(
-    `\n${GREEN}${BOLD}ALL AI EVALUATION THRESHOLDS PASSED (100% Compliance)${RESET}\n`,
+    `\n${GREEN}${BOLD}ALL OFFLINE SCREENER & CORPUS INVARIANTS PASSED (100% Threshold)${RESET}\n`,
   );
   process.exit(0);
 }

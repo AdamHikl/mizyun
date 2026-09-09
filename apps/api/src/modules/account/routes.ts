@@ -10,11 +10,14 @@ import {
   CURRENT_AI_CONSENT_VERSION,
   accountDeleteResponseSchema,
   accountDeleteSchema,
+  accountDeleteStatusResponseSchema,
+  accountDeleteStatusSchema,
   accountExportResponseSchema,
   accountDeleteChallengeResponseSchema,
   aiConsentResponseSchema,
   updateAiConsentSchema,
   type AccountDeleteResponse,
+  type AccountDeleteStatusResponse,
   type AccountExportResponse,
   type AccountDeleteChallengeResponse,
   type AiConsentResponse,
@@ -322,6 +325,56 @@ export const accountRoutes: FastifyPluginAsync<AccountRoutesOptions> = async (
       }
       await sendApiError(reply, request, status, "VALIDATION_ERROR", message);
       return;
+    },
+  );
+
+  // POST /v1/account/delete/status — unauthenticated status check
+  // using the confirmation token. Allows clients whose connection
+  // dropped after Auth was deleted to recover and confirm deletion status.
+  app.post(
+    "/account/delete/status",
+    async (request, reply): Promise<AccountDeleteStatusResponse | void> => {
+      const body = request.body as unknown;
+      const parsed = accountDeleteStatusSchema.safeParse(body);
+      if (!parsed.success) {
+        await sendApiError(
+          reply,
+          request,
+          422,
+          "VALIDATION_ERROR",
+          `Invalid account delete status body: ${parsed.error.issues.map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`).join("; ")}`,
+        );
+        return;
+      }
+      if (!options.accountRepository.getDeletionJobByToken) {
+        await sendApiError(
+          reply,
+          request,
+          500,
+          "INTERNAL_ERROR",
+          "Deletion status check is not supported by the configured repository.",
+        );
+        return;
+      }
+      const job = await options.accountRepository.getDeletionJobByToken(
+        parsed.data.confirmationToken,
+      );
+      if (!job) {
+        await sendApiError(
+          reply,
+          request,
+          404,
+          "NOT_FOUND",
+          "No deletion challenge found for the provided confirmation token.",
+        );
+        return;
+      }
+      return accountDeleteStatusResponseSchema.parse({
+        status: job.status,
+        stage: job.stage,
+        completedAt: job.completedAt ? job.completedAt.toISOString() : null,
+        createdAt: job.createdAt.toISOString(),
+      });
     },
   );
 

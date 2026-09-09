@@ -558,6 +558,124 @@ describe("POST /v1/food-entries", () => {
     expect(list[0]?.caloriesKcal).toBe(400);
   });
 
+  it("returns 409 CONFLICT when the same clientOperationId is submitted with a different consumedAt date (Q2)", async () => {
+    const { app, foodEntryRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    const clientOperationId = "55555555-6666-4777-8888-999999999998";
+    const originalPayload = {
+      name: "Oatmeal",
+      caloriesKcal: 250,
+      consumedAt: "2026-09-08T08:00:00.000Z",
+      clientOperationId,
+    };
+    const conflictingPayload = {
+      name: "Oatmeal",
+      caloriesKcal: 250,
+      consumedAt: "2026-09-08T09:00:00.000Z",
+      clientOperationId,
+    };
+
+    const first = await app.inject({
+      method: "POST",
+      url: "/v1/food-entries",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: originalPayload,
+    });
+    expect(first.statusCode).toBe(200);
+
+    const conflict = await app.inject({
+      method: "POST",
+      url: "/v1/food-entries",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: conflictingPayload,
+    });
+    expect(conflict.statusCode).toBe(409);
+    expect(conflict.json().error.code).toBe("CONFLICT");
+    expect(conflict.json().error.message).toContain("different meal payload");
+
+    // Also verify that identical consumedAt returns 200 with original entry
+    const retry = await app.inject({
+      method: "POST",
+      url: "/v1/food-entries",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: originalPayload,
+    });
+    expect(retry.statusCode).toBe(200);
+    expect(retry.json().foodEntry.id).toBe(first.json().foodEntry.id);
+  });
+
+  it("returns 409 CONFLICT when the same clientOperationId is submitted with different details (Q2)", async () => {
+    const { app, foodEntryRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    const clientOperationId = "55555555-6666-4777-8888-999999999997";
+    const originalPayload = {
+      name: "Protein Shake",
+      caloriesKcal: 150,
+      details: { flavor: "vanilla", scoops: 1 },
+      clientOperationId,
+    };
+    const conflictingPayload = {
+      name: "Protein Shake",
+      caloriesKcal: 150,
+      details: { flavor: "chocolate", scoops: 1 },
+      clientOperationId,
+    };
+
+    const first = await app.inject({
+      method: "POST",
+      url: "/v1/food-entries",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: originalPayload,
+    });
+    expect(first.statusCode).toBe(200);
+
+    const conflict = await app.inject({
+      method: "POST",
+      url: "/v1/food-entries",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: conflictingPayload,
+    });
+    expect(conflict.statusCode).toBe(409);
+    expect(conflict.json().error.code).toBe("CONFLICT");
+    expect(conflict.json().error.message).toContain("different meal payload");
+
+    // Also verify that same details with rearranged keys matches canonically (200)
+    const rearrangedPayload = {
+      name: "Protein Shake",
+      caloriesKcal: 150,
+      details: { scoops: 1, flavor: "vanilla" },
+      clientOperationId,
+    };
+    const retry = await app.inject({
+      method: "POST",
+      url: "/v1/food-entries",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: rearrangedPayload,
+    });
+    expect(retry.statusCode).toBe(200);
+    expect(retry.json().foodEntry.id).toBe(first.json().foodEntry.id);
+  });
+
   it("allows different users to use the same clientOperationId without collision (Q2)", async () => {
     const { app, foodEntryRepository } = build(
       tokenVerifierFor({ userId: userA }),

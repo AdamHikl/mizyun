@@ -65,6 +65,10 @@ const createMockJobsTable = (initialRows: JobRow[] = []) => {
         filtered = filtered.slice(0, count);
         return builder;
       }),
+      range: vi.fn((fromIdx: number, toIdx: number) => {
+        filtered = filtered.slice(fromIdx, toIdx + 1);
+        return builder;
+      }),
       maybeSingle: vi.fn(async () => ({
         data: filtered[0] ?? null,
         error: null,
@@ -81,6 +85,11 @@ const createMockJobsTable = (initialRows: JobRow[] = []) => {
   };
 
   const from = vi.fn((table: string) => {
+    if (table === "media_assets") {
+      return {
+        select: vi.fn(() => createQueryBuilder()),
+      };
+    }
     if (table !== "account_deletion_jobs") {
       throw new Error(`Unexpected table ${table}`);
     }
@@ -110,16 +119,37 @@ const createMockJobsTable = (initialRows: JobRow[] = []) => {
         };
       }),
       update: vi.fn((patch: Partial<JobRow>) => {
-        return {
-          eq: vi.fn((col: string, val: unknown) => {
-            for (const r of rows) {
-              if ((r as any)[col] === val) {
-                Object.assign(r, patch);
-              }
-            }
-            return { error: null };
-          }),
+        const filters: Array<{ col: string; val: unknown }> = [];
+        const execute = () => {
+          let matched = [...rows];
+          for (const f of filters) {
+            matched = matched.filter((r) => (r as any)[f.col] === f.val);
+          }
+          for (const r of matched) {
+            Object.assign(r, patch);
+          }
+          return matched;
         };
+
+        const updateBuilder: any = {
+          eq: vi.fn((col: string, val: unknown) => {
+            filters.push({ col, val });
+            return updateBuilder;
+          }),
+          select: vi.fn(() => {
+            const matched = execute();
+            return {
+              data: matched,
+              error: null,
+            };
+          }),
+          error: null,
+          then: (resolve: (v: any) => void) => {
+            const matched = execute();
+            resolve({ data: matched, error: null });
+          },
+        };
+        return updateBuilder;
       }),
     };
   });
@@ -586,5 +616,96 @@ describe("SupabaseAccountRepository", () => {
     expect(result.privateMedia[0]!.downloadUrl).toBe(
       "https://signed.supabase.co/photo.jpg",
     );
+  });
+
+  it("exportForUser marks manifest partial if private media URL signing fails", async () => {
+    const mediaStorage = {
+      remove: vi.fn(),
+      signDownloadUrl: vi.fn().mockRejectedValue(new Error("Storage timeout")),
+    };
+    const mediaAssetRepository = {
+      list: vi.fn().mockResolvedValue([
+        {
+          id: "asset-1",
+          bucketId: "private-media",
+          objectPath: `${testUserId}/photo.jpg`,
+          purpose: "progress_photo",
+          mimeType: "image/jpeg",
+          byteSize: 1024,
+          createdAt: new Date("2026-09-08T10:00:00Z"),
+          deletedAt: null,
+        },
+      ]),
+    } as unknown as MediaAssetRepository;
+
+    const opts = createMockOptions({ mediaStorage, mediaAssetRepository });
+    const repo = new SupabaseAccountRepository(opts);
+    const result = await repo.exportForUser(testUserId, {
+      accessToken: "valid-jwt",
+    });
+
+    expect(result.manifest?.completeness).toBe("partial");
+    expect(result.privateMedia[0]!.downloadUrl).toBeNull();
+  });
+
+  it("exportForUser with clientFor queries user_feedback (not feedback) and memory_items", async () => {
+    const queriedTables: string[] = [];
+    const mockClient = {
+      from: vi.fn((table: string) => {
+        queriedTables.push(table);
+        if (table === "feedback") {
+          throw new Error("relation public.feedback does not exist");
+        }
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              order: vi.fn(() => ({
+                order: vi.fn(() => ({
+                  range: vi.fn(() =>
+                    Promise.resolve({ data: [], error: null }),
+                  ),
+                })),
+                range: vi.fn(() => Promise.resolve({ data: [], error: null })),
+              })),
+              maybeSingle: vi.fn(() =>
+                Promise.resolve({ data: null, error: null }),
+              ),
+            })),
+          })),
+        };
+      }),
+    } as unknown as RepositorySupabaseClient;
+
+    const opts = createMockOptions({
+      clientFor: () => mockClient,
+    });
+    const repo = new SupabaseAccountRepository(opts);
+    const result = await repo.exportForUser(testUserId, {
+      accessToken: "valid-jwt",
+    });
+
+    expect(queriedTables).toContain("user_feedback");
+    expect(queriedTables).not.toContain("feedback");
+    expect(queriedTables).toContain("memory_items");
+    expect(queriedTables).toContain("goals");
+    expect(result.manifest?.completeness).toBe("complete");
+  });
+
+  it("getDeletionJobByToken retrieves active deletion job by confirmation token", async () => {
+    const opts = createMockOptions();
+    const repo = new SupabaseAccountRepository(opts);
+    const now = new Date("2026-09-08T10:00:00Z");
+    const token = await repo.issueDeletionChallenge(testUserId, {
+      ttlSeconds: 300,
+      now,
+    });
+
+    const job = await repo.getDeletionJobByToken(token);
+    expect(job).not.toBeNull();
+    expect(job?.userId).toBe(testUserId);
+    expect(job?.status).toBe("challenge_issued");
+
+    const unknownJob = await repo.getDeletionJobByToken("non-existent-token");
+    expect(unknownJob).toBeNull();
   });
 });
