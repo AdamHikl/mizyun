@@ -25,8 +25,8 @@ ProtectControlGroups=true
 RestrictSUIDSGID=true
 
 # Explicit file access boundaries
-InaccessiblePaths=/etc/mizyun/production.env /var/lib/mizyun/repo /srv/mizyun/supabase /var/run/docker.sock
-ReadWritePaths=/var/lib/mizyun/dev/repo /tmp
+InaccessiblePaths=/etc/mizyun/production.env /var/lib/mizyun/repo /srv/mizyun/supabase /srv/mizyun/backups /home/mizyun /var/run/docker.sock
+ReadWritePaths=/tmp
 
 # Resource limits
 MemoryMax=1G

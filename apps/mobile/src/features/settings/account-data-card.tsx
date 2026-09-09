@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -15,10 +15,14 @@ import { apiClient } from "@/composition/api-client";
 import { Spacing } from "@/constants/theme";
 import { useAuth } from "@/features/auth/auth-context";
 import {
+  clearDeletionChallenge,
   clearLocalUserData,
+  checkAccountDeletionStatus,
   confirmAccountDeletion,
   fetchAccountExport,
+  loadDeletionChallenge,
   requestAccountDeletion,
+  saveDeletionChallenge,
   saveExportToFile,
 } from "./account-data-management";
 import { useAiConsentController } from "@/features/coach/ai-consent-controller";
@@ -46,6 +50,39 @@ export function AccountDataCard({
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [isRevokingConsent, setIsRevokingConsent] = useState(false);
 
+  useEffect(() => {
+    let active = true;
+    const userId = session?.user.id;
+    if (!userId) {
+      setPendingChallenge(null);
+      return;
+    }
+    void loadDeletionChallenge(userId)
+      .then((challenge) => {
+        if (!active || !challenge) return;
+        setPendingChallenge(challenge);
+        if (new Date(challenge.expiresAt).getTime() > Date.now()) return;
+        return checkAccountDeletionStatus(apiClient, challenge.token).then(
+          (status) => {
+            if (!active) return;
+            if (status.ok) {
+              setFeedbackMessage(
+                status.status === "completed"
+                  ? "Account deletion has completed."
+                  : status.status === "in_progress"
+                    ? "Account deletion is still in progress. You can retry after the server finishes."
+                    : "A previous account deletion request is still recoverable.",
+              );
+            }
+          },
+        );
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [session?.user.id]);
+
   const {
     consentGranted: aiConsentGranted,
     revokeConsent: executeRevokeAiConsent,
@@ -66,8 +103,12 @@ export function AccountDataCard({
           onPress: async () => {
             setIsRevokingConsent(true);
             try {
-              await executeRevokeAiConsent();
-              setFeedbackMessage("AI consent has been revoked.");
+              const revoked = await executeRevokeAiConsent();
+              setFeedbackMessage(
+                revoked
+                  ? "AI consent has been revoked."
+                  : "Could not revoke AI consent. Please try again.",
+              );
             } catch {
               setFeedbackMessage(
                 "Could not revoke AI consent. Please try again.",
@@ -94,6 +135,12 @@ export function AccountDataCard({
       if (!saved.ok) {
         setFeedbackMessage(saved.message);
         return;
+      }
+      if (result.data.export.manifest?.completeness === "partial") {
+        Alert.alert(
+          "Export Complete (Partial)",
+          "Some signed media URLs could not be generated. Data export saved.",
+        );
       }
       const shareResult = await Share.share({
         title: "Mizyun Account Data Export",
@@ -128,10 +175,16 @@ export function AccountDataCard({
           return;
         }
         token = challenge.confirmationToken;
-        setPendingChallenge({
+        const newChallenge = {
           token: challenge.confirmationToken,
           expiresAt: challenge.expiresAt,
-        });
+        };
+        setPendingChallenge(newChallenge);
+        if (session?.user.id) {
+          await saveDeletionChallenge(session.user.id, newChallenge).catch(
+            () => {},
+          );
+        }
       }
 
       setDeletionStage("erasing_server_data");
@@ -142,6 +195,9 @@ export function AccountDataCard({
           confirmResult.reason === "mismatch"
         ) {
           setPendingChallenge(null);
+          if (session?.user.id) {
+            await clearDeletionChallenge(session.user.id).catch(() => {});
+          }
         }
         Alert.alert("Deletion Error", confirmResult.message);
         setFeedbackMessage(confirmResult.message);
@@ -151,6 +207,9 @@ export function AccountDataCard({
       }
 
       setPendingChallenge(null);
+      if (session?.user.id) {
+        await clearDeletionChallenge(session.user.id).catch(() => {});
+      }
       setDeletionStage("clearing_local_cache");
 
       if (session?.user.id) {
@@ -233,6 +292,12 @@ export function AccountDataCard({
           )}
         </Pressable>
       </View>
+
+      <ThemedText type="small" themeColor="textSecondary">
+        Export creates a JSON file containing all your records. For private
+        photos, 24-hour signed download URLs are provided for retrieval rather
+        than embedding full raw media in the export JSON.
+      </ThemedText>
 
       <View style={styles.divider} />
 

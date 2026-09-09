@@ -1,6 +1,65 @@
 # Mizyun current status
 
-> Fast-changing session handoff. Update this file at the end of every development session. Last updated: **2026-09-08** (Sessions B, C, D, E1, E2, F, G, H, I, J complete: Q1–Q9 remediation fully implemented, verified, audited, and deployed to Dev; R3/R8 release gates held pending physical device runs and off-device restore rehearsal).
+> Fast-changing session handoff. Last updated: **2026-09-09, independent round-3 review**. Round-2 patches are partially effective, with residual implementation defects and a new meal-retry regression. The earlier blanket remediation-complete claim is superseded below.
+
+## Current handoff — independent round-3 review
+
+[Per-issue report](docs/IMPLEMENTATION_REVIEW_2026-09-09_ROUND_3.md) records fresh evidence for the current uncommitted implementation over `e41e2406929ec89a5328e7869466fd109e5b9b9b`; this coordinator pass adds fixes on top of that patch.
+
+- **Fixed portions:** export table name and paged goals; server timestamp/details conflicts; restore/storage queue guards; Coach retry key, consent-version and account-generation checks; original explicit wrong-port/service alias checks; truthful offline evaluation summary.
+- **Coordinator fixes:** edited retry now stops rather than creating a duplicate meal; expired deletion receipts are preserved and the mobile card queries durable deletion status for recovery messaging; Dev/Production promotion requires canonical explicit database URLs and rollback failures are tracked; Production/preview mobile profiles require publishable configuration, HTTPS and exact Production callback; failed consent revocation returns failure; external AI configuration now requires a non-empty allowlist; daily token reservations use a new atomic `reserved_tokens` ledger migration; text Coach commits provider-reported usage when available.
+- **Still implementation work:** Q4 receipt expiry/concurrent resume/unconnected recovery and write barriers; Q5 memory truncation/portable media/resource bounds; Q7 error presentation and mutable action context; Q8 reservation lease/aggregate cost settlement and live evaluation; Q1 unit installation; Q6 deployed/upgrade evidence; Q3 native/EAS/device acceptance; R3/R8.
+- **Fresh live read-only evidence:** Dev `425b3e01b088cf8efff3820143dde319d50281f0`, Production `c02a67ab31a101c06c9a3ebdf275f9d0cee4a992`; Dev unit still permits repo writes and does not mask backups; backup directory mode 777 and Dev identity can read Production dump. Template changes are not installed by ordinary API promotion.
+- **Verification:** `pnpm check` passed on 2026-09-09: formatting, all workspace typechecks, iOS/Android bundle exports, mobile 297 tests, API 433 tests (15 integration tests skipped), config 72 tests, 23 deployment safeguard tests, build matrix, and 56 offline AI invariant checks. `pnpm db:verify` also passed locally with 97 pgTAP tests across five suites, including the new token-reservation migration. No fresh native/provider/restore acceptance. Changes are not committed or deployed.
+- **Next exact action:** add/verify Q2 regression coverage for the edited unknown-outcome path, apply Q1 isolation through a reviewed remote deployment, then implement Q4/Q5 lifecycle/export and complete Q8 lease/accounting work. Preserve approved shared-provider/autoconfirm policy while enforcing intended admission/cost.
+
+## Historical implementation handoff — Round 2 remediation claim (superseded by round 3)
+
+Full remediation of all findings in [`docs/IMPLEMENTATION_REVIEW_2026-09-08_ROUND_2.md`](docs/IMPLEMENTATION_REVIEW_2026-09-08_ROUND_2.md) has been implemented and automatically verified:
+
+- **Work Package 1 (Containment & Promotion Safety: Q1, Q8-A, Q9)**:
+  - **Q1 Host Permissions**: In `deploy/raspberry-pi/mizyun-api-dev.service`, masked `/srv/mizyun/backups` and `/home/mizyun` in `InaccessiblePaths`; removed `/var/lib/mizyun/dev/repo` from `ReadWritePaths`. In `scripts/backup-production.sh`, enforced `chmod 700` on backup directories and `chmod 600` on archive/dump files.
+  - **Q8-A AI Admission**: Implemented `AI_ALLOWED_EMAILS` server config, `AI_NOT_INVITED` error code, and server-side authorization check in `authorizeAiAccess` wired through API endpoints (`draft-route.ts`, `coach/routes.ts`, `coach/nutrition-photo-routes.ts`).
+  - **Q9 Promotion Safeguards**: Normalized `.service` alias, added strict DB port verification (rejecting 5432 in Dev, 5433 in Prod), journaled `"status":"rollback_failed"` on rollback health failures. All 22 tests in `scripts/test-deployment-safeguards.mjs` pass.
+
+- **Work Package 2 (Data Correctness, Lifecycle & Tier Authority: Q5, Q4, Q6)**:
+  - **Q5 Account Export**: Corrected table from `feedback` to `user_feedback` in `account-repository.ts`. Added deterministic secondary `.order("id", { ascending: true })` tie-breaker to `fetchAllPaged`. Replaced `.limit(500)` on goals. Populated `memories` truthfully. Handled private media download signed URLs and marked `completeness: "partial"` truthfully on signing failure. Cleaned up export files in mobile `clearLocalUserData`.
+  - **Q4 Resumable Deletion**: Compare-and-swap on `status = 'challenge_issued'`, stage-aware resumption, idempotent Auth deletion in Stage 3, unauthenticated `POST /v1/account/delete/status` with confirmation token for post-auth status recovery, and SecureStore challenge persistence.
+  - **Q6 Tier Authority Matrix**: Expanded `scripts/test-tier-authority-postgrest.mjs` from 6 to 10 automated PostgREST tests (anonymous PATCH rejection, cross-user write rejection, UPSERT with `plan_tier = paid` rejection, missing claims rejection).
+
+- **Work Package 3 (Mobile Reliability & Build Guards: Q2, Q7, Q3)**:
+  - **Q2 Server Meal Mutation Idempotency**: Enhanced `matchesCanonicalPayload` to compare `consumedAt` and `details` (recursive canonical JSON with sorted keys). Conflicting edits return 409 CONFLICT; rearranged keys match 200 OK.
+  - **Q2 Mobile Meal Retries & Draft Storage**: Added write queue serialization and generation barrier (`storageGenerations`) to `saveLoggingDraft` and `clearLoggingDraft`. Gated Save button and `onSubmit` on `draftLoaded`. Added `submittedOperationRef`: unmodified retries preserve exact operation ID, while edited fields allocate a fresh `clientOperationId`.
+  - **Q7 Mobile Consent Continuation**: Passed `action.idempotencyKey` to `sendInternal` in `coach-setup-screen.tsx`. Enforced `CURRENT_AI_CONSENT_VERSION = "2026-09-08"` currency check in `loadAiConsent`. Added monotonic generation counter (`currentGeneration`) in `ai-consent-controller.ts` to invalidate stale async completions across A→B→A user switches. Maintained `isModalVisible: true` when `status === "error"` with retry capability.
+  - **Q3 Build Matrix & Entry Points**: Enforced valid profile enumeration, required production URLs, and host/scheme whitelisting in `build-matrix.ts` and `apps/mobile/app.config.js`. Updated native bundle/package checks in `scripts/mobile-founder-*.sh` to fail closed (`-z "$current_bundle_id"`). All 16 build matrix tests pass in `scripts/test-build-matrix.mjs`.
+
+- **Work Package 4 (AI Accounting & Evaluation Governance: Q8-B, Q8-C)**:
+  - **Q8-B AI Accounting & Token Limits**: Added `tokensUsed?: number | undefined` to `VisionDraftCandidate` and `foodDraftCandidateSchema`. Extracted `usageMetadata.totalTokenCount` in `GeminiVisionProvider`. Reconciled exact tokens in `draft-route.ts` and `nutrition-photo-routes.ts`. Added error checks for RPC results in `SupabaseCoachLimitService`. Added draft slot token and concurrency tests in `limits.test.ts` (14/14 pass).
+  - **Q8-C Offline Screener & Fixture Invariants**: Truthfully retitled runner as "Offline Screener & Fixture Invariant Summary", removed simulated latency/token metrics, clarified that live model evaluation remains gated per `docs/BEFORE_TESTING.md`. Fixed sandbox runner in `package.json` to `node --import tsx scripts/run-ai-evaluation.mjs` (56/56 pass).
+
+- **Full Quality Gate Verification (`pnpm check`)**:
+  - `pnpm format:check`: 100% Prettier code style.
+  - `pnpm typecheck`: 14/14 packages pass cleanly.
+  - `pnpm --filter @mizyun/mobile bundle:check`: iOS and Android production bundles build cleanly.
+  - `pnpm test`: 433 API tests, 297 Mobile tests, Contracts, Providers, Config, Core, Agent Runtime, Identity, Observability, Memory, SES all pass.
+  - `pnpm test:deployment-safeguards`: 22/22 passed.
+  - `pnpm test:build-matrix`: all matrix, identity, and isolation checks passed.
+  - `pnpm test:ai-eval`: 56/56 invariant checks passed.
+
+- **Next exact action**:
+  1. Commit verified changes to `origin/main`.
+  2. Deploy to Dev on Raspberry Pi via `pnpm deploy:dev [sha]`.
+  3. Verify public Dev API health (`https://mizyun-api-dev.phiskel.com/v1/health`).
+  4. Operational gates R3 Part B (store signing) and R8 (physical device journey testing & off-device restore rehearsal) remain explicitly blocked prior to production promotion. Production promotion remains an explicit, separately authorized milestone.
+
+## Historical handoff — independent round-2 review (2026-09-09)
+
+- Reviewed source `e41e2406929ec89a5328e7869466fd109e5b9b9b`; live Dev `425b3e01b088cf8efff3820143dde319d50281f0`; Production `c02a67ab31a101c06c9a3ebdf275f9d0cee4a992`, unchanged by this review.
+- Q1/Q2/Q3/Q4/Q7/Q8-A/Q8-B/Q9 partially fixed; Q5 regressed (persistent export queries nonexistent `feedback`); Q6 original tier bypass appears fixed but deployed/upgrade matrix acceptance is incomplete; Q8-C blocked (fixture checks presented as model evidence). R3/R8 remain blocked.
+- Live read-only probe: Dev identity cannot read Production env/Docker but CAN read Production database backup and CAN write Dev executable checkout. Mocked actual Dev deploy script accepts Production database port and `mizyun-api.service` alias. No actual remote mutations were performed.
+- Three independent helper agents reviewed mobile/build/tier, data/privacy, and AI/consent. Full check passed through unit/bundle/deployment/matrix stages; final tsx IPC failed under sandbox. The final runner passed with `node --import tsx scripts/run-ai-evaluation.mjs` (56 fixture checks, not model evaluation). Fifteen API integration tests were skipped. No fresh native/database-reset/restore/live-provider acceptance.
+- **Next exact action:** use round-2 Q1/Q8-A/Q9 findings with the existing implementation plan; fix backup/runtime permission boundaries and fault-test canonical Dev target/database/service guards locally before remote promotion. In parallel, reproduce/fix Q5 wrong-table export with a schema-backed regression. Continue all original exit criteria; do not reduce the task to the table-name fix.
+- Preserve the approved shared Gemini project/Dev autoconfirm testing exception. Enforce its intended bounded admission and cost. No Production promotion or broader tester invitations accepted by this review.
 
 ## Remediation Session J (Comprehensive Q1–Q9 Final Acceptance & Independent Audit) — 2026-09-08
 

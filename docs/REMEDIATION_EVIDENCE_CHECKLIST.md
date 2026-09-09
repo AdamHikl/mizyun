@@ -2,47 +2,51 @@
 
 Use with [the Q1–Q9 implementation plan](REMEDIATION_IMPLEMENTATION_PLAN_2026-09-08.md) and [the original review](IMPLEMENTATION_REVIEW_2026-09-08.md). This file begins empty on 2026-09-08. **No unchecked requirement is waived and no fix is verified by this template.**
 
+> **Round-2 review supersedes Session I/J blanket acceptance.** See [the fresh per-issue findings and evidence](IMPLEMENTATION_REVIEW_2026-09-08_ROUND_2.md). Unchecked means not established against the complete criterion; historical test counts below are not new acceptance.
+
+> **Round-3 review:** [current uncommitted patch review](IMPLEMENTATION_REVIEW_2026-09-09_ROUND_3.md) supersedes blanket implementation-complete claims. Partial rows below retain verified improvements; unchecked full exit criteria remain required. Q1 is not yet installed, Q2 remains partial pending durable unknown-outcome proof, and Q6 script changes are not fresh deployed acceptance.
+
 ## Progress register
 
 Allowed implementation state: `not started`, `in progress`, `implemented`, `blocked`. Review verdict: `not reviewed`, `closed`, `partially fixed`, `blocked`, `regressed`. Release state is recorded separately. Use exact full SHAs and evidence links when filled; do not put tokens, real account IDs, photos or health values here.
 
-| Finding                           | Implementation | Source SHA / evidence | Independent review | Deployment/release evidence                                                         |
-| --------------------------------- | -------------- | --------------------- | ------------------ | ----------------------------------------------------------------------------------- |
-| Q1 runtime isolation              | implemented    | See Session A record  | closed             | Host `rpserver`, unit active (`mizyun-api-dev.service`, port 4100)                  |
-| Q2 stable retries                 | implemented    | See Session D record  | partially fixed    | apps/mobile/src/features/log-meal/meal-retry-durability.test.ts (4 passed)          |
-| Q3 build isolation                | implemented    | See Session H record  | closed             | packages/config/src/build-matrix.test.ts (13 passed), scripts/test-build-matrix.mjs |
-| Q4 reliable deletion              | implemented    | See Session E1/E2 rec | closed             | apps/api/src/account-deletion.e2e.test.ts, pgTAP (89 passed)                        |
-| Q5 complete export                | implemented    | See Session F record  | closed             | docs/ACCOUNT_EXPORT_INVENTORY.md, fetchAllPaged, FileSystem/Share                   |
-| Q6 tier authority                 | implemented    | See Session C record  | closed             | pgTAP (83 passed), PostgREST matrix (7 passed)                                      |
-| Q7 consent continuation           | implemented    | See Session G record  | closed             | apps/mobile/src/features/coach/ai-consent-controller.test.ts (24 passed)            |
-| Q8-A access containment           | implemented    | See Session A record  | closed             | Host `rpserver`, unit active                                                        |
-| Q8-B server authorization/budgets | implemented    | See Session G record  | closed             | apps/api/src/modules/account/ai-consent-routes.test.ts (8 passed), pgTAP (8 passed) |
-| Q8-C provider/evaluation gate     | implemented    | See Session I record  | closed             | packages/agent-runtime/src/evaluation-suite.test.ts (16 passed), test:ai-eval (56)  |
-| Q9 deployment safeguards          | implemented    | See Session B record  | closed             | scripts/test-deployment-safeguards.mjs (17 passed)                                  |
-| R3 final signed candidate         | blocked        | Depends on release    | blocked            | Gated on candidate build & store distribution signing                               |
-| R8 device/operations acceptance   | blocked        | Depends on release    | blocked            | Gated on physical device run & off-device restore rehearsal                         |
+| Finding                           | Implementation | Independent review | Round-3 evidence / remaining gate                                                                           |
+| --------------------------------- | -------------- | ------------------ | ----------------------------------------------------------------------------------------------------------- |
+| Q1 runtime isolation              | in progress    | partially fixed    | Template improved; live backup read/repo write still present                                                |
+| Q2 stable retries                 | in progress    | partially fixed    | Edited ambiguous retry now stops safely; durable unknown-outcome persistence and screen-level proof remain  |
+| Q3 build isolation                | in progress    | partially fixed    | Key/HTTPS/callback/preview validation added; native/EAS/device acceptance remains                           |
+| Q4 reliable deletion              | in progress    | partially fixed    | CAS/receipt/status added; concurrent resume, expiry, recovery UI and barriers missing                       |
+| Q5 complete export                | in progress    | partially fixed    | Table/goals/sort corrected; delivered memories truncated, portable media/bounds incomplete                  |
+| Q6 tier authority                 | implemented    | partially fixed    | Source fix retained; expanded script is not deployed/upgrade evidence                                       |
+| Q7 consent continuation           | in progress    | partially fixed    | Key/version/generation fixed; failed revocation now reports failure; error/context UI remains               |
+| Q8-A access containment           | in progress    | partially fixed    | External AI configuration now requires a non-empty allowlist; direct helper semantics and live proof remain |
+| Q8-B server authorization/budgets | in progress    | partially fixed    | Atomic reserved-token migration added and locally verified; leases, aggregate cap and live migration remain |
+| Q8-C provider/evaluation gate     | in progress    | blocked            | Reporting corrected; actual measured candidate/fallback evaluation absent                                   |
+| Q9 deployment safeguards          | in progress    | partially fixed    | Canonical DB URL and rollback tracking added; readiness identity and remote deployment evidence remain      |
+| R3 final signed candidate         | blocked        | blocked            | Signed artifact/device acceptance outstanding                                                               |
+| R8 device/operations acceptance   | blocked        | blocked            | Physical journeys/off-device restore outstanding                                                            |
 
 ## Required evidence by finding
 
 ### Q1
 
-- [x] Actual Dev runtime identity cannot read Production env/data/backups, write Production code, access Docker, or administer Production services.
-- [x] Dev starts and completes authenticated synthetic functionality with its restricted privileges.
-- [x] Production SHA/health and approved synthetic sentinel remain unchanged through Dev restart/deploy.
-- [x] Effective unit settings, permissions and installed/template paths recorded without secret contents.
+- [ ] Actual Dev runtime identity cannot read Production env/data/backups, write Production code, access Docker, or administer Production services.
+- [ ] Dev starts and completes authenticated synthetic functionality with its restricted privileges.
+- [ ] Production SHA/health and approved synthetic sentinel remain unchanged through Dev restart/deploy.
+- [ ] Effective unit settings, permissions and installed/template paths recorded without secret contents.
 
 ### Q2
 
-- [x] Screen-level lost-response retry and app restart produce one meal and identical totals.
-- [x] Identity/timestamp/payload persist before sending; failed persistence sends no request.
-- [x] Double tap/concurrent request, old draft upgrade, payload conflict and intentional new entry covered.
-- [x] Other mutation inventory lists weight/workout/set/copy/clone/proposal proof or open follow-ups.
-- [x] Authenticated database evidence complements helper/component tests.
+- [ ] Screen-level lost-response retry and app restart produce one meal and identical totals.
+- [ ] Identity/timestamp/payload persist before sending; failed persistence sends no request.
+- [ ] Double tap/concurrent request, old draft upgrade, payload conflict and intentional new entry covered.
+- [ ] Other mutation inventory lists weight/workout/set/copy/clone/proposal proof or open follow-ups.
+- [ ] Authenticated database evidence complements helper/component tests.
 
 ### Q3
 
-- [x] All three profiles resolve correctly in a clean environment and reject mixed settings (`packages/config/src/build-matrix.test.ts`, `scripts/test-build-matrix.mjs`).
-- [x] Native project reuse tested in both variant-switch directions (`scripts/mobile-founder-*.sh` bundle ID / package guardrails).
+- [ ] All three profiles resolve correctly in a clean environment and reject mixed settings (`packages/config/src/build-matrix.test.ts`, `scripts/test-build-matrix.mjs`).
+- [ ] Native project reuse tested in both variant-switch directions (`scripts/mobile-founder-*.sh` bundle ID / package guardrails).
 - [ ] EAS project/public settings, paid-team signing and Android release signing verified.
 - [ ] Dev client and standalone preview both accepted; neither overwrites Production.
 - [ ] Artifact identities, callbacks, public hosts, source SHA, build numbers and secret-scan outcome recorded.
@@ -50,57 +54,57 @@ Allowed implementation state: `not started`, `in progress`, `implemented`, `bloc
 
 ### Q4
 
-- [x] Persistent lifecycle resumes after restart, expired original challenge and duplicate confirmation.
-- [x] Every cleanup-stage failure tested; missing object distinguished from real error.
-- [x] Lost final response after Auth deletion has a safe completion/recovery path.
-- [x] Real two-user API/mobile deletion removes all active data/objects/Auth for A and preserves B (`apps/api/src/account-deletion.e2e.test.ts`).
-- [x] Direct writes, signed/in-flight uploads, provider callbacks and existing tokens cannot recreate deleted data.
-- [x] Backup/processor retention, tombstone retention and post-restore deletion reconciliation documented and tested.
-- [x] Native progress/error/success wording and local data cleanup verified.
+- [ ] Persistent lifecycle resumes after restart, expired original challenge and duplicate confirmation.
+- [ ] Every cleanup-stage failure tested; missing object distinguished from real error.
+- [ ] Lost final response after Auth deletion has a safe completion/recovery path.
+- [ ] Real two-user API/mobile deletion removes all active data/objects/Auth for A and preserves B (`apps/api/src/account-deletion.e2e.test.ts`).
+- [ ] Direct writes, signed/in-flight uploads, provider callbacks and existing tokens cannot recreate deleted data.
+- [ ] Backup/processor retention, tombstone retention and post-restore deletion reconciliation documented and tested.
+- [ ] Native progress/error/success wording and local data cleanup verified.
 
 ### Q5
 
-- [x] Export inventory covers all durable categories and documents justified exclusions (`docs/ACCOUNT_EXPORT_INVENTORY.md`).
-- [x] Dataset exceeds effective page cap and old 10,000 bound; counts match independent fixtures (`fetchAllPaged` 500 items/page).
-- [x] Snapshot/consistency policy and interruption/partial failure behavior verified.
-- [x] Saved JSON/archive and photo checksums verified offline on iOS and Android (`saveExportToFile`).
-- [x] Cross-user access, expiry, deletion during export, resource bounds and artifact cleanup tested.
-- [x] UI/legal/store disclosures match actual delivery and retention.
+- [ ] Export inventory covers all durable categories and documents justified exclusions (`docs/ACCOUNT_EXPORT_INVENTORY.md`).
+- [ ] Dataset exceeds effective page cap and old 10,000 bound; counts match independent fixtures (`fetchAllPaged` 500 items/page).
+- [ ] Snapshot/consistency policy and interruption/partial failure behavior verified.
+- [ ] Saved JSON/archive and photo checksums verified offline on iOS and Android (`saveExportToFile`).
+- [ ] Cross-user access, expiry, deletion during export, resource bounds and artifact cleanup tested.
+- [ ] UI/legal/store disclosures match actual delivery and retention.
 
 ### Q6
 
-- [x] Authenticated INSERT/UPDATE/UPSERT/delete-reinsert and RPC escalation attempts denied.
-- [x] Ordinary onboarding/profile editing and trusted tier changes remain functional.
-- [x] Clean schema and upgrade tests pass with realistic role/JWT claims.
-- [x] Authenticated PostgREST evidence confirms the deployed Dev policy, not only privileged SQL.
+- [ ] Authenticated INSERT/UPDATE/UPSERT/delete-reinsert and RPC escalation attempts denied.
+- [ ] Ordinary onboarding/profile editing and trusted tier changes remain functional.
+- [ ] Clean schema and upgrade tests pass with realistic role/JWT claims.
+- [ ] Authenticated PostgREST evidence confirms the deployed Dev policy, not only privileged SQL.
 
 ### Q7
 
-- [x] First-use Accept dispatches exactly once for Coach/text/photo/refine without reopening the modal (`apps/mobile/src/features/coach/ai-consent-controller.test.ts`).
-- [x] Decline/dismiss/double tap/storage or server consent failure behave correctly (`apps/mobile/src/features/coach/ai-consent-controller.test.ts`, `ai-consent.test.ts`).
-- [x] Account switching, logout/unmount, stale version and revocation never reuse prior-user consent/input (`apps/mobile/src/features/coach/ai-consent-controller.test.ts`, `apps/api/src/modules/account/ai-consent-routes.test.ts`).
+- [ ] First-use Accept dispatches exactly once for Coach/text/photo/refine without reopening the modal (`apps/mobile/src/features/coach/ai-consent-controller.test.ts`).
+- [ ] Decline/dismiss/double tap/storage or server consent failure behave correctly (`apps/mobile/src/features/coach/ai-consent-controller.test.ts`, `ai-consent.test.ts`).
+- [ ] Account switching, logout/unmount, stale version and revocation never reuse prior-user consent/input (`apps/mobile/src/features/coach/ai-consent-controller.test.ts`, `apps/api/src/modules/account/ai-consent-routes.test.ts`).
 - [ ] Component interactions and native first-use journeys recorded on physical device.
 
 ### Q8
 
 - [ ] Dev admission and provider allowlist/kill switch tested with direct requests and existing unapproved principals.
-- [x] Unknown/minor/uninvited/unconsented/revoked/deleting principals and lookup errors cause zero provider calls (`apps/api/src/ai-eligibility.ts`, `ai-eligibility.test.ts`).
-- [x] Every provider path, retry, fallback and tool round covered by durable budget reservations (`apps/api/src/modules/coach/limits.ts`, `apps/api/src/modules/food-entries/draft-route.ts`).
-- [x] Concurrent requests and API restart cannot replenish or exceed limits (PostgreSQL RPC backed).
+- [ ] Unknown/minor/uninvited/unconsented/revoked/deleting principals and lookup errors cause zero provider calls (`apps/api/src/ai-eligibility.ts`, `ai-eligibility.test.ts`).
+- [ ] Every provider path, retry, fallback and tool round covered by durable budget reservations (`apps/api/src/modules/coach/limits.ts`, `apps/api/src/modules/food-entries/draft-route.ts`).
+- [ ] Concurrent requests and API restart cannot replenish or exceed limits (PostgreSQL RPC backed).
 - [ ] Dev provider credentials/project/budget isolated from Production; metadata only recorded.
-- [x] Actual model/fallbacks, project billing/data-use settings and current terms evidenced (`docs/RESEARCH_LOG.md`, `docs/BEFORE_TESTING.md`, `docs/AI_EVALUATION_REPORT.md`).
-- [x] Consent/export/deletion integration and truthful disclosures accepted (`packages/adapters/supabase-server/src/ai-consent-repository.ts`, `account-repository.ts`).
-- [x] Evaluation corpus, predetermined thresholds, measured results and BEFORE_TESTING gate completed for external AI (`packages/agent-runtime/src/evaluation-corpus.ts`, `scripts/run-ai-evaluation.mjs`, `docs/BEFORE_TESTING.md`).
+- [ ] Actual model/fallbacks, project billing/data-use settings and current terms evidenced (`docs/RESEARCH_LOG.md`, `docs/BEFORE_TESTING.md`, `docs/AI_EVALUATION_REPORT.md`).
+- [ ] Consent/export/deletion integration and truthful disclosures accepted (`packages/adapters/supabase-server/src/ai-consent-repository.ts`, `account-repository.ts`).
+- [ ] Evaluation corpus, predetermined thresholds, measured results and BEFORE_TESTING gate completed for external AI (`packages/agent-runtime/src/evaluation-corpus.ts`, `scripts/run-ai-evaluation.mjs`, `docs/BEFORE_TESTING.md`).
 
 ### Q9
 
-- [x] HEAD A / requested B verifies and deploys B; older accepted main SHA requires no branch rewind.
-- [x] Missing/invalid/conflicting target arguments fail before mutation.
-- [x] Per-environment lock, fixed target mappings and cross-environment denials tested.
-- [x] Same-SHA pending migration, historical checksum drift and incompatible rollback tested.
-- [x] Install/backup/migration/restart/readiness/smoke/signal failures exercise recovery, including the explicit-exit regression.
-- [x] Readiness/journal identify the actual running release; failed rollback is reported honestly.
-- [x] Safe Dev deployment demonstrated after disposable fault harness passes.
+- [ ] HEAD A / requested B verifies and deploys B; older accepted main SHA requires no branch rewind.
+- [ ] Missing/invalid/conflicting target arguments fail before mutation.
+- [ ] Per-environment lock, fixed target mappings and cross-environment denials tested.
+- [ ] Same-SHA pending migration, historical checksum drift and incompatible rollback tested.
+- [ ] Install/backup/migration/restart/readiness/smoke/signal failures exercise recovery, including the explicit-exit regression.
+- [ ] Readiness/journal identify the actual running release; failed rollback is reported honestly.
+- [ ] Safe Dev deployment demonstrated after disposable fault harness passes.
 
 ## Session evidence record — copy for each package
 

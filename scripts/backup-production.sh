@@ -31,6 +31,7 @@ fi
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 release_dir="$MIZYUN_BACKUP_DIR/$timestamp"
 mkdir -p "$release_dir"
+chmod 700 "$MIZYUN_BACKUP_DIR" "$release_dir"
 
 docker exec "$MIZYUN_DB_CONTAINER" \
   pg_dump --username postgres --dbname postgres --format=custom \
@@ -38,6 +39,8 @@ docker exec "$MIZYUN_DB_CONTAINER" \
 tar --create --gzip --file "$release_dir/private-storage.tar.gz" \
   --directory "$MIZYUN_STORAGE_DIR" .
 
+chmod 600 "$release_dir/database.dump" "$release_dir/private-storage.tar.gz"
 sha256sum "$release_dir/database.dump" \
   "$release_dir/private-storage.tar.gz" > "$release_dir/SHA256SUMS"
+chmod 600 "$release_dir/SHA256SUMS"
 echo "Production backup created: $release_dir"
