@@ -259,4 +259,5 @@ export {
   MediaStorageError,
   createSupabaseStorageClient,
   type StorageSupabaseClient,
+  type SupabaseMediaStorageOptions,
 } from "./media-storage.js";

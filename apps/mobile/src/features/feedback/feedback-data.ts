@@ -1,5 +1,6 @@
 import type { ApiClient, ApiError } from "@mizyun/api-client";
 import { apiClient } from "@/composition/api-client";
+import { mobileConfigResult } from "@/composition/mobile-config";
 import {
   createFeedbackResponseSchema,
   createFeedbackSchema,
@@ -12,6 +13,40 @@ import {
   type MediaUploadUrlRequest,
   type MediaUploadUrlResponse,
 } from "@mizyun/contracts";
+
+const isLoopbackHost = (hostname: string): boolean =>
+  hostname === "127.0.0.1" ||
+  hostname === "localhost" ||
+  hostname === "::1" ||
+  hostname === "[::1]";
+
+export const resolveUploadUrl = (
+  uploadUrl: string,
+  configuredSupabaseUrl?: string | null,
+): string => {
+  if (!configuredSupabaseUrl) {
+    return uploadUrl;
+  }
+
+  try {
+    const parsedUpload = new URL(uploadUrl);
+    const parsedConfig = new URL(configuredSupabaseUrl);
+
+    if (
+      isLoopbackHost(parsedUpload.hostname) &&
+      !isLoopbackHost(parsedConfig.hostname)
+    ) {
+      parsedUpload.protocol = parsedConfig.protocol;
+      parsedUpload.hostname = parsedConfig.hostname;
+      parsedUpload.port = parsedConfig.port;
+      return parsedUpload.toString();
+    }
+
+    return uploadUrl;
+  } catch {
+    return uploadUrl;
+  }
+};
 
 export interface PreparedFeedbackAttachment {
   readonly uri: string;
@@ -111,7 +146,14 @@ export const uploadFeedbackAttachment = async (
   }
 
   try {
-    const uploadRes = await uploadFile(ticket.value.uploadUrl, attachment);
+    const configuredUrl = mobileConfigResult.ok
+      ? mobileConfigResult.value.supabaseConfig?.url
+      : null;
+    const targetUploadUrl = resolveUploadUrl(
+      ticket.value.uploadUrl,
+      configuredUrl,
+    );
+    const uploadRes = await uploadFile(targetUploadUrl, attachment);
     if (!uploadRes.ok) {
       throw new Error(`Upload failed with status ${uploadRes.status}`);
     }

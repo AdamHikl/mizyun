@@ -114,4 +114,66 @@ describe("SupabaseMediaStorage", () => {
       }),
     ).rejects.toBeInstanceOf(MediaStorageError);
   });
+
+  it("rewrites signed upload URL origin to publicUrl when configured", async () => {
+    const createSignedUploadUrl = vi.fn().mockResolvedValue({
+      data: {
+        signedUrl:
+          "http://127.0.0.1:8100/storage/v1/object/upload/sign/private-media/user/a.jpg?token=secret-token",
+      },
+      error: null,
+    });
+    const bucket = {
+      createSignedUploadUrl,
+      createSignedUrl: vi.fn(),
+      remove: vi.fn(),
+    } as unknown as StorageBucketClient;
+    const storage = new SupabaseMediaStorage({
+      clientFor: () => fakeClient(bucket),
+      publicUrl: "https://mizyun-supabase-dev.phiskel.com",
+    });
+
+    const result = await storage.signUploadUrl("private-media", "user/a.jpg", {
+      ttlSeconds: 300,
+      now: new Date("2026-07-21T08:00:00.000Z"),
+      accessToken: "user-token",
+    });
+
+    expect(result.url).toBe(
+      "https://mizyun-supabase-dev.phiskel.com/storage/v1/object/upload/sign/private-media/user/a.jpg?token=secret-token",
+    );
+  });
+
+  it("rewrites signed download URL origin to publicUrl when configured", async () => {
+    const createSignedUrl = vi.fn().mockResolvedValue({
+      data: {
+        signedUrl:
+          "http://127.0.0.1:8100/storage/v1/object/sign/private-media/user/a.jpg?token=read-token",
+      },
+      error: null,
+    });
+    const bucket = {
+      createSignedUploadUrl: vi.fn(),
+      createSignedUrl,
+      remove: vi.fn(),
+    } as unknown as StorageBucketClient;
+    const storage = new SupabaseMediaStorage({
+      clientFor: () => fakeClient(bucket),
+      publicUrl: "https://mizyun-supabase.phiskel.com",
+    });
+
+    const result = await storage.signDownloadUrl(
+      "private-media",
+      "user/a.jpg",
+      {
+        ttlSeconds: 60,
+        now: new Date("2026-07-21T08:00:00.000Z"),
+        accessToken: "user-token",
+      },
+    );
+
+    expect(result.url).toBe(
+      "https://mizyun-supabase.phiskel.com/storage/v1/object/sign/private-media/user/a.jpg?token=read-token",
+    );
+  });
 });

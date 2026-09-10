@@ -1,6 +1,6 @@
 # Mizyun current status
 
-> Current operational snapshot. Last updated: **2026-09-09**.
+> Current operational snapshot. Last updated: **2026-09-10**.
 > For historical logs, audit entries, and prior session handoffs, see [`docs/archive/status/STATUS_HISTORY_THROUGH_2026-09-09.md`](docs/archive/status/STATUS_HISTORY_THROUGH_2026-09-09.md).
 
 ## Active work package — Agent navigation & memory (`DOCS-NAV-001`–`004`) [PARTIAL]
@@ -28,6 +28,7 @@
 ## Implementation versus release gate status
 
 - **Implemented & Deployed to Dev on Pi (`fae9f05`)**:
+  - **Feedback & Media Upload URL Resolution (`MEDIA-URL-001`)**: Resolved photo upload network error (`fetch failed: Could not connect to the server`) on physical devices. Configured `SupabaseMediaStorage` and server config with `publicUrl` resolution (with port-based 8100/8000 defaults) for signed upload and download tickets, and added client-side `resolveUploadUrl` loopback translation in mobile. All test suites pass; independent security & architectural review certified.
   - **Block 1 (Pi Runtime Isolation / Q1 Resolution)**: Live unprivileged execution verified on Pi Dev (`mizyun-dev-api` UID 999, GID 987). Permission probes fail closed: reading `/etc/mizyun/production.env` denied (EACCES), reading `/srv/mizyun/backups` denied (EACCES), reading `/var/lib/mizyun/repo` denied (EACCES), writing `/var/run/docker.sock` denied. Systemd unit in `/etc/systemd/system/mizyun-api-dev.service` verified identical to template.
   - **Block 2 (Local Native Release Builds & Device Acceptance / Gate R3)**: ADR-0023 accepted retiring EAS in favor of 100% local Xcode and Android Gradle builds; `with-android-release-signing` plugin enforcing fail-closed keystore configuration; `scripts/mobile-founder-dev-android.sh` with variant isolation; build matrix verification passing.
   - **Block 3 (Account Deletion Durability / Finding Q4 Closure)**: Migration `20260909150000_account_deletion_worker_leases.sql` applied cleanly on Dev DB (`mizyun-dev-db`), adding `worker_id` and `lease_expires_at` with composite index; atomic worker lease CAS preventing concurrent execution of destructive steps; resumable stage state machine (`storage` -> `memory` -> `auth` -> `done`) preventing regression to `'none'`; pre-auth orphaned media reconciliation sweep; mobile automatic session cleanup and signout upon detecting completed deletion; pgTAP tests passing.

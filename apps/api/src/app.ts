@@ -119,6 +119,7 @@ export interface SupabasePersistenceOptions {
   readonly clientFor: (accessToken: string) => RepositorySupabaseClient;
   readonly storageClientFor: (accessToken: string) => StorageSupabaseClient;
   readonly serviceRoleClient?: RepositorySupabaseClient | null;
+  readonly publicUrl?: string;
 }
 
 export interface CoachControlOptions {
@@ -340,6 +341,9 @@ const defaultDependencies = (): AppDependencies => {
         storageClientFor: (accessToken: string) =>
           createSupabaseStorageClient(supabaseConfig, accessToken),
         serviceRoleClient,
+        ...(supabaseConfig.publicUrl
+          ? { publicUrl: supabaseConfig.publicUrl }
+          : {}),
       },
     };
   }
@@ -524,7 +528,10 @@ export const buildApp = (
   const mediaStorage =
     dependencies.mediaStorage ??
     (sp
-      ? new SupabaseMediaStorage({ clientFor: sp.storageClientFor })
+      ? new SupabaseMediaStorage({
+          clientFor: sp.storageClientFor,
+          ...(sp.publicUrl ? { publicUrl: sp.publicUrl } : {}),
+        })
       : new InMemoryMediaStorage());
   const MEDIA_BUCKET_ID = "private-media";
 

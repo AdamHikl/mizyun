@@ -1,4 +1,5 @@
 import type { ApiClient, ApiError } from "@mizyun/api-client";
+import { mobileConfigResult } from "@/composition/mobile-config";
 import {
   mediaCompareResponseSchema,
   mediaTimelineResponseSchema,
@@ -9,6 +10,7 @@ import {
   type MediaUploadUrlRequest,
 } from "@mizyun/contracts";
 import { err, ok, type Result, type UserId } from "@mizyun/core";
+import { resolveUploadUrl } from "../feedback/feedback-data";
 
 export interface MobilePrincipal {
   readonly userId: UserId;
@@ -136,7 +138,14 @@ export const uploadProgressPhoto = async (
   if (!ticket.ok) return err(ticket.error);
 
   try {
-    const uploadResponse = await uploadFile(ticket.value.uploadUrl, photo);
+    const configuredUrl = mobileConfigResult.ok
+      ? mobileConfigResult.value.supabaseConfig?.url
+      : null;
+    const targetUploadUrl = resolveUploadUrl(
+      ticket.value.uploadUrl,
+      configuredUrl,
+    );
+    const uploadResponse = await uploadFile(targetUploadUrl, photo);
     if (!uploadResponse.ok) {
       throw new Error(`signed upload failed (${uploadResponse.status})`);
     }

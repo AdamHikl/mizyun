@@ -20,6 +20,12 @@ export interface ServerSupabaseConfiguration {
    * `.env` and never in the mobile bundle.
    */
   readonly serviceRoleKey?: string;
+  /**
+   * Public Supabase URL issued to mobile clients for signed upload
+   * and download operations. When omitted, inferred from known ports (8100/8000)
+   * or falls back to `url`.
+   */
+  readonly publicUrl?: string;
 }
 
 export interface ServerGeminiConfiguration {
@@ -72,6 +78,7 @@ export const SERVER_ENV_KEYS = {
   port: "API_PORT",
   env: "NODE_ENV",
   supabaseUrl: "SUPABASE_URL",
+  supabasePublicUrl: "SUPABASE_PUBLIC_URL",
   supabasePublishableKey: "SUPABASE_PUBLISHABLE_KEY",
   supabaseServiceRoleKey: "SUPABASE_SERVICE_ROLE_KEY",
   agentProvider: "AGENT_PROVIDER",
@@ -111,6 +118,10 @@ const baseServerSchema = z.object({
     .max(65_535, "API_PORT must be <= 65535")
     .default(4_000),
   supabaseUrl: z.string().url("SUPABASE_URL must be a valid URL").nullish(),
+  supabasePublicUrl: z
+    .string()
+    .url("SUPABASE_PUBLIC_URL must be a valid URL")
+    .nullish(),
   supabasePublishableKey: z
     .string()
     .min(1, "SUPABASE_PUBLISHABLE_KEY must not be empty")
@@ -379,13 +390,34 @@ export const loadServerConfig = (
   const url = value.supabaseUrl ?? null;
   const publishableKey = value.supabasePublishableKey ?? null;
   const serviceRoleKey = value.supabaseServiceRoleKey ?? null;
+
+  const rawPublicUrl = value.supabasePublicUrl ?? null;
+  let inferredPublicUrl: string | undefined = rawPublicUrl ?? undefined;
+  if (!inferredPublicUrl && url !== null) {
+    try {
+      const parsedUrl = new URL(url);
+      if (parsedUrl.port === "8100") {
+        inferredPublicUrl = "https://mizyun-supabase-dev.phiskel.com";
+      } else if (parsedUrl.port === "8000") {
+        inferredPublicUrl = "https://mizyun-supabase.phiskel.com";
+      }
+    } catch {
+      // Ignore URL parsing errors for inference
+    }
+  }
+
   const supabase: AuthConfigurationStatus =
     url !== null && publishableKey !== null
       ? { configured: true, provider: "supabase" }
       : { configured: false, provider: "supabase", reason: DISABLED_REASON };
   const supabaseConfig: ServerSupabaseConfiguration | null =
     url !== null && publishableKey !== null
-      ? { url, publishableKey, ...(serviceRoleKey ? { serviceRoleKey } : {}) }
+      ? {
+          url,
+          publishableKey,
+          ...(serviceRoleKey ? { serviceRoleKey } : {}),
+          ...(inferredPublicUrl ? { publicUrl: inferredPublicUrl } : {}),
+        }
       : null;
   const geminiApiKeyResolved = value.geminiApiKey ?? value.geminiVisionApiKey;
   const geminiConfig: ServerGeminiConfiguration | null =

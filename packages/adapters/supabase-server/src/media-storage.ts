@@ -34,6 +34,7 @@ export interface StorageSupabaseClient {
 
 export interface SupabaseMediaStorageOptions {
   readonly clientFor: (accessToken: string) => StorageSupabaseClient;
+  readonly publicUrl?: string;
 }
 
 export class MediaStorageError extends Error {
@@ -47,9 +48,25 @@ const SUPABASE_SIGNED_UPLOAD_TTL_SECONDS = 2 * 60 * 60;
 
 export class SupabaseMediaStorage {
   readonly #clientFor: (accessToken: string) => StorageSupabaseClient;
+  readonly #publicUrl: string | undefined;
 
   constructor(options: SupabaseMediaStorageOptions) {
     this.#clientFor = options.clientFor;
+    this.#publicUrl = options.publicUrl;
+  }
+
+  #resolvePublicUrl(signedUrl: string): string {
+    if (!this.#publicUrl) return signedUrl;
+    try {
+      const parsed = new URL(signedUrl);
+      const publicOrigin = new URL(this.#publicUrl);
+      parsed.protocol = publicOrigin.protocol;
+      parsed.hostname = publicOrigin.hostname;
+      parsed.port = publicOrigin.port;
+      return parsed.toString();
+    } catch {
+      return signedUrl;
+    }
   }
 
   async signUploadUrl(
@@ -70,7 +87,7 @@ export class SupabaseMediaStorage {
       );
     }
     return {
-      url: data.signedUrl,
+      url: this.#resolvePublicUrl(data.signedUrl),
       // Supabase fixes signed upload tickets at two hours; unlike signed
       // downloads, the JavaScript API does not accept a caller TTL.
       expiresAt: new Date(
@@ -97,7 +114,7 @@ export class SupabaseMediaStorage {
       );
     }
     return {
-      url: data.signedUrl,
+      url: this.#resolvePublicUrl(data.signedUrl),
       expiresAt: new Date(options.now.getTime() + options.ttlSeconds * 1000),
     };
   }

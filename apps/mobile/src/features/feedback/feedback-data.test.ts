@@ -5,6 +5,7 @@ import {
   submitFeedback,
   loadUserFeedback,
   uploadFeedbackAttachment,
+  resolveUploadUrl,
   type PreparedFeedbackAttachment,
 } from "./feedback-data";
 
@@ -141,5 +142,62 @@ describe("feedback-data", () => {
       "https://upload.example.com/asset-1",
       photo,
     );
+  });
+});
+
+describe("resolveUploadUrl", () => {
+  it("rewrites loopback uploadUrl to remote configuredSupabaseUrl", () => {
+    const uploadUrl = "http://127.0.0.1:8100/storage/v1/upload?token=abc";
+    const configuredSupabaseUrl = "https://mizyun-supabase-dev.phiskel.com";
+    expect(resolveUploadUrl(uploadUrl, configuredSupabaseUrl)).toBe(
+      "https://mizyun-supabase-dev.phiskel.com/storage/v1/upload?token=abc",
+    );
+  });
+
+  it("rewrites localhost uploadUrl to remote configuredSupabaseUrl", () => {
+    const uploadUrl = "http://localhost:8100/storage/v1/upload?token=xyz";
+    const configuredSupabaseUrl = "https://mizyun-supabase-dev.phiskel.com";
+    expect(resolveUploadUrl(uploadUrl, configuredSupabaseUrl)).toBe(
+      "https://mizyun-supabase-dev.phiskel.com/storage/v1/upload?token=xyz",
+    );
+  });
+
+  it("leaves remote upload URLs untouched", () => {
+    const uploadUrl =
+      "https://custom-storage.example.com/storage/v1/upload?token=abc";
+    const configuredSupabaseUrl = "https://mizyun-supabase-dev.phiskel.com";
+    expect(resolveUploadUrl(uploadUrl, configuredSupabaseUrl)).toBe(uploadUrl);
+  });
+
+  it("leaves localhost URLs untouched when configuredSupabaseUrl is also localhost", () => {
+    const uploadUrl = "http://127.0.0.1:8100/storage/v1/upload?token=abc";
+    expect(resolveUploadUrl(uploadUrl, "http://127.0.0.1:8100")).toBe(
+      uploadUrl,
+    );
+    expect(resolveUploadUrl(uploadUrl, "http://localhost:8100")).toBe(
+      uploadUrl,
+    );
+  });
+
+  it("handles missing or null configuredSupabaseUrl safely", () => {
+    const uploadUrl = "http://127.0.0.1:8100/storage/v1/upload?token=abc";
+    expect(resolveUploadUrl(uploadUrl, null)).toBe(uploadUrl);
+    expect(resolveUploadUrl(uploadUrl, undefined)).toBe(uploadUrl);
+    expect(resolveUploadUrl(uploadUrl, "")).toBe(uploadUrl);
+  });
+
+  it("handles malformed URLs gracefully", () => {
+    expect(
+      resolveUploadUrl(
+        "not-a-valid-url",
+        "https://mizyun-supabase-dev.phiskel.com",
+      ),
+    ).toBe("not-a-valid-url");
+    expect(
+      resolveUploadUrl(
+        "http://127.0.0.1:8100/storage/v1/upload",
+        "invalid-config-url",
+      ),
+    ).toBe("http://127.0.0.1:8100/storage/v1/upload");
   });
 });

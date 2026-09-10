@@ -576,4 +576,84 @@ describe("loadServerConfig — SES email configuration", () => {
       ]);
     });
   });
+
+  describe("SUPABASE_PUBLIC_URL resolution", () => {
+    it("uses explicitly provided SUPABASE_PUBLIC_URL", () => {
+      const result = loadServerConfig({
+        env: {
+          ...baseSnapshot,
+          [SERVER_ENV_KEYS.supabaseUrl]: "http://127.0.0.1:8100",
+          [SERVER_ENV_KEYS.supabasePublishableKey]: "valid-publishable-key",
+          [SERVER_ENV_KEYS.supabasePublicUrl]:
+            "https://custom-supabase.example.com",
+        },
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.supabaseConfig?.publicUrl).toBe(
+        "https://custom-supabase.example.com",
+      );
+    });
+
+    it("infers dev public URL when port is 8100 and public URL is unset", () => {
+      const result = loadServerConfig({
+        env: {
+          ...baseSnapshot,
+          [SERVER_ENV_KEYS.supabaseUrl]: "http://127.0.0.1:8100",
+          [SERVER_ENV_KEYS.supabasePublishableKey]: "valid-publishable-key",
+        },
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.supabaseConfig?.publicUrl).toBe(
+        "https://mizyun-supabase-dev.phiskel.com",
+      );
+    });
+
+    it("infers production public URL when port is 8000 and public URL is unset", () => {
+      const result = loadServerConfig({
+        env: {
+          ...baseSnapshot,
+          [SERVER_ENV_KEYS.supabaseUrl]: "http://127.0.0.1:8000",
+          [SERVER_ENV_KEYS.supabasePublishableKey]: "valid-publishable-key",
+        },
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.supabaseConfig?.publicUrl).toBe(
+        "https://mizyun-supabase.phiskel.com",
+      );
+    });
+
+    it("leaves publicUrl undefined when port is non-standard (e.g. 54321)", () => {
+      const result = loadServerConfig({
+        env: {
+          ...baseSnapshot,
+          [SERVER_ENV_KEYS.supabaseUrl]: "http://127.0.0.1:54321",
+          [SERVER_ENV_KEYS.supabasePublishableKey]: "valid-publishable-key",
+        },
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.supabaseConfig?.publicUrl).toBeUndefined();
+    });
+
+    it("rejects invalid SUPABASE_PUBLIC_URL", () => {
+      const result = loadServerConfig({
+        env: {
+          ...baseSnapshot,
+          [SERVER_ENV_KEYS.supabaseUrl]: "http://127.0.0.1:8100",
+          [SERVER_ENV_KEYS.supabasePublishableKey]: "valid-publishable-key",
+          [SERVER_ENV_KEYS.supabasePublicUrl]: "not-a-url",
+        },
+      });
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      const first = result.error[0];
+      expect(first?.kind).toBe("malformed");
+      if (first?.kind === "malformed") {
+        expect(first.key).toBe(SERVER_ENV_KEYS.supabasePublicUrl);
+      }
+    });
+  });
 });
