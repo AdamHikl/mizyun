@@ -20,9 +20,9 @@
 
 | Environment       | Host & Location                | Deployed SHA      | Health & Status                                           | Notes                                                                           |
 | ----------------- | ------------------------------ | ----------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| **Local Mac**     | Apple Silicon (`darwin-arm64`) | `26ad4cd` (clean) | `pnpm check`: 100% clean                                  | Primary feature development & local verification                                |
-| **Pi Dev**        | Raspberry Pi 5 (`mizyun-pi`)   | `26ad4cd`         | HTTP 200 (`https://mizyun-api-dev.phiskel.com/v1/health`) | Port 4100 API / 8100 Kong / 5433 DB; UID 999 unprivileged; worker leases active |
-| **Pi Production** | Raspberry Pi 5 (`mizyun-pi`)   | `c02a67ab`        | HTTP 200 (`https://mizyun-api.phiskel.com/v1/health`)     | Port 4000 API / 8000 Kong / 5432 DB; PID 500239 (uptime 5+ days)                |
+| **Local Mac**     | Apple Silicon (`darwin-arm64`) | `a9ed15e` (clean) | `pnpm check`: 100% clean                                  | Primary feature development & local verification                                |
+| **Pi Dev**        | Raspberry Pi 5 (`mizyun-pi`)   | `a9ed15e`         | HTTP 200 (`https://mizyun-api-dev.phiskel.com/v1/health`) | Port 4100 API / 8100 Kong / 5433 DB; UID 999 unprivileged; worker leases active |
+| **Pi Production** | Raspberry Pi 5 (`mizyun-pi`)   | `a9ed15e`         | HTTP 200 (`https://mizyun-api.phiskel.com/v1/health`)     | Port 4000 API / 8000 Kong / 5432 DB; all forward migrations applied             |
 | **Windows PC**    | Windows / WSL2 (`mizyun-pc`)   | `—`               | Standby hot backup                                        | Retained as secondary backup per ADR-0020                                       |
 
 ## Implementation versus release gate status
