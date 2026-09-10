@@ -236,11 +236,15 @@ export const snapMealPhotoWith = async (
 
 export const draftMealFromText = async (
   description: string,
+  countryCode?: string | null,
 ): Promise<SnapMealPhotoResult> => {
   const result = await apiClient.request<FoodDraftResponse>({
     method: "POST",
     path: "/v1/food-entries/draft/text",
-    body: { description: description.trim() },
+    body: {
+      description: description.trim(),
+      ...(countryCode ? { countryCode } : {}),
+    },
     schema: foodDraftResponseSchema,
   });
   if (!result.ok) {

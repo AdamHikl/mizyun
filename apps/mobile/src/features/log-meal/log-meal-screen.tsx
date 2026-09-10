@@ -79,7 +79,7 @@ const draftEvidenceLines = (
 };
 
 export function LogMealScreen() {
-  const { session } = useAuth();
+  const { session, profile } = useAuth();
   const theme = useTheme();
   const [name, setName] = useState("");
   const [calories, setCalories] = useState("");
@@ -475,7 +475,10 @@ export function LogMealScreen() {
     setError(null);
     setDraftWarnings([]);
     try {
-      const result = await draftMealFromText(description);
+      const result = await draftMealFromText(
+        description,
+        profile?.coachingPreferences?.countryCode ?? null,
+      );
       if (!result.ok) {
         hadFailure.current = true;
         measurement.current?.fail("submit", "unexpected", true);

@@ -125,7 +125,9 @@ export const foodDraftRoutes: FastifyPluginAsync<
     userId: UserId,
     accessToken: string,
     userEmail?: string | null,
-  ): Promise<AiAuthorizationResult> => {
+  ): Promise<
+    AiAuthorizationResult & { readonly countryCode?: string | null }
+  > => {
     if (!options.profileRepository) {
       return {
         authorized: false,
@@ -143,13 +145,17 @@ export const foodDraftRoutes: FastifyPluginAsync<
       const consent = options.aiConsentRepository
         ? await options.aiConsentRepository.getConsent(userId, { accessToken })
         : null;
-      return authorizeAiAccess({
+      const auth = authorizeAiAccess({
         profile,
         consent,
         now: new Date(),
         userEmail,
         allowedEmails: options.allowedEmails,
       });
+      return {
+        ...auth,
+        countryCode: profile.coachingPreferences?.countryCode ?? null,
+      };
     } catch {
       return {
         authorized: false,
@@ -277,10 +283,13 @@ export const foodDraftRoutes: FastifyPluginAsync<
             false,
           );
         }
+        const resolvedCountryCode =
+          parsed.data.countryCode ?? auth.countryCode ?? null;
         const candidate = await vision.generateTextDraft({
           userId: principal.userId as UserId,
           description: parsed.data.description,
           requestId,
+          countryCode: resolvedCountryCode,
         });
         await commitDraftLimit(
           principal.userId as UserId,
@@ -551,6 +560,7 @@ export const foodDraftRoutes: FastifyPluginAsync<
         mimeType,
         ...(textHint !== undefined ? { textHint } : {}),
         requestId,
+        countryCode: auth.countryCode ?? null,
       };
 
       const vision = await resolveActiveVisionProvider(

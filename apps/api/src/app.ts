@@ -641,6 +641,8 @@ export const buildApp = (
           maxOutputTokens:
             configResult.value.geminiVisionConfig.maxOutputTokens,
           externalAccess: configResult.value.aiExternalAccess,
+          enableSearchGrounding:
+            configResult.value.geminiVisionConfig.searchGrounding,
         })
       : null;
 

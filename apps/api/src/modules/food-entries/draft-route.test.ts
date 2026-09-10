@@ -631,4 +631,32 @@ describe("Food draft route — rate limit", () => {
     expect(textResponse.statusCode).toBe(403);
     expect(textResponse.json().error.code).toBe("AI_AGE_RESTRICTED");
   });
+
+  it("forwards countryCode from request payload to generateTextDraft", async () => {
+    let capturedCountryCode: string | null | undefined;
+    const customVision: VisionDraftProvider = {
+      status: async () => ({ ready: true, provider: "custom" }),
+      generateDraft: async () => {
+        throw new Error("not used");
+      },
+      generateTextDraft: async (req) => {
+        capturedCountryCode = req.countryCode;
+        return new StubVisionProvider().generateTextDraft(req);
+      },
+    };
+
+    const { app } = makeApps({ visionProvider: customVision });
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/food-entries/draft/text",
+      headers: { ...auth, "content-type": "application/json" },
+      payload: {
+        description: "Single Big Tasty Bacon with fries",
+        countryCode: "SK",
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(capturedCountryCode).toBe("SK");
+  });
 });

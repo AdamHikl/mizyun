@@ -305,6 +305,12 @@ export type FoodDraftCandidate = z.infer<typeof foodDraftCandidateSchema>;
 export const foodTextDraftRequestSchema = z
   .object({
     description: z.string().trim().min(2).max(1_000),
+    countryCode: z
+      .string()
+      .trim()
+      .regex(/^[A-Z]{2}$/, "country code must be a 2-letter uppercase ISO code")
+      .nullable()
+      .optional(),
   })
   .strict();
 

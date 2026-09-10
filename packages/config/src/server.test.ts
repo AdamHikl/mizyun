@@ -450,6 +450,7 @@ describe("loadServerConfig — closed-world", () => {
         model: "gemini-3.8-flash",
         fallbackModel: "gemini-3.6-flash",
         thinkingBudget: 0,
+        searchGrounding: true,
       },
     });
   });

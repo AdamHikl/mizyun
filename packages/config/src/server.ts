@@ -47,6 +47,7 @@ export interface ServerGeminiVisionConfiguration {
   readonly thinkingBudget?: number | undefined;
   readonly timeoutMs: number;
   readonly maxOutputTokens: number;
+  readonly searchGrounding: boolean;
 }
 
 export interface ServerSesConfiguration {
@@ -95,6 +96,7 @@ export const SERVER_ENV_KEYS = {
   geminiVisionThinkingBudget: "GEMINI_VISION_THINKING_BUDGET",
   geminiVisionTimeoutMs: "GEMINI_VISION_TIMEOUT_MS",
   geminiVisionMaxOutputTokens: "GEMINI_VISION_MAX_OUTPUT_TOKENS",
+  geminiVisionSearchGrounding: "GEMINI_VISION_SEARCH_GROUNDING",
   sesRegion: "SES_REGION",
   sesAccessKeyId: "SES_ACCESS_KEY_ID",
   sesSecretAccessKey: "SES_SECRET_ACCESS_KEY",
@@ -200,6 +202,10 @@ const baseServerSchema = z.object({
     .min(128, "GEMINI_VISION_MAX_OUTPUT_TOKENS must be >= 128")
     .max(32_768, "GEMINI_VISION_MAX_OUTPUT_TOKENS must be <= 32768")
     .default(8_192),
+  geminiVisionSearchGrounding: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((value) => value === "true"),
   sesRegion: z
     .string()
     .min(1, "SES_REGION must not be empty")
@@ -447,6 +453,7 @@ export const loadServerConfig = (
           thinkingBudget: value.geminiVisionThinkingBudget,
           timeoutMs: value.geminiVisionTimeoutMs,
           maxOutputTokens: value.geminiVisionMaxOutputTokens,
+          searchGrounding: value.geminiVisionSearchGrounding,
         }
       : null;
   const sesConfig: ServerSesConfiguration | null =

@@ -3,7 +3,17 @@ import type {
   RefineFoodDraftRequest,
   VisionDraftRequest,
 } from "@mizyun/agent-runtime";
-import { GeminiVisionProvider, type GeminiVisionClient } from "./vision.js";
+import {
+  GeminiVisionProvider,
+  type GeminiVisionClient,
+  type GeminiVisionPart,
+  textNutritionSystemPolicy,
+  visionSystemPolicy,
+  isBrandOrRestaurantQuery,
+} from "./vision.js";
+
+const getPartText = (part: GeminiVisionPart | undefined): string | undefined =>
+  part !== undefined && "text" in part ? part.text : undefined;
 
 const request: VisionDraftRequest = {
   userId:
@@ -414,5 +424,383 @@ describe("GeminiVisionProvider", () => {
     // Calories 485 - (21.5 * 4 + 40 * 4 = 246) = 239 kcal / 9 = 26.6 g fat
     expect(result.fatG).toBe(26.6);
     expect(result.fatRangeG).not.toBeNull();
+  });
+
+  it("uses textNutritionSystemPolicy for text drafts", async () => {
+    const generateContent = vi.fn<GeminiVisionClient["generateContent"]>(
+      async () => ({
+        modelVersion: "gemini-2.5-flash",
+        candidates: [
+          {
+            content: {
+              role: "model",
+              parts: [
+                {
+                  text: JSON.stringify({
+                    ...candidateOutput,
+                    name: "2 scrambled eggs on toast",
+                    caloriesKcal: 320,
+                  }),
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+    const provider = new GeminiVisionProvider({
+      apiKey: "test-key",
+      model: "gemini-2.5-flash",
+      timeoutMs: 5_000,
+      maxOutputTokens: 500,
+      externalAccess: true,
+      client: { generateContent },
+    });
+
+    await provider.generateTextDraft({
+      userId: request.userId,
+      description: "2 scrambled eggs on toast",
+      requestId: "text-policy-test",
+    });
+
+    expect(generateContent).toHaveBeenCalledTimes(1);
+    const call = generateContent.mock.calls[0]?.[0];
+    expect(call?.systemInstruction?.parts[0]?.text).toBe(
+      textNutritionSystemPolicy,
+    );
+    expect(call?.systemInstruction?.parts[0]?.text).not.toBe(
+      visionSystemPolicy,
+    );
+  });
+
+  it("executes two-step grounded drafting for restaurant brand query with countryCode", async () => {
+    const generateContent = vi.fn<GeminiVisionClient["generateContent"]>();
+
+    // Step 1: Search grounding returns plain text
+    generateContent.mockResolvedValueOnce({
+      modelVersion: "gemini-2.5-flash",
+      candidates: [
+        {
+          content: {
+            role: "model",
+            parts: [
+              {
+                text: "Official McDonald's Slovakia (SK) Single Big Tasty Bacon contains 588 kcal, 33g protein, 42g carbs, 31g fat with 1 standard patty.",
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    // Step 2: Structured output returns final draft JSON
+    generateContent.mockResolvedValueOnce({
+      modelVersion: "gemini-2.5-flash",
+      candidates: [
+        {
+          content: {
+            role: "model",
+            parts: [
+              {
+                text: JSON.stringify({
+                  ...candidateOutput,
+                  name: "Single Big Tasty Bacon",
+                  caloriesKcal: 588,
+                  proteinG: 33,
+                  carbohydrateG: 42,
+                  fatG: 31,
+                  assumptions: [
+                    "Slovakia official McDonald's Single patty (588 kcal).",
+                  ],
+                }),
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    const provider = new GeminiVisionProvider({
+      apiKey: "test-key",
+      model: "gemini-2.5-flash",
+      timeoutMs: 5_000,
+      maxOutputTokens: 500,
+      externalAccess: true,
+      client: { generateContent },
+    });
+
+    const result = await provider.generateTextDraft({
+      userId: request.userId,
+      description: "McDonald's Single Big Tasty Bacon",
+      countryCode: "SK",
+      requestId: "grounded-test",
+    });
+
+    expect(generateContent).toHaveBeenCalledTimes(2);
+
+    // Verify Step 1 call: has googleSearch tool, no responseSchema, prompt has country code and query
+    const step1Call = generateContent.mock.calls[0]?.[0];
+    expect(step1Call?.tools).toEqual([{ googleSearch: {} }]);
+    expect(step1Call?.generationConfig?.responseSchema).toBeUndefined();
+    expect(step1Call?.generationConfig?.responseMimeType).toBeUndefined();
+    expect(getPartText(step1Call?.contents[0]?.parts[0])).toContain(
+      "McDonald's Single Big Tasty Bacon",
+    );
+    expect(getPartText(step1Call?.contents[0]?.parts[0])).toContain("SK");
+    expect(getPartText(step1Call?.contents[0]?.parts[0])).toContain(
+      "Search the web for official published nutrition facts",
+    );
+
+    // Verify Step 2 call: receives grounded facts, has textNutritionSystemPolicy, has responseSchema
+    const step2Call = generateContent.mock.calls[1]?.[0];
+    expect(step2Call?.tools).toBeUndefined();
+    expect(step2Call?.generationConfig?.responseSchema).toBeDefined();
+    expect(step2Call?.systemInstruction?.parts[0]?.text).toBe(
+      textNutritionSystemPolicy,
+    );
+    expect(getPartText(step2Call?.contents[0]?.parts[0])).toContain(
+      "McDonald's Single Big Tasty Bacon",
+    );
+    expect(getPartText(step2Call?.contents[0]?.parts[0])).toContain("SK");
+    expect(getPartText(step2Call?.contents[0]?.parts[0])).toContain("588 kcal");
+    expect(getPartText(step2Call?.contents[0]?.parts[0])).toContain(
+      "Verified search findings:",
+    );
+
+    // Verify result
+    expect(result.name).toBe("Single Big Tasty Bacon");
+    expect(result.caloriesKcal).toBe(588);
+    expect(result.proteinG).toBe(33);
+    expect(result.carbohydrateG).toBe(42);
+    expect(result.fatG).toBe(31);
+    expect(result.provenance.inputKind).toBe("text");
+  });
+
+  it("does not invoke search tools for non-branded meals (single-step fast path)", async () => {
+    const generateContent = vi.fn<GeminiVisionClient["generateContent"]>(
+      async () => ({
+        modelVersion: "gemini-2.5-flash",
+        candidates: [
+          {
+            content: {
+              role: "model",
+              parts: [
+                {
+                  text: JSON.stringify({
+                    ...candidateOutput,
+                    name: "Two boiled eggs and toast",
+                    caloriesKcal: 290,
+                  }),
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+    const provider = new GeminiVisionProvider({
+      apiKey: "test-key",
+      model: "gemini-2.5-flash",
+      timeoutMs: 5_000,
+      maxOutputTokens: 500,
+      externalAccess: true,
+      client: { generateContent },
+    });
+
+    const result = await provider.generateTextDraft({
+      userId: request.userId,
+      description: "Two boiled eggs and toast",
+      requestId: "unbranded-fast-path",
+    });
+
+    expect(generateContent).toHaveBeenCalledTimes(1);
+    const call = generateContent.mock.calls[0]?.[0];
+    expect(call?.tools).toBeUndefined();
+    expect(call?.generationConfig?.responseSchema).toBeDefined();
+    expect(result.name).toBe("Two boiled eggs and toast");
+    expect(result.caloriesKcal).toBe(290);
+  });
+
+  it("gracefully falls back to single-step text drafting when Step 1 search fails", async () => {
+    const generateContent = vi.fn<GeminiVisionClient["generateContent"]>();
+
+    // Step 1 fails with network/tool error
+    generateContent.mockRejectedValueOnce(
+      new Error("Google Search grounding tool unavailable / 503"),
+    );
+
+    // Fallback single-step call succeeds
+    generateContent.mockResolvedValueOnce({
+      modelVersion: "gemini-2.5-flash",
+      candidates: [
+        {
+          content: {
+            role: "model",
+            parts: [
+              {
+                text: JSON.stringify({
+                  ...candidateOutput,
+                  name: "KFC 3-piece tenders",
+                  caloriesKcal: 390,
+                }),
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    const provider = new GeminiVisionProvider({
+      apiKey: "test-key",
+      model: "gemini-2.5-flash",
+      timeoutMs: 5_000,
+      maxOutputTokens: 500,
+      externalAccess: true,
+      client: { generateContent },
+    });
+
+    const result = await provider.generateTextDraft({
+      userId: request.userId,
+      description: "KFC 3-piece tenders",
+      countryCode: "SK",
+      requestId: "fallback-test",
+    });
+
+    expect(generateContent).toHaveBeenCalledTimes(2);
+
+    // First attempt had search tools
+    const firstCall = generateContent.mock.calls[0]?.[0];
+    expect(firstCall?.tools).toEqual([{ googleSearch: {} }]);
+
+    // Second fallback call did not have tools and had structured output schema
+    const secondCall = generateContent.mock.calls[1]?.[0];
+    expect(secondCall?.tools).toBeUndefined();
+    expect(secondCall?.generationConfig?.responseSchema).toBeDefined();
+    expect(secondCall?.systemInstruction?.parts[0]?.text).toBe(
+      textNutritionSystemPolicy,
+    );
+    expect(getPartText(secondCall?.contents[0]?.parts[0])).toContain(
+      "KFC 3-piece tenders",
+    );
+    expect(getPartText(secondCall?.contents[0]?.parts[0])).toContain("SK");
+
+    expect(result.name).toBe("KFC 3-piece tenders");
+    expect(result.caloriesKcal).toBe(390);
+  });
+
+  it("includes country code in prompt when provided in request", async () => {
+    const generateContent = vi.fn<GeminiVisionClient["generateContent"]>(
+      async () => ({
+        modelVersion: "gemini-2.5-flash",
+        candidates: [
+          {
+            content: {
+              role: "model",
+              parts: [
+                {
+                  text: JSON.stringify({
+                    ...candidateOutput,
+                    name: "Two boiled eggs and toast",
+                    caloriesKcal: 290,
+                  }),
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+    const provider = new GeminiVisionProvider({
+      apiKey: "test-key",
+      model: "gemini-2.5-flash",
+      timeoutMs: 5_000,
+      maxOutputTokens: 500,
+      externalAccess: true,
+      enableSearchGrounding: false,
+      client: { generateContent },
+    });
+
+    await provider.generateTextDraft({
+      userId: request.userId,
+      description: "Two boiled eggs and toast",
+      countryCode: "CZ",
+      requestId: "country-code-test",
+    });
+
+    expect(generateContent).toHaveBeenCalledTimes(1);
+    const callText = getPartText(
+      generateContent.mock.calls[0]?.[0]?.contents[0]?.parts[0],
+    );
+    expect(callText).toContain("CZ");
+  });
+
+  it("accurately classifies brand/restaurant queries vs ordinary meals", () => {
+    expect(isBrandOrRestaurantQuery("McDonald's Big Mac")).toBe(true);
+    expect(isBrandOrRestaurantQuery("mcdo burger")).toBe(true);
+    expect(isBrandOrRestaurantQuery("Burger King Whopper")).toBe(true);
+    expect(isBrandOrRestaurantQuery("KFC bucket")).toBe(true);
+    expect(isBrandOrRestaurantQuery("Subway footlong")).toBe(true);
+    expect(isBrandOrRestaurantQuery("Starbucks latte")).toBe(true);
+    expect(isBrandOrRestaurantQuery("Wendy's frosty")).toBe(true);
+    expect(isBrandOrRestaurantQuery("Chipotle burrito bowl")).toBe(true);
+    expect(isBrandOrRestaurantQuery("Taco Bell taco")).toBe(true);
+    expect(isBrandOrRestaurantQuery("Pizza Hut pepperoni")).toBe(true);
+    expect(isBrandOrRestaurantQuery("Domino's pizza")).toBe(true);
+    expect(isBrandOrRestaurantQuery("Five Guys burger")).toBe(true);
+    expect(isBrandOrRestaurantQuery("Popeyes chicken")).toBe(true);
+    expect(isBrandOrRestaurantQuery("Dunkin donut")).toBe(true);
+    expect(isBrandOrRestaurantQuery("Dinner at a restaurant")).toBe(true);
+    expect(isBrandOrRestaurantQuery("Lunch menu soup")).toBe(true);
+
+    expect(isBrandOrRestaurantQuery("Two boiled eggs and toast")).toBe(false);
+    expect(isBrandOrRestaurantQuery("Chicken breast and white rice")).toBe(
+      false,
+    );
+    expect(
+      isBrandOrRestaurantQuery("Oatmeal with berries and chia seeds"),
+    ).toBe(false);
+    expect(isBrandOrRestaurantQuery("")).toBe(false);
+  });
+
+  it("does not trigger search grounding when enableSearchGrounding is false", async () => {
+    const generateContent = vi.fn<GeminiVisionClient["generateContent"]>(
+      async () => ({
+        modelVersion: "gemini-2.5-flash",
+        candidates: [
+          {
+            content: {
+              role: "model",
+              parts: [
+                {
+                  text: JSON.stringify({
+                    ...candidateOutput,
+                    name: "McDonald's Big Mac",
+                    caloriesKcal: 550,
+                  }),
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+    const provider = new GeminiVisionProvider({
+      apiKey: "test-key",
+      model: "gemini-2.5-flash",
+      timeoutMs: 5_000,
+      maxOutputTokens: 500,
+      externalAccess: true,
+      enableSearchGrounding: false,
+      client: { generateContent },
+    });
+
+    const result = await provider.generateTextDraft({
+      userId: request.userId,
+      description: "McDonald's Big Mac",
+    });
+
+    expect(generateContent).toHaveBeenCalledTimes(1);
+    expect(generateContent.mock.calls[0]?.[0]?.tools).toBeUndefined();
+    expect(result.caloriesKcal).toBe(550);
   });
 });

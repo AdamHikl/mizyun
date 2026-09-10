@@ -868,12 +868,22 @@ export interface VisionDraftRequest {
    * Optional caller-supplied request id for log correlation.
    */
   readonly requestId?: string;
+  /**
+   * Optional ISO 3166-1 alpha-2 country code (e.g. "SK", "US") to ground
+   * regional recipes, restaurant menus, and portion sizing.
+   */
+  readonly countryCode?: string | null | undefined;
 }
 
 export interface TextFoodDraftRequest {
   readonly userId: UserId;
   readonly description: string;
   readonly requestId?: string;
+  /**
+   * Optional ISO 3166-1 alpha-2 country code (e.g. "SK", "US") to ground
+   * regional recipes, restaurant menus, and portion sizing.
+   */
+  readonly countryCode?: string | null | undefined;
 }
 
 /**

@@ -293,7 +293,7 @@ const geminiVisionOutputJsonSchema = {
 const NUTRITION_DRAFT_PROMPT_VERSION = "nutrition-draft-v2";
 const NUTRITION_DRAFT_REFINE_PROMPT_VERSION = "nutrition-draft-refine-v1";
 
-const visionSystemPolicy = [
+export const visionSystemPolicy = [
   "You are a nutrition photo analyzer. Use only the photo and the user's hint.",
   "Identify the food or drink in the photo. If you cannot, set name to null.",
   "Estimate total calories (caloriesKcal) and all three macronutrients (proteinG, carbohydrateG, fatG) for the identified meal.",
@@ -303,6 +303,75 @@ const visionSystemPolicy = [
   "Never make medical claims or suggest a daily calorie target.",
   "Output strictly the JSON schema requested.",
 ].join("\n");
+
+export const textNutritionSystemPolicy = [
+  "You are a nutrition analyzer specializing in text meal descriptions, recipes, and restaurant items.",
+  "Estimate total calories (caloriesKcal) and all three macronutrients (proteinG, carbohydrateG, fatG) for the identified meal.",
+  "Round to one decimal place for macro grams, integer for kcal. Always supply non-null point estimates (midpoint) whenever food is identified.",
+  "For every estimate, return a plausible low/high range and list the portion or ingredient assumptions that drive it.",
+  "For fast-food chains and restaurants (McDonald's, Burger King, KFC, Subway, Starbucks, etc.), prioritize official published nutrition facts.",
+  "Respect regional and country differences: Central Europe / EU vs US portion sizes and beverage sugar formulations differ significantly.",
+  "Explicitly handle single vs double patty burger sizes: e.g. Single Big Tasty Bacon in Central Europe is 588 kcal with 1 standard patty, vs Double Big Tasty at ~850–900 kcal with 150g patty. Never assign double-patty calorie counts when 'Single' is specified.",
+  "When a user's country code is provided (e.g. 'SK'), prioritize official nutrition standards and portion sizes for that specific country.",
+  "If the exact regional recipe or portion is ambiguous, capture the uncertainty in calorieRangeKcal, explain the assumption in assumptions, and assign conservative confidence (< 0.75).",
+  "Set all numeric fields to null only if you cannot identify any food or drink.",
+  "Never make medical claims or suggest a daily calorie target.",
+  "Output strictly the JSON schema requested.",
+].join("\n");
+
+const BRAND_OR_RESTAURANT_PATTERNS: readonly RegExp[] = [
+  /\bmcdonald/i,
+  /\bmcdo\b/i,
+  /\bmaccas\b/i,
+  /\bburger\s*king\b/i,
+  /\bkfc\b/i,
+  /\bkentucky\s*fried\s*chicken\b/i,
+  /\bsubway\b/i,
+  /\bstarbucks\b/i,
+  /\bwendy/i,
+  /\bchipotle\b/i,
+  /\btaco\s*bell\b/i,
+  /\bpizza\s*hut\b/i,
+  /\bdomino/i,
+  /\bfive\s*guys\b/i,
+  /\bpopeyes?\b/i,
+  /\bdunkin/i,
+  /\bcosta\s*coffee\b/i,
+  /\bpanera\b/i,
+  /\bshake\s*shack\b/i,
+  /\bchick-fil-a\b/i,
+  /\bchick\s*fil\s*a\b/i,
+  /\brestaurant\b/i,
+  /\bmenu\b/i,
+  /\bbistro\b/i,
+  /\bfast\s*food\b/i,
+];
+
+export const isBrandOrRestaurantQuery = (description: string): boolean => {
+  const trimmed = description.trim();
+  if (trimmed.length === 0) return false;
+  return BRAND_OR_RESTAURANT_PATTERNS.some((pattern) => pattern.test(trimmed));
+};
+
+const extractGeminiCandidateText = (raw: unknown): string | null => {
+  if (typeof raw !== "object" || raw === null) return null;
+  const candidates = (raw as { candidates?: unknown }).candidates;
+  if (!Array.isArray(candidates) || candidates.length === 0) return null;
+  const first = candidates[0];
+  if (typeof first !== "object" || first === null) return null;
+  const content = (first as { content?: unknown }).content;
+  if (typeof content !== "object" || content === null) return null;
+  const parts = (content as { parts?: unknown }).parts;
+  if (!Array.isArray(parts) || parts.length === 0) return null;
+  const texts = parts
+    .map((p) =>
+      typeof (p as { text?: unknown })?.text === "string"
+        ? (p as { text: string }).text.trim()
+        : "",
+    )
+    .filter((t) => t.length > 0);
+  return texts.length > 0 ? texts.join("\n\n") : null;
+};
 
 const visionUserPrompt = (hint: string | undefined): string =>
   hint && hint.trim().length > 0
@@ -348,6 +417,7 @@ export interface GeminiVisionProviderOptions {
   readonly timeoutMs: number;
   readonly maxOutputTokens: number;
   readonly externalAccess: boolean;
+  readonly enableSearchGrounding?: boolean | undefined;
   readonly client?: GeminiVisionClient | undefined;
   readonly now?: (() => number) | undefined;
   readonly random?: (() => number) | undefined;
@@ -371,6 +441,7 @@ export interface GeminiVisionClient {
         readonly role: "user";
         readonly parts: readonly GeminiVisionPart[];
       }[];
+      readonly tools?: readonly Readonly<Record<string, unknown>>[];
       readonly generationConfig?: {
         readonly temperature?: number;
         readonly maxOutputTokens?: number;
@@ -629,6 +700,7 @@ export class GeminiVisionProvider implements VisionDraftProvider {
   readonly #timeoutMs: number;
   readonly #maxOutputTokens: number;
   readonly #externalAccess: boolean;
+  readonly #enableSearchGrounding: boolean;
   readonly #client: GeminiVisionClient;
   readonly #now: () => number;
   readonly #random: () => number;
@@ -646,6 +718,7 @@ export class GeminiVisionProvider implements VisionDraftProvider {
     this.#timeoutMs = options.timeoutMs;
     this.#maxOutputTokens = options.maxOutputTokens;
     this.#externalAccess = options.externalAccess;
+    this.#enableSearchGrounding = options.enableSearchGrounding ?? true;
     this.#client = options.client ?? defaultGeminiVisionFetchClient();
     this.#now = options.now ?? Date.now;
     this.#random = options.random ?? Math.random;
@@ -701,13 +774,57 @@ export class GeminiVisionProvider implements VisionDraftProvider {
         false,
       );
     }
+
+    const countryInfo = request.countryCode?.trim() ?? "standard";
+    const countrySuffix = request.countryCode?.trim()
+      ? ` (country: ${request.countryCode.trim()})`
+      : "";
+
+    if (
+      this.#enableSearchGrounding &&
+      this.#externalAccess &&
+      isBrandOrRestaurantQuery(request.description)
+    ) {
+      try {
+        const searchPrompt = `Search the web for official published nutrition facts (calories in kcal, protein, carbohydrates, fat) for the following meal/food item. Note the specific restaurant, regional/country menu (${countryInfo}), and portion size:\n"${request.description.trim()}"`;
+        const searchResponse = await this.#client.generateContent(
+          {
+            model: this.#model,
+            contents: [
+              {
+                role: "user",
+                parts: [{ text: searchPrompt }],
+              },
+            ],
+            tools: [{ googleSearch: {} }],
+            generationConfig: {
+              temperature: 0.2,
+              maxOutputTokens: this.#maxOutputTokens,
+            },
+          },
+          { timeoutMs: this.#timeoutMs, apiKey: this.#apiKey },
+        );
+
+        const groundedText = extractGeminiCandidateText(searchResponse);
+        if (groundedText && groundedText.length > 0) {
+          const structuredPrompt = `Estimate an editable meal draft from this user description and verified search findings.\n\nUser description: "${request.description.trim()}"${countrySuffix}\n\nVerified search findings:\n${groundedText}`;
+          return await this.#generate([{ text: structuredPrompt }], "text", {
+            systemPolicy: textNutritionSystemPolicy,
+          });
+        }
+      } catch {
+        // Step 1 search failed; gracefully fall back to direct single-step generation
+      }
+    }
+
     return this.#generate(
       [
         {
-          text: `Estimate an editable meal draft from this user description only: "${request.description.trim()}".`,
+          text: `Estimate an editable meal draft from this user description only: "${request.description.trim()}"${countrySuffix}.`,
         },
       ],
       "text",
+      { systemPolicy: textNutritionSystemPolicy },
     );
   }
 

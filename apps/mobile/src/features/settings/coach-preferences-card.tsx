@@ -56,6 +56,16 @@ const limitationOptions = [
   ["limited_spinal_loading", "Limit spinal loading"],
 ] as const;
 
+const countryOptions = [
+  ["SK", "Slovakia (SK)"],
+  ["CZ", "Czechia (CZ)"],
+  ["US", "United States (US)"],
+  ["GB", "United Kingdom (GB)"],
+  ["DE", "Germany (DE)"],
+  ["AT", "Austria (AT)"],
+  ["PL", "Poland (PL)"],
+] as const;
+
 const toggle = <T extends string>(values: readonly T[], value: T): T[] =>
   values.includes(value)
     ? values.filter((candidate) => candidate !== value)
@@ -264,6 +274,22 @@ export function CoachPreferencesCard({
                   draft.trainingLimitations ?? [],
                   value,
                 ),
+              })
+            }
+          />
+        ))}
+      </ChoiceSection>
+
+      <ChoiceSection title="Country / Regional food standards">
+        {countryOptions.map(([code, label]) => (
+          <ChoiceChip
+            key={code}
+            label={label}
+            selected={draft.countryCode === code}
+            onPress={() =>
+              setDraft({
+                ...draft,
+                countryCode: draft.countryCode === code ? null : code,
               })
             }
           />
