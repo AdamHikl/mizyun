@@ -20,14 +20,14 @@
 
 | Environment       | Host & Location                | Deployed SHA      | Health & Status                                           | Notes                                                                           |
 | ----------------- | ------------------------------ | ----------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| **Local Mac**     | Apple Silicon (`darwin-arm64`) | `fae9f05` (clean) | `pnpm check`: 100% clean                                  | Primary feature development & local verification                                |
-| **Pi Dev**        | Raspberry Pi 5 (`mizyun-pi`)   | `fae9f05`         | HTTP 200 (`https://mizyun-api-dev.phiskel.com/v1/health`) | Port 4100 API / 8100 Kong / 5433 DB; UID 999 unprivileged; worker leases active |
+| **Local Mac**     | Apple Silicon (`darwin-arm64`) | `716f75a` (clean) | `pnpm check`: 100% clean                                  | Primary feature development & local verification                                |
+| **Pi Dev**        | Raspberry Pi 5 (`mizyun-pi`)   | `716f75a`         | HTTP 200 (`https://mizyun-api-dev.phiskel.com/v1/health`) | Port 4100 API / 8100 Kong / 5433 DB; UID 999 unprivileged; worker leases active |
 | **Pi Production** | Raspberry Pi 5 (`mizyun-pi`)   | `c02a67ab`        | HTTP 200 (`https://mizyun-api.phiskel.com/v1/health`)     | Port 4000 API / 8000 Kong / 5432 DB; PID 500239 (uptime 5+ days)                |
 | **Windows PC**    | Windows / WSL2 (`mizyun-pc`)   | `—`               | Standby hot backup                                        | Retained as secondary backup per ADR-0020                                       |
 
 ## Implementation versus release gate status
 
-- **Implemented & Deployed to Dev on Pi (`fae9f05`)**:
+- **Implemented & Deployed to Dev on Pi (`716f75a`)**:
   - **Feedback & Media Upload URL Resolution (`MEDIA-URL-001`)**: Resolved photo upload network error (`fetch failed: Could not connect to the server`) on physical devices. Configured `SupabaseMediaStorage` and server config with `publicUrl` resolution (with port-based 8100/8000 defaults) for signed upload and download tickets, and added client-side `resolveUploadUrl` loopback translation in mobile. All test suites pass; independent security & architectural review certified.
   - **Block 1 (Pi Runtime Isolation / Q1 Resolution)**: Live unprivileged execution verified on Pi Dev (`mizyun-dev-api` UID 999, GID 987). Permission probes fail closed: reading `/etc/mizyun/production.env` denied (EACCES), reading `/srv/mizyun/backups` denied (EACCES), reading `/var/lib/mizyun/repo` denied (EACCES), writing `/var/run/docker.sock` denied. Systemd unit in `/etc/systemd/system/mizyun-api-dev.service` verified identical to template.
   - **Block 2 (Local Native Release Builds & Device Acceptance / Gate R3)**: ADR-0023 accepted retiring EAS in favor of 100% local Xcode and Android Gradle builds; `with-android-release-signing` plugin enforcing fail-closed keystore configuration; `scripts/mobile-founder-dev-android.sh` with variant isolation; build matrix verification passing.
