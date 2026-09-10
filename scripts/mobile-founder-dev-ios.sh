@@ -49,7 +49,8 @@ case "$action" in
   run)
     shift
     if [[ -d "$repo_root/apps/mobile/ios" ]]; then
-      current_bundle_id="$(grep -m1 'PRODUCT_BUNDLE_IDENTIFIER =' "$repo_root/apps/mobile/ios/Mizyun.xcodeproj/project.pbxproj" | tr -d ';\t ' | cut -d= -f2 || true)"
+      project_file="$(find "$repo_root/apps/mobile/ios" -maxdepth 2 -path '*/Mizyun*/project.pbxproj' | head -n1)"
+      current_bundle_id="$(grep -m1 'PRODUCT_BUNDLE_IDENTIFIER =' "$project_file" 2>/dev/null | tr -d ';\t ' | cut -d= -f2 || true)"
       if [[ -z "$current_bundle_id" || "$current_bundle_id" != "com.mizyun.dev" ]]; then
         echo "ERROR: Native iOS directory has invalid or mismatched bundle ID '$current_bundle_id' (expected 'com.mizyun.dev'). Run prebuild first: pnpm mobile:founder-dev:ios:prebuild" >&2
         exit 1
@@ -57,9 +58,11 @@ case "$action" in
     fi
     if [[ "${1:-}" == "--renew-profile" ]]; then
       shift
+      workspace_file="$(find "$repo_root/apps/mobile/ios" -maxdepth 1 -name 'Mizyun*.xcworkspace' | head -n1)"
+      scheme_name="$(basename "$workspace_file" .xcworkspace)"
       xcodebuild_args=(
-        -workspace "$repo_root/apps/mobile/ios/Mizyun.xcworkspace"
-        -scheme Mizyun
+        -workspace "$workspace_file"
+        -scheme "$scheme_name"
         -configuration Release
         -destination "generic/platform=iOS"
         -allowProvisioningUpdates

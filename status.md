@@ -37,26 +37,35 @@
   - **Hybrid Grounded Meal Drafting & Regional Calibration (`AI-EST-002`)**: Fixed inaccurate calorie estimations for branded meals (e.g. McDonald's Slovakia "Single Big Tasty Bacon"). Introduced dedicated `textNutritionSystemPolicy` in `@mizyun/provider-gemini` with explicit fast-food single/double patty size distinctions and EU vs. US portion standards; implemented resilient two-step Gemini Google Search Grounding (`tools: [{ googleSearch: {} }]`) for branded queries with graceful fallback; plumbed user profile/request `countryCode` through API draft routes; added Country / Regional food standards settings card in mobile. Full test suites pass 100%.
   - Navigation & boundary suite: manifest coverage, realpath link resolution, pure core isolation, mobile adapter boundary, and synthetic fixture tests.
   - All standard gates pass: format check, typecheck (14 packages), dual-platform bundle checks (iOS & Android Hermes), 23 deployment safeguards, 16 build matrix invariants, 56 AI invariants, 748+ unit tests.
+- **Physical Device Installation Verified (Gate R3 Part B)**:
+  - Both native release variants successfully compiled, signed, and installed side-by-side on physical iPhone (**Adam's Iphone 😋** / iPhone 16 Pro, UDID `7FBC9ACC-918A-5A9B-8D22-B9F1FF652A06`):
+    - `Mizyun Dev` (`com.mizyun.dev`, Version 1.0.0, Build 1) pointing to Dev API (`https://mizyun-api-dev.phiskel.com`).
+    - `Mizyun` (`com.mizyun.app`, Version 1.0.0, Build 1) pointing to Production API (`https://mizyun-api.phiskel.com`).
+  - Native variant separation verified via `xcrun devicectl device info apps`.
 - **Open Implementation Work (Remediation Checklist)**:
   - Q2: Durable unknown-outcome persistence for ambiguous retries.
   - Q7/Q8: Consent UI context preservation and live model evaluation.
   - Q9: Remote readiness probe identity and live promotion proof.
 - **Explicitly Held / Blocked Release Gates**:
-  - **Gate R3 Part B**: Physical release build signing verification on local hardware via Xcode and Android keystore.
-  - **Gate R8**: Physical device journey on iPhone via cable install (standalone without Metro) & off-device backup restore rehearsal into isolated target.
+  - **Gate R8**: Physical device journey on iPhone (standalone without Metro, Auth redirect, meal logging, export, deletion) & off-device backup restore rehearsal.
   - **Production Promotion**: Separately gated milestone requiring explicit user authorization, clean pre-promotion backup, and accepted physical device evidence.
 
 ## Current blockers & known contradictions
 
-1. **Release Gates R3/R8**: Physical device testing and off-device recovery rehearsal remain open dependencies before promoting candidate to Production.
+1. **Release Gate R8**: Physical device journey testing and off-device recovery rehearsal remain open dependencies before promoting candidate to Production.
 
 ## Next exact action
 
-Execute Priority 1 & 2 (Physical Device End-to-End Acceptance / Gate R3 & Gate R8):
+Execute Physical Device End-to-End Acceptance (Gate R8):
 
-1. Connect physical iPhone via USB and compile/run the Dev build (`pnpm mobile:founder-dev:ios`).
-2. Sideload Dev release build on physical Android device (`pnpm mobile:founder-dev:android`).
-3. Follow `docs/PHYSICAL_DEVICE_ACCEPTANCE_GUIDE.md` to verify standalone launch (Mac/Metro off), Auth redirect (`mizyun-dev://auth/callback`), meal logging, bounded data export, and durable account deletion.
+1. On **Adam's Iphone 😋**, open **Mizyun Dev** (`com.mizyun.dev`):
+   - Verify standalone launch without Mac/Metro.
+   - Verify authentication flow and redirect (`mizyun-dev://auth/callback`).
+   - Log a meal (test camera upload, regional calibration, and retry).
+   - Test bounded account export and download JSON.
+   - Test account deletion: verify worker lease cascade, local session wipe, and signout.
+2. Open **Mizyun** (`com.mizyun.app`):
+   - Verify launch into production baseline and variant isolation.
 
 ## Evidence & archive links
 
