@@ -260,7 +260,9 @@ const plugins = [
         "./plugins/without-ios-push-notifications",
       ]
     : baseExpo.plugins),
-  ...(enableIosAppleAuth ? ["expo-apple-authentication"] : []),
+  ...(enableIosAppleAuth
+    ? ["expo-apple-authentication"]
+    : ["./plugins/without-ios-apple-auth"]),
   "./plugins/with-android-release-signing",
 ];
 

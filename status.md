@@ -1,6 +1,60 @@
 # Mizyun current status
 
-## Latest handoff — Decoupled AI Budgets & Beta Pro Pass Flow (`AI-BUDGET-001` & `BETA-PRO-001`) (2026-09-11)
+## Latest handoff — Live Active Workout Notification on Lock Screen & Notification Tray (`WO-NOTIF-001`) (2026-09-11)
+
+- Implemented an "always on" persistent live notification that activates during an active workout session in `apps/mobile`:
+  - Surfaces current exercise, target load/reps, completed sets progress, and rest timer countdown.
+  - Dynamically updates between:
+    - Resting state: `⏱️ Resting · <Exercise>` / `Rest until <HH:MM> · <X> completed` / `Next: <weight> × <reps>`.
+    - Lifting state: `🏋️ Workout: <Workout Name>` / `Set <N> · <X>/<Y> completed` / `Current: <Exercise> (<weight> × <reps>)`.
+  - Configured with fixed identifier `active-workout-session` so updates modify the existing notification in-place on the lock screen and notification tray.
+  - Configured Android channel `active-workout-session` with `LOW` importance, `sticky: true`, and `autoDismiss: false`.
+  - Suppressed in-app foreground banner alerts and alert sounds (`shouldShowBanner: false`, `shouldPlaySound: false`) in `apps/mobile/src/app/_layout.tsx`, while keeping tray/lock-screen visibility (`shouldShowList: true`). High-priority rest timer expiration alerts (`Rest Over!`) remain unimpeded.
+  - Tapping the notification deep-links directly to `/log-workout` with the `workoutId` payload.
+  - Added user toggle in `apps/mobile/src/features/settings/workout-settings-card.tsx` ("Live workout notification", defaulting to enabled `true`), backed by `expo-secure-store` in `workout-preferences.ts`.
+  - Notification immediately dismisses when the workout session is finished or abandoned.
+- Verification:
+  - Unit tests: Added 20 unit tests in `workout-notification.test.ts` (all passed). Updated `workout-preferences.test.ts` (17 passed). Total mobile suite: 39 test files, 364 tests passing (`pnpm --filter @mizyun/mobile test`).
+  - Full repository quality gate: `pnpm check` passed cleanly (exit 0) — Prettier check, all 15 TypeScript projects, dual iOS & Android Hermes bundling, 23 deployment safeguards, 16 build matrix invariants, and 56 AI invariants.
+- Next exact action: Push commit to remote, deploy to Dev on the Raspberry Pi (`pnpm deploy:dev`), and test live lock-screen notification display and updates during an active workout session on the physical `com.mizyun.dev` iPhone build.
+
+## Prior handoff — Resilient Workout Rest Timer (Wall-Clock & Lock Screen Notifications) and Global Settings (`WO-REST-001`) (2026-09-11)
+
+- Resolved issues where:
+  1. The rest timer froze or stopped when the user navigated away from the app or locked/closed their iPhone.
+  2. The default rest timer duration was 90s instead of 3 minutes.
+  3. The rest timer was not globally configurable across the app.
+- Architecture & Resilient Wall-Clock Pattern:
+  - Transitioned `RestTimerState` from relative decrementing countdown state to absolute wall-clock timestamps: `{ endsAt: number; total: number; exerciseName: string; notificationId?: string | null; }`.
+  - Added ticker running against `Date.now() >= endsAt`, coupled with an `AppState` change listener (`"active"`) that instantly reconciles or expires elapsed rest time when returning to the foreground or unlocking the phone.
+  - Implemented local push notification service via `expo-notifications` (`apps/mobile/src/features/workouts/rest-timer-notifications.ts`): schedules a high-priority sound notification upon logging a set (`scheduleRestNotification`), cancels previous or active notifications on skip, finish, abandon, or expiration (`cancelRestNotification`), and configures Android notification channels. Unit tested in `rest-timer-notifications.test.ts` (8/8 passed).
+- Global Workout Preferences & Settings:
+  - Created `apps/mobile/src/features/workouts/workout-preferences.ts` backed by `expo-secure-store` with default duration set to 180s (3 minutes), min/max clamping (15s–600s), presets (60, 90, 120, 150, 180, 240, 300s), ±15s steppers, and duration formatters. Unit tested in `workout-preferences.test.ts` (16/16 passed).
+  - Created `WorkoutSettingsCard` in `apps/mobile/src/features/settings/workout-settings-card.tsx` and integrated it into `SettingsScreen` under the new `"workout"` category with filter pill and collapsible section.
+  - Updated `WorkoutEditorModal` (`apps/mobile/src/features/workouts/workout-editor-modal.tsx`) to load preferences on mount and default new exercise rest durations to `defaultRestSeconds` (180s).
+  - Updated `LogWorkoutScreen` (`apps/mobile/src/features/log-workout/log-workout-screen.tsx`) to load preferences on mount, default fallback rest durations to `globalRestSeconds`, manage dynamic notifications, and adapt `FloatingRestTimer` with wall-clock time math.
+- Verification:
+  - Mobile test suites: all 38 test files and 343 tests passed cleanly (`pnpm --filter @mizyun/mobile test`).
+  - Full repository quality gate: `pnpm check` passed cleanly (exit 0) across all 15 TypeScript projects, formatting, boundary checks, Hermes bundling, deployment safeguards, build matrix invariants, and AI eval invariants.
+- Next exact action: Push commit to remote, deploy to Dev on the Raspberry Pi (`pnpm deploy:dev`), and test locking the phone during an active workout rest interval on the physical `com.mizyun.dev` iPhone build.
+
+## Prior handoff — Surface Planned Routine Weights (Target Load) in Active Workout Session (`WO-LOAD-001`) (2026-09-11)
+
+- Resolved issue where weights entered during routine creation (`WorkoutEditorModal`) did not appear when starting a session (`LogWorkoutScreen`).
+- Weight Units Utility:
+  - Added `parseTargetLoadToDisplay` and `parseTargetLoadToKilograms` in `apps/mobile/src/lib/weight-units.ts`, handling plain numbers and strings with optional `kg` and `lb`/`lbs` unit indicators with automatic conversion to the user's active unit system.
+  - Added 14 unit tests in `apps/mobile/src/lib/weight-units.test.ts` (all passed).
+- Live Workout Screen & Data Pipeline:
+  - Added `targetLoad` to `PlannedExercise` and `extractPlannedExercises` in `apps/mobile/src/features/log-workout/log-workout-data.ts`, extracting target loads from `coachPlan`, `aiDraft`, and `workoutProposal` details. Added 4 test cases in `log-workout-data.test.ts` (19 tests passed).
+  - Updated `ExerciseEntry` and `exerciseEntries` in `apps/mobile/src/features/log-workout/log-workout-screen.tsx` to retain `targetLoad`.
+  - In `LiveExerciseCard`: updated `smartPlaceholderLoad` to use `targetLoadDisplay` for the initial set placeholder instead of falling back to `"0"`; updated the exercise header subtitle to display target weight (e.g. `Target: 3 sets · 4-5 reps · 140 kg · 90s rest`); updated `activeSetRow` `colPrev` to show `Target: 140 kg`; and updated `handleLogSet` to default `loadVal` to `targetLoadDisplay` when logging a set without manual typing.
+- Workouts Hub:
+  - Updated `extractPlannedExercisesFromWorkout` in `workouts-hub-data.ts` to parse numeric `targetLoad` and `targetLoadKg`.
+  - Updated exercise chips in `PlannedWorkoutCard` (`workouts-hub-screen.tsx`) to display the planned weight alongside sets (e.g. `Barbell Deadlift (3 sets · 140 kg)`).
+- Verification: Full repository quality gate `pnpm check` passed cleanly (exit 0) — Prettier, all 15 TypeScript projects, dual iOS/Android Hermes bundles, 23 deployment safeguards, 16 build matrix invariants, and 56 AI invariants.
+- Next exact action: Push commit to remote, deploy to Dev (`pnpm deploy:dev`) on the Pi, and verify on physical iPhone build.
+
+## Prior handoff — Decoupled AI Budgets & Beta Pro Pass Flow (`AI-BUDGET-001` & `BETA-PRO-001`) (2026-09-11)
 
 - Decoupled AI Budgets: Separated Coach Chat token budget from Photo Meal Draft limits. Photo drafts are now tracked via count-based quota (5 free / 100 paid per day), while Coach Chat retains token-based tracking (10k free / 100k paid tokens per day). Configured in `packages/config/src/ai-tier.ts`.
 - Database Migration: Created `supabase/migrations/20260910220000_separate_ai_draft_budget_and_beta_requests.sql` with `ai_daily_draft_ledger`, RPCs (`ai_reserve_draft`, `ai_commit_draft`), `beta_pro_requests` table with RLS, and admin approval trigger `trg_beta_pro_approval` promoting `profiles.plan_tier` to `paid`.

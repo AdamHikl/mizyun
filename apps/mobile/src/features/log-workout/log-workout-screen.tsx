@@ -3,6 +3,7 @@ import { LoggingFlowMeasurement } from "@mizyun/observability";
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -39,10 +40,24 @@ import { useTheme } from "@/hooks/use-theme";
 import {
   displayWeightToKilograms,
   kilogramsToDisplayWeight,
+  parseTargetLoadToDisplay,
   weightUnitLabel,
 } from "@/lib/weight-units";
 import { ExerciseLibraryModal } from "@/features/workouts/exercise-library-modal";
 import { ExerciseProgressionModal } from "@/features/workouts/exercise-progression-modal";
+import {
+  DEFAULT_REST_SECONDS,
+  loadWorkoutPreferences,
+} from "@/features/workouts/workout-preferences";
+import {
+  cancelRestNotification,
+  scheduleRestNotification,
+} from "@/features/workouts/rest-timer-notifications";
+import {
+  dismissActiveWorkoutNotification,
+  formatNextSetSummary,
+  updateActiveWorkoutNotification,
+} from "@/features/workouts/workout-notification";
 
 import {
   abandonWorkout,
@@ -51,73 +66,13 @@ import {
   completeWorkout,
   createExercise,
   deleteWorkoutSet,
+  extractPlannedExercises,
   loadRecentPerformance,
   loadWorkoutWorkspace,
   startWorkout,
+  type PlannedExercise,
   type WorkoutWorkspace,
 } from "./log-workout-data";
-
-export interface PlannedExercise {
-  readonly catalogId: string;
-  readonly name: string;
-  readonly sets: number;
-  readonly repsMin: number | null;
-  readonly repsMax: number | null;
-  readonly durationMinutes: number | null;
-  readonly restSeconds: number;
-}
-
-const extractPlannedExercises = (
-  workout: Workout | null,
-  draftProposal?: CoachWorkoutProposal,
-): ReadonlyArray<PlannedExercise> => {
-  if (
-    draftProposal?.session?.exercises &&
-    draftProposal.session.exercises.length > 0
-  ) {
-    return draftProposal.session.exercises;
-  }
-  const details = workout?.details;
-  if (!details || typeof details !== "object") return [];
-
-  // 1. MultiWorkoutPlan (coachPlan)
-  const coachPlan = (details as Record<string, unknown>).coachPlan;
-  if (
-    coachPlan &&
-    typeof coachPlan === "object" &&
-    Array.isArray((coachPlan as Record<string, unknown>).exercises)
-  ) {
-    return (coachPlan as { exercises: PlannedExercise[] }).exercises;
-  }
-
-  // 2. Single workout start (aiDraft)
-  const aiDraft = (details as Record<string, unknown>).aiDraft;
-  if (aiDraft && typeof aiDraft === "object") {
-    const session = (aiDraft as Record<string, unknown>).session;
-    if (
-      session &&
-      typeof session === "object" &&
-      Array.isArray((session as Record<string, unknown>).exercises)
-    ) {
-      return (session as { exercises: PlannedExercise[] }).exercises;
-    }
-  }
-
-  // 3. workoutProposal
-  const workoutProposal = (details as Record<string, unknown>).workoutProposal;
-  if (workoutProposal && typeof workoutProposal === "object") {
-    const session = (workoutProposal as Record<string, unknown>).session;
-    if (
-      session &&
-      typeof session === "object" &&
-      Array.isArray((session as Record<string, unknown>).exercises)
-    ) {
-      return (session as { exercises: PlannedExercise[] }).exercises;
-    }
-  }
-
-  return [];
-};
 
 interface WorkoutDraft {
   readonly name: string;
@@ -158,6 +113,7 @@ export interface ExerciseEntry {
   readonly repsMax: number | null;
   readonly durationMinutes: number | null;
   readonly restSeconds: number;
+  readonly targetLoad?: string;
   readonly isPlanned: boolean;
 }
 
@@ -170,9 +126,10 @@ interface PendingSetInput {
 }
 
 interface RestTimerState {
-  remaining: number;
+  endsAt: number;
   total: number;
   exerciseName: string;
+  notificationId?: string | null;
 }
 
 export function LogWorkoutScreen() {
@@ -203,6 +160,11 @@ export function LogWorkoutScreen() {
   >(null);
   const [libraryVisible, setLibraryVisible] = useState(false);
   const [restTimer, setRestTimer] = useState<RestTimerState | null>(null);
+  const [, setRestTick] = useState(0);
+  const [globalRestSeconds, setGlobalRestSeconds] =
+    useState<number>(DEFAULT_REST_SECONDS);
+  const [liveNotificationEnabled, setLiveNotificationEnabled] =
+    useState<boolean>(true);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   const measurement = useRef<LoggingFlowMeasurement | null>(null);
@@ -283,6 +245,19 @@ export function LogWorkoutScreen() {
     void saveLoggingDraft(userId, "workout", draft);
   }, [draft, draftLoaded, userId]);
 
+  // Load workout preferences (global rest timer setting and live notification toggle)
+  useEffect(() => {
+    let active = true;
+    void loadWorkoutPreferences(userId ?? undefined).then((prefs) => {
+      if (!active) return;
+      setGlobalRestSeconds(prefs.defaultRestSeconds);
+      setLiveNotificationEnabled(prefs.liveNotificationEnabled);
+    });
+    return () => {
+      active = false;
+    };
+  }, [userId]);
+
   // Stopwatch duration ticker
   useEffect(() => {
     if (!workspace.workout || workspace.workout.completedAt !== null) {
@@ -299,17 +274,46 @@ export function LogWorkoutScreen() {
     return () => clearInterval(interval);
   }, [workspace.workout]);
 
-  // Rest timer ticker
+  // Wall-clock rest timer ticker
   useEffect(() => {
-    if (!restTimer || restTimer.remaining <= 0) return;
-    const interval = setInterval(() => {
-      setRestTimer((curr) => {
-        if (!curr || curr.remaining <= 1) return null;
-        return { ...curr, remaining: curr.remaining - 1 };
-      });
-    }, 1000);
+    if (!restTimer) return;
+    const checkTimer = () => {
+      const now = Date.now();
+      if (now >= restTimer.endsAt) {
+        if (restTimer.notificationId) {
+          void cancelRestNotification(restTimer.notificationId);
+        }
+        setRestTimer(null);
+      } else {
+        setRestTick((t) => (t + 1) % 10000);
+      }
+    };
+    checkTimer();
+    const interval = setInterval(checkTimer, 500);
     return () => clearInterval(interval);
   }, [restTimer]);
+
+  // AppState listener to immediately refresh/expire rest timer when app returns to foreground
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") {
+        setRestTimer((current) => {
+          if (!current) return null;
+          if (Date.now() >= current.endsAt) {
+            if (current.notificationId) {
+              void cancelRestNotification(current.notificationId);
+            }
+            return null;
+          }
+          return current;
+        });
+        setRestTick((t) => (t + 1) % 10000);
+      }
+    });
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
   const patchDraft = useCallback((patch: Partial<WorkoutDraft>) => {
     setDraft((current) => ({ ...current, ...patch }));
@@ -333,7 +337,8 @@ export function LogWorkoutScreen() {
         repsMin: p.repsMin,
         repsMax: p.repsMax,
         durationMinutes: p.durationMinutes,
-        restSeconds: p.restSeconds || 90,
+        restSeconds: p.restSeconds || globalRestSeconds,
+        targetLoad: p.targetLoad,
         isPlanned: true,
       });
     });
@@ -352,7 +357,7 @@ export function LogWorkoutScreen() {
             repsMin: null,
             repsMax: null,
             durationMinutes: null,
-            restSeconds: 90,
+            restSeconds: globalRestSeconds,
             isPlanned: false,
           });
         }
@@ -368,7 +373,13 @@ export function LogWorkoutScreen() {
     });
 
     return Array.from(map.values());
-  }, [extraExercises, plannedExercises, workspace.exercises, workspace.sets]);
+  }, [
+    extraExercises,
+    globalRestSeconds,
+    plannedExercises,
+    workspace.exercises,
+    workspace.sets,
+  ]);
 
   // Pre-load recent performance for all active exercises
   useEffect(() => {
@@ -386,6 +397,134 @@ export function LogWorkoutScreen() {
       }
     });
   }, [exerciseEntries, recentPerformanceMap, workspace.workout]);
+
+  // Active session summary for the persistent live notification
+  const activeSessionSummary = useMemo(() => {
+    if (!workspace.workout || workspace.workout.completedAt !== null) {
+      return null;
+    }
+
+    const completedSetsCount = workspace.sets.length;
+    let totalPlannedSetsCount = 0;
+    for (const ex of exerciseEntries) {
+      totalPlannedSetsCount += ex.targetSets || 3;
+    }
+
+    // Determine current exercise:
+    // If resting, use the exercise being rested for.
+    // Otherwise, pick the first exercise that still has incomplete sets, or fallback to the last.
+    let currentEntry: ExerciseEntry | undefined = undefined;
+    if (restTimer) {
+      currentEntry = exerciseEntries.find(
+        (e) =>
+          e.name.trim().toLowerCase() ===
+          restTimer.exerciseName.trim().toLowerCase(),
+      );
+    }
+    if (!currentEntry) {
+      currentEntry = exerciseEntries.find((e) => {
+        const done = workspace.sets.filter((s) => {
+          if (e.id.startsWith("planned-")) {
+            const matched = workspace.exercises.find(
+              (dbEx) =>
+                dbEx.name.trim().toLowerCase() === e.name.trim().toLowerCase(),
+            );
+            return matched ? s.exerciseId === matched.id : false;
+          }
+          return s.exerciseId === e.id;
+        }).length;
+        return done < (e.targetSets || 3);
+      });
+    }
+    if (!currentEntry && exerciseEntries.length > 0) {
+      currentEntry = exerciseEntries[exerciseEntries.length - 1];
+    }
+
+    if (!currentEntry) {
+      return {
+        workoutId: workspace.workout.id,
+        workoutName: workspace.workout.name || "Live Workout",
+        currentExerciseName: "Workout",
+        completedSetsCount,
+        totalPlannedSetsCount,
+        nextSetSequence: completedSetsCount + 1,
+        nextSetSummary: undefined,
+      };
+    }
+
+    const completedForEntry = workspace.sets.filter((s) => {
+      if (currentEntry!.id.startsWith("planned-")) {
+        const matched = workspace.exercises.find(
+          (dbEx) =>
+            dbEx.name.trim().toLowerCase() ===
+            currentEntry!.name.trim().toLowerCase(),
+        );
+        return matched ? s.exerciseId === matched.id : false;
+      }
+      return s.exerciseId === currentEntry!.id;
+    });
+
+    const lastCompletedSet =
+      completedForEntry.length > 0
+        ? completedForEntry[completedForEntry.length - 1]
+        : null;
+    const nextSetSequence = completedForEntry.length + 1;
+
+    const nextSetSummary = formatNextSetSummary(
+      currentEntry,
+      nextSetSequence,
+      unitSystem,
+      lastCompletedSet,
+    );
+
+    return {
+      workoutId: workspace.workout.id,
+      workoutName: workspace.workout.name || "Live Workout",
+      currentExerciseName: currentEntry.name,
+      completedSetsCount,
+      totalPlannedSetsCount,
+      nextSetSequence,
+      nextSetSummary,
+    };
+  }, [
+    exerciseEntries,
+    restTimer,
+    unitSystem,
+    workspace.exercises,
+    workspace.sets,
+    workspace.workout,
+  ]);
+
+  // Synchronize live workout session notification
+  useEffect(() => {
+    if (!liveNotificationEnabled || !activeSessionSummary) {
+      return;
+    }
+
+    void updateActiveWorkoutNotification({
+      workoutId: activeSessionSummary.workoutId,
+      workoutName: activeSessionSummary.workoutName,
+      currentExerciseName: activeSessionSummary.currentExerciseName,
+      completedSetsCount: activeSessionSummary.completedSetsCount,
+      totalPlannedSetsCount: activeSessionSummary.totalPlannedSetsCount,
+      nextSetSequence: activeSessionSummary.nextSetSequence,
+      nextSetSummary: activeSessionSummary.nextSetSummary,
+      restTimer: restTimer
+        ? {
+            endsAt: restTimer.endsAt,
+            total: restTimer.total,
+            exerciseName: restTimer.exerciseName,
+          }
+        : null,
+    });
+  }, [activeSessionSummary, liveNotificationEnabled, restTimer]);
+
+  // Clean up notification if user disabled the setting
+  useEffect(() => {
+    if (!liveNotificationEnabled) {
+      void dismissActiveWorkoutNotification();
+    }
+  }, [liveNotificationEnabled]);
 
   // Start workout action
   const onStart = useCallback(async () => {
@@ -547,12 +686,22 @@ export function LogWorkoutScreen() {
       let loadVal = currentInput.load.trim();
       let repsVal = currentInput.reps.trim();
 
-      if (loadVal.length === 0 && completedSets.length > 0) {
-        const lastSet = completedSets[completedSets.length - 1];
-        if (lastSet?.loadKg !== null && lastSet?.loadKg !== undefined) {
-          loadVal = String(
-            kilogramsToDisplayWeight(lastSet.loadKg, unitSystem),
+      if (loadVal.length === 0) {
+        if (completedSets.length > 0) {
+          const lastSet = completedSets[completedSets.length - 1];
+          if (lastSet?.loadKg !== null && lastSet?.loadKg !== undefined) {
+            loadVal = String(
+              kilogramsToDisplayWeight(lastSet.loadKg, unitSystem),
+            );
+          }
+        } else if (entry.targetLoad) {
+          const targetDisplay = parseTargetLoadToDisplay(
+            entry.targetLoad,
+            unitSystem,
           );
+          if (targetDisplay !== null) {
+            loadVal = targetDisplay;
+          }
         }
       }
 
@@ -595,13 +744,24 @@ export function LogWorkoutScreen() {
         return setMessage(result.message);
       }
 
-      // Start rest timer
-      const restDuration = entry.restSeconds > 0 ? entry.restSeconds : 90;
-      setRestTimer({
-        remaining: restDuration,
-        total: restDuration,
-        exerciseName: entry.name,
-      });
+      // Start rest timer with wall-clock endsAt and background notification
+      const restDuration =
+        entry.restSeconds > 0 ? entry.restSeconds : globalRestSeconds;
+      void (async () => {
+        if (restTimer?.notificationId) {
+          await cancelRestNotification(restTimer.notificationId);
+        }
+        const notificationId = await scheduleRestNotification(
+          entry.name,
+          restDuration,
+        );
+        setRestTimer({
+          endsAt: Date.now() + restDuration * 1000,
+          total: restDuration,
+          exerciseName: entry.name,
+          notificationId,
+        });
+      })();
 
       // Immediately append the newly created set into workspace state so UI updates without reload
       setWorkspace((current) => ({
@@ -625,8 +785,10 @@ export function LogWorkoutScreen() {
       void refresh();
     },
     [
+      globalRestSeconds,
       pendingInputs,
       refresh,
+      restTimer?.notificationId,
       unitSystem,
       updatePendingInput,
       workspace.exercises,
@@ -681,6 +843,11 @@ export function LogWorkoutScreen() {
           text: "Finish & Save",
           onPress: () => {
             void (async () => {
+              if (restTimer?.notificationId) {
+                await cancelRestNotification(restTimer.notificationId);
+              }
+              setRestTimer(null);
+              void dismissActiveWorkoutNotification();
               setBusy(true);
               const result = await completeWorkout(
                 workspace.workout!.id,
@@ -707,7 +874,13 @@ export function LogWorkoutScreen() {
         },
       ],
     );
-  }, [elapsedSeconds, userId, workspace.sets.length, workspace.workout]);
+  }, [
+    elapsedSeconds,
+    restTimer?.notificationId,
+    userId,
+    workspace.sets.length,
+    workspace.workout,
+  ]);
 
   // Confirm abandon
   const confirmAbandon = useCallback(() => {
@@ -722,6 +895,11 @@ export function LogWorkoutScreen() {
           style: "destructive",
           onPress: () => {
             void (async () => {
+              if (restTimer?.notificationId) {
+                await cancelRestNotification(restTimer.notificationId);
+              }
+              setRestTimer(null);
+              void dismissActiveWorkoutNotification();
               const result = await abandonWorkout(workspace.workout!.id);
               if (!result.ok) return setMessage(result.message);
               if (userId !== null) await clearLoggingDraft(userId, "workout");
@@ -731,7 +909,7 @@ export function LogWorkoutScreen() {
         },
       ],
     );
-  }, [userId, workspace.workout]);
+  }, [restTimer?.notificationId, userId, workspace.workout]);
 
   return (
     <ThemedView style={styles.page}>
@@ -828,17 +1006,52 @@ export function LogWorkoutScreen() {
       {restTimer !== null ? (
         <FloatingRestTimer
           rest={restTimer}
-          onAdjust={(delta) =>
-            setRestTimer((curr) =>
-              curr
-                ? {
-                    ...curr,
-                    remaining: Math.max(0, curr.remaining + delta),
-                  }
-                : null,
-            )
-          }
-          onSkip={() => setRestTimer(null)}
+          onAdjust={(delta) => {
+            const currentEndsAt = restTimer.endsAt;
+            const currentTotal = restTimer.total;
+            const notificationId = restTimer.notificationId;
+            const exerciseName = restTimer.exerciseName;
+
+            const now = Date.now();
+            const currentRemaining = Math.max(
+              0,
+              Math.ceil((currentEndsAt - now) / 1000),
+            );
+            const nextRemaining = Math.max(0, currentRemaining + delta);
+
+            if (nextRemaining <= 0) {
+              if (notificationId) {
+                void cancelRestNotification(notificationId);
+              }
+              setRestTimer(null);
+              return;
+            }
+
+            const nextEndsAt = now + nextRemaining * 1000;
+            const nextTotal = Math.max(currentTotal, nextRemaining);
+
+            void (async () => {
+              if (notificationId) {
+                await cancelRestNotification(notificationId);
+              }
+              const newNotificationId = await scheduleRestNotification(
+                exerciseName,
+                nextRemaining,
+              );
+              setRestTimer({
+                endsAt: nextEndsAt,
+                total: nextTotal,
+                exerciseName,
+                notificationId: newNotificationId,
+              });
+            })();
+          }}
+          onSkip={() => {
+            if (restTimer.notificationId) {
+              void cancelRestNotification(restTimer.notificationId);
+            }
+            setRestTimer(null);
+          }}
         />
       ) : null}
 
@@ -1098,6 +1311,10 @@ function LiveExerciseCard(props: {
   const unit = weightUnitLabel(props.unitSystem);
   const nextSetSequence = props.completedSets.length + 1;
 
+  const targetLoadDisplay = props.entry.targetLoad
+    ? parseTargetLoadToDisplay(props.entry.targetLoad, props.unitSystem)
+    : null;
+
   // Compute smart placeholder for next set
   const previousSet =
     props.completedSets.length > 0
@@ -1109,9 +1326,11 @@ function LiveExerciseCard(props: {
   const smartPlaceholderLoad =
     previousSet?.loadKg !== null && previousSet?.loadKg !== undefined
       ? String(kilogramsToDisplayWeight(previousSet.loadKg, props.unitSystem))
-      : previousBestLoad !== null
-        ? String(kilogramsToDisplayWeight(previousBestLoad, props.unitSystem))
-        : "—";
+      : targetLoadDisplay !== null
+        ? targetLoadDisplay
+        : previousBestLoad !== null
+          ? String(kilogramsToDisplayWeight(previousBestLoad, props.unitSystem))
+          : "—";
 
   const smartPlaceholderReps =
     previousSet?.repetitions !== null && previousSet?.repetitions !== undefined
@@ -1136,7 +1355,10 @@ function LiveExerciseCard(props: {
               ? props.entry.durationMinutes
                 ? `${props.entry.durationMinutes} min`
                 : "reps"
-              : `${props.entry.repsMin}–${props.entry.repsMax} reps`}{" "}
+              : `${props.entry.repsMin}–${props.entry.repsMax} reps`}
+            {targetLoadDisplay !== null
+              ? ` · ${targetLoadDisplay} ${unit}`
+              : ""}{" "}
             · {props.entry.restSeconds}s rest
           </ThemedText>
         </View>
@@ -1226,9 +1448,13 @@ function LiveExerciseCard(props: {
             style={styles.colPrev}
             numberOfLines={1}
           >
-            {smartPlaceholderLoad !== "—"
+            {previousSet !== null && smartPlaceholderLoad !== "—"
               ? `${smartPlaceholderLoad} ${unit} × ${smartPlaceholderReps}`
-              : "First set"}
+              : targetLoadDisplay !== null
+                ? `Target: ${targetLoadDisplay} ${unit}`
+                : smartPlaceholderLoad !== "—"
+                  ? `${smartPlaceholderLoad} ${unit} × ${smartPlaceholderReps}`
+                  : "First set"}
           </ThemedText>
 
           <View style={styles.colInputCell}>
@@ -1297,9 +1523,13 @@ function FloatingRestTimer(props: {
   readonly onAdjust: (delta: number) => void;
   readonly onSkip: () => void;
 }) {
+  const remaining = Math.max(
+    0,
+    Math.ceil((props.rest.endsAt - Date.now()) / 1000),
+  );
   const percent = Math.min(
     100,
-    Math.max(0, (props.rest.remaining / Math.max(1, props.rest.total)) * 100),
+    Math.max(0, (remaining / Math.max(1, props.rest.total)) * 100),
   );
 
   return (
@@ -1310,7 +1540,7 @@ function FloatingRestTimer(props: {
             ⏱ Rest ({props.rest.exerciseName})
           </ThemedText>
           <ThemedText type="subtitle" style={styles.timerCountdown}>
-            {formatStopwatch(props.rest.remaining)}
+            {formatStopwatch(remaining)}
           </ThemedText>
         </View>
 

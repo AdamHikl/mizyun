@@ -23,6 +23,10 @@ import {
   type PlannedExerciseItem,
   type ProcessedWorkout,
 } from "./workouts-hub-data";
+import {
+  DEFAULT_REST_SECONDS,
+  loadWorkoutPreferences,
+} from "./workout-preferences";
 import { ExerciseLibraryModal } from "./exercise-library-modal";
 
 interface WorkoutEditorModalProps {
@@ -51,6 +55,20 @@ export function WorkoutEditorModal({
   const [customName, setCustomName] = useState("");
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [defaultRestSeconds, setDefaultRestSeconds] =
+    useState<number>(DEFAULT_REST_SECONDS);
+
+  useEffect(() => {
+    let active = true;
+    void loadWorkoutPreferences().then((prefs) => {
+      if (active) {
+        setDefaultRestSeconds(prefs.defaultRestSeconds);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Initialize or reset form when opened or workoutToEdit changes
   useEffect(() => {
@@ -84,17 +102,20 @@ export function WorkoutEditorModal({
     setErrorMessage(null);
   }, [visible, workoutToEdit]);
 
-  const handleAddCatalogExercise = useCallback((exercise: CatalogExercise) => {
-    const newItem: PlannedExerciseItem = {
-      name: exercise.name,
-      catalogId: exercise.id,
-      movementPattern: exercise.movementPattern,
-      targetSets: 3,
-      targetReps: "8-12",
-      restSeconds: 90,
-    };
-    setPlannedExercises((current) => [...current, newItem]);
-  }, []);
+  const handleAddCatalogExercise = useCallback(
+    (exercise: CatalogExercise) => {
+      const newItem: PlannedExerciseItem = {
+        name: exercise.name,
+        catalogId: exercise.id,
+        movementPattern: exercise.movementPattern,
+        targetSets: 3,
+        targetReps: "8-12",
+        restSeconds: defaultRestSeconds,
+      };
+      setPlannedExercises((current) => [...current, newItem]);
+    },
+    [defaultRestSeconds],
+  );
 
   const handleAddCustomExercise = useCallback(() => {
     const trimmed = customName.trim();
@@ -104,12 +125,12 @@ export function WorkoutEditorModal({
       movementPattern: "custom",
       targetSets: 3,
       targetReps: "8-12",
-      restSeconds: 90,
+      restSeconds: defaultRestSeconds,
     };
     setPlannedExercises((current) => [...current, newItem]);
     setCustomName("");
     setCustomInputVisible(false);
-  }, [customName]);
+  }, [customName, defaultRestSeconds]);
 
   const handleUpdateExercise = useCallback(
     (index: number, patch: Partial<PlannedExerciseItem>) => {

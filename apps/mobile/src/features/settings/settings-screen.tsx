@@ -36,6 +36,7 @@ import { MemoryControlsCard } from "./memory-controls-card";
 import { PasswordSecurityCard } from "./password-security-card";
 import { ProfileSettingsCard } from "./profile-settings-card";
 import { AiUsageCard } from "./ai-usage-card";
+import { WorkoutSettingsCard } from "./workout-settings-card";
 import {
   applyCoachReminders,
   loadCoachReminders,
@@ -46,7 +47,8 @@ import {
 } from "@/lib/length-units";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-type SettingsCategory = "all" | "profile" | "coach" | "privacy" | "session";
+type SettingsCategory =
+  "all" | "profile" | "workout" | "coach" | "privacy" | "session";
 
 /**
  * Account / Settings Screen (Redesigned IA & UX).
@@ -70,6 +72,7 @@ export function SettingsScreen() {
     security: false,
     profile: true,
     goal: true,
+    workout: true,
     aiProvider: true,
     coachPrefs: false,
     reminders: false,
@@ -120,6 +123,8 @@ export function SettingsScreen() {
     setActiveCategory(cat);
     if (cat === "profile") {
       setOpenSections((prev) => ({ ...prev, profile: true, goal: true }));
+    } else if (cat === "workout") {
+      setOpenSections((prev) => ({ ...prev, workout: true }));
     } else if (cat === "coach") {
       setOpenSections((prev) => ({
         ...prev,
@@ -186,6 +191,8 @@ export function SettingsScreen() {
 
   const showProfileGroup =
     activeCategory === "all" || activeCategory === "profile";
+  const showWorkoutGroup =
+    activeCategory === "all" || activeCategory === "workout";
   const showCoachGroup = activeCategory === "all" || activeCategory === "coach";
   const showPrivacyGroup =
     activeCategory === "all" || activeCategory === "privacy";
@@ -451,6 +458,26 @@ export function SettingsScreen() {
 
           <Pressable
             accessibilityRole="button"
+            accessibilityLabel="Show workout and rest timer settings"
+            onPress={() => selectCategory("workout")}
+            style={[
+              styles.tabChip,
+              activeCategory === "workout" && styles.tabChipActive,
+            ]}
+          >
+            <ThemedText
+              type="smallBold"
+              style={[
+                styles.tabChipText,
+                activeCategory === "workout" && styles.tabChipTextActive,
+              ]}
+            >
+              Workout
+            </ThemedText>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
             accessibilityLabel="Show coaching and AI settings"
             onPress={() => selectCategory("coach")}
             style={[
@@ -543,6 +570,28 @@ export function SettingsScreen() {
               onToggle={() => toggleSection("goal")}
             >
               <GoalSettingsCard unitSystem={profile.unitSystem} />
+            </CollapsibleSection>
+          </View>
+        ) : null}
+
+        {/* Section 2: Workout & Rest Timer */}
+        {showWorkoutGroup ? (
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderRow}>
+              <ThemedText type="smallBold" style={styles.sectionTitle}>
+                WORKOUT & REST TIMER
+              </ThemedText>
+            </View>
+
+            <CollapsibleSection
+              id="workout"
+              icon="⏱️"
+              title="Rest Timer & Workout Preferences"
+              subtitle="Default rest duration & timer alerts"
+              isOpen={!!openSections.workout}
+              onToggle={() => toggleSection("workout")}
+            >
+              <WorkoutSettingsCard userId={session?.user.id} />
             </CollapsibleSection>
           </View>
         ) : null}

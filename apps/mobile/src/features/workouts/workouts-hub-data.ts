@@ -127,7 +127,13 @@ export const extractPlannedExercisesFromWorkout = (
           ? { targetSets: e.sets }
           : {}),
       ...(targetReps ? { targetReps } : {}),
-      ...(typeof e.targetLoad === "string" ? { targetLoad: e.targetLoad } : {}),
+      ...(typeof e.targetLoad === "string" && e.targetLoad.trim().length > 0
+        ? { targetLoad: e.targetLoad.trim() }
+        : typeof e.targetLoad === "number" && e.targetLoad > 0
+          ? { targetLoad: String(e.targetLoad) }
+          : typeof e.targetLoadKg === "number" && e.targetLoadKg > 0
+            ? { targetLoad: `${e.targetLoadKg} kg` }
+            : {}),
       ...(typeof e.restSeconds === "number"
         ? { restSeconds: e.restSeconds }
         : {}),

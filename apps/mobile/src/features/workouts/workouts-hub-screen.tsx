@@ -489,7 +489,12 @@ function PlannedWorkoutCard(props: {
               >
                 <ThemedText type="small" style={styles.exerciseChipText}>
                   {ex.name}
-                  {ex.targetSets ? ` (${ex.targetSets} sets)` : ""} 📈
+                  {ex.targetSets
+                    ? ` (${ex.targetSets} sets${ex.targetLoad ? ` · ${ex.targetLoad}` : ""})`
+                    : ex.targetLoad
+                      ? ` (${ex.targetLoad})`
+                      : ""}{" "}
+                  📈
                 </ThemedText>
               </Pressable>
             ))}

@@ -9,6 +9,7 @@ import {
   cloneRoutineFromWorkoutWith,
   completeWorkoutWith,
   createExerciseWith,
+  extractPlannedExercises,
   loadRecentPerformanceWith,
   loadWorkoutWorkspaceWith,
   startWorkoutWith,
@@ -416,5 +417,147 @@ describe("clone-on-complete routine", () => {
     );
     expect(result.ok).toBe(true);
     expect(requests).toHaveLength(0);
+  });
+});
+
+describe("extractPlannedExercises", () => {
+  it("extracts planned exercises with targetLoad from coachPlan", () => {
+    const routineWorkout: Workout = {
+      ...WORKOUT,
+      details: {
+        coachPlan: {
+          exercises: [
+            {
+              catalogId: "barbell_deadlift",
+              name: "Barbell Deadlift",
+              sets: 3,
+              targetSets: 3,
+              targetReps: "4-5",
+              targetLoad: "140 kg",
+              restSeconds: 90,
+            },
+            {
+              catalogId: "weighted_pull_ups",
+              name: "Weighted Pull Ups",
+              sets: 4,
+              repsMin: 4,
+              repsMax: 6,
+              targetLoad: "15",
+              restSeconds: 90,
+            },
+            {
+              name: "Bodyweight Dips",
+              sets: 3,
+              targetReps: "10-12",
+              restSeconds: 60,
+            },
+          ],
+        },
+      },
+    };
+
+    const planned = extractPlannedExercises(routineWorkout);
+    expect(planned).toHaveLength(3);
+
+    expect(planned[0]).toEqual({
+      catalogId: "barbell_deadlift",
+      name: "Barbell Deadlift",
+      sets: 3,
+      repsMin: 4,
+      repsMax: 5,
+      durationMinutes: null,
+      restSeconds: 90,
+      targetLoad: "140 kg",
+    });
+
+    expect(planned[1]).toEqual({
+      catalogId: "weighted_pull_ups",
+      name: "Weighted Pull Ups",
+      sets: 4,
+      repsMin: 4,
+      repsMax: 6,
+      durationMinutes: null,
+      restSeconds: 90,
+      targetLoad: "15",
+    });
+
+    expect(planned[2]).toEqual({
+      catalogId: "",
+      name: "Bodyweight Dips",
+      sets: 3,
+      repsMin: 10,
+      repsMax: 12,
+      durationMinutes: null,
+      restSeconds: 60,
+    });
+  });
+
+  it("handles numeric targetLoad and targetLoadKg in details", () => {
+    const workout: Workout = {
+      ...WORKOUT,
+      details: {
+        coachPlan: {
+          exercises: [
+            {
+              name: "Bench Press",
+              sets: 3,
+              repsMin: 8,
+              repsMax: 10,
+              targetLoad: 80,
+            },
+            {
+              name: "Squat",
+              sets: 5,
+              repsMin: 5,
+              repsMax: 5,
+              targetLoadKg: 120,
+            },
+          ],
+        },
+      },
+    };
+
+    const planned = extractPlannedExercises(workout);
+    expect(planned[0]?.targetLoad).toBe("80");
+    expect(planned[1]?.targetLoad).toBe("120 kg");
+  });
+
+  it("extracts from aiDraft and workoutProposal shapes", () => {
+    const aiWorkout: Workout = {
+      ...WORKOUT,
+      details: {
+        aiDraft: {
+          session: {
+            exercises: [
+              {
+                catalogId: "overhead_press",
+                name: "Overhead Press",
+                sets: 3,
+                repsMin: 6,
+                repsMax: 8,
+                targetLoad: "50 kg",
+                restSeconds: 90,
+              },
+            ],
+          },
+        },
+      },
+    };
+
+    const planned = extractPlannedExercises(aiWorkout);
+    expect(planned).toHaveLength(1);
+    expect(planned[0]?.name).toBe("Overhead Press");
+    expect(planned[0]?.targetLoad).toBe("50 kg");
+  });
+
+  it("returns empty array when workout has no details or empty exercises", () => {
+    expect(extractPlannedExercises(null)).toEqual([]);
+    expect(extractPlannedExercises(WORKOUT)).toEqual([]);
+    expect(
+      extractPlannedExercises({
+        ...WORKOUT,
+        details: { coachPlan: { exercises: [] } },
+      }),
+    ).toEqual([]);
   });
 });

@@ -17,12 +17,16 @@ import {
 SplashScreen.preventAutoHideAsync();
 
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
+  handleNotification: async (notification) => {
+    const isLiveWorkout =
+      notification.request.identifier === "active-workout-session";
+    return {
+      shouldPlaySound: false,
+      shouldSetBadge: false,
+      shouldShowBanner: !isLiveWorkout,
+      shouldShowList: true,
+    };
+  },
 });
 
 function AnalyticsSessionBridge() {
@@ -122,6 +126,35 @@ function CoachNotificationBridge() {
   return null;
 }
 
+function WorkoutNotificationBridge() {
+  useEffect(() => {
+    const open = (notification: Notifications.Notification) => {
+      const data = notification.request.content.data ?? {};
+      if (data.url !== "/log-workout") return;
+      router.push({
+        pathname: "/log-workout",
+        params: {
+          ...(typeof data.workoutId === "string"
+            ? { workoutId: data.workoutId }
+            : {}),
+        },
+      });
+    };
+    const initial = Notifications.getLastNotificationResponse();
+    if (initial?.notification) {
+      open(initial.notification);
+      Notifications.clearLastNotificationResponse();
+    }
+    const subscription = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        open(response.notification);
+      },
+    );
+    return () => subscription.remove();
+  }, []);
+  return null;
+}
+
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   return (
@@ -132,6 +165,7 @@ export default function TabLayout() {
         <DeepLinkBridge />
         <SessionGate>
           <CoachNotificationBridge />
+          <WorkoutNotificationBridge />
           <AppTabs />
         </SessionGate>
       </AuthProvider>

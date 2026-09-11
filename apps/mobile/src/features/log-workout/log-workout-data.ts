@@ -17,6 +17,7 @@ import {
   type ExerciseResponse,
   type Workout,
   type WorkoutListResponse,
+  type CoachWorkoutProposal,
   type WorkoutResponse,
   type WorkoutSet,
   type WorkoutSetListResponse,
@@ -57,6 +58,140 @@ export interface WorkoutSetForm {
   readonly perceivedExertion: string;
   readonly unitSystem: "metric" | "imperial";
 }
+
+export interface PlannedExercise {
+  readonly catalogId: string;
+  readonly name: string;
+  readonly sets: number;
+  readonly repsMin: number | null;
+  readonly repsMax: number | null;
+  readonly durationMinutes: number | null;
+  readonly restSeconds: number;
+  readonly targetLoad?: string;
+}
+
+export const extractPlannedExercises = (
+  workout: Workout | null,
+  draftProposal?: CoachWorkoutProposal,
+): ReadonlyArray<PlannedExercise> => {
+  if (
+    draftProposal?.session?.exercises &&
+    draftProposal.session.exercises.length > 0
+  ) {
+    return draftProposal.session.exercises.map((e) => ({
+      catalogId: e.catalogId,
+      name: e.name,
+      sets: e.sets,
+      repsMin: e.repsMin,
+      repsMax: e.repsMax,
+      durationMinutes: e.durationMinutes,
+      restSeconds: e.restSeconds,
+    }));
+  }
+  const details = workout?.details;
+  if (!details || typeof details !== "object") return [];
+
+  const rawList: unknown[] = (() => {
+    const d = details as Record<string, unknown>;
+    // 1. CoachPlan (coachPlan.exercises or coachPlan.session.exercises)
+    const coachPlan = d.coachPlan;
+    if (coachPlan && typeof coachPlan === "object") {
+      const cp = coachPlan as Record<string, unknown>;
+      if (Array.isArray(cp.exercises)) return cp.exercises;
+      if (cp.session && typeof cp.session === "object") {
+        const sEx = (cp.session as Record<string, unknown>).exercises;
+        if (Array.isArray(sEx)) return sEx;
+      }
+    }
+    // 2. Single workout start (aiDraft.session.exercises or aiDraft.exercises)
+    const aiDraft = d.aiDraft;
+    if (aiDraft && typeof aiDraft === "object") {
+      const ad = aiDraft as Record<string, unknown>;
+      if (ad.session && typeof ad.session === "object") {
+        const sEx = (ad.session as Record<string, unknown>).exercises;
+        if (Array.isArray(sEx)) return sEx;
+      }
+      if (Array.isArray(ad.exercises)) return ad.exercises;
+    }
+    // 3. workoutProposal (workoutProposal.session.exercises or workoutProposal.exercises)
+    const workoutProposal = d.workoutProposal;
+    if (workoutProposal && typeof workoutProposal === "object") {
+      const wp = workoutProposal as Record<string, unknown>;
+      if (wp.session && typeof wp.session === "object") {
+        const sEx = (wp.session as Record<string, unknown>).exercises;
+        if (Array.isArray(sEx)) return sEx;
+      }
+      if (Array.isArray(wp.exercises)) return wp.exercises;
+    }
+    return [];
+  })();
+
+  return rawList
+    .map((raw): PlannedExercise | null => {
+      if (!raw || typeof raw !== "object") return null;
+      const e = raw as Record<string, unknown>;
+      const name =
+        typeof e.name === "string" && e.name.trim().length > 0
+          ? e.name.trim()
+          : "Exercise";
+      const catalogId =
+        typeof e.catalogId === "string" ? e.catalogId.trim() : "";
+      const rawSets = e.targetSets ?? e.sets;
+      const sets = typeof rawSets === "number" && rawSets > 0 ? rawSets : 3;
+      const restSeconds =
+        typeof e.restSeconds === "number" ? e.restSeconds : 90;
+      const durationMinutes =
+        typeof e.durationMinutes === "number" ? e.durationMinutes : null;
+
+      let repsMin: number | null =
+        typeof e.repsMin === "number" ? e.repsMin : null;
+      let repsMax: number | null =
+        typeof e.repsMax === "number" ? e.repsMax : null;
+
+      if (repsMin === null && repsMax === null) {
+        const rawReps = e.targetReps ?? e.reps;
+        if (typeof rawReps === "string" && rawReps.trim().length > 0) {
+          if (rawReps.includes("-")) {
+            const parts = rawReps.split("-");
+            const min = Number.parseInt(parts[0]?.trim() ?? "", 10);
+            const max = Number.parseInt(parts[1]?.trim() ?? "", 10);
+            if (!Number.isNaN(min)) repsMin = min;
+            if (!Number.isNaN(max)) repsMax = max;
+          } else {
+            const parsed = Number.parseInt(rawReps.trim(), 10);
+            if (!Number.isNaN(parsed)) {
+              repsMin = parsed;
+              repsMax = parsed;
+            }
+          }
+        } else if (typeof rawReps === "number") {
+          repsMin = rawReps;
+          repsMax = rawReps;
+        }
+      }
+
+      let targetLoad: string | undefined = undefined;
+      if (typeof e.targetLoad === "string" && e.targetLoad.trim().length > 0) {
+        targetLoad = e.targetLoad.trim();
+      } else if (typeof e.targetLoad === "number" && e.targetLoad > 0) {
+        targetLoad = String(e.targetLoad);
+      } else if (typeof e.targetLoadKg === "number" && e.targetLoadKg > 0) {
+        targetLoad = `${e.targetLoadKg} kg`;
+      }
+
+      return {
+        catalogId,
+        name,
+        sets,
+        repsMin,
+        repsMax,
+        durationMinutes,
+        restSeconds,
+        ...(targetLoad ? { targetLoad } : {}),
+      };
+    })
+    .filter((e): e is PlannedExercise => e !== null);
+};
 
 const humanize = (error: ApiError, action: string): string => {
   switch (error.kind) {
