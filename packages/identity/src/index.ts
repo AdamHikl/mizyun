@@ -55,6 +55,15 @@ export interface OAuthSignInResult {
   readonly url: string;
 }
 
+export type IdTokenProvider = "apple" | "google";
+
+export interface IdTokenCredentials {
+  readonly provider: IdTokenProvider;
+  readonly token: string;
+  readonly nonce?: string;
+  readonly accessToken?: string;
+}
+
 export type AuthStateListener = (session: AuthSession | null) => void;
 
 /**
@@ -110,6 +119,7 @@ export interface AuthClient {
   signInWithPassword(credentials: PasswordCredentials): Promise<AuthSession>;
   signUpWithPassword(credentials: PasswordCredentials): Promise<SignUpResult>;
   signInWithOAuth(options: OAuthSignInOptions): Promise<OAuthSignInResult>;
+  signInWithIdToken(credentials: IdTokenCredentials): Promise<AuthSession>;
   signOut(): Promise<void>;
   /**
    * Consume a deep-link payload delivered by the auth provider (e.g.
@@ -255,6 +265,12 @@ export class DisabledAuthClient implements AuthClient {
   async signInWithOAuth(
     _options: OAuthSignInOptions,
   ): Promise<OAuthSignInResult> {
+    throw new IdentityError("AUTH_NOT_CONFIGURED", DisabledAuthClient.reason);
+  }
+
+  async signInWithIdToken(
+    _credentials: IdTokenCredentials,
+  ): Promise<AuthSession> {
     throw new IdentityError("AUTH_NOT_CONFIGURED", DisabledAuthClient.reason);
   }
 

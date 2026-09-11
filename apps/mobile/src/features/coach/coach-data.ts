@@ -87,8 +87,29 @@ const humanize = (error: ApiError): string => {
     case "not_configured":
       return "The Mizyun API is not configured.";
     case "http_error":
-      if (error.status === 429)
-        return "Coach is busy or an AI limit was reached. Wait briefly and try again.";
+      if (error.status === 429) {
+        const reason = error.reason;
+        if (reason === "daily_budget_exhausted") {
+          const resetAt = error.resetAt;
+          if (resetAt) {
+            const resetDate = new Date(resetAt);
+            const hours = Math.max(
+              0,
+              Math.ceil((resetDate.getTime() - Date.now()) / 3600000),
+            );
+            return `Daily Coach limit reached. Resets in ~${hours}h.`;
+          }
+          return "Daily Coach limit reached. Resets at midnight UTC.";
+        }
+        if (reason === "concurrent_in_flight") {
+          return "Coach is thinking about your previous message. Wait a moment.";
+        }
+        const retryAfter = error.retryAfterSeconds;
+        if (retryAfter && retryAfter > 0) {
+          return `Coach is busy — try again in ${retryAfter}s.`;
+        }
+        return "Coach is busy — try again in a moment.";
+      }
       if (error.code === "AI_CONFIGURATION_ERROR")
         return "Coach needs server attention before this message can be retried.";
       if (error.status === 503 || error.status === 502)

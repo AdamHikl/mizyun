@@ -17,13 +17,17 @@ export const parseApiErrorBody = (
   if (!parsed.success) {
     return err({ kind: "parse_error", cause: parsed.error });
   }
-  const { code, message, requestId } = parsed.data.error;
+  const { code, message, requestId, reason, retryAfterSeconds, resetAt } =
+    parsed.data.error;
   return err({
     kind: "http_error",
     status: 0,
     code,
     message,
     ...(requestId !== undefined ? { requestId } : {}),
+    ...(reason !== undefined ? { reason } : {}),
+    ...(retryAfterSeconds !== undefined ? { retryAfterSeconds } : {}),
+    ...(resetAt !== undefined ? { resetAt } : {}),
   });
 };
 

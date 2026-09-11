@@ -1,10 +1,22 @@
 import { z } from "zod";
 
+export const limitReasonSchema = z.enum([
+  "minute_rate_limit",
+  "daily_budget_exhausted",
+  "concurrent_in_flight",
+  "service_busy",
+]);
+
+export type LimitReasonKind = z.infer<typeof limitReasonSchema>;
+
 export const apiErrorSchema = z.object({
   error: z.object({
     code: z.string(),
     message: z.string(),
     requestId: z.string().optional(),
+    reason: limitReasonSchema.optional(),
+    retryAfterSeconds: z.number().optional(),
+    resetAt: z.string().datetime().optional(),
   }),
 });
 
@@ -277,6 +289,7 @@ export const profileSchema = z.object({
    */
   sexAtBirth: z.enum(["male", "female"]).nullable().optional(),
   coachingPreferences: coachingPreferencesSchema,
+  planTier: z.enum(["free", "paid"]).default("free"),
   aiProvider: aiProviderSchema.default("gemini"),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
@@ -687,3 +700,16 @@ export {
   type FeedbackRating,
   type ListFeedbackResponse,
 } from "./feedback";
+
+export { aiUsageResponseSchema, type AiUsageResponse } from "./ai-usage";
+
+export {
+  betaProStatusSchema,
+  betaProStatusResponseSchema,
+  betaProRequestInputSchema,
+  betaProRequestResponseSchema,
+  type BetaProStatus,
+  type BetaProStatusResponse,
+  type BetaProRequestInput,
+  type BetaProRequestResponse,
+} from "./beta-pro";

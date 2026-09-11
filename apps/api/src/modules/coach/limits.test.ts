@@ -58,7 +58,7 @@ const acquireAndRelease = async (
 };
 
 describe("InMemoryCoachLimitService — per-tier caps", () => {
-  it("honours the free-tier daily budget (5k tokens)", async () => {
+  it("honours the free-tier daily budget (10k tokens)", async () => {
     const service = new InMemoryCoachLimitService({
       clock: fixedClock("2026-07-23T10:00:00.000Z"),
     });
@@ -66,18 +66,18 @@ describe("InMemoryCoachLimitService — per-tier caps", () => {
     const first = await service.acquireSlot(buildRequest({ planTier: "free" }));
     expect(first.kind).toBe("reserved");
     if (first.kind !== "reserved") return;
-    expect(first.cap.dailyTokenBudget).toBe(5_000);
+    expect(first.cap.dailyTokenBudget).toBe(10_000);
 
-    // Commit 4_900 tokens. Used = 4_900. Budget remaining = 100.
+    // Commit 9_900 tokens. Used = 9_900. Budget remaining = 100.
     await service.commitTokens({
       userId,
       providerCallId: first.providerCallId,
       finalStatus: "succeeded",
       messageId: "msg-1",
-      tokensUsed: 4_900,
+      tokensUsed: 9_900,
     });
 
-    // Next request with tokensEstimated=1200: used 4900 + 1200 > 5000.
+    // Next request with tokensEstimated=1200: used 9900 + 1200 > 10000.
     const blocked = await service.acquireSlot(
       buildRequest({ idempotencyKey: "key-0002" }),
     );
@@ -322,35 +322,34 @@ describe("InMemoryCoachLimitService — per-tier caps", () => {
   });
 
   describe("draft slot limits", () => {
-    it("acquires draft slot and commits tokens, updating daily usage", async () => {
+    it("acquires draft slot and commits drafts, updating daily usage", async () => {
+      let currentTime = new Date("2026-07-23T10:00:00.000Z").getTime();
       const service = new InMemoryCoachLimitService({
-        clock: fixedClock("2026-07-23T10:00:00.000Z"),
+        clock: () => new Date(currentTime),
       });
 
-      // Free tier budget is 5,000 tokens
-      const slot = await service.acquireDraftSlot(userId, "free", "photo");
-      expect(slot.allowed).toBe(true);
+      // Free tier budget is 5 drafts per day
+      for (let i = 0; i < 5; i++) {
+        const slot = await service.acquireDraftSlot(userId, "free", "photo");
+        expect(slot.allowed).toBe(true);
+        await service.commitDraftTokens(userId, 0);
+        // Advance clock by 65s so minute rate limit does not interfere with daily limit test
+        currentTime += 65_000;
+      }
 
-      // Commit 1500 tokens
-      await service.commitDraftTokens(userId, 1500);
-
-      // Subsequent draft slots succeed while under budget
-      const nextSlot = await service.acquireDraftSlot(userId, "free", "photo");
-      expect(nextSlot.allowed).toBe(true);
-      await service.commitDraftTokens(userId, 3000); // 1500 + 3000 = 4500 used
-
-      // Next photo needs 1500 -> 4500 + 1500 = 6000 > 5000 -> blocked
+      // 6th draft exceeds daily limit of 5
       const blocked = await service.acquireDraftSlot(userId, "free", "photo");
       expect(blocked.allowed).toBe(false);
       if (!blocked.allowed) {
-        expect(blocked.reason).toBe("tokens");
+        expect(blocked.reason).toBe("drafts");
         expect(blocked.retryAfter).toBeGreaterThan(0);
       }
     });
 
     it("enforces max concurrent in-flight requests for draft slots", async () => {
+      let currentTime = new Date("2026-07-23T10:00:00.000Z").getTime();
       const service = new InMemoryCoachLimitService({
-        clock: fixedClock("2026-07-23T10:00:00.000Z"),
+        clock: () => new Date(currentTime),
       });
 
       // Free tier maxConcurrentRequests is 1
@@ -364,16 +363,18 @@ describe("InMemoryCoachLimitService — per-tier caps", () => {
         expect(slot2.reason).toBe("inflight");
       }
 
-      // Releasing slot1 allows subsequent acquisition
+      // Releasing slot1 allows subsequent acquisition once minute window clears
       await service.releaseDraftSlot(userId);
+      currentTime += 65_000;
       const slot3 = await service.acquireDraftSlot(userId, "free", "text");
       expect(slot3.allowed).toBe(true);
       await service.releaseDraftSlot(userId);
     });
 
-    it("releaseDraftSlot frees in-flight slot without burning daily token budget", async () => {
+    it("releaseDraftSlot frees in-flight slot without burning daily draft budget", async () => {
+      let currentTime = new Date("2026-07-23T10:00:00.000Z").getTime();
       const service = new InMemoryCoachLimitService({
-        clock: fixedClock("2026-07-23T10:00:00.000Z"),
+        clock: () => new Date(currentTime),
       });
 
       const slot = await service.acquireDraftSlot(userId, "free", "photo");
@@ -382,7 +383,8 @@ describe("InMemoryCoachLimitService — per-tier caps", () => {
       // Provider failed; release without commit
       await service.releaseDraftSlot(userId);
 
-      // User still has full 5000 token budget available
+      // User still has full 5 draft budget available (advancing clock for minute window)
+      currentTime += 65_000;
       const retrySlot = await service.acquireDraftSlot(userId, "free", "photo");
       expect(retrySlot.allowed).toBe(true);
       await service.releaseDraftSlot(userId);

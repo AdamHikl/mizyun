@@ -1,5 +1,7 @@
 # Remediation evidence and review checklist
 
+> Q8-A policy change 2026-09-10: [ADR-0024](adr/0024-self-service-ai-consent-access.md), explicitly requested by the user, replaces email invitation approval with self-service consent. Historical nonempty-allowlist requirements below are superseded; verify authenticated adult eligibility, current/unrevoked consent, provider enablement and existing limits instead. Deployment acceptance remains separate.
+
 Use with [the Q1–Q9 implementation plan](REMEDIATION_IMPLEMENTATION_PLAN_2026-09-08.md) and [the original review](IMPLEMENTATION_REVIEW_2026-09-08.md). This file begins empty on 2026-09-08. **No unchecked requirement is waived and no fix is verified by this template.**
 
 > **Round-2 review supersedes Session I/J blanket acceptance.** See [the fresh per-issue findings and evidence](IMPLEMENTATION_REVIEW_2026-09-08_ROUND_2.md). Unchecked means not established against the complete criterion; historical test counts below are not new acceptance.

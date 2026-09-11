@@ -553,6 +553,12 @@ describe("loadServerConfig — SES email configuration", () => {
   });
 
   describe("AI_ALLOWED_EMAILS parsing", () => {
+    it("allows enabled external AI without manual email enrollment", () => {
+      const result = loadServerConfig({
+        env: { ...baseSnapshot, AI_EXTERNAL_ACCESS: "true" },
+      });
+      expect(result.ok).toBe(true);
+    });
     it("defaults to empty array when unset", () => {
       const result = loadServerConfig({ env: {} });
       expect(result.ok).toBe(true);

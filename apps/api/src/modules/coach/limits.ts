@@ -35,7 +35,8 @@ import type { ConversationId, PlanTier, UserId } from "@mizyun/core";
  * stable user-facing copy (`docs/LOGGING_POLICY.md`); machine-checkable
  * code first, copy second.
  */
-export type LimitReason = "tokens" | "minute" | "inflight" | "lock_busy";
+export type LimitReason =
+  "tokens" | "drafts" | "minute" | "inflight" | "lock_busy";
 
 export type ProviderCallStatus =
   "attempting" | "succeeded" | "failed" | "replayed";
@@ -101,6 +102,23 @@ export interface ReserveDraftResult {
   readonly retryAfter?: number;
 }
 
+export interface AiUsageSnapshot {
+  readonly planTier: PlanTier;
+  readonly resetsAt: string;
+  readonly coach: {
+    readonly dailyTokenBudget: number;
+    readonly tokensUsed: number;
+    readonly tokensRemaining: number;
+    readonly requestsPerMinute: number;
+  };
+  readonly photos: {
+    readonly dailyLimit: number;
+    readonly draftsUsed: number;
+    readonly draftsRemaining: number;
+    readonly requestsPerMinute: number;
+  };
+}
+
 /**
  * Stateful limiter service. Every implementation owns its own
  * state (Maps for the in-memory implementation, RPC calls into
@@ -121,6 +139,7 @@ export interface CoachLimitService {
   ): Promise<ReserveDraftResult>;
   commitDraftTokens(userId: UserId, tokensUsed: number): Promise<void>;
   releaseDraftSlot(userId: UserId): Promise<void>;
+  getAiUsage(userId: UserId, planTier: PlanTier): Promise<AiUsageSnapshot>;
 }
 
 export class LimitsError extends Error {
@@ -328,29 +347,12 @@ export class SupabaseCoachLimitService implements CoachLimitService {
     planTier: PlanTier,
     draftKind: DraftKind,
   ): Promise<ReserveDraftResult> {
+    void draftKind;
     const cap = this.#resolveCap(planTier);
     const now = this.#clock();
     const day = sqlDay(now);
 
-    // Step 1: per-minute window
-    const minute = await rpcSingle<{ allowed: boolean; retry_after: number }>(
-      this.#client,
-      "ai_register_request",
-      {
-        p_user_id: userId,
-        p_now: now.toISOString(),
-        p_per_minute: cap.requestsPerMinute,
-      },
-    );
-    if (minute.allowed !== true) {
-      return {
-        allowed: false,
-        reason: "minute",
-        retryAfter: minute.retry_after,
-      };
-    }
-
-    // Step 2: in-flight slot
+    // Step 1: in-flight slot
     const inflight = await rpcSingle<{ allowed: boolean }>(
       this.#client,
       "ai_acquire_in_flight",
@@ -360,32 +362,53 @@ export class SupabaseCoachLimitService implements CoachLimitService {
       },
     );
     if (inflight.allowed !== true) {
-      await runQuiet(() =>
-        this.#client.rpc("ai_release_in_flight", { p_user_id: userId }),
-      );
       return { allowed: false, reason: "inflight", retryAfter: 1 };
     }
 
-    // Step 3: daily token gate
-    const tokensEstimated = DRAFT_ESTIMATED_TOKENS[draftKind];
-    const tokens = await rpcSingle<{ allowed: boolean; retry_after: number }>(
+    // Step 2: per-minute window
+    const minuteLimit =
+      cap.draftRequestsPerMinute ?? (planTier === "paid" ? 3 : 1);
+    const minute = await rpcSingle<{ allowed: boolean; retry_after: number }>(
       this.#client,
-      "ai_reserve_tokens",
+      "ai_register_request",
       {
         p_user_id: userId,
-        p_day: day,
-        p_budget: cap.dailyTokenBudget,
-        p_needed: tokensEstimated,
+        p_now: now.toISOString(),
+        p_per_minute: minuteLimit,
       },
     );
-    if (tokens.allowed !== true) {
+    if (minute.allowed !== true) {
       await runQuiet(() =>
         this.#client.rpc("ai_release_in_flight", { p_user_id: userId }),
       );
       return {
         allowed: false,
-        reason: "tokens",
-        retryAfter: tokens.retry_after,
+        reason: "minute",
+        retryAfter: minute.retry_after,
+      };
+    }
+
+    // Step 3: daily draft count gate (decoupled from Coach chat token ledger)
+    const draftBudget =
+      cap.photoDraftDailyLimit ?? (planTier === "paid" ? 100 : 5);
+    const drafts = await rpcSingle<{ allowed: boolean; retry_after: number }>(
+      this.#client,
+      "ai_reserve_draft",
+      {
+        p_user_id: userId,
+        p_day: day,
+        p_budget: draftBudget,
+        p_needed: 1,
+      },
+    );
+    if (drafts.allowed !== true) {
+      await runQuiet(() =>
+        this.#client.rpc("ai_release_in_flight", { p_user_id: userId }),
+      );
+      return {
+        allowed: false,
+        reason: "drafts",
+        retryAfter: drafts.retry_after,
       };
     }
 
@@ -393,15 +416,16 @@ export class SupabaseCoachLimitService implements CoachLimitService {
   }
 
   async commitDraftTokens(userId: UserId, tokensUsed: number): Promise<void> {
+    void tokensUsed;
     const day = sqlDay(this.#clock());
-    const commitResult = await this.#client.rpc("ai_commit_tokens", {
+    const commitResult = await this.#client.rpc("ai_commit_draft", {
       p_user_id: userId,
       p_day: day,
-      p_tokens: tokensUsed,
+      p_count: 1,
     });
     if (commitResult.error) {
       throw new LimitsError(
-        `rpc ai_commit_tokens failed: ${commitResult.error.message}`,
+        `rpc ai_commit_draft failed: ${commitResult.error.message}`,
       );
     }
     const releaseResult = await this.#client.rpc("ai_release_in_flight", {
@@ -415,6 +439,14 @@ export class SupabaseCoachLimitService implements CoachLimitService {
   }
 
   async releaseDraftSlot(userId: UserId): Promise<void> {
+    const day = sqlDay(this.#clock());
+    await runQuiet(() =>
+      this.#client.rpc("ai_release_draft_reservation", {
+        p_user_id: userId,
+        p_day: day,
+        p_count: 1,
+      }),
+    );
     const releaseResult = await this.#client.rpc("ai_release_in_flight", {
       p_user_id: userId,
     });
@@ -423,6 +455,84 @@ export class SupabaseCoachLimitService implements CoachLimitService {
         `rpc ai_release_in_flight failed: ${releaseResult.error.message}`,
       );
     }
+  }
+
+  async getAiUsage(
+    userId: UserId,
+    planTier: PlanTier,
+  ): Promise<AiUsageSnapshot> {
+    const cap = this.#resolveCap(planTier);
+    const now = this.#clock();
+    const day = sqlDay(now);
+    const resetsAt = new Date(
+      Date.parse(`${day}T00:00:00.000Z`) + 86_400_000,
+    ).toISOString();
+
+    let tokensUsed = 0;
+    try {
+      const tokenRow = await this.#client
+        .from<{
+          readonly user_id?: string;
+          readonly day?: string;
+          readonly tokens_used?: number;
+          readonly reserved_tokens?: number;
+        }>("ai_daily_token_ledger")
+        .select("tokens_used, reserved_tokens")
+        .eq("user_id", userId)
+        .eq("day", day)
+        .maybeSingle();
+      if (tokenRow.data) {
+        tokensUsed =
+          (tokenRow.data.tokens_used ?? 0) +
+          (tokenRow.data.reserved_tokens ?? 0);
+      }
+    } catch {
+      // Fall back to 0 on missing/new row
+    }
+
+    let draftsUsed = 0;
+    try {
+      const draftRow = await this.#client
+        .from<{
+          readonly user_id?: string;
+          readonly day?: string;
+          readonly drafts_used?: number;
+          readonly reserved_drafts?: number;
+        }>("ai_daily_draft_ledger")
+        .select("drafts_used, reserved_drafts")
+        .eq("user_id", userId)
+        .eq("day", day)
+        .maybeSingle();
+      if (draftRow.data) {
+        draftsUsed =
+          (draftRow.data.drafts_used ?? 0) +
+          (draftRow.data.reserved_drafts ?? 0);
+      }
+    } catch {
+      // Fall back to 0 on missing/new row
+    }
+
+    const tokenBudget = cap.coachDailyTokenBudget ?? cap.dailyTokenBudget;
+    const draftBudget =
+      cap.photoDraftDailyLimit ?? (planTier === "paid" ? 100 : 5);
+
+    return {
+      planTier,
+      resetsAt,
+      coach: {
+        dailyTokenBudget: tokenBudget,
+        tokensUsed,
+        tokensRemaining: Math.max(0, tokenBudget - tokensUsed),
+        requestsPerMinute: cap.requestsPerMinute,
+      },
+      photos: {
+        dailyLimit: draftBudget,
+        draftsUsed,
+        draftsRemaining: Math.max(0, draftBudget - draftsUsed),
+        requestsPerMinute:
+          cap.draftRequestsPerMinute ?? (planTier === "paid" ? 3 : 1),
+      },
+    };
   }
 }
 
@@ -466,6 +576,11 @@ export class InMemoryCoachLimitService implements CoachLimitService {
   readonly #clock: () => Date;
   readonly #usage = new Map<UserId, InMemoryUsageRow>();
   readonly #windows = new Map<UserId, InMemoryWindowRow>();
+  readonly #draftUsage = new Map<
+    UserId,
+    { readonly day: string; drafts: number }
+  >();
+  readonly #draftWindows = new Map<UserId, InMemoryWindowRow>();
   readonly #inFlight = new Map<UserId, number>();
   readonly #calls = new Map<string, InMemoryProviderCall>();
   readonly #capOverrides: Partial<AiTierCaps>;
@@ -485,8 +600,15 @@ export class InMemoryCoachLimitService implements CoachLimitService {
       tier: base.tier,
       dailyTokenBudget:
         this.#capOverrides.dailyTokenBudget ?? base.dailyTokenBudget,
+      coachDailyTokenBudget:
+        this.#capOverrides.coachDailyTokenBudget ?? base.coachDailyTokenBudget,
+      photoDraftDailyLimit:
+        this.#capOverrides.photoDraftDailyLimit ?? base.photoDraftDailyLimit,
       requestsPerMinute:
         this.#capOverrides.requestsPerMinute ?? base.requestsPerMinute,
+      draftRequestsPerMinute:
+        this.#capOverrides.draftRequestsPerMinute ??
+        base.draftRequestsPerMinute,
       maxConcurrentRequests:
         this.#capOverrides.maxConcurrentRequests ?? base.maxConcurrentRequests,
     };
@@ -611,21 +733,30 @@ export class InMemoryCoachLimitService implements CoachLimitService {
     planTier: PlanTier,
     draftKind: DraftKind,
   ): Promise<ReserveDraftResult> {
+    void draftKind;
     const cap = this.resolveCap(planTier);
     const now = this.#clock();
     const day = sqlDay(now);
 
-    // Step 1: per-minute window
+    // Step 1: in-flight slot (check first so concurrent requests receive 'inflight')
+    const active = this.#inFlight.get(userId) ?? 0;
+    if (active >= cap.maxConcurrentRequests) {
+      return { allowed: false, reason: "inflight", retryAfter: 1 };
+    }
+
+    // Step 2: per-minute window
     const windowMs = 60_000;
-    const prior = this.#windows.get(userId);
+    const minuteLimit =
+      cap.draftRequestsPerMinute ?? (planTier === "paid" ? 3 : 1);
+    const prior = this.#draftWindows.get(userId);
     if (prior === undefined || now.getTime() - prior.startedAtMs >= windowMs) {
-      this.#windows.set(userId, {
+      this.#draftWindows.set(userId, {
         startedAtMs: now.getTime(),
         count: 0,
       });
     }
-    const w = this.#windows.get(userId)!;
-    if (w.count >= cap.requestsPerMinute) {
+    const w = this.#draftWindows.get(userId)!;
+    if (w.count >= minuteLimit) {
       return {
         allowed: false,
         reason: "minute",
@@ -635,24 +766,16 @@ export class InMemoryCoachLimitService implements CoachLimitService {
         ),
       };
     }
-    w.count += 1;
 
-    // Step 2: in-flight slot
-    const active = this.#inFlight.get(userId) ?? 0;
-    if (active >= cap.maxConcurrentRequests) {
-      return { allowed: false, reason: "inflight", retryAfter: 1 };
-    }
-    this.#inFlight.set(userId, active + 1);
-
-    // Step 3: daily token gate
-    const tokensEstimated = DRAFT_ESTIMATED_TOKENS[draftKind];
-    const usage = this.#usage.get(userId);
-    const used = usage?.day === day ? usage.tokens : 0;
-    if (used + tokensEstimated > cap.dailyTokenBudget) {
-      this.#inFlight.set(userId, Math.max(0, active));
+    // Step 3: daily draft gate (decoupled from Coach chat tokens!)
+    const draftBudget =
+      cap.photoDraftDailyLimit ?? (planTier === "paid" ? 100 : 5);
+    const usage = this.#draftUsage.get(userId);
+    const used = usage?.day === day ? usage.drafts : 0;
+    if (used + 1 > draftBudget) {
       return {
         allowed: false,
-        reason: "tokens",
+        reason: "drafts",
         retryAfter: Math.max(
           1,
           Math.ceil(
@@ -663,16 +786,21 @@ export class InMemoryCoachLimitService implements CoachLimitService {
       };
     }
 
+    // Successfully acquired: reserve in-flight slot and register request in minute window
+    this.#inFlight.set(userId, active + 1);
+    w.count += 1;
+
     return { allowed: true };
   }
 
   async commitDraftTokens(userId: UserId, tokensUsed: number): Promise<void> {
+    void tokensUsed;
     const day = sqlDay(this.#clock());
-    const usage = this.#usage.get(userId);
-    const used = usage?.day === day ? usage.tokens : 0;
-    this.#usage.set(userId, {
+    const usage = this.#draftUsage.get(userId);
+    const used = usage?.day === day ? usage.drafts : 0;
+    this.#draftUsage.set(userId, {
       day,
-      tokens: used + Math.max(0, tokensUsed),
+      drafts: used + 1,
     });
     const active = this.#inFlight.get(userId) ?? 0;
     this.#inFlight.set(userId, Math.max(0, active - 1));
@@ -681,6 +809,46 @@ export class InMemoryCoachLimitService implements CoachLimitService {
   async releaseDraftSlot(userId: UserId): Promise<void> {
     const active = this.#inFlight.get(userId) ?? 0;
     this.#inFlight.set(userId, Math.max(0, active - 1));
+  }
+
+  async getAiUsage(
+    userId: UserId,
+    planTier: PlanTier,
+  ): Promise<AiUsageSnapshot> {
+    const cap = this.resolveCap(planTier);
+    const now = this.#clock();
+    const day = sqlDay(now);
+    const resetsAt = new Date(
+      Date.parse(`${day}T00:00:00.000Z`) + 86_400_000,
+    ).toISOString();
+
+    const usage = this.#usage.get(userId);
+    const tokensUsed = usage?.day === day ? usage.tokens : 0;
+
+    const draftUsage = this.#draftUsage.get(userId);
+    const draftsUsed = draftUsage?.day === day ? draftUsage.drafts : 0;
+
+    const tokenBudget = cap.coachDailyTokenBudget ?? cap.dailyTokenBudget;
+    const draftBudget =
+      cap.photoDraftDailyLimit ?? (planTier === "paid" ? 100 : 5);
+
+    return {
+      planTier,
+      resetsAt,
+      coach: {
+        dailyTokenBudget: tokenBudget,
+        tokensUsed,
+        tokensRemaining: Math.max(0, tokenBudget - tokensUsed),
+        requestsPerMinute: cap.requestsPerMinute,
+      },
+      photos: {
+        dailyLimit: draftBudget,
+        draftsUsed,
+        draftsRemaining: Math.max(0, draftBudget - draftsUsed),
+        requestsPerMinute:
+          cap.draftRequestsPerMinute ?? (planTier === "paid" ? 3 : 1),
+      },
+    };
   }
 
   #findCall(providerCallId: string): InMemoryProviderCall | undefined {

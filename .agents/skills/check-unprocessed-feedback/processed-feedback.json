@@ -14,6 +14,11 @@
       "id": "33d8c72d-7906-40d1-aaed-7850c09cb2cf",
       "processedAt": "2026-09-09T09:25:50.565Z",
       "note": "Accepted into backlog as MEAL-UX-004"
+    },
+    {
+      "id": "3a8bd3dc-93bb-4dab-b0d9-9cd606ef8e65",
+      "processedAt": "2026-09-10T17:18:27.989Z",
+      "note": "Fixed in AI-ROUTINE-001: exposed available routines to Coach grounding & get_available_routines tool"
     }
   ]
 }

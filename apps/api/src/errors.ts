@@ -1,4 +1,5 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
+import type { LimitReasonKind } from "@mizyun/contracts";
 
 /**
  * Stable error codes returned through the `apiErrorSchema` envelope.
@@ -27,6 +28,9 @@ interface ApiErrorBody {
     readonly code: ApiErrorCode;
     readonly message: string;
     readonly requestId?: string;
+    readonly reason?: LimitReasonKind;
+    readonly retryAfterSeconds?: number;
+    readonly resetAt?: string;
   };
 }
 
@@ -45,12 +49,22 @@ export const sendApiError = (
   status: number,
   code: ApiErrorCode,
   message: string,
+  extras?: {
+    readonly reason?: LimitReasonKind;
+    readonly retryAfterSeconds?: number;
+    readonly resetAt?: string;
+  },
 ): FastifyReply => {
   const body: ApiErrorBody = {
     error: {
       code,
       message,
       requestId: requestIdOf(request),
+      ...(extras?.reason ? { reason: extras.reason } : {}),
+      ...(extras?.retryAfterSeconds !== undefined
+        ? { retryAfterSeconds: extras.retryAfterSeconds }
+        : {}),
+      ...(extras?.resetAt ? { resetAt: extras.resetAt } : {}),
     },
   };
   return reply.status(status).send(body);

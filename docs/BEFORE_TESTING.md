@@ -1,5 +1,7 @@
 # Before testing AI features
 
+> Admission policy update 2026-09-10: [ADR-0024](adr/0024-self-service-ai-consent-access.md) replaces manual AI email enrollment with self-service consent for authenticated adult-eligible accounts. Older allowlist requirements are superseded only in that respect. Provider evaluation, privacy, budgets and release evidence remain separate gates. Local implementation does not change a deployed host.
+
 > **Broader real-user AI acceptance remains blocked.** The explicitly approved founder/testing-partner Dev exception is recorded in AGENTS.md; do not infer that the live Dev service is disabled. Provider-neutral code and fake-adapter tests may proceed without a key. Complete the synthetic-provider gate before new live evaluation, and the entire checklist before broader external access.
 
 The active external model provider candidate is Google Gemini (`gemini-3.8-flash` / `packages/providers/gemini`) for both text coaching and multimodal meal nutrition drafting. Current terms research is recorded in `docs/RESEARCH_LOG.md`; actual project settings, lifecycle/privacy acceptance, consent behavior and spend enforcement remain subject to the round-2 findings.

@@ -69,6 +69,7 @@ export interface ServerConfig {
   readonly geminiVisionConfig: ServerGeminiVisionConfiguration | null;
   readonly sesConfig: ServerSesConfiguration | null;
   readonly aiExternalAccess: boolean;
+  /** @deprecated Parsed only for configuration compatibility; never gates AI access. */
   readonly aiAllowedEmails: readonly string[];
 }
 
@@ -370,15 +371,6 @@ export const loadServerConfig = (
     }
   }
   if (parsed.success) {
-    if (
-      parsed.data.aiExternalAccess &&
-      (parsed.data.aiAllowedEmails?.length ?? 0) === 0
-    ) {
-      issues.push({
-        kind: "missing",
-        keys: [SERVER_ENV_KEYS.aiAllowedEmails],
-      });
-    }
     const hasSesKey = parsed.data.sesAccessKeyId !== undefined;
     const hasSesSecret = parsed.data.sesSecretAccessKey !== undefined;
     if (hasSesKey !== hasSesSecret) {

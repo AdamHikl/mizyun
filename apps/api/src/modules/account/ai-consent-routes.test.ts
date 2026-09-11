@@ -1,8 +1,9 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   AgentOrchestrator,
   DisabledAgentProvider,
+  StubVisionProvider,
 } from "@mizyun/agent-runtime";
 import { CURRENT_AI_CONSENT_VERSION } from "@mizyun/contracts";
 import type { UserId } from "@mizyun/core";
@@ -62,6 +63,8 @@ const build = (options: BuildTestContextOptions = {}) => {
   const bodyMeasurementRepository = new InMemoryBodyMeasurementRepository();
   const memoryStore = new InMemoryMemoryStore();
 
+  const visionProvider = new StubVisionProvider();
+  const generateTextDraft = vi.spyOn(visionProvider, "generateTextDraft");
   const app = buildApp({
     tokenVerifier: tokenVerifierFor({ userId: userA }),
     agent: new AgentOrchestrator({
@@ -77,6 +80,8 @@ const build = (options: BuildTestContextOptions = {}) => {
     workoutSetRepository,
     bodyMeasurementRepository,
     memories: memoryStore,
+    aiAllowedEmails: ["previous-tester@example.test"],
+    coachControls: { visionProvider },
   });
   apps.push(app);
 
@@ -84,10 +89,48 @@ const build = (options: BuildTestContextOptions = {}) => {
     app,
     profileRepository,
     aiConsentRepository,
+    generateTextDraft,
   };
 };
 
 describe("AI Consent Endpoints & Authorization Boundary", () => {
+  it("permits an authenticated adult immediately after consent without email enrollment, and denies again after revocation", async () => {
+    const { app, generateTextDraft } = build({ defaultConsentGranted: false });
+    const draft = () =>
+      app.inject({
+        method: "POST",
+        url: "/v1/food-entries/draft/text",
+        headers: { authorization: "Bearer valid" },
+        payload: { description: "2 scrambled eggs and toast" },
+      });
+    const deniedBefore = await draft();
+    expect(deniedBefore.statusCode).toBe(403);
+    expect(deniedBefore.json()).toMatchObject({
+      error: { code: "AI_CONSENT_REQUIRED" },
+    });
+    const consent = (granted: boolean) =>
+      app.inject({
+        method: "PUT",
+        url: "/v1/account/ai-consent",
+        headers: { authorization: "Bearer valid" },
+        payload: {
+          granted,
+          confirmedAdult: true,
+          consentVersion: CURRENT_AI_CONSENT_VERSION,
+        },
+      });
+    expect(generateTextDraft).not.toHaveBeenCalled();
+    expect((await consent(true)).statusCode).toBe(200);
+    expect((await draft()).statusCode).toBe(200);
+    expect(generateTextDraft).toHaveBeenCalledTimes(1);
+    expect((await consent(false)).statusCode).toBe(200);
+    const deniedAfter = await draft();
+    expect(deniedAfter.statusCode).toBe(403);
+    expect(deniedAfter.json()).toMatchObject({
+      error: { code: "AI_CONSENT_REQUIRED" },
+    });
+    expect(generateTextDraft).toHaveBeenCalledTimes(1);
+  });
   describe("GET /v1/account/ai-consent", () => {
     it("returns ungranted consent by default when no row exists", async () => {
       const { app } = build({ defaultConsentGranted: false });

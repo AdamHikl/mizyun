@@ -58,6 +58,16 @@ describe("disabled identity adapters", () => {
       client.signInWithOAuth({ provider: "google" }),
     ).rejects.toMatchObject({ code: "AUTH_NOT_CONFIGURED" });
   });
+
+  it("rejects ID token sign-in request when configuration is absent", async () => {
+    const client = new DisabledAuthClient();
+    await expect(
+      client.signInWithIdToken({
+        provider: "apple",
+        token: "mock-identity-token",
+      }),
+    ).rejects.toMatchObject({ code: "AUTH_NOT_CONFIGURED" });
+  });
 });
 
 describe("parseDeepLinkFragment", () => {

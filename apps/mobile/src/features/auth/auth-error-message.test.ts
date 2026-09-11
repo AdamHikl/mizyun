@@ -29,6 +29,9 @@ describe("authErrorMessage", () => {
     expect(authErrorMessage("oauth", new Error("provider detail"))).toBe(
       "We couldn't sign you in with Google. Please try again.",
     );
+    expect(authErrorMessage("apple", new Error("provider detail"))).toBe(
+      "We couldn't sign you in with Apple. Please try again.",
+    );
   });
 
   it("identifies unconfirmed email errors specifically", () => {

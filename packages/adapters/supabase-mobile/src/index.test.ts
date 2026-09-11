@@ -26,6 +26,10 @@ const createMockSupabaseClient = (overrides: {
     data: { url: string | null; provider: string } | null;
     error: Error | null;
   }>;
+  signInWithIdToken?: (params?: any) => Promise<{
+    data: { session: any } | null;
+    error: Error | null;
+  }>;
   signInWithPassword?: () => Promise<{
     data: { session: any } | null;
     error: Error | null;
@@ -56,6 +60,22 @@ const createMockSupabaseClient = (overrides: {
           data: {
             url: "https://auth.supabase.com/oauth/google",
             provider: "google",
+          },
+          error: null,
+        }),
+      signInWithIdToken:
+        overrides.signInWithIdToken ??
+        vi.fn().mockResolvedValue({
+          data: {
+            session: {
+              access_token: "mock-id-token-access",
+              expires_at: 1784197009,
+              user: {
+                id: "00000000-0000-4000-8000-000000000001",
+                email: "id-token-user@example.com",
+                app_metadata: { provider: "apple" },
+              },
+            },
           },
           error: null,
         }),
@@ -211,6 +231,93 @@ describe("SupabaseMobileAuthClient", () => {
         },
         accessToken: "mock-access-token",
         expiresAt: new Date(1784197009 * 1000),
+      });
+    });
+  });
+
+  describe("signInWithIdToken", () => {
+    it("signs in with ID token and returns converted AuthSession", async () => {
+      const mockClient = createMockSupabaseClient({});
+      const authClient = new SupabaseMobileAuthClient(mockClient);
+
+      const session = await authClient.signInWithIdToken({
+        provider: "apple",
+        token: "apple-id-token",
+      });
+
+      expect(mockClient.auth.signInWithIdToken).toHaveBeenCalledWith({
+        provider: "apple",
+        token: "apple-id-token",
+      });
+      expect(session).toEqual({
+        user: {
+          id: "00000000-0000-4000-8000-000000000001",
+          email: "id-token-user@example.com",
+          provider: "apple",
+        },
+        accessToken: "mock-id-token-access",
+        expiresAt: new Date(1784197009 * 1000),
+      });
+    });
+
+    it("forwards nonce and access_token when provided", async () => {
+      const mockClient = createMockSupabaseClient({});
+      const authClient = new SupabaseMobileAuthClient(mockClient);
+
+      await authClient.signInWithIdToken({
+        provider: "google",
+        token: "google-id-token",
+        nonce: "test-nonce-123",
+        accessToken: "google-access-token-456",
+      });
+
+      expect(mockClient.auth.signInWithIdToken).toHaveBeenCalledWith({
+        provider: "google",
+        token: "google-id-token",
+        nonce: "test-nonce-123",
+        access_token: "google-access-token-456",
+      });
+    });
+
+    it("throws IdentityError when Supabase returns an error", async () => {
+      const mockClient = createMockSupabaseClient({
+        signInWithIdToken: vi.fn().mockResolvedValue({
+          data: null,
+          error: new Error("Invalid ID token"),
+        }),
+      });
+      const authClient = new SupabaseMobileAuthClient(mockClient);
+
+      await expect(
+        authClient.signInWithIdToken({
+          provider: "apple",
+          token: "invalid-token",
+        }),
+      ).rejects.toMatchObject({
+        name: "IdentityError",
+        code: "AUTH_PROVIDER_ERROR",
+        message: "Invalid ID token",
+      });
+    });
+
+    it("throws AUTH_SESSION_MISSING when sign-in returns no session", async () => {
+      const mockClient = createMockSupabaseClient({
+        signInWithIdToken: vi.fn().mockResolvedValue({
+          data: { session: null },
+          error: null,
+        }),
+      });
+      const authClient = new SupabaseMobileAuthClient(mockClient);
+
+      await expect(
+        authClient.signInWithIdToken({
+          provider: "apple",
+          token: "valid-token-no-session",
+        }),
+      ).rejects.toMatchObject({
+        name: "IdentityError",
+        code: "AUTH_SESSION_MISSING",
+        message: "Sign-in returned no session.",
       });
     });
   });

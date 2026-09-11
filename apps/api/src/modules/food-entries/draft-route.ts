@@ -39,6 +39,7 @@ import {
   foodTextDraftRequestSchema,
   type AiProvider,
   type FoodDraftResponse,
+  type LimitReasonKind,
 } from "@mizyun/contracts";
 import { randomUUID } from "node:crypto";
 
@@ -126,7 +127,10 @@ export const foodDraftRoutes: FastifyPluginAsync<
     accessToken: string,
     userEmail?: string | null,
   ): Promise<
-    AiAuthorizationResult & { readonly countryCode?: string | null }
+    AiAuthorizationResult & {
+      readonly countryCode?: string | null;
+      readonly planTier?: PlanTier;
+    }
   > => {
     if (!options.profileRepository) {
       return {
@@ -155,6 +159,7 @@ export const foodDraftRoutes: FastifyPluginAsync<
       return {
         ...auth,
         countryCode: profile.coachingPreferences?.countryCode ?? null,
+        planTier: profile.planTier,
       };
     } catch {
       return {
@@ -171,15 +176,29 @@ export const foodDraftRoutes: FastifyPluginAsync<
     userId: UserId,
     tier: PlanTier,
     draftKind: DraftKind,
-  ): Promise<{ allowed: boolean; retryAfter?: number }> => {
+  ): Promise<{
+    allowed: boolean;
+    reason?: LimitReasonKind;
+    retryAfter?: number;
+    resetAt?: string;
+  }> => {
     if (options.rateLimiter) {
       const res = options.rateLimiter.acquire(userId, tier);
       if (!res.allowed) {
+        const isDaily = res.reason === "daily_limit_exceeded";
+        const reason: LimitReasonKind = isDaily
+          ? "daily_budget_exhausted"
+          : "minute_rate_limit";
+        const resetAt = isDaily
+          ? new Date(Date.now() + (res.retryAfter ?? 0) * 1000).toISOString()
+          : undefined;
         return {
           allowed: false,
+          reason,
           ...(res.retryAfter !== undefined
             ? { retryAfter: res.retryAfter }
             : {}),
+          ...(resetAt ? { resetAt } : {}),
         };
       }
     }
@@ -190,11 +209,26 @@ export const foodDraftRoutes: FastifyPluginAsync<
         draftKind,
       );
       if (!res.allowed) {
+        // When options.rateLimiter is provided, it is the primary authority on minute rate limits
+        if (options.rateLimiter && res.reason === "minute") {
+          return { allowed: true };
+        }
+        const isDaily = res.reason === "drafts" || res.reason === "tokens";
+        const reason: LimitReasonKind = isDaily
+          ? "daily_budget_exhausted"
+          : res.reason === "inflight"
+            ? "concurrent_in_flight"
+            : "minute_rate_limit";
+        const resetAt = isDaily
+          ? new Date(Date.now() + (res.retryAfter ?? 0) * 1000).toISOString()
+          : undefined;
         return {
           allowed: false,
+          reason,
           ...(res.retryAfter !== undefined
             ? { retryAfter: res.retryAfter }
             : {}),
+          ...(resetAt ? { resetAt } : {}),
         };
       }
     }
@@ -252,7 +286,12 @@ export const foodDraftRoutes: FastifyPluginAsync<
           "The meal description must contain food and portion details, not instructions or medical advice.",
         );
       }
-      const tier = options.resolvePlanTier(principal.userId as UserId);
+      const tier =
+        auth.planTier === "paid"
+          ? "paid"
+          : options.resolvePlanTier(principal.userId as UserId) === "paid"
+            ? "paid"
+            : (auth.planTier ?? "free");
       const rate = await acquireDraftLimit(
         principal.userId as UserId,
         tier,
@@ -262,13 +301,19 @@ export const foodDraftRoutes: FastifyPluginAsync<
         if (rate.retryAfter) {
           reply.header("retry-after", String(rate.retryAfter));
         }
-        return sendApiError(
-          reply,
-          request,
-          429,
-          "RATE_LIMITED",
-          `Nutrition drafts are limited to ${tier === "paid" ? 3 : 1} request per minute.`,
-        );
+        const message =
+          rate.reason === "daily_budget_exhausted"
+            ? `Daily meal drafts limit reached (${tier === "paid" ? 100 : 5} per day). Quota resets at midnight UTC.`
+            : rate.reason === "concurrent_in_flight"
+              ? "A meal draft is already in progress. Please wait for it to finish."
+              : `Nutrition drafts are limited to ${tier === "paid" ? 3 : 1} request per minute. Try again in ${rate.retryAfter ?? 1} second(s).`;
+        return sendApiError(reply, request, 429, "RATE_LIMITED", message, {
+          ...(rate.reason ? { reason: rate.reason } : {}),
+          ...(rate.retryAfter !== undefined
+            ? { retryAfterSeconds: rate.retryAfter }
+            : {}),
+          ...(rate.resetAt ? { resetAt: rate.resetAt } : {}),
+        });
       }
       const requestId = randomUUID();
       const vision = await resolveActiveVisionProvider(
@@ -363,7 +408,12 @@ export const foodDraftRoutes: FastifyPluginAsync<
           "The refine instruction must describe a portion or value change, not medical or system advice.",
         );
       }
-      const tier = options.resolvePlanTier(principal.userId as UserId);
+      const tier =
+        auth.planTier === "paid"
+          ? "paid"
+          : options.resolvePlanTier(principal.userId as UserId) === "paid"
+            ? "paid"
+            : (auth.planTier ?? "free");
       const rate = await acquireDraftLimit(
         principal.userId as UserId,
         tier,
@@ -373,13 +423,19 @@ export const foodDraftRoutes: FastifyPluginAsync<
         if (rate.retryAfter) {
           reply.header("retry-after", String(rate.retryAfter));
         }
-        return sendApiError(
-          reply,
-          request,
-          429,
-          "RATE_LIMITED",
-          `Nutrition drafts are limited to ${tier === "paid" ? 3 : 1} request per minute.`,
-        );
+        const message =
+          rate.reason === "daily_budget_exhausted"
+            ? `Daily meal drafts limit reached (${tier === "paid" ? 100 : 5} per day). Quota resets at midnight UTC.`
+            : rate.reason === "concurrent_in_flight"
+              ? "A draft refinement is already in progress. Please wait for it to finish."
+              : `Nutrition drafts are limited to ${tier === "paid" ? 3 : 1} request per minute. Try again in ${rate.retryAfter ?? 1} second(s).`;
+        return sendApiError(reply, request, 429, "RATE_LIMITED", message, {
+          ...(rate.reason ? { reason: rate.reason } : {}),
+          ...(rate.retryAfter !== undefined
+            ? { retryAfterSeconds: rate.retryAfter }
+            : {}),
+          ...(rate.resetAt ? { resetAt: rate.resetAt } : {}),
+        });
       }
       const requestId = randomUUID();
       const vision = await resolveActiveVisionProvider(
@@ -462,7 +518,12 @@ export const foodDraftRoutes: FastifyPluginAsync<
       // Per-tier rate limit. The bucket is per user, sliding
       // 60-second window. Reject with 429 + Retry-After before
       // any photo bytes are read.
-      const tier = options.resolvePlanTier(principal.userId as UserId);
+      const tier =
+        auth.planTier === "paid"
+          ? "paid"
+          : options.resolvePlanTier(principal.userId as UserId) === "paid"
+            ? "paid"
+            : (auth.planTier ?? "free");
       const rate = await acquireDraftLimit(
         principal.userId as UserId,
         tier,
@@ -472,15 +533,19 @@ export const foodDraftRoutes: FastifyPluginAsync<
         if (rate.retryAfter) {
           reply.header("retry-after", String(rate.retryAfter));
         }
-        return sendApiError(
-          reply,
-          request,
-          429,
-          "RATE_LIMITED",
-          `Photo drafts are limited to ${
-            tier === "paid" ? 3 : 1
-          } request per minute. Try again in ${rate.retryAfter ?? 1} second(s).`,
-        );
+        const message =
+          rate.reason === "daily_budget_exhausted"
+            ? `Daily meal photo drafts limit reached (${tier === "paid" ? 100 : 5} per day). Quota resets at midnight UTC.`
+            : rate.reason === "concurrent_in_flight"
+              ? "A meal photo draft is already in progress. Please wait for it to finish."
+              : `Photo drafts are limited to ${tier === "paid" ? 3 : 1} request per minute. Try again in ${rate.retryAfter ?? 1} second(s).`;
+        return sendApiError(reply, request, 429, "RATE_LIMITED", message, {
+          ...(rate.reason !== undefined ? { reason: rate.reason } : {}),
+          ...(rate.retryAfter !== undefined
+            ? { retryAfterSeconds: rate.retryAfter }
+            : {}),
+          ...(rate.resetAt !== undefined ? { resetAt: rate.resetAt } : {}),
+        });
       }
 
       // Read the multipart body. The route accepts exactly one

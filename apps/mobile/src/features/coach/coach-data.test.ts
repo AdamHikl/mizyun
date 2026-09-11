@@ -171,8 +171,34 @@ describe("coach data boundary", () => {
 
     expect(result).toEqual({
       ok: false,
-      message:
-        "Coach is busy or an AI limit was reached. Wait briefly and try again.",
+      message: "Coach is busy — try again in a moment.",
+    });
+  });
+
+  it("uses daily limit copy when daily_budget_exhausted is received", async () => {
+    const client: ApiClient = {
+      request: vi.fn(async () =>
+        err({
+          kind: "http_error" as const,
+          status: 429,
+          code: "RATE_LIMITED",
+          message: "Daily token limit reached.",
+          reason: "daily_budget_exhausted",
+        }),
+      ) as unknown as ApiClient["request"],
+      status: () => ({ configured: true, baseUrl: "http://api.test" }),
+    };
+
+    const result = await sendCoachMessageWith(
+      client,
+      conversation.id,
+      "How am I doing?",
+      "stable-message-key",
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      message: "Daily Coach limit reached. Resets at midnight UTC.",
     });
   });
 

@@ -33,6 +33,7 @@ export function PasswordSecurityCard() {
   const provider = session?.user?.provider ?? "email";
   const email = session?.user?.email;
   const isGoogle = provider === "google";
+  const isApple = provider === "apple";
 
   const handleSendResetEmail = useCallback(async () => {
     if (!email) {
@@ -93,6 +94,24 @@ export function PasswordSecurityCard() {
       setInAppBusy(false);
     }
   }, [newPassword, confirmPassword]);
+
+  if (isApple) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.badgeRow}>
+          <View style={styles.appleBadge}>
+            <ThemedText type="smallBold" style={styles.appleBadgeText}>
+              APPLE ACCOUNT
+            </ThemedText>
+          </View>
+        </View>
+        <ThemedText type="small" themeColor="textSecondary" style={styles.body}>
+          You are signed in with Apple ID. Your password and account security
+          are managed directly through your Apple Account.
+        </ThemedText>
+      </View>
+    );
+  }
 
   if (isGoogle) {
     return (
@@ -275,6 +294,19 @@ const styles = StyleSheet.create({
   },
   emailBadgeText: {
     color: "#10B981",
+    fontSize: 11,
+    letterSpacing: 0.5,
+  },
+  appleBadge: {
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.25)",
+  },
+  appleBadgeText: {
+    color: "#F8FAFC",
     fontSize: 11,
     letterSpacing: 0.5,
   },

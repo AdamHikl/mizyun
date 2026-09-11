@@ -24,6 +24,8 @@ The user explicitly wants future sessions to use agents. For substantive impleme
 
 ## Completion and evidence
 
+- AI admission policy (user decision 2026-09-10): authenticated, adult-eligible users gain access to enabled AI features immediately after current consent is saved, without founder approval or email-list enrollment. `AI_ALLOWED_EMAILS` is deprecated and ignored. Preserve consent/revocation, authentication, provider kill switches and usage limits. See ADR-0024; this does not change Auth email-verification settings or prove release acceptance.
+
 - Keep **implemented**, **automatically verified**, **Dev deployed**, **device accepted**, and **Production released** distinct. Close a work item only when its stated exit criteria are met. Otherwise record the completed portion and the exact remaining check.
 - For a defect, demonstrate the failure first where feasible and add a regression that exercises the real failure boundary. Prefer lost-response, restart, concurrency, denied-access and partial-failure cases over tests that merely repeat implementation details.
 - Mocks prove isolated behavior, bundle exports prove bundling, and HTTP 200 proves only the endpoint's implemented health check. None substitutes for real Auth/Storage/database isolation, native interaction, restore or release acceptance.

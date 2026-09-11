@@ -55,7 +55,9 @@ import { loggerConfig } from "./logging.js";
 import { InMemoryMediaStorage, type MediaStorage } from "./media-storage.js";
 import { SupabaseMemoryStore } from "@mizyun/adapter-supabase-server";
 import { accountRoutes } from "./modules/account/routes.js";
+import { betaProRoutes } from "./modules/account/beta-pro-routes.js";
 import { bodyMeasurementsRoutes } from "./modules/body-measurements/routes.js";
+import { aiUsageRoutes } from "./modules/coach/ai-usage-routes.js";
 import { coachMemoryRoutes } from "./modules/coach/memory-routes.js";
 import { coachNutritionPhotoRoutes } from "./modules/coach/nutrition-photo-routes.js";
 import { coachRoutes } from "./modules/coach/routes.js";
@@ -81,6 +83,11 @@ import { systemRoutes } from "./modules/system/routes.js";
 import { workoutsRoutes } from "./modules/workouts/routes.js";
 import { workoutSetsRoutes } from "./modules/workout-sets/routes.js";
 import { authenticationPlugin } from "./plugins/authentication.js";
+import {
+  InMemoryBetaProRepository,
+  type BetaProRepository,
+} from "./beta-pro-repository.js";
+import { SupabaseBetaProRepository } from "./supabase-beta-pro-repository.js";
 import { InMemoryBodyMeasurementRepository } from "./body-measurement-repository.js";
 import { InMemoryConversationRepository } from "./conversation-repository.js";
 import { InMemoryExerciseRepository } from "./exercise-repository.js";
@@ -224,6 +231,7 @@ export interface AppDependencies {
   readonly conversationRepository?: ConversationRepository;
   readonly feedbackRepository?: FeedbackRepository;
   readonly accountRepository?: AccountRepository;
+  readonly betaProRepository?: BetaProRepository;
   readonly aiConsentRepository?: AiConsentRepository;
   readonly mediaAssetRepository?: MediaAssetRepository;
   readonly mediaStorage?: MediaStorage;
@@ -544,6 +552,17 @@ export const buildApp = (
         })
       : new InMemoryAiConsentRepository({ defaultGranted: true }));
 
+  const betaProRepository: BetaProRepository =
+    dependencies.betaProRepository ??
+    (sp
+      ? new SupabaseBetaProRepository({
+          clientFor: sp.clientFor,
+          ...(sp.serviceRoleClient
+            ? { serviceClient: sp.serviceRoleClient }
+            : {}),
+        })
+      : new InMemoryBetaProRepository());
+
   const accountRepository =
     dependencies.accountRepository ??
     (sp
@@ -846,6 +865,23 @@ export const buildApp = (
   void app.register(feedbackRoutes, {
     prefix: "/v1/feedback",
     feedbackRepository,
+  });
+  void app.register(aiUsageRoutes, {
+    prefix: "/v1",
+    coachLimits: coachLimits,
+    profileRepository,
+    ...(dependencies.coachControls?.planTierOverride
+      ? { planTierOverride: dependencies.coachControls.planTierOverride }
+      : readPlanTierOverride()
+        ? { planTierOverride: readPlanTierOverride() }
+        : {}),
+    ...(dependencies.coachControls?.now
+      ? { now: dependencies.coachControls.now }
+      : {}),
+  });
+  void app.register(betaProRoutes, {
+    prefix: "/v1",
+    repository: betaProRepository,
   });
 
   // MEM-001 — the long-lived memory store used by both the

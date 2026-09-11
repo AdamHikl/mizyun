@@ -1,5 +1,37 @@
 # Research log
 
+## 2026-09-10 — Native Sign in with Apple and App Store Guideline 4.8 compliance
+
+Scope: Implementation of native Sign in with Apple (`expo-apple-authentication`, `@mizyun/identity`, `@mizyun/adapter-supabase-mobile`, `apps/mobile`), re-enabling Google Sign-In on iOS alongside Apple Sign-In, cryptographic nonce replay protection, personal-team capability gating (`MIZYUN_ENABLE_APPLE_AUTH`), and independent security review.
+
+Primary sources consulted:
+
+- [Apple App Store Review Guidelines — Section 4.8 (Sign in with Apple)](https://developer.apple.com/app-store/review/guidelines/#sign-in-with-apple):
+  - Apps that use a third-party or social login service (such as Google Sign-In) to set up or authenticate the user's primary account must also offer Sign in with Apple as an equivalent option.
+  - Sign in with Apple must be positioned prominently and offer an equivalent visual and functional user experience.
+- [Expo AppleAuthentication Documentation](https://docs.expo.dev/versions/latest/sdk/apple-authentication/):
+  - `AppleAuthentication.signInAsync({ requestedScopes, nonce })` requires a SHA-256 hashed nonce string to include in the identity token claims.
+  - User dismissal raises error code `ERR_REQUEST_CANCELED` (or `ERR_CANCELED`), which must be caught and handled cleanly without displaying disruptive error banners.
+  - `AppleAuthentication.isAvailableAsync()` verifies device and entitlement support at runtime before rendering the button.
+  - Requires iOS 13+ and the `com.apple.developer.applesignin` entitlement in the native provisioning profile.
+- [Supabase Native Mobile Sign in with Apple Guide](https://supabase.com/docs/guides/auth/social-login/auth-apple):
+  - Supabase GoTrue endpoint accepts ID tokens via `supabase.auth.signInWithIdToken({ provider: "apple", token, nonce })`.
+  - Crucial nonce contract: GoTrue requires the **raw, unhashed** nonce string in the client request. GoTrue computes the SHA-256 hash server-side and compares it with the `nonce` claim in Apple's signed JWT. Passing a pre-hashed nonce to GoTrue causes auth failure (`Passed nonce and nonce in id_token must align`).
+- [Apple Developer Account & Entitlement Provisioning](https://developer.apple.com/help/account/reference/provisioning-profiles):
+  - Free Apple Personal Teams cannot sign the `com.apple.developer.applesignin` entitlement for custom bundle IDs (`com.mizyun.dev` / `com.mizyun.app`). Including the entitlement unconditionally breaks local builds via `scripts/mobile-founder-dev-ios.sh` while the developer awaits paid Apple Developer Program confirmation.
+
+Consequences for Mizyun:
+
+1. **Core Identity & Adapter**: Added `signInWithIdToken` to `@mizyun/identity` and `@mizyun/adapter-supabase-mobile`, supporting both `"apple"` and `"google"` ID token exchanges.
+2. **Replay Protection**: Generated cryptographically random UUID nonces via `expo-crypto`, passing the SHA-256 digest to `AppleAuthentication.signInAsync` and forwarding the raw UUID to `authClient.signInWithIdToken`.
+3. **Build Capability Gating**: Added `const enableIosAppleAuth = process.env.MIZYUN_ENABLE_APPLE_AUTH === "1"` in `apps/mobile/app.config.js` to conditionally inject the `expo-apple-authentication` plugin and `ios.usesAppleSignIn` entitlement only when explicitly enabled, safeguarding local builds during license approval.
+4. **Guideline 4.8 Compliance**: Display of Google Sign-In on iOS is conditioned on Apple Sign-In availability (`isAppleAuthAvailable || Platform.OS !== "ios"`), ensuring Google is never shown in isolation on iOS.
+5. **Independent Security Review**: Subagent completed independent evaluation covering nonce handling, cancellation handling, capability gating, guideline compliance, and provider session isolation; zero findings, full approval granted.
+
+## 2026-09-10 — Self-service AI consent admission (ADR-0024)
+
+User requests immediate AI access after consent with no founder confirmation or manual email entry. Reviewed [Supabase Auth configuration](https://supabase.com/docs/guides/auth/general-configuration) on 2026-09-10: email verification governs sign-in separately from application AI consent. Consequence: remove AI email admission and mandatory config validation; preserve Auth settings and existing persistence-before-dispatch in the mobile controller. Source inspection confirms the centralized helper covers Coach, text/refine/upload drafts, and nutrition-photo routes. No SDK change, new table or live provider call is required.
+
 ## 2026-09-09 — Git-backed navigation, repository memory, and advisory impact analysis
 
 Scope: Researched and designed Git-backed developer navigation, deterministic feature manifest, context CLI, advisory impact graph, and structural/boundary validators without vector databases or background services (DOCS-NAV-001–004 / ADR-0022).

@@ -4,6 +4,7 @@ import {
   AgentProviderError,
   AgentToolBudgetExceededError,
   StubVisionProvider,
+  type AgentGroundingItem,
   type AgentProvider,
   type ContentModerator,
   type VisionDraftProvider,
@@ -1292,5 +1293,100 @@ describe("coach routes — plan-tier limiter (AI-OPS-001)", () => {
     );
     expect(response.statusCode).toBe(403);
     expect(response.json().error.code).toBe("AI_AGE_RESTRICTED");
+  });
+
+  it("supplies saved available routines in grounding when user asks about a routine", async () => {
+    let capturedGrounding: readonly AgentGroundingItem[] = [];
+    const workoutRepository = new InMemoryWorkoutRepository();
+    const respond = vi
+      .fn<AgentProvider["respond"]>()
+      .mockImplementation(async (req) => {
+        capturedGrounding = req.grounding;
+        return {
+          message: {
+            role: "assistant",
+            text: "Your Push 1 routine has good exercise variety and balance.",
+          },
+          provider: "fake",
+          evidence: req.grounding,
+          providerMetadata: { totalTokens: 100, resolvedModel: "fake-v1" },
+        };
+      });
+
+    const { app } = makeApp(
+      respond,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      workoutRepository,
+    );
+
+    workoutRepository.__seedForTest({
+      id: "w-push-1",
+      userId,
+      name: "Push 1",
+      startedAt: new Date("2026-07-20T10:00:00.000Z"),
+      completedAt: null,
+      notes: null,
+      source: "manual",
+      details: {
+        coachPlan: {
+          exercises: [
+            {
+              name: "Standing Barbell Press Behind Neck",
+              sets: 4,
+              repsMin: 4,
+              repsMax: 6,
+              targetLoad: "50kg",
+              restSeconds: 90,
+              movementPattern: "vertical_push",
+            },
+            {
+              name: "Dips - Chest Version",
+              sets: 3,
+              repsMin: 5,
+              repsMax: 8,
+              targetLoad: "25kg",
+              restSeconds: 90,
+              movementPattern: "horizontal_push",
+            },
+          ],
+        },
+      },
+      createdAt: new Date("2026-07-20T10:00:00.000Z"),
+      updatedAt: new Date("2026-07-20T10:00:00.000Z"),
+    });
+
+    const id = await createConversation(app);
+    const response = await sendMessage(
+      app,
+      id,
+      "routine-check-001",
+      "what do you think about my push 1 workout routine?",
+    );
+
+    expect(response.statusCode).toBe(200);
+    const trainingGrounding = capturedGrounding.find(
+      (g) => g.kind === "training",
+    );
+    expect(trainingGrounding).toBeDefined();
+    const data = trainingGrounding!.data as {
+      availableRoutines: Array<{
+        name: string;
+        exercises: Array<{
+          name: string;
+          targetSets?: number;
+          targetLoad?: string;
+        }>;
+      }>;
+    };
+    expect(data.availableRoutines).toHaveLength(1);
+    expect(data.availableRoutines[0]?.name).toBe("Push 1");
+    expect(data.availableRoutines[0]?.exercises).toHaveLength(2);
+    expect(data.availableRoutines[0]?.exercises[0]?.name).toBe(
+      "Standing Barbell Press Behind Neck",
+    );
+    expect(data.availableRoutines[0]?.exercises[0]?.targetLoad).toBe("50kg");
   });
 });

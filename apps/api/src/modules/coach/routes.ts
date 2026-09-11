@@ -45,6 +45,7 @@ import {
   type CoachConversation,
   type CoachMessage,
   type TrainingPrescriptionResponse,
+  type LimitReasonKind,
 } from "@mizyun/contracts";
 import type { MemoryStore } from "@mizyun/memory";
 
@@ -775,15 +776,30 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
 
       if (slot.kind === "limited") {
         reply.header("retry-after", String(slot.retryAfter));
+        const isDaily = slot.reason === "tokens";
+        const reason: LimitReasonKind = isDaily
+          ? "daily_budget_exhausted"
+          : slot.reason === "inflight"
+            ? "concurrent_in_flight"
+            : slot.reason === "lock_busy"
+              ? "service_busy"
+              : "minute_rate_limit";
+        const resetAt = isDaily
+          ? new Date(Date.now() + (slot.retryAfter ?? 0) * 1000).toISOString()
+          : undefined;
         const message =
           slot.reason === "tokens"
-            ? "Your daily AI budget has been reached. Try again tomorrow."
+            ? `Your daily Coach AI budget has been reached (${cap.dailyTokenBudget.toLocaleString()} tokens). Quota resets at midnight UTC.`
             : slot.reason === "inflight"
               ? "A Coach request is already in progress. Try again shortly."
               : slot.reason === "lock_busy"
                 ? "The Coach limiter is busy. Try again shortly."
                 : "Too many Coach requests. Try again shortly.";
-        return sendApiError(reply, request, 429, "RATE_LIMITED", message);
+        return sendApiError(reply, request, 429, "RATE_LIMITED", message, {
+          reason,
+          retryAfterSeconds: slot.retryAfter,
+          ...(resetAt !== undefined ? { resetAt } : {}),
+        });
       }
 
       if (slot.kind === "conflict") {

@@ -12,7 +12,11 @@ import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LoggingFlowMeasurement } from "@mizyun/observability";
-import type { FoodDraftCandidate } from "@mizyun/contracts";
+import {
+  aiUsageResponseSchema,
+  type AiUsageResponse,
+  type FoodDraftCandidate,
+} from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -111,9 +115,29 @@ export function LogMealScreen() {
   // /v1/food-entries/draft/refine and patches the form.
   const [refineInstruction, setRefineInstruction] = useState("");
   const [refining, setRefining] = useState(false);
+  const [aiUsage, setAiUsage] = useState<AiUsageResponse | null>(null);
   const measurement = useRef<LoggingFlowMeasurement | null>(null);
   const hadFailure = useRef(false);
   const userId = session?.user.id ?? null;
+
+  const loadAiUsage = useCallback(async () => {
+    try {
+      const res = await apiClient.request<AiUsageResponse>({
+        method: "GET",
+        path: "/v1/ai/usage",
+        schema: aiUsageResponseSchema,
+      });
+      if (res.ok) {
+        setAiUsage(res.value);
+      }
+    } catch {
+      // Best-effort quota fetch
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadAiUsage();
+  }, [loadAiUsage]);
 
   useEffect(() => {
     measurement.current = new LoggingFlowMeasurement("meal", analyticsClient);
@@ -813,6 +837,16 @@ export function LogMealScreen() {
                   <ThemedText type="smallBold">🖼️ Choose photo</ThemedText>
                 </Pressable>
               </View>
+
+              {aiUsage !== null ? (
+                <View style={styles.quotaBadgeRow}>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    📷 {aiUsage.photos.draftsRemaining} of{" "}
+                    {aiUsage.photos.dailyLimit} photo scans left today
+                    {aiUsage.planTier === "free" ? " (Free)" : " (Pro)"}
+                  </ThemedText>
+                </View>
+              ) : null}
             </>
           )}
 
@@ -1159,6 +1193,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     gap: Spacing.one,
+  },
+  quotaBadgeRow: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.one,
   },
   warnings: {
     padding: Spacing.three,

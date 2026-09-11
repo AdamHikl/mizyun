@@ -1,6 +1,6 @@
 import { IdentityError } from "@mizyun/identity";
 
-export type AuthAction = "forgot" | "sign-in" | "sign-up" | "oauth";
+export type AuthAction = "forgot" | "sign-in" | "sign-up" | "oauth" | "apple";
 
 /**
  * Authentication providers may attach response bodies, URLs, status text, or
@@ -39,5 +39,7 @@ export const authErrorMessage = (
       return "We couldn't send a reset link. Check your connection and try again.";
     case "oauth":
       return "We couldn't sign you in with Google. Please try again.";
+    case "apple":
+      return "We couldn't sign you in with Apple. Please try again.";
   }
 };

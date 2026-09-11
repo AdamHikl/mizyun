@@ -27,8 +27,7 @@ export type AiAuthorizationResult =
   | {
       readonly authorized: false;
       readonly statusCode: 403;
-      readonly code:
-        "AI_AGE_RESTRICTED" | "AI_CONSENT_REQUIRED" | "AI_NOT_INVITED";
+      readonly code: "AI_AGE_RESTRICTED" | "AI_CONSENT_REQUIRED";
       readonly message: string;
     };
 
@@ -37,11 +36,11 @@ export type AiAuthorizationResult =
  * (Coach messages, photos, and food draft routes).
  *
  * Enforces:
- *   1. Profile presence and verified adult status (18+).
- *   2. Allowlist admission boundary when configured (Q8-A).
- *   3. Explicit, granted, unrevoked consent matching the current consent version.
+ *   1. Profile presence and declared adult eligibility (18+).
+ *   2. Explicit, granted, unrevoked consent matching the current consent version.
  *
- * Fails closed on missing profile, lookup errors, uninvited accounts, or outdated disclosures.
+ * Consent is self-service; no email enrollment or administrator approval is required.
+ * Fails closed on missing profile, lookup errors, or outdated disclosures.
  * (Q8-A / Q8-B / Finding R5 / REL-AUD-005)
  */
 export const authorizeAiAccess = (options: {
@@ -49,16 +48,12 @@ export const authorizeAiAccess = (options: {
   readonly consent: StoredAiConsent | null;
   readonly currentConsentVersion?: string | undefined;
   readonly now?: Date | undefined;
+  /** @deprecated Ignored. Access depends on authenticated profile and consent. */
   readonly userEmail?: string | null | undefined;
+  /** @deprecated Ignored, including nonempty legacy lists. No manual admission. */
   readonly allowedEmails?: readonly string[] | undefined;
 }): AiAuthorizationResult => {
-  const {
-    profile,
-    consent,
-    now = new Date(),
-    userEmail,
-    allowedEmails,
-  } = options;
+  const { profile, consent, now = new Date() } = options;
   const currentVersion =
     options.currentConsentVersion ?? CURRENT_AI_CONSENT_VERSION;
 
@@ -70,22 +65,6 @@ export const authorizeAiAccess = (options: {
       message:
         "AI features require adult eligibility (18 years or older) under provider terms.",
     };
-  }
-
-  if (allowedEmails !== undefined && allowedEmails.length > 0) {
-    const normalizedAllowed = allowedEmails.map((e) => e.trim().toLowerCase());
-    if (
-      !userEmail ||
-      !normalizedAllowed.includes(userEmail.trim().toLowerCase())
-    ) {
-      return {
-        authorized: false,
-        statusCode: 403,
-        code: "AI_NOT_INVITED",
-        message:
-          "AI features are restricted to invited testing accounts in this environment.",
-      };
-    }
   }
 
   if (

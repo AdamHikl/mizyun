@@ -30,6 +30,8 @@ if (existsSync(envTestPath)) {
 
 export default defineConfig({
   test: {
+    root: resolve(__dirname, "../.."),
+    include: ["apps/api/src/**/*.{test,spec}.?(c|m)[jt]s?(x)"],
     env: {
       // Mirror the keys that `.env.test` exposes under the AUTH_E2E_*
       // names so the existing `describe.skipIf(...)` guards still work.

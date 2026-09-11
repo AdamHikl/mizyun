@@ -468,7 +468,28 @@ describe("snapMealPhotoWith", () => {
     const result = await snapMealPhotoWith(client, photoBlob, "image/jpeg");
     expect(result).toEqual({
       ok: false,
-      message: "Photo drafts are limited — try again in a minute.",
+      message: "Photo scans are limited — try again in a minute.",
+    });
+  });
+
+  it("translates a 429 RATE_LIMITED with daily_budget_exhausted reason", async () => {
+    const client: ApiClient = {
+      ...fakeClient({ ok: true, value: {} }),
+      draftFoodEntry: async () => ({
+        ok: false as const,
+        error: {
+          kind: "http_error",
+          status: 429,
+          code: "RATE_LIMITED",
+          message: "Daily limit reached.",
+          reason: "daily_budget_exhausted",
+        },
+      }),
+    };
+    const result = await snapMealPhotoWith(client, photoBlob, "image/jpeg");
+    expect(result).toEqual({
+      ok: false,
+      message: "Daily photo scan limit reached. Resets at midnight UTC.",
     });
   });
 

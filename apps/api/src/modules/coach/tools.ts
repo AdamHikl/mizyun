@@ -60,6 +60,12 @@ import {
   type CoachMultiWorkoutPlanProposal,
   type TrainingPrescriptionResponse,
 } from "@mizyun/contracts";
+import { isAvailableRoutine, toRoutineSummary } from "./routines.js";
+import { buildGetMealHistoryTool } from "./meal-history.js";
+import { buildGetExerciseHistoryTool } from "./exercise-history.js";
+
+export { buildGetMealHistoryTool } from "./meal-history.js";
+export { buildGetExerciseHistoryTool } from "./exercise-history.js";
 
 const MAX_DAYS_BACK = 28;
 const DEFAULT_DAYS_BACK = 7;
@@ -450,7 +456,7 @@ export const buildGetRecentWorkoutsTool = (
   return {
     name: "get_recent_workouts",
     description:
-      "Return daily aggregates of completed workouts and total sets within the last days_back days (1..28). Excludes notes and free text.",
+      "Return training activity (completed workouts, session names, duration, and set counts) within the last days_back days (1..28).",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -492,6 +498,24 @@ export const buildGetRecentWorkoutsTool = (
       const dailyWorkouts = [...dailyCounts.entries()]
         .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
         .map(([day, count]) => ({ day, completedCount: count }));
+
+      const recentCompletedWorkouts = workouts
+        .filter((w) => w.completedAt !== null)
+        .slice(0, 20)
+        .map((w) => ({
+          id: w.id,
+          name: w.name,
+          startedAt: w.startedAt.toISOString(),
+          completedAt: (w.completedAt as Date).toISOString(),
+          durationMinutes: Math.max(
+            0,
+            Math.round(
+              ((w.completedAt as Date).getTime() - w.startedAt.getTime()) /
+                60_000,
+            ),
+          ),
+        }));
+
       return {
         kind: "training",
         label: "Confirmed training in the window",
@@ -506,6 +530,69 @@ export const buildGetRecentWorkoutsTool = (
           totalWorkouts: workouts.length,
           totalSets,
           dailyWorkouts,
+          recentCompletedWorkouts,
+        },
+      } satisfies AgentGroundingItem;
+    },
+  };
+};
+
+/**
+ * Tool: get_available_routines(routine_name)
+ *
+ * Returns the user's saved/available workout routines and planned sessions
+ * (uncompleted workouts with planned exercises in details).
+ */
+export const buildGetAvailableRoutinesTool = (
+  deps: CoachToolDeps,
+): AgentTool<{ routine_name?: string | undefined }> => {
+  return {
+    name: "get_available_routines",
+    description:
+      "Retrieve the user's saved or available workout routines and planned exercise sessions (e.g. Push, Pull, Legs, Upper, Lower), including exercise names, target sets, reps, target loads, and rest periods.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        routine_name: {
+          type: "string",
+          description:
+            "Optional case-insensitive routine name to filter by (e.g. 'Push 1', 'Upper', 'Legs'). If omitted, all available routines are returned.",
+        },
+      },
+    },
+    execute: async ({ principalUserId, args, accessToken, clock }) => {
+      const now = resolveClock(deps, clock).now();
+      const workouts = await deps.workoutRepository.list(principalUserId, {
+        from: null,
+        to: null,
+        limit: 50,
+        accessToken,
+      });
+
+      const filterName =
+        typeof args === "object" &&
+        args !== null &&
+        typeof (args as { routine_name?: unknown }).routine_name === "string"
+          ? (args as { routine_name: string }).routine_name.trim().toLowerCase()
+          : null;
+
+      let routines = workouts.filter(isAvailableRoutine).map(toRoutineSummary);
+
+      if (filterName !== null && filterName.length > 0) {
+        routines = routines.filter((r) =>
+          r.name.toLowerCase().includes(filterName),
+        );
+      }
+
+      return {
+        kind: "training",
+        label: "User's saved workout routines in Available Routines",
+        confirmed: true,
+        freshness: freshnessOf(now),
+        data: {
+          routineCount: routines.length,
+          routines,
         },
       } satisfies AgentGroundingItem;
     },
@@ -526,7 +613,7 @@ export const buildGetRecentMeasurementsTool = (
   return {
     name: "get_recent_measurements",
     description:
-      "Return daily weight measurements (canonical kilograms) within the last days_back days (1..28). Excludes notes and free text.",
+      "Return daily weight (canonical kilograms) and body circumference measurements (waist, chest, hips in cm) within the last days_back days (1..28). Excludes notes and free text.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -549,16 +636,60 @@ export const buildGetRecentMeasurementsTool = (
         principalUserId,
         { from, to: now, limit: 100, accessToken },
       );
+
+      const isPositiveCm = (v: unknown): v is number =>
+        typeof v === "number" && Number.isFinite(v) && v > 0;
+
+      const extractCircumferences = (
+        raw: Readonly<Record<string, unknown>> | undefined,
+      ) => {
+        if (!raw || typeof raw !== "object") return null;
+        const waist = raw.waist_cm ?? raw.waistCm;
+        const chest = raw.chest_cm ?? raw.chestCm;
+        const hips = raw.hips_cm ?? raw.hipsCm;
+        const neck = raw.neck_cm ?? raw.neckCm;
+        const biceps = raw.biceps_cm ?? raw.bicepsCm;
+        const thighs = raw.thighs_cm ?? raw.thighsCm;
+        const hasAny = [waist, chest, hips, neck, biceps, thighs].some(
+          isPositiveCm,
+        );
+        if (!hasAny) return null;
+        return {
+          waistCm: isPositiveCm(waist) ? waist : null,
+          chestCm: isPositiveCm(chest) ? chest : null,
+          hipsCm: isPositiveCm(hips) ? hips : null,
+          neckCm: isPositiveCm(neck) ? neck : null,
+          bicepsCm: isPositiveCm(biceps) ? biceps : null,
+          thighsCm: isPositiveCm(thighs) ? thighs : null,
+        };
+      };
+
       const daily = measurements
-        .filter((m) => typeof m.weightKg === "number")
+        .filter(
+          (m) =>
+            typeof m.weightKg === "number" ||
+            extractCircumferences(m.measurements) !== null,
+        )
         .map((m) => ({
           day: dayIso(m.measuredAt),
           weightKg: m.weightKg,
+          circumferences: extractCircumferences(m.measurements),
         }));
+
+      const latestWithCircumferences = measurements.find(
+        (m) => extractCircumferences(m.measurements) !== null,
+      );
+      const latestCircumferences = latestWithCircumferences
+        ? {
+            measuredAt: latestWithCircumferences.measuredAt.toISOString(),
+            ...extractCircumferences(latestWithCircumferences.measurements)!,
+          }
+        : null;
+
       const summary = summariseWeightTrend(measurements);
       return {
         kind: "body",
-        label: "Confirmed weight measurements in the window",
+        label: "Confirmed weight and circumference measurements in the window",
         confirmed: true,
         freshness: freshnessOf(now),
         data: {
@@ -570,6 +701,7 @@ export const buildGetRecentMeasurementsTool = (
           smoothedWeightKg: summary.smoothedWeightKg,
           weeklyChangeKg: summary.weeklyChangeKg,
           status: summary.status,
+          latestCircumferences,
           measurements: daily,
         },
       } satisfies AgentGroundingItem;
@@ -1484,8 +1616,11 @@ export const buildCoachToolRegistry = (
   createAgentToolRegistryFromList([
     buildGetActiveGoalTool(deps),
     buildGetRecentWorkoutsTool(deps),
+    buildGetAvailableRoutinesTool(deps),
     buildGetRecentMeasurementsTool(deps),
     buildGetRecentFoodEntriesTool(deps),
+    buildGetMealHistoryTool(deps),
+    buildGetExerciseHistoryTool(deps),
     buildComputeEnergyTool(deps),
     buildGetCoachingPlanTool(deps),
     buildGetTrainingPrescriptionTool(deps),

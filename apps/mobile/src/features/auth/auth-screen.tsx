@@ -1,6 +1,8 @@
 import { parseDeepLinkFragment } from "@mizyun/identity";
+import * as AppleAuthentication from "expo-apple-authentication";
+import * as Crypto from "expo-crypto";
 import * as WebBrowser from "expo-web-browser";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -35,8 +37,24 @@ export function AuthScreen() {
   const [message, setMessage] = useState<string>();
   const [emailBusy, setEmailBusy] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
+  const [appleBusy, setAppleBusy] = useState(false);
+  const [isAppleAuthAvailable, setIsAppleAuthAvailable] = useState(false);
 
-  const busy = emailBusy || googleBusy || resendBusy;
+  const busy = emailBusy || googleBusy || appleBusy || resendBusy;
+
+  useEffect(() => {
+    let isMounted = true;
+    AppleAuthentication.isAvailableAsync()
+      .then((available) => {
+        if (isMounted) setIsAppleAuthAvailable(available);
+      })
+      .catch(() => {
+        if (isMounted) setIsAppleAuthAvailable(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const submit = async () => {
     setEmailBusy(true);
@@ -102,6 +120,46 @@ export function AuthScreen() {
       setMessage(authErrorMessage("oauth", error));
     } finally {
       setGoogleBusy(false);
+    }
+  };
+
+  const submitAppleAuth = async () => {
+    setAppleBusy(true);
+    setMessage(undefined);
+    try {
+      const rawNonce = Crypto.randomUUID();
+      const hashedNonce = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        rawNonce,
+      );
+
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+        nonce: hashedNonce,
+      });
+
+      if (!credential.identityToken) {
+        throw new Error("Apple Sign In failed to return an identity token.");
+      }
+
+      await authClient.signInWithIdToken({
+        provider: "apple",
+        token: credential.identityToken,
+        nonce: rawNonce,
+      });
+    } catch (error: any) {
+      if (
+        error?.code === "ERR_REQUEST_CANCELED" ||
+        error?.code === "ERR_CANCELED"
+      ) {
+        return;
+      }
+      setMessage(authErrorMessage("apple", error));
+    } finally {
+      setAppleBusy(false);
     }
   };
 
@@ -185,8 +243,28 @@ export function AuthScreen() {
       <Text style={styles.eyebrow}>YOUR PRIVATE FITNESS SPACE</Text>
       <Text style={styles.title}>{title}</Text>
 
-      {mode !== "forgot" && Platform.OS !== "ios" ? (
+      {mode !== "forgot" && (isAppleAuthAvailable || Platform.OS !== "ios") ? (
         <>
+          {isAppleAuthAvailable ? (
+            appleBusy ? (
+              <View style={[styles.appleButton, styles.appleButtonLoading]}>
+                <ActivityIndicator color="#ffffff" />
+              </View>
+            ) : (
+              <AppleAuthentication.AppleAuthenticationButton
+                buttonType={
+                  AppleAuthentication.AppleAuthenticationButtonType.CONTINUE
+                }
+                buttonStyle={
+                  AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
+                }
+                cornerRadius={14}
+                style={styles.appleButton}
+                onPress={submitAppleAuth}
+              />
+            )
+          ) : null}
+
           <Pressable
             accessibilityLabel="Continue with Google"
             accessibilityRole="button"
@@ -329,6 +407,17 @@ const styles = StyleSheet.create({
     color: "#51705d",
   },
   title: { fontSize: 34, fontWeight: "700", color: "#132019", marginBottom: 8 },
+  appleButton: {
+    width: "100%",
+    height: 52,
+    marginTop: 4,
+  },
+  appleButtonLoading: {
+    borderRadius: 14,
+    backgroundColor: "#000000",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   googleButton: {
     minHeight: 52,
     borderRadius: 14,

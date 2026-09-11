@@ -50,7 +50,7 @@ export class FoodDraftRateLimiter {
     this.#clock = options.clock ?? Date.now;
     this.#freePerMinute = options.freePerMinute ?? 1;
     this.#paidPerMinute = options.paidPerMinute ?? 3;
-    this.#freePerDay = options.freePerDay ?? 20;
+    this.#freePerDay = options.freePerDay ?? 5;
     this.#paidPerDay = options.paidPerDay ?? 100;
   }
 

@@ -35,6 +35,7 @@ import { GoalSettingsCard } from "./goal-settings-card";
 import { MemoryControlsCard } from "./memory-controls-card";
 import { PasswordSecurityCard } from "./password-security-card";
 import { ProfileSettingsCard } from "./profile-settings-card";
+import { AiUsageCard } from "./ai-usage-card";
 import {
   applyCoachReminders,
   loadCoachReminders,
@@ -250,11 +251,19 @@ export function SettingsScreen() {
 
           {/* Quick Status Pill Badges */}
           <View style={styles.heroBadgesRow}>
-            <View style={[styles.heroPill, styles.betaPill]}>
-              <ThemedText type="smallBold" style={styles.betaPillText}>
-                ✨ Beta Pro Pass
-              </ThemedText>
-            </View>
+            {profile?.planTier === "paid" ? (
+              <View style={[styles.heroPill, styles.betaPill]}>
+                <ThemedText type="smallBold" style={styles.betaPillText}>
+                  ✨ Beta Pro Pass
+                </ThemedText>
+              </View>
+            ) : (
+              <View style={styles.heroPill}>
+                <ThemedText type="smallBold" style={styles.heroPillText}>
+                  🌱 Free Plan
+                </ThemedText>
+              </View>
+            )}
             <View style={styles.heroPill}>
               <ThemedText type="smallBold" style={styles.heroPillText}>
                 📏 {unitSystemDisplay}
@@ -547,6 +556,8 @@ export function SettingsScreen() {
               </ThemedText>
             </View>
 
+            <AiUsageCard />
+
             {profile !== null ? (
               <CollapsibleSection
                 id="coachPrefs"
@@ -649,7 +660,9 @@ export function SettingsScreen() {
               subtitle={
                 session?.user?.provider === "google"
                   ? "Google Account · Managed via Google"
-                  : "Email & Password · Reset or change password"
+                  : session?.user?.provider === "apple"
+                    ? "Apple ID · Managed via Apple"
+                    : "Email & Password · Reset or change password"
               }
               isOpen={!!openSections.security}
               onToggle={() => toggleSection("security")}

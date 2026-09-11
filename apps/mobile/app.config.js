@@ -248,6 +248,8 @@ const baseIos = baseExpo.ios;
 const baseAndroid = baseExpo.android;
 const disableIosPushNotifications =
   variantName === "dev" || process.env.MIZYUN_IOS_DISABLE_PUSH === "1";
+const enableIosAppleAuth = process.env.MIZYUN_ENABLE_APPLE_AUTH === "1";
+
 const plugins = [
   ...(disableIosPushNotifications
     ? [
@@ -258,6 +260,7 @@ const plugins = [
         "./plugins/without-ios-push-notifications",
       ]
     : baseExpo.plugins),
+  ...(enableIosAppleAuth ? ["expo-apple-authentication"] : []),
   "./plugins/with-android-release-signing",
 ];
 
@@ -276,6 +279,7 @@ module.exports = {
     ios: {
       ...baseIos,
       bundleIdentifier: variant.iosBundleIdentifier,
+      usesAppleSignIn: enableIosAppleAuth,
     },
     android: {
       ...baseAndroid,

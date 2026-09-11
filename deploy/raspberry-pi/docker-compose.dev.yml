@@ -74,6 +74,7 @@ services:
       GOTRUE_MAILER_AUTOCONFIRM: ${ENABLE_EMAIL_AUTOCONFIRM:-true}
       GOTRUE_EXTERNAL_PHONE_ENABLED: "false"
       GOTRUE_EXTERNAL_GOOGLE_ENABLED: "false"
+      GOTRUE_EXTERNAL_APPLE_ENABLED: ${ENABLE_APPLE_SIGNIN:-false}
 
   rest:
     container_name: mizyun-dev-rest

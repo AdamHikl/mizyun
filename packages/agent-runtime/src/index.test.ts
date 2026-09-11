@@ -4,6 +4,7 @@ import {
   AgentOrchestrator,
   AgentToolBudgetExceededError,
   COACH_SAFETY_DATASET_VERSION,
+  COACH_SYSTEM_POLICY,
   DisabledAgentProvider,
   coachSafetyEvaluationCases,
   createAgentToolRegistryFromList,
@@ -581,5 +582,67 @@ describe("extractAssistantText", () => {
         JSON.stringify({ unknown_field: 42, random_data: true }),
       ),
     ).toBeNull();
+  });
+});
+
+describe("COACH_SYSTEM_POLICY — in-app navigation and remaining nutrition guidance", () => {
+  it("includes canonical guidance for all 5 primary bottom navigation tabs", () => {
+    expect(COACH_SYSTEM_POLICY).toContain("'Home' tab");
+    expect(COACH_SYSTEM_POLICY).toContain("'Workouts' tab");
+    expect(COACH_SYSTEM_POLICY).toContain("'Meals' tab");
+    expect(COACH_SYSTEM_POLICY).toContain("'Coach' tab");
+    expect(COACH_SYSTEM_POLICY).toContain("'Account' tab");
+  });
+
+  it("guides in-app feature discovery and prohibits hallucinated UI elements", () => {
+    expect(COACH_SYSTEM_POLICY).toContain(
+      "using or navigating the Mizyun app itself",
+    );
+    expect(COACH_SYSTEM_POLICY).toContain(
+      "NEVER hallucinate non-existent navigation elements",
+    );
+    expect(COACH_SYSTEM_POLICY).toContain("hamburger menus");
+  });
+
+  it("guides remaining calories and protein from confirmed nutrition grounding", () => {
+    expect(COACH_SYSTEM_POLICY).toContain("remaining calories");
+    expect(COACH_SYSTEM_POLICY).toContain("remaining protein");
+    expect(COACH_SYSTEM_POLICY).toContain("kind: 'nutrition'");
+    expect(COACH_SYSTEM_POLICY).toContain("daily target calories");
+  });
+
+  it("guides itemized meal lookups and meal history tool usage", () => {
+    expect(COACH_SYSTEM_POLICY).toContain("loggedMealsToday");
+    expect(COACH_SYSTEM_POLICY).toContain("get_meal_history");
+  });
+
+  it("guides exercise performance history, PR lookups, and progressive overload", () => {
+    expect(COACH_SYSTEM_POLICY).toContain("get_exercise_history");
+    expect(COACH_SYSTEM_POLICY).toContain("personal records (PRs)");
+    expect(COACH_SYSTEM_POLICY).toContain("progressive overload");
+  });
+
+  it("guides body measurements, waist progress, and body recomposition", () => {
+    expect(COACH_SYSTEM_POLICY).toContain("latestCircumferences");
+    expect(COACH_SYSTEM_POLICY).toContain("get_recent_measurements");
+    expect(COACH_SYSTEM_POLICY).toContain("body recomposition");
+    expect(COACH_SYSTEM_POLICY).toContain("waist circumferences decreasing");
+  });
+
+  it("guides completed workout session history and duration", () => {
+    expect(COACH_SYSTEM_POLICY).toContain("recentCompletedWorkouts");
+    expect(COACH_SYSTEM_POLICY).toContain("get_recent_workouts");
+    expect(COACH_SYSTEM_POLICY).toContain(
+      "workout history or completed sessions",
+    );
+  });
+
+  it("preserves workout planning, routine review, and safety constraints", () => {
+    expect(COACH_SYSTEM_POLICY).toContain("propose_workout_plan");
+    expect(COACH_SYSTEM_POLICY).toContain("availableRoutines");
+    expect(COACH_SYSTEM_POLICY).toContain("Never diagnose");
+    expect(COACH_SYSTEM_POLICY).toContain(
+      "format your final answer as a JSON object",
+    );
   });
 });

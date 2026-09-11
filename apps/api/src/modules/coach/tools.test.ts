@@ -18,6 +18,7 @@ import {
   buildCoachToolRegistry,
   buildComputeEnergyTool,
   buildGetActiveGoalTool,
+  buildGetAvailableRoutinesTool,
   buildGetRecentFoodEntriesTool,
   buildGetRecentMeasurementsTool,
   buildGetRecentWorkoutsTool,
@@ -53,15 +54,18 @@ const buildDeps = () => {
 };
 
 describe("CoachTools — registry", () => {
-  it("exposes the nine expected tool names", () => {
+  it("exposes the 12 expected tool names", () => {
     const deps = buildDeps();
     const registry = buildCoachToolRegistry(deps);
     const names = registry.list().map((tool) => tool.name);
     expect(names).toEqual([
       "get_active_goal",
       "get_recent_workouts",
+      "get_available_routines",
       "get_recent_measurements",
       "get_recent_food_entries",
+      "get_meal_history",
+      "get_exercise_history",
       "compute_energy",
       "get_coaching_plan",
       "get_training_prescription",
@@ -458,9 +462,107 @@ describe("CoachTools — get_recent_workouts", () => {
       totalSets: 0,
     });
   });
+
+  it("returns recentCompletedWorkouts with names, timestamps, and duration", async () => {
+    const deps = buildDeps();
+    deps.workoutRepository.__seedForTest({
+      id: "w-push-1",
+      userId,
+      name: "Push Session A",
+      startedAt: new Date("2026-07-22T08:00:00Z"),
+      completedAt: new Date("2026-07-22T09:15:00Z"),
+      notes: null,
+      source: "manual",
+      details: {},
+      createdAt: new Date("2026-07-22T08:00:00Z"),
+      updatedAt: new Date("2026-07-22T09:15:00Z"),
+    });
+    const tool = buildGetRecentWorkoutsTool(deps);
+    const evidence = await tool.execute({
+      principalUserId: userId,
+      args: { days_back: 7 },
+      accessToken: "token",
+      clock: { now: clock },
+    });
+    const data = evidence.data as Record<string, unknown>;
+    expect(data.completedWorkouts).toBe(1);
+    expect(data.recentCompletedWorkouts).toEqual([
+      expect.objectContaining({
+        id: "w-push-1",
+        name: "Push Session A",
+        startedAt: "2026-07-22T08:00:00.000Z",
+        completedAt: "2026-07-22T09:15:00.000Z",
+        durationMinutes: 75,
+      }),
+    ]);
+  });
+
+  it("truncates recentCompletedWorkouts at 20 items max", async () => {
+    const deps = buildDeps();
+    for (let i = 0; i < 25; i++) {
+      deps.workoutRepository.__seedForTest({
+        id: `w-bulk-${i}`,
+        userId,
+        name: `Workout ${i}`,
+        startedAt: new Date(
+          `2026-07-${String(1 + (i % 20)).padStart(2, "0")}T08:00:00Z`,
+        ),
+        completedAt: new Date(
+          `2026-07-${String(1 + (i % 20)).padStart(2, "0")}T09:00:00Z`,
+        ),
+        source: "manual",
+        notes: null,
+        details: {},
+        createdAt: new Date("2026-07-01T00:00:00Z"),
+        updatedAt: new Date("2026-07-01T00:00:00Z"),
+      });
+    }
+    const tool = buildGetRecentWorkoutsTool(deps);
+    const evidence = await tool.execute({
+      principalUserId: userId,
+      args: { days_back: 28 },
+      accessToken: "token",
+      clock: { now: clock },
+    });
+    const data = evidence.data as Record<string, unknown>;
+    expect(data.completedWorkouts).toBe(25);
+    expect((data.recentCompletedWorkouts as unknown[]).length).toBe(20);
+  });
 });
 
 describe("CoachTools — get_recent_measurements", () => {
+  it("scopes measurements to the principal user", async () => {
+    const deps = buildDeps();
+    deps.bodyMeasurementRepository.__seedForTest({
+      id: "00000000-0000-4000-8000-0000000000m1",
+      userId,
+      measuredAt: new Date("2026-07-22T08:00:00Z"),
+      weightKg: 80,
+      measurements: {},
+      source: "manual",
+      createdAt: new Date("2026-07-22T08:00:00Z"),
+    });
+    deps.bodyMeasurementRepository.__seedForTest({
+      id: "00000000-0000-4000-8000-0000000000m2",
+      userId: otherUserId,
+      measuredAt: new Date("2026-07-22T08:00:00Z"),
+      weightKg: 95,
+      measurements: { waist_cm: 90 },
+      source: "manual",
+      createdAt: new Date("2026-07-22T08:00:00Z"),
+    });
+    const tool = buildGetRecentMeasurementsTool(deps);
+    const evidence = await tool.execute({
+      principalUserId: userId,
+      args: { days_back: 7 },
+      accessToken: "token",
+      clock: { now: clock },
+    });
+    const data = evidence.data as Record<string, unknown>;
+    expect(data.observationCount).toBe(1);
+    expect(data.latestWeightKg).toBe(80);
+    expect(data.latestCircumferences).toBeNull();
+  });
   it("returns summary + raw daily weights", async () => {
     const deps = buildDeps();
     deps.bodyMeasurementRepository.__seedForTest({
@@ -483,6 +585,53 @@ describe("CoachTools — get_recent_measurements", () => {
       observationCount: 1,
       latestWeightKg: 80,
       measurements: [{ day: "2026-07-22", weightKg: 80 }],
+    });
+  });
+
+  it("returns circumferences and latestCircumferences when tape measurements are logged", async () => {
+    const deps = buildDeps();
+    deps.bodyMeasurementRepository.__seedForTest({
+      id: "00000000-0000-4000-8000-0000000000m1",
+      userId,
+      measuredAt: new Date("2026-07-22T08:00:00Z"),
+      weightKg: 82,
+      measurements: {
+        waist_cm: 84,
+        chest_cm: 106,
+        hips_cm: 100,
+      },
+      source: "manual",
+      createdAt: new Date("2026-07-22T08:00:00Z"),
+    });
+    const tool = buildGetRecentMeasurementsTool(deps);
+    const evidence = await tool.execute({
+      principalUserId: userId,
+      args: { days_back: 7 },
+      accessToken: "token",
+      clock: { now: clock },
+    });
+    expect(evidence.data).toMatchObject({
+      observationCount: 1,
+      latestWeightKg: 82,
+      latestCircumferences: {
+        waistCm: 84,
+        chestCm: 106,
+        hipsCm: 100,
+      },
+      measurements: [
+        {
+          day: "2026-07-22",
+          weightKg: 82,
+          circumferences: {
+            waistCm: 84,
+            chestCm: 106,
+            hipsCm: 100,
+            neckCm: null,
+            bicepsCm: null,
+            thighsCm: null,
+          },
+        },
+      ],
     });
   });
 });
@@ -694,5 +843,155 @@ describe("CoachTools — propose_workout_plan", () => {
     expect(
       data.actionProposal.sessions[1]?.exercises[1]?.name.toLowerCase(),
     ).toContain("curl");
+  });
+});
+
+describe("CoachTools — get_available_routines", () => {
+  it("returns empty list when user has no workouts", async () => {
+    const deps = buildDeps();
+    const evidence = await buildGetAvailableRoutinesTool(deps).execute({
+      principalUserId: userId,
+      args: {},
+      accessToken: "token",
+      clock: { now: clock },
+    });
+
+    expect(evidence.kind).toBe("training");
+    expect(evidence.data).toEqual({
+      routineCount: 0,
+      routines: [],
+    });
+  });
+
+  it("returns uncompleted workouts with exercises as available routines", async () => {
+    const deps = buildDeps();
+    // 1. Uncompleted routine with coachPlan
+    deps.workoutRepository.__seedForTest({
+      id: "routine-1",
+      userId,
+      name: "Push 1",
+      startedAt: new Date("2026-07-20T10:00:00.000Z"),
+      completedAt: null,
+      notes: null,
+      source: "manual",
+      details: {
+        coachPlan: {
+          exercises: [
+            {
+              name: "Standing Barbell Press Behind Neck",
+              sets: 4,
+              repsMin: 4,
+              repsMax: 6,
+              targetLoad: "50kg",
+              restSeconds: 90,
+              movementPattern: "vertical_push",
+            },
+            {
+              name: "Dips - Chest Version",
+              sets: 3,
+              repsMin: 5,
+              repsMax: 8,
+              targetLoad: "25kg",
+              restSeconds: 90,
+              movementPattern: "horizontal_push",
+            },
+          ],
+        },
+      },
+      createdAt: new Date("2026-07-20T10:00:00.000Z"),
+      updatedAt: new Date("2026-07-20T10:00:00.000Z"),
+    });
+
+    // 2. Completed workout (should NOT appear in available routines)
+    deps.workoutRepository.__seedForTest({
+      id: "workout-completed",
+      userId,
+      name: "Old Push Session",
+      startedAt: new Date("2026-07-15T10:00:00.000Z"),
+      completedAt: new Date("2026-07-15T11:00:00.000Z"),
+      notes: null,
+      source: "manual",
+      details: {
+        coachPlan: {
+          exercises: [
+            { name: "Bench Press", sets: 3, repsMin: 8, repsMax: 10 },
+          ],
+        },
+      },
+      createdAt: new Date("2026-07-15T10:00:00.000Z"),
+      updatedAt: new Date("2026-07-15T11:00:00.000Z"),
+    });
+
+    // 3. Routine for another user (should NOT appear)
+    deps.workoutRepository.__seedForTest({
+      id: "routine-other-user",
+      userId: otherUserId,
+      name: "Other User Routine",
+      startedAt: new Date("2026-07-20T10:00:00.000Z"),
+      completedAt: null,
+      notes: null,
+      source: "manual",
+      details: {
+        coachPlan: {
+          exercises: [{ name: "Squats", sets: 3, repsMin: 5, repsMax: 5 }],
+        },
+      },
+      createdAt: new Date("2026-07-20T10:00:00.000Z"),
+      updatedAt: new Date("2026-07-20T10:00:00.000Z"),
+    });
+
+    const evidence = await buildGetAvailableRoutinesTool(deps).execute({
+      principalUserId: userId,
+      args: {},
+      accessToken: "token",
+      clock: { now: clock },
+    });
+
+    expect(evidence.kind).toBe("training");
+    const data = evidence.data as {
+      routineCount: number;
+      routines: Array<{
+        id: string;
+        name: string;
+        exerciseCount: number;
+        exercises: Array<{
+          name: string;
+          targetSets?: number;
+          targetReps?: string;
+          targetLoad?: string;
+        }>;
+      }>;
+    };
+    expect(data.routineCount).toBe(1);
+    expect(data.routines).toHaveLength(1);
+    expect(data.routines[0]?.name).toBe("Push 1");
+    expect(data.routines[0]?.exerciseCount).toBe(2);
+    expect(data.routines[0]?.exercises[0]?.name).toBe(
+      "Standing Barbell Press Behind Neck",
+    );
+    expect(data.routines[0]?.exercises[0]?.targetSets).toBe(4);
+    expect(data.routines[0]?.exercises[0]?.targetReps).toBe("4-6");
+    expect(data.routines[0]?.exercises[0]?.targetLoad).toBe("50kg");
+
+    // Test filtering by routine_name
+    const filteredMatch = await buildGetAvailableRoutinesTool(deps).execute({
+      principalUserId: userId,
+      args: { routine_name: "push" },
+      accessToken: "token",
+      clock: { now: clock },
+    });
+    expect((filteredMatch.data as { routineCount: number }).routineCount).toBe(
+      1,
+    );
+
+    const filteredMismatch = await buildGetAvailableRoutinesTool(deps).execute({
+      principalUserId: userId,
+      args: { routine_name: "legs" },
+      accessToken: "token",
+      clock: { now: clock },
+    });
+    expect(
+      (filteredMismatch.data as { routineCount: number }).routineCount,
+    ).toBe(0);
   });
 });

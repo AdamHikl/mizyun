@@ -1,5 +1,7 @@
 # Architecture Decision Records (ADR) Index
 
+- [ADR-0024 — Self-service AI consent access](0024-self-service-ai-consent-access.md): accepted 2026-09-10; removes manual email admission while retaining authentication, consent and usage protections.
+
 > Complete register of architectural decisions for Mizyun. Completed decisions are authoritative until explicitly superseded by a later accepted ADR.
 
 | ID                                                                           | Title                                                            | Status     | Date       | Replaced by / Related                                                                                                                        | Applicability                                                               |

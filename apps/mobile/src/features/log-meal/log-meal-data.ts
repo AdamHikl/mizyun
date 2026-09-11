@@ -154,7 +154,28 @@ const humanizeDraftError = (result: Result<unknown, ApiError>): string => {
     result.error.kind === "http_error" &&
     result.error.code === "RATE_LIMITED"
   ) {
-    return "Photo drafts are limited — try again in a minute.";
+    const reason = result.error.reason;
+    if (reason === "daily_budget_exhausted") {
+      const resetAt = result.error.resetAt;
+      if (resetAt) {
+        const resetDate = new Date(resetAt);
+        const hours = Math.max(
+          0,
+          Math.ceil((resetDate.getTime() - Date.now()) / 3600000),
+        );
+        return `Daily photo scan limit reached. Resets in ~${hours}h.`;
+      }
+      return "Daily photo scan limit reached. Resets at midnight UTC.";
+    }
+    if (reason === "concurrent_in_flight") {
+      return "A photo is already being analyzed. Please wait.";
+    }
+    // minute_rate_limit or unknown
+    const retryAfter = result.error.retryAfterSeconds;
+    if (retryAfter && retryAfter > 0) {
+      return `Scanning too fast — wait ${retryAfter}s.`;
+    }
+    return "Photo scans are limited — try again in a minute.";
   }
   if (result.error.kind === "network_error") {
     return "Can't reach the server — type the meal by hand.";
@@ -181,6 +202,17 @@ const humanizeRefineError = (result: Result<unknown, ApiError>): string => {
     result.error.kind === "http_error" &&
     result.error.code === "RATE_LIMITED"
   ) {
+    const reason = result.error.reason;
+    if (reason === "daily_budget_exhausted") {
+      return "Daily AI limit reached. Try again tomorrow.";
+    }
+    if (reason === "concurrent_in_flight") {
+      return "Already refining — please wait.";
+    }
+    const retryAfter = result.error.retryAfterSeconds;
+    if (retryAfter && retryAfter > 0) {
+      return `Refine limited — wait ${retryAfter}s.`;
+    }
     return "Refine is limited — try again in a minute.";
   }
   if (result.error.kind === "network_error") {

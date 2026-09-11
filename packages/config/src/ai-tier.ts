@@ -13,22 +13,33 @@ export type AiPlanTier = "free" | "paid";
 
 export interface AiTierCaps {
   readonly tier: AiPlanTier;
+  /** Coach chat daily token budget. */
   readonly dailyTokenBudget: number;
+  readonly coachDailyTokenBudget: number;
+  /** Photo meal draft daily count limit (separated from Coach chat). */
+  readonly photoDraftDailyLimit: number;
   readonly requestsPerMinute: number;
+  readonly draftRequestsPerMinute: number;
   readonly maxConcurrentRequests: number;
 }
 
 export const AI_TIER_CAPS: Readonly<Record<AiPlanTier, AiTierCaps>> = {
   free: {
     tier: "free",
-    dailyTokenBudget: 5_000,
+    dailyTokenBudget: 10_000,
+    coachDailyTokenBudget: 10_000,
+    photoDraftDailyLimit: 5,
     requestsPerMinute: 3,
+    draftRequestsPerMinute: 1,
     maxConcurrentRequests: 1,
   },
   paid: {
     tier: "paid",
     dailyTokenBudget: 100_000,
+    coachDailyTokenBudget: 100_000,
+    photoDraftDailyLimit: 100,
     requestsPerMinute: 6,
+    draftRequestsPerMinute: 3,
     maxConcurrentRequests: 1,
   },
 };

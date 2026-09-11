@@ -76,6 +76,7 @@ const PREVIEW_PROFILE: Profile = {
   birthYear: 1995,
   sexAtBirth: "male",
   activityLevel: "moderately_active",
+  planTier: "paid",
   aiProvider: "gemini",
   coachingPreferences: {
     experienceLevel: "intermediate",

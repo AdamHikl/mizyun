@@ -17,6 +17,7 @@ import {
   type AuthSession,
   type AuthStateListener,
   type DeepLinkPayload,
+  type IdTokenCredentials,
   type OAuthSignInOptions,
   type OAuthSignInResult,
   type PasswordCredentials,
@@ -157,6 +158,28 @@ export class SupabaseMobileAuthClient implements AuthClient {
       );
     }
     return { url: data.url };
+  }
+
+  async signInWithIdToken(
+    credentials: IdTokenCredentials,
+  ): Promise<AuthSession> {
+    const { data, error } = await this.client.auth.signInWithIdToken({
+      provider: credentials.provider,
+      token: credentials.token,
+      ...(credentials.nonce ? { nonce: credentials.nonce } : {}),
+      ...(credentials.accessToken
+        ? { access_token: credentials.accessToken }
+        : {}),
+    });
+    if (error) throw asIdentityError(error);
+    const session = toAuthSession(data.session);
+    if (!session) {
+      throw new IdentityError(
+        "AUTH_SESSION_MISSING",
+        "Sign-in returned no session.",
+      );
+    }
+    return session;
   }
 
   async signOut(): Promise<void> {

@@ -1,5 +1,65 @@
 # Mizyun current status
 
+## Latest handoff — Decoupled AI Budgets & Beta Pro Pass Flow (`AI-BUDGET-001` & `BETA-PRO-001`) (2026-09-11)
+
+- Decoupled AI Budgets: Separated Coach Chat token budget from Photo Meal Draft limits. Photo drafts are now tracked via count-based quota (5 free / 100 paid per day), while Coach Chat retains token-based tracking (10k free / 100k paid tokens per day). Configured in `packages/config/src/ai-tier.ts`.
+- Database Migration: Created `supabase/migrations/20260910220000_separate_ai_draft_budget_and_beta_requests.sql` with `ai_daily_draft_ledger`, RPCs (`ai_reserve_draft`, `ai_commit_draft`), `beta_pro_requests` table with RLS, and admin approval trigger `trg_beta_pro_approval` promoting `profiles.plan_tier` to `paid`.
+- API & Limiter:
+  - Updated `apps/api/src/modules/coach/limits.ts` with `getAiUsage` and count-based draft slot reservations for both Supabase and InMemory services.
+  - Updated `apps/api/src/modules/food-entries/draft-route.ts` and `apps/api/src/modules/coach/routes.ts` with rich 429 response bodies providing `reason` (`minute_rate_limit`, `daily_budget_exhausted`, `concurrent_in_flight`), `retryAfterSeconds`, and `resetAt`.
+  - Added `GET /v1/ai/usage` in `apps/api/src/modules/coach/ai-usage-routes.ts`.
+  - Added `GET /v1/beta-pro/status` and `POST /v1/beta-pro/request` in `apps/api/src/modules/account/beta-pro-routes.ts`.
+- Mobile App & Client:
+  - Extended `@mizyun/api-client` error parser with `reason`, `retryAfterSeconds`, and `resetAt`.
+  - Updated `apps/mobile/src/features/log-meal/log-meal-data.ts` and `coach-data.ts` to show humanized recovery messages with hours until midnight reset or seconds until rate limit window clears.
+  - Added `AiUsageCard` in `apps/mobile/src/features/settings/ai-usage-card.tsx` displaying Coach chat and photo scan progress bars, dynamic tier badge ("✨ Beta Pro Pass" / "🌱 Free Plan"), and Beta Pro request button with push token capture.
+  - Added photo quota badge in `apps/mobile/src/features/log-meal/log-meal-screen.tsx`.
+- Admin CLI: Created `scripts/manage-beta-pro.mjs` for `--list`, `--approve <id|email>`, and `--reject <id|email>` with Expo push notification dispatch.
+- Verification: Full repository quality gate `pnpm check` passed cleanly (exit 0) — all unit/integration tests, Hermes mobile bundling, build matrix, and AI evaluation invariants green.
+- Next exact action: Push commit to remote, deploy to Dev (`pnpm deploy:dev`) and Production (`pnpm deploy:production`), and install updated iOS apps on user's iPhone.
+
+## Prior handoff — Body Circumferences & Completed Workout History (`AI-BODY-001` & `AI-WORKOUT-001`) (2026-09-10)
+
+- Implemented `AI-BODY-001`: In `apps/api/src/modules/coach/grounding.ts`, extracted and surfaced `latestCircumferences` (waist, chest, hips in cm) under static `kind: "body"` grounding, enabling Turn-1 answers to questions like "what is my waist measurement?". Enhanced `get_recent_measurements` in `apps/api/src/modules/coach/tools.ts` to return circumferences for each observation and `latestCircumferences` across the requested window (`1..28` days), empowering the Coach to assess body recomposition (fat loss with stable weight). Added unit tests in `grounding.test.ts` (8 passed) and `tools.test.ts` (26 passed).
+- Implemented `AI-WORKOUT-001`: In `apps/api/src/modules/coach/tools.ts`, enhanced `get_recent_workouts` to return `recentCompletedWorkouts` with session names, start/completion timestamps, and duration in minutes (capped at 20 entries), empowering the Coach to answer "what workouts did I do this week?", "when was my last leg day?", and session duration lookups. Added unit tests in `tools.test.ts`.
+- Updated `COACH_SYSTEM_POLICY` in `packages/agent-runtime/src/index.ts` instructing the model on body recomposition via tape measurements and completed workout history lookups. Added invariant tests in `packages/agent-runtime/src/index.test.ts` (47 passed).
+- Verification: Full repository quality gate `pnpm check` passed cleanly (exit 0).
+- Next exact action: Push commit to remote, deploy to Dev on Pi via `pnpm deploy:dev`, and verify Coach tape measurement and workout history replies on device.
+
+## Prior handoff — Itemized Meal History & Exercise Performance Tools (`AI-FOOD-001` & `AI-LIFT-001`) (2026-09-10)
+
+- Implemented `AI-FOOD-001`: In `apps/api/src/modules/coach/grounding.ts`, added itemized today's meal summaries (`loggedMealsToday` and `today.loggedMeals`) with dish name, timestamp, calories, and macros, capped at 20 entries. Created dedicated vertical module `apps/api/src/modules/coach/meal-history.ts` exporting `buildGetMealHistoryTool` supporting date filtering (`YYYY-MM-DD`), `days_back` (clamped 1..7), keyword search, and limit (clamped 1..50, default 20) with strict `principalUserId` isolation. Added unit tests in `apps/api/src/modules/coach/meal-history.test.ts` (5 tests passing).
+- Implemented `AI-LIFT-001`: Created dedicated vertical module `apps/api/src/modules/coach/exercise-history.ts` exporting `buildGetExerciseHistoryTool`. Leverages `@mizyun/core` functions (`findCatalogExercise`, `getExerciseFromCatalog`, `recentForExercise`, and `summariseExerciseSets`) to provide exact or alias-resolved exercise details, deterministic PR metrics (best load kg, last session volume kg, total logged sets), and chronological set progression. Added unit tests in `apps/api/src/modules/coach/exercise-history.test.ts` (4 tests passing).
+- Tool Registry & Agent Policy: Registered both tools in `buildCoachToolRegistry` in `apps/api/src/modules/coach/tools.ts` (expanding registry to 12 tools). Updated `COACH_SYSTEM_POLICY` in `packages/agent-runtime/src/index.ts` instructing the model to use `get_meal_history` when answering specific meal queries and `get_exercise_history` for exercise PRs and set history. Updated unit tests in `tools.test.ts` and `index.test.ts` (45 passed).
+- Verification: Full repository quality gate `pnpm check` passed cleanly (exit 0): Prettier format check, TypeScript across all 15 packages, dual iOS/Android mobile bundles, 23 deployment safeguards, 16 build matrix invariants, 467 passing API tests, and 56 AI invariants.
+- Next exact action: Push commit to remote, deploy to Dev on Pi via `pnpm deploy:dev`, and verify Coach meal history and exercise performance replies on device.
+
+## Prior handoff — In-App Feature Guide & Deterministic Remaining Macros (`AI-APP-001` & `AI-ENERGY-001`) (2026-09-10)
+
+- Implemented `AI-APP-001`: Expanded `COACH_SYSTEM_POLICY` in `packages/agent-runtime/src/index.ts` with canonical navigation knowledge for all 5 primary native tabs (`Home`, `Workouts`, `Meals`, `Coach`, `Account`). Coach can accurately answer questions about where to find features, how features work, and how to navigate without declining or hallucinating non-existent UI (e.g. hamburger menus, external settings gears). Added unit tests in `packages/agent-runtime/src/index.test.ts` (43 passed).
+- Implemented `AI-ENERGY-001`: In `apps/api/src/modules/coach/grounding.ts`, computed daily energy breakdown and coaching plan deterministically via `@mizyun/core` (`computeEnergy` & `buildCoachingPlan`). Attached `targetCaloriesKcal`, `remainingCaloriesKcal`, `targetProteinG`, `remainingProteinG`, and `today` breakdown directly to static `kind: "nutrition"` and added `kind: "energy"` grounding item. Floors remaining calories/protein at 0 when consumed exceeds target and handles 0-meal days and missing inputs gracefully. Added comprehensive test suite in `apps/api/src/modules/coach/grounding.test.ts` (5 tests passing; 463 tests passing across 31 API test files).
+- Independent code review completed: Helper subagent reviewed diff across safety boundaries, tab navigation guide accuracy, deterministic core calculations, and module boundaries; certified **APPROVED** with zero blocking issues.
+- Verification: Full repository quality gate `pnpm check` passed cleanly (exit 0): 0 navigation errors, 27 navigation tests, Prettier format check, TypeScript across all 15 packages, dual iOS/Android mobile bundle check, 23 deployment safeguards, 16 build matrix invariants, and 56 AI invariants.
+- Next exact action: Push commit to remote, deploy to Dev on Pi via `pnpm deploy:dev`, and verify Coach navigation guidance and remaining calorie replies on device.
+
+## Prior handoff — Expose Saved Workout Routines to Coach AI (`AI-ROUTINE-001`) (2026-09-10)
+
+- Triaged production user feedback bug report #3a8bd3dc ("It can't see my workout routine" with attached chat screenshots where Coach stated it had no access to "available routines" for "Push 1").
+- Implemented `apps/api/src/modules/coach/routines.ts` and `apps/api/src/modules/coach/routines.test.ts` (19 unit tests) with helper subagent, extracting planned exercises, target sets, reps (strings, ranges, durations), and loads from `public.workouts(details)` (`coachPlan`, `aiDraft`, `workoutProposal`).
+- Exposed available routines in `kind: "training"` static grounding in `apps/api/src/modules/coach/grounding.ts` (unbounded date fetch for uncompleted workouts).
+- Implemented `get_available_routines` Coach tool in `apps/api/src/modules/coach/tools.ts` with optional name filter and comprehensive unit tests (22 tests passing in `tools.test.ts`).
+- Updated `COACH_SYSTEM_POLICY` in `packages/agent-runtime/src/index.ts` instructing the AI model to reference saved routines and deliver expert strength/hypertrophy reviews.
+- Added route integration test in `apps/api/src/modules/coach/routes.test.ts` verifying routine grounding delivery (31 tests passing in file, 458 in api). Marked feedback item as processed in feedback ledger.
+
+## Prior handoff — native Sign in with Apple & Guideline 4.8 compliance (2026-09-10)
+
+- Implemented native Sign in with Apple (`expo-apple-authentication`, `expo-crypto`, `@mizyun/identity`, `@mizyun/adapter-supabase-mobile`, `apps/mobile`) and re-enabled Google Sign-In on iOS alongside Apple Sign-In pursuant to App Store Review Guideline 4.8.
+- Cryptographic replay protection: `expo-crypto` generates random UUID nonce, SHA-256 digest is supplied to Apple, and the raw UUID is forwarded to Supabase GoTrue `signInWithIdToken` where backend verification aligns the nonce claim. Silent cancellation handling catches `ERR_REQUEST_CANCELED` without disruptive banners.
+- Capability gating: `apps/mobile/app.config.js` gates `ios.usesAppleSignIn` and the `expo-apple-authentication` plugin behind `MIZYUN_ENABLE_APPLE_AUTH === "1"` so local Personal Team builds (`PP89XZBW4U`) do not fail code signing while awaiting paid Apple Developer license confirmation.
+- Independent security & auth review: Subagent verified nonce handling, cancellation handling, capability gating, guideline compliance, provider session isolation, and error message sanitization; certified approved with zero blocking issues.
+- Verification: Full `pnpm check` passed clean (exit 0): navigation checks/tests, Prettier format, TypeScript across all 15 packages, dual-platform iOS/Android Hermes bundles, 436 API tests, 303 mobile tests, 78 config tests, deployment safeguards, build matrix, and 56 offline AI invariants.
+- Next exact action: Upon Apple Developer license confirmation, configure Apple Service ID & Private Key in Supabase Auth Dashboard, enable `MIZYUN_ENABLE_APPLE_AUTH=1` in `scripts/mobile-founder-dev-ios.sh`, and verify native Apple Sign-In on physical device.
+
 > Current operational snapshot. Last updated: **2026-09-10**.
 > For historical logs, audit entries, and prior session handoffs, see [`docs/archive/status/STATUS_HISTORY_THROUGH_2026-09-09.md`](docs/archive/status/STATUS_HISTORY_THROUGH_2026-09-09.md).
 

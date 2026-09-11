@@ -23,6 +23,9 @@ export type ApiError =
       readonly code: string;
       readonly message: string;
       readonly requestId?: string;
+      readonly reason?: string;
+      readonly retryAfterSeconds?: number;
+      readonly resetAt?: string;
     }
   | {
       readonly kind: "validation_error";

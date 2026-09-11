@@ -1,5 +1,7 @@
 import type { AgentGroundingItem } from "@mizyun/agent-runtime";
 import {
+  buildCoachingPlan,
+  computeEnergy,
   summariseFoodEntries,
   summariseWeightTrend,
   type BodyMeasurementRepository,
@@ -11,6 +13,7 @@ import {
   type WorkoutSetRepository,
 } from "@mizyun/core";
 import type { MemoryStore } from "@mizyun/memory";
+import { isAvailableRoutine, toRoutineSummary } from "./routines.js";
 
 export interface CoachGroundingDependencies {
   readonly profileRepository: ProfileRepository;
@@ -37,29 +40,41 @@ export const buildCoachGrounding = async (
   now: Date,
 ): Promise<readonly AgentGroundingItem[]> => {
   const since = new Date(now.getTime() - 28 * 86_400_000);
-  const [profile, goal, foodEntries, workouts, measurements] =
-    await Promise.all([
-      dependencies.profileRepository.getOrCreate(userId, { now, accessToken }),
-      dependencies.goalRepository.getActive(userId, { accessToken }),
-      dependencies.foodEntryRepository.list(userId, {
-        from: since,
-        to: now,
-        limit: 500,
-        accessToken,
-      }),
-      dependencies.workoutRepository.list(userId, {
-        from: since,
-        to: now,
-        limit: 100,
-        accessToken,
-      }),
-      dependencies.bodyMeasurementRepository.list(userId, {
-        from: since,
-        to: now,
-        limit: 100,
-        accessToken,
-      }),
-    ]);
+  const [
+    profile,
+    goal,
+    foodEntries,
+    workouts,
+    measurements,
+    uncompletedWorkouts,
+  ] = await Promise.all([
+    dependencies.profileRepository.getOrCreate(userId, { now, accessToken }),
+    dependencies.goalRepository.getActive(userId, { accessToken }),
+    dependencies.foodEntryRepository.list(userId, {
+      from: since,
+      to: now,
+      limit: 500,
+      accessToken,
+    }),
+    dependencies.workoutRepository.list(userId, {
+      from: since,
+      to: now,
+      limit: 100,
+      accessToken,
+    }),
+    dependencies.bodyMeasurementRepository.list(userId, {
+      from: since,
+      to: now,
+      limit: 100,
+      accessToken,
+    }),
+    dependencies.workoutRepository.list(userId, {
+      from: null,
+      to: null,
+      limit: 50,
+      accessToken,
+    }),
+  ]);
   const todayEntries = foodEntries.filter(
     (entry) => dayIso(entry.consumedAt) === dayIso(now),
   );
@@ -113,6 +128,96 @@ export const buildCoachGrounding = async (
   }
   const bodyTrend = summariseWeightTrend(measurements);
 
+  const isPositiveCm = (v: unknown): v is number =>
+    typeof v === "number" && Number.isFinite(v) && v > 0;
+
+  const extractCircumferences = (
+    raw: Readonly<Record<string, unknown>> | undefined,
+  ) => {
+    if (!raw || typeof raw !== "object") return null;
+    const waist = raw.waist_cm ?? raw.waistCm;
+    const chest = raw.chest_cm ?? raw.chestCm;
+    const hips = raw.hips_cm ?? raw.hipsCm;
+    const neck = raw.neck_cm ?? raw.neckCm;
+    const biceps = raw.biceps_cm ?? raw.bicepsCm;
+    const thighs = raw.thighs_cm ?? raw.thighsCm;
+    const hasAny = [waist, chest, hips, neck, biceps, thighs].some(
+      isPositiveCm,
+    );
+    if (!hasAny) return null;
+    return {
+      waistCm: isPositiveCm(waist) ? waist : null,
+      chestCm: isPositiveCm(chest) ? chest : null,
+      hipsCm: isPositiveCm(hips) ? hips : null,
+      neckCm: isPositiveCm(neck) ? neck : null,
+      bicepsCm: isPositiveCm(biceps) ? biceps : null,
+      thighsCm: isPositiveCm(thighs) ? thighs : null,
+    };
+  };
+
+  const latestWithCircumferences = measurements.find(
+    (m) => extractCircumferences(m.measurements) !== null,
+  );
+  const latestCircumferences = latestWithCircumferences
+    ? {
+        measuredAt: latestWithCircumferences.measuredAt.toISOString(),
+        ...extractCircumferences(latestWithCircumferences.measurements)!,
+      }
+    : null;
+
+  const availableRoutines = uncompletedWorkouts
+    .filter(isAvailableRoutine)
+    .slice(0, 10)
+    .map(toRoutineSummary);
+
+  const recentWorkoutDays = new Set(
+    workouts
+      .filter((workout) => workout.completedAt !== null)
+      .map((workout) => dayIso(workout.completedAt as Date)),
+  );
+  const energyResult = computeEnergy(
+    {
+      profile,
+      latestBodyMeasurement: measurements[0] ?? null,
+      activeGoal: goal,
+      activityLevel: profile.activityLevel,
+      sexAtBirth: profile.sexAtBirth,
+      recentWorkouts: workouts,
+      recentWorkoutsDayCount: recentWorkoutDays.size,
+      consumedKcalToday: todayNutrition?.caloriesKcal ?? null,
+      now,
+    },
+    userId,
+  );
+  const coachingPlan = buildCoachingPlan({
+    energy: energyResult.breakdown,
+    completedWorkoutsLast7Days: recentWorkouts7Days.length,
+  });
+
+  const dailyTargetKcal = coachingPlan.calorie?.targetKcal ?? null;
+  const consumedCaloriesKcal = todayNutrition?.caloriesKcal ?? null;
+  const remainingCaloriesKcal =
+    dailyTargetKcal !== null
+      ? Math.max(0, Math.round(dailyTargetKcal - (consumedCaloriesKcal ?? 0)))
+      : null;
+
+  const dailyProteinTargetG = coachingPlan.protein?.targetG ?? null;
+  const consumedProteinG = todayNutrition?.proteinG ?? null;
+  const remainingProteinG =
+    dailyProteinTargetG !== null
+      ? Math.max(0, Math.round(dailyProteinTargetG - (consumedProteinG ?? 0)))
+      : null;
+
+  const loggedMealsToday = todayEntries.slice(0, 20).map((entry) => ({
+    id: entry.id,
+    name: entry.name,
+    caloriesKcal: entry.caloriesKcal,
+    proteinG: entry.proteinG,
+    carbohydrateG: entry.carbohydrateG,
+    fatG: entry.fatG,
+    consumedAt: entry.consumedAt.toISOString(),
+  }));
+
   const items: AgentGroundingItem[] = [
     {
       kind: "profile",
@@ -128,6 +233,20 @@ export const buildCoachGrounding = async (
       },
     },
     {
+      kind: "energy",
+      label: "Deterministic daily energy target and metabolic breakdown",
+      confirmed: true,
+      freshness: now.toISOString(),
+      data: {
+        complete: energyResult.breakdown.complete,
+        bmrKcal: energyResult.breakdown.bmrKcal,
+        tdeeKcal: energyResult.breakdown.tdeeKcal,
+        dailyTargetKcal: energyResult.breakdown.dailyTargetKcal,
+        goalAdjustmentKcal: energyResult.breakdown.goalAdjustmentKcal,
+        formulaVersion: energyResult.breakdown.formulaVersion,
+      },
+    },
+    {
       kind: "nutrition",
       label: "Confirmed nutrition logged today and last 7 days",
       confirmed: true,
@@ -135,9 +254,26 @@ export const buildCoachGrounding = async (
       data: {
         entryCount: todayNutrition?.entryCount ?? 0,
         caloriesKcal: todayNutrition?.caloriesKcal ?? null,
+        targetCaloriesKcal: dailyTargetKcal,
+        remainingCaloriesKcal,
         proteinG: todayNutrition?.proteinG ?? null,
+        targetProteinG: dailyProteinTargetG,
+        remainingProteinG,
         carbohydrateG: todayNutrition?.carbohydrateG ?? null,
         fatG: todayNutrition?.fatG ?? null,
+        loggedMealsToday,
+        today: {
+          entryCount: todayNutrition?.entryCount ?? 0,
+          consumedCaloriesKcal: consumedCaloriesKcal ?? 0,
+          targetCaloriesKcal: dailyTargetKcal,
+          remainingCaloriesKcal,
+          consumedProteinG: consumedProteinG ?? 0,
+          targetProteinG: dailyProteinTargetG,
+          remainingProteinG,
+          consumedCarbohydrateG: todayNutrition?.carbohydrateG ?? null,
+          consumedFatG: todayNutrition?.fatG ?? null,
+          loggedMeals: loggedMealsToday,
+        },
         last7Days: {
           loggedDaysCount: sevenDaysNutrition.length,
           averageCaloriesKcal: avgCalories7d,
@@ -164,6 +300,7 @@ export const buildCoachGrounding = async (
             startedAt: workout.startedAt.toISOString(),
           })),
         },
+        availableRoutines,
       },
     },
     {
@@ -177,6 +314,7 @@ export const buildCoachGrounding = async (
         smoothedWeightKg: bodyTrend.smoothedWeightKg,
         weeklyChangeKg: bodyTrend.weeklyChangeKg,
         observationCount: bodyTrend.observationCount,
+        latestCircumferences,
       },
     },
   ];
