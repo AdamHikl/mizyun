@@ -1,4 +1,10 @@
-import { DarkTheme, DefaultTheme, ThemeProvider, router } from "expo-router";
+import {
+  DarkTheme,
+  DefaultTheme,
+  Stack,
+  ThemeProvider,
+  router,
+} from "expo-router";
 import * as Notifications from "expo-notifications";
 import * as SplashScreen from "expo-splash-screen";
 import { parseDeepLinkFragment } from "@mizyun/identity";
@@ -7,7 +13,6 @@ import { AppState, Linking, useColorScheme } from "react-native";
 
 import { AnimatedSplashOverlay } from "@/components/animated-icon";
 import { analyticsClient } from "@/composition/analytics-client";
-import AppTabs from "@/components/app-tabs";
 import {
   AuthProvider,
   SessionGate,
@@ -166,7 +171,43 @@ export default function TabLayout() {
         <SessionGate>
           <CoachNotificationBridge />
           <WorkoutNotificationBridge />
-          <AppTabs />
+          <Stack screenOptions={{ headerBackTitle: "Back" }}>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen
+              name="log-meal"
+              options={{ title: "Log a meal", presentation: "modal" }}
+            />
+            <Stack.Screen
+              name="log-workout"
+              options={{ title: "Log workout", presentation: "modal" }}
+            />
+            <Stack.Screen
+              name="log-weight"
+              options={{ title: "Add weight", presentation: "modal" }}
+            />
+            <Stack.Screen
+              name="edit-meal"
+              options={{ title: "Edit meal", presentation: "modal" }}
+            />
+            <Stack.Screen
+              name="feedback"
+              options={{ title: "Feedback & Reviews", presentation: "modal" }}
+            />
+            <Stack.Screen name="body" options={{ title: "Body progress" }} />
+            <Stack.Screen
+              name="energy-setup"
+              options={{ title: "Energy inputs" }}
+            />
+            <Stack.Screen
+              name="progress-photos"
+              options={{ title: "Progress photos" }}
+            />
+            <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+            <Stack.Screen
+              name="auth/callback"
+              options={{ headerShown: false }}
+            />
+          </Stack>
         </SessionGate>
       </AuthProvider>
     </ThemeProvider>

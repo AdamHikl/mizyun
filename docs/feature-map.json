@@ -27,8 +27,8 @@
         "apps/api/src/modules/food-entries/draft-route.ts"
       ],
       "ui": [
-        "apps/mobile/src/app/meals.tsx",
-        "apps/mobile/src/app/nutrition.tsx",
+        "apps/mobile/src/app/(tabs)/meals.tsx",
+        "apps/mobile/src/app/log-meal.tsx",
         "apps/mobile/src/features/log-meal/meal-form.ts",
         "apps/mobile/src/features/log-meal/log-meal-data.ts"
       ],
@@ -121,8 +121,8 @@
         "apps/api/src/modules/exercises/routes.ts"
       ],
       "ui": [
-        "apps/mobile/src/app/workouts.tsx",
-        "apps/mobile/src/app/(home)/log-workout.tsx",
+        "apps/mobile/src/app/(tabs)/workouts.tsx",
+        "apps/mobile/src/app/log-workout.tsx",
         "apps/mobile/src/features/log-workout/log-workout-data.ts",
         "apps/mobile/src/features/workouts/exercise-progression-data.ts"
       ],
@@ -213,7 +213,7 @@
         "apps/api/src/modules/energy/routes.ts"
       ],
       "ui": [
-        "apps/mobile/src/app/(home)/index.tsx",
+        "apps/mobile/src/app/(tabs)/index.tsx",
         "apps/mobile/src/features/dashboard/dashboard-screen.tsx",
         "apps/mobile/src/features/dashboard/dashboard-data.ts",
         "apps/mobile/src/features/onboarding/onboarding-state.ts",
@@ -900,7 +900,7 @@
       "api": ["apps/api/src/server.ts", "apps/api/src/app.ts"],
       "ui": [
         "apps/mobile/src/app/_layout.tsx",
-        "apps/mobile/src/app/(home)/_layout.tsx"
+        "apps/mobile/src/app/(tabs)/_layout.tsx"
       ],
       "adapters": [],
       "dataTables": [],
@@ -930,7 +930,7 @@
       ],
       "docs": [
         "docs/adr/0001-modular-monolith.md",
-        "docs/adr/0006-home-stack-inside-native-tabs.md",
+        "docs/adr/0025-root-stack-over-native-tabs.md",
         "docs/ARCHITECTURE.md"
       ],
       "verificationCommands": [

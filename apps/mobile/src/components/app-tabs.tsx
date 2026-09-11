@@ -17,7 +17,7 @@ export default function AppTabs() {
         selected: { color: colors.text },
       }}
     >
-      <NativeTabs.Trigger name="(home)">
+      <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon
           sf="house.fill"

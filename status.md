@@ -1,6 +1,28 @@
 # Mizyun current status
 
-## Latest handoff — Live Active Workout Notification on Lock Screen & Notification Tray (`WO-NOTIF-001`) (2026-09-11)
+## Latest handoff — Cross-Tab Modal Navigation Preservation & Architecture (`NAV-TAB-001`) (2026-09-11)
+
+- Resolved issue where opening capture workflows or modals (`log-meal`, `log-workout`, `log-weight`, `edit-meal`, `feedback`, `body`, `energy-setup`, `progress-photos`) from non-home tabs (`workouts`, `meals`, `coach`, `settings`) threw the user onto the Home dashboard when leaving or dismissing, instead of returning them to the tab they were on previously.
+- Root cause & architectural solution (ADR-0025, superseding ADR-0006):
+  - Previously, capture workflows were nested inside `(home)/_layout.tsx` (a stack owned by the `(home)` tab), causing Expo Router to switch the active tab to `(home)` on navigation. Popping the stack returned to `(home)/index`.
+  - Restructured to canonical Expo Router Root Stack over `(tabs)`:
+    - Created `apps/mobile/src/app/(tabs)/_layout.tsx` rendering `<AppTabs />` and `(tabs)/index.tsx` (re-exporting `DashboardScreen`).
+    - Relocated tab screens (`workouts`, `meals`, `coach`, `settings`) to `(tabs)/<tab>.tsx`.
+    - Elevated modals/screens to root stack level (`apps/mobile/src/app/`) with `presentation: "modal"`.
+    - Updated `apps/mobile/src/components/app-tabs.tsx` home trigger to `name="index"`.
+    - Removed legacy `(home)` directory.
+  - Zero UI, layout, styling, or color changes were made to screen components or tab bars.
+- Verification:
+  - Mobile TypeScript: `pnpm --filter @mizyun/mobile typecheck` passed (0 errors).
+  - Mobile Unit Tests: `pnpm --filter @mizyun/mobile test` passed (39/39 test files, 364/364 tests passed).
+  - Navigation & Boundary Tests: `pnpm navigation:check && pnpm test:navigation` passed (27/27 tests passed).
+  - Formatting: `pnpm format:check` passed cleanly (100% matched Prettier style).
+  - Hermes Dual Bytecode Export: `bundle:check:ios` (1831 modules) & `bundle:check:android` (1923 modules) both passed.
+  - Full Quality Gate: `pnpm check` passed cleanly (exit 0) across all 15 TypeScript projects, 23 deployment safeguards, 16 build matrix invariants, and 56 AI invariants.
+  - Independent Review: Subagent review performed and certified APPROVED.
+- Next exact action: Push commit to remote, deploy to Dev on the Raspberry Pi (`pnpm deploy:dev`), and verify on physical iPhone build (`com.mizyun.dev`).
+
+## Prior handoff — Live Active Workout Notification on Lock Screen & Notification Tray (`WO-NOTIF-001`) (2026-09-11)
 
 - Implemented an "always on" persistent live notification that activates during an active workout session in `apps/mobile`:
   - Surfaces current exercise, target load/reps, completed sets progress, and rest timer countdown.

@@ -1,6 +1,6 @@
 # ADR 0006: Home workflow stack inside native tabs
 
-- Status: accepted
+- Status: superseded by [ADR-0025](0025-root-stack-over-native-tabs.md)
 - Date: 2026-07-19
 
 ## Context
