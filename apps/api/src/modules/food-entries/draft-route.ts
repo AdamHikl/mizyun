@@ -183,7 +183,7 @@ export const foodDraftRoutes: FastifyPluginAsync<
     resetAt?: string;
   }> => {
     if (options.rateLimiter) {
-      const res = options.rateLimiter.acquire(userId, tier);
+      const res = options.rateLimiter.acquire(userId, tier, draftKind);
       if (!res.allowed) {
         const isDaily = res.reason === "daily_limit_exceeded";
         const reason: LimitReasonKind = isDaily
@@ -456,10 +456,8 @@ export const foodDraftRoutes: FastifyPluginAsync<
           instruction: parsed.data.instruction,
           requestId,
         });
-        await commitDraftLimit(
-          principal.userId as UserId,
-          candidate.tokensUsed ?? 800,
-        );
+        // Refine is free and does not consume daily meal draft quota; release in-flight slot
+        await releaseDraftLimit(principal.userId as UserId);
         return reply
           .status(200)
           .send(foodDraftResponseSchema.parse({ draft: candidate, requestId }));

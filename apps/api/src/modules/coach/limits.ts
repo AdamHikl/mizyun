@@ -388,28 +388,30 @@ export class SupabaseCoachLimitService implements CoachLimitService {
       };
     }
 
-    // Step 3: daily draft count gate (decoupled from Coach chat token ledger)
-    const draftBudget =
-      cap.photoDraftDailyLimit ?? (planTier === "paid" ? 100 : 5);
-    const drafts = await rpcSingle<{ allowed: boolean; retry_after: number }>(
-      this.#client,
-      "ai_reserve_draft",
-      {
-        p_user_id: userId,
-        p_day: day,
-        p_budget: draftBudget,
-        p_needed: 1,
-      },
-    );
-    if (drafts.allowed !== true) {
-      await runQuiet(() =>
-        this.#client.rpc("ai_release_in_flight", { p_user_id: userId }),
+    // Step 3: daily draft count gate (exempt for refine)
+    if (draftKind !== "refine") {
+      const draftBudget =
+        cap.photoDraftDailyLimit ?? (planTier === "paid" ? 100 : 5);
+      const drafts = await rpcSingle<{ allowed: boolean; retry_after: number }>(
+        this.#client,
+        "ai_reserve_draft",
+        {
+          p_user_id: userId,
+          p_day: day,
+          p_budget: draftBudget,
+          p_needed: 1,
+        },
       );
-      return {
-        allowed: false,
-        reason: "drafts",
-        retryAfter: drafts.retry_after,
-      };
+      if (drafts.allowed !== true) {
+        await runQuiet(() =>
+          this.#client.rpc("ai_release_in_flight", { p_user_id: userId }),
+        );
+        return {
+          allowed: false,
+          reason: "drafts",
+          retryAfter: drafts.retry_after,
+        };
+      }
     }
 
     return { allowed: true };
@@ -767,23 +769,27 @@ export class InMemoryCoachLimitService implements CoachLimitService {
       };
     }
 
-    // Step 3: daily draft gate (decoupled from Coach chat tokens!)
-    const draftBudget =
-      cap.photoDraftDailyLimit ?? (planTier === "paid" ? 100 : 5);
-    const usage = this.#draftUsage.get(userId);
-    const used = usage?.day === day ? usage.drafts : 0;
-    if (used + 1 > draftBudget) {
-      return {
-        allowed: false,
-        reason: "drafts",
-        retryAfter: Math.max(
-          1,
-          Math.ceil(
-            (Date.parse(`${day}T00:00:00.000Z`) + 86_400_000 - now.getTime()) /
-              1_000,
+    // Step 3: daily draft gate (exempt for refine)
+    if (draftKind !== "refine") {
+      const draftBudget =
+        cap.photoDraftDailyLimit ?? (planTier === "paid" ? 100 : 5);
+      const usage = this.#draftUsage.get(userId);
+      const used = usage?.day === day ? usage.drafts : 0;
+      if (used + 1 > draftBudget) {
+        return {
+          allowed: false,
+          reason: "drafts",
+          retryAfter: Math.max(
+            1,
+            Math.ceil(
+              (Date.parse(`${day}T00:00:00.000Z`) +
+                86_400_000 -
+                now.getTime()) /
+                1_000,
+            ),
           ),
-        ),
-      };
+        };
+      }
     }
 
     // Successfully acquired: reserve in-flight slot and register request in minute window

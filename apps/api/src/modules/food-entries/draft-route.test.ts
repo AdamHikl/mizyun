@@ -356,6 +356,35 @@ describe("Food draft route — refine (AI-ACT-007)", () => {
     expect(second.headers["retry-after"]).toBeDefined();
     rateLimiter.__resetForTest();
   });
+
+  it("does not consume daily meal draft quota and is exempt from daily cap", async () => {
+    const rateLimiter = new FoodDraftRateLimiter({
+      freePerMinute: 10,
+      freePerDay: 1,
+    });
+    const { app } = makeApps({
+      visionProvider: new StubVisionProvider(),
+      rateLimiter,
+    });
+    const form = buildForm({
+      name: "meal.png",
+      content: ONE_PIXEL_PNG,
+      type: "image/png",
+    });
+    const photoRes = await postDraft(app, form);
+    expect(photoRes.statusCode).toBe(200);
+
+    const photoBlocked = await postDraft(app, form);
+    expect(photoBlocked.statusCode).toBe(429);
+    expect(photoBlocked.json().error.reason).toBe("daily_budget_exhausted");
+
+    const refineRes = await postRefine(app, {
+      currentDraft: baselineRefineDraft,
+      instruction: "halve the portion",
+    });
+    expect(refineRes.statusCode).toBe(200);
+    rateLimiter.__resetForTest();
+  });
 });
 
 describe("Food draft route — defence in depth", () => {

@@ -44,7 +44,8 @@ export class FoodDraftRateLimiter {
   readonly #paidPerMinute: number;
   readonly #freePerDay: number;
   readonly #paidPerDay: number;
-  readonly #byUser = new Map<string, number[]>();
+  readonly #dailyByUser = new Map<string, number[]>();
+  readonly #minuteByUser = new Map<string, number[]>();
 
   constructor(options: DraftRateLimitOptions = {}) {
     this.#clock = options.clock ?? Date.now;
@@ -54,28 +55,31 @@ export class FoodDraftRateLimiter {
     this.#paidPerDay = options.paidPerDay ?? 100;
   }
 
-  acquire(userId: string, tier: PlanTier): DraftRateLimitResult {
+  acquire(
+    userId: string,
+    tier: PlanTier,
+    draftKind?: "photo" | "text" | "refine",
+  ): DraftRateLimitResult {
     const minuteLimit =
       tier === "paid" ? this.#paidPerMinute : this.#freePerMinute;
     const dailyLimit = tier === "paid" ? this.#paidPerDay : this.#freePerDay;
     const now = this.#clock();
+    const isRefine = draftKind === "refine";
 
     const dailyCutoff = now - DAY_MS;
     const minuteCutoff = now - WINDOW_MS;
 
-    // Prune entries older than 24h
-    const existing = (this.#byUser.get(userId) ?? []).filter(
+    // 1. Check daily budget cap (exempt for refine)
+    const existingDaily = (this.#dailyByUser.get(userId) ?? []).filter(
       (timestamp) => timestamp > dailyCutoff,
     );
-
-    // 1. Check daily budget cap
-    if (existing.length >= dailyLimit) {
-      const oldestDaily = existing[0] as number;
+    if (!isRefine && existingDaily.length >= dailyLimit) {
+      const oldestDaily = existingDaily[0] as number;
       const retryAfter = Math.max(
         1,
         Math.ceil((oldestDaily + DAY_MS - now) / 1_000),
       );
-      this.#byUser.set(userId, existing);
+      this.#dailyByUser.set(userId, existingDaily);
       return {
         allowed: false,
         retryAfter,
@@ -84,8 +88,8 @@ export class FoodDraftRateLimiter {
       };
     }
 
-    // 2. Check minute sliding window
-    const recentMinute = existing.filter(
+    // 2. Check minute sliding window (applies to all drafts to prevent spam)
+    const recentMinute = (this.#minuteByUser.get(userId) ?? []).filter(
       (timestamp) => timestamp > minuteCutoff,
     );
     if (recentMinute.length >= minuteLimit) {
@@ -94,7 +98,7 @@ export class FoodDraftRateLimiter {
         1,
         Math.ceil((oldestMinute + WINDOW_MS - now) / 1_000),
       );
-      this.#byUser.set(userId, existing);
+      this.#minuteByUser.set(userId, recentMinute);
       return {
         allowed: false,
         retryAfter,
@@ -103,12 +107,18 @@ export class FoodDraftRateLimiter {
       };
     }
 
-    existing.push(now);
-    this.#byUser.set(userId, existing);
+    recentMinute.push(now);
+    this.#minuteByUser.set(userId, recentMinute);
+
+    if (!isRefine) {
+      existingDaily.push(now);
+      this.#dailyByUser.set(userId, existingDaily);
+    }
+
     return {
       allowed: true,
       retryAfter: 0,
-      remaining: minuteLimit - recentMinute.length - 1,
+      remaining: minuteLimit - recentMinute.length,
     };
   }
 
@@ -117,6 +127,7 @@ export class FoodDraftRateLimiter {
    * starts clean.
    */
   __resetForTest(): void {
-    this.#byUser.clear();
+    this.#dailyByUser.clear();
+    this.#minuteByUser.clear();
   }
 }
