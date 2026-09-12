@@ -24,7 +24,9 @@
   - Prettier formatting passed 100% clean.
   - Dual Hermes bytecode export (`bundle:check:ios` and `bundle:check:android`) passed cleanly.
   - Build matrix tests (`pnpm test:build-matrix`) passed 100%.
-- Next exact action: Deploy updated backend to Dev on Raspberry Pi (`pnpm deploy:dev`), rebuild the native `com.mizyun.development` iOS app on the device via `pnpm mobile:founder-dev:ios`, and perform end-to-end device acceptance of Sign in with Apple and account deletion with Apple token revocation (`APPLE-004`).
+  - Dev Deployment: Commit `05f1c79` deployed cleanly to Dev on the Raspberry Pi (`pnpm deploy:dev`). Dev GoTrue updated with `GOTRUE_EXTERNAL_APPLE_ENABLED=true`, `GOTRUE_EXTERNAL_APPLE_CLIENT_ID=com.mizyun.development`, and valid secret; `/etc/mizyun/dev.env` and `/etc/mizyun/certs/AuthKey_D8TB43DBS5.p8` configured. Public health check verified (`https://mizyun-api-dev.phiskel.com/v1/health` -> 200 OK).
+  - Native iOS app `com.mizyun.development` successfully built with provisioning profile `iOS Team Provisioning Profile: com.mizyun.development` and installed onto physical iPhone 16 Pro (`Adam's Iphone 😋`).
+- Next exact action: Perform on-device test journey (login with Apple, test repeat login, test account deletion with FaceID and token revocation) (`APPLE-004`).
 
 ## Prior handoff — Shared iOS/Android icon (`BRAND-ICON-001`, 2026-09-12)
 
