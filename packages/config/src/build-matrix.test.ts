@@ -16,7 +16,7 @@ describe("validateBuildMatrix", () => {
         name: "Mizyun Dev",
         slug: "mizyun-dev",
         scheme: "mizyun-dev",
-        iosBundleIdentifier: "com.mizyun.dev",
+        iosBundleIdentifier: "com.mizyun.development",
         androidPackage: "com.mizyun.dev",
       });
     });
@@ -32,7 +32,7 @@ describe("validateBuildMatrix", () => {
       if (!result.ok) return;
       expect(result.value.variant).toBe("dev");
       expect(result.value.profile).toBe("preview");
-      expect(result.value.iosBundleIdentifier).toBe("com.mizyun.dev");
+      expect(result.value.iosBundleIdentifier).toBe("com.mizyun.development");
       expect(result.value.scheme).toBe("mizyun-dev");
     });
 

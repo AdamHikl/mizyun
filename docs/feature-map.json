@@ -381,7 +381,8 @@
       "ownedPaths": [
         "apps/api/src/modules/identity",
         "apps/mobile/src/features/auth",
-        "packages/identity"
+        "packages/identity",
+        "packages/adapters/apple-auth"
       ],
       "contracts": [],
       "domainPort": ["packages/identity/src/index.ts"],
@@ -392,13 +393,16 @@
       ],
       "adapters": [
         "packages/adapters/supabase-mobile/src/index.ts",
-        "packages/adapters/supabase-server/src/index.ts"
+        "packages/adapters/supabase-server/src/index.ts",
+        "packages/adapters/apple-auth/src/index.ts"
       ],
       "dataTables": [],
       "migrationPaths": ["supabase/migrations/20260714100000_foundation.sql"],
       "tests": [
         "apps/mobile/src/features/auth/session-gate-state.test.ts",
-        "apps/mobile/src/features/auth/auth-error-message.test.ts"
+        "apps/mobile/src/features/auth/auth-error-message.test.ts",
+        "packages/adapters/apple-auth/src/client-secret.test.ts",
+        "packages/adapters/apple-auth/src/apple-client.test.ts"
       ],
       "relations": [
         {

@@ -34,7 +34,7 @@ export const BUILD_IDENTITIES: Record<
     name: "Mizyun Dev",
     slug: "mizyun-dev",
     scheme: "mizyun-dev",
-    iosBundleIdentifier: "com.mizyun.dev",
+    iosBundleIdentifier: "com.mizyun.development",
     androidPackage: "com.mizyun.dev",
   },
   production: {

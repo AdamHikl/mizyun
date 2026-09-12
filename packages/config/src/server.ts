@@ -57,6 +57,13 @@ export interface ServerSesConfiguration {
   readonly fromEmail: string;
 }
 
+export interface ServerAppleAuthConfiguration {
+  readonly teamId: string;
+  readonly keyId: string;
+  readonly privateKey: string;
+  readonly clientId: string;
+}
+
 export interface ServerConfig {
   readonly host: string;
   readonly port: number;
@@ -68,6 +75,7 @@ export interface ServerConfig {
   readonly geminiConfig: ServerGeminiConfiguration | null;
   readonly geminiVisionConfig: ServerGeminiVisionConfiguration | null;
   readonly sesConfig: ServerSesConfiguration | null;
+  readonly appleAuthConfig: ServerAppleAuthConfiguration | null;
   readonly aiExternalAccess: boolean;
   /** @deprecated Parsed only for configuration compatibility; never gates AI access. */
   readonly aiAllowedEmails: readonly string[];
@@ -107,6 +115,11 @@ export const SERVER_ENV_KEYS = {
   aiUserMaxConcurrentRequests: "AI_USER_MAX_CONCURRENT_REQUESTS",
   aiExternalAccess: "AI_EXTERNAL_ACCESS",
   aiAllowedEmails: "AI_ALLOWED_EMAILS",
+  appleTeamId: "APPLE_TEAM_ID",
+  appleKeyId: "APPLE_KEY_ID",
+  applePrivateKey: "APPLE_PRIVATE_KEY",
+  applePrivateKeyPath: "APPLE_PRIVATE_KEY_PATH",
+  appleClientId: "APPLE_CLIENT_ID",
 } as const;
 
 const DISABLED_REASON = "Supabase server configuration has not been provided.";
@@ -256,6 +269,11 @@ const baseServerSchema = z.object({
             .filter((s) => s.length > 0)
         : [],
     ),
+  appleTeamId: z.string().optional(),
+  appleKeyId: z.string().optional(),
+  applePrivateKey: z.string().optional(),
+  applePrivateKeyPath: z.string().optional(),
+  appleClientId: z.string().optional(),
 });
 
 type BaseServerShape = Record<keyof typeof SERVER_ENV_KEYS, string | undefined>;
@@ -458,6 +476,27 @@ export const loadServerConfig = (
         }
       : null;
 
+  const defaultAppleClientId =
+    value.env === "production" ? "com.mizyun.app" : "com.mizyun.development";
+  const appleClientId = value.appleClientId || defaultAppleClientId;
+
+  const rawKey = value.applePrivateKey;
+  const normalizedKey =
+    typeof rawKey === "string" ? rawKey.replace(/\\n/g, "\n") : undefined;
+
+  const appleAuthConfig: ServerAppleAuthConfiguration | null =
+    value.appleTeamId &&
+    value.appleKeyId &&
+    normalizedKey &&
+    normalizedKey.length >= 20
+      ? {
+          teamId: value.appleTeamId,
+          keyId: value.appleKeyId,
+          privateKey: normalizedKey,
+          clientId: appleClientId,
+        }
+      : null;
+
   return ok({
     env: value.env,
     host: value.host,
@@ -469,6 +508,7 @@ export const loadServerConfig = (
     geminiConfig,
     geminiVisionConfig,
     sesConfig,
+    appleAuthConfig,
     aiExternalAccess: value.aiExternalAccess,
     aiAllowedEmails: value.aiAllowedEmails ?? [],
   });

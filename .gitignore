@@ -9,6 +9,8 @@ node_modules/
 !.env.test.example
 *.keystore
 *.jks
+*.p8
+certs/
 
 # Builds and caches
 dist/

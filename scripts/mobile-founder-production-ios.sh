@@ -39,6 +39,7 @@ fi
 export EXPO_NO_DOTENV=1
 export MIZYUN_APP_VARIANT=production
 export MIZYUN_IOS_DISABLE_PUSH=1
+export MIZYUN_ENABLE_APPLE_AUTH="${MIZYUN_ENABLE_APPLE_AUTH:-1}"
 
 cd "$repo_root"
 case "$action" in
@@ -73,7 +74,7 @@ case "$action" in
         -destination "generic/platform=iOS"
         -allowProvisioningUpdates
         CODE_SIGN_STYLE=Automatic
-        DEVELOPMENT_TEAM=PP89XZBW4U
+        DEVELOPMENT_TEAM=LQJNDVBL43
         build
       )
       exec xcodebuild "${xcodebuild_args[@]}"

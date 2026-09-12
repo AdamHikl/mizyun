@@ -114,7 +114,7 @@ const devConfig = evalConfig({
   EXPO_PUBLIC_AUTH_REDIRECT_URI: "mizyun-dev://auth/callback",
 });
 if (
-  devConfig.expo.ios.bundleIdentifier !== "com.mizyun.dev" ||
+  devConfig.expo.ios.bundleIdentifier !== "com.mizyun.development" ||
   devConfig.expo.android.package !== "com.mizyun.dev" ||
   devConfig.expo.name !== "Mizyun Dev" ||
   devConfig.expo.scheme !== "mizyun-dev"
@@ -124,7 +124,7 @@ if (
   );
 }
 console.log(
-  "✓ Development profile evaluated correctly: com.mizyun.dev / Mizyun Dev",
+  "✓ Development profile evaluated correctly: com.mizyun.development / Mizyun Dev",
 );
 
 // Test Preview Profile
@@ -137,7 +137,7 @@ const previewConfig = evalConfig({
   EXPO_PUBLIC_AUTH_REDIRECT_URI: "mizyun-dev://auth/callback",
 });
 if (
-  previewConfig.expo.ios.bundleIdentifier !== "com.mizyun.dev" ||
+  previewConfig.expo.ios.bundleIdentifier !== "com.mizyun.development" ||
   previewConfig.expo.android.package !== "com.mizyun.dev" ||
   previewConfig.expo.name !== "Mizyun Dev" ||
   previewConfig.expo.extra.mizyunProfile !== "preview"
@@ -147,7 +147,7 @@ if (
   );
 }
 console.log(
-  "✓ Preview profile evaluated correctly: com.mizyun.dev / standalone Dev",
+  "✓ Preview profile evaluated correctly: com.mizyun.development / standalone Dev",
 );
 
 // Test Production Profile
@@ -364,7 +364,7 @@ const devAndroidScript = readFileSync(
 );
 
 if (
-  !devScript.includes("com.mizyun.dev") ||
+  !devScript.includes("com.mizyun.development") ||
   !devScript.includes("PRODUCT_BUNDLE_IDENTIFIER") ||
   !devScript.includes('-z "$current_bundle_id"')
 ) {

@@ -663,4 +663,51 @@ describe("loadServerConfig — SES email configuration", () => {
       }
     });
   });
+
+  describe("appleAuthConfig", () => {
+    it("returns null when Apple auth credentials are not provided", () => {
+      const result = loadServerConfig({ env: baseSnapshot });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.appleAuthConfig).toBeNull();
+    });
+
+    it("parses appleAuthConfig when teamId, keyId, and privateKey are provided", () => {
+      const result = loadServerConfig({
+        env: {
+          ...baseSnapshot,
+          [SERVER_ENV_KEYS.appleTeamId]: "LQJNDVBL43",
+          [SERVER_ENV_KEYS.appleKeyId]: "2X9J497DK2",
+          [SERVER_ENV_KEYS.applePrivateKey]: "test-private-key-pem",
+        },
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.appleAuthConfig).toEqual({
+        teamId: "LQJNDVBL43",
+        keyId: "2X9J497DK2",
+        privateKey: "test-private-key-pem",
+        clientId: "com.mizyun.development",
+      });
+    });
+
+    it("uses com.mizyun.app as default clientId in production", () => {
+      const result = loadServerConfig({
+        env: {
+          ...baseSnapshot,
+          [SERVER_ENV_KEYS.env]: "production",
+          [SERVER_ENV_KEYS.supabaseUrl]: "http://127.0.0.1:8000",
+          [SERVER_ENV_KEYS.supabasePublishableKey]: "valid-prod-key",
+          [SERVER_ENV_KEYS.supabaseServiceRoleKey]:
+            "service-role-key-that-is-long-enough",
+          [SERVER_ENV_KEYS.appleTeamId]: "LQJNDVBL43",
+          [SERVER_ENV_KEYS.appleKeyId]: "2X9J497DK2",
+          [SERVER_ENV_KEYS.applePrivateKey]: "test-private-key-pem",
+        },
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.appleAuthConfig?.clientId).toBe("com.mizyun.app");
+    });
+  });
 });

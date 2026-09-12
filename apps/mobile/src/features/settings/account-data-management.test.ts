@@ -141,6 +141,31 @@ describe("account-data-management", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("confirmAccountDeletion passes appleAuthorizationCode in body when provided", async () => {
+    const requestFn = vi.fn().mockResolvedValue({
+      ok: true,
+      value: { deleted: true },
+    });
+    const client = { request: requestFn } as unknown as ApiClient;
+
+    const result = await confirmAccountDeletion(
+      client,
+      "test-token-xyz",
+      "apple-auth-code-123",
+    );
+    expect(result.ok).toBe(true);
+    expect(requestFn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: "DELETE",
+        path: "/v1/account",
+        body: {
+          confirmationToken: "test-token-xyz",
+          appleAuthorizationCode: "apple-auth-code-123",
+        },
+      }),
+    );
+  });
+
   it("confirmAccountDeletion classifies errors accurately with retryability", async () => {
     // 410 expired -> non-retryable
     const expiredClient = {

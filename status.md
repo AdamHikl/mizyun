@@ -1,5 +1,46 @@
 # Mizyun current status
 
+## Latest handoff — Google Play publishing plan (2026-09-12)
+
+- Added [Google Play implementation plan](docs/GOOGLE_PLAY_IMPLEMENTATION_PLAN_2026-09-12.md), PLAY-001–006: account/organization eligibility, local AAB/upload signing, versionCode and API36/16KB compatibility, Android acceptance, health/AI/privacy disclosures, internal/closed testing, review and intentional release.
+- User reports Apple side should be completed; this session leaves Apple implementation outside scope and preserves all existing uncommitted work. Planning snapshot is `6304400` plus the current working tree, not a clean candidate. No application changes, fresh builds, portal actions or deployments occurred.
+- Independent helper audited signing/disclosures and reviewed the plan; no blocking plan findings, health disclaimer clarification incorporated. Fresh official Google/Expo research recorded in the plan and research log.
+- Next exact action: execute PLAY-001, verifying publisher/account type, organization eligibility for Mizyun's health features, existing app record/signing state and actual Console testing requirements; then PLAY-002 store AAB safeguards. Account access and founder legal/entity decisions remain external inputs. No new Apple task is started by this handoff.
+- Verification: changed-document Prettier check and diff whitespace checks passed; navigation check passed with 0 errors and 12 existing stale-review warnings. Full application tests are not rerun for this documentation-only plan; previous implementation evidence remains historical. Plan/continuity changes remain uncommitted.
+
+## Latest handoff — Sign In with Apple & Token Revocation Implementation (`APPLE-001`, `APPLE-002`, `APPLE-003`, `STORE-001`, 2026-09-12)
+
+- Implemented end-to-end native Sign in with Apple integration and App Store Guideline 5.1.1(v) token revocation pipeline:
+  - **Native Setup & Bundle ID Isolation (`APPLE-001`)**: Configured Apple Developer Team ID `LQJNDVBL43`, set Dev bundle identifier to `com.mizyun.development` (separating from production `com.mizyun.app`), enabled `usesAppleSignIn` and `com.apple.developer.applesignin` entitlements across `app.config.js` and build matrices. Verified clean native iOS prebuild (`MizyunDev.xcworkspace`).
+  - **Apple Auth Adapter (`APPLE-002`)**: Created `@mizyun/adapter-apple-auth` with `node:crypto` ES256 client secret generation (IEEE P1363 DSA encoding, 64-byte `(R, S)` concatenation conforming to RFC 7518 / Apple specifications), authorization code token exchange, and token revocation at `https://appleid.apple.com/auth/revoke`. 21/21 unit tests passing.
+  - **Account Deletion Token Revocation (`APPLE-003`, Option A)**:
+    - Extended `accountDeleteSchema` to accept optional `appleAuthorizationCode`.
+    - In `apps/mobile`: when a user with Apple identity requests account deletion, mobile app prompts for native Apple re-authentication via `AppleAuthentication.signInAsync({ requestedScopes: [] })` to acquire an ephemeral authorization code, passing it to `DELETE /v1/account`. If the user cancels the prompt (`ERR_REQUEST_CANCELED` / `ERR_CANCELED`), deletion cleanly aborts without deleting remote or local data.
+    - In `apps/api`: `DELETE /v1/account` generates an ephemeral client secret (300s TTL), exchanges the authorization code for a refresh token, and revokes it with Apple REST API. Data erasure proceeds safely regardless of third-party network outcomes (GDPR Art. 17 compliant).
+  - **App Store Preparation (`STORE-001`)**: Dynamic `buildNumber` support, updated camera permissions string for meal photos, removed insecure Tailscale ATS exemption.
+  - **Independent Security Review**: An independent reviewer subagent audited the entire auth diff, verifying Guideline 5.1.1(v) compliance, secret isolation (kept on server only, gitignored `.p8`), fault tolerance, and mobile cancellation UX. Suggestions incorporated (300s TTL, revocation telemetry logging, multi-identity provider detection).
+- Verification:
+  - `pnpm check` passed cleanly (exit 0) across all 15 TypeScript projects, 23 deployment safeguards, 16 build matrix invariants, and 56 AI invariants.
+  - Prettier formatting passed 100% clean.
+  - Dual Hermes bytecode export (`bundle:check:ios` and `bundle:check:android`) passed cleanly.
+  - Build matrix tests (`pnpm test:build-matrix`) passed 100%.
+- Next exact action: Deploy updated backend to Dev on Raspberry Pi (`pnpm deploy:dev`), rebuild the native `com.mizyun.development` iOS app on the device via `pnpm mobile:founder-dev:ios`, and perform end-to-end device acceptance of Sign in with Apple and account deletion with Apple token revocation (`APPLE-004`).
+
+## Prior handoff — Shared iOS/Android icon (`BRAND-ICON-001`, 2026-09-12)
+
+- Applied the user-approved blue ribbon-M image at `apps/mobile/assets/images/mizyun-icon.png` to root/iOS/Android icon configuration. Removed the previous iOS `.icon` and Android adaptive/monochrome overrides from app configuration. Original assets remain available; the previous App Store planning edits are preserved.
+- Verified both Dev and Production effective icon paths. Ran installed Expo native icon generators in an isolated temporary directory: 1024×1024 opaque iOS PNG and all five Android launcher density assets generated successfully. Independent read-only helper confirmed SDK57 support and rebuild requirements.
+- Verification: `pnpm check` passed (exit 0), including TypeScript, both Hermes exports, unit tests, deployment/build safeguards and 56/56 offline AI invariants. Credential-gated E2E/live provider suites remain skipped by their existing gates. `git diff --check` passed. No native application build, device install, deployment, commit or push performed. Source base remains `6304400`; changes are uncommitted.
+- Next exact action: after repository checks, regenerate the selected native variant and build/install it on iPhone and Android to accept actual launcher appearance. Standard Android icon uses launcher-specific masking/insets; a custom themed icon is not supplied. App Store implementation remains deferred per user instruction.
+
+## Latest handoff — Apple sign-in and App Store plan (2026-09-11)
+
+- User requested an implementation plan only, to execute in a later session. Added [the phased plan](docs/APPLE_SIGN_IN_APP_STORE_IMPLEMENTATION_PLAN_2026-09-11.md) covering paid-team setup, native/provider configuration, Apple revocation during deletion, Dev acceptance, local archives, disclosures, TestFlight and App Review.
+- Inspected source `6304400` with a clean initial working tree. Existing native nonce/ID-token flow is implemented but capability-gated; Dev Compose lacks Apple client-ID wiring. No Apple token revocation was found in the inspected account-deletion implementation. Actual Apple account membership/capabilities and remote provider configuration remain unverified.
+- Read-only helper audited distribution setup and official Apple requirements. No application code, native/signing configuration, remote services or Apple account settings were changed; no build/upload/deployment occurred. Planning documents are uncommitted.
+- Next exact action: execute APPLE-001 in the linked plan, verifying the paid team, existing App IDs and capability status, then inspect effective environment-specific GoTrue configuration before APPLE-002. Founder account access/2FA and legal/contact declarations may be required. Existing release gates remain open.
+- Verification: independent plan review complete with suggestions incorporated; changed-document Prettier check, navigation checks (0 errors; 12 stale-review warnings) and diff whitespace check passed. Full `pnpm check` was not run for this documentation-only plan; no commit was made. Prior implementation test results are historical.
+
 ## Latest handoff — Cross-Tab Modal Navigation Preservation & Architecture (`NAV-TAB-001`) (2026-09-11)
 
 - Resolved issue where opening capture workflows or modals (`log-meal`, `log-workout`, `log-weight`, `edit-meal`, `feedback`, `body`, `energy-setup`, `progress-photos`) from non-home tabs (`workouts`, `meals`, `coach`, `settings`) threw the user onto the Home dashboard when leaving or dismissing, instead of returning them to the tab they were on previously.

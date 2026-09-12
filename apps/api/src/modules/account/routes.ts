@@ -6,6 +6,11 @@ import type {
   ProfileRepository,
 } from "@mizyun/core";
 import type { MemoryRecord, MemoryStore } from "@mizyun/memory";
+import type { ServerAppleAuthConfiguration } from "@mizyun/config";
+import {
+  type AppleAuthClient,
+  generateAppleClientSecret,
+} from "@mizyun/adapter-apple-auth";
 import {
   CURRENT_AI_CONSENT_VERSION,
   accountDeleteResponseSchema,
@@ -26,11 +31,17 @@ import {
 import { isAdultEligibleForAi } from "../../ai-eligibility.js";
 import { sendApiError } from "../../errors.js";
 
+export interface AppleAuthRouteOptions {
+  readonly config: ServerAppleAuthConfiguration;
+  readonly client: AppleAuthClient;
+}
+
 interface AccountRoutesOptions {
   readonly accountRepository: AccountRepository;
   readonly memoryStore: MemoryStore;
   readonly aiConsentRepository?: AiConsentRepository;
   readonly profileRepository?: ProfileRepository;
+  readonly appleAuth?: AppleAuthRouteOptions | undefined;
 }
 
 const CHALLENGE_TTL_SECONDS = 5 * 60;
@@ -297,6 +308,54 @@ export const accountRoutes: FastifyPluginAsync<AccountRoutesOptions> = async (
         );
         return;
       }
+
+      if (parsed.data.appleAuthorizationCode && options.appleAuth) {
+        try {
+          const clientSecret = generateAppleClientSecret({
+            teamId: options.appleAuth.config.teamId,
+            keyId: options.appleAuth.config.keyId,
+            clientId: options.appleAuth.config.clientId,
+            privateKey: options.appleAuth.config.privateKey,
+            expiresInSeconds: 300,
+          });
+          const exchangeResult =
+            await options.appleAuth.client.exchangeAuthorizationCode({
+              code: parsed.data.appleAuthorizationCode,
+              clientId: options.appleAuth.config.clientId,
+              clientSecret,
+            });
+          if (exchangeResult.ok && exchangeResult.value.refreshToken) {
+            const revokeResult = await options.appleAuth.client.revokeToken({
+              token: exchangeResult.value.refreshToken,
+              tokenTypeHint: "refresh_token",
+              clientId: options.appleAuth.config.clientId,
+              clientSecret,
+            });
+            if (revokeResult.ok) {
+              request.log.info(
+                { userId: principal.userId },
+                "Successfully revoked Apple authorization token for user during account deletion",
+              );
+            } else {
+              request.log.warn(
+                { err: revokeResult.error, userId: principal.userId },
+                "Failed to revoke Apple token with Apple servers during account deletion",
+              );
+            }
+          } else if (!exchangeResult.ok) {
+            request.log.warn(
+              { err: exchangeResult.error, userId: principal.userId },
+              "Failed to exchange Apple authorization code during deletion",
+            );
+          }
+        } catch (appleErr) {
+          request.log.warn(
+            { err: appleErr },
+            "Unexpected error during Apple token revocation on deletion",
+          );
+        }
+      }
+
       const result = await options.accountRepository.deleteUser(
         principal.userId,
         {

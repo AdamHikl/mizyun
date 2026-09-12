@@ -39,6 +39,7 @@ fi
 export EXPO_NO_DOTENV=1
 export MIZYUN_APP_VARIANT=dev
 export MIZYUN_IOS_DISABLE_PUSH=1
+export MIZYUN_ENABLE_APPLE_AUTH="${MIZYUN_ENABLE_APPLE_AUTH:-1}"
 
 cd "$repo_root"
 case "$action" in
@@ -51,8 +52,8 @@ case "$action" in
     if [[ -d "$repo_root/apps/mobile/ios" ]]; then
       project_file="$(find "$repo_root/apps/mobile/ios" -maxdepth 2 -path '*/Mizyun*/project.pbxproj' | head -n1)"
       current_bundle_id="$(grep -m1 'PRODUCT_BUNDLE_IDENTIFIER =' "$project_file" 2>/dev/null | tr -d ';\t ' | cut -d= -f2 || true)"
-      if [[ -z "$current_bundle_id" || "$current_bundle_id" != "com.mizyun.dev" ]]; then
-        echo "ERROR: Native iOS directory has invalid or mismatched bundle ID '$current_bundle_id' (expected 'com.mizyun.dev'). Run prebuild first: pnpm mobile:founder-dev:ios:prebuild" >&2
+      if [[ -z "$current_bundle_id" || "$current_bundle_id" != "com.mizyun.development" ]]; then
+        echo "ERROR: Native iOS directory has invalid or mismatched bundle ID '$current_bundle_id' (expected 'com.mizyun.development'). Run prebuild first: pnpm mobile:founder-dev:ios:prebuild" >&2
         exit 1
       fi
     fi
@@ -67,7 +68,7 @@ case "$action" in
         -destination "generic/platform=iOS"
         -allowProvisioningUpdates
         CODE_SIGN_STYLE=Automatic
-        DEVELOPMENT_TEAM=PP89XZBW4U
+        DEVELOPMENT_TEAM=LQJNDVBL43
         build
       )
       exec xcodebuild "${xcodebuild_args[@]}"

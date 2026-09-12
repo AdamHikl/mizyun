@@ -1,9 +1,12 @@
+import { generateKeyPairSync } from "node:crypto";
 import { afterEach, describe, expect, it } from "vitest";
 
+import type { AppleAuthClient } from "@mizyun/adapter-apple-auth";
 import {
   AgentOrchestrator,
   DisabledAgentProvider,
 } from "@mizyun/agent-runtime";
+import type { ServerAppleAuthConfiguration } from "@mizyun/config";
 import type { MemoryId, UserId } from "@mizyun/core";
 import type { AccessTokenVerifier } from "@mizyun/identity";
 import { InMemoryMemoryStore } from "@mizyun/memory";
@@ -39,7 +42,13 @@ const tokenVerifierFor = (
       : null,
 });
 
-const build = (verifier: AccessTokenVerifier) => {
+const build = (
+  verifier: AccessTokenVerifier,
+  options?: {
+    appleAuthConfig?: ServerAppleAuthConfiguration;
+    appleAuthClient?: AppleAuthClient;
+  },
+) => {
   const profileRepository = new InMemoryProfileRepository({
     defaultTimezone: "UTC",
     defaultUnitSystem: "metric",
@@ -76,6 +85,8 @@ const build = (verifier: AccessTokenVerifier) => {
     bodyMeasurementRepository,
     accountRepository,
     memories: memoryStore,
+    appleAuthConfig: options?.appleAuthConfig,
+    appleAuthClient: options?.appleAuthClient,
   });
   apps.push(app);
   return {
@@ -363,6 +374,128 @@ describe("DELETE /v1/account", () => {
       payload: { confirmationToken: "" },
     });
     expect(response.statusCode).toBe(422);
+  });
+
+  it("exchanges and revokes Apple authorization code when provided on deletion", async () => {
+    const { privateKey } = generateKeyPairSync("ec", {
+      namedCurve: "prime256v1",
+      publicKeyEncoding: { type: "spki", format: "pem" },
+      privateKeyEncoding: { type: "pkcs8", format: "pem" },
+    });
+
+    const exchangedCodes: string[] = [];
+    const revokedTokens: string[] = [];
+
+    const mockAppleClient: AppleAuthClient = {
+      exchangeAuthorizationCode: async (params) => {
+        exchangedCodes.push(params.code);
+        return {
+          ok: true,
+          value: {
+            accessToken: "apple-access-token",
+            refreshToken: "apple-refresh-token",
+            idToken: "apple-id-token",
+            expiresIn: 3600,
+          },
+        };
+      },
+      revokeToken: async (params) => {
+        revokedTokens.push(params.token);
+        return { ok: true, value: undefined };
+      },
+    };
+
+    const appleAuthConfig: ServerAppleAuthConfiguration = {
+      teamId: "TEST_TEAM",
+      keyId: "TEST_KEY",
+      clientId: "com.mizyun.development",
+      privateKey,
+    };
+
+    const { app } = build(tokenVerifierFor({ userId: userA }), {
+      appleAuthConfig,
+      appleAuthClient: mockAppleClient,
+    });
+
+    const challenge = await app.inject({
+      method: "POST",
+      url: "/v1/account/delete/request",
+      headers: { authorization: "Bearer valid" },
+    });
+    const token = challenge.json().confirmationToken as string;
+
+    const response = await app.inject({
+      method: "DELETE",
+      url: "/v1/account",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: {
+        confirmationToken: token,
+        appleAuthorizationCode: "apple-auth-code-xyz",
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ deleted: true });
+    expect(exchangedCodes).toEqual(["apple-auth-code-xyz"]);
+    expect(revokedTokens).toEqual(["apple-refresh-token"]);
+  });
+
+  it("completes account deletion gracefully even if Apple revocation fails", async () => {
+    const { privateKey } = generateKeyPairSync("ec", {
+      namedCurve: "prime256v1",
+      publicKeyEncoding: { type: "spki", format: "pem" },
+      privateKeyEncoding: { type: "pkcs8", format: "pem" },
+    });
+
+    const mockAppleClient: AppleAuthClient = {
+      exchangeAuthorizationCode: async () => ({
+        ok: false,
+        error: {
+          kind: "http_error",
+          error: "invalid_grant",
+          message: "Code expired",
+        },
+      }),
+      revokeToken: async () => ({ ok: true, value: undefined }),
+    };
+
+    const appleAuthConfig: ServerAppleAuthConfiguration = {
+      teamId: "TEST_TEAM",
+      keyId: "TEST_KEY",
+      clientId: "com.mizyun.development",
+      privateKey,
+    };
+
+    const { app } = build(tokenVerifierFor({ userId: userA }), {
+      appleAuthConfig,
+      appleAuthClient: mockAppleClient,
+    });
+
+    const challenge = await app.inject({
+      method: "POST",
+      url: "/v1/account/delete/request",
+      headers: { authorization: "Bearer valid" },
+    });
+    const token = challenge.json().confirmationToken as string;
+
+    const response = await app.inject({
+      method: "DELETE",
+      url: "/v1/account",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: {
+        confirmationToken: token,
+        appleAuthorizationCode: "expired-auth-code",
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ deleted: true });
   });
 
   it("allows idempotent retry with confirmation token and rejects unknown token", async () => {

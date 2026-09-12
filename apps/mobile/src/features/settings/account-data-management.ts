@@ -291,11 +291,15 @@ export const requestAccountDeletion = async (
 export const confirmAccountDeletion = async (
   client: ApiClient,
   confirmationToken: string,
+  appleAuthorizationCode?: string,
 ): Promise<ConfirmAccountDeletionResult> => {
   const result = await client.request<AccountDeleteResponse>({
     method: "DELETE",
     path: "/v1/account",
-    body: { confirmationToken },
+    body: {
+      confirmationToken,
+      ...(appleAuthorizationCode ? { appleAuthorizationCode } : {}),
+    },
     schema: accountDeleteResponseSchema,
   });
 

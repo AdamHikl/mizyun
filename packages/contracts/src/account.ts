@@ -123,6 +123,7 @@ export type AccountExportResponse = z.infer<typeof accountExportResponseSchema>;
 export const accountDeleteSchema = z
   .object({
     confirmationToken: z.string().trim().min(1).max(256),
+    appleAuthorizationCode: z.string().trim().min(1).optional(),
   })
   .strict();
 

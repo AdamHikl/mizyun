@@ -4,38 +4,26 @@
     "slug": "mizyun",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/mizyun-icon.png",
     "scheme": "mizyun",
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "com.mizyun.app",
-      "icon": "./assets/expo.icon",
+      "icon": "./assets/images/mizyun-icon.png",
       "config": {
         "usesNonExemptEncryption": false
       },
+      "buildNumber": "1",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Mizyun accesses a photo only when you choose it for a meal draft or your private progress timeline.",
         "NSPhotoLibraryAddUsageDescription": "Mizyun saves photos to your photo library only when you explicitly export a progress photo.",
-        "NSCameraUsageDescription": "Mizyun uses the camera only when you choose to take a private progress photo.",
-        "NSAppTransportSecurity": {
-          "NSExceptionDomains": {
-            "100.103.203.85": {
-              "NSExceptionAllowsInsecureHTTPLoads": true,
-              "NSIncludesSubdomains": true
-            }
-          }
-        }
+        "NSCameraUsageDescription": "Mizyun uses the camera when you choose to take photos of your meals or private progress timeline."
       }
     },
     "android": {
       "package": "com.mizyun.app",
-      "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
-      },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "icon": "./assets/images/mizyun-icon.png"
     },
     "web": {
       "output": "static",
@@ -54,7 +42,7 @@
         "expo-image-picker",
         {
           "photosPermission": "Mizyun accesses a photo only when you choose it for a meal draft or your private progress timeline.",
-          "cameraPermission": "Mizyun uses the camera only when you choose to take a private progress photo.",
+          "cameraPermission": "Mizyun uses the camera when you choose to take photos of your meals or private progress timeline.",
           "microphonePermission": false
         }
       ],

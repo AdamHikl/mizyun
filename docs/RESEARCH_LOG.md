@@ -1,5 +1,31 @@
 # Research log
 
+## 2026-09-12 — Google Play publishing plan
+
+Planning-only research; [implementation plan and dated primary sources](GOOGLE_PLAY_IMPLEMENTATION_PLAN_2026-09-12.md#dated-primary-sources).
+
+- Google currently requires API36 for new phone apps/updates from August 31, 2026; native 16KB compatibility needs artifact/runtime proof. Expo SDK57 configuration and installed signing/plugin behavior were inspected.
+- Resolve organization eligibility for this health/fitness app before account creation. The 12-tester/14-consecutive-day gate is conditional on qualifying new personal accounts and is followed by a production-access application. Do not assume it applies to every account or guarantees approval.
+- Existing Android AAB command is a foundation, not proof of store signing: debug-keystore bypass and unchecked plugin substitutions need store-specific safeguards, increasing versionCode and actual artifact verification. Upload and Play app-signing keys serve different roles.
+- Google requires accurate health/Data Safety declarations, outside-app deletion access and in-app offensive-AI reporting. Existing deletion web page and Coach feedback entry point must be accepted operationally; do not claim they are missing or complete merely from code presence.
+- Independent read-only audit/review incorporated health disclaimer wording and preserved Android-specific acceptance. No Apple changes or implementation performed in this planning session.
+
+## 2026-09-12 — Shared Mizyun ribbon-M launcher icon
+
+- [Expo SDK 57 app configuration](https://docs.expo.dev/versions/v57.0.0/config/app/) supports PNG icon paths for root, iOS and Android. Platform-specific overrides take precedence; Android adaptive foreground overrides the regular icon.
+- Replaced the old iOS Icon Composer reference and Android adaptive/monochrome configuration with the user-approved shared PNG. Preserved the generated design; Expo's installed icon pipeline normalized it to 1024×1024 without alpha and generated Android density assets in a temporary verification directory.
+- Standard Android launcher rendering is used; launchers may apply their own inset/mask. No custom themed/monochrome variant was supplied. Native regeneration/rebuild/install is required to update existing installations. No new ADR is needed for this asset/configuration change.
+
+## 2026-09-11 — Apple sign-in activation and App Store planning
+
+Scope: planning only; no implementation or remote configuration changes. [Implementation plan and dated primary sources](APPLE_SIGN_IN_APP_STORE_IMPLEMENTATION_PLAN_2026-09-11.md#primary-sources-and-handoff).
+
+- Read Expo SDK 57 AppleAuthentication/app-config guidance, Supabase native Apple authentication, Apple account deletion and distribution guidance. A read-only helper checked App Store Connect, privacy, age-rating and current SDK requirements.
+- Implementation consequences: verify paid-team capabilities separately from OS availability; retain hashed-to-Apple/raw-to-GoTrue nonce verification and separate native audiences; verify the pinned GoTrue version before configuring it. Native login does not itself need a web OAuth secret, but server-side Apple revocation needs a separately designed credential lifecycle.
+- Apple deletion guidance requires revoking Apple authorization. No revocation path was found in the inspected implementation; this is a planned release blocker, not proof that existing Supabase deletion handles it.
+- Store archive environment propagation, explicit build numbers, privacy declarations and truthful listing claims need acceptance evidence. The old hardcoded age rating and instant-deletion/export/encryption promises must not be copied into a submission without correction or proof.
+- Correction to the 2026-09-10 research note below: Expo `isAvailableAsync()` reports OS support; it does not prove entitlements, provisioning or server provider readiness. The new plan requires separate checks.
+
 ## 2026-09-10 — Native Sign in with Apple and App Store Guideline 4.8 compliance
 
 Scope: Implementation of native Sign in with Apple (`expo-apple-authentication`, `@mizyun/identity`, `@mizyun/adapter-supabase-mobile`, `apps/mobile`), re-enabling Google Sign-In on iOS alongside Apple Sign-In, cryptographic nonce replay protection, personal-team capability gating (`MIZYUN_ENABLE_APPLE_AUTH`), and independent security review.

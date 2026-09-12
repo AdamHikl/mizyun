@@ -10,6 +10,7 @@ export {
 
 export {
   type NodeEnv,
+  type ServerAppleAuthConfiguration,
   type ServerConfig,
   type ServerConfigResult,
   type ServerGeminiConfiguration,

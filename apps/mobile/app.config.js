@@ -5,7 +5,7 @@ const variants = {
     name: "Mizyun Dev",
     slug: "mizyun-dev",
     scheme: "mizyun-dev",
-    iosBundleIdentifier: "com.mizyun.dev",
+    iosBundleIdentifier: "com.mizyun.development",
     androidPackage: "com.mizyun.dev",
   },
   production: {
@@ -280,8 +280,11 @@ module.exports = {
     },
     ios: {
       ...baseIos,
+      appleTeamId: "LQJNDVBL43",
       bundleIdentifier: variant.iosBundleIdentifier,
       usesAppleSignIn: enableIosAppleAuth,
+      buildNumber:
+        process.env.MIZYUN_IOS_BUILD_NUMBER || baseIos.buildNumber || "1",
     },
     android: {
       ...baseAndroid,

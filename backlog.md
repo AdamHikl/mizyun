@@ -2,6 +2,39 @@
 
 > Executable work inventory. The roadmap and dependency order live in `plan.md`. Keep each item small enough to finish and verify in one focused segment where practical.
 
+## Google Play publishing — planned 2026-09-12
+
+Follow [the phased plan](docs/GOOGLE_PLAY_IMPLEMENTATION_PLAN_2026-09-12.md). Apple completion is user-reported and outside this work package; shared release gates remain in force.
+
+| ID       | Priority | Status | Work item                                   | Exit / dependency                                                                    |
+| -------- | -------- | ------ | ------------------------------------------- | ------------------------------------------------------------------------------------ |
+| PLAY-001 | P1       | ready  | Publisher/account and testing eligibility   | Verified entity, organization eligibility, app record and Console requirements       |
+| PLAY-002 | P1       | ready  | Safe signed Production AAB                  | No debug fallback, explicit versionCode, verified signer and bundle                  |
+| PLAY-003 | P1       | ready  | Android compatibility and device acceptance | API36/current policy, 16KB native support, Play-delivered core/auth/privacy journeys |
+| PLAY-004 | P1       | ready  | Policy behavior and listing                 | Health/AI/Data Safety, outside-app deletion, assets and reviewer access              |
+| PLAY-005 | P1       | ready  | Internal/closed testing                     | Accepted safe backend/cohort; applicable closed-test and production-access gates     |
+| PLAY-006 | P1       | ready  | Review and intentional publication          | Accepted candidate, current release gates and operated public service                |
+
+## Apple sign-in and App Store preparation — planned 2026-09-11
+
+User deferred implementation to a later session. Follow [the implementation plan](docs/APPLE_SIGN_IN_APP_STORE_IMPLEMENTATION_PLAN_2026-09-11.md); these items do not close or reorder existing remediation release gates.
+
+| ID        | Priority | Status | Work item                                                | Exit / dependency                                                                                          |
+| --------- | -------- | ------ | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| APPLE-001 | P1       | done   | Verify paid Apple team and native capabilities           | Team ID `LQJNDVBL43`, `com.mizyun.app` and `com.mizyun.development` App IDs & Sign in with Apple enabled   |
+| APPLE-002 | P1       | done   | Enable native Apple login and isolated backend audiences | `@mizyun/adapter-apple-auth` implemented; native client IDs separated; independent review passed           |
+| APPLE-003 | P1       | done   | Apple authorization revocation and durable deletion      | Server token exchange & revocation on `DELETE /v1/account`; iOS re-auth; independent security audit passed |
+| APPLE-004 | P1       | ready  | Accept Apple login on Dev iPhone                         | APPLE-002/003; deploy to Dev Pi and accept native sign-in & deletion on physical iPhone                    |
+| STORE-001 | P1       | done   | Local archive tooling and accurate store disclosures     | Dynamic build numbers, privacy strings updated, insecure ATS removed; build matrix tests passing 100%      |
+| STORE-002 | P1       | ready  | Upload and accept TestFlight candidate                   | APPLE-004, STORE-001, applicable release gates and compatible accepted backend                             |
+| STORE-003 | P1       | ready  | App Review and explicit public release                   | Accepted TestFlight build, all release gates, founder declarations and operational readiness               |
+
+## Icon implementation
+
+| ID             | Priority | Status | Work item                                       | Evidence / remaining acceptance                                                                                                                                      |
+| -------------- | -------- | ------ | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BRAND-ICON-001 | P3       | active | Apply approved ribbon-M icon to iOS and Android | Shared asset/config implemented; Dev/Production paths and native icon generation verified; pnpm check passed; native rebuild/install and launcher acceptance pending |
+
 ## Session engineering
 
 | ID            | Priority | Status | Work item                                        | Evidence / remaining acceptance                                                                                                                                                                |

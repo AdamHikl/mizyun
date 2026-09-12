@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+
 import Fastify, { type FastifyInstance } from "fastify";
 import fastifyMultipart from "@fastify/multipart";
 
@@ -16,6 +19,10 @@ import {
   createSupabaseStorageClient,
 } from "@mizyun/adapter-supabase-server";
 import { SesEmailSender } from "@mizyun/adapter-ses";
+import {
+  type AppleAuthClient,
+  createAppleAuthClient,
+} from "@mizyun/adapter-apple-auth";
 import {
   DEFAULT_TIMEZONE,
   DEFAULT_UNIT_SYSTEM,
@@ -36,7 +43,11 @@ import {
   type WorkoutRepository,
   type WorkoutSetRepository,
 } from "@mizyun/core";
-import { loadServerConfig, type ServerConfig } from "@mizyun/config";
+import {
+  loadServerConfig,
+  type ServerAppleAuthConfiguration,
+  type ServerConfig,
+} from "@mizyun/config";
 import {
   RejectingAccessTokenVerifier,
   type AccessTokenVerifier,
@@ -236,6 +247,8 @@ export interface AppDependencies {
   readonly mediaAssetRepository?: MediaAssetRepository;
   readonly mediaStorage?: MediaStorage;
   readonly emailSender?: EmailSender;
+  readonly appleAuthConfig?: ServerAppleAuthConfiguration | undefined;
+  readonly appleAuthClient?: AppleAuthClient | undefined;
   readonly coachControls?: CoachControlOptions;
   readonly aiAllowedEmails?: readonly string[];
   /**
@@ -270,6 +283,7 @@ const defaultDependencies = (): AppDependencies => {
         geminiConfig: null,
         geminiVisionConfig: null,
         sesConfig: null,
+        appleAuthConfig: null,
         aiExternalAccess: false,
         aiAllowedEmails: [],
       };
@@ -840,12 +854,56 @@ export const buildApp = (
     workoutRepository,
     exerciseRepository,
   });
+  const rawAppleConfig =
+    dependencies.appleAuthConfig ??
+    (configResult.ok ? configResult.value.appleAuthConfig : null);
+  const resolveAppleConfig = (
+    configured: ServerAppleAuthConfiguration | null,
+  ): ServerAppleAuthConfiguration | null => {
+    if (configured) return configured;
+    const teamId = process.env.APPLE_TEAM_ID;
+    const keyId = process.env.APPLE_KEY_ID;
+    if (!teamId || !keyId) return null;
+    const clientId =
+      process.env.APPLE_CLIENT_ID ||
+      (configResult.ok && configResult.value.env === "production"
+        ? "com.mizyun.app"
+        : "com.mizyun.development");
+    const candidates = [
+      process.env.APPLE_PRIVATE_KEY_PATH,
+      path.resolve(process.cwd(), `certs/AuthKey_${keyId}.p8`),
+    ].filter((p): p is string => Boolean(p));
+
+    for (const candidate of candidates) {
+      try {
+        if (fs.existsSync(candidate)) {
+          const privateKey = fs.readFileSync(candidate, "utf-8");
+          if (privateKey.length >= 20) {
+            return { teamId, keyId, privateKey, clientId };
+          }
+        }
+      } catch {
+        // Ignored
+      }
+    }
+    return null;
+  };
+  const effectiveAppleAuthConfig = resolveAppleConfig(rawAppleConfig);
+  const appleAuth =
+    effectiveAppleAuthConfig !== null
+      ? {
+          config: effectiveAppleAuthConfig,
+          client: dependencies.appleAuthClient ?? createAppleAuthClient(),
+        }
+      : undefined;
+
   void app.register(accountRoutes, {
     prefix: "/v1",
     accountRepository,
     memoryStore,
     aiConsentRepository,
     profileRepository,
+    appleAuth,
   });
   void app.register(energyRoutes, {
     prefix: "/v1",

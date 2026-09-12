@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import * as AppleAuthentication from "expo-apple-authentication";
 import {
   ActivityIndicator,
   Alert,
@@ -213,8 +214,48 @@ export function AccountDataCard({
         }
       }
 
+      let appleAuthorizationCode: string | undefined;
+      const isAppleUser =
+        session?.user.provider === "apple" ||
+        (
+          session?.user as { identities?: readonly { provider?: string }[] }
+        )?.identities?.some((i) => i.provider === "apple");
+      if (Platform.OS === "ios" && isAppleUser) {
+        const isAppleAuthAvailable =
+          await AppleAuthentication.isAvailableAsync().catch(() => false);
+        if (isAppleAuthAvailable) {
+          try {
+            const credential = await AppleAuthentication.signInAsync({
+              requestedScopes: [],
+            });
+            appleAuthorizationCode = credential.authorizationCode ?? undefined;
+          } catch (appleErr: unknown) {
+            const code =
+              appleErr && typeof appleErr === "object" && "code" in appleErr
+                ? (appleErr as { code?: string }).code
+                : undefined;
+            if (code === "ERR_REQUEST_CANCELED" || code === "ERR_CANCELED") {
+              setIsDeleting(false);
+              setDeletionStage("idle");
+              return;
+            }
+            Alert.alert(
+              "Apple Verification Required",
+              "Sign in with Apple verification is required to revoke authorization when deleting your account. Please try again.",
+            );
+            setIsDeleting(false);
+            setDeletionStage("idle");
+            return;
+          }
+        }
+      }
+
       setDeletionStage("erasing_server_data");
-      const confirmResult = await confirmAccountDeletion(apiClient, token);
+      const confirmResult = await confirmAccountDeletion(
+        apiClient,
+        token,
+        appleAuthorizationCode,
+      );
       if (!confirmResult.ok) {
         if (
           confirmResult.reason === "server_error" ||
