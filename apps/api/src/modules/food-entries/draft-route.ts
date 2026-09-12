@@ -241,9 +241,12 @@ export const foodDraftRoutes: FastifyPluginAsync<
     }
   };
 
-  const releaseDraftLimit = async (userId: UserId) => {
+  const releaseDraftLimit = async (userId: UserId, draftKind?: DraftKind) => {
+    if (options.rateLimiter) {
+      options.rateLimiter.release(userId, draftKind);
+    }
     if (options.limits) {
-      await options.limits.releaseDraftSlot(userId);
+      await options.limits.releaseDraftSlot(userId, draftKind);
     }
   };
 
@@ -320,6 +323,7 @@ export const foodDraftRoutes: FastifyPluginAsync<
         principal.userId as UserId,
         principal.accessToken,
       );
+      let committed = false;
       try {
         if (vision.generateTextDraft === undefined) {
           throw new VisionProviderError(
@@ -340,11 +344,11 @@ export const foodDraftRoutes: FastifyPluginAsync<
           principal.userId as UserId,
           candidate.tokensUsed ?? 500,
         );
+        committed = true;
         return reply
           .status(200)
           .send(foodDraftResponseSchema.parse({ draft: candidate, requestId }));
       } catch (error) {
-        await releaseDraftLimit(principal.userId as UserId);
         if (error instanceof VisionProviderError) {
           const status = visionFailureToHttpStatus(error.kind);
           return sendApiError(
@@ -360,6 +364,10 @@ export const foodDraftRoutes: FastifyPluginAsync<
           );
         }
         throw error;
+      } finally {
+        if (!committed) {
+          await releaseDraftLimit(principal.userId as UserId, "text");
+        }
       }
     },
   );
@@ -442,6 +450,7 @@ export const foodDraftRoutes: FastifyPluginAsync<
         principal.userId as UserId,
         principal.accessToken,
       );
+      let released = false;
       try {
         if (vision.refineDraft === undefined) {
           throw new VisionProviderError(
@@ -457,12 +466,12 @@ export const foodDraftRoutes: FastifyPluginAsync<
           requestId,
         });
         // Refine is free and does not consume daily meal draft quota; release in-flight slot
-        await releaseDraftLimit(principal.userId as UserId);
+        await releaseDraftLimit(principal.userId as UserId, "refine");
+        released = true;
         return reply
           .status(200)
           .send(foodDraftResponseSchema.parse({ draft: candidate, requestId }));
       } catch (error) {
-        await releaseDraftLimit(principal.userId as UserId);
         if (error instanceof VisionProviderError) {
           const status = visionFailureToHttpStatus(error.kind);
           return sendApiError(
@@ -478,6 +487,10 @@ export const foodDraftRoutes: FastifyPluginAsync<
           );
         }
         throw error;
+      } finally {
+        if (!released) {
+          await releaseDraftLimit(principal.userId as UserId, "refine");
+        }
       }
     },
   );
@@ -551,97 +564,98 @@ export const foodDraftRoutes: FastifyPluginAsync<
       let photo: Buffer | null = null;
       let mimeType: VisionMimeType | null = null;
       let textHint: string | undefined;
+      let committed = false;
       try {
-        for await (const part of request.parts()) {
-          if (part.type === "file" && part.fieldname === "image") {
-            if (photo !== null) {
-              return sendApiError(
-                reply,
-                request,
-                422,
-                "VALIDATION_ERROR",
-                "Only one `image` field is allowed.",
-              );
-            }
-            const candidate = part.mimetype.toLowerCase();
-            if (!ALLOWED_MIME_TYPES.has(candidate as VisionMimeType)) {
-              return sendApiError(
-                reply,
-                request,
-                422,
-                "VALIDATION_ERROR",
-                `Image mime type "${part.mimetype}" is not allowed. Use image/jpeg, image/png, or image/webp.`,
-              );
-            }
-            mimeType = candidate as VisionMimeType;
-            const chunks: Buffer[] = [];
-            let total = 0;
-            for await (const chunk of part.file) {
-              total += chunk.length;
-              if (total > MAX_PHOTO_BYTES) {
+        try {
+          for await (const part of request.parts()) {
+            if (part.type === "file" && part.fieldname === "image") {
+              if (photo !== null) {
                 return sendApiError(
                   reply,
                   request,
                   422,
                   "VALIDATION_ERROR",
-                  `Image exceeds the 15 MiB limit (got ${total} bytes).`,
+                  "Only one `image` field is allowed.",
                 );
               }
-              chunks.push(chunk as Buffer);
+              const candidate = part.mimetype.toLowerCase();
+              if (!ALLOWED_MIME_TYPES.has(candidate as VisionMimeType)) {
+                return sendApiError(
+                  reply,
+                  request,
+                  422,
+                  "VALIDATION_ERROR",
+                  `Image mime type "${part.mimetype}" is not allowed. Use image/jpeg, image/png, or image/webp.`,
+                );
+              }
+              mimeType = candidate as VisionMimeType;
+              const chunks: Buffer[] = [];
+              let total = 0;
+              for await (const chunk of part.file) {
+                total += chunk.length;
+                if (total > MAX_PHOTO_BYTES) {
+                  return sendApiError(
+                    reply,
+                    request,
+                    422,
+                    "VALIDATION_ERROR",
+                    `Image exceeds the 15 MiB limit (got ${total} bytes).`,
+                  );
+                }
+                chunks.push(chunk as Buffer);
+              }
+              photo = Buffer.concat(chunks, total);
+            } else if (part.type === "field" && part.fieldname === "textHint") {
+              const value = (part.value as { toString(): string }).toString();
+              textHint = value.slice(0, 500);
             }
-            photo = Buffer.concat(chunks, total);
-          } else if (part.type === "field" && part.fieldname === "textHint") {
-            const value = (part.value as { toString(): string }).toString();
-            textHint = value.slice(0, 500);
           }
+        } catch (error) {
+          return sendApiError(
+            reply,
+            request,
+            422,
+            "VALIDATION_ERROR",
+            `Failed to read multipart body: ${
+              error instanceof Error ? error.message : "unknown error"
+            }`,
+          );
         }
-      } catch (error) {
-        return sendApiError(
-          reply,
-          request,
-          422,
-          "VALIDATION_ERROR",
-          `Failed to read multipart body: ${
-            error instanceof Error ? error.message : "unknown error"
-          }`,
+
+        if (photo === null || mimeType === null) {
+          return sendApiError(
+            reply,
+            request,
+            422,
+            "VALIDATION_ERROR",
+            "Missing required `image` field.",
+          );
+        }
+
+        const visionRequest: VisionDraftRequest = {
+          userId: principal.userId as UserId,
+          photo: new Uint8Array(photo),
+          mimeType,
+          ...(textHint !== undefined ? { textHint } : {}),
+          requestId,
+          countryCode: auth.countryCode ?? null,
+        };
+
+        const vision = await resolveActiveVisionProvider(
+          principal.userId as UserId,
+          principal.accessToken,
         );
-      }
 
-      if (photo === null || mimeType === null) {
-        return sendApiError(
-          reply,
-          request,
-          422,
-          "VALIDATION_ERROR",
-          "Missing required `image` field.",
-        );
-      }
-
-      const visionRequest: VisionDraftRequest = {
-        userId: principal.userId as UserId,
-        photo: new Uint8Array(photo),
-        mimeType,
-        ...(textHint !== undefined ? { textHint } : {}),
-        requestId,
-        countryCode: auth.countryCode ?? null,
-      };
-
-      const vision = await resolveActiveVisionProvider(
-        principal.userId as UserId,
-        principal.accessToken,
-      );
-
-      try {
         const candidate = await vision.generateDraft(visionRequest);
         await commitDraftLimit(
           principal.userId as UserId,
           candidate.tokensUsed ?? 1500,
         );
+        committed = true;
         return reply
           .status(200)
           .send(foodDraftResponseSchema.parse({ draft: candidate, requestId }));
       } catch (error) {
-        await releaseDraftLimit(principal.userId as UserId);
         if (error instanceof VisionProviderError) {
           const status = visionFailureToHttpStatus(error.kind);
           const code =
@@ -659,6 +673,10 @@ export const foodDraftRoutes: FastifyPluginAsync<
           return sendApiError(reply, request, status, code, message);
         }
         throw error;
+      } finally {
+        if (!committed) {
+          await releaseDraftLimit(principal.userId as UserId, "photo");
+        }
       }
     },
   );

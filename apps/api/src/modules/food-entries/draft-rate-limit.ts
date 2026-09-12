@@ -55,6 +55,14 @@ export class FoodDraftRateLimiter {
     this.#paidPerDay = options.paidPerDay ?? 100;
   }
 
+  dailyLimit(tier: PlanTier): number {
+    return tier === "paid" ? this.#paidPerDay : this.#freePerDay;
+  }
+
+  minuteLimit(tier: PlanTier): number {
+    return tier === "paid" ? this.#paidPerMinute : this.#freePerMinute;
+  }
+
   acquire(
     userId: string,
     tier: PlanTier,
@@ -62,23 +70,20 @@ export class FoodDraftRateLimiter {
   ): DraftRateLimitResult {
     const minuteLimit =
       tier === "paid" ? this.#paidPerMinute : this.#freePerMinute;
-    const dailyLimit = tier === "paid" ? this.#paidPerDay : this.#freePerDay;
+    const dailyLimit = this.dailyLimit(tier);
     const now = this.#clock();
     const isRefine = draftKind === "refine";
 
-    const dailyCutoff = now - DAY_MS;
+    const startOfUtcDay = new Date(now).setUTCHours(0, 0, 0, 0);
+    const endOfUtcDay = startOfUtcDay + DAY_MS;
     const minuteCutoff = now - WINDOW_MS;
 
     // 1. Check daily budget cap (exempt for refine)
     const existingDaily = (this.#dailyByUser.get(userId) ?? []).filter(
-      (timestamp) => timestamp > dailyCutoff,
+      (timestamp) => timestamp >= startOfUtcDay,
     );
     if (!isRefine && existingDaily.length >= dailyLimit) {
-      const oldestDaily = existingDaily[0] as number;
-      const retryAfter = Math.max(
-        1,
-        Math.ceil((oldestDaily + DAY_MS - now) / 1_000),
-      );
+      const retryAfter = Math.max(1, Math.ceil((endOfUtcDay - now) / 1_000));
       this.#dailyByUser.set(userId, existingDaily);
       return {
         allowed: false,
@@ -120,6 +125,15 @@ export class FoodDraftRateLimiter {
       retryAfter: 0,
       remaining: minuteLimit - recentMinute.length,
     };
+  }
+
+  release(userId: string, draftKind?: "photo" | "text" | "refine"): void {
+    if (draftKind !== "refine") {
+      const daily = this.#dailyByUser.get(userId);
+      if (daily && daily.length > 0) {
+        daily.pop();
+      }
+    }
   }
 
   /**

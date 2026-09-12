@@ -102,6 +102,19 @@ export const isRecoverableMealDraft = (
   );
 };
 
+export const isStaleMealTimestamp = (
+  iso: string | null | undefined,
+  now: Date = new Date(),
+): boolean => {
+  if (!iso) return true;
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return true;
+  const nowMs = now.getTime();
+  const diffMs = nowMs - t;
+  // If older than 4 hours or more than 5 minutes in future
+  return diffMs > 4 * 60 * 60 * 1000 || diffMs < -5 * 60 * 1000;
+};
+
 export interface UpgradedMealDraft extends RecoverableMealDraft {
   readonly clientOperationId: string;
   readonly consumedAt: string;
@@ -112,13 +125,16 @@ export const upgradeLegacyMealDraft = (
   draft: RecoverableMealDraft,
   now: () => Date = () => new Date(),
 ): UpgradedMealDraft => {
-  const clientOperationId = isValidOperationId(draft.clientOperationId)
-    ? draft.clientOperationId
-    : createOperationId();
+  const currentDate = now();
+  const isStale = isStaleMealTimestamp(draft.consumedAt, currentDate);
+  const clientOperationId =
+    !isStale && isValidOperationId(draft.clientOperationId)
+      ? draft.clientOperationId
+      : createOperationId();
   const consumedAt =
-    draft.consumedAt && !Number.isNaN(Date.parse(draft.consumedAt))
+    !isStale && draft.consumedAt && !Number.isNaN(Date.parse(draft.consumedAt))
       ? draft.consumedAt
-      : now().toISOString();
+      : currentDate.toISOString();
   return {
     ...draft,
     clientOperationId,

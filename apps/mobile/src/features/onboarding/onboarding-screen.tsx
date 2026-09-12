@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { bucketDuration, bucketTaps } from "@mizyun/observability";
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,12 +11,18 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import type { BetaProStatus } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { apiClient } from "@/composition/api-client";
 import { analyticsClient } from "@/composition/analytics-client";
 import { MaxContentWidth, Spacing } from "@/constants/theme";
+import { useOptionalAuth } from "@/features/auth/auth-context";
+import {
+  fetchBetaProStatus,
+  requestBetaProPass,
+} from "@/features/beta-pro/beta-pro-client";
 import { weightUnitLabel } from "@/lib/weight-units";
 import { lengthUnitLabel } from "@/lib/length-units";
 
@@ -305,6 +312,62 @@ function StepBody({ step, form, onPatch, error }: StepBodyProps) {
 }
 
 function WelcomeBody() {
+  const auth = useOptionalAuth();
+  const isPaid = auth?.profile?.planTier === "paid";
+  const [betaStatus, setBetaStatus] = useState<BetaProStatus | null>(null);
+  const [requesting, setRequesting] = useState(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    void fetchBetaProStatus(apiClient)
+      .then((res) => {
+        if (mountedRef.current) {
+          setBetaStatus(res.ok ? res.value.status : "none");
+        }
+      })
+      .catch(() => {
+        if (mountedRef.current) {
+          setBetaStatus("none");
+        }
+      });
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const requestBetaPro = useCallback(async () => {
+    setRequesting(true);
+    try {
+      const result = await requestBetaProPass(apiClient);
+      if (!mountedRef.current) return;
+
+      if (result.ok) {
+        setBetaStatus("pending");
+        Alert.alert(
+          "Request Sent",
+          "Your Beta Pro Pass request has been submitted. You'll be notified when it's reviewed.",
+        );
+      } else {
+        Alert.alert(
+          "Request Failed",
+          "Could not submit Beta Pro request. Try again later.",
+        );
+      }
+    } catch {
+      if (mountedRef.current) {
+        Alert.alert(
+          "Request Failed",
+          "Could not submit Beta Pro request. Try again later.",
+        );
+      }
+    } finally {
+      if (mountedRef.current) {
+        setRequesting(false);
+      }
+    }
+  }, []);
+
   return (
     <View style={styles.body}>
       <ThemedText style={styles.paragraph}>
@@ -324,6 +387,52 @@ function WelcomeBody() {
           Enjoy unlimited AI meal photo drafts, full 880+ workout routines, and
           memory-aware coaching.
         </ThemedText>
+
+        <View style={styles.betaActionRow}>
+          {isPaid || betaStatus === "approved" ? (
+            <View style={styles.approvedBadge}>
+              <ThemedText type="smallBold" style={styles.approvedBadgeText}>
+                ✨ Beta Pro Pass Active
+              </ThemedText>
+            </View>
+          ) : betaStatus === "pending" ? (
+            <View style={styles.pendingBadge}>
+              <ThemedText type="smallBold" style={styles.pendingBadgeText}>
+                ⏳ Request Pending
+              </ThemedText>
+            </View>
+          ) : (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Request Beta Pro Pass"
+              accessibilityState={{
+                disabled: requesting || betaStatus === null,
+                busy: requesting,
+              }}
+              disabled={requesting || betaStatus === null}
+              onPress={() => void requestBetaPro()}
+              style={({ pressed }) => [
+                styles.betaRequestButton,
+                pressed && styles.pressed,
+                (requesting || betaStatus === null) &&
+                  styles.betaRequestButtonDisabled,
+              ]}
+            >
+              {requesting ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <ThemedText
+                  type="smallBold"
+                  style={styles.betaRequestButtonText}
+                >
+                  {betaStatus === null
+                    ? "Checking Pass…"
+                    : "Request Beta Pro Pass"}
+                </ThemedText>
+              )}
+            </Pressable>
+          )}
+        </View>
       </ThemedView>
 
       <ThemedText type="small" themeColor="textSecondary">
@@ -741,4 +850,48 @@ const styles = StyleSheet.create({
   },
   primaryButtonDisabled: { opacity: 0.5 },
   primaryButtonText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  betaActionRow: {
+    marginTop: Spacing.two,
+  },
+  betaRequestButton: {
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#10B981",
+  },
+  betaRequestButtonText: {
+    color: "#ffffff",
+    fontSize: 15,
+  },
+  betaRequestButtonDisabled: {
+    opacity: 0.6,
+  },
+  pendingBadge: {
+    paddingVertical: 10,
+    alignItems: "center",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(234, 179, 8, 0.35)",
+    backgroundColor: "rgba(234, 179, 8, 0.08)",
+  },
+  pendingBadgeText: {
+    color: "#CA8A04",
+    fontSize: 13,
+  },
+  approvedBadge: {
+    paddingVertical: 10,
+    alignItems: "center",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.35)",
+    backgroundColor: "rgba(16, 185, 129, 0.08)",
+  },
+  approvedBadgeText: {
+    color: "#059669",
+    fontSize: 13,
+  },
+  pressed: {
+    opacity: 0.75,
+  },
 });

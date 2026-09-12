@@ -27,7 +27,7 @@ export const parseDisplayWeightToKilograms = (
   raw: string,
   unitSystem: WeightUnitSystem,
 ): number | null => {
-  const trimmed = raw.trim();
+  const trimmed = raw.trim().replace(",", ".");
   if (trimmed.length === 0) return null;
   const value = Number(trimmed);
   if (!Number.isFinite(value) || value <= 0) return null;
@@ -60,7 +60,7 @@ const parseRawTargetLoad = (
   const hasKg = lower.includes("kg");
   if (hasLb && hasKg) return null;
 
-  const cleaned = trimmed.replace(/[^0-9.]/g, "");
+  const cleaned = trimmed.replace(",", ".").replace(/[^0-9.]/g, "");
   if (cleaned.length === 0) return null;
 
   const num = Number(cleaned);

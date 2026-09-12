@@ -23,6 +23,7 @@ describe("weight unit boundaries", () => {
     expect(parseDisplayWeightToKilograms("", "metric")).toBeNull();
     expect(parseDisplayWeightToKilograms("abc", "metric")).toBeNull();
     expect(parseDisplayWeightToKilograms("0", "imperial")).toBeNull();
+    expect(parseDisplayWeightToKilograms("12,5", "metric")).toBe(12.5);
   });
 
   it("uses the matching display label", () => {
@@ -39,6 +40,8 @@ describe("target load parsing", () => {
       expect(parseTargetLoadToDisplay("140", "metric")).toBe("140");
       expect(parseTargetLoadToDisplay("225.5", "metric")).toBe("225.5");
       expect(parseTargetLoadToDisplay("225.5", "imperial")).toBe("225.5");
+      expect(parseTargetLoadToDisplay("12,5", "metric")).toBe("12.5");
+      expect(parseTargetLoadToDisplay("12,5 kg", "metric")).toBe("12.5");
     });
 
     it("handles explicit kg under both metric and imperial unitSystem", () => {

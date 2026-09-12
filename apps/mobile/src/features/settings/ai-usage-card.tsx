@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -14,12 +14,13 @@ import { apiClient } from "@/composition/api-client";
 
 import {
   aiUsageResponseSchema,
-  betaProRequestResponseSchema,
-  betaProStatusResponseSchema,
   type AiUsageResponse,
-  type BetaProRequestResponse,
   type BetaProStatusResponse,
 } from "@mizyun/contracts";
+import {
+  fetchBetaProStatus,
+  requestBetaProPass,
+} from "@/features/beta-pro/beta-pro-client";
 
 type CardState =
   | { readonly kind: "loading" }
@@ -38,6 +39,7 @@ type CardState =
 export function AiUsageCard() {
   const [state, setState] = useState<CardState>({ kind: "loading" });
   const [requesting, setRequesting] = useState(false);
+  const mountedRef = useRef(true);
 
   const refresh = useCallback(async () => {
     const [usageResult, betaResult] = await Promise.all([
@@ -46,12 +48,10 @@ export function AiUsageCard() {
         path: "/v1/ai/usage",
         schema: aiUsageResponseSchema,
       }),
-      apiClient.request<BetaProStatusResponse>({
-        method: "GET",
-        path: "/v1/beta-pro/status",
-        schema: betaProStatusResponseSchema,
-      }),
+      fetchBetaProStatus(apiClient),
     ]);
+
+    if (!mountedRef.current) return;
 
     if (!usageResult.ok) {
       setState({
@@ -75,29 +75,18 @@ export function AiUsageCard() {
   }, []);
 
   useEffect(() => {
+    mountedRef.current = true;
     void refresh();
+    return () => {
+      mountedRef.current = false;
+    };
   }, [refresh]);
 
   const requestBetaPro = useCallback(async () => {
     setRequesting(true);
     try {
-      let pushToken: string | undefined;
-      try {
-        const Notifications = await import("expo-notifications");
-        const tokenResult = await Notifications.getExpoPushTokenAsync();
-        pushToken = tokenResult.data;
-      } catch {
-        // Push token not available — proceed without it
-      }
-
-      const result = await apiClient.request<BetaProRequestResponse>({
-        method: "POST",
-        path: "/v1/beta-pro/request",
-        body: {
-          ...(pushToken !== undefined ? { pushToken } : {}),
-        },
-        schema: betaProRequestResponseSchema,
-      });
+      const result = await requestBetaProPass(apiClient);
+      if (!mountedRef.current) return;
 
       if (result.ok) {
         await refresh();
@@ -111,8 +100,17 @@ export function AiUsageCard() {
           "Could not submit Beta Pro request. Try again later.",
         );
       }
+    } catch {
+      if (mountedRef.current) {
+        Alert.alert(
+          "Request Failed",
+          "Could not submit Beta Pro request. Try again later.",
+        );
+      }
     } finally {
-      setRequesting(false);
+      if (mountedRef.current) {
+        setRequesting(false);
+      }
     }
   }, [refresh]);
 
@@ -271,6 +269,7 @@ export function AiUsageCard() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Request Beta Pro Pass"
+          accessibilityState={{ disabled: requesting, busy: requesting }}
           disabled={requesting}
           onPress={() => void requestBetaPro()}
           style={({ pressed }) => [

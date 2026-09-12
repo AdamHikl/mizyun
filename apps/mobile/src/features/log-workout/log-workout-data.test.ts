@@ -226,6 +226,33 @@ describe("workout lifecycle", () => {
     });
   });
 
+  it("handles decimal load with comma separator (European keypad)", async () => {
+    const requests: RequestOptions[] = [];
+    const result = await addWorkoutSetWith(
+      queuedClient([{ ok: true, value: { workoutSet: {} } }], requests),
+      WORKOUT_ID,
+      {
+        exerciseId: EXERCISE_ID,
+        repetitions: "7",
+        load: "12,5",
+        durationSeconds: "",
+        distanceMeters: "",
+        perceivedExertion: "",
+        unitSystem: "metric",
+      },
+      () => NOW,
+    );
+    expect(result.ok).toBe(true);
+    expect(requests[0]).toMatchObject({
+      method: "POST",
+      body: {
+        exerciseId: EXERCISE_ID,
+        repetitions: 7,
+        loadKg: 12.5,
+      },
+    });
+  });
+
   it("rejects an empty set without calling the API", async () => {
     const requests: RequestOptions[] = [];
     const result = await addWorkoutSetWith(

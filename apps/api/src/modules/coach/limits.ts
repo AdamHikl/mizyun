@@ -138,7 +138,7 @@ export interface CoachLimitService {
     draftKind: DraftKind,
   ): Promise<ReserveDraftResult>;
   commitDraftTokens(userId: UserId, tokensUsed: number): Promise<void>;
-  releaseDraftSlot(userId: UserId): Promise<void>;
+  releaseDraftSlot(userId: UserId, draftKind?: DraftKind): Promise<void>;
   getAiUsage(userId: UserId, planTier: PlanTier): Promise<AiUsageSnapshot>;
 }
 
@@ -440,15 +440,17 @@ export class SupabaseCoachLimitService implements CoachLimitService {
     }
   }
 
-  async releaseDraftSlot(userId: UserId): Promise<void> {
-    const day = sqlDay(this.#clock());
-    await runQuiet(() =>
-      this.#client.rpc("ai_release_draft_reservation", {
-        p_user_id: userId,
-        p_day: day,
-        p_count: 1,
-      }),
-    );
+  async releaseDraftSlot(userId: UserId, draftKind?: DraftKind): Promise<void> {
+    if (draftKind !== "refine") {
+      const day = sqlDay(this.#clock());
+      await runQuiet(() =>
+        this.#client.rpc("ai_release_draft_reservation", {
+          p_user_id: userId,
+          p_day: day,
+          p_count: 1,
+        }),
+      );
+    }
     const releaseResult = await this.#client.rpc("ai_release_in_flight", {
       p_user_id: userId,
     });
@@ -812,7 +814,8 @@ export class InMemoryCoachLimitService implements CoachLimitService {
     this.#inFlight.set(userId, Math.max(0, active - 1));
   }
 
-  async releaseDraftSlot(userId: UserId): Promise<void> {
+  async releaseDraftSlot(userId: UserId, draftKind?: DraftKind): Promise<void> {
+    void draftKind;
     const active = this.#inFlight.get(userId) ?? 0;
     this.#inFlight.set(userId, Math.max(0, active - 1));
   }

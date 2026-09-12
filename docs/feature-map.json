@@ -529,6 +529,7 @@
       "entryPoints": ["apps/api/src/modules/coach/routes.ts"],
       "ownedPaths": [
         "apps/api/src/modules/coach",
+        "apps/mobile/src/features/beta-pro",
         "apps/mobile/src/features/coach",
         "packages/agent-runtime",
         "packages/memory",

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DisabledVisionProvider,
   StubVisionProvider,
@@ -12,6 +12,7 @@ import type { AccessTokenVerifier } from "@mizyun/identity";
 import type { ProfileRepository } from "@mizyun/core";
 import { buildApp } from "../../app.js";
 import { InMemoryProfileRepository } from "../../profile-repository.js";
+import type { CoachLimitService } from "../coach/limits.js";
 import { FoodDraftRateLimiter } from "./draft-rate-limit.js";
 
 const userId = "00000000-0000-4000-8000-000000000001";
@@ -27,6 +28,7 @@ const apps: ReturnType<typeof buildApp>[] = [];
 const makeApps = (options: {
   readonly visionProvider: VisionDraftProvider;
   readonly rateLimiter?: FoodDraftRateLimiter;
+  readonly limits?: CoachLimitService;
   readonly resolvePlanTier?: () => "free" | "paid";
   readonly profileRepository?: ProfileRepository;
 }) => {
@@ -39,6 +41,7 @@ const makeApps = (options: {
     coachControls: {
       visionProvider: options.visionProvider,
       draftRateLimiter: rateLimiter,
+      ...(options.limits ? { limits: options.limits } : {}),
       resolvePlanTier: options.resolvePlanTier ?? (() => "free"),
     },
   });
@@ -385,6 +388,41 @@ describe("Food draft route — refine (AI-ACT-007)", () => {
     expect(refineRes.statusCode).toBe(200);
     rateLimiter.__resetForTest();
   });
+
+  it("resets daily photo draft limit at midnight UTC rather than rolling 24h window", async () => {
+    let currentTime = new Date("2026-09-12T23:50:00.000Z").getTime();
+    const rateLimiter = new FoodDraftRateLimiter({
+      clock: () => currentTime,
+      freePerMinute: 10,
+      freePerDay: 1,
+    });
+    const { app } = makeApps({
+      visionProvider: new StubVisionProvider(),
+      rateLimiter,
+    });
+    const form = buildForm({
+      name: "meal.png",
+      content: ONE_PIXEL_PNG,
+      type: "image/png",
+    });
+
+    // Request 1 on Sep 12 uses up the 1 daily draft
+    const res1 = await postDraft(app, form);
+    expect(res1.statusCode).toBe(200);
+
+    // Request 2 on Sep 12 is blocked
+    const res2 = await postDraft(app, form);
+    expect(res2.statusCode).toBe(429);
+    expect(res2.json().error.reason).toBe("daily_budget_exhausted");
+
+    // Advance clock across midnight UTC to 2026-09-13 00:05 UTC (15 mins later, NOT 24h later)
+    currentTime = new Date("2026-09-13T00:05:00.000Z").getTime();
+
+    // New UTC calendar day resets quota
+    const res3 = await postDraft(app, form);
+    expect(res3.statusCode).toBe(200);
+    rateLimiter.__resetForTest();
+  });
 });
 
 describe("Food draft route — defence in depth", () => {
@@ -687,5 +725,39 @@ describe("Food draft route — rate limit", () => {
 
     expect(response.statusCode).toBe(200);
     expect(capturedCountryCode).toBe("SK");
+  });
+
+  it("releases in-flight slot when photo draft fails validation with 422", async () => {
+    let releasedKind: string | undefined;
+    const stubLimits = {
+      clock: () => new Date(),
+      resolveCap: vi.fn(),
+      acquireSlot: vi.fn(),
+      commitTokens: vi.fn(),
+      releaseSlot: vi.fn(),
+      acquireDraftSlot: vi.fn().mockResolvedValue({ allowed: true }),
+      commitDraftTokens: vi.fn().mockResolvedValue(undefined),
+      releaseDraftSlot: vi.fn().mockImplementation(async (_userId, kind) => {
+        releasedKind = kind;
+      }),
+      getAiUsage: vi.fn(),
+    } as unknown as CoachLimitService;
+
+    const { app } = makeApps({
+      visionProvider: new StubVisionProvider(),
+      limits: stubLimits,
+    });
+
+    // Upload with invalid mime type to trigger 422
+    const form = buildForm({
+      name: "meal.txt",
+      content: Buffer.from("not an image"),
+      type: "text/plain",
+    });
+
+    const res = await postDraft(app, form);
+    expect(res.statusCode).toBe(422);
+    expect(stubLimits.releaseDraftSlot).toHaveBeenCalledWith(userId, "photo");
+    expect(releasedKind).toBe("photo");
   });
 });

@@ -779,7 +779,8 @@ export const buildApp = (
       clock,
       ...(dependencies.coachControls?.dailyUserTokenBudget !== undefined ||
       dependencies.coachControls?.userRequestsPerMinute !== undefined ||
-      dependencies.coachControls?.userMaxConcurrentRequests !== undefined
+      dependencies.coachControls?.userMaxConcurrentRequests !== undefined ||
+      dependencies.coachControls?.draftRateLimiter !== undefined
         ? {
             capOverrides: {
               ...(dependencies.coachControls?.dailyUserTokenBudget !== undefined
@@ -800,6 +801,14 @@ export const buildApp = (
                 ? {
                     maxConcurrentRequests:
                       dependencies.coachControls.userMaxConcurrentRequests,
+                  }
+                : {}),
+              ...(dependencies.coachControls?.draftRateLimiter !== undefined
+                ? {
+                    photoDraftDailyLimit:
+                      dependencies.coachControls.draftRateLimiter.dailyLimit(
+                        "free",
+                      ),
                   }
                 : {}),
             },

@@ -1,6 +1,36 @@
 # Mizyun current status
 
-## Latest handoff — Google Play publishing plan (2026-09-12)
+## Latest handoff — Beta Pro Pass in Onboarding & Field Testing Defect Remediation (`BETA-PRO-001`, `FIX-WORKOUT-001`, `FIX-MEAL-001`, `FIX-AI-PHOTO-001`, 2026-09-12)
+
+- **Beta Pro Pass Request in Onboarding (`BETA-PRO-001`)**:
+  - Integrated "Request Beta Pro Pass" button & dynamic badges into the Onboarding Welcome card (`apps/mobile/src/features/onboarding/onboarding-screen.tsx`).
+  - Extracted shared client functions `fetchBetaProStatus` and `requestBetaProPass` in vertical feature module `apps/mobile/src/features/beta-pro/beta-pro-client.ts`, with 4 comprehensive unit tests in `beta-pro-client.test.ts`.
+  - Added push token permission check (`Notifications.getPermissionsAsync` / `requestPermissionsAsync`) before capturing Expo push tokens, ensuring tokens can be captured cleanly on fresh onboarding installs.
+  - Refactored `apps/mobile/src/features/settings/ai-usage-card.tsx` to reuse the shared `beta-pro-client` logic, adding unmount guards (`mountedRef`), error catch handling, and `accessibilityState={{ disabled, busy }}` attributes.
+  - Added `apps/mobile/src/features/beta-pro` to `ownedPaths` under `coach-consent-budgets` in `docs/feature-map.json`.
+- **Workout Decimal Comma Parsing (`FIX-WORKOUT-001`)**:
+  - Root cause: European keyboard numeric keypads input comma `,`. Standard `Number("12,5")` returned `NaN`, and `parseRawTargetLoad` regex stripped commas (`12,5` -> `125`).
+  - Fixed `optionalNumber` in `apps/mobile/src/features/log-workout/log-workout-data.ts`, `parseRawTargetLoad` and `parseDisplayWeightToKilograms` in `apps/mobile/src/lib/weight-units.ts` to normalize `,` to `.`.
+  - Added unit test coverage in `log-workout-data.test.ts` and `weight-units.test.ts`.
+- **Stale Meal Draft Timestamp Freshness & Recovery (`FIX-MEAL-001`)**:
+  - Root cause: Draft auto-saving persisted `consumedAt` from the previous evening's abandoned draft (8:07 PM). Submitting today at 11:20 AM used that stale timestamp because `consumedAt !== null`.
+  - Added `isStaleMealTimestamp` (4h freshness threshold) in `apps/mobile/src/features/log-meal/meal-form.ts`.
+  - Updated `upgradeLegacyMealDraft` to automatically refresh stale draft timestamps and generate clean `clientOperationId`.
+  - In `apps/mobile/src/features/log-meal/log-meal-screen.tsx`: refreshed `consumedAt` on AI draft generation, preserved `prev.consumedAt` during submission retries (preventing cross-midnight lockouts), and immediately reloaded `loadAiUsage()` on text/photo draft generation.
+- **Photo Scan Limit Discrepancy & In-Flight Slot Protection (`FIX-AI-PHOTO-001`)**:
+  - Root cause: `FoodDraftRateLimiter` used a rolling 24-hour sliding window (`now - DAY_MS`), rejecting with "Resets in ~6h" when yesterday afternoon's calls plus this morning's reached 5, while Supabase DB ledger and UI reset at midnight UTC (3 remaining).
+  - Aligned `FoodDraftRateLimiter` daily budget to UTC calendar day (`startOfUtcDay = new Date(now).setUTCHours(0, 0, 0, 0)`), matching `CoachLimitService` and mobile countdown.
+  - Wrapped `POST /v1/food-entries/draft`, `/draft/text`, and `/draft/refine` in `try...finally` with boolean commit flags, guaranteeing that in-flight slots and daily reservations are always safely released on all 422 validation errors and provider failures.
+  - Added `release(userId, draftKind)` to `FoodDraftRateLimiter` to roll back in-memory daily count on failures.
+  - In `apps/api/src/modules/coach/limits.ts`: updated `releaseDraftSlot` to accept `draftKind` and skip `ai_release_draft_reservation` when `draftKind === "refine"`, preventing refine completions from stealing photo reservations.
+- **Verification**:
+  - Independent reviewer subagent audited the full diff; critical findings (422 in-flight slot leak, refine reservation stealing, midnight retry lockout, and `parseDisplayWeightToKilograms` comma parsing) addressed and verified.
+  - `pnpm check` passed cleanly (exit 0) across all 15 TypeScript projects, 23 deployment safeguards, 16 build matrix invariants, and 56 AI invariants.
+  - Full API unit tests passed (33/33 files, 485/485 passed). Full mobile unit tests passed (40/40 files, 372/372 passed).
+  - Prettier formatting passed 100% clean.
+- **Next exact action**: Complete device build & install on physical iPhone (`pnpm mobile:founder-dev:ios --device "Adam's Iphone 😋"`), then test on-device: (1) Onboarding "Request Beta Pro Pass" button, (2) Workout logging with `12,5 kg`, (3) Meal logging at current time, (4) Photo scan limit matching UI quota.
+
+## Prior handoff — Google Play publishing plan (2026-09-12)
 
 - Added [Google Play implementation plan](docs/GOOGLE_PLAY_IMPLEMENTATION_PLAN_2026-09-12.md), PLAY-001–006: account/organization eligibility, local AAB/upload signing, versionCode and API36/16KB compatibility, Android acceptance, health/AI/privacy disclosures, internal/closed testing, review and intentional release.
 - User reports Apple side should be completed; this session leaves Apple implementation outside scope and preserves all existing uncommitted work. Planning snapshot is `6304400` plus the current working tree, not a clean candidate. No application changes, fresh builds, portal actions or deployments occurred.

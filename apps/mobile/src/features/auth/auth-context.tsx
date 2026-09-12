@@ -188,10 +188,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshProfile = useCallback(async () => {
     const requestVersion = ++profileRequestVersion.current;
     setProfileLoading(true);
-    const nextProfile = await fetchProfile();
-    if (profileRequestVersion.current === requestVersion) {
-      setProfile(nextProfile);
-      setProfileLoading(false);
+    try {
+      const nextProfile = await fetchProfile();
+      if (profileRequestVersion.current === requestVersion) {
+        setProfile(nextProfile);
+      }
+    } finally {
+      if (profileRequestVersion.current === requestVersion) {
+        setProfileLoading(false);
+      }
     }
   }, [fetchProfile]);
 
@@ -274,8 +279,12 @@ export function SessionGate({ children }: { children: ReactNode }) {
   }
 }
 
+export function useOptionalAuth() {
+  return useContext(AuthContext);
+}
+
 export function useAuth() {
-  const context = useContext(AuthContext);
+  const context = useOptionalAuth();
   if (!context) throw new Error("useAuth must be used inside AuthProvider");
   return context;
 }

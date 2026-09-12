@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   isRecoverableMealDraft,
+  isStaleMealTimestamp,
   mealFormStringsFromDraft,
   mealFormStringsFromEntry,
   parseOptionalNutritionNumber,
@@ -212,7 +213,7 @@ describe("recoverable AI meal drafts", () => {
     expect(upgraded.name).toBe("Tuna");
   });
 
-  it("preserves existing valid clientOperationId and consumedAt when upgrading", () => {
+  it("preserves recent valid clientOperationId and consumedAt when upgrading", () => {
     const existingOpId = "22222222-3333-4444-8555-666666666666";
     const existingTime = "2026-09-08T10:00:00.000Z";
     const draft = {
@@ -224,8 +225,48 @@ describe("recoverable AI meal drafts", () => {
       clientOperationId: existingOpId,
       consumedAt: existingTime,
     };
-    const upgraded = upgradeLegacyMealDraft(draft);
+    const refDate = new Date("2026-09-08T11:00:00.000Z");
+    const upgraded = upgradeLegacyMealDraft(draft, () => refDate);
     expect(upgraded.clientOperationId).toBe(existingOpId);
     expect(upgraded.consumedAt).toBe(existingTime);
+  });
+
+  it("refreshes stale consumedAt and clientOperationId when upgrading yesterday's draft", () => {
+    const existingOpId = "22222222-3333-4444-8555-666666666666";
+    const yesterdayTime = "2026-09-07T20:07:00.000Z";
+    const draft = {
+      name: "Chocolate chip Banana bread",
+      calories: "350",
+      protein: "5",
+      carbs: "50",
+      fat: "12",
+      clientOperationId: existingOpId,
+      consumedAt: yesterdayTime,
+    };
+    const today = new Date("2026-09-08T11:20:00.000Z");
+    const upgraded = upgradeLegacyMealDraft(draft, () => today);
+    expect(upgraded.clientOperationId).not.toBe(existingOpId);
+    expect(upgraded.consumedAt).toBe("2026-09-08T11:20:00.000Z");
+  });
+
+  it("detects stale meal timestamps correctly", () => {
+    const now = new Date("2026-09-12T12:00:00.000Z");
+    expect(isStaleMealTimestamp(undefined, now)).toBe(true);
+    expect(isStaleMealTimestamp("invalid-date", now)).toBe(true);
+    // 30 minutes ago, same day
+    expect(isStaleMealTimestamp("2026-09-12T11:30:00.000Z", now)).toBe(false);
+    // 5 hours ago
+    expect(isStaleMealTimestamp("2026-09-12T06:00:00.000Z", now)).toBe(true);
+    // Yesterday (15+ hours ago)
+    expect(isStaleMealTimestamp("2026-09-11T20:07:00.000Z", now)).toBe(true);
+    // 15 minutes ago across midnight (23:55 to 00:10 next day) - not stale
+    expect(
+      isStaleMealTimestamp(
+        "2026-09-12T23:55:00.000Z",
+        new Date("2026-09-13T00:10:00.000Z"),
+      ),
+    ).toBe(false);
+    // In future by 10 minutes
+    expect(isStaleMealTimestamp("2026-09-12T12:10:00.000Z", now)).toBe(true);
   });
 });

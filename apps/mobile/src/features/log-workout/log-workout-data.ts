@@ -383,7 +383,7 @@ export const createExerciseWith = async (
 
 const optionalNumber = (raw: string): number | null | "invalid" => {
   if (raw.trim().length === 0) return null;
-  const value = Number(raw.trim());
+  const value = Number(raw.trim().replace(",", "."));
   return Number.isFinite(value) && value >= 0 ? value : "invalid";
 };
 

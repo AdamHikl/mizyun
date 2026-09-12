@@ -44,6 +44,7 @@ import {
 import {
   createOperationId,
   isRecoverableMealDraft,
+  isStaleMealTimestamp,
   mealFormStringsFromDraft,
   parseOptionalNutritionNumber,
   upgradeLegacyMealDraft,
@@ -262,11 +263,17 @@ export function LogMealScreen() {
       return;
     }
 
-    const fixedConsumedAt = consumedAt ?? new Date().toISOString();
-    if (consumedAt === null) setConsumedAt(fixedConsumedAt);
+    const prev = submittedOperationRef.current;
+    const isRetryCandidate = prev !== null && hadFailure.current;
+
+    const fixedConsumedAt = isRetryCandidate
+      ? prev.consumedAt
+      : consumedAt && !isStaleMealTimestamp(consumedAt)
+        ? consumedAt
+        : new Date().toISOString();
+    if (consumedAt !== fixedConsumedAt) setConsumedAt(fixedConsumedAt);
 
     // Check if current form is an exact retry of the previously submitted operation
-    const prev = submittedOperationRef.current;
     const isRetryOfPrev =
       prev !== null &&
       prev.name.trim() === name.trim() &&
@@ -475,6 +482,8 @@ export function LogMealScreen() {
         setDraftWarnings(draftEvidenceLines(draft.draft));
         setAiDraft(draft.draft);
         setSourceProposalId(null);
+        setConsumedAt(new Date().toISOString());
+        void loadAiUsage();
         measurement.current?.complete();
       } catch (cause) {
         hadFailure.current = true;
@@ -488,45 +497,50 @@ export function LogMealScreen() {
         setSnapping(false);
       }
     },
-    [attachedPhoto, mealDescription],
+    [attachedPhoto, loadAiUsage, mealDescription],
   );
 
-  const executeTextDraft = useCallback(async (description: string) => {
-    if (description.trim().length < 2) return;
-    measurement.current?.tap();
-    if (hadFailure.current) measurement.current?.retry();
-    setSnapping(true);
-    setError(null);
-    setDraftWarnings([]);
-    try {
-      const result = await draftMealFromText(
-        description,
-        profile?.coachingPreferences?.countryCode ?? null,
-      );
-      if (!result.ok) {
+  const executeTextDraft = useCallback(
+    async (description: string) => {
+      if (description.trim().length < 2) return;
+      measurement.current?.tap();
+      if (hadFailure.current) measurement.current?.retry();
+      setSnapping(true);
+      setError(null);
+      setDraftWarnings([]);
+      try {
+        const result = await draftMealFromText(
+          description,
+          profile?.coachingPreferences?.countryCode ?? null,
+        );
+        if (!result.ok) {
+          hadFailure.current = true;
+          measurement.current?.fail("submit", "unexpected", true);
+          setError(result.message);
+          return;
+        }
+        const strings = mealFormStringsFromDraft(result.draft);
+        setName(strings.name);
+        setCalories(strings.calories);
+        setProtein(strings.protein);
+        setCarbs(strings.carbs);
+        setFat(strings.fat);
+        setDraftWarnings(draftEvidenceLines(result.draft));
+        setAiDraft(result.draft);
+        setSourceProposalId(null);
+        setConsumedAt(new Date().toISOString());
+        void loadAiUsage();
+        measurement.current?.complete();
+      } catch {
         hadFailure.current = true;
         measurement.current?.fail("submit", "unexpected", true);
-        setError(result.message);
-        return;
+        setError("Couldn't generate a draft from the description.");
+      } finally {
+        setSnapping(false);
       }
-      const strings = mealFormStringsFromDraft(result.draft);
-      setName(strings.name);
-      setCalories(strings.calories);
-      setProtein(strings.protein);
-      setCarbs(strings.carbs);
-      setFat(strings.fat);
-      setDraftWarnings(draftEvidenceLines(result.draft));
-      setAiDraft(result.draft);
-      setSourceProposalId(null);
-      measurement.current?.complete();
-    } catch {
-      hadFailure.current = true;
-      measurement.current?.fail("submit", "unexpected", true);
-      setError("Couldn't generate a draft from the description.");
-    } finally {
-      setSnapping(false);
-    }
-  }, []);
+    },
+    [loadAiUsage],
+  );
 
   const executeRefineDraft = useCallback(
     async (instruction: string) => {
@@ -554,12 +568,13 @@ export function LogMealScreen() {
         setFat(strings.fat);
         setDraftWarnings(draftEvidenceLines(result.draft));
         setAiDraft(result.draft);
+        void loadAiUsage();
         measurement.current?.complete();
       } finally {
         setRefining(false);
       }
     },
-    [aiDraft, refining, submitting],
+    [aiDraft, loadAiUsage, refining, submitting],
   );
 
   const executeAiAction = useCallback(
