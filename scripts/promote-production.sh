@@ -117,13 +117,15 @@ rollback_code() {
   sudo -n systemctl restart "$MIZYUN_API_SERVICE" >/dev/null 2>&1 || rollback_ok=false
 
   local rollback_healthy=false
-  for _attempt in {1..10}; do
+  local rollback_attempts="${MIZYUN_HEALTH_RETRIES:-40}"
+  local rollback_sleep="${MIZYUN_HEALTH_SLEEP:-1}"
+  for _attempt in $(seq 1 "$rollback_attempts"); do
     if curl --silent --show-error --fail --max-time 2 \
       "$MIZYUN_LOCAL_API_URL/v1/health" >/dev/null 2>&1; then
       rollback_healthy=true
       break
     fi
-    sleep 1
+    sleep "$rollback_sleep"
   done
   if [[ "$rollback_ok" == true && "$rollback_healthy" == true ]]; then
     echo "Rollback to $previous_sha succeeded and API is healthy." >&2
@@ -166,17 +168,19 @@ migrations_applied=true
 
 sudo -n systemctl restart "$MIZYUN_API_SERVICE"
 api_ready=false
-for _attempt in {1..15}; do
+max_attempts="${MIZYUN_HEALTH_RETRIES:-40}"
+sleep_duration="${MIZYUN_HEALTH_SLEEP:-1}"
+for _attempt in $(seq 1 "$max_attempts"); do
   if curl --silent --show-error --fail --max-time 2 \
     "$MIZYUN_LOCAL_API_URL/v1/health" >/dev/null 2>&1; then
     api_ready=true
     break
   fi
-  sleep 1
+  sleep "$sleep_duration"
 done
 
 if [[ "$api_ready" != true ]]; then
-  echo "API did not become healthy within 15 seconds." >&2
+  echo "Production API did not become healthy within ${max_attempts} attempts." >&2
   rollback_code "$LINENO"
   exit 1
 fi
