@@ -1,6 +1,32 @@
 # Mizyun current status
 
-## Latest handoff — Beta Pro Pass in Onboarding & Field Testing Defect Remediation (`BETA-PRO-001`, `FIX-WORKOUT-001`, `FIX-MEAL-001`, `FIX-AI-PHOTO-001`, 2026-09-12)
+## Latest handoff — Progress Photos Gated to Dev, Pi Production Deployed & iPhone Installed (`PROD-GATE-001`, 2026-09-12)
+
+- **Progress Photos Gated to Dev (`PROD-GATE-001`)**:
+  - Gated the incomplete progress photos feature cleanly to the Dev version (`com.mizyun.development`) while removing it from Production (`com.mizyun.app`).
+  - `apps/mobile/app.config.js`: Added `enableProgressPhotos: variantName === "dev"` in `expo.extra`.
+  - `apps/mobile/src/composition/app-variant.ts`: Implemented `getAppVariant()` and `isProgressPhotosEnabled()` with fail-closed production defaults. Added 11 unit tests in `app-variant.test.ts` (all 11 passing) and configured minimal `expo-constants` Vitest stub.
+  - `apps/mobile/src/features/dashboard/dashboard-screen.tsx`: Gated Quick Log dock to render 3 actions on Production (Meal, Workout, Weight) vs 4 on Dev (including Progress photo).
+  - `apps/mobile/src/features/settings/settings-screen.tsx`: Gated Shortcuts to hide Photos on Production, allowing Feedback to span the full row.
+  - `apps/mobile/src/app/progress-photos.tsx`: Guarded route with `<Redirect href="/" />` on Production, preserving typed routes and route tree parity.
+  - Registered `apps/mobile/src/composition` in `docs/feature-map.json` under `composition-roots`.
+  - Independent subagent code review certified APPROVE. Committed as `b49959f`.
+- **Deploy Script Robustness Fix**:
+  - `scripts/promote-production.sh`: Aligned health check retries with `promote-dev.sh` (`MIZYUN_HEALTH_RETRIES:-40`), preventing premature rollbacks on Raspberry Pi ARM64 startup spikes. Committed as `3bad20c`.
+- **Raspberry Pi Production Deployment**:
+  - Promoted commit `3bad20c` to Production on the Pi via `pnpm deploy:production 3bad20c`.
+  - Production database backup taken on the Pi at `/srv/mizyun/backups/20260912T133712Z`.
+  - Production migrations verified up to date (no schema diff).
+  - Production systemd service `mizyun-api.service` restarted and verified healthy:
+    - Pi local health: `http://127.0.0.1:4000/v1/health` -> HTTP 200 OK.
+    - Pi public health: `https://mizyun-api.phiskel.com/v1/health` -> HTTP 200 `{"status":"ok","service":"mizyun-api","timestamp":"2026-09-12T13:37:32.437Z"}`.
+    - Dev public health also verified intact: `https://mizyun-api-dev.phiskel.com/v1/health` -> HTTP 200 OK.
+- **iPhone Production Build & Installation**:
+  - Generated native iOS prebuild for `com.mizyun.app` ("Mizyun") with Apple Developer Team `LQJNDVBL43`.
+  - Compiled native Release configuration in Xcode (`Mizyun.app`).
+  - Uninstalled legacy Personal Team build and installed the new production app on physical iPhone 16 Pro (`Adam's Iphone 😋`, CoreDevice identifier `7FBC9ACC-918A-5A9B-8D22-B9F1FF652A06`).
+  - Successfully launched `com.mizyun.app` on device.
+- **Next exact action**: Launch the production app on iPhone 16 Pro and verify Quick Log dock has 3 items (Meal, Workout, Weight) and Settings Shortcuts has Feedback only.
 
 - **Beta Pro Pass Request in Onboarding (`BETA-PRO-001`)**:
   - Integrated "Request Beta Pro Pass" button & dynamic badges into the Onboarding Welcome card (`apps/mobile/src/features/onboarding/onboarding-screen.tsx`).
