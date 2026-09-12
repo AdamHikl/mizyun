@@ -23,12 +23,13 @@
   - Wrapped `POST /v1/food-entries/draft`, `/draft/text`, and `/draft/refine` in `try...finally` with boolean commit flags, guaranteeing that in-flight slots and daily reservations are always safely released on all 422 validation errors and provider failures.
   - Added `release(userId, draftKind)` to `FoodDraftRateLimiter` to roll back in-memory daily count on failures.
   - In `apps/api/src/modules/coach/limits.ts`: updated `releaseDraftSlot` to accept `draftKind` and skip `ai_release_draft_reservation` when `draftKind === "refine"`, preventing refine completions from stealing photo reservations.
-- **Verification**:
-  - Independent reviewer subagent audited the full diff; critical findings (422 in-flight slot leak, refine reservation stealing, midnight retry lockout, and `parseDisplayWeightToKilograms` comma parsing) addressed and verified.
+- **Verification & Deployment Evidence**:
+  - Independent reviewer subagents audited the full diff; critical findings (422 in-flight slot leak, refine reservation stealing, midnight retry lockout, and `parseDisplayWeightToKilograms` comma parsing) addressed and verified.
   - `pnpm check` passed cleanly (exit 0) across all 15 TypeScript projects, 23 deployment safeguards, 16 build matrix invariants, and 56 AI invariants.
-  - Full API unit tests passed (33/33 files, 485/485 passed). Full mobile unit tests passed (40/40 files, 372/372 passed).
-  - Prettier formatting passed 100% clean.
-- **Next exact action**: Complete device build & install on physical iPhone (`pnpm mobile:founder-dev:ios --device "Adam's Iphone 😋"`), then test on-device: (1) Onboarding "Request Beta Pro Pass" button, (2) Workout logging with `12,5 kg`, (3) Meal logging at current time, (4) Photo scan limit matching UI quota.
+  - Full API unit tests passed (33/33 files, 485/485 passed). Full mobile unit tests passed (40/40 files, 372/372 passed). Prettier formatting 100% clean.
+  - Native iOS Release build (`com.mizyun.development`) compiled and installed directly onto physical iPhone 16 Pro (`Adam's Iphone 😋`, CoreDevice identifier `7FBC9ACC-918A-5A9B-8D22-B9F1FF652A06`).
+  - Dev Deployment: Commit `055627d` deployed to Dev on the Raspberry Pi via `pnpm deploy:dev 055627d`. Dev database migrations verified up to date, systemd service reloaded, and public API health confirmed: `https://mizyun-api-dev.phiskel.com/v1/health` -> HTTP 200 `{"status":"ok","service":"mizyun-api","timestamp":"2026-09-12T12:53:31.635Z"}`.
+- **Next exact action**: Test all 4 items on the installed Dev app on the physical iPhone 16 Pro: (1) Onboarding "Request Beta Pro Pass" button, (2) Workout logging with `12,5 kg`, (3) Meal logging at current time, (4) Photo scan limit matching UI quota without premature 429 lockouts.
 
 ## Prior handoff — Google Play publishing plan (2026-09-12)
 
