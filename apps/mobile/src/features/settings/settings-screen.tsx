@@ -1,6 +1,7 @@
 import { apiClient, apiConfiguration } from "@/composition/api-client";
 import { analyticsClient } from "@/composition/analytics-client";
 import { authConfiguration } from "@/composition/auth-client";
+import { isProgressPhotosEnabled } from "@/composition/app-variant";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { FeedbackHeaderButton } from "@/components/feedback-header-button";
@@ -358,32 +359,34 @@ export function SettingsScreen() {
           </View>
 
           <View style={styles.actionRow}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Open Progress Photos"
-              onPress={() => router.push("/progress-photos" as Href)}
-              style={({ pressed }) => [
-                styles.actionCard,
-                pressed && styles.pressed,
-              ]}
-            >
-              <View style={styles.actionIconBox}>
-                <ThemedText style={styles.actionIcon}>📷</ThemedText>
-              </View>
-              <View style={styles.actionTextBox}>
-                <ThemedText type="smallBold" numberOfLines={1}>
-                  Photos
-                </ThemedText>
-                <ThemedText
-                  type="small"
-                  themeColor="textSecondary"
-                  numberOfLines={1}
-                >
-                  Timeline
-                </ThemedText>
-              </View>
-              <ThemedText style={styles.actionArrow}>→</ThemedText>
-            </Pressable>
+            {isProgressPhotosEnabled() ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Open Progress Photos"
+                onPress={() => router.push("/progress-photos" as Href)}
+                style={({ pressed }) => [
+                  styles.actionCard,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <View style={styles.actionIconBox}>
+                  <ThemedText style={styles.actionIcon}>📷</ThemedText>
+                </View>
+                <View style={styles.actionTextBox}>
+                  <ThemedText type="smallBold" numberOfLines={1}>
+                    Photos
+                  </ThemedText>
+                  <ThemedText
+                    type="small"
+                    themeColor="textSecondary"
+                    numberOfLines={1}
+                  >
+                    Timeline
+                  </ThemedText>
+                </View>
+                <ThemedText style={styles.actionArrow}>→</ThemedText>
+              </Pressable>
+            ) : null}
 
             <Pressable
               accessibilityRole="button"

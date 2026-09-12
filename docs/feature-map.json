@@ -898,7 +898,8 @@
       "ownedPaths": [
         "apps/api/src/server.ts",
         "apps/api/src/app.ts",
-        "apps/mobile/src/app"
+        "apps/mobile/src/app",
+        "apps/mobile/src/composition"
       ],
       "contracts": [],
       "domainPort": [],
@@ -910,7 +911,10 @@
       "adapters": [],
       "dataTables": [],
       "migrationPaths": [],
-      "tests": ["apps/api/src/app.test.ts"],
+      "tests": [
+        "apps/api/src/app.test.ts",
+        "apps/mobile/src/composition/app-variant.test.ts"
+      ],
       "relations": [
         {
           "type": "dependsOn",

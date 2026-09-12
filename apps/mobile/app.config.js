@@ -277,6 +277,7 @@ module.exports = {
       ...baseExpo.extra,
       mizyunVariant: variantName,
       mizyunProfile: effectiveProfile,
+      enableProgressPhotos: variantName === "dev",
     },
     ios: {
       ...baseIos,

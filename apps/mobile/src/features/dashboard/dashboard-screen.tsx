@@ -15,6 +15,7 @@ import { FeedbackHeaderButton } from "@/components/feedback-header-button";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { apiClient } from "@/composition/api-client";
 import { analyticsClient } from "@/composition/analytics-client";
+import { isProgressPhotosEnabled } from "@/composition/app-variant";
 import { useAuth } from "@/features/auth/auth-context";
 
 import {
@@ -261,6 +262,10 @@ export function DashboardScreen() {
     }, [loadMetrics]),
   );
 
+  const quickLogActions = actions.filter(
+    (action) => action.label !== "Progress photo" || isProgressPhotosEnabled(),
+  );
+
   return (
     <ThemedView style={styles.page}>
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
@@ -340,7 +345,7 @@ export function DashboardScreen() {
               QUICK LOG
             </ThemedText>
             <View style={styles.actionGrid}>
-              {actions.map((action) => (
+              {quickLogActions.map((action) => (
                 <Pressable
                   key={action.label}
                   accessibilityRole="button"
