@@ -52,20 +52,19 @@ export class InMemoryBetaProRepository implements BetaProRepository {
     const now = options?.now ?? new Date();
 
     if (existing) {
-      if (existing.status === "pending") {
-        const updated: BetaProRecord = {
-          ...existing,
-          pushToken:
-            data.pushToken !== undefined
-              ? (data.pushToken ?? null)
-              : existing.pushToken,
-          notes:
-            data.notes !== undefined ? (data.notes ?? null) : existing.notes,
-        };
-        this.#byUser.set(data.userId, updated);
-        return updated;
-      }
-      return existing;
+      const updated: BetaProRecord = {
+        ...existing,
+        pushToken:
+          data.pushToken !== undefined
+            ? (data.pushToken ?? null)
+            : existing.pushToken,
+        notes:
+          existing.status === "pending" && data.notes !== undefined
+            ? (data.notes ?? null)
+            : existing.notes,
+      };
+      this.#byUser.set(data.userId, updated);
+      return updated;
     }
 
     const created: BetaProRecord = {

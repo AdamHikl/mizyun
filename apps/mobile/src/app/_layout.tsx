@@ -13,11 +13,13 @@ import { AppState, Linking, useColorScheme } from "react-native";
 
 import { AnimatedSplashOverlay } from "@/components/animated-icon";
 import { analyticsClient } from "@/composition/analytics-client";
+import { apiClient, apiConfiguration } from "@/composition/api-client";
 import {
   AuthProvider,
   SessionGate,
   useAuth,
 } from "@/features/auth/auth-context";
+import { registerDevicePushToken } from "@/features/beta-pro/beta-pro-client";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -26,7 +28,7 @@ Notifications.setNotificationHandler({
     const isLiveWorkout =
       notification.request.identifier === "active-workout-session";
     return {
-      shouldPlaySound: false,
+      shouldPlaySound: true,
       shouldSetBadge: false,
       shouldShowBanner: !isLiveWorkout,
       shouldShowList: true,
@@ -171,6 +173,29 @@ function WorkoutNotificationBridge() {
   return null;
 }
 
+function PushRegistrationBridge() {
+  const { session } = useAuth();
+
+  useEffect(() => {
+    if (!session || !apiConfiguration.configured) return;
+    let cancelled = false;
+
+    void registerDevicePushToken(apiClient).then((token) => {
+      if (token && !cancelled) {
+        console.log(
+          `[Push] Registered push token with server: ${token.slice(0, 16)}...`,
+        );
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session]);
+
+  return null;
+}
+
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   return (
@@ -180,6 +205,7 @@ export default function TabLayout() {
       <AuthProvider>
         <DeepLinkBridge />
         <SessionGate>
+          <PushRegistrationBridge />
           <CoachNotificationBridge />
           <WorkoutNotificationBridge />
           <Stack screenOptions={{ headerBackTitle: "Back" }}>

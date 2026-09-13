@@ -1,0 +1,11 @@
+{
+  "taskId": "task-beta-pro-test-001",
+  "objective": "Create apps/api/src/modules/account/beta-pro-routes.test.ts to test GET /v1/beta-pro/status and POST /v1/beta-pro/request, asserting that updating pushToken updates an approved request.",
+  "allowedFiles": ["apps/api/src/modules/account/beta-pro-routes.test.ts"],
+  "prohibitedActions": [
+    "do not edit any files other than apps/api/src/modules/account/beta-pro-routes.test.ts",
+    "do not commit or push to git"
+  ],
+  "verificationCommand": "pnpm --filter @mizyun/api test src/modules/account/beta-pro-routes.test.ts",
+  "contextSnippet": "import { afterEach, describe, expect, it } from 'vitest';\nimport type { UserId } from '@mizyun/core';\nimport type { AccessTokenVerifier } from '@mizyun/identity';\nimport { buildApp } from '../../app.js';\nimport { InMemoryBetaProRepository } from '../../beta-pro-repository.js';\n\nconst userA = '00000000-0000-4000-8000-000000000001' as UserId;\n\nconst tokenVerifierFor = (userId: UserId): AccessTokenVerifier => ({\n  verify: async (token) =>\n    token === 'valid'\n      ? { userId, role: 'authenticated', accessToken: 'test-token', email: 'adam.hikl@outlook.com' }\n      : null,\n});\n\n// Use buildApp({ dependencies: { betaProRepository: repo }, tokenVerifier: tokenVerifierFor(userA) })\n// App has fastify routes:\n// GET /v1/beta-pro/status\n// POST /v1/beta-pro/request body: { pushToken?: string, notes?: string }\n// Test: 1) GET status returns none when empty\n// 2) POST request creates pending request\n// 3) POST request with pushToken updates pushToken on pre-seeded approved request (repo.__seedForTest({ id: 'req-1', userId: userA, email: 'test@example.com', pushToken: null, status: 'approved', notes: null, createdAt: new Date(), reviewedAt: new Date() }))"
+}

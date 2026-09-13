@@ -1,6 +1,28 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ApiClient } from "@mizyun/api-client";
-import { fetchBetaProStatus, requestBetaProPass } from "./beta-pro-client";
+import {
+  fetchBetaProStatus,
+  registerDevicePushToken,
+  requestBetaProPass,
+} from "./beta-pro-client";
+
+const mockGetPermissionsAsync = vi.fn().mockResolvedValue({ granted: true });
+const mockRequestPermissionsAsync = vi
+  .fn()
+  .mockResolvedValue({ granted: true });
+const mockGetDevicePushTokenAsync = vi
+  .fn()
+  .mockResolvedValue({ data: "mock-apns-token" });
+const mockGetExpoPushTokenAsync = vi
+  .fn()
+  .mockResolvedValue({ data: "ExponentPushToken[mock]" });
+
+vi.mock("expo-notifications", () => ({
+  getPermissionsAsync: () => mockGetPermissionsAsync(),
+  requestPermissionsAsync: () => mockRequestPermissionsAsync(),
+  getDevicePushTokenAsync: () => mockGetDevicePushTokenAsync(),
+  getExpoPushTokenAsync: () => mockGetExpoPushTokenAsync(),
+}));
 
 describe("beta-pro-client", () => {
   describe("fetchBetaProStatus", () => {
@@ -89,6 +111,45 @@ describe("beta-pro-client", () => {
       });
 
       expect(result.ok).toBe(false);
+    });
+  });
+
+  describe("registerDevicePushToken", () => {
+    it("fetches device token and posts to /v1/beta-pro/request", async () => {
+      mockGetPermissionsAsync.mockResolvedValueOnce({ granted: true });
+      mockGetDevicePushTokenAsync.mockResolvedValueOnce({
+        data: "mock-apns-token-xyz",
+      });
+
+      const request = vi.fn().mockResolvedValue({
+        ok: true,
+        value: { status: "pending" },
+      });
+      const client = { request } as unknown as ApiClient;
+
+      const token = await registerDevicePushToken(client);
+      expect(token).toBe("mock-apns-token-xyz");
+      expect(request).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: "POST",
+          path: "/v1/beta-pro/request",
+          body: { pushToken: "mock-apns-token-xyz" },
+        }),
+      );
+    });
+
+    it("returns null when permissions are not granted", async () => {
+      mockGetPermissionsAsync.mockResolvedValueOnce({
+        granted: false,
+        canAskAgain: false,
+      });
+
+      const request = vi.fn();
+      const client = { request } as unknown as ApiClient;
+
+      const token = await registerDevicePushToken(client);
+      expect(token).toBeNull();
+      expect(request).not.toHaveBeenCalled();
     });
   });
 });

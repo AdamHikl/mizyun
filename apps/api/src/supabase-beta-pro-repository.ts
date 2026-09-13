@@ -100,24 +100,21 @@ export class SupabaseBetaProRepository implements BetaProRepository {
     const existing = await this.getRequest(data.userId, options);
 
     if (existing) {
-      if (existing.status === "pending") {
-        const updatePayload: Record<string, unknown> = {};
-        if (data.pushToken !== undefined) {
-          updatePayload.push_token = data.pushToken ?? null;
-        }
-        if (data.notes !== undefined) {
-          updatePayload.notes = data.notes ?? null;
-        }
-        if (Object.keys(updatePayload).length > 0) {
-          const { error } = await client
-            .from("beta_pro_requests")
-            .update(updatePayload)
-            .eq("user_id", data.userId);
-          if (error) {
-            throw new Error(
-              `beta_pro_requests update failed: ${error.message}`,
-            );
-          }
+      const updatePayload: Record<string, unknown> = {};
+      if (data.pushToken !== undefined) {
+        updatePayload.push_token = data.pushToken ?? null;
+      }
+      if (existing.status === "pending" && data.notes !== undefined) {
+        updatePayload.notes = data.notes ?? null;
+      }
+      if (Object.keys(updatePayload).length > 0) {
+        const writeClient = this.#serviceClient ?? client;
+        const { error } = await writeClient
+          .from("beta_pro_requests")
+          .update(updatePayload)
+          .eq("user_id", data.userId);
+        if (error) {
+          throw new Error(`beta_pro_requests update failed: ${error.message}`);
         }
       }
       return (await this.getRequest(data.userId, options)) ?? existing;

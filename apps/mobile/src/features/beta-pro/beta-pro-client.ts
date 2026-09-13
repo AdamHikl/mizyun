@@ -64,3 +64,49 @@ export async function requestBetaProPass(
     schema: betaProRequestResponseSchema,
   });
 }
+
+export async function registerDevicePushToken(
+  client: ApiClient,
+): Promise<string | null> {
+  try {
+    const Notifications = await import("expo-notifications");
+    let perm = await Notifications.getPermissionsAsync();
+    if (!perm.granted && perm.canAskAgain) {
+      perm = await Notifications.requestPermissionsAsync();
+    }
+    if (!perm.granted) {
+      return null;
+    }
+
+    let pushToken: string | undefined;
+    try {
+      const deviceToken = await Notifications.getDevicePushTokenAsync();
+      pushToken = deviceToken.data;
+    } catch {
+      try {
+        const tokenResult = await Notifications.getExpoPushTokenAsync();
+        pushToken = tokenResult.data;
+      } catch {
+        return null;
+      }
+    }
+
+    if (!pushToken) {
+      return null;
+    }
+
+    const result = await client.request<BetaProRequestResponse>({
+      method: "POST",
+      path: "/v1/beta-pro/request",
+      body: { pushToken },
+      schema: betaProRequestResponseSchema,
+    });
+
+    if (result.ok) {
+      return pushToken;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
