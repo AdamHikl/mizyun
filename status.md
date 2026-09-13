@@ -77,7 +77,7 @@
 
 | Environment       | Host & Location                | Deployed SHA      | Health & Status                                           | Notes                                                                           |
 | ----------------- | ------------------------------ | ----------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| **Local Mac**     | Apple Silicon (`darwin-arm64`) | `d053dcd` (clean) | `pnpm check`: 100% clean                                  | Primary feature development & local verification                                |
+| **Local Mac**     | Apple Silicon (`darwin-arm64`) | `7ead1a3` (clean) | `pnpm check`: 100% clean                                  | Primary feature development & local verification                                |
 | **Pi Dev**        | Raspberry Pi 5 (`mizyun-pi`)   | `d053dcd`         | HTTP 200 (`https://mizyun-api-dev.phiskel.com/v1/health`) | Port 4100 API / 8100 Kong / 5433 DB; UID 999 unprivileged; worker leases active |
 | **Pi Production** | Raspberry Pi 5 (`mizyun-pi`)   | `3bad20c`         | HTTP 200 (`https://mizyun-api.phiskel.com/v1/health`)     | Port 4000 API / 8000 Kong / 5432 DB; all forward migrations applied             |
 | **Windows PC**    | Windows / WSL2 (`mizyun-pc`)   | `—`               | Standby hot backup                                        | Retained as secondary backup per ADR-0020                                       |
@@ -92,7 +92,8 @@
   - Apple Push Notifications (APNs) direct HTTP/2 gateway authentication enabled.
 - **Physical Device Installation Verified (Gate R3 Part B)**:
   - Compiled and installed updated release build on physical iPhone (**Adam's Iphone 😋** / iPhone 16 Pro, UDID `7FBC9ACC-918A-5A9B-8D22-B9F1FF652A06`):
-    - `Mizyun Dev` (`com.mizyun.development`, Release configuration, **Push Notifications enabled** via renewed Apple provisioning profile `29598fbb-4d6a-4de7-9be8-7e0281303dc5`, targeting `https://mizyun-api-dev.phiskel.com`).
+    - `Mizyun Dev` (`com.mizyun.development`, Release configuration, commit `7ead1a3`, **Push Notifications enabled** via renewed Apple provisioning profile `29598fbb-4d6a-4de7-9be8-7e0281303dc5`, targeting `https://mizyun-api-dev.phiskel.com`).
+    - Verified fix `AUTH-001`: `profileLoading` no longer blocks app startup on `<LoadingScreen />`; abort timeout added to `fetchProfile()`. App successfully launches into main navigation.
 - **Open Implementation Work (Remediation Checklist)**:
   - Q2: Durable unknown-outcome persistence for ambiguous retries across network drops.
   - Q7/Q8: Consent UI context preservation and live model evaluation.
@@ -107,7 +108,7 @@
 
 ## Next exact action
 
-1. Verify the workout history card layout on the installed **Mizyun Dev** build on physical iPhone (`Adam's Iphone 😋`) to confirm the exercise name and reps/weight fit cleanly.
+1. Verify the app navigation and workout history card layout on the installed **Mizyun Dev** build on physical iPhone (`Adam's Iphone 😋`).
 2. For **Release Gate R8**: Physical device journey testing and off-device recovery rehearsal on installed release builds.
 
 ## Evidence & archive links
