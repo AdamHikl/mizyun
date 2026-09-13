@@ -127,9 +127,30 @@ Options:
       );
     } else {
       batchReport.failedTasks++;
-      console.error(
-        `❌ [Task ${task.taskId}] FAILED (${report.unresolvedRisks.join("; ")})`,
-      );
+      const failureReason =
+        report.unresolvedRisks.join("; ") ||
+        "Verification command failed or worker could not finish without help";
+      console.error(`❌ [Task ${task.taskId}] FAILED (${failureReason})`);
+
+      // Record help request / blocker into backlog.md
+      try {
+        const backlogPath = path.resolve(repoRoot, "backlog.md");
+        let content = await fs.readFile(backlogPath, "utf8");
+        const helpNote = `\n> ⚠️ **Worker Blocked on ${task.taskId}**: ${failureReason} (Needs assistance)\n`;
+        // If there is an ID matching, update its row or append to Session engineering
+        if (content.includes("## Session engineering")) {
+          content = content.replace(
+            "## Session engineering",
+            `## Session engineering\n${helpNote}`,
+          );
+          await fs.writeFile(backlogPath, content, "utf8");
+          console.log(
+            `📝 Recorded help request into backlog.md for ${task.taskId}`,
+          );
+        }
+      } catch (backlogErr) {
+        console.error("Warning: could not update backlog.md:", backlogErr);
+      }
     }
 
     batchReport.results.push({
