@@ -1,0 +1,21 @@
+{
+  "startedAt": "2026-09-13T16:19:42.326Z",
+  "completedAt": "2026-09-13T16:20:17.854Z",
+  "totalTasks": 1,
+  "passedTasks": 1,
+  "failedTasks": 0,
+  "results": [
+    {
+      "taskId": "BATCH-SMOKE-001",
+      "objective": "Verify batch worker ability to read context and update a comment in regional-food-standards-data.ts",
+      "status": "success",
+      "filesChanged": [
+        "apps/mobile/src/features/settings/regional-food-standards-data.ts"
+      ],
+      "unauthorizedFiles": [],
+      "durationSec": "35.5",
+      "attempts": 1,
+      "risks": []
+    }
+  ]
+}

@@ -19,6 +19,7 @@ export class OllamaClient {
     this.model =
       options.model || process.env.OLLAMA_MODEL || "qwen3.8:27b-q8_0";
     this.timeoutMs = options.timeoutMs || 300_000; // 5 min default for local generation
+    this.think = options.think || process.env.OLLAMA_THINK || "medium";
   }
 
   /**
@@ -85,6 +86,7 @@ export class OllamaClient {
     format,
     temperature = 0.2,
     numCtx = 32768,
+    think = this.think,
   }) {
     const startTime = Date.now();
     const payload = {
@@ -94,11 +96,17 @@ export class OllamaClient {
       options: {
         temperature,
         num_ctx: numCtx,
+        num_predict: 16384,
       },
     };
 
     if (format) {
       payload.format = format;
+    }
+
+    if (think !== undefined && think !== null && think !== false) {
+      // Normalize thinking levels: low, medium, high, max (or map xhigh -> high)
+      payload.think = think === "xhigh" ? "high" : think;
     }
 
     let response;
@@ -123,6 +131,7 @@ export class OllamaClient {
     const data = await response.json();
     return {
       content: data.message?.content || "",
+      thinking: data.message?.thinking || "",
       evalCount: data.eval_count || 0,
       durationMs: Date.now() - startTime,
     };

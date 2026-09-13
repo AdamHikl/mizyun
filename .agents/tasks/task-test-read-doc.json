@@ -1,0 +1,8 @@
+{
+  "taskId": "task-test-read-doc-001",
+  "objective": "Inspect docs/START_HERE.md using the read_file action, read its contents, and then return an explanation of what you learned.",
+  "allowedFiles": ["docs/START_HERE.md"],
+  "referenceFiles": ["docs/START_HERE.md"],
+  "prohibitedActions": ["do not commit or push to git"],
+  "verificationCommand": "node -e 'console.log(\"verified\")'"
+}

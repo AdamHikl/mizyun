@@ -706,8 +706,10 @@
         "packages/config",
         "apps/mobile/src/features/dev",
         ".agents/skills",
+        ".agents/guides",
         ".agents/rules",
-        "scripts/worker"
+        "scripts/worker",
+        "opencode.json"
       ],
       "contracts": [],
       "domainPort": [],
@@ -736,7 +738,9 @@
         "docs/adr/0022-git-backed-navigation-and-advisory-impact.md",
         "docs/patterns/README.md#pat-004",
         "docs/tutorials/DEV_PRODUCTION_PI_GUIDE.md",
-        "docs/LOCAL_WORKER_BASELINE.md"
+        "docs/LOCAL_WORKER_BASELINE.md",
+        "docs/tutorials/LOCAL_QWEN_OPENCODE.md",
+        ".agents/guides/LOCAL_QWEN_OPENCODE_AGENT_GUIDE.md"
       ],
       "verificationCommands": [
         "pnpm test:deployment-safeguards",

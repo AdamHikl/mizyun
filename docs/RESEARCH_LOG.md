@@ -1,5 +1,28 @@
 # Research log
 
+## 2026-09-13 — Local Qwen OpenCode protocol repair
+
+- [OpenCode provider documentation](https://opencode.ai/docs/providers/#custom-provider)
+  explicitly assigns `@ai-sdk/openai-compatible` to Chat Completions and
+  `@ai-sdk/openai` to Responses. Use the compatible adapter directly against
+  `http://127.0.0.1:8080/v1`; the previous request-only Responses bridge is not
+  a valid bidirectional protocol translation and discards tool-call metadata.
+- [MLX-LM official source](https://github.com/ml-explore/mlx-lm): locally installed
+  version 0.31.3 normalizes text content arrays, preserves tool calls/results,
+  streams structured tool calls, and supports `--chat-template-args`. Its default
+  output is only 512 tokens. Set the worker default to 4096 and disable thinking
+  for short tool tasks; these are operating defaults, not model capability limits.
+- Verified local versions: OpenCode 1.18.30, MLX-LM 0.31.3, MLX 0.32.2,
+  Transformers 5.17.0. Exact requested model is cached and returned `MLX_OK`
+  from a real local Chat Completions request. Validate streaming tools separately
+  using `scripts/worker/smoke-opencode.py`.
+- [oMLX official project](https://github.com/jundot/omlx) adds batching, tiered
+  memory/SSD caching, and model management over MLX-LM. Its
+  [OpenCode integration](https://github.com/jundot/omlx/blob/main/omlx/integrations/opencode.py)
+  uses the same compatible adapter. Keep the now-working MLX-LM setup; evaluate
+  oMLX later against measured workload needs. No oMLX performance comparison
+  was run. Independent read-only review found no blocking issue.
+
 ## 2026-09-13 — OBS-002 product analytics backend implementation
 
 - Implemented first-party, server-side product analytics backend (OBS-002) superseding local-only aspects of ADR-0014 via ADR-0026.

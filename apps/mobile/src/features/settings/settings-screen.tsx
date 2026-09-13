@@ -36,6 +36,8 @@ import { GoalSettingsCard } from "./goal-settings-card";
 import { MemoryControlsCard } from "./memory-controls-card";
 import { PasswordSecurityCard } from "./password-security-card";
 import { ProfileSettingsCard } from "./profile-settings-card";
+import { RegionalFoodStandardsCard } from "./regional-food-standards-card";
+import { getCountryStandardDisplay } from "./regional-food-standards-data";
 import { AiUsageCard } from "./ai-usage-card";
 import { WorkoutSettingsCard } from "./workout-settings-card";
 import {
@@ -73,6 +75,7 @@ export function SettingsScreen() {
     security: false,
     profile: true,
     goal: true,
+    foodStandards: false,
     workout: true,
     aiProvider: true,
     coachPrefs: false,
@@ -124,7 +127,12 @@ export function SettingsScreen() {
   const selectCategory = useCallback((cat: SettingsCategory) => {
     setActiveCategory(cat);
     if (cat === "profile") {
-      setOpenSections((prev) => ({ ...prev, profile: true, goal: true }));
+      setOpenSections((prev) => ({
+        ...prev,
+        profile: true,
+        goal: true,
+        foodStandards: true,
+      }));
     } else if (cat === "workout") {
       setOpenSections((prev) => ({ ...prev, workout: true }));
     } else if (cat === "coach") {
@@ -189,6 +197,9 @@ export function SettingsScreen() {
     profile?.unitSystem === "imperial"
       ? "Imperial (lb, in)"
       : "Metric (kg, cm)";
+  const foodStandardsDisplay = getCountryStandardDisplay(
+    profile?.coachingPreferences?.countryCode,
+  );
   const aiProviderDisplay = "Gemini 3.8";
 
   const showProfileGroup =
@@ -574,6 +585,21 @@ export function SettingsScreen() {
               onToggle={() => toggleSection("goal")}
             >
               <GoalSettingsCard unitSystem={profile.unitSystem} />
+            </CollapsibleSection>
+
+            {/* Regional Food Standards Accordion */}
+            <CollapsibleSection
+              id="foodStandards"
+              icon="🌍"
+              title="Regional Food Standards"
+              subtitle={foodStandardsDisplay.label}
+              isOpen={!!openSections.foodStandards}
+              onToggle={() => toggleSection("foodStandards")}
+            >
+              <RegionalFoodStandardsCard
+                profile={profile}
+                onSaved={refreshProfile}
+              />
             </CollapsibleSection>
           </View>
         ) : null}

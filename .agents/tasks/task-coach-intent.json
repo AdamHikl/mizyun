@@ -1,0 +1,15 @@
+{
+  "taskId": "task-coach-intent-001",
+  "objective": "In apps/api/src/modules/coach/nutrition-action.ts and apps/api/src/modules/coach/nutrition-action.test.ts, fix the bug where natural language workout logging prompts (such as \"Add two hour walk to my completed workouts today\") are mistakenly classified as meal drafts by isExplicitMealLoggingIntent. Update the exclusion filter regex to match plural forms (workouts?, trainings?, exercises?, sessions?) and common physical activity/cardio terms (walks?, walking, runs?, running, jogs?, jogging, cycling, rides?, riding, swims?, swimming, hikes?, hiking, cardio, gym, sets?, reps?, lifts?, lifting). Also ensure that add/log/record patterns only trigger meal logging when food/nutrition nouns or portion indicators are present, or at least that any workout/activity statement is excluded. Add test cases for \"Add two hour walk to my completed workouts today\", \"Log my 5k run\", and \"Record 45 min cycling today\" in nutrition-action.test.ts asserting they return false.",
+  "allowedFiles": [
+    "apps/api/src/modules/coach/nutrition-action.ts",
+    "apps/api/src/modules/coach/nutrition-action.test.ts"
+  ],
+  "prohibitedActions": [
+    "do not modify any files other than apps/api/src/modules/coach/nutrition-action.ts and apps/api/src/modules/coach/nutrition-action.test.ts",
+    "do not break existing meal logging tests for legitimate food statements",
+    "do not commit or push to git"
+  ],
+  "verificationCommand": "pnpm --filter @mizyun/api test src/modules/coach/nutrition-action.test.ts",
+  "contextSnippet": "In apps/api/src/modules/coach/nutrition-action.ts:\nexport const isExplicitMealLoggingIntent = (text: string): boolean => {\n  const normalized = text.trim();\n  return (\n    normalized.length >= 2 &&\n    !/\\b(?:workout|training|exercise|session)\\b/i.test(normalized) &&\n    mealLoggingPatterns.some((pattern) => pattern.test(normalized))\n  );\n};"
+}

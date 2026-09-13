@@ -6,6 +6,67 @@
 > - [`docs/archive/status/STATUS_HISTORY_2026-09-10_THROUGH_2026-09-12.md`](docs/archive/status/STATUS_HISTORY_2026-09-10_THROUGH_2026-09-12.md) (Handoffs from Sep 10 through Sep 12)
 > - [`docs/archive/status/STATUS_HISTORY_THROUGH_2026-09-09.md`](docs/archive/status/STATUS_HISTORY_THROUGH_2026-09-09.md) (Handoffs through Sep 9)
 
+## Active handoff — Native MLX Local Worker, Backlog Split & Coach Workout Intent (`LOCAL-WORKER-003`, `FIX-COACH-INTENT-001`, 2026-09-13)
+
+- **Backlog separation & cleanup**:
+  - Divided backlog into two distinct files: [`backlog.md`](backlog.md) (retained exclusively for 53 to-do/active/ready/research/blocked items) and [`completed-backlog.md`](completed-backlog.md) (dedicated archive for 114 completed/superseded work packages and implementation evidence). Formatted and verified with Prettier.
+- **Coach workout vs meal intent bug (`FIX-COACH-INTENT-001`, P1, `ready`)**:
+  - User demonstrated natural language workout logging ("Add two hour walk to my completed workouts today") being mistakenly intercepted as a meal draft.
+  - Root cause reproduced: `isExplicitMealLoggingIntent` in `apps/api/src/modules/coach/nutrition-action.ts` matched prefix `/^(?:please\s+)?(?:log|add|record)\b/i`, but the negative lookahead `!/\b(?:workout|training|exercise|session)\b/i` failed because `\bworkout\b` does not match plural `workouts`, nor activity nouns like `walk`, `run`, `swim`, `cardio`.
+  - Added `FIX-COACH-INTENT-001` to `backlog.md` and created bounded Qwen task packet [`.agents/tasks/task-coach-intent.json`](.agents/tasks/task-coach-intent.json).
+- **Previous additions**:
+  - `OFFLINE-CACHE-001` (P1, `ready`): Offline profile & daily dashboard cache using SecureStore.
+  - `BRAND-SPLASH-001` (P2, `ready`): Splash background color calibration from `#208AEF` to `#0B0F12` ([`.agents/tasks/task-splash-color.json`](.agents/tasks/task-splash-color.json)).
+- **Verification**: `pnpm navigation:check` passed (0 errors), `pnpm test:navigation` passed (27/27 tests), mobile typecheck passed.
+- **Next exact action**: Dispatch `task-splash-color.json` or `task-coach-intent.json` to the local Qwen batch runner via `node scripts/worker/batch-runner.mjs --mlx <task.json>`.
+
+## Active handoff — OpenCode local Qwen connection (`LOCAL-WORKER-002`, 2026-09-13)
+
+- **Implemented:** project `opencode.json` now connects directly to MLX-LM on
+  `127.0.0.1:8080/v1` using `@ai-sdk/openai-compatible`. Previous Responses
+  bridges remain preserved but unused. Launcher disables thinking by default
+  and raises the default output budget to 4096. Existing Ollama worker changes
+  and mobile work were preserved.
+- **Live local evidence:** exact `mlx-community/Qwen3.8-27B-8bit` returned
+  `MLX_OK`; OpenCode 1.18.30 completed actual read/write/read tools and `DONE`
+  in a disposable directory. MLX-LM 0.31.3 / MLX 0.32.2 on this Mac.
+- **Source:** `1b02190b3665a813fe5875e3d33762dce34abf6b` plus uncommitted work;
+  no commit, push, deployment, or device/release claim in this work package.
+- **Verification:** `python3 scripts/worker/smoke-opencode.py` passed in 122.1s
+  with completed read/write/read events and exact random file value. Shell/Python
+  syntax, changed-file formatting, `git diff --check`, and `pnpm navigation:check`
+  passed (navigation has 14 pre-existing stale-review warnings). `pnpm check`
+  passed its 27 navigation tests, then stopped on pre-existing formatting in
+  `scripts/worker/lib/task-runner.mjs`; subsequent full-gate stages did not run.
+- **Independent review:** helper checked primary oMLX/OpenCode/model sources and
+  reviewed the config, launcher, smoke test, and guide; no blocking defects.
+  Keep MLX-LM for this working setup. oMLX remains an unbenchmarked alternative
+  for cache/model-management or concurrent-serving needs.
+- **Usage:** [local setup guide](docs/tutorials/LOCAL_QWEN_OPENCODE.md) and
+  [agent delegation runbook](.agents/guides/LOCAL_QWEN_OPENCODE_AGENT_GUIDE.md).
+  The server is running in this session's terminal; it must remain
+  open or be restarted with `bash scripts/worker/run-mlx-server.sh`.
+- **Next exact action:** start a new `opencode` session from this repository and
+  use the selected local Qwen model for a bounded coding task. Large-context
+  quality and sustained parallel throughput are not established by the smoke test.
+
+## Active handoff — Regional Food Standards Decoupled from Coach Preferences (`COACH-PREF-002`, 2026-09-13)
+
+- Decoupled Country / Regional food standards from `CoachPreferencesCard` into a dedicated first-class card and accordion under the **Profile & Goal** section of `SettingsScreen`.
+- **Components & Data Layer**:
+  - Authored `apps/mobile/src/features/settings/regional-food-standards-data.ts`: pure functions `getCountryStandardDisplay` and `saveCountryStandard` with normalization, ISO 3166-1 alpha-2 validation, and safe preservation of existing `profile.coachingPreferences`.
+  - Authored `apps/mobile/src/features/settings/regional-food-standards-card.tsx`: displays active calibration state (`CountryFlag` + localized country name or Global standard icon), interactive `Pressable` trigger, `CountryPickerModal` integration, immediate background persistence, accessible feedback alert, and active activity spinner during saving.
+  - Refactored `apps/mobile/src/features/settings/coach-preferences-card.tsx`: completely pruned country picker triggers, modals, and unused styles while guaranteeing `countryCode` is strictly preserved on coach preferences save.
+  - Integrated into `apps/mobile/src/features/settings/settings-screen.tsx`: added `Regional Food Standards` CollapsibleSection under Section 1 (Profile & Physical Stats / "Profile & Goal" tab) with live country status in the section subtitle.
+- **Worker Infrastructure Hardening** (`scripts/worker/lib/task-runner.mjs`):
+  - Upgraded `TaskRunner.validatePath` to support monorepo package suffix matching (e.g. `src/...` resolving to `apps/mobile/src/...`) while strictly maintaining repo root containment and preventing directory traversal escapes (`!absPath.startsWith(this.repoRoot + path.sep)`).
+  - Aligned context truncation threshold with skill documentation (>5,000 characters or >150 lines with `contextSnippet`) to prevent token timeouts on local Qwen execution.
+- **Independent Audit & Verification**:
+  - Independent review subagent verified two-way `countryCode` data preservation, accessibility roles/labels, monorepo boundaries, and security guardrails (**APPROVED - 100% PASS**).
+  - Automated tests: all 9 tests in `regional-food-standards-data.test.ts` and all 48 tests in `src/features/settings/` pass.
+  - Repository-wide checks: `pnpm check` passed cleanly (exit 0) with all unit tests, typechecks, bundle checks, build matrix, deployment safeguards, and AI evaluation benchmarks green.
+- **Next exact action**: Commit and deploy to Pi Dev via `pnpm deploy:dev` to verify the new settings accordion and country picker on physical device.
+
 ## Active handoff — Multi-Tier Agent Orchestration (Gemini Coordinator + Qwen Local Worker + Astra Escalation) (`LOCAL-WORKER-001`, 2026-09-13)
 
 - Implemented the local workhorse and control plane architecture connecting **Gemini 3.8 Flash** (Antigravity coordinator) to **Qwen3.8:27b-q8_0** (local Mac M1 Max Ollama worker) and **Astra** (architect & escalation reviewer).

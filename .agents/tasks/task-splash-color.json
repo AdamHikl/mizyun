@@ -1,0 +1,15 @@
+{
+  "taskId": "task-splash-color-001",
+  "objective": "Calibrate splash screen and animated launch screen background colors away from legacy bright blue (#208AEF) to match dark theme background (#0B0F12). In apps/mobile/app.json, update expo-splash-screen backgroundColor to \"#0B0F12\". In apps/mobile/src/components/animated-icon.tsx, update styles.splashOverlay backgroundColor from \"#208AEF\" to \"#0B0F12\" so cold-start and app-switcher zoom transitions seamlessly match the dark theme without flashing a bright blue rectangle around the ribbon-M icon.",
+  "allowedFiles": [
+    "apps/mobile/app.json",
+    "apps/mobile/src/components/animated-icon.tsx"
+  ],
+  "prohibitedActions": [
+    "do not modify any files other than apps/mobile/app.json and apps/mobile/src/components/animated-icon.tsx",
+    "do not remove AnimatedSplashOverlay export or break SplashScreen hideAsync callback flow",
+    "do not commit or push to git"
+  ],
+  "verificationCommand": "pnpm --filter @mizyun/mobile typecheck",
+  "contextSnippet": "In apps/mobile/app.json lines 50-57:\n      [\n        \"expo-splash-screen\",\n        {\n          \"backgroundColor\": \"#208AEF\",\n          \"image\": \"./assets/images/mizyun-icon.png\",\n          \"imageWidth\": 128,\n          \"resizeMode\": \"contain\"\n        }\n      ]\n\nIn apps/mobile/src/components/animated-icon.tsx lines 168-175:\n  splashOverlay: {\n    ...StyleSheet.absoluteFill,\n    backgroundColor: \"#208AEF\",\n    alignItems: \"center\",\n    justifyContent: \"center\",\n    zIndex: 1000,\n  },"
+}

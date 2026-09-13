@@ -3,6 +3,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { OllamaClient } from "./lib/ollama-client.mjs";
+import { MlxClient } from "./lib/mlx-client.mjs";
 import { TaskRunner } from "./lib/task-runner.mjs";
 
 async function main() {
@@ -10,22 +11,33 @@ async function main() {
 
   if (args.length === 0 || args.includes("--help") || args.includes("-h")) {
     console.log(`
-Qwen Local Worker CLI Runner
+Qwen Local Worker CLI Runner (MLX & Ollama)
 Usage:
   node scripts/worker/run-task.mjs <path-to-task.json>
   node scripts/worker/run-task.mjs --check
   node scripts/worker/run-task.mjs --inline '<json-string>'
 
 Options:
-  --check               Check Ollama daemon connection and installed models
-  --model <model-tag>   Override default model (qwen3.8:27b-q8_0)
-  --host <url>          Override Ollama host (http://127.0.0.1:11434)
+  --check               Check model server connection and loaded models
+  --mlx                 Use native Apple Silicon MLX-LM server (default if on port 8080)
+  --ollama              Use Ollama daemon
+  --model <model-tag>   Override default model
+  --host <url>          Override server host
+  --think <level>       Set thinking level (low, medium, high)
 `);
     process.exit(0);
   }
 
-  let host = process.env.OLLAMA_HOST || "http://127.0.0.1:11434";
-  let model = process.env.OLLAMA_MODEL || "qwen3.8:27b-q8_0";
+  // Detect runtime: default to MLX if --mlx passed or port 8080 or OLLAMA not explicitly forced
+  const useOllama = args.includes("--ollama") && !args.includes("--mlx");
+
+  let host = useOllama
+    ? process.env.OLLAMA_HOST || "http://127.0.0.1:11434"
+    : process.env.MLX_HOST || "http://127.0.0.1:8080";
+  let model = useOllama
+    ? process.env.OLLAMA_MODEL || "qwen3.8:27b-q8_0"
+    : process.env.MLX_MODEL || "mlx-community/Qwen3.8-27B-8bit";
+  let think = process.env.OLLAMA_THINK || "medium";
 
   const hostIdx = args.indexOf("--host");
   if (hostIdx !== -1 && args[hostIdx + 1]) {
@@ -37,26 +49,34 @@ Options:
     model = args[modelIdx + 1];
   }
 
-  const client = new OllamaClient({ host, model });
+  const thinkIdx = args.indexOf("--think");
+  if (thinkIdx !== -1 && args[thinkIdx + 1]) {
+    think = args[thinkIdx + 1];
+  }
+
+  /** @type {any} */
+  const client = useOllama
+    ? new OllamaClient({ host, model, think })
+    : new MlxClient({ host, model });
+
+  const runtimeName = useOllama ? "Ollama" : "MLX-LM (Native Apple Silicon)";
 
   if (args.includes("--check")) {
-    console.log(`Pinging Ollama at ${host}...`);
+    console.log(`Pinging ${runtimeName} at ${host}...`);
     const isOnline = await client.ping();
     if (!isOnline) {
-      console.error(
-        `❌ Ollama is NOT online at ${host}. Please run 'ollama serve' or open Ollama.app.`,
-      );
+      console.error(`❌ ${runtimeName} is NOT online at ${host}.`);
       process.exit(1);
     }
-    console.log(`✅ Ollama is online!`);
+    console.log(`✅ ${runtimeName} is online!`);
     const models = await client.listModels();
     console.log(`Found ${models.length} model(s):`);
     for (const m of models) {
-      console.log(`  - ${m.name} (${(m.size / 1e9).toFixed(1)} GB)`);
+      console.log(`  - ${m.name}`);
     }
     const hasTarget = await client.hasModel(model);
     console.log(
-      `Target model '${model}': ${hasTarget ? "✅ INSTALLED" : "❌ NOT FOUND (run: ollama pull " + model + ")"}`,
+      `Target model '${model}': ${hasTarget ? "✅ LOADED" : "❌ NOT LOADED"}`,
     );
     process.exit(hasTarget ? 0 : 2);
   }
@@ -81,7 +101,7 @@ Options:
   if (model) taskPacket.model = model;
 
   console.log(
-    `🚀 Dispatching task '${taskPacket.taskId}' to local model '${model}'...`,
+    `🚀 Dispatching task '${taskPacket.taskId}' via ${runtimeName} to '${model}'...`,
   );
   console.log(`   Objective: ${taskPacket.objective}`);
   console.log(`   Allowed files: ${taskPacket.allowedFiles.join(", ")}`);

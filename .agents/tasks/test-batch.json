@@ -1,0 +1,15 @@
+{
+  "host": "http://127.0.0.1:8080",
+  "model": "mlx-community/Qwen3.8-27B-8bit",
+  "tasks": [
+    {
+      "taskId": "BATCH-SMOKE-001",
+      "objective": "Verify batch worker ability to read context and update a comment in regional-food-standards-data.ts",
+      "allowedFiles": [
+        "apps/mobile/src/features/settings/regional-food-standards-data.ts"
+      ],
+      "verificationCommand": "pnpm --filter @mizyun/mobile test src/features/settings/regional-food-standards-data.test.ts",
+      "contextSnippet": "Add a JSDoc comment '@remarks Calibrated for Mizyun Food Standards' above getCountryStandardDisplay."
+    }
+  ]
+}

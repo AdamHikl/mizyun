@@ -57,17 +57,25 @@ export class TaskRunner {
    */
   validatePath(relPath, allowedFiles) {
     const normalized = path.normalize(relPath).replace(/^[./]+/, "");
-    const isAllowed = allowedFiles.some(
+    let matchedAf = allowedFiles.find(
       (af) => path.normalize(af).replace(/^[./]+/, "") === normalized,
     );
-    if (!isAllowed) {
+    if (!matchedAf) {
+      // Allow matching if model omitted package root (e.g. "src/..." matching "apps/mobile/src/...")
+      matchedAf = allowedFiles.find((af) => {
+        const normAf = path.normalize(af).replace(/^[./]+/, "");
+        return normAf.endsWith(`/${normalized}`) || normAf === normalized;
+      });
+    }
+    if (!matchedAf) {
       throw new Error(
         `Security violation: Model attempted to modify '${relPath}', which is not in allowedFiles whitelist: ${JSON.stringify(allowedFiles)}`,
       );
     }
 
-    const absPath = path.resolve(this.repoRoot, normalized);
-    if (!absPath.startsWith(this.repoRoot)) {
+    const targetRel = path.normalize(matchedAf).replace(/^[./]+/, "");
+    const absPath = path.resolve(this.repoRoot, targetRel);
+    if (!absPath.startsWith(this.repoRoot + path.sep)) {
       throw new Error(
         `Security violation: Path traversal detected: '${relPath}'`,
       );
@@ -134,10 +142,12 @@ export class TaskRunner {
       taskId,
       objective,
       allowedFiles,
+      referenceFiles = [],
       prohibitedActions = [],
       verificationCommand,
       contextSnippet = "",
       model,
+      think,
     } = packet;
 
     if (
@@ -172,24 +182,40 @@ export class TaskRunner {
     let success = false;
     let lastErrorSnippet = "";
 
-    const systemPrompt = `You are an expert TypeScript / Node.js software engineer working as a bounded implementation worker.
-You are given an objective, allowed files to modify or create, and prohibited actions.
+    const systemPrompt = `You are an expert TypeScript / Node.js software engineer working as an implementation worker in the Mizyun repository.
+
+Mizyun Monorepo Navigation:
+- packages/core: pure domain calculations (energy, macros, weight velocity, profile rules). No dependencies on databases or frameworks.
+- packages/contracts: shared versioned Zod schemas and wire types (packages/contracts/src/index.ts).
+- apps/mobile: React Native Expo mobile app (apps/mobile/src/features/...).
+- apps/api: Fastify backend API composition root (apps/api/src/modules/...).
+- docs/: Repository architecture and standards (docs/START_HERE.md, docs/feature-map.json, status.md, backlog.md, docs/QUALITY_GATES.md).
+
+Capabilities:
+1. Inspect any file or document in the repository (read-only):
+   If you need to read a documentation file (.md), type definition, or neighboring code before deciding how to implement, reply with:
+   {"action": "read_file", "path": "docs/START_HERE.md"}
+   or
+   {"action": "read_file", "path": "packages/contracts/src/index.ts"}
+   The system will return the file contents to you.
+2. Produce code changes:
+   When you are ready to implement the changes, reply with:
+   {
+     "edits": [
+       {
+         "path": "apps/mobile/src/path/to/file.tsx",
+         "search": "<exact verbatim code snippet to be replaced>",
+         "replace": "<replacement code snippet>"
+       }
+     ],
+     "explanation": "<brief summary of changes made>"
+   }
+
 Rules:
-1. ONLY modify files explicitly listed in Allowed Files.
-2. Return ONLY a valid JSON object with the following schema:
-For modifying existing files, prefer search and replace blocks:
-{
-  "edits": [
-    {
-      "path": "relative/path/to/file.ts",
-      "search": "<exact verbatim code snippet currently in the file to be replaced>",
-      "replace": "<replacement code snippet>"
-    }
-  ],
-  "explanation": "<brief summary of changes made>"
-}
-For brand new files, specify "content": "<full file content>".
-Do NOT include markdown fences, backticks, or commentary outside the JSON object.`;
+1. You may read any repository file or markdown document to navigate context.
+2. You may ONLY modify files explicitly listed in Allowed Files.
+3. For existing files, specify exact verbatim search/replace blocks.
+4. Output valid JSON only.`;
 
     // Read existing file contents or relevant snippets to include in prompt
     let filesContext = "";
@@ -197,11 +223,31 @@ Do NOT include markdown fences, backticks, or commentary outside the JSON object
       const existing = backups.get(rel);
       if (existing === null) {
         filesContext += `\n--- File: ${rel} (New file to be created) ---\n`;
-      } else if (existing.length > 15_000 && contextSnippet) {
-        // For very large files, avoid blowing up the context window if contextSnippet is already focused
+      } else if (
+        (existing.length > 5_000 || existing.split("\n").length > 150) &&
+        contextSnippet
+      ) {
+        // For larger files, avoid blowing up the context window if contextSnippet is already focused
         filesContext += `\n--- File: ${rel} (${existing.split("\n").length} lines) ---\n(Target sections provided in Additional Context below)\n`;
       } else {
         filesContext += `\n--- File: ${rel} ---\n${existing}\n`;
+      }
+    }
+
+    // Read reference files if provided
+    let referenceContext = "";
+    for (const rel of referenceFiles) {
+      const abs = path.resolve(this.repoRoot, rel);
+      try {
+        const content = await fs.readFile(abs, "utf8");
+        const maxChars = 8_000;
+        const snippet =
+          content.length > maxChars
+            ? content.slice(0, maxChars) + "\n... [truncated remainder]"
+            : content;
+        referenceContext += `\n--- Reference Document (Read-Only): ${rel} ---\n${snippet}\n`;
+      } catch (err) {
+        referenceContext += `\n--- Reference Document (Read-Only): ${rel} (Could not read: ${err.message}) ---\n`;
       }
     }
 
@@ -212,13 +258,13 @@ Do NOT include markdown fences, backticks, or commentary outside the JSON object
         attempt === 1
           ? `Task ID: ${taskId}
 Objective: ${objective}
-Allowed Files: ${JSON.stringify(allowedFiles)}
+Allowed Files (Writeable): ${JSON.stringify(allowedFiles)}
 Prohibited Actions: ${JSON.stringify(prohibitedActions)}
-${contextSnippet ? `\nAdditional Context / Focus Area:\n${contextSnippet}\n` : ""}
+${referenceContext ? `\nReference Context / Documentation:\n${referenceContext}\n` : ""}${contextSnippet ? `\nAdditional Context / Focus Area:\n${contextSnippet}\n` : ""}
 Files Information:
 ${filesContext}
 
-Please implement the requested changes using search and replace edits (or content for new files) and output valid JSON.`
+You may inspect any other documentation (.md) or code file using {"action": "read_file", "path": "..."} before making edits, or output your final search/replace edits in valid JSON.`
           : `Task ID: ${taskId}
 Your previous edit failed verification.
 Verification Command: ${verificationCommand}
@@ -227,37 +273,98 @@ ${lastErrorSnippet}
 
 Please fix the error and output updated search/replace edits in valid JSON.`;
 
-      const response = await this.client.chat({
-        model: model || this.client.model,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        format: "json",
-        temperature: 0.1,
-      });
+      let messages = [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ];
 
-      // Parse JSON (resilient to markdown fences or surrounding commentary)
-      let parsed;
-      try {
-        const raw = response.content.trim();
-        const fenceMatch = raw.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
-        const cleaned = fenceMatch ? fenceMatch[1].trim() : raw;
-        try {
-          parsed = JSON.parse(cleaned);
-        } catch {
-          // If still failing, attempt to extract first outermost JSON object
-          const objMatch = cleaned.match(/\{[\s\S]*\}/);
-          if (!objMatch) throw new Error("No JSON object found in response");
-          parsed = JSON.parse(objMatch[0]);
+      let parsed = null;
+      let readTurns = 0;
+      const maxReadTurns = 6;
+
+      while (readTurns < maxReadTurns) {
+        const response = await this.client.chat({
+          model: model || this.client.model,
+          messages,
+          format: "json",
+          temperature: 0.1,
+          think: think !== undefined ? think : this.client.think,
+        });
+
+        if (response.thinking) {
+          const firstLine = response.thinking.split("\n")[0].trim();
+          console.log(
+            `   💭 Thinking (${response.thinking.split("\n").length} lines): ${firstLine.slice(0, 120)}...`,
+          );
         }
-      } catch (err) {
-        throw new Error(
-          `Model did not return valid JSON: ${response.content.slice(0, 300)}...`,
-        );
+
+        // Parse JSON (resilient to markdown fences or surrounding commentary)
+        let stepJson;
+        try {
+          const raw = response.content.trim();
+          const fenceMatch = raw.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+          const cleaned = fenceMatch ? fenceMatch[1].trim() : raw;
+          try {
+            stepJson = JSON.parse(cleaned);
+          } catch {
+            // If still failing, attempt to extract first outermost JSON object
+            const objMatch = cleaned.match(/\{[\s\S]*\}/);
+            if (!objMatch) throw new Error("No JSON object found in response");
+            stepJson = JSON.parse(objMatch[0]);
+          }
+        } catch (err) {
+          throw new Error(
+            `Model did not return valid JSON: ${response.content.slice(0, 300)}...`,
+          );
+        }
+
+        // Dynamic read_file action: allows model to inspect any file in the workspace
+        if (stepJson.action === "read_file" && stepJson.path) {
+          readTurns++;
+          const targetRel = stepJson.path.replace(/^[./]+/, "");
+          const abs = path.resolve(this.repoRoot, targetRel);
+          messages.push({ role: "assistant", content: response.content });
+
+          if (
+            !abs.startsWith(this.repoRoot + path.sep) &&
+            abs !== this.repoRoot
+          ) {
+            messages.push({
+              role: "user",
+              content: `Error: Path traversal blocked for '${stepJson.path}'. Path must be inside the repository.`,
+            });
+            continue;
+          }
+
+          try {
+            const content = await fs.readFile(abs, "utf8");
+            const maxChars = 10_000;
+            const snippet =
+              content.length > maxChars
+                ? content.slice(0, maxChars) + "\n... [truncated remainder]"
+                : content;
+            console.log(
+              `   📖 Worker inspected '${stepJson.path}' (${content.split("\n").length} lines)`,
+            );
+            messages.push({
+              role: "user",
+              content: `File content of '${stepJson.path}':\n\n${snippet}\n\nYou may read another file using {"action": "read_file", "path": "..."} or provide your final edits using {"edits": [...]}.`,
+            });
+          } catch (readErr) {
+            messages.push({
+              role: "user",
+              content: `Error reading file '${stepJson.path}': ${readErr.message}`,
+            });
+          }
+          continue;
+        }
+
+        // Output contains edits
+        parsed = stepJson;
+        break;
       }
 
-      if (!parsed.edits || !Array.isArray(parsed.edits)) {
+      if (!parsed || !parsed.edits || !Array.isArray(parsed.edits)) {
         throw new Error(
           `Model response missing 'edits' array: ${JSON.stringify(parsed)}`,
         );

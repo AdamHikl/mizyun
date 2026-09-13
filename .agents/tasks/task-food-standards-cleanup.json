@@ -1,0 +1,14 @@
+{
+  "taskId": "task-food-standards-cleanup-001",
+  "objective": "In apps/mobile/src/features/settings/coach-preferences-card.tsx, clean up the StyleSheet by removing the unused country picker styles (pickerDescription, countryTrigger, countryTriggerLeft, countryTriggerText, changeActionText, globalIcon) so that customNoteInput is the last style definition.",
+  "allowedFiles": [
+    "apps/mobile/src/features/settings/coach-preferences-card.tsx"
+  ],
+  "prohibitedActions": [
+    "do not modify any files other than apps/mobile/src/features/settings/coach-preferences-card.tsx",
+    "do not remove any other styles or logic",
+    "do not commit or push to git"
+  ],
+  "verificationCommand": "pnpm --filter @mizyun/mobile typecheck",
+  "contextSnippet": "In apps/mobile/src/features/settings/coach-preferences-card.tsx around lines 415-455:\n  customNoteInput: {\n    minHeight: 76,\n    color: Colors.dark.text,\n    borderRadius: 12,\n    borderWidth: 1,\n    borderColor: \"rgba(148, 163, 184, 0.3)\",\n    padding: Spacing.three,\n    textAlignVertical: \"top\",\n  },\n  pickerDescription: {\n    marginBottom: Spacing.one,\n  },\n  countryTrigger: {\n    minHeight: 52,\n    flexDirection: \"row\",\n    alignItems: \"center\",\n    justifyContent: \"space-between\",\n    borderRadius: 12,\n    borderWidth: 1,\n    borderColor: \"rgba(148, 163, 184, 0.3)\",\n    backgroundColor: \"rgba(22, 29, 34, 0.6)\",\n    paddingHorizontal: Spacing.three,\n    paddingVertical: Spacing.two,\n  },\n  countryTriggerLeft: {\n    flexDirection: \"row\",\n    alignItems: \"center\",\n    flex: 1,\n    gap: Spacing.two,\n  },\n  countryTriggerText: {\n    fontSize: 15,\n    fontWeight: \"500\",\n    flexShrink: 1,\n  },\n  changeActionText: {\n    marginLeft: Spacing.two,\n  },\n  globalIcon: {\n    fontSize: 20,\n  },\n});\n\nRemove pickerDescription through globalIcon so that customNoteInput is the final property in StyleSheet.create."
+}

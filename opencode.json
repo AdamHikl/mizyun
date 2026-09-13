@@ -1,0 +1,28 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "mlx": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "MLX Local",
+      "options": {
+        "baseURL": "http://127.0.0.1:8080/v1",
+        "apiKey": "local-key"
+      },
+      "models": {
+        "mlx-community/Qwen3.8-27B-8bit": {
+          "id": "mlx-community/Qwen3.8-27B-8bit",
+          "name": "Qwen 3.8 27B 8-bit (MLX)",
+          "limit": {
+            "context": 32768,
+            "output": 4096
+          }
+        }
+      }
+    }
+  },
+  "model": "mlx/mlx-community/Qwen3.8-27B-8bit",
+  "small_model": "mlx/mlx-community/Qwen3.8-27B-8bit",
+  "skills": {
+    "paths": []
+  }
+}
