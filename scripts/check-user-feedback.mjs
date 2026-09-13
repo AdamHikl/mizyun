@@ -124,14 +124,26 @@ EXAMPLES:
 
 function fetchFeedbackFromDatabase(env, sshAlias) {
   const container = env === "dev" ? "mizyun-dev-db" : "supabase-db";
-  const sql = `SELECT coalesce(json_agg(row_to_json(t)), '[]'::json) FROM (SELECT f.id, f.created_at, u.email, f.category, f.rating, f.message, f.context, f.media_asset_ids FROM public.user_feedback f LEFT JOIN auth.users u ON f.user_id = u.id ORDER BY f.created_at DESC) t;`;
+  const sql = `SELECT coalesce(json_agg(row_to_json(t)), '[]'::json) FROM (SELECT f.id, f.created_at, u.email, f.category, f.rating, f.message, f.context, f.media_asset_ids FROM public.user_feedback f LEFT JOIN auth.users u ON f.user_id = u.id ORDER BY f.created_at DESC) t;\n`;
 
-  const cmd = `docker exec ${container} psql -U postgres -d postgres -t -A -c "${sql.replace(/"/g, '\\"')}"`;
+  const remoteCommand = `docker exec -i ${container} psql -U postgres -d postgres -v ON_ERROR_STOP=1 -t -A`;
 
-  const res = spawnSync("ssh", [sshAlias, cmd], {
-    encoding: "utf8",
-    maxBuffer: 10 * 1024 * 1024,
-  });
+  const res = spawnSync(
+    "ssh",
+    ["-o", "ConnectTimeout=10", sshAlias, remoteCommand],
+    {
+      input: sql,
+      encoding: "utf8",
+      timeout: 30000,
+      maxBuffer: 10 * 1024 * 1024,
+    },
+  );
+
+  if (res.error) {
+    throw new Error(
+      `SSH command error on ${sshAlias} (${container}): ${res.error.message}`,
+    );
+  }
 
   if (res.status !== 0) {
     const errorMsg =

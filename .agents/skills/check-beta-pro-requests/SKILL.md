@@ -1,7 +1,7 @@
 ---
 name: check-beta-pro-requests
 description: >-
-  Inspect, triage, and manage pending or active Beta Pro Pass requests submitted by users across Dev and Production environments.
+  Inspect, triage, and manage Beta Pro Pass tier requests submitted by users across Dev and Production environments. Separates read-only inspection from tier mutation and push notification delivery. Use when managing user beta requests; skip for general AI access issues.
 ---
 
 # Check Beta Pro Requests Skill
@@ -11,81 +11,71 @@ Use this skill whenever the user asks:
 - "Check any pending requests on both production and dev for beta pro pass"
 - "Are there any beta pro requests?"
 - "Show me pending beta pro requests"
-- "Approve beta pro pass for user"
-- "Reject beta pro pass"
-
-## Overview
-
-In Mizyun, users can request a "Beta Pro Pass" from the Settings AI Usage card or during Onboarding (`POST /v1/coach/beta-pro/request`). This creates a row in PostgreSQL table `public.beta_pro_requests`.
-
-When an admin approves a request, PostgreSQL trigger `trg_beta_pro_approval` updates the user's `profiles.plan_tier` to `'paid'`, raising their daily meal photo draft limit from 3 to 100 scans per day. If the user stored an Expo push token, an approval notification is dispatched to their device.
-
-This utility inspects both Production (`supabase-db`) and Dev (`mizyun-dev-db`) PostgreSQL instances on the Raspberry Pi host (`rpserver`).
+- "Approve beta pro pass for user <email>"
+- "Reject beta pro pass for user <email>"
 
 ---
 
-## Quick Start
+## Important Policy Boundary (ADR-0024)
 
-### 1. Check pending requests on both Dev and Production:
+> [!IMPORTANT]
+> **Beta Pro Tier vs. AI Feature Access**:
+>
+> - Under **ADR-0024**, authenticated adult users receive **immediate access to AI features** (Coach chat, text drafts) upon saving informed consent, without requiring founder approval or email-list enrollment.
+> - The **Beta Pro Pass** elevates `profiles.plan_tier` from `'free'` to `'paid'`, raising the daily photo meal draft limit from 3 to 100 scans/day.
+> - **Never** treat Beta Pro approval as a prerequisite or allowlist for basic AI feature admission.
+
+---
+
+## 1. Read-Only Query & Inspection (Default)
+
+Always prefer read-only queries unless explicitly directed to approve or reject:
 
 ```bash
+# Check pending requests on both Dev and Production (default):
 node scripts/check-beta-pro-requests.mjs
-# or:
-pnpm beta-pro
-```
 
-### 2. Check a single environment:
-
-```bash
-# Production only:
+# Check a specific environment:
+node scripts/check-beta-pro-requests.mjs --env dev
 node scripts/check-beta-pro-requests.mjs --env production
 
-# Dev only:
-node scripts/check-beta-pro-requests.mjs --env dev
-```
-
-### 3. Show all requests (including approved and rejected):
-
-```bash
+# View all requests (including previously approved and rejected):
 node scripts/check-beta-pro-requests.mjs --all
-```
 
-### 4. Output structured JSON:
-
-```bash
+# Output machine-readable JSON:
 node scripts/check-beta-pro-requests.mjs --json
 ```
 
-### 5. Approve a request:
+---
+
+## 2. Tier Mutation Actions (Admin Authorization Required)
+
+> [!CAUTION]
+> Approving or rejecting a request produces live remote and external side effects:
+>
+> 1. Modifies `public.beta_pro_requests` in the remote database on `rpserver`.
+> 2. Database trigger `trg_beta_pro_approval` mutates `public.profiles.plan_tier = 'paid'` (or `'free'`).
+> 3. Dispatches a live push notification across the internet to the user's phone via Apple APNs HTTP/2 or Expo Push.
+>
+> Only execute these commands when explicitly instructed by the user to approve or reject.
 
 ```bash
-node scripts/check-beta-pro-requests.mjs --approve <email-or-id> [--env dev|prod] [--note "Early tester"]
-```
+# Approve a user's request (requires explicit environment flag):
+node scripts/check-beta-pro-requests.mjs --approve <email-or-uuid> --env dev --note "Early tester"
+node scripts/check-beta-pro-requests.mjs --approve <email-or-uuid> --env production --note "Approved"
 
-### 6. Reject a request:
-
-```bash
-node scripts/check-beta-pro-requests.mjs --reject <email-or-id> [--env dev|prod] [--note "Reason"]
+# Reject a user's request:
+node scripts/check-beta-pro-requests.mjs --reject <email-or-uuid> --env dev --note "Reason"
 ```
 
 ---
 
 ## Data Model Reference
 
-### Supabase Table (`public.beta_pro_requests`)
-
-- `id` (uuid): Primary key.
-- `user_id` (uuid): References `auth.users(id)`.
-- `email` (text): User email.
-- `push_token` (text, nullable): Device Expo push token (e.g. `ExponentPushToken[...]`).
-- `status` (text): One of `'pending'`, `'approved'`, `'rejected'`.
-- `notes` (text, nullable): Optional admin or review notes.
-- `created_at` (timestamptz): Submission timestamp.
-- `reviewed_at` (timestamptz, nullable): Review timestamp.
-
-### Automatic Database Trigger
-
-On status update:
-
-- `status = 'approved'` -> sets `public.profiles.plan_tier = 'paid'` and `reviewed_at = now()`.
-- `status = 'rejected'` (when previously approved) -> sets `public.profiles.plan_tier = 'free'`.
+- **Database Table**: `public.beta_pro_requests` on `supabase-db` (Prod) or `mizyun-dev-db` (Dev).
+- **Trigger**: `trg_beta_pro_approval` on `public.beta_pro_requests`.
+  - `status = 'approved'` -> sets `public.profiles.plan_tier = 'paid'`.
+  - `status = 'rejected'` -> reverts `public.profiles.plan_tier = 'free'`.
+- **Push Transport**:
+  - Direct Apple APNs HTTP/2 using `.env` credentials (`api.sandbox.push.apple.com` for Dev, `api.push.apple.com` for Prod).
+  - Expo Push API (`https://exp.host/--/api/v2/push/send`) as fallback.
