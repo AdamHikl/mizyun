@@ -77,23 +77,25 @@
 
 | Environment       | Host & Location                | Deployed SHA      | Health & Status                                           | Notes                                                                           |
 | ----------------- | ------------------------------ | ----------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| **Local Mac**     | Apple Silicon (`darwin-arm64`) | `7ead1a3` (clean) | `pnpm check`: 100% clean                                  | Primary feature development & local verification                                |
-| **Pi Dev**        | Raspberry Pi 5 (`mizyun-pi`)   | `d053dcd`         | HTTP 200 (`https://mizyun-api-dev.phiskel.com/v1/health`) | Port 4100 API / 8100 Kong / 5433 DB; UID 999 unprivileged; worker leases active |
+| **Local Mac**     | Apple Silicon (`darwin-arm64`) | `fe19eda` (clean) | `pnpm check`: 100% clean                                  | Primary feature development & local verification                                |
+| **Pi Dev**        | Raspberry Pi 5 (`mizyun-pi`)   | `fe19eda`         | HTTP 200 (`https://mizyun-api-dev.phiskel.com/v1/health`) | Port 4100 API / 8100 Kong / 5433 DB; UID 999 unprivileged; worker leases active |
 | **Pi Production** | Raspberry Pi 5 (`mizyun-pi`)   | `3bad20c`         | HTTP 200 (`https://mizyun-api.phiskel.com/v1/health`)     | Port 4000 API / 8000 Kong / 5432 DB; all forward migrations applied             |
 | **Windows PC**    | Windows / WSL2 (`mizyun-pc`)   | `—`               | Standby hot backup                                        | Retained as secondary backup per ADR-0020                                       |
 
 ## Implementation versus release gate status
 
-- **Implemented & Deployed to Dev on Pi (`d053dcd`)**:
+- **Implemented & Deployed to Dev on Pi (`fe19eda`)**:
+  - `PUSH-001`: Direct Apple APNs HTTP/2 gateway authentication and push token auto-registration bridge (`PushRegistrationBridge`) in `_layout.tsx`. Fixed repository push token updates for approved accounts in `SupabaseBetaProRepository` and `InMemoryBetaProRepository`. Added `scripts/send-push.mjs` CLI.
   - `LOCAL-WORKER-001`: Multi-tier agent orchestration with local Qwen3.8:27b-q8_0 worker via MCP & CLI, baseline tracking register, and workout history card overflow fix.
   - `OBS-002`: Product analytics backend migration `20260913100000_product_analytics_backend.sql` applied on Pi Dev.
   - `PROD-GATE-001`: Progress photos gated to Dev variant; Production runs lean 3-action dock and feedback-only shortcuts.
   - Sub-fixes verified: `FIX-WORKOUT-001` (comma parsing), `FIX-MEAL-001` (stale draft timestamps), `FIX-AI-PHOTO-001` (UTC photo scan quota matching UI).
-  - Apple Push Notifications (APNs) direct HTTP/2 gateway authentication enabled.
-- **Physical Device Installation Verified (Gate R3 Part B)**:
+  - Apple Push Notifications (APNs) direct HTTP/2 gateway authentication enabled and live verified.
+- **Physical Device Installation & Push Delivery Verified (Gate R3 Part B)**:
   - Compiled and installed updated release build on physical iPhone (**Adam's Iphone 😋** / iPhone 16 Pro, UDID `7FBC9ACC-918A-5A9B-8D22-B9F1FF652A06`):
-    - `Mizyun Dev` (`com.mizyun.development`, Release configuration, commit `7ead1a3`, **Push Notifications enabled** via renewed Apple provisioning profile `29598fbb-4d6a-4de7-9be8-7e0281303dc5`, targeting `https://mizyun-api-dev.phiskel.com`).
-    - Verified fix `AUTH-001`: `profileLoading` no longer blocks app startup on `<LoadingScreen />`; abort timeout added to `fetchProfile()`. App successfully launches into main navigation.
+    - `Mizyun Dev` (`com.mizyun.development`, Release configuration, commit `fe19eda`, **Push Notifications enabled** via renewed Apple provisioning profile `29598fbb-4d6a-4de7-9be8-7e0281303dc5`, targeting `https://mizyun-api-dev.phiskel.com`).
+    - Verified fix `AUTH-001`: `profileLoading` no longer blocks app startup on `<LoadingScreen />`; abort timeout added to `fetchProfile()`.
+    - Verified `PUSH-001`: Device APNs push token (`2e1a63c2362b71ec0fd6d85c815fa14aa36ec32cf6b112744e1d29ae4d14cedf`) auto-registered on launch. Live APNs test notification successfully dispatched and accepted with HTTP 200 by Apple APNs sandbox gateway (`api.sandbox.push.apple.com`, topic `com.mizyun.development`) for `adam.hikl@outlook.com`.
 - **Open Implementation Work (Remediation Checklist)**:
   - Q2: Durable unknown-outcome persistence for ambiguous retries across network drops.
   - Q7/Q8: Consent UI context preservation and live model evaluation.
