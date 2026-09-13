@@ -46,18 +46,52 @@ Options:
 
   const host = manifest.host || "http://127.0.0.1:8080";
   const model = manifest.model || "mlx-community/Qwen3.8-27B-8bit";
-  const client = new MlxClient({ host, model });
+  const requestTimeoutMs = Number(manifest.requestTimeoutMs || 900_000);
+  if (
+    !Number.isInteger(requestTimeoutMs) ||
+    requestTimeoutMs < 60_000 ||
+    requestTimeoutMs > 1_800_000
+  ) {
+    throw new Error(
+      "requestTimeoutMs must be a whole number between 60000 and 1800000.",
+    );
+  }
+  const client = new MlxClient({ host, model, timeoutMs: requestTimeoutMs });
 
   console.log("=================================================");
   console.log("🌙 STARTING OVERNIGHT BATCH RUNNER (MLX NATIVE)");
   console.log(`   Model: ${model}`);
   console.log(`   Host:  ${host}`);
+  console.log(
+    `   Request timeout: ${(requestTimeoutMs / 60_000).toFixed(1)} minutes`,
+  );
   console.log(`   Tasks: ${manifest.tasks.length}`);
   console.log("=================================================\n");
 
-  const isOnline = await client.ping();
+  // Wait for MLX server to be reachable (retry up to 10 times, 2 s interval)
+  let isOnline = false;
+  for (let attempt = 1; attempt <= 10 && !isOnline; attempt++) {
+    try {
+      const res = await fetch(`${host}/v1/models`, {
+        method: "GET",
+        signal: AbortSignal.timeout(2000),
+      });
+      // Any HTTP response (even 400) means the server is up.
+      isOnline = true;
+      console.log(
+        `✅ MLX server responded (status ${res.status}) on attempt ${attempt}`,
+      );
+    } catch (e) {
+      console.warn(
+        `⚠️ MLX not reachable (attempt ${attempt}/10), waiting 2 s...`,
+      );
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+  }
   if (!isOnline) {
-    console.error(`❌ Fatal: MLX server not reachable at ${host}.`);
+    console.error(
+      `❌ Fatal: MLX server not reachable at ${host} after retries.`,
+    );
     process.exit(1);
   }
 
@@ -84,7 +118,26 @@ Options:
     const preStatus = await git("status --porcelain", repoRoot);
     const preDiff = await git("diff", repoRoot);
 
-    const report = await runner.execute(task);
+    let report;
+    try {
+      report = await runner.execute(task);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      report = {
+        status: "failed",
+        taskId: task.taskId,
+        filesChanged: [],
+        commandsRun: [],
+        unresolvedRisks: [
+          `Worker execution exception: ${reason}`,
+          "Needs assistance: reduce the task context or increase the bounded MLX request timeout before retrying.",
+        ],
+        suggestedNextAction:
+          "Review the recorded blocker, then retry this task with the same allowlist.",
+        attempts: 0,
+        totalDurationMs: 0,
+      };
+    }
 
     // Post-flight watchdog verification:
     // 1. Check if any file outside allowedFiles was touched
@@ -103,7 +156,8 @@ Options:
       }
     }
 
-    if (unauthorizedFiles.length > 0) {
+    const haltAfterTask = unauthorizedFiles.length > 0;
+    if (haltAfterTask) {
       console.error(
         `🚨 WATCHDOG BREACH: Task modified files outside allowlist:`,
         unauthorizedFiles,
@@ -136,7 +190,7 @@ Options:
       try {
         const backlogPath = path.resolve(repoRoot, "backlog.md");
         let content = await fs.readFile(backlogPath, "utf8");
-        const helpNote = `\n> ⚠️ **Worker Blocked on ${task.taskId}**: ${failureReason} (Needs assistance)\n`;
+        const helpNote = `\n> ⚠️ **Worker Blocked on ${task.taskId}**: ${failureReason} Next action: ${report.suggestedNextAction} (Needs assistance)\n`;
         // If there is an ID matching, update its row or append to Session engineering
         if (content.includes("## Session engineering")) {
           content = content.replace(
@@ -164,6 +218,13 @@ Options:
       risks: report.unresolvedRisks,
       diffSnippet: taskDiff.slice(0, 1000),
     });
+
+    if (haltAfterTask) {
+      console.error(
+        "🚨 Halting the batch after an unauthorized-write breach; coordinator review is required before another task runs.",
+      );
+      break;
+    }
   }
 
   batchReport.completedAt = new Date().toISOString();

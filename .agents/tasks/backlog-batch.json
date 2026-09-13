@@ -1,6 +1,7 @@
 {
   "host": "http://127.0.0.1:8080",
   "model": "mlx-community/Qwen3.8-27B-8bit",
+  "requestTimeoutMs": 900000,
   "tasks": [
     {
       "taskId": "task-splash-color-001",
@@ -12,7 +13,9 @@
       "prohibitedActions": [
         "do not modify any files other than apps/mobile/app.json and apps/mobile/src/components/animated-icon.tsx",
         "do not remove AnimatedSplashOverlay export or break SplashScreen hideAsync callback flow",
-        "do not commit or push to git"
+        "do not commit or push to git",
+        "do not deploy, run deployment commands, access remote infrastructure, change credentials, or change remote configuration",
+        "if this task cannot be completed independently, stop and return a specific blocker; the supervisor will add the exact help request to backlog.md"
       ],
       "verificationCommand": "pnpm --filter @mizyun/mobile typecheck",
       "contextSnippet": "In apps/mobile/app.json lines 50-57:\n      [\n        \"expo-splash-screen\",\n        {\n          \"backgroundColor\": \"#208AEF\",\n          \"image\": \"./assets/images/mizyun-icon.png\",\n          \"imageWidth\": 128,\n          \"resizeMode\": \"contain\"\n        }\n      ]\n\nIn apps/mobile/src/components/animated-icon.tsx lines 168-175:\n  splashOverlay: {\n    ...StyleSheet.absoluteFill,\n    backgroundColor: \"#208AEF\",\n    alignItems: \"center\",\n    justifyContent: \"center\",\n    zIndex: 1000,\n  },"
@@ -27,7 +30,9 @@
       "prohibitedActions": [
         "do not modify any files other than apps/api/src/modules/coach/nutrition-action.ts and apps/api/src/modules/coach/nutrition-action.test.ts",
         "do not break existing meal logging tests for legitimate food statements",
-        "do not commit or push to git"
+        "do not commit or push to git",
+        "do not deploy, run deployment commands, access remote infrastructure, change credentials, or change remote configuration",
+        "if this task cannot be completed independently, stop and return a specific blocker; the supervisor will add the exact help request to backlog.md"
       ],
       "verificationCommand": "pnpm --filter @mizyun/api test src/modules/coach/nutrition-action.test.ts",
       "contextSnippet": "In apps/api/src/modules/coach/nutrition-action.ts:\nexport const isExplicitMealLoggingIntent = (text: string): boolean => {\n  const normalized = text.trim();\n  return (\n    normalized.length >= 2 &&\n    !/\\b(?:workout|training|exercise|session)\\b/i.test(normalized) &&\n    mealLoggingPatterns.some((pattern) => pattern.test(normalized))\n  );\n};"

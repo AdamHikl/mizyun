@@ -49,7 +49,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#0B0F12",
           "image": "./assets/images/mizyun-icon.png",
           "imageWidth": 128,
           "resizeMode": "contain"

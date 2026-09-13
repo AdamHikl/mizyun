@@ -20,7 +20,10 @@ export class MlxClient {
       options.model ||
       process.env.MLX_MODEL ||
       "mlx-community/Qwen3.8-27B-8bit";
-    this.timeoutMs = options.timeoutMs || 300_000;
+    this.timeoutMs =
+      options.timeoutMs ||
+      Number(process.env.MLX_REQUEST_TIMEOUT_MS) ||
+      900_000;
   }
 
   /**

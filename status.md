@@ -14,11 +14,13 @@
   - User demonstrated natural language workout logging ("Add two hour walk to my completed workouts today") being mistakenly intercepted as a meal draft.
   - Root cause reproduced: `isExplicitMealLoggingIntent` in `apps/api/src/modules/coach/nutrition-action.ts` matched prefix `/^(?:please\s+)?(?:log|add|record)\b/i`, but the negative lookahead `!/\b(?:workout|training|exercise|session)\b/i` failed because `\bworkout\b` does not match plural `workouts`, nor activity nouns like `walk`, `run`, `swim`, `cardio`.
   - Added `FIX-COACH-INTENT-001` to `backlog.md` and created bounded Qwen task packet [`.agents/tasks/task-coach-intent.json`](.agents/tasks/task-coach-intent.json).
+  - Local MLX Qwen batch run: `task-splash-color-001` completed in 134.7s, changing only `apps/mobile/app.json` and `apps/mobile/src/components/animated-icon.tsx`; the worker verification and a fresh coordinator `pnpm --filter @mizyun/mobile typecheck` both passed. `task-coach-intent-001` then exceeded the 300-second MLX request timeout before returning edits; its precise retry/help requirement is recorded under Session engineering in `backlog.md`. No commit, push, deployment, remote-infrastructure access, credential change, or remote configuration change was attempted.
+  - Overnight-worker hardening: MLX request timeout is now configurable from the batch manifest and set to 15 minutes (bounded to 1–30 minutes); the batch supervisor converts worker exceptions into concrete blockers and continues to later tasks, but halts for coordinator review after any out-of-allowlist write. The MLX-LM/Qwen runtime supports thinking enabled/disabled, not a literal `xhigh` reasoning level; the stable local configuration is `enable_thinking: true` with a 4,096-token generation budget. An attempted 8,192-token configuration did not remain available, so it was not retained.
 - **Previous additions**:
   - `OFFLINE-CACHE-001` (P1, `ready`): Offline profile & daily dashboard cache using SecureStore.
   - `BRAND-SPLASH-001` (P2, `ready`): Splash background color calibration from `#208AEF` to `#0B0F12` ([`.agents/tasks/task-splash-color.json`](.agents/tasks/task-splash-color.json)).
 - **Verification**: `pnpm navigation:check` passed (0 errors), `pnpm test:navigation` passed (27/27 tests), mobile typecheck passed.
-- **Next exact action**: Dispatch `task-splash-color.json` or `task-coach-intent.json` to the local Qwen batch runner via `node scripts/worker/batch-runner.mjs --mlx <task.json>`.
+- **Next exact action**: Retask `FIX-COACH-INTENT-001` only after reducing its MLX context or setting a longer bounded response timeout; retain its two-file allowlist and focused API test. The local Qwen batch monitor checks in every 30 minutes and reports only completion, failure, or a needed action.
 
 ## Active handoff — OpenCode local Qwen connection (`LOCAL-WORKER-002`, 2026-09-13)
 
