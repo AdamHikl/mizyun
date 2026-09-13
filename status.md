@@ -77,21 +77,22 @@
 
 | Environment       | Host & Location                | Deployed SHA      | Health & Status                                           | Notes                                                                           |
 | ----------------- | ------------------------------ | ----------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| **Local Mac**     | Apple Silicon (`darwin-arm64`) | `4f3c2ae` (clean) | `pnpm check`: 100% clean                                  | Primary feature development & local verification                                |
-| **Pi Dev**        | Raspberry Pi 5 (`mizyun-pi`)   | `055627d`         | HTTP 200 (`https://mizyun-api-dev.phiskel.com/v1/health`) | Port 4100 API / 8100 Kong / 5433 DB; UID 999 unprivileged; worker leases active |
+| **Local Mac**     | Apple Silicon (`darwin-arm64`) | `d053dcd` (clean) | `pnpm check`: 100% clean                                  | Primary feature development & local verification                                |
+| **Pi Dev**        | Raspberry Pi 5 (`mizyun-pi`)   | `d053dcd`         | HTTP 200 (`https://mizyun-api-dev.phiskel.com/v1/health`) | Port 4100 API / 8100 Kong / 5433 DB; UID 999 unprivileged; worker leases active |
 | **Pi Production** | Raspberry Pi 5 (`mizyun-pi`)   | `3bad20c`         | HTTP 200 (`https://mizyun-api.phiskel.com/v1/health`)     | Port 4000 API / 8000 Kong / 5432 DB; all forward migrations applied             |
 | **Windows PC**    | Windows / WSL2 (`mizyun-pc`)   | `—`               | Standby hot backup                                        | Retained as secondary backup per ADR-0020                                       |
 
 ## Implementation versus release gate status
 
-- **Implemented & Deployed to Dev on Pi (`055627d`)**:
+- **Implemented & Deployed to Dev on Pi (`d053dcd`)**:
+  - `LOCAL-WORKER-001`: Multi-tier agent orchestration with local Qwen3.8:27b-q8_0 worker via MCP & CLI, baseline tracking register, and workout history card overflow fix.
+  - `OBS-002`: Product analytics backend migration `20260913100000_product_analytics_backend.sql` applied on Pi Dev.
   - `PROD-GATE-001`: Progress photos gated to Dev variant; Production runs lean 3-action dock and feedback-only shortcuts.
   - Sub-fixes verified: `FIX-WORKOUT-001` (comma parsing), `FIX-MEAL-001` (stale draft timestamps), `FIX-AI-PHOTO-001` (UTC photo scan quota matching UI).
   - Apple Push Notifications (APNs) direct HTTP/2 gateway authentication enabled.
 - **Physical Device Installation Verified (Gate R3 Part B)**:
-  - Both native release variants compiled and installed side-by-side on physical iPhone (**Adam's Iphone 😋** / iPhone 16 Pro, UDID `7FBC9ACC-918A-5A9B-8D22-B9F1FF652A06`):
-    - `Mizyun Dev` (`com.mizyun.development`, Build 1) pointing to Dev API (`https://mizyun-api-dev.phiskel.com`).
-    - `Mizyun` (`com.mizyun.app`, Build 1) pointing to Production API (`https://mizyun-api.phiskel.com`).
+  - Compiled and installed updated release build on physical iPhone (**Adam's Iphone 😋** / iPhone 16 Pro, UDID `7FBC9ACC-918A-5A9B-8D22-B9F1FF652A06`):
+    - `Mizyun Dev` (`com.mizyun.development`, Release configuration, **Push Notifications enabled** via renewed Apple provisioning profile `29598fbb-4d6a-4de7-9be8-7e0281303dc5`, targeting `https://mizyun-api-dev.phiskel.com`).
 - **Open Implementation Work (Remediation Checklist)**:
   - Q2: Durable unknown-outcome persistence for ambiguous retries across network drops.
   - Q7/Q8: Consent UI context preservation and live model evaluation.
@@ -106,7 +107,7 @@
 
 ## Next exact action
 
-1. For **OBS-002**: Deploy migration `20260913100000_product_analytics_backend.sql` and API to Dev on the Raspberry Pi via `pnpm deploy:dev`, then verify consent grant, event tracking, and settings export/clear on physical iPhone build (`com.mizyun.development`).
+1. Verify the workout history card layout on the installed **Mizyun Dev** build on physical iPhone (`Adam's Iphone 😋`) to confirm the exercise name and reps/weight fit cleanly.
 2. For **Release Gate R8**: Physical device journey testing and off-device recovery rehearsal on installed release builds.
 
 ## Evidence & archive links
