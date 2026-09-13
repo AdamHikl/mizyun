@@ -7,8 +7,10 @@ AWS SES is configured to send email for `phiskel.com` from AWS account
 the records below must be created in Cloudflare. Do not add them only to the
 inactive Route 53 hosted zone; public DNS does not use that zone.
 
-Current SES state: identity, DKIM, and custom MAIL FROM verification are
-pending until these DNS records exist.
+Public DNS check on 2026-09-12 confirmed that the DKIM, custom MAIL FROM, SPF,
+and DMARC records below are published. Confirm the effective identity and MAIL
+FROM verification status in the SES `eu-west-1` console before relying on
+outbound delivery.
 
 ## Required Cloudflare records
 
@@ -37,20 +39,37 @@ Important:
 SES is configured with `REJECT_MESSAGE` when the custom MAIL FROM MX record is
 invalid. This prevents silent fallback to an Amazon-owned MAIL FROM domain.
 
-## Recommended DMARC record
+## Current DMARC record
 
-No DMARC record currently exists. After adding the required records, add this
-monitoring policy:
+The root domain currently publishes this monitoring policy:
 
 | Type | Name     | Content                     | TTL  |
 | ---- | -------- | --------------------------- | ---- |
 | TXT  | `_dmarc` | `v=DMARC1; p=none; pct=100` | Auto |
 
-This begins with monitoring rather than rejecting messages. After legitimate
+This monitors rather than rejecting messages. After legitimate
 senders for `phiskel.com` are inventoried and pass SPF or DKIM alignment, the
 policy can be tightened to `quarantine` and later `reject`. If a DMARC record
 is added by another mail provider before this step, update the existing record
 instead of creating a second one.
+
+## Mizyun email address namespace
+
+Mizyun uses `@mizyun.phiskel.com` for human-facing and transactional addresses:
+
+- `support@mizyun.phiskel.com`
+- `no-reply@mizyun.phiskel.com`
+- `appstore-review@mizyun.phiskel.com`
+
+The verified SES identity `phiskel.com` authorizes sending from its subdomains,
+but any IAM `ses:FromAddress` condition must explicitly allow
+`*@mizyun.phiskel.com`. Verify that condition before the first smoke test.
+
+Inbound support mail is separate from SES MAIL FROM handling. In Cloudflare
+Email Routing, enable the `mizyun.phiskel.com` subdomain and create explicit
+routes for `support` and, if used, `appstore-review`. The existing
+`mail.phiskel.com` MX is only the SES bounce/MAIL FROM domain and must not be
+used as the support inbox.
 
 ## Verify after saving
 
@@ -64,6 +83,7 @@ dig +short CNAME zr7chg2gyrbiputfpjskhdb5sxtb464x._domainkey.phiskel.com
 dig +short MX mail.phiskel.com
 dig +short TXT mail.phiskel.com
 dig +short TXT _dmarc.phiskel.com
+dig +short MX mizyun.phiskel.com
 ```
 
 ## AWS configuration already completed

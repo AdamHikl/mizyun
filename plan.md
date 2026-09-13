@@ -341,7 +341,7 @@ Reduce logging friction with vision-assisted drafts while preserving confirmatio
 - subscription/paywall implementation only after premium value, provider cost, and willingness to pay have been tested;
 - unit-economics reporting for AI cost per active/paying user and subscription gross margin;
 - privacy policy, terms, consent, retention, export, and account deletion;
-- domain-authenticated transactional Auth email from `no-reply@phiskel.com`, with confirmation and password-recovery acceptance;
+- domain-authenticated transactional Auth email from `no-reply@mizyun.phiskel.com`, with confirmation and password-recovery acceptance;
 - Android emulator/device and iOS simulator/device test matrix;
 - store metadata, permission disclosures, signing, staged rollout, and rollback plan.
 

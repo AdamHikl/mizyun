@@ -533,7 +533,9 @@
         "apps/mobile/src/features/coach",
         "packages/agent-runtime",
         "packages/memory",
-        "packages/providers/gemini"
+        "packages/providers/gemini",
+        "scripts/check-beta-pro-requests.mjs",
+        "scripts/manage-beta-pro.mjs"
       ],
       "contracts": [
         "packages/contracts/src/coach.ts",
@@ -963,43 +965,79 @@
         "telemetry",
         "metrics"
       ],
-      "entryPoints": ["packages/observability/src/index.ts"],
+      "entryPoints": [
+        "packages/observability/src/index.ts",
+        "apps/api/src/modules/analytics/routes.ts"
+      ],
       "ownedPaths": [
         "packages/observability",
-        "apps/mobile/src/features/analytics"
+        "apps/mobile/src/features/analytics",
+        "apps/api/src/modules/analytics"
       ],
-      "contracts": [],
-      "domainPort": [],
-      "api": ["apps/api/src/logging.ts"],
-      "ui": ["apps/mobile/src/features/analytics/local-analytics-storage.ts"],
-      "adapters": [],
-      "dataTables": [],
-      "migrationPaths": [],
+      "contracts": ["packages/contracts/src/analytics.ts"],
+      "domainPort": ["packages/core/src/product-analytics.ts"],
+      "api": [
+        "apps/api/src/logging.ts",
+        "apps/api/src/modules/analytics/routes.ts",
+        "apps/api/src/product-analytics-repository.ts"
+      ],
+      "ui": [
+        "apps/mobile/src/features/analytics/local-analytics-storage.ts",
+        "apps/mobile/src/features/analytics/network-analytics-client.ts"
+      ],
+      "adapters": [
+        "packages/adapters/supabase-server/src/product-analytics-repository.ts"
+      ],
+      "dataTables": ["product_analytics_consents", "product_analytics_events"],
+      "migrationPaths": [
+        "supabase/migrations/20260913100000_product_analytics_backend.sql"
+      ],
       "tests": [
         "apps/api/src/logging.test.ts",
+        "apps/api/src/modules/analytics/routes.test.ts",
         "apps/mobile/src/features/analytics/local-analytics-storage.test.ts",
         "apps/mobile/src/features/analytics/classify-failure.test.ts",
-        "packages/observability/src/index.test.ts"
+        "packages/observability/src/index.test.ts",
+        "packages/contracts/src/analytics.test.ts",
+        "packages/adapters/supabase-server/src/product-analytics-repository.test.ts",
+        "apps/mobile/src/features/analytics/network-analytics-client.test.ts",
+        "scripts/product-analytics.test.mjs"
       ],
       "relations": [
         {
           "type": "relatedTo",
           "target": "composition-roots",
           "reason": "Provides structured Pino logging to Fastify API and local event capture in mobile"
+        },
+        {
+          "type": "dependsOn",
+          "target": "auth",
+          "reason": "Requires authenticated user session for ingestion and consent RPCs"
+        },
+        {
+          "type": "dependsOn",
+          "target": "contracts-shared",
+          "reason": "Shared analytics event schemas and batch transport contracts"
         }
       ],
       "docs": [
         "docs/adr/0014-local-consent-first-product-analytics.md",
+        "docs/adr/0026-first-party-product-analytics-backend.md",
+        "docs/PRODUCT_ANALYTICS_IMPLEMENTATION_PLAN_2026-09-13.md",
         "docs/LOGGING_POLICY.md"
       ],
       "verificationCommands": [
         "pnpm --filter @mizyun/observability test",
-        "pnpm --filter @mizyun/mobile test src/features/analytics"
+        "pnpm --filter @mizyun/contracts test",
+        "pnpm --filter @mizyun/adapter-supabase-server test",
+        "pnpm --filter @mizyun/api test src/modules/analytics",
+        "pnpm --filter @mizyun/mobile test src/features/analytics",
+        "node --test scripts/product-analytics.test.mjs"
       ],
       "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
       "lastReviewedDate": "2026-09-09",
-      "limitations": "Analytics events remain local-only; network transmission is disabled to protect user privacy",
-      "requirements": ["OBS-01", "PRIV-01"],
+      "limitations": "Server-side first-party analytics with 30-day retention and explicit opt-in consent",
+      "requirements": ["OBS-01", "OBS-002", "PRIV-01"],
       "openAcceptance": []
     },
     {

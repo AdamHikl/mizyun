@@ -1,7 +1,14 @@
-import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from "react-native";
 import { router, Stack, useFocusEffect, type Href } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { FoodEntry } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
@@ -9,7 +16,9 @@ import { ThemedView } from "@/components/themed-view";
 import { FeedbackHeaderButton } from "@/components/feedback-header-button";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { analyticsClient } from "@/composition/analytics-client";
+import { useTheme } from "@/hooks/use-theme";
 
+import { filterFoodDayGroups } from "./meal-history-filter";
 import {
   copyFoodEntry,
   deleteFoodEntry,
@@ -61,8 +70,10 @@ const formatMealTime = (instant: string): string =>
   });
 
 export function MealListScreen() {
+  const theme = useTheme();
   const [state, setState] = useState<MealListState>(INITIAL_STATE);
   const [busyEntryId, setBusyEntryId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const load = useCallback(async (): Promise<void> => {
     setState((current) => ({ ...current, loading: true, message: null }));
@@ -131,7 +142,22 @@ export function MealListScreen() {
     [remove],
   );
 
-  const totalDaysTracked = state.groups.length;
+  const filteredGroups = useMemo(
+    () => filterFoodDayGroups(state.groups, searchQuery),
+    [searchQuery, state.groups],
+  );
+  const hasSearchQuery = searchQuery.trim().length > 0;
+  const visibleMealCount = useMemo(
+    () =>
+      filteredGroups.reduce((count, group) => count + group.entries.length, 0),
+    [filteredGroups],
+  );
+  const totalDaysTracked = hasSearchQuery
+    ? filteredGroups.length
+    : state.groups.length;
+  const historySummary = hasSearchQuery
+    ? `${visibleMealCount} ${visibleMealCount === 1 ? "meal" : "meals"} · ${totalDaysTracked} ${totalDaysTracked === 1 ? "day" : "days"}`
+    : `${totalDaysTracked} ${totalDaysTracked === 1 ? "day" : "days"}`;
 
   return (
     <ThemedView style={styles.page}>
@@ -140,6 +166,8 @@ export function MealListScreen() {
         <ScrollView
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
         >
           {/* Top Header */}
           <View style={styles.header}>
@@ -203,9 +231,60 @@ export function MealListScreen() {
               <ThemedText type="smallBold" style={styles.sectionTitle}>
                 HISTORY BY DAY
               </ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                {totalDaysTracked} {totalDaysTracked === 1 ? "day" : "days"}
+              <ThemedText
+                type="small"
+                themeColor="textSecondary"
+                accessibilityLiveRegion="polite"
+              >
+                {historySummary}
               </ThemedText>
+            </View>
+
+            <View
+              style={[
+                styles.searchRow,
+                {
+                  backgroundColor: theme.backgroundElement,
+                  borderColor: theme.border,
+                },
+              ]}
+            >
+              <ThemedText
+                accessible={false}
+                importantForAccessibility="no"
+                style={styles.searchIcon}
+              >
+                🔍
+              </ThemedText>
+              <TextInput
+                accessibilityLabel="Search meal history"
+                accessibilityHint="Filters meals by name and saved details"
+                style={[styles.searchInput, { color: theme.text }]}
+                placeholder="Search meals…"
+                placeholderTextColor={theme.textSecondary}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoCapitalize="none"
+                autoCorrect={false}
+                inputMode="search"
+                returnKeyType="search"
+              />
+              {searchQuery.length > 0 ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear meal search"
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  onPress={() => setSearchQuery("")}
+                  style={({ pressed }) => [
+                    styles.clearSearchButton,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <ThemedText type="smallBold" themeColor="textSecondary">
+                    ✕
+                  </ThemedText>
+                </Pressable>
+              ) : null}
             </View>
 
             {state.loading && state.groups.length === 0 ? (
@@ -217,7 +296,11 @@ export function MealListScreen() {
             {!state.loading &&
             state.groups.length === 0 &&
             state.message === null ? (
-              <ThemedView type="backgroundElement" style={styles.emptyCard}>
+              <ThemedView
+                type="backgroundElement"
+                style={styles.emptyCard}
+                accessibilityRole="alert"
+              >
                 <ThemedText type="smallBold">Nothing logged yet</ThemedText>
                 <ThemedText
                   type="small"
@@ -243,8 +326,38 @@ export function MealListScreen() {
               </ThemedView>
             ) : null}
 
+            {!state.loading &&
+            state.groups.length > 0 &&
+            hasSearchQuery &&
+            filteredGroups.length === 0 ? (
+              <ThemedView
+                type="backgroundElement"
+                style={styles.emptyCard}
+                accessibilityRole="alert"
+              >
+                <ThemedText type="smallBold">No matching meals</ThemedText>
+                <ThemedText
+                  type="small"
+                  themeColor="textSecondary"
+                  style={styles.emptyStateDesc}
+                >
+                  Try another meal name or saved detail.
+                </ThemedText>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear meal search"
+                  onPress={() => setSearchQuery("")}
+                  style={styles.inlineButton}
+                >
+                  <ThemedText type="smallBold" themeColor="primary">
+                    Clear search
+                  </ThemedText>
+                </Pressable>
+              </ThemedView>
+            ) : null}
+
             <View style={styles.groupList}>
-              {state.groups.map((group) => (
+              {filteredGroups.map((group) => (
                 <ThemedView
                   key={group.date}
                   type="backgroundElement"
@@ -463,6 +576,30 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+  },
+  searchRow: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  searchIcon: {
+    fontSize: 16,
+  },
+  searchInput: {
+    minHeight: 46,
+    flex: 1,
+    paddingVertical: Spacing.two,
+    fontSize: 16,
+  },
+  clearSearchButton: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
   },
   messageCard: {
     borderRadius: 16,

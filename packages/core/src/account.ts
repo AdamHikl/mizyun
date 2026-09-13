@@ -7,6 +7,10 @@ import type { StoredProfile } from "./profile";
 import type { StoredWorkout } from "./workout";
 import type { StoredWorkoutSet } from "./workout-set";
 import type { UserFeedback } from "./feedback";
+import type {
+  StoredProductAnalyticsConsent,
+  StoredProductAnalyticsEvent,
+} from "./product-analytics";
 
 /**
  * Account-level domain types (DATA-001).
@@ -58,6 +62,7 @@ export interface ExportManifest {
     readonly privateMedia: number;
     readonly feedback: number;
     readonly aiConsents?: number;
+    readonly productAnalyticsEvents?: number;
   };
 }
 
@@ -96,6 +101,10 @@ export interface AccountExport {
   readonly privateMedia: ReadonlyArray<ExportedMediaAsset>;
   readonly feedback: ReadonlyArray<UserFeedback>;
   readonly aiConsent?: StoredAiConsent | null;
+  readonly productAnalytics?: {
+    readonly consent: StoredProductAnalyticsConsent | null;
+    readonly events: ReadonlyArray<StoredProductAnalyticsEvent>;
+  } | null;
 }
 
 /**

@@ -64,7 +64,14 @@ export class ExpoAnalyticsEventStore implements AnalyticsEventStore {
     try {
       const parsed: unknown = JSON.parse(await this.file.text());
       if (!Array.isArray(parsed)) return [];
-      return parsed.filter(isAnalyticsEvent).slice(-MAX_EVENTS);
+      const cutoff = this.now() - RETENTION_MS;
+      return (parsed as readonly unknown[])
+        .filter(
+          (candidate: unknown): candidate is AnalyticsEvent =>
+            isAnalyticsEvent(candidate) &&
+            Date.parse(candidate.recordedAt) >= cutoff,
+        )
+        .slice(-MAX_EVENTS);
     } catch {
       return [];
     }

@@ -383,6 +383,7 @@ export const isAnalyticsEvent = (value: unknown): value is AnalyticsEvent => {
         isOneOf(properties.feature, [
           "dashboard",
           "nutrition_history",
+          "workout_history",
           "body_history",
           "progress_photos",
           "settings",

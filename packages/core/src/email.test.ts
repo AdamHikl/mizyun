@@ -11,7 +11,7 @@ describe("email domain logic", () => {
   describe("isValidEmailAddress", () => {
     it("accepts valid email addresses", () => {
       expect(isValidEmailAddress("user@example.com")).toBe(true);
-      expect(isValidEmailAddress("noreply@phiskel.com")).toBe(true);
+      expect(isValidEmailAddress("noreply@mizyun.phiskel.com")).toBe(true);
       expect(isValidEmailAddress("test.user+tag@domain.co.uk")).toBe(true);
     });
 
@@ -32,7 +32,7 @@ describe("email domain logic", () => {
         subject: "Welcome",
         text: "Hello there",
         html: "<p>Hello there</p>",
-        replyTo: "support@phiskel.com",
+        replyTo: "support@mizyun.phiskel.com",
       });
       expect(result.ok).toBe(true);
     });

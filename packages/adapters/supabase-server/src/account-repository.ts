@@ -17,7 +17,10 @@ import {
   type MediaAssetRepository,
   type ProfileRepository,
   type AiConsentRepository,
+  type ProductAnalyticsRepository,
   type StoredAiConsent,
+  type StoredProductAnalyticsConsent,
+  type StoredProductAnalyticsEvent,
   type StoredBodyMeasurement,
   type StoredDeletionJob,
   type StoredExercise,
@@ -49,6 +52,12 @@ import {
   aiConsentFromRow,
   type AiConsentRow,
 } from "./ai-consent-repository.js";
+import {
+  type ProductAnalyticsConsentRow,
+  type ProductAnalyticsEventRow,
+  productAnalyticsConsentFromRow,
+  productAnalyticsEventFromRow,
+} from "./product-analytics-repository.js";
 
 export interface AccountMediaStorage {
   remove(
@@ -144,6 +153,8 @@ export interface SupabaseAccountRepositoryOptions {
   readonly mediaStorage?: AccountMediaStorage | null | undefined;
   readonly memoryStore?: MemoryStore | null | undefined;
   readonly aiConsentRepository?: AiConsentRepository | null | undefined;
+  readonly productAnalyticsRepository?:
+    ProductAnalyticsRepository | null | undefined;
   readonly serviceRoleClient?: RepositorySupabaseClient | null | undefined;
   readonly clientFor?:
     ((accessToken: string) => RepositorySupabaseClient) | undefined;
@@ -186,6 +197,7 @@ export class SupabaseAccountRepository implements AccountRepository {
   readonly #mediaStorage: AccountMediaStorage | null;
   readonly #memoryStore: MemoryStore | null;
   readonly #aiConsentRepository: AiConsentRepository | null;
+  readonly #productAnalyticsRepository: ProductAnalyticsRepository | null;
   readonly #serviceRoleClient: RepositorySupabaseClient | null;
   readonly #clientFor:
     ((accessToken: string) => RepositorySupabaseClient) | null;
@@ -205,6 +217,8 @@ export class SupabaseAccountRepository implements AccountRepository {
     this.#mediaStorage = options.mediaStorage ?? null;
     this.#memoryStore = options.memoryStore ?? null;
     this.#aiConsentRepository = options.aiConsentRepository ?? null;
+    this.#productAnalyticsRepository =
+      options.productAnalyticsRepository ?? null;
     this.#serviceRoleClient = options.serviceRoleClient ?? null;
     this.#clientFor = options.clientFor ?? null;
     this.#clock = options.clock ?? { now: () => new Date() };
@@ -233,6 +247,8 @@ export class SupabaseAccountRepository implements AccountRepository {
     let feedback: ReadonlyArray<UserFeedback>;
     let privateMedia: ReadonlyArray<ExportedMediaAsset>;
     let aiConsent: StoredAiConsent | null = null;
+    let productAnalyticsConsent: StoredProductAnalyticsConsent | null = null;
+    let productAnalyticsEvents: ReadonlyArray<StoredProductAnalyticsEvent> = [];
     let memoryCount = 0;
     let hasMediaSigningFailures = false;
 
@@ -413,6 +429,26 @@ export class SupabaseAccountRepository implements AccountRepository {
       if (consentRow) {
         aiConsent = aiConsentFromRow(consentRow);
       }
+
+      const { data: paConsentRow } = await client
+        .from<ProductAnalyticsConsentRow>("product_analytics_consents")
+        .select("*")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (paConsentRow) {
+        productAnalyticsConsent = productAnalyticsConsentFromRow(paConsentRow);
+      }
+      const paEventRows = await fetchAllPaged(
+        client,
+        "product_analytics_events",
+        "user_id",
+        userId,
+        "recorded_at",
+        false,
+      );
+      productAnalyticsEvents = paEventRows.map((r: any) =>
+        productAnalyticsEventFromRow(r),
+      );
     } else {
       profile = await this.#profileRepository.getOrCreate(userId, {
         now,
@@ -538,6 +574,17 @@ export class SupabaseAccountRepository implements AccountRepository {
           accessToken: token,
         });
       }
+      if (this.#productAnalyticsRepository) {
+        productAnalyticsConsent =
+          await this.#productAnalyticsRepository.getConsent(userId, {
+            accessToken: token,
+          });
+        productAnalyticsEvents =
+          await this.#productAnalyticsRepository.listRetainedEvents(userId, {
+            limit: 10_000,
+            accessToken: token,
+          });
+      }
     }
 
     const totalMessages = conversations.reduce(
@@ -562,6 +609,7 @@ export class SupabaseAccountRepository implements AccountRepository {
         privateMedia: privateMedia.length,
         feedback: feedback.length,
         aiConsents: aiConsent ? 1 : 0,
+        productAnalyticsEvents: productAnalyticsEvents.length,
       },
     };
 
@@ -580,6 +628,13 @@ export class SupabaseAccountRepository implements AccountRepository {
       privateMedia,
       feedback,
       aiConsent,
+      productAnalytics:
+        productAnalyticsConsent || productAnalyticsEvents.length > 0
+          ? {
+              consent: productAnalyticsConsent,
+              events: productAnalyticsEvents,
+            }
+          : null,
     };
   }
 

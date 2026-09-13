@@ -261,3 +261,11 @@ export {
   type StorageSupabaseClient,
   type SupabaseMediaStorageOptions,
 } from "./media-storage.js";
+export {
+  SupabaseProductAnalyticsRepository,
+  productAnalyticsConsentFromRow,
+  productAnalyticsEventFromRow,
+  type ProductAnalyticsConsentRow,
+  type ProductAnalyticsEventRow,
+  type SupabaseProductAnalyticsRepositoryOptions,
+} from "./product-analytics-repository.js";

@@ -38,8 +38,17 @@ export async function requestBetaProPass(
         perm = await Notifications.requestPermissionsAsync();
       }
       if (perm.granted) {
-        const tokenResult = await Notifications.getExpoPushTokenAsync();
-        pushToken = tokenResult.data;
+        try {
+          const tokenResult = await Notifications.getExpoPushTokenAsync();
+          pushToken = tokenResult.data;
+        } catch {
+          try {
+            const deviceToken = await Notifications.getDevicePushTokenAsync();
+            pushToken = deviceToken.data;
+          } catch {
+            // Push token not available — proceed without it
+          }
+        }
       }
     } catch {
       // Push token not available — proceed without it

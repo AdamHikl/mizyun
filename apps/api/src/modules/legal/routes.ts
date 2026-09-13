@@ -148,7 +148,7 @@ export const legalRoutes: FastifyPluginAsync = async (app) => {
       </ul>
 
       <h2>5. Contact Us</h2>
-      <p>If you have any questions or data requests, please contact us at <a href="mailto:support@phiskel.com">support@phiskel.com</a>.</p>
+      <p>If you have any questions or data requests, please contact us at <a href="mailto:support@mizyun.phiskel.com">support@mizyun.phiskel.com</a>.</p>
       `,
     );
     void reply.type("text/html").send(html);
@@ -181,7 +181,7 @@ export const legalRoutes: FastifyPluginAsync = async (app) => {
       <p>You can terminate your account and delete all associated data at any time via the in-app Account Settings screen.</p>
 
       <h2>5. Contact Information</h2>
-      <p>For inquiries, please contact <a href="mailto:support@phiskel.com">support@phiskel.com</a>.</p>
+      <p>For inquiries, please contact <a href="mailto:support@mizyun.phiskel.com">support@mizyun.phiskel.com</a>.</p>
       `,
     );
     void reply.type("text/html").send(html);
@@ -196,7 +196,7 @@ export const legalRoutes: FastifyPluginAsync = async (app) => {
 
       <h2>Contact Channels</h2>
       <ul>
-        <li><strong>Email Support:</strong> <a href="mailto:support@phiskel.com">support@phiskel.com</a></li>
+        <li><strong>Email Support:</strong> <a href="mailto:support@mizyun.phiskel.com">support@mizyun.phiskel.com</a></li>
         <li><strong>In-App Feedback:</strong> Go to <strong>Account > Settings > Send Feedback</strong> to send direct ratings, bug reports, and suggestions.</li>
         <li><strong>Website:</strong> <a href="https://phiskel.com" target="_blank">phiskel.com</a></li>
       </ul>
@@ -238,7 +238,7 @@ export const legalRoutes: FastifyPluginAsync = async (app) => {
       <h3>Option 2: Web / Email Request</h3>
       <p>If you have uninstalled the app or cannot access your account, you can request manual deletion by sending an email:</p>
       <ul>
-        <li><strong>To:</strong> <a href="mailto:support@phiskel.com?subject=Account%20Deletion%20Request">support@phiskel.com</a></li>
+        <li><strong>To:</strong> <a href="mailto:support@mizyun.phiskel.com?subject=Account%20Deletion%20Request">support@mizyun.phiskel.com</a></li>
         <li><strong>Subject:</strong> Account Deletion Request</li>
         <li><strong>Body:</strong> Please send the request from the email address registered with your Mizyun account.</li>
       </ul>

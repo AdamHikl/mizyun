@@ -19,7 +19,7 @@ describe("SesEmailSender", () => {
 
     const sender = new SesEmailSender({
       region: "eu-west-1",
-      defaultFromEmail: "no-reply@phiskel.com",
+      defaultFromEmail: "no-reply@mizyun.phiskel.com",
       client: mockClient,
     });
 
@@ -28,7 +28,7 @@ describe("SesEmailSender", () => {
       subject: "Welcome to Mizyun",
       text: "Plain text welcome message",
       html: "<p>HTML welcome message</p>",
-      replyTo: "support@phiskel.com",
+      replyTo: "support@mizyun.phiskel.com",
     });
 
     expect(result.ok).toBe(true);
@@ -38,13 +38,13 @@ describe("SesEmailSender", () => {
 
     expect(mockClient.send).toHaveBeenCalledTimes(1);
     expect(capturedInput).toEqual({
-      FromEmailAddress: "Mizyun <no-reply@phiskel.com>",
+      FromEmailAddress: "Mizyun <no-reply@mizyun.phiskel.com>",
       FromEmailAddressIdentityArn:
         "arn:aws:ses:eu-west-1:679821015569:identity/phiskel.com",
       Destination: {
         ToAddresses: ["user@example.com"],
       },
-      ReplyToAddresses: ["support@phiskel.com"],
+      ReplyToAddresses: ["support@mizyun.phiskel.com"],
       Content: {
         Simple: {
           Subject: {
@@ -81,13 +81,13 @@ describe("SesEmailSender", () => {
 
     const sender = new SesEmailSender({
       region: "eu-west-1",
-      defaultFromEmail: "no-reply@phiskel.com",
+      defaultFromEmail: "no-reply@mizyun.phiskel.com",
       client: mockClient,
     });
 
     const result = await sender.sendEmail({
       to: ["user@example.com"],
-      from: "Phiskel Security <security@phiskel.com>",
+      from: "Phiskel Security <security@mizyun.phiskel.com>",
       subject: "Security Alert",
       text: "Alert content",
     });
@@ -95,7 +95,7 @@ describe("SesEmailSender", () => {
     expect(result.ok).toBe(true);
     expect(
       (capturedInput as { FromEmailAddress?: string })?.FromEmailAddress,
-    ).toBe("Phiskel Security <security@phiskel.com>");
+    ).toBe("Phiskel Security <security@mizyun.phiskel.com>");
   });
 
   it("handles missing MessageId in response as a provider error", async () => {
@@ -105,7 +105,7 @@ describe("SesEmailSender", () => {
 
     const sender = new SesEmailSender({
       region: "eu-west-1",
-      defaultFromEmail: "no-reply@phiskel.com",
+      defaultFromEmail: "no-reply@mizyun.phiskel.com",
       client: mockClient,
     });
 
@@ -132,7 +132,7 @@ describe("SesEmailSender", () => {
 
     const sender = new SesEmailSender({
       region: "eu-west-1",
-      defaultFromEmail: "no-reply@phiskel.com",
+      defaultFromEmail: "no-reply@mizyun.phiskel.com",
       client: mockClient,
     });
 
@@ -159,7 +159,7 @@ describe("SesEmailSender", () => {
 
     const sender = new SesEmailSender({
       region: "eu-west-1",
-      defaultFromEmail: "no-reply@phiskel.com",
+      defaultFromEmail: "no-reply@mizyun.phiskel.com",
       client: mockClient,
     });
 

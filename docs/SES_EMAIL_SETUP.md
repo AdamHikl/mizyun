@@ -14,8 +14,8 @@ This document describes the AWS SES email delivery configuration for Mizyun, cov
 - **SES Verified Identity:** `phiskel.com`
 - **IAM User:** `phiskel-ses-sender`
 - **IAM Policy:** `SendEmailFromPhiskelDomain`
-- **Allowed Sender Addresses:** `*@phiskel.com` (e.g. `no-reply@phiskel.com`, `noreply@phiskel.com`, `support@phiskel.com`)
-- **Default Sender:** `Mizyun <no-reply@phiskel.com>`
+- **Mizyun Sender Addresses:** `*@mizyun.phiskel.com` (the verified `phiskel.com` domain identity authorizes its subdomains)
+- **Default Sender:** `Mizyun <no-reply@mizyun.phiskel.com>`
 
 ---
 
@@ -27,7 +27,7 @@ Store the keys in your local `.env` (which is gitignored):
 
 ```dotenv
 SES_REGION=eu-west-1
-SES_FROM_EMAIL="Mizyun <no-reply@phiskel.com>"
+SES_FROM_EMAIL="Mizyun <no-reply@mizyun.phiskel.com>"
 SES_ACCESS_KEY_ID=<your-access-key-id>
 SES_SECRET_ACCESS_KEY=<your-secret-access-key>
 ```
@@ -44,7 +44,7 @@ For the API server, place the credentials in `/etc/mizyun/production.env`:
 
 ```dotenv
 SES_REGION=eu-west-1
-SES_FROM_EMAIL="Mizyun <no-reply@phiskel.com>"
+SES_FROM_EMAIL="Mizyun <no-reply@mizyun.phiskel.com>"
 SES_ACCESS_KEY_ID=<from secure credential store>
 SES_SECRET_ACCESS_KEY=<from secure credential store>
 ```
@@ -60,7 +60,7 @@ import { SesEmailSender } from "@mizyun/adapter-ses";
 
 const emailSender = new SesEmailSender({
   region: "eu-west-1",
-  defaultFromEmail: "Mizyun <no-reply@phiskel.com>",
+  defaultFromEmail: "Mizyun <no-reply@mizyun.phiskel.com>",
   credentials: {
     accessKeyId: process.env.SES_ACCESS_KEY_ID!,
     secretAccessKey: process.env.SES_SECRET_ACCESS_KEY!,
@@ -72,7 +72,7 @@ const result = await emailSender.sendEmail({
   subject: "Your Mizyun Account Export is Ready",
   text: "Your exported fitness and nutrition records are ready for download.",
   html: "<p>Your exported fitness and nutrition records are ready for download.</p>",
-  replyTo: "support@phiskel.com",
+  replyTo: "support@mizyun.phiskel.com",
 });
 
 if (result.ok) {
@@ -106,7 +106,7 @@ GOTRUE_SMTP_HOST=email-smtp.eu-west-1.amazonaws.com
 GOTRUE_SMTP_PORT=587
 GOTRUE_SMTP_USER=<your-ses-smtp-username>
 GOTRUE_SMTP_PASS=<your-ses-smtp-password>
-GOTRUE_SMTP_ADMIN_EMAIL=no-reply@phiskel.com
+GOTRUE_SMTP_ADMIN_EMAIL=no-reply@mizyun.phiskel.com
 GOTRUE_SMTP_SENDER_NAME="Mizyun"
 
 # Enforce email confirmation (restore production security gate)

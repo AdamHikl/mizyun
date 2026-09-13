@@ -102,7 +102,7 @@ Provide this in the **App Review Information** section in App Store Connect:
 ### Reviewer Login Credentials
 
 - **Sign-in Required:** Yes
-- **Username / Email:** `appstore-review@phiskel.com`
+- **Username / Email:** `appstore-review@mizyun.phiskel.com`
 - **Password:** _(Generate a strong test password, e.g. `MizyunReviewer2026!`)_
 
 ### Notes for the Reviewer
@@ -115,7 +115,7 @@ Thank you for reviewing Mizyun!
 Key Information about Mizyun:
 1. Account & Demo Data:
 We have pre-configured a test account with existing sample meals, workouts, and weight entries so you can immediately explore the Home Dashboard, Workouts tab, Meals tab, and Coach tab.
-- Credentials: appstore-review@phiskel.com / [Password]
+- Credentials: appstore-review@mizyun.phiskel.com / [Password]
 
 2. AI Nutrition & Coach Features:
 - Mizyun features an AI-assisted meal draft estimator and a conversational fitness coach.

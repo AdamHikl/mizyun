@@ -91,6 +91,43 @@ describe("GET /v1/profile", () => {
     });
   });
 
+  it("returns the stored planTier (e.g. paid tier)", async () => {
+    const { app, profileRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    profileRepository.__seedForTest({
+      userId: userA,
+      displayName: "User A",
+      unitSystem: "metric",
+      timezone: "UTC",
+      birthYear: 1990,
+      heightCm: 180,
+      activityLevel: null,
+      sexAtBirth: null,
+      coachingPreferences: {
+        experienceLevel: null,
+        trainingDaysPerWeek: null,
+        sessionDurationMinutes: null,
+        trainingFocus: null,
+        availableEquipment: [],
+        dietaryPreferences: [],
+        trainingLimitations: [],
+      },
+      planTier: "paid",
+      aiProvider: "gemini",
+      createdAt: new Date("2026-01-01T00:00:00Z"),
+      updatedAt: new Date("2026-01-01T00:00:00Z"),
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/profile",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().profile.planTier).toBe("paid");
+  });
+
   it("does not return another user's profile (envelope only)", async () => {
     const { app, profileRepository } = build(
       tokenVerifierFor({ userId: userB }),

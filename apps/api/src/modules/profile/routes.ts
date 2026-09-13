@@ -144,6 +144,7 @@ const toWire = (stored: StoredProfile): ProfileResponse =>
           ...stored.coachingPreferences.trainingLimitations,
         ],
       },
+      planTier: stored.planTier,
       aiProvider: stored.aiProvider,
       createdAt: stored.createdAt.toISOString(),
       updatedAt: stored.updatedAt.toISOString(),

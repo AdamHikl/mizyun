@@ -235,7 +235,7 @@ const baseServerSchema = z.object({
   sesFromEmail: z
     .string()
     .min(3, "SES_FROM_EMAIL must not be empty")
-    .default("no-reply@phiskel.com"),
+    .default("no-reply@mizyun.phiskel.com"),
   aiDailyUserTokenBudget: z.coerce
     .number()
     .int("AI_DAILY_USER_TOKEN_BUDGET must be an integer")

@@ -83,5 +83,5 @@ Mizyun is not directed to children under 13 (or under 16 in the EEA/UK). Further
 
 If you have any questions, concerns, or requests regarding this Privacy Policy or your data, please contact us at:
 
-- **Email:** support@phiskel.com
+- **Email:** support@mizyun.phiskel.com
 - **Website:** https://phiskel.com

@@ -72,7 +72,8 @@ describe("Expo analytics storage adapters", () => {
   it("recovers from a corrupt local file without blocking callers", async () => {
     const file = memoryFile();
     file.corrupt("not-json");
-    const store = new ExpoAnalyticsEventStore(file);
+    const now = Date.parse("2026-07-22T12:00:00.000Z");
+    const store = new ExpoAnalyticsEventStore(file, () => now);
     expect(await store.list()).toEqual([]);
     await store.append(event("2026-07-22T12:00:00.000Z"));
     expect(await store.list()).toHaveLength(1);

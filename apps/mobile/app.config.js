@@ -246,8 +246,7 @@ if (
 const baseExpo = baseConfig.expo;
 const baseIos = baseExpo.ios;
 const baseAndroid = baseExpo.android;
-const disableIosPushNotifications =
-  variantName === "dev" || process.env.MIZYUN_IOS_DISABLE_PUSH === "1";
+const disableIosPushNotifications = process.env.MIZYUN_IOS_DISABLE_PUSH === "1";
 const enableIosAppleAuth = process.env.MIZYUN_ENABLE_APPLE_AUTH === "1";
 
 const plugins = [

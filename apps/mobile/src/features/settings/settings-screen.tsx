@@ -107,11 +107,12 @@ export function SettingsScreen() {
 
   useEffect(() => {
     void refresh();
+    void refreshProfile();
     void analyticsClient.track({
       name: "feature_viewed",
       properties: { feature: "settings" },
     });
-  }, [refresh]);
+  }, [refresh, refreshProfile]);
 
   const toggleSection = useCallback((key: string) => {
     setOpenSections((prev) => ({
@@ -159,7 +160,7 @@ export function SettingsScreen() {
           text: "Sign out",
           style: "destructive",
           onPress: async () => {
-            void analyticsClient.setConsent("denied");
+            void analyticsClient.resetLocalSession();
             if (session !== null) {
               const reminders = await loadCoachReminders(session.user.id);
               await applyCoachReminders(session.user.id, {
@@ -665,7 +666,7 @@ export function SettingsScreen() {
               id="analytics"
               icon="🛡️"
               title="Product Analytics & Export"
-              subtitle="Local-only privacy-safe event logging"
+              subtitle="Privacy-first usage telemetry"
               isOpen={!!openSections.analytics}
               onToggle={() => toggleSection("analytics")}
             >
@@ -1027,16 +1028,19 @@ function AnalyticsCard() {
     <View style={styles.innerCard}>
       <ThemedText type="smallBold">Optional product analytics</ThemedText>
       <ThemedText type="small" themeColor="textSecondary">
-        Help measure onboarding, feature use, failures, and coarse time/tap
-        ranges. Events stay on this device unless you choose Export. They never
-        include account or device IDs, food names, health values, photos,
-        messages, tokens, or file paths.
+        Help improve Mizyun’s UI and features by sharing coarse screen use, flow
+        completions, and failure stages. Events are sent to Mizyun’s servers and
+        linked to your account. They never include food names, health values,
+        photos, messages, tokens, or personal inputs. Retained events cover up
+        to 30 days. You can disable collection and clear your data at any time.
       </ThemedText>
       <ThemedText type="smallBold">
         {consent === "loading"
           ? "Loading preference…"
           : enabled
-            ? `Enabled · ${eventCount} local event${eventCount === 1 ? "" : "s"}`
+            ? eventCount > 0
+              ? `Enabled · ${eventCount} event${eventCount === 1 ? "" : "s"} in local queue`
+              : "Enabled · synced with server"
             : "Off"}
       </ThemedText>
       <View style={styles.analyticsActions}>
@@ -1052,12 +1056,12 @@ function AnalyticsCard() {
         />
         <AnalyticsButton
           label="Export"
-          disabled={!enabled || eventCount === 0}
+          disabled={!enabled}
           onPress={() => void shareExport()}
         />
         <AnalyticsButton
           label="Clear"
-          disabled={!enabled || eventCount === 0}
+          disabled={!enabled}
           onPress={() => void clearEvents()}
         />
       </View>

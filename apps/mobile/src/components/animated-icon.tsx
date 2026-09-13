@@ -35,8 +35,8 @@ export function AnimatedSplashOverlay() {
 
   const image = (
     <Image
-      style={styles.image}
-      source={require("@/assets/images/expo-logo.png")}
+      style={styles.splashImage}
+      source={require("@/assets/images/mizyun-icon.png")}
     />
   );
 
@@ -152,6 +152,11 @@ const styles = StyleSheet.create({
   image: {
     width: 76,
     height: 71,
+  },
+  splashImage: {
+    width: 128,
+    height: 128,
+    borderRadius: 28,
   },
   background: {
     borderRadius: 40,

@@ -17,6 +17,7 @@ import {
   createSupabaseAccessTokenVerifier,
   createSupabaseRepositoryClient,
   createSupabaseStorageClient,
+  SupabaseProductAnalyticsRepository,
 } from "@mizyun/adapter-supabase-server";
 import { SesEmailSender } from "@mizyun/adapter-ses";
 import {
@@ -38,6 +39,7 @@ import {
   type GoalRepository,
   type MediaAssetRepository,
   type PlanTier,
+  type ProductAnalyticsRepository,
   type ProfileRepository,
   type UserId,
   type WorkoutRepository,
@@ -66,7 +68,9 @@ import { loggerConfig } from "./logging.js";
 import { InMemoryMediaStorage, type MediaStorage } from "./media-storage.js";
 import { SupabaseMemoryStore } from "@mizyun/adapter-supabase-server";
 import { accountRoutes } from "./modules/account/routes.js";
+import { analyticsRoutes } from "./modules/analytics/routes.js";
 import { betaProRoutes } from "./modules/account/beta-pro-routes.js";
+import { InMemoryProductAnalyticsRepository } from "./product-analytics-repository.js";
 import { bodyMeasurementsRoutes } from "./modules/body-measurements/routes.js";
 import { aiUsageRoutes } from "./modules/coach/ai-usage-routes.js";
 import { coachMemoryRoutes } from "./modules/coach/memory-routes.js";
@@ -244,6 +248,7 @@ export interface AppDependencies {
   readonly accountRepository?: AccountRepository;
   readonly betaProRepository?: BetaProRepository;
   readonly aiConsentRepository?: AiConsentRepository;
+  readonly productAnalyticsRepository?: ProductAnalyticsRepository;
   readonly mediaAssetRepository?: MediaAssetRepository;
   readonly mediaStorage?: MediaStorage;
   readonly emailSender?: EmailSender;
@@ -577,6 +582,15 @@ export const buildApp = (
         })
       : new InMemoryBetaProRepository());
 
+  const productAnalyticsRepository: ProductAnalyticsRepository =
+    dependencies.productAnalyticsRepository ??
+    (sp
+      ? new SupabaseProductAnalyticsRepository({
+          clientFor: sp.clientFor,
+          ...(sp.serviceRoleClient ? { client: sp.serviceRoleClient } : {}),
+        })
+      : new InMemoryProductAnalyticsRepository());
+
   const accountRepository =
     dependencies.accountRepository ??
     (sp
@@ -594,6 +608,7 @@ export const buildApp = (
           mediaStorage,
           memoryStore: resolveMemoryStore(dependencies),
           aiConsentRepository,
+          productAnalyticsRepository,
           serviceRoleClient: sp.serviceRoleClient ?? null,
           clientFor: sp.clientFor,
         })
@@ -611,6 +626,7 @@ export const buildApp = (
           mediaStorage,
           memoryStore: resolveMemoryStore(dependencies),
           aiConsentRepository,
+          productAnalyticsRepository,
         }));
 
   const emailSender =
@@ -949,6 +965,10 @@ export const buildApp = (
   void app.register(betaProRoutes, {
     prefix: "/v1",
     repository: betaProRepository,
+  });
+  void app.register(analyticsRoutes, {
+    prefix: "/v1/analytics",
+    productAnalyticsRepository,
   });
 
   // MEM-001 — the long-lived memory store used by both the

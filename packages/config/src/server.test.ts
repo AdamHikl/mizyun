@@ -511,7 +511,7 @@ describe("loadServerConfig — SES email configuration", () => {
       region: "eu-west-1",
       accessKeyId: "AKIAIOSFODNN7EXAMPLE",
       secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-      fromEmail: "no-reply@phiskel.com",
+      fromEmail: "no-reply@mizyun.phiskel.com",
     });
   });
 
@@ -523,7 +523,7 @@ describe("loadServerConfig — SES email configuration", () => {
         PHISKEL_SES_AWS_SECRET_ACCESS_KEY:
           "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
         SES_REGION: "eu-central-1",
-        SES_FROM_EMAIL: "custom-sender@phiskel.com",
+        SES_FROM_EMAIL: "custom-sender@mizyun.phiskel.com",
       },
     });
     expect(result.ok).toBe(true);
@@ -532,7 +532,7 @@ describe("loadServerConfig — SES email configuration", () => {
       region: "eu-central-1",
       accessKeyId: "AKIAIOSFODNN7EXAMPLE",
       secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-      fromEmail: "custom-sender@phiskel.com",
+      fromEmail: "custom-sender@mizyun.phiskel.com",
     });
   });
 

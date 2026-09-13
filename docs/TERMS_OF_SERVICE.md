@@ -63,5 +63,5 @@ To the maximum extent permitted by law, Mizyun and its operators shall not be li
 
 For inquiries or legal notices, please reach out to:
 
-- **Email:** support@phiskel.com
+- **Email:** support@mizyun.phiskel.com
 - **Website:** https://phiskel.com

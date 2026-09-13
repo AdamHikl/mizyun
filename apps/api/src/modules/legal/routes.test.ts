@@ -45,6 +45,6 @@ describe("legalRoutes", () => {
     expect(response.statusCode).toBe(200);
     expect(response.headers["content-type"]).toContain("text/html");
     expect(response.body).toContain("Support & Feedback");
-    expect(response.body).toContain("support@phiskel.com");
+    expect(response.body).toContain("support@mizyun.phiskel.com");
   });
 });

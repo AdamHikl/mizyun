@@ -1,5 +1,29 @@
 # Research log
 
+## 2026-09-13 — OBS-002 product analytics backend implementation
+
+- Implemented first-party, server-side product analytics backend (OBS-002) superseding local-only aspects of ADR-0014 via ADR-0026.
+- Database: forward migration `20260913100000_product_analytics_backend.sql` introducing `product_analytics_consents` and `product_analytics_events` tables with strict RLS, indexes, and service-role SECURITY DEFINER RPCs for atomic consent updates, event batch ingestion, user-initiated clearing, and 30-day retention cleanup.
+- Contracts: defined `analyticsEventV2Schema` discriminated union, transport schemas for consent, batch ingestion, event clearing, and listing. Integrated analytics counts into account export schemas.
+- Core & Adapters: implemented `ProductAnalyticsRepository` interface in `@mizyun/core`, `SupabaseProductAnalyticsRepository` in `@mizyun/adapter-supabase-server`, and `InMemoryProductAnalyticsRepository` in `apps/api`. Account export and deletion seamlessly include and cascade across product analytics records.
+- API: added `/v1/analytics/consent` (GET/PUT), `/v1/analytics/events` (POST batch/DELETE clear/GET list) with authentication, body size limits, clock-skew sanitization, and conflict handling.
+- Mobile: replaced local-only store with `NetworkAnalyticsClient` providing an offline local queue (up to 500 events), pending offline denial persistence, session rotation, and automatic sync. Updated consent disclosures in both Onboarding (`AnalyticsConsentPrompt`) and Settings (`AnalyticsCard`) to remove device-only claims and clearly inform users that coarse events are sent to Mizyun's servers linked to their account for UI improvements, export, and deletion.
+- CLI: created `scripts/product-analytics.mjs` and tests in `scripts/product-analytics.test.mjs` supporting non-identifying aggregate queries (`summary`, `features`, `navigation`, `flows`, `retention`) with `--json` and fixture simulation capabilities.
+
+## 2026-09-12 — Cross-platform Country & Region Picker for Coach Preferences (`COACH-PREF-001`)
+
+- Primary sources: [Apple Human Interface Guidelines: Pickers & Modals](https://developer.apple.com/design/human-interface-guidelines/pickers), [Material Design 3: Bottom Sheets & Menus](https://m3.material.io/components/bottom-sheets/overview), [ISO 3166-1 alpha-2 standard](https://www.iso.org/iso-3166-country-codes.html), [MDN Web Docs: Intl.DisplayNames](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/DisplayNames), and [Unicode CLDR Regional Indicator Symbols](https://unicode.org/reports/tr51/#Flags), accessed 2026-09-12.
+- Evaluated existing third-party packages (`react-native-country-picker-modal`, etc.): identified maintenance dormancy, peer-dependency mismatches with React 19 / Fabric (React Native 0.86+), and massive bundled translation payloads (~200KB+).
+- Architectural solution: Implemented a lightweight, zero-dependency custom component with Hermes runtime `Intl.DisplayNames` (cached per locale) and 249 ISO 3166-1 alpha-2 territories.
+- Cross-platform flag strategy: Apple Color Emoji on iOS renders all 249 flag glyphs natively with zero network overhead. On Android (where standard system fonts frequently omit flag emojis and render `[U][S]` fallback boxes), `CountryFlag` utilizes high-resolution FlagCDN assets via `expo-image` with disk caching and graceful offline fallback.
+- Search relevance: Instant type-ahead filtering prioritizes exact ISO code matches and prefix name matches over arbitrary substrings, ensuring predictable ranking (e.g. searching "US" prioritizes United States over Australia/Austria). No new ADR required; pure UI and dataset component.
+
+## 2026-09-12 — Meals-tab client-side history search (`MEAL-UX-004`)
+
+- Primary sources: [Expo SDK 57 reference](https://docs.expo.dev/versions/v57.0.0/), [React Native 0.86 `TextInput`](https://reactnative.dev/docs/0.86/textinput), and [React `useMemo`](https://react.dev/reference/react/useMemo), accessed 2026-09-12.
+- The installed mobile stack is Expo `~57.0.4` with React Native `0.86.0`. React Native's controlled `TextInput` exposes `onChangeText`, search keyboard hints, placeholder/accessibility props, and an iOS-only native clear button; Mizyun therefore uses its existing cross-platform React Native input plus an explicit accessible clear action rather than adding another native dependency.
+- Meal history already loads a bounded cache of up to 200 entries and groups them locally. Search is derived from that cached state with memoized pure filtering, preserving group/entry order, omitting empty groups, and recalculating visible group totals. No API, database, permission, or durable architecture change is required, so no ADR is needed.
+
 ## 2026-09-12 — Google Play publishing plan
 
 Planning-only research; [implementation plan and dated primary sources](GOOGLE_PLAY_IMPLEMENTATION_PLAN_2026-09-12.md#dated-primary-sources).
@@ -15,6 +39,12 @@ Planning-only research; [implementation plan and dated primary sources](GOOGLE_P
 - [Expo SDK 57 app configuration](https://docs.expo.dev/versions/v57.0.0/config/app/) supports PNG icon paths for root, iOS and Android. Platform-specific overrides take precedence; Android adaptive foreground overrides the regular icon.
 - Replaced the old iOS Icon Composer reference and Android adaptive/monochrome configuration with the user-approved shared PNG. Preserved the generated design; Expo's installed icon pipeline normalized it to 1024×1024 without alpha and generated Android density assets in a temporary verification directory.
 - Standard Android launcher rendering is used; launchers may apply their own inset/mask. No custom themed/monochrome variant was supplied. Native regeneration/rebuild/install is required to update existing installations. No new ADR is needed for this asset/configuration change.
+
+## 2026-09-12 — Mizyun launch-screen branding
+
+- [Expo SDK 57 SplashScreen](https://docs.expo.dev/versions/v57.0.0/sdk/splash-screen/) recommends the `expo-splash-screen` config plugin and explicitly supports using the app icon or logo as the splash image with a configured image width and resize mode.
+- The brief legacy blue/A screen came from two separate startup layers: the native plugin still referenced `splash-icon.png`, while the React Native handoff overlay referenced `expo-logo.png`. Both startup layers now use the approved `mizyun-icon.png` so the native-to-JavaScript handoff retains one visual identity.
+- Expo notes that Expo Go and development builds do not fully reproduce the standalone splash experience on current Android versions. A newly generated release/native build and physical-device cold start are therefore still required for acceptance; a JavaScript refresh cannot update the native launch screen.
 
 ## 2026-09-11 — Apple sign-in activation and App Store planning
 
@@ -291,7 +321,7 @@ AWS SES v2 client integration (`@aws-sdk/client-sesv2`), domain-authenticated em
 
 ### Findings used
 
-- AWS SES identity `phiskel.com` in `eu-west-1` requires sender addresses matching `*@phiskel.com`.
+- AWS SES identity `phiskel.com` in `eu-west-1` authorizes sender addresses on the identity domain and its subdomains; narrower IAM sender conditions must be verified separately.
 - Pure domain interfaces for email (`EmailSender`, `SendEmailInput`, `validateSendEmailInput`) in `@mizyun/core` decouple app business logic from the AWS SDK.
 - Concrete `SesEmailSender` in `@mizyun/adapter-ses` translates AWS throttling and client errors into structured typed `EmailSendError` domain results.
 - macOS Keychain and process environment (`SES_ACCESS_KEY_ID`, `PHISKEL_SES_AWS_ACCESS_KEY_ID`, `AWS_ACCESS_KEY_ID`) allow seamless local smoke-testing without committing credentials to Git.
@@ -1876,7 +1906,7 @@ no API changes. The segment closes the gap between "Coach works"
 - Automatic confirmation means the public Auth endpoint does not verify mailbox
   ownership, and password recovery remains unavailable. AUTH-SMTP-001 therefore
   blocks design-partner beta until a dedicated provider sends domain-authenticated
-  confirmation and recovery mail from `no-reply@phiskel.com`, and autoconfirm is
+  confirmation and recovery mail from `no-reply@mizyun.phiskel.com`, and autoconfirm is
   disabled again.
 - Supabase client exceptions can contain serialized gateway response details.
   The mobile Auth screen now maps every provider failure to action-specific,
@@ -2072,4 +2102,18 @@ Primary source: [PostgreSQL connection parameters and URI forms](https://www.pos
   - Expo prebuild generates complete, standard iOS Xcode workspaces and Android Gradle projects. These native directories do not require Expo Application Services (EAS Build / EAS Submit) to generate release binaries or distribute to app stores.
   - On iOS, `xcodebuild -workspace ios/Mizyun.xcworkspace -scheme Mizyun -configuration Release archive` creates standard archives that can be uploaded directly to App Store Connect / TestFlight via Xcode Organizer or `xcrun altool`. Sideloading for dev/preview testing uses USB cable installation via `scripts/mobile-founder-*-ios.sh`.
   - On Android, `./gradlew :app:bundleRelease` generates a signed `.aab` (Android App Bundle) when configured with a local release keystore, ready for direct web upload to Google Play Console. Sideloading uses `./gradlew :app:assembleRelease` for `.apk` installation via USB.
-  - Decision formalized in ADR-0023: Mizyun uses 100% local native release compilation and signing on founder macOS hardware. EAS cloud services are explicitly retired, eliminating third-party build queues, remote credential storage, and paid cloud subscriptions. Release gates (Gate R3 / Block 2) verify local release compilation, local keystore configurations, and physical USB device journeys.
+- Decision formalized in ADR-0023: Mizyun uses 100% local native release compilation and signing on founder macOS hardware. EAS cloud services are explicitly retired, eliminating third-party build queues, remote credential storage, and paid cloud subscriptions. Release gates (Gate R3 / Block 2) verify local release compilation, local keystore configurations, and physical USB device journeys.
+
+## 2026-09-12 — Mizyun email subdomain namespace
+
+- Primary sources: [Amazon SES verified identities](https://docs.aws.amazon.com/ses/latest/dg/verify-addresses-and-domains.html), [Amazon SES custom MAIL FROM](https://docs.aws.amazon.com/ses/latest/dg/mail-from.html), and [Cloudflare Email Routing for subdomains](https://developers.cloudflare.com/email-service/configuration/subdomains/), accessed 2026-09-12.
+- A verified SES domain identity permits sending from addresses on its subdomains. Mizyun can therefore retain the verified `phiskel.com` identity while using `@mizyun.phiskel.com` From addresses, subject to any narrower IAM `ses:FromAddress` condition.
+- A custom MAIL FROM domain must be a subdomain of the verified SES identity and must not be used as a normal receiving address. The existing `mail.phiskel.com` bounce domain remains distinct from human-facing `mizyun.phiskel.com` inboxes.
+- Cloudflare Email Routing applies to the apex domain by default and requires separate onboarding for a subdomain. Inbound delivery for `support@mizyun.phiskel.com` therefore requires enabling the `mizyun.phiskel.com` subdomain and creating an explicit route to a verified destination.
+- Implementation consequence: all tracked Mizyun company email addresses now use `@mizyun.phiskel.com`; API hostnames and the SES identity/custom MAIL FROM domains remain unchanged. External Cloudflare routing, SES IAM verification, GoTrue SMTP configuration, and delivery acceptance remain operational follow-up work.
+
+## 2026-09-13 — Shared Codex and Antigravity skills plan (AGENT-SKILLS-001)
+
+- Primary sources accessed today: [OpenAI Build skills](https://learn.chatgpt.com/docs/build-skills), reached from the official Codex skills URL, and [Google Antigravity Skills](https://antigravity.google/docs/skills). Both document repository `.agents/skills/<name>/SKILL.md` discovery and progressive instruction loading.
+- Design proposal: one shared Markdown/frontmatter source, optional client metadata, existing repository scripts and runbooks, and fresh discovery/behavior tests in each installed client. No duplicate global installations or automatic history ingestion.
+- Local evidence and implementation consequences are recorded in [the implementation guide](AGENT_SKILLS_IMPLEMENTATION_GUIDE_2026-09-13.md). Session sampling identifies repeated context reconstruction; no controlled cost benchmark was run, so savings remain a hypothesis. No runtime architectural change or ADR adopted in this planning-only session.

@@ -226,10 +226,13 @@ function AnalyticsConsentPrompt() {
     <ThemedView type="backgroundElement" style={styles.analyticsPrompt}>
       <ThemedText type="smallBold">Optional product analytics</ThemedText>
       <ThemedText type="small" themeColor="textSecondary">
-        Mizyun can keep coarse feature, failure, time, and tap-range events on
-        this device. They contain no account/device ID, food text, health
-        values, photos, messages, tokens, or paths, and leave the device only
-        when you export them. Your choice never affects core tracking.
+        Help improve Mizyun by sharing which features and screens you use,
+        whether actions succeed, and coarse time ranges. These optional events
+        are sent to Mizyun's servers to help improve the app UI and experience,
+        and are linked to your account for export and deletion. They never
+        include food text, health measurements, photos, messages, or typed
+        content. You can change this anytime in Account. Core features work the
+        same either way.
       </ThemedText>
       <View style={styles.analyticsChoiceRow}>
         <Pressable

@@ -245,7 +245,7 @@ This setting is not acceptable for design partners or external release: it does
 not prove mailbox ownership, and password recovery cannot work without outbound
 email. Before design-partner beta, AUTH-SMTP-001 must configure a dedicated
 transactional provider and domain authentication for
-`Mizyun <no-reply@phiskel.com>`, prove confirmation and recovery on physical
+`Mizyun <no-reply@mizyun.phiskel.com>`, prove confirmation and recovery on physical
 devices, and restore `ENABLE_EMAIL_AUTOCONFIRM=false`. Do not use a personal
 mailbox as the external product sender.
 

@@ -15,6 +15,10 @@
  * "yes, delete everything".
  */
 import { z } from "zod";
+import {
+  analyticsConsentResponseSchema,
+  analyticsEventV2Schema,
+} from "./analytics";
 
 /** A `YYYY-MM-DD` date for the day-filter query params. */
 const isoDateSchema = z
@@ -63,6 +67,7 @@ export const exportManifestSchema = z.object({
     privateMedia: z.number().int().nonnegative(),
     feedback: z.number().int().nonnegative(),
     aiConsents: z.number().int().nonnegative().optional(),
+    productAnalyticsEvents: z.number().int().nonnegative().optional(),
   }),
 });
 
@@ -105,6 +110,12 @@ export const accountExportSchema = z.object({
   privateMedia: z.array(exportedMediaAssetSchema),
   feedback: z.array(z.unknown()).default([]),
   aiConsent: z.unknown().nullable().optional(),
+  productAnalytics: z
+    .object({
+      consent: analyticsConsentResponseSchema.nullable(),
+      events: z.array(analyticsEventV2Schema),
+    })
+    .optional(),
 });
 
 export type AccountExport = z.infer<typeof accountExportSchema>;

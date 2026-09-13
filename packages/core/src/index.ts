@@ -280,3 +280,9 @@ export {
   type EmailSender,
   type SendEmailInput,
 } from "./email";
+
+export {
+  type ProductAnalyticsRepository,
+  type StoredProductAnalyticsConsent,
+  type StoredProductAnalyticsEvent,
+} from "./product-analytics";

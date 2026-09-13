@@ -14,6 +14,7 @@ import {
 
 import { apiClient, apiConfiguration } from "@/composition/api-client";
 import { authClient } from "@/composition/auth-client";
+import { analyticsClient } from "@/composition/analytics-client";
 import { profileResponseSchema } from "@mizyun/contracts";
 import { AuthScreen } from "./auth-screen";
 import { AuthSetupScreen } from "./auth-setup-screen";
@@ -124,18 +125,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const requestVersion = ++profileRequestVersion.current;
       setSession(nextSession);
       if (nextSession === null) {
+        void analyticsClient.resetLocalSession();
         setProfile(null);
         setIsOnboardingActive(false);
         setProfileLoading(false);
         return;
       }
       if (nextSession.accessToken === "preview-token") {
+        void analyticsClient.resetLocalSession();
         setProfile(PREVIEW_PROFILE);
         setIsOnboardingActive(false);
         setProfileLoading(false);
         return;
       }
 
+      void analyticsClient.syncConsent();
       setProfileLoading(true);
       void fetchProfile()
         .then((nextProfile) => {

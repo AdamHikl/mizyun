@@ -1,6 +1,94 @@
 # Mizyun current status
 
-## Latest handoff — Progress Photos Gated to Dev, Pi Production Deployed & iPhone Installed (`PROD-GATE-001`, 2026-09-12)
+## Latest handoff — Product analytics backend implemented & verified (`OBS-002`, 2026-09-13)
+
+- Implemented the first-party product analytics backend (`OBS-002`) following [the architecture, privacy rules, and staged implementation plan](docs/PRODUCT_ANALYTICS_IMPLEMENTATION_PLAN_2026-09-13.md), incorporating the user's specific disclosure update: removed legacy copy claiming data stays on device; updated disclosures in both Onboarding and Settings to state that coarse telemetry is sent to Mizyun's servers to improve app UI/experience, linked to the user account with full export and erasure rights.
+- **Database & RLS** (`supabase/migrations/20260913100000_product_analytics_backend.sql`):
+  - Created `product_analytics_consents` and `product_analytics_events` with strict RLS (`user_id = auth.uid()`), `on delete cascade` referencing `auth.users(id)`, and direct client writes revoked (`GRANT SELECT ON ... TO authenticated`).
+  - Implemented transactional SECURITY DEFINER RPCs: `record_product_analytics_events` (acquires `FOR UPDATE` lock on consent, verifies active epoch and consent granted), `update_product_analytics_consent` (increments revision, generates new epoch on re-grant or revoke, cascades event deletion on revoke), `clear_product_analytics_events` (deletes user events, rotates epoch, increments revision), and `cleanup_expired_product_analytics` (prunes events older than 90-day retention).
+- **Contracts & Domain** (`packages/contracts`, `packages/core`):
+  - Defined strict discriminated union `analyticsEventV2Schema` for version 2 events with UUIDs, session tracking, sequential numbering, and strict closed property sets. Explicitly rejects food names, nutrient values, health metrics, free-form text, and auth tokens.
+  - Defined transport schemas: `analyticsConsentRequestSchema`, `analyticsConsentResponseSchema`, `analyticsBatchIngestRequestSchema` (max 50 events), `analyticsBatchIngestResponseSchema`, `analyticsClearRequestSchema`, `analyticsClearResponseSchema`, and `analyticsEventsListResponseSchema`.
+  - Added `productAnalyticsEvents` to `ExportManifest.counts` and `productAnalytics` to `AccountExport`.
+- **API & Adapters** (`apps/api`, `packages/adapters/supabase-server`):
+  - Added `GET /v1/analytics/consent`, `PUT /v1/analytics/consent`, `POST /v1/analytics/events` (with 32KB payload limit, clock skew checks < 5m future and < 72h past), `DELETE /v1/analytics/events`, and `GET /v1/analytics/events`.
+  - Wired `ProductAnalyticsRepository` into `apps/api` composition root and in-memory adapter; wired analytics data into `exportForUser` and `deleteForUser`.
+  - Enforced strict 30-day read-time retention filtering across server repository queries, in-memory repository, mobile client export, and local event store reads.
+- **Mobile Integration** (`apps/mobile`):
+  - Implemented `NetworkAnalyticsClient` with offline queue (up to 500 events), session tracking with 30m inactivity timeouts, optimistic pending denial retries, and batch flushing.
+  - Updated `AnalyticsConsentPrompt` on Onboarding and `AnalyticsCard` on Settings with truthful server disclosure copy. Enabled Export and Clear buttons based on active consent status.
+  - Integrated with central `AuthProvider` (`auth-context.tsx`): resets local session and clears queue on logout, expiry, account switch, or preview mode; syncs consent on valid session.
+  - Adopted a 30-minute inactivity boundary in `_layout.tsx` before emitting `app_session_started` on foreground returns.
+- **Operator Tooling & Navigation**:
+  - Implemented `scripts/product-analytics.mjs` and npm script `pnpm analytics` (`summary`, `features`, `navigation`, `flows`, `retention`) using secure stdin-fed `psql` transactions and `--json` support. Includes ordered 24h activation tracking and matured D1/D7 cohort retention. Added 10 unit tests in `scripts/product-analytics.test.mjs`.
+  - Added `docs/adr/0026-first-party-product-analytics-backend.md` and updated `docs/RESEARCH_LOG.md`.
+  - Registered all paths in `docs/feature-map.json`; `pnpm navigation:check` passes (0 errors).
+- **Independent Security & Privacy Review**:
+  - Non-author security subagent certified CONDITIONAL APPROVAL; all recommendations (safe local session reset on sign-out, settings UI button enablement, in-memory deletion cascade) implemented and verified.
+  - Independent plan auditor completed item-by-item verification against `docs/PRODUCT_ANALYTICS_IMPLEMENTATION_PLAN_2026-09-13.md`.
+- **Verification**:
+  - Full `pnpm check` passed cleanly (exit 0): 44 mobile test files (403 tests), 34 API test files (498 tests), 73 contract tests, 258 core tests, 76 supabase-server tests, 10 CLI unit tests, iOS and Android Hermes bundle checks, 23 deployment safeguards, 16 build matrix checks, and 56 AI invariants.
+  - Prettier formatting 100% clean (`pnpm format:check`).
+- **Next exact action**: Deploy migration and API to Dev on the Raspberry Pi via `pnpm deploy:dev`, then verify consent grant, event tracking, and settings export/clear on the physical Dev iPhone build (`com.mizyun.development`).
+
+## Prior handoff — Cross-Environment Beta Pro Pass Request Triage CLI (`BETA-PRO-001`, 2026-09-12)
+
+- Implemented `scripts/check-beta-pro-requests.mjs` and npm scripts `pnpm beta-pro` / `pnpm beta-pro:check` to inspect pending requests for the Beta Pro Pass across both Dev (`mizyun-dev-db`) and Production (`supabase-db`) databases side-by-side on the Raspberry Pi host (`rpserver`).
+- Formats requests with user email, UUIDs, submitted/relative time, plan tier, push token status, and user notes. Supports `--env <dev|prod|both>`, `--status <pending|approved|rejected|all>`, `--all`, and machine-readable `--json`.
+- Supports actionable admin triage: `--approve <email|id>` and `--reject <email|id>`, which update `public.beta_pro_requests`, trigger PostgreSQL `trg_beta_pro_approval` to elevate/revert `profiles.plan_tier = 'paid'`, and dispatch Expo push notifications (`https://exp.host/--/api/v2/push/send`) when device tokens are present.
+- Security & Resilience: Query execution feeds SQL via `stdin` to `docker exec -i ... psql`, eliminating remote shell expansion ($VAR, command substitution) and quote escaping risks. Configured `ConnectTimeout=10` and 30-second process timeouts. Added error isolation so queries continue even if an environment is down. Added `.agents/skills/check-beta-pro-requests/SKILL.md` and registered paths in `docs/feature-map.json`.
+- Independent subagent code & security review certified CONDITIONAL APPROVE; high-severity remote shell expansion and resilience recommendations were implemented and verified.
+- Live probe & execution evidence: Dev pending request for `adam.hikl@outlook.com` was successfully approved via `node scripts/check-beta-pro-requests.mjs --approve adam.hikl@outlook.com --env dev`; PostgreSQL trigger `trg_beta_pro_approval` fired and upgraded `profiles.plan_tier` to `'paid'`. Dev and Production now both show 0 pending requests.
+- Resolved Profile Tier Wire Serialization Defect: Root-caused why Settings header showed "Free Plan": `toWire` in `apps/api/src/modules/profile/routes.ts` omitted `planTier: stored.planTier`, falling back to Zod `.default("free")`; added `planTier` to `toWire` with regression test in `routes.test.ts` (21/21 passing); added `refreshProfile()` on mount in `apps/mobile/src/features/settings/settings-screen.tsx`.
+- Apple APNs Push Notifications Enabled: Configured `APPLE_PUSH_KEY_ID=HJX42YKP78` and `APPLE_PRIVATE_KEY_PUSH_NOTIFICATIONS` in `.env`. Verified direct HTTP/2 APNs gateway authentication live against Apple (`api.sandbox.push.apple.com:443` for `com.mizyun.development` and `api.push.apple.com:443` for `com.mizyun.app`).
+- Push Enabled Across Environments: Removed unconditional Dev push disablement in `apps/mobile/app.config.js`; enabled push by default in both `scripts/mobile-founder-dev-ios.sh` and `scripts/mobile-founder-production-ios.sh` (`MIZYUN_IOS_DISABLE_PUSH="${MIZYUN_IOS_DISABLE_PUSH:-0}"`); added native APNs token fallback (`Notifications.getDevicePushTokenAsync()`) in `apps/mobile/src/features/beta-pro/beta-pro-client.ts`; added direct Apple HTTP/2 APNs dispatching to `scripts/check-beta-pro-requests.mjs`.
+- Verification: Full `pnpm check` and `pnpm typecheck` passed cleanly across all 15 workspace packages (exit 0).
+- **Next exact action**: Run `pnpm mobile:founder-dev:ios:prebuild` and `pnpm mobile:founder-dev:ios` to compile with the `aps-environment` entitlement and prompt for iOS push permissions on device.
+
+## Prior handoff — Launcher-matched startup screen (`BRAND-ICON-001`, 2026-09-12)
+
+- Replaced both sources of the brief legacy blue/A startup screen: the native `expo-splash-screen` plugin and the React Native animated handoff overlay now use the approved `mizyun-icon.png` launcher artwork. The overlay renders it at 128 x 128 with app-icon-style rounded corners; the native plugin uses the same 128-point contained asset on the existing blue background.
+- Current Expo SDK 57 guidance confirms the config-plugin image may be the app icon or logo and that native splash changes require a rebuilt binary. Dev and Production config evaluation both resolve the launcher and splash to the same asset. An independent read-only audit confirmed both legacy launch surfaces are replaced and found no blocking issue.
+- Verification: full `pnpm check` passed on the combined worktree, including 43 mobile test files / 398 tests, 486 API tests with 15 credential-gated E2E tests skipped, iOS and Android Hermes bundles, 23 deployment safeguards, the build matrix, and 56 AI invariants. `git diff --check` passed; the 12 existing navigation review-age warnings remain non-blocking.
+- Implementation is complete in source. Native regeneration/rebuild, physical-device cold-start acceptance, deployment, and Production release have not been performed.
+- **Next exact action**: run the Dev native prebuild, rebuild/install `com.mizyun.development`, force-quit it, and verify repeated iPhone cold starts show the ribbon-M app icon continuously until Home appears; repeat on an Android release build before closing `BRAND-ICON-001`.
+
+## Latest handoff — Mizyun email subdomain namespace (`AUTH-SMTP-001`, 2026-09-12)
+
+- Moved every tracked company email address into the `@mizyun.phiskel.com` namespace, including public support/privacy/legal/deletion links, the default SES and GoTrue sender, transactional Reply-To examples, the planned App Store reviewer login, tests, and operational documentation.
+- Kept API/Supabase hostnames, the verified SES identity `phiskel.com`, and the custom MAIL FROM domain `mail.phiskel.com` unchanged. Current AWS documentation confirms a verified domain identity authorizes subdomain senders; any narrower IAM `ses:FromAddress` condition still requires explicit verification or update.
+- Recorded the separate Cloudflare requirement: inbound delivery for `support@mizyun.phiskel.com` requires onboarding the `mizyun.phiskel.com` Email Routing subdomain and creating a route to a verified destination. The SES `mail.phiskel.com` MX handles bounces and does not create a support mailbox.
+- Source implementation and documentation are updated. Focused legal/config/core/SES tests passed (61 tests), and full `pnpm check` passed with 12 existing navigation review-age warnings; 15 credential-gated API E2E tests remained skipped. Independent read-only review approved the integrated diff with no findings. External Cloudflare/AWS/GoTrue configuration, live delivery acceptance, deployment, and device acceptance have not been performed.
+- **Next exact action**: Enable Cloudflare Email Routing for `mizyun.phiskel.com`, route `support` (and optionally `appstore-review`) to a verified monitored inbox, verify the SES IAM sender condition, then configure GoTrue SMTP and run confirmation/recovery plus Reply-To delivery tests.
+
+## Latest handoff — Search Meal History in the Meals Tab (`MEAL-UX-004`, 2026-09-12)
+
+- Added an accessible, controlled search field to `MealListScreen`; results update immediately from the existing bounded local meal-history cache without a network request per keystroke.
+- Search matches meal names and user-facing saved detail strings (including notes, descriptions, brands, ingredients, warnings, and assumptions) case-insensitively while excluding hidden AI provider/model/proposal metadata.
+- Search preserves day-group and entry order, removes empty day groups, and recalculates each visible day's calorie and macro totals from its matched meals.
+- Added match/day counts with polite screen-reader announcements, an accessible clear action, keyboard dismissal behavior, and a distinct no-results state. Existing edit, copy-to-today, and delete actions remain available on matched meals.
+- Added `meal-history-filter.ts` with 6 regression tests covering blank queries, case-insensitive matching, nested saved details, hidden-metadata exclusion, filtered summaries/order, and immutability.
+- A helper agent implemented the pure filter and tests; its integration review identified accessibility announcements and over-broad metadata matching, both resolved before closure.
+- Verification: focused meal suite passed 57/57 tests; mobile typecheck passed; full `pnpm check` passed on the current combined worktree (43 mobile test files / 398 mobile tests, 486 API tests with 15 credential-gated E2E tests skipped, iOS and Android Hermes bundle checks, 23 deployment safeguards, 16 build-matrix checks, and 56 AI invariants); `git diff --check` passed.
+- Implementation and automated verification are complete. Dev deployment and physical-device acceptance have not been performed for this change.
+- **Next exact action**: Deploy the eventual committed candidate to Dev, open Meals on the physical `com.mizyun.development` iPhone build, and verify name/detail search, clear/no-result states, filtered totals, and Copy to Today from a matched meal.
+
+## Prior handoff — Cross-Platform Country & Region Picker in Coach Preferences (`COACH-PREF-001`, 2026-09-12)
+
+- **Country & Region Picker in Coach Preferences (`COACH-PREF-001`)**:
+  - Replaced the legacy 7-chip section in Coach Preferences Settings (`apps/mobile/src/features/settings/coach-preferences-card.tsx`) with a native, cross-platform Country & Region selection experience adhering to Apple HIG and Android Material guidelines.
+  - Added full ISO 3166-1 alpha-2 territory dataset (249 countries with code, name, and dial codes) in `apps/mobile/src/lib/country-data.ts`.
+  - Implemented zero-bundle-overhead localized names via cached Hermes `Intl.DisplayNames`.
+  - Added smart search relevance ranking in `searchCountries`: prioritizes exact 2-letter ISO code matches, prefix matches, and localized names over arbitrary substrings (e.g. searching "US" prioritizes United States over Australia/Austria).
+  - Implemented `<CountryFlag />` component in `apps/mobile/src/components/ui/country-flag.tsx`: renders native vector emoji flags on iOS/web (0 network, 100% offline) and cached FlagCDN images with graceful emoji fallback on Android (resolving the missing flag glyph bug in standard Android Roboto/Noto fonts). Guarded against non-alphabetic inputs.
+  - Implemented `<CountryPickerModal />` in `apps/mobile/src/components/ui/country-picker-modal.tsx`: `pageSheet` presentation with visual drag-handle affordance, fast type-ahead search with accessible clear action, instant "Global Standard (None)" reset option, "Suggested & Popular" section, and virtualized 52pt rows with deterministic keys and `accessibilityState={{ selected }}`.
+  - 9 unit tests added in `country-data.test.ts` (all 9 passing). Full mobile test suite passes (43/43 files, 397/397 tests).
+  - Platform bundle checks passed cleanly on both iOS (`dist/bundle-check-ios`) and Android (`dist/bundle-check-android`).
+  - Independent code review completed with APPROVE rating; polish recommendations (caching `Intl.DisplayNames`, relevance ranking, accessibility states, deterministic keys) implemented and verified.
+  - Prettier formatting 100% clean and repository-wide `pnpm check` passed (exit 0).
+- **Next exact action**: Test the new Country/Region Picker in Coach Preferences in the mobile app, verifying opening the sheet, searching by country/code, selecting a country, and saving preferences.
+
+## Prior handoff — Progress Photos Gated to Dev, Pi Production Deployed & iPhone Installed (`PROD-GATE-001`, 2026-09-12)
 
 - **Progress Photos Gated to Dev (`PROD-GATE-001`)**:
   - Gated the incomplete progress photos feature cleanly to the Dev version (`com.mizyun.development`) while removing it from Production (`com.mizyun.app`).
@@ -310,3 +398,10 @@ Execute Physical Device End-to-End Acceptance (Gate R8):
 - Remediation evidence checklist: [`docs/REMEDIATION_EVIDENCE_CHECKLIST.md`](docs/REMEDIATION_EVIDENCE_CHECKLIST.md)
 - Navigation implementation plan: [`docs/AGENT_NAVIGATION_IMPLEMENTATION_PLAN.md`](docs/AGENT_NAVIGATION_IMPLEMENTATION_PLAN.md)
 - Review Round 3: [`docs/IMPLEMENTATION_REVIEW_2026-09-09_ROUND_3.md`](docs/IMPLEMENTATION_REVIEW_2026-09-09_ROUND_3.md)
+
+## Skills planning handoff — AGENT-SKILLS-001 (2026-09-13)
+
+- Prepared [the shared Codex/Antigravity skills implementation guide](docs/AGENT_SKILLS_IMPLEMENTATION_GUIDE_2026-09-13.md) from six sampled Codex histories, selected Antigravity artifacts, current repository tooling and dated official documentation. Read-only helper researched Antigravity; coordinator checked key excerpts and current code. Antigravity raw chats were not decoded, and token savings are proposed, not measured.
+- Documentation only: no skills installed, application changes, remote actions or release acceptance. Baseline HEAD `16a1e86132f649ca4718c1699f2bfe2474e102f7`; extensive pre-existing dirty work preserved. The active product handoff above remains unchanged.
+- Verification: fresh `pnpm check` passed (exit 0) on the combined dirty worktree: navigation, formatting, typechecks, iOS/Android bundle checks, unit tests, deployment/build safeguards and 56 offline AI invariants. API reported 498 passed / 15 credential-gated E2E tests skipped; mobile reported 403 passed. No live-provider, remote or physical-device checks. Full local log: `/tmp/mizyun-agent-skills-check-20260913.log`. Final prose changes were separately checked for formatting, navigation and whitespace. Independent guide review returned no findings.
+- Next exact action for this work package: implement Stage A context baseline/hygiene, then the three P0 shared skills. Cross-client discovery/behavior tests remain required before claiming compatibility. No implementation blocker identified; client acceptance is pending future implementation.

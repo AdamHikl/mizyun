@@ -158,6 +158,27 @@ describe("privacy-reducing measurement buckets", () => {
 });
 
 describe("persisted event validation", () => {
+  it("accepts every declared feature name including workout_history", () => {
+    const features = [
+      "dashboard",
+      "nutrition_history",
+      "workout_history",
+      "body_history",
+      "progress_photos",
+      "settings",
+    ] as const;
+    for (const feature of features) {
+      expect(
+        isAnalyticsEvent({
+          schemaVersion: 1,
+          recordedAt: "2026-07-22T12:00:00.000Z",
+          name: "feature_viewed",
+          properties: { feature },
+        }),
+      ).toBe(true);
+    }
+  });
+
   it("rejects unknown and extra properties at the export boundary", () => {
     expect(
       isAnalyticsEvent({

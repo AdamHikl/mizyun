@@ -38,7 +38,7 @@ fi
 # the reviewed dev file so the Mac development endpoints cannot win.
 export EXPO_NO_DOTENV=1
 export MIZYUN_APP_VARIANT=dev
-export MIZYUN_IOS_DISABLE_PUSH=1
+export MIZYUN_IOS_DISABLE_PUSH="${MIZYUN_IOS_DISABLE_PUSH:-0}"
 export MIZYUN_ENABLE_APPLE_AUTH="${MIZYUN_ENABLE_APPLE_AUTH:-1}"
 
 cd "$repo_root"

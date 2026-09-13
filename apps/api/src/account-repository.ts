@@ -16,6 +16,7 @@ import {
   type FoodEntryRepository,
   type GoalRepository,
   type MediaAssetRepository,
+  type ProductAnalyticsRepository,
   type ProfileRepository,
   type StoredAiConsent,
   type StoredDeletionJob,
@@ -52,6 +53,7 @@ export interface InMemoryAccountRepositoryOptions {
   readonly mediaStorage?: MediaStorage;
   readonly memoryStore?: MemoryStore;
   readonly aiConsentRepository?: AiConsentRepository;
+  readonly productAnalyticsRepository?: ProductAnalyticsRepository;
   /**
    * Clock; defaults to `() => new Date()`. Production callers
    * should not need this; tests inject a fixed clock so they
@@ -74,6 +76,7 @@ export class InMemoryAccountRepository implements AccountRepository {
   readonly #mediaStorage: MediaStorage | null;
   readonly #memoryStore: MemoryStore | null;
   readonly #aiConsentRepository: AiConsentRepository | null;
+  readonly #productAnalyticsRepository: ProductAnalyticsRepository | null;
   readonly #clock: { readonly now: () => Date };
   readonly #jobs: StoredDeletionJob[] = [];
 
@@ -91,6 +94,8 @@ export class InMemoryAccountRepository implements AccountRepository {
     this.#mediaStorage = options.mediaStorage ?? null;
     this.#memoryStore = options.memoryStore ?? null;
     this.#aiConsentRepository = options.aiConsentRepository ?? null;
+    this.#productAnalyticsRepository =
+      options.productAnalyticsRepository ?? null;
     this.#clock = options.clock ?? { now: () => new Date() };
   }
 
@@ -219,6 +224,16 @@ export class InMemoryAccountRepository implements AccountRepository {
         : await this.#aiConsentRepository.getConsent(userId, {
             accessToken: token,
           });
+    const productAnalyticsConsent =
+      this.#productAnalyticsRepository === null
+        ? null
+        : await this.#productAnalyticsRepository.getConsent(userId);
+    const productAnalyticsEvents =
+      this.#productAnalyticsRepository === null
+        ? []
+        : await this.#productAnalyticsRepository.listRetainedEvents(userId, {
+            limit: 10_000,
+          });
 
     const manifest: ExportManifest = {
       schemaVersion: "2026-09-08",
@@ -238,6 +253,7 @@ export class InMemoryAccountRepository implements AccountRepository {
         privateMedia: privateMedia.length,
         feedback: feedback.length,
         aiConsents: aiConsent ? 1 : 0,
+        productAnalyticsEvents: productAnalyticsEvents.length,
       },
     };
 
@@ -256,6 +272,13 @@ export class InMemoryAccountRepository implements AccountRepository {
       privateMedia,
       feedback,
       aiConsent,
+      productAnalytics:
+        productAnalyticsConsent || productAnalyticsEvents.length > 0
+          ? {
+              consent: productAnalyticsConsent,
+              events: productAnalyticsEvents,
+            }
+          : null,
     };
   }
 
@@ -530,6 +553,13 @@ export class InMemoryAccountRepository implements AccountRepository {
     };
     if (typeof profileRepoAsAny.deleteForTest === "function") {
       await profileRepoAsAny.deleteForTest(userId);
+    }
+
+    const analyticsRepoAsAny = this.#productAnalyticsRepository as unknown as {
+      deleteForUser?: (userId: UserId) => Promise<void>;
+    } | null;
+    if (typeof analyticsRepoAsAny?.deleteForUser === "function") {
+      await analyticsRepoAsAny.deleteForUser(userId);
     }
 
     this.#jobs[jobIndex] = {

@@ -37,16 +37,27 @@ Notifications.setNotificationHandler({
 function AnalyticsSessionBridge() {
   useEffect(() => {
     let previous = AppState.currentState;
+    let backgroundedAt = 0;
+    const INACTIVITY_THRESHOLD_MS = 30 * 60 * 1000;
+
     void analyticsClient.track({
       name: "app_session_started",
       properties: { entryPoint: "cold_start" },
     });
+
     const subscription = AppState.addEventListener("change", (next) => {
-      if (next === "active" && previous !== "active") {
-        void analyticsClient.track({
-          name: "app_session_started",
-          properties: { entryPoint: "foreground" },
-        });
+      if (previous === "active" && next !== "active") {
+        backgroundedAt = Date.now();
+      } else if (next === "active" && previous !== "active") {
+        if (
+          backgroundedAt > 0 &&
+          Date.now() - backgroundedAt >= INACTIVITY_THRESHOLD_MS
+        ) {
+          void analyticsClient.track({
+            name: "app_session_started",
+            properties: { entryPoint: "foreground" },
+          });
+        }
       }
       previous = next;
     });

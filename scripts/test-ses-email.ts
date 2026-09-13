@@ -69,7 +69,7 @@ async function main() {
   const fromEmail =
     getArg("from") ||
     process.env.SES_FROM_EMAIL ||
-    "Mizyun <no-reply@phiskel.com>";
+    "Mizyun <no-reply@mizyun.phiskel.com>";
 
   let accessKeyId =
     process.env.SES_ACCESS_KEY_ID ||
@@ -158,7 +158,7 @@ async function main() {
   </div>
 </body>
 </html>`,
-    replyTo: "support@phiskel.com",
+    replyTo: "support@mizyun.phiskel.com",
   });
 
   if (!result.ok) {

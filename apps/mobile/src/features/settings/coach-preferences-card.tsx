@@ -11,8 +11,11 @@ import {
 import { apiClient } from "@/composition/api-client";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { CountryFlag } from "@/components/ui/country-flag";
+import { CountryPickerModal } from "@/components/ui/country-picker-modal";
 import { Slider } from "@/components/slider";
 import { Colors, Spacing } from "@/constants/theme";
+import { getCountryByCode, getLocalizedCountryName } from "@/lib/country-data";
 
 const experienceOptions = [
   ["beginner", "Beginner"],
@@ -56,16 +59,6 @@ const limitationOptions = [
   ["limited_spinal_loading", "Limit spinal loading"],
 ] as const;
 
-const countryOptions = [
-  ["SK", "Slovakia (SK)"],
-  ["CZ", "Czechia (CZ)"],
-  ["US", "United States (US)"],
-  ["GB", "United Kingdom (GB)"],
-  ["DE", "Germany (DE)"],
-  ["AT", "Austria (AT)"],
-  ["PL", "Poland (PL)"],
-] as const;
-
 const toggle = <T extends string>(values: readonly T[], value: T): T[] =>
   values.includes(value)
     ? values.filter((candidate) => candidate !== value)
@@ -104,6 +97,14 @@ export function CoachPreferencesCard({
   const [customNoteText, setCustomNoteText] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [countryPickerVisible, setCountryPickerVisible] = useState(false);
+
+  const selectedCountry = draft.countryCode
+    ? getCountryByCode(draft.countryCode)
+    : undefined;
+  const selectedCountryName = draft.countryCode
+    ? getLocalizedCountryName(draft.countryCode, selectedCountry?.name)
+    : null;
 
   useEffect(() => {
     setDraft(profile.coachingPreferences);
@@ -280,21 +281,78 @@ export function CoachPreferencesCard({
         ))}
       </ChoiceSection>
 
-      <ChoiceSection title="Country / Regional food standards">
-        {countryOptions.map(([code, label]) => (
-          <ChoiceChip
-            key={code}
-            label={label}
-            selected={draft.countryCode === code}
-            onPress={() =>
-              setDraft({
-                ...draft,
-                countryCode: draft.countryCode === code ? null : code,
-              })
-            }
-          />
-        ))}
-      </ChoiceSection>
+      <View style={styles.section}>
+        <ThemedText type="smallBold" themeColor="textSecondary">
+          Country / Regional food standards
+        </ThemedText>
+        <ThemedText
+          type="small"
+          themeColor="textSecondary"
+          style={styles.pickerDescription}
+        >
+          Calibrates food nutrition standards, portion sizing, and restaurant
+          databases (e.g. EU vs US portion norms).
+        </ThemedText>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={
+            selectedCountryName
+              ? `Selected country: ${selectedCountryName} (${draft.countryCode}). Tap to change.`
+              : "Select country or regional food standard"
+          }
+          onPress={() => setCountryPickerVisible(true)}
+          style={({ pressed }) => [
+            styles.countryTrigger,
+            pressed && styles.pressed,
+          ]}
+        >
+          <View style={styles.countryTriggerLeft}>
+            {draft.countryCode ? (
+              <>
+                <CountryFlag code={draft.countryCode} size={22} />
+                <ThemedText
+                  type="default"
+                  style={styles.countryTriggerText}
+                  numberOfLines={1}
+                >
+                  {selectedCountryName} ({draft.countryCode})
+                </ThemedText>
+              </>
+            ) : (
+              <>
+                <ThemedText style={styles.globalIcon}>🌐</ThemedText>
+                <ThemedText
+                  type="default"
+                  themeColor="textSecondary"
+                  style={styles.countryTriggerText}
+                  numberOfLines={1}
+                >
+                  Global standard (No regional calibration)
+                </ThemedText>
+              </>
+            )}
+          </View>
+          <ThemedText
+            type="smallBold"
+            themeColor="primary"
+            style={styles.changeActionText}
+          >
+            Change ›
+          </ThemedText>
+        </Pressable>
+      </View>
+
+      <CountryPickerModal
+        visible={countryPickerVisible}
+        selectedCode={draft.countryCode}
+        onSelect={(countryCode) =>
+          setDraft({
+            ...draft,
+            countryCode,
+          })
+        }
+        onClose={() => setCountryPickerVisible(false)}
+      />
 
       <View style={styles.section}>
         <ThemedText type="smallBold" themeColor="textSecondary">
@@ -436,5 +494,37 @@ const styles = StyleSheet.create({
     borderColor: "rgba(148, 163, 184, 0.3)",
     padding: Spacing.three,
     textAlignVertical: "top",
+  },
+  pickerDescription: {
+    marginBottom: Spacing.one,
+  },
+  countryTrigger: {
+    minHeight: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.3)",
+    backgroundColor: "rgba(22, 29, 34, 0.6)",
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+  },
+  countryTriggerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    gap: Spacing.two,
+  },
+  countryTriggerText: {
+    fontSize: 15,
+    fontWeight: "500",
+    flexShrink: 1,
+  },
+  changeActionText: {
+    marginLeft: Spacing.two,
+  },
+  globalIcon: {
+    fontSize: 20,
   },
 });
