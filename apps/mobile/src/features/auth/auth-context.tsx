@@ -109,15 +109,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!apiConfiguration.configured) {
       return null;
     }
-    const result = await apiClient.request<{ profile: Profile }>({
-      method: "GET",
-      path: "/v1/profile",
-      schema: profileResponseSchema,
-    });
-    if (result.ok) {
-      return result.value.profile;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    try {
+      const result = await apiClient.request<{ profile: Profile }>({
+        method: "GET",
+        path: "/v1/profile",
+        schema: profileResponseSchema,
+        signal: controller.signal,
+      });
+      if (result.ok) {
+        return result.value.profile;
+      }
+      return null;
+    } finally {
+      clearTimeout(timeoutId);
     }
-    return null;
   }, []);
 
   const applySession = useCallback(
@@ -250,7 +257,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   if (!configuration.configured)
     return <AuthSetupScreen reason={configuration.reason} />;
-  if (loading || profileLoading) return <LoadingScreen />;
+  if (loading) return <LoadingScreen />;
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

@@ -20,7 +20,7 @@ Track 10–20 representative development tasks across local (Qwen3.8 27B q8_0) a
 | # | Task ID & Summary | Scope / Module | Assigned Model | Retries (0-2) | Verification Command | Final Status | Cloud Tokens / Cost | Wall-Clock Time | Escalated? (Reason) |
 | 1 | `task-smoke-001`: Implement exported addNumbers math helper | `scripts/worker/test-fixtures` | `qwen3.8:27b-q8_0` | 0 | `node -e "import(...)"` | `ACCEPTED` | 0 (local) | 38.7s | None |
 | 2 | `task-ui-overflow-001`: Fix exercise name & stats overflow in workout history card | `apps/mobile` | `qwen3.8:27b-q8_0` | 0 | `pnpm --filter @mizyun/mobile typecheck && pnpm --filter @mizyun/mobile test ...` | `ACCEPTED` | 0 (local) | 177.0s | None |
-| 3 | | | | | | | | | |
+| 3 | `task-auth-loading-001`: Prevent profileLoading from blocking app on cold start | `apps/mobile` | `qwen3.8:27b-q8_0` | 0 | `pnpm --filter @mizyun/mobile typecheck && pnpm --filter @mizyun/mobile test` | `ACCEPTED` | 0 (local) | 142.3s | None |
 | 4 | | | | | | | | | |
 | 5 | | | | | | | | | |
 | 6 | | | | | | | | | |

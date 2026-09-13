@@ -1,0 +1,12 @@
+{
+  "taskId": "task-auth-loading-001",
+  "objective": "In apps/mobile/src/features/auth/auth-context.tsx, fix the app getting stuck on the full-screen loading spinner (LoadingScreen) on startup. Change `if (loading || profileLoading) return <LoadingScreen />;` to `if (loading) return <LoadingScreen />;` so authenticated users are not blocked from entering the app while profile fetches in the background, and add a 5-second timeout signal to fetchProfile so slow network requests cannot hang the profile fetch.",
+  "allowedFiles": ["apps/mobile/src/features/auth/auth-context.tsx"],
+  "prohibitedActions": [
+    "do not modify any files other than apps/mobile/src/features/auth/auth-context.tsx",
+    "do not remove authClient session logic or AuthProvider context exports",
+    "do not commit or push to git"
+  ],
+  "verificationCommand": "pnpm --filter @mizyun/mobile typecheck && pnpm --filter @mizyun/mobile test src/features/auth/session-gate-state.test.ts",
+  "contextSnippet": "In apps/mobile/src/features/auth/auth-context.tsx around line 251:\n  if (!configuration.configured)\n    return <AuthSetupScreen reason={configuration.reason} />;\n  if (loading || profileLoading) return <LoadingScreen />;\n  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;\n\nAnd in fetchProfile around line 108:\n  const fetchProfile = useCallback(async (): Promise<Profile | null> => {\n    if (!apiConfiguration.configured) {\n      return null;\n    }\n    const result = await apiClient.request<{ profile: Profile }>({\n      method: \"GET\",\n      path: \"/v1/profile\",\n      schema: profileResponseSchema,\n    });\n    if (result.ok) {\n      return result.value.profile;\n    }\n    return null;\n  }, []);"
+}
