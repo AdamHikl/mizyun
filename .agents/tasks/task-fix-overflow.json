@@ -1,0 +1,12 @@
+{
+  "taskId": "task-ui-overflow-001",
+  "objective": "In apps/mobile/src/features/workouts/workouts-hub-screen.tsx, fix text overflowing from the card in completed workout history items (and planned exercise chips) when exercise names are long (such as 'Alternate Incline Dumbbell Curl'). Update CompletedWorkoutCard and styles so completedExerciseRow has gap: Spacing.two, completedExName has flex: 1 and flexShrink: 1 (with numberOfLines={1}), and stats text has flexShrink: 0 so weight and reps never overflow the right side of the box.",
+  "allowedFiles": ["apps/mobile/src/features/workouts/workouts-hub-screen.tsx"],
+  "prohibitedActions": [
+    "do not modify any files other than apps/mobile/src/features/workouts/workouts-hub-screen.tsx",
+    "do not remove existing functionality, modals, or handlers",
+    "do not commit or push to git"
+  ],
+  "verificationCommand": "pnpm --filter @mizyun/mobile typecheck && pnpm --filter @mizyun/mobile test src/features/workouts/workouts-hub-data.test.ts",
+  "contextSnippet": "Target sections to update in apps/mobile/src/features/workouts/workouts-hub-screen.tsx:\n\n1) In CompletedWorkoutCard around line 608:\n            <Pressable\n              key={ex.exerciseId}\n              accessibilityRole=\"button\"\n              accessibilityLabel={`View progress for ${ex.exerciseName}`}\n              onPress={() => onPressExercise?.(ex.exerciseName)}\n              style={styles.completedExerciseRow}\n            >\n              <ThemedText type=\"small\" style={styles.completedExName}>\n                {ex.exerciseName} 📈\n              </ThemedText>\n              <ThemedText type=\"small\" themeColor=\"textSecondary\">\n                {ex.setCount} sets\n                {ex.topLoadKg !== null\n                  ? ` · max ${unitSystem === \"imperial\" ? `${Math.round(ex.topLoadKg * 2.20462)}lb` : `${ex.topLoadKg}kg`}`\n                  : \"\"}\n              </ThemedText>\n            </Pressable>\n\n2) In StyleSheet styles around line 913:\n  completedExerciseRow: {\n    flexDirection: \"row\",\n    justifyContent: \"space-between\",\n    alignItems: \"center\",\n  },\n  completedExName: {\n    fontWeight: \"500\",\n  },"
+}

@@ -6,6 +6,26 @@
 > - [`docs/archive/status/STATUS_HISTORY_2026-09-10_THROUGH_2026-09-12.md`](docs/archive/status/STATUS_HISTORY_2026-09-10_THROUGH_2026-09-12.md) (Handoffs from Sep 10 through Sep 12)
 > - [`docs/archive/status/STATUS_HISTORY_THROUGH_2026-09-09.md`](docs/archive/status/STATUS_HISTORY_THROUGH_2026-09-09.md) (Handoffs through Sep 9)
 
+## Active handoff — Multi-Tier Agent Orchestration (Gemini Coordinator + Qwen Local Worker + Astra Escalation) (`LOCAL-WORKER-001`, 2026-09-13)
+
+- Implemented the local workhorse and control plane architecture connecting **Gemini 3.8 Flash** (Antigravity coordinator) to **Qwen3.8:27b-q8_0** (local Mac M1 Max Ollama worker) and **Astra** (architect & escalation reviewer).
+- **Worker Engine & Transport** (`scripts/worker/`):
+  - Built zero-dependency Node.js ESM client (`scripts/worker/lib/ollama-client.mjs`) communicating with Ollama REST API (`http://127.0.0.1:11434`), supporting connection health checks, tags listing, model availability checks, and structured JSON parsing.
+  - Implemented `scripts/worker/lib/task-runner.mjs` enforcing the **Worker Contract**: whitelisted `allowedFiles` verification, path-traversal prevention, prohibited action rejection, automated verification command execution, and **bounded retries** (max 2 cycles; self-correction on attempt 1 failure).
+  - Built standard Model Context Protocol (MCP) server (`scripts/worker/mcp-server.mjs`) over stdio, exposing `qwen_run_task` and `qwen_check_status` tools. Registered globally in `~/.gemini/config/mcp_config.json`.
+  - Built CLI runner (`scripts/worker/run-task.mjs`) with `--check`, `--inline`, and file-based execution.
+- **Routing Rules, Skills & Continuity**:
+  - Authored `.agents/rules/model-routing.md`: Defines strict boundaries between Qwen (routine edits, tests, docs), Gemini (decomposition, integration, verification, git/deploy control), and Astra (auth/RLS, migrations, privacy, >2 retry escalation, release approval).
+  - Authored `.agents/skills/qwen-task-dispatch/SKILL.md`: Operational guide for packet creation, execution evaluation, and escalation rules.
+  - Created `docs/LOCAL_WORKER_BASELINE.md`: Living register to track 10–20 tasks across tokens, wall-clock time, retries, pass rates, and escalation rates.
+  - Registered paths in `docs/feature-map.json` under `environment-build-deployment`.
+- **Verification & Acceptance Evidence**:
+  - Verified local daemon: Ollama is online with pinned `qwen3.8:27b-q8_0` (30.0 GB).
+  - Verified MCP stdio protocol: `initialize` and `tools/list` respond with compliant JSON-RPC 2.0 payloads.
+  - End-to-end task run (`task-smoke-001`): Qwen received bounded task, generated code, wrote `allowedFiles`, ran verification command, and returned `{ status: "success", attempts: 1 }` in 38.7s.
+  - Repository checks: `pnpm navigation:check` (0 errors), `pnpm format:check` (100% clean), `pnpm typecheck` (all 15 packages passed).
+- **Next exact action**: Log the first 10–20 development tasks in `docs/LOCAL_WORKER_BASELINE.md` using the MCP tool `qwen_run_task` or CLI runner for routine edits.
+
 ## Active handoff — Shared agent skills & context hygiene (`AGENT-SKILLS-001`, 2026-09-13)
 
 - Implemented shared Codex and Antigravity skills in `.agents/skills/` pursuant to [`docs/AGENT_SKILLS_IMPLEMENTATION_GUIDE_2026-09-13.md`](docs/AGENT_SKILLS_IMPLEMENTATION_GUIDE_2026-09-13.md).

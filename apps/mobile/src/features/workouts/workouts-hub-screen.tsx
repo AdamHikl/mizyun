@@ -607,10 +607,18 @@ function CompletedWorkoutCard(props: {
               onPress={() => onPressExercise?.(ex.exerciseName)}
               style={styles.completedExerciseRow}
             >
-              <ThemedText type="small" style={styles.completedExName}>
+              <ThemedText
+                type="small"
+                style={styles.completedExName}
+                numberOfLines={1}
+              >
                 {ex.exerciseName} 📈
               </ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
+              <ThemedText
+                type="small"
+                themeColor="textSecondary"
+                style={styles.completedExStats}
+              >
                 {ex.setCount} sets
                 {ex.topLoadKg !== null
                   ? ` · max ${unitSystem === "imperial" ? `${Math.round(ex.topLoadKg * 2.20462)}lb` : `${ex.topLoadKg}kg`}`
@@ -914,9 +922,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    gap: Spacing.two,
   },
   completedExName: {
     fontWeight: "500",
+    flex: 1,
+    flexShrink: 1,
+  },
+  completedExStats: {
+    flexShrink: 0,
+    textAlign: "right",
   },
   cardActionsRow: {
     flexDirection: "row",
