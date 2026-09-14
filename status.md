@@ -6,12 +6,92 @@
 > - [`docs/archive/status/STATUS_HISTORY_2026-09-10_THROUGH_2026-09-12.md`](docs/archive/status/STATUS_HISTORY_2026-09-10_THROUGH_2026-09-12.md) (Handoffs from Sep 10 through Sep 12)
 > - [`docs/archive/status/STATUS_HISTORY_THROUGH_2026-09-09.md`](docs/archive/status/STATUS_HISTORY_THROUGH_2026-09-09.md) (Handoffs through Sep 9)
 
+## Active handoff — Workout App Store IPA ready; Production backend promotion held (`FIX-WORKOUT-LIFECYCLE-001`, 2026-09-14)
+
+- **Fresh App Store artifact:** Exact commit `8e3853d87f8ac092af552fb3d49063d31caa63a3` was checked out in a clean disposable worktree, prebuilt with the Production mobile environment, archived successfully, and exported successfully for App Store Connect. The verified IPA is `apps/mobile/ios/build/app-store/8e3853d/Mizyun-1.0.0-1-8e3853d.ipa` (23,599,231 bytes; SHA-256 `65654bd9ceb79b8ac0ce44359bea97b7bc54d34c5bd47e1f4a18c946293d496a`).
+- **Reproducible build command:** Commit `dd7eeee1391b3b3ff34a895964c58d77d1727d17` added and pushed `pnpm mobile:founder-production:ios:ipa --sha <full-40-character-origin-main-sha> --build-number <positive-integer>`. It refuses unpushed candidates or candidate-mismatched release tooling, builds in a disposable detached worktree, clears inherited mobile environment values, generates fresh native projects, runs `pnpm check`, uses unique archive/export paths, and post-verifies bundle identity, requested build number, Production endpoints, distribution signing/entitlements, and checksum. It atomically emits the IPA, required `DistributionSummary.plist`, and a JSON manifest under the ignored `apps/mobile/ios/build/app-store/` tree; it does not upload or deploy.
+- **Real scripted acceptance:** The command completed end-to-end for exact pushed commit `dd7eeee1391b3b3ff34a895964c58d77d1727d17`, version `1.0.0`, build `2`. The full clean-worktree `pnpm check`, CocoaPods installation, Xcode archive, App Store export, payload/signing/entitlement checks, distribution-summary validation, manifest validation, and disposable-worktree cleanup passed. The resulting 23,604,978-byte IPA has SHA-256 `f6bb533e2d3f3c36ef9c7aea43595fcaac80899ed48952343306621800cf527c` and lives under `apps/mobile/ios/build/app-store/1.0.0-2-dd7eeee1391b3b3ff34a895964c58d77d1727d17-20260914T132207Z/`.
+- **Identity and signing evidence:** Bundle ID `com.mizyun.app`, version `1.0.0`, build `1`, arm64, team `LQJNDVBL43`, Cloud Managed Apple Distribution certificate, `aps-environment=production`, `beta-reports-active=true`, and `get-task-allow=false`. The runtime bundle contains the Production API and Supabase endpoints. It also contains an inert Dev Supabase hostname from the shared build-matrix validation constant exported through `@mizyun/config`; the active mobile configuration was sourced from `.env.production` and passed the Production prebuild safeguards.
+- **Production backend was not promoted:** Preflight found Production pristine and healthy at `bf4ef1a1c29d29b5fb71b145bdff23254ded931b`. Deployment of `8e3853d` was stopped before backup, migration, checkout change, or service restart after an independent compatibility audit found that the one-time routine-classification migration plus the new API's routine-set rejection would break old Production mobile clients, which still open a routine directly and write sets to it. Production was rechecked unchanged, pristine, active, and healthy.
+- **Safe rollout sequence:** Upload and process the new IPA first while the current Production backend remains compatible with it. After the new client is available and adopted, either promote the workout backend/migration or first add a bounded old-client compatibility path. Do not run `pnpm deploy:production 8e3853d` until the gate tracked in [#98](https://github.com/AdamHikl/mizyun/issues/98) is resolved.
+- **Remaining acceptance:** App Store Connect upload/processing and installation are not yet evidenced. Build number `1` must be increased in a new commit if App Store Connect already contains build `1` for version `1.0.0`. The four physical workout lifecycle journeys remain to be explicitly accepted.
+
+## Active handoff — Reusable workout routines separated from active sessions (`FIX-WORKOUT-LIFECYCLE-001`, 2026-09-14)
+
+- **Implemented locally:** Saving a custom or Coach workout now creates a stable reusable routine with no running timer. **Start Session** creates a fresh session snapshot with its own `startedAt`; finishing completes only that session, and discarding deletes only that session. The source routine remains available in both cases. Direct legacy routine links are redirected to a newly created session before sets can be logged.
+- **Legacy compatibility:** Migration `20260914134000_backfill_workout_routine_lifecycle.sql` classifies existing rows. A legacy planned workout that already owns sets remains the active/history session while a set-free routine copy is created, preventing deployment from consuming an in-progress routine. The API now rejects set writes against explicit routine rows.
+- **Automatically verified:** Exact commit `8e3853d87f8ac092af552fb3d49063d31caa63a3` passed a clean-worktree `pnpm check` (15 workspace typechecks, iOS/Android Hermes bundles, core 261 tests, mobile 414 tests, API 518 tests with 15 credential-gated E2E tests skipped, deployment/build/AI gates). The same clean commit passed `pnpm db:verify`, applying all migrations and passing 107 pgTAP assertions. A rollback-only seeded execution of the exact migration exercised the legacy planned-plus-sets branch successfully. Focused lifecycle tests passed (mobile 85; independent API review rerun 38), and `git diff --check` passed.
+- **Independent review:** Approved with no blocking findings. Pre-existing unrelated dirty-tree work, including concurrent branding changes in shared screens, was preserved. Tracking: [#96](https://github.com/AdamHikl/mizyun/issues/96). Non-blocking server pagination/idempotency/reference hardening is tracked separately in [#97](https://github.com/AdamHikl/mizyun/issues/97).
+- **Dev deployed:** Commit `8e3853d87f8ac092af552fb3d49063d31caa63a3` was pushed to `origin/main` and deployed to Pi Dev. Migration `20260914134000` was applied. Post-deploy evidence: `/var/lib/mizyun/dev/repo` is pristine at the exact SHA, `mizyun-api-dev.service` and `mizyun-supabase-dev.service` are active, and `https://mizyun-api-dev.phiskel.com/v1/health` returned `{"status":"ok","service":"mizyun-api"}`.
+- **Dev iOS installed / remaining gate:** A clean signed Release `com.mizyun.development` build from exact SHA `8e3853d` was installed successfully on physical device `Adam's Iphone 😋` and launched via CoreDevice on 2026-09-14. Physical behavior acceptance remains: verify that Save Routine does not advance time, Start begins near `00:00`, Finish preserves the routine, and Discard Session preserves the routine.
+
+## Active handoff — Production App Store Connect `.ipa` build completed (2026-09-14)
+
+- **App Store Connect build & IPA exported:** Built native Release archive `Mizyun.xcarchive` (`xcodebuild archive`) and exported distribution package `Mizyun.ipa` (`xcodebuild -exportArchive`) via `scripts/ios-export-options-production.plist`.
+- **Artifacts:**
+  - Archive: `apps/mobile/ios/build/Mizyun.xcarchive`
+  - IPA package: `apps/mobile/ios/build/export/Mizyun.ipa` (24.8 MB)
+  - Distribution summary: `apps/mobile/ios/build/export/DistributionSummary.plist`
+- **Signing & Identity:**
+  - Bundle Identifier: `com.mizyun.app`
+  - Version: `1.0.0`, Build Number: `1`
+  - Team: `LQJNDVBL43` (`itinn s.r.o.`)
+  - Certificate: `Cloud Managed Apple Distribution` (SHA1 `E429BA7A349C5A8EDBD11536025213A196A4E1F9`, expires 2027-09-14)
+- **Tooling & Commands:** Added `mobile:founder-production:ios:archive` and `mobile:founder-production:ios:ipa` to `package.json` and `scripts/mobile-founder-production-ios.sh` for 1-command reproducible App Store Connect builds. `pnpm format:check` and `pnpm test:build-matrix` green.
+- **Next exact action:** Upload `Mizyun.ipa` to App Store Connect via Xcode Organizer (`open apps/mobile/ios/build/Mizyun.xcarchive` -> Distribute App -> App Store Connect) or Transporter / `xcrun altool`.
+
+## Active handoff — Physical iOS production installation completed (2026-09-14)
+
+- **Physical iOS installation completed:** Clean `pnpm mobile:founder-production:ios:prebuild` executed; native Release binary (`Mizyun.app`) compiled and signed via Xcode with development team `LQJNDVBL43` without errors. Installed on physical device `Adam's Iphone 😋` (`00008140-001114501A86801C` / CoreDevice `7FBC9ACC-918A-5A9B-8D22-B9F1FF652A06`). Installed side-by-side with Dev (`com.mizyun.development`).
+- **Target identity & config:** Bundle ID `com.mizyun.app` ("Mizyun", version 1.0.0, build 1). Configured against public production endpoints: API `https://mizyun-api.phiskel.com`, Supabase `https://mizyun-supabase.phiskel.com`, redirect scheme `mizyun://auth/callback`.
+- **Preflight & backend health:** Full `pnpm check` passed cleanly (navigation, typechecks across all workspaces, Prettier, Hermes bundle export, unit tests, deployment safeguards, build matrix, and AI evaluation offline screener). Public production API verified healthy (`GET https://mizyun-api.phiskel.com/v1/health` -> HTTP 200 `{"status":"ok","service":"mizyun-api"}`).
+- **Device launch:** Successfully launched `com.mizyun.app` on the unlocked iPhone via `xcrun devicectl device process launch`.
+- **Next exact action:** Unlock iPhone and verify production journey / authentication against Pi production backend.
+
+## Active handoff — Task tracking migrated to GitHub Issues (2026-09-14)
+
+- **Migration executed:** Task tracking and executable inventory transitioned from `backlog.md` to GitHub Issues ([`AdamHikl/mizyun/issues`](https://github.com/AdamHikl/mizyun/issues)); the durable repository migration landed in `11c08ec`.
+- **Scope & labels:**
+  - Created 26 repository labels (`priority:P0`–`P3`, `status:active|ready|blocked|research|done|superseded`, `area:*`).
+  - Created 54 open GitHub Issues (#1–#54) corresponding 1-to-1 with active/ready/blocked tasks from `backlog.md`.
+  - Historical completed work (prior to 2026-09-14) remains in `completed-backlog.md` as an immutable local archive; completed issues are not duplicated on GitHub.
+  - Updated `AGENTS.md`, `docs/SESSION_GUIDE.md`, `docs/START_HERE.md`, `README.md`, `plan.md`, `docs/BUSINESS_ALIGNMENT.md`, and agent skills to establish GitHub Issues as the canonical task system.
+  - Added redirect notes and an issue number mapping table to `backlog.md`.
+  - Retained the one-time migration script as evidence, but made it read-only by default and fail closed if an applied migration report already exists.
+- **Next exact action:** Discover, manage, and close work items via `gh issue` commands; use GitHub Issues for active task tracking.
+
+## Active handoff — Local Qwen agent paused by user decision (2026-09-14)
+
+- **User decision:** The founder explicitly paused the use of the local Qwen agent because it is too slow ("pause the use of the qwen agent, it is too slow, do not use it, record this in the .MD files for future sessions").
+- **Enforcement:**
+  - Do NOT start the local MLX-LM server (`scripts/worker/run-mlx-server.sh`) or Ollama worker for automated development tasks.
+  - Do NOT dispatch batch tasks to `batch-runner.mjs` or use the `qwen-task-dispatch` skill.
+  - Background processes (`mlx_lm`) have been terminated and port 8080 cleared.
+  - For substantive agent collaboration, use Antigravity built-in subagents (`invoke_subagent` with `research` or `self`) or perform work directly as coordinator.
+- **Source:** The durable pause policy and GitHub Issues workflow landed together in `11c08ec`.
+- **Next exact action:** Carry out all development, reviews, and backlog tasks using the primary model and built-in subagents; do not attempt local Qwen worker execution.
+
+## Active handoff — Tonal app-opening splash background (`BRAND-SPLASH-001`, 2026-09-14)
+
+- **Implemented and committed:** Commit `dccac84` replaces the flat dark startup handoff with `launch-blue-backdrop.png`, a generated blue-only full-screen tonal field matched to the approved ribbon-M icon. The foreground M is now the alpha-preserving `mizyun-mark.png`, not the opaque square launcher image, so it has no visible square boundary over the tonal background. Native startup uses `mizyun-native-splash-mark.png` composited on the same `#0C70ED` configured splash color, preserving a square-free centered mark before JavaScript renders.
+- **Files:** `apps/mobile/app.json`, `apps/mobile/src/components/animated-icon.tsx`, and the three new `apps/mobile/assets/images/{launch-blue-backdrop,mizyun-mark,mizyun-native-splash-mark}.png` assets. The launcher icon itself remains unchanged.
+- **Automatically verified:** `pnpm check` passed on 2026-09-14, including formatting, all typechecks, iOS and Android Hermes bundle exports (which include the two new opening assets), tests, deployment safeguards, build matrix, and AI invariant checks. A rendered 393×852 compositing preview was also inspected; the full-screen backdrop is fully opaque and the mark has no square edge. Expo SDK 57 uses a color-only standard native splash background, so this implementation provides a coherent flat native frame and a full tonal JavaScript handoff; it does not claim a native full-screen gradient.
+- **Why it appeared to roll back:** An earlier dirty-tree Dev build temporarily contained these visuals, but the later exact-SHA `8e3853d` Dev installation replaced that app with committed source that did not yet contain them. The code was not reverted; it had never been committed until `dccac84`.
+- **Remaining device gate:** The iPhone is unavailable, so `dccac84` has not been installed or visually accepted on a physical device. `OFFLINE-CACHE-001` is absent.
+- **Next exact action:** Install the current pushed `main` candidate on the Dev iPhone when available, then evaluate cold-start transitions and the mark/background seam.
+
+## Active handoff — Beta branding and dashboard copy (2026-09-14)
+
+- **Implemented and committed:** Commit `dccac84` removes the dashboard's obsolete “Foundation mode” card. It adds the reusable `BrandWordmark` component, which renders `MIZYUN` with a compact `BETA` badge, to the primary Dashboard, Workouts, Meals, Coach, and Account headers, as well as the onboarding header, Coach thread list, and web tab rail.
+- **Beta disclosure added:** The `BETA` pill is now an accessible button that opens a brief dismissible beta notice: bugs may occur, behavior may vary, some features may not yet be enabled, and feedback is highly valued. The same notice is visible in the first onboarding welcome step immediately before the Beta Pro Pass request card.
+- **Automatically verified:** A fresh repository-wide `pnpm check` passed after all changes: navigation and formatting, 15 workspace typechecks, iOS/Android Hermes bundles, core 261 tests, mobile 414 tests, API 518 tests with 15 credential-gated E2E skips, deployment/build/IPA safeguards, and 56 AI invariants. The earlier focused onboarding suite also passed 36 tests.
+- **Remaining device gate:** The committed candidate has not been installed because the iPhone is unavailable. Check narrow headers, the badge popup, first-page onboarding disclosure, and Foundation-card removal together with the splash cold-start acceptance when the device returns.
+
 ## Active handoff — Offline cache paused (`OFFLINE-CACHE-001`, 2026-09-14)
 
-- **State:** Founder stopped the implementation workflow. The work package remains `active`/in progress, not completed.
-- **Local-only work:** `apps/mobile/src/features/auth/profile-cache.ts` remains untracked. Dashboard caching, application wiring, account-deletion purge, tests and verification are unfinished.
-- **Release boundary:** The untracked cache work is explicitly excluded from Dev and Production deployments and from both iPhone builds. Resume, review and verify it in a later session before any deployment.
-- **Next exact action:** Preserve the untracked helper and resume only when the founder requests `OFFLINE-CACHE-001`; complete the missing integration, deletion coverage and tests before running release gates.
+- **State:** Deferred and tracked as `status:ready` in [GitHub Issue #14](https://github.com/AdamHikl/mizyun/issues/14). The founder rejected the partial prototype as insufficient quality on 2026-09-14; its local-only shelf branch was deleted and none of that implementation is retained in `main`, the shared worktree, or a remote branch.
+- **Release boundary:** No `OFFLINE-CACHE-001` runtime integration is enabled or deployed. Existing SecureStore usage for unrelated features is unchanged.
+- **Next exact action:** When the founder resumes `OFFLINE-CACHE-001`, redesign and implement it from scratch against Issue #14's owner isolation, purge, corruption, reconnect, verification, Dev deployment, and physical-device acceptance criteria.
 
 ## Active handoff — Coach workout/meal intent disambiguation (`FIX-COACH-INTENT-001`, 2026-09-14)
 
@@ -19,7 +99,7 @@
 - **Verification:** 24/24 unit tests pass, including 8 new negative cases — 5 of them ("Add two hour walk to my completed workouts today", "Log my morning run", "Add 3 sets of squats to today's log", "I had 5 squats this morning", "Zapíš môj tréning na pondelok") were genuine false positives under the old regex. Full `pnpm check` green (navigation, formatting, typecheck, mobile bundle, all package tests, deployment safeguards, build matrix, AI-eval invariants). Source: base `765ef59` plus this commit (the classifier change and this handoff entry land together).
 - **Independent review: PENDING (open gate).** AGENTS.md requires an independent agent review for AI-access/budget-adjacent changes. The local Qwen worker cannot run inside the agent sandbox (no Metal GPU: `mlx.core` fails with "No Metal device available"; the 28 GB 8-bit model is cached but unusable from sandboxed processes), and the out-of-sandbox launch was rejected because the auto-reviewer 404'd: `http://127.0.0.1:8000/v1/responses` serves Qwen models instead of a reviewer model. Work proceeded locally per the AGENTS.md exception clause; the package does not close until an independent review lands.
 - **Hygiene:** generated `.agents/tasks/batch-report-*.json` files are now excluded from the Prettier gate (`.prettierignore`) and the mutable `batch-report-latest.json` pointer from git (`.gitignore`); the prior session's uncommitted batch artifacts were committed as `765ef59`.
-- **Needs user input (recorded in `backlog.md`):** Google Play accounts (`PLAY-001`–`006`), Apple accounts (`APPLE-004`, `STORE-002/003`), founder alpha week (`ALPHA-001`), and approval to run the MLX reviewer out of sandbox (or a fix to the `:8000` reviewer endpoint).
+- **Needs user input (tracked in GitHub Issues):** Google Play accounts (`PLAY-001`–`006` / #1–#6), Apple accounts (`APPLE-004` / #7, `STORE-002/003` / #8/#9), founder alpha week (`ALPHA-001` / #37), and approval to run the MLX reviewer out of sandbox (or a fix to the `:8000` reviewer endpoint).
 - **Next exact action:** obtain the independent review of the `nutrition-action.ts` diff, then `pnpm deploy:dev <sha>` and accept the workout-vs-meal routing on the `com.mizyun.dev` iPhone build (e.g. "Add two hour walk to my completed workouts today" must reach the grounded Coach, not a meal draft).
 
 ## Active handoff — Native MLX Local Worker, Backlog Split & Coach Workout Intent (`LOCAL-WORKER-003`, `FIX-COACH-INTENT-001`, 2026-09-13)
