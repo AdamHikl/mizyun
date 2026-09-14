@@ -354,6 +354,11 @@ const prodScript = readFileSync(
   resolve(repoRoot, "scripts/mobile-founder-production-ios.sh"),
   "utf-8",
 );
+const productionIpaScriptPath = resolve(
+  repoRoot,
+  "scripts/build-production-ios-ipa.sh",
+);
+const productionIpaScript = readFileSync(productionIpaScriptPath, "utf-8");
 const androidScript = readFileSync(
   resolve(repoRoot, "scripts/mobile-founder-production-android.sh"),
   "utf-8",
@@ -380,6 +385,46 @@ if (
   throw new Error(
     "scripts/mobile-founder-production-ios.sh is missing fail-closed bundle ID mismatch guard",
   );
+}
+const rootPackage = JSON.parse(
+  readFileSync(resolve(repoRoot, "package.json"), "utf-8"),
+);
+if (
+  rootPackage.scripts?.["mobile:founder-production:ios:ipa"] !==
+  "bash scripts/build-production-ios-ipa.sh"
+) {
+  throw new Error("Production IPA package command is missing or misrouted");
+}
+const productionIpaHelp = execFileSync(
+  "bash",
+  [productionIpaScriptPath, "--help"],
+  { encoding: "utf-8" },
+);
+if (
+  !productionIpaHelp.includes("--sha <full-sha>") ||
+  !productionIpaHelp.includes("--build-number <number>")
+) {
+  throw new Error(
+    "Production IPA command does not document its required inputs",
+  );
+}
+for (const requiredGuard of [
+  "merge-base --is-ancestor",
+  "worktree add --detach",
+  "expo prebuild --clean",
+  "pnpm check",
+  "codesign --verify --deep --strict",
+  "aps-environment",
+  "get-task-allow",
+  "https://mizyun-api.phiskel.com",
+  "https://mizyun-supabase.phiskel.com",
+  "manifest.json",
+]) {
+  if (!productionIpaScript.includes(requiredGuard)) {
+    throw new Error(
+      `Production IPA script is missing required guard: ${requiredGuard}`,
+    );
+  }
 }
 if (
   !androidScript.includes("com.mizyun.app") ||
