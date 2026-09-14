@@ -1,5 +1,11 @@
 import type { ApiClient, ApiError } from "@mizyun/api-client";
 import {
+  isRoutineDetails,
+  isSessionDetails,
+  readWorkoutLifecycle,
+  withWorkoutLifecycle,
+} from "@mizyun/core";
+import {
   exerciseCreateSchema,
   exerciseListResponseSchema,
   exerciseRecentSetsResponseSchema,
@@ -275,9 +281,18 @@ export const loadWorkoutWorkspaceWith = async (
       }
     }
   } else {
-    const incomplete = workoutResult.value.workouts.filter(
-      (candidate) => candidate.completedAt === null,
-    );
+    const incomplete = workoutResult.value.workouts.filter((candidate) => {
+      if (
+        candidate.completedAt !== null ||
+        isRoutineDetails(candidate.details)
+      ) {
+        return false;
+      }
+      return (
+        isSessionDetails(candidate.details) ||
+        extractPlannedExercises(candidate).length === 0
+      );
+    });
     if (incomplete.length > 0) {
       const todayIso = new Date().toISOString().slice(0, 10);
       // Prefer workout matching today's startedAt date (YYYY-MM-DD),
@@ -337,7 +352,10 @@ export const startWorkoutWith = async (
     name: name.trim(),
     startedAt: now().toISOString(),
     ...(notes.trim().length > 0 ? { notes: notes.trim() } : {}),
-    ...(details === undefined ? {} : { details }),
+    details: withWorkoutLifecycle(
+      details,
+      readWorkoutLifecycle(details) ?? { kind: "session" },
+    ),
   });
   if (!parsed.success) return { ok: false, message: "Name the workout first." };
   const result = await client.request<WorkoutResponse>({
@@ -536,92 +554,4 @@ export const abandonWorkoutWith = async (
   return result.ok
     ? { ok: true }
     : { ok: false, message: humanize(result.error, "Delete that workout") };
-};
-
-/**
- * WO-UX-002 — Clone-on-complete routine preservation.
- *
- * When a workout that originated from a routine (has planned exercises
- * in `details.coachPlan`, `details.aiDraft`, or
- * `details.workoutProposal`) is finished, this function creates a fresh
- * "planned" workout with the same name, notes, and exercise template so
- * the routine stays available for re-use. Ad-hoc workouts (no planned
- * exercises) are silently skipped.
- */
-export const cloneRoutineFromWorkout = async (
-  workout: Workout,
-): Promise<WorkoutMutationResult> =>
-  cloneRoutineFromWorkoutWith(apiClient, workout);
-
-export const cloneRoutineFromWorkoutWith = async (
-  client: ApiClient,
-  workout: Workout,
-): Promise<WorkoutMutationResult> => {
-  const details = workout.details;
-  if (!details || typeof details !== "object") return { ok: true };
-
-  // Preserve the original details blob (coachPlan, aiDraft, etc.) verbatim
-  // so the cloned routine has the same structure the logger expects.
-  const hasPlannedExercises = (() => {
-    const d = details as Record<string, unknown>;
-
-    const coachPlan = d.coachPlan;
-    if (
-      coachPlan &&
-      typeof coachPlan === "object" &&
-      Array.isArray((coachPlan as Record<string, unknown>).exercises) &&
-      ((coachPlan as Record<string, unknown>).exercises as unknown[]).length > 0
-    ) {
-      return true;
-    }
-
-    const aiDraft = d.aiDraft;
-    if (aiDraft && typeof aiDraft === "object") {
-      const session = (aiDraft as Record<string, unknown>).session;
-      if (
-        session &&
-        typeof session === "object" &&
-        Array.isArray((session as Record<string, unknown>).exercises) &&
-        ((session as Record<string, unknown>).exercises as unknown[]).length > 0
-      ) {
-        return true;
-      }
-    }
-
-    const workoutProposal = d.workoutProposal;
-    if (workoutProposal && typeof workoutProposal === "object") {
-      const session = (workoutProposal as Record<string, unknown>).session;
-      if (
-        session &&
-        typeof session === "object" &&
-        Array.isArray((session as Record<string, unknown>).exercises) &&
-        ((session as Record<string, unknown>).exercises as unknown[]).length > 0
-      ) {
-        return true;
-      }
-    }
-
-    return false;
-  })();
-
-  if (!hasPlannedExercises) return { ok: true };
-
-  const body = workoutCreateSchema.safeParse({
-    name: workout.name,
-    ...(workout.notes ? { notes: workout.notes } : {}),
-    details,
-  });
-
-  if (!body.success) return { ok: true };
-
-  const result = await client.request<WorkoutResponse>({
-    method: "POST",
-    path: "/v1/workouts",
-    body: body.data,
-    schema: workoutResponseSchema,
-  });
-
-  return result.ok
-    ? { ok: true }
-    : { ok: false, message: humanize(result.error, "Re-create routine") };
 };

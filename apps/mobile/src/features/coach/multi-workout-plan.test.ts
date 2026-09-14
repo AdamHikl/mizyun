@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ApiClient, ApiError, RequestOptions } from "@mizyun/api-client";
-import type { Result } from "@mizyun/core";
+import { readWorkoutLifecycle, type Result } from "@mizyun/core";
 import type { CoachMultiWorkoutPlanProposal } from "@mizyun/contracts";
 
 import {
@@ -122,7 +122,7 @@ const queuedClient = (
 };
 
 describe("saveMultiWorkoutPlan", () => {
-  it("creates one workout per session with the session label and target-day startedAt", async () => {
+  it("creates one reusable routine per planned session", async () => {
     const captured: RequestOptions[] = [];
     const { client } = queuedClient(
       [
@@ -159,6 +159,11 @@ describe("saveMultiWorkoutPlan", () => {
       name: "Push",
       startedAt: "2026-07-19T12:00:00.000Z",
     });
+    expect(
+      readWorkoutLifecycle(
+        (captured[0]?.body as { details: Record<string, unknown> }).details,
+      ),
+    ).toEqual({ kind: "routine" });
     expect(captured[1]?.body).toMatchObject({
       name: "Pull",
       startedAt: "2026-07-21T12:00:00.000Z",

@@ -150,6 +150,34 @@ describe("POST /v1/workouts/:workoutId/sets", () => {
     expect(response.json().workoutSet.workoutId).toBe(WORKOUT_ID);
   });
 
+  it("rejects logging a set directly on a reusable routine", async () => {
+    const { app, workoutRepository, exerciseRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    seedWorkout(workoutRepository, {
+      completedAt: null,
+      details: { workoutLifecycle: { kind: "routine" } },
+    });
+    seedExercise(exerciseRepository);
+
+    const response = await app.inject({
+      method: "POST",
+      url: `/v1/workouts/${WORKOUT_ID}/sets`,
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: {
+        exerciseId: EXERCISE_ID,
+        repetitions: 8,
+        loadKg: 100,
+      },
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json().error.message).toMatch(/Start a workout session/);
+  });
+
   it("honours a client-supplied sequence", async () => {
     const { app, workoutRepository, workoutSetRepository, exerciseRepository } =
       build(tokenVerifierFor({ userId: userA }));

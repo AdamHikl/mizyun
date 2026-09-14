@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ApiClient } from "@mizyun/api-client";
 import type { Exercise, Workout, WorkoutSet } from "@mizyun/contracts";
+import { readWorkoutLifecycle, withWorkoutLifecycle } from "@mizyun/core";
 
 import {
   calculateWorkoutVolume,
@@ -11,7 +12,9 @@ import {
   fetchWorkout,
   deleteWorkout,
   createBlankWorkout,
+  createBlankWorkoutWith,
   createCustomWorkout,
+  startRoutineSessionWith,
   updateWorkoutDetails,
 } from "./workouts-hub-data";
 
@@ -143,6 +146,21 @@ describe("workouts-hub-data", () => {
     expect(processedPlanned.plannedExercises).toHaveLength(2);
     expect(processedPlanned.completedSetCount).toBe(0);
 
+    const processedZeroSetSession = processWorkout(
+      {
+        ...mockPlannedWorkout,
+        id: "w-session-1",
+        details: withWorkoutLifecycle(mockPlannedWorkout.details, {
+          kind: "session",
+          routineId: mockPlannedWorkout.id,
+        }),
+      },
+      [],
+      [mockExercise],
+      today,
+    );
+    expect(processedZeroSetSession.status).toBe("in_progress");
+
     const processedCompleted = processWorkout(
       mockCompletedWorkout,
       mockSets,
@@ -239,6 +257,7 @@ describe("workouts-hub-data", () => {
           "Incline Dumbbell Press",
         );
         expect(body.details.coachPlan.exercises[0].sets).toBe(4);
+        expect(readWorkoutLifecycle(body.details)).toEqual({ kind: "routine" });
         return {
           ok: true,
           value: { workout: { ...mockPlannedWorkout, name: body.name } },
@@ -259,6 +278,62 @@ describe("workouts-hub-data", () => {
     );
 
     expect(res.ok).toBe(true);
+  });
+
+  it("starts a fresh session copy while retaining the routine origin", async () => {
+    const request = vi.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        workout: {
+          ...mockPlannedWorkout,
+          id: "w-session-copy",
+          startedAt: "2026-08-26T12:30:00.000Z",
+          details: withWorkoutLifecycle(mockPlannedWorkout.details, {
+            kind: "session",
+            routineId: mockPlannedWorkout.id,
+          }),
+        },
+      },
+    });
+    const client = { request } as unknown as ApiClient;
+
+    const result = await startRoutineSessionWith(
+      client,
+      mockPlannedWorkout,
+      () => new Date("2026-08-26T12:30:00.000Z"),
+    );
+
+    expect(result.ok).toBe(true);
+    expect(request).toHaveBeenCalledTimes(1);
+    const body = request.mock.calls[0]?.[0].body as Record<string, unknown>;
+    expect(body.startedAt).toBe("2026-08-26T12:30:00.000Z");
+    expect(
+      readWorkoutLifecycle(body.details as Record<string, unknown>),
+    ).toEqual({
+      kind: "session",
+      routineId: mockPlannedWorkout.id,
+    });
+    expect((body.details as Record<string, unknown>).coachPlan).toEqual(
+      mockPlannedWorkout.details.coachPlan,
+    );
+  });
+
+  it("starts an ad-hoc workout as a session", async () => {
+    const request = vi.fn().mockResolvedValue({
+      ok: true,
+      value: { workout: mockPlannedWorkout },
+    });
+    await createBlankWorkoutWith(
+      { request } as unknown as ApiClient,
+      "Quick session",
+      () => new Date("2026-08-26T13:00:00.000Z"),
+    );
+    const body = request.mock.calls[0]?.[0].body as Record<string, unknown>;
+    expect(
+      readWorkoutLifecycle(body.details as Record<string, unknown>),
+    ).toEqual({
+      kind: "session",
+    });
   });
 
   it("updates workout details and planned exercises", async () => {

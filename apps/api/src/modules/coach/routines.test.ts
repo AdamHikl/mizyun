@@ -407,6 +407,17 @@ describe("routines module", () => {
 
       expect(isAvailableRoutine(workout)).toBe(false);
     });
+
+    it("returns false for an active session copied from a routine", () => {
+      const workout = createWorkout({
+        details: {
+          workoutLifecycle: { kind: "session", routineId: "routine-1" },
+          coachPlan: { exercises: [{ name: "Squat", sets: 3 }] },
+        },
+      });
+
+      expect(isAvailableRoutine(workout)).toBe(false);
+    });
   });
 
   describe("toRoutineSummary", () => {

@@ -126,6 +126,15 @@ export {
 } from "./workout";
 
 export {
+  WORKOUT_LIFECYCLE_KEY,
+  isRoutineDetails,
+  isSessionDetails,
+  readWorkoutLifecycle,
+  withWorkoutLifecycle,
+  type WorkoutLifecycle,
+} from "./workout-lifecycle";
+
+export {
   MAX_DISTANCE_METERS,
   MAX_DURATION_SECONDS,
   MAX_LOAD_KG,

@@ -81,6 +81,7 @@ import {
 import { applyWorkoutEditProposal } from "./workout-edit-proposal";
 import {
   createCustomWorkout,
+  startRoutineSession,
   type PlannedExerciseItem,
 } from "@/features/workouts/workouts-hub-data";
 
@@ -1421,6 +1422,7 @@ function WorkoutProposalCard({
   const [saving, setSaving] = useState(false);
   const [savedWorkout, setSavedWorkout] = useState<Workout | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const startingRef = useRef(false);
 
   const handleSaveToRoutines = useCallback(async () => {
     if (saving || savedWorkout !== null) return;
@@ -1464,11 +1466,23 @@ function WorkoutProposalCard({
     }
   }, [proposal, savedWorkout, saving]);
 
-  const onOpenSaved = useCallback(() => {
-    if (savedWorkout) {
-      router.push(`/log-workout?workoutId=${savedWorkout.id}` as Href);
+  const onOpenSaved = useCallback(async () => {
+    if (!savedWorkout || saving || startingRef.current) return;
+    startingRef.current = true;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const result = await startRoutineSession(savedWorkout);
+      if (result.ok && result.workout) {
+        router.push(`/log-workout?workoutId=${result.workout.id}` as Href);
+      } else if (!result.ok) {
+        setSaveError(result.message);
+      }
+    } finally {
+      startingRef.current = false;
+      setSaving(false);
     }
-  }, [savedWorkout]);
+  }, [savedWorkout, saving]);
 
   return (
     <View style={styles.proposalCard}>
@@ -1521,14 +1535,15 @@ function WorkoutProposalCard({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Start ${proposal.session.label}`}
-            onPress={onOpenSaved}
+            disabled={saving}
+            onPress={() => void onOpenSaved()}
             style={({ pressed }) => [
               styles.proposalButton,
               pressed && styles.pressed,
             ]}
           >
             <ThemedText type="smallBold" style={styles.proposalButtonText}>
-              Start Workout Now →
+              {saving ? "Starting Session…" : "Start Workout Now →"}
             </ThemedText>
           </Pressable>
         </View>
@@ -1613,6 +1628,7 @@ function MultiWorkoutPlanCard({
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<MultiWorkoutPlanSaveResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const startingRef = useRef(false);
 
   const onSaveAll = useCallback(async () => {
     if (saving) return;
@@ -1623,7 +1639,7 @@ function MultiWorkoutPlanCard({
       setResult(saved);
       if (!saved.ok) {
         setError(
-          "One or more sessions could not be saved. Retry the failed ones below.",
+          "One or more routines could not be saved. Retry the failed ones below.",
         );
       }
     } catch (cause) {
@@ -1637,14 +1653,31 @@ function MultiWorkoutPlanCard({
     }
   }, [proposal, saving]);
 
-  const onOpenWorkout = useCallback((workoutId: string) => {
-    router.push(`/log-workout?workoutId=${workoutId}` as Href);
-  }, []);
+  const onOpenWorkout = useCallback(
+    async (workout: Workout) => {
+      if (saving || startingRef.current) return;
+      startingRef.current = true;
+      setSaving(true);
+      setError(null);
+      try {
+        const started = await startRoutineSession(workout);
+        if (started.ok && started.workout) {
+          router.push(`/log-workout?workoutId=${started.workout.id}` as Href);
+        } else if (!started.ok) {
+          setError(started.message);
+        }
+      } finally {
+        startingRef.current = false;
+        setSaving(false);
+      }
+    },
+    [saving],
+  );
 
   const onOpenFirst = useCallback(() => {
     const first = result?.saved.find((entry) => entry.result.ok);
     if (first?.result.ok) {
-      onOpenWorkout(first.result.workout.id);
+      void onOpenWorkout(first.result.workout);
     }
   }, [onOpenWorkout, result]);
 
@@ -1717,7 +1750,7 @@ function MultiWorkoutPlanCard({
               ))}
               {isSaved ? (
                 <ThemedText type="smallBold" style={{ color: "#10B981" }}>
-                  ✓ Saved to workouts
+                  ✓ Saved to routines
                 </ThemedText>
               ) : null}
               {isFailed ? (
@@ -1732,9 +1765,9 @@ function MultiWorkoutPlanCard({
             {isSaved ? (
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`Open ${session.label}`}
+                accessibilityLabel={`Start ${session.label}`}
                 onPress={() =>
-                  saved.result.ok && onOpenWorkout(saved.result.workout.id)
+                  saved.result.ok && void onOpenWorkout(saved.result.workout)
                 }
                 style={({ pressed }) => [
                   styles.multiWorkoutOpenButton,
@@ -1742,7 +1775,7 @@ function MultiWorkoutPlanCard({
                 ]}
               >
                 <ThemedText type="smallBold" style={{ color: "#10B981" }}>
-                  Open →
+                  Start →
                 </ThemedText>
               </Pressable>
             ) : null}
@@ -1761,8 +1794,8 @@ function MultiWorkoutPlanCard({
       {result === null ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Save all ${proposal.requestedSessions} sessions`}
-          accessibilityHint="Creates one real workout per session, scheduled to the days above. You can then open any session to add sets, reorder exercises, or adjust weights."
+          accessibilityLabel={`Save all ${proposal.requestedSessions} routines`}
+          accessibilityHint="Saves reusable routines for the planned days. Starting one creates a separate live workout session."
           disabled={saving}
           accessibilityState={{ disabled: saving, busy: saving }}
           onPress={() => {
@@ -1777,16 +1810,16 @@ function MultiWorkoutPlanCard({
             <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
             <ThemedText type="smallBold" style={styles.proposalButtonText}>
-              Save {proposal.requestedSessions} sessions
+              Save {proposal.requestedSessions} routines
             </ThemedText>
           )}
         </Pressable>
       ) : (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Open the first saved session"
+          accessibilityLabel="Start the first saved routine"
           onPress={() => {
-            onOpenFirst();
+            void onOpenFirst();
           }}
           style={({ pressed }) => [
             styles.proposalButton,
@@ -1794,7 +1827,7 @@ function MultiWorkoutPlanCard({
           ]}
         >
           <ThemedText type="smallBold" style={styles.proposalButtonText}>
-            Open first session
+            Start first routine
           </ThemedText>
         </Pressable>
       )}

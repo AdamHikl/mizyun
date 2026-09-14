@@ -1,4 +1,5 @@
 import type { CoachMultiWorkoutPlanProposal } from "@mizyun/contracts";
+import { withWorkoutLifecycle } from "@mizyun/core";
 
 import { apiClient } from "@/composition/api-client";
 import { startWorkoutWith } from "@/features/log-workout/log-workout-data";
@@ -7,12 +8,10 @@ import { startWorkoutWith } from "@/features/log-workout/log-workout-data";
  * AI-ACT-006 — multi-workout plan lifecycle on the mobile side.
  *
  * The Coach's deterministic engine returns an ordered list of
- * pre-scheduled sessions. "Save all" creates one real workout per
- * session via the existing `startWorkout` route, with the session
- * label as the workout name and the auto-scheduled `targetDay` as
- * the `startedAt` timestamp. Each workout is empty (no sets yet) —
- * the user opens it via the existing MOB-WO-001 surface to add
- * exercises, reorder them, change weights, log sets, etc.
+ * pre-scheduled sessions. "Save all" creates one reusable routine per
+ * planned session via the existing workout route, with the session label and
+ * target day retained as template metadata. Opening a saved routine creates a
+ * separate live session with a fresh `startedAt` timestamp.
  *
  * Failures are per-session: a 4xx on one workout does not stop
  * the rest from being created. The caller renders the result and
@@ -116,25 +115,28 @@ export const saveMultiWorkoutPlanWith = async (
       session.label,
       sessionNotes(session, proposal),
       () => new Date(startedAt),
-      {
-        coachPlan: {
-          proposalId: proposal.id,
-          prescriptionVersion: proposal.prescriptionVersion,
-          sessionIndex: session.index,
-          targetDay: session.targetDay,
-          estimatedMinutes: session.estimatedMinutes,
-          exercises: session.exercises.map((exercise) => ({
-            catalogId: exercise.catalogId,
-            name: exercise.name,
-            movementPattern: exercise.movementPattern,
-            sets: exercise.sets,
-            repsMin: exercise.repsMin,
-            repsMax: exercise.repsMax,
-            durationMinutes: exercise.durationMinutes,
-            restSeconds: exercise.restSeconds,
-          })),
+      withWorkoutLifecycle(
+        {
+          coachPlan: {
+            proposalId: proposal.id,
+            prescriptionVersion: proposal.prescriptionVersion,
+            sessionIndex: session.index,
+            targetDay: session.targetDay,
+            estimatedMinutes: session.estimatedMinutes,
+            exercises: session.exercises.map((exercise) => ({
+              catalogId: exercise.catalogId,
+              name: exercise.name,
+              movementPattern: exercise.movementPattern,
+              sets: exercise.sets,
+              repsMin: exercise.repsMin,
+              repsMax: exercise.repsMax,
+              durationMinutes: exercise.durationMinutes,
+              restSeconds: exercise.restSeconds,
+            })),
+          },
         },
-      },
+        { kind: "routine" },
+      ),
     );
     saved.push({ session, result });
     if (result.ok && firstWorkoutId === null) {

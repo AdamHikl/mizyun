@@ -1,7 +1,7 @@
 import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { router, Stack, useFocusEffect, type Href } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { Workout } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
@@ -15,6 +15,7 @@ import {
   createBlankWorkout,
   deleteWorkout,
   fetchWorkoutsHubData,
+  startRoutineSession,
   type ProcessedWorkout,
   type WorkoutsHubResult,
 } from "./workouts-hub-data";
@@ -38,6 +39,7 @@ export function WorkoutsHubScreen() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<WorkoutsTab>("all");
   const [busyWorkoutId, setBusyWorkoutId] = useState<string | null>(null);
+  const startingRoutineIds = useRef(new Set<string>());
   const [libraryVisible, setLibraryVisible] = useState(false);
   const [editorVisible, setEditorVisible] = useState(false);
   const [editingWorkout, setEditingWorkout] = useState<ProcessedWorkout | null>(
@@ -74,17 +76,32 @@ export function WorkoutsHubScreen() {
     setEditorVisible(true);
   }, []);
 
+  const beginRoutineSession = useCallback(async (workout: Workout) => {
+    if (startingRoutineIds.current.has(workout.id)) return;
+    startingRoutineIds.current.add(workout.id);
+    setBusyWorkoutId(workout.id);
+    try {
+      const result = await startRoutineSession(workout);
+      if (result.ok && result.workout) {
+        router.push({
+          pathname: "/log-workout",
+          params: { workoutId: result.workout.id },
+        });
+      } else if (!result.ok) {
+        Alert.alert("Could not start session", result.message);
+      }
+    } finally {
+      startingRoutineIds.current.delete(workout.id);
+      setBusyWorkoutId(null);
+    }
+  }, []);
+
   const handleSavedWorkout = useCallback(
     (workout: Workout, autoStart: boolean) => {
       void loadData();
-      if (autoStart) {
-        router.push({
-          pathname: "/log-workout",
-          params: { workoutId: workout.id },
-        });
-      }
+      if (autoStart) void beginRoutineSession(workout);
     },
-    [loadData],
+    [beginRoutineSession, loadData],
   );
 
   const handleStartBlank = useCallback(async () => {
@@ -107,6 +124,18 @@ export function WorkoutsHubScreen() {
       params: { workoutId },
     });
   }, []);
+
+  const handleStartOrContinue = useCallback(
+    async (item: ProcessedWorkout) => {
+      if (item.status === "in_progress") {
+        handleOpenWorkout(item.workout.id);
+        return;
+      }
+
+      await beginRoutineSession(item.workout);
+    },
+    [beginRoutineSession, handleOpenWorkout],
+  );
 
   const handleConfirmDelete = useCallback(
     (workout: ProcessedWorkout) => {
@@ -339,7 +368,7 @@ export function WorkoutsHubScreen() {
                     key={item.workout.id}
                     item={item}
                     isBusy={busyWorkoutId === item.workout.id}
-                    onOpen={() => handleOpenWorkout(item.workout.id)}
+                    onOpen={() => void handleStartOrContinue(item)}
                     onEdit={() => handleEditWorkout(item)}
                     onDelete={() => handleConfirmDelete(item)}
                     onPressExercise={(name) => setProgressionExerciseName(name)}
@@ -431,7 +460,7 @@ function PlannedWorkoutCard(props: {
   readonly onDelete: () => void;
   readonly onPressExercise?: (exerciseName: string) => void;
 }) {
-  const { item, onOpen, onEdit, onDelete, onPressExercise } = props;
+  const { item, isBusy, onOpen, onEdit, onDelete, onPressExercise } = props;
   const isStarted = item.status === "in_progress";
 
   return (
@@ -508,11 +537,16 @@ function PlannedWorkoutCard(props: {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Open ${item.workout.name}`}
+            disabled={isBusy}
             onPress={onOpen}
-            style={styles.startSessionButton}
+            style={[styles.startSessionButton, isBusy && styles.disabled]}
           >
             <ThemedText type="smallBold" style={styles.startSessionText}>
-              {isStarted ? "Continue Session →" : "Start Session →"}
+              {isBusy
+                ? "Starting…"
+                : isStarted
+                  ? "Continue Session →"
+                  : "Start Session →"}
             </ThemedText>
           </Pressable>
 
@@ -985,5 +1019,8 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.75,
+  },
+  disabled: {
+    opacity: 0.55,
   },
 });

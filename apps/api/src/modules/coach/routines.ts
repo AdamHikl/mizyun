@@ -1,4 +1,4 @@
-import type { StoredWorkout } from "@mizyun/core";
+import { isSessionDetails, type StoredWorkout } from "@mizyun/core";
 
 export interface PlannedExercise {
   readonly name: string;
@@ -170,6 +170,7 @@ export const extractPlannedExercisesFromWorkout = (
 export const isAvailableRoutine = (workout: StoredWorkout): boolean => {
   return (
     workout.completedAt === null &&
+    !isSessionDetails(workout.details) &&
     extractPlannedExercisesFromWorkout(workout).length > 0
   );
 };

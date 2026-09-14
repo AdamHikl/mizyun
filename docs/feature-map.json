@@ -112,6 +112,7 @@
       ],
       "domainPort": [
         "packages/core/src/workout.ts",
+        "packages/core/src/workout-lifecycle.ts",
         "packages/core/src/workout-set.ts",
         "packages/core/src/training-prescription.ts"
       ],
@@ -134,7 +135,8 @@
       "dataTables": ["exercises", "workouts", "workout_sets"],
       "migrationPaths": [
         "supabase/migrations/20260714101000_user_data.sql",
-        "supabase/migrations/20260721100000_persist_002_workout_columns.sql"
+        "supabase/migrations/20260721100000_persist_002_workout_columns.sql",
+        "supabase/migrations/20260914134000_backfill_workout_routine_lifecycle.sql"
       ],
       "tests": [
         "apps/api/src/modules/workouts/routes.test.ts",
@@ -142,6 +144,7 @@
         "apps/api/src/modules/exercises/routes.test.ts",
         "apps/mobile/src/features/workouts/exercise-progression-data.test.ts",
         "apps/mobile/src/features/log-workout/log-workout-data.test.ts",
+        "packages/core/src/workout-lifecycle.test.ts",
         "packages/core/src/training-prescription.test.ts"
       ],
       "relations": [

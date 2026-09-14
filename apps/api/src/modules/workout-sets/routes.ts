@@ -2,6 +2,8 @@ import type { FastifyPluginAsync } from "fastify";
 import {
   summariseExerciseSets,
   validateWorkoutSetCreate,
+  isRoutineDetails,
+  type StoredWorkout,
   type StoredWorkoutSet,
   type UserId,
   type WorkoutSetRepository,
@@ -167,18 +169,27 @@ const assertOwnedExercise = async (
 /**
  * Verify that the workout exists and belongs to the user.
  */
+const getOwnedWorkout = async (
+  workoutRepository: WorkoutRepository,
+  userId: UserId,
+  workoutId: string,
+  accessToken: string,
+): Promise<StoredWorkout | null> => {
+  const workout = await workoutRepository.getById(workoutId, {
+    accessToken,
+  });
+  if (workout === null || workout.userId !== userId) return null;
+  return workout;
+};
+
 const assertOwnedWorkout = async (
   workoutRepository: WorkoutRepository,
   userId: UserId,
   workoutId: string,
   accessToken: string,
-): Promise<boolean> => {
-  const workout = await workoutRepository.getById(workoutId, {
-    accessToken,
-  });
-  if (workout === null) return false;
-  return workout.userId === userId;
-};
+): Promise<boolean> =>
+  (await getOwnedWorkout(workoutRepository, userId, workoutId, accessToken)) !==
+  null;
 
 export const workoutSetsRoutes: FastifyPluginAsync<
   WorkoutSetsRoutesOptions
@@ -206,20 +217,29 @@ export const workoutSetsRoutes: FastifyPluginAsync<
         );
         return;
       }
-      if (
-        !(await assertOwnedWorkout(
-          options.workoutRepository,
-          principal.userId,
-          workoutId,
-          principal.accessToken,
-        ))
-      ) {
+      const workout = await getOwnedWorkout(
+        options.workoutRepository,
+        principal.userId,
+        workoutId,
+        principal.accessToken,
+      );
+      if (workout === null) {
         await sendApiError(
           reply,
           request,
           404,
           "NOT_FOUND",
           "No workout with that id exists for this user.",
+        );
+        return;
+      }
+      if (isRoutineDetails(workout.details)) {
+        await sendApiError(
+          reply,
+          request,
+          409,
+          "CONFLICT",
+          "Start a workout session before logging sets.",
         );
         return;
       }

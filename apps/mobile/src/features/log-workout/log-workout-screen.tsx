@@ -23,7 +23,11 @@ import {
   type Workout,
   type WorkoutSet,
 } from "@mizyun/contracts";
-import type { CatalogExercise } from "@mizyun/core";
+import {
+  isRoutineDetails,
+  readWorkoutLifecycle,
+  type CatalogExercise,
+} from "@mizyun/core";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -45,6 +49,7 @@ import {
 } from "@/lib/weight-units";
 import { ExerciseLibraryModal } from "@/features/workouts/exercise-library-modal";
 import { ExerciseProgressionModal } from "@/features/workouts/exercise-progression-modal";
+import { startRoutineSession } from "@/features/workouts/workouts-hub-data";
 import {
   DEFAULT_REST_SECONDS,
   loadWorkoutPreferences,
@@ -62,7 +67,6 @@ import {
 import {
   abandonWorkout,
   addWorkoutSet,
-  cloneRoutineFromWorkout,
   completeWorkout,
   createExercise,
   deleteWorkoutSet,
@@ -186,6 +190,7 @@ export function LogWorkoutScreen() {
   );
 
   const refreshCounter = useRef(0);
+  const routineStartRef = useRef<string | null>(null);
 
   const refresh = useCallback(
     async (options?: { showLoading?: boolean }) => {
@@ -224,6 +229,34 @@ export function LogWorkoutScreen() {
     void refresh();
   }, [refresh]);
 
+  // Deep links and older Coach cards may still point at the routine itself.
+  // Convert that intent into a fresh session rather than ever timing or
+  // mutating the reusable template.
+  useEffect(() => {
+    const routine = workspace.workout;
+    if (
+      routine === null ||
+      !isRoutineDetails(routine.details) ||
+      routineStartRef.current === routine.id
+    ) {
+      return;
+    }
+    routineStartRef.current = routine.id;
+    setBusy(true);
+    void startRoutineSession(routine).then((result) => {
+      setBusy(false);
+      if (result.ok && result.workout) {
+        router.replace({
+          pathname: "/log-workout",
+          params: { workoutId: result.workout.id },
+        });
+      } else if (!result.ok) {
+        routineStartRef.current = null;
+        setMessage(result.message);
+      }
+    });
+  }, [workspace.workout]);
+
   // Draft save/load
   useEffect(() => {
     if (userId === null) return;
@@ -260,7 +293,11 @@ export function LogWorkoutScreen() {
 
   // Stopwatch duration ticker
   useEffect(() => {
-    if (!workspace.workout || workspace.workout.completedAt !== null) {
+    if (
+      !workspace.workout ||
+      workspace.workout.completedAt !== null ||
+      isRoutineDetails(workspace.workout.details)
+    ) {
       setElapsedSeconds(0);
       return;
     }
@@ -400,7 +437,11 @@ export function LogWorkoutScreen() {
 
   // Active session summary for the persistent live notification
   const activeSessionSummary = useMemo(() => {
-    if (!workspace.workout || workspace.workout.completedAt !== null) {
+    if (
+      !workspace.workout ||
+      workspace.workout.completedAt !== null ||
+      isRoutineDetails(workspace.workout.details)
+    ) {
       return null;
     }
 
@@ -829,6 +870,10 @@ export function LogWorkoutScreen() {
   // Complete workout
   const handleFinish = useCallback(async () => {
     if (workspace.workout === null) return;
+    if (isRoutineDetails(workspace.workout.details)) {
+      setMessage("Wait for the workout session to start before finishing it.");
+      return;
+    }
     measurement.current?.tap();
 
     const totalSets = workspace.sets.length;
@@ -865,9 +910,6 @@ export function LogWorkoutScreen() {
               }
               measurement.current?.complete();
               if (userId !== null) await clearLoggingDraft(userId, "workout");
-              // WO-UX-002: Clone the routine so it stays available for re-use.
-              // Fire-and-forget — don't block navigation if the clone fails.
-              void cloneRoutineFromWorkout(workspace.workout!);
               router.back();
             })();
           },
@@ -885,30 +927,35 @@ export function LogWorkoutScreen() {
   // Confirm abandon
   const confirmAbandon = useCallback(() => {
     if (workspace.workout === null) return;
-    Alert.alert(
-      "Discard Workout?",
-      "The entire workout and all logged sets will be permanently deleted.",
-      [
-        { text: "Keep Logging", style: "cancel" },
-        {
-          text: "Discard",
-          style: "destructive",
-          onPress: () => {
-            void (async () => {
-              if (restTimer?.notificationId) {
-                await cancelRestNotification(restTimer.notificationId);
-              }
-              setRestTimer(null);
-              void dismissActiveWorkoutNotification();
-              const result = await abandonWorkout(workspace.workout!.id);
-              if (!result.ok) return setMessage(result.message);
-              if (userId !== null) await clearLoggingDraft(userId, "workout");
-              router.back();
-            })();
-          },
+    if (isRoutineDetails(workspace.workout.details)) {
+      setMessage("Wait for the workout session to start before discarding it.");
+      return;
+    }
+    const lifecycle = readWorkoutLifecycle(workspace.workout.details);
+    const discardMessage =
+      lifecycle?.kind === "session" && lifecycle.routineId
+        ? "This session and its logged sets will be deleted. Your saved routine will remain available."
+        : "This session and its logged sets will be permanently deleted.";
+    Alert.alert("Discard Session?", discardMessage, [
+      { text: "Keep Logging", style: "cancel" },
+      {
+        text: "Discard",
+        style: "destructive",
+        onPress: () => {
+          void (async () => {
+            if (restTimer?.notificationId) {
+              await cancelRestNotification(restTimer.notificationId);
+            }
+            setRestTimer(null);
+            void dismissActiveWorkoutNotification();
+            const result = await abandonWorkout(workspace.workout!.id);
+            if (!result.ok) return setMessage(result.message);
+            if (userId !== null) await clearLoggingDraft(userId, "workout");
+            router.back();
+          })();
         },
-      ],
-    );
+      },
+    ]);
   }, [restTimer?.notificationId, userId, workspace.workout]);
 
   return (
@@ -1281,7 +1328,7 @@ function ActiveWorkoutFeed(props: {
             onPress={props.onFinish}
           />
           <Button
-            label="Discard Workout"
+            label="Discard Session"
             destructive
             onPress={props.onAbandon}
           />

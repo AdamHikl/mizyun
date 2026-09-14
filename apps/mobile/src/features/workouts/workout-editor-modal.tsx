@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { useCallback, useEffect, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import type { CatalogExercise } from "@mizyun/core";
+import { readWorkoutLifecycle, type CatalogExercise } from "@mizyun/core";
 import type { Workout } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
@@ -181,6 +181,11 @@ export function WorkoutEditorModal({
           name: trimmedName,
           notes: notes.trim() || null,
           plannedExercises,
+          lifecycle:
+            readWorkoutLifecycle(workoutToEdit.workout.details) ??
+            (workoutToEdit.status === "completed"
+              ? { kind: "session" }
+              : { kind: "routine" }),
         });
 
         setBusy(false);
