@@ -6,6 +6,13 @@
 > - [`docs/archive/status/STATUS_HISTORY_2026-09-10_THROUGH_2026-09-12.md`](docs/archive/status/STATUS_HISTORY_2026-09-10_THROUGH_2026-09-12.md) (Handoffs from Sep 10 through Sep 12)
 > - [`docs/archive/status/STATUS_HISTORY_THROUGH_2026-09-09.md`](docs/archive/status/STATUS_HISTORY_THROUGH_2026-09-09.md) (Handoffs through Sep 9)
 
+## Active handoff — Production legal-page support email refreshed (2026-09-14)
+
+- **Live correction:** The Production checkout at exact commit `bf4ef1a1c29d29b5fb71b145bdff23254ded931b` already contained `support@mizyun.phiskel.com` in the privacy, terms, support, and account-deletion routes, but the API process had been running since 2026-09-12 and still served the former `support@phiskel.com` value from memory. No source, database, migration, checkout, or backend SHA change was required.
+- **Scoped operation:** Restarted only `mizyun-api.service`; it returned to `active`. The public Production health endpoint returned `{"status":"ok","service":"mizyun-api"}` and the Cloudflare-obfuscated address on `https://mizyun-api.phiskel.com/legal/privacy` decoded to `support@mizyun.phiskel.com` after the restart.
+- **Verification:** `pnpm --filter @mizyun/api test src/modules/legal` passed 3/3 tests. A read-only helper audit confirmed that no tracked `support@phiskel.com` occurrence remains and independently identified the stale running process as the likely boundary. The existing Production hold for the workout lifecycle migration remains unchanged; current `main` was not deployed.
+- **Next exact action:** Continue Google Play setup using the corrected public privacy URL; do not promote the held workout backend until Issue #98 is resolved.
+
 ## Active handoff — Production email-confirmation redirect corrected (2026-09-14)
 
 - **Production configured:** The Production Supabase source of truth at `/srv/mizyun/supabase/.env` now uses the exact mobile callback for both `SITE_URL` and `ADDITIONAL_REDIRECT_URLS`: `mizyun://auth/callback`. The previous dead fallback, `https://mizyun.phiskel.com`, remains recoverable in `/srv/mizyun/supabase/.env.before-site-url-20260914`. Only the `auth` container was force-recreated; the Production API checkout, database, migrations, and current backend SHA were not changed.
