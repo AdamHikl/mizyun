@@ -134,7 +134,12 @@ export class SupabaseMobileAuthClient implements AuthClient {
   async signUpWithPassword(
     credentials: PasswordCredentials,
   ): Promise<SignUpResult> {
-    const { data, error } = await this.client.auth.signUp(credentials);
+    const { data, error } = await this.client.auth.signUp({
+      ...credentials,
+      options: {
+        emailRedirectTo: this.redirectUri,
+      },
+    });
     if (error) throw asIdentityError(error);
     const session = toAuthSession(data.session);
     return { session, emailConfirmationRequired: session === null };

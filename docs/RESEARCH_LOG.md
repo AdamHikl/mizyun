@@ -1,5 +1,13 @@
 # Research log
 
+## 2026-09-14 — Production Auth confirmation redirect
+
+- [Supabase Redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls), accessed 2026-09-14, defines `SITE_URL` as the fallback for email confirmations and password resets when the client omits a redirect, requires explicit redirect targets to be allow-listed, and supports mobile deep-link schemes as a `SITE_URL`.
+- [Supabase Email Templates](https://supabase.com/docs/guides/auth/auth-email-templates), accessed 2026-09-14, documents `ConfirmationURL` and `RedirectTo` and warns that link prefetch can consume a one-time confirmation URL before the user clicks it.
+- Production inspection found `SITE_URL=https://mizyun.phiskel.com`, an unresolved hostname, while `ADDITIONAL_REDIRECT_URLS=mizyun://auth/callback` and the Production app already used and consumed that exact custom scheme. The immediate release-safe correction is `SITE_URL=mizyun://auth/callback`, with an explicit `emailRedirectTo` on mobile signup as defense in depth.
+- Operational consequence: changing the Compose `.env` is insufficient until the Auth container is recreated, because a simple container restart retains the old environment. Production used `sh run.sh recreate auth`, then verified the effective GoTrue environment, container health, public Auth health, and unchanged API health. This is not a full Production code/database deployment.
+- UX boundary: the custom scheme fixes confirmation on devices with Mizyun installed. A future hosted HTTPS landing/bridge is required for graceful desktop confirmation; that change must also point signup's explicit `emailRedirectTo` to the bridge (or omit it to use the new `SITE_URL`). `https://mizyun.phiskel.com` must not be restored until its DNS and page exist.
+
 ## 2026-09-14 — Workout routine and live-session lifecycle
 
 - [Expo SDK 57 Router documentation](https://docs.expo.dev/versions/v57.0.0/sdk/router/) documents `router.replace` as navigation that does not append another history entry. The live-workout screen uses it only as a compatibility fallback when an older/deep link opens a routine ID: the app first creates the real session, then replaces the route with that session ID.

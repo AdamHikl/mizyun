@@ -84,9 +84,34 @@ Expected: the UI shows the confirmation hint and no error. The user row appears 
 
 1. Open `http://127.0.0.1:54324` in a browser.
 2. Open the email titled "Confirm your email address".
-3. Click the "Confirm email address" link. This redirects GoTrue's `/auth/v1/verify?type=signup&token=...` endpoint, which then 303-redirects to `mizyun://auth/callback#access_token=...&type=signup`.
+3. Click the "Confirm email address" link. This redirects GoTrue's `/auth/v1/verify?type=signup&token=...` endpoint, which then 303-redirects to the current variant's callback: `mizyun-dev://auth/callback#access_token=...&type=signup` for local/Dev or `mizyun://auth/callback#access_token=...&type=signup` for Production.
 
 Expected: GoTrue marks the user as `email_confirmed_at = NOW()`. The deep link reaches the mobile app via the top-level `DeepLinkBridge` in `_layout.tsx`, the `parseDeepLinkFragment` helper in `@mizyun/identity` parses the URL fragment, and `authClient.consumeDeepLink` calls `supabase.auth.setSession`. The AuthContext subscription fires `SIGNED_IN`; the SessionGate swaps the AuthScreen for the regular tabs.
+
+### Production redirect configuration
+
+The self-hosted Production Supabase stack reads these values from
+`/srv/mizyun/supabase/.env`:
+
+```dotenv
+SITE_URL=mizyun://auth/callback
+ADDITIONAL_REDIRECT_URLS=mizyun://auth/callback
+```
+
+After changing either value, recreate only Auth with
+`cd /srv/mizyun/supabase && sh run.sh recreate auth`; a normal container
+restart does not replace its environment. Verify the effective
+`GOTRUE_SITE_URL` and `GOTRUE_URI_ALLOW_LIST`, internal container health, and
+public Auth health with the publishable-key header. Keep a timestamped `.env`
+backup for rollback.
+
+This callback is intentionally mobile-only. Clicking the confirmation from a
+desktop without Mizyun installed may not open anything useful. A future HTTPS
+landing/bridge should handle that cross-device case. That future change must
+also point signup's explicit `emailRedirectTo` to the HTTPS bridge (or omit it
+to use the new `SITE_URL`); never use an unresolved hostname as `SITE_URL`.
+Confirmation links are single-use and may also be consumed by mail-provider
+prefetching.
 
 ## Step 6 — Sign in
 

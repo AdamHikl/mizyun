@@ -34,7 +34,7 @@ const createMockSupabaseClient = (overrides: {
     data: { session: any } | null;
     error: Error | null;
   }>;
-  signUp?: () => Promise<{
+  signUp?: (params?: any) => Promise<{
     data: { session: any } | null;
     error: Error | null;
   }>;
@@ -132,6 +132,32 @@ const createMockSupabaseClient = (overrides: {
 };
 
 describe("SupabaseMobileAuthClient", () => {
+  describe("signUpWithPassword", () => {
+    it.each(["mizyun://auth/callback", "mizyun-dev://auth/callback"])(
+      "sends email confirmation back to app variant %s",
+      async (redirectUri) => {
+        const mockClient = createMockSupabaseClient({});
+        const authClient = new SupabaseMobileAuthClient(
+          mockClient,
+          redirectUri,
+        );
+
+        await authClient.signUpWithPassword({
+          email: "test@example.com",
+          password: "strong-password",
+        });
+
+        expect(mockClient.auth.signUp).toHaveBeenCalledWith({
+          email: "test@example.com",
+          password: "strong-password",
+          options: {
+            emailRedirectTo: redirectUri,
+          },
+        });
+      },
+    );
+  });
+
   describe("signInWithOAuth", () => {
     it("requests OAuth URL from Supabase with skipBrowserRedirect: true", async () => {
       const mockClient = createMockSupabaseClient({});
