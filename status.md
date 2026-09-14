@@ -6,6 +6,13 @@
 > - [`docs/archive/status/STATUS_HISTORY_2026-09-10_THROUGH_2026-09-12.md`](docs/archive/status/STATUS_HISTORY_2026-09-10_THROUGH_2026-09-12.md) (Handoffs from Sep 10 through Sep 12)
 > - [`docs/archive/status/STATUS_HISTORY_THROUGH_2026-09-09.md`](docs/archive/status/STATUS_HISTORY_THROUGH_2026-09-09.md) (Handoffs through Sep 9)
 
+## Active handoff — Offline cache paused (`OFFLINE-CACHE-001`, 2026-09-14)
+
+- **State:** Founder stopped the implementation workflow. The work package remains `active`/in progress, not completed.
+- **Local-only work:** `apps/mobile/src/features/auth/profile-cache.ts` remains untracked. Dashboard caching, application wiring, account-deletion purge, tests and verification are unfinished.
+- **Release boundary:** The untracked cache work is explicitly excluded from Dev and Production deployments and from both iPhone builds. Resume, review and verify it in a later session before any deployment.
+- **Next exact action:** Preserve the untracked helper and resume only when the founder requests `OFFLINE-CACHE-001`; complete the missing integration, deletion coverage and tests before running release gates.
+
 ## Active handoff — Coach workout/meal intent disambiguation (`FIX-COACH-INTENT-001`, 2026-09-14)
 
 - **Implemented:** `apps/api/src/modules/coach/nutrition-action.ts` is now a conservative classifier with two safeguards. (1) A **workout-signal veto**: workouts/training/exercises/sessions plus common activity and exercise names, including plurals (`walk`, `run`, `jog`, `ride`, `swim`, `cycle`, `hike`, `sprint`, `lift`, `cardio`, `gym`, `hiit`, `sets`, `reps`, `squats`, `deadlifts`, `bench`, ...), and Slovak `cvičenie*`/`tréning*`. (2) A **food-context requirement**: a quantity with a unit or a common food/drink word (English plus a small Slovak set). Doubtful statements stay with the grounded text Coach. The mobile app only renders `meal_log` proposals; there is no mobile-side intent logic to keep in sync.
