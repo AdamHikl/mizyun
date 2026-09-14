@@ -91,8 +91,8 @@ Update shared continuity documents (coordinator only):
    - List pass/fail counts and exact verification commands.
    - Separate verified from remaining gates.
    - Set the next exact action.
-2. **`backlog.md`**:
-   - Update statuses (`[x]` completed, `[-]` blocked) and link to evidence.
+2. **GitHub Issues**:
+   - Update issue statuses (close completed issues via `gh issue close`, update `status:*` labels) and link to evidence.
 3. **Commit & Clean Tree**:
    - Format changed files.
    - Commit with a structured commit message linking feature IDs.

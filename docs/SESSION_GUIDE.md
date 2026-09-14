@@ -13,7 +13,7 @@ When documents appear inconsistent, use this order and repair the lower source d
 5. `docs/PRODUCT_REQUIREMENTS.md` — required behavior
 6. `plan.md` — roadmap order and phase exit criteria
 7. `status.md` — current operational snapshot
-8. `backlog.md` — executable inventory
+8. GitHub Issues (`AdamHikl/mizyun/issues`) — executable inventory and task tracking
 9. code, migrations, tests, and Git history — actual implementation evidence
 
 ### The two authority questions
@@ -34,7 +34,7 @@ If evidence is insufficient, label a claim unverified with a source link. Never 
    ```
    Preserve any pre-existing changes from another session.
 2. Read the compact current `status.md` and [`docs/START_HERE.md`](./START_HERE.md). (Read full `goals.md` and `docs/BUSINESS_ALIGNMENT.md` when addressing product direction, pricing, scope changes, or uncertain intent; read full `plan.md` when changing roadmap sequencing).
-3. Identify the active work item and its definition of done from `status.md` and `backlog.md`; read any applicable nested instructions (e.g. `apps/mobile/AGENTS.md`).
+3. Identify the active work item and its definition of done from `status.md` and GitHub Issues (`gh issue list --label "status:active"` or `--state open`); read any applicable nested instructions (e.g. `apps/mobile/AGENTS.md`).
 4. Use [`docs/feature-map.json`](./feature-map.json) or `pnpm context <feature-id>` to select relevant requirements, ADRs, runbooks, open findings, source code, and tests.
 5. State expected impacts and delegate a bounded independent subtask with disjoint file ownership and acceptance checks, per `AGENTS.md`.
 
@@ -47,7 +47,7 @@ If evidence is insufficient, label a claim unverified with a source link. Never 
 - Do not bypass an interface merely because only one provider exists today.
 - Update tests with behavior, not afterward as cleanup.
 - Run focused tests frequently; run the full gate before committing.
-- When a discovered task is outside scope, add it to `backlog.md` with a dependency and continue the active item.
+- When a discovered task is outside scope, add it as a GitHub issue (`gh issue create`) with priority/status/area labels and continue the active item.
 - When blocked, record the exact condition and evidence in `status.md`; do not mark an incomplete item done.
 - Never use real user health information, body photos, credentials, or model secrets in fixtures or documentation.
 
@@ -75,7 +75,7 @@ For each affected technology:
    Inspect helper changes and evidence yourself after writes have settled. Record which work was delegated and any unresolved independent-review findings.
 3. Update:
    - `status.md` with completed work, verification evidence, blockers, next exact action, latest commit;
-   - `backlog.md` statuses and newly discovered work;
+   - GitHub Issues statuses (close completed issues, update `status:*` labels) and newly discovered work;
    - `plan.md` only if phase/current-focus or sequencing changed;
    - `goals.md` only if the user changed product direction;
    - requirements/ADR/research log when behavior or decisions changed.
@@ -122,7 +122,7 @@ For each affected technology:
 | `goals.md`                     | Product mission, scope, non-goals, principles  | Rarely, with product-direction changes         |
 | `plan.md`                      | Phase order, dependencies, exit criteria       | At phase/work-package transitions              |
 | `status.md`                    | Current implementation and next exact action   | Every development session                      |
-| `backlog.md`                   | Executable tasks and dependencies              | Whenever work is discovered/started/completed  |
+| GitHub Issues                  | Executable tasks and dependencies              | Whenever work is discovered/started/completed  |
 | `docs/PRODUCT_REQUIREMENTS.md` | Stable behavioral requirements                 | When accepted behavior changes                 |
 | `docs/QUALITY_GATES.md`        | Definition of done and release criteria        | When testing/risk policy changes               |
 | `docs/tutorials/`              | Setup, build, test, and troubleshooting memory | Whenever a proven operational workflow changes |
@@ -134,6 +134,6 @@ For each affected technology:
 
 - Link instead of copying detail across files.
 - Put facts in the narrowest appropriate document.
-- Use requirement/backlog IDs when referring to behavior or work.
+- Use requirement/issue IDs (e.g. `[PLAY-001]`) when referring to behavior or work.
 - Never mark a milestone complete based only on code presence; cite reproducible exit evidence.
 - If a session changes no project state, do not churn timestamps or status prose unnecessarily.

@@ -16,7 +16,7 @@ Use this skill when the user requests an implementation plan, architectural guid
 Do not plan from assumptions or outdated handoffs:
 
 1. **Inspect Code**: Check current implementation files in the relevant packages (`packages/core`, `apps/api`, `apps/mobile`).
-2. **Review Existing Gates**: Check [`status.md`](../../../status.md), [`backlog.md`](../../../backlog.md), and [`docs/REMEDIATION_EVIDENCE_CHECKLIST.md`](../../../docs/REMEDIATION_EVIDENCE_CHECKLIST.md) to distinguish what is already implemented from what is open.
+2. **Review Existing Gates**: Check [`status.md`](../../../status.md), [GitHub Issues](https://github.com/AdamHikl/mizyun/issues) (`gh issue list`), and [`docs/REMEDIATION_EVIDENCE_CHECKLIST.md`](../../../docs/REMEDIATION_EVIDENCE_CHECKLIST.md) to distinguish what is already implemented from what is open.
 3. **Respect User Scope**: If the user specifies platform boundaries (e.g. "plan Android only", "defer App Store submission"), explicitly mark other platforms as non-goals.
 
 ## 2. Research Affected Platforms

@@ -1,5 +1,7 @@
 # Agent guide: local Qwen through OpenCode
 
+> ⛔ **PAUSED BY USER DECISION (2026-09-14):** Local Qwen execution is paused indefinitely because it is too slow. Do NOT use this workflow or start the local MLX server. Use Antigravity built-in subagents or direct coordinator execution.
+
 Use this guide when delegating a bounded Mizyun coding task to the local
 `mlx-community/Qwen3.8-27B-8bit` model through OpenCode. The local runtime is
 MLX-LM. Do not start `scripts/worker/proxy.py` or

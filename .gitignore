@@ -20,6 +20,12 @@ coverage/
 .eslintcache
 *.tsbuildinfo
 
+# Local App Store captures and rendered upload artifacts may contain user data.
+screenshots/IMG_*.PNG
+screenshots/app-store/iphone-6.9/
+screenshots/app-store/preview.png
+screenshots/app-store/*.zip
+
 # Native generated projects (Expo CNG)
 apps/mobile/android/
 apps/mobile/ios/

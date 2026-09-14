@@ -189,7 +189,7 @@ Mizyun Monorepo Navigation:
 - packages/contracts: shared versioned Zod schemas and wire types (packages/contracts/src/index.ts).
 - apps/mobile: React Native Expo mobile app (apps/mobile/src/features/...).
 - apps/api: Fastify backend API composition root (apps/api/src/modules/...).
-- docs/: Repository architecture and standards (docs/START_HERE.md, docs/feature-map.json, status.md, backlog.md, docs/QUALITY_GATES.md).
+- docs/: Repository architecture and standards (docs/START_HERE.md, docs/feature-map.json, status.md, GitHub Issues, docs/QUALITY_GATES.md).
 
 Capabilities:
 1. Inspect any file or document in the repository (read-only):

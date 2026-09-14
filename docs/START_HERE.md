@@ -5,7 +5,7 @@
 ## 1. Current State & Active Work
 
 - **Current Operational Status**: [`status.md`](../status.md) — active work package, current SHAs, known blockers, next action.
-- **Backlog & Task IDs**: [`backlog.md`](../backlog.md) — ordered executable work items and acceptance definitions.
+- **Backlog & Task IDs**: [GitHub Issues](https://github.com/AdamHikl/mizyun/issues) (redirected from [`backlog.md`](../backlog.md)) — ordered executable work items, task IDs, and acceptance definitions (`gh issue list`).
 - **Roadmap & Phase Exit Criteria**: [`plan.md`](../plan.md) — sequencing from modular foundation to production release.
 
 ## 2. Product Intent & Requirements

@@ -1,0 +1,434 @@
+[
+  {
+    "issueNumber": 1,
+    "id": "PLAY-001",
+    "title": "Publisher/account and testing eligibility",
+    "labels": ["priority:P1", "status:ready", "area:google-play"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/1",
+    "state": "open"
+  },
+  {
+    "issueNumber": 2,
+    "id": "PLAY-002",
+    "title": "Safe signed Production AAB",
+    "labels": ["priority:P1", "status:ready", "area:google-play"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/2",
+    "state": "open"
+  },
+  {
+    "issueNumber": 3,
+    "id": "PLAY-003",
+    "title": "Android compatibility and device acceptance",
+    "labels": ["priority:P1", "status:ready", "area:google-play"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/3",
+    "state": "open"
+  },
+  {
+    "issueNumber": 4,
+    "id": "PLAY-004",
+    "title": "Policy behavior and listing",
+    "labels": ["priority:P1", "status:ready", "area:google-play"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/4",
+    "state": "open"
+  },
+  {
+    "issueNumber": 5,
+    "id": "PLAY-005",
+    "title": "Internal/closed testing",
+    "labels": ["priority:P1", "status:ready", "area:google-play"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/5",
+    "state": "open"
+  },
+  {
+    "issueNumber": 6,
+    "id": "PLAY-006",
+    "title": "Review and intentional publication",
+    "labels": ["priority:P1", "status:ready", "area:google-play"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/6",
+    "state": "open"
+  },
+  {
+    "issueNumber": 7,
+    "id": "APPLE-004",
+    "title": "Accept Apple login on Dev iPhone",
+    "labels": ["priority:P1", "status:ready", "area:apple-store"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/7",
+    "state": "open"
+  },
+  {
+    "issueNumber": 8,
+    "id": "STORE-002",
+    "title": "Upload and accept TestFlight candidate",
+    "labels": ["priority:P1", "status:ready", "area:apple-store"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/8",
+    "state": "open"
+  },
+  {
+    "issueNumber": 9,
+    "id": "STORE-003",
+    "title": "App Review and explicit public release",
+    "labels": ["priority:P1", "status:ready", "area:apple-store"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/9",
+    "state": "open"
+  },
+  {
+    "issueNumber": 10,
+    "id": "BRAND-ICON-001",
+    "title": "Apply approved ribbon-M icon across launcher and startup",
+    "labels": ["priority:P3", "status:active", "area:branding"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/10",
+    "state": "open"
+  },
+  {
+    "issueNumber": 11,
+    "id": "BRAND-SPLASH-001",
+    "title": "Calibrate splash & animated launch screen background to brand palette",
+    "labels": ["priority:P2", "status:active", "area:branding"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/11",
+    "state": "open"
+  },
+  {
+    "issueNumber": 12,
+    "id": "AI-BUDGET-001",
+    "title": "Decoupled AI token & photo draft budgets",
+    "labels": ["priority:P1", "status:active", "area:session"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/12",
+    "state": "open"
+  },
+  {
+    "issueNumber": 13,
+    "id": "BETA-PRO-001",
+    "title": "Beta Pro Pass request flow & approval CLI",
+    "labels": ["priority:P1", "status:active", "area:session"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/13",
+    "state": "open"
+  },
+  {
+    "issueNumber": 14,
+    "id": "OFFLINE-CACHE-001",
+    "title": "Offline profile & dashboard cache for instant startup",
+    "labels": ["priority:P1", "status:active", "area:offline"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/14",
+    "state": "open"
+  },
+  {
+    "issueNumber": 15,
+    "id": "FIX-COACH-INTENT-001",
+    "title": "Disambiguate Coach workout logging intents from meal drafts",
+    "labels": ["priority:P1", "status:active", "area:coach"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/15",
+    "state": "open"
+  },
+  {
+    "issueNumber": 16,
+    "id": "DOCS-NAV-001",
+    "title": "Reconcile current guidance, archive history, and introduce focused startup",
+    "labels": ["priority:P1", "status:ready", "area:docs"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/16",
+    "state": "open"
+  },
+  {
+    "issueNumber": 17,
+    "id": "DOCS-NAV-002",
+    "title": "Add feature manifest and bounded context command",
+    "labels": ["priority:P1", "status:ready", "area:docs"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/17",
+    "state": "open"
+  },
+  {
+    "issueNumber": 18,
+    "id": "DOCS-NAV-003",
+    "title": "Add advisory impact analysis and navigation/boundary checks",
+    "labels": ["priority:P1", "status:ready", "area:docs"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/18",
+    "state": "open"
+  },
+  {
+    "issueNumber": 19,
+    "id": "DOCS-NAV-004",
+    "title": "Independently accept new-session navigation",
+    "labels": ["priority:P1", "status:ready", "area:docs"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/19",
+    "state": "open"
+  },
+  {
+    "issueNumber": 20,
+    "id": "INFRA-DUAL-001",
+    "title": "Restore access, inventory Pi and adopt environment/release design",
+    "labels": ["priority:P1", "status:ready", "area:infra"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/20",
+    "state": "open"
+  },
+  {
+    "issueNumber": 21,
+    "id": "INFRA-DUAL-002",
+    "title": "Separate Pi Dev API/Supabase/Auth/Storage and HTTPS",
+    "labels": ["priority:P1", "status:ready", "area:infra"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/21",
+    "state": "open"
+  },
+  {
+    "issueNumber": 22,
+    "id": "INFRA-DUAL-003",
+    "title": "Both iPhone variants with guarded local/EAS profiles",
+    "labels": ["priority:P1", "status:ready", "area:infra"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/22",
+    "state": "open"
+  },
+  {
+    "issueNumber": 23,
+    "id": "INFRA-DUAL-004",
+    "title": "Exact-SHA Dev and Production promotion with safe CI",
+    "labels": ["priority:P1", "status:ready", "area:infra"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/23",
+    "state": "open"
+  },
+  {
+    "issueNumber": 24,
+    "id": "INFRA-DUAL-005",
+    "title": "Dual-environment acceptance and operational handoff",
+    "labels": ["priority:P1", "status:ready", "area:infra"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/24",
+    "state": "open"
+  },
+  {
+    "issueNumber": 25,
+    "id": "REL-AUD-001",
+    "title": "Persistent complete account export/deletion (R1; REL-001)",
+    "labels": ["priority:P1", "status:ready", "area:remediation"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/25",
+    "state": "open"
+  },
+  {
+    "issueNumber": 26,
+    "id": "REL-AUD-002",
+    "title": "Mobile account data controls and accurate disclosures (R2)",
+    "labels": ["priority:P1", "status:ready", "area:remediation"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/26",
+    "state": "open"
+  },
+  {
+    "issueNumber": 27,
+    "id": "REL-AUD-003",
+    "title": "Reproducible signed tester build profiles (R3; REL-002)",
+    "labels": ["priority:P1", "status:ready", "area:remediation"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/27",
+    "state": "open"
+  },
+  {
+    "issueNumber": 28,
+    "id": "REL-AUD-004",
+    "title": "Resolve iOS Google-login parity (R4)",
+    "labels": ["priority:P1", "status:active", "area:remediation"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/28",
+    "state": "open"
+  },
+  {
+    "issueNumber": 29,
+    "id": "REL-AUD-005",
+    "title": "Current Gemini external eligibility/consent/evaluation gate (R5)",
+    "labels": ["priority:P0", "status:ready", "area:remediation"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/29",
+    "state": "open"
+  },
+  {
+    "issueNumber": 30,
+    "id": "REL-AUD-006",
+    "title": "Protect AI tier authority and budget every provider path (R6)",
+    "labels": ["priority:P1", "status:ready", "area:remediation"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/30",
+    "state": "open"
+  },
+  {
+    "issueNumber": 31,
+    "id": "REL-AUD-007",
+    "title": "Idempotent authoritative logging retries (R7)",
+    "labels": ["priority:P1", "status:ready", "area:remediation"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/31",
+    "state": "open"
+  },
+  {
+    "issueNumber": 32,
+    "id": "REL-AUD-008",
+    "title": "Current candidate device/operations acceptance (R8; REL-002/003)",
+    "labels": ["priority:P1", "status:ready", "area:remediation"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/32",
+    "state": "open"
+  },
+  {
+    "issueNumber": 33,
+    "id": "REL-AUD-010",
+    "title": "Reconcile stale operational/AI/product documents",
+    "labels": ["priority:P2", "status:ready", "area:remediation"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/33",
+    "state": "open"
+  },
+  {
+    "issueNumber": 34,
+    "id": "MOB-AND-001",
+    "title": "Split the founder Android APK per ABI",
+    "labels": ["priority:P2", "status:ready", "area:google-play"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/34",
+    "state": "open"
+  },
+  {
+    "issueNumber": 35,
+    "id": "AI-GOV-001",
+    "title": "Mistral privacy, policy, DPA, ZDR, and commercial gate",
+    "labels": ["priority:P0", "status:active", "area:ai"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/35",
+    "state": "open"
+  },
+  {
+    "issueNumber": 36,
+    "id": "AI-MOB-001",
+    "title": "Native Coach conversation experience",
+    "labels": ["priority:P1", "status:active", "area:coach"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/36",
+    "state": "open"
+  },
+  {
+    "issueNumber": 37,
+    "id": "ALPHA-001",
+    "title": "Founder week plus 10–30 design-partner alpha",
+    "labels": ["priority:P0", "status:ready", "area:alpha"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/37",
+    "state": "open"
+  },
+  {
+    "issueNumber": 38,
+    "id": "BILL-001",
+    "title": "Premium packaging and mobile subscription billing",
+    "labels": ["priority:P1", "status:blocked", "area:session"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/38",
+    "state": "open"
+  },
+  {
+    "issueNumber": 39,
+    "id": "IOS-HEALTH-001",
+    "title": "HealthKit permissions and steps adapter",
+    "labels": ["priority:P2", "status:research", "area:workout"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/39",
+    "state": "open"
+  },
+  {
+    "issueNumber": 40,
+    "id": "AND-HEALTH-001",
+    "title": "Health Connect permissions and steps adapter",
+    "labels": ["priority:P2", "status:research", "area:workout"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/40",
+    "state": "open"
+  },
+  {
+    "issueNumber": 41,
+    "id": "MEM-001",
+    "title": "Persistent memory adapter and controls",
+    "labels": ["priority:P0", "status:active", "area:session"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/41",
+    "state": "open"
+  },
+  {
+    "issueNumber": 42,
+    "id": "AI-001",
+    "title": "Evaluate/select initial Mistral model",
+    "labels": ["priority:P0", "status:active", "area:ai"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/42",
+    "state": "open"
+  },
+  {
+    "issueNumber": 43,
+    "id": "AI-002",
+    "title": "Text coaching adapter and read-only tools",
+    "labels": ["priority:P1", "status:active", "area:ai"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/43",
+    "state": "open"
+  },
+  {
+    "issueNumber": 44,
+    "id": "VISION-001",
+    "title": "Editable text/photo food drafts",
+    "labels": ["priority:P1", "status:active", "area:nutrition"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/44",
+    "state": "open"
+  },
+  {
+    "issueNumber": 45,
+    "id": "VISION-002",
+    "title": "Conservative body-progress observations",
+    "labels": ["priority:P2", "status:blocked", "area:nutrition"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/45",
+    "state": "open"
+  },
+  {
+    "issueNumber": 46,
+    "id": "REL-001",
+    "title": "Privacy/export/deletion release gate",
+    "labels": ["priority:P0", "status:blocked", "area:remediation"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/46",
+    "state": "open"
+  },
+  {
+    "issueNumber": 47,
+    "id": "REL-002",
+    "title": "iOS/Android beta build matrix",
+    "labels": ["priority:P0", "status:blocked", "area:remediation"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/47",
+    "state": "open"
+  },
+  {
+    "issueNumber": 48,
+    "id": "REL-003",
+    "title": "Accessibility and poor-network pass",
+    "labels": ["priority:P1", "status:blocked", "area:remediation"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/48",
+    "state": "open"
+  },
+  {
+    "issueNumber": 49,
+    "id": "AUTH-SMTP-001",
+    "title": "Domain-authenticated Auth & transactional email delivery",
+    "labels": ["priority:P1", "status:active", "area:auth"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/49",
+    "state": "open"
+  },
+  {
+    "issueNumber": 50,
+    "id": "INFRA-WIN-001",
+    "title": "Provision Windows/WSL2 founder-production backend",
+    "labels": ["priority:P0", "status:active", "area:infra"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/50",
+    "state": "open"
+  },
+  {
+    "issueNumber": 51,
+    "id": "INFRA-SELFHOST-001",
+    "title": "Self-hosted Mizyun-operated Supabase on Adam's Slovakia PC (alpha)",
+    "labels": ["priority:P0", "status:active", "area:infra"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/51",
+    "state": "open"
+  },
+  {
+    "issueNumber": 52,
+    "id": "INFRA-PORT-001",
+    "title": "Managed-to-self-hosted portability and restore lab",
+    "labels": ["priority:P1", "status:blocked", "area:infra"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/52",
+    "state": "open"
+  },
+  {
+    "issueNumber": 53,
+    "id": "INFRA-CUTOVER-001",
+    "title": "Rehearse and execute production data-plane migration",
+    "labels": ["priority:P2", "status:blocked", "area:infra"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/53",
+    "state": "open"
+  },
+  {
+    "issueNumber": 54,
+    "id": "AGENT-SKILLS-001",
+    "title": "Shared agent skills implementation guide and evaluation",
+    "labels": ["priority:P1", "status:ready", "area:docs"],
+    "url": "https://github.com/AdamHikl/mizyun/issues/54",
+    "state": "open"
+  }
+]

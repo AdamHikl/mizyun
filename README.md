@@ -11,7 +11,7 @@ Start here in a new development session:
 3. [`docs/BUSINESS_ALIGNMENT.md`](docs/BUSINESS_ALIGNMENT.md) — target customer, launch wedge, business model, validation ladder, and audited product gaps
 4. [`plan.md`](plan.md) — ordered phases, dependencies, and exit criteria
 5. [`status.md`](status.md) — current implementation snapshot and next exact action
-6. [`backlog.md`](backlog.md) — executable work items and dependencies
+6. [GitHub Issues](https://github.com/AdamHikl/mizyun/issues) (redirected from [`backlog.md`](backlog.md)) — executable work items, task tracking, and dependencies
 
 Supporting sources of truth:
 

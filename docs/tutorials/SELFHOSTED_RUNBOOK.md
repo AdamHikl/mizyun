@@ -397,6 +397,6 @@ At the beginning of a backend session:
 At the end:
 
 1. Run `pnpm check`, `git diff --check`, and the relevant database gate on Mac.
-2. Update `status.md`, `backlog.md`, and the research log.
+2. Update `status.md`, GitHub Issues, and the research log.
 3. Promote only when explicitly intended; committing is not deployment.
 4. Record the promoted SHA, backup path, smoke evidence, and any blocker.

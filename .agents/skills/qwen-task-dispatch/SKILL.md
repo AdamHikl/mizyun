@@ -5,7 +5,10 @@ description: Dispatch bounded implementation tasks to the local Qwen worker via 
 
 # Qwen Task Dispatch Skill
 
-This skill guides the **Gemini 3.8 Flash Coordinator** in preparing, dispatching, and accepting work from the local **Qwen3.8:27b-q8_0** worker.
+> [!WARNING]
+> **PAUSED BY USER DECISION (2026-09-14):** The local Qwen agent is paused indefinitely because it is too slow. Do NOT dispatch tasks using this skill or run local Qwen workers. Use Antigravity built-in subagents (`research`, `self`) or direct coordinator execution instead.
+
+This skill guides the **Gemini 3.8 Flash Coordinator** in preparing, dispatching, and accepting work from the local **Qwen3.8:27b-q8_0** worker (currently PAUSED).
 
 ## When to Dispatch to Qwen
 

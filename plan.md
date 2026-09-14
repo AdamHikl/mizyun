@@ -1,6 +1,6 @@
 # Mizyun implementation plan
 
-> Ordered roadmap and exit criteria. `status.md` identifies the active work package; `backlog.md` holds executable items and ideas. Completed architectural decisions live in `docs/adr/`.
+> Ordered roadmap and exit criteria. `status.md` identifies the active work package; GitHub Issues holds executable items and task tracking. Completed architectural decisions live in `docs/adr/`.
 
 ## Status legend
 
@@ -358,7 +358,7 @@ Reduce logging friction with vision-assisted drafts while preserving confirmatio
 ## Plan maintenance rules
 
 - Update the current-focus paragraph and phase status when a work package starts or finishes.
-- Move executable tasks between sections in `backlog.md`; do not turn this roadmap into a daily log.
+- Track and update executable tasks using GitHub Issues; do not turn this roadmap into a daily log.
 - Add or amend an ADR when a durable architecture choice changes.
 - Update `status.md` at the end of every development session.
 - Do not mark a phase complete until its exit evidence is reproducible.

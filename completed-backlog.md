@@ -1,7 +1,8 @@
 # Mizyun completed backlog
 
-> Archive of completed and superseded work packages, tasks, and verified implementation evidence.
-> For active, ready, research, and blocked work items, see [backlog.md](backlog.md).
+> Archive of completed and superseded work packages, tasks, and verified implementation evidence prior to 2026-09-14.
+> Active tasks and future work tracking are managed in [GitHub Issues](https://github.com/AdamHikl/mizyun/issues).
+> For the active tasks mapping, see [backlog.md](backlog.md).
 
 ## OpenCode local Qwen — local tool round trip verified (`LOCAL-WORKER-002`, 2026-09-13)
 

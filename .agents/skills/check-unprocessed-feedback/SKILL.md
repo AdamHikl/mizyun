@@ -72,7 +72,7 @@ node scripts/check-user-feedback.mjs --unmark <FEEDBACK_UUID>
      - **Attachments**: Note count of media asset attachments if present
 
 3. **Offer Next Steps**:
-   - If a valid bug or feature is described, propose adding it to [`backlog.md`](../../../backlog.md).
+   - If a valid bug or feature is described, propose creating a GitHub issue via `gh issue create`.
    - Ask if the user wants to mark the item as processed.
 
 ---

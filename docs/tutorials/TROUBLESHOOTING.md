@@ -203,4 +203,4 @@ This warning appeared in successful XCTest-driver sessions. Judge the run by the
 
 ## When to add a new entry
 
-Add a failure here only after its cause and safe correction are known. Unresolved defects belong in `status.md`/`backlog.md`, with evidence, rather than being disguised as a tutorial workaround.
+Add a failure here only after its cause and safe correction are known. Unresolved defects belong in `status.md`/GitHub Issues, with evidence, rather than being disguised as a tutorial workaround.

@@ -1,5 +1,7 @@
 # Local Qwen in OpenCode
 
+> ⛔ **PAUSED (2026-09-14):** Local Qwen agent usage is paused indefinitely per user decision due to performance (too slow). Preserved for reference only; do not start the server or delegate tasks to it.
+
 Use the existing MLX-LM installation for this single-user Mac worker. OpenCode
 talks directly to its Chat Completions endpoint; no proxy is needed.
 

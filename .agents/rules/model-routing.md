@@ -1,6 +1,8 @@
 # Model Routing & Safety Boundaries
 
-This rule governs how tasks are allocated between **Astra (Architect/Reviewer)**, **Gemini 3.8 Flash (Antigravity Coordinator)**, and **Qwen3.8:27b-q8_0 (Local Ollama Workhorse)**.
+> ⛔ **PAUSED BY USER DECISION (2026-09-14):** The local Qwen workhorse (Tier 3: Qwen3.8:27b-q8_0 via Ollama/MLX) is paused indefinitely because it is too slow. Do not route tasks or dispatch subagent work to Qwen. Subagent delegations must be handled by Antigravity built-in subagents (`research`, `self`) or the coordinator directly.
+
+This rule governs how tasks are allocated between **Astra (Architect/Reviewer)**, **Gemini 3.8 Flash (Antigravity Coordinator)**, and **Qwen3.8:27b-q8_0 (Local Ollama Workhorse - PAUSED)**.
 
 ---
 
@@ -24,10 +26,12 @@ This rule governs how tasks are allocated between **Astra (Architect/Reviewer)**
   - Assign routine tasks to the local Qwen worker via MCP (`qwen_run_task`) or CLI runner.
   - Monitor execution, evaluate worker reports, and integrate diffs across packages.
   - Run full repository verification checks (`pnpm check`, `pnpm test`).
-  - Maintain session continuity documents (`status.md`, `backlog.md`, `docs/LOCAL_WORKER_BASELINE.md`).
+  - Maintain session continuity documents (`status.md`, GitHub Issues, `docs/LOCAL_WORKER_BASELINE.md`).
   - **Exclusive actions**: Only the coordinator (or the user) may execute git commits, pushes, remote deployments (`deploy:dev`, `deploy:production`), or database resets. Workers must never perform these.
 
-### Tier 3: Workhorse (Qwen3.8:27b-q8_0 via Ollama)
+### Tier 3: Workhorse (Qwen3.8:27b-q8_0 via Ollama) [PAUSED]
+
+> **STATUS: PAUSED (2026-09-14).** Do not dispatch tasks to this tier. Too slow per user decision.
 
 - **Authority**: Fast, bounded, localized implementation tasks.
 - **Scope**:

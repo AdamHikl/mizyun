@@ -158,7 +158,7 @@ It also creates predictable diligence questions. The company should demonstrate:
 - Product intent and business milestones: `goals.md`
 - Roadmap and exit criteria: `plan.md`
 - Current audited implementation: `status.md`
-- Executable work: `backlog.md`
+- Executable work: [GitHub Issues](https://github.com/AdamHikl/mizyun/issues)
 - Behavioral requirements: `docs/PRODUCT_REQUIREMENTS.md`
 - Release definition: `docs/QUALITY_GATES.md`
 - AI gate: `docs/BEFORE_TESTING.md`
