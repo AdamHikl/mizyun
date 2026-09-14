@@ -15,6 +15,8 @@ import type { BetaProStatus } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { BrandWordmark } from "@/components/brand-wordmark";
+import { BetaNoticeCard } from "@/components/beta-notice";
 import { apiClient } from "@/composition/api-client";
 import { analyticsClient } from "@/composition/analytics-client";
 import { MaxContentWidth, Spacing } from "@/constants/theme";
@@ -117,9 +119,7 @@ export function OnboardingScreen({
         >
           <View style={styles.header}>
             <View style={styles.headerTopRow}>
-              <ThemedText type="smallBold" themeColor="textSecondary">
-                MIZYUN SETUP
-              </ThemedText>
+              <BrandWordmark suffix="SETUP" />
               {onExit ? (
                 <Pressable
                   accessibilityRole="button"
@@ -379,6 +379,8 @@ function WelcomeBody() {
         five short steps.
       </ThemedText>
 
+      <BetaNoticeCard />
+
       <ThemedView type="backgroundElement" style={styles.betaCard}>
         <View style={styles.betaHeaderRow}>
           <ThemedText style={styles.betaBadge}>✨ BETA PRO PASS</ThemedText>
@@ -387,7 +389,7 @@ function WelcomeBody() {
           Full complimentary Pro access included during the testing period.
         </ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
-          Enjoy unlimited AI meal photo drafts, full 880+ workout routines, and
+          Enjoy AI meal photo drafts, full 880+ workout routines, and
           memory-aware coaching.
         </ThemedText>
 

@@ -1,5 +1,11 @@
 # Research log
 
+## 2026-09-14 — Workout routine and live-session lifecycle
+
+- [Expo SDK 57 Router documentation](https://docs.expo.dev/versions/v57.0.0/sdk/router/) documents `router.replace` as navigation that does not append another history entry. The live-workout screen uses it only as a compatibility fallback when an older/deep link opens a routine ID: the app first creates the real session, then replaces the route with that session ID.
+- No new native API, permission, storage provider, or backend schema was introduced. The lifecycle discriminator is pure domain metadata inside the existing validated workout `details` object, so older workout rows remain readable while new routine saves and session starts are unambiguous.
+- Implementation consequence: a routine is now the stable template; Start snapshots it into a session with a fresh `startedAt`; Finish completes that session only; Discard deletes that session only. Routine rows are excluded from automatic active-workout recovery and Coach available-routine queries exclude session copies.
+
 ## 2026-09-13 — Local Qwen OpenCode protocol repair
 
 - [OpenCode provider documentation](https://opencode.ai/docs/providers/#custom-provider)
@@ -68,6 +74,12 @@ Planning-only research; [implementation plan and dated primary sources](GOOGLE_P
 - [Expo SDK 57 SplashScreen](https://docs.expo.dev/versions/v57.0.0/sdk/splash-screen/) recommends the `expo-splash-screen` config plugin and explicitly supports using the app icon or logo as the splash image with a configured image width and resize mode.
 - The brief legacy blue/A screen came from two separate startup layers: the native plugin still referenced `splash-icon.png`, while the React Native handoff overlay referenced `expo-logo.png`. Both startup layers now use the approved `mizyun-icon.png` so the native-to-JavaScript handoff retains one visual identity.
 - Expo notes that Expo Go and development builds do not fully reproduce the standalone splash experience on current Android versions. A newly generated release/native build and physical-device cold start are therefore still required for acceptance; a JavaScript refresh cannot update the native launch screen.
+
+## 2026-09-14 — Mizyun tonal launch-screen backdrop
+
+- [Expo SDK 57 SplashScreen](https://docs.expo.dev/versions/v57.0.0/sdk/splash-screen/) documents `backgroundColor` as a single hexadecimal color and `image` as the centered splash artwork; the standard Android splash path therefore cannot render a full-screen multi-tone gradient through `app.json` alone.
+- The opening handoff now keeps the launcher icon unchanged, but separates its white ribbon-M into a transparent foreground (`mizyun-mark.png`) and uses a generated blue-only full-screen backdrop (`launch-blue-backdrop.png`) in the JavaScript overlay. This prevents the opaque square icon edge from appearing over a different background.
+- The native splash uses the same central blue (`#0C70ED`) both as its color and inside `mizyun-native-splash-mark.png`, so its centered mark has no visible square edge before the animated full-screen backdrop appears. Native resources must be regenerated and tested with release-build cold starts; this local change is not device acceptance.
 
 ## 2026-09-11 — Apple sign-in activation and App Store planning
 
@@ -2140,3 +2152,9 @@ Primary source: [PostgreSQL connection parameters and URI forms](https://www.pos
 - Primary sources accessed today: [OpenAI Build skills](https://learn.chatgpt.com/docs/build-skills), reached from the official Codex skills URL, and [Google Antigravity Skills](https://antigravity.google/docs/skills). Both document repository `.agents/skills/<name>/SKILL.md` discovery and progressive instruction loading.
 - Design proposal: one shared Markdown/frontmatter source, optional client metadata, existing repository scripts and runbooks, and fresh discovery/behavior tests in each installed client. No duplicate global installations or automatic history ingestion.
 - Local evidence and implementation consequences are recorded in [the implementation guide](AGENT_SKILLS_IMPLEMENTATION_GUIDE_2026-09-13.md). Session sampling identifies repeated context reconstruction; no controlled cost benchmark was run, so savings remain a hypothesis. No runtime architectural change or ADR adopted in this planning-only session.
+
+## 2026-09-14 — Reproducible local App Store IPA export
+
+- **Primary sources:** [Apple: Distributing your app for beta testing and releases](https://developer.apple.com/documentation/xcode/distributing-your-app-for-beta-testing-and-releases), [Apple: Building from the command line with Xcode FAQ](https://developer.apple.com/library/archive/technotes/tn2339/_index.html), and [Expo: Environment variables](https://docs.expo.dev/guides/environment-variables/), accessed 2026-09-14.
+- Apple documents the archive-then-`xcodebuild -exportArchive` workflow for command-line distribution. Expo documents that `EXPO_PUBLIC_*` values are inlined into the application bundle and that `EXPO_NO_DOTENV=1` disables automatic dotenv file loading.
+- Implementation consequence: the Production IPA command builds an explicit pushed SHA in a disposable worktree, sources the reviewed Production environment after clearing inherited mobile configuration, forces a fresh prebuild/archive/export, and verifies the exported payload before emitting a checksum and manifest. Artifact creation remains distinct from App Store Connect upload and backend deployment.

@@ -10,6 +10,7 @@ import { Pressable, View, StyleSheet } from "react-native";
 
 import { ThemedText } from "./themed-text";
 import { ThemedView } from "./themed-view";
+import { BrandWordmark } from "./brand-wordmark";
 
 import { MaxContentWidth, Spacing } from "@/constants/theme";
 
@@ -66,9 +67,9 @@ export function CustomTabList(props: TabListProps) {
   return (
     <View {...props} style={styles.tabListContainer}>
       <ThemedView type="backgroundElement" style={styles.innerContainer}>
-        <ThemedText type="smallBold" style={styles.brandText}>
-          Mizyun
-        </ThemedText>
+        <View style={styles.brandText}>
+          <BrandWordmark />
+        </View>
 
         {props.children}
       </ThemedView>

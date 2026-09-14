@@ -11,6 +11,7 @@ import { useCallback, useState } from "react";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { BrandWordmark } from "@/components/brand-wordmark";
 import { FeedbackHeaderButton } from "@/components/feedback-header-button";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { apiClient } from "@/composition/api-client";
@@ -276,9 +277,7 @@ export function DashboardScreen() {
           {/* Top Header */}
           <View style={styles.header}>
             <View style={styles.headerTopRow}>
-              <ThemedText type="smallBold" themeColor="textSecondary">
-                MIZYUN
-              </ThemedText>
+              <BrandWordmark />
               <FeedbackHeaderButton />
             </View>
             <ThemedText type="subtitle">
@@ -414,15 +413,6 @@ export function DashboardScreen() {
               </Pressable>
             </View>
           ) : null}
-
-          <ThemedView type="backgroundElement" style={styles.foundationCard}>
-            <ThemedText type="smallBold">Foundation mode</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              Model APIs are intentionally disconnected. Tracking features
-              remain independent and the coach has a replaceable provider
-              boundary.
-            </ThemedText>
-          </ThemedView>
         </ScrollView>
       </SafeAreaView>
     </ThemedView>

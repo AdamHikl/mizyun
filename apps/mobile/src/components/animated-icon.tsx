@@ -35,8 +35,8 @@ export function AnimatedSplashOverlay() {
 
   const image = (
     <Image
-      style={styles.splashImage}
-      source={require("@/assets/images/mizyun-icon.png")}
+      style={styles.splashMark}
+      source={require("@/assets/images/mizyun-mark.png")}
     />
   );
 
@@ -50,6 +50,11 @@ export function AnimatedSplashOverlay() {
       })}
       style={styles.splashOverlay}
     >
+      <Image
+        contentFit="cover"
+        source={require("@/assets/images/launch-blue-backdrop.png")}
+        style={styles.splashBackdrop}
+      />
       {image}
     </Animated.View>
   ) : (
@@ -61,6 +66,11 @@ export function AnimatedSplashOverlay() {
       }}
       style={styles.splashOverlay}
     >
+      <Image
+        contentFit="cover"
+        source={require("@/assets/images/launch-blue-backdrop.png")}
+        style={styles.splashBackdrop}
+      />
       {image}
     </View>
   );
@@ -153,10 +163,12 @@ const styles = StyleSheet.create({
     width: 76,
     height: 71,
   },
-  splashImage: {
+  splashBackdrop: {
+    ...StyleSheet.absoluteFill,
+  },
+  splashMark: {
     width: 128,
     height: 128,
-    borderRadius: 28,
   },
   background: {
     borderRadius: 40,
@@ -167,7 +179,7 @@ const styles = StyleSheet.create({
   },
   splashOverlay: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: "#0B0F12",
+    backgroundColor: "#0C70ED",
     alignItems: "center",
     justifyContent: "center",
     zIndex: 1000,

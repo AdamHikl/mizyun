@@ -4,6 +4,7 @@ import { authConfiguration } from "@/composition/auth-client";
 import { isProgressPhotosEnabled } from "@/composition/app-variant";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { BrandWordmark } from "@/components/brand-wordmark";
 import { FeedbackHeaderButton } from "@/components/feedback-header-button";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { useAuth } from "@/features/auth/auth-context";
@@ -230,9 +231,7 @@ export function SettingsScreen() {
         {/* Top Header */}
         <View style={styles.header}>
           <View style={styles.headerTopRow}>
-            <ThemedText type="smallBold" themeColor="textSecondary">
-              MIZYUN
-            </ThemedText>
+            <BrandWordmark />
             <View style={styles.headerActions}>
               <FeedbackHeaderButton />
               <View style={styles.verifiedBadge}>

@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { BrandWordmark } from "@/components/brand-wordmark";
 import { Colors, Spacing } from "@/constants/theme";
 
 import { previewFor, relativeLabel } from "./coach-data";
@@ -81,9 +82,7 @@ export function ThreadListSheet({
           }}
         >
           <View style={{ gap: 2 }}>
-            <ThemedText type="smallBold" themeColor="textSecondary">
-              MIZYUN
-            </ThemedText>
+            <BrandWordmark />
             <ThemedText type="subtitle">Conversations</ThemedText>
           </View>
           <Pressable

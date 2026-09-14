@@ -30,6 +30,7 @@ import {
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { BrandWordmark } from "@/components/brand-wordmark";
 import { FeedbackHeaderButton } from "@/components/feedback-header-button";
 import {
   BottomTabInset,
@@ -641,9 +642,7 @@ export function CoachSetupScreen() {
           {/* Top Header */}
           <View style={styles.header}>
             <View style={styles.headerTopRow}>
-              <ThemedText type="smallBold" themeColor="textSecondary">
-                MIZYUN
-              </ThemedText>
+              <BrandWordmark />
               <View style={styles.headerActions}>
                 <FeedbackHeaderButton />
                 <Pressable
