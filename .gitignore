@@ -33,3 +33,6 @@ apps/mobile/ios/
 # Supabase local state
 supabase/.branches/
 supabase/.temp/
+
+# Generated batch worker report pointer (timestamped reports stay trackable)
+.agents/tasks/batch-report-latest.json

@@ -1,10 +1,19 @@
 # Mizyun current status
 
-> Fast-changing operational snapshot. Last updated: **2026-09-13**.
+> Fast-changing operational snapshot. Last updated: **2026-09-14**.
 > For historical logs, audit entries, and prior session handoffs, see:
 >
 > - [`docs/archive/status/STATUS_HISTORY_2026-09-10_THROUGH_2026-09-12.md`](docs/archive/status/STATUS_HISTORY_2026-09-10_THROUGH_2026-09-12.md) (Handoffs from Sep 10 through Sep 12)
 > - [`docs/archive/status/STATUS_HISTORY_THROUGH_2026-09-09.md`](docs/archive/status/STATUS_HISTORY_THROUGH_2026-09-09.md) (Handoffs through Sep 9)
+
+## Active handoff — Coach workout/meal intent disambiguation (`FIX-COACH-INTENT-001`, 2026-09-14)
+
+- **Implemented:** `apps/api/src/modules/coach/nutrition-action.ts` is now a conservative classifier with two safeguards. (1) A **workout-signal veto**: workouts/training/exercises/sessions plus common activity and exercise names, including plurals (`walk`, `run`, `jog`, `ride`, `swim`, `cycle`, `hike`, `sprint`, `lift`, `cardio`, `gym`, `hiit`, `sets`, `reps`, `squats`, `deadlifts`, `bench`, ...), and Slovak `cvičenie*`/`tréning*`. (2) A **food-context requirement**: a quantity with a unit or a common food/drink word (English plus a small Slovak set). Doubtful statements stay with the grounded text Coach. The mobile app only renders `meal_log` proposals; there is no mobile-side intent logic to keep in sync.
+- **Verification:** 24/24 unit tests pass, including 8 new negative cases — 5 of them ("Add two hour walk to my completed workouts today", "Log my morning run", "Add 3 sets of squats to today's log", "I had 5 squats this morning", "Zapíš môj tréning na pondelok") were genuine false positives under the old regex. Full `pnpm check` green (navigation, formatting, typecheck, mobile bundle, all package tests, deployment safeguards, build matrix, AI-eval invariants). Source: base `765ef59` plus this commit (the classifier change and this handoff entry land together).
+- **Independent review: PENDING (open gate).** AGENTS.md requires an independent agent review for AI-access/budget-adjacent changes. The local Qwen worker cannot run inside the agent sandbox (no Metal GPU: `mlx.core` fails with "No Metal device available"; the 28 GB 8-bit model is cached but unusable from sandboxed processes), and the out-of-sandbox launch was rejected because the auto-reviewer 404'd: `http://127.0.0.1:8000/v1/responses` serves Qwen models instead of a reviewer model. Work proceeded locally per the AGENTS.md exception clause; the package does not close until an independent review lands.
+- **Hygiene:** generated `.agents/tasks/batch-report-*.json` files are now excluded from the Prettier gate (`.prettierignore`) and the mutable `batch-report-latest.json` pointer from git (`.gitignore`); the prior session's uncommitted batch artifacts were committed as `765ef59`.
+- **Needs user input (recorded in `backlog.md`):** Google Play accounts (`PLAY-001`–`006`), Apple accounts (`APPLE-004`, `STORE-002/003`), founder alpha week (`ALPHA-001`), and approval to run the MLX reviewer out of sandbox (or a fix to the `:8000` reviewer endpoint).
+- **Next exact action:** obtain the independent review of the `nutrition-action.ts` diff, then `pnpm deploy:dev <sha>` and accept the workout-vs-meal routing on the `com.mizyun.dev` iPhone build (e.g. "Add two hour walk to my completed workouts today" must reach the grounded Coach, not a meal draft).
 
 ## Active handoff — Native MLX Local Worker, Backlog Split & Coach Workout Intent (`LOCAL-WORKER-003`, `FIX-COACH-INTENT-001`, 2026-09-13)
 

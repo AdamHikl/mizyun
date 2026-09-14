@@ -3,3 +3,4 @@ apps/mobile/dist/
 apps/mobile/ios/
 apps/mobile/android/
 pnpm-lock.yaml
+.agents/tasks/batch-report-*.json
