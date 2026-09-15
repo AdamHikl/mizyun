@@ -262,6 +262,7 @@ const plugins = [
   ...(enableIosAppleAuth
     ? ["expo-apple-authentication"]
     : ["./plugins/without-ios-apple-auth"]),
+  "./plugins/with-ios-scene-lifecycle",
   "./plugins/with-android-release-signing",
 ];
 
