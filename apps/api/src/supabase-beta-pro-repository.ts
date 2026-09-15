@@ -69,6 +69,25 @@ export class SupabaseBetaProRepository implements BetaProRepository {
     throw new Error("No client configured for SupabaseBetaProRepository");
   }
 
+  async updatePushToken(
+    userId: UserId,
+    pushToken: string,
+    options?: { readonly accessToken?: string },
+  ): Promise<boolean> {
+    const client =
+      this.#serviceClient ?? (await this.#resolveClient(options?.accessToken));
+    const { data, error } = await client
+      .from<BetaProRequestRow>("beta_pro_requests")
+      .update({ push_token: pushToken })
+      .eq("user_id", userId)
+      .select("user_id");
+    if (error)
+      throw new Error(
+        `beta_pro_requests token update failed: ${error.message}`,
+      );
+    return (data?.length ?? 0) > 0;
+  }
+
   async getRequest(
     userId: UserId,
     options?: { readonly accessToken?: string },

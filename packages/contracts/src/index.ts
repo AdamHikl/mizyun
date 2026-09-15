@@ -708,6 +708,8 @@ export {
   betaProStatusResponseSchema,
   betaProRequestInputSchema,
   betaProRequestResponseSchema,
+  betaProPushTokenResponseSchema,
+  type BetaProPushTokenResponse,
   type BetaProStatus,
   type BetaProStatusResponse,
   type BetaProRequestInput,

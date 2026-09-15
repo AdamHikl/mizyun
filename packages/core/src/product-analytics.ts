@@ -29,6 +29,12 @@ export interface StoredProductAnalyticsEvent {
   readonly receivedAt: Date;
 }
 
+// Mutation snapshots do not include the original row creation timestamp.
+export type ProductAnalyticsConsentSnapshot = Omit<
+  StoredProductAnalyticsConsent,
+  "createdAt"
+>;
+
 export interface ProductAnalyticsRepository {
   getConsent(
     userId: UserId,
@@ -45,12 +51,12 @@ export interface ProductAnalyticsRepository {
   ): Promise<
     | {
         readonly success: true;
-        readonly consent: StoredProductAnalyticsConsent;
+        readonly consent: ProductAnalyticsConsentSnapshot;
       }
     | {
         readonly success: false;
         readonly error: "revision_mismatch";
-        readonly current: StoredProductAnalyticsConsent | null;
+        readonly current: ProductAnalyticsConsentSnapshot | null;
       }
   >;
   recordBatch(

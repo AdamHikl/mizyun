@@ -27,6 +27,98 @@ const tokenVerifierFor = (userId: UserId): AccessTokenVerifier => ({
 });
 
 describe("Beta Pro Routes", () => {
+  describe("PUT /v1/beta-pro/push-token", () => {
+    it("does not create a request when registering a token before requesting a pass", async () => {
+      const repo = new InMemoryBetaProRepository();
+      const app = buildApp({
+        betaProRepository: repo,
+        tokenVerifier: tokenVerifierFor(userA),
+      });
+      apps.push(app);
+      const response = await app.inject({
+        method: "PUT",
+        url: "/v1/beta-pro/push-token",
+        headers: { authorization: "Bearer valid" },
+        payload: { pushToken: "device-token" },
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ updated: false });
+      expect(await repo.getRequest(userA)).toBeNull();
+    });
+
+    it("updates only the authenticated user's existing token without changing review state", async () => {
+      const repo = new InMemoryBetaProRepository();
+      const existing = {
+        id: "req-1",
+        userId: userA,
+        email: "test@example.com",
+        pushToken: null,
+        status: "approved" as const,
+        notes: "reviewed",
+        createdAt: new Date("2026-09-12T12:00:00Z"),
+        reviewedAt: new Date("2026-09-12T14:00:00Z"),
+      };
+      repo.__seedForTest(existing);
+      const app = buildApp({
+        betaProRepository: repo,
+        tokenVerifier: tokenVerifierFor(userA),
+      });
+      apps.push(app);
+      const response = await app.inject({
+        method: "PUT",
+        url: "/v1/beta-pro/push-token",
+        headers: { authorization: "Bearer valid" },
+        payload: {
+          pushToken: "new-token",
+          userId: "other-user",
+          notes: "overwrite",
+        },
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ updated: true });
+      expect(await repo.getRequest(userA)).toEqual({
+        ...existing,
+        pushToken: "new-token",
+      });
+    });
+
+    it("rejects unauthenticated registration", async () => {
+      const repo = new InMemoryBetaProRepository();
+      const app = buildApp({
+        betaProRepository: repo,
+        tokenVerifier: tokenVerifierFor(userA),
+      });
+      apps.push(app);
+      const response = await app.inject({
+        method: "PUT",
+        url: "/v1/beta-pro/push-token",
+        payload: { pushToken: "token" },
+      });
+      expect(response.statusCode).toBe(401);
+      expect(await repo.getRequest(userA)).toBeNull();
+    });
+
+    it.each([{}, { pushToken: "" }, { pushToken: "x".repeat(256) }])(
+      "rejects invalid input %j",
+      async (payload) => {
+        const repo = new InMemoryBetaProRepository();
+        const app = buildApp({
+          betaProRepository: repo,
+          tokenVerifier: tokenVerifierFor(userA),
+        });
+        apps.push(app);
+        const response = await app.inject({
+          method: "PUT",
+          url: "/v1/beta-pro/push-token",
+          headers: { authorization: "Bearer valid" },
+          payload,
+        });
+        expect(response.statusCode).toBe(422);
+        expect(await repo.getRequest(userA)).toBeNull();
+      },
+    );
+  });
+
   describe("GET /v1/beta-pro/status", () => {
     it("returns status none when no request has been submitted", async () => {
       const repo = new InMemoryBetaProRepository();

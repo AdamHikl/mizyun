@@ -13,6 +13,12 @@ export interface BetaProRecord {
 }
 
 export interface BetaProRepository {
+  updatePushToken(
+    userId: UserId,
+    pushToken: string,
+    options?: { readonly accessToken?: string },
+  ): Promise<boolean>;
+
   getRequest(
     userId: UserId,
     options?: { readonly accessToken?: string },
@@ -31,6 +37,13 @@ export interface BetaProRepository {
 
 export class InMemoryBetaProRepository implements BetaProRepository {
   readonly #byUser = new Map<UserId, BetaProRecord>();
+
+  async updatePushToken(userId: UserId, pushToken: string): Promise<boolean> {
+    const existing = this.#byUser.get(userId);
+    if (!existing) return false;
+    this.#byUser.set(userId, { ...existing, pushToken });
+    return true;
+  }
 
   async getRequest(
     userId: UserId,

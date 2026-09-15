@@ -1,6 +1,8 @@
 import type { ApiClient, ApiError } from "@mizyun/api-client";
 import {
   betaProRequestResponseSchema,
+  betaProPushTokenResponseSchema,
+  type BetaProPushTokenResponse,
   betaProStatusResponseSchema,
   type BetaProRequestResponse,
   type BetaProStatusResponse,
@@ -95,14 +97,14 @@ export async function registerDevicePushToken(
       return null;
     }
 
-    const result = await client.request<BetaProRequestResponse>({
-      method: "POST",
-      path: "/v1/beta-pro/request",
+    const result = await client.request<BetaProPushTokenResponse>({
+      method: "PUT",
+      path: "/v1/beta-pro/push-token",
       body: { pushToken },
-      schema: betaProRequestResponseSchema,
+      schema: betaProPushTokenResponseSchema,
     });
 
-    if (result.ok) {
+    if (result.ok && result.value.updated) {
       return pushToken;
     }
     return null;

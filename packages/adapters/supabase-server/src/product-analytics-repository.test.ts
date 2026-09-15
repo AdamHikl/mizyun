@@ -46,15 +46,13 @@ describe("SupabaseProductAnalyticsRepository", () => {
       data: {
         success: true,
         consent: {
-          user_id: userId,
           version: "product-analytics-v2",
           granted: true,
           revision: 2,
           epoch,
-          consented_at: "2026-09-13T08:00:00.000Z",
-          revoked_at: null,
-          created_at: "2026-09-13T08:00:00.000Z",
-          updated_at: "2026-09-13T08:05:00.000Z",
+          consentedAt: "2026-09-13T08:00:00+00:00",
+          revokedAt: null,
+          updatedAt: "2026-09-13T08:05:00+00:00",
         },
       },
       error: null,
@@ -79,7 +77,72 @@ describe("SupabaseProductAnalyticsRepository", () => {
     expect(res.success).toBe(true);
     if (res.success) {
       expect(res.consent.revision).toBe(2);
+      expect(res.consent.userId).toBe(userId);
+      expect(res.consent.consentedAt?.toISOString()).toBe(
+        "2026-09-13T08:00:00.000Z",
+      );
+      expect(res.consent.revokedAt).toBeNull();
+      expect(res.consent.updatedAt.toISOString()).toBe(
+        "2026-09-13T08:05:00.000Z",
+      );
     }
+  });
+
+  it("maps the RPC conflict snapshot with a revoked consent", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: {
+        success: false,
+        error: "revision_mismatch",
+        current: {
+          version: "product-analytics-v2",
+          granted: false,
+          revision: 3,
+          epoch,
+          consentedAt: null,
+          revokedAt: "2026-09-13T08:05:00+00:00",
+          updatedAt: "2026-09-13T08:05:00+00:00",
+        },
+      },
+      error: null,
+    });
+    const repo = new SupabaseProductAnalyticsRepository({
+      client: { rpc } as any,
+    });
+    const res = await repo.updateConsent(userId, {
+      version: "product-analytics-v2",
+      granted: true,
+      expectedRevision: 1,
+    });
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      expect(res.error).toBe("revision_mismatch");
+      expect(res.current?.userId).toBe(userId);
+      expect(res.current?.revision).toBe(3);
+      expect(res.current?.consentedAt).toBeNull();
+      expect(res.current?.revokedAt?.toISOString()).toBe(
+        "2026-09-13T08:05:00.000Z",
+      );
+      expect(res.current?.updatedAt.toISOString()).toBe(
+        "2026-09-13T08:05:00.000Z",
+      );
+    }
+  });
+
+  it("preserves a missing consent in the RPC conflict response", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: { success: false, error: "revision_mismatch", current: null },
+      error: null,
+    });
+    const repo = new SupabaseProductAnalyticsRepository({
+      client: { rpc } as any,
+    });
+    expect(
+      await repo.updateConsent(userId, {
+        version: "product-analytics-v2",
+        granted: true,
+        expectedRevision: 1,
+      }),
+    ).toEqual({ success: false, error: "revision_mismatch", current: null });
   });
 
   it("records batch via record_product_analytics_events RPC", async () => {

@@ -166,6 +166,7 @@ export class NetworkAnalyticsClient {
   private lastActivityAt = Date.now();
   private activeFlowId: string | null = null;
   private cachedConsent: StoredLocalConsentState | null = null;
+  private activeFlush: Promise<void> | null = null;
 
   constructor(
     private readonly apiTransport: NetworkAnalyticsApiTransport,
@@ -205,7 +206,6 @@ export class NetworkAnalyticsClient {
   async setConsent(next: "granted" | "denied"): Promise<boolean> {
     return this.exclusive(async () => {
       const current = await this.readLocalConsent();
-      const operationId = Crypto.randomUUID();
 
       if (next === "denied") {
         // Synchronously stop capture locally and discard queue immediately
@@ -219,12 +219,10 @@ export class NetworkAnalyticsClient {
         await this.writeLocalConsent(optimistic);
         await this.clearQueue();
 
-        const res = await this.apiTransport.updateConsent({
-          version: CURRENT_ANALYTICS_CONSENT_VERSION,
-          granted: false,
-          expectedRevision: current.revision,
-          operationId,
-        });
+        const res = await this.updateConsentWithRecovery(
+          false,
+          current.revision,
+        );
 
         if (res.ok && res.data) {
           await this.writeLocalConsent({
@@ -239,12 +237,7 @@ export class NetworkAnalyticsClient {
       }
 
       // next === "granted"
-      const res = await this.apiTransport.updateConsent({
-        version: CURRENT_ANALYTICS_CONSENT_VERSION,
-        granted: true,
-        expectedRevision: current.revision,
-        operationId,
-      });
+      const res = await this.updateConsentWithRecovery(true, current.revision);
 
       if (!res.ok || !res.data) {
         return false;
@@ -320,10 +313,21 @@ export class NetworkAnalyticsClient {
   }
 
   async flush(): Promise<void> {
+    if (this.activeFlush) return this.activeFlush;
+    const flush = this.flushOnce();
+    this.activeFlush = flush;
+    try {
+      await flush;
+    } finally {
+      if (this.activeFlush === flush) this.activeFlush = null;
+    }
+  }
+
+  private async flushOnce(): Promise<void> {
     const consent = await this.readLocalConsent();
     if (!consent.granted) {
       if (consent.pendingDenial) {
-        await this.retryPendingDenial();
+        await this.exclusive(() => this.retryPendingDenial());
       }
       return;
     }
@@ -339,30 +343,32 @@ export class NetworkAnalyticsClient {
     });
 
     if (res.conflict) {
-      // Stale epoch or consent revoked on server: sync consent and discard queue
-      await this.clearQueue();
-      await this.syncConsent();
+      // Serialize the local discard and refresh with consent mutations so an
+      // in-flight upload cannot restore events after a denial.
+      await this.exclusive(async () => {
+        await this.clearQueue();
+        await this.syncConsentInternal();
+      });
       return;
     }
 
     if (res.ok && res.data) {
       const acceptedSet = new Set(res.data.acceptedIds);
-      const remaining = queue.filter((e) => !acceptedSet.has(e.id));
-      await this.writeQueue(remaining);
+      await this.exclusive(async () => {
+        const currentConsent = await this.readLocalConsent();
+        if (!currentConsent.granted || currentConsent.epoch !== consent.epoch) {
+          await this.clearQueue();
+          return;
+        }
+        const currentQueue = await this.readQueue();
+        const remaining = currentQueue.filter((e) => !acceptedSet.has(e.id));
+        await this.writeQueue(remaining);
+      });
     }
   }
 
   async syncConsent(): Promise<void> {
-    const res = await this.apiTransport.getConsent();
-    if (res.ok && res.data) {
-      await this.writeLocalConsent({
-        version: CURRENT_ANALYTICS_CONSENT_VERSION,
-        granted: res.data.granted,
-        revision: res.data.revision,
-        epoch: res.data.epoch,
-        pendingDenial: false,
-      });
-    }
+    return this.exclusive(() => this.syncConsentInternal());
   }
 
   async list(): Promise<readonly AnalyticsEventV2[]> {
@@ -421,12 +427,7 @@ export class NetworkAnalyticsClient {
     const current = await this.readLocalConsent();
     if (!current.pendingDenial) return;
 
-    const res = await this.apiTransport.updateConsent({
-      version: CURRENT_ANALYTICS_CONSENT_VERSION,
-      granted: false,
-      expectedRevision: current.revision,
-      operationId: Crypto.randomUUID(),
-    });
+    const res = await this.updateConsentWithRecovery(false, current.revision);
 
     if (res.ok && res.data) {
       await this.writeLocalConsent({
@@ -436,6 +437,48 @@ export class NetworkAnalyticsClient {
         epoch: res.data.epoch,
         pendingDenial: false,
       });
+    }
+  }
+
+  private async syncConsentInternal(): Promise<void> {
+    const current = await this.readLocalConsent();
+    if (current.pendingDenial) {
+      await this.retryPendingDenial();
+      return;
+    }
+    const res = await this.apiTransport.getConsent();
+    if (res.ok && res.data) {
+      await this.writeLocalConsent({
+        version: CURRENT_ANALYTICS_CONSENT_VERSION,
+        granted: res.data.granted,
+        revision: res.data.revision,
+        epoch: res.data.epoch,
+        pendingDenial: false,
+      });
+    }
+  }
+
+  private async updateConsentWithRecovery(
+    granted: boolean,
+    expectedRevision: number,
+  ): ReturnType<NetworkAnalyticsApiTransport["updateConsent"]> {
+    const update = (revision: number) =>
+      this.apiTransport.updateConsent({
+        version: CURRENT_ANALYTICS_CONSENT_VERSION,
+        granted,
+        expectedRevision: revision,
+        operationId: Crypto.randomUUID(),
+      });
+    try {
+      const result = await update(expectedRevision);
+      if (!result.conflict) return result;
+      // Refresh only the revision, never install a remote grant while resolving
+      // a local refusal. A new operation ID represents the rebased request.
+      const latest = await this.apiTransport.getConsent();
+      if (!latest.ok || !latest.data) return { ok: false };
+      return await update(latest.data.revision);
+    } catch {
+      return { ok: false };
     }
   }
 

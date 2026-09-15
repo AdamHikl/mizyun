@@ -3,7 +3,11 @@ import {
   AgentOrchestrator,
   DisabledAgentProvider,
 } from "@mizyun/agent-runtime";
-import type { UserId } from "@mizyun/core";
+import type { ProductAnalyticsRepository, UserId } from "@mizyun/core";
+import {
+  SupabaseProductAnalyticsRepository,
+  type RepositorySupabaseClient,
+} from "@mizyun/adapter-supabase-server";
 import type { AccessTokenVerifier } from "@mizyun/identity";
 import { InMemoryMemoryStore } from "@mizyun/memory";
 import { CURRENT_ANALYTICS_CONSENT_VERSION } from "@mizyun/contracts";
@@ -44,7 +48,7 @@ const tokenVerifierFor = (
 
 const build = (
   verifier = tokenVerifierFor(null),
-  productAnalyticsRepository = new InMemoryProductAnalyticsRepository(),
+  productAnalyticsRepository: ProductAnalyticsRepository = new InMemoryProductAnalyticsRepository(),
 ) => {
   const app = buildApp({
     tokenVerifier: verifier,
@@ -91,6 +95,48 @@ describe("Product Analytics Routes (OBS-002)", () => {
   });
 
   describe("PUT /v1/analytics/consent", () => {
+    it("serializes the actual consent RPC JSON response after a successful save", async () => {
+      const repository = new SupabaseProductAnalyticsRepository({
+        client: {
+          rpc: async () => ({
+            error: null,
+            data: {
+              success: true,
+              consent: {
+                version: CURRENT_ANALYTICS_CONSENT_VERSION,
+                granted: true,
+                revision: 1,
+                epoch: "22222222-2222-4222-8222-222222222222",
+                consentedAt: "2026-09-15T08:20:20+00:00",
+                revokedAt: null,
+                updatedAt: "2026-09-15T08:20:20+00:00",
+              },
+            },
+          }),
+        } as unknown as RepositorySupabaseClient,
+      });
+      const { app } = build(tokenVerifierFor(null), repository);
+      const response = await app.inject({
+        method: "PUT",
+        url: "/v1/analytics/consent",
+        headers: { authorization: "Bearer token-user-a" },
+        payload: {
+          version: CURRENT_ANALYTICS_CONSENT_VERSION,
+          granted: true,
+          expectedRevision: 0,
+          operationId: "11111111-1111-4111-8111-111111111111",
+        },
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({
+        granted: true,
+        revision: 1,
+        consentedAt: "2026-09-15T08:20:20.000Z",
+        updatedAt: "2026-09-15T08:20:20.000Z",
+        revokedAt: null,
+      });
+    });
+
     it("grants consent and returns updated revision and epoch", async () => {
       const { app } = build(tokenVerifierFor({ userId: userA }));
       const res = await app.inject({

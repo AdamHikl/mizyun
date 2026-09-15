@@ -21,6 +21,39 @@ export const betaProRoutes: FastifyPluginAsync<BetaProRoutesOptions> = async (
   const isPrefixedWithBetaPro = app.prefix.endsWith("/beta-pro");
   const statusPath = isPrefixedWithBetaPro ? "/status" : "/beta-pro/status";
   const requestPath = isPrefixedWithBetaPro ? "/request" : "/beta-pro/request";
+  const pushTokenPath = isPrefixedWithBetaPro
+    ? "/push-token"
+    : "/beta-pro/push-token";
+
+  // Automatic push registration must never submit a Beta Pro request.
+  app.put(
+    pushTokenPath,
+    { preHandler: app.authenticate },
+    async (request, reply) => {
+      const principal = request.principal;
+      if (!principal) throw new Error("principal missing after authentication");
+      const parsed = betaProRequestInputSchema
+        .pick({ pushToken: true })
+        .required()
+        .safeParse(request.body);
+      if (!parsed.success || !parsed.data.pushToken.trim()) {
+        return sendApiError(
+          reply,
+          request,
+          422,
+          "VALIDATION_ERROR",
+          "A valid push token is required.",
+        );
+      }
+      const repositoryOptions = { accessToken: principal.accessToken };
+      const updated = await options.repository.updatePushToken(
+        principal.userId,
+        parsed.data.pushToken,
+        repositoryOptions,
+      );
+      return { updated };
+    },
+  );
 
   // GET /v1/beta-pro/status — query status of current user's Beta Pro request
   app.get(

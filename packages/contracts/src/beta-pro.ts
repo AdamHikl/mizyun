@@ -28,3 +28,10 @@ export const betaProRequestResponseSchema = z.object({
 export type BetaProRequestResponse = z.infer<
   typeof betaProRequestResponseSchema
 >;
+
+export const betaProPushTokenResponseSchema = z.object({
+  updated: z.boolean(),
+});
+export type BetaProPushTokenResponse = z.infer<
+  typeof betaProPushTokenResponseSchema
+>;

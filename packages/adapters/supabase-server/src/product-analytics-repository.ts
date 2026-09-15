@@ -51,6 +51,31 @@ export const productAnalyticsConsentFromRow = (
   updatedAt: new Date(row.updated_at),
 });
 
+// update_product_analytics_consent returns a JSON snapshot, not a table row.
+interface ProductAnalyticsConsentRpcSnapshot {
+  readonly version: string;
+  readonly granted: boolean;
+  readonly revision: number;
+  readonly epoch: string;
+  readonly consentedAt: string | null;
+  readonly revokedAt: string | null;
+  readonly updatedAt: string;
+}
+
+const productAnalyticsConsentFromRpc = (
+  userId: UserId,
+  snapshot: ProductAnalyticsConsentRpcSnapshot,
+): Omit<StoredProductAnalyticsConsent, "createdAt"> => ({
+  userId,
+  version: snapshot.version,
+  granted: snapshot.granted,
+  revision: snapshot.revision,
+  epoch: snapshot.epoch,
+  consentedAt: snapshot.consentedAt ? new Date(snapshot.consentedAt) : null,
+  revokedAt: snapshot.revokedAt ? new Date(snapshot.revokedAt) : null,
+  updatedAt: new Date(snapshot.updatedAt),
+});
+
 export const productAnalyticsEventFromRow = (
   row: ProductAnalyticsEventRow,
 ): StoredProductAnalyticsEvent => ({
@@ -139,12 +164,15 @@ export class SupabaseProductAnalyticsRepository implements ProductAnalyticsRepos
   ): Promise<
     | {
         readonly success: true;
-        readonly consent: StoredProductAnalyticsConsent;
+        readonly consent: Omit<StoredProductAnalyticsConsent, "createdAt">;
       }
     | {
         readonly success: false;
         readonly error: "revision_mismatch";
-        readonly current: StoredProductAnalyticsConsent | null;
+        readonly current: Omit<
+          StoredProductAnalyticsConsent,
+          "createdAt"
+        > | null;
       }
   > {
     const client = await this.#resolveClient(options?.accessToken);
@@ -167,8 +195,8 @@ export class SupabaseProductAnalyticsRepository implements ProductAnalyticsRepos
     const res = data as unknown as {
       success: boolean;
       error?: string;
-      consent?: ProductAnalyticsConsentRow;
-      current?: ProductAnalyticsConsentRow | null;
+      consent?: ProductAnalyticsConsentRpcSnapshot;
+      current?: ProductAnalyticsConsentRpcSnapshot | null;
     };
 
     if (!res.success) {
@@ -176,14 +204,14 @@ export class SupabaseProductAnalyticsRepository implements ProductAnalyticsRepos
         success: false,
         error: "revision_mismatch",
         current: res.current
-          ? productAnalyticsConsentFromRow(res.current)
+          ? productAnalyticsConsentFromRpc(userId, res.current)
           : null,
       };
     }
 
     return {
       success: true,
-      consent: productAnalyticsConsentFromRow(res.consent!),
+      consent: productAnalyticsConsentFromRpc(userId, res.consent!),
     };
   }
 

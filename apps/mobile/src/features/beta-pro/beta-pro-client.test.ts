@@ -115,7 +115,7 @@ describe("beta-pro-client", () => {
   });
 
   describe("registerDevicePushToken", () => {
-    it("fetches device token and posts to /v1/beta-pro/request", async () => {
+    it("registers the device token without submitting a Beta Pro request", async () => {
       mockGetPermissionsAsync.mockResolvedValueOnce({ granted: true });
       mockGetDevicePushTokenAsync.mockResolvedValueOnce({
         data: "mock-apns-token-xyz",
@@ -123,7 +123,7 @@ describe("beta-pro-client", () => {
 
       const request = vi.fn().mockResolvedValue({
         ok: true,
-        value: { status: "pending" },
+        value: { updated: true },
       });
       const client = { request } as unknown as ApiClient;
 
@@ -131,11 +131,21 @@ describe("beta-pro-client", () => {
       expect(token).toBe("mock-apns-token-xyz");
       expect(request).toHaveBeenCalledWith(
         expect.objectContaining({
-          method: "POST",
-          path: "/v1/beta-pro/request",
+          method: "PUT",
+          path: "/v1/beta-pro/push-token",
           body: { pushToken: "mock-apns-token-xyz" },
         }),
       );
+    });
+
+    it("does not report registration when there is no existing pass request", async () => {
+      const request = vi
+        .fn()
+        .mockResolvedValue({ ok: true, value: { updated: false } });
+      expect(
+        await registerDevicePushToken({ request } as unknown as ApiClient),
+      ).toBeNull();
+      expect(request).toHaveBeenCalledTimes(1);
     });
 
     it("returns null when permissions are not granted", async () => {
