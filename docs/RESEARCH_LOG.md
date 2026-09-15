@@ -1,5 +1,10 @@
 # Research log
 
+## 2026-09-15 — Non-interactive Production migration execution
+
+- [Supabase CLI reference — `db push`](https://supabase.com/docs/reference/cli/supabase-db-push), accessed 2026-09-15, documents `db push`, `--dry-run`, and the global `--yes` flag that answers all prompts.
+- Implementation consequence: Production promotion passes `--yes` to both the migration preview and apply commands so a confirmation prompt cannot consume subsequent commands from the streamed release script before the API restart.
+
 ## 2026-09-14 — Production Auth confirmation redirect
 
 - [Supabase Redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls), accessed 2026-09-14, defines `SITE_URL` as the fallback for email confirmations and password resets when the client omits a redirect, requires explicit redirect targets to be allow-listed, and supports mobile deep-link schemes as a `SITE_URL`.

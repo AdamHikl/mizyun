@@ -162,8 +162,8 @@ fi
 export PGSSLMODE="$MIZYUN_PRODUCTION_DB_SSLMODE"
 
 echo "Reconciling migration ledger with Production database..."
-pnpm exec supabase db push --db-url "$production_db_url" --dry-run
-pnpm exec supabase db push --db-url "$production_db_url"
+pnpm exec supabase db push --db-url "$production_db_url" --dry-run --yes
+pnpm exec supabase db push --db-url "$production_db_url" --yes
 migrations_applied=true
 
 sudo -n systemctl restart "$MIZYUN_API_SERVICE"

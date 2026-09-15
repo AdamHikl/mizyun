@@ -241,7 +241,7 @@ writeFileSync(
   mockPnpm,
   `#!/bin/sh
 if [ "$1" = "exec" ] && [ "$2" = "supabase" ] && [ "$3" = "db" ] && [ "$4" = "push" ]; then
-  echo "mock supabase db push called" >> "${path.join(tempBase, "supabase.log")}"
+  echo "mock supabase db push called: $@" >> "${path.join(tempBase, "supabase.log")}"
   exit 0
 fi
 exit 0
@@ -627,10 +627,13 @@ exit 0
 `,
 );
 chmodSync(path.join(prodRepoDir, "scripts/backup-production.sh"), 0o755);
+git(["add", "scripts/backup-production.sh"], prodRepoDir);
+git(["commit", "-m", "Add production backup fixture"], prodRepoDir);
+const prodCommit2 = git(["rev-parse", "HEAD"], prodRepoDir);
 
 const runPromoteProd = ({
   cwd = prodRepoDir,
-  targetSha = prodCommit1,
+  targetSha = prodCommit2,
   envFile = prodEnvFile,
   lockFile = prodLockFile,
   extraEnv = {},
@@ -732,6 +735,36 @@ MIZYUN_API_SERVICE="mizyun-api"
   assert(
     res.stderr.includes("NODE_ENV is not production"),
     "expected NODE_ENV rejection",
+  );
+});
+
+await test("promote-production.sh: Applies migrations non-interactively before restarting API", () => {
+  const supabaseLog = path.join(tempBase, "supabase.log");
+  const systemctlLog = path.join(tempBase, "systemctl.log");
+  if (existsSync(supabaseLog)) rmSync(supabaseLog);
+  if (existsSync(systemctlLog)) rmSync(systemctlLog);
+
+  const res = runPromoteProd({});
+  assert(
+    res.status === 0,
+    `production promotion should succeed, got ${res.status}: ${res.stderr}`,
+  );
+
+  const supabaseContent = readFileSync(supabaseLog, "utf8");
+  const supabaseCalls = supabaseContent.trim().split("\n");
+  assert(
+    supabaseCalls.length === 2 &&
+      supabaseCalls.every(
+        (call) => call.includes("db push --db-url") && call.includes("--yes"),
+      ) &&
+      supabaseCalls.some((call) => call.includes("--dry-run")) &&
+      supabaseCalls.some((call) => !call.includes("--dry-run")),
+    "production migration dry-run and apply must both pass --yes so neither can consume the streamed shell script",
+  );
+  const systemctlContent = readFileSync(systemctlLog, "utf8");
+  assert(
+    systemctlContent.includes("restart mizyun-api"),
+    "production API must restart after migrations",
   );
 });
 
