@@ -13,6 +13,8 @@ const SEARCHABLE_DETAIL_KEYS = new Set([
   "ingredient",
   "ingredients",
   "label",
+  "mealgroup",
+  "mealgroupname",
   "name",
   "note",
   "notes",

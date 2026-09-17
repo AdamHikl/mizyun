@@ -16,6 +16,8 @@ import type { ApiClient, ApiError } from "@mizyun/api-client";
 import { apiClient } from "@/composition/api-client";
 
 import type { LogMealForm, LogMealResult } from "./log-meal-data";
+import { createOperationId } from "./meal-form";
+import { getEntryMealGroup, withMealGroup } from "./meal-scale";
 
 export interface FoodDayResult {
   readonly entries: ReadonlyArray<FoodEntry>;
@@ -30,6 +32,21 @@ export interface DayGroupSummary {
   readonly carbohydrateG: number | null;
   readonly fatG: number | null;
 }
+
+export interface DayMealCluster {
+  readonly kind: "group";
+  readonly id: string;
+  readonly name: string;
+  readonly summary: DayGroupSummary;
+  readonly entries: ReadonlyArray<FoodEntry>;
+}
+
+export interface DayStandaloneMeal {
+  readonly kind: "standalone";
+  readonly entry: FoodEntry;
+}
+
+export type DayMealItem = DayMealCluster | DayStandaloneMeal;
 
 export interface FoodDayGroup {
   readonly date: string;
@@ -119,42 +136,7 @@ export const groupFoodEntriesByDay = (
         new Date(b.consumedAt).getTime() - new Date(a.consumedAt).getTime(),
     );
 
-    let calories = 0;
-    let protein = 0;
-    let carbs = 0;
-    let fat = 0;
-
-    let hasAnyCalories = false;
-    let hasAnyProtein = false;
-    let hasAnyCarbs = false;
-    let hasAnyFat = false;
-
-    for (const entry of dayEntries) {
-      if (entry.caloriesKcal !== null) {
-        hasAnyCalories = true;
-        calories += entry.caloriesKcal;
-      }
-      if (entry.proteinG !== null) {
-        hasAnyProtein = true;
-        protein += entry.proteinG;
-      }
-      if (entry.carbohydrateG !== null) {
-        hasAnyCarbs = true;
-        carbs += entry.carbohydrateG;
-      }
-      if (entry.fatG !== null) {
-        hasAnyFat = true;
-        fat += entry.fatG;
-      }
-    }
-
-    const summary: DayGroupSummary = {
-      entryCount: dayEntries.length,
-      caloriesKcal: hasAnyCalories ? Math.round(calories) : null,
-      proteinG: hasAnyProtein ? Math.round(protein * 10) / 10 : null,
-      carbohydrateG: hasAnyCarbs ? Math.round(carbs * 10) / 10 : null,
-      fatG: hasAnyFat ? Math.round(fat * 10) / 10 : null,
-    };
+    const summary = summarizeFoodEntries(dayEntries);
 
     return {
       date: dateStr,
@@ -163,6 +145,91 @@ export const groupFoodEntriesByDay = (
       entries: dayEntries,
     };
   });
+};
+
+export const summarizeFoodEntries = (
+  entries: ReadonlyArray<FoodEntry>,
+): DayGroupSummary => {
+  let calories = 0;
+  let protein = 0;
+  let carbs = 0;
+  let fat = 0;
+
+  let hasAnyCalories = false;
+  let hasAnyProtein = false;
+  let hasAnyCarbs = false;
+  let hasAnyFat = false;
+
+  for (const entry of entries) {
+    if (entry.caloriesKcal !== null) {
+      hasAnyCalories = true;
+      calories += entry.caloriesKcal;
+    }
+    if (entry.proteinG !== null) {
+      hasAnyProtein = true;
+      protein += entry.proteinG;
+    }
+    if (entry.carbohydrateG !== null) {
+      hasAnyCarbs = true;
+      carbs += entry.carbohydrateG;
+    }
+    if (entry.fatG !== null) {
+      hasAnyFat = true;
+      fat += entry.fatG;
+    }
+  }
+
+  return {
+    entryCount: entries.length,
+    caloriesKcal: hasAnyCalories ? Math.round(calories) : null,
+    proteinG: hasAnyProtein ? Math.round(protein * 10) / 10 : null,
+    carbohydrateG: hasAnyCarbs ? Math.round(carbs * 10) / 10 : null,
+    fatG: hasAnyFat ? Math.round(fat * 10) / 10 : null,
+  };
+};
+
+/**
+ * Organizes a day's flat food entries into grouped meals (clusters) and standalone items.
+ * Entries belonging to the same mealGroupId are aggregated into a DayMealCluster,
+ * with child items preserved and editable.
+ */
+export const clusterDayEntries = (
+  entries: ReadonlyArray<FoodEntry>,
+): ReadonlyArray<DayMealItem> => {
+  const result: DayMealItem[] = [];
+  const groupIndices = new Map<string, number>();
+
+  for (const entry of entries) {
+    const group = getEntryMealGroup(entry);
+    if (group === null) {
+      result.push({ kind: "standalone", entry });
+    } else {
+      const existingIdx = groupIndices.get(group.id);
+      if (existingIdx !== undefined) {
+        const cluster = result[existingIdx] as DayMealCluster;
+        const updatedEntries = [...cluster.entries, entry];
+        result[existingIdx] = {
+          kind: "group",
+          id: group.id,
+          name: cluster.name,
+          summary: summarizeFoodEntries(updatedEntries),
+          entries: updatedEntries,
+        };
+      } else {
+        const clusterEntries = [entry];
+        groupIndices.set(group.id, result.length);
+        result.push({
+          kind: "group",
+          id: group.id,
+          name: group.name,
+          summary: summarizeFoodEntries(clusterEntries),
+          entries: clusterEntries,
+        });
+      }
+    }
+  }
+
+  return result;
 };
 
 const humanizeApiError = (error: ApiError, action: string): string => {
@@ -275,7 +342,7 @@ export const fetchFoodEntryWith = async (
       };
 };
 
-const patchFromForm = (form: LogMealForm): FoodEntryPatch | null => {
+export const patchFromForm = (form: LogMealForm): FoodEntryPatch | null => {
   const parsed = foodEntryPatchSchema.safeParse({
     name: form.name.trim(),
     ...(form.consumedAt !== null ? { consumedAt: form.consumedAt } : {}),
@@ -283,9 +350,23 @@ const patchFromForm = (form: LogMealForm): FoodEntryPatch | null => {
     proteinG: form.proteinG,
     carbohydrateG: form.carbohydrateG,
     fatG: form.fatG,
+    ...(form.details !== undefined ? { details: form.details } : {}),
   });
   return parsed.success ? parsed.data : null;
 };
+
+export const formFromEntry = (
+  entry: FoodEntry,
+  overrideDetails?: Record<string, unknown>,
+): LogMealForm => ({
+  name: entry.name,
+  consumedAt: entry.consumedAt,
+  caloriesKcal: entry.caloriesKcal,
+  proteinG: entry.proteinG,
+  carbohydrateG: entry.carbohydrateG,
+  fatG: entry.fatG,
+  details: overrideDetails ?? entry.details,
+});
 
 export const updateFoodEntry = async (
   entryId: string,
@@ -313,6 +394,112 @@ export const updateFoodEntryWith = async (
         ok: false,
         message: humanizeApiError(result.error, "Save that meal"),
       };
+};
+
+export const groupFoodEntries = async (
+  entryIds: ReadonlyArray<string>,
+  groupName: string,
+  allEntries: ReadonlyArray<FoodEntry>,
+  groupId?: string,
+): Promise<FoodMutationResult> =>
+  groupFoodEntriesWith(apiClient, entryIds, groupName, allEntries, groupId);
+
+export const groupFoodEntriesWith = async (
+  client: ApiClient,
+  entryIds: ReadonlyArray<string>,
+  groupName: string,
+  allEntries: ReadonlyArray<FoodEntry>,
+  groupId: string = createOperationId(),
+): Promise<FoodMutationResult> => {
+  const trimmedName = groupName.trim();
+  if (trimmedName.length === 0) {
+    return { ok: false, message: "Please enter a meal name." };
+  }
+  const targetIds = new Set(entryIds);
+  const targets = allEntries.filter((e) => targetIds.has(e.id));
+  if (targets.length === 0) {
+    return { ok: false, message: "No meals selected to group." };
+  }
+
+  for (const entry of targets) {
+    const updatedDetails = withMealGroup(entry.details, {
+      id: groupId,
+      name: trimmedName,
+    });
+    const result = await updateFoodEntryWith(
+      client,
+      entry.id,
+      formFromEntry(entry, updatedDetails),
+    );
+    if (!result.ok) {
+      return { ok: false, message: result.message };
+    }
+  }
+  return { ok: true };
+};
+
+export const ungroupFoodEntry = async (
+  entry: FoodEntry,
+): Promise<FoodMutationResult> => ungroupFoodEntryWith(apiClient, entry);
+
+export const ungroupFoodEntryWith = async (
+  client: ApiClient,
+  entry: FoodEntry,
+): Promise<FoodMutationResult> => {
+  const updatedDetails = withMealGroup(entry.details, null);
+  const result = await updateFoodEntryWith(
+    client,
+    entry.id,
+    formFromEntry(entry, updatedDetails),
+  );
+  return result.ok ? { ok: true } : { ok: false, message: result.message };
+};
+
+export const ungroupFoodEntries = async (
+  entries: ReadonlyArray<FoodEntry>,
+): Promise<FoodMutationResult> => ungroupFoodEntriesWith(apiClient, entries);
+
+export const ungroupFoodEntriesWith = async (
+  client: ApiClient,
+  entries: ReadonlyArray<FoodEntry>,
+): Promise<FoodMutationResult> => {
+  for (const entry of entries) {
+    const res = await ungroupFoodEntryWith(client, entry);
+    if (!res.ok) return res;
+  }
+  return { ok: true };
+};
+
+export const renameFoodGroup = async (
+  entries: ReadonlyArray<FoodEntry>,
+  newName: string,
+): Promise<FoodMutationResult> =>
+  renameFoodGroupWith(apiClient, entries, newName);
+
+export const renameFoodGroupWith = async (
+  client: ApiClient,
+  entries: ReadonlyArray<FoodEntry>,
+  newName: string,
+): Promise<FoodMutationResult> => {
+  const trimmed = newName.trim();
+  if (trimmed.length === 0) {
+    return { ok: false, message: "Meal name cannot be blank." };
+  }
+  for (const entry of entries) {
+    const currentGroup = getEntryMealGroup(entry);
+    if (currentGroup === null) continue;
+    const updatedDetails = withMealGroup(entry.details, {
+      id: currentGroup.id,
+      name: trimmed,
+    });
+    const result = await updateFoodEntryWith(
+      client,
+      entry.id,
+      formFromEntry(entry, updatedDetails),
+    );
+    if (!result.ok) return { ok: false, message: result.message };
+  }
+  return { ok: true };
 };
 
 export const deleteFoodEntry = async (

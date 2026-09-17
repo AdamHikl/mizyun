@@ -1,10 +1,32 @@
 # Mizyun current status
 
-> Fast-changing operational snapshot. Last updated: **2026-09-15**.
+> Fast-changing operational snapshot. Last updated: **2026-09-17**.
 > For historical logs, audit entries, and prior session handoffs, see:
 >
 > - [`docs/archive/status/STATUS_HISTORY_2026-09-10_THROUGH_2026-09-12.md`](docs/archive/status/STATUS_HISTORY_2026-09-10_THROUGH_2026-09-12.md) (Handoffs from Sep 10 through Sep 12)
 > - [`docs/archive/status/STATUS_HISTORY_THROUGH_2026-09-09.md`](docs/archive/status/STATUS_HISTORY_THROUGH_2026-09-09.md) (Handoffs through Sep 9)
+
+## Active handoff — Group and resize saved meals (#102, 2026-09-17)
+
+- **Context & Requirement:** GitHub Issue [#102](https://github.com/AdamHikl/mizyun/issues/102): Users wanted the ability to group individual saved meals into bigger meals while keeping each one editable, and to adjust the portion weight (grams) of a food after saving with values updating dynamically.
+- **Implemented:**
+  - Added pure scaling and portion extraction utilities in `apps/mobile/src/features/log-meal/meal-scale.ts` (`extractGramsFromName`, `updateGramsInName`, `scaleNutrition`, `withMealGrams`, `withMealGroup`).
+  - Added `clusterDayEntries` and meal grouping/ungrouping mutation helpers in `apps/mobile/src/features/log-meal/meal-lifecycle-data.ts`. Forwarded `details` in `patchFromForm`.
+  - Added portion weight (grams) input with quick adjustment steppers (`-50g`, `-10g`, `+10g`, `+50g`, `0.5x`, `1.5x`, `2x`) and live dynamic nutrition recalculation in `edit-meal-screen.tsx`. Added meal group assignment selector.
+  - Added multi-select meal grouping flow in `meal-list-screen.tsx` allowing users to group 2+ individual meals into bigger meals. Grouped meals render aggregated calories/macros while keeping each item independently editable, resizable, and ungroupable.
+  - Added quick interactive portion resizing modal (`AdjustPortionModal`) with real-time recalculation of calories/macros and instant server persistence.
+  - Added `mealgroup` and `mealgroupname` to searchable keys in `meal-history-filter.ts`.
+- **Automated Verification:**
+  - Unit tests in `meal-scale.test.ts` (12/12 pass).
+  - Lifecycle tests in `meal-lifecycle-data.test.ts` (16/16 pass).
+  - Filter tests in `meal-history-filter.test.ts` (6/6 pass).
+  - All mobile log-meal tests (74/74 pass).
+  - All API food-entries tests (74/74 pass).
+  - Full repository `pnpm check` passed cleanly (navigation, Prettier, all 15 workspace typechecks, iOS and Android Hermes bundle exports, deployment safeguards, build matrix, and offline AI screener).
+- **Deployment & Acceptance Status:**
+  - The Raspberry Pi server is temporarily down (user confirmed). Remote promotion to Dev (`pnpm deploy:dev`) and physical device acceptance on `com.mizyun.development` are held until the Pi is online.
+- **Next exact action:**
+  - Once the Raspberry Pi is back online, deploy commit to Pi Dev (`pnpm deploy:dev`) and perform device acceptance on the installed Dev iPhone build: verify multi-select meal grouping into a bigger meal, portion resizing with dynamic macro updates, and editing individual items within the group.
 
 ## Active handoff — Onboarding analytics and automatic Beta Pro requests (#100, 2026-09-15)
 

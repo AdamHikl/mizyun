@@ -7,7 +7,7 @@ import {
 } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { FoodEntry } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
@@ -23,11 +23,21 @@ import { useTheme } from "@/hooks/use-theme";
 
 import type { LogMealForm } from "./log-meal-data";
 import {
+  createOperationId,
   mealFormStringsFromEntry,
   parseOptionalNutritionNumber,
   type MealFormStrings,
 } from "./meal-form";
 import { fetchFoodEntry, updateFoodEntry } from "./meal-lifecycle-data";
+import {
+  extractGramsFromName,
+  getEntryGrams,
+  getEntryMealGroup,
+  scaleNutrition,
+  updateGramsInName,
+  withMealGrams,
+  withMealGroup,
+} from "./meal-scale";
 
 const EMPTY_FORM: MealFormStrings = {
   name: "",
@@ -36,6 +46,8 @@ const EMPTY_FORM: MealFormStrings = {
   carbs: "",
   fat: "",
 };
+
+const MEAL_GROUP_PRESETS = ["Breakfast", "Lunch", "Dinner", "Snack"] as const;
 
 const isMealFormStrings = (value: unknown): value is MealFormStrings =>
   typeof value === "object" &&
@@ -46,6 +58,14 @@ const isMealFormStrings = (value: unknown): value is MealFormStrings =>
       typeof (value as Record<string, unknown>)[field] === "string",
   );
 
+interface NutritionBaseline {
+  readonly caloriesKcal: number | null;
+  readonly proteinG: number | null;
+  readonly carbohydrateG: number | null;
+  readonly fatG: number | null;
+  readonly grams: number;
+}
+
 export function EditMealScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
   const entryId = typeof params.id === "string" ? params.id : null;
@@ -54,10 +74,16 @@ export function EditMealScreen() {
   const theme = useTheme();
   const [entry, setEntry] = useState<FoodEntry | null>(null);
   const [form, setForm] = useState<MealFormStrings>(EMPTY_FORM);
+  const [grams, setGrams] = useState("");
+  const [mealGroupName, setMealGroupName] = useState("");
+  const [mealGroupId, setMealGroupId] = useState<string | null>(null);
+  const [customGroupActive, setCustomGroupActive] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const draftKind = entryId === null ? null : (`meal-edit-${entryId}` as const);
+
+  const baselineRef = useRef<NutritionBaseline | null>(null);
 
   useEffect(() => {
     if (entryId === null || userId === null || draftKind === null) {
@@ -76,8 +102,39 @@ export function EditMealScreen() {
         setLoaded(true);
         return;
       }
-      setEntry(entryResult.entry);
-      setForm(draft ?? mealFormStringsFromEntry(entryResult.entry));
+      const loadedEntry = entryResult.entry;
+      setEntry(loadedEntry);
+      setForm(draft ?? mealFormStringsFromEntry(loadedEntry));
+
+      const detectedGrams = getEntryGrams(loadedEntry);
+      if (detectedGrams !== null && detectedGrams > 0) {
+        setGrams(String(detectedGrams));
+        baselineRef.current = {
+          caloriesKcal: loadedEntry.caloriesKcal,
+          proteinG: loadedEntry.proteinG,
+          carbohydrateG: loadedEntry.carbohydrateG,
+          fatG: loadedEntry.fatG,
+          grams: detectedGrams,
+        };
+      } else {
+        setGrams("");
+      }
+
+      const currentGroup = getEntryMealGroup(loadedEntry);
+      if (currentGroup !== null) {
+        setMealGroupName(currentGroup.name);
+        setMealGroupId(currentGroup.id);
+        setCustomGroupActive(
+          !MEAL_GROUP_PRESETS.includes(
+            currentGroup.name as (typeof MEAL_GROUP_PRESETS)[number],
+          ),
+        );
+      } else {
+        setMealGroupName("");
+        setMealGroupId(null);
+        setCustomGroupActive(false);
+      }
+
       setLoaded(true);
     });
     return () => {
@@ -98,6 +155,73 @@ export function EditMealScreen() {
     [],
   );
 
+  const handleGramsChange = useCallback(
+    (newGramsRaw: string): void => {
+      setGrams(newGramsRaw);
+      const parsedGrams = Number(newGramsRaw.trim().replace(",", "."));
+      if (!Number.isFinite(parsedGrams) || parsedGrams <= 0) return;
+
+      // If no baseline established, establish from current form inputs
+      if (baselineRef.current === null || baselineRef.current.grams <= 0) {
+        const cal = parseOptionalNutritionNumber(form.calories);
+        const p = parseOptionalNutritionNumber(form.protein);
+        const c = parseOptionalNutritionNumber(form.carbs);
+        const f = parseOptionalNutritionNumber(form.fat);
+        baselineRef.current = {
+          caloriesKcal: cal.ok ? cal.value : null,
+          proteinG: p.ok ? p.value : null,
+          carbohydrateG: c.ok ? c.value : null,
+          fatG: f.ok ? f.value : null,
+          grams: parsedGrams,
+        };
+        return;
+      }
+
+      const scaled = scaleNutrition(baselineRef.current, parsedGrams);
+      setForm((current) => {
+        const updatedName =
+          extractGramsFromName(current.name) !== null
+            ? updateGramsInName(current.name, parsedGrams)
+            : current.name;
+        return {
+          ...current,
+          name: updatedName,
+          calories:
+            scaled.caloriesKcal === null ? "" : String(scaled.caloriesKcal),
+          protein: scaled.proteinG === null ? "" : String(scaled.proteinG),
+          carbs:
+            scaled.carbohydrateG === null ? "" : String(scaled.carbohydrateG),
+          fat: scaled.fatG === null ? "" : String(scaled.fatG),
+        };
+      });
+    },
+    [form.calories, form.carbs, form.fat, form.protein],
+  );
+
+  const adjustGramsDelta = useCallback(
+    (delta: number): void => {
+      const current = Number(grams.trim().replace(",", "."));
+      const base = Number.isFinite(current) && current > 0 ? current : 100;
+      const next = Math.max(5, Math.round(base + delta));
+      handleGramsChange(String(next));
+    },
+    [grams, handleGramsChange],
+  );
+
+  const scaleGramsMultiplier = useCallback(
+    (mult: number): void => {
+      const parsedCurrent = Number(grams.trim().replace(",", "."));
+      const baseGrams =
+        baselineRef.current?.grams ??
+        (Number.isFinite(parsedCurrent) && parsedCurrent > 0
+          ? parsedCurrent
+          : 100);
+      const next = Math.max(5, Math.round(baseGrams * mult));
+      handleGramsChange(String(next));
+    },
+    [grams, handleGramsChange],
+  );
+
   const save = useCallback(async (): Promise<void> => {
     if (entry === null || entryId === null) return;
     setMessage(null);
@@ -109,6 +233,25 @@ export function EditMealScreen() {
       setMessage("Calories and macros must be positive numbers or blank.");
       return;
     }
+
+    let nextDetails = entry.details;
+    const parsedGrams = Number(grams.trim().replace(",", "."));
+    if (Number.isFinite(parsedGrams) && parsedGrams > 0) {
+      nextDetails = withMealGrams(nextDetails, parsedGrams);
+    } else {
+      nextDetails = withMealGrams(nextDetails, null);
+    }
+
+    const trimmedGroup = mealGroupName.trim();
+    if (trimmedGroup.length > 0) {
+      nextDetails = withMealGroup(nextDetails, {
+        id: mealGroupId ?? createOperationId(),
+        name: trimmedGroup,
+      });
+    } else {
+      nextDetails = withMealGroup(nextDetails, null);
+    }
+
     const patch: LogMealForm = {
       name: form.name,
       consumedAt: entry.consumedAt,
@@ -116,6 +259,7 @@ export function EditMealScreen() {
       proteinG: protein.value,
       carbohydrateG: carbs.value,
       fatG: fat.value,
+      details: nextDetails,
     };
     setSubmitting(true);
     const result = await updateFoodEntry(entryId, patch);
@@ -128,7 +272,16 @@ export function EditMealScreen() {
       await clearLoggingDraft(userId, draftKind);
     }
     router.back();
-  }, [draftKind, entry, entryId, form, userId]);
+  }, [
+    draftKind,
+    entry,
+    entryId,
+    form,
+    grams,
+    mealGroupId,
+    mealGroupName,
+    userId,
+  ]);
 
   return (
     <ThemedView style={styles.page}>
@@ -156,6 +309,66 @@ export function EditMealScreen() {
                 inputColor={theme.text}
                 autoFocus
               />
+
+              {/* Portion Weight / Grams Stepper Section */}
+              <View style={styles.gramsSection}>
+                <View style={styles.gramsHeaderRow}>
+                  <ThemedText type="smallBold">
+                    Portion weight (grams)
+                  </ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    Updates calories & macros dynamically
+                  </ThemedText>
+                </View>
+
+                <View style={styles.gramsInputRow}>
+                  <TextInput
+                    accessibilityLabel="Portion weight in grams"
+                    keyboardType="numeric"
+                    placeholder="e.g. 150"
+                    placeholderTextColor="#8A8D91"
+                    style={[styles.gramsInput, { color: theme.text }]}
+                    value={grams}
+                    onChangeText={handleGramsChange}
+                  />
+                  <ThemedText type="smallBold" style={styles.gramsUnit}>
+                    g
+                  </ThemedText>
+                </View>
+
+                {/* Quick adjustments */}
+                <View style={styles.chipsRow}>
+                  <ChipButton
+                    label="-50g"
+                    onPress={() => adjustGramsDelta(-50)}
+                  />
+                  <ChipButton
+                    label="-10g"
+                    onPress={() => adjustGramsDelta(-10)}
+                  />
+                  <ChipButton
+                    label="+10g"
+                    onPress={() => adjustGramsDelta(10)}
+                  />
+                  <ChipButton
+                    label="+50g"
+                    onPress={() => adjustGramsDelta(50)}
+                  />
+                  <ChipButton
+                    label="0.5x"
+                    onPress={() => scaleGramsMultiplier(0.5)}
+                  />
+                  <ChipButton
+                    label="1.5x"
+                    onPress={() => scaleGramsMultiplier(1.5)}
+                  />
+                  <ChipButton
+                    label="2x"
+                    onPress={() => scaleGramsMultiplier(2)}
+                  />
+                </View>
+              </View>
+
               <Field
                 label="Calories (kcal)"
                 value={form.calories}
@@ -191,6 +404,103 @@ export function EditMealScreen() {
                     keyboardType="numeric"
                   />
                 </View>
+              </View>
+
+              {/* Meal Group Section */}
+              <View style={styles.groupSection}>
+                <ThemedText type="smallBold">Meal Group</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Group individual items into a bigger meal
+                </ThemedText>
+                <View style={styles.chipsRow}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="No meal group"
+                    onPress={() => {
+                      setMealGroupName("");
+                      setMealGroupId(null);
+                      setCustomGroupActive(false);
+                    }}
+                    style={[
+                      styles.groupChip,
+                      mealGroupName === "" && styles.groupChipActive,
+                    ]}
+                  >
+                    <ThemedText
+                      type="smallBold"
+                      style={
+                        mealGroupName === ""
+                          ? styles.groupChipTextActive
+                          : styles.groupChipText
+                      }
+                    >
+                      None
+                    </ThemedText>
+                  </Pressable>
+
+                  {MEAL_GROUP_PRESETS.map((preset) => {
+                    const active =
+                      mealGroupName.toLowerCase() === preset.toLowerCase();
+                    return (
+                      <Pressable
+                        key={preset}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Assign to ${preset}`}
+                        onPress={() => {
+                          setMealGroupName(preset);
+                          setCustomGroupActive(false);
+                        }}
+                        style={[
+                          styles.groupChip,
+                          active && styles.groupChipActive,
+                        ]}
+                      >
+                        <ThemedText
+                          type="smallBold"
+                          style={
+                            active
+                              ? styles.groupChipTextActive
+                              : styles.groupChipText
+                          }
+                        >
+                          {preset}
+                        </ThemedText>
+                      </Pressable>
+                    );
+                  })}
+
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Custom meal group name"
+                    onPress={() => setCustomGroupActive(true)}
+                    style={[
+                      styles.groupChip,
+                      customGroupActive && styles.groupChipActive,
+                    ]}
+                  >
+                    <ThemedText
+                      type="smallBold"
+                      style={
+                        customGroupActive
+                          ? styles.groupChipTextActive
+                          : styles.groupChipText
+                      }
+                    >
+                      Custom…
+                    </ThemedText>
+                  </Pressable>
+                </View>
+
+                {customGroupActive ? (
+                  <TextInput
+                    accessibilityLabel="Custom meal group name"
+                    placeholder="e.g. Post-workout meal"
+                    placeholderTextColor="#8A8D91"
+                    style={[styles.input, { color: theme.text, marginTop: 6 }]}
+                    value={mealGroupName}
+                    onChangeText={setMealGroupName}
+                  />
+                ) : null}
               </View>
             </>
           ) : null}
@@ -228,6 +538,24 @@ export function EditMealScreen() {
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
+  );
+}
+
+function ChipButton(props: {
+  readonly label: string;
+  readonly onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={props.label}
+      onPress={props.onPress}
+      style={({ pressed }) => [styles.chipButton, pressed && styles.pressed]}
+    >
+      <ThemedText type="smallBold" style={styles.chipButtonText}>
+        {props.label}
+      </ThemedText>
+    </Pressable>
   );
 }
 
@@ -276,6 +604,78 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.two,
     padding: Spacing.three,
     fontSize: 16,
+  },
+  gramsSection: {
+    gap: Spacing.one,
+    padding: Spacing.three,
+    borderRadius: 14,
+    backgroundColor: "rgba(16, 185, 129, 0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.2)",
+  },
+  gramsHeaderRow: {
+    gap: 2,
+    marginBottom: 4,
+  },
+  gramsInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+  },
+  gramsInput: {
+    flex: 1,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#10B981",
+    borderRadius: Spacing.two,
+    padding: Spacing.three,
+    fontSize: 18,
+    fontWeight: "600",
+  },
+  gramsUnit: {
+    fontSize: 16,
+    color: "#10B981",
+  },
+  chipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 4,
+  },
+  chipButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+  },
+  chipButtonText: {
+    fontSize: 12,
+    color: "#059669",
+  },
+  groupSection: {
+    gap: Spacing.one,
+    marginTop: Spacing.two,
+    padding: Spacing.three,
+    borderRadius: 14,
+    backgroundColor: "rgba(148, 163, 184, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.15)",
+  },
+  groupChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: "rgba(148, 163, 184, 0.15)",
+  },
+  groupChipActive: {
+    backgroundColor: "#10B981",
+  },
+  groupChipText: {
+    fontSize: 12,
+    color: "#475569",
+  },
+  groupChipTextActive: {
+    fontSize: 12,
+    color: "#FFFFFF",
   },
   macroRow: { flexDirection: "row", gap: Spacing.two },
   macroField: { flex: 1 },

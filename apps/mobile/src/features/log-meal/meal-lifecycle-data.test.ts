@@ -5,12 +5,16 @@ import type { FoodEntry } from "@mizyun/contracts";
 import type { Result } from "@mizyun/core";
 
 import {
+  clusterDayEntries,
   copyFoodEntryWith,
   deleteFoodEntryWith,
   fetchFoodDayWith,
   fetchFoodEntryWith,
   fetchFoodHistoryWith,
   groupFoodEntriesByDay,
+  groupFoodEntriesWith,
+  renameFoodGroupWith,
+  ungroupFoodEntryWith,
   updateFoodEntryWith,
 } from "./meal-lifecycle-data";
 
@@ -334,5 +338,173 @@ describe("fetchFoodHistoryWith", () => {
     expect(result.groups).toEqual([]);
     expect(result.entries).toEqual([]);
     expect(result.message).toMatch(/Network unavailable/);
+  });
+});
+
+describe("clusterDayEntries", () => {
+  const item1: FoodEntry = {
+    ...ENTRY,
+    id: "entry-1",
+    name: "Eggs",
+    caloriesKcal: 150,
+    proteinG: 12,
+    carbohydrateG: 1,
+    fatG: 10,
+    details: {
+      mealGroup: { id: "group-breakfast", name: "Breakfast" },
+    },
+  };
+
+  const item2: FoodEntry = {
+    ...ENTRY,
+    id: "entry-2",
+    name: "Toast",
+    caloriesKcal: 120,
+    proteinG: 4,
+    carbohydrateG: 22,
+    fatG: 1.5,
+    details: {
+      mealGroup: { id: "group-breakfast", name: "Breakfast" },
+    },
+  };
+
+  const item3: FoodEntry = {
+    ...ENTRY,
+    id: "entry-3",
+    name: "Apple",
+    caloriesKcal: 80,
+    proteinG: 0.5,
+    carbohydrateG: 20,
+    fatG: 0.2,
+    details: {},
+  };
+
+  it("clusters grouped meals and preserves standalone meals", () => {
+    const items = [item1, item2, item3];
+    const clusters = clusterDayEntries(items);
+
+    expect(clusters).toHaveLength(2);
+
+    // First item is the Breakfast cluster
+    const cluster = clusters[0];
+    expect(cluster?.kind).toBe("group");
+    if (cluster?.kind === "group") {
+      expect(cluster.id).toBe("group-breakfast");
+      expect(cluster.name).toBe("Breakfast");
+      expect(cluster.entries).toHaveLength(2);
+      expect(cluster.summary.entryCount).toBe(2);
+      expect(cluster.summary.caloriesKcal).toBe(270);
+      expect(cluster.summary.proteinG).toBe(16);
+      expect(cluster.summary.carbohydrateG).toBe(23);
+      expect(cluster.summary.fatG).toBe(11.5);
+    }
+
+    // Second item is standalone Apple
+    const standalone = clusters[1];
+    expect(standalone?.kind).toBe("standalone");
+    if (standalone?.kind === "standalone") {
+      expect(standalone.entry.id).toBe("entry-3");
+      expect(standalone.entry.name).toBe("Apple");
+    }
+  });
+});
+
+describe("groupFoodEntriesWith", () => {
+  it("groups selected meals into a new meal group", async () => {
+    const requests: RequestOptions[] = [];
+    const client = queuedClient(
+      [
+        { ok: true, value: { foodEntry: { ...ENTRY, id: "entry-1" } } },
+        { ok: true, value: { foodEntry: { ...ENTRY, id: "entry-2" } } },
+      ],
+      requests,
+    );
+
+    const entry1: FoodEntry = { ...ENTRY, id: "entry-1", name: "Eggs" };
+    const entry2: FoodEntry = { ...ENTRY, id: "entry-2", name: "Toast" };
+
+    const result = await groupFoodEntriesWith(
+      client,
+      ["entry-1", "entry-2"],
+      "Power Breakfast",
+      [entry1, entry2],
+      "fixed-group-id",
+    );
+
+    expect(result.ok).toBe(true);
+    expect(requests).toHaveLength(2);
+    expect(requests[0]?.path).toBe("/v1/food-entries/entry-1");
+    expect(requests[1]?.path).toBe("/v1/food-entries/entry-2");
+    expect(
+      (requests[0]?.body as { details?: Record<string, unknown> }).details,
+    ).toMatchObject({
+      mealGroupId: "fixed-group-id",
+      mealGroupName: "Power Breakfast",
+    });
+  });
+
+  it("fails if meal group name is empty", async () => {
+    const client = queuedClient([]);
+    const result = await groupFoodEntriesWith(client, ["e1"], "   ", [ENTRY]);
+    expect(result).toEqual({
+      ok: false,
+      message: "Please enter a meal name.",
+    });
+  });
+});
+
+describe("ungroupFoodEntryWith & renameFoodGroupWith", () => {
+  it("ungroups a meal by clearing its mealGroup details", async () => {
+    const requests: RequestOptions[] = [];
+    const client = queuedClient(
+      [{ ok: true, value: { foodEntry: ENTRY } }],
+      requests,
+    );
+
+    const groupedEntry: FoodEntry = {
+      ...ENTRY,
+      details: {
+        mealGroup: { id: "g1", name: "Breakfast" },
+      },
+    };
+
+    const result = await ungroupFoodEntryWith(client, groupedEntry);
+    expect(result.ok).toBe(true);
+    expect(requests).toHaveLength(1);
+    const body = requests[0]?.body as { details?: Record<string, unknown> };
+    expect(body.details?.mealGroup).toBeUndefined();
+    expect(body.details?.mealGroupId).toBeUndefined();
+  });
+
+  it("renames a meal group across all entries", async () => {
+    const requests: RequestOptions[] = [];
+    const client = queuedClient(
+      [
+        { ok: true, value: { foodEntry: ENTRY } },
+        { ok: true, value: { foodEntry: ENTRY } },
+      ],
+      requests,
+    );
+
+    const grouped1: FoodEntry = {
+      ...ENTRY,
+      id: "e1",
+      details: { mealGroup: { id: "g1", name: "Old Breakfast" } },
+    };
+    const grouped2: FoodEntry = {
+      ...ENTRY,
+      id: "e2",
+      details: { mealGroup: { id: "g1", name: "Old Breakfast" } },
+    };
+
+    const result = await renameFoodGroupWith(
+      client,
+      [grouped1, grouped2],
+      "New Brunch",
+    );
+    expect(result.ok).toBe(true);
+    expect(requests).toHaveLength(2);
+    const body1 = requests[0]?.body as { details?: Record<string, unknown> };
+    expect(body1.details?.mealGroupName).toBe("New Brunch");
   });
 });
