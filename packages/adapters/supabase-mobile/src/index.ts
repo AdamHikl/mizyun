@@ -24,6 +24,7 @@ import {
   type SignUpResult,
 } from "@mizyun/identity";
 
+export { ChunkedStorage, type StringStorage } from "./chunked-storage";
 import { ChunkedStorage, type StringStorage } from "./chunked-storage";
 import { createWebStorage } from "./web-storage";
 

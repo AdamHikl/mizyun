@@ -19,6 +19,8 @@ import {
   type ReminderScheduler,
   type ReminderStore,
 } from "../coach/coach-reminders";
+import { purgeOfflineCache } from "../offline-cache/offline-cache-storage";
+import { keyFor as workoutPreferencesKeyFor } from "../workouts/workout-preferences";
 
 export interface SecureKeyValueStore {
   getItemAsync(key: string): Promise<string | null>;
@@ -82,7 +84,9 @@ export const clearDeletionChallenge = async (
   userId: string,
   store: SecureKeyValueStore = SecureStore,
 ): Promise<void> => {
-  await store.deleteItemAsync(deletionChallengeKey(userId)).catch(() => {});
+  await Promise.resolve(
+    store.deleteItemAsync(deletionChallengeKey(userId)),
+  ).catch(() => {});
 };
 
 export type ExportAccountDataResult =
@@ -178,6 +182,8 @@ export interface ClearLocalUserDataOptions {
   readonly reminderStore?: ReminderStore;
   readonly additionalDraftKinds?: readonly LoggingDraftKind[];
   readonly challengeStore?: SecureKeyValueStore;
+  readonly offlineCacheStore?: Parameters<typeof purgeOfflineCache>[1];
+  readonly workoutPreferencesStore?: SecureKeyValueStore;
   readonly listExportFiles?: () => ReadonlyArray<{
     readonly name: string;
     delete(): void;
@@ -187,7 +193,8 @@ export interface ClearLocalUserDataOptions {
 /**
  * Clears all locally persisted state for the given user, including
  * meal/workout/weight/coach drafts, AI consent decisions, scheduled
- * coach reminder notifications, deletion challenges, and local exported JSON files.
+ * coach reminder notifications, deletion challenges, workout preferences,
+ * offline profile/dashboard caches, and local exported JSON files.
  */
 export const clearLocalUserData = async (
   userId: string,
@@ -221,6 +228,8 @@ export const clearLocalUserData = async (
     /^mizyun-account-export-.*\.json$/.test(file.name),
   );
 
+  const workoutStore = options.workoutPreferencesStore ?? SecureStore;
+
   await Promise.allSettled([
     ...draftKinds.map((kind) =>
       clearLoggingDraft(userId, kind, options.draftStore),
@@ -232,6 +241,10 @@ export const clearLocalUserData = async (
       options.reminderStore,
     ),
     clearDeletionChallenge(userId, options.challengeStore),
+    purgeOfflineCache(userId, options.offlineCacheStore),
+    Promise.resolve(
+      workoutStore.deleteItemAsync(workoutPreferencesKeyFor(userId)),
+    ).catch(() => {}),
     ...matchedFiles.map(async (file) => {
       await file.delete();
     }),

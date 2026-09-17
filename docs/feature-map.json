@@ -202,7 +202,8 @@
         "apps/api/src/modules/energy",
         "apps/mobile/src/features/dashboard",
         "apps/mobile/src/features/onboarding",
-        "apps/mobile/src/features/energy-setup"
+        "apps/mobile/src/features/energy-setup",
+        "apps/mobile/src/features/offline-cache"
       ],
       "contracts": ["packages/contracts/src/energy.ts"],
       "domainPort": [
@@ -220,7 +221,8 @@
         "apps/mobile/src/features/dashboard/dashboard-screen.tsx",
         "apps/mobile/src/features/dashboard/dashboard-data.ts",
         "apps/mobile/src/features/onboarding/onboarding-state.ts",
-        "apps/mobile/src/features/energy-setup/energy-profile-data.ts"
+        "apps/mobile/src/features/energy-setup/energy-profile-data.ts",
+        "apps/mobile/src/features/offline-cache/offline-cache-storage.ts"
       ],
       "adapters": [
         "packages/adapters/supabase-server/src/profile-repository.ts",
@@ -239,6 +241,7 @@
         "apps/api/src/modules/energy/routes.test.ts",
         "apps/mobile/src/features/dashboard/dashboard-data.test.ts",
         "apps/mobile/src/features/onboarding/onboarding-state.test.ts",
+        "apps/mobile/src/features/offline-cache/offline-cache-storage.test.ts",
         "packages/core/src/energy.test.ts",
         "packages/core/src/profile.test.ts",
         "packages/core/src/goal.test.ts"

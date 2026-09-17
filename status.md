@@ -6,6 +6,65 @@
 > - [`docs/archive/status/STATUS_HISTORY_2026-09-10_THROUGH_2026-09-12.md`](docs/archive/status/STATUS_HISTORY_2026-09-10_THROUGH_2026-09-12.md) (Handoffs from Sep 10 through Sep 12)
 > - [`docs/archive/status/STATUS_HISTORY_THROUGH_2026-09-09.md`](docs/archive/status/STATUS_HISTORY_THROUGH_2026-09-09.md) (Handoffs through Sep 9)
 
+## Active handoff — Offline profile & dashboard cache for instant startup (`OFFLINE-CACHE-001`, #14, 2026-09-17)
+
+- **Context & Requirement:** GitHub Issue [#14](https://github.com/AdamHikl/mizyun/issues/14):
+  1. Instant authenticated startup renders cached profile and dashboard snapshot data immediately during network outage or slow connection, eliminating layout shifts, flash-of-empty-content, and accidental onboarding redirects.
+  2. Strict owner-scoping and cross-user isolation: all keys and payloads are partitioned by `userId` and fail-closed against mismatched or corrupted data.
+  3. iOS Keychain size limit mitigation: standard `SecureStore` enforces 2048 bytes; reused `ChunkedStorage` with 1800-byte chunks and manifests to prevent keychain write failures.
+  4. Staleness bounding & eviction: 48-hour default max age; expired snapshots return null and are eagerly evicted from storage.
+  5. Purge lifecycle: cache is completely cleared on sign-out and account deletion (`clearLocalUserData`).
+  6. Accessible UI: offline snapshot banner includes `accessibilityRole="alert"` and `accessibilityLiveRegion="polite"`, with timestamp and refresh action, while suppressing duplicate error rows.
+- **Verification Evidence:**
+  - `apps/mobile/src/features/offline-cache/offline-cache-storage.test.ts`: 9/9 tests pass (save/load profile & dashboard, owner isolation, corruption auto-purge, 48h staleness & eviction, purge lifecycle, offline startup & reconnect sync, large payload chunking).
+  - `apps/mobile/src/features/settings/account-data-management.test.ts`: 15/15 tests pass (including offline cache and workout preferences purging).
+  - Mobile test suite: 47 test files / 455 tests pass in `@mizyun/mobile`.
+  - Repository check (`pnpm check`): 100% PASS (navigation check with 0 errors, Prettier formatting, all 15 workspace typechecks, Hermes iOS/Android bundle exports, all unit/integration tests, deployment safeguards, build matrix, and AI evaluation offline invariants).
+  - Independent subagent review: Completed and approved (`Final Verdict: APPROVE`).
+- **Next exact action:** Close GitHub Issue #14 and deploy to Dev on the Pi (`pnpm deploy:dev`) for physical iOS device validation (`com.mizyun.development`).
+
+## Active handoff — Raspberry Pi backend services restored online (2026-09-17)
+
+- **Incident & Root Cause:** Raspberry Pi 5 (`rpserver`) booted up following power downtime. During initial boot, concurrent initialization of Docker containers for both Dev and Production Supabase stacks caused race conditions with Postgres startup; `docker compose up -d --wait` in `mizyun-supabase.service` and `mizyun-supabase-dev.service` timed out on `supabase-studio` and `mizyun-dev-rest` before their PostgREST/Studio reconnection backoffs settled. As a result, both Supabase systemd units entered failed state, preventing `mizyun-api.service` and `mizyun-api-dev.service` from starting due to systemd unit `Requires=` constraints.
+- **Remediation:**
+  - Verified Docker container convergence once database engines stabilized (all 16 containers across Dev and Production reached healthy status).
+  - Started `mizyun-supabase.service` and `mizyun-supabase-dev.service` via `sudo systemctl start`, bringing both units to `active`.
+  - Started `mizyun-api.service` and `mizyun-api-dev.service`, bringing both API services to `active`.
+  - Verified Tailscale connectivity (`rpserver` 100.116.142.1) and SSH transport over Tailscale.
+- **Verification Evidence:**
+  - Systemd unit states on Pi: `mizyun-supabase.service` (active), `mizyun-supabase-dev.service` (active), `mizyun-api.service` (active), `mizyun-api-dev.service` (active), `cloudflared.service` (active), `tailscaled.service` (active).
+  - Docker container state: all 16 containers healthy (`mizyun-dev-db`, `mizyun-dev-auth`, `mizyun-dev-kong`, `mizyun-dev-storage`, `mizyun-dev-imgproxy`, `mizyun-dev-rest`, `realtime-dev`, `supabase-db`, `supabase-auth`, `supabase-storage`, `supabase-edge-functions`, `supabase-meta`, `supabase-pooler`, `supabase-rest`, `supabase-kong`, `supabase-studio`, `supabase-imgproxy`).
+  - Local Pi endpoints: `http://127.0.0.1:4000/v1/health` (HTTP 200 `{"status":"ok","service":"mizyun-api"}`), `http://127.0.0.1:4100/v1/health` (HTTP 200 `{"status":"ok","service":"mizyun-api"}`).
+  - Public Cloudflare ingress verified from Mac:
+    - `https://mizyun-api.phiskel.com/v1/health` -> HTTP 200 `{"status":"ok","service":"mizyun-api"}`
+    - `https://mizyun-api-dev.phiskel.com/v1/health` -> HTTP 200 `{"status":"ok","service":"mizyun-api"}`
+    - `https://mizyun-supabase.phiskel.com/auth/v1/health` -> Kong gateway active
+    - `https://mizyun-supabase-dev.phiskel.com/auth/v1/health` -> Kong gateway active
+  - Working tree checkouts on Pi verified clean: Dev at `8e3853d`, Production at `43917fa`.
+- **Next exact action:** Resume deferred tasks now that Pi is online (e.g. `pnpm deploy:dev` to deploy commits #97, #95, #101, #102 to Dev, and verify on physical iOS device `com.mizyun.development`).
+
+## Active handoff — Public Mizyun website candidate (`WEB-MIZYUN-001`, #103, 2026-09-17)
+
+- A separate Sites checkout at `/Users/adam/Documents/mizyun-website` contains the landing page, actual app artwork, support/deletion pages, draft privacy/terms pages, metadata/assets, exact-www temporary redirects, local route tests, and a rollback runbook. Dedicated source commit `6c725de3824529db0de2df1d9dd8f3564ae40c5e` was pushed to the private Sites source repository and saved as version 1. Owner-only deployment `appgdep_6aabcc67d5788191b18af38a9f9efd26` succeeded at `https://mizyun.adoh811.chatgpt.site`; the post-deploy Site access read showed only Adam as an allowed viewer, with no groups. This is a private review publication, **not** the public `www.phiskel.com/mizyun` launch. The app repo's pre-existing dirty mobile/offline-cache and planning work was preserved; www DNS/rules and Pi were untouched.
+- **Local evidence:** website `npm test` passed 5/5 real local HTTP route tests; Vinext build passed; browser preview at 375/768/1440 px showed no horizontal overflow. Physical Safari/Android, JavaScript-disabled browser, public/incognito access, TLS and custom-domain acceptance remain unrun. Independent review found material cutover blockers: current www serves an active Phiskel chat/models/upload application, `/auth/*` and `/.well-known/*` are not preserved by mere exclusions, and Vinext emits 308 rather than the planned 301 for trailing slashes. Legal/provider-retention copy and screenshot approval also remain open.
+- **Publication evidence and remaining gates:** After Adam explicitly approved publication following disclosure, the exact clean Site source was pushed; the 3,450,880-byte deployment archive was validated and attached to version 1. The independent read-only review found no tracked credentials but did not approve public use of the workout screenshot or draft legal pages. No authenticated live browser journey, public/incognito, physical Safari/Android, TLS/custom-domain or Pi check was performed. App `pnpm check` stopped at the pre-existing untracked `apps/mobile/src/features/offline-cache` feature-map coverage gap; `pnpm format:check` separately failed on the pre-existing edited `apps/mobile/src/features/settings/account-data-management.ts`. Targeted documentation Prettier and `git diff --check` passed before this update; no unrelated files were changed to bypass these gates.
+- **Next exact action:** decide whether the active Phiskel www functionality is retained or retired; if retained, inventory its complete routes/auth and design/test preservation at the edge. Approve/reconcile legal text and screenshot, fix/test slash normalization and public routing, then explicitly authorize a public audience and www cutover. Preserve the current www service until that decision and verification are complete.
+
+## Planning handoff — Public Mizyun website (`WEB-MIZYUN-001`, 2026-09-17)
+
+- Prepared [the next-session website implementation plan](docs/MIZYUN_WEBSITE_IMPLEMENTATION_PLAN_2026-09-17.md) for `https://www.phiskel.com/mizyun`, with ordinary legacy www redirects, explicit legal/asset exceptions, independent hosting, phased implementation, verification and rollback. Baseline source: `ed4a19784a66082a59558388fe29688545887441`.
+- A read-only helper audited local product claims, screenshot privacy, legal URLs and native Auth callbacks. The coordinator incorporated its findings and dated primary-source research. Existing unrelated mobile/offline-cache and Hetzner planning work was preserved.
+- Planning only: no website code, build, Site registration, deployment, DNS/account/runtime change or Pi connection. Current hosting/domain configuration and public app availability remain unverified. GitHub issue listing failed twice with `error connecting to api.github.com`; issue tracking remains pending.
+- **Planning verification:** targeted Prettier and `git -c core.fsmonitor=false diff --check` passed. `pnpm navigation:check` passed internal links and architecture boundaries but failed the pre-existing untracked offline-cache feature-map coverage gap; no unrelated fix or full build/check was attempted.
+- **Next exact action:** inspect current working tree and read the linked plan, then resolve current www hosting/DNS ownership from control-plane data without contacting the Pi. Implement in a separate website checkout; complete preview and routing tests before custom-domain cutover. The Pi remains off-limits until the founder explicitly confirms availability.
+
+## Planning handoff — Hetzner backend relocation (2026-09-17)
+
+- Prepared [a planning-only migration guide](docs/HETZNER_BACKEND_MIGRATION_PLAN_2026-09-17.md) from local commit `ed4a19784a66082a59558388fe29688545887441` and dated official-source research. Founder clarification: the current Pi 5 has 4 GB RAM and has hosted both environments. CX23 is therefore a plausible like-for-like pilot; CX33 in NBG1 is the preferred €3/month headroom choice, contingent on availability and measured two-stack capacity. The user's Hetzner screen marked all listed plans unavailable.
+- The Raspberry Pi is temporarily down per founder instruction and was not contacted. Live resource use, latest backup, and current Production state remain unverified. No infrastructure, DNS, credentials, database, or runtime was changed. Existing unrelated mobile/offline-cache work was preserved.
+- Documentation verification: targeted Prettier check passed for the plan, research log, and status; `git -c core.fsmonitor=false diff --check` passed. `pnpm navigation:check` verified all markdown links and architecture boundaries but failed feature-map directory coverage for the pre-existing untracked `apps/mobile/src/features/offline-cache`; no feature-map edit or full `pnpm check` was attempted for this planning-only package.
+- **Next exact action:** inventory available off-Pi backups and current target configuration without connecting to the Pi; when the founder confirms the Pi is back online, collect live capacity and recovery evidence before provisioning or cutover. Production data migration requires a verified database **and** Storage restore and an explicit recovery-point decision if the Pi stays unavailable.
+
 ## Active handoff — Routine query hardening and session-start idempotency (#97, 2026-09-17)
 
 - **Context & Requirement:** GitHub Issue [#97](https://github.com/AdamHikl/mizyun/issues/97):

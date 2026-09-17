@@ -22,6 +22,11 @@ import { LoadingScreen } from "./loading-screen";
 import { OnboardingScreen } from "@/features/onboarding/onboarding-screen";
 import { ResetPasswordScreen } from "./reset-password-screen";
 import { resolveSessionGateTarget } from "./session-gate-state";
+import {
+  loadCachedProfile,
+  purgeOfflineCache,
+  saveCachedProfile,
+} from "@/features/offline-cache/offline-cache-storage";
 
 interface AuthContextValue {
   session: AuthSession | null;
@@ -146,12 +151,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      const userId = nextSession.user.id;
       void analyticsClient.syncConsent();
       setProfileLoading(true);
+
+      // Pre-populate with cached profile immediately to avoid layout flash / false onboarding redirect
+      void loadCachedProfile(userId).then((cached) => {
+        if (
+          profileRequestVersion.current === requestVersion &&
+          cached !== null
+        ) {
+          setProfile((current) => current ?? cached.profile);
+        }
+      });
+
       void fetchProfile()
         .then((nextProfile) => {
           if (profileRequestVersion.current === requestVersion) {
-            setProfile(nextProfile);
+            if (nextProfile !== null) {
+              setProfile(nextProfile);
+              void saveCachedProfile(userId, nextProfile);
+            } else {
+              // Server fetch failed (e.g. offline) -> fallback to cached profile
+              void loadCachedProfile(userId).then((cached) => {
+                if (
+                  profileRequestVersion.current === requestVersion &&
+                  cached !== null
+                ) {
+                  setProfile(cached.profile);
+                }
+              });
+            }
           }
         })
         .finally(() => {
@@ -171,8 +201,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let active = true;
     authClient
       .getSession()
-      .then((value) => {
+      .then(async (value) => {
         if (!active) return;
+        if (value?.user.id && value.accessToken !== "preview-token") {
+          const cached = await loadCachedProfile(value.user.id).catch(
+            () => null,
+          );
+          if (active && cached) {
+            setProfile(cached.profile);
+          }
+        }
         applySession(value);
       })
       .finally(() => active && setLoading(false));
@@ -199,17 +237,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshProfile = useCallback(async () => {
     const requestVersion = ++profileRequestVersion.current;
     setProfileLoading(true);
+    const currentUserId = session?.user.id;
     try {
       const nextProfile = await fetchProfile();
       if (profileRequestVersion.current === requestVersion) {
-        setProfile(nextProfile);
+        if (nextProfile !== null) {
+          setProfile(nextProfile);
+          if (currentUserId) {
+            void saveCachedProfile(currentUserId, nextProfile);
+          }
+        } else if (currentUserId) {
+          const cached = await loadCachedProfile(currentUserId);
+          if (
+            profileRequestVersion.current === requestVersion &&
+            cached !== null
+          ) {
+            setProfile(cached.profile);
+          }
+        }
       }
     } finally {
       if (profileRequestVersion.current === requestVersion) {
         setProfileLoading(false);
       }
     }
-  }, [fetchProfile]);
+  }, [fetchProfile, session?.user.id]);
 
   const clearRecoveryState = useCallback(() => setRecoveryState(false), []);
 
@@ -218,13 +270,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [applySession]);
 
   const signOut = useCallback(async () => {
+    const currentUserId = session?.user.id;
+    if (currentUserId && session?.accessToken !== "preview-token") {
+      await purgeOfflineCache(currentUserId).catch(() => {});
+    }
     if (session?.accessToken === "preview-token") {
       applySession(null);
       return;
     }
     await authClient.signOut();
     applySession(null);
-  }, [applySession, session?.accessToken]);
+  }, [applySession, session?.accessToken, session?.user.id]);
 
   const value = useMemo<AuthContextValue>(
     () => ({

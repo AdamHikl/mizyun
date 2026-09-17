@@ -31,6 +31,11 @@ import {
   type LocalDayQuery,
   type NutritionReview,
 } from "./dashboard-data";
+import {
+  loadCachedDashboard,
+  saveCachedDashboard,
+  type DashboardMetricsData,
+} from "../offline-cache/offline-cache-storage";
 
 interface MetricsState {
   readonly caloriesToday: number | null;
@@ -41,6 +46,8 @@ interface MetricsState {
   readonly nutritionReview: NutritionReview | null;
   readonly loading: boolean;
   readonly hasError: boolean;
+  readonly isOfflineSnapshot: boolean;
+  readonly cachedAt: string | null;
 }
 
 const EMPTY_METRICS: MetricsState = {
@@ -52,6 +59,8 @@ const EMPTY_METRICS: MetricsState = {
   nutritionReview: null,
   loading: true,
   hasError: false,
+  isOfflineSnapshot: false,
+  cachedAt: null,
 };
 
 const isoLocalDate = (now: Date): string => {
@@ -108,6 +117,16 @@ const formatWeight = (
 
 const formatCount = (n: number | null): string =>
   n === null ? "—" : String(n);
+
+const formatCachedTime = (isoString: string | null): string => {
+  if (!isoString) return "earlier";
+  try {
+    const date = new Date(isoString);
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return "earlier";
+  }
+};
 
 const caloriesDetail = (
   summary: DailySummary | null,
@@ -214,14 +233,41 @@ export function DashboardScreen() {
       setMetrics(EMPTY_METRICS);
       return;
     }
-    setMetrics((current) => ({ ...current, loading: true, hasError: false }));
     const now = new Date();
+    const todayDate = isoLocalDate(now);
     const utcOffsetMinutes = -now.getTimezoneOffset();
     const reviewDays = localReviewDaysThroughToday(now, reviewPeriod);
+
+    setMetrics((current) => ({ ...current, loading: true, hasError: false }));
+
+    // Pre-populate with cached snapshot immediately if initial load
+    if (userId) {
+      void loadCachedDashboard(userId, todayDate).then((cached) => {
+        if (cached !== null) {
+          setMetrics((current) => {
+            if (current.loading && current.caloriesToday === null) {
+              return {
+                ...current,
+                caloriesToday: cached.data.caloriesToday,
+                macros: cached.data.macros,
+                latestWeightKg: cached.data.latestWeightKg,
+                workoutsInReview: cached.data.workoutsInReview,
+                energy: cached.data.energy,
+                nutritionReview: cached.data.nutritionReview,
+                isOfflineSnapshot: true,
+                cachedAt: cached.cachedAt,
+              };
+            }
+            return current;
+          });
+        }
+      });
+    }
+
     const [summary, weight, count, energy, nutritionReview] = await Promise.all(
       [
         fetchDailySummary(apiClient, principal, {
-          date: isoLocalDate(now),
+          date: todayDate,
           utcOffsetMinutes,
         }),
         fetchLatestWeight(apiClient, principal),
@@ -229,28 +275,77 @@ export function DashboardScreen() {
           fromIsoDate:
             reviewPeriod === "week"
               ? startOfLocalWeek(now)
-              : (reviewDays[0]?.date ?? isoLocalDate(now)),
-          toIsoDate: isoLocalDate(now),
+              : (reviewDays[0]?.date ?? todayDate),
+          toIsoDate: todayDate,
         }),
         fetchEnergySummary(apiClient, principal, utcOffsetMinutes),
         fetchNutritionReview(apiClient, principal, reviewDays),
       ],
     );
-    setMetrics({
-      caloriesToday: summary.value?.caloriesKcal ?? null,
-      macros: summary.value ?? null,
-      latestWeightKg: weight.value?.weightKg ?? null,
-      workoutsInReview: count.value,
-      energy: energy.value,
-      nutritionReview: nutritionReview.value,
-      loading: false,
-      hasError:
-        summary.error !== null ||
-        weight.error !== null ||
-        count.error !== null ||
-        energy.error !== null ||
-        nutritionReview.error !== null,
-    });
+
+    const hasFetchError =
+      summary.error !== null ||
+      weight.error !== null ||
+      count.error !== null ||
+      energy.error !== null ||
+      nutritionReview.error !== null;
+
+    if (!hasFetchError) {
+      const freshData: DashboardMetricsData = {
+        caloriesToday: summary.value?.caloriesKcal ?? null,
+        macros: summary.value ?? null,
+        latestWeightKg: weight.value?.weightKg ?? null,
+        workoutsInReview: count.value,
+        energy: energy.value,
+        nutritionReview: nutritionReview.value,
+      };
+      setMetrics({
+        ...freshData,
+        loading: false,
+        hasError: false,
+        isOfflineSnapshot: false,
+        cachedAt: null,
+      });
+      if (userId) {
+        void saveCachedDashboard(userId, {
+          localDate: todayDate,
+          reviewPeriod,
+          data: freshData,
+        });
+      }
+    } else {
+      // Server fetch failed (e.g. offline) -> attempt cached fallback
+      const cached = userId
+        ? await loadCachedDashboard(userId, todayDate)
+        : null;
+      if (cached !== null) {
+        setMetrics({
+          caloriesToday: cached.data.caloriesToday,
+          macros: cached.data.macros,
+          latestWeightKg: cached.data.latestWeightKg,
+          workoutsInReview: cached.data.workoutsInReview,
+          energy: cached.data.energy,
+          nutritionReview: cached.data.nutritionReview,
+          loading: false,
+          hasError: true,
+          isOfflineSnapshot: true,
+          cachedAt: cached.cachedAt,
+        });
+      } else {
+        setMetrics({
+          caloriesToday: summary.value?.caloriesKcal ?? null,
+          macros: summary.value ?? null,
+          latestWeightKg: weight.value?.weightKg ?? null,
+          workoutsInReview: count.value,
+          energy: energy.value,
+          nutritionReview: nutritionReview.value,
+          loading: false,
+          hasError: true,
+          isOfflineSnapshot: false,
+          cachedAt: null,
+        });
+      }
+    }
   }, [accessToken, reviewPeriod, userId]);
 
   useFocusEffect(
@@ -289,6 +384,48 @@ export function DashboardScreen() {
               Confirmed food, training, and body metrics for your goal.
             </ThemedText>
           </View>
+
+          {metrics.isOfflineSnapshot ? (
+            <View
+              style={styles.offlineBanner}
+              accessibilityRole="alert"
+              accessibilityLiveRegion="polite"
+              accessibilityLabel={`Offline snapshot cached ${formatCachedTime(metrics.cachedAt)}`}
+            >
+              <View style={styles.offlineBannerContent}>
+                <ThemedText style={styles.offlineBannerIcon}>⚡️</ThemedText>
+                <View style={styles.offlineBannerTextGroup}>
+                  <ThemedText
+                    type="smallBold"
+                    style={styles.offlineBannerTitle}
+                  >
+                    Offline Snapshot
+                  </ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {metrics.cachedAt
+                      ? `Viewing cached data from ${formatCachedTime(metrics.cachedAt)}`
+                      : "Showing locally cached health data"}
+                  </ThemedText>
+                </View>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Refresh dashboard"
+                onPress={() => void loadMetrics()}
+                style={({ pressed }) => [
+                  styles.offlineRefreshButton,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <ThemedText
+                  type="smallBold"
+                  style={styles.offlineRefreshButtonText}
+                >
+                  Refresh
+                </ThemedText>
+              </Pressable>
+            </View>
+          ) : null}
 
           {!profile?.displayName ? (
             <Pressable
@@ -393,7 +530,7 @@ export function DashboardScreen() {
               Refreshing your dashboard…
             </ThemedText>
           ) : null}
-          {metrics.hasError ? (
+          {metrics.hasError && !metrics.isOfflineSnapshot ? (
             <View style={styles.refreshError}>
               <ThemedText
                 type="small"
@@ -1065,5 +1202,43 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: "#10B981",
     backgroundColor: "rgba(16, 185, 129, 0.1)",
+  },
+  offlineBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(234, 179, 8, 0.08)",
+    borderColor: "rgba(234, 179, 8, 0.25)",
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    gap: Spacing.two,
+  },
+  offlineBannerContent: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+  },
+  offlineBannerIcon: {
+    fontSize: 18,
+  },
+  offlineBannerTextGroup: {
+    flex: 1,
+    gap: 1,
+  },
+  offlineBannerTitle: {
+    color: "#EAB308",
+  },
+  offlineRefreshButton: {
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.half,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#EAB308",
+  },
+  offlineRefreshButtonText: {
+    color: "#EAB308",
   },
 });

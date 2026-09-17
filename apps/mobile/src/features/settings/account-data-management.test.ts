@@ -10,9 +10,9 @@ vi.mock("expo-notifications", () => ({
   cancelScheduledNotificationAsync: vi.fn(),
 }));
 vi.mock("expo-secure-store", () => ({
-  getItemAsync: vi.fn(),
-  setItemAsync: vi.fn(),
-  deleteItemAsync: vi.fn(),
+  getItemAsync: vi.fn().mockResolvedValue(null),
+  setItemAsync: vi.fn().mockResolvedValue(undefined),
+  deleteItemAsync: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock("react-native", () => ({ Platform: { OS: "ios" } }));
 
@@ -334,6 +334,44 @@ describe("account-data-management", () => {
     expect(consentMap.size).toBe(0);
     expect(reminderMap.size).toBe(0);
     expect(cancelledNotifications).toEqual(["notif-1", "notif-2"]);
+  });
+
+  it("clearLocalUserData purges offline cache and workout preferences", async () => {
+    const userId = "00000000-0000-4000-8000-000000000001";
+    const cacheMap = new Map<string, string>([
+      [`mizyun.offline-cache.profile.${userId}`, '{"profile":{}}'],
+      [`mizyun.offline-cache.dashboard.${userId}`, '{"dashboard":{}}'],
+    ]);
+    const offlineCacheStore = {
+      getItem: async (k: string) => cacheMap.get(k) ?? null,
+      setItem: async (k: string, v: string) => {
+        cacheMap.set(k, v);
+      },
+      removeItem: async (k: string) => {
+        cacheMap.delete(k);
+      },
+    };
+
+    const workoutPrefMap = new Map<string, string>([
+      [`mizyun.workout-preferences.${userId}`, '{"defaultRestSeconds":90}'],
+    ]);
+    const workoutPreferencesStore = {
+      getItemAsync: async (k: string) => workoutPrefMap.get(k) ?? null,
+      setItemAsync: async (k: string, v: string) => {
+        workoutPrefMap.set(k, v);
+      },
+      deleteItemAsync: async (k: string) => {
+        workoutPrefMap.delete(k);
+      },
+    };
+
+    await clearLocalUserData(userId, {
+      offlineCacheStore,
+      workoutPreferencesStore,
+    });
+
+    expect(cacheMap.size).toBe(0);
+    expect(workoutPrefMap.size).toBe(0);
   });
 
   it("saveExportToFile writes formatted JSON to file and returns fileUri and byteSize", async () => {
