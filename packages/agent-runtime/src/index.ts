@@ -978,6 +978,7 @@ export interface VisionDraftCandidate {
     readonly promptVersion: string;
   };
   readonly tokensUsed?: number | undefined;
+  readonly calculation?: string | null | undefined;
 }
 
 export interface VisionDraftProvider {
@@ -1085,6 +1086,8 @@ export class StubVisionProvider implements VisionDraftProvider {
           : "Stub provider: please verify every value before saving.",
       ],
       assumptions: ["Assumes one ordinary serving."],
+      calculation:
+        "Stub calculation: 350 kcal (12g protein, 40g carbs, 14g fat) based on standard serving estimate.",
       provenance: {
         inputKind: "photo",
         provider: "vision-dev-stub",
@@ -1193,6 +1196,7 @@ export class StubVisionProvider implements VisionDraftProvider {
         ...draft.assumptions,
         `Stub refine assumes a uniform ${scale}x scale.`,
       ],
+      calculation: `Stub refine calculation: scaled by ${scale}x to ${scaledNumber(draft.caloriesKcal)} kcal (${scaledNumber(draft.proteinG)}g protein, ${scaledNumber(draft.carbohydrateG)}g carbs, ${scaledNumber(draft.fatG)}g fat).`,
       provenance: {
         ...draft.provenance,
         provider: "vision-dev-stub",

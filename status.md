@@ -6,6 +6,32 @@
 > - [`docs/archive/status/STATUS_HISTORY_2026-09-10_THROUGH_2026-09-12.md`](docs/archive/status/STATUS_HISTORY_2026-09-10_THROUGH_2026-09-12.md) (Handoffs from Sep 10 through Sep 12)
 > - [`docs/archive/status/STATUS_HISTORY_THROUGH_2026-09-09.md`](docs/archive/status/STATUS_HISTORY_THROUGH_2026-09-09.md) (Handoffs through Sep 9)
 
+## Active handoff — Full AI meal calculation persistence and refinement of logged meals (#95, 2026-09-17)
+
+- **Context & Requirement:** GitHub Issue [#95](https://github.com/AdamHikl/mizyun/issues/95):
+  1. Add the full text that the AI gives us for the meal calculation into the meal we save, so it can be accessed later.
+  2. Add the refine feature to meals that are already logged.
+- **Implemented:**
+  - Added optional nullable `calculation` field to `foodDraftCandidateSchema` in `packages/contracts/src/food-entry.ts`.
+  - Added `calculation?: string | null | undefined` to `VisionDraftCandidate` in `packages/agent-runtime/src/index.ts` and deterministic test calculations to `StubVisionProvider`.
+  - Added `calculation` extraction, JSON schema (`type: STRING, nullable: true`), itemized breakdown system policies, and `Current calculation:` context injection in `refineUserPrompt` in `packages/providers/gemini/src/vision.ts`.
+  - Preserved `details.calculationText`, `details.aiDraft.calculation`, and `details.mealDescription` in `submitMeal` in `apps/mobile/src/features/log-meal/log-meal-screen.tsx`.
+  - Rendered a dedicated "✨ AI Meal Calculation" card (with confidence percentage and assumptions bullet points) in `apps/mobile/src/features/log-meal/edit-meal-screen.tsx`.
+  - Implemented "✨ Refine with AI" on already logged meals in `apps/mobile/src/features/log-meal/edit-meal-screen.tsx` with `useAiConsentController`, `AiConsentModal`, auto-syncing portion grams if changed, updating nutrition values and calculation text, and saving via `updateFoodEntry`.
+  - Rendered an interactive "✨ AI Calc" badge in `apps/mobile/src/features/log-meal/meal-list-screen.tsx` for entries with calculation text, which navigates directly to `EditMealScreen` to inspect the breakdown.
+- **Automated Verification:**
+  - Unit tests in `packages/providers/gemini/src/vision.test.ts` verifying calculation extraction, refine user prompt injection, and safety policy rejection handling.
+  - Tests in `apps/mobile/src/features/log-meal/meal-form.test.ts` verifying `isRecoverableMealDraft` with calculation.
+  - Tests in `apps/mobile/src/features/log-meal/meal-lifecycle-data.test.ts` verifying `updateFoodEntryWith` sends and preserves `details.calculationText` and `details.aiDraft.calculation`.
+  - Full suite of 76 tests in `apps/mobile/src/features/log-meal/` passed (100%).
+  - Full repository `pnpm check` passed cleanly (Prettier, 15 workspace typechecks, iOS/Android Hermes bundle exports, deployment safeguards, build matrix, IPA tooling, and offline AI screener).
+- **Independent Review:**
+  - Independent feature review by subagent approved with zero blocking findings, validating schema compliance, AI safety consent gating, mutation safety, gram scaling baseline updates, and accessibility. Non-blocking suggestions (defensive empty-string schema transform and auto-syncing portion grams from draft name) were incorporated.
+- **Deployment & Acceptance Status:**
+  - The Raspberry Pi server is temporarily down (user confirmed). Remote promotion to Dev (`pnpm deploy:dev`) and physical device acceptance on `com.mizyun.development` are held until the Pi is online.
+- **Next exact action:**
+  - Once the Raspberry Pi is back online, deploy commit to Pi Dev (`pnpm deploy:dev`) and verify device journey on `com.mizyun.development`: log a meal with AI, verify `✨ AI Calc` badge on meal list, tap into edit meal, view full calculation text, refine with AI instruction ("add 1 egg"), and save changes.
+
 ## Active handoff — Remote promotion script stdin isolation hardened (#101, 2026-09-17)
 
 - **Context & Requirement:** GitHub Issue [#101](https://github.com/AdamHikl/mizyun/issues/101): Production promotion previously streamed `promote-production.sh` to remote `bash -s` via stdin. An interactive child prompt consumed subsequent script lines, skipping the API restart while the outer health check passed against the old running process. Defense in depth required materializing the candidate script remotely, disconnecting standard input from `/dev/null`, ensuring automatic temporary file cleanup, and adding orchestration regressions.

@@ -133,6 +133,22 @@ describe("recoverable AI meal drafts", () => {
     });
   });
 
+  it("accepts an AI draft candidate with full calculation text", () => {
+    const candidateWithCalc = {
+      ...candidate,
+      calculation:
+        "Tuna 160g: 208 kcal (46g P, 0g C, 1.5g F). Olive oil 10g: 88 kcal (10g F).",
+    };
+    const draft = {
+      ...mealFormStringsFromDraft(candidateWithCalc),
+      aiDraft: candidateWithCalc,
+    };
+    expect(isRecoverableMealDraft(draft)).toBe(true);
+    expect(draft.aiDraft?.calculation).toBe(
+      "Tuna 160g: 208 kcal (46g P, 0g C, 1.5g F). Olive oil 10g: 88 kcal (10g F).",
+    );
+  });
+
   it("rejects malformed AI candidates", () => {
     expect(
       isRecoverableMealDraft({

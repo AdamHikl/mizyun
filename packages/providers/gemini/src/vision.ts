@@ -68,6 +68,11 @@ const visionOutputSchema = z.object({
   confidence: z.number().min(0).max(1).default(0.8),
   warnings: z.array(z.string().trim().min(1).max(500)).max(8).default([]),
   assumptions: z.array(z.string().trim().min(1).max(500)).max(8).default([]),
+  calculation: z
+    .string()
+    .max(5000)
+    .nullish()
+    .transform((v) => (v && v.trim().length > 0 ? v.trim() : null)),
 });
 type VisionModelOutput = z.infer<typeof visionOutputSchema>;
 
@@ -87,6 +92,7 @@ export const normalizeCandidateValues = (
     confidence,
     warnings,
     assumptions,
+    calculation,
   } = candidate;
 
   // 1. If ranges are present but point estimates are null, derive point estimate as the midpoint
@@ -173,6 +179,7 @@ export const normalizeCandidateValues = (
     confidence,
     warnings,
     assumptions,
+    calculation: calculation ?? null,
   };
 };
 
@@ -273,6 +280,12 @@ const geminiVisionOutputJsonSchema = {
     },
     warnings: { type: "ARRAY", items: { type: "STRING" } },
     assumptions: { type: "ARRAY", items: { type: "STRING" } },
+    calculation: {
+      type: "STRING",
+      nullable: true,
+      description:
+        "Detailed itemized breakdown showing each ingredient, portion, and nutritional calculation that drives the totals.",
+    },
   },
   required: [
     "name",
@@ -287,6 +300,7 @@ const geminiVisionOutputJsonSchema = {
     "confidence",
     "warnings",
     "assumptions",
+    "calculation",
   ],
 };
 
@@ -299,6 +313,7 @@ export const visionSystemPolicy = [
   "Estimate total calories (caloriesKcal) and all three macronutrients (proteinG, carbohydrateG, fatG) for the identified meal.",
   "Round to one decimal place for macro grams, integer for kcal. Always supply non-null point estimates (midpoint) whenever food is identified.",
   "For every estimate, return a plausible low/high range and list the portion or ingredient assumptions that drive it.",
+  "In calculation, provide the complete itemized breakdown showing each ingredient, portion, and nutritional calculation that drives the totals.",
   "Set all numeric fields to null only if you cannot identify any food or drink.",
   "Never make medical claims or suggest a daily calorie target.",
   "Output strictly the JSON schema requested.",
@@ -309,6 +324,7 @@ export const textNutritionSystemPolicy = [
   "Estimate total calories (caloriesKcal) and all three macronutrients (proteinG, carbohydrateG, fatG) for the identified meal.",
   "Round to one decimal place for macro grams, integer for kcal. Always supply non-null point estimates (midpoint) whenever food is identified.",
   "For every estimate, return a plausible low/high range and list the portion or ingredient assumptions that drive it.",
+  "In calculation, provide the complete itemized breakdown showing each ingredient, portion, and nutritional calculation that drives the totals.",
   "For fast-food chains and restaurants (McDonald's, Burger King, KFC, Subway, Starbucks, etc.), prioritize official published nutrition facts.",
   "Respect regional and country differences: Central Europe / EU vs US portion sizes and beverage sugar formulations differ significantly.",
   "Explicitly handle single vs double patty burger sizes: e.g. Single Big Tasty Bacon in Central Europe is 588 kcal with 1 standard patty, vs Double Big Tasty at ~850–900 kcal with 150g patty. Never assign double-patty calorie counts when 'Single' is specified.",
@@ -383,6 +399,7 @@ const refineSystemPolicy = [
   "Use the current draft as the starting point. Do not invent new ingredients, portions, or meals.",
   "Apply the user's instruction conservatively: change only the values the instruction clearly targets.",
   "When the instruction references a current value (e.g. '200g instead of 100g'), scale the affected macros proportionally and surface the new low/high range.",
+  "In calculation, return an updated itemized breakdown reflecting the adjusted portions and calculations.",
   "Always supply non-null point estimates (caloriesKcal, proteinG, carbohydrateG, fatG) and ranges for all nutrition values.",
   "When the instruction is ambiguous or unsafe, leave the draft unchanged, lower the confidence, and add a warning describing why.",
   "Preserve the same JSON schema. Keep inputKind from the original draft unless the instruction explicitly switches input kind.",
@@ -401,6 +418,9 @@ const refineUserPrompt = (
     `Carbs: ${currentDraft.carbohydrateG ?? "(empty)"} g`,
     `Fat: ${currentDraft.fatG ?? "(empty)"} g`,
     `Confidence: ${currentDraft.confidence}`,
+    ...(currentDraft.calculation
+      ? [`Current calculation: ${currentDraft.calculation}`]
+      : []),
     "",
     `User instruction: "${instruction.trim()}"`,
     "",
@@ -964,6 +984,7 @@ export class GeminiVisionProvider implements VisionDraftProvider {
           "The AI suggestion was rejected by the safety policy. Please enter the values manually.",
         ],
         assumptions: [],
+        calculation: null,
         ...(parsedResponse.tokensUsed !== undefined
           ? { tokensUsed: parsedResponse.tokensUsed }
           : {}),

@@ -8,7 +8,11 @@ import {
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { FoodEntry } from "@mizyun/contracts";
+import {
+  foodDraftCandidateSchema,
+  type FoodDraftCandidate,
+  type FoodEntry,
+} from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -20,10 +24,17 @@ import {
   saveLoggingDraft,
 } from "@/features/logging-draft-storage";
 import { useTheme } from "@/hooks/use-theme";
+import { apiClient } from "@/composition/api-client";
+import {
+  useAiConsentController,
+  type PendingAiAction,
+} from "@/features/coach/ai-consent-controller";
+import { AiConsentModal } from "@/features/coach/ai-consent-modal";
 
-import type { LogMealForm } from "./log-meal-data";
+import { refineMealDraftWith, type LogMealForm } from "./log-meal-data";
 import {
   createOperationId,
+  mealFormStringsFromDraft,
   mealFormStringsFromEntry,
   parseOptionalNutritionNumber,
   type MealFormStrings,
@@ -48,6 +59,45 @@ const EMPTY_FORM: MealFormStrings = {
 };
 
 const MEAL_GROUP_PRESETS = ["Breakfast", "Lunch", "Dinner", "Snack"] as const;
+
+const extractCalculationText = (entry: FoodEntry): string | null => {
+  if (!entry.details || typeof entry.details !== "object") return null;
+  const d = entry.details as Record<string, unknown>;
+  if (
+    typeof d.calculationText === "string" &&
+    d.calculationText.trim().length > 0
+  ) {
+    return d.calculationText.trim();
+  }
+  if (
+    typeof d.aiCalculation === "string" &&
+    d.aiCalculation.trim().length > 0
+  ) {
+    return d.aiCalculation.trim();
+  }
+  if (d.aiDraft && typeof d.aiDraft === "object") {
+    const aiDraft = d.aiDraft as Record<string, unknown>;
+    if (
+      typeof aiDraft.calculation === "string" &&
+      aiDraft.calculation.trim().length > 0
+    ) {
+      return aiDraft.calculation.trim();
+    }
+  }
+  return null;
+};
+
+const extractAiDraft = (entry: FoodEntry): FoodDraftCandidate | null => {
+  if (!entry.details || typeof entry.details !== "object") return null;
+  const d = entry.details as Record<string, unknown>;
+  if (d.aiDraft && typeof d.aiDraft === "object") {
+    const parsed = foodDraftCandidateSchema.safeParse(d.aiDraft);
+    if (parsed.success) {
+      return parsed.data;
+    }
+  }
+  return null;
+};
 
 const isMealFormStrings = (value: unknown): value is MealFormStrings =>
   typeof value === "object" &&
@@ -81,6 +131,11 @@ export function EditMealScreen() {
   const [loaded, setLoaded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [calculationText, setCalculationText] = useState<string | null>(null);
+  const [aiDraft, setAiDraft] = useState<FoodDraftCandidate | null>(null);
+  const [refineInstruction, setRefineInstruction] = useState("");
+  const [refining, setRefining] = useState(false);
+  const [refineMessage, setRefineMessage] = useState<string | null>(null);
   const draftKind = entryId === null ? null : (`meal-edit-${entryId}` as const);
 
   const baselineRef = useRef<NutritionBaseline | null>(null);
@@ -105,6 +160,11 @@ export function EditMealScreen() {
       const loadedEntry = entryResult.entry;
       setEntry(loadedEntry);
       setForm(draft ?? mealFormStringsFromEntry(loadedEntry));
+
+      const detectedCalc = extractCalculationText(loadedEntry);
+      setCalculationText(detectedCalc);
+      const detectedDraft = extractAiDraft(loadedEntry);
+      setAiDraft(detectedDraft);
 
       const detectedGrams = getEntryGrams(loadedEntry);
       if (detectedGrams !== null && detectedGrams > 0) {
@@ -222,6 +282,128 @@ export function EditMealScreen() {
     [grams, handleGramsChange],
   );
 
+  const executeRefineDraft = useCallback(
+    async (instruction: string) => {
+      const trimmed = instruction.trim();
+      if (trimmed.length < 2 || entry === null || refining || submitting) {
+        return;
+      }
+      setRefining(true);
+      setRefineMessage(null);
+      setMessage(null);
+
+      const parsedCal = parseOptionalNutritionNumber(form.calories);
+      const parsedProt = parseOptionalNutritionNumber(form.protein);
+      const parsedCarb = parseOptionalNutritionNumber(form.carbs);
+      const parsedFat = parseOptionalNutritionNumber(form.fat);
+
+      const baseCandidate: FoodDraftCandidate = {
+        name: form.name.trim().length > 0 ? form.name.trim() : entry.name,
+        caloriesKcal: parsedCal.ok ? parsedCal.value : entry.caloriesKcal,
+        proteinG: parsedProt.ok ? parsedProt.value : entry.proteinG,
+        carbohydrateG: parsedCarb.ok ? parsedCarb.value : entry.carbohydrateG,
+        fatG: parsedFat.ok ? parsedFat.value : entry.fatG,
+        calorieRangeKcal: aiDraft?.calorieRangeKcal ?? null,
+        proteinRangeG: aiDraft?.proteinRangeG ?? null,
+        carbohydrateRangeG: aiDraft?.carbohydrateRangeG ?? null,
+        fatRangeG: aiDraft?.fatRangeG ?? null,
+        confidence: aiDraft?.confidence ?? 0.85,
+        warnings: aiDraft?.warnings ?? [],
+        assumptions: aiDraft?.assumptions ?? [],
+        calculation: calculationText ?? aiDraft?.calculation ?? null,
+        provenance: aiDraft?.provenance ?? {
+          inputKind: "text",
+          provider: "logged-meal",
+          model: "logged-refine",
+          promptVersion: "refine-logged-v1",
+        },
+      };
+
+      try {
+        const result = await refineMealDraftWith(
+          apiClient,
+          baseCandidate,
+          trimmed,
+        );
+        if (!result.ok) {
+          setRefineMessage(result.message);
+          return;
+        }
+        const updatedCandidate = result.draft;
+        const strings = mealFormStringsFromDraft(updatedCandidate);
+        setForm((current) => ({
+          ...current,
+          name: strings.name || current.name,
+          calories: strings.calories,
+          protein: strings.protein,
+          carbs: strings.carbs,
+          fat: strings.fat,
+        }));
+        setAiDraft(updatedCandidate);
+        if (updatedCandidate.calculation) {
+          setCalculationText(updatedCandidate.calculation);
+        }
+        setRefineInstruction("");
+        setRefineMessage("✨ Meal adjusted by AI. Review and save below.");
+
+        const detectedGrams = updatedCandidate.name
+          ? extractGramsFromName(updatedCandidate.name)
+          : null;
+        if (detectedGrams !== null && detectedGrams > 0) {
+          setGrams(String(detectedGrams));
+        }
+
+        if (baselineRef.current !== null && baselineRef.current.grams > 0) {
+          const nextGrams =
+            detectedGrams !== null && detectedGrams > 0
+              ? detectedGrams
+              : baselineRef.current.grams;
+          baselineRef.current = {
+            caloriesKcal: updatedCandidate.caloriesKcal,
+            proteinG: updatedCandidate.proteinG,
+            carbohydrateG: updatedCandidate.carbohydrateG,
+            fatG: updatedCandidate.fatG,
+            grams: nextGrams,
+          };
+        }
+      } catch {
+        setRefineMessage("Failed to refine meal with AI. Please try again.");
+      } finally {
+        setRefining(false);
+      }
+    },
+    [aiDraft, calculationText, entry, form, refining, submitting],
+  );
+
+  const executeAiAction = useCallback(
+    async (action: PendingAiAction) => {
+      if (action.kind === "meal_refine_draft") {
+        await executeRefineDraft(action.instruction);
+      }
+    },
+    [executeRefineDraft],
+  );
+
+  const {
+    isModalVisible: aiConsentModalVisible,
+    confirmConsent,
+    declineConsent,
+    requestAction,
+  } = useAiConsentController({
+    userId,
+    apiClient,
+    onExecuteAction: executeAiAction,
+  });
+
+  const onRefinePress = useCallback(async () => {
+    const trimmed = refineInstruction.trim();
+    if (trimmed.length < 2 || refining || submitting) return;
+    await requestAction({
+      kind: "meal_refine_draft",
+      instruction: trimmed,
+    });
+  }, [refineInstruction, refining, requestAction, submitting]);
+
   const save = useCallback(async (): Promise<void> => {
     if (entry === null || entryId === null) return;
     setMessage(null);
@@ -234,7 +416,7 @@ export function EditMealScreen() {
       return;
     }
 
-    let nextDetails = entry.details;
+    let nextDetails = (entry.details ?? {}) as Record<string, unknown>;
     const parsedGrams = Number(grams.trim().replace(",", "."));
     if (Number.isFinite(parsedGrams) && parsedGrams > 0) {
       nextDetails = withMealGrams(nextDetails, parsedGrams);
@@ -250,6 +432,28 @@ export function EditMealScreen() {
       });
     } else {
       nextDetails = withMealGroup(nextDetails, null);
+    }
+
+    if (calculationText !== null || aiDraft !== null) {
+      const currentDraftObj =
+        aiDraft ??
+        (nextDetails && typeof nextDetails === "object"
+          ? (nextDetails as Record<string, unknown>).aiDraft
+          : undefined);
+      const updatedAiDraft =
+        currentDraftObj && typeof currentDraftObj === "object"
+          ? {
+              ...(currentDraftObj as Record<string, unknown>),
+              ...(calculationText ? { calculation: calculationText } : {}),
+              userConfirmed: true,
+            }
+          : undefined;
+
+      nextDetails = {
+        ...nextDetails,
+        ...(calculationText ? { calculationText } : {}),
+        ...(updatedAiDraft ? { aiDraft: updatedAiDraft } : {}),
+      };
     }
 
     const patch: LogMealForm = {
@@ -273,6 +477,8 @@ export function EditMealScreen() {
     }
     router.back();
   }, [
+    aiDraft,
+    calculationText,
     draftKind,
     entry,
     entryId,
@@ -406,6 +612,111 @@ export function EditMealScreen() {
                 </View>
               </View>
 
+              {/* AI Meal Calculation Breakdown */}
+              {calculationText !== null ? (
+                <View style={styles.calcSection}>
+                  <View style={styles.calcHeaderRow}>
+                    <ThemedText type="smallBold" style={styles.calcTitle}>
+                      ✨ AI Meal Calculation
+                    </ThemedText>
+                    {aiDraft?.confidence !== undefined ? (
+                      <ThemedText type="small" themeColor="textSecondary">
+                        {Math.round(aiDraft.confidence * 100)}% confidence
+                      </ThemedText>
+                    ) : null}
+                  </View>
+                  <ThemedText
+                    type="small"
+                    style={[styles.calcContent, { color: theme.text }]}
+                    selectable
+                  >
+                    {calculationText}
+                  </ThemedText>
+                  {aiDraft?.assumptions && aiDraft.assumptions.length > 0 ? (
+                    <View style={styles.assumptionsList}>
+                      {aiDraft.assumptions.map((item, index) => (
+                        <ThemedText
+                          key={index}
+                          type="small"
+                          themeColor="textSecondary"
+                          style={styles.assumptionItem}
+                        >
+                          • {item}
+                        </ThemedText>
+                      ))}
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+
+              {/* Refine with AI Section */}
+              <View style={styles.refineSection}>
+                <View style={styles.refineHeader}>
+                  <ThemedText type="smallBold" style={styles.refineTitle}>
+                    ✨ Refine with AI
+                  </ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    Adjust portion sizes, swap ingredients, or specify changes
+                  </ThemedText>
+                </View>
+                <View style={styles.refineInputRow}>
+                  <TextInput
+                    accessibilityLabel="AI refine instruction"
+                    placeholder="e.g. only ate half the rice, add 1 egg…"
+                    placeholderTextColor="#8A8D91"
+                    style={[styles.refineInput, { color: theme.text }]}
+                    value={refineInstruction}
+                    onChangeText={setRefineInstruction}
+                    editable={!refining && !submitting}
+                  />
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Refine meal with AI"
+                    accessibilityState={{
+                      disabled:
+                        refineInstruction.trim().length < 2 ||
+                        refining ||
+                        submitting,
+                      busy: refining,
+                    }}
+                    disabled={
+                      refineInstruction.trim().length < 2 ||
+                      refining ||
+                      submitting
+                    }
+                    onPress={() => void onRefinePress()}
+                    style={({ pressed }) => [
+                      styles.refineButton,
+                      (refineInstruction.trim().length < 2 ||
+                        refining ||
+                        submitting) &&
+                        styles.refineButtonDisabled,
+                      pressed &&
+                        refineInstruction.trim().length >= 2 &&
+                        !refining &&
+                        !submitting &&
+                        styles.pressed,
+                    ]}
+                  >
+                    <ThemedText
+                      type="smallBold"
+                      style={styles.refineButtonText}
+                    >
+                      {refining ? "Refining…" : "Refine"}
+                    </ThemedText>
+                  </Pressable>
+                </View>
+                {refineMessage !== null ? (
+                  <ThemedText
+                    type="small"
+                    style={styles.refineMessageText}
+                    accessibilityRole="alert"
+                  >
+                    {refineMessage}
+                  </ThemedText>
+                ) : null}
+              </View>
+
               {/* Meal Group Section */}
               <View style={styles.groupSection}>
                 <ThemedText type="smallBold">Meal Group</ThemedText>
@@ -537,6 +848,17 @@ export function EditMealScreen() {
           ) : null}
         </ScrollView>
       </SafeAreaView>
+
+      <AiConsentModal
+        visible={aiConsentModalVisible}
+        onConsent={() => void confirmConsent()}
+        onDecline={() => {
+          declineConsent();
+          setRefineMessage(
+            "Refining meals with AI requires consent to third-party AI processing and adult eligibility.",
+          );
+        }}
+      />
     </ThemedView>
   );
 }
@@ -679,6 +1001,85 @@ const styles = StyleSheet.create({
   },
   macroRow: { flexDirection: "row", gap: Spacing.two },
   macroField: { flex: 1 },
+  calcSection: {
+    gap: Spacing.one,
+    padding: Spacing.three,
+    borderRadius: 14,
+    backgroundColor: "rgba(168, 85, 247, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(168, 85, 247, 0.25)",
+  },
+  calcHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  calcTitle: {
+    color: "#9333EA",
+    fontSize: 14,
+  },
+  calcContent: {
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  assumptionsList: {
+    marginTop: 6,
+    gap: 2,
+  },
+  assumptionItem: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  refineSection: {
+    gap: Spacing.one,
+    padding: Spacing.three,
+    borderRadius: 14,
+    backgroundColor: "rgba(59, 130, 246, 0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(59, 130, 246, 0.2)",
+  },
+  refineHeader: {
+    gap: 2,
+    marginBottom: 4,
+  },
+  refineTitle: {
+    color: "#2563EB",
+    fontSize: 14,
+  },
+  refineInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+  },
+  refineInput: {
+    flex: 1,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#3B82F6",
+    borderRadius: Spacing.two,
+    padding: Spacing.three,
+    fontSize: 14,
+  },
+  refineButton: {
+    paddingVertical: Spacing.three,
+    paddingHorizontal: Spacing.four,
+    borderRadius: Spacing.two,
+    backgroundColor: "#2563EB",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  refineButtonDisabled: {
+    opacity: 0.45,
+  },
+  refineButtonText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+  },
+  refineMessageText: {
+    marginTop: 4,
+    fontSize: 12,
+    color: "#2563EB",
+  },
   submit: {
     minHeight: 48,
     borderRadius: Spacing.three,

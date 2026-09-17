@@ -298,6 +298,7 @@ export const foodDraftCandidateSchema = z.object({
     })
     .strict(),
   tokensUsed: z.number().int().nonnegative().optional(),
+  calculation: z.string().trim().min(1).max(5_000).nullable().optional(),
 });
 
 export type FoodDraftCandidate = z.infer<typeof foodDraftCandidateSchema>;

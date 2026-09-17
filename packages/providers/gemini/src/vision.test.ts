@@ -190,6 +190,60 @@ describe("GeminiVisionProvider", () => {
     expect(result.proteinG).toBe(76);
   });
 
+  it("includes calculation in draft candidate output and refine prompt", async () => {
+    const generateContent = vi.fn<GeminiVisionClient["generateContent"]>(
+      async () => ({
+        modelVersion: "gemini-2.5-flash",
+        candidates: [
+          {
+            content: {
+              role: "model",
+              parts: [
+                {
+                  text: JSON.stringify({
+                    ...candidateOutput,
+                    calculation:
+                      "Chicken 150g (247 kcal), Rice 150g (195 kcal). Total: 442 kcal.",
+                  }),
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+    const provider = new GeminiVisionProvider({
+      apiKey: "test-key",
+      model: "gemini-2.5-flash",
+      timeoutMs: 5_000,
+      maxOutputTokens: 500,
+      externalAccess: true,
+      client: { generateContent },
+    });
+
+    const result = await provider.generateDraft(request);
+    expect(result.calculation).toBe(
+      "Chicken 150g (247 kcal), Rice 150g (195 kcal). Total: 442 kcal.",
+    );
+
+    const refineRequest: RefineFoodDraftRequest = {
+      userId: request.userId,
+      instruction: "add 50g chicken",
+      currentDraft: {
+        ...result,
+      },
+      requestId: "refine-test-calc",
+    };
+
+    await provider.refineDraft(refineRequest);
+    const refineCallArgs = generateContent.mock.calls[1]?.[0];
+    const userPromptPart = refineCallArgs?.contents[0]?.parts[0];
+    const userPromptText = getPartText(userPromptPart);
+    expect(userPromptText).toContain(
+      "Current calculation: Chicken 150g (247 kcal), Rice 150g (195 kcal). Total: 442 kcal.",
+    );
+  });
+
   it("replaces medically unsafe meal draft outputs", async () => {
     const generateContent = vi.fn<GeminiVisionClient["generateContent"]>(
       async () => ({
@@ -222,6 +276,7 @@ describe("GeminiVisionProvider", () => {
 
     const result = await provider.generateDraft(request);
     expect(result.name).toBeNull();
+    expect(result.calculation).toBeNull();
     expect(result.warnings).toEqual(
       expect.arrayContaining([expect.stringContaining("safety policy")]),
     );

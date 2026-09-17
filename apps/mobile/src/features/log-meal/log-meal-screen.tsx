@@ -342,6 +342,12 @@ export function LogMealScreen() {
       }
     }
 
+    const calculation =
+      aiDraft?.calculation ??
+      (aiDraft !== null && draftEvidenceLines(aiDraft).length > 0
+        ? draftEvidenceLines(aiDraft).join("\n")
+        : null);
+
     const form: LogMealForm = {
       clientOperationId: opId,
       name,
@@ -351,14 +357,21 @@ export function LogMealScreen() {
       fatG: parsedFat.value,
       consumedAt: fixedConsumedAt,
       ...(aiDraft === null
-        ? {}
+        ? mealDescription.trim().length > 0
+          ? { details: { mealDescription: mealDescription.trim() } }
+          : {}
         : {
             details: {
               aiDraft: {
                 ...aiDraft,
+                ...(calculation ? { calculation } : {}),
                 userConfirmed: true,
                 ...(sourceProposalId === null ? {} : { sourceProposalId }),
               },
+              ...(calculation ? { calculationText: calculation } : {}),
+              ...(mealDescription.trim().length > 0
+                ? { mealDescription: mealDescription.trim() }
+                : {}),
             },
           }),
     };

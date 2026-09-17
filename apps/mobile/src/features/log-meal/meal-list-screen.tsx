@@ -76,6 +76,33 @@ const formatMealTime = (instant: string): string =>
     minute: "2-digit",
   });
 
+const getEntryCalculationText = (entry: FoodEntry): string | null => {
+  if (!entry.details || typeof entry.details !== "object") return null;
+  const d = entry.details as Record<string, unknown>;
+  if (
+    typeof d.calculationText === "string" &&
+    d.calculationText.trim().length > 0
+  ) {
+    return d.calculationText.trim();
+  }
+  if (
+    typeof d.aiCalculation === "string" &&
+    d.aiCalculation.trim().length > 0
+  ) {
+    return d.aiCalculation.trim();
+  }
+  if (d.aiDraft && typeof d.aiDraft === "object") {
+    const aiDraft = d.aiDraft as Record<string, unknown>;
+    if (
+      typeof aiDraft.calculation === "string" &&
+      aiDraft.calculation.trim().length > 0
+    ) {
+      return aiDraft.calculation.trim();
+    }
+  }
+  return null;
+};
+
 interface PortionModalState {
   readonly entry: FoodEntry;
   readonly grams: string;
@@ -911,6 +938,7 @@ function MealEntryRow(props: {
     inGroup,
   } = props;
   const grams = getEntryGrams(entry);
+  const calcText = getEntryCalculationText(entry);
 
   return (
     <View
@@ -990,6 +1018,18 @@ function MealEntryRow(props: {
               {entry.fatG}g F
             </ThemedText>
           </View>
+        ) : null}
+        {calcText !== null ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="View AI calculation in edit"
+            onPress={onEdit}
+            style={styles.aiCalcBadge}
+          >
+            <ThemedText type="smallBold" style={styles.aiCalcBadgeText}>
+              ✨ AI Calc
+            </ThemedText>
+          </Pressable>
         ) : null}
       </View>
 
@@ -1564,6 +1604,17 @@ const styles = StyleSheet.create({
   fatBadgeText: {
     fontSize: 11,
     color: "#8B5CF6",
+    fontWeight: "700",
+  },
+  aiCalcBadge: {
+    backgroundColor: "rgba(168, 85, 247, 0.12)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  aiCalcBadgeText: {
+    fontSize: 11,
+    color: "#9333EA",
     fontWeight: "700",
   },
   entryActions: {

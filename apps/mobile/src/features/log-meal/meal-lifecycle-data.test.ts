@@ -138,6 +138,86 @@ describe("food entry lifecycle mutations", () => {
     });
   });
 
+  it("sends and preserves AI calculationText and aiDraft in details", async () => {
+    const requests: RequestOptions[] = [];
+    const calculation = "Bread 80g: 210 kcal. Butter 10g: 72 kcal.";
+    const result = await updateFoodEntryWith(
+      queuedClient(
+        [
+          {
+            ok: true,
+            value: {
+              foodEntry: {
+                ...ENTRY,
+                details: {
+                  calculationText: calculation,
+                  aiDraft: {
+                    name: "Toast with butter",
+                    caloriesKcal: 282,
+                    proteinG: 7,
+                    carbohydrateG: 38,
+                    fatG: 11,
+                    confidence: 0.9,
+                    warnings: [],
+                    assumptions: [],
+                    calculation,
+                    userConfirmed: true,
+                    provenance: {
+                      inputKind: "text",
+                      provider: "logged-meal",
+                      model: "logged-refine",
+                      promptVersion: "refine-logged-v1",
+                    },
+                  },
+                },
+              },
+            },
+          },
+        ],
+        requests,
+      ),
+      ENTRY.id,
+      {
+        name: "Toast with butter",
+        consumedAt: ENTRY.consumedAt,
+        caloriesKcal: 282,
+        proteinG: 7,
+        carbohydrateG: 38,
+        fatG: 11,
+        details: {
+          calculationText: calculation,
+          aiDraft: {
+            name: "Toast with butter",
+            caloriesKcal: 282,
+            proteinG: 7,
+            carbohydrateG: 38,
+            fatG: 11,
+            confidence: 0.9,
+            warnings: [],
+            assumptions: [],
+            calculation,
+            userConfirmed: true,
+            provenance: {
+              inputKind: "text",
+              provider: "logged-meal",
+              model: "logged-refine",
+              promptVersion: "refine-logged-v1",
+            },
+          },
+        },
+      },
+    );
+    expect(result).toEqual({ ok: true, id: ENTRY.id });
+    expect(requests[0]?.body).toMatchObject({
+      details: {
+        calculationText: calculation,
+        aiDraft: {
+          calculation,
+        },
+      },
+    });
+  });
+
   it("deletes through the empty 204 success path", async () => {
     const requests: RequestOptions[] = [];
     const result = await deleteFoodEntryWith(
