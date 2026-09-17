@@ -1,4 +1,9 @@
-import type { StoredWorkout, UserId, WorkoutRepository } from "@mizyun/core";
+import {
+  readWorkoutLifecycle,
+  type StoredWorkout,
+  type UserId,
+  type WorkoutRepository,
+} from "@mizyun/core";
 
 /**
  * In-memory implementation of the `WorkoutRepository` port.
@@ -25,6 +30,19 @@ export class InMemoryWorkoutRepository implements WorkoutRepository {
   readonly #byUser = new Map<UserId, StoredWorkout[]>();
   readonly #byId = new Map<string, StoredWorkout>();
 
+  async findByClientOperationId(
+    userId: UserId,
+    clientOperationId: string,
+    options: { readonly accessToken: string },
+  ): Promise<StoredWorkout | null> {
+    void options.accessToken;
+    const list = this.#byUser.get(userId) ?? [];
+    return (
+      list.find((entry) => entry.clientOperationId === clientOperationId) ??
+      null
+    );
+  }
+
   async create(
     userId: UserId,
     workout: StoredWorkout,
@@ -33,6 +51,16 @@ export class InMemoryWorkoutRepository implements WorkoutRepository {
     void options.accessToken;
     if (workout.userId !== userId) {
       throw new Error("workout create userId mismatch");
+    }
+    if (workout.clientOperationId) {
+      const existing = await this.findByClientOperationId(
+        userId,
+        workout.clientOperationId,
+        options,
+      );
+      if (existing !== null) {
+        return existing;
+      }
     }
     if (this.#byId.has(workout.id)) {
       throw new Error(`workout id collision ${workout.id}`);
@@ -49,6 +77,7 @@ export class InMemoryWorkoutRepository implements WorkoutRepository {
       readonly from: Date | null;
       readonly to: Date | null;
       readonly limit: number;
+      readonly kind?: "routine" | "session" | undefined;
       readonly accessToken: string;
     },
   ): Promise<ReadonlyArray<StoredWorkout>> {
@@ -58,7 +87,18 @@ export class InMemoryWorkoutRepository implements WorkoutRepository {
     const toMs = options.to?.getTime() ?? Number.POSITIVE_INFINITY;
     const filtered = list.filter((entry) => {
       const ms = entry.startedAt.getTime();
-      return ms >= fromMs && ms <= toMs;
+      if (ms < fromMs || ms > toMs) return false;
+      if (options.kind !== undefined) {
+        const lifecycle = readWorkoutLifecycle(entry.details);
+        if (lifecycle !== null) {
+          if (lifecycle.kind !== options.kind) return false;
+        } else if (options.kind === "routine") {
+          if (entry.completedAt !== null) return false;
+        } else if (options.kind === "session") {
+          if (entry.completedAt === null) return false;
+        }
+      }
+      return true;
     });
     return [...filtered]
       .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime())

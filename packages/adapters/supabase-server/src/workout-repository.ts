@@ -6,6 +6,7 @@ import { RepositoryError } from "./repository-error.js";
 interface WorkoutRow extends Record<string, unknown> {
   readonly id: string;
   readonly user_id: string;
+  readonly client_operation_id?: string | null;
   readonly name: string;
   readonly started_at: string;
   readonly completed_at: string | null;
@@ -19,6 +20,7 @@ interface WorkoutRow extends Record<string, unknown> {
 export const workoutFromRow = (row: WorkoutRow): StoredWorkout => ({
   id: row.id,
   userId: row.user_id as UserId,
+  clientOperationId: row.client_operation_id ?? null,
   name: row.name,
   startedAt: new Date(row.started_at),
   completedAt: row.completed_at === null ? null : new Date(row.completed_at),
@@ -36,6 +38,7 @@ const toInsertRow = (
 ): Partial<WorkoutRow> => ({
   id: workout.id,
   user_id: userId,
+  client_operation_id: workout.clientOperationId ?? null,
   name: workout.name,
   started_at: workout.startedAt.toISOString(),
   completed_at:
@@ -56,6 +59,24 @@ export class SupabaseWorkoutRepository implements WorkoutRepository {
     this.#clientFor = options.clientFor;
   }
 
+  async findByClientOperationId(
+    userId: UserId,
+    clientOperationId: string,
+    options: { readonly accessToken: string },
+  ): Promise<StoredWorkout | null> {
+    const client = this.#clientFor(options.accessToken);
+    const { data, error } = await client
+      .from<WorkoutRow>("workouts")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("client_operation_id", clientOperationId)
+      .maybeSingle();
+    if (error) {
+      throw new RepositoryError(error.message);
+    }
+    return data === null ? null : fromRow(data);
+  }
+
   async create(
     userId: UserId,
     workout: StoredWorkout,
@@ -68,6 +89,17 @@ export class SupabaseWorkoutRepository implements WorkoutRepository {
       .select("*")
       .single();
     if (error || data === null) {
+      // If unique violation on client_operation_id, return existing row
+      if (workout.clientOperationId) {
+        const existing = await this.findByClientOperationId(
+          userId,
+          workout.clientOperationId,
+          options,
+        );
+        if (existing !== null) {
+          return existing;
+        }
+      }
       throw new RepositoryError(
         error?.message ?? "workout insert returned no row",
       );
@@ -81,6 +113,7 @@ export class SupabaseWorkoutRepository implements WorkoutRepository {
       readonly from: Date | null;
       readonly to: Date | null;
       readonly limit: number;
+      readonly kind?: "routine" | "session" | undefined;
       readonly accessToken: string;
     },
   ): Promise<ReadonlyArray<StoredWorkout>> {
@@ -96,6 +129,9 @@ export class SupabaseWorkoutRepository implements WorkoutRepository {
     }
     if (options.to !== null) {
       builder = builder.lte("started_at", options.to.toISOString());
+    }
+    if (options.kind !== undefined) {
+      builder = builder.eq("details->workoutLifecycle->>kind", options.kind);
     }
     const { data, error } = await builder;
     if (error) {

@@ -46,6 +46,7 @@ const isoDateSchema = z
 export const workoutSchemaBase = z.object({
   id: z.string().uuid(),
   userId: z.string().uuid(),
+  clientOperationId: z.string().uuid().nullable().optional(),
   name: z.string().trim().min(1).max(200),
   startedAt: isoInstantSchema,
   completedAt: isoInstantSchema.nullable(),
@@ -87,6 +88,7 @@ export type WorkoutListResponse = z.infer<typeof workoutListResponseSchema>;
  */
 export const workoutCreateSchema = z
   .object({
+    clientOperationId: z.string().uuid().optional(),
     name: workoutSchemaBase.shape.name,
     startedAt: isoInstantSchema.optional(),
     completedAt: isoInstantSchema.nullable().optional(),
@@ -152,13 +154,15 @@ export type WorkoutPatch = z.infer<typeof workoutPatchSchema>;
 /**
  * Query params for `GET /v1/workouts`. `from` and `to` are
  * inclusive `YYYY-MM-DD` (UTC) date filters on `startedAt`;
- * `limit` caps the page size. Defaults: most-recent 50 newest-first.
+ * `limit` caps the page size. `kind` filters routines vs sessions.
+ * Defaults: most-recent 50 newest-first.
  */
 export const workoutListQuerySchema = z
   .object({
     from: isoDateSchema.optional(),
     to: isoDateSchema.optional(),
     limit: z.coerce.number().int().gte(1).lte(200).optional(),
+    kind: z.enum(["routine", "session"]).optional(),
   })
   .strict()
   .refine(

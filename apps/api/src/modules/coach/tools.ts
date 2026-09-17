@@ -566,7 +566,8 @@ export const buildGetAvailableRoutinesTool = (
       const workouts = await deps.workoutRepository.list(principalUserId, {
         from: null,
         to: null,
-        limit: 50,
+        limit: 100,
+        kind: "routine",
         accessToken,
       });
 

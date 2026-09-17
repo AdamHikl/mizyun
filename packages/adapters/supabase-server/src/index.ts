@@ -134,8 +134,14 @@ export interface RepositorySingleResult<T> {
  * a result the adapter maps to Mizyun's `apiErrorCode` union.
  */
 export interface RepositoryQueryBuilder<T> {
-  eq(column: keyof T & string, value: unknown): RepositoryQueryBuilder<T>;
-  neq(column: keyof T & string, value: unknown): RepositoryQueryBuilder<T>;
+  eq(
+    column: (keyof T & string) | (string & {}),
+    value: unknown,
+  ): RepositoryQueryBuilder<T>;
+  neq(
+    column: (keyof T & string) | (string & {}),
+    value: unknown,
+  ): RepositoryQueryBuilder<T>;
   gte(column: keyof T & string, value: string): RepositoryQueryBuilder<T>;
   lte(column: keyof T & string, value: string): RepositoryQueryBuilder<T>;
   gt(column: keyof T & string, value: string): RepositoryQueryBuilder<T>;

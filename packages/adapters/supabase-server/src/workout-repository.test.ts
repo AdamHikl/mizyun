@@ -76,6 +76,67 @@ describe("SupabaseWorkoutRepository.list", () => {
     expect(list).toHaveLength(1);
     expect(list[0]?.name).toBe("Leg day");
   });
+
+  it("applies kind filter when specified", async () => {
+    let capturedEq: [string, unknown][] = [];
+    const client: RepositorySupabaseClient = {
+      from: () => {
+        const builder = {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn((col: string, val: unknown) => {
+            capturedEq.push([col, val]);
+            return builder;
+          }),
+          order: vi.fn().mockReturnThis(),
+          limit: vi.fn().mockReturnThis(),
+          then: (resolve: (v: RepositoryListResult<unknown>) => void) => {
+            resolve({ data: [workoutRow], error: null });
+          },
+        };
+        return builder as unknown as never;
+      },
+      rpc: vi.fn().mockResolvedValue({ data: [], error: null }),
+      auth: {
+        setSession: vi
+          .fn()
+          .mockResolvedValue({ data: { user: null }, error: null }),
+      },
+    };
+    const repo = new SupabaseWorkoutRepository({ clientFor: () => client });
+    await repo.list("00000000-0000-4000-8000-000000000001" as UserId, {
+      from: null,
+      to: null,
+      limit: 50,
+      kind: "routine",
+      accessToken: "token",
+    });
+    expect(capturedEq).toContainEqual([
+      "details->workoutLifecycle->>kind",
+      "routine",
+    ]);
+  });
+});
+
+describe("SupabaseWorkoutRepository.findByClientOperationId", () => {
+  it("returns stored workout when found", async () => {
+    const rowWithOp = {
+      ...workoutRow,
+      client_operation_id: "11111111-2222-4333-8444-555555555555",
+    };
+    const repo = new SupabaseWorkoutRepository({
+      clientFor: () =>
+        fakeClient({ selectMaybeSingle: { data: rowWithOp, error: null } }),
+    });
+    const result = await repo.findByClientOperationId(
+      "00000000-0000-4000-8000-000000000001" as UserId,
+      "11111111-2222-4333-8444-555555555555",
+      { accessToken: "token" },
+    );
+    expect(result).not.toBeNull();
+    expect(result?.clientOperationId).toBe(
+      "11111111-2222-4333-8444-555555555555",
+    );
+  });
 });
 
 describe("SupabaseWorkoutRepository.create", () => {

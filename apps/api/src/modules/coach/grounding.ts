@@ -40,41 +40,36 @@ export const buildCoachGrounding = async (
   now: Date,
 ): Promise<readonly AgentGroundingItem[]> => {
   const since = new Date(now.getTime() - 28 * 86_400_000);
-  const [
-    profile,
-    goal,
-    foodEntries,
-    workouts,
-    measurements,
-    uncompletedWorkouts,
-  ] = await Promise.all([
-    dependencies.profileRepository.getOrCreate(userId, { now, accessToken }),
-    dependencies.goalRepository.getActive(userId, { accessToken }),
-    dependencies.foodEntryRepository.list(userId, {
-      from: since,
-      to: now,
-      limit: 500,
-      accessToken,
-    }),
-    dependencies.workoutRepository.list(userId, {
-      from: since,
-      to: now,
-      limit: 100,
-      accessToken,
-    }),
-    dependencies.bodyMeasurementRepository.list(userId, {
-      from: since,
-      to: now,
-      limit: 100,
-      accessToken,
-    }),
-    dependencies.workoutRepository.list(userId, {
-      from: null,
-      to: null,
-      limit: 50,
-      accessToken,
-    }),
-  ]);
+  const [profile, goal, foodEntries, workouts, measurements, routineWorkouts] =
+    await Promise.all([
+      dependencies.profileRepository.getOrCreate(userId, { now, accessToken }),
+      dependencies.goalRepository.getActive(userId, { accessToken }),
+      dependencies.foodEntryRepository.list(userId, {
+        from: since,
+        to: now,
+        limit: 500,
+        accessToken,
+      }),
+      dependencies.workoutRepository.list(userId, {
+        from: since,
+        to: now,
+        limit: 100,
+        accessToken,
+      }),
+      dependencies.bodyMeasurementRepository.list(userId, {
+        from: since,
+        to: now,
+        limit: 100,
+        accessToken,
+      }),
+      dependencies.workoutRepository.list(userId, {
+        from: null,
+        to: null,
+        limit: 100,
+        kind: "routine",
+        accessToken,
+      }),
+    ]);
   const todayEntries = foodEntries.filter(
     (entry) => dayIso(entry.consumedAt) === dayIso(now),
   );
@@ -165,7 +160,7 @@ export const buildCoachGrounding = async (
       }
     : null;
 
-  const availableRoutines = uncompletedWorkouts
+  const availableRoutines = routineWorkouts
     .filter(isAvailableRoutine)
     .slice(0, 10)
     .map(toRoutineSummary);

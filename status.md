@@ -6,6 +6,37 @@
 > - [`docs/archive/status/STATUS_HISTORY_2026-09-10_THROUGH_2026-09-12.md`](docs/archive/status/STATUS_HISTORY_2026-09-10_THROUGH_2026-09-12.md) (Handoffs from Sep 10 through Sep 12)
 > - [`docs/archive/status/STATUS_HISTORY_THROUGH_2026-09-09.md`](docs/archive/status/STATUS_HISTORY_THROUGH_2026-09-09.md) (Handoffs through Sep 9)
 
+## Active handoff — Routine query hardening and session-start idempotency (#97, 2026-09-17)
+
+- **Context & Requirement:** GitHub Issue [#97](https://github.com/AdamHikl/mizyun/issues/97):
+  1. Routine Discovery & Server Filtering: Ensure old routines remain discoverable regardless of intervening session volume (prevent routines dropping outside the limit window).
+  2. Session-Start Idempotency: Guard against duplicate session snapshots created by lost-response retries or app restarts when starting a session from a routine.
+  3. Routine Reference & Ownership Hardening: Reject cross-user, non-existent, or invalid routine references.
+- **Implemented:**
+  - Added database migration `supabase/migrations/20260917120000_workout_lifecycle_queries_and_idempotency.sql` adding `client_operation_id uuid null`, partial unique index `workouts_user_client_op_idx`, and compound expression index `workouts_user_lifecycle_kind_idx` on `(user_id, (details->'workoutLifecycle'->>'kind'), started_at desc)`.
+  - Added `clientOperationId` to `workoutSchemaBase` and `workoutCreateSchema`, and optional `kind: z.enum(["routine", "session"])` to `workoutListQuerySchema` in `packages/contracts/src/workout.ts`.
+  - Added `clientOperationId` to `StoredWorkout`, `WorkoutRepository.findByClientOperationId`, and `kind?: "routine" | "session" | undefined` to `WorkoutRepository.list` in `packages/core/src/workout.ts`.
+  - Implemented `findByClientOperationId` and JSON-path expression filtering on `details->workoutLifecycle->>kind` in `packages/adapters/supabase-server/src/workout-repository.ts` and `RepositoryQueryBuilder` in `packages/adapters/supabase-server/src/index.ts`.
+  - Updated `InMemoryWorkoutRepository` in `apps/api/src/workout-repository.ts` to support `findByClientOperationId` and kind filtering with legacy fallback.
+  - Hardened `POST /v1/workouts` and `GET /v1/workouts` in `apps/api/src/modules/workouts/routes.ts`:
+    - Replays matching workout with HTTP 200 on identical `clientOperationId`, or rejects differing payloads with HTTP 409 Conflict.
+    - Validates routine references: rejects invalid UUIDs, non-existent routines, routines belonging to other users, or targets that are not routines (400 Bad Request).
+    - Defaults new workouts to session lifecycle if unassigned.
+  - Updated Coach tools and grounding in `apps/api/src/modules/coach/tools.ts` and `apps/api/src/modules/coach/grounding.ts` to query routines specifically with `kind: "routine"`.
+  - Updated mobile `fetchWorkoutsHubData` in `apps/mobile/src/features/workouts/workouts-hub-data.ts` to query `kind=routine&limit=200` in parallel with recent sessions and merge; skips redundant sets fetching for routines.
+  - Updated `startRoutineSessionWith` and `createBlankWorkoutWith` to omit `startedAt` on initial creation so the server assigns canonical timestamp, avoiding millisecond timestamp conflicts across network retries.
+  - Handled persistent operation IDs in `apps/mobile/src/features/workouts/workouts-hub-screen.tsx`, resetting on error to prevent stuck state.
+- **Automated Verification:**
+  - Added unit and integration tests in `packages/core/src/workout.test.ts`, `packages/adapters/supabase-server/src/workout-repository.test.ts`, `apps/api/src/modules/workouts/routes.test.ts`, and `apps/mobile/src/features/workouts/workouts-hub-data.test.ts`.
+  - All 528 API tests and 416 mobile tests passed.
+  - Full repository `pnpm check` passed cleanly (15 workspace typechecks, linters, Hermes exports, build matrix, and AI evaluation offline invariants).
+- **Independent Review:**
+  - Independent subagent review approved with verdict APPROVE after verifying routine isolation, idempotency replay, and routine reference authorization.
+- **Deployment & Acceptance Status:**
+  - The Raspberry Pi server is temporarily down (user confirmed). Remote promotion to Dev (`pnpm deploy:dev`) and physical device acceptance on `com.mizyun.development` are held until the Pi is online.
+- **Next exact action:**
+  - Once the Raspberry Pi is back online, deploy commits to Pi Dev (`pnpm deploy:dev`), run forward migrations, and verify routine discovery and session starting on device.
+
 ## Active handoff — Full AI meal calculation persistence and refinement of logged meals (#95, 2026-09-17)
 
 - **Context & Requirement:** GitHub Issue [#95](https://github.com/AdamHikl/mizyun/issues/95):

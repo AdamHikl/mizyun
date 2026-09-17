@@ -450,3 +450,275 @@ describe("DELETE /v1/workouts/:id", () => {
     expect(response.statusCode).toBe(404);
   });
 });
+
+describe("GET /v1/workouts?kind=...", () => {
+  it("filters routines vs sessions correctly", async () => {
+    const { app, workoutRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    seedWorkout(workoutRepository, {
+      id: "00000000-0000-4000-8000-00000000a001",
+      name: "Push Routine",
+      startedAt: new Date("2026-07-01T08:00:00Z"),
+      completedAt: null,
+      details: { workoutLifecycle: { kind: "routine" } },
+    });
+    seedWorkout(workoutRepository, {
+      id: "00000000-0000-4000-8000-00000000a002",
+      name: "Push Session 1",
+      startedAt: new Date("2026-07-02T08:00:00Z"),
+      completedAt: new Date("2026-07-02T09:00:00Z"),
+      details: {
+        workoutLifecycle: {
+          kind: "session",
+          routineId: "00000000-0000-4000-8000-00000000a001",
+        },
+      },
+    });
+
+    // Query routines
+    const routineRes = await app.inject({
+      method: "GET",
+      url: "/v1/workouts?kind=routine",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(routineRes.statusCode).toBe(200);
+    const routineBody = routineRes.json();
+    expect(routineBody.workouts).toHaveLength(1);
+    expect(routineBody.workouts[0].name).toBe("Push Routine");
+
+    // Query sessions
+    const sessionRes = await app.inject({
+      method: "GET",
+      url: "/v1/workouts?kind=session",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(sessionRes.statusCode).toBe(200);
+    const sessionBody = sessionRes.json();
+    expect(sessionBody.workouts).toHaveLength(1);
+    expect(sessionBody.workouts[0].name).toBe("Push Session 1");
+
+    // Query all (no kind)
+    const allRes = await app.inject({
+      method: "GET",
+      url: "/v1/workouts",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(allRes.statusCode).toBe(200);
+    expect(allRes.json().workouts).toHaveLength(2);
+  });
+});
+
+describe("POST /v1/workouts idempotency and routine reference validation", () => {
+  it("deduplicates identical workout creations with same clientOperationId", async () => {
+    const { app } = build(tokenVerifierFor({ userId: userA }));
+    const clientOperationId = "11111111-2222-4333-8444-555555555555";
+    const payload = {
+      name: "Leg day",
+      clientOperationId,
+      startedAt: "2026-07-10T08:00:00.000Z",
+      notes: "Heavy squats",
+      details: { program: "5/3/1" },
+    };
+
+    const first = await app.inject({
+      method: "POST",
+      url: "/v1/workouts",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload,
+    });
+    expect(first.statusCode).toBe(200);
+    const firstBody = first.json();
+    expect(firstBody.workout.clientOperationId).toBe(clientOperationId);
+    expect(firstBody.workout.name).toBe("Leg day");
+
+    // Replay with identical payload
+    const second = await app.inject({
+      method: "POST",
+      url: "/v1/workouts",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload,
+    });
+    expect(second.statusCode).toBe(200);
+    const secondBody = second.json();
+    expect(secondBody.workout.id).toBe(firstBody.workout.id);
+  });
+
+  it("returns 409 CONFLICT on clientOperationId reuse with different payload", async () => {
+    const { app } = build(tokenVerifierFor({ userId: userA }));
+    const clientOperationId = "22222222-3333-4444-8555-666666666666";
+
+    const first = await app.inject({
+      method: "POST",
+      url: "/v1/workouts",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: {
+        name: "Leg day",
+        clientOperationId,
+      },
+    });
+    expect(first.statusCode).toBe(200);
+
+    // Replay with different name
+    const conflict = await app.inject({
+      method: "POST",
+      url: "/v1/workouts",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: {
+        name: "Arm day",
+        clientOperationId,
+      },
+    });
+    expect(conflict.statusCode).toBe(409);
+    expect(conflict.json()).toMatchObject({
+      error: { code: "CONFLICT" },
+    });
+  });
+
+  it("validates routine reference: succeeds when routine exists and belongs to user", async () => {
+    const { app, workoutRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    const routineId = "00000000-0000-4000-8000-00000000a001";
+    seedWorkout(workoutRepository, {
+      id: routineId,
+      name: "Upper Body Routine",
+      completedAt: null,
+      details: { workoutLifecycle: { kind: "routine" } },
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/workouts",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: {
+        name: "Upper Body Session",
+        details: { workoutLifecycle: { kind: "session", routineId } },
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().workout.details.workoutLifecycle).toEqual({
+      kind: "session",
+      routineId,
+    });
+  });
+
+  it("validates routine reference: rejects malformed routine UUID with 422", async () => {
+    const { app } = build(tokenVerifierFor({ userId: userA }));
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/workouts",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: {
+        name: "Session",
+        details: {
+          workoutLifecycle: { kind: "session", routineId: "not-a-uuid" },
+        },
+      },
+    });
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error.message).toContain("valid UUID");
+  });
+
+  it("validates routine reference: rejects non-existent routine with 404", async () => {
+    const { app } = build(tokenVerifierFor({ userId: userA }));
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/workouts",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: {
+        name: "Session",
+        details: {
+          workoutLifecycle: {
+            kind: "session",
+            routineId: "00000000-0000-4000-8000-999999999999",
+          },
+        },
+      },
+    });
+    expect(res.statusCode).toBe(404);
+    expect(res.json().error.message).toContain("Referenced routine not found");
+  });
+
+  it("validates routine reference: rejects cross-user routine with 404", async () => {
+    const { app, workoutRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    const routineId = "00000000-0000-4000-8000-00000000b001";
+    // Seed routine belonging to userB
+    seedWorkout(workoutRepository, {
+      id: routineId,
+      userId: userB,
+      name: "User B's Routine",
+      completedAt: null,
+      details: { workoutLifecycle: { kind: "routine" } },
+    });
+
+    // User A tries to start session from User B's routine
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/workouts",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: {
+        name: "User A's Session",
+        details: { workoutLifecycle: { kind: "session", routineId } },
+      },
+    });
+    expect(res.statusCode).toBe(404);
+    expect(res.json().error.message).toContain("Referenced routine not found");
+  });
+
+  it("validates routine reference: rejects referenced workout if it is a session rather than routine with 422", async () => {
+    const { app, workoutRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    const sessionId = "00000000-0000-4000-8000-00000000a002";
+    // Seed workout that is a session, not a routine
+    seedWorkout(workoutRepository, {
+      id: sessionId,
+      name: "Existing Session",
+      details: { workoutLifecycle: { kind: "session" } },
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/workouts",
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: {
+        name: "New Session",
+        details: {
+          workoutLifecycle: { kind: "session", routineId: sessionId },
+        },
+      },
+    });
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error.message).toContain("not a routine template");
+  });
+});

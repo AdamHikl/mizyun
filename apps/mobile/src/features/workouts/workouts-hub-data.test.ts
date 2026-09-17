@@ -369,4 +369,121 @@ describe("workouts-hub-data", () => {
 
     expect(res.ok).toBe(true);
   });
+
+  it("discovers old routines via kind=routine even if main list only has recent sessions", async () => {
+    const oldRoutine: Workout = {
+      ...mockPlannedWorkout,
+      id: "w-old-routine",
+      name: "Old Routine",
+      startedAt: "2026-01-01T00:00:00.000Z",
+      details: withWorkoutLifecycle(mockPlannedWorkout.details, {
+        kind: "routine",
+      }),
+    };
+
+    const requestedPaths: string[] = [];
+    const client: ApiClient = {
+      request: vi
+        .fn()
+        .mockImplementation(async ({ path }: { path: string }) => {
+          requestedPaths.push(path);
+          if (path === "/v1/workouts?limit=200") {
+            // Main list only has recent completed session
+            return { ok: true, value: { workouts: [mockCompletedWorkout] } };
+          }
+          if (path === "/v1/workouts?kind=routine&limit=200") {
+            // Dedicated routine query returns the old routine
+            return { ok: true, value: { workouts: [oldRoutine] } };
+          }
+          if (path.startsWith("/v1/exercises")) {
+            return { ok: true, value: { exercises: [mockExercise] } };
+          }
+          if (path.includes("/sets")) {
+            return { ok: true, value: { workoutSets: mockSets } };
+          }
+          return { ok: true, value: {} };
+        }),
+    } as unknown as ApiClient;
+
+    const result = await fetchWorkoutsHubData(client);
+    expect(result.message).toBeNull();
+    // Old routine is discovered!
+    expect(result.activeAndPlanned).toHaveLength(1);
+    expect(result.activeAndPlanned[0]?.workout.id).toBe("w-old-routine");
+    expect(result.completed).toHaveLength(1);
+    expect(result.completed[0]?.workout.id).toBe("w-completed-1");
+
+    // Routine query was dispatched
+    expect(requestedPaths).toContain("/v1/workouts?kind=routine&limit=200");
+    // Sets were only fetched for completed session, NOT for routine
+    expect(requestedPaths).toContain(
+      `/v1/workouts/${encodeURIComponent(mockCompletedWorkout.id)}/sets`,
+    );
+    expect(requestedPaths).not.toContain(
+      `/v1/workouts/${encodeURIComponent(oldRoutine.id)}/sets`,
+    );
+  });
+
+  it("passes supplied clientOperationId to POST /v1/workouts for session-start idempotency", async () => {
+    const request = vi.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        workout: {
+          ...mockPlannedWorkout,
+          id: "w-session-copy",
+          clientOperationId: "33333333-4444-4555-8666-777777777777",
+          details: withWorkoutLifecycle(mockPlannedWorkout.details, {
+            kind: "session",
+            routineId: mockPlannedWorkout.id,
+          }),
+        },
+      },
+    });
+    const client = { request } as unknown as ApiClient;
+    const clientOperationId = "33333333-4444-4555-8666-777777777777";
+
+    const result = await startRoutineSessionWith(
+      client,
+      mockPlannedWorkout,
+      () => new Date("2026-08-26T12:30:00.000Z"),
+      clientOperationId,
+    );
+
+    expect(result.ok).toBe(true);
+    expect(request).toHaveBeenCalledTimes(1);
+    const body = request.mock.calls[0]?.[0].body as Record<string, unknown>;
+    expect(body.clientOperationId).toBe(clientOperationId);
+  });
+
+  it("omits startedAt by default when starting a routine session so server assigns time without millisecond retry conflict", async () => {
+    const request = vi.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        workout: {
+          ...mockPlannedWorkout,
+          id: "w-session-copy",
+          clientOperationId: "33333333-4444-4555-8666-777777777777",
+          details: withWorkoutLifecycle(mockPlannedWorkout.details, {
+            kind: "session",
+            routineId: mockPlannedWorkout.id,
+          }),
+        },
+      },
+    });
+    const client = { request } as unknown as ApiClient;
+    const clientOperationId = "33333333-4444-4555-8666-777777777777";
+
+    const result = await startRoutineSessionWith(
+      client,
+      mockPlannedWorkout,
+      undefined,
+      clientOperationId,
+    );
+
+    expect(result.ok).toBe(true);
+    expect(request).toHaveBeenCalledTimes(1);
+    const body = request.mock.calls[0]?.[0].body as Record<string, unknown>;
+    expect(body.clientOperationId).toBe(clientOperationId);
+    expect(body.startedAt).toBeUndefined();
+  });
 });

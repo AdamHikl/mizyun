@@ -41,6 +41,8 @@ export function WorkoutsHubScreen() {
   const [activeTab, setActiveTab] = useState<WorkoutsTab>("all");
   const [busyWorkoutId, setBusyWorkoutId] = useState<string | null>(null);
   const startingRoutineIds = useRef(new Set<string>());
+  const routineOperationIds = useRef(new Map<string, string>());
+  const blankOperationId = useRef<string | null>(null);
   const [libraryVisible, setLibraryVisible] = useState(false);
   const [editorVisible, setEditorVisible] = useState(false);
   const [editingWorkout, setEditingWorkout] = useState<ProcessedWorkout | null>(
@@ -81,16 +83,25 @@ export function WorkoutsHubScreen() {
     if (startingRoutineIds.current.has(workout.id)) return;
     startingRoutineIds.current.add(workout.id);
     setBusyWorkoutId(workout.id);
+    let operationId = routineOperationIds.current.get(workout.id);
+    if (!operationId) {
+      operationId = crypto.randomUUID();
+      routineOperationIds.current.set(workout.id, operationId);
+    }
     try {
-      const result = await startRoutineSession(workout);
+      const result = await startRoutineSession(workout, operationId);
       if (result.ok && result.workout) {
+        routineOperationIds.current.delete(workout.id);
         router.push({
           pathname: "/log-workout",
           params: { workoutId: result.workout.id },
         });
       } else if (!result.ok) {
+        routineOperationIds.current.delete(workout.id);
         Alert.alert("Could not start session", result.message);
       }
+    } catch {
+      routineOperationIds.current.delete(workout.id);
     } finally {
       startingRoutineIds.current.delete(workout.id);
       setBusyWorkoutId(null);
@@ -107,14 +118,22 @@ export function WorkoutsHubScreen() {
 
   const handleStartBlank = useCallback(async () => {
     setLoading(true);
-    const result = await createBlankWorkout();
+    if (!blankOperationId.current) {
+      blankOperationId.current = crypto.randomUUID();
+    }
+    const result = await createBlankWorkout(
+      "Custom Workout",
+      blankOperationId.current,
+    );
     setLoading(false);
     if (result.ok && result.workout) {
+      blankOperationId.current = null;
       router.push({
         pathname: "/log-workout",
         params: { workoutId: result.workout.id },
       });
     } else if (!result.ok) {
+      blankOperationId.current = null;
       Alert.alert("Could not start workout", result.message);
     }
   }, []);

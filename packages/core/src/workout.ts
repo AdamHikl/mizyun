@@ -52,6 +52,7 @@ export interface WorkoutCore {
 export interface StoredWorkout extends WorkoutCore {
   readonly id: string;
   readonly userId: UserId;
+  readonly clientOperationId?: string | null | undefined;
   readonly source: WorkoutSource;
   readonly createdAt: Date;
   readonly updatedAt: Date;
@@ -215,6 +216,9 @@ export const applyWorkoutPatch = (
   return {
     id: stored.id,
     userId: stored.userId,
+    ...(stored.clientOperationId !== undefined
+      ? { clientOperationId: stored.clientOperationId }
+      : {}),
     source: stored.source,
     name: patch.name === undefined ? stored.name : patch.name,
     startedAt:
@@ -247,7 +251,7 @@ export interface WorkoutRepository {
   ): Promise<StoredWorkout>;
   /**
    * Return the user's workouts, bounded by `startedAt`, newest-first.
-   * `limit` caps the page size.
+   * `limit` caps the page size. `kind` filters routines vs sessions.
    */
   list(
     userId: UserId,
@@ -255,9 +259,19 @@ export interface WorkoutRepository {
       readonly from: Date | null;
       readonly to: Date | null;
       readonly limit: number;
+      readonly kind?: "routine" | "session" | undefined;
       readonly accessToken: string;
     },
   ): Promise<ReadonlyArray<StoredWorkout>>;
+  /**
+   * Lookup a workout by its client-supplied operation id (idempotency key).
+   * Used to prevent duplicate workouts when the client retries a start/create.
+   */
+  findByClientOperationId?(
+    userId: UserId,
+    clientOperationId: string,
+    options: { readonly accessToken: string },
+  ): Promise<StoredWorkout | null>;
   /**
    * Return the stored workout by id, or `null` when no workout
    * exists with that id for any user. The route is responsible

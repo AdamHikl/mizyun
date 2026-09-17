@@ -346,10 +346,15 @@ export const processWorkout = (
 export const fetchWorkoutsHubData = async (
   client: ApiClient = apiClient,
 ): Promise<WorkoutsHubResult> => {
-  const [workoutResult, exerciseResult] = await Promise.all([
+  const [workoutResult, routineResult, exerciseResult] = await Promise.all([
     client.request<WorkoutListResponse>({
       method: "GET",
       path: "/v1/workouts?limit=200",
+      schema: workoutListResponseSchema,
+    }),
+    client.request<WorkoutListResponse>({
+      method: "GET",
+      path: "/v1/workouts?kind=routine&limit=200",
       schema: workoutListResponseSchema,
     }),
     client.request<ExerciseListResponse>({
@@ -369,11 +374,21 @@ export const fetchWorkoutsHubData = async (
   }
 
   const exercises = exerciseResult.ok ? exerciseResult.value.exercises : [];
-  const workouts = workoutResult.value.workouts;
+  const routineWorkouts = routineResult.ok ? routineResult.value.workouts : [];
+  const baseWorkouts = workoutResult.value.workouts;
+  const workoutMap = new Map<string, Workout>();
+  for (const w of routineWorkouts) {
+    workoutMap.set(w.id, w);
+  }
+  for (const w of baseWorkouts) {
+    workoutMap.set(w.id, w);
+  }
+  const workouts = Array.from(workoutMap.values());
 
-  // Fetch sets for all workouts in parallel
+  // Fetch sets only for non-routine workouts in parallel
+  const sessionWorkouts = workouts.filter((w) => !isRoutineDetails(w.details));
   const setsResults = await Promise.all(
-    workouts.map((w) =>
+    sessionWorkouts.map((w) =>
       client.request<WorkoutSetListResponse>({
         method: "GET",
         path: `/v1/workouts/${encodeURIComponent(w.id)}/sets`,
@@ -592,17 +607,30 @@ export const updateWorkoutDetails = async (
 
 export const createBlankWorkout = async (
   name: string = "Custom Workout",
-  client: ApiClient = apiClient,
-): Promise<WorkoutActionMutationResult> => createBlankWorkoutWith(client, name);
+  clientOrOperationId?: string | ApiClient,
+  client?: ApiClient,
+): Promise<WorkoutActionMutationResult> => {
+  const actualClient =
+    typeof clientOrOperationId === "object" && clientOrOperationId !== null
+      ? clientOrOperationId
+      : (client ?? apiClient);
+  const operationId =
+    typeof clientOrOperationId === "string" ? clientOrOperationId : undefined;
+  return createBlankWorkoutWith(actualClient, name, undefined, operationId);
+};
 
 export const createBlankWorkoutWith = async (
   client: ApiClient,
   name: string = "Custom Workout",
-  now: () => Date = () => new Date(),
+  now?: (() => Date) | Date,
+  clientOperationId?: string,
 ): Promise<WorkoutActionMutationResult> => {
+  const operationId = clientOperationId ?? crypto.randomUUID();
+  const startedAtDate = typeof now === "function" ? now() : now;
   const parsed = workoutCreateSchema.safeParse({
+    clientOperationId: operationId,
     name: name.trim() || "Custom Workout",
-    startedAt: now().toISOString(),
+    ...(startedAtDate ? { startedAt: startedAtDate.toISOString() } : {}),
     details: withWorkoutLifecycle({}, { kind: "session" }),
   });
   if (!parsed.success) {
@@ -623,13 +651,15 @@ export const createBlankWorkoutWith = async (
 /** Create a disposable live session while leaving its reusable routine intact. */
 export const startRoutineSession = async (
   routine: Workout,
+  clientOperationId?: string,
 ): Promise<WorkoutActionMutationResult> =>
-  startRoutineSessionWith(apiClient, routine);
+  startRoutineSessionWith(apiClient, routine, undefined, clientOperationId);
 
 export const startRoutineSessionWith = async (
   client: ApiClient,
   routine: Workout,
-  now: () => Date = () => new Date(),
+  now?: (() => Date) | Date,
+  clientOperationId?: string,
 ): Promise<WorkoutActionMutationResult> => {
   if (!isReusableRoutine(routine)) {
     return {
@@ -637,9 +667,12 @@ export const startRoutineSessionWith = async (
       message: "Only an available routine can start a new session.",
     };
   }
+  const operationId = clientOperationId ?? crypto.randomUUID();
+  const startedAtDate = typeof now === "function" ? now() : now;
   const parsed = workoutCreateSchema.safeParse({
+    clientOperationId: operationId,
     name: routine.name,
-    startedAt: now().toISOString(),
+    ...(startedAtDate ? { startedAt: startedAtDate.toISOString() } : {}),
     ...(routine.notes ? { notes: routine.notes } : {}),
     details: withWorkoutLifecycle(routine.details, {
       kind: "session",

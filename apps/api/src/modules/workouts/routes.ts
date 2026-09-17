@@ -1,8 +1,11 @@
 import type { FastifyPluginAsync } from "fastify";
 import {
   applyWorkoutPatch,
+  isRoutineDetails,
+  readWorkoutLifecycle,
   validateWorkoutCreate,
   validateWorkoutPatch,
+  withWorkoutLifecycle,
   type StoredWorkout,
   type WorkoutPatch,
   type WorkoutRepository,
@@ -128,6 +131,7 @@ const toWire = (workout: StoredWorkout): WorkoutResponse =>
     workout: {
       id: workout.id,
       userId: workout.userId,
+      clientOperationId: workout.clientOperationId ?? null,
       name: workout.name,
       startedAt: workout.startedAt.toISOString(),
       completedAt:
@@ -183,17 +187,18 @@ export const workoutsRoutes: FastifyPluginAsync<WorkoutsRoutesOptions> = async (
         from,
         to,
         limit: cappedLimit,
+        ...(parsed.data.kind !== undefined ? { kind: parsed.data.kind } : {}),
         accessToken: principal.accessToken,
       });
       return listToWire(workouts);
     },
   );
 
-  // POST /v1/workouts — create a new manual workout. The route
-  // server-generates `id`, `userId`, audit timestamps, `source`
-  // (always "manual" in v1), and `details` (always `{}`).
-  // `startedAt` defaults to "now" when omitted; `completedAt`
-  // defaults to `null` (in-flight).
+  // POST /v1/workouts — create a new manual workout. Supports
+  // idempotency via `clientOperationId` (in body or `Idempotency-Key`
+  // header). Replays on identical payload; 409 CONFLICT on mismatch.
+  // Validates referenced `routineId` in `workoutLifecycle` if starting
+  // from a routine.
   app.post(
     "/",
     { preHandler: app.authenticate },
@@ -214,15 +219,127 @@ export const workoutsRoutes: FastifyPluginAsync<WorkoutsRoutesOptions> = async (
         );
         return;
       }
+
+      const clientOpHeader = request.headers["idempotency-key"];
+      const clientOperationId =
+        parsed.data.clientOperationId ??
+        (typeof clientOpHeader === "string" && clientOpHeader.trim().length > 0
+          ? clientOpHeader.trim()
+          : undefined);
+
+      if (
+        clientOperationId !== undefined &&
+        !GENERIC_UUID.test(clientOperationId)
+      ) {
+        await sendApiError(
+          reply,
+          request,
+          422,
+          "VALIDATION_ERROR",
+          "Idempotency key must be a valid UUID.",
+        );
+        return;
+      }
+
+      const canonicalJson = (val: unknown): string => {
+        if (val === null || typeof val !== "object") {
+          return JSON.stringify(val);
+        }
+        if (Array.isArray(val)) {
+          return "[" + val.map(canonicalJson).join(",") + "]";
+        }
+        const record = val as Record<string, unknown>;
+        const sortedKeys = Object.keys(record).sort();
+        const entries: string[] = [];
+        for (const key of sortedKeys) {
+          if (record[key] !== undefined) {
+            entries.push(
+              `${JSON.stringify(key)}:${canonicalJson(record[key])}`,
+            );
+          }
+        }
+        return "{" + entries.join(",") + "}";
+      };
+
+      const matchesCanonicalWorkoutPayload = (
+        existing: StoredWorkout,
+        incoming: typeof parsed.data,
+      ): boolean => {
+        if (existing.name.trim() !== incoming.name.trim()) return false;
+        if ((existing.notes ?? null) !== (incoming.notes ?? null)) return false;
+
+        if (incoming.startedAt !== undefined) {
+          const incomingTime = new Date(incoming.startedAt).getTime();
+          const existingTime = existing.startedAt.getTime();
+          if (isNaN(incomingTime) || incomingTime !== existingTime)
+            return false;
+        }
+
+        if (incoming.completedAt !== undefined) {
+          const incomingComp =
+            incoming.completedAt === null
+              ? null
+              : new Date(incoming.completedAt).getTime();
+          const existingComp =
+            existing.completedAt === null
+              ? null
+              : existing.completedAt.getTime();
+          if (incomingComp !== existingComp) return false;
+        }
+
+        const expectedLifecycle = readWorkoutLifecycle(incoming.details) ?? {
+          kind: "session",
+        };
+        const incomingNormalizedDetails = withWorkoutLifecycle(
+          incoming.details ?? {},
+          expectedLifecycle,
+        );
+        const existingNormalizedDetails = withWorkoutLifecycle(
+          existing.details ?? {},
+          readWorkoutLifecycle(existing.details) ?? { kind: "session" },
+        );
+        if (
+          canonicalJson(existingNormalizedDetails) !==
+          canonicalJson(incomingNormalizedDetails)
+        ) {
+          return false;
+        }
+
+        return true;
+      };
+
+      if (
+        clientOperationId &&
+        options.workoutRepository.findByClientOperationId
+      ) {
+        const existing =
+          await options.workoutRepository.findByClientOperationId(
+            principal.userId,
+            clientOperationId,
+            { accessToken: principal.accessToken },
+          );
+        if (existing !== null) {
+          if (!matchesCanonicalWorkoutPayload(existing, parsed.data)) {
+            await sendApiError(
+              reply,
+              request,
+              409,
+              "CONFLICT",
+              "The specified operation ID was already used with a different workout payload.",
+            );
+            return;
+          }
+          return toWire(existing);
+        }
+      }
+
       const startedAt = parsed.data.startedAt
         ? new Date(parsed.data.startedAt)
         : new Date();
       const completedAt =
         parsed.data.completedAt === null ||
         parsed.data.completedAt === undefined
-          ? parsed.data.completedAt === null
-            ? null
-            : null
+          ? null
           : new Date(parsed.data.completedAt);
       const validation = validateWorkoutCreate({
         name: parsed.data.name,
@@ -246,17 +363,66 @@ export const workoutsRoutes: FastifyPluginAsync<WorkoutsRoutesOptions> = async (
         );
         return;
       }
+
+      const incomingDetails = parsed.data.details
+        ? { ...parsed.data.details }
+        : {};
+      const lifecycle = readWorkoutLifecycle(incomingDetails);
+
+      if (lifecycle?.kind === "session" && lifecycle.routineId) {
+        const routineId = lifecycle.routineId;
+        if (!GENERIC_UUID.test(routineId)) {
+          await sendApiError(
+            reply,
+            request,
+            422,
+            "VALIDATION_ERROR",
+            "Referenced routine id must be a valid UUID.",
+          );
+          return;
+        }
+        const routine = await options.workoutRepository.getById(routineId, {
+          accessToken: principal.accessToken,
+        });
+        if (routine === null || routine.userId !== principal.userId) {
+          await sendApiError(
+            reply,
+            request,
+            404,
+            "NOT_FOUND",
+            "Referenced routine not found.",
+          );
+          return;
+        }
+        if (!isRoutineDetails(routine.details)) {
+          await sendApiError(
+            reply,
+            request,
+            422,
+            "VALIDATION_ERROR",
+            "Referenced workout is not a routine template.",
+          );
+          return;
+        }
+      }
+
+      const finalDetails =
+        lifecycle === null
+          ? withWorkoutLifecycle(incomingDetails, { kind: "session" })
+          : incomingDetails;
+
       const now = new Date();
       const id = crypto.randomUUID();
       const stored: StoredWorkout = {
         id,
         userId: principal.userId,
+        clientOperationId: clientOperationId ?? null,
         source: "manual" as WorkoutSource,
         name: parsed.data.name,
         startedAt,
         completedAt,
         notes: parsed.data.notes ?? null,
-        details: parsed.data.details ? { ...parsed.data.details } : {},
+        details: finalDetails,
         createdAt: now,
         updatedAt: now,
       };
@@ -265,6 +431,21 @@ export const workoutsRoutes: FastifyPluginAsync<WorkoutsRoutesOptions> = async (
         stored,
         { accessToken: principal.accessToken },
       );
+      if (
+        clientOperationId &&
+        saved.clientOperationId === clientOperationId &&
+        saved.id !== stored.id &&
+        !matchesCanonicalWorkoutPayload(saved, parsed.data)
+      ) {
+        await sendApiError(
+          reply,
+          request,
+          409,
+          "CONFLICT",
+          "The specified operation ID was already used with a different workout payload.",
+        );
+        return;
+      }
       return toWire(saved);
     },
   );

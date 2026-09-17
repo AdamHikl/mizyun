@@ -235,10 +235,13 @@ describe("applyWorkoutPatch", () => {
   });
 
   it("preserves the immutable id, userId, and source", () => {
-    const stored = baseStored();
+    const stored = baseStored({
+      clientOperationId: "11111111-2222-4333-8444-555555555555",
+    });
     const next = applyWorkoutPatch(stored, { name: "Pull day" }, new Date());
     expect(next.id).toBe(stored.id);
     expect(next.userId).toBe(stored.userId);
+    expect(next.clientOperationId).toBe("11111111-2222-4333-8444-555555555555");
     expect(next.source).toBe("manual");
   });
 
