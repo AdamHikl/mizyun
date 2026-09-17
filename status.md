@@ -6,6 +6,26 @@
 > - [`docs/archive/status/STATUS_HISTORY_2026-09-10_THROUGH_2026-09-12.md`](docs/archive/status/STATUS_HISTORY_2026-09-10_THROUGH_2026-09-12.md) (Handoffs from Sep 10 through Sep 12)
 > - [`docs/archive/status/STATUS_HISTORY_THROUGH_2026-09-09.md`](docs/archive/status/STATUS_HISTORY_THROUGH_2026-09-09.md) (Handoffs through Sep 9)
 
+## Active handoff — Remote promotion script stdin isolation hardened (#101, 2026-09-17)
+
+- **Context & Requirement:** GitHub Issue [#101](https://github.com/AdamHikl/mizyun/issues/101): Production promotion previously streamed `promote-production.sh` to remote `bash -s` via stdin. An interactive child prompt consumed subsequent script lines, skipping the API restart while the outer health check passed against the old running process. Defense in depth required materializing the candidate script remotely, disconnecting standard input from `/dev/null`, ensuring automatic temporary file cleanup, and adding orchestration regressions.
+- **Implemented:**
+  - Added and exported `buildRemotePromotionCommand({ remoteDir, targetSha, environment })` in `scripts/deployment-manifest.mjs`. It materializes the exact candidate script into an isolated temporary file (`/tmp/mizyun-promote-<env>-XXXXXX.sh`) with permissions `0700`, installs an automated cleanup trap (`trap 'rm -f "$remote_script"' EXIT INT TERM`), and executes `bash "$remote_script" "$targetSha" < /dev/null`.
+  - Updated `scripts/deploy-remote.mjs` and `scripts/deploy-dev.mjs` to use `buildRemotePromotionCommand` and added `-o ConnectTimeout=10` to SSH preflight checks.
+  - Added internal fail-closed defense `exec 0</dev/null` immediately following `set -Eeuo pipefail` in `scripts/promote-production.sh` and `scripts/promote-dev.sh`, ensuring stdin is disconnected from interactive streams even if called directly.
+  - Added `--yes` flag to `pnpm exec supabase db push` in `scripts/promote-dev.sh` to prevent dev migration prompts.
+- **Automated Verification:**
+  - Unit tests for `buildRemotePromotionCommand` validating absolute path checking, SHA format validation, and shell command structure.
+  - Negative orchestration regression reproducing the vulnerability: under legacy `bash -s` streaming, a child prompt consumes subsequent release lines from stdin and skips release execution while exiting 0.
+  - Positive orchestration regression proving that under the materialized runner, an unexpected child prompt receives EOF from `/dev/null`, fails closed with non-zero exit, triggers the error trap, and cleans up the temporary script immediately.
+  - End-to-end regression proving that an unflagged prompt in `promote-production.sh` fails closed, triggers `rollback_code`, restores previous code, and writes a `rolled_back` journal entry without skipping steps.
+  - Safeguard test suite expanded from 24 to 30 tests (all 30/30 pass).
+  - Full repository `pnpm check` passed cleanly (navigation, Prettier, all 15 workspace typechecks, iOS and Android Hermes bundle exports, deployment safeguards, build matrix, and offline AI screener).
+- **Independent Review:**
+  - Independent deployment review by subagent approved with zero findings, validating commit immutability, two-layer stdin isolation, trap cleanup guarantees, rollback execution, and POSIX shell compatibility.
+- **Next exact action:**
+  - Once the Raspberry Pi server is back online, deploy candidate to Pi Dev (`pnpm deploy:dev`) and promote to Production (`pnpm deploy:production <sha>`).
+
 ## Active handoff — Group and resize saved meals (#102, 2026-09-17)
 
 - **Context & Requirement:** GitHub Issue [#102](https://github.com/AdamHikl/mizyun/issues/102): Users wanted the ability to group individual saved meals into bigger meals while keeping each one editable, and to adjust the portion weight (grams) of a food after saving with values updating dynamically.

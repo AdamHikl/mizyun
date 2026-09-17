@@ -10,6 +10,7 @@ import path from "node:path";
 import { exit } from "node:process";
 import {
   DEPLOYMENT_MANIFEST,
+  buildRemotePromotionCommand,
   parseDeploymentArgs,
   resolvePromotionCandidate,
 } from "./deployment-manifest.mjs";
@@ -128,7 +129,14 @@ if (currentHead === targetSha) {
   }
 }
 
-const sshCheck = run("ssh", ["-o", "BatchMode=yes", sshAlias, "true"]);
+const sshCheck = run("ssh", [
+  "-o",
+  "BatchMode=yes",
+  "-o",
+  "ConnectTimeout=10",
+  sshAlias,
+  "true",
+]);
 if (sshCheck.status !== 0) fail(`SSH host ${sshAlias} is not reachable`);
 
 // Push commit to origin if needed so the Pi can fetch it
@@ -159,16 +167,17 @@ const promotionScript = output("git", [
   `${targetSha}:scripts/promote-dev.sh`,
 ]);
 
+const remoteCommand = buildRemotePromotionCommand({
+  remoteDir,
+  targetSha,
+  environment: "dev",
+});
+
 // eslint-disable-next-line no-console
 console.log(`\n> deploy ${targetSha} on ${sshAlias} (${remoteDir})`);
 const promote = spawnSync(
   "ssh",
-  [
-    "-o",
-    "BatchMode=yes",
-    sshAlias,
-    `cd ${remoteDir} && bash -s -- ${targetSha}`,
-  ],
+  ["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", sshAlias, remoteCommand],
   {
     input: `${promotionScript}\n`,
     stdio: ["pipe", "inherit", "inherit"],

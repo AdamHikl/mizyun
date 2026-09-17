@@ -166,3 +166,31 @@ export const formatJournalEntry = ({
     message,
   });
 };
+
+export const buildRemotePromotionCommand = ({
+  remoteDir,
+  targetSha,
+  environment = "production",
+}) => {
+  if (
+    typeof remoteDir !== "string" ||
+    !/^[A-Za-z0-9_./-]+$/.test(remoteDir) ||
+    !remoteDir.startsWith("/")
+  ) {
+    throw new Error("remoteDir must be a safe absolute Linux path.");
+  }
+  if (!validateCommitSha(targetSha)) {
+    throw new Error(`Invalid targetSha: '${targetSha}'`);
+  }
+  const prefix =
+    environment === "dev" ? "mizyun-promote-dev" : "mizyun-promote-production";
+  return [
+    "set -eu",
+    `remote_script="$(mktemp /tmp/${prefix}-XXXXXX.sh)"`,
+    "trap 'rm -f \"$remote_script\"' EXIT INT TERM",
+    'cat > "$remote_script"',
+    'chmod 700 "$remote_script"',
+    `cd "${remoteDir}"`,
+    `bash "$remote_script" "${targetSha}" < /dev/null`,
+  ].join("\n");
+};

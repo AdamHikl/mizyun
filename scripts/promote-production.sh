@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+# Ensure standard input is disconnected from any terminal or stream (fail closed on unexpected prompt)
+exec 0</dev/null
+
 # Runs inside Ubuntu on the Windows production PC or Raspberry Pi Production stack.
 # It is invoked by deploy-remote.mjs and must never be run against the Dev stack.
 

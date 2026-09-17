@@ -25,6 +25,7 @@ import path from "node:path";
 import { exit } from "node:process";
 import {
   DEPLOYMENT_MANIFEST,
+  buildRemotePromotionCommand,
   parseDeploymentArgs,
   resolvePromotionCandidate,
   validateCommitSha,
@@ -479,8 +480,9 @@ await test("promote-dev.sh: Unconditionally reconciles migration ledger and logs
     ? readFileSync(supabaseLog, "utf8")
     : "";
   assert(
-    supabaseContent.includes("mock supabase db push called"),
-    "supabase db push should be called",
+    supabaseContent.includes("mock supabase db push called") &&
+      supabaseContent.includes("--yes"),
+    "supabase db push should be called with --yes in dev",
   );
 
   // Check release journal
@@ -798,6 +800,268 @@ time.sleep(5)
   } finally {
     locker.kill("SIGKILL");
   }
+});
+
+// --- Remote Promotion Command & Stdin Isolation Tests (Issue #101) ---
+
+await test("buildRemotePromotionCommand: rejects non-absolute or invalid remoteDir", () => {
+  let threw = false;
+  try {
+    buildRemotePromotionCommand({
+      remoteDir: "relative/path",
+      targetSha: "1111111111222222222233333333334444444444",
+    });
+  } catch (err) {
+    threw = true;
+    assert(
+      err.message.includes("safe absolute Linux path"),
+      "expected safe absolute path error",
+    );
+  }
+  assert(threw, "should reject relative path");
+
+  threw = false;
+  try {
+    buildRemotePromotionCommand({
+      remoteDir: "/bad;path/with$special",
+      targetSha: "1111111111222222222233333333334444444444",
+    });
+  } catch (err) {
+    threw = true;
+    assert(
+      err.message.includes("safe absolute Linux path"),
+      "expected safe absolute path error",
+    );
+  }
+  assert(threw, "should reject path with unsafe characters");
+});
+
+await test("buildRemotePromotionCommand: rejects invalid targetSha", () => {
+  let threw = false;
+  try {
+    buildRemotePromotionCommand({
+      remoteDir: "/home/mizyun/mizyun",
+      targetSha: "not-a-valid-sha",
+    });
+  } catch (err) {
+    threw = true;
+    assert(err.message.includes("Invalid targetSha"), "expected sha error");
+  }
+  assert(threw, "should reject invalid targetSha");
+});
+
+await test("buildRemotePromotionCommand: generates secure materialized runner with stdin from /dev/null", () => {
+  const targetSha = "1111111111222222222233333333334444444444";
+  const cmd = buildRemotePromotionCommand({
+    remoteDir: "/home/mizyun/mizyun",
+    targetSha,
+    environment: "production",
+  });
+  assert(cmd.includes("set -eu"), "must set -eu");
+  assert(
+    cmd.includes(
+      'remote_script="$(mktemp /tmp/mizyun-promote-production-XXXXXX.sh)"',
+    ),
+    "must create production temp script",
+  );
+  assert(
+    cmd.includes("trap 'rm -f \"$remote_script\"' EXIT INT TERM"),
+    "must register cleanup trap",
+  );
+  assert(
+    cmd.includes('cat > "$remote_script"'),
+    "must stream candidate script into file via cat",
+  );
+  assert(
+    cmd.includes('chmod 700 "$remote_script"'),
+    "must restrict permissions to 700",
+  );
+  assert(cmd.includes('cd "/home/mizyun/mizyun"'), "must enter remoteDir");
+  assert(
+    cmd.includes(`bash "$remote_script" "${targetSha}" < /dev/null`),
+    "must execute script with stdin from /dev/null",
+  );
+
+  const devCmd = buildRemotePromotionCommand({
+    remoteDir: "/var/lib/mizyun/dev/repo",
+    targetSha,
+    environment: "dev",
+  });
+  assert(
+    devCmd.includes("mizyun-promote-dev-XXXXXX.sh"),
+    "must create dev temp script",
+  );
+});
+
+await test("orchestration regression: legacy bash -s streaming allows child prompt to skip release commands (negative reproduction)", () => {
+  const restartMarker = path.join(tempBase, "vuln_restart_marker");
+  if (existsSync(restartMarker)) rmSync(restartMarker);
+
+  // Script where an unexpected child prompt reads stdin, consuming subsequent release lines
+  const vulnerableScript = `
+echo "step 1: starting migration"
+read -r answer
+touch "${restartMarker}"
+echo "step 2: api restarted"
+`;
+
+  const res = spawnSync("bash", ["-s", "--", "fake-sha"], {
+    input: vulnerableScript,
+    encoding: "utf8",
+  });
+
+  assert(res.status === 0, `legacy bash -s exited ${res.status}`);
+  assert(
+    !existsSync(restartMarker),
+    "VULNERABILITY REPRODUCED: the child prompt consumed the touch command from stdin, skipping release execution while script exited 0",
+  );
+});
+
+await test("orchestration regression: materialized runner fails closed and cannot skip release commands on unexpected prompt", () => {
+  const restartMarker = path.join(tempBase, "safe_restart_marker");
+  const failureLog = path.join(tempBase, "safe_failure_marker");
+  if (existsSync(restartMarker)) rmSync(restartMarker);
+  if (existsSync(failureLog)) rmSync(failureLog);
+
+  // Script with set -e, error trap, and unexpected child prompt
+  const candidateScript = `#!/bin/bash
+set -Eeuo pipefail
+trap 'echo "trapped failure" > "${failureLog}"' ERR
+
+echo "step 1: starting migration"
+read -r answer
+touch "${restartMarker}"
+echo "step 2: api restarted"
+`;
+
+  const targetSha = "aaaaaaaaaabbbbbbbbbbccccccccccdddddddddd";
+  const remoteCommand = buildRemotePromotionCommand({
+    remoteDir: tempBase,
+    targetSha,
+    environment: "production",
+  });
+
+  const res = spawnSync("bash", ["-c", remoteCommand], {
+    input: candidateScript,
+    encoding: "utf8",
+  });
+
+  assert(
+    res.status !== 0,
+    `expected materialized runner to fail closed with non-zero exit, got ${res.status}`,
+  );
+  assert(
+    !existsSync(restartMarker),
+    "restart command was not executed normally because prompt failed closed",
+  );
+  assert(
+    existsSync(failureLog),
+    "error trap MUST be executed when prompt fails closed (cannot be bypassed)",
+  );
+
+  // Check that temporary file was cleaned up by the trap
+  const tempFiles = spawnSync(
+    "sh",
+    ["-c", "ls -1 /tmp/mizyun-promote-production-*.sh 2>/dev/null || true"],
+    { encoding: "utf8" },
+  ).stdout.trim();
+  assert(
+    tempFiles === "",
+    `temporary script should be cleaned up immediately, found: ${tempFiles}`,
+  );
+});
+
+await test("promote-production.sh: unexpected child prompt fails closed, triggers rollback, and records journal (cannot skip API restart or release journal)", () => {
+  // Create a prompting pnpm override that prompts for confirmation if not passed --yes
+  const promptBinDir = path.join(tempBase, "prompt-bin");
+  mkdirSync(promptBinDir, { recursive: true });
+
+  const promptingPnpm = path.join(promptBinDir, "pnpm");
+  writeFileSync(
+    promptingPnpm,
+    `#!/bin/sh
+if [ "$1" = "exec" ] && [ "$2" = "supabase" ] && [ "$3" = "db" ] && [ "$4" = "push" ]; then
+  # Check if --yes was passed
+  has_yes=false
+  for arg in "$@"; do
+    if [ "$arg" = "--yes" ]; then
+      has_yes=true
+    fi
+  done
+  if [ "$has_yes" = "false" ]; then
+    echo "Prompting user on stdin: Do you want to apply migrations? [y/N]" >&2
+    if read -r confirmation; then
+      if [ "$confirmation" = "y" ] || [ "$confirmation" = "yes" ]; then
+        exit 0
+      fi
+    fi
+    echo "Migration cancelled or EOF on stdin" >&2
+    exit 1
+  fi
+  exit 0
+fi
+exit 0
+`,
+  );
+  chmodSync(promptingPnpm, 0o755);
+
+  const journalPath = path.join(
+    prodRepoDir,
+    ".git/mizyun-production-release-journal.jsonl",
+  );
+  const linesBefore = existsSync(journalPath)
+    ? readFileSync(journalPath, "utf8").trim().split("\n").length
+    : 0;
+
+  // Create a test script in tempBase (outside prodRepoDir so prod checkout stays pristine)
+  const testScriptPath = path.join(tempBase, "test-prompt-promote.sh");
+  const realPromoteContent = readFileSync(
+    path.resolve("scripts/promote-production.sh"),
+    "utf8",
+  );
+  // Remove --yes to simulate an unflagged interactive prompt
+  const promptedContent = realPromoteContent.replaceAll(" --yes", "");
+  writeFileSync(testScriptPath, promptedContent);
+  chmodSync(testScriptPath, 0o755);
+
+  const res = spawnSync("bash", [testScriptPath, prodCommit2], {
+    cwd: prodRepoDir,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      HOME: tempBase,
+      GIT_CONFIG_GLOBAL: "/dev/null",
+      PATH: `${promptBinDir}:${mockBinDir}:${process.env.PATH}`,
+      MIZYUN_PRODUCTION_ENV_FILE: prodEnvFile,
+      MIZYUN_PRODUCTION_LOCK_FILE: prodLockFile,
+      MIZYUN_REMOTE_DIR: prodRepoDir,
+    },
+  });
+
+  rmSync(testScriptPath);
+  rmSync(promptBinDir, { recursive: true, force: true });
+
+  assert(
+    res.status !== 0,
+    `promotion MUST fail closed on unconfirmed prompt, got exit ${res.status}`,
+  );
+  assert(
+    res.stderr.includes("restoring API code"),
+    "rollback_code MUST be invoked on unexpected prompt failure",
+  );
+
+  // Verify journal logged rollback
+  assert(existsSync(journalPath), "journal file should exist");
+  const linesAfter = readFileSync(journalPath, "utf8").trim().split("\n");
+  assert(
+    linesAfter.length > linesBefore,
+    "rollback journal entry must be recorded",
+  );
+  const lastEntry = JSON.parse(linesAfter[linesAfter.length - 1]);
+  assert(
+    lastEntry.status === "rolled_back",
+    `journal status should be rolled_back, got ${lastEntry.status}`,
+  );
 });
 
 // Cleanup temp test files

@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+# Ensure standard input is disconnected from any terminal or stream (fail closed on unexpected prompt)
+exec 0</dev/null
+
 # Runs inside the Pi development checkout (/var/lib/mizyun/dev/repo).
 # It is invoked by deploy-dev.mjs and must never touch the production stack.
 
@@ -158,7 +161,7 @@ if [[ "$dev_db_url" != *"sslmode="* ]]; then
 fi
 export PGSSLMODE="$MIZYUN_DEV_DB_SSLMODE"
 
-pnpm exec supabase db push --db-url "$dev_db_url"
+pnpm exec supabase db push --db-url "$dev_db_url" --yes
 migrations_applied=true
 
 # 6. Sync systemd unit if the template has changed (Q1 isolation)
