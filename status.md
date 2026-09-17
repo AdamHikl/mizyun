@@ -21,7 +21,10 @@
   - Mobile test suite: 47 test files / 455 tests pass in `@mizyun/mobile`.
   - Repository check (`pnpm check`): 100% PASS (navigation check with 0 errors, Prettier formatting, all 15 workspace typechecks, Hermes iOS/Android bundle exports, all unit/integration tests, deployment safeguards, build matrix, and AI evaluation offline invariants).
   - Independent subagent review: Completed and approved (`Final Verdict: APPROVE`).
-- **Next exact action:** Close GitHub Issue #14 and deploy to Dev on the Pi (`pnpm deploy:dev`) for physical iOS device validation (`com.mizyun.development`).
+  - Dev deployment on Raspberry Pi: `pnpm deploy:dev dc8aa01` completed cleanly; deployed commit `dc8aa016fa1a3236a38f42f89a814acf4c29f49a` to `/var/lib/mizyun/dev/repo`; applied migration `20260917120000_workout_lifecycle_queries_and_idempotency.sql` to Dev database; restarted `mizyun-api-dev.service`.
+  - Public Dev health verified: `https://mizyun-api-dev.phiskel.com/v1/health` returned HTTP 200 `{"status":"ok","service":"mizyun-api","timestamp":"2026-09-17T19:46:05.559Z"}`.
+  - GitHub Issues [#14](https://github.com/AdamHikl/mizyun/issues/14) and [#102](https://github.com/AdamHikl/mizyun/issues/102) closed.
+- **Next exact action:** Test on the installed `com.mizyun.development` iPhone app against the public Dev API/Supabase hosts (verifying offline startup and reconnect sync, meal grouping and portion resizing, AI meal refine, and routine session-start idempotency), or select the next priority backlog issue.
 
 ## Active handoff — Raspberry Pi backend services restored online (2026-09-17)
 
