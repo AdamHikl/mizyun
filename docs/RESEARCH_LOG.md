@@ -1,5 +1,11 @@
 # Research log
 
+## 2026-09-17 — Retiring the Phiskel app during Mizyun website cutover
+
+- [Cloudflare Workers Custom Domains](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/) and [Routes](https://developers.cloudflare.com/workers/configuration/routing/routes/), accessed 2026-09-17: a custom domain receives all paths on its exact hostname, while a Worker route can take precedence. Implementation consequence: verify existing routes and bind each retired hostname deliberately; a `www` change alone cannot retire `app.phiskel.com` or the apex.
+- [Next.js Proxy](https://nextjs.org/docs/app/api-reference/file-conventions/proxy), accessed 2026-09-17: Proxy may respond directly or redirect before page rendering; the installed Vinext runtime's slash normalization still precedes this handler in local tests. Implementation consequence: return non-cacheable 410 for retired service prefixes and fixed-target redirects for old pages, test the real local handler across exact hosts, and retain the separate 308/301 acceptance gate.
+- Cloudflare DNS control-plane inspection found four proxied A records each on `www.phiskel.com` and `app.phiskel.com` pointing at the same CDN address set; the apex has a separate four-record CDN address set. Browser visits to all three hostnames displayed the Phiskel chat app. The zone's Workers Routes list was empty at inspection. No DNS or edge setting was changed. The founder directed retirement of public access without deletion; a full provider-origin/alternate-host inventory remains required before claiming the app is inaccessible everywhere.
+
 ## 2026-09-17 — Offline profile & dashboard cache for instant startup (Issue #14)
 
 - [Expo SecureStore documentation](https://docs.expo.dev/versions/latest/sdk/securestore/), accessed 2026-09-17: On iOS, values are stored in the Keychain services and individual items have a size limit of 2048 bytes; values exceeding this size fail with an exception. Implementation consequence: used `@mizyun/adapter-supabase-mobile`'s `ChunkedStorage` with 1800-byte partition size and manifest generation tracking, completely avoiding Keychain item size limits for large dashboard metrics payloads while ensuring atomic multi-generation cleanup.
