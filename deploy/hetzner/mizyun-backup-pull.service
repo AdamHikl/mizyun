@@ -1,0 +1,18 @@
+[Unit]
+Description=Pull and verify encrypted Hetzner backups on the Pi
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+EnvironmentFile=-/etc/mizyun-backup/pull.env
+ExecStart=/usr/local/sbin/mizyun-backup-pull
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+TimeoutStartSec=900
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

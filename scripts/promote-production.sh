@@ -4,14 +4,16 @@ set -Eeuo pipefail
 # Ensure standard input is disconnected from any terminal or stream (fail closed on unexpected prompt)
 exec 0</dev/null
 
-# Runs inside Ubuntu on the Windows production PC or Raspberry Pi Production stack.
+# Runs inside the Hetzner Production checkout.
 # It is invoked by deploy-remote.mjs and must never be run against the Dev stack.
 
 target_sha="${1:-}"
 production_env="${MIZYUN_PRODUCTION_ENV_FILE:-/etc/mizyun/production.env}"
-lock_file="${MIZYUN_PRODUCTION_LOCK_FILE:-/tmp/mizyun-deploy-production.lock}"
-expected_dir="${MIZYUN_REMOTE_DIR:-/home/mizyun/mizyun}"
+lock_file="${MIZYUN_PRODUCTION_LOCK_FILE:-/run/lock/mizyun-production-maintenance.lock}"
+expected_dir="${MIZYUN_REMOTE_DIR:-/var/lib/mizyun/repo}"
 journal_file=".git/mizyun-production-release-journal.jsonl"
+host_role_file="${MIZYUN_DEPLOY_HOST_ROLE_FILE:-/etc/mizyun/host-role}"
+expected_host_role="${MIZYUN_EXPECTED_DEPLOY_HOST_ROLE:-hetzner-primary-1d36b436-f4d5-4a29-b249-4153975563f3}"
 
 # 1. Acquire remote concurrency lock
 acquire_lock() {
@@ -30,6 +32,11 @@ acquire_lock() {
   fi
 }
 acquire_lock "$lock_file"
+
+if [[ ! -r "$host_role_file" ]] || [[ "$(cat "$host_role_file")" != "$expected_host_role" ]]; then
+  echo "FATAL: This host is not the expected Hetzner deployment authority." >&2
+  exit 2
+fi
 
 # 2. Validation of target commit SHA
 if [[ ! "$target_sha" =~ ^[0-9a-f]{40}$ ]]; then
@@ -152,14 +159,23 @@ git merge-base --is-ancestor "$target_sha" origin/main
 git checkout --detach "$target_sha"
 pnpm install --frozen-lockfile
 
-# 5. Mandatory release backup before schema mutation
-bash scripts/backup-production.sh
+# 5. Mandatory encrypted off-host-ready backup before schema mutation.
+# The root-owned unit performs the bounded write freeze and creates an atomic
+# encrypted export without granting the deploy user Docker/root access.
+sudo -n systemctl start mizyun-backup-for-deploy.service
 
 # 6. Reconcile database migration ledger unconditionally
 production_db_url="$MIZYUN_PRODUCTION_DB_URL"
 if [[ "${MIZYUN_PRODUCTION_DB_DIRECT_CONTAINER:-true}" == "true" ]]; then
-  db_container_ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$MIZYUN_DB_CONTAINER")"
-  [[ -n "$db_container_ip" ]] || { echo "could not resolve database container IP: $MIZYUN_DB_CONTAINER" >&2; exit 2; }
+  if [[ "$MIZYUN_DB_CONTAINER" != "supabase-db" ]]; then
+    echo "Unexpected Production database container: $MIZYUN_DB_CONTAINER" >&2
+    exit 2
+  fi
+  db_container_ip="$(sudo -n /usr/local/sbin/mizyun-production-db-ip)"
+  if [[ ! "$db_container_ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+    echo "could not resolve exactly one IPv4 address for database container: $MIZYUN_DB_CONTAINER" >&2
+    exit 2
+  fi
   production_db_url="$(printf '%s' "$production_db_url" | sed "s#@127.0.0.1:5432/#@$db_container_ip:5432/#")"
 fi
 export PGSSLMODE="$MIZYUN_PRODUCTION_DB_SSLMODE"

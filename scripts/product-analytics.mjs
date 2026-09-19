@@ -42,7 +42,7 @@ export function parseArgs(argv) {
     json: false,
     fixture: null,
     limit: 50,
-    sshAlias: process.env.MIZYUN_SSH_ALIAS || "rpserver",
+    sshAlias: process.env.MIZYUN_SSH_ALIAS || "mizyun-hetzner-ops",
     help: false,
   };
 
@@ -134,7 +134,7 @@ OPTIONS:
   --json                    Machine-readable JSON output
   --fixture <path>          Query local synthetic JSON fixture without SSH
   --limit <1-500>           Max rows in detailed reports (default: 50)
-  --ssh <alias>             SSH host alias for Raspberry Pi (default: rpserver)
+  --ssh <alias>             SSH host alias (default: mizyun-hetzner-ops)
   --help, -h                Show this help message
 
 EXAMPLES:

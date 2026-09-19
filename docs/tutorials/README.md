@@ -4,12 +4,13 @@
 
 ## Pick the workflow you need
 
-**Dev/Production setup:** [the environment guide](./DEV_PRODUCTION_PI_GUIDE.md) defines the target. Both Pi stacks now exist, but [the implementation review](../IMPLEMENTATION_REVIEW_2026-09-08.md) found incomplete isolation and release patches. Use [the Q1–Q9 remediation plan](../REMEDIATION_IMPLEMENTATION_PLAN_2026-09-08.md) and [evidence checklist](../REMEDIATION_EVIDENCE_CHECKLIST.md) to finish and verify the work.
+**Dev/Production setup:** [the Hetzner guide](./HETZNER_BACKEND_GUIDE.md) defines the active topology. The Pi guide is retained only as migration history.
 
 | Goal                                                          | Runbook                                                 | Applicability                                    |
 | ------------------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------ |
 | Start a normal coding session                                 | [Daily quickstart](./QUICKSTART.md)                     | Daily Mac workflow                               |
-| Deploy & operate primary Pi host (Dev/Prod)                   | [Dev/Production Pi guide](./DEV_PRODUCTION_PI_GUIDE.md) | Primary operational host (ADR-0020)              |
+| Deploy & operate primary Hetzner host (Dev/Prod)              | [Hetzner backend](./HETZNER_BACKEND_GUIDE.md)           | Primary operational host                         |
+| Inspect the frozen pre-migration Pi installation              | [Dev/Production Pi guide](./DEV_PRODUCTION_PI_GUIDE.md) | Historical / recovery reference                  |
 | Configure or diagnose local Supabase & API                    | [Local backend](./LOCAL_BACKEND.md)                     | Disposable Mac stack                             |
 | Run or build the app in an iOS Simulator                      | [iOS Simulator](./IOS_SIMULATOR.md)                     | iOS simulator testing                            |
 | Run or build the app in an Android emulator                   | [Android emulator](./ANDROID_EMULATOR.md)               | Android emulator testing                         |
@@ -21,7 +22,7 @@
 The normal path is:
 
 1. [Daily quickstart](./QUICKSTART.md)
-2. The relevant platform runbook ([DEV_PRODUCTION_PI_GUIDE.md](./DEV_PRODUCTION_PI_GUIDE.md) for remote Pi operations)
+2. The relevant platform runbook ([HETZNER_BACKEND_GUIDE.md](./HETZNER_BACKEND_GUIDE.md) for the active remote backend)
 3. [Testing](./TESTING.md)
 4. [Troubleshooting](./TROUBLESHOOTING.md) only if the expected checkpoint fails
 

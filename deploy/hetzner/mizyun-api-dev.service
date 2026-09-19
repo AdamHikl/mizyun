@@ -1,0 +1,31 @@
+[Unit]
+Description=Mizyun development API on Hetzner
+Wants=network-online.target
+After=network-online.target mizyun-supabase-dev.service
+Requires=mizyun-supabase-dev.service
+
+[Service]
+Type=simple
+User=mizyun-dev-api
+Group=mizyun-dev-api
+WorkingDirectory=/var/lib/mizyun/dev/repo
+EnvironmentFile=/etc/mizyun/dev.env
+Environment=PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp XDG_CACHE_HOME=/tmp
+ExecStart=/usr/local/bin/pnpm --filter @mizyun/api start
+Restart=on-failure
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+InaccessiblePaths=/etc/mizyun/production.env /var/lib/mizyun/repo /srv/mizyun/supabase /srv/mizyun/migration /var/run/docker.sock
+ReadWritePaths=/var/lib/mizyun/dev/repo /tmp
+MemoryMax=1G
+CPUQuota=200%
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,15 @@
+[Unit]
+Description=Cloudflare Tunnel client for Mizyun on Hetzner
+After=network-online.target mizyun-api.service mizyun-api-dev.service
+Wants=network-online.target
+Requires=mizyun-api.service mizyun-api-dev.service
+
+[Service]
+TimeoutStartSec=30
+Type=notify
+ExecStart=/usr/bin/cloudflared --no-autoupdate tunnel run --token-file /etc/cloudflared/token
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

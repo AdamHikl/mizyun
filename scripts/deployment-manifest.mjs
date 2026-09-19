@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 export const DEPLOYMENT_MANIFEST = {
   dev: {
     environment: "dev",
-    defaultSshAlias: "rpserver",
+    defaultSshAlias: "mizyun-hetzner-dev",
     defaultRemoteDir: "/var/lib/mizyun/dev/repo",
     defaultEnvFile: "/etc/mizyun/dev.env",
     serviceName: "mizyun-api-dev",
@@ -18,11 +18,13 @@ export const DEPLOYMENT_MANIFEST = {
     shaFile: ".git/mizyun-dev-sha",
     requireMain: false,
     requireExplicitSha: false,
+    expectedHostRole: "hetzner-primary-1d36b436-f4d5-4a29-b249-4153975563f3",
+    hostRoleFile: "/etc/mizyun/host-role",
   },
   production: {
     environment: "production",
-    defaultSshAlias: "rpserver",
-    defaultRemoteDir: "/home/mizyun/mizyun",
+    defaultSshAlias: "mizyun-hetzner",
+    defaultRemoteDir: "/var/lib/mizyun/repo",
     defaultEnvFile: "/etc/mizyun/production.env",
     serviceName: "mizyun-api",
     forbiddenServiceName: "mizyun-api-dev",
@@ -35,6 +37,8 @@ export const DEPLOYMENT_MANIFEST = {
     dbContainer: "supabase-db",
     requireMain: true,
     requireExplicitSha: true,
+    expectedHostRole: "hetzner-primary-1d36b436-f4d5-4a29-b249-4153975563f3",
+    hostRoleFile: "/etc/mizyun/host-role",
   },
 };
 
@@ -171,6 +175,8 @@ export const buildRemotePromotionCommand = ({
   remoteDir,
   targetSha,
   environment = "production",
+  hostRoleFile,
+  expectedHostRole,
 }) => {
   if (
     typeof remoteDir !== "string" ||
@@ -182,15 +188,48 @@ export const buildRemotePromotionCommand = ({
   if (!validateCommitSha(targetSha)) {
     throw new Error(`Invalid targetSha: '${targetSha}'`);
   }
+  const environmentConfig = DEPLOYMENT_MANIFEST[environment];
+  if (!environmentConfig) {
+    throw new Error(`Unknown deployment environment: '${environment}'`);
+  }
+  const hostRoleCheck = buildRemoteHostRoleCommand({
+    hostRoleFile: hostRoleFile ?? environmentConfig.hostRoleFile,
+    expectedHostRole: expectedHostRole ?? environmentConfig.expectedHostRole,
+  });
   const prefix =
     environment === "dev" ? "mizyun-promote-dev" : "mizyun-promote-production";
   return [
     "set -eu",
+    hostRoleCheck,
     `remote_script="$(mktemp /tmp/${prefix}-XXXXXX.sh)"`,
     "trap 'rm -f \"$remote_script\"' EXIT INT TERM",
     'cat > "$remote_script"',
     'chmod 700 "$remote_script"',
     `cd "${remoteDir}"`,
     `bash "$remote_script" "${targetSha}" < /dev/null`,
+  ].join("\n");
+};
+
+export const buildRemoteHostRoleCommand = ({
+  hostRoleFile,
+  expectedHostRole,
+}) => {
+  if (
+    typeof hostRoleFile !== "string" ||
+    !/^\/[A-Za-z0-9_./-]+$/.test(hostRoleFile)
+  ) {
+    throw new Error("hostRoleFile must be a safe absolute Linux path.");
+  }
+  if (
+    typeof expectedHostRole !== "string" ||
+    !/^[A-Za-z0-9._-]+$/.test(expectedHostRole)
+  ) {
+    throw new Error("expectedHostRole must be a safe non-empty identifier.");
+  }
+
+  return [
+    "set -eu",
+    `test -r "${hostRoleFile}"`,
+    `test "$(cat "${hostRoleFile}")" = "${expectedHostRole}"`,
   ].join("\n");
 };

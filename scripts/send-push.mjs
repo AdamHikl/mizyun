@@ -98,9 +98,13 @@ function loadApplePushCredentials() {
 
 function queryTokenFromDb(email, env) {
   const container = env === "dev" ? "mizyun-dev-db" : "supabase-db";
+  const sshAlias = process.env.MIZYUN_SSH_ALIAS || "mizyun-hetzner-ops";
+  if (!/^[A-Za-z0-9_.-]+$/.test(sshAlias)) {
+    throw new Error("MIZYUN_SSH_ALIAS must be a safe SSH alias");
+  }
   console.log(`Querying ${env} database for user: ${email}...`);
   try {
-    const cmd = `ssh rpserver "docker exec -i ${container} psql -U postgres -d postgres -t -A -c \\"SELECT push_token FROM beta_pro_requests WHERE email = '${email.replace(/'/g, "''")}' LIMIT 1;\\""`;
+    const cmd = `ssh ${sshAlias} "docker exec -i ${container} psql -U postgres -d postgres -t -A -c \\"SELECT push_token FROM beta_pro_requests WHERE email = '${email.replace(/'/g, "''")}' LIMIT 1;\\""`;
     const output = execSync(cmd, { encoding: "utf8", timeout: 15000 }).trim();
     return output || null;
   } catch (err) {

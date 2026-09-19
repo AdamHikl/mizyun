@@ -4,7 +4,7 @@ set -Eeuo pipefail
 # Ensure standard input is disconnected from any terminal or stream (fail closed on unexpected prompt)
 exec 0</dev/null
 
-# Runs inside the Pi development checkout (/var/lib/mizyun/dev/repo).
+# Runs inside the Hetzner development checkout (/var/lib/mizyun/dev/repo).
 # It is invoked by deploy-dev.mjs and must never touch the production stack.
 
 target_sha="${1:-}"
@@ -12,6 +12,8 @@ dev_env="${MIZYUN_DEV_ENV_FILE:-/etc/mizyun/dev.env}"
 lock_file="${MIZYUN_DEV_LOCK_FILE:-/tmp/mizyun-deploy-dev.lock}"
 expected_dir="${MIZYUN_DEV_REMOTE_DIR:-/var/lib/mizyun/dev/repo}"
 journal_file=".git/mizyun-dev-release-journal.jsonl"
+host_role_file="${MIZYUN_DEPLOY_HOST_ROLE_FILE:-/etc/mizyun/host-role}"
+expected_host_role="${MIZYUN_EXPECTED_DEPLOY_HOST_ROLE:-hetzner-primary-1d36b436-f4d5-4a29-b249-4153975563f3}"
 
 # 1. Acquire remote concurrency lock
 acquire_lock() {
@@ -30,6 +32,11 @@ acquire_lock() {
   fi
 }
 acquire_lock "$lock_file"
+
+if [[ ! -r "$host_role_file" ]] || [[ "$(cat "$host_role_file")" != "$expected_host_role" ]]; then
+  echo "FATAL: This host is not the expected Hetzner deployment authority." >&2
+  exit 2
+fi
 
 # 2. Guard working directory and reject production paths
 current_dir="$(pwd -P)"
@@ -87,7 +94,7 @@ if [[ ! "$MIZYUN_DEV_DB_URL" =~ ^postgres(ql)?://[^/@]+:[^/@]+@127\.0\.0\.1:5433
 fi
 
 if [[ -n "$(git status --porcelain)" ]]; then
-  echo "Refusing development deployment because the Pi dev checkout is dirty." >&2
+  echo "Refusing development deployment because the Hetzner Dev checkout is dirty." >&2
   exit 2
 fi
 
@@ -165,18 +172,14 @@ pnpm exec supabase db push --db-url "$dev_db_url" --yes
 migrations_applied=true
 
 # 6. Sync systemd unit if the template has changed (Q1 isolation)
-unit_template="deploy/raspberry-pi/mizyun-api-dev.service"
+unit_template="deploy/hetzner/mizyun-api-dev.service"
 installed_unit="/etc/systemd/system/mizyun-api-dev.service"
 if [[ -f "$unit_template" ]]; then
   template_hash="$(sha256sum "$unit_template" | cut -d' ' -f1)"
   installed_hash="$(sha256sum "$installed_unit" 2>/dev/null | cut -d' ' -f1 || echo "none")"
   if [[ "$template_hash" != "$installed_hash" ]]; then
-    echo "Updating systemd unit ($installed_unit) from template..."
-    sudo -n cp "$unit_template" "$installed_unit"
-    sudo -n systemctl daemon-reload
-    echo "Systemd unit updated and daemon reloaded."
-  else
-    echo "Systemd unit is already up to date."
+    echo "FATAL: Installed Hetzner Dev systemd unit does not match the candidate template; install it through the infrastructure workflow first." >&2
+    exit 2
   fi
 fi
 

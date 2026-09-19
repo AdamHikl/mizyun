@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily pull of encrypted Mizyun backups from Hetzner
+
+[Timer]
+OnCalendar=*-*-* 03:15:00 UTC
+Persistent=true
+AccuracySec=1min
+Unit=mizyun-backup-pull.service
+
+[Install]
+WantedBy=timers.target

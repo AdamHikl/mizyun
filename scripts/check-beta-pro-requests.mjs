@@ -3,7 +3,7 @@
 /**
  * CLI utility to check and triage Beta Pro Pass requests across Dev and Production.
  *
- * Checks public.beta_pro_requests in PostgreSQL on Raspberry Pi (rpserver)
+ * Checks public.beta_pro_requests in PostgreSQL on the Hetzner primary host
  * via SSH and Docker exec with safe stdin piping.
  *
  * Usage:
@@ -22,7 +22,7 @@ import http2 from "node:http2";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-const DEFAULT_SSH_ALIAS = process.env.MIZYUN_SSH_ALIAS || "rpserver";
+const DEFAULT_SSH_ALIAS = process.env.MIZYUN_SSH_ALIAS || "mizyun-hetzner-ops";
 const DEFAULT_TIMEOUT_MS = 30000;
 
 const CONTAINERS = {
@@ -114,7 +114,7 @@ function printUsage() {
 Check & Manage Beta Pro Pass Requests
 
 Inspects pending requests for the "Beta Pro Pass" across Production and Dev
-databases hosted on Raspberry Pi (rpserver).
+databases hosted on the Hetzner primary host.
 
 USAGE:
   node scripts/check-beta-pro-requests.mjs [options]
@@ -126,7 +126,7 @@ OPTIONS:
   --approve <email|id>      Approve request, trigger paid tier, and send push notification
   --reject <email|id>       Reject request (reverts profile to free tier if previously approved)
   --note "<text>"           Optional review note to attach during approval/rejection
-  --ssh <alias>             SSH host alias (default: rpserver or MIZYUN_SSH_ALIAS)
+  --ssh <alias>             SSH host alias (default: mizyun-hetzner-ops or MIZYUN_SSH_ALIAS)
   --json                    Output structured JSON
   --help, -h                Show this help message
 

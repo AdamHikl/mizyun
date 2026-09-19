@@ -24,7 +24,8 @@
 ## 4. Runbooks & Daily Operations
 
 - **Runbook Hub**: [`docs/tutorials/README.md`](tutorials/README.md) — setup, local backend, simulators, emulators, troubleshooting.
-- **Primary Pi 5 Host (Dev/Prod)**: [`docs/tutorials/DEV_PRODUCTION_PI_GUIDE.md`](tutorials/DEV_PRODUCTION_PI_GUIDE.md) — dual-environment Pi operations.
+- **Primary Hetzner Host (Dev/Prod)**: [`docs/tutorials/HETZNER_BACKEND_GUIDE.md`](tutorials/HETZNER_BACKEND_GUIDE.md) — deployment, backup, restore, and incident operations.
+- **Retired Pi Hosting Guide**: [`docs/tutorials/DEV_PRODUCTION_PI_GUIDE.md`](tutorials/DEV_PRODUCTION_PI_GUIDE.md) — historical topology only; the Pi is no longer a deployment target.
 - **Daily Mac Quickstart**: [`docs/tutorials/QUICKSTART.md`](tutorials/QUICKSTART.md) — local Mac development loop.
 - **Testing Runbook**: [`docs/tutorials/TESTING.md`](tutorials/TESTING.md) — execution commands for test suites and gates.
 

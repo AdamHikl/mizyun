@@ -1,0 +1,16 @@
+[Unit]
+Description=Create a Mizyun Production backup within the deployment maintenance lock
+Requires=docker.service mizyun-supabase.service
+After=docker.service mizyun-supabase.service
+
+[Service]
+Type=oneshot
+User=root
+Environment=MIZYUN_BACKUP_CALLER_HOLDS_LOCK=true
+ExecStart=/usr/local/sbin/mizyun-backup-production
+ExecStopPost=/usr/local/sbin/mizyun-backup-recover
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+TimeoutStartSec=900
+UMask=0077

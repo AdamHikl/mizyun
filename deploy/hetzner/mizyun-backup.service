@@ -1,0 +1,18 @@
+[Unit]
+Description=Create an encrypted Mizyun Production recovery archive
+Requires=docker.service mizyun-supabase.service
+After=docker.service mizyun-supabase.service
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/local/sbin/mizyun-backup-production
+ExecStopPost=/usr/local/sbin/mizyun-backup-recover
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+TimeoutStartSec=900
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

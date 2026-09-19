@@ -1,5 +1,8 @@
 # Development and production on the Mac, Raspberry Pi, and iPhone
 
+> **Historical topology:** Hetzner is now the primary backend. Do not use this
+> guide for deployment. See [HETZNER_BACKEND_GUIDE.md](./HETZNER_BACKEND_GUIDE.md).
+
 > Implementation reviewed 2026-09-08: both Pi stacks now exist, but this guide is not fully satisfied. See [the review](../IMPLEMENTATION_REVIEW_2026-09-08.md) for observed paths, unresolved runtime/build/deploy defects and outstanding acceptance. The original target and checklist below are retained as requirements, not proof of completion.
 
 > Implementation guide prepared 2026-09-07. **Target configuration, not an installed setup.** The user requested both backends on the Raspberry Pi, both app variants on the iPhone, and one maintainable Mac codebase. Read the current [release audit](../RELEASE_READINESS_2026-09-07.md) alongside this guide. Environment isolation does not itself make the app ready for external testers or App Store release.

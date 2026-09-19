@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+# Non-interactive login shell for the Pi's read-only rsync key.
+expected='/usr/bin/rrsync -ro /srv/mizyun/backup-export/outgoing'
+if [[ "${1:-}" != "-c" || "${2:-}" != "$expected" ]]; then
+  echo "This account accepts only the read-only Mizyun backup transport." >&2
+  exit 126
+fi
+exec /usr/bin/rrsync -ro /srv/mizyun/backup-export/outgoing

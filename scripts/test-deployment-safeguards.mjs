@@ -25,6 +25,7 @@ import path from "node:path";
 import { exit } from "node:process";
 import {
   DEPLOYMENT_MANIFEST,
+  buildRemoteHostRoleCommand,
   buildRemotePromotionCommand,
   parseDeploymentArgs,
   resolvePromotionCandidate,
@@ -209,6 +210,9 @@ import { realpathSync } from "node:fs";
 const tempBase = realpathSync(
   mkdtempSync(path.join(tmpdir(), "mizyun-harness-")),
 );
+const hostRoleFile = path.join(tempBase, "host-role");
+const expectedHostRole = DEPLOYMENT_MANIFEST.production.expectedHostRole;
+writeFileSync(hostRoleFile, `${expectedHostRole}\n`);
 
 // Create mock bin directory
 const mockBinDir = path.join(tempBase, "bin");
@@ -343,10 +347,22 @@ const runPromoteDev = ({
       MIZYUN_DEV_ENV_FILE: envFile,
       MIZYUN_DEV_LOCK_FILE: lockFile,
       MIZYUN_DEV_REMOTE_DIR: devRepoDir,
+      MIZYUN_DEPLOY_HOST_ROLE_FILE: hostRoleFile,
+      MIZYUN_EXPECTED_DEPLOY_HOST_ROLE: expectedHostRole,
       ...extraEnv,
     },
   });
 };
+
+await test("promote-dev.sh: Rejects a host without the unique Hetzner marker", () => {
+  const wrongMarker = path.join(tempBase, "wrong-dev-host-role");
+  writeFileSync(wrongMarker, "raspberry-pi-legacy\n");
+  const res = runPromoteDev({
+    extraEnv: { MIZYUN_DEPLOY_HOST_ROLE_FILE: wrongMarker },
+  });
+  assert(res.status === 2, `expected exit 2, got ${res.status}`);
+  assert(res.stderr.includes("deployment authority"), "expected host guard");
+});
 
 await test("promote-dev.sh: Working directory mismatch fails with exit code 2", () => {
   const res = runPromoteDev({ cwd: tempBase });
@@ -652,10 +668,21 @@ const runPromoteProd = ({
       MIZYUN_PRODUCTION_ENV_FILE: envFile,
       MIZYUN_PRODUCTION_LOCK_FILE: lockFile,
       MIZYUN_REMOTE_DIR: prodRepoDir,
+      MIZYUN_DEPLOY_HOST_ROLE_FILE: hostRoleFile,
+      MIZYUN_EXPECTED_DEPLOY_HOST_ROLE: expectedHostRole,
       ...extraEnv,
     },
   });
 };
+
+await test("promote-production.sh: Rejects a host without the unique Hetzner marker", () => {
+  const missingMarker = path.join(tempBase, "missing-prod-host-role");
+  const res = runPromoteProd({
+    extraEnv: { MIZYUN_DEPLOY_HOST_ROLE_FILE: missingMarker },
+  });
+  assert(res.status === 2, `expected exit 2, got ${res.status}`);
+  assert(res.stderr.includes("deployment authority"), "expected host guard");
+});
 
 await test("promote-production.sh: Reject execution against dev service", () => {
   const badEnv = path.join(tempBase, "bad-service-prod.env");
@@ -850,6 +877,26 @@ await test("buildRemotePromotionCommand: rejects invalid targetSha", () => {
   assert(threw, "should reject invalid targetSha");
 });
 
+await test("buildRemoteHostRoleCommand: validates and checks the exact marker", () => {
+  const command = buildRemoteHostRoleCommand({
+    hostRoleFile: "/etc/mizyun/host-role",
+    expectedHostRole,
+  });
+  assert(command.includes('test -r "/etc/mizyun/host-role"'));
+  assert(command.includes(expectedHostRole));
+
+  let threw = false;
+  try {
+    buildRemoteHostRoleCommand({
+      hostRoleFile: "/etc/mizyun/host-role;true",
+      expectedHostRole,
+    });
+  } catch {
+    threw = true;
+  }
+  assert(threw, "unsafe host-role path must be rejected");
+});
+
 await test("buildRemotePromotionCommand: generates secure materialized runner with stdin from /dev/null", () => {
   const targetSha = "1111111111222222222233333333334444444444";
   const cmd = buildRemotePromotionCommand({
@@ -939,6 +986,8 @@ echo "step 2: api restarted"
     remoteDir: tempBase,
     targetSha,
     environment: "production",
+    hostRoleFile,
+    expectedHostRole,
   });
 
   const res = spawnSync("bash", ["-c", remoteCommand], {
@@ -1035,6 +1084,8 @@ exit 0
       MIZYUN_PRODUCTION_ENV_FILE: prodEnvFile,
       MIZYUN_PRODUCTION_LOCK_FILE: prodLockFile,
       MIZYUN_REMOTE_DIR: prodRepoDir,
+      MIZYUN_DEPLOY_HOST_ROLE_FILE: hostRoleFile,
+      MIZYUN_EXPECTED_DEPLOY_HOST_ROLE: expectedHostRole,
     },
   });
 

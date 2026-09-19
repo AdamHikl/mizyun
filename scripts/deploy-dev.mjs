@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-// Deploy the exact verified commit to the Raspberry Pi development environment.
+// Deploy the exact verified commit to the Hetzner development environment.
 // Unlike production, dev deployment allows feature branches and commits under test.
 
 import { spawnSync } from "node:child_process";
@@ -10,6 +10,7 @@ import path from "node:path";
 import { exit } from "node:process";
 import {
   DEPLOYMENT_MANIFEST,
+  buildRemoteHostRoleCommand,
   buildRemotePromotionCommand,
   parseDeploymentArgs,
   resolvePromotionCandidate,
@@ -33,6 +34,10 @@ try {
 const sshAlias = process.env.MIZYUN_DEV_SSH_ALIAS ?? config.defaultSshAlias;
 const remoteDir = process.env.MIZYUN_DEV_REMOTE_DIR ?? config.defaultRemoteDir;
 const publicApiUrl = process.env.MIZYUN_DEV_API_URL ?? config.publicApiUrl;
+const hostRoleFile =
+  process.env.MIZYUN_DEPLOY_HOST_ROLE_FILE ?? config.hostRoleFile;
+const expectedHostRole =
+  process.env.MIZYUN_EXPECTED_DEPLOY_HOST_ROLE ?? config.expectedHostRole;
 
 if (!/^[A-Za-z0-9_./-]+$/.test(remoteDir) || !remoteDir.startsWith("/")) {
   // eslint-disable-next-line no-console
@@ -81,7 +86,8 @@ const steps = [
   `verify commit ${targetSha}`,
   `run pnpm check on candidate commit ${targetSha}`,
   "ensure commit is pushed to origin",
-  `deploy to Pi Dev at ${remoteDir}`,
+  `verify ${sshAlias} is the Hetzner primary host (${expectedHostRole})`,
+  `deploy to Hetzner Dev at ${remoteDir}`,
   `smoke-test ${publicApiUrl}/v1/health`,
 ];
 
@@ -129,6 +135,10 @@ if (currentHead === targetSha) {
   }
 }
 
+if (run("git", ["fetch", "origin", "main"]).status !== 0) {
+  fail("could not fetch the trusted deployment protocol from origin/main");
+}
+
 const sshCheck = run("ssh", [
   "-o",
   "BatchMode=yes",
@@ -139,7 +149,19 @@ const sshCheck = run("ssh", [
 ]);
 if (sshCheck.status !== 0) fail(`SSH host ${sshAlias} is not reachable`);
 
-// Push commit to origin if needed so the Pi can fetch it
+const hostRoleCheck = run("ssh", [
+  "-o",
+  "BatchMode=yes",
+  "-o",
+  "ConnectTimeout=10",
+  sshAlias,
+  buildRemoteHostRoleCommand({ hostRoleFile, expectedHostRole }),
+]);
+if (hostRoleCheck.status !== 0) {
+  fail(`SSH host ${sshAlias} is not the expected Hetzner deployment authority`);
+}
+
+// Push commit to origin if needed so Hetzner can fetch it.
 const currentBranch = output("git", ["branch", "--show-current"]);
 if (currentBranch) {
   // eslint-disable-next-line no-console
@@ -162,15 +184,20 @@ if (currentBranch) {
   }
 }
 
+// Deployment protocol comes from canonical origin/main, while the application
+// checkout still moves to targetSha. This preserves feature-branch deploys
+// without allowing a candidate branch to redefine deployment authority.
 const promotionScript = output("git", [
   "show",
-  `${targetSha}:scripts/promote-dev.sh`,
+  "origin/main:scripts/promote-dev.sh",
 ]);
 
 const remoteCommand = buildRemotePromotionCommand({
   remoteDir,
   targetSha,
   environment: "dev",
+  hostRoleFile,
+  expectedHostRole,
 });
 
 // eslint-disable-next-line no-console
@@ -184,7 +211,7 @@ const promote = spawnSync(
   },
 );
 if (promote.status !== 0) {
-  fail("the Pi development deployment failed; inspect remote service logs", 3);
+  fail("the Hetzner development deployment failed; inspect remote logs", 3);
 }
 
 const smoke = run("curl", [
@@ -200,4 +227,4 @@ if (smoke.status !== 0) {
 }
 
 // eslint-disable-next-line no-console
-console.log(`\nPi Dev now runs ${targetSha}.`);
+console.log(`\nHetzner Dev now runs ${targetSha}.`);

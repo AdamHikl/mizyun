@@ -62,7 +62,7 @@ function parseArgs(argv) {
     markAll: false,
     unmarkId: null,
     note: "",
-    sshAlias: process.env.MIZYUN_SSH_ALIAS || "rpserver",
+    sshAlias: process.env.MIZYUN_SSH_ALIAS || "mizyun-hetzner-ops",
     help: false,
   };
 
@@ -106,7 +106,7 @@ OPTIONS:
   --unmark <id>          Remove an item from the processed ledger
   --note "<text>"        Attach an optional resolution note when marking
   --env <prod|dev>       Target environment (default: production)
-  --ssh <alias>          SSH host alias (default: rpserver)
+  --ssh <alias>          SSH host alias (default: mizyun-hetzner-ops)
   --json                 Output raw JSON data
   --help, -h             Show this help message
 

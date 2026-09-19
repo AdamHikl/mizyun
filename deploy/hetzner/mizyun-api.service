@@ -1,0 +1,21 @@
+[Unit]
+Description=Mizyun production API on Hetzner
+Wants=network-online.target
+After=network-online.target mizyun-supabase.service
+Requires=mizyun-supabase.service
+
+[Service]
+Type=simple
+User=mizyun
+Group=mizyun
+WorkingDirectory=/var/lib/mizyun/repo
+EnvironmentFile=/etc/mizyun/production.env
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/local/bin/pnpm --filter @mizyun/api start
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

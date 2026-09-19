@@ -1,0 +1,18 @@
+[Unit]
+Description=Mizyun Supabase production stack on Hetzner
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/srv/mizyun/supabase
+ExecStart=/bin/sh /srv/mizyun/supabase/run.sh start
+ExecStop=/usr/bin/docker compose stop
+RemainAfterExit=true
+TimeoutStartSec=300
+TimeoutStopSec=180
+
+[Install]
+WantedBy=multi-user.target

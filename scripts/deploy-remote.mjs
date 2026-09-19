@@ -11,6 +11,7 @@ import path from "node:path";
 import { exit } from "node:process";
 import {
   DEPLOYMENT_MANIFEST,
+  buildRemoteHostRoleCommand,
   buildRemotePromotionCommand,
   parseDeploymentArgs,
   resolvePromotionCandidate,
@@ -36,6 +37,10 @@ const sshAlias =
 const remoteDir = process.env.MIZYUN_REMOTE_DIR ?? config.defaultRemoteDir;
 const publicApiUrl =
   process.env.MIZYUN_PRODUCTION_API_URL ?? config.publicApiUrl;
+const hostRoleFile =
+  process.env.MIZYUN_DEPLOY_HOST_ROLE_FILE ?? config.hostRoleFile;
+const expectedHostRole =
+  process.env.MIZYUN_EXPECTED_DEPLOY_HOST_ROLE ?? config.expectedHostRole;
 
 if (!/^[A-Za-z0-9_./-]+$/.test(remoteDir) || !remoteDir.startsWith("/")) {
   // eslint-disable-next-line no-console
@@ -87,6 +92,7 @@ const steps = [
   `verify candidate commit ${targetSha}`,
   `run pnpm check and db:verify on exact candidate ${targetSha}`,
   `confirm candidate is accepted ancestor of origin/main (no branch rewinding)`,
+  `verify ${sshAlias} is the Hetzner primary host (${expectedHostRole})`,
   `ask remote host to back up, apply pending migrations, and restart API`,
   `smoke-test ${publicApiUrl}/v1/health`,
 ];
@@ -157,15 +163,31 @@ const sshCheck = run("ssh", [
 ]);
 if (sshCheck.status !== 0) fail(`SSH host ${sshAlias} is not reachable`);
 
+const hostRoleCheck = run("ssh", [
+  "-o",
+  "BatchMode=yes",
+  "-o",
+  "ConnectTimeout=10",
+  sshAlias,
+  buildRemoteHostRoleCommand({ hostRoleFile, expectedHostRole }),
+]);
+if (hostRoleCheck.status !== 0) {
+  fail(`SSH host ${sshAlias} is not the expected Hetzner deployment authority`);
+}
+
+// Keep the deployment protocol canonical even when promoting an older accepted
+// application SHA. Candidate branches cannot redefine deployment authority.
 const promotionScript = output("git", [
   "show",
-  `${targetSha}:scripts/promote-production.sh`,
+  "origin/main:scripts/promote-production.sh",
 ]);
 
 const remoteCommand = buildRemotePromotionCommand({
   remoteDir,
   targetSha,
   environment: "production",
+  hostRoleFile,
+  expectedHostRole,
 });
 
 // eslint-disable-next-line no-console

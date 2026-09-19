@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+# Login shell for the two non-root deploy identities. It accepts only the exact
+# read-only host probe and materialized promotion command emitted by the repo.
+
+reject() {
+  echo "This account accepts only Mizyun deployment protocol commands." >&2
+  exit 126
+}
+
+[[ "${1:-}" == "-c" && -n "${2:-}" ]] || reject
+original_command="$2"
+role="hetzner-primary-1d36b436-f4d5-4a29-b249-4153975563f3"
+marker_command=$(printf '%s\n' \
+  'set -eu' \
+  'test -r "/etc/mizyun/host-role"' \
+  'test "$(cat "/etc/mizyun/host-role")" = "hetzner-primary-1d36b436-f4d5-4a29-b249-4153975563f3"')
+
+if [[ "$original_command" == "true" ]]; then
+  exit 0
+fi
+if [[ "$original_command" == "$marker_command" ]]; then
+  exec /bin/bash -c "$original_command"
+fi
+
+case "$(basename "$0")" in
+  mizyun-dev-deploy-shell)
+    prefix="mizyun-promote-dev"
+    remote_dir="/var/lib/mizyun/dev/repo"
+    ;;
+  mizyun-production-deploy-shell)
+    prefix="mizyun-promote-production"
+    remote_dir="/var/lib/mizyun/repo"
+    ;;
+  *) reject ;;
+esac
+
+last_line="${original_command##*$'\n'}"
+if [[ ! "$last_line" =~ ^bash\ \"\$remote_script\"\ \"([0-9a-f]{40})\"\ \<\ /dev/null$ ]]; then
+  reject
+fi
+target_sha="${BASH_REMATCH[1]}"
+promotion_command=$(printf '%s\n' \
+  'set -eu' \
+  "$marker_command" \
+  "remote_script=\"\$(mktemp /tmp/$prefix-XXXXXX.sh)\"" \
+  'trap '\''rm -f "$remote_script"'\'' EXIT INT TERM' \
+  'cat > "$remote_script"' \
+  'chmod 700 "$remote_script"' \
+  "cd \"$remote_dir\"" \
+  "bash \"\$remote_script\" \"$target_sha\" < /dev/null")
+
+[[ "$original_command" == "$promotion_command" ]] || reject
+exec /bin/bash -c "$original_command"

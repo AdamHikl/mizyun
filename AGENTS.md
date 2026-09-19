@@ -64,16 +64,16 @@ Table row interfaces for `RepositorySupabaseClient.from<T>` in `packages/adapter
 
 ## Primary working environment
 
-For Mizyun, the **Founder Raspberry Pi 5** (Ubuntu Server 24.04 ARM64,
-reachable from this Mac over SSH as `rpserver` / `mizyun-pi`) hosts Dev and
-Production side-by-side.
+For Mizyun, the **Hetzner CX23 in Helsinki** (Ubuntu Server 24.04 x86_64) is
+the primary Dev and Production backend. The Raspberry Pi 5 retains the frozen
+pre-migration installation and receives encrypted daily backups; it is not a
+deployment target. See `docs/tutorials/HETZNER_BACKEND_GUIDE.md`.
 
-**Tailscale network connectivity**: Both this Mac and the Raspberry Pi 5 are connected
-via Tailscale. Tailscale is the required network and SSH transport for connecting to
-`rpserver` (configured in `~/.ssh/config` pointing to the Pi's Tailscale IP or MagicDNS
-hostname `mizyun-pi`). Ensure Tailscale is running on this Mac whenever executing
-deployments (`pnpm deploy:dev`, `pnpm deploy:production`), running remote probes,
-or performing Pi maintenance.
+Mac SSH aliases are role-specific: `mizyun-hetzner` (Production deploy user),
+`mizyun-hetzner-dev` (Dev deploy user), and `mizyun-hetzner-ops` (root-only
+operations). `rpserver` / `mizyun-pi` remains the Tailscale-only Pi maintenance
+alias. Deployment scripts require the root-owned unique Hetzner host marker and
+must fail closed on the Pi or any unmarked host.
 
 The topology below is the operational reference;
 verify effective isolation and current configuration before relying on it.
@@ -89,19 +89,23 @@ Current SHAs and acceptance evidence belong in `status.md`, not this file.
    - Identity: Dev uses auto-confirmed email authentication under that testing policy. RLS still requires authenticated ownership (`user_id = auth.uid()`); autoconfirm is not an RLS requirement or an access allowlist.
 
 2. **Production (`production`)**:
-   - Repo checkout: `/home/mizyun/mizyun` (`/var/lib/mizyun/repo`)
+   - Repo checkout: `/var/lib/mizyun/repo`
    - Services: `mizyun-api.service` (port 4000), `mizyun-supabase.service` (port 8000 Kong, port 5432 Postgres)
    - Public hostnames: `https://mizyun-api.phiskel.com`, `https://mizyun-supabase.phiskel.com`
    - Mobile app: `com.mizyun.app` ("Mizyun", built via `pnpm mobile:founder-production:ios`)
    - Deployment: `pnpm deploy:production <sha>` (via `scripts/deploy-remote.mjs` and `scripts/promote-production.sh`)
 
-The Windows PC (`mizyun-pc`) is kept as a hot backup.
+The Pi receives one encrypted Production recovery archive daily and retains 90
+days while the VM keeps a short seven-day export buffer. This gives an
+approximately daily RPO, not zero-loss failover. The private age recovery key
+must remain off the VM and Pi. The Windows PC (`mizyun-pc`) is retained as a
+historical recovery option, not the active backend.
 
 Daily workflow:
 
 - **Feature development & daily test loop**:
   - Implement and verify on the Mac (`pnpm check` must pass).
-  - Push commit to remote and deploy to Dev on the Pi via `pnpm deploy:dev [sha]`.
+  - Push commit to remote and deploy to Hetzner Dev via `pnpm deploy:dev [sha]`.
   - Test on the installed `com.mizyun.dev` iPhone app against the public Dev API/Supabase hosts.
 - **Production release milestone**:
   - Once features are verified on Dev and merged into `main`, promote the exact accepted SHA to Production via `pnpm deploy:production <sha>`.
@@ -111,12 +115,12 @@ Daily workflow:
 
 Consequences and expectations:
 
-- The Raspberry Pi must keep serving when the Mac is off. Prove both apps' standalone operation and session isolation on the current candidate; a Metro development client still depends on Metro.
-- Never run destructive commands (`db:reset`, `db:verify`, volume pruning) against the Pi. `pnpm db:verify` runs only against the local disposable Mac database.
+- Hetzner must keep serving when the Mac is off. Prove both apps' standalone operation and session isolation on the current candidate; a Metro development client still depends on Metro.
+- Never run destructive commands (`db:reset`, `db:verify`, volume pruning) against Hetzner or the frozen Pi. `pnpm db:verify` runs only against the local disposable Mac database.
 - Dev and Production must have separate database/Auth/Storage resources and non-interchangeable Auth credentials/tokens. Verify both directions of token rejection and effective runtime access; separate service names or a shared provider exception do not prove isolation.
 - Before any deployment, `pnpm check` must pass on the Mac.
 - Format the files changed by the session before final checks. Use repository-wide `pnpm format` only when it will not rewrite unrelated or concurrently edited files; `pnpm check` still checks repository-wide formatting.
-- The Pi dev checkout (`/var/lib/mizyun/dev/repo`) must remain pristine; never leave unstaged or modified files on the Pi during ad-hoc testing, as `promote-dev.sh` fails closed on dirty working trees.
+- The Hetzner Dev checkout (`/var/lib/mizyun/dev/repo`) must remain pristine; never leave unstaged or modified files there during ad-hoc testing, as `promote-dev.sh` fails closed on dirty working trees.
 - Verify the exact deployment candidate, effective host/path/service/database target, and current tooling safeguards before deploying. A supplied SHA must not silently resolve to a different tested checkout. Never use a release command merely because its name or old documentation claims it is safe.
 - Feature work goes to Dev. Production promotion is a separate explicit release milestone with its required acceptance, backup/migration and compatibility evidence; a merge, helper completion or documentation-only change is not a release trigger.
 
