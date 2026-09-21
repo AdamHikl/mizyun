@@ -6,6 +6,7 @@ import {
   COACH_SAFETY_DATASET_VERSION,
   COACH_SYSTEM_POLICY,
   DisabledAgentProvider,
+  StubVisionProvider,
   coachSafetyEvaluationCases,
   createAgentToolRegistryFromList,
   extractAssistantText,
@@ -22,6 +23,32 @@ describe("DisabledAgentProvider", () => {
     const status = await new DisabledAgentProvider().status();
     expect(status.ready).toBe(false);
     expect(status.provider).toBe("disabled");
+  });
+});
+
+describe("StubVisionProvider portion estimates", () => {
+  it("returns and proportionally refines a non-default portion weight", async () => {
+    const provider = new StubVisionProvider();
+    const userId = "00000000-0000-4000-8000-000000000001" as UserId;
+    const initial = await provider.generateTextDraft({
+      userId,
+      description: "one ordinary lunch",
+    });
+
+    expect(initial.portionWeightG).toBe(300);
+    const refined = await provider.refineDraft({
+      userId,
+      currentDraft: initial,
+      instruction: "double the portion",
+    });
+    expect(refined.portionWeightG).toBe(600);
+
+    const arbitraryRatio = await provider.refineDraft({
+      userId,
+      currentDraft: initial,
+      instruction: "138g instead of 223g",
+    });
+    expect(arbitraryRatio.portionWeightG).toBe(185.7);
   });
 });
 

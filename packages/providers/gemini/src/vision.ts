@@ -25,6 +25,12 @@ const visionOutputSchema = z.object({
     .max(200)
     .nullish()
     .transform((v) => v ?? null),
+  portionWeightG: z
+    .number()
+    .positive()
+    .lte(20_000)
+    .nullish()
+    .transform((v) => v ?? null),
   caloriesKcal: z
     .number()
     .nonnegative()
@@ -81,6 +87,7 @@ export const normalizeCandidateValues = (
 ): VisionModelOutput => {
   let {
     name,
+    portionWeightG,
     caloriesKcal,
     proteinG,
     carbohydrateG,
@@ -94,6 +101,10 @@ export const normalizeCandidateValues = (
     assumptions,
     calculation,
   } = candidate;
+
+  if (portionWeightG !== null) {
+    portionWeightG = Math.round(portionWeightG * 10) / 10;
+  }
 
   // 1. If ranges are present but point estimates are null, derive point estimate as the midpoint
   if (caloriesKcal === null && calorieRangeKcal !== null) {
@@ -168,6 +179,7 @@ export const normalizeCandidateValues = (
 
   return {
     name,
+    portionWeightG,
     caloriesKcal,
     proteinG,
     carbohydrateG,
@@ -190,6 +202,12 @@ const geminiVisionOutputJsonSchema = {
       type: "STRING",
       nullable: true,
       description: "Name of the meal or food item identified.",
+    },
+    portionWeightG: {
+      type: "NUMBER",
+      nullable: true,
+      description:
+        "Best estimate of the total edible portion weight in grams represented by the nutrition totals, excluding plates, cups, wrappers, and other containers. For drinks, estimate the consumed liquid mass in grams.",
     },
     caloriesKcal: {
       type: "NUMBER",
@@ -289,6 +307,7 @@ const geminiVisionOutputJsonSchema = {
   },
   required: [
     "name",
+    "portionWeightG",
     "caloriesKcal",
     "proteinG",
     "carbohydrateG",
@@ -304,14 +323,15 @@ const geminiVisionOutputJsonSchema = {
   ],
 };
 
-const NUTRITION_DRAFT_PROMPT_VERSION = "nutrition-draft-v2";
-const NUTRITION_DRAFT_REFINE_PROMPT_VERSION = "nutrition-draft-refine-v1";
+const NUTRITION_DRAFT_PROMPT_VERSION = "nutrition-draft-v3";
+const NUTRITION_DRAFT_REFINE_PROMPT_VERSION = "nutrition-draft-refine-v2";
 
 export const visionSystemPolicy = [
   "You are a nutrition photo analyzer. Use only the photo and the user's hint.",
   "Identify the food or drink in the photo. If you cannot, set name to null.",
+  "Estimate the total edible portion weight (portionWeightG) represented by the nutrition totals. Sum all edible food and drink components, exclude containers and tableware, and explain the portion assumption. Do not default to 100g unless the evidence genuinely supports 100g.",
   "Estimate total calories (caloriesKcal) and all three macronutrients (proteinG, carbohydrateG, fatG) for the identified meal.",
-  "Round to one decimal place for macro grams, integer for kcal. Always supply non-null point estimates (midpoint) whenever food is identified.",
+  "Round portionWeightG and macro grams to one decimal place, and kcal to an integer. Always supply non-null point estimates (midpoint) whenever food is identified.",
   "For every estimate, return a plausible low/high range and list the portion or ingredient assumptions that drive it.",
   "In calculation, provide the complete itemized breakdown showing each ingredient, portion, and nutritional calculation that drives the totals.",
   "Set all numeric fields to null only if you cannot identify any food or drink.",
@@ -321,8 +341,9 @@ export const visionSystemPolicy = [
 
 export const textNutritionSystemPolicy = [
   "You are a nutrition analyzer specializing in text meal descriptions, recipes, and restaurant items.",
+  "Estimate the total edible portion weight (portionWeightG) represented by the nutrition totals. Sum all edible food and drink components, exclude containers and tableware, and explain the portion assumption. Do not default to 100g unless the description or published serving genuinely supports 100g.",
   "Estimate total calories (caloriesKcal) and all three macronutrients (proteinG, carbohydrateG, fatG) for the identified meal.",
-  "Round to one decimal place for macro grams, integer for kcal. Always supply non-null point estimates (midpoint) whenever food is identified.",
+  "Round portionWeightG and macro grams to one decimal place, and kcal to an integer. Always supply non-null point estimates (midpoint) whenever food is identified.",
   "For every estimate, return a plausible low/high range and list the portion or ingredient assumptions that drive it.",
   "In calculation, provide the complete itemized breakdown showing each ingredient, portion, and nutritional calculation that drives the totals.",
   "For fast-food chains and restaurants (McDonald's, Burger King, KFC, Subway, Starbucks, etc.), prioritize official published nutrition facts.",
@@ -399,6 +420,7 @@ const refineSystemPolicy = [
   "Use the current draft as the starting point. Do not invent new ingredients, portions, or meals.",
   "Apply the user's instruction conservatively: change only the values the instruction clearly targets.",
   "When the instruction references a current value (e.g. '200g instead of 100g'), scale the affected macros proportionally and surface the new low/high range.",
+  "Keep portionWeightG aligned with the total edible portion represented by the refined calories and macros; update it whenever the instruction changes portion size.",
   "In calculation, return an updated itemized breakdown reflecting the adjusted portions and calculations.",
   "Always supply non-null point estimates (caloriesKcal, proteinG, carbohydrateG, fatG) and ranges for all nutrition values.",
   "When the instruction is ambiguous or unsafe, leave the draft unchanged, lower the confidence, and add a warning describing why.",
@@ -413,6 +435,7 @@ const refineUserPrompt = (
   const lines = [
     "Current meal draft:",
     `Name: ${currentDraft.name ?? "(empty)"}`,
+    `Portion weight: ${currentDraft.portionWeightG ?? "(empty)"} g`,
     `Calories: ${currentDraft.caloriesKcal ?? "(empty)"} kcal`,
     `Protein: ${currentDraft.proteinG ?? "(empty)"} g`,
     `Carbs: ${currentDraft.carbohydrateG ?? "(empty)"} g`,
@@ -970,6 +993,7 @@ export class GeminiVisionProvider implements VisionDraftProvider {
     if (isUnsafeOutput(parsed)) {
       return {
         name: null,
+        portionWeightG: null,
         caloriesKcal: null,
         proteinG: null,
         carbohydrateG: null,

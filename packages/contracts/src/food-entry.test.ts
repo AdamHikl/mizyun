@@ -34,6 +34,7 @@ describe("nutrition draft contracts", () => {
     expect(
       foodDraftCandidateSchema.parse({
         name: "Eggs and toast",
+        portionWeightG: 245.5,
         caloriesKcal: 350,
         proteinG: 20,
         carbohydrateG: 30,
@@ -51,8 +52,50 @@ describe("nutrition draft contracts", () => {
           model: "resolved-model",
           promptVersion: "nutrition-draft-v2",
         },
-      }).provenance.inputKind,
-    ).toBe("text");
+      }),
+    ).toMatchObject({
+      portionWeightG: 245.5,
+      provenance: { inputKind: "text" },
+    });
+  });
+
+  it("keeps older drafts compatible and rejects invalid portion weights", () => {
+    const legacyCandidate = {
+      name: "Apple",
+      caloriesKcal: 95,
+      proteinG: 0.5,
+      carbohydrateG: 25,
+      fatG: 0.3,
+      calorieRangeKcal: null,
+      proteinRangeG: null,
+      carbohydrateRangeG: null,
+      fatRangeG: null,
+      confidence: 0.8,
+      warnings: [],
+      assumptions: [],
+      provenance: {
+        inputKind: "text" as const,
+        provider: "legacy",
+        model: "legacy",
+        promptVersion: "nutrition-draft-v2",
+      },
+    };
+
+    expect(foodDraftCandidateSchema.safeParse(legacyCandidate).success).toBe(
+      true,
+    );
+    expect(
+      foodDraftCandidateSchema.safeParse({
+        ...legacyCandidate,
+        portionWeightG: 0,
+      }).success,
+    ).toBe(false);
+    expect(
+      foodDraftCandidateSchema.safeParse({
+        ...legacyCandidate,
+        portionWeightG: 20_001,
+      }).success,
+    ).toBe(false);
   });
 
   it("rejects inverted ranges and extra text-request fields", () => {

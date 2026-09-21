@@ -278,6 +278,13 @@ const nutritionEstimateRangeSchema = z
 
 export const foodDraftCandidateSchema = z.object({
   name: z.string().trim().min(1).max(200).nullable(),
+  portionWeightG: z
+    .number()
+    .gte(1)
+    .lte(20_000)
+    .multipleOf(0.1)
+    .nullable()
+    .optional(),
   caloriesKcal: z.number().gte(0).lte(20_000).multipleOf(0.01).nullable(),
   proteinG: macroSchema.nullable(),
   carbohydrateG: macroSchema.nullable(),

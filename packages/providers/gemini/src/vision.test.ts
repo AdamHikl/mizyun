@@ -26,6 +26,7 @@ const request: VisionDraftRequest = {
 
 const candidateOutput = {
   name: "Chicken and rice",
+  portionWeightG: 320,
   caloriesKcal: 420,
   proteinG: 38,
   carbohydrateG: 45,
@@ -83,6 +84,7 @@ describe("GeminiVisionProvider", () => {
 
     const result = await provider.generateDraft(request);
     expect(result.name).toBe("Chicken and rice");
+    expect(result.portionWeightG).toBe(320);
     expect(result.caloriesKcal).toBe(420);
     expect(result.proteinG).toBe(38);
     expect(result.provenance.provider).toBe("gemini");
@@ -95,6 +97,15 @@ describe("GeminiVisionProvider", () => {
         mimeType: "image/jpeg",
       },
     });
+    expect(callArgs?.generationConfig?.responseSchema).toMatchObject({
+      properties: {
+        portionWeightG: expect.objectContaining({ type: "NUMBER" }),
+      },
+      required: expect.arrayContaining(["portionWeightG"]),
+    });
+    expect(callArgs?.systemInstruction?.parts[0]?.text).toContain(
+      "Do not default to 100g",
+    );
   });
 
   it("generates a text-only meal draft", async () => {
@@ -151,6 +162,7 @@ describe("GeminiVisionProvider", () => {
                   text: JSON.stringify({
                     ...candidateOutput,
                     name: "Chicken and rice (double portion)",
+                    portionWeightG: 640,
                     caloriesKcal: 840,
                     proteinG: 76,
                   }),
@@ -186,8 +198,13 @@ describe("GeminiVisionProvider", () => {
     };
 
     const result = await provider.refineDraft(refineRequest);
+    expect(result.portionWeightG).toBe(640);
     expect(result.caloriesKcal).toBe(840);
     expect(result.proteinG).toBe(76);
+    const refinePrompt = getPartText(
+      generateContent.mock.calls[0]?.[0].contents[0]?.parts[0],
+    );
+    expect(refinePrompt).toContain("Portion weight: 320 g");
   });
 
   it("includes calculation in draft candidate output and refine prompt", async () => {

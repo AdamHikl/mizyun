@@ -949,6 +949,11 @@ export interface VisionDraftCandidate {
    */
   readonly name: string | null;
   /**
+   * Estimated total edible portion weight represented by the nutrition
+   * totals. Optional for backwards compatibility with older saved drafts.
+   */
+  readonly portionWeightG?: number | null | undefined;
+  /**
    * Per-macro suggestions. `null` per field is allowed; the route
    * maps it to "AI was not confident — please enter manually".
    */
@@ -1071,6 +1076,7 @@ export class StubVisionProvider implements VisionDraftProvider {
     const hint = request.textHint?.trim() ?? "";
     return {
       name: hint.length > 0 ? hint : "AI could not identify the food",
+      portionWeightG: 300,
       caloriesKcal: 350,
       proteinG: 12,
       carbohydrateG: 40,
@@ -1168,6 +1174,8 @@ export class StubVisionProvider implements VisionDraftProvider {
     }
     const scaledNumber = (value: number | null): number | null =>
       value === null ? null : Math.round(value * scale * 100) / 100;
+    const scaledPortionWeight = (value: number): number =>
+      Math.round(value * scale * 10) / 10;
     const scaledRange = (
       value: { low: number; high: number } | null,
     ): { low: number; high: number } | null =>
@@ -1179,6 +1187,10 @@ export class StubVisionProvider implements VisionDraftProvider {
           };
     return {
       ...draft,
+      portionWeightG:
+        draft.portionWeightG == null
+          ? draft.portionWeightG
+          : scaledPortionWeight(draft.portionWeightG),
       caloriesKcal: scaledNumber(draft.caloriesKcal),
       proteinG: scaledNumber(draft.proteinG),
       carbohydrateG: scaledNumber(draft.carbohydrateG),
