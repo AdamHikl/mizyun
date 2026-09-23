@@ -243,18 +243,25 @@ export function LogWorkoutScreen() {
     }
     routineStartRef.current = routine.id;
     setBusy(true);
-    void startRoutineSession(routine).then((result) => {
-      setBusy(false);
-      if (result.ok && result.workout) {
-        router.replace({
-          pathname: "/log-workout",
-          params: { workoutId: result.workout.id },
-        });
-      } else if (!result.ok) {
+    void (async () => {
+      try {
+        const result = await startRoutineSession(routine);
+        if (result.ok && result.workout) {
+          router.replace({
+            pathname: "/log-workout",
+            params: { workoutId: result.workout.id },
+          });
+        } else if (!result.ok) {
+          routineStartRef.current = null;
+          setMessage(result.message);
+        }
+      } catch {
         routineStartRef.current = null;
-        setMessage(result.message);
+        setMessage("The session could not be started. Please try again.");
+      } finally {
+        setBusy(false);
       }
-    });
+    })();
   }, [workspace.workout]);
 
   // Draft save/load

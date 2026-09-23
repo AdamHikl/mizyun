@@ -1,5 +1,6 @@
 import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { router, Stack, useFocusEffect, type Href } from "expo-router";
+import * as Crypto from "expo-crypto";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCallback, useRef, useState } from "react";
 import type { Workout } from "@mizyun/contracts";
@@ -83,12 +84,12 @@ export function WorkoutsHubScreen() {
     if (startingRoutineIds.current.has(workout.id)) return;
     startingRoutineIds.current.add(workout.id);
     setBusyWorkoutId(workout.id);
-    let operationId = routineOperationIds.current.get(workout.id);
-    if (!operationId) {
-      operationId = crypto.randomUUID();
-      routineOperationIds.current.set(workout.id, operationId);
-    }
     try {
+      let operationId = routineOperationIds.current.get(workout.id);
+      if (!operationId) {
+        operationId = Crypto.randomUUID();
+        routineOperationIds.current.set(workout.id, operationId);
+      }
       const result = await startRoutineSession(workout, operationId);
       if (result.ok && result.workout) {
         routineOperationIds.current.delete(workout.id);
@@ -102,6 +103,10 @@ export function WorkoutsHubScreen() {
       }
     } catch {
       routineOperationIds.current.delete(workout.id);
+      Alert.alert(
+        "Could not start session",
+        "The session could not be started. Please try again.",
+      );
     } finally {
       startingRoutineIds.current.delete(workout.id);
       setBusyWorkoutId(null);
@@ -118,23 +123,32 @@ export function WorkoutsHubScreen() {
 
   const handleStartBlank = useCallback(async () => {
     setLoading(true);
-    if (!blankOperationId.current) {
-      blankOperationId.current = crypto.randomUUID();
-    }
-    const result = await createBlankWorkout(
-      "Custom Workout",
-      blankOperationId.current,
-    );
-    setLoading(false);
-    if (result.ok && result.workout) {
+    try {
+      if (!blankOperationId.current) {
+        blankOperationId.current = Crypto.randomUUID();
+      }
+      const result = await createBlankWorkout(
+        "Custom Workout",
+        blankOperationId.current,
+      );
+      if (result.ok && result.workout) {
+        blankOperationId.current = null;
+        router.push({
+          pathname: "/log-workout",
+          params: { workoutId: result.workout.id },
+        });
+      } else if (!result.ok) {
+        blankOperationId.current = null;
+        Alert.alert("Could not start workout", result.message);
+      }
+    } catch {
       blankOperationId.current = null;
-      router.push({
-        pathname: "/log-workout",
-        params: { workoutId: result.workout.id },
-      });
-    } else if (!result.ok) {
-      blankOperationId.current = null;
-      Alert.alert("Could not start workout", result.message);
+      Alert.alert(
+        "Could not start workout",
+        "The workout could not be started. Please try again.",
+      );
+    } finally {
+      setLoading(false);
     }
   }, []);
 

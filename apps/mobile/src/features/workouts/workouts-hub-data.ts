@@ -1,4 +1,5 @@
 import type { ApiClient, ApiError } from "@mizyun/api-client";
+import * as Crypto from "expo-crypto";
 import {
   isRoutineDetails,
   isSessionDetails,
@@ -625,7 +626,7 @@ export const createBlankWorkoutWith = async (
   now?: (() => Date) | Date,
   clientOperationId?: string,
 ): Promise<WorkoutActionMutationResult> => {
-  const operationId = clientOperationId ?? crypto.randomUUID();
+  const operationId = clientOperationId ?? Crypto.randomUUID();
   const startedAtDate = typeof now === "function" ? now() : now;
   const parsed = workoutCreateSchema.safeParse({
     clientOperationId: operationId,
@@ -667,7 +668,7 @@ export const startRoutineSessionWith = async (
       message: "Only an available routine can start a new session.",
     };
   }
-  const operationId = clientOperationId ?? crypto.randomUUID();
+  const operationId = clientOperationId ?? Crypto.randomUUID();
   const startedAtDate = typeof now === "function" ? now() : now;
   const parsed = workoutCreateSchema.safeParse({
     clientOperationId: operationId,

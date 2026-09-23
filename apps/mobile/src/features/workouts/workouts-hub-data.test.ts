@@ -336,6 +336,29 @@ describe("workouts-hub-data", () => {
     });
   });
 
+  it("creates native-safe operation IDs without a browser crypto global", async () => {
+    vi.stubGlobal("crypto", undefined);
+    const request = vi.fn().mockResolvedValue({
+      ok: true,
+      value: { workout: mockPlannedWorkout },
+    });
+    const client = { request } as unknown as ApiClient;
+
+    try {
+      await createBlankWorkoutWith(client, "Quick session");
+      await startRoutineSessionWith(client, mockPlannedWorkout);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+
+    expect(request).toHaveBeenCalledTimes(2);
+    for (const [options] of request.mock.calls) {
+      expect(options.body.clientOperationId).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+      );
+    }
+  });
+
   it("updates workout details and planned exercises", async () => {
     const client: ApiClient = {
       request: vi
