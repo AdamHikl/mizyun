@@ -65,6 +65,11 @@ export interface SupabaseMobileConfiguration {
   readonly publishableKey: string;
   /** Deep-link URI generated from the current app variant's scheme. */
   readonly redirectUri?: string;
+  /**
+   * Optional HTTPS bridge or alternate URI to use for email confirmation
+   * and recovery links. When omitted, defaults to `redirectUri`.
+   */
+  readonly emailRedirectUri?: string;
 }
 
 export class SupabaseMobileAuthClient implements AuthClient {
@@ -78,6 +83,7 @@ export class SupabaseMobileAuthClient implements AuthClient {
   constructor(
     private readonly client: SupabaseClient,
     private readonly redirectUri = "mizyun://auth/callback",
+    private readonly emailRedirectUri?: string,
   ) {
     if (Platform.OS !== "web") {
       const subscription = AppState.addEventListener("change", (state) => {
@@ -138,7 +144,7 @@ export class SupabaseMobileAuthClient implements AuthClient {
     const { data, error } = await this.client.auth.signUp({
       ...credentials,
       options: {
-        emailRedirectTo: this.redirectUri,
+        emailRedirectTo: this.emailRedirectUri ?? this.redirectUri,
       },
     });
     if (error) throw asIdentityError(error);
@@ -230,7 +236,7 @@ export class SupabaseMobileAuthClient implements AuthClient {
     const { error } = await this.client.auth.resetPasswordForEmail(
       email.email,
       {
-        redirectTo: this.redirectUri,
+        redirectTo: this.emailRedirectUri ?? this.redirectUri,
       },
     );
     if (error) throw asIdentityError(error);
@@ -266,5 +272,9 @@ export const createSupabaseMobileAuthClient = (
     },
   });
 
-  return new SupabaseMobileAuthClient(client);
+  return new SupabaseMobileAuthClient(
+    client,
+    configuration.redirectUri,
+    configuration.emailRedirectUri,
+  );
 };

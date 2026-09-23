@@ -5,6 +5,7 @@ import * as WebBrowser from "expo-web-browser";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -41,6 +42,7 @@ export function AuthScreen() {
   const [isAppleAuthAvailable, setIsAppleAuthAvailable] = useState(false);
 
   const busy = emailBusy || googleBusy || appleBusy || resendBusy;
+  const isAndroid = Platform.OS === "android";
 
   useEffect(() => {
     let isMounted = true;
@@ -266,17 +268,36 @@ export function AuthScreen() {
           ) : null}
 
           <Pressable
-            accessibilityLabel="Continue with Google"
+            accessibilityLabel={
+              googleBusy
+                ? "Signing in with Google"
+                : isAndroid
+                  ? "Sign in with Google"
+                  : "Continue with Google"
+            }
             accessibilityRole="button"
+            accessibilityState={{ disabled: busy, busy: googleBusy }}
             disabled={busy}
             onPress={submitGoogleAuth}
             style={({ pressed }) => [
-              styles.googleButton,
-              pressed && styles.googleButtonPressed,
+              isAndroid ? styles.androidGoogleButton : styles.googleButton,
+              isAndroid && googleBusy && styles.androidGoogleButtonLoading,
+              pressed &&
+                (isAndroid
+                  ? styles.androidGoogleButtonPressed
+                  : styles.googleButtonPressed),
+              busy && !googleBusy && styles.googleButtonDisabled,
             ]}
           >
             {googleBusy ? (
               <ActivityIndicator color="#1f1f1f" />
+            ) : isAndroid ? (
+              <Image
+                accessible={false}
+                resizeMode="contain"
+                source={require("../../../assets/images/google-sign-in-android-light-pill.png")}
+                style={styles.androidGoogleButtonImage}
+              />
             ) : (
               <>
                 <GoogleIcon size={20} />
@@ -435,11 +456,35 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8f9fa",
     borderColor: "#5e615f",
   },
+  googleButtonDisabled: {
+    opacity: 0.55,
+  },
   googleButtonText: {
     color: "#1f1f1f",
     fontWeight: "600",
     fontSize: 16,
     letterSpacing: 0.15,
+  },
+  androidGoogleButton: {
+    alignItems: "center",
+    alignSelf: "center",
+    height: 52,
+    justifyContent: "center",
+    marginTop: 4,
+    width: 234,
+  },
+  androidGoogleButtonImage: {
+    height: 52,
+    width: 234,
+  },
+  androidGoogleButtonLoading: {
+    backgroundColor: "#ffffff",
+    borderColor: "#747775",
+    borderRadius: 26,
+    borderWidth: 1,
+  },
+  androidGoogleButtonPressed: {
+    opacity: 0.82,
   },
   dividerRow: {
     flexDirection: "row",

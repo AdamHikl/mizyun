@@ -2,6 +2,7 @@ import { createSupabaseMobileAuthClient } from "@mizyun/adapter-supabase-mobile"
 import { DisabledAuthClient, type AuthClient } from "@mizyun/identity";
 
 import { mobileConfigResult } from "./mobile-config";
+import { resolveAppVariant } from "./app-variant";
 
 /**
  * Mobile composition root for authentication. The validated
@@ -21,6 +22,11 @@ export const authConfiguration = configResult.ok
     // status when present.
     { configured: false as const, provider: "supabase", reason: "" };
 
+const isDevVariant = resolveAppVariant() === "dev";
+const bridgeEmailRedirectUri = isDevVariant
+  ? "https://www.phiskel.com/mizyun/auth/callback?scheme=mizyun-dev"
+  : "https://www.phiskel.com/mizyun/auth/callback";
+
 /**
  * Concrete `AuthClient` selected for this composition. The mobile loader
  * guarantees that whenever `authConfiguration.configured === true`, the
@@ -35,5 +41,6 @@ export const authClient: AuthClient =
         ...configResult.value.supabaseConfig,
         redirectUri:
           configResult.value.authRedirectUri ?? "mizyun://auth/callback",
+        emailRedirectUri: bridgeEmailRedirectUri,
       })
     : new DisabledAuthClient();

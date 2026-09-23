@@ -88,30 +88,53 @@ Expected: the UI shows the confirmation hint and no error. The user row appears 
 
 Expected: GoTrue marks the user as `email_confirmed_at = NOW()`. The deep link reaches the mobile app via the top-level `DeepLinkBridge` in `_layout.tsx`, the `parseDeepLinkFragment` helper in `@mizyun/identity` parses the URL fragment, and `authClient.consumeDeepLink` calls `supabase.auth.setSession`. The AuthContext subscription fires `SIGNED_IN`; the SessionGate swaps the AuthScreen for the regular tabs.
 
-### Production redirect configuration
+### Production and Dev redirect configuration
 
 The self-hosted Production Supabase stack reads these values from
 `/srv/mizyun/supabase/.env`:
 
 ```dotenv
 SITE_URL=mizyun://auth/callback
-ADDITIONAL_REDIRECT_URLS=mizyun://auth/callback
+ADDITIONAL_REDIRECT_URLS=mizyun://auth/callback,https://www.phiskel.com/mizyun/auth/callback
 ```
 
-After changing either value, recreate only Auth with
-`cd /srv/mizyun/supabase && sh run.sh recreate auth`; a normal container
-restart does not replace its environment. Verify the effective
+And Hetzner Dev reads from `/var/lib/mizyun/dev/supabase/.env`:
+
+```dotenv
+SITE_URL=mizyun-dev://auth/callback
+ADDITIONAL_REDIRECT_URLS=https://mizyun-supabase-dev.phiskel.com/auth/v1/callback,mizyun-dev://auth/callback,https://www.phiskel.com/mizyun/auth/callback
+```
+
+After changing either value, recreate only Auth:
+
+- Production: `cd /srv/mizyun/supabase && sh run.sh recreate auth`
+- Dev: `cd /var/lib/mizyun/dev/supabase && docker compose up -d --no-deps --force-recreate --wait auth`
+
+A normal container restart does not replace its environment. Verify the effective
 `GOTRUE_SITE_URL` and `GOTRUE_URI_ALLOW_LIST`, internal container health, and
 public Auth health with the publishable-key header. Keep a timestamped `.env`
 backup for rollback.
 
-This callback is intentionally mobile-only. Clicking the confirmation from a
-desktop without Mizyun installed may not open anything useful. A future HTTPS
-landing/bridge should handle that cross-device case. That future change must
-also point signup's explicit `emailRedirectTo` to the HTTPS bridge (or omit it
-to use the new `SITE_URL`); never use an unresolved hostname as `SITE_URL`.
-Confirmation links are single-use and may also be consumed by mail-provider
-prefetching.
+### HTTPS confirmation and recovery bridge
+
+The public website at `https://www.phiskel.com/mizyun/auth/callback` acts as a
+secure, cross-device confirmation and password recovery bridge:
+
+1. **Desktop UX**:
+   - Opens a branded Mizyun verification page confirming that email or reset was authorized.
+   - For signup: explains that Mizyun is a mobile app and instructs the user to open the app on their phone.
+   - For password recovery: explains that password rotation is completed within the mobile app.
+   - For errors (e.g. `otp_expired`, `access_denied`, reused links): displays an understandable error message ("Link expired or already used") with actionable guidance (sign in directly if already confirmed, or request a new link in the app) and support contact (`support@mizyun.phiskel.com`).
+2. **Mobile UX (iOS / Android)**:
+   - Evaluates the URL fragment/parameters in client-side JavaScript.
+   - Prompts or automatically trampolines to `mizyun://auth/callback#...` via deep link.
+   - Renders a prominent "Open Mizyun App" button as a reliable manual fallback.
+3. **Security & Privacy**:
+   - The bridge sets `noindex, nofollow` robots metadata and `Referrer-Policy: no-referrer`.
+   - Client-side code scrubs the URL fragment via `window.history.replaceState` immediately after reading it, preventing token persistence in browser history or address bars.
+   - Zero tokens or credentials are logged or sent to any server.
+4. **Link semantics**:
+   - Confirmation and recovery links are strictly single-use. Mail-provider prefetching or repeated clicks result in `otp_expired`, which the bridge handles with clear user explanation rather than a protocol failure.
 
 ## Step 6 — Sign in
 
@@ -166,9 +189,11 @@ Expected: `authClient.updatePassword({ password })` succeeds. The SessionGate fa
 3. Create an **OAuth 2.0 Client ID** (Application type: **Web application**).
 4. Add **Authorized JavaScript origins**:
    - Production: `https://mizyun-supabase.phiskel.com`
+   - Hetzner Dev: `https://mizyun-supabase-dev.phiskel.com`
    - Local Dev: `http://127.0.0.1:54321`
 5. Add **Authorized redirect URIs**:
    - Production: `https://mizyun-supabase.phiskel.com/auth/v1/callback`
+   - Hetzner Dev: `https://mizyun-supabase-dev.phiskel.com/auth/v1/callback`
    - Local Dev: `http://127.0.0.1:54321/auth/v1/callback`
 6. Copy the **Client ID** and **Client Secret**.
 
@@ -179,14 +204,21 @@ Expected: `authClient.updatePassword({ password })` succeeds. The SessionGate fa
   SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID=<google-client-id>
   SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET=<google-client-secret>
   ```
-- **Self-Hosted Production (Raspberry Pi / Windows PC)**: In `/srv/mizyun/supabase/.env` or `/etc/mizyun/production.env`:
+- **Self-hosted Hetzner Dev or Production**: In the environment file for the selected Supabase stack:
+
   ```dotenv
   GOTRUE_EXTERNAL_GOOGLE_ENABLED=true
   GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID=<google-client-id>
   GOTRUE_EXTERNAL_GOOGLE_SECRET=<google-client-secret>
-  GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI=https://mizyun-supabase.phiskel.com/auth/v1/callback
+  GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI=https://<selected-supabase-host>/auth/v1/callback
   ```
-  Restart Supabase (`sudo systemctl restart mizyun-supabase` or `cd /srv/mizyun/supabase && sh run.sh restart`).
+
+  Validate the selected environment before Compose renders any secret-bearing configuration:
+
+  - Dev: `node /var/lib/mizyun/dev/repo/scripts/validate-google-oauth-env.mjs --environment dev --env-file /var/lib/mizyun/dev/supabase/.env`, then from `/var/lib/mizyun/dev/supabase` run `docker compose config --quiet` and `docker compose up -d --no-deps --force-recreate --wait auth`.
+  - Production: `node /var/lib/mizyun/repo/scripts/validate-google-oauth-env.mjs --environment production --env-file /srv/mizyun/supabase/.env`, then from `/srv/mizyun/supabase` run `docker compose config --quiet` and `sh run.sh recreate auth`.
+
+  The validator rejects an enabled provider unless its client ID, secret, and exact environment callback are present. Do not reuse one environment's redirect URI for the other; restarting the environment's Supabase systemd unit would unnecessarily interrupt the whole stack.
 
 ### 3. Verification
 
@@ -194,7 +226,7 @@ Expected: `authClient.updatePassword({ password })` succeeds. The SessionGate fa
 2. On `AuthScreen`, tap **Continue with Google**.
 3. The in-app browser (`expo-web-browser`) opens the Google consent screen.
 4. Sign in with your Google account.
-5. Google redirects to Supabase `/auth/v1/callback` -> Supabase redirects to `mizyun://auth/callback#access_token=...&refresh_token=...`.
+5. Google redirects to the selected Supabase host's `/auth/v1/callback`. Supabase then redirects to `mizyun-dev://auth/callback#...` for Dev or `mizyun://auth/callback#...` for Production. Never record the callback fragment because it contains session tokens.
 6. Expected: The browser closes automatically, the session is consumed, and the user lands on the app dashboard.
 
 ## Step 12 — Bundle purity (defensive)

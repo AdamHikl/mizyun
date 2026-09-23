@@ -1,6 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 
+const { createClientMock } = vi.hoisted(() => ({
+  createClientMock: vi.fn(),
+}));
+
 vi.mock("react-native-url-polyfill/auto", () => ({}));
+
+vi.mock("@supabase/supabase-js", () => ({
+  createClient: createClientMock,
+  processLock: vi.fn(),
+}));
 
 vi.mock("react-native", () => ({
   AppState: {
@@ -19,7 +28,10 @@ vi.mock("expo-secure-store", () => ({
 }));
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { SupabaseMobileAuthClient } from "./index.js";
+import {
+  createSupabaseMobileAuthClient,
+  SupabaseMobileAuthClient,
+} from "./index.js";
 
 const createMockSupabaseClient = (overrides: {
   signInWithOAuth?: () => Promise<{
@@ -132,6 +144,29 @@ const createMockSupabaseClient = (overrides: {
 };
 
 describe("SupabaseMobileAuthClient", () => {
+  describe("factory configuration", () => {
+    it("preserves the app variant redirect URI for OAuth", async () => {
+      const mockClient = createMockSupabaseClient({});
+      createClientMock.mockReturnValue(mockClient);
+
+      const authClient = createSupabaseMobileAuthClient({
+        url: "https://mizyun-supabase-dev.phiskel.com",
+        publishableKey: "test-publishable-key",
+        redirectUri: "mizyun-dev://auth/callback",
+      });
+
+      await authClient.signInWithOAuth({ provider: "google" });
+
+      expect(mockClient.auth.signInWithOAuth).toHaveBeenCalledWith({
+        provider: "google",
+        options: {
+          redirectTo: "mizyun-dev://auth/callback",
+          skipBrowserRedirect: true,
+        },
+      });
+    });
+  });
+
   describe("signUpWithPassword", () => {
     it.each(["mizyun://auth/callback", "mizyun-dev://auth/callback"])(
       "sends email confirmation back to app variant %s",
@@ -156,6 +191,65 @@ describe("SupabaseMobileAuthClient", () => {
         });
       },
     );
+
+    it("prefers explicit emailRedirectUri over redirectUri for email confirmation", async () => {
+      const mockClient = createMockSupabaseClient({});
+      const authClient = new SupabaseMobileAuthClient(
+        mockClient,
+        "mizyun://auth/callback",
+        "https://www.phiskel.com/mizyun/auth/callback",
+      );
+
+      await authClient.signUpWithPassword({
+        email: "test@example.com",
+        password: "strong-password",
+      });
+
+      expect(mockClient.auth.signUp).toHaveBeenCalledWith({
+        email: "test@example.com",
+        password: "strong-password",
+        options: {
+          emailRedirectTo: "https://www.phiskel.com/mizyun/auth/callback",
+        },
+      });
+    });
+  });
+
+  describe("requestPasswordRecovery", () => {
+    it("uses default redirectUri when emailRedirectUri is omitted", async () => {
+      const mockClient = createMockSupabaseClient({});
+      const authClient = new SupabaseMobileAuthClient(
+        mockClient,
+        "mizyun://auth/callback",
+      );
+
+      await authClient.requestPasswordRecovery({ email: "user@example.com" });
+
+      expect(mockClient.auth.resetPasswordForEmail).toHaveBeenCalledWith(
+        "user@example.com",
+        {
+          redirectTo: "mizyun://auth/callback",
+        },
+      );
+    });
+
+    it("uses explicit emailRedirectUri when provided", async () => {
+      const mockClient = createMockSupabaseClient({});
+      const authClient = new SupabaseMobileAuthClient(
+        mockClient,
+        "mizyun://auth/callback",
+        "https://www.phiskel.com/mizyun/auth/callback",
+      );
+
+      await authClient.requestPasswordRecovery({ email: "user@example.com" });
+
+      expect(mockClient.auth.resetPasswordForEmail).toHaveBeenCalledWith(
+        "user@example.com",
+        {
+          redirectTo: "https://www.phiskel.com/mizyun/auth/callback",
+        },
+      );
+    });
   });
 
   describe("signInWithOAuth", () => {
