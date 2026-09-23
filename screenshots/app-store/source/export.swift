@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
 let destination = root.appendingPathComponent("screenshots/app-store")
+let sourceDirectory = destination.appendingPathComponent("captured")
 let width = 1320, height = 2868
 let colorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
 struct Shot {
@@ -42,29 +43,77 @@ func label(_ text: String, top: CGFloat, size: CGFloat, color: NSColor, weight: 
     precondition(measured.width < 1160, "Headline exceeds safe width: \(text)")
     string.draw(at: NSPoint(x: (CGFloat(width) - measured.width) / 2, y: CGFloat(height) - top - measured.height))
 }
-let template = load(destination.appendingPathComponent("source/phone-template.png"))
+let frameSideMargin: CGFloat = 96
+let framePadding: CGFloat = 22
+let screenWidth = CGFloat(width) - (frameSideMargin + framePadding) * 2
+let screenBottom: CGFloat = 65
+let frameCornerRadius: CGFloat = 105
+let screenCornerRadius: CGFloat = 88
 var rendered: [CGImage] = []
 for shot in shots {
+    let screenshot = load(sourceDirectory.appendingPathComponent(shot.source))
+    let screenHeight = screenWidth * CGFloat(screenshot.height) / CGFloat(screenshot.width)
+    let screenRect = CGRect(
+        x: frameSideMargin + framePadding,
+        y: screenBottom,
+        width: screenWidth,
+        height: screenHeight
+    )
+    let frameRect = screenRect.insetBy(dx: -framePadding, dy: -framePadding)
     let context = canvas(width, height)
     context.setFillColor(NSColor.white.cgColor)
     context.fill(CGRect(x: 0, y: 0, width: width, height: height))
     context.interpolationQuality = .high
-    // Reuse the generated frame; original app pixels are inserted independently.
-    context.draw(template, in: CGRect(x: 0, y: CGFloat(height) - 2870, width: CGFloat(width), height: 3030))
-    let screenshot = load(root.appendingPathComponent("screenshots/\(shot.source)"))
-    let screenWidth: CGFloat = 890
-    let screenHeight = screenWidth * CGFloat(screenshot.height) / CGFloat(screenshot.width)
-    let rect = CGRect(x: 215, y: CGFloat(height) - 671 - screenHeight, width: screenWidth, height: screenHeight)
+
     context.saveGState()
-    context.addPath(CGPath(roundedRect: rect, cornerWidth: 100, cornerHeight: 100, transform: nil))
-    context.clip()
-    context.draw(screenshot, in: rect)
+    context.setShadow(
+        offset: CGSize(width: 0, height: -12),
+        blur: 34,
+        color: NSColor(srgbRed: 0.38, green: 0.48, blue: 0.58, alpha: 0.24).cgColor
+    )
+    context.addPath(
+        CGPath(
+            roundedRect: frameRect,
+            cornerWidth: frameCornerRadius,
+            cornerHeight: frameCornerRadius,
+            transform: nil
+        )
+    )
+    context.setFillColor(NSColor(srgbRed: 0.035, green: 0.043, blue: 0.050, alpha: 1).cgColor)
+    context.fillPath()
     context.restoreGState()
+
+    context.saveGState()
+    context.addPath(
+        CGPath(
+            roundedRect: screenRect,
+            cornerWidth: screenCornerRadius,
+            cornerHeight: screenCornerRadius,
+            transform: nil
+        )
+    )
+    context.clip()
+    context.draw(screenshot, in: screenRect)
+    context.restoreGState()
+
+    context.saveGState()
+    context.addPath(
+        CGPath(
+            roundedRect: screenRect,
+            cornerWidth: screenCornerRadius,
+            cornerHeight: screenCornerRadius,
+            transform: nil
+        )
+    )
+    context.setStrokeColor(NSColor(srgbRed: 0.14, green: 0.17, blue: 0.19, alpha: 1).cgColor)
+    context.setLineWidth(2)
+    context.strokePath()
+    context.restoreGState()
+
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
-    label("mizyun", top: 105, size: 38, color: NSColor(srgbRed: 0.39, green: 0.44, blue: 0.49, alpha: 1), weight: .semibold)
-    label(shot.blue, top: 230, size: 88, color: NSColor(srgbRed: 0.125, green: 0.541, blue: 0.937, alpha: 1), weight: .semibold)
-    label(shot.black, top: 339, size: 88, color: NSColor(srgbRed: 0.065, green: 0.075, blue: 0.09, alpha: 1), weight: .semibold)
+    label(shot.blue, top: 72, size: 88, color: NSColor(srgbRed: 0.125, green: 0.541, blue: 0.937, alpha: 1), weight: .semibold)
+    label(shot.black, top: 181, size: 88, color: NSColor(srgbRed: 0.065, green: 0.075, blue: 0.09, alpha: 1), weight: .semibold)
     NSGraphicsContext.restoreGraphicsState()
     let image = context.makeImage()!
     let url = destination.appendingPathComponent("iphone-6.9/\(shot.name).png")

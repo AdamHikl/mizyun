@@ -25,6 +25,15 @@ screenshots/IMG_*.PNG
 screenshots/app-store/iphone-6.9/
 screenshots/app-store/preview.png
 screenshots/app-store/*.zip
+screenshots/app-store/captured/
+screenshots/google-play/captured/
+screenshots/google-play/phone-9x16/
+screenshots/google-play/phone-candidates/
+screenshots/google-play/source-captures/
+screenshots/google-play/preview.png
+screenshots/google-play/feature-graphic.png
+screenshots/google-play/mizyun-play-icon-512.png
+screenshots/google-play/*.zip
 
 # Native generated projects (Expo CNG)
 apps/mobile/android/
