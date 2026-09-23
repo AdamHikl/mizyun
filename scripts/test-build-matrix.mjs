@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const repoRoot = resolve(__dirname, "..");
+const repoRoot = process.env.MIZYUN_REPO_ROOT || resolve(__dirname, "..");
 const appConfigPath = resolve(repoRoot, "apps/mobile/app.config.js");
 const easJsonPath = resolve(repoRoot, "apps/mobile/eas.json");
+const require = createRequire(import.meta.url);
 
 console.log("=== Mizyun Build Matrix & Native Identity Verification ===");
 
@@ -445,19 +447,60 @@ if (
   );
 }
 
-// Verify fail-closed release signing in build.gradle
-const gradleScript = readFileSync(
-  resolve(repoRoot, "apps/mobile/android/app/build.gradle"),
-  "utf-8",
+// Verify fail-closed release signing configuration via config plugin fixture
+const pluginPath = resolve(
+  repoRoot,
+  "apps/mobile/plugins/with-android-release-signing.js",
 );
+const withAndroidReleaseSigning = require(pluginPath);
+const fixtureConfig = withAndroidReleaseSigning({});
+const gradleMod = fixtureConfig?.mods?.android?.appBuildGradle;
+if (typeof gradleMod !== "function") {
+  throw new Error(
+    "apps/mobile/plugins/with-android-release-signing.js did not register appBuildGradle mod",
+  );
+}
+
+const standardGradleFixture = `
+signingConfigs {
+    debug {
+        storeFile file('debug.keystore')
+    }
+}
+buildTypes {
+    release {
+        signingConfig signingConfigs.debug
+    }
+}
+`;
+
+const modResult = await gradleMod({
+  modResults: { contents: standardGradleFixture },
+});
+const transformedGradle = modResult?.modResults?.contents || "";
 if (
-  !gradleScript.includes("signingConfig signingConfigs.release") ||
-  !gradleScript.includes("MIZYUN_RELEASE_KEYSTORE") ||
-  !gradleScript.includes("GradleException")
+  !transformedGradle.includes("signingConfig signingConfigs.release") ||
+  !transformedGradle.includes("MIZYUN_RELEASE_KEYSTORE") ||
+  !transformedGradle.includes("GradleException")
 ) {
   throw new Error(
-    "apps/mobile/android/app/build.gradle is missing fail-closed release signing configuration",
+    "withAndroidReleaseSigning plugin failed to inject fail-closed release signing configuration into fixture",
   );
+}
+
+// If generated build.gradle is present on disk (ambient developer machine), verify it as well
+const gradlePath = resolve(repoRoot, "apps/mobile/android/app/build.gradle");
+if (existsSync(gradlePath)) {
+  const gradleScript = readFileSync(gradlePath, "utf-8");
+  if (
+    !gradleScript.includes("signingConfig signingConfigs.release") ||
+    !gradleScript.includes("MIZYUN_RELEASE_KEYSTORE") ||
+    !gradleScript.includes("GradleException")
+  ) {
+    throw new Error(
+      "apps/mobile/android/app/build.gradle is missing fail-closed release signing configuration",
+    );
+  }
 }
 
 console.log(
