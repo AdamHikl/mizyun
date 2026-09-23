@@ -15,6 +15,12 @@ describe("isExplicitMealLoggingIntent", () => {
     "I've eaten a protein shake and a banana",
     "Pridaj 100 g ryže s kuracím mäsom",
     "I had sushi for dinner",
+    "Dal som si proteínový shake a banán",
+    "Zapíš 150g tvarohu s medom",
+    "Zjedla som misku ovsených vločiek s mliekom",
+    "Zaznamenaj 200g hovädzieho mäsa s ryžou",
+    "Zjedol som 2 kúsky koláča",
+    "Pridaj chlieb s medovým maslom",
   ])("recognizes explicit meal logging: %s", (text) => {
     expect(isExplicitMealLoggingIntent(text)).toBe(true);
   });
@@ -33,6 +39,23 @@ describe("isExplicitMealLoggingIntent", () => {
     "Add a swim before my training",
     "Record my morning yoga session",
     "Zapíš môj tréning na pondelok",
+    "Pridaj dve hodiny chôdze do dnešných tréningov",
+    "Zabehol som 5 km dnes ráno",
+    "Zapíš 3 série drepov",
+    "Pridaj 20 klikov",
+    "Zacvičil som si 15 minút",
+    "Zaloguj môj ranný beh",
+    "Dnes som mal ťažký tréning",
+    "Pridaj 5 sérií výpadov",
+    "Zapíš 10 zhybov na hrazde",
+    "Dnes som bol vo fitku hodinu",
+    "Add 20 push-ups to today's log",
+    "Log 15 pull-ups after my run",
+    "After my workout I ate 200g chicken",
+    "Zacvičil som si a mal som 2 vajcia",
+    "Pridaj medzi moje poznámky tento cieľ",
+    "Zaznamenaj to medzi obľúbené položky",
+    "Zaznamenaj môj desiaty deň v aplikácii",
   ])(
     "leaves nutrition questions and training statements with the grounded Coach: %s",
     (text) => {
