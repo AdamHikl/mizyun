@@ -80,12 +80,12 @@ export function AiConsentModal({
                 3. Privacy &amp; Model Training
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                Under the Google Gemini API Terms of Service, data sent through
-                the API is processed transiently to generate your response. Your
-                personal logs and meal photos are{" "}
-                <ThemedText type="smallBold">not</ThemedText> used to train
-                Google&rsquo;s public foundation models. Limited logs may be
-                retained by Google for abuse monitoring up to 30 days.
+                Google processes submitted data to generate your response and
+                may retain prompts, context, and output for abuse monitoring for
+                up to 55 days. Additional use depends on the applicable Gemini
+                API service terms, billing status, and region; Mizyun does not
+                promise that every submission is excluded from Google product
+                improvement.
               </ThemedText>
             </ThemedView>
 

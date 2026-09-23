@@ -1,87 +1,50 @@
 # Mizyun Privacy Policy
 
-**Last Updated:** September 3, 2026
+**Effective:** September 19, 2026
 
-Welcome to **Mizyun** ("we", "our", or "us"). We provide a private fitness, workout, nutrition tracking, and AI-assisted coaching application. We are committed to protecting your privacy and treating your health and fitness data with the highest standards of confidentiality and security.
+Adam Hikl operates Mizyun and is the controller responsible for personal data described in this policy. Privacy and support requests may be sent to **support@mizyun.phiskel.com**. No public postal address is provided.
 
-This Privacy Policy explains how we collect, use, disclose, and protect your information when you use our mobile application and related services (collectively, the "Service").
+## 1. Scope
 
----
+This policy covers the Mizyun mobile app, its supporting services, and the Mizyun website. The website has no sign-in or health-data form and Mizyun does not add analytics or advertising cookies to it. Hosting and security providers may process ordinary request information such as IP address, browser details, requested page, and timestamp.
 
-## 1. Information We Collect
+## 2. Information Used by Mizyun
 
-### A. Account & Identity Information
+- Account email, authentication identifiers, and session details.
+- Profile and fitness information, including height, birth year, weight, activity, goals, meals, workouts, routines, sets, and body measurements.
+- Optional media, AI Coach conversations, and memories the user chooses to save.
+- Support messages, consent records, and limited technical or security logs.
 
-- **Email Address & Password**: Used for authentication, session restoration, and password recovery.
-- **User Identifier**: A unique cryptographic ID bound to your account session.
+## 3. Purposes and Legal Bases
 
-### B. Health, Fitness & Nutrition Data
+Mizyun processes account and fitness data to provide the service and fulfill its agreement with the user. Optional AI data is processed with the user's consent, which can be withdrawn in the app. Security, abuse prevention, service reliability, and support are handled for legitimate operational interests. Information may also be processed where necessary to comply with law or respond to valid legal requests.
 
-- **Profile & Physical Attributes**: Height, birth year, baseline weight, sex at birth, activity level, and goal preferences.
-- **Nutrition Entries**: Logged foods, meals, calories, macronutrients (protein, carbohydrates, fat), timestamps, and optional user notes.
-- **Training & Workout Data**: Exercises, workout routines, completed sets, reps, load/weights, duration, distance, and perceived exertion (RPE).
-- **Body Measurements & Progress History**: Weight logs and optional body circumferences (e.g., waist, chest).
+## 4. AI Processing
 
-### C. User Media (Photos)
+When a user enables and uses AI features, prompts, relevant confirmed fitness context, and selected meal images are sent to Google LLC through the Gemini API to generate a response. Google states that prompts, context, and output may be retained for up to **55 days** for abuse monitoring. Google's additional use of submitted data depends on the applicable service terms, billing status, and region; Mizyun does not promise that every submission is excluded from product improvement. AI is restricted to adults and its output is advisory.
 
-- **Meal Photos**: Selected images sent securely to generate nutrition drafts.
-- **Progress Photos**: Private longitudinal photos captured or selected by you. **These photos are stored in encrypted private buckets with Row-Level Security, accessible only via temporary, time-limited signed URLs generated for your authenticated session.**
+## 5. Recipients and International Transfers
 
-### D. AI Conversations & Coach Interactions
+Data is shared only as needed with service providers supporting authentication, hosting, storage, email, security, and optional AI. These currently include Google for Gemini AI processing, Cloudflare for DNS and support-email routing, and an Amazon SES integration for email delivery. Providers may process data outside the user's country. Where data protection law requires a transfer safeguard, Mizyun relies on the applicable contractual or legal mechanism offered for that service.
 
-- Chat messages, questions, and fitness guidance requests exchanged with the AI Coach.
-- User-controlled long-lived memories and preferences that you explicitly review, edit, or delete.
+## 6. Security and Retention
 
----
+Mizyun uses encrypted transport, authenticated user-scoped access, and private media storage with time-limited access links. Active account records are kept while the account is in use and as needed to provide the service. The standard retention period for operational backup archives is **90 days**; a cleanup outage may delay physical deletion. Limited records may be kept longer when required by law, to resolve a support request, or to establish or defend a legal claim. Provider-controlled copies follow the provider's applicable terms.
 
-## 2. How We Use Your Information
+## 7. Choices, Export, and Deletion
 
-We use your data solely to provide, personalize, and improve your fitness tracking experience:
+In Account & Settings, users can review or withdraw AI consent, download a JSON export of available records with media metadata and temporary download links, and start account deletion. A successful deletion removes account data from active systems through a staged process. Backup copies age out under the 90-day retention policy and are not used for ordinary service operation. Files previously exported to a user's device cannot be remotely erased.
 
-1. **Deterministic Calculations**: Calculating your basal metabolic rate (BMR), total daily energy expenditure (TDEE), and daily surplus/deficit.
-2. **Progress & Progression Tracking**: Generating charts for workout volume, 1RM progression, weight trends, and longitudinal photo comparisons.
-3. **AI-Assisted Logging & Coaching**: Providing structured nutrition estimates from meal descriptions/photos and contextualized fitness guidance based strictly on your confirmed logs.
-4. **Account Administration**: Authenticating logins, sending verification and security emails, and managing your active session.
+Depending on location, a user may ask to access, correct, erase, restrict, or transfer personal data; object to certain processing; or withdraw consent. A user may also complain to a local data protection authority.
 
----
+## 8. Children
 
-## 3. Privacy-First AI & Third-Party Processing
+Mizyun is not directed to children under 13, or under 16 where that is the applicable digital-consent age. Optional AI features are available only to users aged 18 or older.
 
-- **Advisory Drafts Only**: AI output (e.g. meal photo scans and coaching suggestions) is presented strictly as editable drafts. No AI estimate becomes authoritative or modifies your timeline without your explicit confirmation.
-- **No Training on Your Private Photos or Health Data**: We do not use your private progress photos or personal health records to train third-party public models.
-- **Google Gemini API Subprocessor**: AI features are powered by Google LLC (&ldquo;Google Gemini API&rdquo;). When you use AI Coach or meal photo drafting, your prompt, photo bytes, and relevant confirmed fitness logs (workout summaries, goals, confirmed meals, weight trends) are transmitted securely to Google for inference.
-- **Processing & Retention**: Under Google Gemini API commercial terms, data is processed transiently to generate responses and is not used to train Google&rsquo;s public foundation models. Logs may be retained by Google for abuse monitoring for up to 30 days. Processing may occur in data centers internationally.
-- **Adult Eligibility (18+)**: Under Google API Terms of Service, AI features require adult eligibility (18 years of age or older).
+## 9. Changes and Contact
 
----
+Material changes will be reflected in the public policy with a new effective date. Where required, Mizyun will provide additional notice or request renewed consent.
 
-## 4. Data Storage, Security & Isolation
-
-- **Row Level Security (RLS)**: Every user table in our database enforces strict Postgres Row Level Security. User A cannot view, mutate, or access User B's data under any circumstance.
-- **Encrypted Storage & Transmission**: All data in transit is encrypted using modern TLS (HTTPS). Media is stored in private, unguessable storage paths with short-lived signed access tokens.
-- **Strict Module Isolation**: Client applications never hold administrative or service-role keys.
-
----
-
-## 5. Your Rights: Access, Export & Deletion (GDPR & CCPA)
-
-You have full ownership of your data. Directly within the Mizyun app (under **Account > Settings & Privacy**), you can:
-
-- **Export Your Data**: Request and download a complete JSON archive of all your profile, food, workout, body measurement, photo metadata, and conversation history.
-- **Inspect & Delete AI Memories**: View all facts the AI Coach has retained, deactivate them, or delete them individually or entirely.
-- **Permanent Account Deletion**: Trigger a permanent, irreversible two-step deletion of your account. This cascades and permanently deletes your auth identity, profile, goals, food entries, workouts, sets, body measurements, conversations, and all private media files.
-
----
-
-## 6. Children’s Privacy & Age Restrictions
-
-Mizyun is not directed to children under 13 (or under 16 in the EEA/UK). Furthermore, all third-party AI features (AI Coach and meal photo drafting) strictly require users to be at least 18 years of age in accordance with provider API terms. Minors are not permitted to use AI features.
-
----
-
-## 7. Contact Us
-
-If you have any questions, concerns, or requests regarding this Privacy Policy or your data, please contact us at:
-
+- **Operator:** Adam Hikl
 - **Email:** support@mizyun.phiskel.com
-- **Website:** https://phiskel.com
+- **Website:** https://www.phiskel.com/mizyun

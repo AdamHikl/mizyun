@@ -53,7 +53,7 @@ KEY FEATURES:
 🔒 Private & Transparent by Default
 • Your health data and photos are strictly yours. Built with database Row Level Security.
 • No public feeds, no selling data, and no third-party model training on your private progress photos.
-• Complete data export and instant in-app account deletion.
+• Complete data export and staged in-app account deletion; operational backups age out under a 90-day retention policy.
 
 Note: Mizyun is an informational fitness and nutrition tool and is not intended to replace professional medical advice, diagnosis, or treatment.
 ```
@@ -123,7 +123,7 @@ We have pre-configured a test account with existing sample meals, workouts, and 
 - Medical Disclaimer: Mizyun is an informational fitness tool and does not provide medical diagnosis. Disclaimers are clearly presented during onboarding and in the Coach tab.
 
 3. Account Deletion:
-In compliance with Guideline 5.1.1(v), users can permanently delete their account and all associated personal data directly within the app by going to: Account Tab > Settings & Privacy > Delete Account.
+Users can start permanent account deletion directly within the app by going to: Account Tab > Settings & Privacy > Delete Account. After the staged deletion succeeds, associated personal data is removed from active systems; operational backups age out under a 90-day retention policy.
 
 Please let us know if you need any additional information or have any questions.
 ```

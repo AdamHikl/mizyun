@@ -77,7 +77,7 @@ export function AccountDataCard({
             await signOut().catch(() => {});
             Alert.alert(
               "Account Deleted",
-              "Your account and all associated personal data have been permanently erased. You have been signed out.",
+              "Your account and associated personal data have been removed from active systems. Backup copies age out under the 90-day retention policy. You have been signed out.",
             );
             return;
           }
@@ -328,7 +328,7 @@ export function AccountDataCard({
   const handleDeletePress = () => {
     Alert.alert(
       "Permanently Delete Account?",
-      "• All active records (profile, goals, logged meals, workouts, body metrics, private photos, and AI chats) will be permanently erased immediately.\n\n• Rolling operational backups are automatically purged on a 30-day retention schedule.\n\n• Files previously exported to your device storage cannot be remotely erased and remain in your local files.",
+      "• After the staged deletion succeeds, active records (profile, goals, logged meals, workouts, body metrics, private photos, and AI chats) are removed from active systems.\n\n• Operational backup copies have a standard 90-day retention period; a cleanup outage may delay physical deletion.\n\n• Files previously exported to your device storage cannot be remotely erased and remain in your local files.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -439,9 +439,10 @@ export function AccountDataCard({
         </ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
           Permanently erase your account, login credentials, and all database
-          and photo records immediately from active systems. Rolling operational
-          backups expire automatically on a 30-day retention schedule.
-          Previously exported local files are not remotely erased.
+          and photo records from active systems after the staged deletion
+          succeeds. Operational backup copies have a standard 90-day retention
+          period; a cleanup outage may delay physical deletion. Previously
+          exported local files are not remotely erased.
         </ThemedText>
         <Pressable
           accessibilityRole="button"

@@ -1,67 +1,45 @@
 # Mizyun Terms of Service
 
-**Last Updated:** September 3, 2026
+**Effective:** September 19, 2026
 
-Welcome to **Mizyun**! These Terms of Service ("Terms") govern your use of the Mizyun mobile application and related software and services (the "Service").
+These Terms govern use of the Mizyun mobile app and related services operated by Adam Hikl. Contact: **support@mizyun.phiskel.com**. By creating an account or using Mizyun, the user agrees to these Terms.
 
-By creating an account or using Mizyun, you agree to be bound by these Terms.
+## 1. The Service
 
----
+Mizyun helps users track meals, workouts, body measurements, and progress, with optional AI-assisted food estimates and coaching. Features offered during testing may change, be limited, or be withdrawn.
 
-## 1. Description of Service
+## 2. Not Medical Advice
 
-Mizyun is a personal fitness and nutrition tracking application equipped with AI-assisted meal estimation, workout planning, and coaching tools. The Service allows users to log meals, workouts, weight, measurements, progress photos, and interact with an AI Coach.
+Mizyun is not a medical device and does not provide diagnosis or treatment. Food estimates, calculations, and Coach suggestions are for general fitness information. AI output can be inaccurate and must be reviewed before relying on or saving it. Users should consult a qualified professional before major diet or exercise changes, especially with a medical condition, injury, or pregnancy.
 
----
+## 3. Account and Content
 
-## 2. Health & Medical Disclaimer (Important)
+Users must keep sign-in details secure, provide accurate information for app calculations, and notify support about suspected unauthorized use. Users retain ownership of submitted content and grant Mizyun a limited license to host and process it only as needed to provide, secure, and support the service.
 
-> **Mizyun is NOT a medical device and does NOT provide medical advice.**
+## 4. AI Eligibility and Consent
 
-- **Informational & Fitness Purposes Only**: All content, workout suggestions, nutritional calculations (BMR, TDEE, macros), and AI Coach responses are for general educational, fitness, and informational purposes only.
-- **Consult a Healthcare Professional**: Always consult a physician, certified personal trainer, or registered dietitian before starting any new diet, fitness routine, or exercise regimen, especially if you have pre-existing injuries, medical conditions, or are pregnant.
-- **AI Estimation Uncertainty**: AI-assisted calorie estimates, portion sizing, and coach proposals are probabilistic estimates. They must be reviewed and confirmed by you before you rely on them.
+AI features are available only to users aged 18 or older who have given the current in-app consent. Consent can be withdrawn in the app. AI features may be unavailable for safety, capacity, provider, or legal reasons. The Privacy Policy describes the related data processing.
 
----
+## 5. Acceptable Use
 
-## 3. Account & Security
+Users must not misuse the service, attempt unauthorized access, interfere with its operation, upload unlawful content, or use AI features to seek or provide medical diagnosis or treatment. Mizyun may restrict access when reasonably necessary to protect users, the service, or legal rights.
 
-- You are responsible for maintaining the confidentiality of your login credentials.
-- You agree to provide accurate information during onboarding (such as units and baseline measurements) to ensure accurate calculations.
-- You must notify us immediately of any unauthorized use of your account.
+## 6. Beta and Future Access
 
----
+Some features may be provided free during testing and may contain defects or change without notice. No paid subscription or price is offered through the website. Any future paid terms will be disclosed separately in the applicable store before purchase.
 
-## 4. User Content & Progress Photos
+## 7. Ending Use
 
-- **Ownership**: You retain full ownership of all text, data, and photos uploaded to the Service.
-- **Privacy & License**: You grant Mizyun a limited, non-exclusive license strictly to host, process, and display your content to you within your private workspace. We do NOT publicly share or sell your progress photos or personal health logs.
+Users may stop using Mizyun at any time. The in-app deletion flow or support contact can be used for account deletion. Account data is removed from active systems through a staged process. Operational backup copies have a standard 90-day retention period, though a cleanup outage may delay physical deletion, subject to limited legal retention described in the Privacy Policy.
 
----
+## 8. Availability and Responsibility
 
-## 5. Subscriptions & Beta Access
+Mizyun is provided on an as-available basis. To the extent permitted by law, Adam Hikl is not responsible for indirect or consequential losses resulting from use of the service. These Terms do not exclude liability or consumer rights that cannot legally be excluded.
 
-- **Beta Pro Pass**: During early testing and beta periods, certain premium features (such as AI Coach conversations and photo meal scanning) may be made available to testers free of charge under a complimentary preview license.
-- **Future Commercial Terms**: Following the beta period, access to specific advanced features may require an active paid subscription managed through the Apple App Store or Google Play Store.
+## 9. Changes and Contact
 
----
+Material changes will be posted with a new effective date and additional notice will be provided where required.
 
-## 6. Termination & Account Deletion
-
-- You may delete your account and all associated personal data at any time directly in the app via **Account > Settings & Privacy > Delete Account**.
-- We reserve the right to suspend or terminate accounts that violate our safety policies or engage in abusive behavior.
-
----
-
-## 7. Limitation of Liability
-
-To the maximum extent permitted by law, Mizyun and its operators shall not be liable for any indirect, incidental, special, consequential, or punitive damages, or any loss of profits or data arising out of your access to or use of the Service.
-
----
-
-## 8. Contact Information
-
-For inquiries or legal notices, please reach out to:
-
+- **Operator:** Adam Hikl
 - **Email:** support@mizyun.phiskel.com
-- **Website:** https://phiskel.com
+- **Website:** https://www.phiskel.com/mizyun
