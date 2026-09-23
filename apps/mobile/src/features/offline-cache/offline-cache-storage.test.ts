@@ -3,6 +3,7 @@ import type { Profile } from "@mizyun/contracts";
 import type { StringStorage } from "@mizyun/adapter-supabase-mobile";
 import {
   dashboardCacheKey,
+  dashboardIndexKey,
   loadCachedDashboard,
   loadCachedProfile,
   profileCacheKey,
@@ -407,5 +408,224 @@ describe("offline-cache-storage", () => {
     // User A's cache is also confirmed empty
     expect(await loadCachedProfile(userA, store)).toBeNull();
     expect(await loadCachedDashboard(userA, "2026-09-17", store)).toBeNull();
+  });
+
+  it("returns null when saving with reviewPeriod 'week' and loading with 'month'", async () => {
+    const store = new MemoryStorage();
+    const userId = "00000000-0000-0000-0000-000000000001";
+    const date = "2026-09-21";
+
+    await saveCachedDashboard(
+      userId,
+      {
+        localDate: date,
+        reviewPeriod: "week",
+        data: mockDashboardData,
+      },
+      store,
+    );
+
+    // Loading with "month" as argument must return null
+    const loadedArg = await loadCachedDashboard(userId, date, "month", store);
+    expect(loadedArg).toBeNull();
+
+    // Loading with "month" in options must also return null
+    const loadedOpt = await loadCachedDashboard(userId, date, store, {
+      reviewPeriod: "month",
+    });
+    expect(loadedOpt).toBeNull();
+
+    // Loading with "week" returns the snapshot
+    const loadedWeek = await loadCachedDashboard(userId, date, "week", store);
+    expect(loadedWeek).not.toBeNull();
+    expect(loadedWeek?.reviewPeriod).toBe("week");
+  });
+
+  it("returns null by default when saving with date D1 and loading with date D2 (requireExactDate: true)", async () => {
+    const store = new MemoryStorage();
+    const userId = "00000000-0000-0000-0000-000000000001";
+    const dateD1 = "2026-09-20";
+    const dateD2 = "2026-09-21";
+
+    await saveCachedDashboard(
+      userId,
+      {
+        localDate: dateD1,
+        reviewPeriod: "week",
+        data: mockDashboardData,
+      },
+      store,
+    );
+
+    // Default loadCachedDashboard options (no options passed) -> requireExactDate is true -> null
+    const loadedDefault = await loadCachedDashboard(userId, dateD2, store);
+    expect(loadedDefault).toBeNull();
+
+    // With explicit empty options -> requireExactDate defaults to true -> null
+    const loadedEmptyOpts = await loadCachedDashboard(
+      userId,
+      dateD2,
+      store,
+      {},
+    );
+    expect(loadedEmptyOpts).toBeNull();
+
+    // With explicit requireExactDate: false -> returns candidate from date D1
+    const loadedAllowMismatch = await loadCachedDashboard(
+      userId,
+      dateD2,
+      store,
+      { requireExactDate: false },
+    );
+    expect(loadedAllowMismatch).not.toBeNull();
+    expect(loadedAllowMismatch?.localDate).toBe(dateD1);
+  });
+
+  it("persists concurrent saves for 'week' and 'month' on the same date independently without overwriting each other", async () => {
+    const store = new MemoryStorage();
+    const userId = "00000000-0000-0000-0000-000000000001";
+    const date = "2026-09-21";
+
+    const weekData: DashboardMetricsData = {
+      ...mockDashboardData,
+      caloriesToday: 2100,
+      workoutsInReview: 4,
+    };
+
+    const monthData: DashboardMetricsData = {
+      ...mockDashboardData,
+      caloriesToday: 2500,
+      workoutsInReview: 18,
+    };
+
+    // Run saves concurrently
+    const [savedWeek, savedMonth] = await Promise.all([
+      saveCachedDashboard(
+        userId,
+        {
+          localDate: date,
+          reviewPeriod: "week",
+          data: weekData,
+        },
+        store,
+      ),
+      saveCachedDashboard(
+        userId,
+        {
+          localDate: date,
+          reviewPeriod: "month",
+          data: monthData,
+        },
+        store,
+      ),
+    ]);
+
+    expect(savedWeek).toBe(true);
+    expect(savedMonth).toBe(true);
+
+    // Verify both segmented keys exist in the store
+    const weekKey = dashboardCacheKey(userId, date, "week");
+    const monthKey = dashboardCacheKey(userId, date, "month");
+    expect(await store.getItem(weekKey)).not.toBeNull();
+    expect(await store.getItem(monthKey)).not.toBeNull();
+
+    // Verify independent loading returns the correct respective data
+    const loadedWeek = await loadCachedDashboard(userId, date, "week", store);
+    expect(loadedWeek).not.toBeNull();
+    expect(loadedWeek?.reviewPeriod).toBe("week");
+    expect(loadedWeek?.data.caloriesToday).toBe(2100);
+    expect(loadedWeek?.data.workoutsInReview).toBe(4);
+
+    const loadedMonth = await loadCachedDashboard(userId, date, "month", store);
+    expect(loadedMonth).not.toBeNull();
+    expect(loadedMonth?.reviewPeriod).toBe("month");
+    expect(loadedMonth?.data.caloriesToday).toBe(2500);
+    expect(loadedMonth?.data.workoutsInReview).toBe(18);
+
+    // Verify index contains both keys
+    const rawIndex = await store.getItem(dashboardIndexKey(userId));
+    expect(rawIndex).not.toBeNull();
+    const parsedIndex = JSON.parse(rawIndex!) as string[];
+    expect(parsedIndex).toContain(weekKey);
+    expect(parsedIndex).toContain(monthKey);
+  });
+
+  it("purges all segmented cache keys and the index key on purgeOfflineCache", async () => {
+    const store = new MemoryStorage();
+    const userA = "00000000-0000-0000-0000-000000000001";
+    const userB = "00000000-0000-0000-0000-000000000002";
+
+    // User A has multiple segmented dashboard caches
+    await saveCachedProfile(userA, mockProfile(userA), store);
+    await saveCachedDashboard(
+      userA,
+      {
+        localDate: "2026-09-20",
+        reviewPeriod: "week",
+        data: mockDashboardData,
+      },
+      store,
+    );
+    await saveCachedDashboard(
+      userA,
+      {
+        localDate: "2026-09-20",
+        reviewPeriod: "month",
+        data: mockDashboardData,
+      },
+      store,
+    );
+    await saveCachedDashboard(
+      userA,
+      {
+        localDate: "2026-09-21",
+        reviewPeriod: "week",
+        data: mockDashboardData,
+      },
+      store,
+    );
+
+    // User B also has cached data
+    await saveCachedProfile(userB, mockProfile(userB), store);
+    await saveCachedDashboard(
+      userB,
+      {
+        localDate: "2026-09-21",
+        reviewPeriod: "week",
+        data: mockDashboardData,
+      },
+      store,
+    );
+
+    const userASegmentedKey1 = dashboardCacheKey(userA, "2026-09-20", "week");
+    const userASegmentedKey2 = dashboardCacheKey(userA, "2026-09-20", "month");
+    const userASegmentedKey3 = dashboardCacheKey(userA, "2026-09-21", "week");
+    const userAIndexKey = dashboardIndexKey(userA);
+
+    const userBSegmentedKey = dashboardCacheKey(userB, "2026-09-21", "week");
+    const userBIndexKey = dashboardIndexKey(userB);
+
+    // Preconditions: all exist
+    expect(await store.getItem(userASegmentedKey1)).not.toBeNull();
+    expect(await store.getItem(userASegmentedKey2)).not.toBeNull();
+    expect(await store.getItem(userASegmentedKey3)).not.toBeNull();
+    expect(await store.getItem(userAIndexKey)).not.toBeNull();
+
+    // Purge user A
+    await purgeOfflineCache(userA, store);
+
+    // User A keys must all be purged
+    expect(await store.getItem(profileCacheKey(userA))).toBeNull();
+    expect(await store.getItem(dashboardCacheKey(userA))).toBeNull();
+    expect(await store.getItem(userASegmentedKey1)).toBeNull();
+    expect(await store.getItem(userASegmentedKey2)).toBeNull();
+    expect(await store.getItem(userASegmentedKey3)).toBeNull();
+    expect(await store.getItem(userAIndexKey)).toBeNull();
+
+    // User B keys must remain untouched
+    expect(await store.getItem(profileCacheKey(userB))).not.toBeNull();
+    expect(await store.getItem(dashboardCacheKey(userB))).not.toBeNull();
+    expect(await store.getItem(userBSegmentedKey)).not.toBeNull();
+    expect(await store.getItem(userBIndexKey)).not.toBeNull();
   });
 });

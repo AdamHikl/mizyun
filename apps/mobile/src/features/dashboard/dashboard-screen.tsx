@@ -1,13 +1,14 @@
 import {
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect, type Href } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -20,22 +21,30 @@ import { isProgressPhotosEnabled } from "@/composition/app-variant";
 import { useAuth } from "@/features/auth/auth-context";
 
 import {
+  combineNutritionReview,
+  computeDailyNutritionDisplay,
   fetchDailySummary,
   fetchEnergySummary,
   fetchLatestWeight,
-  fetchNutritionReview,
+  fetchNutritionReviewSummaries,
   fetchWorkoutCountForPeriod,
+  type DailyDataResult,
   type DailySummary,
   type EnergySummary,
   type LatestWeight,
-  type LocalDayQuery,
   type NutritionReview,
 } from "./dashboard-data";
 import {
   loadCachedDashboard,
   saveCachedDashboard,
+  type CachedDashboardSnapshot,
   type DashboardMetricsData,
 } from "../offline-cache/offline-cache-storage";
+
+export interface SectionStatus {
+  readonly loading: boolean;
+  readonly hasError: boolean;
+}
 
 interface MetricsState {
   readonly caloriesToday: number | null;
@@ -48,7 +57,18 @@ interface MetricsState {
   readonly hasError: boolean;
   readonly isOfflineSnapshot: boolean;
   readonly cachedAt: string | null;
+  readonly sectionStatus: {
+    readonly nutritionToday: SectionStatus;
+    readonly weight: SectionStatus;
+    readonly energy: SectionStatus;
+    readonly review: SectionStatus;
+  };
 }
+
+const DEFAULT_SECTION_STATUS: SectionStatus = {
+  loading: true,
+  hasError: false,
+};
 
 const EMPTY_METRICS: MetricsState = {
   caloriesToday: null,
@@ -61,6 +81,12 @@ const EMPTY_METRICS: MetricsState = {
   hasError: false,
   isOfflineSnapshot: false,
   cachedAt: null,
+  sectionStatus: {
+    nutritionToday: DEFAULT_SECTION_STATUS,
+    weight: DEFAULT_SECTION_STATUS,
+    energy: DEFAULT_SECTION_STATUS,
+    review: DEFAULT_SECTION_STATUS,
+  },
 };
 
 const isoLocalDate = (now: Date): string => {
@@ -77,30 +103,19 @@ const startOfLocalWeek = (now: Date): string => {
   return isoLocalDate(start);
 };
 
-type ReviewPeriod = "week" | "month";
-
-const localReviewDaysThroughToday = (
-  now: Date,
-  period: ReviewPeriod,
-): ReadonlyArray<LocalDayQuery> => {
-  const cursor = new Date(now);
-  cursor.setHours(12, 0, 0, 0);
-  if (period === "week") {
-    const mondayBasedDay = (cursor.getDay() + 6) % 7;
-    cursor.setDate(cursor.getDate() - mondayBasedDay);
-  } else {
-    cursor.setDate(1);
-  }
-  const days: LocalDayQuery[] = [];
-  while (isoLocalDate(cursor) <= isoLocalDate(now)) {
-    days.push({
-      date: isoLocalDate(cursor),
-      utcOffsetMinutes: -cursor.getTimezoneOffset(),
-    });
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return days;
+const startOfLocalMonth = (now: Date): string => {
+  const start = new Date(now);
+  start.setDate(1);
+  return isoLocalDate(start);
 };
+
+const localYesterday = (now: Date): string => {
+  const yest = new Date(now);
+  yest.setDate(yest.getDate() - 1);
+  return isoLocalDate(yest);
+};
+
+type ReviewPeriod = "week" | "month";
 
 const formatCalories = (kcal: number | null): string =>
   kcal === null ? "—" : `${Math.round(kcal)} kcal`;
@@ -216,6 +231,7 @@ export function DashboardScreen() {
   const { profile, session, openOnboarding } = useAuth();
   const [metrics, setMetrics] = useState<MetricsState>(EMPTY_METRICS);
   const [reviewPeriod, setReviewPeriod] = useState<ReviewPeriod>("week");
+  const activeRequestId = useRef(0);
   const userId = session?.user.id ?? null;
   const accessToken = session?.accessToken ?? null;
   const unitSystem = profile?.unitSystem ?? "metric";
@@ -228,125 +244,244 @@ export function DashboardScreen() {
           accessToken,
         };
 
+  const [refreshing, setRefreshing] = useState(false);
+
   const loadMetrics = useCallback(async (): Promise<void> => {
     if (principal === null) {
       setMetrics(EMPTY_METRICS);
       return;
     }
+    const requestId = ++activeRequestId.current;
     const now = new Date();
     const todayDate = isoLocalDate(now);
     const utcOffsetMinutes = -now.getTimezoneOffset();
-    const reviewDays = localReviewDaysThroughToday(now, reviewPeriod);
+    const periodStartDate =
+      reviewPeriod === "week" ? startOfLocalWeek(now) : startOfLocalMonth(now);
+    const yesterdayDate = localYesterday(now);
+    const hasHistoricalDays = periodStartDate <= yesterdayDate;
 
-    setMetrics((current) => ({ ...current, loading: true, hasError: false }));
+    setMetrics((current) => ({
+      ...current,
+      loading: true,
+      hasError: false,
+      sectionStatus: {
+        nutritionToday: { loading: true, hasError: false },
+        weight: { loading: true, hasError: false },
+        energy: { loading: true, hasError: false },
+        review: { loading: true, hasError: false },
+      },
+    }));
 
-    // Pre-populate with cached snapshot immediately if initial load
+    // Pre-populate with cached snapshot immediately on cold start
+    let cachedSnapshot: CachedDashboardSnapshot | null = null;
     if (userId) {
-      void loadCachedDashboard(userId, todayDate).then((cached) => {
-        if (cached !== null) {
-          setMetrics((current) => {
-            if (current.loading && current.caloriesToday === null) {
-              return {
-                ...current,
-                caloriesToday: cached.data.caloriesToday,
-                macros: cached.data.macros,
-                latestWeightKg: cached.data.latestWeightKg,
-                workoutsInReview: cached.data.workoutsInReview,
-                energy: cached.data.energy,
-                nutritionReview: cached.data.nutritionReview,
-                isOfflineSnapshot: true,
-                cachedAt: cached.cachedAt,
-              };
-            }
-            return current;
-          });
-        }
-      });
+      cachedSnapshot = await loadCachedDashboard(
+        userId,
+        todayDate,
+        reviewPeriod,
+      );
+      if (requestId !== activeRequestId.current) return;
+      if (cachedSnapshot !== null) {
+        setMetrics((current) => {
+          if (
+            current.loading &&
+            current.caloriesToday === null &&
+            current.latestWeightKg === null
+          ) {
+            return {
+              ...current,
+              caloriesToday: cachedSnapshot!.data.caloriesToday,
+              macros: cachedSnapshot!.data.macros,
+              latestWeightKg: cachedSnapshot!.data.latestWeightKg,
+              workoutsInReview: cachedSnapshot!.data.workoutsInReview,
+              energy: cachedSnapshot!.data.energy,
+              nutritionReview: cachedSnapshot!.data.nutritionReview,
+              isOfflineSnapshot: true,
+              cachedAt: cachedSnapshot!.cachedAt,
+            };
+          }
+          return current;
+        });
+      }
     }
 
-    const [summary, weight, count, energy, nutritionReview] = await Promise.all(
-      [
-        fetchDailySummary(apiClient, principal, {
-          date: todayDate,
-          utcOffsetMinutes,
-        }),
-        fetchLatestWeight(apiClient, principal),
-        fetchWorkoutCountForPeriod(apiClient, principal, {
-          fromIsoDate:
-            reviewPeriod === "week"
-              ? startOfLocalWeek(now)
-              : (reviewDays[0]?.date ?? todayDate),
-          toIsoDate: todayDate,
-        }),
-        fetchEnergySummary(apiClient, principal, utcOffsetMinutes),
-        fetchNutritionReview(apiClient, principal, reviewDays),
-      ],
+    // Launch Tier 1: Immediate Daily Signals in parallel
+    const todaySummaryPromise = fetchDailySummary(apiClient, principal, {
+      date: todayDate,
+      utcOffsetMinutes,
+    });
+    const weightPromise = fetchLatestWeight(apiClient, principal);
+    const energyPromise = fetchEnergySummary(
+      apiClient,
+      principal,
+      utcOffsetMinutes,
     );
 
-    const hasFetchError =
-      summary.error !== null ||
-      weight.error !== null ||
-      count.error !== null ||
-      energy.error !== null ||
-      nutritionReview.error !== null;
+    // Launch Tier 2: Period Review Signals in parallel (without duplicate today fetch)
+    const workoutsPromise = fetchWorkoutCountForPeriod(apiClient, principal, {
+      fromIsoDate: periodStartDate,
+      toIsoDate: todayDate,
+    });
+    const historicalReviewPromise = hasHistoricalDays
+      ? fetchNutritionReviewSummaries(apiClient, principal, {
+          fromIsoDate: periodStartDate,
+          toIsoDate: yesterdayDate,
+          utcOffsetMinutes,
+        })
+      : Promise.resolve<DailyDataResult<ReadonlyArray<DailySummary>>>({
+          value: [],
+          error: null,
+        });
 
-    if (!hasFetchError) {
-      const freshData: DashboardMetricsData = {
-        caloriesToday: summary.value?.caloriesKcal ?? null,
-        macros: summary.value ?? null,
-        latestWeightKg: weight.value?.weightKg ?? null,
-        workoutsInReview: count.value,
-        energy: energy.value,
-        nutritionReview: nutritionReview.value,
-      };
-      setMetrics({
-        ...freshData,
-        loading: false,
-        hasError: false,
-        isOfflineSnapshot: false,
-        cachedAt: null,
+    // Handle Tier 1 resolution independently:
+    const dailySignalsPromise = Promise.all([
+      todaySummaryPromise,
+      weightPromise,
+      energyPromise,
+    ]).then(([summary, weight, energy]) => {
+      if (requestId !== activeRequestId.current) return;
+
+      setMetrics((current) => {
+        const hasNutritionError = summary.error !== null;
+        const freshCalories = !hasNutritionError
+          ? (summary.value?.caloriesKcal ?? null)
+          : (current.caloriesToday ??
+            cachedSnapshot?.data.caloriesToday ??
+            null);
+        const freshMacros = !hasNutritionError
+          ? (summary.value ?? null)
+          : (current.macros ?? cachedSnapshot?.data.macros ?? null);
+
+        const hasWeightError = weight.error !== null;
+        const freshWeight = !hasWeightError
+          ? (weight.value?.weightKg ?? null)
+          : (current.latestWeightKg ??
+            cachedSnapshot?.data.latestWeightKg ??
+            null);
+
+        const hasEnergyError = energy.error !== null;
+        const freshEnergy = !hasEnergyError
+          ? (energy.value ?? null)
+          : (current.energy ?? cachedSnapshot?.data.energy ?? null);
+
+        const isPartialOffline =
+          (hasNutritionError && cachedSnapshot !== null) ||
+          (hasWeightError && cachedSnapshot !== null) ||
+          (hasEnergyError && cachedSnapshot !== null);
+
+        return {
+          ...current,
+          caloriesToday: freshCalories,
+          macros: freshMacros,
+          latestWeightKg: freshWeight,
+          energy: freshEnergy,
+          isOfflineSnapshot: isPartialOffline || current.isOfflineSnapshot,
+          cachedAt: isPartialOffline
+            ? (cachedSnapshot?.cachedAt ?? current.cachedAt)
+            : current.cachedAt,
+          sectionStatus: {
+            ...current.sectionStatus,
+            nutritionToday: { loading: false, hasError: hasNutritionError },
+            weight: { loading: false, hasError: hasWeightError },
+            energy: { loading: false, hasError: hasEnergyError },
+          },
+        };
       });
-      if (userId) {
+    });
+
+    // Handle Tier 2 review resolution independently:
+    const reviewSignalsPromise = Promise.all([
+      workoutsPromise,
+      historicalReviewPromise,
+      todaySummaryPromise,
+    ]).then(([count, historicalResult, summaryResult]) => {
+      if (requestId !== activeRequestId.current) return;
+
+      const hasHistoricalError = historicalResult.error !== null;
+      const hasWorkoutsError = count.error !== null;
+      const hasReviewError = hasHistoricalError || hasWorkoutsError;
+
+      let combinedReview: NutritionReview | null = null;
+      if (!hasHistoricalError && historicalResult.value !== null) {
+        combinedReview = combineNutritionReview(
+          historicalResult.value,
+          summaryResult.value ?? null,
+        );
+      }
+
+      setMetrics((current) => {
+        const effectiveNutritionReview =
+          !hasHistoricalError && combinedReview !== null
+            ? combinedReview
+            : (current.nutritionReview ??
+              cachedSnapshot?.data.nutritionReview ??
+              null);
+
+        const effectiveWorkouts = !hasWorkoutsError
+          ? count.value
+          : (current.workoutsInReview ??
+            cachedSnapshot?.data.workoutsInReview ??
+            null);
+
+        // Under NO circumstances does a review failure overwrite fresh caloriesToday or latestWeightKg!
+        return {
+          ...current,
+          nutritionReview: effectiveNutritionReview,
+          workoutsInReview: effectiveWorkouts,
+          sectionStatus: {
+            ...current.sectionStatus,
+            review: { loading: false, hasError: hasReviewError },
+          },
+        };
+      });
+    });
+
+    // Wait for all to settle before saving cache and clearing overall loading
+    await Promise.allSettled([dailySignalsPromise, reviewSignalsPromise]);
+    if (requestId !== activeRequestId.current) return;
+
+    setMetrics((current) => {
+      const overallHasError =
+        current.sectionStatus.nutritionToday.hasError ||
+        current.sectionStatus.weight.hasError ||
+        current.sectionStatus.energy.hasError ||
+        current.sectionStatus.review.hasError;
+
+      const overallLoading =
+        current.sectionStatus.nutritionToday.loading ||
+        current.sectionStatus.weight.loading ||
+        current.sectionStatus.energy.loading ||
+        current.sectionStatus.review.loading;
+
+      // Save fresh merged snapshot if we have valid non-empty daily data
+      if (userId && !overallHasError) {
         void saveCachedDashboard(userId, {
           localDate: todayDate,
           reviewPeriod,
-          data: freshData,
+          data: {
+            caloriesToday: current.caloriesToday,
+            macros: current.macros,
+            latestWeightKg: current.latestWeightKg,
+            workoutsInReview: current.workoutsInReview,
+            energy: current.energy,
+            nutritionReview: current.nutritionReview,
+          },
         });
       }
-    } else {
-      // Server fetch failed (e.g. offline) -> attempt cached fallback
-      const cached = userId
-        ? await loadCachedDashboard(userId, todayDate)
-        : null;
-      if (cached !== null) {
-        setMetrics({
-          caloriesToday: cached.data.caloriesToday,
-          macros: cached.data.macros,
-          latestWeightKg: cached.data.latestWeightKg,
-          workoutsInReview: cached.data.workoutsInReview,
-          energy: cached.data.energy,
-          nutritionReview: cached.data.nutritionReview,
-          loading: false,
-          hasError: true,
-          isOfflineSnapshot: true,
-          cachedAt: cached.cachedAt,
-        });
-      } else {
-        setMetrics({
-          caloriesToday: summary.value?.caloriesKcal ?? null,
-          macros: summary.value ?? null,
-          latestWeightKg: weight.value?.weightKg ?? null,
-          workoutsInReview: count.value,
-          energy: energy.value,
-          nutritionReview: nutritionReview.value,
-          loading: false,
-          hasError: true,
-          isOfflineSnapshot: false,
-          cachedAt: null,
-        });
-      }
-    }
+
+      return {
+        ...current,
+        loading: overallLoading,
+        hasError: overallHasError,
+      };
+    });
   }, [accessToken, reviewPeriod, userId]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadMetrics();
+    setRefreshing(false);
+  }, [loadMetrics]);
 
   useFocusEffect(
     useCallback(() => {
@@ -368,6 +503,13 @@ export function DashboardScreen() {
         <ScrollView
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => void handleRefresh()}
+              tintColor="#22C55E"
+            />
+          }
         >
           {/* Top Header */}
           <View style={styles.header}>
@@ -456,6 +598,8 @@ export function DashboardScreen() {
             summary={metrics.macros}
             energy={metrics.energy}
             caloriesToday={metrics.caloriesToday}
+            loading={metrics.sectionStatus.nutritionToday.loading}
+            hasError={metrics.sectionStatus.nutritionToday.hasError}
             onPress={() => void router.push("/meals" as Href)}
           />
 
@@ -522,6 +666,8 @@ export function DashboardScreen() {
             nutrition={metrics.nutritionReview}
             workouts={metrics.workoutsInReview}
             period={reviewPeriod}
+            loading={metrics.sectionStatus.review.loading}
+            hasError={metrics.sectionStatus.review.hasError}
             onChangePeriod={setReviewPeriod}
           />
 
@@ -560,44 +706,25 @@ function DailyNutritionCard(props: {
   readonly summary: DailySummary | null;
   readonly energy: EnergySummary | null;
   readonly caloriesToday: number | null;
+  readonly loading?: boolean;
+  readonly hasError?: boolean;
   readonly onPress: () => void;
 }) {
-  const { summary, energy, caloriesToday, onPress } = props;
-  const targetKcal = energy?.dailyTargetKcal
-    ? Math.round(energy.dailyTargetKcal)
-    : null;
-  const consumedKcal = caloriesToday !== null ? Math.round(caloriesToday) : 0;
-  const kcalPercent =
-    targetKcal && targetKcal > 0
-      ? Math.min(Math.round((consumedKcal / targetKcal) * 100), 100)
-      : 0;
-
-  const protein = summary?.proteinG ?? 0;
-  const targetProtein = energy?.targetProteinG
-    ? Math.round(energy.targetProteinG)
-    : null;
-  const proteinPercent =
-    targetProtein && targetProtein > 0
-      ? Math.min(Math.round((protein / targetProtein) * 100), 100)
-      : 0;
-
-  const carbs = summary?.carbohydrateG ?? 0;
-  const targetCarbs = energy?.targetCarbohydrateG
-    ? Math.round(energy.targetCarbohydrateG)
-    : null;
-  const carbsPercent =
-    targetCarbs && targetCarbs > 0
-      ? Math.min(Math.round((carbs / targetCarbs) * 100), 100)
-      : 0;
-
-  const fat = summary?.fatG ?? 0;
-  const targetFat = energy?.targetFatG ? Math.round(energy.targetFatG) : null;
-  const fatPercent =
-    targetFat && targetFat > 0
-      ? Math.min(Math.round((fat / targetFat) * 100), 100)
-      : 0;
-
-  const remainingKcal = targetKcal !== null ? targetKcal - consumedKcal : null;
+  const {
+    summary,
+    energy,
+    caloriesToday,
+    loading = false,
+    hasError = false,
+    onPress,
+  } = props;
+  const display = computeDailyNutritionDisplay({
+    summary,
+    energy,
+    caloriesToday,
+    loading,
+    hasError,
+  });
 
   return (
     <Pressable
@@ -617,53 +744,49 @@ function DailyNutritionCard(props: {
             </ThemedText>
             <View style={styles.calorieRow}>
               <ThemedText type="title" style={styles.dailyCalorieValue}>
-                {caloriesToday !== null ? `${consumedKcal}` : "—"}
+                {display.consumedKcal !== null
+                  ? `${display.consumedKcal}`
+                  : "—"}
               </ThemedText>
               <ThemedText
                 type="small"
                 themeColor="textSecondary"
                 style={styles.dailyTargetSub}
               >
-                {targetKcal !== null ? ` / ${targetKcal} kcal` : " kcal"}
+                {display.targetKcal !== null
+                  ? ` / ${display.targetKcal} kcal`
+                  : " kcal"}
               </ThemedText>
             </View>
           </View>
-          {remainingKcal !== null ? (
-            <View
+          <View
+            style={[
+              styles.remainingBadge,
+              display.badgeType === "over" && styles.remainingBadgeOver,
+              display.badgeType === "alert" && styles.remainingBadgeAlert,
+            ]}
+          >
+            <ThemedText
+              type="smallBold"
               style={[
-                styles.remainingBadge,
-                remainingKcal < 0 && styles.remainingBadgeOver,
+                styles.remainingBadgeText,
+                display.badgeType === "over" && styles.remainingBadgeTextOver,
+                display.badgeType === "alert" && styles.remainingBadgeTextAlert,
               ]}
             >
-              <ThemedText
-                type="smallBold"
-                style={[
-                  styles.remainingBadgeText,
-                  remainingKcal < 0 && styles.remainingBadgeTextOver,
-                ]}
-              >
-                {remainingKcal >= 0
-                  ? `${remainingKcal} kcal left`
-                  : `${Math.abs(remainingKcal)} kcal over`}
-              </ThemedText>
-            </View>
-          ) : (
-            <View style={styles.remainingBadge}>
-              <ThemedText type="smallBold" style={styles.remainingBadgeText}>
-                Meals Hub →
-              </ThemedText>
-            </View>
-          )}
+              {display.badgeText}
+            </ThemedText>
+          </View>
         </View>
 
         {/* Calorie Progress Bar */}
-        {targetKcal !== null ? (
+        {display.targetKcal !== null ? (
           <View style={styles.progressBarTrack}>
             <View
               style={[
                 styles.progressBarFill,
-                { width: `${kcalPercent}%` },
-                consumedKcal > targetKcal && styles.progressBarFillOver,
+                { width: `${display.kcalPercent}%` },
+                display.badgeType === "over" && styles.progressBarFillOver,
               ]}
             />
           </View>
@@ -673,26 +796,35 @@ function DailyNutritionCard(props: {
         <View style={styles.macroBarsRow}>
           <MacroBar
             label="Protein"
-            current={protein}
-            target={targetProtein}
+            current={display.proteinG}
+            target={display.targetProteinG}
             color="#10B981"
-            percent={proteinPercent}
+            percent={display.proteinPercent}
           />
           <MacroBar
             label="Carbs"
-            current={carbs}
-            target={targetCarbs}
+            current={display.carbohydrateG}
+            target={display.targetCarbohydrateG}
             color="#F59E0B"
-            percent={carbsPercent}
+            percent={display.carbohydratePercent}
           />
           <MacroBar
             label="Fat"
-            current={fat}
-            target={targetFat}
+            current={display.fatG}
+            target={display.targetFatG}
             color="#8B5CF6"
-            percent={fatPercent}
+            percent={display.fatPercent}
           />
         </View>
+
+        {/* Incomplete nutrition notice */}
+        {display.hasIncompleteMeals ? (
+          <View style={styles.incompleteNotice}>
+            <ThemedText type="small" style={styles.incompleteNoticeText}>
+              Some meals have unconfirmed nutrition · Review in Meals Hub →
+            </ThemedText>
+          </View>
+        ) : null}
       </ThemedView>
     </Pressable>
   );
@@ -700,13 +832,13 @@ function DailyNutritionCard(props: {
 
 function MacroBar(props: {
   readonly label: string;
-  readonly current: number;
+  readonly current: number | null;
   readonly target: number | null;
   readonly color: string;
   readonly percent: number;
 }) {
   const { label, current, target, color, percent } = props;
-  const roundedCurrent = Math.round(current);
+  const roundedCurrent = current !== null ? Math.round(current) : null;
   const roundedTarget = target !== null ? Math.round(target) : null;
 
   return (
@@ -725,7 +857,10 @@ function MacroBar(props: {
         <View
           style={[
             styles.macroFill,
-            { backgroundColor: color, width: target ? `${percent}%` : "0%" },
+            {
+              backgroundColor: color,
+              width: target && roundedCurrent !== null ? `${percent}%` : "0%",
+            },
           ]}
         />
       </View>
@@ -737,7 +872,7 @@ function MacroBar(props: {
           style={styles.macroValueContainer}
         >
           <ThemedText type="smallBold" style={styles.macroCurrentNum}>
-            {roundedCurrent}g
+            {roundedCurrent !== null ? `${roundedCurrent}g` : "—"}
           </ThemedText>
           {roundedTarget !== null ? (
             <ThemedText
@@ -846,6 +981,8 @@ function ProgressReviewCard(props: {
   readonly nutrition: NutritionReview | null;
   readonly workouts: number | null;
   readonly period: ReviewPeriod;
+  readonly loading?: boolean;
+  readonly hasError?: boolean;
   readonly onChangePeriod: (period: ReviewPeriod) => void;
 }) {
   const nutrition = props.nutrition;
@@ -896,6 +1033,13 @@ function ProgressReviewCard(props: {
           {nutrition.incompleteDays === 1 ? " day has" : " days have"}{" "}
           incomplete nutrition values.
         </ThemedText>
+      ) : null}
+      {props.hasError ? (
+        <View style={styles.reviewErrorNotice}>
+          <ThemedText type="small" style={styles.reviewErrorText}>
+            Period review could not be refreshed.
+          </ThemedText>
+        </View>
       ) : null}
     </ThemedView>
   );
@@ -1024,12 +1168,18 @@ const styles = StyleSheet.create({
   remainingBadgeOver: {
     backgroundColor: "rgba(239, 68, 68, 0.12)",
   },
+  remainingBadgeAlert: {
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+  },
   remainingBadgeText: {
     fontSize: 12,
     color: "#10B981",
   },
   remainingBadgeTextOver: {
     color: "#EF4444",
+  },
+  remainingBadgeTextAlert: {
+    color: "#D97706",
   },
   progressBarTrack: {
     height: 8,
@@ -1049,6 +1199,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: Spacing.two,
     marginTop: Spacing.half,
+  },
+  incompleteNotice: {
+    marginTop: Spacing.two,
+    paddingVertical: Spacing.one,
+    paddingHorizontal: Spacing.two,
+    backgroundColor: "rgba(245, 158, 11, 0.1)",
+    borderRadius: 8,
+  },
+  incompleteNoticeText: {
+    fontSize: 12,
+    color: "#D97706",
+    fontWeight: "600",
   },
   macroBarItem: {
     flex: 1,
@@ -1123,6 +1285,7 @@ const styles = StyleSheet.create({
   actionGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.two },
   action: {
     minWidth: "47%",
+    flexBasis: 240,
     flexGrow: 1,
     borderWidth: 1,
     borderColor: "rgba(148, 163, 184, 0.2)",
@@ -1202,6 +1365,18 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: "#10B981",
     backgroundColor: "rgba(16, 185, 129, 0.1)",
+  },
+  reviewErrorNotice: {
+    marginTop: Spacing.two,
+    paddingVertical: Spacing.one,
+    paddingHorizontal: Spacing.two,
+    backgroundColor: "rgba(245, 158, 11, 0.1)",
+    borderRadius: 8,
+  },
+  reviewErrorText: {
+    fontSize: 12,
+    color: "#D97706",
+    fontWeight: "600",
   },
   offlineBanner: {
     flexDirection: "row",

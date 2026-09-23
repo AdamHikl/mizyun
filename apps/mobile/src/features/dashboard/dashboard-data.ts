@@ -1,9 +1,11 @@
 import {
   bodyMeasurementListResponseSchema,
+  dailyFoodSummaryListResponseSchema,
   dailyFoodSummaryResponseSchema,
   energySummaryResponseSchema,
   workoutListResponseSchema,
   type BodyMeasurementListResponse,
+  type DailyFoodSummary,
   type DailyFoodSummaryResponse,
   type EnergySummaryResponse,
   type WorkoutListResponse,
@@ -31,6 +33,12 @@ export type EnergySummary = EnergySummaryResponse["summary"];
 export interface LocalDayQuery {
   readonly date: string;
   readonly utcOffsetMinutes: number;
+}
+
+export interface NutritionReviewRangeQuery {
+  readonly fromIsoDate: string;
+  readonly toIsoDate: string;
+  readonly utcOffsetMinutes?: number;
 }
 
 export interface NutritionReview {
@@ -126,38 +134,145 @@ export const fetchEnergySummary = async (
   return { value: parsed?.summary ?? null, error: null };
 };
 
-export const fetchNutritionReview = async (
-  client: ApiClient,
-  principal: DashboardPrincipal,
-  days: ReadonlyArray<LocalDayQuery>,
-): Promise<DailyDataResult<NutritionReview>> => {
-  if (principal === null) return unauthenticatedResult();
-  const results = await Promise.all(
-    days.map((day) => fetchDailySummary(client, principal, day)),
-  );
-  const failed = results.find((result) => result.error !== null);
-  if (failed?.error) return { value: null, error: failed.error };
-
-  const summaries = results.flatMap((result) =>
-    result.value === null ? [] : [result.value],
-  );
+export const summariseNutritionReview = (
+  summaries: ReadonlyArray<DailyFoodSummary>,
+): NutritionReview => {
   const logged = summaries.filter((summary) => summary.entryCount > 0);
   const incompleteDays = logged.filter(
     (summary) => summary.caloriesKcal === null,
   ).length;
   return {
-    value: {
-      loggedDays: logged.length,
-      entryCount: logged.reduce((sum, summary) => sum + summary.entryCount, 0),
-      caloriesKcal:
-        incompleteDays > 0
-          ? null
-          : logged.reduce(
-              (sum, summary) => sum + (summary.caloriesKcal ?? 0),
-              0,
-            ),
-      incompleteDays,
-    },
+    loggedDays: logged.length,
+    entryCount: logged.reduce((sum, summary) => sum + summary.entryCount, 0),
+    caloriesKcal:
+      incompleteDays > 0
+        ? null
+        : logged.reduce((sum, summary) => sum + (summary.caloriesKcal ?? 0), 0),
+    incompleteDays,
+  };
+};
+
+export const combineNutritionReview = (
+  historicalSummaries: ReadonlyArray<DailyFoodSummary>,
+  todaySummary: DailyFoodSummary | null,
+): NutritionReview => {
+  const byDate = new Map<string, DailyFoodSummary>();
+  for (const summary of historicalSummaries) {
+    if (summary.entryCount > 0) {
+      byDate.set(summary.date, summary);
+    }
+  }
+  if (todaySummary !== null) {
+    if (todaySummary.entryCount > 0) {
+      byDate.set(todaySummary.date, todaySummary);
+    } else {
+      byDate.delete(todaySummary.date);
+    }
+  }
+  return summariseNutritionReview(Array.from(byDate.values()));
+};
+
+export const fetchNutritionReviewSummaries = async (
+  client: ApiClient,
+  principal: DashboardPrincipal,
+  query: NutritionReviewRangeQuery,
+): Promise<DailyDataResult<ReadonlyArray<DailyFoodSummary>>> => {
+  if (principal === null) return unauthenticatedResult();
+  const offsetQuery =
+    query.utcOffsetMinutes !== undefined
+      ? `&utcOffsetMinutes=${encodeURIComponent(query.utcOffsetMinutes)}`
+      : "";
+  const result = await client.request({
+    method: "GET",
+    path: `/v1/food-entries/summary?from=${encodeURIComponent(query.fromIsoDate)}&to=${encodeURIComponent(query.toIsoDate)}${offsetQuery}`,
+    schema: dailyFoodSummaryListResponseSchema,
+  });
+  if (!result.ok) return { value: null, error: result.error };
+  const parsed = parseSafe(result.value, dailyFoodSummaryListResponseSchema);
+  return {
+    value: parsed?.summaries ?? null,
+    error: null,
+  };
+};
+
+export const fetchNutritionReview = async (
+  client: ApiClient,
+  principal: DashboardPrincipal,
+  query: NutritionReviewRangeQuery | ReadonlyArray<LocalDayQuery>,
+): Promise<DailyDataResult<NutritionReview>> => {
+  if (principal === null) return unauthenticatedResult();
+
+  if ("fromIsoDate" in query) {
+    const rangeResult = await fetchNutritionReviewSummaries(
+      client,
+      principal,
+      query,
+    );
+    if (rangeResult.error !== null) {
+      return { value: null, error: rangeResult.error };
+    }
+    if (rangeResult.value === null) {
+      return { value: null, error: null };
+    }
+    return {
+      value: summariseNutritionReview(rangeResult.value),
+      error: null,
+    };
+  }
+
+  if (query.length === 0) {
+    return {
+      value: {
+        loggedDays: 0,
+        entryCount: 0,
+        caloriesKcal: 0,
+        incompleteDays: 0,
+      },
+      error: null,
+    };
+  }
+
+  const firstDate = query[0].date;
+  const lastDate = query[query.length - 1].date;
+  const rangeQuery: NutritionReviewRangeQuery = {
+    fromIsoDate: firstDate <= lastDate ? firstDate : lastDate,
+    toIsoDate: firstDate <= lastDate ? lastDate : firstDate,
+    utcOffsetMinutes: query[0].utcOffsetMinutes,
+  };
+
+  const rangeResult = await fetchNutritionReviewSummaries(
+    client,
+    principal,
+    rangeQuery,
+  );
+  if (rangeResult.error === null && rangeResult.value !== null) {
+    return {
+      value: summariseNutritionReview(rangeResult.value),
+      error: null,
+    };
+  }
+
+  // Fallback: batched execution with bounded concurrency (batch size 4)
+  const BATCH_SIZE = 4;
+  const allSummaries: DailyFoodSummary[] = [];
+
+  for (let i = 0; i < query.length; i += BATCH_SIZE) {
+    const batch = query.slice(i, i + BATCH_SIZE);
+    const results = await Promise.all(
+      batch.map((day) => fetchDailySummary(client, principal, day)),
+    );
+    const failed = results.find((result) => result.error !== null);
+    if (failed?.error) return { value: null, error: failed.error };
+
+    for (const result of results) {
+      if (result.value !== null) {
+        allSummaries.push(result.value);
+      }
+    }
+  }
+
+  return {
+    value: summariseNutritionReview(allSummaries),
     error: null,
   };
 };
@@ -184,5 +299,220 @@ export const fetchWorkoutCountForPeriod = async (
       (workout) => workout.completedAt !== null,
     ).length,
     error: null,
+  };
+};
+
+export interface DailyNutritionDisplay {
+  readonly status:
+    "loading" | "error" | "no_entries" | "incomplete" | "complete";
+  readonly consumedKcal: number | null;
+  readonly targetKcal: number | null;
+  readonly remainingKcal: number | null;
+  readonly kcalPercent: number;
+  readonly proteinG: number | null;
+  readonly targetProteinG: number | null;
+  readonly proteinPercent: number;
+  readonly carbohydrateG: number | null;
+  readonly targetCarbohydrateG: number | null;
+  readonly carbohydratePercent: number;
+  readonly fatG: number | null;
+  readonly targetFatG: number | null;
+  readonly fatPercent: number;
+  readonly badgeText: string;
+  readonly badgeType: "normal" | "over" | "alert" | "neutral";
+  readonly hasIncompleteMeals: boolean;
+}
+
+export const computeDailyNutritionDisplay = (params: {
+  readonly summary: DailySummary | null;
+  readonly energy: EnergySummary | null;
+  readonly caloriesToday: number | null;
+  readonly loading: boolean;
+  readonly hasError: boolean;
+}): DailyNutritionDisplay => {
+  const { summary, energy, caloriesToday, loading, hasError } = params;
+
+  const targetKcal = energy?.dailyTargetKcal
+    ? Math.round(energy.dailyTargetKcal)
+    : null;
+  const targetProtein = energy?.targetProteinG
+    ? Math.round(energy.targetProteinG)
+    : null;
+  const targetCarbs = energy?.targetCarbohydrateG
+    ? Math.round(energy.targetCarbohydrateG)
+    : null;
+  const targetFat = energy?.targetFatG ? Math.round(energy.targetFatG) : null;
+
+  if (loading && summary === null && caloriesToday === null) {
+    return {
+      status: "loading",
+      consumedKcal: null,
+      targetKcal,
+      remainingKcal: null,
+      kcalPercent: 0,
+      proteinG: null,
+      targetProteinG: targetProtein,
+      proteinPercent: 0,
+      carbohydrateG: null,
+      targetCarbohydrateG: targetCarbs,
+      carbohydratePercent: 0,
+      fatG: null,
+      targetFatG: targetFat,
+      fatPercent: 0,
+      badgeText: targetKcal !== null ? `${targetKcal} kcal target` : "—",
+      badgeType: "neutral",
+      hasIncompleteMeals: false,
+    };
+  }
+
+  if (hasError && summary === null && caloriesToday === null) {
+    return {
+      status: "error",
+      consumedKcal: null,
+      targetKcal,
+      remainingKcal: null,
+      kcalPercent: 0,
+      proteinG: null,
+      targetProteinG: targetProtein,
+      proteinPercent: 0,
+      carbohydrateG: null,
+      targetCarbohydrateG: targetCarbs,
+      carbohydratePercent: 0,
+      fatG: null,
+      targetFatG: targetFat,
+      fatPercent: 0,
+      badgeText: "Unavailable",
+      badgeType: "neutral",
+      hasIncompleteMeals: false,
+    };
+  }
+
+  const entryCount = summary?.entryCount ?? 0;
+
+  if (entryCount === 0) {
+    return {
+      status: "no_entries",
+      consumedKcal: 0,
+      targetKcal,
+      remainingKcal: targetKcal,
+      kcalPercent: 0,
+      proteinG: 0,
+      targetProteinG: targetProtein,
+      proteinPercent: 0,
+      carbohydrateG: 0,
+      targetCarbohydrateG: targetCarbs,
+      carbohydratePercent: 0,
+      fatG: 0,
+      targetFatG: targetFat,
+      fatPercent: 0,
+      badgeText:
+        targetKcal !== null ? `${targetKcal} kcal left` : "Meals Hub →",
+      badgeType: "normal",
+      hasIncompleteMeals: false,
+    };
+  }
+
+  // If entryCount > 0, check if calories or macros are incomplete
+  const hasIncompleteCalories = caloriesToday === null;
+  const hasIncompleteMacros =
+    summary !== null &&
+    (summary.proteinG === null ||
+      summary.carbohydrateG === null ||
+      summary.fatG === null);
+  const hasIncompleteMeals = hasIncompleteCalories || hasIncompleteMacros;
+
+  if (hasIncompleteCalories) {
+    const protein = summary?.proteinG ?? null;
+    const carbs = summary?.carbohydrateG ?? null;
+    const fat = summary?.fatG ?? null;
+    return {
+      status: "incomplete",
+      consumedKcal: null,
+      targetKcal,
+      remainingKcal: null, // Withheld: never report remaining allowance when calories are unknown
+      kcalPercent: 0,
+      proteinG: protein !== null ? Math.round(protein) : null,
+      targetProteinG: targetProtein,
+      proteinPercent:
+        protein !== null && targetProtein && targetProtein > 0
+          ? Math.min(Math.round((protein / targetProtein) * 100), 100)
+          : 0,
+      carbohydrateG: carbs !== null ? Math.round(carbs) : null,
+      targetCarbohydrateG: targetCarbs,
+      carbohydratePercent:
+        carbs !== null && targetCarbs && targetCarbs > 0
+          ? Math.min(Math.round((carbs / targetCarbs) * 100), 100)
+          : 0,
+      fatG: fat !== null ? Math.round(fat) : null,
+      targetFatG: targetFat,
+      fatPercent:
+        fat !== null && targetFat && targetFat > 0
+          ? Math.min(Math.round((fat / targetFat) * 100), 100)
+          : 0,
+      badgeText: "Needs nutrition",
+      badgeType: "alert",
+      hasIncompleteMeals: true,
+    };
+  }
+
+  // Calories are known (complete)
+  const consumedKcal = Math.round(caloriesToday);
+  const remainingKcal = targetKcal !== null ? targetKcal - consumedKcal : null;
+  const kcalPercent =
+    targetKcal && targetKcal > 0
+      ? Math.min(Math.round((consumedKcal / targetKcal) * 100), 100)
+      : 0;
+
+  const protein = summary?.proteinG ?? null;
+  const carbs = summary?.carbohydrateG ?? null;
+  const fat = summary?.fatG ?? null;
+
+  const proteinPercent =
+    protein !== null && targetProtein && targetProtein > 0
+      ? Math.min(Math.round((protein / targetProtein) * 100), 100)
+      : 0;
+  const carbsPercent =
+    carbs !== null && targetCarbs && targetCarbs > 0
+      ? Math.min(Math.round((carbs / targetCarbs) * 100), 100)
+      : 0;
+  const fatPercent =
+    fat !== null && targetFat && targetFat > 0
+      ? Math.min(Math.round((fat / targetFat) * 100), 100)
+      : 0;
+
+  let badgeText = "Meals Hub →";
+  let badgeType: "normal" | "over" | "alert" | "neutral" = "normal";
+
+  if (hasIncompleteMacros) {
+    badgeText = "Needs nutrition";
+    badgeType = "alert";
+  } else if (remainingKcal !== null) {
+    if (remainingKcal >= 0) {
+      badgeText = `${remainingKcal} kcal left`;
+      badgeType = "normal";
+    } else {
+      badgeText = `${Math.abs(remainingKcal)} kcal over`;
+      badgeType = "over";
+    }
+  }
+
+  return {
+    status: hasIncompleteMacros ? "incomplete" : "complete",
+    consumedKcal,
+    targetKcal,
+    remainingKcal: hasIncompleteMacros ? null : remainingKcal,
+    kcalPercent,
+    proteinG: protein !== null ? Math.round(protein) : null,
+    targetProteinG: targetProtein,
+    proteinPercent,
+    carbohydrateG: carbs !== null ? Math.round(carbs) : null,
+    targetCarbohydrateG: targetCarbs,
+    carbohydratePercent: carbsPercent,
+    fatG: fat !== null ? Math.round(fat) : null,
+    targetFatG: targetFat,
+    fatPercent,
+    badgeText,
+    badgeType,
+    hasIncompleteMeals,
   };
 };

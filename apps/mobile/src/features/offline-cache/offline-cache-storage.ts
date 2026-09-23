@@ -50,9 +50,13 @@ export interface LoadDashboardOptions {
   readonly maxAgeMs?: number;
   /**
    * If true, requires candidate.localDate to match the requested localDate.
-   * Defaults to false.
+   * Defaults to true.
    */
   readonly requireExactDate?: boolean;
+  /**
+   * Optional review period to scope the cache lookup.
+   */
+  readonly reviewPeriod?: "week" | "month";
 }
 
 export const DEFAULT_MAX_DASHBOARD_CACHE_AGE_MS = 48 * 60 * 60 * 1000; // 48 hours
@@ -60,8 +64,56 @@ export const DEFAULT_MAX_DASHBOARD_CACHE_AGE_MS = 48 * 60 * 60 * 1000; // 48 hou
 export const profileCacheKey = (userId: string): string =>
   `mizyun.offline-cache.profile.${userId}`;
 
-export const dashboardCacheKey = (userId: string): string =>
-  `mizyun.offline-cache.dashboard.${userId}`;
+export const dashboardCacheKey = (
+  userId: string,
+  localDate?: string,
+  reviewPeriod?: "week" | "month",
+): string => {
+  if (localDate && reviewPeriod) {
+    return `mizyun.offline-cache.dashboard.${userId}.${localDate}.${reviewPeriod}`;
+  }
+  return `mizyun.offline-cache.dashboard.${userId}`;
+};
+
+export const dashboardIndexKey = (userId: string): string =>
+  `mizyun.offline-cache.dashboard-keys.${userId}`;
+
+const indexLocks = new Map<string, Promise<unknown>>();
+
+const withIndexLock = async <T>(
+  userId: string,
+  fn: () => Promise<T>,
+): Promise<T> => {
+  const previous = indexLocks.get(userId) ?? Promise.resolve();
+  let resolveCurrent!: () => void;
+  const current = new Promise<void>((resolve) => {
+    resolveCurrent = resolve;
+  });
+  const nextPromise = previous.then(
+    () => current,
+    () => current,
+  );
+  indexLocks.set(userId, nextPromise);
+
+  await previous;
+  try {
+    return await fn();
+  } finally {
+    resolveCurrent();
+    if (indexLocks.get(userId) === nextPromise) {
+      indexLocks.delete(userId);
+    }
+  }
+};
+
+const isStringStorage = (val: unknown): val is StringStorage =>
+  typeof val === "object" &&
+  val !== null &&
+  "getItem" in val &&
+  typeof (val as Record<string, unknown>).getItem === "function";
+
+const isLoadDashboardOptions = (val: unknown): val is LoadDashboardOptions =>
+  typeof val === "object" && val !== null && !("getItem" in val);
 
 const defaultSecureStorePrimitive: StringStorage = {
   getItem: (key) => SecureStore.getItemAsync(key),
@@ -162,92 +214,234 @@ export const saveCachedDashboard = async (
       reviewPeriod: input.reviewPeriod,
       data: input.data,
     };
-    await store.setItem(dashboardCacheKey(userId), JSON.stringify(snapshot));
+    const serialized = JSON.stringify(snapshot);
+    const segmentedKey = dashboardCacheKey(
+      userId,
+      input.localDate,
+      input.reviewPeriod,
+    );
+    const legacyKey = dashboardCacheKey(userId);
+
+    await store.setItem(segmentedKey, serialized);
+    await store.setItem(legacyKey, serialized);
+
+    await withIndexLock(userId, async () => {
+      const indexKey = dashboardIndexKey(userId);
+      const rawIndex = await store.getItem(indexKey);
+      let keys: string[] = [];
+      if (rawIndex) {
+        try {
+          const parsed = JSON.parse(rawIndex);
+          if (Array.isArray(parsed)) {
+            keys = parsed.filter((k): k is string => typeof k === "string");
+          }
+        } catch {
+          keys = [];
+        }
+      }
+      if (!keys.includes(segmentedKey)) {
+        keys.push(segmentedKey);
+        await store.setItem(indexKey, JSON.stringify(keys));
+      }
+    });
+
     return true;
   } catch {
     return false;
   }
 };
 
-export const loadCachedDashboard = async (
+export async function loadCachedDashboard(
   userId: string,
   localDate: string,
-  store: StringStorage = createDefaultOfflineCacheStorage(),
-  options: LoadDashboardOptions = {},
-  now: () => Date = () => new Date(),
-): Promise<CachedDashboardSnapshot | null> => {
+  reviewPeriod: "week" | "month",
+  store?: StringStorage,
+  options?: LoadDashboardOptions,
+  now?: () => Date,
+): Promise<CachedDashboardSnapshot | null>;
+export async function loadCachedDashboard(
+  userId: string,
+  localDate: string,
+  store?: StringStorage,
+  options?: LoadDashboardOptions,
+  now?: () => Date,
+): Promise<CachedDashboardSnapshot | null>;
+export async function loadCachedDashboard(
+  userId: string,
+  localDate: string,
+  options?: LoadDashboardOptions,
+  now?: () => Date,
+): Promise<CachedDashboardSnapshot | null>;
+export async function loadCachedDashboard(
+  userId: string,
+  localDate: string,
+  arg3?: "week" | "month" | StringStorage | LoadDashboardOptions,
+  arg4?: StringStorage | LoadDashboardOptions | (() => Date),
+  arg5?: LoadDashboardOptions | (() => Date),
+  arg6?: () => Date,
+): Promise<CachedDashboardSnapshot | null> {
   if (!userId) return null;
-  const key = dashboardCacheKey(userId);
+
+  let effectiveReviewPeriod: ("week" | "month") | undefined;
+  let effectiveStore: StringStorage = createDefaultOfflineCacheStorage();
+  let effectiveOptions: LoadDashboardOptions = {};
+  let effectiveNow: () => Date = () => new Date();
+
+  if (arg3 === "week" || arg3 === "month") {
+    effectiveReviewPeriod = arg3;
+    if (isStringStorage(arg4)) {
+      effectiveStore = arg4;
+      if (isLoadDashboardOptions(arg5)) {
+        effectiveOptions = arg5;
+      }
+      if (typeof arg6 === "function") {
+        effectiveNow = arg6;
+      }
+    } else if (isLoadDashboardOptions(arg4)) {
+      effectiveOptions = arg4;
+      if (typeof arg5 === "function") {
+        effectiveNow = arg5;
+      }
+    } else if (typeof arg4 === "function") {
+      effectiveNow = arg4;
+    }
+  } else if (isStringStorage(arg3)) {
+    effectiveStore = arg3;
+    if (isLoadDashboardOptions(arg4)) {
+      effectiveOptions = arg4;
+    }
+    if (typeof arg5 === "function") {
+      effectiveNow = arg5;
+    }
+  } else if (isLoadDashboardOptions(arg3)) {
+    effectiveOptions = arg3;
+    if (typeof arg4 === "function") {
+      effectiveNow = arg4;
+    }
+  } else if (typeof arg3 === "function") {
+    effectiveNow = arg3;
+  }
+
+  if (!effectiveReviewPeriod && effectiveOptions.reviewPeriod) {
+    effectiveReviewPeriod = effectiveOptions.reviewPeriod;
+  }
+
+  const segmentedKey = effectiveReviewPeriod
+    ? dashboardCacheKey(userId, localDate, effectiveReviewPeriod)
+    : null;
+  const legacyKey = dashboardCacheKey(userId);
+
+  let activeKey = segmentedKey ?? legacyKey;
+  let raw: string | null = null;
   try {
-    const raw = await store.getItem(key);
-    if (!raw) return null;
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      await store.removeItem(key).catch(() => {});
-      return null;
+    if (segmentedKey) {
+      raw = await effectiveStore.getItem(segmentedKey);
     }
-
-    if (
-      typeof parsed !== "object" ||
-      parsed === null ||
-      !("version" in parsed) ||
-      !("userId" in parsed) ||
-      !("localDate" in parsed) ||
-      !("reviewPeriod" in parsed) ||
-      !("data" in parsed) ||
-      !("cachedAt" in parsed)
-    ) {
-      await store.removeItem(key).catch(() => {});
-      return null;
+    if (!raw) {
+      activeKey = legacyKey;
+      raw = await effectiveStore.getItem(legacyKey);
     }
-
-    const candidate = parsed as CachedDashboardSnapshot;
-    if (candidate.version !== 1 || candidate.userId !== userId) {
-      return null;
-    }
-
-    if (options.requireExactDate && candidate.localDate !== localDate) {
-      return null;
-    }
-
-    const maxAgeMs = options.maxAgeMs ?? DEFAULT_MAX_DASHBOARD_CACHE_AGE_MS;
-    const cachedTime = new Date(candidate.cachedAt).getTime();
-    const currentTime = now().getTime();
-    if (
-      Number.isNaN(cachedTime) ||
-      currentTime - cachedTime > maxAgeMs ||
-      currentTime < cachedTime - 60_000 // future drift tolerance 1 min
-    ) {
-      await store.removeItem(key).catch(() => {});
-      return null;
-    }
-
-    if (
-      typeof candidate.data !== "object" ||
-      candidate.data === null ||
-      !("caloriesToday" in candidate.data) ||
-      !("macros" in candidate.data) ||
-      !("energy" in candidate.data)
-    ) {
-      await store.removeItem(key).catch(() => {});
-      return null;
-    }
-
-    return candidate;
   } catch {
     return null;
   }
-};
+
+  if (!raw) return null;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    await effectiveStore.removeItem(activeKey).catch(() => {});
+    return null;
+  }
+
+  if (
+    typeof parsed !== "object" ||
+    parsed === null ||
+    !("version" in parsed) ||
+    !("userId" in parsed) ||
+    !("localDate" in parsed) ||
+    !("reviewPeriod" in parsed) ||
+    !("data" in parsed) ||
+    !("cachedAt" in parsed)
+  ) {
+    await effectiveStore.removeItem(activeKey).catch(() => {});
+    return null;
+  }
+
+  const candidate = parsed as CachedDashboardSnapshot;
+  if (candidate.version !== 1 || candidate.userId !== userId) {
+    return null;
+  }
+
+  const maxAgeMs =
+    effectiveOptions.maxAgeMs ?? DEFAULT_MAX_DASHBOARD_CACHE_AGE_MS;
+  const cachedTime = new Date(candidate.cachedAt).getTime();
+  const currentTime = effectiveNow().getTime();
+  if (
+    Number.isNaN(cachedTime) ||
+    currentTime - cachedTime > maxAgeMs ||
+    currentTime < cachedTime - 60_000 // future drift tolerance 1 min
+  ) {
+    await effectiveStore.removeItem(activeKey).catch(() => {});
+    return null;
+  }
+
+  if (
+    typeof candidate.data !== "object" ||
+    candidate.data === null ||
+    !("caloriesToday" in candidate.data) ||
+    !("macros" in candidate.data) ||
+    !("energy" in candidate.data)
+  ) {
+    await effectiveStore.removeItem(activeKey).catch(() => {});
+    return null;
+  }
+
+  const requireExactDate = effectiveOptions.requireExactDate !== false;
+  if (requireExactDate && candidate.localDate !== localDate) {
+    return null;
+  }
+
+  if (
+    effectiveReviewPeriod &&
+    candidate.reviewPeriod !== effectiveReviewPeriod
+  ) {
+    return null;
+  }
+
+  return candidate;
+}
 
 export const purgeOfflineCache = async (
   userId: string,
   store: StringStorage = createDefaultOfflineCacheStorage(),
 ): Promise<void> => {
   if (!userId) return;
-  await Promise.allSettled([
-    store.removeItem(profileCacheKey(userId)),
-    store.removeItem(dashboardCacheKey(userId)),
-  ]);
+  await withIndexLock(userId, async () => {
+    const indexKey = dashboardIndexKey(userId);
+    let keysToPurge: string[] = [];
+    try {
+      const rawIndex = await store.getItem(indexKey);
+      if (rawIndex) {
+        const parsed = JSON.parse(rawIndex);
+        if (Array.isArray(parsed)) {
+          keysToPurge = parsed.filter(
+            (k): k is string => typeof k === "string",
+          );
+        }
+      }
+    } catch {
+      // Ignore parse failure
+    }
+
+    const removalPromises = [
+      store.removeItem(profileCacheKey(userId)),
+      store.removeItem(dashboardCacheKey(userId)),
+      store.removeItem(indexKey),
+      ...keysToPurge.map((key) => store.removeItem(key)),
+    ];
+
+    await Promise.allSettled(removalPromises);
+  });
 };
