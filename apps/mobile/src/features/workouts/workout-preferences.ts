@@ -3,10 +3,12 @@ import * as SecureStore from "expo-secure-store";
 export interface WorkoutPreferences {
   readonly defaultRestSeconds: number;
   readonly liveNotificationEnabled: boolean;
+  readonly autoAdvanceTargetWeights: boolean;
 }
 
 export const DEFAULT_REST_SECONDS = 180; // 3 minutes
 export const DEFAULT_LIVE_NOTIFICATION_ENABLED = true;
+export const DEFAULT_AUTO_ADVANCE_TARGET_WEIGHTS = true;
 export const MIN_REST_SECONDS = 15;
 export const MAX_REST_SECONDS = 600; // 10 minutes
 export const REST_DURATION_PRESETS = [60, 90, 120, 150, 180, 240, 300] as const;
@@ -29,11 +31,13 @@ export const loadWorkoutPreferences = async (
       return {
         defaultRestSeconds: DEFAULT_REST_SECONDS,
         liveNotificationEnabled: DEFAULT_LIVE_NOTIFICATION_ENABLED,
+        autoAdvanceTargetWeights: DEFAULT_AUTO_ADVANCE_TARGET_WEIGHTS,
       };
     }
     const parsed: unknown = JSON.parse(raw);
     let defaultRestSeconds = DEFAULT_REST_SECONDS;
     let liveNotificationEnabled = DEFAULT_LIVE_NOTIFICATION_ENABLED;
+    let autoAdvanceTargetWeights = DEFAULT_AUTO_ADVANCE_TARGET_WEIGHTS;
 
     if (typeof parsed === "object" && parsed !== null) {
       const rec = parsed as Record<string, unknown>;
@@ -52,12 +56,23 @@ export const loadWorkoutPreferences = async (
       ) {
         liveNotificationEnabled = rec.liveNotificationEnabled;
       }
+      if (
+        "autoAdvanceTargetWeights" in rec &&
+        typeof rec.autoAdvanceTargetWeights === "boolean"
+      ) {
+        autoAdvanceTargetWeights = rec.autoAdvanceTargetWeights;
+      }
     }
-    return { defaultRestSeconds, liveNotificationEnabled };
+    return {
+      defaultRestSeconds,
+      liveNotificationEnabled,
+      autoAdvanceTargetWeights,
+    };
   } catch {
     return {
       defaultRestSeconds: DEFAULT_REST_SECONDS,
       liveNotificationEnabled: DEFAULT_LIVE_NOTIFICATION_ENABLED,
+      autoAdvanceTargetWeights: DEFAULT_AUTO_ADVANCE_TARGET_WEIGHTS,
     };
   }
 };
@@ -78,6 +93,8 @@ export const saveWorkoutPreferences = async (
       defaultRestSeconds: clamped,
       liveNotificationEnabled:
         prefs.liveNotificationEnabled ?? existing.liveNotificationEnabled,
+      autoAdvanceTargetWeights:
+        prefs.autoAdvanceTargetWeights ?? existing.autoAdvanceTargetWeights,
     };
     await store.setItemAsync(keyFor(userId), JSON.stringify(toSave));
     return true;

@@ -11,6 +11,7 @@ import type { Exercise, Workout } from "@mizyun/contracts";
 import {
   abandonWorkoutWith,
   addWorkoutSetWith,
+  applyCompletedWorkoutProgressionsWith,
   completeWorkoutWith,
   createExerciseWith,
   extractPlannedExercises,
@@ -513,5 +514,188 @@ describe("extractPlannedExercises", () => {
         details: { coachPlan: { exercises: [] } },
       }),
     ).toEqual([]);
+  });
+
+  describe("applyCompletedWorkoutProgressionsWith", () => {
+    it("detects progression, updates exercise target load and parent routine template", async () => {
+      const routineId = "00000000-0000-4000-8000-000000000099";
+      const routine: Workout = {
+        ...WORKOUT,
+        id: routineId,
+        details: {
+          workoutLifecycle: { kind: "routine" },
+          coachPlan: {
+            exercises: [
+              {
+                name: "Back squat",
+                targetSets: 3,
+                targetReps: "5",
+                targetLoad: "100 kg",
+              },
+            ],
+          },
+        },
+      };
+
+      const sessionWorkout: Workout = {
+        ...WORKOUT,
+        details: {
+          workoutLifecycle: { kind: "session", routineId },
+          coachPlan: {
+            exercises: [
+              {
+                name: "Back squat",
+                targetSets: 3,
+                targetReps: "5",
+                targetLoad: "100 kg",
+              },
+            ],
+          },
+        },
+      };
+
+      const completedSets = [
+        {
+          id: "set-1",
+          userId: USER_ID,
+          workoutId: WORKOUT_ID,
+          exerciseId: EXERCISE_ID,
+          sequence: 1,
+          repetitions: 5,
+          loadKg: 105,
+          durationSeconds: null,
+          distanceMeters: null,
+          perceivedExertion: 8,
+          completedAt: NOW.toISOString(),
+          createdAt: NOW.toISOString(),
+        },
+      ];
+
+      const requests: RequestOptions[] = [];
+      const client: ApiClient = {
+        request: <T>(options: RequestOptions): Promise<Result<T, ApiError>> => {
+          requests.push(options);
+          if (
+            options.method === "PUT" &&
+            options.path.includes("/v1/exercises")
+          ) {
+            return Promise.resolve({
+              ok: true,
+              value: {
+                exercise: {
+                  ...EXERCISE,
+                  metadata: { targetLoadKg: 105 },
+                },
+              },
+            } as Result<T, ApiError>);
+          }
+          if (
+            options.method === "GET" &&
+            options.path === `/v1/workouts/${encodeURIComponent(routineId)}`
+          ) {
+            return Promise.resolve({
+              ok: true,
+              value: { workout: routine },
+            } as Result<T, ApiError>);
+          }
+          if (
+            options.method === "PUT" &&
+            options.path === `/v1/workouts/${encodeURIComponent(routineId)}`
+          ) {
+            return Promise.resolve({
+              ok: true,
+              value: { workout: routine },
+            } as Result<T, ApiError>);
+          }
+          return Promise.resolve({
+            ok: false,
+            error: {
+              kind: "http_error",
+              status: 500,
+              code: "INTERNAL",
+              message: "fail",
+            },
+          } as Result<T, ApiError>);
+        },
+        status: () => ({ configured: true, baseUrl: "https://example.test" }),
+      };
+
+      const result = await applyCompletedWorkoutProgressionsWith(
+        client,
+        sessionWorkout,
+        completedSets,
+        [EXERCISE],
+      );
+
+      expect(result.progressedItems).toHaveLength(1);
+      expect(result.progressedItems[0]?.exerciseName).toBe("Back squat");
+      expect(result.progressedItems[0]?.previousTargetKg).toBe(100);
+      expect(result.progressedItems[0]?.nextTargetKg).toBe(105);
+      expect(result.routineUpdated).toBe(true);
+
+      // Verify exercise metadata PUT was called
+      const exercisePut = requests.find(
+        (r) =>
+          r.method === "PUT" &&
+          r.path === `/v1/exercises/${encodeURIComponent(EXERCISE_ID)}`,
+      );
+      expect(exercisePut).toBeDefined();
+      expect((exercisePut?.body as Record<string, unknown>).metadata).toEqual(
+        expect.objectContaining({ targetLoadKg: 105 }),
+      );
+
+      // Verify routine template PUT was called
+      const routinePut = requests.find(
+        (r) =>
+          r.method === "PUT" &&
+          r.path === `/v1/workouts/${encodeURIComponent(routineId)}`,
+      );
+      expect(routinePut).toBeDefined();
+    });
+
+    it("returns empty when no exercises exceeded their targets", async () => {
+      const sessionWorkout: Workout = {
+        ...WORKOUT,
+        details: {
+          workoutLifecycle: { kind: "session" },
+          coachPlan: {
+            exercises: [
+              {
+                name: "Back squat",
+                targetLoad: "100 kg",
+              },
+            ],
+          },
+        },
+      };
+
+      const completedSets = [
+        {
+          id: "set-1",
+          userId: USER_ID,
+          workoutId: WORKOUT_ID,
+          exerciseId: EXERCISE_ID,
+          sequence: 1,
+          repetitions: 5,
+          loadKg: 95, // Below 100 kg target
+          durationSeconds: null,
+          distanceMeters: null,
+          perceivedExertion: 8,
+          completedAt: NOW.toISOString(),
+          createdAt: NOW.toISOString(),
+        },
+      ];
+
+      const client = queuedClient([]);
+      const result = await applyCompletedWorkoutProgressionsWith(
+        client,
+        sessionWorkout,
+        completedSets,
+        [EXERCISE],
+      );
+
+      expect(result.progressedItems).toHaveLength(0);
+      expect(result.routineUpdated).toBe(false);
+    });
   });
 });

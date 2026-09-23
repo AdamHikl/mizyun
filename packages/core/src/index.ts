@@ -295,3 +295,16 @@ export {
   type StoredProductAnalyticsConsent,
   type StoredProductAnalyticsEvent,
 } from "./product-analytics";
+
+export {
+  POUNDS_TO_KG_MULTIPLIER,
+  computeWorkoutProgressions,
+  evaluateExerciseProgression,
+  parseTargetLoadString,
+  type CompletedSetProgressionInput,
+  type ExerciseCatalogItemInput,
+  type ExerciseProgressionEvaluation,
+  type PlannedExerciseProgressionInput,
+  type ProgressionReason,
+  type WorkoutExerciseProgression,
+} from "./progressive-overload";

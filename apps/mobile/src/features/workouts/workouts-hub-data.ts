@@ -3,6 +3,7 @@ import * as Crypto from "expo-crypto";
 import {
   isRoutineDetails,
   isSessionDetails,
+  readWorkoutLifecycle,
   withWorkoutLifecycle,
   type WorkoutLifecycle,
 } from "@mizyun/core";
@@ -604,6 +605,57 @@ export const updateWorkoutDetails = async (
   return result.ok
     ? { ok: true, workout: result.value.workout }
     : { ok: false, message: humanize(result.error, "Update workout") };
+};
+
+/**
+ * Update planned exercise target loads in a routine template after session progression.
+ */
+export const syncRoutineExerciseTargets = async (
+  routineId: string,
+  updatedTargets: ReadonlyMap<string, number>,
+  client: ApiClient = apiClient,
+): Promise<WorkoutActionMutationResult> => {
+  const routineRes = await client.request<WorkoutResponse>({
+    method: "GET",
+    path: `/v1/workouts/${encodeURIComponent(routineId)}`,
+    schema: workoutResponseSchema,
+  });
+  if (!routineRes.ok) {
+    return { ok: false, message: humanize(routineRes.error, "Find routine") };
+  }
+  const routine = routineRes.value.workout;
+  const currentPlanned = extractPlannedExercisesFromWorkout(routine);
+  if (currentPlanned.length === 0) {
+    return { ok: true, workout: routine };
+  }
+  let hasChanges = false;
+  const updatedPlanned = currentPlanned.map((item) => {
+    const key = item.name.trim().toLowerCase();
+    const newTargetKg = updatedTargets.get(key);
+    if (newTargetKg !== undefined && newTargetKg > 0) {
+      hasChanges = true;
+      return {
+        ...item,
+        targetLoad: `${newTargetKg} kg`,
+      };
+    }
+    return item;
+  });
+
+  if (!hasChanges) {
+    return { ok: true, workout: routine };
+  }
+
+  return updateWorkoutDetails(
+    routineId,
+    {
+      name: routine.name,
+      notes: routine.notes,
+      plannedExercises: updatedPlanned,
+      lifecycle: readWorkoutLifecycle(routine.details) ?? { kind: "routine" },
+    },
+    client,
+  );
 };
 
 export const createBlankWorkout = async (

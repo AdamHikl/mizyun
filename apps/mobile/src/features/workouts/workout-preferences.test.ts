@@ -38,15 +38,17 @@ describe("workout-preferences", () => {
   });
 
   describe("loadWorkoutPreferences", () => {
-    it("returns default value (180, true) when store is empty", async () => {
+    it("returns default value (180, true, true) when store is empty", async () => {
       const store = createMemoryStore();
       const prefs = await loadWorkoutPreferences("user-1", store);
       expect(prefs).toEqual({
         defaultRestSeconds: DEFAULT_REST_SECONDS,
         liveNotificationEnabled: true,
+        autoAdvanceTargetWeights: true,
       });
       expect(prefs.defaultRestSeconds).toBe(180);
       expect(prefs.liveNotificationEnabled).toBe(true);
+      expect(prefs.autoAdvanceTargetWeights).toBe(true);
     });
 
     it("recovers from corrupted JSON by returning default", async () => {
@@ -56,6 +58,7 @@ describe("workout-preferences", () => {
       expect(prefs).toEqual({
         defaultRestSeconds: 180,
         liveNotificationEnabled: true,
+        autoAdvanceTargetWeights: true,
       });
     });
 
@@ -69,6 +72,7 @@ describe("workout-preferences", () => {
       expect(prefs).toEqual({
         defaultRestSeconds: 180,
         liveNotificationEnabled: true,
+        autoAdvanceTargetWeights: true,
       });
     });
 
@@ -82,6 +86,7 @@ describe("workout-preferences", () => {
       expect(prefs).toEqual({
         defaultRestSeconds: 180,
         liveNotificationEnabled: true,
+        autoAdvanceTargetWeights: true,
       });
     });
 
@@ -94,6 +99,7 @@ describe("workout-preferences", () => {
       expect(await loadWorkoutPreferences("user-1", store)).toEqual({
         defaultRestSeconds: 180,
         liveNotificationEnabled: true,
+        autoAdvanceTargetWeights: true,
       });
 
       await store.setItemAsync(
@@ -103,6 +109,7 @@ describe("workout-preferences", () => {
       expect(await loadWorkoutPreferences("user-1", store)).toEqual({
         defaultRestSeconds: 180,
         liveNotificationEnabled: true,
+        autoAdvanceTargetWeights: true,
       });
     });
 
@@ -117,6 +124,7 @@ describe("workout-preferences", () => {
       expect(prefs).toEqual({
         defaultRestSeconds: 180,
         liveNotificationEnabled: true,
+        autoAdvanceTargetWeights: true,
       });
     });
   });
@@ -125,7 +133,11 @@ describe("workout-preferences", () => {
     it("saves and loads preferences round-trip", async () => {
       const store = createMemoryStore();
       const success = await saveWorkoutPreferences(
-        { defaultRestSeconds: 120, liveNotificationEnabled: false },
+        {
+          defaultRestSeconds: 120,
+          liveNotificationEnabled: false,
+          autoAdvanceTargetWeights: false,
+        },
         "user-1",
         store,
       );
@@ -135,6 +147,7 @@ describe("workout-preferences", () => {
       expect(loaded).toEqual({
         defaultRestSeconds: 120,
         liveNotificationEnabled: false,
+        autoAdvanceTargetWeights: false,
       });
     });
 

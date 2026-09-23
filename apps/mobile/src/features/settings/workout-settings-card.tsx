@@ -30,6 +30,8 @@ export function WorkoutSettingsCard({
   const [restSeconds, setRestSeconds] = useState<number>(DEFAULT_REST_SECONDS);
   const [liveNotificationEnabled, setLiveNotificationEnabled] =
     useState<boolean>(true);
+  const [autoAdvanceTargetWeights, setAutoAdvanceTargetWeights] =
+    useState<boolean>(true);
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState<string | null>(null);
 
@@ -39,6 +41,7 @@ export function WorkoutSettingsCard({
       if (active) {
         setRestSeconds(prefs.defaultRestSeconds);
         setLiveNotificationEnabled(prefs.liveNotificationEnabled);
+        setAutoAdvanceTargetWeights(prefs.autoAdvanceTargetWeights);
         setLoading(false);
       }
     });
@@ -59,6 +62,7 @@ export function WorkoutSettingsCard({
       const prefs: WorkoutPreferences = {
         defaultRestSeconds: clamped,
         liveNotificationEnabled,
+        autoAdvanceTargetWeights,
       };
       const saved = await saveWorkoutPreferences(prefs, userId);
       if (saved) {
@@ -66,7 +70,7 @@ export function WorkoutSettingsCard({
         onSaved?.(prefs);
       }
     },
-    [liveNotificationEnabled, onSaved, userId],
+    [autoAdvanceTargetWeights, liveNotificationEnabled, onSaved, userId],
   );
 
   const toggleLiveNotification = useCallback(
@@ -77,6 +81,7 @@ export function WorkoutSettingsCard({
       const prefs: WorkoutPreferences = {
         defaultRestSeconds: restSeconds,
         liveNotificationEnabled: nextVal,
+        autoAdvanceTargetWeights,
       };
       const saved = await saveWorkoutPreferences(prefs, userId);
       if (saved) {
@@ -88,7 +93,30 @@ export function WorkoutSettingsCard({
         onSaved?.(prefs);
       }
     },
-    [onSaved, restSeconds, userId],
+    [autoAdvanceTargetWeights, onSaved, restSeconds, userId],
+  );
+
+  const toggleAutoAdvance = useCallback(
+    async (nextVal: boolean) => {
+      setAutoAdvanceTargetWeights(nextVal);
+      setFeedback(null);
+
+      const prefs: WorkoutPreferences = {
+        defaultRestSeconds: restSeconds,
+        liveNotificationEnabled,
+        autoAdvanceTargetWeights: nextVal,
+      };
+      const saved = await saveWorkoutPreferences(prefs, userId);
+      if (saved) {
+        setFeedback(
+          nextVal
+            ? "Saved: Auto-advance target weights enabled"
+            : "Saved: Auto-advance target weights disabled",
+        );
+        onSaved?.(prefs);
+      }
+    },
+    [liveNotificationEnabled, onSaved, restSeconds, userId],
   );
 
   return (
@@ -203,6 +231,24 @@ export function WorkoutSettingsCard({
           accessibilityLabel="Toggle live workout notification"
           value={liveNotificationEnabled}
           onValueChange={(val) => void toggleLiveNotification(val)}
+          trackColor={{ false: "rgba(148, 163, 184, 0.2)", true: "#10B981" }}
+          thumbColor="#FFFFFF"
+        />
+      </View>
+
+      {/* Auto-advance target weights toggle */}
+      <View style={styles.notificationToggleSection}>
+        <View style={styles.notificationToggleInfo}>
+          <ThemedText type="smallBold">Auto-advance target weights</ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">
+            Automatically carry over in-workout weight progression to routine
+            and exercise targets for your next session.
+          </ThemedText>
+        </View>
+        <Switch
+          accessibilityLabel="Toggle auto-advance target weights"
+          value={autoAdvanceTargetWeights}
+          onValueChange={(val) => void toggleAutoAdvance(val)}
           trackColor={{ false: "rgba(148, 163, 184, 0.2)", true: "#10B981" }}
           thumbColor="#FFFFFF"
         />

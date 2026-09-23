@@ -1,9 +1,11 @@
 import type { ApiClient, ApiError } from "@mizyun/api-client";
 import {
+  computeWorkoutProgressions,
   isRoutineDetails,
   isSessionDetails,
   readWorkoutLifecycle,
   withWorkoutLifecycle,
+  type WorkoutExerciseProgression,
 } from "@mizyun/core";
 import {
   exerciseCreateSchema,
@@ -32,6 +34,8 @@ import {
 
 import { apiClient } from "@/composition/api-client";
 import { displayWeightToKilograms } from "@/lib/weight-units";
+import { updateExerciseTargetLoad } from "@/features/workouts/exercise-progression-data";
+import { syncRoutineExerciseTargets } from "@/features/workouts/workouts-hub-data";
 
 export interface WorkoutWorkspace {
   readonly exercises: ReadonlyArray<Exercise>;
@@ -554,4 +558,76 @@ export const abandonWorkoutWith = async (
   return result.ok
     ? { ok: true }
     : { ok: false, message: humanize(result.error, "Delete that workout") };
+};
+
+export interface ApplyProgressionsResult {
+  readonly progressedItems: ReadonlyArray<WorkoutExerciseProgression>;
+  readonly routineUpdated: boolean;
+}
+
+export const applyCompletedWorkoutProgressions = async (
+  workout: Workout,
+  sets: ReadonlyArray<WorkoutSet>,
+  exercises: ReadonlyArray<Exercise>,
+): Promise<ApplyProgressionsResult> =>
+  applyCompletedWorkoutProgressionsWith(apiClient, workout, sets, exercises);
+
+export const applyCompletedWorkoutProgressionsWith = async (
+  client: ApiClient,
+  workout: Workout,
+  sets: ReadonlyArray<WorkoutSet>,
+  exercises: ReadonlyArray<Exercise>,
+): Promise<ApplyProgressionsResult> => {
+  const plannedExercises = extractPlannedExercises(workout);
+  const progressions = computeWorkoutProgressions({
+    plannedExercises,
+    completedSets: sets,
+    exercises: exercises.map((e) => ({
+      id: e.id,
+      name: e.name,
+      metadata: e.metadata,
+    })),
+  });
+
+  const progressedItems = progressions.filter(
+    (p) => p.progressed && p.nextTargetKg !== null && p.nextTargetKg > 0,
+  );
+
+  if (progressedItems.length === 0) {
+    return { progressedItems: [], routineUpdated: false };
+  }
+
+  // 1. Update individual exercise metadata (targetLoadKg)
+  await Promise.all(
+    progressedItems.map((item) =>
+      updateExerciseTargetLoad(
+        item.exerciseName,
+        item.nextTargetKg!,
+        undefined,
+        item.exerciseId,
+        client,
+      ),
+    ),
+  );
+
+  // 2. If session originated from a routine, update the routine template
+  let routineUpdated = false;
+  const lifecycle = readWorkoutLifecycle(workout.details);
+  if (lifecycle?.kind === "session" && lifecycle.routineId) {
+    const targetsMap = new Map<string, number>();
+    for (const item of progressedItems) {
+      targetsMap.set(
+        item.exerciseName.trim().toLowerCase(),
+        item.nextTargetKg!,
+      );
+    }
+    const routineRes = await syncRoutineExerciseTargets(
+      lifecycle.routineId,
+      targetsMap,
+      client,
+    );
+    routineUpdated = routineRes.ok;
+  }
+
+  return { progressedItems, routineUpdated };
 };

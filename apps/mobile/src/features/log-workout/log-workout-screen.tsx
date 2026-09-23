@@ -24,6 +24,7 @@ import {
   type WorkoutSet,
 } from "@mizyun/contracts";
 import {
+  computeWorkoutProgressions,
   isRoutineDetails,
   readWorkoutLifecycle,
   type CatalogExercise,
@@ -67,6 +68,7 @@ import {
 import {
   abandonWorkout,
   addWorkoutSet,
+  applyCompletedWorkoutProgressions,
   completeWorkout,
   createExercise,
   deleteWorkoutSet,
@@ -168,6 +170,8 @@ export function LogWorkoutScreen() {
   const [globalRestSeconds, setGlobalRestSeconds] =
     useState<number>(DEFAULT_REST_SECONDS);
   const [liveNotificationEnabled, setLiveNotificationEnabled] =
+    useState<boolean>(true);
+  const [autoAdvanceTargetWeights, setAutoAdvanceTargetWeights] =
     useState<boolean>(true);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
@@ -292,6 +296,7 @@ export function LogWorkoutScreen() {
       if (!active) return;
       setGlobalRestSeconds(prefs.defaultRestSeconds);
       setLiveNotificationEnabled(prefs.liveNotificationEnabled);
+      setAutoAdvanceTargetWeights(prefs.autoAdvanceTargetWeights);
     });
     return () => {
       active = false;
@@ -367,12 +372,32 @@ export function LogWorkoutScreen() {
   const exerciseEntries: ReadonlyArray<ExerciseEntry> = useMemo(() => {
     const map = new Map<string, ExerciseEntry>();
 
+    const resolveTargetLoadFromMetadata = (
+      exercise?: Exercise | null,
+    ): string | undefined => {
+      if (!exercise?.metadata || typeof exercise.metadata !== "object") {
+        return undefined;
+      }
+      const meta = exercise.metadata as Record<string, unknown>;
+      if (typeof meta.targetLoadKg === "number" && meta.targetLoadKg > 0) {
+        return `${meta.targetLoadKg} kg`;
+      }
+      if (
+        typeof meta.targetLoad === "string" &&
+        meta.targetLoad.trim().length > 0
+      ) {
+        return meta.targetLoad.trim();
+      }
+      return undefined;
+    };
+
     // 1. Add planned exercises
     plannedExercises.forEach((p) => {
       const matched = workspace.exercises.find(
         (e) => e.name.trim().toLowerCase() === p.name.trim().toLowerCase(),
       );
       const id = matched?.id ?? `planned-${p.catalogId || p.name}`;
+      const targetLoad = p.targetLoad || resolveTargetLoadFromMetadata(matched);
       map.set(p.name.trim().toLowerCase(), {
         id,
         name: p.name,
@@ -382,7 +407,7 @@ export function LogWorkoutScreen() {
         repsMax: p.repsMax,
         durationMinutes: p.durationMinutes,
         restSeconds: p.restSeconds || globalRestSeconds,
-        targetLoad: p.targetLoad,
+        targetLoad,
         isPlanned: true,
       });
     });
@@ -402,6 +427,7 @@ export function LogWorkoutScreen() {
             repsMax: null,
             durationMinutes: null,
             restSeconds: globalRestSeconds,
+            targetLoad: resolveTargetLoadFromMetadata(matched),
             isPlanned: false,
           });
         }
@@ -412,7 +438,15 @@ export function LogWorkoutScreen() {
     extraExercises.forEach((extra) => {
       const key = extra.name.trim().toLowerCase();
       if (!map.has(key)) {
-        map.set(key, extra);
+        const matched = workspace.exercises.find(
+          (e) => e.name.trim().toLowerCase() === key,
+        );
+        const targetLoad =
+          extra.targetLoad || resolveTargetLoadFromMetadata(matched);
+        map.set(key, {
+          ...extra,
+          targetLoad,
+        });
       }
     });
 
@@ -750,6 +784,20 @@ export function LogWorkoutScreen() {
           if (targetDisplay !== null) {
             loadVal = targetDisplay;
           }
+        } else {
+          const perf =
+            recentPerformanceMap[resolvedExerciseId] ??
+            recentPerformanceMap[entry.id];
+          const recentSet = perf?.sets?.[0];
+          if (
+            recentSet?.loadKg !== null &&
+            recentSet?.loadKg !== undefined &&
+            recentSet.loadKg > 0
+          ) {
+            loadVal = String(
+              kilogramsToDisplayWeight(recentSet.loadKg, unitSystem),
+            );
+          }
         }
       }
 
@@ -886,9 +934,37 @@ export function LogWorkoutScreen() {
     const totalSets = workspace.sets.length;
     const formattedDuration = formatStopwatch(elapsedSeconds);
 
+    const progressions = computeWorkoutProgressions({
+      plannedExercises,
+      completedSets: workspace.sets,
+      exercises: workspace.exercises.map((e) => ({
+        id: e.id,
+        name: e.name,
+        metadata: e.metadata,
+      })),
+    });
+    const progressedItems = progressions.filter(
+      (p) => p.progressed && p.nextTargetKg !== null && p.nextTargetKg > 0,
+    );
+
+    const unit = weightUnitLabel(unitSystem);
+    const progressionSummary =
+      progressedItems.length > 0 && autoAdvanceTargetWeights
+        ? `\n\n🎯 Next session targets updated:\n` +
+          progressedItems
+            .map((p) => {
+              const prev = p.previousTargetKg
+                ? `${kilogramsToDisplayWeight(p.previousTargetKg, unitSystem)} ${unit}`
+                : "None";
+              const next = `${kilogramsToDisplayWeight(p.nextTargetKg!, unitSystem)} ${unit}`;
+              return `• ${p.exerciseName}: ${prev} → ${next}`;
+            })
+            .join("\n")
+        : "";
+
     Alert.alert(
       "Finish Workout?",
-      `Completed in ${formattedDuration} with ${totalSets} saved sets.`,
+      `Completed in ${formattedDuration} with ${totalSets} saved sets.${progressionSummary}`,
       [
         { text: "Keep Logging", style: "cancel" },
         {
@@ -901,6 +977,15 @@ export function LogWorkoutScreen() {
               setRestTimer(null);
               void dismissActiveWorkoutNotification();
               setBusy(true);
+
+              if (autoAdvanceTargetWeights && progressedItems.length > 0) {
+                await applyCompletedWorkoutProgressions(
+                  workspace.workout!,
+                  workspace.sets,
+                  workspace.exercises,
+                );
+              }
+
               const result = await completeWorkout(
                 workspace.workout!.id,
                 workspace.workout!.startedAt,
@@ -924,10 +1009,14 @@ export function LogWorkoutScreen() {
       ],
     );
   }, [
+    autoAdvanceTargetWeights,
     elapsedSeconds,
+    plannedExercises,
     restTimer?.notificationId,
+    unitSystem,
     userId,
-    workspace.sets.length,
+    workspace.exercises,
+    workspace.sets,
     workspace.workout,
   ]);
 

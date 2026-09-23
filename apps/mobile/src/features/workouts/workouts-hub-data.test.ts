@@ -15,6 +15,7 @@ import {
   createBlankWorkoutWith,
   createCustomWorkout,
   startRoutineSessionWith,
+  syncRoutineExerciseTargets,
   updateWorkoutDetails,
 } from "./workouts-hub-data";
 
@@ -508,5 +509,114 @@ describe("workouts-hub-data", () => {
     const body = request.mock.calls[0]?.[0].body as Record<string, unknown>;
     expect(body.clientOperationId).toBe(clientOperationId);
     expect(body.startedAt).toBeUndefined();
+  });
+
+  describe("syncRoutineExerciseTargets", () => {
+    it("updates routine planned exercise target load when matching exercise progresses", async () => {
+      const routine: Workout = {
+        ...mockPlannedWorkout,
+        id: "w-routine-123",
+      };
+      const updatedWorkout: Workout = {
+        ...routine,
+        details: {
+          coachPlan: {
+            exercises: [
+              {
+                name: "Barbell Bench Press",
+                targetSets: 3,
+                targetReps: "8-10",
+                targetLoad: "75 kg",
+              },
+              {
+                name: "Pull Up",
+                sets: 3,
+                repsMin: 6,
+                repsMax: 8,
+              },
+            ],
+          },
+        },
+      };
+
+      const request = vi
+        .fn()
+        .mockImplementation((opt: { method: string; path: string }) => {
+          if (opt.method === "GET") {
+            return Promise.resolve({ ok: true, value: { workout: routine } });
+          }
+          if (opt.method === "PUT") {
+            return Promise.resolve({
+              ok: true,
+              value: { workout: updatedWorkout },
+            });
+          }
+          return Promise.resolve({
+            ok: false,
+            error: { kind: "http_error", status: 500 },
+          });
+        });
+      const client = { request } as unknown as ApiClient;
+
+      const targetsMap = new Map<string, number>([["barbell bench press", 75]]);
+
+      const result = await syncRoutineExerciseTargets(
+        "w-routine-123",
+        targetsMap,
+        client,
+      );
+      expect(result.ok).toBe(true);
+      expect(request).toHaveBeenCalledTimes(2);
+
+      const putCall = request.mock.calls[1]?.[0];
+      expect(putCall.method).toBe("PUT");
+      expect(putCall.path).toBe("/v1/workouts/w-routine-123");
+      const details = putCall.body.details as Record<string, unknown>;
+      const coachPlan = details.coachPlan as {
+        exercises: Array<{ name: string; targetLoad?: string }>;
+      };
+      expect(coachPlan.exercises[0]?.targetLoad).toBe("75 kg");
+    });
+
+    it("returns ok immediately without PUT when no exercises match updated targets", async () => {
+      const routine: Workout = {
+        ...mockPlannedWorkout,
+        id: "w-routine-123",
+      };
+      const request = vi
+        .fn()
+        .mockResolvedValue({ ok: true, value: { workout: routine } });
+      const client = { request } as unknown as ApiClient;
+
+      const targetsMap = new Map<string, number>([["deadlift", 150]]);
+
+      const result = await syncRoutineExerciseTargets(
+        "w-routine-123",
+        targetsMap,
+        client,
+      );
+      expect(result.ok).toBe(true);
+      expect(request).toHaveBeenCalledTimes(1); // Only GET, no PUT
+    });
+
+    it("handles fetch failure gracefully", async () => {
+      const request = vi.fn().mockResolvedValue({
+        ok: false,
+        error: { kind: "http_error", status: 404 },
+      });
+      const client = { request } as unknown as ApiClient;
+
+      const targetsMap = new Map<string, number>([["barbell bench press", 75]]);
+
+      const result = await syncRoutineExerciseTargets(
+        "w-nonexistent",
+        targetsMap,
+        client,
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.message).toBe("That workout record no longer exists.");
+      }
+    });
   });
 });
