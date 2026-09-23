@@ -87,6 +87,13 @@ Founder decision 2026-09-23: prioritize a presentable, distinctive demo and prog
 - Automated verification: 16/16 core progression tests (`progressive-overload.test.ts`), 18/18 workouts-hub tests (`workouts-hub-data.test.ts`), 20/20 log-workout data tests (`log-workout-data.test.ts`), 17/17 preferences tests (`workout-preferences.test.ts`), all 51 mobile test suites (536 tests) passed, and full repository `pnpm check` passed (0 errors across 15 workspaces, Hermes exports, deployment safeguards, build matrix, IPA tooling, and 56/56 offline AI invariants).
 - Exit criteria remaining: Push and deploy to Hetzner Dev, followed by physical device acceptance on iOS/Android for in-workout progression carryover into subsequent routine sessions.
 
+## Verification — Issue #123 Next-exercise workout notifications, 2026-09-23
+
+- Implementation plan was recorded on issue #123 before code changes. Source commit `c00c2ae5c6adea4bb14ced135910425168bb0b66` makes both the persistent workout notification and rest-expiry alert follow ordered exercise progress: continue the current exercise while planned sets remain, name the next incomplete exercise after its final set, and prompt the user to finish when all planned sets are complete.
+- Planned exercise placeholders use the resolved database exercise ID immediately after first materialization. Set saves are serialized, and notification scheduling uses generation checks plus stale-ID cancellation so adjustments, expiry, skip, finish, discard, or a newer save cannot resurrect an obsolete timer or notification.
+- Fresh focused verification passed: 37/37 workout/rest-notification tests and mobile TypeScript. Fresh full `pnpm check` passed: navigation/boundaries with 0 errors and 17 warnings, 38/38 navigation fixtures, repository formatting, all 15 workspace typechecks, iOS/Android Hermes exports, 545 mobile tests, 566 API tests with 15 policy-gated E2E skips, 39 deployment safeguards, Hetzner/backup/OAuth/build/IPA tooling, and 56/56 offline AI invariants. Independent review approved with no remaining findings.
+- No backend deployment, native install, or physical notification acceptance was performed or claimed; issue closure is based on the source-level regression boundary and automated verification.
+
 ## Next exact action
 
 For #125, record the proposed 90-second journey on the current physical build, identify its source/build/environment, and rank interruptions and unsupported claims. Select only the smallest demo/first-use repair slice; prepare interviews and the pitch alongside acceptance work. No public access expansion until its existing gates pass.
