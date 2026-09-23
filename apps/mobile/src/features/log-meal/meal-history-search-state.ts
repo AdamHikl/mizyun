@@ -14,15 +14,19 @@ export interface MealSearchState {
   readonly entries: ReadonlyArray<FoodEntry>;
   readonly nextCursor: string | null;
   readonly query: string;
+  readonly sessionId: number;
   readonly error: MealSearchError | null;
 }
 
 export const completeInitialMealSearch = (
   current: MealSearchState | null,
   query: string,
+  sessionId: number,
   result: FoodHistoryResult,
 ): MealSearchState | null => {
-  if (!current || current.query !== query) return current;
+  if (!current || current.query !== query || current.sessionId !== sessionId) {
+    return current;
+  }
   return {
     loading: false,
     loadingMore: false,
@@ -30,6 +34,7 @@ export const completeInitialMealSearch = (
     entries: result.entries,
     nextCursor: result.nextCursor ?? null,
     query,
+    sessionId,
     error:
       result.message === null
         ? null
@@ -40,9 +45,12 @@ export const completeInitialMealSearch = (
 export const failMealSearchLoadMore = (
   current: MealSearchState | null,
   query: string,
+  sessionId: number,
   message: string,
 ): MealSearchState | null => {
-  if (!current || current.query !== query) return current;
+  if (!current || current.query !== query || current.sessionId !== sessionId) {
+    return current;
+  }
   return {
     ...current,
     loadingMore: false,

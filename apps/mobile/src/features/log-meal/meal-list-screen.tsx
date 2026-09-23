@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { router, Stack, useFocusEffect, type Href } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FoodEntry } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
@@ -132,6 +132,7 @@ export function MealListScreen() {
   const [busyEntryId, setBusyEntryId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchAttempt, setSearchAttempt] = useState(0);
+  const searchSessionIdRef = useRef(0);
 
   // Grouping selection state
   const [groupingDate, setGroupingDate] = useState<string | null>(null);
@@ -200,6 +201,7 @@ export function MealListScreen() {
 
   useEffect(() => {
     const trimmed = searchQuery.trim();
+    const sessionId = ++searchSessionIdRef.current;
     if (trimmed.length === 0) {
       setServerSearch(null);
       return;
@@ -213,6 +215,7 @@ export function MealListScreen() {
       entries: current?.query === trimmed ? current.entries : [],
       nextCursor: null,
       query: trimmed,
+      sessionId,
       error: null,
     }));
 
@@ -220,7 +223,7 @@ export function MealListScreen() {
       const result = await fetchFoodHistory({ search: trimmed });
       if (!active) return;
       setServerSearch((current) =>
-        completeInitialMealSearch(current, trimmed, result),
+        completeInitialMealSearch(current, trimmed, sessionId, result),
       );
     }, 250);
 
@@ -236,8 +239,11 @@ export function MealListScreen() {
     }
     const currentCursor = serverSearch.nextCursor;
     const currentQuery = serverSearch.query;
+    const currentSessionId = serverSearch.sessionId;
     setServerSearch((current) =>
-      current && current.query === currentQuery
+      current &&
+      current.query === currentQuery &&
+      current.sessionId === currentSessionId
         ? { ...current, loadingMore: true, error: null }
         : current,
     );
@@ -247,12 +253,23 @@ export function MealListScreen() {
     });
     if (result.message !== null) {
       setServerSearch((current) =>
-        failMealSearchLoadMore(current, currentQuery, result.message!),
+        failMealSearchLoadMore(
+          current,
+          currentQuery,
+          currentSessionId,
+          result.message!,
+        ),
       );
       return;
     }
     setServerSearch((current) => {
-      if (!current || current.query !== currentQuery) return current;
+      if (
+        !current ||
+        current.query !== currentQuery ||
+        current.sessionId !== currentSessionId
+      ) {
+        return current;
+      }
       const mergedEntries = mergeFoodEntries(current.entries, result.entries);
       const nextCursor = result.nextCursor ?? null;
       const groups = groupFoodEntriesByDay(mergedEntries, new Date());
@@ -342,9 +359,12 @@ export function MealListScreen() {
   );
   const totalDaysTracked = displayGroups.length;
   const historySummary = hasSearchQuery
-    ? serverSearch?.loading && localFilteredGroups.length === 0
-      ? "Searching meal history…"
-      : `${visibleMealCount} ${visibleMealCount === 1 ? "meal" : "meals"} · ${totalDaysTracked} ${totalDaysTracked === 1 ? "day" : "days"}`
+    ? serverSearch?.error?.phase === "initial" &&
+      localFilteredGroups.length === 0
+      ? "Search unavailable"
+      : serverSearch?.loading && localFilteredGroups.length === 0
+        ? "Searching meal history…"
+        : `${visibleMealCount} ${visibleMealCount === 1 ? "meal" : "meals"} · ${totalDaysTracked} ${totalDaysTracked === 1 ? "day" : "days"}`
     : `${totalDaysTracked} ${totalDaysTracked === 1 ? "day" : "days"}`;
 
   // Grouping handlers
@@ -999,7 +1019,8 @@ export function MealListScreen() {
                       Loading more matching meals…
                     </ThemedText>
                   </View>
-                ) : serverSearch?.nextCursor ? (
+                ) : serverSearch?.nextCursor &&
+                  serverSearch.error?.phase !== "load-more" ? (
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Load more matching meals"
