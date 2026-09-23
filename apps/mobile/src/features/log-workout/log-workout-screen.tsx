@@ -60,8 +60,10 @@ import {
   scheduleRestNotification,
 } from "@/features/workouts/rest-timer-notifications";
 import {
+  completedSetsForNotificationEntry,
   dismissActiveWorkoutNotification,
   formatNextSetSummary,
+  selectNextExerciseIndexForNotification,
   updateActiveWorkoutNotification,
 } from "@/features/workouts/workout-notification";
 
@@ -135,6 +137,9 @@ interface RestTimerState {
   endsAt: number;
   total: number;
   exerciseName: string;
+  nextExerciseName?: string;
+  nextSetSummary?: string;
+  allPlannedSetsCompleted?: boolean;
   notificationId?: string | null;
 }
 
@@ -177,6 +182,8 @@ export function LogWorkoutScreen() {
 
   const measurement = useRef<LoggingFlowMeasurement | null>(null);
   const hadFailure = useRef(false);
+  const setSaveInFlight = useRef(false);
+  const restNotificationGeneration = useRef(0);
 
   useEffect(() => {
     measurement.current = new LoggingFlowMeasurement(
@@ -329,6 +336,7 @@ export function LogWorkoutScreen() {
     const checkTimer = () => {
       const now = Date.now();
       if (now >= restTimer.endsAt) {
+        restNotificationGeneration.current += 1;
         if (restTimer.notificationId) {
           void cancelRestNotification(restTimer.notificationId);
         }
@@ -349,6 +357,7 @@ export function LogWorkoutScreen() {
         setRestTimer((current) => {
           if (!current) return null;
           if (Date.now() >= current.endsAt) {
+            restNotificationGeneration.current += 1;
             if (current.notificationId) {
               void cancelRestNotification(current.notificationId);
             }
@@ -492,35 +501,26 @@ export function LogWorkoutScreen() {
       totalPlannedSetsCount += ex.targetSets || 3;
     }
 
-    // Determine current exercise:
-    // If resting, use the exercise being rested for.
-    // Otherwise, pick the first exercise that still has incomplete sets, or fallback to the last.
-    let currentEntry: ExerciseEntry | undefined = undefined;
-    if (restTimer) {
-      currentEntry = exerciseEntries.find(
-        (e) =>
-          e.name.trim().toLowerCase() ===
-          restTimer.exerciseName.trim().toLowerCase(),
-      );
-    }
-    if (!currentEntry) {
-      currentEntry = exerciseEntries.find((e) => {
-        const done = workspace.sets.filter((s) => {
-          if (e.id.startsWith("planned-")) {
-            const matched = workspace.exercises.find(
-              (dbEx) =>
-                dbEx.name.trim().toLowerCase() === e.name.trim().toLowerCase(),
-            );
-            return matched ? s.exerciseId === matched.id : false;
-          }
-          return s.exerciseId === e.id;
-        }).length;
-        return done < (e.targetSets || 3);
-      });
-    }
-    if (!currentEntry && exerciseEntries.length > 0) {
-      currentEntry = exerciseEntries[exerciseEntries.length - 1];
-    }
+    const exerciseProgress = exerciseEntries.map((entry) => ({
+      name: entry.name,
+      targetSetsCount: entry.targetSets || 3,
+      completedSetsCount: completedSetsForNotificationEntry(
+        entry,
+        workspace.exercises,
+        workspace.sets,
+      ).length,
+    }));
+
+    const nextExerciseIndex = selectNextExerciseIndexForNotification(
+      exerciseProgress,
+      restTimer?.exerciseName,
+    );
+    const currentEntry =
+      nextExerciseIndex === null
+        ? undefined
+        : exerciseEntries[nextExerciseIndex];
+    const allPlannedSetsCompleted =
+      exerciseEntries.length > 0 && nextExerciseIndex === null;
 
     if (!currentEntry) {
       return {
@@ -531,20 +531,15 @@ export function LogWorkoutScreen() {
         totalPlannedSetsCount,
         nextSetSequence: completedSetsCount + 1,
         nextSetSummary: undefined,
+        allPlannedSetsCompleted,
       };
     }
 
-    const completedForEntry = workspace.sets.filter((s) => {
-      if (currentEntry!.id.startsWith("planned-")) {
-        const matched = workspace.exercises.find(
-          (dbEx) =>
-            dbEx.name.trim().toLowerCase() ===
-            currentEntry!.name.trim().toLowerCase(),
-        );
-        return matched ? s.exerciseId === matched.id : false;
-      }
-      return s.exerciseId === currentEntry!.id;
-    });
+    const completedForEntry = completedSetsForNotificationEntry(
+      currentEntry,
+      workspace.exercises,
+      workspace.sets,
+    );
 
     const lastCompletedSet =
       completedForEntry.length > 0
@@ -567,6 +562,7 @@ export function LogWorkoutScreen() {
       totalPlannedSetsCount,
       nextSetSequence,
       nextSetSummary,
+      allPlannedSetsCompleted,
     };
   }, [
     exerciseEntries,
@@ -591,6 +587,7 @@ export function LogWorkoutScreen() {
       totalPlannedSetsCount: activeSessionSummary.totalPlannedSetsCount,
       nextSetSequence: activeSessionSummary.nextSetSequence,
       nextSetSummary: activeSessionSummary.nextSetSummary,
+      allPlannedSetsCompleted: activeSessionSummary.allPlannedSetsCompleted,
       restTimer: restTimer
         ? {
             endsAt: restTimer.endsAt,
@@ -719,169 +716,236 @@ export function LogWorkoutScreen() {
   // Complete / log an inline set for an exercise
   const handleLogSet = useCallback(
     async (entry: ExerciseEntry) => {
-      if (workspace.workout === null) return;
+      if (workspace.workout === null || setSaveInFlight.current) return;
+      setSaveInFlight.current = true;
       measurement.current?.tap();
 
-      // Ensure the exercise exists in the database
-      let resolvedExerciseId = entry.id;
-      if (entry.id.startsWith("planned-")) {
-        const existing = workspace.exercises.find(
-          (e) =>
-            e.name.trim().toLowerCase() === entry.name.trim().toLowerCase(),
-        );
-        if (existing) {
-          resolvedExerciseId = existing.id;
-        } else {
-          setBusy(true);
-          const created = await createExercise(entry.name, "");
-          setBusy(false);
-          if (created.ok) {
-            setWorkspace((current) => ({
-              ...current,
-              exercises: [...current.exercises, created.exercise].sort((a, b) =>
-                a.name.localeCompare(b.name),
-              ),
-            }));
-            resolvedExerciseId = created.exercise.id;
+      try {
+        // Ensure the exercise exists in the database
+        let resolvedExerciseId = entry.id;
+        if (entry.id.startsWith("planned-")) {
+          const existing = workspace.exercises.find(
+            (e) =>
+              e.name.trim().toLowerCase() === entry.name.trim().toLowerCase(),
+          );
+          if (existing) {
+            resolvedExerciseId = existing.id;
           } else {
-            setMessage(created.message);
+            setBusy(true);
+            const created = await createExercise(entry.name, "");
+            setBusy(false);
+            if (created.ok) {
+              setWorkspace((current) => ({
+                ...current,
+                exercises: [...current.exercises, created.exercise].sort(
+                  (a, b) => a.name.localeCompare(b.name),
+                ),
+              }));
+              resolvedExerciseId = created.exercise.id;
+            } else {
+              setMessage(created.message);
+              return;
+            }
+          }
+        }
+
+        // Read current input values or fallback to smart defaults
+        const currentInput = pendingInputs[entry.id] ??
+          pendingInputs[entry.name] ?? {
+            load: "",
+            reps: "",
+            durationSeconds: "",
+            distanceMeters: "",
+            rpe: "",
+          };
+
+        const completedSets = workspace.sets.filter(
+          (s) => s.exerciseId === resolvedExerciseId,
+        );
+
+        // Smart defaults: previous completed set or target
+        let loadVal = currentInput.load.trim();
+        let repsVal = currentInput.reps.trim();
+
+        if (loadVal.length === 0) {
+          if (completedSets.length > 0) {
+            const lastSet = completedSets[completedSets.length - 1];
+            if (lastSet?.loadKg !== null && lastSet?.loadKg !== undefined) {
+              loadVal = String(
+                kilogramsToDisplayWeight(lastSet.loadKg, unitSystem),
+              );
+            }
+          } else if (entry.targetLoad) {
+            const targetDisplay = parseTargetLoadToDisplay(
+              entry.targetLoad,
+              unitSystem,
+            );
+            if (targetDisplay !== null) {
+              loadVal = targetDisplay;
+            }
+          } else {
+            const perf =
+              recentPerformanceMap[resolvedExerciseId] ??
+              recentPerformanceMap[entry.id];
+            const recentSet = perf?.sets?.[0];
+            if (
+              recentSet?.loadKg !== null &&
+              recentSet?.loadKg !== undefined &&
+              recentSet.loadKg > 0
+            ) {
+              loadVal = String(
+                kilogramsToDisplayWeight(recentSet.loadKg, unitSystem),
+              );
+            }
+          }
+        }
+
+        if (repsVal.length === 0) {
+          if (completedSets.length > 0) {
+            const lastSet = completedSets[completedSets.length - 1];
+            if (
+              lastSet?.repetitions !== null &&
+              lastSet?.repetitions !== undefined
+            ) {
+              repsVal = String(lastSet.repetitions);
+            }
+          } else if (entry.repsMax !== null) {
+            repsVal = String(entry.repsMax);
+          } else if (entry.repsMin !== null) {
+            repsVal = String(entry.repsMin);
+          }
+        }
+
+        setBusy(true);
+        setMessage(null);
+        const result = await addWorkoutSet(workspace.workout.id, {
+          exerciseId: resolvedExerciseId,
+          repetitions: repsVal,
+          load: loadVal,
+          durationSeconds: currentInput.durationSeconds,
+          distanceMeters: currentInput.distanceMeters,
+          perceivedExertion: currentInput.rpe,
+          unitSystem,
+        });
+        setBusy(false);
+
+        if (!result.ok) {
+          hadFailure.current = true;
+          measurement.current?.fail(
+            "submit",
+            classifyAnalyticsFailure(result.message),
+            true,
+          );
+          setMessage(result.message);
+          return;
+        }
+
+        // Start rest timer with wall-clock endsAt and background notification
+        const restDuration =
+          entry.restSeconds > 0 ? entry.restSeconds : globalRestSeconds;
+        const setsAfterSave = [...workspace.sets, result.workoutSet];
+        const exerciseProgressAfterSave = exerciseEntries.map(
+          (exerciseEntry) => ({
+            name: exerciseEntry.name,
+            targetSetsCount: exerciseEntry.targetSets || 3,
+            completedSetsCount: completedSetsForNotificationEntry(
+              exerciseEntry,
+              workspace.exercises,
+              setsAfterSave,
+              exerciseEntry.name.trim().toLowerCase() ===
+                entry.name.trim().toLowerCase()
+                ? resolvedExerciseId
+                : undefined,
+            ).length,
+          }),
+        );
+        const nextExerciseIndex = selectNextExerciseIndexForNotification(
+          exerciseProgressAfterSave,
+          entry.name,
+        );
+        const nextExercise =
+          nextExerciseIndex === null
+            ? undefined
+            : exerciseEntries[nextExerciseIndex];
+        const nextExerciseSets = nextExercise
+          ? completedSetsForNotificationEntry(
+              nextExercise,
+              workspace.exercises,
+              setsAfterSave,
+              nextExercise.name.trim().toLowerCase() ===
+                entry.name.trim().toLowerCase()
+                ? resolvedExerciseId
+                : undefined,
+            )
+          : [];
+        const nextSetSummary = nextExercise
+          ? formatNextSetSummary(
+              nextExercise,
+              nextExerciseSets.length + 1,
+              unitSystem,
+              nextExerciseSets[nextExerciseSets.length - 1] ?? null,
+            )
+          : undefined;
+        const allPlannedSetsCompleted =
+          exerciseEntries.length > 0 && nextExerciseIndex === null;
+        const notificationGeneration = ++restNotificationGeneration.current;
+        void (async () => {
+          if (restTimer?.notificationId) {
+            await cancelRestNotification(restTimer.notificationId);
+          }
+          const notificationId = await scheduleRestNotification(
+            {
+              exerciseName: nextExercise?.name,
+              setSummary: nextSetSummary,
+              allPlannedSetsCompleted,
+            },
+            restDuration,
+          );
+          if (notificationGeneration !== restNotificationGeneration.current) {
+            await cancelRestNotification(notificationId);
             return;
           }
-        }
-      }
+          setRestTimer({
+            endsAt: Date.now() + restDuration * 1000,
+            total: restDuration,
+            exerciseName: entry.name,
+            nextExerciseName: nextExercise?.name,
+            nextSetSummary,
+            allPlannedSetsCompleted,
+            notificationId,
+          });
+        })();
 
-      // Read current input values or fallback to smart defaults
-      const currentInput = pendingInputs[entry.id] ??
-        pendingInputs[entry.name] ?? {
-          load: "",
-          reps: "",
-          durationSeconds: "",
-          distanceMeters: "",
-          rpe: "",
-        };
+        // Immediately append the newly created set into workspace state so UI updates without reload
+        setWorkspace((current) => ({
+          ...current,
+          sets: [...current.sets, result.workoutSet],
+        }));
 
-      const completedSets = workspace.sets.filter(
-        (s) => s.exerciseId === resolvedExerciseId,
-      );
-
-      // Smart defaults: previous completed set or target
-      let loadVal = currentInput.load.trim();
-      let repsVal = currentInput.reps.trim();
-
-      if (loadVal.length === 0) {
-        if (completedSets.length > 0) {
-          const lastSet = completedSets[completedSets.length - 1];
-          if (lastSet?.loadKg !== null && lastSet?.loadKg !== undefined) {
-            loadVal = String(
-              kilogramsToDisplayWeight(lastSet.loadKg, unitSystem),
-            );
-          }
-        } else if (entry.targetLoad) {
-          const targetDisplay = parseTargetLoadToDisplay(
-            entry.targetLoad,
-            unitSystem,
-          );
-          if (targetDisplay !== null) {
-            loadVal = targetDisplay;
-          }
-        } else {
-          const perf =
-            recentPerformanceMap[resolvedExerciseId] ??
-            recentPerformanceMap[entry.id];
-          const recentSet = perf?.sets?.[0];
-          if (
-            recentSet?.loadKg !== null &&
-            recentSet?.loadKg !== undefined &&
-            recentSet.loadKg > 0
-          ) {
-            loadVal = String(
-              kilogramsToDisplayWeight(recentSet.loadKg, unitSystem),
-            );
-          }
-        }
-      }
-
-      if (repsVal.length === 0) {
-        if (completedSets.length > 0) {
-          const lastSet = completedSets[completedSets.length - 1];
-          if (
-            lastSet?.repetitions !== null &&
-            lastSet?.repetitions !== undefined
-          ) {
-            repsVal = String(lastSet.repetitions);
-          }
-        } else if (entry.repsMax !== null) {
-          repsVal = String(entry.repsMax);
-        } else if (entry.repsMin !== null) {
-          repsVal = String(entry.repsMin);
-        }
-      }
-
-      setBusy(true);
-      setMessage(null);
-      const result = await addWorkoutSet(workspace.workout.id, {
-        exerciseId: resolvedExerciseId,
-        repetitions: repsVal,
-        load: loadVal,
-        durationSeconds: currentInput.durationSeconds,
-        distanceMeters: currentInput.distanceMeters,
-        perceivedExertion: currentInput.rpe,
-        unitSystem,
-      });
-      setBusy(false);
-
-      if (!result.ok) {
-        hadFailure.current = true;
-        measurement.current?.fail(
-          "submit",
-          classifyAnalyticsFailure(result.message),
-          true,
-        );
-        return setMessage(result.message);
-      }
-
-      // Start rest timer with wall-clock endsAt and background notification
-      const restDuration =
-        entry.restSeconds > 0 ? entry.restSeconds : globalRestSeconds;
-      void (async () => {
-        if (restTimer?.notificationId) {
-          await cancelRestNotification(restTimer.notificationId);
-        }
-        const notificationId = await scheduleRestNotification(
-          entry.name,
-          restDuration,
-        );
-        setRestTimer({
-          endsAt: Date.now() + restDuration * 1000,
-          total: restDuration,
-          exerciseName: entry.name,
-          notificationId,
-        });
-      })();
-
-      // Immediately append the newly created set into workspace state so UI updates without reload
-      setWorkspace((current) => ({
-        ...current,
-        sets: [...current.sets, result.workoutSet],
-      }));
-
-      // Keep load and reps prefilled for next set so next tap is ready!
-      updatePendingInput(entry.id, {
-        load: loadVal,
-        reps: repsVal,
-      });
-      if (resolvedExerciseId !== entry.id) {
-        updatePendingInput(resolvedExerciseId, {
+        // Keep load and reps prefilled for next set so next tap is ready!
+        updatePendingInput(entry.id, {
           load: loadVal,
           reps: repsVal,
         });
-      }
+        if (resolvedExerciseId !== entry.id) {
+          updatePendingInput(resolvedExerciseId, {
+            load: loadVal,
+            reps: repsVal,
+          });
+        }
 
-      // Silently reconcile with backend in the background without unmounting or resetting scroll
-      void refresh();
+        // Silently reconcile with backend in the background without unmounting or resetting scroll
+        void refresh();
+      } catch {
+        setMessage("We couldn't save this set. Please try again.");
+      } finally {
+        setBusy(false);
+        setSaveInFlight.current = false;
+      }
     },
     [
       globalRestSeconds,
+      exerciseEntries,
       pendingInputs,
       refresh,
       restTimer?.notificationId,
@@ -971,6 +1035,7 @@ export function LogWorkoutScreen() {
           text: "Finish & Save",
           onPress: () => {
             void (async () => {
+              restNotificationGeneration.current += 1;
               if (restTimer?.notificationId) {
                 await cancelRestNotification(restTimer.notificationId);
               }
@@ -1039,6 +1104,7 @@ export function LogWorkoutScreen() {
         style: "destructive",
         onPress: () => {
           void (async () => {
+            restNotificationGeneration.current += 1;
             if (restTimer?.notificationId) {
               await cancelRestNotification(restTimer.notificationId);
             }
@@ -1154,6 +1220,9 @@ export function LogWorkoutScreen() {
             const currentTotal = restTimer.total;
             const notificationId = restTimer.notificationId;
             const exerciseName = restTimer.exerciseName;
+            const nextExerciseName = restTimer.nextExerciseName;
+            const nextSetSummary = restTimer.nextSetSummary;
+            const allPlannedSetsCompleted = restTimer.allPlannedSetsCompleted;
 
             const now = Date.now();
             const currentRemaining = Math.max(
@@ -1163,6 +1232,7 @@ export function LogWorkoutScreen() {
             const nextRemaining = Math.max(0, currentRemaining + delta);
 
             if (nextRemaining <= 0) {
+              restNotificationGeneration.current += 1;
               if (notificationId) {
                 void cancelRestNotification(notificationId);
               }
@@ -1172,24 +1242,39 @@ export function LogWorkoutScreen() {
 
             const nextEndsAt = now + nextRemaining * 1000;
             const nextTotal = Math.max(currentTotal, nextRemaining);
+            const notificationGeneration = ++restNotificationGeneration.current;
 
             void (async () => {
               if (notificationId) {
                 await cancelRestNotification(notificationId);
               }
               const newNotificationId = await scheduleRestNotification(
-                exerciseName,
+                {
+                  exerciseName: nextExerciseName,
+                  setSummary: nextSetSummary,
+                  allPlannedSetsCompleted,
+                },
                 nextRemaining,
               );
+              if (
+                notificationGeneration !== restNotificationGeneration.current
+              ) {
+                await cancelRestNotification(newNotificationId);
+                return;
+              }
               setRestTimer({
                 endsAt: nextEndsAt,
                 total: nextTotal,
                 exerciseName,
+                nextExerciseName,
+                nextSetSummary,
+                allPlannedSetsCompleted,
                 notificationId: newNotificationId,
               });
             })();
           }}
           onSkip={() => {
+            restNotificationGeneration.current += 1;
             if (restTimer.notificationId) {
               void cancelRestNotification(restTimer.notificationId);
             }

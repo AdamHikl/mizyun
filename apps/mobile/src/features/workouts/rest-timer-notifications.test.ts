@@ -46,11 +46,17 @@ describe("rest-timer-notifications", () => {
 
   describe("scheduleRestNotification", () => {
     it("returns null when seconds <= 0", async () => {
-      const result = await scheduleRestNotification("Bench Press", 0);
+      const result = await scheduleRestNotification(
+        { exerciseName: "Bench Press" },
+        0,
+      );
       expect(result).toBeNull();
       expect(mockGetPermissionsAsync).not.toHaveBeenCalled();
 
-      const negativeResult = await scheduleRestNotification("Bench Press", -10);
+      const negativeResult = await scheduleRestNotification(
+        { exerciseName: "Bench Press" },
+        -10,
+      );
       expect(negativeResult).toBeNull();
     });
 
@@ -58,7 +64,10 @@ describe("rest-timer-notifications", () => {
       mockGetPermissionsAsync.mockResolvedValueOnce({ status: "undetermined" });
       mockRequestPermissionsAsync.mockResolvedValueOnce({ status: "denied" });
 
-      const result = await scheduleRestNotification("Bench Press", 90);
+      const result = await scheduleRestNotification(
+        { exerciseName: "Bench Press" },
+        90,
+      );
       expect(result).toBeNull();
       expect(mockRequestPermissionsAsync).toHaveBeenCalledTimes(1);
       expect(mockScheduleNotificationAsync).not.toHaveBeenCalled();
@@ -68,13 +77,16 @@ describe("rest-timer-notifications", () => {
       mockGetPermissionsAsync.mockResolvedValueOnce({ status: "granted" });
       mockScheduleNotificationAsync.mockResolvedValueOnce("notif-123");
 
-      const result = await scheduleRestNotification("Squat", 120);
+      const result = await scheduleRestNotification(
+        { exerciseName: "Bench Press", setSummary: "80 kg × 8 reps" },
+        120,
+      );
       expect(result).toBe("notif-123");
       expect(mockSetNotificationChannelAsync).not.toHaveBeenCalled();
       expect(mockScheduleNotificationAsync).toHaveBeenCalledWith({
         content: {
           title: "Rest Over!",
-          body: "Time for your next set of Squat!",
+          body: "Next: Bench Press (80 kg × 8 reps)",
           sound: true,
         },
         trigger: {
@@ -90,7 +102,10 @@ describe("rest-timer-notifications", () => {
       mockGetPermissionsAsync.mockResolvedValueOnce({ status: "granted" });
       mockScheduleNotificationAsync.mockResolvedValueOnce("android-notif-456");
 
-      const result = await scheduleRestNotification("Deadlift", 180);
+      const result = await scheduleRestNotification(
+        { exerciseName: "Deadlift" },
+        180,
+      );
       expect(result).toBe("android-notif-456");
       expect(mockSetNotificationChannelAsync).toHaveBeenCalledWith(
         "workout-rest-timer",
@@ -104,7 +119,7 @@ describe("rest-timer-notifications", () => {
       expect(mockScheduleNotificationAsync).toHaveBeenCalledWith({
         content: {
           title: "Rest Over!",
-          body: "Time for your next set of Deadlift!",
+          body: "Next: Deadlift",
           sound: true,
         },
         trigger: {
@@ -121,8 +136,26 @@ describe("rest-timer-notifications", () => {
         new Error("Scheduling failed"),
       );
 
-      const result = await scheduleRestNotification("Pull Up", 60);
+      const result = await scheduleRestNotification(
+        { exerciseName: "Pull Up" },
+        60,
+      );
       expect(result).toBeNull();
+    });
+
+    it("prompts finishing when all planned sets are complete", async () => {
+      mockGetPermissionsAsync.mockResolvedValueOnce({ status: "granted" });
+      mockScheduleNotificationAsync.mockResolvedValueOnce("complete-notif");
+
+      await scheduleRestNotification({ allPlannedSetsCompleted: true }, 60);
+
+      expect(mockScheduleNotificationAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.objectContaining({
+            body: "All planned sets completed — finish when ready",
+          }),
+        }),
+      );
     });
   });
 

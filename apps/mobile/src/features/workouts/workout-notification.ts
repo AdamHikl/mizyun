@@ -18,8 +18,68 @@ export interface ActiveWorkoutNotificationParams {
   totalPlannedSetsCount?: number;
   nextSetSequence?: number;
   nextSetSummary?: string;
+  allPlannedSetsCompleted?: boolean;
   restTimer?: { endsAt: number; total: number; exerciseName: string } | null;
 }
+
+export interface WorkoutNotificationExerciseProgress {
+  readonly name: string;
+  readonly completedSetsCount: number;
+  readonly targetSetsCount: number;
+}
+
+export const completedSetsForNotificationEntry = <
+  TSet extends { readonly exerciseId: string },
+>(
+  entry: { readonly id: string; readonly name: string },
+  exercises: readonly { readonly id: string; readonly name: string }[],
+  sets: readonly TSet[],
+  plannedExerciseIdOverride?: string,
+): readonly TSet[] =>
+  sets.filter((set) => {
+    if (entry.id.startsWith("planned-")) {
+      const resolvedExerciseId =
+        plannedExerciseIdOverride ??
+        exercises.find(
+          (exercise) =>
+            exercise.name.trim().toLowerCase() ===
+            entry.name.trim().toLowerCase(),
+        )?.id;
+      return resolvedExerciseId ? set.exerciseId === resolvedExerciseId : false;
+    }
+    return set.exerciseId === entry.id;
+  });
+
+export const selectNextExerciseIndexForNotification = (
+  exercises: readonly WorkoutNotificationExerciseProgress[],
+  restingExerciseName?: string | null,
+): number | null => {
+  const isIncomplete = (exercise: WorkoutNotificationExerciseProgress) =>
+    exercise.completedSetsCount < exercise.targetSetsCount;
+
+  const restingIndex = restingExerciseName
+    ? exercises.findIndex(
+        (exercise) =>
+          exercise.name.trim().toLowerCase() ===
+          restingExerciseName.trim().toLowerCase(),
+      )
+    : -1;
+
+  if (restingIndex >= 0) {
+    if (isIncomplete(exercises[restingIndex])) {
+      return restingIndex;
+    }
+
+    for (let index = restingIndex + 1; index < exercises.length; index += 1) {
+      if (isIncomplete(exercises[index])) {
+        return index;
+      }
+    }
+  }
+
+  const firstIncompleteIndex = exercises.findIndex(isIncomplete);
+  return firstIncompleteIndex >= 0 ? firstIncompleteIndex : null;
+};
 
 export const formatRestEndTime = (endsAtMs: number): string => {
   const date = new Date(endsAtMs);
@@ -144,19 +204,25 @@ export const updateActiveWorkoutNotification = async (
       ? `⏱️ Resting · ${params.restTimer!.exerciseName}`
       : `🏋️ Workout: ${params.workoutName || "Live Workout"}`;
 
-    const subtitle = isResting
-      ? `Rest until ${formatRestEndTime(params.restTimer!.endsAt)} · ${params.completedSetsCount} completed`
-      : params.totalPlannedSetsCount
-        ? `Set ${params.nextSetSequence ?? 1} · ${params.completedSetsCount}/${params.totalPlannedSetsCount} completed`
-        : `${params.completedSetsCount} completed`;
+    const subtitle = params.allPlannedSetsCompleted
+      ? params.totalPlannedSetsCount
+        ? `${params.completedSetsCount}/${params.totalPlannedSetsCount} completed`
+        : `${params.completedSetsCount} completed`
+      : isResting
+        ? `Rest until ${formatRestEndTime(params.restTimer!.endsAt)} · ${params.completedSetsCount} completed`
+        : params.totalPlannedSetsCount
+          ? `Set ${params.nextSetSequence ?? 1} · ${params.completedSetsCount}/${params.totalPlannedSetsCount} completed`
+          : `${params.completedSetsCount} completed`;
 
-    const body = isResting
-      ? params.nextSetSummary
-        ? `Next: ${params.nextSetSummary}`
-        : "Next set ready soon"
-      : params.nextSetSummary
-        ? `Current: ${params.currentExerciseName} (${params.nextSetSummary})`
-        : `Current: ${params.currentExerciseName}`;
+    const body = params.allPlannedSetsCompleted
+      ? "All planned sets completed — finish when ready"
+      : isResting
+        ? params.nextSetSummary
+          ? `Next: ${params.currentExerciseName} (${params.nextSetSummary})`
+          : `Next: ${params.currentExerciseName}`
+        : params.nextSetSummary
+          ? `Current: ${params.currentExerciseName} (${params.nextSetSummary})`
+          : `Current: ${params.currentExerciseName}`;
 
     const trigger: Notifications.NotificationTriggerInput =
       Platform.OS === "android"

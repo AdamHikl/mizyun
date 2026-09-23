@@ -1,5 +1,10 @@
 # Research log
 
+## 2026-09-23 — Active workout notification progression
+
+- [Expo SDK 57 Notifications](https://docs.expo.dev/versions/v57.0.0/sdk/notifications/), accessed 2026-09-23: `scheduleNotificationAsync` accepts an explicit identifier and resolves with an identifier that can later be dismissed or cancelled; Android notification channels remain runtime-configurable. Consequence: retain Mizyun's existing single persistent local-notification boundary and update only its derived content as workout progress changes. No push token, background task, backend, new permission, or ADR is required.
+- Notification copy is derived from local ordered exercise/set progress. While the resting exercise still has planned sets it remains next; after its final planned set the next incomplete exercise is named; once every planned set is complete, the notification prompts the user to finish instead of inventing another set.
+
 ## 2026-09-23 — InVenture positioning and growth preparation
 
 - [Official InVenture program](https://digitalnakoalicia.sk/inventure-mind-program-slovakia/), accessed 2026-09-23: kickoff October 2–3, online modules October 5–November 19, mentoring November 23–January 21, finale late January; English delivery. Consequence: prepare an English demo and use later mentoring for validation; acceptance is founder-reported, not an endorsement or growth guarantee.

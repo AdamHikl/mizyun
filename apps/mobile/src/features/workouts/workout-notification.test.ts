@@ -40,9 +40,11 @@ import { Platform } from "react-native";
 import {
   ACTIVE_WORKOUT_CHANNEL_ID,
   ACTIVE_WORKOUT_NOTIFICATION_ID,
+  completedSetsForNotificationEntry,
   dismissActiveWorkoutNotification,
   formatNextSetSummary,
   formatRestEndTime,
+  selectNextExerciseIndexForNotification,
   updateActiveWorkoutNotification,
 } from "./workout-notification";
 
@@ -185,6 +187,70 @@ describe("workout-notification", () => {
     });
   });
 
+  describe("selectNextExerciseIndexForNotification", () => {
+    const progress = [
+      { name: "Squat", completedSetsCount: 3, targetSetsCount: 3 },
+      { name: "Bench Press", completedSetsCount: 1, targetSetsCount: 3 },
+      { name: "Row", completedSetsCount: 0, targetSetsCount: 3 },
+    ];
+
+    it("keeps the resting exercise selected while it has planned sets remaining", () => {
+      expect(
+        selectNextExerciseIndexForNotification(progress, "Bench Press"),
+      ).toBe(1);
+    });
+
+    it("advances from a completed resting exercise to the next incomplete exercise", () => {
+      expect(selectNextExerciseIndexForNotification(progress, "Squat")).toBe(1);
+    });
+
+    it("falls back to the first incomplete exercise when progress was logged out of order", () => {
+      const outOfOrder = [
+        { name: "Squat", completedSetsCount: 1, targetSetsCount: 3 },
+        { name: "Bench Press", completedSetsCount: 3, targetSetsCount: 3 },
+      ];
+
+      expect(
+        selectNextExerciseIndexForNotification(outOfOrder, "Bench Press"),
+      ).toBe(0);
+    });
+
+    it("returns null when every planned exercise is complete", () => {
+      expect(
+        selectNextExerciseIndexForNotification(
+          progress.map((exercise) => ({
+            ...exercise,
+            completedSetsCount: exercise.targetSetsCount,
+          })),
+          "Row",
+        ),
+      ).toBeNull();
+    });
+  });
+
+  describe("completedSetsForNotificationEntry", () => {
+    it("counts a newly created planned exercise through its resolved id override", () => {
+      const completed = completedSetsForNotificationEntry(
+        { id: "planned-squat", name: "Squat" },
+        [],
+        [{ exerciseId: "exercise-new", sequence: 1 }],
+        "exercise-new",
+      );
+
+      expect(completed).toEqual([{ exerciseId: "exercise-new", sequence: 1 }]);
+    });
+
+    it("matches an existing planned exercise by normalized name", () => {
+      const completed = completedSetsForNotificationEntry(
+        { id: "planned-bench", name: " Bench Press " },
+        [{ id: "exercise-existing", name: "bench press" }],
+        [{ exerciseId: "exercise-existing", sequence: 1 }],
+      );
+
+      expect(completed).toHaveLength(1);
+    });
+  });
+
   describe("updateActiveWorkoutNotification", () => {
     it("returns notification ID and schedules immediately with trigger: null when permission is granted", async () => {
       mockGetPermissionsAsync.mockResolvedValueOnce({ status: "granted" });
@@ -297,7 +363,7 @@ describe("workout-notification", () => {
           content: expect.objectContaining({
             title: "⏱️ Resting · Deadlift",
             subtitle: `Rest until ${formatRestEndTime(restEndsAt)} · 3 completed`,
-            body: "Next: 140 kg × 5 reps",
+            body: "Next: Deadlift (140 kg × 5 reps)",
           }),
         }),
       );
@@ -324,7 +390,62 @@ describe("workout-notification", () => {
       expect(mockScheduleNotificationAsync).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.objectContaining({
-            body: "Next set ready soon",
+            body: "Next: Overhead Press",
+          }),
+        }),
+      );
+    });
+
+    it("prompts finishing instead of another set when the plan is complete", async () => {
+      mockGetPermissionsAsync.mockResolvedValueOnce({ status: "granted" });
+      mockScheduleNotificationAsync.mockResolvedValueOnce("complete-notif-id");
+
+      const restEndsAt = Date.now() + 60000;
+      await updateActiveWorkoutNotification({
+        workoutId: "w-123",
+        workoutName: "Full Body",
+        currentExerciseName: "Workout",
+        completedSetsCount: 9,
+        totalPlannedSetsCount: 9,
+        allPlannedSetsCompleted: true,
+        restTimer: {
+          endsAt: restEndsAt,
+          total: 60,
+          exerciseName: "Row",
+        },
+      });
+
+      expect(mockScheduleNotificationAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.objectContaining({
+            body: "All planned sets completed — finish when ready",
+          }),
+        }),
+      );
+    });
+
+    it("keeps the finish prompt after the rest timer clears", async () => {
+      mockGetPermissionsAsync.mockResolvedValueOnce({ status: "granted" });
+      mockScheduleNotificationAsync.mockResolvedValueOnce(
+        "complete-lifting-notif-id",
+      );
+
+      await updateActiveWorkoutNotification({
+        workoutId: "w-123",
+        workoutName: "Full Body",
+        currentExerciseName: "Workout",
+        completedSetsCount: 9,
+        totalPlannedSetsCount: 9,
+        nextSetSequence: 10,
+        allPlannedSetsCompleted: true,
+        restTimer: null,
+      });
+
+      expect(mockScheduleNotificationAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.objectContaining({
+            subtitle: "9/9 completed",
+            body: "All planned sets completed — finish when ready",
           }),
         }),
       );
