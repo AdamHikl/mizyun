@@ -43,6 +43,12 @@ The product promise in market language is **less tracking, more progress**. The 
 
 Community sharing, challenges, and broader network effects are potential post-MVP growth features. They must not delay proof that the private self-service product is useful and retainable.
 
+## Program-led growth priority — founder decision 2026-09-23
+
+Use acceptance into InVenture Mind to move Mizyun from testing toward **over 100,000 users**. The October 2–3, 2026 meeting is the immediate presentation milestone: a reliable, understandable demo, a defensible reason to choose Mizyun, and specific collaborators or distribution partners willing to help. The ambition has no promised completion date; report registered, activated, monthly active, retained and paying users separately.
+
+Focus the story on **your food and training history becoming one clear next step**, under the existing promise of **less tracking, more progress**. This is a differentiation hypothesis to validate with adult target users, not a claim of unique technology or proven results. Prioritize presentation-critical reliability, first-use clarity and evidence of repeated value before feature breadth. Keep privacy, consent and release gates intact. Follow the [InVenture preparation and growth plan](docs/INVENTURE_PROGRAM_PLAN_2026-09-23.md) for dates, experiments and program asks.
+
 ## Primary outcomes
 
 ### O1 — Trustworthy daily energy picture
@@ -134,7 +140,8 @@ Before hiring a larger team or scaling paid acquisition, the product should prov
 1. **Private alpha:** the founder can use the complete daily loop with persistent data on iOS and Android.
 2. **Design-partner beta:** 10–30 target users complete onboarding and repeatedly log at least one core record.
 3. **Early paid validation:** 30–100 active customers, with paying users reported separately from free testers.
-4. **Pre-seed readiness:** credible activation, four- and twelve-week retention, conversion, churn, acquisition cost, AI cost per active user, gross margin, and qualitative evidence that Mizyun saves tracking time.
+4. **Repeatable growth:** progress through 1,000 and 10,000 active users toward over 100,000 registered users, gated by cohort retention, repeatable acquisition, support capacity and sustainable costs; this is an ambition, not current traction.
+5. **Pre-seed readiness:** credible activation, four- and twelve-week retention, conversion, churn, acquisition cost, AI cost per active user, gross margin, and qualitative evidence that Mizyun saves tracking time.
 
 The current engineering plan must prioritize measurable end-to-end user journeys over accumulating disconnected backend endpoints. A feature counts as product-usable only when it persists across restarts, is reachable in the mobile UI, handles failure states, and has acceptance evidence on both platforms.
 

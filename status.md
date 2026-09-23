@@ -2,7 +2,11 @@
 
 > Fast-changing operational snapshot. Last updated: **2026-09-23**. Historical handoffs are preserved in the [latest dated archive](docs/archive/status/STATUS_HISTORY_2026-09-13_THROUGH_2026-09-22.md) and older files beside it; they are evidence, not current instructions.
 
-## Active work package
+## Active priority — InVenture, October 2–3
+
+Founder decision 2026-09-23: prioritize a presentable, distinctive demo and program partnerships toward a longer-term ambition of over 100,000 users. [INVENTURE-001 / #125](https://github.com/AdamHikl/mizyun/issues/125) is ready for execution; the [program plan](docs/INVENTURE_PROGRAM_PLAN_2026-09-23.md) defines the nine-day schedule, pitch, acceptance checks and growth experiments. Planning documents are updated; demo assets, interviews, pilot commitments and event-build acceptance remain outstanding. Defer SIMPLIFY-03 and unrelated feature expansion. All release gates below remain in force.
+
+## Existing engineering work
 
 | Work                                | State                                                       | Qualified evidence                                                                                                                                        | Blocker / next exact action                                                                                                              |
 | ----------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
@@ -31,18 +35,24 @@
 - Account export/deletion (#25), founder alpha (#37), provider/live-evaluation work (#29/#30/#36) and store publication remain separate work packages; simplification does not close them.
 - Production promotion requires an explicit accepted 40-character SHA, fresh local `pnpm check`, accepted Dev/device evidence, pre-promotion backup/migration safeguards and explicit user authorization.
 
-## Verification for the active package
+## Historical verification — preceding engineering package
 
 - Stages 1–2 are documentation/navigation tooling only: no deployment, database, credentials, device install or provider call occurred or is claimed. `SIMPLIFY-02` source commit: `25150e7c60e58e2269df3635ce25683d180c5ab0`.
 - Focused Stage 2 checks pass after independent-review fixes: 38/38 navigation fixtures and `pnpm navigation:check` with 0 errors. Its 22 warnings remain visible and classified: 11 committed review-drift warnings, 10 local review-drift warnings and 1 broader mapped-source-coverage warning (175/501 relevant files currently unmapped).
 - Fresh post-Stage-2 `pnpm check` passed from the shared working tree: repository formatting, all 15 workspace typechecks, iOS/Android Hermes exports, 493 mobile tests, 565 API tests (15 policy-gated E2E tests skipped), 39 deployment safeguards and 56/56 offline AI invariants. `git diff --check` also passed; detailed evidence is in [`docs/AGENT_NAVIGATION_ACCEPTANCE.md`](docs/AGENT_NAVIGATION_ACCEPTANCE.md).
 
+## Verification — InVenture planning, 2026-09-23
+
+- Documentation-only update at source HEAD `3c2b1b0b06fe0c5bf40aa3289fc78f63c091b9d5`; preserved the pre-existing dirty worktree. Official program/competitor sources checked; helper independently inspected positioning and source-supported demo capabilities. No new device, provider, deployment or traction evidence.
+- Fresh `pnpm check` passed: formatting, workspace typechecks, iOS/Android exports, 493 mobile tests, 565 API tests (15 policy-gated E2E tests skipped), tooling/safeguard suites and 56/56 offline AI invariants. `pnpm navigation:check` passed with 0 errors and the existing 22 warnings; targeted formatting and `git -c core.fsmonitor=false diff --check` passed. Independent planning review findings were resolved. Issue #125 tracks remaining preparation; no existing engineering issue is closed by this plan. No commit or push.
+
 ## Next exact action
 
-Commit the coherent `SIMPLIFY-02` slice only when requested. Then stop: `SIMPLIFY-03` requires a separately selected low-risk public-interface pilot and excludes the Auth/onboarding cycle.
+For #125, record the proposed 90-second journey on the current physical build, identify its source/build/environment, and rank interruptions and unsupported claims. Select only the smallest demo/first-use repair slice; prepare interviews and the pitch alongside acceptance work. No public access expansion until its existing gates pass.
 
 ## Evidence index
 
+- [InVenture preparation and growth plan](docs/INVENTURE_PROGRAM_PLAN_2026-09-23.md)
 - [Codebase simplification plan](docs/CODEBASE_SIMPLIFICATION_PLAN_2026-09-22.md)
 - [Navigation acceptance register](docs/AGENT_NAVIGATION_ACCEPTANCE.md)
 - [Status history: 2026-09-13 through 2026-09-22](docs/archive/status/STATUS_HISTORY_2026-09-13_THROUGH_2026-09-22.md)

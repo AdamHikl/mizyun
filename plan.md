@@ -13,13 +13,14 @@
 
 ## Current focus
 
-**Round-3 update (2026-09-09):** [current review](docs/IMPLEMENTATION_REVIEW_2026-09-09_ROUND_3.md) requires fixing Q2 duplicate retries and Q9 effective-target/rollback defects before candidate promotion, then explicitly installing/verifying Q1 containment and completing residual lifecycle, AI and build work. The latest implementation handoff is not final acceptance; the existing sequence and full exit criteria remain in force.
+**2026-09-23 founder priority — INVENTURE-001:** prepare Mizyun for the October 2–3 InVenture meeting and use the program to build a credible route from testing to over 100,000 users. The [program plan](docs/INVENTURE_PROGRAM_PLAN_2026-09-23.md) owns the dated schedule, pitch, demo, collaborator asks and growth experiments.
 
-**Round-2 sequencing:** [the new review](docs/IMPLEMENTATION_REVIEW_2026-09-08_ROUND_2.md) found residual runtime/deployment defects, a persistent export regression, and unsupported AI acceptance. Complete Q1/Q8-A containment and locally fault-tested Q9 guards first; Q4/Q5 data repairs, Q2/Q7 mobile reliability and Q3 actual build guards follow. Preserve Q6 source repair and verify deployed/upgrade behavior. Finish Q8-B accounting and Q8-C measured evaluation before R3/R8 final release acceptance. Session J did not close these requirements.
+1. Record the current physical-device demo and interview five target users; identify the smallest reliability/clarity fixes required for the story.
+2. Accept the chosen meal → workout/progress → explained next-action journey on the exact event build. Prepare a truthful recording fallback and freeze by October 1.
+3. Prepare and rehearse the English pitch, five slides, one-page brief and verified QR route; seek named follow-ups and pilot/distribution partners on October 2–3.
+4. Use October–January modules and mentoring for eligible design-partner cohorts, retention evidence and small acquisition experiments; scale only after the validation gates in the program plan.
 
-🚧 **2026-09-08 review: Dev/Production separation and release patches are partially implemented.** [The implementation review](docs/IMPLEMENTATION_REVIEW_2026-09-08.md) supersedes the previous blanket completion claim. Preserve the existing two stacks; repair Dev runtime privilege isolation and founder/AI access controls first (INFRA-DUAL-002, REL-AUD-005), then account lifecycle/export, mobile retries, tier INSERT protection and consent continuation. Finish guarded build/deployment tooling and R3/R8 signed-device/recovery acceptance before production promotion or invitations. No further feature expansion is needed for this checkpoint.
-
-The executable follow-up is [the Q1–Q9 session plan](docs/REMEDIATION_IMPLEMENTATION_PLAN_2026-09-08.md). After initial access/runtime containment, repair and fault-test deployment tooling locally before using it to accept later patches on Dev. Track closure in [the evidence checklist](docs/REMEDIATION_EVIDENCE_CHECKLIST.md), then independently review the final candidate before promotion.
+Defer SIMPLIFY-03 and broad new features while this milestone is active. Existing open fixes feed this work only when they address an observed demo/activation blocker. The Q1–Q9 [remediation plan](docs/REMEDIATION_IMPLEMENTATION_PLAN_2026-09-08.md) and [evidence checklist](docs/REMEDIATION_EVIDENCE_CHECKLIST.md) remain release dependencies. Their safety, data-integrity, lifecycle and exact-candidate requirements outrank presentation polish; no event deadline waives them. Stage and phase labels below remain qualified historical implementation state, not newly verified acceptance.
 
 ## Dependency sequence
 

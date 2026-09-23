@@ -1,20 +1,12 @@
 # Mizyun business and product alignment
 
-> Stable bridge between the business plan and engineering execution. Revisit after material customer research, pricing evidence, or product-positioning changes. Last audited: **2026-07-23**.
+> Stable bridge between product intent and execution. Strategy refreshed 2026-09-23 for InVenture; this is not a fresh runtime or release audit.
 
-## Current evidence note — 2026-09-07
+## Current direction and evidence
 
-The strategy and customer goals below remain unchanged. The implementation matrix and operational blockers are historical: Raspberry Pi is now the primary host, Gemini is the implemented provider, public endpoints respond, and live Auth requires email confirmation. The [current release audit](RELEASE_READINESS_2026-09-07.md) compares those advances with concrete account-lifecycle, build, AI, reliability, and acceptance gaps. It recommends closing those gates before inviting friends with personal data; the existing product breadth is sufficient for a narrowly scoped pilot afterward.
+Adam reports acceptance into InVenture Mind. The immediate milestone is a persuasive, reliable October 2–3 demo; the longer-term ambition is over 100,000 users supported by retention and sustainable distribution. The [program plan](INVENTURE_PROGRAM_PLAN_2026-09-23.md) defines the schedule, differentiation tests, meeting asks and growth ladder.
 
-## Executive verdict (2026-07-23 audit)
-
-The repository supports the intended business **architecturally**, but not yet as a customer-ready product.
-
-Mizyun has a strong modular, privacy-conscious, provider-neutral foundation and unusually broad tested domain/API coverage for its stage. The manual tracking and private-photo surfaces now pass authenticated, persistent standalone iOS and Android journeys against local Supabase and Storage, consent-first local product analytics is implemented, and the default-off Mistral Coach vertical slice plus one live synthetic adapter call pass. The app remains a technical pre-alpha because hosted deployment, physical-device AI proof, participant analytics exports, full AI evaluation, and real-user repetition are incomplete.
-
-The next implementation milestone is physical-device acceptance of the default-off grounded Mistral text coach using a trusted development endpoint and synthetic records. This sequencing does not make the app customer-ready: provider policy/privacy, safety, deletion/isolation, cost, hosted deployment, physical-device, and repeated-user evidence remain required before external AI access.
-
-The infrastructure strategy is portable with a founder-production exception: Mac development remains disposable and isolated, while Adam's Windows PC will run official self-hosted Supabase inside Ubuntu/WSL2 for private daily use. This single-PC environment is not paying-user production; encrypted off-device backup, recovery, monitoring, redundancy/managed hosting, staffing, staging, and rollback gates in `docs/INFRASTRUCTURE_EVOLUTION_PLAN.md` remain required before external reliance.
+[Current status](../status.md) is the authority for qualified implementation evidence: Hetzner hosts Dev and Production, Gemini is implemented, and selected founder/device journeys have evidence. Remaining account-lifecycle, AI evaluation, signed distribution and exact-candidate device gates prevent a blanket public-readiness claim. No current cohort retention or acquisition baseline was established in this strategy session. The former July implementation matrix and Windows/Pi execution sequence are superseded; historical evidence remains in dated audits and status archives.
 
 ## Customer and problem
 
@@ -50,55 +42,22 @@ They often keep calories in their head or a chatbot, workouts and weight in Note
 
 Mizyun must remain a fitness/wellness product rather than claiming medical diagnosis or precise body composition from images.
 
-## Audited implementation matrix
+## Differentiation and proof
 
-| Business promise                   | Current implementation                                                                            | Readiness                                            | Principal gap                                                                     |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------- |
-| Private personal workspace         | Supabase Auth, secure native sessions, RLS, persistent repositories, private Storage              | Local iOS/Android pass                               | Hosted deployment and physical-device acceptance remain open                      |
-| Low-friction calorie tracking      | Persistent food CRUD, daily summaries, and editable text/photo AI drafts                          | Local plus dual-platform bundle gate                 | Weighed-meal evaluation and physical-device draft acceptance remain open          |
-| Weight and body progress           | Persistent measurements, mobile raw/trend views, and private progress-photo lifecycle             | Local iOS/Android pass                               | Camera hardware and broader measurement breadth remain open                       |
-| Gym progress and exercise planning | Persistent workout/set routes, active sessions, deterministic personalized prescription           | Local plus automated tests                           | Physical-device Coach acceptance remains open                                     |
-| Surplus/deficit guidance           | Versioned deterministic engine, real mobile dashboard, and calendar reviews                       | Local iOS/Android pass                               | Step input remains open                                                           |
-| AI trainer                         | Default-off Mistral adapter, deterministic plans/tools, confirmed grounding, safety, and Coach UI | Offline evaluation gate plus one live synthetic call | Provider-scale accuracy/latency, policy clearance, and native acceptance remain   |
-| Durable agent memory               | PostgreSQL/in-memory stores, active-only recall, lifecycle API, mobile controls, export/deletion  | Implemented and tested offline                       | Physical-device review flow remains open                                          |
-| Photo analysis                     | Private Storage plus consent-gated mobile upload/timeline/compare/delete                          | Native iOS/Android loops pass                        | Camera hardware and any evaluated vision model remain open                        |
-| Android and iPhone                 | Shared Expo app; full local iOS and Android journeys pass                                         | Simulator/emulator proof                             | Physical devices and store builds remain unverified                               |
-| Freemium/premium business          | Product hypothesis plus consent-first local validation analytics                                  | Instrumentation only                                 | No participant dataset, entitlement model, paywall, subscription, or pricing test |
-| Community sharing                  | Explicitly excluded from MVP                                                                      | Intentionally deferred                               | Reconsider only after private product retention                                   |
+The proposed wedge is a connected confirmed record that makes the next fitness decision easier. Photo logging, AI coaching and combined product breadth already overlap with competitors; the [dated competitor sources and proof matrix](INVENTURE_PROGRAM_PLAN_2026-09-23.md#what-is-distinctive-and-what-still-needs-proof) define what to test. Do not claim that competitors lack a feature without direct verification.
 
-## What the architecture gets right
+Architectural strengths—deterministic calculations, provider-neutral boundaries, private records and controllable memory—support this experience. They become customer advantages only when users can demonstrate and value them. Measure switching reasons, effort saved, repeat use and willingness to recommend.
 
-- Pure deterministic fitness calculations remain outside model code.
-- Model providers, memory stores, identity, storage, and health platforms sit behind replaceable ports.
-- User ownership and cross-user isolation are designed into the database rather than added at the end.
-- AI-derived nutrition and photo observations are designed as uncertain drafts requiring confirmation.
-- Mistral can be added as a provider package and selected in the API composition root without rewriting core features.
-- Privacy, deletion, and user-controlled memory support a credible EU-first trust position.
-- Managed Supabase can establish a reliable EU production baseline without surrendering a future path to Mizyun-operated PostgreSQL/Auth/Storage infrastructure.
+## Current business dependencies and execution order
 
-These choices support future fundraising and technical hiring because engineers can work on vertical modules without coupling the entire application to one vendor.
+1. Demonstrate one coherent journey and repair its observed friction; accept the exact physical build before showing capabilities as working.
+2. Preserve required isolation, export/deletion, retry, consent, AI evaluation, recovery and distribution gates before expanding access. Hosting exists; broad release acceptance remains separate.
+3. Prepare the InVenture story and secure opt-in introductions and pilot commitments. Use a demo/interest route if participant access is not yet accepted.
+4. Complete founder dogfooding and admit 10–30 eligible design partners with consent-respecting measurement; interview both retained and departed users.
+5. Validate 30–100 active customers, report paid conversion separately, then test one repeatable acquisition channel toward 1,000 and 10,000 active users.
+6. Pursue over 100,000 registered users with MAU and retention disclosed, and capacity, support and unit economics evidenced. No fixed date is committed.
 
-## What currently blocks the business plan
-
-1. **No retention evidence:** the local analytics/export boundary exists, but no founder/design-partner dataset or structured feedback has been collected.
-2. **No monetization proof:** AI assistance and memory controls exist, but billing, entitlements, paywall, subscription, and pricing evidence are absent.
-3. **No production environment:** hosted backend, real email flows, monitoring, policies, and store-distributed builds are not ready.
-4. **No physical-device/repeated-user proof:** simulator acceptance does not replace device testing, founder dogfooding, or design-partner evidence.
-5. **Operations gap:** no hosted backup/restore, monitoring, incident response, or production on-call evidence exists; future self-hosting would increase rather than remove these responsibilities.
-
-## Required execution order
-
-1. PERSIST-001 / PERSIST-002 / PERSIST-003 — real Supabase persistence and deletion.
-2. MOB-DAILY-001 family — mobile food, workout, weight, and real dashboard flows.
-3. MEDIA-MOB-001 — private mobile photo lifecycle.
-4. AND-001 — Android runtime and journey verification.
-5. OBS-001 — privacy-safe activation, friction, reliability, and retention measurement. (Implementation gate complete.)
-6. AI-GOV-001 / AI-001 / AI-002 — complete live-synthetic evaluation and physical-device acceptance of the default-off grounded Mistral coach.
-7. INFRA-ENV-001 / INFRA-WIN-001 — keep Mac development isolated, provision Windows founder production, and prove exact-commit promotion, reboot recovery, backup/restore, Auth, RLS, Storage, and device reachability.
-8. ALPHA-001 — founder dogfooding followed by 10–30 design partners; enable AI only if its separate external-release gates pass.
-9. MEM-001 / VISION-001 — visible memory controls, then editable photo/text food drafts with a consent-based evaluation dataset.
-10. BILL-001 — premium packaging, entitlements, pricing test, and subscription billing.
-11. External beta and 30–100 active-customer validation before material paid acquisition or a large hiring plan.
+Freemium and the USD 15–20 price remain hypotheses. Billing implementation does not precede evidence that people value the product, and attendance or prizes do not establish demand. Defer social feeds, broad integrations and general refactoring during meeting preparation.
 
 ## Validation ladder
 
@@ -135,7 +94,7 @@ A credible financing story combines a working cross-platform product, retained p
 
 ## Founder context
 
-The founder is an 18-year-old Slovak high-school student who experienced the problem personally and already operates through an s.r.o. This is a strong competition, recruiting, press, and fundraising narrative when paired with execution evidence.
+The July 2026 business notes describe a Slovak student founder who experienced the problem personally and operates through an s.r.o. Verify current biographical and company details before using them externally. The useful narrative is personal experience backed by a working product and customer evidence.
 
 It also creates predictable diligence questions. The company should demonstrate:
 
