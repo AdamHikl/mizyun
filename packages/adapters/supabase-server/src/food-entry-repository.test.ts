@@ -47,6 +47,8 @@ const fakeClient = (opts: {
         limit: vi.fn().mockReturnThis(),
         gte: vi.fn().mockReturnThis(),
         lte: vi.fn().mockReturnThis(),
+        or: vi.fn().mockReturnThis(),
+        ilike: vi.fn().mockReturnThis(),
         single: vi
           .fn()
           .mockResolvedValue(opts.insertSingle ?? opts.updateSingle ?? null),
@@ -180,6 +182,75 @@ describe("SupabaseFoodEntryRepository.list", () => {
         accessToken: "token",
       }),
     ).rejects.toBeInstanceOf(RepositoryError);
+  });
+
+  it("applies cursor and search filters and dual ordering", async () => {
+    let capturedOr: string | null = null;
+    let capturedIlike: { column: string; pattern: string } | null = null;
+    const capturedOrders: Array<{ column: string; ascending?: boolean }> = [];
+
+    const customClient: RepositorySupabaseClient = {
+      from: () => {
+        const builder = {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          order: vi.fn((col, opts) => {
+            capturedOrders.push({ column: col, ascending: opts?.ascending });
+            return builder;
+          }),
+          limit: vi.fn().mockReturnThis(),
+          gte: vi.fn().mockReturnThis(),
+          lte: vi.fn().mockReturnThis(),
+          or: vi.fn((filterStr: string) => {
+            capturedOr = filterStr;
+            return builder;
+          }),
+          ilike: vi.fn((col: string, pat: string) => {
+            capturedIlike = { column: col, pattern: pat };
+            return builder;
+          }),
+          then: (resolve: (v: unknown) => void) => {
+            resolve({ data: [entryRow], error: null });
+          },
+        };
+        return builder as unknown as never;
+      },
+      rpc: vi.fn().mockResolvedValue({ data: [], error: null }),
+      auth: {
+        setSession: vi.fn().mockResolvedValue({ data: null, error: null }),
+      },
+    };
+
+    const repo = new SupabaseFoodEntryRepository({
+      clientFor: () => customClient,
+    });
+
+    const cursorDate = new Date("2026-07-15T12:00:00.000Z");
+    const cursorId = "00000000-0000-4000-8000-00000000a001";
+    const result = await repo.list(
+      "00000000-0000-4000-8000-000000000001" as UserId,
+      {
+        from: null,
+        to: null,
+        limit: 20,
+        cursor: { consumedAt: cursorDate, id: cursorId },
+        search: "lentil",
+        accessToken: "token",
+      },
+    );
+
+    expect(result).toHaveLength(1);
+    expect(capturedOrders).toEqual([
+      { column: "consumed_at", ascending: false },
+      { column: "id", ascending: false },
+    ]);
+    expect(capturedOr).toBe(
+      `consumed_at.lt.${cursorDate.toISOString()},and(consumed_at.eq.${cursorDate.toISOString()},id.lt.${cursorId})`,
+    );
+    expect(capturedIlike).toEqual({
+      column: "name",
+      pattern: "%lentil%",
+    });
   });
 });
 

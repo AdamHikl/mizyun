@@ -120,7 +120,9 @@ describe("submitLogMealWith", () => {
         fatG: 4,
         consumedAt: null,
         details: {
+          grams: 170,
           aiDraft: {
+            portionWeightG: 170,
             provenance: { inputKind: "text" },
             userConfirmed: true,
           },
@@ -169,7 +171,9 @@ describe("submitLogMealWith", () => {
     });
     expect(requests[0]?.body).toMatchObject({
       details: {
+        grams: 170,
         aiDraft: {
+          portionWeightG: 170,
           provenance: { inputKind: "text" },
           userConfirmed: true,
         },

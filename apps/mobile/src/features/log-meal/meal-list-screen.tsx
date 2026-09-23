@@ -1,6 +1,9 @@
 import {
+  ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,7 +12,7 @@ import {
 } from "react-native";
 import { router, Stack, useFocusEffect, type Href } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FoodEntry } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
@@ -28,6 +31,8 @@ import {
   fetchFoodHistory,
   formFromEntry,
   groupFoodEntries,
+  groupFoodEntriesByDay,
+  mergeFoodEntries,
   renameFoodGroup,
   ungroupFoodEntries,
   ungroupFoodEntry,
@@ -39,15 +44,24 @@ import {
 import {
   extractGramsFromName,
   getEntryGrams,
-  scaleNutrition,
+  scaleNutritionFromKnownPortion,
   updateGramsInName,
   withMealGrams,
 } from "./meal-scale";
+import {
+  completeInitialMealSearch,
+  failMealSearchLoadMore,
+  shouldShowNoMealSearchMatches,
+  type MealSearchState,
+} from "./meal-history-search-state";
 
 interface MealListState {
   readonly groups: ReadonlyArray<FoodDayGroup>;
   readonly entries: ReadonlyArray<FoodEntry>;
   readonly loading: boolean;
+  readonly loadingMore: boolean;
+  readonly nextCursor: string | null;
+  readonly cutoffDateIsPartial: boolean;
   readonly message: string | null;
 }
 
@@ -55,6 +69,9 @@ const INITIAL_STATE: MealListState = {
   groups: [],
   entries: [],
   loading: true,
+  loadingMore: false,
+  nextCursor: null,
+  cutoffDateIsPartial: false,
   message: null,
 };
 
@@ -106,7 +123,7 @@ const getEntryCalculationText = (entry: FoodEntry): string | null => {
 interface PortionModalState {
   readonly entry: FoodEntry;
   readonly grams: string;
-  readonly baseGrams: number;
+  readonly baseGrams: number | null;
 }
 
 export function MealListScreen() {
@@ -114,6 +131,7 @@ export function MealListScreen() {
   const [state, setState] = useState<MealListState>(INITIAL_STATE);
   const [busyEntryId, setBusyEntryId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchAttempt, setSearchAttempt] = useState(0);
 
   // Grouping selection state
   const [groupingDate, setGroupingDate] = useState<string | null>(null);
@@ -132,6 +150,10 @@ export function MealListScreen() {
     null,
   );
 
+  const [serverSearch, setServerSearch] = useState<MealSearchState | null>(
+    null,
+  );
+
   const load = useCallback(async (): Promise<void> => {
     setState((current) => ({ ...current, loading: true, message: null }));
     const result = await fetchFoodHistory();
@@ -139,9 +161,111 @@ export function MealListScreen() {
       groups: result.groups,
       entries: result.entries,
       loading: false,
+      loadingMore: false,
+      nextCursor: result.nextCursor ?? null,
+      cutoffDateIsPartial: result.cutoffDateIsPartial ?? false,
       message: result.message,
     });
   }, []);
+
+  const loadMore = useCallback(async (): Promise<void> => {
+    if (state.loadingMore || !state.nextCursor) return;
+    setState((current) => ({ ...current, loadingMore: true }));
+    const result = await fetchFoodHistory({ cursor: state.nextCursor });
+    if (result.message !== null) {
+      setState((current) => ({
+        ...current,
+        loadingMore: false,
+        message: result.message,
+      }));
+      return;
+    }
+    setState((current) => {
+      const mergedEntries = mergeFoodEntries(current.entries, result.entries);
+      const nextCursor = result.nextCursor ?? null;
+      const cutoffDateIsPartial = result.cutoffDateIsPartial ?? false;
+      const groups = groupFoodEntriesByDay(mergedEntries, new Date(), {
+        cutoffDateIsPartial: nextCursor !== null && cutoffDateIsPartial,
+      });
+      return {
+        ...current,
+        groups,
+        entries: mergedEntries,
+        nextCursor,
+        cutoffDateIsPartial,
+        loadingMore: false,
+      };
+    });
+  }, [state.loadingMore, state.nextCursor]);
+
+  useEffect(() => {
+    const trimmed = searchQuery.trim();
+    if (trimmed.length === 0) {
+      setServerSearch(null);
+      return;
+    }
+
+    let active = true;
+    setServerSearch((current) => ({
+      loading: true,
+      loadingMore: false,
+      groups: current?.query === trimmed ? current.groups : [],
+      entries: current?.query === trimmed ? current.entries : [],
+      nextCursor: null,
+      query: trimmed,
+      error: null,
+    }));
+
+    const timer = setTimeout(async () => {
+      const result = await fetchFoodHistory({ search: trimmed });
+      if (!active) return;
+      setServerSearch((current) =>
+        completeInitialMealSearch(current, trimmed, result),
+      );
+    }, 250);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [searchAttempt, searchQuery]);
+
+  const loadMoreSearch = useCallback(async (): Promise<void> => {
+    if (!serverSearch || serverSearch.loadingMore || !serverSearch.nextCursor) {
+      return;
+    }
+    const currentCursor = serverSearch.nextCursor;
+    const currentQuery = serverSearch.query;
+    setServerSearch((current) =>
+      current && current.query === currentQuery
+        ? { ...current, loadingMore: true, error: null }
+        : current,
+    );
+    const result = await fetchFoodHistory({
+      search: currentQuery,
+      cursor: currentCursor,
+    });
+    if (result.message !== null) {
+      setServerSearch((current) =>
+        failMealSearchLoadMore(current, currentQuery, result.message!),
+      );
+      return;
+    }
+    setServerSearch((current) => {
+      if (!current || current.query !== currentQuery) return current;
+      const mergedEntries = mergeFoodEntries(current.entries, result.entries);
+      const nextCursor = result.nextCursor ?? null;
+      const groups = groupFoodEntriesByDay(mergedEntries, new Date());
+      return {
+        ...current,
+        groups,
+        entries: mergedEntries,
+        nextCursor,
+        loadingMore: false,
+        error: null,
+      };
+    });
+  }, [serverSearch]);
 
   useFocusEffect(
     useCallback(() => {
@@ -199,6 +323,30 @@ export function MealListScreen() {
     [remove],
   );
 
+  const localFilteredGroups = useMemo(
+    () => filterFoodDayGroups(state.groups, searchQuery),
+    [searchQuery, state.groups],
+  );
+  const hasSearchQuery = searchQuery.trim().length > 0;
+  const displayGroups = hasSearchQuery
+    ? serverSearch !== null &&
+      !serverSearch.loading &&
+      serverSearch.error?.phase !== "initial"
+      ? serverSearch.groups
+      : localFilteredGroups
+    : state.groups;
+  const visibleMealCount = useMemo(
+    () =>
+      displayGroups.reduce((count, group) => count + group.entries.length, 0),
+    [displayGroups],
+  );
+  const totalDaysTracked = displayGroups.length;
+  const historySummary = hasSearchQuery
+    ? serverSearch?.loading && localFilteredGroups.length === 0
+      ? "Searching meal history…"
+      : `${visibleMealCount} ${visibleMealCount === 1 ? "meal" : "meals"} · ${totalDaysTracked} ${totalDaysTracked === 1 ? "day" : "days"}`
+    : `${totalDaysTracked} ${totalDaysTracked === 1 ? "day" : "days"}`;
+
   // Grouping handlers
   const startGrouping = useCallback((dateStr: string) => {
     setGroupingDate(dateStr);
@@ -225,7 +373,7 @@ export function MealListScreen() {
   const handleCreateGroup = useCallback(async () => {
     if (groupingDate === null || selectedEntryIds.size === 0) return;
     const groupEntries =
-      state.groups.find((g) => g.date === groupingDate)?.entries ?? [];
+      displayGroups.find((g) => g.date === groupingDate)?.entries ?? [];
     setShowGroupModal(false);
     setState((current) => ({ ...current, loading: true }));
     const result = await groupFoodEntries(
@@ -245,11 +393,11 @@ export function MealListScreen() {
     await load();
   }, [
     cancelGrouping,
+    displayGroups,
     groupModalName,
     groupingDate,
     load,
     selectedEntryIds,
-    state.groups,
   ]);
 
   const handleUngroupItem = useCallback(
@@ -315,76 +463,62 @@ export function MealListScreen() {
   // Portion adjustment handlers
   const openPortionAdjuster = useCallback((entry: FoodEntry) => {
     const detected = getEntryGrams(entry);
-    const base = detected !== null && detected > 0 ? detected : 100;
+    const base = detected !== null && detected > 0 ? detected : null;
     setPortionTarget({
       entry,
-      grams: String(base),
+      grams: base === null ? "" : String(base),
       baseGrams: base,
     });
   }, []);
 
-  const handleApplyPortion = useCallback(async () => {
-    if (portionTarget === null) return;
-    const { entry, grams, baseGrams } = portionTarget;
-    const parsedGrams = Number(grams.trim().replace(",", "."));
-    if (!Number.isFinite(parsedGrams) || parsedGrams <= 0) {
-      Alert.alert("Invalid weight", "Please enter a valid weight in grams.");
-      return;
-    }
+  const handleApplyPortion = useCallback(
+    async (grams: string) => {
+      if (portionTarget === null) return;
+      const { entry, baseGrams } = portionTarget;
+      const parsedGrams = Number(grams.trim().replace(",", "."));
+      if (!Number.isFinite(parsedGrams) || parsedGrams <= 0) {
+        Alert.alert("Invalid weight", "Please enter a valid weight in grams.");
+        return;
+      }
 
-    const scaled = scaleNutrition(
-      {
-        caloriesKcal: entry.caloriesKcal,
-        proteinG: entry.proteinG,
-        carbohydrateG: entry.carbohydrateG,
-        fatG: entry.fatG,
-        grams: baseGrams,
-      },
-      parsedGrams,
-    );
+      const scaled = scaleNutritionFromKnownPortion(
+        {
+          caloriesKcal: entry.caloriesKcal,
+          proteinG: entry.proteinG,
+          carbohydrateG: entry.carbohydrateG,
+          fatG: entry.fatG,
+          grams: baseGrams,
+        },
+        parsedGrams,
+      );
 
-    const updatedName =
-      extractGramsFromName(entry.name) !== null
-        ? updateGramsInName(entry.name, parsedGrams)
-        : entry.name;
+      const updatedName =
+        extractGramsFromName(entry.name) !== null
+          ? updateGramsInName(entry.name, parsedGrams)
+          : entry.name;
 
-    const patch = {
-      ...formFromEntry(entry),
-      name: updatedName,
-      caloriesKcal: scaled.caloriesKcal,
-      proteinG: scaled.proteinG,
-      carbohydrateG: scaled.carbohydrateG,
-      fatG: scaled.fatG,
-      details: withMealGrams(entry.details, parsedGrams),
-    };
+      const patch = {
+        ...formFromEntry(entry),
+        name: updatedName,
+        caloriesKcal: scaled.caloriesKcal,
+        proteinG: scaled.proteinG,
+        carbohydrateG: scaled.carbohydrateG,
+        fatG: scaled.fatG,
+        details: withMealGrams(entry.details, parsedGrams),
+      };
 
-    setPortionTarget(null);
-    setBusyEntryId(entry.id);
-    const res = await updateFoodEntry(entry.id, patch);
-    setBusyEntryId(null);
-    if (!res.ok) {
-      setState((current) => ({ ...current, message: res.message }));
-      return;
-    }
-    await load();
-  }, [load, portionTarget]);
-
-  const filteredGroups = useMemo(
-    () => filterFoodDayGroups(state.groups, searchQuery),
-    [searchQuery, state.groups],
+      setPortionTarget(null);
+      setBusyEntryId(entry.id);
+      const res = await updateFoodEntry(entry.id, patch);
+      setBusyEntryId(null);
+      if (!res.ok) {
+        setState((current) => ({ ...current, message: res.message }));
+        return;
+      }
+      await load();
+    },
+    [load, portionTarget],
   );
-  const hasSearchQuery = searchQuery.trim().length > 0;
-  const visibleMealCount = useMemo(
-    () =>
-      filteredGroups.reduce((count, group) => count + group.entries.length, 0),
-    [filteredGroups],
-  );
-  const totalDaysTracked = hasSearchQuery
-    ? filteredGroups.length
-    : state.groups.length;
-  const historySummary = hasSearchQuery
-    ? `${visibleMealCount} ${visibleMealCount === 1 ? "meal" : "meals"} · ${totalDaysTracked} ${totalDaysTracked === 1 ? "day" : "days"}`
-    : `${totalDaysTracked} ${totalDaysTracked === 1 ? "day" : "days"}`;
 
   return (
     <ThemedView style={styles.page}>
@@ -518,7 +652,80 @@ export function MealListScreen() {
               </ThemedText>
             ) : null}
 
-            {!state.loading &&
+            {hasSearchQuery && serverSearch?.error ? (
+              <ThemedView
+                type="backgroundElement"
+                style={styles.messageCard}
+                accessibilityRole="alert"
+              >
+                <ThemedText type="small">
+                  {serverSearch.error.message}
+                </ThemedText>
+                {serverSearch.error.phase === "initial" &&
+                localFilteredGroups.length > 0 ? (
+                  <ThemedText type="small" themeColor="textSecondary">
+                    Showing matches from meals already loaded on this device.
+                  </ThemedText>
+                ) : null}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    serverSearch.error.phase === "load-more"
+                      ? "Retry loading more matching meals"
+                      : "Retry searching meal history"
+                  }
+                  onPress={() => {
+                    if (serverSearch.error?.phase === "load-more") {
+                      void loadMoreSearch();
+                    } else {
+                      setSearchAttempt((attempt) => attempt + 1);
+                    }
+                  }}
+                  style={styles.inlineButton}
+                >
+                  <ThemedText type="smallBold">Retry</ThemedText>
+                </Pressable>
+              </ThemedView>
+            ) : null}
+
+            {hasSearchQuery &&
+            shouldShowNoMealSearchMatches(
+              serverSearch,
+              displayGroups.length,
+            ) ? (
+              <ThemedView
+                type="backgroundElement"
+                style={styles.emptyCard}
+                accessibilityRole="alert"
+              >
+                <ThemedText type="smallBold">
+                  No meals match “{searchQuery}”
+                </ThemedText>
+                <ThemedText
+                  type="small"
+                  themeColor="textSecondary"
+                  style={styles.emptyStateDesc}
+                >
+                  Check spelling or clear the search to view all logged meals.
+                </ThemedText>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear search"
+                  onPress={() => setSearchQuery("")}
+                  style={styles.emptyAddButton}
+                >
+                  <ThemedText
+                    type="smallBold"
+                    style={styles.emptyAddButtonText}
+                  >
+                    Clear search
+                  </ThemedText>
+                </Pressable>
+              </ThemedView>
+            ) : null}
+
+            {!hasSearchQuery &&
+            !state.loading &&
             state.groups.length === 0 &&
             state.message === null ? (
               <ThemedView
@@ -552,7 +759,7 @@ export function MealListScreen() {
             ) : null}
 
             <View style={styles.groupList}>
-              {filteredGroups.map((group) => {
+              {displayGroups.map((group) => {
                 const isGroupingThisDay = groupingDate === group.date;
                 const clusters = clusterDayEntries(group.entries);
 
@@ -578,6 +785,17 @@ export function MealListScreen() {
                                 : "meals"}
                             </ThemedText>
                           </View>
+
+                          {group.isPartial ? (
+                            <View style={styles.partialBadge}>
+                              <ThemedText
+                                type="smallBold"
+                                style={styles.partialBadgeText}
+                              >
+                                Partial
+                              </ThemedText>
+                            </View>
+                          ) : null}
 
                           {!isGroupingThisDay && group.entries.length >= 2 ? (
                             <Pressable
@@ -644,6 +862,7 @@ export function MealListScreen() {
                           themeColor="textSecondary"
                           style={styles.dayTotals}
                         >
+                          {group.isPartial ? "Partial totals · " : ""}
                           {formatGroupNutrition(group.summary)}
                         </ThemedText>
                       )}
@@ -769,6 +988,89 @@ export function MealListScreen() {
                 );
               })}
             </View>
+
+            {/* Pagination / History Continuation Footer */}
+            {hasSearchQuery ? (
+              <View style={styles.paginationFooter}>
+                {serverSearch?.loadingMore ? (
+                  <View style={styles.loadingMoreRow}>
+                    <ActivityIndicator size="small" color="#10B981" />
+                    <ThemedText type="small" themeColor="textSecondary">
+                      Loading more matching meals…
+                    </ThemedText>
+                  </View>
+                ) : serverSearch?.nextCursor ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Load more matching meals"
+                    onPress={() => void loadMoreSearch()}
+                    style={styles.loadMoreButton}
+                  >
+                    <ThemedText
+                      type="smallBold"
+                      style={styles.loadMoreButtonText}
+                    >
+                      Load more matching meals
+                    </ThemedText>
+                  </Pressable>
+                ) : serverSearch &&
+                  !serverSearch.loading &&
+                  serverSearch.entries.length > 0 ? (
+                  <ThemedText
+                    type="small"
+                    themeColor="textSecondary"
+                    style={styles.historyEndNotice}
+                  >
+                    All matching meals loaded ({serverSearch.entries.length}{" "}
+                    total)
+                  </ThemedText>
+                ) : null}
+              </View>
+            ) : (
+              <View style={styles.paginationFooter}>
+                {state.loadingMore ? (
+                  <View style={styles.loadingMoreRow}>
+                    <ActivityIndicator size="small" color="#10B981" />
+                    <ThemedText type="small" themeColor="textSecondary">
+                      Loading older meals…
+                    </ThemedText>
+                  </View>
+                ) : state.nextCursor ? (
+                  <>
+                    {state.cutoffDateIsPartial ? (
+                      <ThemedText
+                        type="small"
+                        style={styles.partialCutoffNotice}
+                      >
+                        Cutoff day is split across pages. Load older meals to
+                        complete totals.
+                      </ThemedText>
+                    ) : null}
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Load older meals"
+                      onPress={() => void loadMore()}
+                      style={styles.loadMoreButton}
+                    >
+                      <ThemedText
+                        type="smallBold"
+                        style={styles.loadMoreButtonText}
+                      >
+                        Load older meals
+                      </ThemedText>
+                    </Pressable>
+                  </>
+                ) : !state.loading && state.entries.length > 0 ? (
+                  <ThemedText
+                    type="small"
+                    themeColor="textSecondary"
+                    style={styles.historyEndNotice}
+                  >
+                    All meals loaded ({state.entries.length} total)
+                  </ThemedText>
+                ) : null}
+              </View>
+            )}
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -900,10 +1202,7 @@ export function MealListScreen() {
         <AdjustPortionModal
           portionTarget={portionTarget}
           onClose={() => setPortionTarget(null)}
-          onSave={(grams) => {
-            setPortionTarget((prev) => (prev ? { ...prev, grams } : null));
-            void handleApplyPortion();
-          }}
+          onSave={(grams) => void handleApplyPortion(grams)}
           theme={theme}
         />
       ) : null}
@@ -1077,7 +1376,7 @@ function AdjustPortionModal(props: {
         fatG: portionTarget.entry.fatG,
       };
     }
-    return scaleNutrition(
+    return scaleNutritionFromKnownPortion(
       {
         caloriesKcal: portionTarget.entry.caloriesKcal,
         proteinG: portionTarget.entry.proteinG,
@@ -1090,111 +1389,134 @@ function AdjustPortionModal(props: {
   }, [parsedGrams, portionTarget]);
 
   const adjustDelta = (delta: number) => {
-    const base =
-      Number.isFinite(parsedGrams) && parsedGrams > 0 ? parsedGrams : 100;
+    if (!Number.isFinite(parsedGrams) || parsedGrams <= 0) return;
+    const base = parsedGrams;
     const next = Math.max(5, Math.round(base + delta));
     setCurrentGrams(String(next));
   };
 
   const multiply = (factor: number) => {
-    const base = portionTarget.baseGrams;
+    const base =
+      portionTarget.baseGrams ??
+      (Number.isFinite(parsedGrams) && parsedGrams > 0 ? parsedGrams : null);
+    if (base === null) return;
     const next = Math.max(5, Math.round(base * factor));
     setCurrentGrams(String(next));
   };
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
-        <View
-          style={[
-            styles.modalCard,
-            { backgroundColor: theme.backgroundElement },
-          ]}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={styles.modalKeyboardAvoidingView}
+      >
+        <ScrollView
+          contentContainerStyle={styles.modalScrollableContent}
+          keyboardDismissMode={
+            Platform.OS === "ios" ? "interactive" : "on-drag"
+          }
+          keyboardShouldPersistTaps="handled"
         >
-          <ThemedText type="subtitle">Adjust Portion (Grams)</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            {portionTarget.entry.name}
-          </ThemedText>
-
-          <View style={styles.gramsInputRow}>
-            <TextInput
-              accessibilityLabel="Adjust portion weight in grams"
-              keyboardType="numeric"
-              style={[styles.modalInput, { flex: 1, color: theme.text }]}
-              value={currentGrams}
-              onChangeText={setCurrentGrams}
-              autoFocus
-            />
-            <ThemedText type="smallBold" style={styles.gramsUnit}>
-              grams
+          <View
+            style={[
+              styles.modalCard,
+              { backgroundColor: theme.backgroundElement },
+            ]}
+          >
+            <ThemedText type="subtitle">Adjust Portion (Grams)</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              {portionTarget.entry.name}
             </ThemedText>
-          </View>
+            {portionTarget.baseGrams === null ? (
+              <ThemedText type="small" themeColor="textSecondary">
+                Enter the current total weight to set this meal's portion. Its
+                nutrition totals will stay unchanged.
+              </ThemedText>
+            ) : null}
 
-          {/* Stepper buttons */}
-          <View style={styles.chipsRow}>
-            <ChipButton label="-50g" onPress={() => adjustDelta(-50)} />
-            <ChipButton label="-10g" onPress={() => adjustDelta(-10)} />
-            <ChipButton label="+10g" onPress={() => adjustDelta(10)} />
-            <ChipButton label="+50g" onPress={() => adjustDelta(50)} />
-            <ChipButton label="0.5x" onPress={() => multiply(0.5)} />
-            <ChipButton label="1.5x" onPress={() => multiply(1.5)} />
-            <ChipButton label="2x" onPress={() => multiply(2)} />
-          </View>
+            <View style={styles.gramsInputRow}>
+              <TextInput
+                accessibilityLabel="Adjust portion weight in grams"
+                keyboardType="numeric"
+                style={[styles.modalInput, { flex: 1, color: theme.text }]}
+                value={currentGrams}
+                onChangeText={setCurrentGrams}
+                autoFocus
+              />
+              <ThemedText type="smallBold" style={styles.gramsUnit}>
+                grams
+              </ThemedText>
+            </View>
 
-          {/* Dynamic live nutrition preview */}
-          <View style={styles.previewBox}>
-            <ThemedText type="smallBold" style={styles.previewTitle}>
-              Recalculated values:
-            </ThemedText>
-            <View style={styles.macroBadgesRow}>
-              {scaled.caloriesKcal !== null ? (
-                <View style={styles.calorieBadge}>
-                  <ThemedText type="smallBold" style={styles.calorieBadgeText}>
-                    {scaled.caloriesKcal} kcal
-                  </ThemedText>
-                </View>
-              ) : null}
-              {scaled.proteinG !== null ? (
-                <View style={styles.proteinBadge}>
-                  <ThemedText type="small" style={styles.proteinBadgeText}>
-                    {scaled.proteinG}g P
-                  </ThemedText>
-                </View>
-              ) : null}
-              {scaled.carbohydrateG !== null ? (
-                <View style={styles.carbsBadge}>
-                  <ThemedText type="small" style={styles.carbsBadgeText}>
-                    {scaled.carbohydrateG}g C
-                  </ThemedText>
-                </View>
-              ) : null}
-              {scaled.fatG !== null ? (
-                <View style={styles.fatBadge}>
-                  <ThemedText type="small" style={styles.fatBadgeText}>
-                    {scaled.fatG}g F
-                  </ThemedText>
-                </View>
-              ) : null}
+            {/* Stepper buttons */}
+            <View style={styles.chipsRow}>
+              <ChipButton label="-50g" onPress={() => adjustDelta(-50)} />
+              <ChipButton label="-10g" onPress={() => adjustDelta(-10)} />
+              <ChipButton label="+10g" onPress={() => adjustDelta(10)} />
+              <ChipButton label="+50g" onPress={() => adjustDelta(50)} />
+              <ChipButton label="0.5x" onPress={() => multiply(0.5)} />
+              <ChipButton label="1.5x" onPress={() => multiply(1.5)} />
+              <ChipButton label="2x" onPress={() => multiply(2)} />
+            </View>
+
+            {/* Dynamic live nutrition preview */}
+            <View style={styles.previewBox}>
+              <ThemedText type="smallBold" style={styles.previewTitle}>
+                Recalculated values:
+              </ThemedText>
+              <View style={styles.macroBadgesRow}>
+                {scaled.caloriesKcal !== null ? (
+                  <View style={styles.calorieBadge}>
+                    <ThemedText
+                      type="smallBold"
+                      style={styles.calorieBadgeText}
+                    >
+                      {scaled.caloriesKcal} kcal
+                    </ThemedText>
+                  </View>
+                ) : null}
+                {scaled.proteinG !== null ? (
+                  <View style={styles.proteinBadge}>
+                    <ThemedText type="small" style={styles.proteinBadgeText}>
+                      {scaled.proteinG}g P
+                    </ThemedText>
+                  </View>
+                ) : null}
+                {scaled.carbohydrateG !== null ? (
+                  <View style={styles.carbsBadge}>
+                    <ThemedText type="small" style={styles.carbsBadgeText}>
+                      {scaled.carbohydrateG}g C
+                    </ThemedText>
+                  </View>
+                ) : null}
+                {scaled.fatG !== null ? (
+                  <View style={styles.fatBadge}>
+                    <ThemedText type="small" style={styles.fatBadgeText}>
+                      {scaled.fatG}g F
+                    </ThemedText>
+                  </View>
+                ) : null}
+              </View>
+            </View>
+
+            <View style={styles.modalActionsRow}>
+              <Pressable onPress={onClose} style={styles.modalCancelButton}>
+                <ThemedText type="smallBold" themeColor="textSecondary">
+                  Cancel
+                </ThemedText>
+              </Pressable>
+              <Pressable
+                onPress={() => onSave(currentGrams)}
+                style={styles.modalConfirmButton}
+              >
+                <ThemedText type="smallBold" style={styles.modalConfirmText}>
+                  Apply & Save
+                </ThemedText>
+              </Pressable>
             </View>
           </View>
-
-          <View style={styles.modalActionsRow}>
-            <Pressable onPress={onClose} style={styles.modalCancelButton}>
-              <ThemedText type="smallBold" themeColor="textSecondary">
-                Cancel
-              </ThemedText>
-            </Pressable>
-            <Pressable
-              onPress={() => onSave(currentGrams)}
-              style={styles.modalConfirmButton}
-            >
-              <ThemedText type="smallBold" style={styles.modalConfirmText}>
-                Apply & Save
-              </ThemedText>
-            </Pressable>
-          </View>
-        </View>
-      </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -1390,13 +1712,21 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 8,
   },
   dayTitle: {
     fontSize: 16,
+    flex: 1,
+    minWidth: 0,
   },
   dayHeaderRight: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "flex-end",
+    flexShrink: 1,
+    flexWrap: "wrap",
+    maxWidth: "100%",
     gap: 8,
   },
   dayCountBadge: {
@@ -1405,15 +1735,29 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: "rgba(148, 163, 184, 0.1)",
   },
+  partialBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+  },
+  partialBadgeText: {
+    fontSize: 11,
+    color: "#D97706",
+    fontWeight: "700",
+  },
   groupActionTrigger: {
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
     backgroundColor: "rgba(16, 185, 129, 0.12)",
+    flexShrink: 1,
+    maxWidth: "100%",
   },
   groupActionTriggerText: {
     fontSize: 12,
     color: "#10B981",
+    flexShrink: 1,
   },
   groupingToolbar: {
     flexDirection: "row",
@@ -1453,6 +1797,38 @@ const styles = StyleSheet.create({
   },
   dayTotals: {
     fontSize: 13,
+  },
+  paginationFooter: {
+    paddingVertical: Spacing.four,
+    alignItems: "center",
+    gap: Spacing.two,
+  },
+  loadingMoreRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.two,
+    paddingVertical: Spacing.two,
+  },
+  partialCutoffNotice: {
+    textAlign: "center",
+    paddingHorizontal: Spacing.four,
+    color: "#D97706",
+  },
+  loadMoreButton: {
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+  },
+  loadMoreButtonText: {
+    color: "#10B981",
+    fontSize: 13,
+  },
+  historyEndNotice: {
+    fontSize: 12,
+    textAlign: "center",
+    paddingVertical: Spacing.two,
   },
   dayEntries: { gap: Spacing.two },
   clusterContainer: {
@@ -1646,6 +2022,16 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.55)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: Spacing.four,
+  },
+  modalKeyboardAvoidingView: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
+  },
+  modalScrollableContent: {
+    flexGrow: 1,
     justifyContent: "center",
     alignItems: "center",
     padding: Spacing.four,

@@ -53,12 +53,15 @@ export interface FoodDayGroup {
   readonly displayDate: string;
   readonly summary: DayGroupSummary;
   readonly entries: ReadonlyArray<FoodEntry>;
+  readonly isPartial?: boolean;
 }
 
 export interface FoodHistoryResult {
   readonly groups: ReadonlyArray<FoodDayGroup>;
   readonly entries: ReadonlyArray<FoodEntry>;
   readonly message: string | null;
+  readonly nextCursor?: string | null;
+  readonly cutoffDateIsPartial?: boolean;
 }
 
 export type FoodEntryLoadResult =
@@ -109,9 +112,29 @@ export const formatDisplayDate = (
   return `${weekday}, ${monthDay}, ${year}`;
 };
 
+export const mergeFoodEntries = (
+  existingEntries: ReadonlyArray<FoodEntry>,
+  incomingEntries: ReadonlyArray<FoodEntry>,
+): ReadonlyArray<FoodEntry> => {
+  const map = new Map<string, FoodEntry>();
+  for (const entry of existingEntries) {
+    map.set(entry.id, entry);
+  }
+  for (const entry of incomingEntries) {
+    map.set(entry.id, entry);
+  }
+  return Array.from(map.values()).sort((a, b) => {
+    const timeDiff =
+      new Date(b.consumedAt).getTime() - new Date(a.consumedAt).getTime();
+    if (timeDiff !== 0) return timeDiff;
+    return b.id.localeCompare(a.id);
+  });
+};
+
 export const groupFoodEntriesByDay = (
   entries: ReadonlyArray<FoodEntry>,
   now: Date = new Date(),
+  options?: { readonly cutoffDateIsPartial?: boolean },
 ): ReadonlyArray<FoodDayGroup> => {
   const groupsMap = new Map<string, FoodEntry[]>();
 
@@ -129,7 +152,7 @@ export const groupFoodEntriesByDay = (
     b.localeCompare(a),
   );
 
-  return sortedDates.map((dateStr) => {
+  return sortedDates.map((dateStr, index) => {
     const dayEntries = groupsMap.get(dateStr) ?? [];
     dayEntries.sort(
       (a, b) =>
@@ -137,12 +160,15 @@ export const groupFoodEntriesByDay = (
     );
 
     const summary = summarizeFoodEntries(dayEntries);
+    const isOldestDate = index === sortedDates.length - 1;
+    const isPartial = Boolean(isOldestDate && options?.cutoffDateIsPartial);
 
     return {
       date: dateStr,
       displayDate: formatDisplayDate(dateStr, now),
       summary,
       entries: dayEntries,
+      isPartial,
     };
   });
 };
@@ -252,17 +278,44 @@ const humanizeApiError = (error: ApiError, action: string): string => {
   }
 };
 
-export const fetchFoodHistory = async (): Promise<FoodHistoryResult> =>
-  fetchFoodHistoryWith(apiClient, -new Date().getTimezoneOffset());
+export interface FetchFoodHistoryOptions {
+  readonly cursor?: string | null;
+  readonly search?: string | null;
+  readonly limit?: number;
+}
+
+export const fetchFoodHistory = async (
+  options: FetchFoodHistoryOptions = {},
+): Promise<FoodHistoryResult> =>
+  fetchFoodHistoryWith(
+    apiClient,
+    -new Date().getTimezoneOffset(),
+    new Date(),
+    options,
+  );
 
 export const fetchFoodHistoryWith = async (
   client: ApiClient,
-  _utcOffsetMinutes = 0,
+  utcOffsetMinutes = 0,
   now: Date = new Date(),
+  options: FetchFoodHistoryOptions = {},
 ): Promise<FoodHistoryResult> => {
+  const queryParts: string[] = [
+    `limit=${encodeURIComponent(options.limit ?? 200)}`,
+  ];
+  if (utcOffsetMinutes !== 0) {
+    queryParts.push(`utcOffsetMinutes=${encodeURIComponent(utcOffsetMinutes)}`);
+  }
+  if (options.cursor) {
+    queryParts.push(`cursor=${encodeURIComponent(options.cursor)}`);
+  }
+  if (options.search && options.search.trim().length > 0) {
+    queryParts.push(`search=${encodeURIComponent(options.search.trim())}`);
+  }
+
   const result = await client.request<FoodEntryListResponse>({
     method: "GET",
-    path: "/v1/food-entries?limit=200",
+    path: `/v1/food-entries?${queryParts.join("&")}`,
     schema: foodEntryListResponseSchema,
   });
 
@@ -270,15 +323,23 @@ export const fetchFoodHistoryWith = async (
     return {
       groups: [],
       entries: [],
+      nextCursor: null,
+      cutoffDateIsPartial: false,
       message: humanizeApiError(result.error, "Refresh your meals"),
     };
   }
 
   const entries = result.value.foodEntries;
-  const groups = groupFoodEntriesByDay(entries, now);
+  const nextCursor = result.value.nextCursor ?? null;
+  const cutoffDateIsPartial = result.value.cutoffDateIsPartial ?? false;
+  const groups = groupFoodEntriesByDay(entries, now, {
+    cutoffDateIsPartial: nextCursor !== null && cutoffDateIsPartial,
+  });
   return {
     groups,
     entries,
+    nextCursor,
+    cutoffDateIsPartial,
     message: null,
   };
 };

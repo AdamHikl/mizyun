@@ -6,6 +6,7 @@ import {
   getEntryGrams,
   getEntryMealGroup,
   scaleNutrition,
+  scaleNutritionFromKnownPortion,
   updateGramsInName,
   withMealGrams,
   withMealGroup,
@@ -113,6 +114,29 @@ describe("scaleNutrition", () => {
     const res = scaleNutrition(base, 100);
     expect(res.caloriesKcal).toBe(200);
     expect(res.ratio).toBe(1);
+  });
+});
+
+describe("scaleNutritionFromKnownPortion", () => {
+  it("records a first real weight without treating totals as per 100g", () => {
+    const result = scaleNutritionFromKnownPortion(
+      {
+        caloriesKcal: 420,
+        proteinG: 38,
+        carbohydrateG: 45,
+        fatG: 9,
+        grams: null,
+      },
+      320,
+    );
+
+    expect(result).toEqual({
+      caloriesKcal: 420,
+      proteinG: 38,
+      carbohydrateG: 45,
+      fatG: 9,
+      ratio: 1,
+    });
   });
 });
 

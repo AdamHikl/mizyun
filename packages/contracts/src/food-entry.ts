@@ -74,6 +74,8 @@ export type FoodEntryResponse = z.infer<typeof foodEntryResponseSchema>;
 
 export const foodEntryListResponseSchema = z.object({
   foodEntries: z.array(foodEntrySchema),
+  nextCursor: z.string().nullable().optional(),
+  cutoffDateIsPartial: z.boolean().optional(),
 });
 
 export type FoodEntryListResponse = z.infer<typeof foodEntryListResponseSchema>;
@@ -138,12 +140,17 @@ export const foodEntryPatchSchema = z
 export type FoodEntryPatch = z.infer<typeof foodEntryPatchSchema>;
 
 /**
- * Query params for `GET /v1/food-entries`. Both are optional: when
+ * Query params for `GET /v1/food-entries`. All are optional: when
  * omitted, the endpoint returns the user's most recent entries
  * newest-first. `from` and `to` are inclusive; `from <= to`.
  *
  * `limit` caps the page size to protect the API from a runaway
  * request. The route clamps to `[1, 200]`; the default is `50`.
+ *
+ * `cursor` is an opaque pagination token pointing to the last entry
+ * of the preceding page.
+ *
+ * `search` performs a case-insensitive search across entry names.
  */
 export const foodEntryListQuerySchema = z
   .object({
@@ -151,6 +158,8 @@ export const foodEntryListQuerySchema = z
     to: isoDateSchema.optional(),
     utcOffsetMinutes: utcOffsetMinutesSchema.optional(),
     limit: z.coerce.number().int().gte(1).lte(200).optional(),
+    cursor: z.string().min(1).optional(),
+    search: z.string().max(100).optional(),
   })
   .strict()
   .refine(

@@ -6,6 +6,7 @@ import {
   mealFormStringsFromDraft,
   mealFormStringsFromEntry,
   parseOptionalNutritionNumber,
+  portionGramsStringFromDraft,
   upgradeLegacyMealDraft,
 } from "./meal-form";
 
@@ -95,9 +96,20 @@ describe("mealFormStringsFromDraft", () => {
   });
 });
 
+describe("portionGramsStringFromDraft", () => {
+  it("maps an AI portion estimate to an editable value without inventing 100g", () => {
+    expect(portionGramsStringFromDraft({ portionWeightG: 327.5 })).toBe(
+      "327.5",
+    );
+    expect(portionGramsStringFromDraft({ portionWeightG: null })).toBe("");
+    expect(portionGramsStringFromDraft({})).toBe("");
+  });
+});
+
 describe("recoverable AI meal drafts", () => {
   const candidate = {
     name: "Tuna",
+    portionWeightG: 170,
     caloriesKcal: 290,
     proteinG: 63,
     carbohydrateG: 0,
@@ -120,12 +132,14 @@ describe("recoverable AI meal drafts", () => {
   it("keeps the proposal and provenance alongside editable form strings", () => {
     const draft = {
       ...mealFormStringsFromDraft(candidate),
+      portionGrams: portionGramsStringFromDraft(candidate),
       aiDraft: candidate,
       sourceProposalId: "00000000-0000-4000-8000-000000000123",
     };
     expect(isRecoverableMealDraft(draft)).toBe(true);
     expect(draft).toMatchObject({
       name: "Tuna",
+      portionGrams: "170",
       calories: "290",
       protein: "63",
       sourceProposalId: "00000000-0000-4000-8000-000000000123",

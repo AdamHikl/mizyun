@@ -47,6 +47,7 @@ export interface MealFormStrings {
 }
 
 export interface RecoverableMealDraft extends MealFormStrings {
+  readonly portionGrams?: string;
   readonly clientOperationId?: string;
   readonly consumedAt?: string;
   readonly submissionVersion?: number;
@@ -68,6 +69,9 @@ export const isRecoverableMealDraft = (
   const clientOpIdValid =
     record.clientOperationId === undefined ||
     isValidOperationId(record.clientOperationId);
+  const portionGramsValid =
+    record.portionGrams === undefined ||
+    typeof record.portionGrams === "string";
   const consumedAtValid =
     record.consumedAt === undefined ||
     (typeof record.consumedAt === "string" &&
@@ -91,6 +95,7 @@ export const isRecoverableMealDraft = (
     typeof record.attachedPhotoUri === "string";
   return (
     stringsValid &&
+    portionGramsValid &&
     clientOpIdValid &&
     consumedAtValid &&
     versionValid &&
@@ -223,3 +228,10 @@ export const mealFormStringsFromDraft = (candidate: {
     fat: editableNumber(fat),
   };
 };
+
+export const portionGramsStringFromDraft = (candidate: {
+  readonly portionWeightG?: number | null | undefined;
+}): string =>
+  candidate.portionWeightG === null || candidate.portionWeightG === undefined
+    ? ""
+    : String(candidate.portionWeightG);

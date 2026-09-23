@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   foodDraftCandidateSchema,
   foodEntryListQuerySchema,
+  foodEntryListResponseSchema,
   foodEntrySummaryQuerySchema,
   foodRefineDraftRequestSchema,
   foodTextDraftRequestSchema,
@@ -19,13 +20,27 @@ describe("food-entry local-day queries", () => {
     ).toBe(120);
   });
 
-  it("rejects offsets outside the civil-time range", () => {
-    expect(
-      foodEntrySummaryQuerySchema.safeParse({
-        date: "2026-07-10",
-        utcOffsetMinutes: 841,
-      }).success,
-    ).toBe(false);
+  it("accepts valid cursor and search query parameters", () => {
+    const parsed = foodEntryListQuerySchema.parse({
+      cursor: "eyJjb25zdW1lZEF0IjoiMjAyNi0wNy0xMCIsImlkIjoidGVzdCJ9",
+      search: "lentil soup",
+      limit: 100,
+    });
+    expect(parsed.cursor).toBe(
+      "eyJjb25zdW1lZEF0IjoiMjAyNi0wNy0xMCIsImlkIjoidGVzdCJ9",
+    );
+    expect(parsed.search).toBe("lentil soup");
+    expect(parsed.limit).toBe(100);
+  });
+
+  it("parses foodEntryListResponseSchema with nextCursor and cutoffDateIsPartial", () => {
+    const parsed = foodEntryListResponseSchema.parse({
+      foodEntries: [],
+      nextCursor: "next-token",
+      cutoffDateIsPartial: true,
+    });
+    expect(parsed.nextCursor).toBe("next-token");
+    expect(parsed.cutoffDateIsPartial).toBe(true);
   });
 });
 

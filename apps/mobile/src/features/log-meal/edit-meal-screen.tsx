@@ -299,6 +299,11 @@ export function EditMealScreen() {
 
       const baseCandidate: FoodDraftCandidate = {
         name: form.name.trim().length > 0 ? form.name.trim() : entry.name,
+        portionWeightG:
+          Number.isFinite(Number(grams.trim().replace(",", "."))) &&
+          Number(grams.trim().replace(",", ".")) > 0
+            ? Number(grams.trim().replace(",", "."))
+            : getEntryGrams(entry),
         caloriesKcal: parsedCal.ok ? parsedCal.value : entry.caloriesKcal,
         proteinG: parsedProt.ok ? parsedProt.value : entry.proteinG,
         carbohydrateG: parsedCarb.ok ? parsedCarb.value : entry.carbohydrateG,
@@ -346,9 +351,11 @@ export function EditMealScreen() {
         setRefineInstruction("");
         setRefineMessage("✨ Meal adjusted by AI. Review and save below.");
 
-        const detectedGrams = updatedCandidate.name
-          ? extractGramsFromName(updatedCandidate.name)
-          : null;
+        const detectedGrams =
+          updatedCandidate.portionWeightG ??
+          (updatedCandidate.name
+            ? extractGramsFromName(updatedCandidate.name)
+            : null);
         if (detectedGrams !== null && detectedGrams > 0) {
           setGrams(String(detectedGrams));
         }
@@ -372,7 +379,7 @@ export function EditMealScreen() {
         setRefining(false);
       }
     },
-    [aiDraft, calculationText, entry, form, refining, submitting],
+    [aiDraft, calculationText, entry, form, grams, refining, submitting],
   );
 
   const executeAiAction = useCallback(

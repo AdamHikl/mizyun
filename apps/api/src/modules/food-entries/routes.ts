@@ -146,19 +146,82 @@ const toWire = (entry: StoredFoodEntry): FoodEntryResponse =>
     },
   });
 
+const toLocalDateString = (date: Date, utcOffsetMinutes = 0): string => {
+  const localMs = date.getTime() + utcOffsetMinutes * 60_000;
+  const localDate = new Date(localMs);
+  const year = localDate.getUTCFullYear();
+  const month = String(localDate.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(localDate.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+interface DecodedCursor {
+  readonly consumedAt: Date;
+  readonly id: string;
+}
+
+const encodeCursor = (cursor: { consumedAt: Date; id: string }): string => {
+  const payload = {
+    c: cursor.consumedAt.toISOString(),
+    i: cursor.id,
+  };
+  return Buffer.from(JSON.stringify(payload)).toString("base64url");
+};
+
+const decodeCursor = (raw: string): DecodedCursor | null => {
+  try {
+    const json = Buffer.from(raw, "base64url").toString("utf-8");
+    const data = JSON.parse(json) as {
+      c?: unknown;
+      i?: unknown;
+      consumedAt?: unknown;
+      id?: unknown;
+    };
+    const iso =
+      typeof data.c === "string"
+        ? data.c
+        : typeof data.consumedAt === "string"
+          ? data.consumedAt
+          : null;
+    const id =
+      typeof data.i === "string"
+        ? data.i
+        : typeof data.id === "string"
+          ? data.id
+          : null;
+    if (!iso || !id || !GENERIC_UUID.test(id)) return null;
+    const consumedAt = new Date(iso);
+    if (Number.isNaN(consumedAt.getTime())) return null;
+    return { consumedAt, id };
+  } catch {
+    return null;
+  }
+};
+
 const listToWire = (
   entries: ReadonlyArray<StoredFoodEntry>,
-): FoodEntryListResponse =>
-  foodEntryListResponseSchema.parse({
+  nextCursor?: string | null,
+  cutoffDateIsPartial?: boolean,
+): FoodEntryListResponse => {
+  const wire: FoodEntryListResponse = {
     foodEntries: entries.map((e) => toWire(e).foodEntry),
-  });
+  };
+  if (nextCursor) {
+    wire.nextCursor = nextCursor;
+  }
+  if (cutoffDateIsPartial) {
+    wire.cutoffDateIsPartial = true;
+  }
+  return foodEntryListResponseSchema.parse(wire);
+};
 
 export const foodEntriesRoutes: FastifyPluginAsync<
   FoodEntriesRoutesOptions
 > = async (app, options) => {
   // GET /v1/food-entries — return the verified user's food entries,
   // newest-first. `from` and `to` are optional inclusive date
-  // filters in `YYYY-MM-DD` (UTC); `limit` caps the page size.
+  // filters in `YYYY-MM-DD` (UTC); `limit` caps the page size;
+  // `cursor` allows paginating older entries; `search` matches meal names.
   app.get(
     "/",
     { preHandler: app.authenticate },
@@ -178,6 +241,20 @@ export const foodEntriesRoutes: FastifyPluginAsync<
         );
         return;
       }
+      let decodedCursor: DecodedCursor | null = null;
+      if (parsed.data.cursor !== undefined) {
+        decodedCursor = decodeCursor(parsed.data.cursor);
+        if (decodedCursor === null) {
+          await sendApiError(
+            reply,
+            request,
+            422,
+            "VALIDATION_ERROR",
+            "Invalid cursor format",
+          );
+          return;
+        }
+      }
       const from = parsed.data.from
         ? isoDateToStartOfDay(parsed.data.from, parsed.data.utcOffsetMinutes)
         : null;
@@ -187,13 +264,43 @@ export const foodEntriesRoutes: FastifyPluginAsync<
       const limit = parsed.data.limit ?? DEFAULT_LIMIT;
       // The Zod schema caps `limit` at MAX_LIMIT; default below.
       const cappedLimit = Math.min(MAX_LIMIT, Math.max(1, limit));
-      const entries = await options.foodEntryRepository.list(principal.userId, {
-        from,
-        to,
-        limit: cappedLimit,
-        accessToken: principal.accessToken,
-      });
-      return listToWire(entries);
+      // Fetch cappedLimit + 1 to check whether another page exists
+      const rawEntries = await options.foodEntryRepository.list(
+        principal.userId,
+        {
+          from,
+          to,
+          limit: cappedLimit + 1,
+          cursor: decodedCursor,
+          search: parsed.data.search ?? null,
+          accessToken: principal.accessToken,
+        },
+      );
+
+      const hasMore = rawEntries.length > cappedLimit;
+      const entries = hasMore ? rawEntries.slice(0, cappedLimit) : rawEntries;
+      let nextCursor: string | null = null;
+      let cutoffDateIsPartial = false;
+
+      if (hasMore && entries.length > 0) {
+        const lastEntry = entries[entries.length - 1]!;
+        nextCursor = encodeCursor({
+          consumedAt: lastEntry.consumedAt,
+          id: lastEntry.id,
+        });
+        const nextEntry = rawEntries[cappedLimit]!;
+        const lastDay = toLocalDateString(
+          lastEntry.consumedAt,
+          parsed.data.utcOffsetMinutes,
+        );
+        const nextDay = toLocalDateString(
+          nextEntry.consumedAt,
+          parsed.data.utcOffsetMinutes,
+        );
+        cutoffDateIsPartial = lastDay === nextDay;
+      }
+
+      return listToWire(entries, nextCursor, cutoffDateIsPartial);
     },
   );
 

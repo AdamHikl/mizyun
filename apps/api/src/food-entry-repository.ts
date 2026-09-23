@@ -77,6 +77,11 @@ export class InMemoryFoodEntryRepository implements FoodEntryRepository {
       readonly from: Date | null;
       readonly to: Date | null;
       readonly limit: number;
+      readonly cursor?: {
+        readonly consumedAt: Date;
+        readonly id: string;
+      } | null;
+      readonly search?: string | null;
       readonly accessToken: string;
     },
   ): Promise<ReadonlyArray<StoredFoodEntry>> {
@@ -84,13 +89,36 @@ export class InMemoryFoodEntryRepository implements FoodEntryRepository {
     const list = this.#byUser.get(userId) ?? [];
     const fromMs = options.from?.getTime() ?? Number.NEGATIVE_INFINITY;
     const toMs = options.to?.getTime() ?? Number.POSITIVE_INFINITY;
+    const normalizedSearch = options.search?.trim().toLowerCase() ?? null;
+
     const filtered = list.filter((entry) => {
       const ms = entry.consumedAt.getTime();
-      return ms >= fromMs && ms <= toMs;
+      if (ms < fromMs || ms > toMs) return false;
+      if (normalizedSearch !== null && normalizedSearch.length > 0) {
+        if (!entry.name.toLowerCase().includes(normalizedSearch)) return false;
+      }
+      return true;
     });
-    return [...filtered]
-      .sort((a, b) => b.consumedAt.getTime() - a.consumedAt.getTime())
-      .slice(0, Math.max(0, options.limit));
+
+    const sorted = [...filtered].sort((a, b) => {
+      const timeDiff = b.consumedAt.getTime() - a.consumedAt.getTime();
+      if (timeDiff !== 0) return timeDiff;
+      return b.id.localeCompare(a.id);
+    });
+
+    if (options.cursor) {
+      const cursorTime = options.cursor.consumedAt.getTime();
+      const cursorId = options.cursor.id;
+      const afterCursor = sorted.filter((entry) => {
+        const diff = entry.consumedAt.getTime() - cursorTime;
+        if (diff < 0) return true;
+        if (diff === 0 && entry.id.localeCompare(cursorId) < 0) return true;
+        return false;
+      });
+      return afterCursor.slice(0, Math.max(0, options.limit));
+    }
+
+    return sorted.slice(0, Math.max(0, options.limit));
   }
 
   async getById(

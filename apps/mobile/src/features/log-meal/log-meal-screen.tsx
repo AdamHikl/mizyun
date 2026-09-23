@@ -47,6 +47,7 @@ import {
   isStaleMealTimestamp,
   mealFormStringsFromDraft,
   parseOptionalNutritionNumber,
+  portionGramsStringFromDraft,
   upgradeLegacyMealDraft,
 } from "./meal-form";
 import { normalizeMealPhoto } from "./meal-photo";
@@ -61,6 +62,9 @@ const draftEvidenceLines = (
   draft: import("@mizyun/contracts").FoodDraftCandidate,
 ): readonly string[] => {
   const ranges = [
+    draft.portionWeightG != null
+      ? `Estimated portion weight: ${draft.portionWeightG} g`
+      : null,
     draft.calorieRangeKcal
       ? `Calories: ${draft.calorieRangeKcal.low}–${draft.calorieRangeKcal.high} kcal`
       : null,
@@ -87,6 +91,7 @@ export function LogMealScreen() {
   const { session, profile } = useAuth();
   const theme = useTheme();
   const [name, setName] = useState("");
+  const [portionGrams, setPortionGrams] = useState("");
   const [calories, setCalories] = useState("");
   const [protein, setProtein] = useState("");
   const [carbs, setCarbs] = useState("");
@@ -97,7 +102,8 @@ export function LogMealScreen() {
   // VISION-001 — photo-to-draft state. `attachedPhoto` holds the
   // user's selected or captured image before submission. `snapping` is true
   // while the photo is uploading and the configured vision provider is being
-  // consulted. The form pre-fills with the candidate's name/calories/macros;
+  // consulted. The form pre-fills with the candidate's name, portion weight,
+  // calories, and macros;
   // the user can edit before saving, while `draftWarnings` keeps provider
   // uncertainty visible.
   const [attachedPhoto, setAttachedPhoto] = useState<{
@@ -166,6 +172,10 @@ export function LogMealScreen() {
           setClientOperationId(upgraded.clientOperationId);
           setConsumedAt(upgraded.consumedAt);
           setName(upgraded.name);
+          setPortionGrams(
+            upgraded.portionGrams ??
+              portionGramsStringFromDraft(upgraded.aiDraft ?? {}),
+          );
           setCalories(upgraded.calories);
           setProtein(upgraded.protein);
           setCarbs(upgraded.carbs);
@@ -204,6 +214,7 @@ export function LogMealScreen() {
       return;
     void saveLoggingDraft(userId, "meal", {
       name,
+      portionGrams,
       calories,
       protein,
       carbs,
@@ -230,6 +241,7 @@ export function LogMealScreen() {
     fat,
     mealDescription,
     name,
+    portionGrams,
     protein,
     refineInstruction,
     sourceProposalId,
@@ -246,11 +258,16 @@ export function LogMealScreen() {
     if (hadFailure.current) measurement.current?.retry();
     setError(null);
     const parsedCalories = parseOptionalNutritionNumber(calories);
+    const parsedPortionGrams = parseOptionalNutritionNumber(portionGrams);
     const parsedProtein = parseOptionalNutritionNumber(protein);
     const parsedCarbs = parseOptionalNutritionNumber(carbs);
     const parsedFat = parseOptionalNutritionNumber(fat);
     if (
       !parsedCalories.ok ||
+      !parsedPortionGrams.ok ||
+      (parsedPortionGrams.ok &&
+        parsedPortionGrams.value !== null &&
+        parsedPortionGrams.value <= 0) ||
       !parsedProtein.ok ||
       !parsedCarbs.ok ||
       !parsedFat.ok
@@ -259,7 +276,9 @@ export function LogMealScreen() {
       setSubmitting(false);
       hadFailure.current = true;
       measurement.current?.fail("validation", "invalid_input", false);
-      setError("Calories and macros must be positive numbers or blank.");
+      setError(
+        "Portion weight, calories, and macros must be positive numbers or blank.",
+      );
       return;
     }
 
@@ -277,6 +296,8 @@ export function LogMealScreen() {
     const isRetryOfPrev =
       prev !== null &&
       prev.name.trim() === name.trim() &&
+      (typeof prev.details?.grams === "number" ? prev.details.grams : null) ===
+        parsedPortionGrams.value &&
       prev.caloriesKcal === parsedCalories.value &&
       prev.proteinG === parsedProtein.value &&
       prev.carbohydrateG === parsedCarbs.value &&
@@ -315,6 +336,7 @@ export function LogMealScreen() {
     if (userId !== null) {
       const persisted = await saveLoggingDraft(userId, "meal", {
         name,
+        portionGrams,
         calories,
         protein,
         carbs,
@@ -348,6 +370,26 @@ export function LogMealScreen() {
         ? draftEvidenceLines(aiDraft).join("\n")
         : null);
 
+    const details: Record<string, unknown> = {
+      ...(parsedPortionGrams.value === null
+        ? {}
+        : { grams: parsedPortionGrams.value }),
+      ...(aiDraft === null
+        ? {}
+        : {
+            aiDraft: {
+              ...aiDraft,
+              ...(calculation ? { calculation } : {}),
+              userConfirmed: true,
+              ...(sourceProposalId === null ? {} : { sourceProposalId }),
+            },
+            ...(calculation ? { calculationText: calculation } : {}),
+          }),
+      ...(mealDescription.trim().length > 0
+        ? { mealDescription: mealDescription.trim() }
+        : {}),
+    };
+
     const form: LogMealForm = {
       clientOperationId: opId,
       name,
@@ -356,24 +398,7 @@ export function LogMealScreen() {
       carbohydrateG: parsedCarbs.value,
       fatG: parsedFat.value,
       consumedAt: fixedConsumedAt,
-      ...(aiDraft === null
-        ? mealDescription.trim().length > 0
-          ? { details: { mealDescription: mealDescription.trim() } }
-          : {}
-        : {
-            details: {
-              aiDraft: {
-                ...aiDraft,
-                ...(calculation ? { calculation } : {}),
-                userConfirmed: true,
-                ...(sourceProposalId === null ? {} : { sourceProposalId }),
-              },
-              ...(calculation ? { calculationText: calculation } : {}),
-              ...(mealDescription.trim().length > 0
-                ? { mealDescription: mealDescription.trim() }
-                : {}),
-            },
-          }),
+      ...(Object.keys(details).length === 0 ? {} : { details }),
     };
     submittedOperationRef.current = form;
 
@@ -405,6 +430,7 @@ export function LogMealScreen() {
     fat,
     mealDescription,
     name,
+    portionGrams,
     protein,
     refineInstruction,
     sourceProposalId,
@@ -488,6 +514,7 @@ export function LogMealScreen() {
         }
         const strings = mealFormStringsFromDraft(draft.draft);
         setName(strings.name);
+        setPortionGrams(portionGramsStringFromDraft(draft.draft));
         setCalories(strings.calories);
         setProtein(strings.protein);
         setCarbs(strings.carbs);
@@ -534,6 +561,7 @@ export function LogMealScreen() {
         }
         const strings = mealFormStringsFromDraft(result.draft);
         setName(strings.name);
+        setPortionGrams(portionGramsStringFromDraft(result.draft));
         setCalories(strings.calories);
         setProtein(strings.protein);
         setCarbs(strings.carbs);
@@ -568,13 +596,23 @@ export function LogMealScreen() {
       setRefining(true);
       setError(null);
       try {
-        const result = await refineMealDraft(aiDraft, instruction);
+        const parsedCurrentPortion = parseOptionalNutritionNumber(portionGrams);
+        const result = await refineMealDraft(
+          {
+            ...aiDraft,
+            ...(parsedCurrentPortion.ok
+              ? { portionWeightG: parsedCurrentPortion.value }
+              : {}),
+          },
+          instruction,
+        );
         if (!result.ok) {
           setError(result.message);
           return;
         }
         const strings = mealFormStringsFromDraft(result.draft);
         setName(strings.name);
+        setPortionGrams(portionGramsStringFromDraft(result.draft));
         setCalories(strings.calories);
         setProtein(strings.protein);
         setCarbs(strings.carbs);
@@ -587,7 +625,7 @@ export function LogMealScreen() {
         setRefining(false);
       }
     },
-    [aiDraft, loadAiUsage, refining, submitting],
+    [aiDraft, loadAiUsage, portionGrams, refining, submitting],
   );
 
   const executeAiAction = useCallback(
@@ -644,6 +682,7 @@ export function LogMealScreen() {
 
   const hasContent =
     name.trim().length > 0 ||
+    portionGrams.trim().length > 0 ||
     calories.trim().length > 0 ||
     protein.trim().length > 0 ||
     carbs.trim().length > 0 ||
@@ -655,6 +694,7 @@ export function LogMealScreen() {
 
   const onClear = useCallback(async () => {
     setName("");
+    setPortionGrams("");
     setCalories("");
     setProtein("");
     setCarbs("");
@@ -714,10 +754,11 @@ export function LogMealScreen() {
         >
           <ThemedText type="subtitle">What did you eat?</ThemedText>
           <ThemedText themeColor="textSecondary" type="small">
-            Name your meal first; calories and macros are optional but the
-            dashboard totals use them when present. You can describe the meal,
-            attach a photo, or both — anything you type is sent with the photo
-            to help the AI estimate portions and ingredients.
+            Name your meal first; portion weight, calories, and macros are
+            optional, and dashboard totals use the nutrition values when
+            present. You can describe the meal, attach a photo, or both —
+            anything you type is sent with the photo to help the AI estimate
+            portions and ingredients.
           </ThemedText>
 
           <TextInput
@@ -768,7 +809,7 @@ export function LogMealScreen() {
               accessibilityRole="button"
               testID="process-meal-photo-button"
               accessibilityLabel="Process photo with AI"
-              accessibilityHint="Send the attached photo and your description to Mizyun to generate a meal draft with estimated calories and macros."
+              accessibilityHint="Send the attached photo and your description to Mizyun to generate a meal draft with estimated portion weight, calories, and macros."
               disabled={snapping || submitting}
               accessibilityState={{
                 busy: snapping,
@@ -905,6 +946,22 @@ export function LogMealScreen() {
             onFocus={() => measurement.current?.tap()}
             placeholder="e.g. Toast with butter"
             autoFocus
+            inputColor={theme.text}
+          />
+
+          <Field
+            testID="meal-portion-weight-input"
+            label="Portion weight (g)"
+            value={portionGrams}
+            onChangeText={setPortionGrams}
+            onFocus={() => measurement.current?.tap()}
+            placeholder="e.g. 320"
+            keyboardType="numeric"
+            helperText={
+              aiDraft?.portionWeightG != null
+                ? "AI estimate — review before saving"
+                : "optional"
+            }
             inputColor={theme.text}
           />
 

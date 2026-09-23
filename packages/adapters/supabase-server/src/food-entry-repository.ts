@@ -136,6 +136,11 @@ export class SupabaseFoodEntryRepository implements FoodEntryRepository {
       readonly from: Date | null;
       readonly to: Date | null;
       readonly limit: number;
+      readonly cursor?: {
+        readonly consumedAt: Date;
+        readonly id: string;
+      } | null;
+      readonly search?: string | null;
       readonly accessToken: string;
     },
   ): Promise<ReadonlyArray<StoredFoodEntry>> {
@@ -145,12 +150,24 @@ export class SupabaseFoodEntryRepository implements FoodEntryRepository {
       .select("*")
       .eq("user_id", userId)
       .order("consumed_at", { ascending: false })
+      .order("id", { ascending: false })
       .limit(options.limit);
     if (options.from !== null) {
       builder = builder.gte("consumed_at", options.from.toISOString());
     }
     if (options.to !== null) {
       builder = builder.lte("consumed_at", options.to.toISOString());
+    }
+    if (options.cursor) {
+      const cursorIso = options.cursor.consumedAt.toISOString();
+      const cursorId = options.cursor.id;
+      builder = builder.or(
+        `consumed_at.lt.${cursorIso},and(consumed_at.eq.${cursorIso},id.lt.${cursorId})`,
+      );
+    }
+    if (options.search && options.search.trim().length > 0) {
+      const sanitized = options.search.trim().replace(/[%_\\]/g, "\\$&");
+      builder = builder.ilike("name", `%${sanitized}%`);
     }
     const { data, error } = await builder;
     if (error) {

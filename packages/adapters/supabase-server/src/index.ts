@@ -151,6 +151,11 @@ export interface RepositoryQueryBuilder<T> {
     values: ReadonlyArray<unknown>,
   ): RepositoryQueryBuilder<T>;
   is(column: keyof T & string, value: unknown): RepositoryQueryBuilder<T>;
+  ilike(
+    column: (keyof T & string) | (string & {}),
+    pattern: string,
+  ): RepositoryQueryBuilder<T>;
+  or(filters: string): RepositoryQueryBuilder<T>;
   order(
     column: keyof T & string,
     options?: { readonly ascending?: boolean; readonly nullsFirst?: boolean },

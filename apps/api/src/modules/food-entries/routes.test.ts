@@ -243,6 +243,192 @@ describe("GET /v1/food-entries", () => {
       error: { code: "VALIDATION_ERROR" },
     });
   });
+
+  it("handles 200/201-entry boundary across pages using cursor pagination", async () => {
+    const { app, foodEntryRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    const baseDate = new Date("2026-01-01T00:00:00Z").getTime();
+    for (let i = 0; i < 201; i++) {
+      seedEntry(foodEntryRepository, {
+        id: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+        name: `Meal ${i}`,
+        consumedAt: new Date(baseDate + i * 60_000),
+      });
+    }
+
+    // Page 1: limit=200
+    const page1 = await app.inject({
+      method: "GET",
+      url: "/v1/food-entries?limit=200",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(page1.statusCode).toBe(200);
+    const p1Body = page1.json();
+    expect(p1Body.foodEntries).toHaveLength(200);
+    expect(typeof p1Body.nextCursor).toBe("string");
+
+    // Page 2: limit=200 with cursor
+    const page2 = await app.inject({
+      method: "GET",
+      url: `/v1/food-entries?limit=200&cursor=${encodeURIComponent(p1Body.nextCursor)}`,
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(page2.statusCode).toBe(200);
+    const p2Body = page2.json();
+    expect(p2Body.foodEntries).toHaveLength(1);
+    expect(p2Body.foodEntries[0].name).toBe("Meal 0");
+    expect(p2Body.nextCursor).toBeUndefined();
+  });
+
+  it("breaks ties deterministically on identical timestamps without duplicate or skipped entries", async () => {
+    const { app, foodEntryRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    const sameTime = new Date("2026-07-10T12:00:00Z");
+    const id1 = "00000000-0000-4000-8000-000000000001";
+    const id2 = "00000000-0000-4000-8000-000000000002";
+    const id3 = "00000000-0000-4000-8000-000000000003";
+
+    seedEntry(foodEntryRepository, {
+      id: id1,
+      name: "Meal 1",
+      consumedAt: sameTime,
+    });
+    seedEntry(foodEntryRepository, {
+      id: id2,
+      name: "Meal 2",
+      consumedAt: sameTime,
+    });
+    seedEntry(foodEntryRepository, {
+      id: id3,
+      name: "Meal 3",
+      consumedAt: sameTime,
+    });
+
+    // Page 1: limit=2
+    const res1 = await app.inject({
+      method: "GET",
+      url: "/v1/food-entries?limit=2",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(res1.statusCode).toBe(200);
+    const body1 = res1.json();
+    expect(body1.foodEntries).toHaveLength(2);
+    expect(typeof body1.nextCursor).toBe("string");
+
+    // Page 2: limit=2 with cursor
+    const res2 = await app.inject({
+      method: "GET",
+      url: `/v1/food-entries?limit=2&cursor=${encodeURIComponent(body1.nextCursor)}`,
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(res2.statusCode).toBe(200);
+    const body2 = res2.json();
+    expect(body2.foodEntries).toHaveLength(1);
+
+    const allIds = [
+      ...body1.foodEntries.map((e: { id: string }) => e.id),
+      ...body2.foodEntries.map((e: { id: string }) => e.id),
+    ];
+    expect(new Set(allIds).size).toBe(3);
+    expect(allIds.sort()).toEqual([id1, id2, id3].sort());
+  });
+
+  it("finds an old uniquely named match across all history using search", async () => {
+    const { app, foodEntryRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    const baseDate = new Date("2026-01-01T00:00:00Z").getTime();
+    for (let i = 0; i < 205; i++) {
+      seedEntry(foodEntryRepository, {
+        id: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+        name: i === 0 ? "Grandma's secret lentil soup" : `Meal ${i}`,
+        consumedAt: new Date(baseDate + i * 60_000),
+      });
+    }
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/v1/food-entries?search=${encodeURIComponent("secret lentil")}`,
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.foodEntries).toHaveLength(1);
+    expect(body.foodEntries[0].name).toBe("Grandma's secret lentil soup");
+  });
+
+  it("sets cutoffDateIsPartial true when page boundary splits meals of the same day", async () => {
+    const { app, foodEntryRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    // 3 meals on 2026-07-15
+    seedEntry(foodEntryRepository, {
+      id: "00000000-0000-4000-8000-000000000001",
+      consumedAt: new Date("2026-07-15T18:00:00Z"),
+    });
+    seedEntry(foodEntryRepository, {
+      id: "00000000-0000-4000-8000-000000000002",
+      consumedAt: new Date("2026-07-15T12:00:00Z"),
+    });
+    seedEntry(foodEntryRepository, {
+      id: "00000000-0000-4000-8000-000000000003",
+      consumedAt: new Date("2026-07-15T08:00:00Z"),
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/food-entries?limit=2",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.foodEntries).toHaveLength(2);
+    expect(body.cutoffDateIsPartial).toBe(true);
+  });
+
+  it("leaves cutoffDateIsPartial false when page boundary aligns with date transition", async () => {
+    const { app, foodEntryRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    // 2 meals on 2026-07-15, 1 meal on 2026-07-14
+    seedEntry(foodEntryRepository, {
+      id: "00000000-0000-4000-8000-000000000001",
+      consumedAt: new Date("2026-07-15T18:00:00Z"),
+    });
+    seedEntry(foodEntryRepository, {
+      id: "00000000-0000-4000-8000-000000000002",
+      consumedAt: new Date("2026-07-15T12:00:00Z"),
+    });
+    seedEntry(foodEntryRepository, {
+      id: "00000000-0000-4000-8000-000000000003",
+      consumedAt: new Date("2026-07-14T19:00:00Z"),
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/food-entries?limit=2",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.foodEntries).toHaveLength(2);
+    expect(body.cutoffDateIsPartial).toBeUndefined();
+  });
+
+  it("rejects a malformed cursor with a 422", async () => {
+    const { app } = build(tokenVerifierFor({ userId: userA }));
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/food-entries?cursor=not-a-valid-cursor",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(response.statusCode).toBe(422);
+    expect(response.json()).toMatchObject({
+      error: { code: "VALIDATION_ERROR", message: "Invalid cursor format" },
+    });
+  });
 });
 
 describe("POST /v1/food-entries", () => {

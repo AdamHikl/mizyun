@@ -13,6 +13,7 @@ import {
   fetchFoodHistoryWith,
   groupFoodEntriesByDay,
   groupFoodEntriesWith,
+  mergeFoodEntries,
   renameFoodGroupWith,
   ungroupFoodEntryWith,
   updateFoodEntryWith,
@@ -397,12 +398,54 @@ describe("fetchFoodHistoryWith", () => {
       new Date("2026-07-19T14:00:00.000Z"),
     );
 
-    expect(requests[0]?.path).toBe("/v1/food-entries?limit=200");
+    expect(requests[0]?.path).toBe(
+      "/v1/food-entries?limit=200&utcOffsetMinutes=120",
+    );
     expect(result.message).toBeNull();
     expect(result.entries).toHaveLength(2);
     expect(result.groups).toHaveLength(2);
     expect(result.groups[0]?.date).toBe("2026-07-19");
     expect(result.groups[1]?.date).toBe("2026-07-18");
+  });
+
+  it("passes cursor and search in query string and flags cutoffDateIsPartial", async () => {
+    const requests: RequestOptions[] = [];
+    const result = await fetchFoodHistoryWith(
+      queuedClient(
+        [
+          {
+            ok: true,
+            value: {
+              foodEntries: [
+                {
+                  ...ENTRY,
+                  id: "entry-1",
+                  name: "Lentil soup",
+                  consumedAt: "2026-07-15T12:00:00.000Z",
+                },
+              ],
+              nextCursor: "next-cursor-token",
+              cutoffDateIsPartial: true,
+            },
+          },
+        ],
+        requests,
+      ),
+      60,
+      new Date("2026-07-19T14:00:00.000Z"),
+      {
+        cursor: "cursor-123",
+        search: "lentil",
+        limit: 50,
+      },
+    );
+
+    expect(requests[0]?.path).toBe(
+      "/v1/food-entries?limit=50&utcOffsetMinutes=60&cursor=cursor-123&search=lentil",
+    );
+    expect(result.nextCursor).toBe("next-cursor-token");
+    expect(result.cutoffDateIsPartial).toBe(true);
+    expect(result.groups[0]?.isPartial).toBe(true);
   });
 
   it("returns error message when network request fails", async () => {
@@ -418,6 +461,43 @@ describe("fetchFoodHistoryWith", () => {
     expect(result.groups).toEqual([]);
     expect(result.entries).toEqual([]);
     expect(result.message).toMatch(/Network unavailable/);
+  });
+});
+
+describe("mergeFoodEntries", () => {
+  it("merges existing and incoming entries without duplicates and preserves descending order", () => {
+    const existing = [
+      {
+        ...ENTRY,
+        id: "entry-1",
+        consumedAt: "2026-07-19T18:00:00.000Z",
+      },
+      {
+        ...ENTRY,
+        id: "entry-2",
+        consumedAt: "2026-07-19T12:00:00.000Z",
+      },
+    ];
+    const incoming = [
+      {
+        ...ENTRY,
+        id: "entry-2",
+        name: "Updated Entry 2",
+        consumedAt: "2026-07-19T12:00:00.000Z",
+      },
+      {
+        ...ENTRY,
+        id: "entry-3",
+        consumedAt: "2026-07-18T08:00:00.000Z",
+      },
+    ];
+
+    const merged = mergeFoodEntries(existing, incoming);
+    expect(merged).toHaveLength(3);
+    expect(merged[0]?.id).toBe("entry-1");
+    expect(merged[1]?.id).toBe("entry-2");
+    expect(merged[1]?.name).toBe("Updated Entry 2");
+    expect(merged[2]?.id).toBe("entry-3");
   });
 });
 

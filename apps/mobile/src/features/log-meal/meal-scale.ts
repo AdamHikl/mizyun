@@ -105,6 +105,27 @@ export const scaleNutrition = (
 };
 
 /**
+ * Establishing a previously unknown portion weight must not reinterpret the
+ * saved nutrition totals as values per 100g. Scale only when a real baseline
+ * weight was already recorded.
+ */
+export const scaleNutritionFromKnownPortion = (
+  base: Omit<BaseNutritionWithGrams, "grams"> & {
+    readonly grams: number | null;
+  },
+  targetGrams: number,
+): ScaledNutrition =>
+  base.grams === null
+    ? {
+        caloriesKcal: base.caloriesKcal,
+        proteinG: base.proteinG,
+        carbohydrateG: base.carbohydrateG,
+        fatG: base.fatG,
+        ratio: 1,
+      }
+    : scaleNutrition({ ...base, grams: base.grams }, targetGrams);
+
+/**
  * Reads a food entry's recorded grams, checking `details.grams` first,
  * then parsing from `entry.name`.
  */

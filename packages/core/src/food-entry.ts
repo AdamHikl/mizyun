@@ -338,6 +338,11 @@ export interface FoodEntryRepository {
       readonly from: Date | null;
       readonly to: Date | null;
       readonly limit: number;
+      readonly cursor?: {
+        readonly consumedAt: Date;
+        readonly id: string;
+      } | null;
+      readonly search?: string | null;
       readonly accessToken: string;
     },
   ): Promise<ReadonlyArray<StoredFoodEntry>>;
