@@ -33,7 +33,7 @@
 
 ## Verification for the active package
 
-- Stages 1–2 are documentation/navigation tooling only: no deployment, database, credentials, device install or provider call occurred or is claimed.
+- Stages 1–2 are documentation/navigation tooling only: no deployment, database, credentials, device install or provider call occurred or is claimed. `SIMPLIFY-02` source commit: `25150e7c60e58e2269df3635ce25683d180c5ab0`.
 - Focused Stage 2 checks pass after independent-review fixes: 38/38 navigation fixtures and `pnpm navigation:check` with 0 errors. Its 22 warnings remain visible and classified: 11 committed review-drift warnings, 10 local review-drift warnings and 1 broader mapped-source-coverage warning (175/501 relevant files currently unmapped).
 - Fresh post-Stage-2 `pnpm check` passed from the shared working tree: repository formatting, all 15 workspace typechecks, iOS/Android Hermes exports, 493 mobile tests, 565 API tests (15 policy-gated E2E tests skipped), 39 deployment safeguards and 56/56 offline AI invariants. `git diff --check` also passed; detailed evidence is in [`docs/AGENT_NAVIGATION_ACCEPTANCE.md`](docs/AGENT_NAVIGATION_ACCEPTANCE.md).
 

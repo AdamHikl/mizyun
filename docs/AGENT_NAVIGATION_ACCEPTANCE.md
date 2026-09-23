@@ -59,7 +59,7 @@ Implemented behavior:
 - Impact output separates `direct-owner`, `referenced-consumer`, `package-reverse-dep`, and semantic propagation. The broad package-membership fallback was removed, so unmatched package files remain explicitly unmapped instead of fanning out to every feature in that package.
 - Review metadata now compares committed changes against `lastReviewedSha..HEAD` and reports local staged, unstaged, and untracked owned paths separately. Local modifications remain visible when HEAD has not changed or the reviewed SHA is absent from a shallow checkout; unavailable committed freshness is an explicit warning rather than a false fresh result.
 - Navigation validation now measures all relevant source under `apps`, `packages`, and `scripts`, including tests and executable fixtures. Generated/build output, snapshots, declaration files, dependencies, and Expo artifacts are explicit exemptions. The current advisory reports 175 of 501 relevant files as unmapped; this remains visible follow-up inventory rather than a fabricated green result.
-- The validator reports the normal startup set at 236 lines / 25,987 bytes and warns, without failing or rewriting files, above 120 status lines or 350 total startup lines.
+- The validator reports the normal startup set at 236 lines / 26,060 bytes and warns, without failing or rewriting files, above 120 status lines or 350 total startup lines.
 
 Regression evidence before the full repository gate:
 
