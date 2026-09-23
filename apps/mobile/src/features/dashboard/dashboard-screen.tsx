@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect, type Href } from "expo-router";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { FoodEntry } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
@@ -32,6 +32,11 @@ import {
   reconcileFirstMealReminders,
   type FirstMealReminderSettings,
 } from "../log-meal/first-meal-reminders";
+import {
+  isFoodDayCompleted,
+  setFoodDayCompletion,
+} from "../log-meal/food-day-completion";
+import { reconcileEveningReminders } from "../log-meal/evening-catch-up-reminders";
 
 import {
   combineNutritionReview,
@@ -626,6 +631,7 @@ export function DashboardScreen() {
           {userId !== null ? (
             <FirstMealDashboardCard
               userId={userId}
+              todayDate={isoLocalDate(new Date())}
               todayEntryCount={metrics.macros?.entryCount ?? 0}
               caloriesToday={metrics.caloriesToday}
               recentMeal={recentMeal}
@@ -745,6 +751,7 @@ export function DashboardScreen() {
 
 function FirstMealDashboardCard(props: {
   readonly userId: string;
+  readonly todayDate: string;
   readonly todayEntryCount: number;
   readonly caloriesToday: number | null;
   readonly recentMeal: FoodEntry | null;
@@ -753,6 +760,7 @@ function FirstMealDashboardCard(props: {
 }) {
   const {
     userId,
+    todayDate,
     todayEntryCount,
     caloriesToday,
     recentMeal,
@@ -762,6 +770,32 @@ function FirstMealDashboardCard(props: {
   const theme = useTheme();
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isDayComplete, setIsDayComplete] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      void isFoodDayCompleted(userId, todayDate).then((complete) => {
+        if (active) setIsDayComplete(complete);
+      });
+      return () => {
+        active = false;
+      };
+    }, [userId, todayDate]),
+  );
+
+  const handleToggleDayCompletion = async () => {
+    const nextState = !isDayComplete;
+    setIsDayComplete(nextState);
+    await setFoodDayCompletion(userId, todayDate, nextState);
+    await reconcileEveningReminders(userId, { todayCompleted: nextState });
+    void analyticsClient.track({
+      name: "feature_viewed",
+      properties: {
+        feature: nextState ? "food_day_completed" : "food_day_uncompleted",
+      },
+    });
+  };
 
   const handleCopy = async () => {
     if (!recentMeal || busy) return;
@@ -786,6 +820,68 @@ function FirstMealDashboardCard(props: {
   };
 
   if (todayEntryCount > 0) {
+    if (isDayComplete) {
+      return (
+        <ThemedView
+          type="backgroundElement"
+          style={[
+            styles.firstMealCard,
+            {
+              borderColor: "rgba(16, 185, 129, 0.4)",
+              backgroundColor:
+                theme.background === "#F8FAF9"
+                  ? "rgba(16, 185, 129, 0.08)"
+                  : "rgba(16, 185, 129, 0.12)",
+            },
+          ]}
+        >
+          <View style={styles.firstMealHeaderRow}>
+            <ThemedText style={styles.firstMealIcon}>🎉</ThemedText>
+            <View style={styles.firstMealHeaderContent}>
+              <ThemedText type="smallBold" style={{ color: "#10B981" }}>
+                Day complete! All meals logged.
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                {todayEntryCount} {todayEntryCount === 1 ? "meal" : "meals"}{" "}
+                logged · {formatCalories(caloriesToday)} · Great job!
+              </ThemedText>
+            </View>
+            <View style={styles.dayActionButtons}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Add another meal"
+                onPress={() => router.push("/log-meal" as Href)}
+                style={({ pressed }) => [
+                  styles.firstMealAddButton,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <ThemedText
+                  type="smallBold"
+                  style={styles.firstMealAddButtonText}
+                >
+                  ＋ Add
+                </ThemedText>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Undo day completion"
+                onPress={() => void handleToggleDayCompletion()}
+                style={({ pressed }) => [
+                  styles.dayCompleteUndoButton,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <ThemedText type="small" themeColor="textSecondary">
+                  Undo
+                </ThemedText>
+              </Pressable>
+            </View>
+          </View>
+        </ThemedView>
+      );
+    }
+
     return (
       <ThemedView
         type="backgroundElement"
@@ -804,26 +900,49 @@ function FirstMealDashboardCard(props: {
           <ThemedText style={styles.firstMealIcon}>✨</ThemedText>
           <View style={styles.firstMealHeaderContent}>
             <ThemedText type="smallBold" style={{ color: "#10B981" }}>
-              First meal logged today!
+              {todayEntryCount === 1
+                ? "First meal logged today!"
+                : "Today's food log"}
             </ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
               {todayEntryCount} {todayEntryCount === 1 ? "meal" : "meals"}{" "}
               logged · {formatCalories(caloriesToday)} so far
             </ThemedText>
           </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Log another meal"
-            onPress={() => router.push("/log-meal" as Href)}
-            style={({ pressed }) => [
-              styles.firstMealAddButton,
-              pressed && styles.pressed,
-            ]}
-          >
-            <ThemedText type="smallBold" style={styles.firstMealAddButtonText}>
-              ＋ Log next
-            </ThemedText>
-          </Pressable>
+          <View style={styles.dayActionButtons}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Confirm day complete - I have logged everything today"
+              onPress={() => void handleToggleDayCompletion()}
+              style={({ pressed }) => [
+                styles.dayCompleteConfirmButton,
+                pressed && styles.pressed,
+              ]}
+            >
+              <ThemedText
+                type="smallBold"
+                style={styles.dayCompleteConfirmButtonText}
+              >
+                ✓ Done today
+              </ThemedText>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Log another meal"
+              onPress={() => router.push("/log-meal" as Href)}
+              style={({ pressed }) => [
+                styles.firstMealAddButton,
+                pressed && styles.pressed,
+              ]}
+            >
+              <ThemedText
+                type="smallBold"
+                style={styles.firstMealAddButtonText}
+              >
+                ＋ Next
+              </ThemedText>
+            </Pressable>
+          </View>
         </View>
       </ThemedView>
     );
@@ -1669,6 +1788,26 @@ const styles = StyleSheet.create({
   firstMealAddButtonText: {
     color: "#10B981",
     fontSize: 13,
+  },
+  dayActionButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.one,
+  },
+  dayCompleteConfirmButton: {
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.one,
+    borderRadius: 8,
+    backgroundColor: "#10B981",
+  },
+  dayCompleteConfirmButtonText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+  },
+  dayCompleteUndoButton: {
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.one,
+    borderRadius: 8,
   },
   firstMealRepeatBox: {
     flexDirection: "row",

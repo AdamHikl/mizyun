@@ -23,6 +23,14 @@ import {
   clearFirstMealReminders,
   type FirstMealReminderScheduler,
 } from "../log-meal/first-meal-reminders";
+import {
+  clearEveningReminders,
+  type EveningReminderScheduler,
+} from "../log-meal/evening-catch-up-reminders";
+import {
+  clearFoodDayCompletions,
+  type DayCompletionStore,
+} from "../log-meal/food-day-completion";
 import { purgeOfflineCache } from "../offline-cache/offline-cache-storage";
 import { keyFor as workoutPreferencesKeyFor } from "../workouts/workout-preferences";
 
@@ -186,6 +194,9 @@ export interface ClearLocalUserDataOptions {
   readonly reminderStore?: ReminderStore;
   readonly firstMealReminderScheduler?: FirstMealReminderScheduler;
   readonly firstMealReminderStore?: ReminderStore;
+  readonly eveningReminderScheduler?: EveningReminderScheduler;
+  readonly eveningReminderStore?: ReminderStore;
+  readonly dayCompletionStore?: DayCompletionStore;
   readonly additionalDraftKinds?: readonly LoggingDraftKind[];
   readonly challengeStore?: SecureKeyValueStore;
   readonly offlineCacheStore?: Parameters<typeof purgeOfflineCache>[1];
@@ -200,6 +211,7 @@ export interface ClearLocalUserDataOptions {
  * Clears all locally persisted state for the given user, including
  * meal/workout/weight/coach drafts, AI consent decisions, scheduled
  * coach reminder notifications, scheduled first-meal notifications,
+ * scheduled evening catch-up notifications, confirmed day completions,
  * deletion challenges, workout preferences, offline profile/dashboard
  * caches, and local exported JSON files.
  */
@@ -251,6 +263,15 @@ export const clearLocalUserData = async (
       userId,
       options.firstMealReminderScheduler,
       options.firstMealReminderStore ?? options.reminderStore,
+    ),
+    clearEveningReminders(
+      userId,
+      options.eveningReminderScheduler,
+      options.eveningReminderStore ?? options.reminderStore,
+    ),
+    clearFoodDayCompletions(
+      userId,
+      options.dayCompletionStore ?? options.reminderStore,
     ),
     clearDeletionChallenge(userId, options.challengeStore),
     purgeOfflineCache(userId, options.offlineCacheStore),

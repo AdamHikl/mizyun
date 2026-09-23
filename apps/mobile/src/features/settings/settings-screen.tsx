@@ -34,6 +34,7 @@ import { AccountDataCard } from "./account-data-card";
 import { CoachPreferencesCard } from "./coach-preferences-card";
 import { CoachRemindersCard } from "./coach-reminders-card";
 import { FirstMealRemindersCard } from "./first-meal-reminders-card";
+import { EveningCatchUpRemindersCard } from "./evening-catch-up-reminders-card";
 import { GoalSettingsCard } from "./goal-settings-card";
 import { MemoryControlsCard } from "./memory-controls-card";
 import { PasswordSecurityCard } from "./password-security-card";
@@ -664,6 +665,7 @@ export function SettingsScreen() {
               >
                 <CoachRemindersCard userId={session.user.id} />
                 <FirstMealRemindersCard userId={session.user.id} />
+                <EveningCatchUpRemindersCard userId={session.user.id} />
               </CollapsibleSection>
             ) : null}
           </View>

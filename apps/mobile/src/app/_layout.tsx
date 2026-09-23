@@ -4,6 +4,7 @@ import {
   Stack,
   ThemeProvider,
   router,
+  type Href,
 } from "expo-router";
 import * as Notifications from "expo-notifications";
 import * as SplashScreen from "expo-splash-screen";
@@ -131,8 +132,11 @@ function CoachNotificationBridge() {
     };
     const initial = Notifications.getLastNotificationResponse();
     if (initial?.notification) {
-      open(initial.notification);
-      Notifications.clearLastNotificationResponse();
+      const data = initial.notification.request.content.data ?? {};
+      if (data.url === "/coach") {
+        open(initial.notification);
+        Notifications.clearLastNotificationResponse();
+      }
     }
     const subscription = Notifications.addNotificationResponseReceivedListener(
       (response) => {
@@ -180,18 +184,29 @@ function MealNotificationBridge() {
   useEffect(() => {
     const open = (notification: Notifications.Notification) => {
       const data = notification.request.content.data ?? {};
-      if (data.url !== "/log-meal") return;
-      router.push({
-        pathname: "/log-meal",
-        params: {
-          ...(typeof data.source === "string" ? { source: data.source } : {}),
-        },
-      });
+      if (data.url === "/meals") {
+        router.push({
+          pathname: "/meals",
+          params: {
+            ...(typeof data.source === "string" ? { source: data.source } : {}),
+          },
+        } as Href);
+        return;
+      }
+      if (data.url === "/log-meal") {
+        router.push({
+          pathname: "/log-meal",
+          params: {
+            ...(typeof data.source === "string" ? { source: data.source } : {}),
+          },
+        });
+        return;
+      }
     };
     const initial = Notifications.getLastNotificationResponse();
     if (initial?.notification) {
       const data = initial.notification.request.content.data ?? {};
-      if (data.url === "/log-meal") {
+      if (data.url === "/log-meal" || data.url === "/meals") {
         open(initial.notification);
         Notifications.clearLastNotificationResponse();
       }

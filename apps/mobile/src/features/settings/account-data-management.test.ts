@@ -290,6 +290,24 @@ describe("account-data-management", () => {
           notificationIds: ["meal-notif-1"],
         }),
       ],
+      [
+        `mizyun.evening-catchup-reminders.${userId}`,
+        JSON.stringify({
+          enabled: true,
+          hour: 20,
+          minute: 30,
+          notificationIds: ["evening-notif-1"],
+        }),
+      ],
+      [
+        `mizyun.food-day-completion.${userId}`,
+        JSON.stringify({
+          "2026-09-23": {
+            isCompleted: true,
+            completedAt: "2026-09-23T20:00:00.000Z",
+          },
+        }),
+      ],
     ]);
 
     const draftStore = {
@@ -342,6 +360,16 @@ describe("account-data-management", () => {
         firstMealCancelled.push(id);
       },
     };
+    const eveningCancelled: string[] = [];
+    const eveningScheduler = {
+      ensureChannel: async () => undefined,
+      getPermission: async () => "granted" as const,
+      requestPermission: async () => "granted" as const,
+      scheduleAtDate: async () => "evening-notif-x",
+      cancel: async (id: string) => {
+        eveningCancelled.push(id);
+      },
+    };
 
     await clearLocalUserData(userId, {
       draftStore,
@@ -349,6 +377,7 @@ describe("account-data-management", () => {
       reminderStore,
       reminderScheduler,
       firstMealReminderScheduler: firstMealScheduler,
+      eveningReminderScheduler: eveningScheduler,
     });
 
     expect(draftMap.size).toBe(0);
@@ -356,6 +385,7 @@ describe("account-data-management", () => {
     expect(reminderMap.size).toBe(0);
     expect(cancelledNotifications).toEqual(["notif-1", "notif-2"]);
     expect(firstMealCancelled).toEqual(["meal-notif-1"]);
+    expect(eveningCancelled).toEqual(["evening-notif-1"]);
   });
 
   it("clearLocalUserData purges offline cache and workout preferences", async () => {
