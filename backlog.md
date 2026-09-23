@@ -82,7 +82,7 @@ gh issue close <issue-number> --reason completed
 | #38   | `BILL-001`             | P1       | blocked  | Premium packaging and mobile subscription billing                          | [#38](https://github.com/AdamHikl/mizyun/issues/38) |
 | #39   | `IOS-HEALTH-001`       | P2       | research | HealthKit permissions and steps adapter                                    | [#39](https://github.com/AdamHikl/mizyun/issues/39) |
 | #40   | `AND-HEALTH-001`       | P2       | research | Health Connect permissions and steps adapter                               | [#40](https://github.com/AdamHikl/mizyun/issues/40) |
-| #41   | `MEM-001`              | P0       | active   | Persistent memory adapter and controls                                     | [#41](https://github.com/AdamHikl/mizyun/issues/41) |
+| #41   | `MEM-001`              | P0       | done     | Persistent memory adapter and controls                                     | [#41](https://github.com/AdamHikl/mizyun/issues/41) |
 | #42   | `AI-001`               | P0       | active   | Evaluate/select initial Mistral model                                      | [#42](https://github.com/AdamHikl/mizyun/issues/42) |
 | #43   | `AI-002`               | P1       | active   | Text coaching adapter and read-only tools                                  | [#43](https://github.com/AdamHikl/mizyun/issues/43) |
 | #44   | `VISION-001`           | P1       | done     | Editable text/photo food drafts                                            | [#44](https://github.com/AdamHikl/mizyun/issues/44) |

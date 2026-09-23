@@ -128,7 +128,7 @@ export const coachMemoryRoutes: FastifyPluginAsync<
           source: "user",
           confidence: 1,
           importance: parsed.data.importance,
-          status: "candidate",
+          status: parsed.data.status,
           ...(parsed.data.expiresAt
             ? { expiresAt: new Date(parsed.data.expiresAt) }
             : {}),

@@ -85,7 +85,7 @@ afterEach(async () => {
 });
 
 describe("Coach memory routes — happy paths", () => {
-  it("creates a candidate that is excluded until the user confirms it", async () => {
+  it("creates an active memory by default that is immediately returned by list", async () => {
     const store = new InMemoryMemoryStore();
     const app = buildAppWithMemory(store);
     const created = await app.inject({
@@ -96,6 +96,37 @@ describe("Coach memory routes — happy paths", () => {
         kind: "preference",
         content: "I prefer training before work",
         importance: 5,
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json().memory).toMatchObject({
+      status: "active",
+      source: "user",
+      confidence: 1,
+    });
+    const id = created.json().memory.id as string;
+
+    const activeOnly = await app.inject({
+      method: "GET",
+      url: "/v1/coach/memories",
+      headers: auth,
+    });
+    expect(activeOnly.json().memories).toHaveLength(1);
+    expect(activeOnly.json().memories[0].id).toBe(id);
+  });
+
+  it("creates a candidate when requested that is excluded until the user confirms it", async () => {
+    const store = new InMemoryMemoryStore();
+    const app = buildAppWithMemory(store);
+    const created = await app.inject({
+      method: "POST",
+      url: "/v1/coach/memories",
+      headers: { ...auth, "content-type": "application/json" },
+      payload: {
+        kind: "preference",
+        content: "I prefer training before work",
+        importance: 5,
+        status: "candidate",
       },
     });
     expect(created.statusCode).toBe(201);

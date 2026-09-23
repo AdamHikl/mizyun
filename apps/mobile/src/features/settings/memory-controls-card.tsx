@@ -74,18 +74,17 @@ export function MemoryControlsCard() {
         kind: newKind,
         content,
         importance: 5,
+        status: "active",
         expiresAt: expiryFrom(newExpiryDays),
       },
       schema: coachMemoryResponseSchema,
     });
     if (result.ok) {
       setNewContent("");
-      setMessage(
-        "Memory candidate saved. Confirm it before Coach can recall it.",
-      );
+      setMessage("Memory saved and confirmed. Coach will now recall it.");
       await refresh();
     } else {
-      setMessage("The memory candidate could not be saved.");
+      setMessage("The memory could not be saved.");
     }
     setBusyId(null);
   };
@@ -161,13 +160,13 @@ export function MemoryControlsCard() {
     <ThemedView type="backgroundElement" style={styles.card}>
       <ThemedText type="smallBold">Coach memory</ThemedText>
       <ThemedText type="small" themeColor="textSecondary">
-        Mizyun recalls only memories you confirm. Candidates, deactivated items,
+        Mizyun recalls only confirmed active memories. Deactivated items,
         low-confidence items, and expired items stay out of the Coach prompt.
       </ThemedText>
 
       <View style={styles.section}>
         <ThemedText type="smallBold" themeColor="textSecondary">
-          Add a candidate
+          Add a memory
         </ThemedText>
         <View style={styles.chips}>
           {kinds.map(([value, label]) => (
@@ -200,7 +199,7 @@ export function MemoryControlsCard() {
           ))}
         </View>
         <ActionButton
-          label={busyId === "new" ? "Saving…" : "Save candidate"}
+          label={busyId === "new" ? "Saving…" : "Save memory"}
           disabled={busyId !== null || newContent.trim().length === 0}
           primary
           onPress={() => void create()}

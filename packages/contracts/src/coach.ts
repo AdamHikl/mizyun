@@ -432,6 +432,9 @@ export const coachMemoryCreateSchema = z
     kind: coachMemoryKindSchema,
     content: z.string().trim().min(1).max(4_000),
     importance: z.number().int().min(3).max(10).default(5),
+    status: coachMemoryStatusSchema
+      .extract(["candidate", "active"])
+      .default("active"),
     expiresAt: z.string().datetime().nullable().optional(),
   })
   .strict();

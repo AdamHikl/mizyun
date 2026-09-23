@@ -88,6 +88,60 @@ describe("AgentOrchestrator — read-only tool loop (AI-002)", () => {
     expect(recalledWith).toBe("verified-access-token");
   });
 
+  it("unconditionally includes active constraint memories regardless of keyword overlap", async () => {
+    const memoryStore = new InMemoryMemoryStore();
+    const userId = "00000000-0000-4000-8000-000000000001" as UserId;
+    // Add constraint memory with no keyword overlap with "PJs toasts"
+    await memoryStore.save(
+      {
+        id: "00000000-0000-4000-8000-000000000099" as any,
+        userId,
+        kind: "constraint",
+        content: "Severe peanut allergy",
+        confidence: 1,
+        importance: 5,
+        source: "user",
+        status: "active",
+      },
+      { accessToken: "token" },
+    );
+
+    let receivedMemories: readonly any[] = [];
+    const provider: AgentProvider = {
+      status: async () => ({
+        ready: true,
+        provider: "fake",
+        externalAccess: true,
+      }),
+      respond: async (request) => {
+        receivedMemories = request.memories;
+        return {
+          message: { role: "assistant", text: "done" },
+          provider: "fake",
+          evidence: request.grounding,
+        };
+      },
+    };
+    const orchestrator = new AgentOrchestrator({
+      provider,
+      memories: memoryStore,
+    });
+    await orchestrator.respond({
+      userId,
+      conversationId: "00000000-0000-4000-8000-000000000002" as ConversationId,
+      messages: [
+        { role: "user", text: "How can I make PJs toasts while bulking?" },
+      ],
+      accessToken: "token",
+    });
+
+    expect(receivedMemories).toHaveLength(1);
+    expect(receivedMemories[0].content).toBe("Severe peanut allergy");
+    expect(COACH_SYSTEM_POLICY).toContain(
+      "Strictly check and respect all confirmed user constraints",
+    );
+  });
+
   it("executes one tool batch, folds results into grounding, and returns the final answer", async () => {
     let providerCalls = 0;
     const toolExecutions: Array<{

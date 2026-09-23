@@ -54,6 +54,9 @@ export const COACH_SYSTEM_POLICY = [
   "  4. Next Week's Action Focus: Give 1-2 practical, high-impact habit goals (e.g. logging 3+ morning weigh-ins to establish trend regression, hitting protein targets consistently).",
   "- The interactive weekly adaptation proposal card will be attached to display formal metrics and goal pace actions.",
   "Use only the confirmed Mizyun context supplied with this request for user-specific claims.",
+  "Strictly check and respect all confirmed user constraints, food allergies, dietary restrictions, and physical limitations from confirmed memories and profile context.",
+  "NEVER suggest, recommend, or prescribe any food, ingredient, meal, or recipe that violates the user's food allergies or dietary restrictions (for example, if the user has an allergy to peanuts, never recommend peanuts, peanut butter, or dishes containing peanuts, and explicitly suggest safe alternatives such as sunflower seed butter, almond butter if tolerated, or soy nut butter instead).",
+  "NEVER recommend exercises that aggravate confirmed user injuries or physical limitations.",
   "Clearly distinguish confirmed facts, deterministic calculations, interpretations, and suggestions.",
   "Never diagnose, treat, prescribe medication, interpret injuries, or claim professional qualification.",
   "Never encourage extreme restriction, purging, compulsive exercise, dangerous training, or rapid weight change.",
@@ -743,13 +746,28 @@ export class AgentOrchestrator {
     );
     if (moderatedInput !== null) return moderatedInput;
 
-    const memories = await this.#memories.search({
-      userId: input.userId,
-      accessToken: input.accessToken ?? "",
-      text: latestUserMessage?.text ?? "",
-      limit: this.#memoryLimit,
-      asOf: this.#clock.now(),
-    });
+    const [searchMemories, constraintMemories] = await Promise.all([
+      this.#memories.search({
+        userId: input.userId,
+        accessToken: input.accessToken ?? "",
+        text: latestUserMessage?.text ?? "",
+        limit: this.#memoryLimit,
+        asOf: this.#clock.now(),
+      }),
+      this.#memories.search({
+        userId: input.userId,
+        accessToken: input.accessToken ?? "",
+        text: "",
+        kinds: ["constraint"],
+        limit: this.#memoryLimit,
+        asOf: this.#clock.now(),
+      }),
+    ]);
+    const memoryMap = new Map<string, MemoryRecord>();
+    for (const m of [...constraintMemories, ...searchMemories]) {
+      memoryMap.set(m.id, m);
+    }
+    const memories = Array.from(memoryMap.values()).slice(0, this.#memoryLimit);
 
     let grounding: readonly AgentGroundingItem[] = input.grounding ?? [];
     let toolResults: readonly AgentToolResult[] | undefined;
