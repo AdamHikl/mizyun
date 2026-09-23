@@ -11,7 +11,7 @@ Prior documentation and remediation plans referenced Expo Application Services (
 
 However:
 
-1. Mizyun's development and operational environment is fully localized on the founder's Apple Silicon Mac and Raspberry Pi 5.
+1. Mizyun's native build environment is the founder's Apple Silicon Mac; Dev and Production backends currently run on Hetzner, while the Raspberry Pi is recovery storage.
 2. Relying on EAS introduces an unnecessary external cloud dependency, remote queue wait times, remote credential management on Expo servers, and third-party SaaS subscription requirements.
 3. The founder Mac is equipped with Xcode, the Apple Developer account (`PP89XZBW4U`), Java 17, and the Android SDK, capable of compiling, archiving, signing, and exporting native `.ipa` and `.aab` artifacts locally without external build services.
 4. Expo's Continuous Native Generation (`expo prebuild`) produces standard native iOS and Android projects that can be compiled and signed directly with standard platform tools (`xcodebuild` / Xcode Organizer and Gradle).

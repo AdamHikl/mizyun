@@ -68,7 +68,7 @@ Pursuant to root [`AGENTS.md`](../../../AGENTS.md), an independent non-author su
 - Account lifecycle, export & deletion (`account-lifecycle`, GDPR)
 - Database schema, migrations & RLS policies (`database-schema`)
 - AI consent, admission & token budgets (`coach-consent-budgets`)
-- Deployment scripts, systemd units & Pi host configuration (`environment-build-deployment`)
+- Deployment scripts, systemd units, Hetzner host safeguards, or Pi recovery configuration (`environment-build-deployment`)
 
 The non-author reviewer must independently audit the diff, test edge cases, and certify approval. Findings must be resolved or logged as open blockers before closing the work package.
 
@@ -78,9 +78,9 @@ Never conflate implementation with release. Maintain strict distinction across t
 
 1. **Implemented**: Code written and syntax checked.
 2. **Automatically Verified**: Unit tests, bundle checks, safeguards, and `pnpm check` passed locally.
-3. **Dev Deployed**: Migration and API deployed to the Raspberry Pi Dev environment (`pnpm deploy:dev <sha>`) with HTTP 200 health.
+3. **Dev Deployed**: Exact accepted SHA deployed to Hetzner Dev (`pnpm deploy:dev <sha>`), with service/PID, checkout SHA, route-specific response, and client recovery evidence appropriate to the change. Generic HTTP 200 health alone is insufficient.
 4. **Device Accepted**: Physically verified on an installed release build on a physical iPhone or Android device without Metro.
-5. **Production Released**: Promoted to production (`pnpm deploy:production <sha>`) following clean pre-promotion database backup and device verification.
+5. **Production Released**: Exact accepted SHA promoted to Hetzner Production (`pnpm deploy:production <sha>`) following the clean pre-promotion backup/migration checks and required device verification.
 
 ## 5. Session Handoff Update
 

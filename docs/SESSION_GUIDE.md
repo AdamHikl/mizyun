@@ -38,6 +38,8 @@ If evidence is insufficient, label a claim unverified with a source link. Never 
 4. Use [`docs/feature-map.json`](./feature-map.json) or `pnpm context <feature-id>` to select relevant requirements, ADRs, runbooks, open findings, source code, and tests.
 5. State expected impacts and delegate a bounded independent subtask with disjoint file ownership and acceptance checks, per `AGENTS.md`.
 
+Normal startup reading (`AGENTS.md` + `status.md` + `docs/START_HERE.md`) should remain at or below 350 lines, with `status.md` at or below 120 lines. Record lines and bytes when compacting; `SIMPLIFY-02` will add an advisory validator warning. Never truncate safety rules or active gates merely to satisfy the budget.
+
 ## During a session
 
 - Keep one active work package unless the user changes priority. Independent agent subtasks within that package are encouraged and required for substantive work under AGENTS.md; they do not create competing work packages.
@@ -134,6 +136,7 @@ For each affected technology:
 
 - Link instead of copying detail across files.
 - Put facts in the narrowest appropriate document.
+- Move completed handoffs into dated `docs/archive/status/` files and keep only current authorities, active packages, unresolved gates, and one next action in `status.md`.
 - Use requirement/issue IDs (e.g. `[PLAY-001]`) when referring to behavior or work.
 - Never mark a milestone complete based only on code presence; cite reproducible exit evidence.
 - If a session changes no project state, do not churn timestamps or status prose unnecessarily.

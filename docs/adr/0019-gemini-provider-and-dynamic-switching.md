@@ -1,6 +1,6 @@
 # ADR-0019: Gemini provider support and app-wide dynamic provider switching
 
-- Status: accepted
+- Status: superseded for dynamic switching on 2026-09-03; current composition is Gemini-or-disabled and the model configuration is owned by current server config
 - Date: 2026-08-24
 
 ## Context

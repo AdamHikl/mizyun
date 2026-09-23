@@ -1,7 +1,9 @@
 # ADR-0017: AI governance — per-feature workspaces, ZDR, EU residency, free-vs-paid caps
 
-- Status: accepted
+- Status: superseded as an active provider/workspace/tier specification; retained as historical rationale for safety, data minimization, and budget controls
 - Date: 2026-07-25
+
+> Current authority: server configuration and composition are Gemini-or-disabled; ADR-0024 defines consent-based admission; current durable limit code/tests define effective budgets. The Mistral workspace, moderation, provider-path, model, and original free-vs-paid values below are historical and must not be used as operating instructions.
 
 ## Context
 

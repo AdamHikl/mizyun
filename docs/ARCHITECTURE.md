@@ -52,8 +52,8 @@ HealthKit and Health Connect will be device adapters in the mobile app. They nor
 
 ## Composition roots
 
-1. **Server (`apps/api/src/app.ts`)**: instantiates database adapters, selects AI provider (Gemini default, Mistral fallback), configures logging, and mounts `/v1/*` routes.
-2. **Mobile (`apps/mobile/src/app/`)**: Expo Router file-based layout, initializes React Query, authenticated API client, and local state controllers.
+1. **Server (`apps/api/src/app.ts`)**: instantiates database adapters, selects the configured Gemini provider or a disabled provider, configures logging, and mounts `/v1/*` routes. Gemini model fallback stays inside the Gemini adapter; there is no active Mistral runtime.
+2. **Mobile (`apps/mobile/src/app/`)**: Expo Router file-based layout with the root theme, authentication/session gate, analytics and notification bridges. Feature-local controllers call the authenticated API client; no React Query provider is currently composed.
 
 ## Feature navigation
 

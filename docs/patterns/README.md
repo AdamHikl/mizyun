@@ -2,12 +2,12 @@
 
 > Reusable architectural and implementation patterns proven across Mizyun. Every pattern documents problem trigger, applicability, invariants, canonical source references, verification tests, and status.
 
-| ID                  | Title                                              | Status   | Last Verified SHA | Date       | Applicability                                   |
-| ------------------- | -------------------------------------------------- | -------- | ----------------- | ---------- | ----------------------------------------------- |
-| [PAT-001](#pat-001) | Principal-scoped storage & Row Level Security      | verified | `7faec30`         | 2026-09-09 | All user data tables & Storage buckets          |
-| [PAT-002](#pat-002) | Provider-neutral runtime ports & model adapters    | verified | `7faec30`         | 2026-09-09 | AI features, vision drafts, moderation          |
-| [PAT-003](#pat-003) | Pure deterministic calculations in core            | verified | `7faec30`         | 2026-09-09 | Energy targets, macros, workout volume, trends  |
-| [PAT-004](#pat-004) | Deployment safeguards, port enforcement & rollback | partial  | `7faec30`         | 2026-09-09 | Promotion scripts, systemd units, Pi deployment |
+| ID                  | Title                                              | Status   | Last Verified SHA | Date       | Applicability                                        |
+| ------------------- | -------------------------------------------------- | -------- | ----------------- | ---------- | ---------------------------------------------------- |
+| [PAT-001](#pat-001) | Principal-scoped storage & Row Level Security      | verified | `7faec30`         | 2026-09-09 | All user data tables & Storage buckets               |
+| [PAT-002](#pat-002) | Provider-neutral runtime ports & model adapters    | verified | `7faec30`         | 2026-09-09 | AI features, vision drafts, moderation               |
+| [PAT-003](#pat-003) | Pure deterministic calculations in core            | verified | `7faec30`         | 2026-09-09 | Energy targets, macros, workout volume, trends       |
+| [PAT-004](#pat-004) | Deployment safeguards, port enforcement & rollback | partial  | `ed70df7`         | 2026-09-22 | Promotion scripts, systemd units, Hetzner deployment |
 
 ---
 
@@ -42,10 +42,10 @@
 - **Problem / Trigger**: Integrating large language and multimodal models without coupling business rules, mobile clients, or persistent data models to a specific vendor SDK or proprietary API shape.
 - **Applicability**: Conversational Coach, photo nutrition drafting, input screening, safety moderation.
 - **Invariant**:
-  1. Vendor SDKs (e.g. `@google/genai`, `@mistralai/mistralai`) belong exclusively in `packages/providers/<vendor>`.
+  1. Vendor SDKs (currently `@google/genai`) belong exclusively in `packages/providers/<vendor>`.
   2. `@mizyun/agent-runtime` defines provider-neutral interfaces (`AgentProvider`, `VisionDraftProvider`, `ContentModerator`) and shared types.
   3. Domain packages (`@mizyun/core`, `@mizyun/contracts`) must never import a vendor package.
-  4. `apps/api` is the server composition root selecting the active adapter based on environment configuration or user preference.
+  4. `apps/api` is the server composition root selecting the configured Gemini adapter or a disabled provider. There is no user-selectable provider switch.
 - **Canonical Sources**:
   - `packages/agent-runtime/src/index.ts`
   - `packages/providers/gemini/src/index.ts`
@@ -54,7 +54,7 @@
   - `packages/providers/gemini/src/index.test.ts`
   - `packages/providers/gemini/src/vision.test.ts`
   - `scripts/run-ai-evaluation.mjs`
-- **Decisions & Links**: [ADR-0015](../adr/0015-stateless-mistral-coach.md), [ADR-0019](../adr/0019-gemini-provider-and-dynamic-switching.md)
+- **Decisions & Links**: [Architecture](../ARCHITECTURE.md), [ADR-0024](../adr/0024-self-service-ai-consent-access.md). ADR-0015/0017/0019 are retained as superseded historical rationale, not active provider instructions.
 - **Status**: `verified`
 - **Limitations**: Live model benchmarking remains gated per `docs/BEFORE_TESTING.md`. Offline invariant screener verifies contract compliance and safety heuristics.
 
@@ -88,11 +88,11 @@
 
 ### PAT-004: Deployment safeguards, port enforcement & rollback
 
-- **Problem / Trigger**: Preventing inadvertent cross-environment deployments, database corruption, or service interruption when promoting software to Raspberry Pi Dev and Production stacks.
+- **Problem / Trigger**: Preventing inadvertent cross-environment deployments, database corruption, or service interruption when promoting software to the isolated Hetzner Dev and Production stacks.
 - **Applicability**: Promotion scripts (`scripts/promote-dev.sh`, `scripts/promote-production.sh`) and deployment runners.
 - **Invariant**:
   1. Strict DB port binding check: Dev must target 5433; Production must target 5432. Any cross-target URL exits immediately.
-  2. Working directory check: promotion scripts fail closed if invoked from the wrong checkout or a dirty git state.
+  2. Host marker, role-specific SSH identity, checkout and working-directory checks fail closed on the Pi, wrong host, wrong checkout, or dirty git state.
   3. Pre-promotion automated backup of PostgreSQL database and Storage before schema changes.
   4. Health check validation on public endpoints; failed health triggers automatic rollback and journals rollback state.
   5. File-based mutex lock (`flock` / lockfile) preventing concurrent promotions.
@@ -101,7 +101,7 @@
   - `scripts/promote-production.sh`
   - `scripts/test-deployment-safeguards.mjs`
 - **Relevant Tests**:
-  - `scripts/test-deployment-safeguards.mjs` (23 passing automated safeguard checks)
-- **Decisions & Links**: [ADR-0020](../adr/0020-dual-pi-environments-and-explicit-releases.md), [Finding Q1/Q9 Remediation](../REMEDIATION_IMPLEMENTATION_PLAN_2026-09-08.md)
+  - `scripts/test-deployment-safeguards.mjs` (use the current run count; older counts are historical evidence)
+- **Decisions & Links**: [Hetzner backend guide](../tutorials/HETZNER_BACKEND_GUIDE.md), [Finding Q1/Q9 Remediation](../REMEDIATION_IMPLEMENTATION_PLAN_2026-09-08.md)
 - **Status**: `partial`
-- **Limitations**: Safeguards are fully unit/fault-tested locally (23/23 tests passing), but physical-device restore rehearsal (R8) and final store-distributed binary verification (R3 Part B) remain open before production promotion.
+- **Limitations**: Local safeguards do not prove the effective remote target, restore readiness, physical-device journey (R8), or final store-distributed binary verification. Record those separately for the exact release candidate.

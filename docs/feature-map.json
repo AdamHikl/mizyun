@@ -6,7 +6,7 @@
     {
       "id": "meal-logging",
       "title": "Meal & Nutrition Logging",
-      "summary": "Manual food CRUD, macro/calorie calculations, local-day offsets, offline drafts, and photo/text draft generation.",
+      "summary": "Manual food CRUD, keyset-paginated history/search, macro/calorie calculations, local-day offsets, offline drafts, and photo/text draft generation.",
       "aliases": ["food", "nutrition", "calories", "macros", "diet", "meal"],
       "entryPoints": [
         "apps/api/src/modules/food-entries/routes.ts",
@@ -29,6 +29,7 @@
       "ui": [
         "apps/mobile/src/app/(tabs)/meals.tsx",
         "apps/mobile/src/app/log-meal.tsx",
+        "apps/mobile/src/features/log-meal/meal-list-screen.tsx",
         "apps/mobile/src/features/log-meal/meal-form.ts",
         "apps/mobile/src/features/log-meal/log-meal-data.ts"
       ],
@@ -44,6 +45,7 @@
       "tests": [
         "apps/api/src/modules/food-entries/routes.test.ts",
         "apps/api/src/modules/food-entries/draft-route.test.ts",
+        "apps/mobile/src/features/log-meal/log-meal-data.test.ts",
         "apps/mobile/src/features/log-meal/meal-form.test.ts",
         "apps/mobile/src/features/log-meal/meal-lifecycle-data.test.ts",
         "apps/mobile/src/features/log-meal/meal-retry-durability.test.ts"
@@ -79,9 +81,9 @@
         "pnpm --filter @mizyun/api test src/modules/food-entries",
         "pnpm --filter @mizyun/mobile test src/features/log-meal"
       ],
-      "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
-      "lastReviewedDate": "2026-09-09",
-      "limitations": "Live vision model photo drafting requires external provider evaluation per BEFORE_TESTING.md",
+      "lastReviewedSha": "ed70df727fdb38940b686b1dd2647d519f8478cd",
+      "lastReviewedDate": "2026-09-22",
+      "limitations": "Reviewed against HEAD plus disclosed local pagination and meal-workflow changes. Live vision model photo drafting requires external provider evaluation per BEFORE_TESTING.md",
       "requirements": ["NUTR-01", "NUTR-02", "REL-AUD-007"],
       "openAcceptance": [
         "REL-AUD-007/Q2: Durable unknown-outcome persistence for ambiguous retries across network drops"
@@ -526,7 +528,6 @@
         "coach",
         "ai",
         "gemini",
-        "mistral",
         "consent",
         "memory",
         "tokens",
@@ -597,7 +598,7 @@
         {
           "type": "dependsOn",
           "target": "auth",
-          "reason": "AI access authorization requires user authentication and email admission"
+          "reason": "AI access requires authentication, adult eligibility, and current granted consent; email allowlisting is deprecated"
         },
         {
           "type": "dependsOn",
@@ -611,9 +612,8 @@
         }
       ],
       "docs": [
-        "docs/adr/0015-stateless-mistral-coach.md",
-        "docs/adr/0017-ai-governance.md",
-        "docs/adr/0019-gemini-provider-and-dynamic-switching.md",
+        "docs/ARCHITECTURE.md",
+        "docs/adr/0024-self-service-ai-consent-access.md",
         "docs/patterns/README.md#pat-002",
         "docs/BEFORE_TESTING.md"
       ],
@@ -623,9 +623,9 @@
         "pnpm --filter @mizyun/provider-gemini test",
         "pnpm --filter @mizyun/api test src/modules/coach"
       ],
-      "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
-      "lastReviewedDate": "2026-09-09",
-      "limitations": "Live Gemini evaluation gated per BEFORE_TESTING.md; offline screener evaluates 56 heuristic cases",
+      "lastReviewedSha": "ed70df727fdb38940b686b1dd2647d519f8478cd",
+      "lastReviewedDate": "2026-09-22",
+      "limitations": "Reviewed against HEAD plus disclosed local changes. Gemini is the only active model provider; live evaluation remains gated by BEFORE_TESTING.md and the offline screener covers 56 heuristic cases",
       "requirements": ["REL-AUD-005", "REL-AUD-006"],
       "openAcceptance": [
         "REL-AUD-005/Q8: Live model benchmarking & reservation leases",
@@ -739,22 +739,20 @@
       ],
       "docs": [
         "docs/adr/0004-validated-environment-composition.md",
-        "docs/adr/0020-dual-pi-environments-and-explicit-releases.md",
         "docs/adr/0022-git-backed-navigation-and-advisory-impact.md",
         "docs/patterns/README.md#pat-004",
-        "docs/tutorials/DEV_PRODUCTION_PI_GUIDE.md",
-        "docs/LOCAL_WORKER_BASELINE.md",
-        "docs/tutorials/LOCAL_QWEN_OPENCODE.md",
-        ".agents/guides/LOCAL_QWEN_OPENCODE_AGENT_GUIDE.md"
+        "docs/tutorials/HETZNER_BACKEND_GUIDE.md",
+        ".agents/skills/deploy-dev/SKILL.md",
+        ".agents/skills/deploy-production/SKILL.md"
       ],
       "verificationCommands": [
         "pnpm test:deployment-safeguards",
         "pnpm test:build-matrix",
         "pnpm --filter @mizyun/config test"
       ],
-      "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
-      "lastReviewedDate": "2026-09-09",
-      "limitations": "Dev and Prod run side-by-side on Pi 5; deployment scripts fail closed if ports or checkouts cross",
+      "lastReviewedSha": "ed70df727fdb38940b686b1dd2647d519f8478cd",
+      "lastReviewedDate": "2026-09-22",
+      "limitations": "Reviewed against HEAD plus disclosed local changes. Dev and Production run on the Hetzner CX23 with role-specific identities and services; the Pi is encrypted recovery storage and local Qwen is paused",
       "requirements": ["INFRA-DUAL-004", "REL-AUD-003"],
       "openAcceptance": [
         "REL-AUD-003/R3 Part B: Store distribution signing keys and release build profiles",
@@ -889,7 +887,7 @@
       "verificationCommands": ["pnpm db:lint", "pnpm db:test"],
       "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
       "lastReviewedDate": "2026-09-09",
-      "limitations": "Destructive verification (pnpm db:verify) runs strictly on local disposable Mac stack, never on Pi",
+      "limitations": "Destructive verification (pnpm db:verify) runs strictly on the local disposable Mac stack, never on Hetzner or the Pi recovery host",
       "requirements": ["DATA-01", "SEC-01", "REL-AUD-006"],
       "openAcceptance": []
     },

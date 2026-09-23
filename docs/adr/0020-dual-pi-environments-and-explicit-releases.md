@@ -1,8 +1,8 @@
 # ADR-0020: Dual Pi environments and explicit releases
 
-- Status: accepted; topology provisioned on Pi 5 (Dev 4100/8100, Prod 4000/8000), deployment safeguards active; physical-device acceptance and store signing keys remain open release gates
+- Status: superseded as the active host topology by the accepted Hetzner cutover on 2026-09-19; retained for the origin of environment-isolation and explicit-release safeguards
 - Date: 2026-09-07
-- Related: ADR-0018, current AGENTS.md Raspberry Pi policy, INFRA-DUAL-001–005
+- Related: ADR-0018, current `AGENTS.md` Hetzner policy, INFRA-DUAL-001–005
 
 ## Context
 

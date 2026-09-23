@@ -1,6 +1,6 @@
 # ADR-0015: Stateless Mistral coach with Mizyun-owned grounding and conversations
 
-- Status: accepted
+- Status: superseded for provider selection on 2026-09-03 when the Mistral provider was removed; retained as historical rationale for stateless, Mizyun-owned grounding
 - Date: 2026-07-23
 
 ## Context

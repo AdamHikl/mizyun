@@ -1,5 +1,7 @@
 # AWS SES Email Setup & Operations
 
+> Host note (2026-09-22): Hetzner is the active Dev/Production authority. Any Raspberry Pi commands below are historical and must not be used for deployment; translate current operations through [`docs/tutorials/HETZNER_BACKEND_GUIDE.md`](tutorials/HETZNER_BACKEND_GUIDE.md).
+
 This document describes the AWS SES email delivery configuration for Mizyun, covering both:
 
 1. **Application-level transactional email** (via `@mizyun/adapter-ses` and `@mizyun/core`).

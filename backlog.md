@@ -56,7 +56,7 @@ gh issue close <issue-number> --reason completed
 | #12   | `AI-BUDGET-001`        | P1       | active   | Decoupled AI token & photo draft budgets                                   | [#12](https://github.com/AdamHikl/mizyun/issues/12) |
 | #13   | `BETA-PRO-001`         | P1       | active   | Beta Pro Pass request flow & approval CLI                                  | [#13](https://github.com/AdamHikl/mizyun/issues/13) |
 | #14   | `OFFLINE-CACHE-001`    | P1       | ready    | Offline profile & dashboard cache for instant startup                      | [#14](https://github.com/AdamHikl/mizyun/issues/14) |
-| #15   | `FIX-COACH-INTENT-001` | P1       | active   | Disambiguate Coach workout logging intents from meal drafts                | [#15](https://github.com/AdamHikl/mizyun/issues/15) |
+| #15   | `FIX-COACH-INTENT-001` | P1       | done     | Disambiguate Coach workout logging intents from meal drafts                | [#15](https://github.com/AdamHikl/mizyun/issues/15) |
 | #16   | `DOCS-NAV-001`         | P1       | ready    | Reconcile current guidance, archive history, and introduce focused startup | [#16](https://github.com/AdamHikl/mizyun/issues/16) |
 | #17   | `DOCS-NAV-002`         | P1       | ready    | Add feature manifest and bounded context command                           | [#17](https://github.com/AdamHikl/mizyun/issues/17) |
 | #18   | `DOCS-NAV-003`         | P1       | ready    | Add advisory impact analysis and navigation/boundary checks                | [#18](https://github.com/AdamHikl/mizyun/issues/18) |
@@ -85,7 +85,7 @@ gh issue close <issue-number> --reason completed
 | #41   | `MEM-001`              | P0       | active   | Persistent memory adapter and controls                                     | [#41](https://github.com/AdamHikl/mizyun/issues/41) |
 | #42   | `AI-001`               | P0       | active   | Evaluate/select initial Mistral model                                      | [#42](https://github.com/AdamHikl/mizyun/issues/42) |
 | #43   | `AI-002`               | P1       | active   | Text coaching adapter and read-only tools                                  | [#43](https://github.com/AdamHikl/mizyun/issues/43) |
-| #44   | `VISION-001`           | P1       | active   | Editable text/photo food drafts                                            | [#44](https://github.com/AdamHikl/mizyun/issues/44) |
+| #44   | `VISION-001`           | P1       | done     | Editable text/photo food drafts                                            | [#44](https://github.com/AdamHikl/mizyun/issues/44) |
 | #45   | `VISION-002`           | P2       | blocked  | Conservative body-progress observations                                    | [#45](https://github.com/AdamHikl/mizyun/issues/45) |
 | #46   | `REL-001`              | P0       | blocked  | Privacy/export/deletion release gate                                       | [#46](https://github.com/AdamHikl/mizyun/issues/46) |
 | #47   | `REL-002`              | P0       | blocked  | iOS/Android beta build matrix                                              | [#47](https://github.com/AdamHikl/mizyun/issues/47) |

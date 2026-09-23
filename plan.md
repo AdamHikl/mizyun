@@ -34,8 +34,8 @@ Foundation
         → mobile progress + private media
           → real dashboard + weekly review
             → Android verification + product analytics
-              → private Mistral implementation + synthetic evaluation
-                → isolated Windows founder production
+              → private Gemini implementation + synthetic evaluation
+                → isolated founder production
                   → founder alpha + 10–30 design partners
                   → durable memory + text-assisted nutrition
                     → vision-assisted drafts
@@ -46,15 +46,15 @@ Nutrition, training, and progress can advance in parallel only after the product
 
 ## Cross-cutting infrastructure evolution
 
-ADR-0016, ADR-0020 (superseding ADR-0018), and `docs/INFRASTRUCTURE_EVOLUTION_PLAN.md` establish a portable path with an explicit founder-production exception:
+ADR-0016, the accepted host migration evidence, and `docs/INFRASTRUCTURE_EVOLUTION_PLAN.md` establish a portable path with an explicit founder-production exception. ADR-0020 and ADR-0018 now describe historical predecessor topologies:
 
-1. keep disposable local development on the Mac, and host isolated Dev (port 4100/8100) and Production (port 4000/8000) side-by-side on the Raspberry Pi 5 (`mizyun-pi`), with the Windows PC (`mizyun-pc`) kept as a hot backup;
+1. keep disposable local development on the Mac, and host isolated Dev (port 4100/8100) and Production (port 4000/8000) side-by-side on the Hetzner CX23 in Helsinki; the Raspberry Pi 5 is encrypted recovery storage and the Windows PC is only a historical recovery option;
 2. promote exact verified commits without ever resetting or seeding remote authorities;
 3. keep business rules, identity, memory, media, and model providers behind replaceable ports (Gemini active via ADR-0019);
 4. enforce deployment safeguards (port checks, mutex locks, rollback) and off-device backups before paying users rely on the service;
-5. return to the managed/redundant production gate before paying-user cutover, including 90 days of production-shaped staging and two rehearsals.
+5. require explicit release evidence and revisit managed/redundant hosting before broader paid-user reliance; historical 90-day staging language is not a current host-migration gate.
 
-The current infrastructure topology is operational on the Raspberry Pi 5 under `INFRA-DUAL-001–005` / ADR-0020, with physical-device journey acceptance (R8) and store distribution signing (R3 Part B) remaining open release gates. “Production” during this phase means Adam's founder environment, not release-grade paying-user production.
+The current infrastructure topology is operational on Hetzner, with physical-device journey acceptance (R8), off-device restore acceptance, and store distribution signing remaining separate release gates. “Production” during this phase means Adam's founder environment, not proof of release-grade paying-user redundancy.
 
 ## Phase 0 — Modular foundation ✅
 
@@ -239,13 +239,11 @@ Prove the business-plan launch wedge before adding AI: a busy intermediate gym-g
    - consent-respecting activation, time/taps-to-log, completion, retry/failure, retention, and feature-use events;
    - no food text, health values, photo content, tokens, or message bodies in analytics;
    - a founder dashboard or export sufficient to evaluate 10–30 design partners.
-8. **AI-GOV-001 / AI-001 / AI-002 — Private Mistral text-coach implementation**
-   - resolve Mistral commercial, DPA, Zero Data Retention, and fitness/wellness Usage Policy questions;
-   - server-only configuration, the official-SDK adapter, structured output, bounded retry/failure normalization, and default-off external access are implemented;
-   - RLS conversation persistence, message idempotency, export/deletion, and bounded confirmed-data grounding are implemented;
-   - fixed critical-safety paths and the mobile Coach experience are implemented and unit/route tested;
-   - next pass the versioned offline and opt-in live synthetic safety, grounding, prompt-injection, cost, and failure evaluations plus standalone native acceptance;
-   - keep external AI access disabled until `docs/AI_IMPLEMENTATION_PLAN.md` release gates pass.
+8. **AI-GOV-001 / AI-001 / AI-002 — Selected-provider Coach acceptance**
+   - The historical Mistral implementation sequence is superseded by Gemini selection under ADR-0019 and the consent-based admission policy under ADR-0024.
+   - Preserve server-only provider boundaries, confirmed-data grounding, conversation persistence, idempotency and safety paths.
+   - Complete outstanding Gemini governance, live-synthetic safety/grounding/cost/failure evaluation and native acceptance under #29/#30/#36; historical adapter or offline-test results do not establish current acceptance.
+   - Preserve the explicit Dev testing exception; broader access remains subject to the current release evidence and provider gates.
 9. **ALPHA-001 — Founder and design-partner validation**
    - founder completes at least one continuous week without data loss;
    - 10–30 target users test the loop before paid acquisition;
