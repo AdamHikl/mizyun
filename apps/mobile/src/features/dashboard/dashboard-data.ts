@@ -8,6 +8,7 @@ import {
   type DailyFoodSummary,
   type DailyFoodSummaryResponse,
   type EnergySummaryResponse,
+  type FoodEntry,
   type WorkoutListResponse,
 } from "@mizyun/contracts";
 
@@ -515,4 +516,15 @@ export const computeDailyNutritionDisplay = (params: {
     badgeType,
     hasIncompleteMeals,
   };
+};
+
+export const extractMostRecentEligibleMeal = (
+  entries: ReadonlyArray<FoodEntry>,
+): FoodEntry | null => {
+  for (const entry of entries) {
+    if (typeof entry.name === "string" && entry.name.trim().length > 0) {
+      return entry;
+    }
+  }
+  return null;
 };

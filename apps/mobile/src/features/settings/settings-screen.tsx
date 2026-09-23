@@ -33,6 +33,7 @@ import {
 import { AccountDataCard } from "./account-data-card";
 import { CoachPreferencesCard } from "./coach-preferences-card";
 import { CoachRemindersCard } from "./coach-reminders-card";
+import { FirstMealRemindersCard } from "./first-meal-reminders-card";
 import { GoalSettingsCard } from "./goal-settings-card";
 import { MemoryControlsCard } from "./memory-controls-card";
 import { PasswordSecurityCard } from "./password-security-card";
@@ -662,6 +663,7 @@ export function SettingsScreen() {
                 onToggle={() => toggleSection("reminders")}
               >
                 <CoachRemindersCard userId={session.user.id} />
+                <FirstMealRemindersCard userId={session.user.id} />
               </CollapsibleSection>
             ) : null}
           </View>
@@ -1484,6 +1486,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "rgba(148, 163, 184, 0.12)",
     paddingTop: Spacing.two,
+    gap: Spacing.three,
   },
   innerCard: {
     padding: Spacing.four,

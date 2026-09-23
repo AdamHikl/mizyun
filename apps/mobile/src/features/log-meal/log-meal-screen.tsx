@@ -10,7 +10,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router, Stack } from "expo-router";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LoggingFlowMeasurement } from "@mizyun/observability";
 import {
   aiUsageResponseSchema,
@@ -51,6 +51,14 @@ import {
   upgradeLegacyMealDraft,
 } from "./meal-form";
 import { normalizeMealPhoto } from "./meal-photo";
+import { fetchFoodHistory } from "./meal-lifecycle-data";
+import { getEntryGrams } from "./meal-scale";
+import {
+  loadFirstMealReminders,
+  reconcileFirstMealReminders,
+} from "./first-meal-reminders";
+import { FirstMealRoutineModal } from "./first-meal-routine-modal";
+import type { FoodEntry } from "@mizyun/contracts";
 import { apiClient } from "@/composition/api-client";
 import {
   useAiConsentController,
@@ -123,9 +131,51 @@ export function LogMealScreen() {
   const [refineInstruction, setRefineInstruction] = useState("");
   const [refining, setRefining] = useState(false);
   const [aiUsage, setAiUsage] = useState<AiUsageResponse | null>(null);
+  const [recentMeals, setRecentMeals] = useState<ReadonlyArray<FoodEntry>>([]);
+  const [showRoutineModal, setShowRoutineModal] = useState(false);
   const measurement = useRef<LoggingFlowMeasurement | null>(null);
   const hadFailure = useRef(false);
   const userId = session?.user.id ?? null;
+
+  useEffect(() => {
+    let active = true;
+    void fetchFoodHistory({ limit: 10 }).then((res) => {
+      if (!active) return;
+      if (res.entries.length > 0) {
+        setRecentMeals(res.entries);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const uniqueRecentMeals = useMemo(() => {
+    const seen = new Set<string>();
+    const list: FoodEntry[] = [];
+    for (const meal of recentMeals) {
+      const key = meal.name.trim().toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        list.push(meal);
+      }
+      if (list.length >= 4) break;
+    }
+    return list;
+  }, [recentMeals]);
+
+  const onSelectRecentMeal = useCallback((meal: FoodEntry) => {
+    measurement.current?.tap();
+    setName(meal.name);
+    setCalories(meal.caloriesKcal != null ? String(meal.caloriesKcal) : "");
+    setProtein(meal.proteinG != null ? String(meal.proteinG) : "");
+    setCarbs(meal.carbohydrateG != null ? String(meal.carbohydrateG) : "");
+    setFat(meal.fatG != null ? String(meal.fatG) : "");
+    const grams = getEntryGrams(meal);
+    if (grams != null) {
+      setPortionGrams(String(grams));
+    }
+  }, []);
 
   const loadAiUsage = useCallback(async () => {
     try {
@@ -407,7 +457,15 @@ export function LogMealScreen() {
       isCompletedRef.current = true;
       submittedOperationRef.current = null;
       measurement.current?.complete();
-      if (userId !== null) await clearLoggingDraft(userId, "meal");
+      if (userId !== null) {
+        await clearLoggingDraft(userId, "meal");
+        await reconcileFirstMealReminders(userId, { todayLogged: true });
+        const reminderSettings = await loadFirstMealReminders(userId);
+        if (!reminderSettings.enabled && !reminderSettings.promptDismissed) {
+          setShowRoutineModal(true);
+          return;
+        }
+      }
       router.back();
       return;
     }
@@ -938,6 +996,49 @@ export function LogMealScreen() {
             </ThemedView>
           ) : null}
 
+          {uniqueRecentMeals.length > 0 ? (
+            <View style={styles.recentMealsContainer}>
+              <ThemedText type="smallBold" themeColor="textSecondary">
+                Quick meal reuse
+              </ThemedText>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.recentMealsScroll}
+              >
+                {uniqueRecentMeals.map((meal: FoodEntry) => (
+                  <Pressable
+                    key={meal.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Reuse meal ${meal.name}`}
+                    onPress={() => onSelectRecentMeal(meal)}
+                    style={({ pressed }) => [
+                      styles.recentMealChip,
+                      pressed && styles.snapPressed,
+                      {
+                        borderColor: theme.border,
+                        backgroundColor:
+                          theme.background === "#F8FAF9"
+                            ? "#FFFFFF"
+                            : "rgba(255, 255, 255, 0.05)",
+                      },
+                    ]}
+                  >
+                    <ThemedText type="smallBold" numberOfLines={1}>
+                      {meal.name}
+                    </ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      {meal.caloriesKcal != null
+                        ? `${meal.caloriesKcal} kcal`
+                        : "—"}
+                      {meal.proteinG != null ? ` · ${meal.proteinG}P` : ""}
+                    </ThemedText>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          ) : null}
+
           <Field
             testID="meal-name-input"
             label="Name"
@@ -1152,6 +1253,13 @@ export function LogMealScreen() {
           );
         }}
       />
+
+      <FirstMealRoutineModal
+        visible={showRoutineModal}
+        userId={userId ?? ""}
+        onDismiss={() => router.back()}
+        onSaved={() => router.back()}
+      />
     </ThemedView>
   );
 }
@@ -1349,5 +1457,20 @@ const styles = StyleSheet.create({
   },
   processButtonText: {
     color: "#FFFFFF",
+  },
+  recentMealsContainer: {
+    gap: Spacing.one,
+  },
+  recentMealsScroll: {
+    gap: Spacing.two,
+    paddingVertical: Spacing.half,
+  },
+  recentMealChip: {
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    minWidth: 120,
+    gap: 2,
   },
 });

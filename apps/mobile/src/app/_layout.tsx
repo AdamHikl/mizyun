@@ -160,8 +160,41 @@ function WorkoutNotificationBridge() {
     };
     const initial = Notifications.getLastNotificationResponse();
     if (initial?.notification) {
-      open(initial.notification);
-      Notifications.clearLastNotificationResponse();
+      const data = initial.notification.request.content.data ?? {};
+      if (data.url === "/log-workout") {
+        open(initial.notification);
+        Notifications.clearLastNotificationResponse();
+      }
+    }
+    const subscription = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        open(response.notification);
+      },
+    );
+    return () => subscription.remove();
+  }, []);
+  return null;
+}
+
+function MealNotificationBridge() {
+  useEffect(() => {
+    const open = (notification: Notifications.Notification) => {
+      const data = notification.request.content.data ?? {};
+      if (data.url !== "/log-meal") return;
+      router.push({
+        pathname: "/log-meal",
+        params: {
+          ...(typeof data.source === "string" ? { source: data.source } : {}),
+        },
+      });
+    };
+    const initial = Notifications.getLastNotificationResponse();
+    if (initial?.notification) {
+      const data = initial.notification.request.content.data ?? {};
+      if (data.url === "/log-meal") {
+        open(initial.notification);
+        Notifications.clearLastNotificationResponse();
+      }
     }
     const subscription = Notifications.addNotificationResponseReceivedListener(
       (response) => {
@@ -208,6 +241,7 @@ export default function TabLayout() {
           <PushRegistrationBridge />
           <CoachNotificationBridge />
           <WorkoutNotificationBridge />
+          <MealNotificationBridge />
           <Stack screenOptions={{ headerBackTitle: "Back" }}>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen

@@ -19,6 +19,10 @@ import {
   type ReminderScheduler,
   type ReminderStore,
 } from "../coach/coach-reminders";
+import {
+  clearFirstMealReminders,
+  type FirstMealReminderScheduler,
+} from "../log-meal/first-meal-reminders";
 import { purgeOfflineCache } from "../offline-cache/offline-cache-storage";
 import { keyFor as workoutPreferencesKeyFor } from "../workouts/workout-preferences";
 
@@ -180,6 +184,8 @@ export interface ClearLocalUserDataOptions {
   readonly consentStore?: Parameters<typeof revokeAiConsent>[1];
   readonly reminderScheduler?: ReminderScheduler;
   readonly reminderStore?: ReminderStore;
+  readonly firstMealReminderScheduler?: FirstMealReminderScheduler;
+  readonly firstMealReminderStore?: ReminderStore;
   readonly additionalDraftKinds?: readonly LoggingDraftKind[];
   readonly challengeStore?: SecureKeyValueStore;
   readonly offlineCacheStore?: Parameters<typeof purgeOfflineCache>[1];
@@ -193,8 +199,9 @@ export interface ClearLocalUserDataOptions {
 /**
  * Clears all locally persisted state for the given user, including
  * meal/workout/weight/coach drafts, AI consent decisions, scheduled
- * coach reminder notifications, deletion challenges, workout preferences,
- * offline profile/dashboard caches, and local exported JSON files.
+ * coach reminder notifications, scheduled first-meal notifications,
+ * deletion challenges, workout preferences, offline profile/dashboard
+ * caches, and local exported JSON files.
  */
 export const clearLocalUserData = async (
   userId: string,
@@ -239,6 +246,11 @@ export const clearLocalUserData = async (
       userId,
       options.reminderScheduler,
       options.reminderStore,
+    ),
+    clearFirstMealReminders(
+      userId,
+      options.firstMealReminderScheduler,
+      options.firstMealReminderStore ?? options.reminderStore,
     ),
     clearDeletionChallenge(userId, options.challengeStore),
     purgeOfflineCache(userId, options.offlineCacheStore),

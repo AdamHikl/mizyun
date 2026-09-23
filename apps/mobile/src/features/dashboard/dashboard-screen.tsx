@@ -1,4 +1,5 @@
 import {
+  ActivityIndicator,
   Platform,
   Pressable,
   RefreshControl,
@@ -9,6 +10,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect, type Href } from "expo-router";
 import { useCallback, useRef, useState } from "react";
+import type { FoodEntry } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -19,10 +21,22 @@ import { apiClient } from "@/composition/api-client";
 import { analyticsClient } from "@/composition/analytics-client";
 import { isProgressPhotosEnabled } from "@/composition/app-variant";
 import { useAuth } from "@/features/auth/auth-context";
+import { useTheme } from "@/hooks/use-theme";
+import { formatTime12 } from "@/components/ui/ios-time-picker";
+import {
+  copyFoodEntry,
+  fetchFoodHistory,
+} from "../log-meal/meal-lifecycle-data";
+import {
+  loadFirstMealReminders,
+  reconcileFirstMealReminders,
+  type FirstMealReminderSettings,
+} from "../log-meal/first-meal-reminders";
 
 import {
   combineNutritionReview,
   computeDailyNutritionDisplay,
+  extractMostRecentEligibleMeal,
   fetchDailySummary,
   fetchEnergySummary,
   fetchLatestWeight,
@@ -230,6 +244,9 @@ const actions = [
 export function DashboardScreen() {
   const { profile, session, openOnboarding } = useAuth();
   const [metrics, setMetrics] = useState<MetricsState>(EMPTY_METRICS);
+  const [recentMeal, setRecentMeal] = useState<FoodEntry | null>(null);
+  const [firstMealReminders, setFirstMealReminders] =
+    useState<FirstMealReminderSettings | null>(null);
   const [reviewPeriod, setReviewPeriod] = useState<ReviewPeriod>("week");
   const activeRequestId = useRef(0);
   const userId = session?.user.id ?? null;
@@ -275,6 +292,12 @@ export function DashboardScreen() {
     // Pre-populate with cached snapshot immediately on cold start
     let cachedSnapshot: CachedDashboardSnapshot | null = null;
     if (userId) {
+      void loadFirstMealReminders(userId).then((stored) => {
+        setFirstMealReminders(stored);
+      });
+      void fetchFoodHistory({ limit: 5 }).then((res) => {
+        setRecentMeal(extractMostRecentEligibleMeal(res.entries));
+      });
       cachedSnapshot = await loadCachedDashboard(
         userId,
         todayDate,
@@ -368,6 +391,12 @@ export function DashboardScreen() {
           (hasNutritionError && cachedSnapshot !== null) ||
           (hasWeightError && cachedSnapshot !== null) ||
           (hasEnergyError && cachedSnapshot !== null);
+
+        if (userId && !hasNutritionError && summary.value) {
+          void reconcileFirstMealReminders(userId, {
+            todayLogged: (summary.value.entryCount ?? 0) > 0,
+          });
+        }
 
         return {
           ...current,
@@ -593,6 +622,18 @@ export function DashboardScreen() {
             </Pressable>
           ) : null}
 
+          {/* First-Meal Routine & Quick Reuse Card */}
+          {userId !== null ? (
+            <FirstMealDashboardCard
+              userId={userId}
+              todayEntryCount={metrics.macros?.entryCount ?? 0}
+              caloriesToday={metrics.caloriesToday}
+              recentMeal={recentMeal}
+              reminderSettings={firstMealReminders}
+              onMealCopied={loadMetrics}
+            />
+          ) : null}
+
           {/* 1. Daily Nutrition & Macro Visual Card */}
           <DailyNutritionCard
             summary={metrics.macros}
@@ -698,6 +739,191 @@ export function DashboardScreen() {
           ) : null}
         </ScrollView>
       </SafeAreaView>
+    </ThemedView>
+  );
+}
+
+function FirstMealDashboardCard(props: {
+  readonly userId: string;
+  readonly todayEntryCount: number;
+  readonly caloriesToday: number | null;
+  readonly recentMeal: FoodEntry | null;
+  readonly reminderSettings: FirstMealReminderSettings | null;
+  readonly onMealCopied: () => Promise<void>;
+}) {
+  const {
+    userId,
+    todayEntryCount,
+    caloriesToday,
+    recentMeal,
+    reminderSettings,
+    onMealCopied,
+  } = props;
+  const theme = useTheme();
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    if (!recentMeal || busy) return;
+    setBusy(true);
+    setCopied(false);
+    const startMs = Date.now();
+    const result = await copyFoodEntry(recentMeal);
+    if (result.ok) {
+      const elapsed = Date.now() - startMs;
+      void analyticsClient.track({
+        name: "feature_viewed",
+        properties: {
+          feature: "quick_meal_repeat",
+        },
+      });
+      await reconcileFirstMealReminders(userId, { todayLogged: true });
+      await onMealCopied();
+      setCopied(true);
+      setTimeout(() => setCopied(false), 3000);
+    }
+    setBusy(false);
+  };
+
+  if (todayEntryCount > 0) {
+    return (
+      <ThemedView
+        type="backgroundElement"
+        style={[
+          styles.firstMealCard,
+          {
+            borderColor: "rgba(16, 185, 129, 0.25)",
+            backgroundColor:
+              theme.background === "#F8FAF9"
+                ? "rgba(16, 185, 129, 0.05)"
+                : "rgba(16, 185, 129, 0.08)",
+          },
+        ]}
+      >
+        <View style={styles.firstMealHeaderRow}>
+          <ThemedText style={styles.firstMealIcon}>✨</ThemedText>
+          <View style={styles.firstMealHeaderContent}>
+            <ThemedText type="smallBold" style={{ color: "#10B981" }}>
+              First meal logged today!
+            </ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              {todayEntryCount} {todayEntryCount === 1 ? "meal" : "meals"}{" "}
+              logged · {formatCalories(caloriesToday)} so far
+            </ThemedText>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Log another meal"
+            onPress={() => router.push("/log-meal" as Href)}
+            style={({ pressed }) => [
+              styles.firstMealAddButton,
+              pressed && styles.pressed,
+            ]}
+          >
+            <ThemedText type="smallBold" style={styles.firstMealAddButtonText}>
+              ＋ Log next
+            </ThemedText>
+          </Pressable>
+        </View>
+      </ThemedView>
+    );
+  }
+
+  return (
+    <ThemedView
+      type="backgroundElement"
+      style={[styles.firstMealCard, { borderColor: theme.border }]}
+    >
+      <View style={styles.firstMealHeaderRow}>
+        <ThemedText style={styles.firstMealIcon}>🌅</ThemedText>
+        <View style={styles.firstMealHeaderContent}>
+          <ThemedText type="smallBold">Start with your first meal</ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">
+            Logging early sets today's routine.
+          </ThemedText>
+        </View>
+      </View>
+
+      {recentMeal !== null ? (
+        <View
+          style={[
+            styles.firstMealRepeatBox,
+            {
+              backgroundColor:
+                theme.background === "#F8FAF9"
+                  ? "#FFFFFF"
+                  : "rgba(255, 255, 255, 0.04)",
+              borderColor: theme.border,
+            },
+          ]}
+        >
+          <View style={styles.firstMealRepeatInfo}>
+            <ThemedText type="smallBold" numberOfLines={1}>
+              {recentMeal.name}
+            </ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              {recentMeal.caloriesKcal != null
+                ? `${recentMeal.caloriesKcal} kcal`
+                : "—"}
+              {recentMeal.proteinG != null ? ` · ${recentMeal.proteinG}P` : ""}
+            </ThemedText>
+          </View>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Copy ${recentMeal.name} to today`}
+            accessibilityState={{ busy, disabled: busy }}
+            disabled={busy}
+            onPress={() => void handleCopy()}
+            style={({ pressed }) => [
+              styles.copyToTodayButton,
+              (pressed || busy) && styles.pressed,
+            ]}
+          >
+            {busy ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <ThemedText type="smallBold" style={styles.copyToTodayButtonText}>
+                {copied ? "Saved! ✨" : "Copy to Today"}
+              </ThemedText>
+            )}
+          </Pressable>
+        </View>
+      ) : null}
+
+      <View style={styles.firstMealFooterRow}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Log a new meal"
+          onPress={() => router.push("/log-meal" as Href)}
+          style={({ pressed }) => [
+            styles.firstMealLogLink,
+            pressed && styles.pressed,
+          ]}
+        >
+          <ThemedText type="smallBold" style={styles.firstMealLogLinkText}>
+            🥗 Log a meal →
+          </ThemedText>
+        </Pressable>
+
+        {reminderSettings?.enabled ? (
+          <ThemedText type="small" themeColor="textSecondary">
+            ⏰ Reminder:{" "}
+            {formatTime12(reminderSettings.hour, reminderSettings.minute)}
+          </ThemedText>
+        ) : (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Set reminder in settings"
+            onPress={() => router.push("/settings" as Href)}
+            style={({ pressed }) => pressed && styles.pressed}
+          >
+            <ThemedText type="small" themeColor="textSecondary">
+              ⏰ Set reminder
+            </ThemedText>
+          </Pressable>
+        )}
+      </View>
     </ThemedView>
   );
 }
@@ -1415,5 +1641,73 @@ const styles = StyleSheet.create({
   },
   offlineRefreshButtonText: {
     color: "#EAB308",
+  },
+  firstMealCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: Spacing.three,
+    gap: Spacing.two,
+  },
+  firstMealHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+  },
+  firstMealIcon: {
+    fontSize: 22,
+  },
+  firstMealHeaderContent: {
+    flex: 1,
+    gap: 2,
+  },
+  firstMealAddButton: {
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.one,
+    borderRadius: 8,
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+  },
+  firstMealAddButtonText: {
+    color: "#10B981",
+    fontSize: 13,
+  },
+  firstMealRepeatBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    gap: Spacing.two,
+  },
+  firstMealRepeatInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  copyToTodayButton: {
+    backgroundColor: "#10B981",
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.one,
+    borderRadius: 10,
+    minHeight: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  copyToTodayButtonText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+  },
+  firstMealFooterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: Spacing.half,
+  },
+  firstMealLogLink: {
+    paddingVertical: Spacing.half,
+  },
+  firstMealLogLinkText: {
+    color: "#10B981",
+    fontSize: 13,
   },
 });

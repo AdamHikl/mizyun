@@ -6,6 +6,7 @@ import type {
   DailyFoodSummaryResponse,
   BodyMeasurementListResponse,
   EnergySummaryResponse,
+  FoodEntry,
   WorkoutListResponse,
 } from "@mizyun/contracts";
 
@@ -21,6 +22,7 @@ import {
   fetchNutritionReview,
   fetchNutritionReviewSummaries,
   fetchWorkoutCountForPeriod,
+  extractMostRecentEligibleMeal,
   summariseNutritionReview,
   type LocalDayQuery,
   type NutritionReviewRangeQuery,
@@ -1286,5 +1288,54 @@ describe("DASH-LOAD-001: Historical failure and delay regressions", () => {
     expect(combined.loggedDays).toBe(2);
     expect(combined.entryCount).toBe(2);
     expect(combined.caloriesKcal).toBe(1100);
+  });
+
+  describe("extractMostRecentEligibleMeal", () => {
+    it("returns null when entries array is empty", () => {
+      expect(extractMostRecentEligibleMeal([])).toBeNull();
+    });
+
+    it("returns null when all entries have empty names", () => {
+      expect(
+        extractMostRecentEligibleMeal([
+          {
+            id: "1",
+            userId: "u1",
+            name: "   ",
+            consumedAt: "2026-09-23T08:00:00Z",
+            caloriesKcal: 200,
+            proteinG: 10,
+            carbohydrateG: 20,
+            fatG: 5,
+            details: {},
+            source: "manual",
+            confidence: null,
+            confirmedByUser: true,
+            createdAt: "2026-09-23T08:00:00Z",
+            updatedAt: "2026-09-23T08:00:00Z",
+          },
+        ]),
+      ).toBeNull();
+    });
+
+    it("returns first meal with valid name", () => {
+      const meal: FoodEntry = {
+        id: "2",
+        userId: "u1",
+        name: "Oatmeal",
+        consumedAt: "2026-09-23T08:00:00Z",
+        caloriesKcal: 350,
+        proteinG: 15,
+        carbohydrateG: 50,
+        fatG: 6,
+        details: {},
+        source: "manual",
+        confidence: null,
+        confirmedByUser: true,
+        createdAt: "2026-09-23T08:00:00Z",
+        updatedAt: "2026-09-23T08:00:00Z",
+      };
+      expect(extractMostRecentEligibleMeal([meal])).toBe(meal);
+    });
   });
 });

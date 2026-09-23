@@ -280,6 +280,16 @@ describe("account-data-management", () => {
           notificationIds: ["notif-1", "notif-2"],
         }),
       ],
+      [
+        `mizyun.first-meal-reminders.${userId}`,
+        JSON.stringify({
+          enabled: true,
+          hour: 8,
+          minute: 30,
+          promptDismissed: true,
+          notificationIds: ["meal-notif-1"],
+        }),
+      ],
     ]);
 
     const draftStore = {
@@ -322,18 +332,30 @@ describe("account-data-management", () => {
         cancelledNotifications.push(id);
       },
     };
+    const firstMealCancelled: string[] = [];
+    const firstMealScheduler = {
+      ensureChannel: async () => undefined,
+      getPermission: async () => "granted" as const,
+      requestPermission: async () => "granted" as const,
+      scheduleAtDate: async () => "meal-notif-x",
+      cancel: async (id: string) => {
+        firstMealCancelled.push(id);
+      },
+    };
 
     await clearLocalUserData(userId, {
       draftStore,
       consentStore,
       reminderStore,
       reminderScheduler,
+      firstMealReminderScheduler: firstMealScheduler,
     });
 
     expect(draftMap.size).toBe(0);
     expect(consentMap.size).toBe(0);
     expect(reminderMap.size).toBe(0);
     expect(cancelledNotifications).toEqual(["notif-1", "notif-2"]);
+    expect(firstMealCancelled).toEqual(["meal-notif-1"]);
   });
 
   it("clearLocalUserData purges offline cache and workout preferences", async () => {
