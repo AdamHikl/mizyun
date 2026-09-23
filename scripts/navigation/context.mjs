@@ -37,86 +37,173 @@ function listFeatures(mapData) {
 }
 
 export function discoverNestedInstructions(feature, repoRoot) {
-  const instructions = [];
+  const instructions = new Map();
+  const resolvedRoot = path.resolve(repoRoot);
+  const realRoot = fs.realpathSync(resolvedRoot);
+  const isInsideRepo = (candidate) =>
+    candidate === resolvedRoot ||
+    candidate.startsWith(`${resolvedRoot}${path.sep}`);
+  const resolvesInsideRepo = (candidate) => {
+    let existing = candidate;
+    while (!fs.existsSync(existing) && existing !== path.dirname(existing)) {
+      existing = path.dirname(existing);
+    }
+    try {
+      const real = fs.realpathSync(existing);
+      return real === realRoot || real.startsWith(`${realRoot}${path.sep}`);
+    } catch {
+      return false;
+    }
+  };
   const allPaths = [
     ...(feature.entryPoints || []),
     ...(feature.ownedPaths || []),
+    ...(feature.contracts || []),
+    ...(feature.domainPort || []),
     ...(feature.ui || []),
     ...(feature.api || []),
+    ...(feature.adapters || []),
+    ...(feature.tests || []),
   ];
 
-  const touchesMobile = allPaths.some(
-    (p) => p.startsWith("apps/mobile/") || p === "apps/mobile",
-  );
-  if (touchesMobile) {
-    const mobileAgents = path.join(repoRoot, "apps/mobile/AGENTS.md");
-    if (fs.existsSync(mobileAgents)) {
-      instructions.push({
-        path: "apps/mobile/AGENTS.md",
-        reason:
-          "Mandatory Expo/React Native presentation, styling, and native device guidelines",
-      });
+  for (const mappedPath of allPaths) {
+    const cleanPath = mappedPath.split("#")[0];
+    if (!cleanPath) continue;
+
+    const resolved = path.resolve(repoRoot, cleanPath);
+    if (!isInsideRepo(resolved) || !resolvesInsideRepo(resolved)) continue;
+    let current =
+      fs.existsSync(resolved) && fs.statSync(resolved).isDirectory()
+        ? resolved
+        : path.dirname(resolved);
+
+    while (isInsideRepo(current)) {
+      const agentsPath = path.join(current, "AGENTS.md");
+      if (
+        fs.existsSync(agentsPath) &&
+        resolvesInsideRepo(agentsPath) &&
+        fs.statSync(agentsPath).isFile()
+      ) {
+        const relativeInstruction =
+          path.relative(repoRoot, agentsPath) || "AGENTS.md";
+        instructions.set(relativeInstruction, {
+          path: relativeInstruction,
+          reason:
+            relativeInstruction === "AGENTS.md"
+              ? "Repository-wide engineering instructions"
+              : `Applies to ${path.relative(repoRoot, current)}/ and descendants`,
+        });
+      }
+      if (current === resolvedRoot) break;
+      current = path.dirname(current);
     }
   }
 
-  const touchesSupabase = allPaths.some(
-    (p) => p.startsWith("supabase/") || p.includes("supabase"),
+  return Array.from(instructions.values()).sort((a, b) =>
+    a.path.localeCompare(b.path),
   );
-  if (touchesSupabase) {
-    instructions.push({
-      path: "supabase/migrations/",
-      reason: "Row Level Security, migration ordering, and pgTAP testing rules",
-    });
-  }
-
-  return instructions;
 }
 
-export function checkReviewStaleness(feature, repoRoot) {
+function runGit(args, repoRoot) {
+  return execFileSync("git", args, {
+    cwd: repoRoot,
+    env: { ...process.env, HOME: "/tmp", GIT_CONFIG_NOSYSTEM: "1" },
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+}
+
+function parseStatusPaths(rawStatus) {
+  const tokens = rawStatus.split("\0");
+  const paths = new Set();
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (!token) continue;
+    const status = token.slice(0, 2);
+    const filePath = token.slice(3);
+    if (filePath) paths.add(filePath);
+    if (status.includes("R") || status.includes("C")) {
+      const destination = tokens[index + 1];
+      if (destination) paths.add(destination);
+      index += 1;
+    }
+  }
+  return Array.from(paths).sort();
+}
+
+export function checkReviewState(feature, repoRoot) {
   if (
     !feature.ownedPaths ||
     feature.ownedPaths.length === 0 ||
     !fs.existsSync(path.join(repoRoot, ".git"))
   ) {
-    return null;
+    return { committed: null, committedUnavailable: null, local: null };
+  }
+
+  let local = null;
+  try {
+    const localPaths = parseStatusPaths(
+      runGit(
+        [
+          "status",
+          "--porcelain=v1",
+          "-z",
+          "--untracked-files=all",
+          "--",
+          ...feature.ownedPaths,
+        ],
+        repoRoot,
+      ),
+    );
+    if (localPaths.length > 0) {
+      local = {
+        changedPaths: localPaths,
+        reviewedSha: feature.lastReviewedSha,
+      };
+    }
+  } catch {
+    // Local status is best-effort and independent from reviewed-SHA availability.
   }
 
   try {
-    const stdout = execFileSync(
-      "git",
+    runGit(["cat-file", "-e", `${feature.lastReviewedSha}^{commit}`], repoRoot);
+    const changedPaths = runGit(
       [
-        "log",
-        "-n",
-        "1",
-        `--since=${feature.lastReviewedDate} 23:59:59`,
-        "--format=%H %cd",
-        "--date=short",
+        "diff",
+        "--name-only",
+        "-z",
+        `${feature.lastReviewedSha}..HEAD`,
         "--",
         ...feature.ownedPaths,
       ],
-      {
-        cwd: repoRoot,
-        env: { ...process.env, HOME: "/tmp", GIT_CONFIG_NOSYSTEM: "1" },
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "ignore"],
-      },
-    ).trim();
-
-    if (stdout) {
-      const [commitSha, date] = stdout.split(" ");
-      if (commitSha !== feature.lastReviewedSha) {
-        return {
-          latestSha: commitSha,
-          latestDate: date,
-          reviewedSha: feature.lastReviewedSha,
-          reviewedDate: feature.lastReviewedDate,
-        };
-      }
-    }
+      repoRoot,
+    )
+      .split("\0")
+      .filter(Boolean)
+      .sort();
+    return {
+      committed:
+        changedPaths.length > 0
+          ? {
+              changedPaths,
+              reviewedSha: feature.lastReviewedSha,
+              reviewedDate: feature.lastReviewedDate,
+            }
+          : null,
+      committedUnavailable: null,
+      local,
+    };
   } catch {
-    // Git check best-effort
+    return {
+      committed: null,
+      committedUnavailable: { reviewedSha: feature.lastReviewedSha },
+      local,
+    };
   }
-  return null;
+}
+
+export function checkReviewStaleness(feature, repoRoot) {
+  return checkReviewState(feature, repoRoot).committed;
 }
 
 export function formatContext(
@@ -142,11 +229,23 @@ export function formatContext(
   }
 
   // Staleness warning
-  const staleness = checkReviewStaleness(feature, repoRoot);
-  if (staleness) {
+  const reviewState = checkReviewState(feature, repoRoot);
+  if (reviewState.committed) {
     lines.push("");
     lines.push(
-      `> [!WARNING] Stale review: owned files modified since ${staleness.reviewedDate} (latest commit: ${staleness.latestSha.slice(0, 8)} on ${staleness.latestDate}).`,
+      `> [!WARNING] Stale committed review: ${reviewState.committed.changedPaths.length} owned path(s) changed after reviewed SHA ${reviewState.committed.reviewedSha.slice(0, 8)}.`,
+    );
+  }
+  if (reviewState.committedUnavailable) {
+    lines.push("");
+    lines.push(
+      `> [!WARNING] Committed review unavailable: reviewed SHA ${reviewState.committedUnavailable.reviewedSha.slice(0, 8)} is not present in this checkout.`,
+    );
+  }
+  if (reviewState.local) {
+    lines.push("");
+    lines.push(
+      `> [!WARNING] Local review drift: ${reviewState.local.changedPaths.length} owned path(s) have staged, unstaged, or untracked changes.`,
     );
   }
 
@@ -309,7 +408,12 @@ function main() {
       console.error("");
       console.error("Did you mean one of these?");
       for (const s of lookup.suggestions) {
-        console.error(`  • ${s.id} (${s.title})`);
+        const suggestion = mapData.featuresById.get(s);
+        console.error(
+          suggestion
+            ? `  • ${suggestion.id} (${suggestion.title})`
+            : `  • ${s}`,
+        );
       }
     }
     console.error("");
@@ -320,10 +424,12 @@ function main() {
   const feature = lookup.feature;
 
   if (isJson) {
+    const reviewState = checkReviewState(feature, repoRoot);
     const outputObj = {
       feature,
       nestedInstructions: discoverNestedInstructions(feature, repoRoot),
-      reviewStaleness: checkReviewStaleness(feature, repoRoot),
+      reviewState,
+      reviewStaleness: reviewState.committed,
     };
     console.log(JSON.stringify(outputObj, null, 2));
   } else {

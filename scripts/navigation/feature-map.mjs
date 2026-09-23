@@ -149,13 +149,31 @@ export function findFeature(mapData, query) {
 }
 
 export function getFeaturesForPath(mapData, relativePath) {
+  const { owners, consumers } = classifyFeaturesForPath(mapData, relativePath);
+  return [...owners, ...consumers];
+}
+
+function pathMatches(mappedPath, relativePath) {
   const normalized = relativePath.replace(/\\/g, "/");
-  const matchingFeatures = [];
+  const normPrefix = mappedPath.replace(/\\/g, "/").replace(/\/$/, "");
+  return normalized === normPrefix || normalized.startsWith(`${normPrefix}/`);
+}
+
+export function classifyFeaturesForPath(mapData, relativePath) {
+  const normalized = relativePath.replace(/\\/g, "/");
+  const owners = [];
+  const consumers = [];
 
   for (const feature of mapData.features) {
-    let matched = false;
-    const pathsToCheck = [
-      ...(feature.ownedPaths || []),
+    const ownsPath = (feature.ownedPaths || []).some((ownedPath) =>
+      pathMatches(ownedPath, normalized),
+    );
+    if (ownsPath) {
+      owners.push(feature);
+      continue;
+    }
+
+    const referencePaths = [
       ...(feature.entryPoints || []),
       ...(feature.contracts || []),
       ...(feature.domainPort || []),
@@ -164,23 +182,14 @@ export function getFeaturesForPath(mapData, relativePath) {
       ...(feature.adapters || []),
       ...(feature.tests || []),
     ];
-
-    for (const p of pathsToCheck) {
-      const normPrefix = p.replace(/\\/g, "/");
-      if (
-        normalized === normPrefix ||
-        normalized.startsWith(normPrefix + "/") ||
-        normPrefix.startsWith(normalized + "/")
-      ) {
-        matched = true;
-        break;
-      }
-    }
-
-    if (matched) {
-      matchingFeatures.push(feature);
+    if (
+      referencePaths.some((referencePath) =>
+        pathMatches(referencePath, normalized),
+      )
+    ) {
+      consumers.push(feature);
     }
   }
 
-  return matchingFeatures;
+  return { owners, consumers };
 }

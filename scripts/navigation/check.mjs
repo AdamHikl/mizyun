@@ -2,8 +2,29 @@
 import fs from "node:fs";
 import path from "node:path";
 import ts from "typescript";
-import { execFileSync } from "node:child_process";
-import { loadFeatureMap, getRepoRoot } from "./feature-map.mjs";
+import {
+  loadFeatureMap,
+  getFeaturesForPath,
+  getRepoRoot,
+} from "./feature-map.mjs";
+import { checkReviewState } from "./context.mjs";
+
+const SOURCE_EXTENSIONS = new Set([
+  ".ts",
+  ".tsx",
+  ".js",
+  ".mjs",
+  ".cjs",
+  ".sh",
+]);
+const COVERAGE_ROOTS = ["apps", "packages", "scripts"];
+const COVERAGE_EXEMPTIONS = [
+  /(^|\/)node_modules\//,
+  /(^|\/)(dist|build|coverage|\.expo)\//,
+  /(^|\/)generated\//,
+  /(^|\/)__snapshots__\//,
+  /\.d\.ts$/,
+];
 
 function slugifyHeading(text) {
   return text
@@ -266,38 +287,27 @@ export function validateFeatureMapStructure(repoRoot) {
       }
     }
 
-    // Stale source detection (check if git commits touched owned files after lastReviewedDate)
+    // Review drift is split between committed changes and local worktree changes.
     if (
       feature.ownedPaths &&
       feature.ownedPaths.length > 0 &&
       fs.existsSync(path.join(repoRoot, ".git"))
     ) {
-      try {
-        const stdout = execFileSync(
-          "git",
-          [
-            "log",
-            "-n",
-            "1",
-            `--since=${feature.lastReviewedDate} 23:59:59`,
-            "--format=%H",
-            "--",
-            ...feature.ownedPaths,
-          ],
-          {
-            cwd: repoRoot,
-            env: { ...process.env, HOME: "/tmp", GIT_CONFIG_NOSYSTEM: "1" },
-            encoding: "utf8",
-            stdio: ["ignore", "pipe", "ignore"],
-          },
-        ).trim();
-        if (stdout && stdout !== feature.lastReviewedSha) {
-          warnings.push(
-            `Feature '${feature.id}': files modified since review date (${feature.lastReviewedDate}). Review SHA may need refresh.`,
-          );
-        }
-      } catch {
-        // Git check best-effort
+      const reviewState = checkReviewState(feature, repoRoot);
+      if (reviewState.committed) {
+        warnings.push(
+          `Feature '${feature.id}': ${reviewState.committed.changedPaths.length} owned path(s) changed after reviewed SHA ${feature.lastReviewedSha.slice(0, 8)}. Review SHA may need refresh.`,
+        );
+      }
+      if (reviewState.committedUnavailable) {
+        warnings.push(
+          `Feature '${feature.id}': committed freshness unavailable because reviewed SHA ${feature.lastReviewedSha.slice(0, 8)} is not present in this checkout.`,
+        );
+      }
+      if (reviewState.local) {
+        warnings.push(
+          `Feature '${feature.id}': ${reviewState.local.changedPaths.length} owned path(s) have local staged, unstaged, or untracked changes.`,
+        );
       }
     }
   }
@@ -329,6 +339,99 @@ export function validateFeatureMapStructure(repoRoot) {
   }
 
   return { errors, warnings };
+}
+
+function collectSourceFiles(repoRoot, relativeDir, files) {
+  const absoluteDir = path.join(repoRoot, relativeDir);
+  if (!fs.existsSync(absoluteDir)) return;
+  for (const entry of fs.readdirSync(absoluteDir, { withFileTypes: true })) {
+    const relativePath = path.posix.join(relativeDir, entry.name);
+    if (COVERAGE_EXEMPTIONS.some((pattern) => pattern.test(relativePath)))
+      continue;
+    if (entry.isDirectory()) {
+      collectSourceFiles(repoRoot, relativePath, files);
+    } else if (
+      entry.isFile() &&
+      SOURCE_EXTENSIONS.has(path.extname(entry.name))
+    ) {
+      files.push(relativePath);
+    }
+  }
+}
+
+export function validateMappedSourceCoverage(repoRoot) {
+  const errors = [];
+  const warnings = [];
+  let mapData;
+  try {
+    mapData = loadFeatureMap(repoRoot);
+  } catch (error) {
+    return {
+      errors: [`Feature map loading error: ${error.message}`],
+      warnings,
+      unmappedPaths: [],
+    };
+  }
+
+  const sourceFiles = [];
+  for (const coverageRoot of COVERAGE_ROOTS) {
+    collectSourceFiles(repoRoot, coverageRoot, sourceFiles);
+  }
+  const unmappedPaths = sourceFiles
+    .filter(
+      (sourcePath) => getFeaturesForPath(mapData, sourcePath).length === 0,
+    )
+    .sort();
+
+  if (unmappedPaths.length > 0) {
+    const examples = unmappedPaths.slice(0, 12).join(", ");
+    const remainder = Math.max(0, unmappedPaths.length - 12);
+    warnings.push(
+      `Mapped source coverage: ${unmappedPaths.length}/${sourceFiles.length} relevant source files are unmapped. Examples: ${examples}${remainder > 0 ? `, and ${remainder} more` : ""}. Generated output, snapshots, declarations, dependencies, and build artifacts are exempt.`,
+    );
+  }
+
+  return {
+    errors,
+    warnings,
+    unmappedPaths,
+    totalSourceFiles: sourceFiles.length,
+  };
+}
+
+export function validateStartupSize(repoRoot) {
+  const errors = [];
+  const warnings = [];
+  const files = ["AGENTS.md", "status.md", "docs/START_HERE.md"];
+  const measurements = files.map((relativePath) => {
+    const absolutePath = path.join(repoRoot, relativePath);
+    if (!fs.existsSync(absolutePath))
+      return { path: relativePath, lines: 0, bytes: 0 };
+    const content = fs.readFileSync(absolutePath, "utf8");
+    const lineCount =
+      content.length === 0
+        ? 0
+        : content.split("\n").length - (content.endsWith("\n") ? 1 : 0);
+    return {
+      path: relativePath,
+      lines: lineCount,
+      bytes: Buffer.byteLength(content),
+    };
+  });
+  const totalLines = measurements.reduce((sum, item) => sum + item.lines, 0);
+  const totalBytes = measurements.reduce((sum, item) => sum + item.bytes, 0);
+  const status = measurements.find((item) => item.path === "status.md");
+  if (status && status.lines > 120) {
+    warnings.push(
+      `Startup size advisory: status.md has ${status.lines} lines (target <= 120).`,
+    );
+  }
+  if (totalLines > 350) {
+    warnings.push(
+      `Startup size advisory: normal startup set has ${totalLines} lines (target <= 350).`,
+    );
+  }
+  return { errors, warnings, measurements, totalLines, totalBytes };
 }
 
 export function validateMarkdownLinks(repoRoot) {
@@ -614,9 +717,35 @@ export function runAllChecks(repoRoot = getRepoRoot()) {
   totalWarnings += mapResult.warnings.length;
   console.log("");
 
-  // 2. Markdown links & anchors
+  // 2. Mapped source coverage
+  console.log("2. Checking mapped source coverage...");
+  const coverageResult = validateMappedSourceCoverage(repoRoot);
+  for (const e of coverageResult.errors) console.error(`  FAIL: ${e}`);
+  totalErrors += coverageResult.errors.length;
+  if (coverageResult.warnings.length === 0) {
+    console.log(
+      `  PASS: ${coverageResult.totalSourceFiles} relevant source files are mapped.`,
+    );
+  }
+  for (const w of coverageResult.warnings) console.warn(`  WARN: ${w}`);
+  totalWarnings += coverageResult.warnings.length;
+  console.log("");
+
+  // 3. Startup size advisory
+  console.log("3. Measuring normal startup context size...");
+  const startupResult = validateStartupSize(repoRoot);
+  for (const e of startupResult.errors) console.error(`  FAIL: ${e}`);
+  totalErrors += startupResult.errors.length;
   console.log(
-    "2. Validating local markdown links and anchors in navigation docs...",
+    `  INFO: ${startupResult.totalLines} lines / ${startupResult.totalBytes} bytes across AGENTS.md, status.md, and docs/START_HERE.md.`,
+  );
+  for (const w of startupResult.warnings) console.warn(`  WARN: ${w}`);
+  totalWarnings += startupResult.warnings.length;
+  console.log("");
+
+  // 4. Markdown links & anchors
+  console.log(
+    "4. Validating local markdown links and anchors in navigation docs...",
   );
   const linkResult = validateMarkdownLinks(repoRoot);
   if (linkResult.errors.length > 0) {
@@ -629,8 +758,8 @@ export function runAllChecks(repoRoot = getRepoRoot()) {
   totalWarnings += linkResult.warnings.length;
   console.log("");
 
-  // 3. Architectural import boundaries
-  console.log("3. Validating architectural import boundaries...");
+  // 5. Architectural import boundaries
+  console.log("5. Validating architectural import boundaries...");
   const boundaryResult = validateImportBoundaries(repoRoot);
   if (boundaryResult.errors.length > 0) {
     for (const e of boundaryResult.errors) console.error(`  FAIL: ${e}`);

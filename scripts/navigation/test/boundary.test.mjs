@@ -6,6 +6,8 @@ import {
   validateFeatureMapStructure,
   validateMarkdownLinks,
   validateImportBoundaries,
+  validateMappedSourceCoverage,
+  validateStartupSize,
 } from "../check.mjs";
 import { getRepoRoot } from "../feature-map.mjs";
 
@@ -40,6 +42,108 @@ test("validateImportBoundaries passes on canonical source codebase", () => {
     0,
     `Expected 0 boundary errors, got: ${result.errors.join("; ")}`,
   );
+});
+
+test("startup size budget is advisory and counts trailing newlines consistently", () => {
+  const tmpDir = fs.mkdtempSync(path.join("/tmp", "mizyun-startup-size-"));
+  try {
+    fs.mkdirSync(path.join(tmpDir, "docs"), { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, "AGENTS.md"),
+      `${Array(114).fill("a").join("\n")}\n`,
+      "utf8",
+    );
+    fs.writeFileSync(
+      path.join(tmpDir, "status.md"),
+      `${Array(121).fill("s").join("\n")}\n`,
+      "utf8",
+    );
+    fs.writeFileSync(
+      path.join(tmpDir, "docs/START_HERE.md"),
+      Array(116).fill("h").join("\n"),
+      "utf8",
+    );
+    const result = validateStartupSize(tmpDir);
+    assert.equal(result.totalLines, 351);
+    assert.equal(result.errors.length, 0);
+    assert.ok(
+      result.warnings.some((warning) =>
+        warning.includes("status.md has 121 lines"),
+      ),
+    );
+    assert.ok(
+      result.warnings.some((warning) => warning.includes("has 351 lines")),
+    );
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("mapped source coverage includes shared code, scripts, and tests with narrow generated exemptions", () => {
+  const tmpDir = fs.mkdtempSync(path.join("/tmp", "mizyun-source-coverage-"));
+  try {
+    fs.mkdirSync(path.join(tmpDir, "docs"), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, "packages/shared/src/generated"), {
+      recursive: true,
+    });
+    fs.mkdirSync(path.join(tmpDir, "apps/api/src"), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, "scripts"), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, "scripts/fixtures"), { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, "packages/shared/src/mapped.ts"),
+      "export {};\n",
+      "utf8",
+    );
+    fs.writeFileSync(
+      path.join(tmpDir, "packages/shared/src/generated/client.ts"),
+      "export {};\n",
+      "utf8",
+    );
+    fs.writeFileSync(
+      path.join(tmpDir, "apps/api/src/shared.test.ts"),
+      "export {};\n",
+      "utf8",
+    );
+    fs.writeFileSync(
+      path.join(tmpDir, "scripts/maintenance.mjs"),
+      "export {};\n",
+      "utf8",
+    );
+    fs.writeFileSync(
+      path.join(tmpDir, "scripts/fixtures/executable-fixture.mjs"),
+      "export {};\n",
+      "utf8",
+    );
+    fs.writeFileSync(
+      path.join(tmpDir, "docs/feature-map.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        features: [
+          {
+            id: "shared",
+            aliases: [],
+            ownedPaths: ["packages/shared/src/mapped.ts"],
+            entryPoints: [],
+          },
+        ],
+      }),
+      "utf8",
+    );
+    const result = validateMappedSourceCoverage(tmpDir);
+    assert.deepEqual(result.unmappedPaths, [
+      "apps/api/src/shared.test.ts",
+      "scripts/fixtures/executable-fixture.mjs",
+      "scripts/maintenance.mjs",
+    ]);
+    assert.ok(
+      !result.unmappedPaths.some((sourcePath) =>
+        sourcePath.includes("generated"),
+      ),
+    );
+    assert.equal(result.warnings.length, 1);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 });
 
 test("validateFeatureMapStructure catches non-existent paths in synthetic fixtures", () => {

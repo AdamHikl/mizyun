@@ -1,10 +1,80 @@
 # Agent Navigation and Repository Memory — Acceptance Evidence
 
-> Living acceptance register for `DOCS-NAV-001` through `DOCS-NAV-004`. Tracks evidence, document inventories, link validation, line counts, manifest coverage, and independent helper exercises.
+> Living acceptance register for `DOCS-NAV-001` through `DOCS-NAV-004` and `CODEBASE-SIMPLIFY-001`. Tracks evidence, document inventories, link validation, line counts, manifest coverage, and independent helper exercises.
 
-> **Independent review correction (2026-09-09):** The completion claims below are superseded by [findings N1–N8](AGENT_NAVIGATION_REVIEW_2026-09-09.md). The existing 15 tests and full `pnpm check` pass, but targeted probes show undetected boundary violations and invalid manifests. Archive/pattern links, current guidance, focused context, source-derived impact, fixture coverage, and CI integration need repair. DOCS-NAV-001–004 remain partial; prior exercise outcomes are retained as scoped historical reports, not final acceptance.
+> **Current status (2026-09-23):** `SIMPLIFY-01` restored compact, current startup guidance and `SIMPLIFY-02` repaired the navigation failure boundaries recorded below. The older sections remain historical evidence; their Pi/Mistral/Qwen topology, old signal names, and blanket completion claims are not current acceptance.
 
-## 1. Baseline & Environment Metadata
+## 2026-09-22 — `SIMPLIFY-01` current startup evidence
+
+Baseline was local `HEAD` `ed70df727fdb38940b686b1dd2647d519f8478cd` with 81 pre-existing modified/untracked entries. The review therefore covers committed HEAD plus disclosed working-tree state and is not a clean-commit audit.
+
+| Measurement                                                             |  Before |  After |            Change |
+| ----------------------------------------------------------------------- | ------: | -----: | ----------------: |
+| `status.md` lines                                                       |     808 |     51 |     -757 (-93.7%) |
+| `status.md` bytes                                                       | 149,736 |  8,244 | -141,492 (-94.5%) |
+| Normal startup lines (`AGENTS.md` + `status.md` + `docs/START_HERE.md`) |     993 |    236 |     -757 (-76.2%) |
+| Normal startup bytes                                                    | 167,384 | 26,017 | -141,367 (-84.5%) |
+
+The live status now retains current work packages, Hetzner Dev/Production authority, Pi recovery scope, the paused-Qwen rule, consent-based AI admission, unresolved Q1–Q9/release gates, and one exact next action. The complete former status is preserved in [`docs/archive/status/STATUS_HISTORY_2026-09-13_THROUGH_2026-09-22.md`](archive/status/STATUS_HISTORY_2026-09-13_THROUGH_2026-09-22.md), with relative links rebased after the move.
+
+Current routing changes:
+
+- `environment-build-deployment` points to the Hetzner guide and dedicated deploy skills; its limitation identifies Hetzner as authority, the Pi as recovery storage, and local Qwen as paused.
+- `coach-consent-budgets` identifies Gemini as the only active provider and authentication + adult eligibility + current consent as admission. Email allowlisting is deprecated; ADR-0024 is routed explicitly.
+- Architecture matches actual composition: Gemini-or-disabled on the server and Expo Router/Auth/analytics/notification composition on mobile, without a React Query provider.
+- The verification skill separates exact-SHA Hetzner Dev/Production evidence from generic health and device acceptance.
+- The roadmap's topology paragraph now describes Hetzner rather than the superseded Pi/Windows deployment path; sequencing is unchanged.
+
+Stage 1 changes are documentation/navigation only. They do not claim a deployment, native build, provider call, device acceptance, Production release, or closure of a remediation gate.
+
+### Independent cold-start exercises
+
+A non-author helper started from `docs/START_HERE.md`, current `status.md`, and the named navigation commands. Shared bootstrap is 105 lines / 12,083 bytes; including root `AGENTS.md`, normal startup is 236 lines / 26,017 bytes.
+
+| Scenario                 | Commands and bounded output                                                                                      | Result                                                                                                                                                                                                    |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Meal retry/pagination    | `pnpm context meal-logging`; 59 lines / 3,130 bytes in 441 ms                                                    | Located the meal owner, API/contract/mobile paths, retry and pagination tests, mobile instructions, and open Q2. The manifest now prioritizes `meal-list-screen.tsx` and `log-meal-data.test.ts`.         |
+| Account deletion         | `pnpm context account-lifecycle`; 57 lines / 2,758 bytes in 348 ms                                               | Located route, mobile interface, contract/port/adapter, database test, mobile instructions, and open Q4/Q5 without claiming closure.                                                                      |
+| AI consent/admission     | `pnpm context coach-consent-budgets`; final recheck 59 lines / 3,644 bytes in 444 ms                             | Routed only current architecture, ADR-0024, PAT-002 and the provider gate. All agree on Gemini-or-disabled, no user provider switch, consent-based adult access, deprecated allowlisting, and open Q7/Q8. |
+| Shared food contract     | `pnpm impact --since HEAD --json` plus `pnpm context contracts-shared`; impact 17,291 bytes, context 1,900 bytes | Located the contract owner/export/test and declared consumers. The audit also reproduced the Stage 2 owner-vs-consumer/package-fanout defect; it is not hidden or treated as accepted.                    |
+| Hetzner deploy/preflight | `pnpm context environment-build-deployment`; 56 lines / 2,550 bytes in 338 ms                                    | Located Hetzner authority, role-specific aliases/services, deploy skills/preflights, exact-SHA release rule, Pi recovery scope, and open signing/R8 gates.                                                |
+
+Archive link validation passed. The latest archive warns that its topology and next actions may be superseded and points back to live status. No active route sends a cold-start reader to Pi deployment, local Qwen execution, email allowlisting, Mistral runtime, or user-selectable provider instructions. Controlled before/after context-byte savings remain unmeasured; do not claim the provisional 30% target from this one post-change run.
+
+### Stage 1 verification
+
+- `pnpm check`: passed on 2026-09-22 from the disclosed shared dirty tree. It included 0 navigation errors with 11 retained review-freshness warnings, 27/27 navigation tests, formatting, all 15 workspace typechecks, iOS/Android Hermes exports, 493 mobile tests, 565 API tests with 15 policy-gated E2E tests skipped, 39 deployment safeguards, Hetzner/backup/OAuth/build-matrix/IPA safeguards, and 56/56 offline AI invariants.
+- `git diff --check`: passed.
+- Independent non-author cold-start/contradiction review: passed Stage 1 after stale ADR/PAT routing was corrected. The same reviewer documented the still-open Stage 2 failure boundaries; helper completion alone was not used as acceptance.
+- Evidence tier: implemented and automatically verified only. No Dev deployment, device acceptance, or Production release was performed for this documentation/navigation slice.
+
+## 2026-09-23 — `SIMPLIFY-02` navigation-strengthening evidence
+
+Baseline remained local `HEAD` `ed70df727fdb38940b686b1dd2647d519f8478cd` plus the disclosed shared dirty tree. GitHub issue [#124](https://github.com/AdamHikl/mizyun/issues/124) tracks this bounded tooling slice. No feature-map schema extension was needed.
+
+Implemented behavior:
+
+- Process-level typo and ambiguous-alias failures now render real IDs and titles. `meal-loggin` suggests `meal-logging`; `tokens` lists `auth` and `coach-consent-budgets`; neither output contains `undefined` or silently selects a feature.
+- Context discovery walks the actual ancestors of mapped implementation paths, stops at the real repository boundary (including symlink resolution), returns only real in-repository `AGENTS.md` files, deduplicates shared ancestors, and remains subject to the existing 120-line bound. Backend-only `system-health` now surfaces root `AGENTS.md`; mobile features also surface `apps/mobile/AGENTS.md`.
+- Impact output separates `direct-owner`, `referenced-consumer`, `package-reverse-dep`, and semantic propagation. The broad package-membership fallback was removed, so unmatched package files remain explicitly unmapped instead of fanning out to every feature in that package.
+- Review metadata now compares committed changes against `lastReviewedSha..HEAD` and reports local staged, unstaged, and untracked owned paths separately. Local modifications remain visible when HEAD has not changed or the reviewed SHA is absent from a shallow checkout; unavailable committed freshness is an explicit warning rather than a false fresh result.
+- Navigation validation now measures all relevant source under `apps`, `packages`, and `scripts`, including tests and executable fixtures. Generated/build output, snapshots, declaration files, dependencies, and Expo artifacts are explicit exemptions. The current advisory reports 175 of 501 relevant files as unmapped; this remains visible follow-up inventory rather than a fabricated green result.
+- The validator reports the normal startup set at 236 lines / 25,987 bytes and warns, without failing or rewriting files, above 120 status lines or 350 total startup lines.
+
+Regression evidence before the full repository gate:
+
+- `pnpm test:navigation`: 38/38 passed, preserving the original 27 and adding process, ancestor-instruction/symlink, freshness/shallow-history, impact classification, unmapped, missing-base, inert-command, coverage, and startup-budget fixtures.
+- `pnpm navigation:check`: passed with 0 errors and 22 warnings: 11 retained committed-review warnings, 10 separately classified local-drift warnings, and 1 mapped-source-coverage warning.
+- Direct CLI probes passed: typo and ambiguous-alias processes exited 1 with real suggestions; backend context found root instructions; current dirty impact JSON exposed direct, referenced, propagated, and unmapped groups.
+- An independent non-author review reproduced missing-SHA drift suppression and outside-repository instruction discovery through symlinks. The coordinator separated local status from committed-history availability, added explicit unavailable warnings, enforced realpath containment, narrowed coverage exemptions, preserved machine-readable compatibility aliases, and added adversarial regressions before rerunning acceptance.
+- Fresh `pnpm check` passed from the shared working tree after the adversarial follow-up fixes: 0 navigation errors with the 22 disclosed advisories, 38/38 navigation fixtures, repository formatting, all 15 workspace typechecks, iOS/Android Hermes exports, 493 mobile tests, 565 API tests with 15 policy-gated E2E tests skipped, 39 deployment safeguards, Hetzner/backup/OAuth/build-matrix/IPA safeguards, and 56/56 offline AI invariants.
+- `git diff --check` passed after targeted formatting.
+
+Evidence tier remains implemented and automatically verified only. This tooling/documentation slice does not require or claim Dev deployment, device acceptance, database work, native builds, provider calls, or Production release. The source changes remain uncommitted in the shared working tree until the user requests a commit.
+
+## Historical 2026-09-09 baseline and evidence
+
+### 1. Baseline & Environment Metadata
 
 - **Date**: 2026-09-09
 - **HEAD Commit SHA**: `7faec30d0c2e7e165891dd970004c8865936ccde`
@@ -14,7 +84,7 @@
 
 ---
 
-## 2. Stage 1 Inventory & Contradiction Evidence (`DOCS-NAV-001`)
+### 2. Stage 1 Inventory & Contradiction Evidence (`DOCS-NAV-001`)
 
 ### Startup Line Count Comparison
 
@@ -63,7 +133,7 @@
 
 ---
 
-## 3. Stage 2 Manifest Coverage & Context CLI (`DOCS-NAV-002`)
+### 3. Stage 2 Manifest Coverage & Context CLI (`DOCS-NAV-002`)
 
 - **Manifest Path**: `docs/feature-map.json`
 - **Schema Specification**: `docs/feature-map.schema.json` (`schemaVersion: 1`)
@@ -94,7 +164,7 @@
 
 ---
 
-## 4. Stage 2 Impact Analysis & Boundary Validation (`DOCS-NAV-003`)
+### 4. Stage 2 Impact Analysis & Boundary Validation (`DOCS-NAV-003`)
 
 - **Impact CLI**:
   - Implemented under `scripts/navigation/impact.mjs` and exposed via `pnpm impact --since <ref>`.
@@ -113,7 +183,7 @@
 
 ---
 
-## 5. Acceptance Exercises (`DOCS-NAV-004`)
+### 5. Acceptance Exercises (`DOCS-NAV-004`)
 
 Independent helper subagent (`88c67ab1-49a8-4f01-9c08-16fffc242f33`, post-N1–N8 rerun) executed 5 cold-start exercises using exclusively `docs/START_HERE.md` and `pnpm context <feature-id>` / `pnpm impact`:
 
@@ -134,7 +204,7 @@ Independent helper subagent (`88c67ab1-49a8-4f01-9c08-16fffc242f33`, post-N1–N
 
 ---
 
-## 6. Review Findings Resolution (N1–N8)
+### 6. Review Findings Resolution (N1–N8)
 
 Following the independent review in `docs/AGENT_NAVIGATION_REVIEW_2026-09-09.md`, all eight findings were resolved and verified:
 
@@ -149,7 +219,7 @@ Following the independent review in `docs/AGENT_NAVIGATION_REVIEW_2026-09-09.md`
 
 ---
 
-## 7. Final Repository Verification
+### 7. Historical Repository Verification
 
 - `pnpm navigation:check`: Passed (0 errors, 0 warnings)
 - `pnpm test:navigation`: Passed (27/27 tests passing, ~1.8s)

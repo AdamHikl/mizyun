@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { analyzeImpact } from "../impact.mjs";
+import { analyzeImpact, printTextReport } from "../impact.mjs";
 import { getRepoRoot } from "../feature-map.mjs";
 
 function createGitFixture() {
@@ -98,6 +98,21 @@ function createGitFixture() {
         lastReviewedDate: "2026-09-09",
       },
       {
+        id: "manifest-consumer",
+        title: "Manifest Consumer",
+        summary: "References a producer contract without owning it",
+        aliases: [],
+        entryPoints: [],
+        ownedPaths: [],
+        contracts: ["packages/producer/src/index.ts"],
+        relations: [],
+        verificationCommands: [
+          "node -e \"require('fs').writeFileSync('SHOULD_NOT_EXIST', 'x')\"",
+        ],
+        lastReviewedSha: "0123456789abcdef0123456789abcdef01234567",
+        lastReviewedDate: "2026-09-09",
+      },
+      {
         id: "consumer-feat",
         title: "Consumer Feature",
         summary:
@@ -181,10 +196,110 @@ test("analyzeImpact executes safely against repository HEAD", () => {
   assert.equal(typeof report.git.headSha, "string");
   assert.equal(report.git.headSha.length, 40);
   assert.ok(Array.isArray(report.directImpacts));
+  assert.ok(Array.isArray(report.referencedImpacts));
   assert.ok(Array.isArray(report.propagatedImpacts));
   assert.ok(Array.isArray(report.unmappedFiles));
   assert.ok(Array.isArray(report.suggestedTests));
   assert.ok(Array.isArray(report.suggestedCommands));
+});
+
+test("synthetic fixture: ownership, manifest references, and reverse dependencies remain distinct", () => {
+  const { dir } = createGitFixture();
+  try {
+    fs.appendFileSync(
+      path.join(dir, "packages/producer/src/index.ts"),
+      "\nexport const changed = true;\n",
+      "utf8",
+    );
+    const report = analyzeImpact(dir, "HEAD");
+    assert.ok(
+      report.directImpacts.some(
+        (impact) =>
+          impact.id === "producer-feat" &&
+          impact.signals.includes("direct-owner") &&
+          impact.signals.includes("direct-ownership"),
+      ),
+    );
+    assert.ok(
+      report.referencedImpacts.some(
+        (impact) =>
+          impact.id === "manifest-consumer" &&
+          impact.signal === "referenced-consumer",
+      ),
+    );
+    assert.ok(
+      report.propagatedImpacts.some(
+        (impact) =>
+          impact.id === "consumer-feat" &&
+          impact.signal === "package-reverse-dep",
+      ),
+    );
+    assert.ok(
+      !report.directImpacts.some((impact) => impact.id === "manifest-consumer"),
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("synthetic fixture: unrelated package files remain explicitly unmapped without package fanout", () => {
+  const { dir } = createGitFixture();
+  try {
+    const relativePath = "packages/producer/unowned-config.ts";
+    fs.writeFileSync(
+      path.join(dir, relativePath),
+      "export const unowned = true;\n",
+      "utf8",
+    );
+    const report = analyzeImpact(dir, "HEAD");
+    assert.ok(report.unmappedFiles.includes(relativePath));
+    assert.ok(
+      !report.directImpacts.some((impact) =>
+        impact.changedFiles.includes(relativePath),
+      ),
+      "Unowned package file must not fan out as direct ownership",
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("synthetic fixture: missing comparison base fails closed", () => {
+  const { dir } = createGitFixture();
+  try {
+    assert.throws(
+      () => analyzeImpact(dir, "definitely-missing-ref"),
+      /Cannot find merge-base.*definitely-missing-ref/,
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("synthetic fixture: suggested commands are returned and printed but never executed", () => {
+  const { dir } = createGitFixture();
+  const originalLog = console.log;
+  const lines = [];
+  try {
+    fs.appendFileSync(
+      path.join(dir, "packages/producer/src/index.ts"),
+      "\nexport const changed = true;\n",
+      "utf8",
+    );
+    const report = analyzeImpact(dir, "HEAD");
+    console.log = (line = "") => lines.push(String(line));
+    printTextReport(report);
+    assert.ok(
+      report.suggestedCommands.some((command) =>
+        command.includes("SHOULD_NOT_EXIST"),
+      ),
+    );
+    assert.match(lines.join("\n"), /SHOULD_NOT_EXIST/);
+    assert.equal(fs.existsSync(path.join(dir, "SHOULD_NOT_EXIST")), false);
+  } finally {
+    console.log = originalLog;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("synthetic fixture: producer package change triggers reverse dependency impact on consumer without manual dependsOn", () => {
@@ -232,7 +347,7 @@ test("synthetic fixture: producer package change triggers reverse dependency imp
   }
 });
 
-test("synthetic fixture: renamed and copied files are correctly parsed and mapped", () => {
+test("synthetic fixture: renamed files are correctly parsed and mapped", () => {
   const { dir, runGit } = createGitFixture();
   try {
     const baseSha = runGit(["rev-parse", "HEAD"]).trim();

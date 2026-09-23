@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   loadFeatureMap,
-  getFeaturesForPath,
+  classifyFeaturesForPath,
   getRepoRoot,
 } from "./feature-map.mjs";
 
@@ -247,51 +247,42 @@ export function analyzeImpact(repoRoot, sinceRef) {
   const ws = loadWorkspacePackages(repoRoot);
 
   const directImpacts = new Map(); // featureId -> { feature, files: [], signals: Set }
+  const referencedImpacts = new Map(); // featureId -> { feature, files: [], signal }
   const propagatedImpacts = new Map(); // featureId -> { feature, reasonChain: string, signal: string }
   const unmappedFiles = [];
 
   for (const file of gitInfo.files) {
     if (!isPermittedPath(file)) continue;
 
-    const matchedFeatures = getFeaturesForPath(mapData, file);
+    const { owners, consumers } = classifyFeaturesForPath(mapData, file);
 
-    if (matchedFeatures.length > 0) {
-      for (const feat of matchedFeatures) {
+    if (owners.length > 0 || consumers.length > 0) {
+      for (const feat of owners) {
         if (!directImpacts.has(feat.id)) {
           directImpacts.set(feat.id, {
             feature: feat,
             files: [],
-            signals: new Set(["direct-ownership"]),
+            signals: new Set(["direct-owner", "direct-ownership"]),
           });
         }
-        directImpacts.get(feat.id).files.push(file);
+        const impact = directImpacts.get(feat.id);
+        impact.signals.add("direct-owner");
+        impact.signals.add("direct-ownership");
+        if (!impact.files.includes(file)) impact.files.push(file);
+      }
+      for (const feat of consumers) {
+        if (!referencedImpacts.has(feat.id)) {
+          referencedImpacts.set(feat.id, {
+            feature: feat,
+            files: [],
+            signal: "referenced-consumer",
+          });
+        }
+        const impact = referencedImpacts.get(feat.id);
+        if (!impact.files.includes(file)) impact.files.push(file);
       }
     } else {
-      // Check if file belongs to any workspace package
-      const pkgName = findPackageForFile(file, ws.dirToPkg);
-      if (pkgName) {
-        const pkgInfo = ws.packages.get(pkgName);
-        const featuresForPkg = findFeaturesForPackage(pkgInfo, mapData);
-        if (featuresForPkg.length > 0) {
-          for (const fid of featuresForPkg) {
-            const feat = mapData.featuresById.get(fid);
-            if (feat) {
-              if (!directImpacts.has(fid)) {
-                directImpacts.set(fid, {
-                  feature: feat,
-                  files: [],
-                  signals: new Set(["package-membership"]),
-                });
-              }
-              directImpacts.get(fid).files.push(file);
-            }
-          }
-        } else {
-          unmappedFiles.push(file);
-        }
-      } else {
-        unmappedFiles.push(file);
-      }
+      unmappedFiles.push(file);
     }
 
     // Also trace package-level reverse dependencies
@@ -306,7 +297,11 @@ export function analyzeImpact(repoRoot, sinceRef) {
             mapData,
           );
           for (const cfId of consumerFeatures) {
-            if (!directImpacts.has(cfId) && !propagatedImpacts.has(cfId)) {
+            if (
+              !directImpacts.has(cfId) &&
+              !referencedImpacts.has(cfId) &&
+              !propagatedImpacts.has(cfId)
+            ) {
               const cfFeat = mapData.featuresById.get(cfId);
               if (cfFeat) {
                 propagatedImpacts.set(cfId, {
@@ -325,6 +320,7 @@ export function analyzeImpact(repoRoot, sinceRef) {
   // Forward semantic affects propagation from directImpacts and reverseImpacts
   const queue = [
     ...Array.from(directImpacts.keys()),
+    ...Array.from(referencedImpacts.keys()),
     ...Array.from(propagatedImpacts.keys()),
   ];
   const visited = new Set(queue);
@@ -356,6 +352,7 @@ export function analyzeImpact(repoRoot, sinceRef) {
 
   const allAffected = [
     ...Array.from(directImpacts.values()).map((v) => v.feature),
+    ...Array.from(referencedImpacts.values()).map((v) => v.feature),
     ...Array.from(propagatedImpacts.values()).map((v) => v.feature),
   ];
 
@@ -375,6 +372,12 @@ export function analyzeImpact(repoRoot, sinceRef) {
       id: v.feature.id,
       title: v.feature.title,
       signals: Array.from(v.signals),
+      changedFiles: v.files,
+    })),
+    referencedImpacts: Array.from(referencedImpacts.values()).map((v) => ({
+      id: v.feature.id,
+      title: v.feature.title,
+      signal: v.signal,
       changedFiles: v.files,
     })),
     propagatedImpacts: Array.from(propagatedImpacts.values()).map((v) => ({
@@ -417,6 +420,22 @@ export function printTextReport(report) {
       for (const f of imp.changedFiles.slice(0, 5)) {
         console.log(`      - ${f}`);
       }
+      if (imp.changedFiles.length > 5) {
+        console.log(
+          `      ... and ${imp.changedFiles.length - 5} more file(s)`,
+        );
+      }
+    }
+  } else {
+    console.log("  (None detected)");
+  }
+  console.log("");
+
+  console.log("--- Referenced Consumers ---");
+  if (report.referencedImpacts.length > 0) {
+    for (const imp of report.referencedImpacts) {
+      console.log(`  • ${imp.title} [${imp.id}] [${imp.signal}]`);
+      for (const f of imp.changedFiles.slice(0, 5)) console.log(`      - ${f}`);
       if (imp.changedFiles.length > 5) {
         console.log(
           `      ... and ${imp.changedFiles.length - 5} more file(s)`,

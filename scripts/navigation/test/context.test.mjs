@@ -2,13 +2,18 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { execFileSync, spawnSync } from "node:child_process";
 import {
   loadFeatureMap,
   findFeature,
   getFeaturesForPath,
   getRepoRoot,
 } from "../feature-map.mjs";
-import { discoverNestedInstructions, formatContext } from "../context.mjs";
+import {
+  checkReviewState,
+  discoverNestedInstructions,
+  formatContext,
+} from "../context.mjs";
 
 test("loadFeatureMap loads valid manifest from repository root", () => {
   const root = getRepoRoot();
@@ -49,6 +54,43 @@ test("findFeature returns nonzero suggestions for unknown feature without fabric
   assert.equal(result.found, false);
   assert.equal(result.feature, null);
   assert.ok(Array.isArray(result.suggestions));
+});
+
+test("context CLI renders real typo and ambiguous-alias suggestions", () => {
+  const root = getRepoRoot();
+  const cli = path.join(root, "scripts/navigation/context.mjs");
+  for (const [query, expectedIds] of [
+    ["meal-loggin", ["meal-logging"]],
+    ["tokens", ["auth", "coach-consent-budgets"]],
+    ["unknown-no-match-xyz", []],
+  ]) {
+    const result = spawnSync(process.execPath, [cli, query], {
+      cwd: root,
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 1);
+    assert.doesNotMatch(result.stderr, /undefined/);
+    for (const expectedId of expectedIds)
+      assert.match(result.stderr, new RegExp(expectedId));
+    if (expectedIds.length === 0) {
+      assert.doesNotMatch(result.stderr, /Did you mean/);
+      assert.match(result.stderr, /pnpm context --list/);
+    }
+  }
+
+  const jsonResult = spawnSync(
+    process.execPath,
+    [cli, "system-health", "--json"],
+    {
+      cwd: root,
+      encoding: "utf8",
+    },
+  );
+  assert.equal(jsonResult.status, 0);
+  const parsed = JSON.parse(jsonResult.stdout);
+  assert.ok(Object.hasOwn(parsed, "reviewState"));
+  assert.ok(Object.hasOwn(parsed, "reviewStaleness"));
+  assert.deepEqual(parsed.reviewStaleness, parsed.reviewState.committed);
 });
 
 test("getFeaturesForPath maps paths to matching features", () => {
@@ -145,6 +187,174 @@ test("discoverNestedInstructions discovers apps/mobile/AGENTS.md for features to
     !nonMobileInstructions.some((i) => i.path === "apps/mobile/AGENTS.md"),
     "Did not expect apps/mobile/AGENTS.md for backend feature",
   );
+});
+
+test("discoverNestedInstructions walks real ancestors, deduplicates, and ignores unrelated directories", () => {
+  const tmpDir = fs.mkdtempSync(path.join("/tmp", "mizyun-instructions-"));
+  try {
+    const targetDir = path.join(tmpDir, "apps/api/src/modules/example");
+    fs.mkdirSync(targetDir, { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, "apps/api/docs"), { recursive: true });
+    for (const instruction of [
+      "AGENTS.md",
+      "apps/AGENTS.md",
+      "apps/api/AGENTS.md",
+      "apps/api/src/modules/example/AGENTS.md",
+      "apps/api/docs/AGENTS.md",
+    ]) {
+      fs.writeFileSync(
+        path.join(tmpDir, instruction),
+        "# Instructions\n",
+        "utf8",
+      );
+    }
+    fs.writeFileSync(path.join(targetDir, "routes.ts"), "export {};\n", "utf8");
+    const result = discoverNestedInstructions(
+      {
+        entryPoints: ["apps/api/src/modules/example/routes.ts"],
+        ownedPaths: ["apps/api/src/modules/example"],
+      },
+      tmpDir,
+    );
+    assert.deepEqual(
+      result.map((item) => item.path),
+      [
+        "AGENTS.md",
+        "apps/AGENTS.md",
+        "apps/api/AGENTS.md",
+        "apps/api/src/modules/example/AGENTS.md",
+      ],
+    );
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("discoverNestedInstructions ignores mapped symlinks that resolve outside the repository", () => {
+  const tmpDir = fs.mkdtempSync(
+    path.join("/tmp", "mizyun-instruction-symlink-"),
+  );
+  const outsideDir = fs.mkdtempSync(
+    path.join("/tmp", "mizyun-outside-instructions-"),
+  );
+  try {
+    fs.mkdirSync(path.join(tmpDir, "apps"), { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, "AGENTS.md"),
+      "# Root instructions\n",
+      "utf8",
+    );
+    fs.writeFileSync(
+      path.join(outsideDir, "AGENTS.md"),
+      "# Outside instructions\n",
+      "utf8",
+    );
+    fs.symlinkSync(outsideDir, path.join(tmpDir, "apps/link"));
+    const result = discoverNestedInstructions(
+      { entryPoints: ["apps/link"], ownedPaths: ["apps/link"] },
+      tmpDir,
+    );
+    assert.deepEqual(result, []);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    fs.rmSync(outsideDir, { recursive: true, force: true });
+  }
+});
+
+test("review state reports local mapped changes separately from committed drift", () => {
+  const tmpDir = fs.mkdtempSync(path.join("/tmp", "mizyun-review-state-"));
+  const runGit = (args) =>
+    execFileSync("git", args, {
+      cwd: tmpDir,
+      env: { ...process.env, HOME: "/tmp", GIT_CONFIG_NOSYSTEM: "1" },
+      encoding: "utf8",
+    });
+  try {
+    fs.mkdirSync(path.join(tmpDir, "feature"), { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, "feature/index.ts"),
+      "export const v = 1;\n",
+      "utf8",
+    );
+    runGit(["init"]);
+    runGit(["config", "user.email", "test@example.com"]);
+    runGit(["config", "user.name", "Test User"]);
+    runGit(["add", "."]);
+    runGit(["commit", "-m", "baseline"]);
+    const reviewedSha = runGit(["rev-parse", "HEAD"]).trim();
+    const feature = {
+      ownedPaths: ["feature"],
+      lastReviewedSha: reviewedSha,
+      lastReviewedDate: "2026-09-23",
+    };
+    assert.deepEqual(checkReviewState(feature, tmpDir), {
+      committed: null,
+      committedUnavailable: null,
+      local: null,
+    });
+    fs.appendFileSync(
+      path.join(tmpDir, "feature/index.ts"),
+      "export const w = 2;\n",
+      "utf8",
+    );
+    const dirtyState = checkReviewState(feature, tmpDir);
+    assert.equal(dirtyState.committed, null);
+    assert.equal(dirtyState.committedUnavailable, null);
+    assert.deepEqual(dirtyState.local.changedPaths, ["feature/index.ts"]);
+    runGit(["add", "."]);
+    runGit(["commit", "-m", "new commit"]);
+    const committedState = checkReviewState(feature, tmpDir);
+    assert.deepEqual(committedState.committed.changedPaths, [
+      "feature/index.ts",
+    ]);
+    assert.equal(committedState.local, null);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("review state preserves local drift when the reviewed SHA is unavailable", () => {
+  const tmpDir = fs.mkdtempSync(
+    path.join("/tmp", "mizyun-review-unavailable-"),
+  );
+  const runGit = (args) =>
+    execFileSync("git", args, {
+      cwd: tmpDir,
+      env: { ...process.env, HOME: "/tmp", GIT_CONFIG_NOSYSTEM: "1" },
+      encoding: "utf8",
+    });
+  try {
+    fs.mkdirSync(path.join(tmpDir, "feature"), { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, "feature/index.ts"),
+      "export const v = 1;\n",
+      "utf8",
+    );
+    runGit(["init"]);
+    runGit(["config", "user.email", "test@example.com"]);
+    runGit(["config", "user.name", "Test User"]);
+    runGit(["add", "."]);
+    runGit(["commit", "-m", "baseline"]);
+    fs.appendFileSync(
+      path.join(tmpDir, "feature/index.ts"),
+      "export const w = 2;\n",
+      "utf8",
+    );
+    const missingSha = "0123456789abcdef0123456789abcdef01234567";
+    const state = checkReviewState(
+      {
+        ownedPaths: ["feature"],
+        lastReviewedSha: missingSha,
+        lastReviewedDate: "2026-09-23",
+      },
+      tmpDir,
+    );
+    assert.equal(state.committed, null);
+    assert.equal(state.committedUnavailable.reviewedSha, missingSha);
+    assert.deepEqual(state.local.changedPaths, ["feature/index.ts"]);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 });
 
 test("formatContext formats Requirements & Work Items and Open Acceptance Gates & Findings", () => {
