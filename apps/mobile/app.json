@@ -23,7 +23,11 @@
     "android": {
       "package": "com.mizyun.app",
       "predictiveBackGestureEnabled": false,
-      "icon": "./assets/images/mizyun-icon.png"
+      "icon": "./assets/images/mizyun-icon.png",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/mizyun-mark.png",
+        "backgroundColor": "#0C70ED"
+      }
     },
     "web": {
       "output": "static",

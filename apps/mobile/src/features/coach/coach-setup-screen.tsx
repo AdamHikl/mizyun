@@ -2358,6 +2358,7 @@ const styles = StyleSheet.create({
   actionGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.two },
   actionCard: {
     minWidth: "47%",
+    flexBasis: 240,
     flexGrow: 1,
     borderWidth: 1,
     borderColor: "rgba(148, 163, 184, 0.18)",
@@ -2580,7 +2581,11 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     paddingHorizontal: Spacing.three,
     paddingTop: Spacing.two,
-    paddingBottom: BottomTabInset + Spacing.one,
+    paddingBottom:
+      Platform.select({
+        android: Spacing.two,
+        default: BottomTabInset + Spacing.one,
+      }) ?? Spacing.two,
   },
   composerWrapperKeyboardActive: {
     paddingBottom: Spacing.two,
