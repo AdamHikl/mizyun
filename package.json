@@ -40,6 +40,7 @@
     "mobile:founder-production:android:prebuild": "bash scripts/mobile-founder-production-android.sh prebuild",
     "mobile:founder-production:android:assembleRelease": "bash scripts/mobile-founder-production-android.sh assembleRelease",
     "mobile:founder-production:android:bundleRelease": "bash scripts/mobile-founder-production-android.sh bundleRelease",
+    "mobile:founder-production:android:signBundle": "bash scripts/sign-production-android-bundle.sh",
     "mobile:install:ios:dev": "bash scripts/mobile-device-install.sh ios dev",
     "mobile:install:ios:production": "bash scripts/mobile-device-install.sh ios production",
     "mobile:install:ios:prod": "bash scripts/mobile-device-install.sh ios production",
