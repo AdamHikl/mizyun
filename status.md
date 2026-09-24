@@ -176,14 +176,14 @@ Founder decision 2026-09-23: prioritize a presentable, distinctive demo and prog
   - Service unit `mizyun-api.service` successfully restarted on port 4000.
   - Public health smoke test: `curl https://mizyun-api.phiskel.com/v1/health` -> HTTP 200 `{"status":"ok","service":"mizyun-api","timestamp":"2026-09-24T17:19:09.447Z"}`.
 - **iOS App Store Release Build**:
-  - Build numbering: iOS App Store build numbers 1–5 consumed; active release build number is **6** (configured in `apps/mobile/app.json`). Future builds must strictly increment from 6 upward.
-  - Release archive for **Build 6** created cleanly and preserved at: `apps/mobile/ios/build/Mizyun-9d505384.xcarchive` (`CFBundleIdentifier: com.mizyun.app`, `CFBundleShortVersionString: 1.0.0`, `CFBundleVersion: 6`, Apple Team `LQJNDVBL43`, created `2026-09-24T18:30:19Z`).
-  - Ready for App Store Connect distribution via Xcode Organizer (`open apps/mobile/ios/build/Mizyun-9d505384.xcarchive`).
+  - Store versioning is now one fail-closed cross-platform tuple in `apps/mobile/app.json`: user-facing version `1.0.6`, iOS build `6`, and Android version code `6`. The next Production store build must update all three to `1.0.7` / `7` / `7`.
+  - The earlier `apps/mobile/ios/build/Mizyun-9d505384.xcarchive` remains preserved but is superseded because it contains `CFBundleShortVersionString: 1.0.0` with `CFBundleVersion: 6`. It must not be uploaded as the matching iOS candidate for this tuple.
+  - Production Expo configuration resolves `com.mizyun.app` to `CFBundleShortVersionString 1.0.6` / `CFBundleVersion 6`; a fresh iOS archive is still required before claiming an upload-ready iOS artifact.
 - **Android Google Play Release Bundle**:
-  - Clean production prebuild executed (`com.mizyun.app`, `versionCode 1`, `versionName 1.0.0`).
-  - Release App Bundle `:app:bundleRelease` compiled successfully (`BUILD SUCCESSFUL in 2m 32s`).
-  - Generated artifact: `apps/mobile/android/app/build/outputs/bundle/release/app-release.aab` (76,925,815 bytes, SHA-256 `141b2607de5ccb5e93c40f9b0cb2d205a9cbbba045408204b2fd07a77808906b`).
-  - Merged `AndroidManifest.xml` and embedded Hermes bytecode verified pointing to production endpoints (`https://mizyun-api.phiskel.com` and `https://mizyun-supabase.phiskel.com`).
+  - Google Play rejected the earlier `1.0.0` / code `1` artifact because it was signed with the Android debug certificate (`5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25`); that artifact is superseded.
+  - Fresh clean Production prebuild generated `com.mizyun.app`, `versionName 1.0.6`, `versionCode 6`, min SDK 24 and target SDK 36. Full `pnpm check` passed before the store build, including the new synchronized-version mismatch regression.
+  - Gradle `:app:bundleRelease` completed successfully and signed the AAB directly with the dedicated Mizyun upload key from macOS Keychain. Independent `jarsigner`, ZIP, certificate and bundle-manifest checks passed; upload certificate SHA-1 is `A3:37:60:CF:83:BB:54:87:FC:71:F0:38:D4:6B:97:21:CA:A0:70:4D`.
+  - Generated `1.0.6` / code `6` artifact: `apps/mobile/android/app/build/outputs/bundle/release/app-release.aab` (76,926,605 bytes, SHA-256 `e23b4b6b759c0566792102ea8fd9ea67990204a24026bab018f82e49c2cfee75`). Stable source-SHA archive and Google Play upload remain pending.
 
 ## Next exact action
 

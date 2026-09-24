@@ -246,6 +246,22 @@ if (
 const baseExpo = baseConfig.expo;
 const baseIos = baseExpo.ios;
 const baseAndroid = baseExpo.android;
+const releaseVersionMatch = /^1\.0\.([1-9][0-9]*)$/.exec(
+  baseExpo.version ?? "",
+);
+const effectiveIosBuildNumber =
+  process.env.MIZYUN_IOS_BUILD_NUMBER || baseIos.buildNumber;
+
+if (
+  !releaseVersionMatch ||
+  effectiveIosBuildNumber !== releaseVersionMatch[1] ||
+  baseAndroid.versionCode !== Number(releaseVersionMatch[1])
+) {
+  throw new Error(
+    `Release version tuple mismatch: expected version 1.0.N, ios.buildNumber N, and android.versionCode N; received version=${baseExpo.version}, ios.buildNumber=${effectiveIosBuildNumber}, android.versionCode=${baseAndroid.versionCode}.`,
+  );
+}
+
 const disableIosPushNotifications = process.env.MIZYUN_IOS_DISABLE_PUSH === "1";
 const enableIosAppleAuth = process.env.MIZYUN_ENABLE_APPLE_AUTH === "1";
 
@@ -284,8 +300,7 @@ module.exports = {
       appleTeamId: "LQJNDVBL43",
       bundleIdentifier: variant.iosBundleIdentifier,
       usesAppleSignIn: enableIosAppleAuth,
-      buildNumber:
-        process.env.MIZYUN_IOS_BUILD_NUMBER || baseIos.buildNumber || "1",
+      buildNumber: effectiveIosBuildNumber,
     },
     android: {
       ...baseAndroid,

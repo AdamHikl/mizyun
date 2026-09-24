@@ -172,9 +172,39 @@ if (
     `Production profile evaluated to unexpected identity: ${JSON.stringify(prodConfig.expo)}`,
   );
 }
-console.log(
-  "✓ Production profile evaluated correctly: com.mizyun.app / Mizyun",
+const releaseVersionMatch = /^1\.0\.([1-9][0-9]*)$/.exec(
+  prodConfig.expo.version,
 );
+if (
+  !releaseVersionMatch ||
+  prodConfig.expo.ios.buildNumber !== releaseVersionMatch[1] ||
+  prodConfig.expo.android.versionCode !== Number(releaseVersionMatch[1])
+) {
+  throw new Error(
+    `Production release version tuple is not synchronized: ${JSON.stringify({
+      version: prodConfig.expo.version,
+      iosBuildNumber: prodConfig.expo.ios.buildNumber,
+      androidVersionCode: prodConfig.expo.android.versionCode,
+    })}`,
+  );
+}
+console.log(
+  `✓ Production profile evaluated correctly: com.mizyun.app / Mizyun ${prodConfig.expo.version} (${releaseVersionMatch[1]})`,
+);
+
+evalConfigExpectingError(
+  {
+    MIZYUN_APP_VARIANT: "production",
+    MIZYUN_BUILD_PROFILE: "production",
+    MIZYUN_IOS_BUILD_NUMBER: String(Number(releaseVersionMatch[1]) + 1),
+    EXPO_PUBLIC_API_URL: "https://mizyun-api.phiskel.com",
+    EXPO_PUBLIC_SUPABASE_URL: "https://mizyun-supabase.phiskel.com",
+    EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "test-production-publishable-key",
+    EXPO_PUBLIC_AUTH_REDIRECT_URI: "mizyun://auth/callback",
+  },
+  "Release version tuple mismatch",
+);
+console.log("✓ Mismatched Production version/build tuple rejected");
 
 // 3. Test Hostile / Conflicting Ambient Environments
 console.log(

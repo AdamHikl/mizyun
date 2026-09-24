@@ -2,7 +2,7 @@
   "expo": {
     "name": "Mizyun",
     "slug": "mizyun",
-    "version": "1.0.0",
+    "version": "1.0.6",
     "orientation": "portrait",
     "icon": "./assets/images/mizyun-icon.png",
     "scheme": "mizyun",
@@ -22,6 +22,7 @@
     },
     "android": {
       "package": "com.mizyun.app",
+      "versionCode": 6,
       "predictiveBackGestureEnabled": false,
       "icon": "./assets/images/mizyun-icon.png",
       "adaptiveIcon": {
