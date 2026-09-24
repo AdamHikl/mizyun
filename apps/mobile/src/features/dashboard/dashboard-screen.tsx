@@ -9,8 +9,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect, type Href } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FoodEntry } from "@mizyun/contracts";
+import { formatStopwatch, useOptionalActiveWorkout } from "@/features/workouts";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -527,9 +528,28 @@ export function DashboardScreen() {
     }, [loadMetrics]),
   );
 
-  const quickLogActions = actions.filter(
-    (action) => action.label !== "Progress photo" || isProgressPhotosEnabled(),
-  );
+  const workoutContext = useOptionalActiveWorkout();
+  const activeWorkout = workoutContext?.activeWorkout;
+  const elapsedSeconds = workoutContext?.elapsedSeconds ?? 0;
+
+  const quickLogActions = useMemo(() => {
+    return actions
+      .filter(
+        (action) =>
+          action.label !== "Progress photo" || isProgressPhotosEnabled(),
+      )
+      .map((action) => {
+        if (action.path === "/log-workout" && activeWorkout) {
+          return {
+            label: "Resume workout",
+            path: `/log-workout?workoutId=${activeWorkout.id}` as Href,
+            hint: `⏱️ ${formatStopwatch(elapsedSeconds)} in progress`,
+            icon: "🏋️",
+          };
+        }
+        return action;
+      });
+  }, [activeWorkout, elapsedSeconds]);
 
   return (
     <ThemedView style={styles.page}>

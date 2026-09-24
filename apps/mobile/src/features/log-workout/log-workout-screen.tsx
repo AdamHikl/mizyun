@@ -60,6 +60,10 @@ import {
   scheduleRestNotification,
 } from "@/features/workouts/rest-timer-notifications";
 import {
+  useOptionalActiveWorkout,
+  type RestTimerState,
+} from "@/features/workouts";
+import {
   completedSetsForNotificationEntry,
   dismissActiveWorkoutNotification,
   formatNextSetSummary,
@@ -133,20 +137,15 @@ interface PendingSetInput {
   rpe: string;
 }
 
-interface RestTimerState {
-  endsAt: number;
-  total: number;
-  exerciseName: string;
-  nextExerciseName?: string;
-  nextSetSummary?: string;
-  allPlannedSetsCompleted?: boolean;
-  notificationId?: string | null;
-}
-
 export function LogWorkoutScreen() {
   const { workoutId } = useLocalSearchParams<{ workoutId?: string }>();
   const { profile, session } = useAuth();
   const theme = useTheme();
+  const workoutContext = useOptionalActiveWorkout();
+  const setContextActiveWorkout = workoutContext?.setActiveWorkout;
+  const contextRestTimer = workoutContext?.restTimer;
+  const startContextRestTimer = workoutContext?.startRestTimer;
+  const clearContextRestTimer = workoutContext?.clearRestTimer;
   const userId = session?.user.id ?? null;
   const unitSystem = profile?.unitSystem ?? "metric";
   const [workspace, setWorkspace] = useState<WorkoutWorkspace>(EMPTY_WORKSPACE);
@@ -170,7 +169,11 @@ export function LogWorkoutScreen() {
     string | null
   >(null);
   const [libraryVisible, setLibraryVisible] = useState(false);
-  const [restTimer, setRestTimer] = useState<RestTimerState | null>(null);
+  const [restTimer, setRestTimer] = useState<RestTimerState | null>(() =>
+    contextRestTimer && Date.now() < contextRestTimer.endsAt
+      ? contextRestTimer
+      : null,
+  );
   const [, setRestTick] = useState(0);
   const [globalRestSeconds, setGlobalRestSeconds] =
     useState<number>(DEFAULT_REST_SECONDS);
@@ -372,6 +375,30 @@ export function LogWorkoutScreen() {
       subscription.remove();
     };
   }, []);
+
+  // Synchronize active workout session into global context
+  useEffect(() => {
+    if (
+      workspace.workout &&
+      !isRoutineDetails(workspace.workout.details) &&
+      workspace.workout.completedAt === null
+    ) {
+      setContextActiveWorkout?.({
+        id: workspace.workout.id,
+        name: workspace.workout.name,
+        startedAt: workspace.workout.startedAt,
+      });
+    }
+  }, [setContextActiveWorkout, workspace.workout]);
+
+  // Synchronize rest timer into global context
+  useEffect(() => {
+    if (restTimer && Date.now() < restTimer.endsAt) {
+      startContextRestTimer?.(restTimer);
+    } else if (restTimer === null) {
+      clearContextRestTimer?.();
+    }
+  }, [clearContextRestTimer, restTimer, startContextRestTimer]);
 
   const patchDraft = useCallback((patch: Partial<WorkoutDraft>) => {
     setDraft((current) => ({ ...current, ...patch }));
@@ -1040,6 +1067,8 @@ export function LogWorkoutScreen() {
                 await cancelRestNotification(restTimer.notificationId);
               }
               setRestTimer(null);
+              clearContextRestTimer?.();
+              setContextActiveWorkout?.(null);
               void dismissActiveWorkoutNotification();
               setBusy(true);
 
@@ -1075,9 +1104,11 @@ export function LogWorkoutScreen() {
     );
   }, [
     autoAdvanceTargetWeights,
+    clearContextRestTimer,
     elapsedSeconds,
     plannedExercises,
     restTimer?.notificationId,
+    setContextActiveWorkout,
     unitSystem,
     userId,
     workspace.exercises,
@@ -1109,6 +1140,8 @@ export function LogWorkoutScreen() {
               await cancelRestNotification(restTimer.notificationId);
             }
             setRestTimer(null);
+            clearContextRestTimer?.();
+            setContextActiveWorkout?.(null);
             void dismissActiveWorkoutNotification();
             const result = await abandonWorkout(workspace.workout!.id);
             if (!result.ok) return setMessage(result.message);
@@ -1118,13 +1151,31 @@ export function LogWorkoutScreen() {
         },
       },
     ]);
-  }, [restTimer?.notificationId, userId, workspace.workout]);
+  }, [
+    clearContextRestTimer,
+    restTimer?.notificationId,
+    setContextActiveWorkout,
+    userId,
+    workspace.workout,
+  ]);
 
   return (
     <ThemedView style={styles.page}>
       <Stack.Screen
         options={{
           title: workspace.workout?.name || "Live Workout",
+          headerLeft: () => (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Minimize workout"
+              onPress={() => router.back()}
+              style={styles.headerMinimizeButton}
+            >
+              <ThemedText type="smallBold" style={styles.headerMinimizeText}>
+                ✕
+              </ThemedText>
+            </Pressable>
+          ),
           headerRight: () =>
             workspace.workout !== null ? (
               <Pressable
@@ -1921,6 +1972,17 @@ const styles = StyleSheet.create({
   section: { gap: Spacing.three },
   feedContainer: {
     gap: Spacing.four,
+  },
+  headerMinimizeButton: {
+    paddingHorizontal: Spacing.two,
+    paddingVertical: 6,
+    borderRadius: Spacing.two,
+    marginLeft: Spacing.two,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  headerMinimizeText: {
+    fontSize: 16,
   },
   headerFinishButton: {
     backgroundColor: "#10B981",

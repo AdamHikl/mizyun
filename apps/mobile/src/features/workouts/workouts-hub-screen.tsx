@@ -24,6 +24,8 @@ import {
 import { ExerciseLibraryModal } from "./exercise-library-modal";
 import { WorkoutEditorModal } from "./workout-editor-modal";
 import { ExerciseProgressionModal } from "./exercise-progression-modal";
+import { computeElapsedSeconds, formatStopwatch } from "./active-workout-state";
+import { useOptionalActiveWorkout } from "./active-workout-context";
 
 type WorkoutsTab = "all" | "planned" | "history";
 
@@ -494,6 +496,14 @@ function PlannedWorkoutCard(props: {
 }) {
   const { item, isBusy, onOpen, onEdit, onDelete, onPressExercise } = props;
   const isStarted = item.status === "in_progress";
+  const workoutContext = useOptionalActiveWorkout();
+  const durationText = isStarted
+    ? formatStopwatch(
+        workoutContext?.activeWorkout?.id === item.workout.id
+          ? workoutContext.elapsedSeconds
+          : computeElapsedSeconds(item.workout.startedAt),
+      )
+    : "";
 
   return (
     <ThemedView type="backgroundElement" style={styles.routineCard}>
@@ -506,7 +516,7 @@ function PlannedWorkoutCard(props: {
             {item.plannedExercises.length > 0
               ? `${item.plannedExercises.length} exercises · Available routine`
               : isStarted
-                ? `${item.completedSetCount} sets logged · In progress`
+                ? `In progress · ⏱️ ${durationText} · ${item.completedSetCount} sets`
                 : "Available routine"}
           </ThemedText>
         </View>
@@ -527,7 +537,7 @@ function PlannedWorkoutCard(props: {
             ]}
           >
             {isStarted
-              ? `In Progress (${item.completedSetCount} sets)`
+              ? `⏱️ ${durationText} (${item.completedSetCount} sets)`
               : "Ready"}
           </ThemedText>
         </View>
