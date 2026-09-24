@@ -29,11 +29,7 @@ import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { analyticsClient } from "@/composition/analytics-client";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
-import {
-  getIsoLocalDate,
-  loadAllFoodDayCompletions,
-  setFoodDayCompletion,
-} from "./food-day-completion";
+import { getIsoLocalDate } from "./food-day-completion";
 import { reconcileEveningReminders } from "./evening-catch-up-reminders";
 
 import { filterFoodDayGroups } from "./meal-history-filter";
@@ -145,12 +141,7 @@ export function MealListScreen() {
   const userId = session?.user?.id ?? null;
   const params = useLocalSearchParams<{ source?: string }>();
   const [state, setState] = useState<MealListState>(INITIAL_STATE);
-  const [dayCompletions, setDayCompletions] = useState<Record<string, boolean>>(
-    {},
-  );
   const [dismissEveningBanner, setDismissEveningBanner] = useState(false);
-  const todayIsoDate = getIsoLocalDate();
-  const todayIsComplete = Boolean(dayCompletions[todayIsoDate]);
   const [busyEntryId, setBusyEntryId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchAttempt, setSearchAttempt] = useState(0);
@@ -179,16 +170,19 @@ export function MealListScreen() {
 
   const load = useCallback(async (): Promise<void> => {
     setState((current) => ({ ...current, loading: true, message: null }));
-    if (userId) {
-      void loadAllFoodDayCompletions(userId).then((map) => {
-        const comp: Record<string, boolean> = {};
-        for (const [d, rec] of Object.entries(map)) {
-          if (rec.isCompleted) comp[d] = true;
-        }
-        setDayCompletions(comp);
-      });
-    }
     const result = await fetchFoodHistory();
+    if (userId && result.entries) {
+      const today = getIsoLocalDate();
+      const todayEntries = result.entries.filter((e) =>
+        e.consumedAt.startsWith(today),
+      );
+      const hasMealAfter6Pm = todayEntries.some(
+        (e) => new Date(e.consumedAt).getHours() >= 18,
+      );
+      if (hasMealAfter6Pm) {
+        void reconcileEveningReminders(userId, { hasMealAfter6Pm: true });
+      }
+    }
     setState({
       groups: result.groups,
       entries: result.entries,
@@ -199,23 +193,6 @@ export function MealListScreen() {
       message: result.message,
     });
   }, [userId]);
-
-  const toggleDayComplete = async (date: string) => {
-    if (!userId) return;
-    const next = !dayCompletions[date];
-    setDayCompletions((prev) => ({ ...prev, [date]: next }));
-    await setFoodDayCompletion(userId, date, next);
-    const today = getIsoLocalDate();
-    if (date === today) {
-      await reconcileEveningReminders(userId, { todayCompleted: next });
-    }
-    void analyticsClient.track({
-      name: "feature_viewed",
-      properties: {
-        feature: next ? "food_day_completed" : "food_day_uncompleted",
-      },
-    });
-  };
 
   const loadMore = useCallback(async (): Promise<void> => {
     if (state.loadingMore || !state.nextCursor) return;
@@ -848,8 +825,7 @@ export function MealListScreen() {
                       Evening Food-Log Catch-Up
                     </ThemedText>
                     <ThemedText type="small" themeColor="textSecondary">
-                      Anything else to add from today? Add missed meals below,
-                      or tap “✓ Complete day” when you're all done.
+                      Anything else to add from today? Add missed meals below.
                     </ThemedText>
                     <ThemedText
                       type="small"
@@ -858,36 +834,6 @@ export function MealListScreen() {
                       Missed a meal or day? Consistency is built over time, not
                       perfection.
                     </ThemedText>
-                    <View style={styles.eveningBannerActions}>
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={
-                          todayIsComplete
-                            ? "Undo mark today complete"
-                            : "Mark today complete"
-                        }
-                        onPress={() => void toggleDayComplete(todayIsoDate)}
-                        style={({ pressed }) => [
-                          styles.eveningBannerCompleteButton,
-                          todayIsComplete &&
-                            styles.eveningBannerCompleteButtonActive,
-                          pressed && styles.pressed,
-                        ]}
-                      >
-                        <ThemedText
-                          type="smallBold"
-                          style={
-                            todayIsComplete
-                              ? styles.eveningBannerCompleteTextActive
-                              : styles.eveningBannerCompleteText
-                          }
-                        >
-                          {todayIsComplete
-                            ? "✓ Done today (Tap to undo)"
-                            : "✓ Mark today complete"}
-                        </ThemedText>
-                      </Pressable>
-                    </View>
                   </View>
                   <Pressable
                     accessibilityRole="button"
@@ -922,37 +868,6 @@ export function MealListScreen() {
                         </ThemedText>
 
                         <View style={styles.dayHeaderRight}>
-                          {userId !== null ? (
-                            <Pressable
-                              accessibilityRole="button"
-                              accessibilityLabel={
-                                dayCompletions[group.date]
-                                  ? `Day complete on ${group.displayDate}. Tap to unmark.`
-                                  : `Mark day complete on ${group.displayDate}. I have logged everything today.`
-                              }
-                              onPress={() => void toggleDayComplete(group.date)}
-                              style={[
-                                styles.dayCompletePill,
-                                dayCompletions[group.date]
-                                  ? styles.dayCompletePillActive
-                                  : styles.dayCompletePillInactive,
-                              ]}
-                            >
-                              <ThemedText
-                                type="smallBold"
-                                style={
-                                  dayCompletions[group.date]
-                                    ? styles.dayCompletePillTextActive
-                                    : styles.dayCompletePillTextInactive
-                                }
-                              >
-                                {dayCompletions[group.date]
-                                  ? "✓ All logged"
-                                  : "✓ Complete day"}
-                              </ThemedText>
-                            </Pressable>
-                          ) : null}
-
                           <View style={styles.dayCountBadge}>
                             <ThemedText type="small" themeColor="textSecondary">
                               {group.summary.entryCount}{" "}
@@ -1906,28 +1821,6 @@ const styles = StyleSheet.create({
     maxWidth: "100%",
     gap: 8,
   },
-  dayCompletePill: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  dayCompletePillActive: {
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-    borderColor: "#10B981",
-  },
-  dayCompletePillInactive: {
-    backgroundColor: "transparent",
-    borderColor: "rgba(148, 163, 184, 0.3)",
-  },
-  dayCompletePillTextActive: {
-    color: "#10B981",
-    fontSize: 12,
-  },
-  dayCompletePillTextInactive: {
-    color: "#64748B",
-    fontSize: 12,
-  },
   eveningCatchUpBanner: {
     borderRadius: 16,
     borderWidth: 1,
@@ -1955,30 +1848,6 @@ const styles = StyleSheet.create({
   },
   eveningBannerDismiss: {
     padding: Spacing.half,
-  },
-  eveningBannerActions: {
-    marginTop: Spacing.one,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  eveningBannerCompleteButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: "#10B981",
-  },
-  eveningBannerCompleteButtonActive: {
-    backgroundColor: "rgba(16, 185, 129, 0.2)",
-    borderWidth: 1,
-    borderColor: "#10B981",
-  },
-  eveningBannerCompleteText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-  },
-  eveningBannerCompleteTextActive: {
-    color: "#10B981",
-    fontSize: 12,
   },
   dayCountBadge: {
     paddingHorizontal: 8,

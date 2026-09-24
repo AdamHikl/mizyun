@@ -101,6 +101,26 @@ describe("Evening catch-up reminders", () => {
       expect(dates[0].getDate()).toBe(24); // Tomorrow
     });
 
+    it("suppresses today when meal has been logged after 6:00 PM", () => {
+      const now = new Date(2026, 8, 23, 18, 15, 0);
+      const dates = computeEveningReminderScheduleDates(
+        { hour: 20, minute: 30 },
+        { hasMealAfter6Pm: true, now },
+      );
+      expect(dates).toHaveLength(6);
+      expect(dates[0].getDate()).toBe(24); // Tomorrow
+    });
+
+    it("suppresses today when daily calorie target has been reached", () => {
+      const now = new Date(2026, 8, 23, 14, 0, 0);
+      const dates = computeEveningReminderScheduleDates(
+        { hour: 20, minute: 30 },
+        { calorieTargetReached: true, now },
+      );
+      expect(dates).toHaveLength(6);
+      expect(dates[0].getDate()).toBe(24); // Tomorrow
+    });
+
     it("suppresses today when reminder time has already passed today", () => {
       const now = new Date(2026, 8, 23, 21, 0, 0); // 9:00 PM (past 8:30 PM)
       const dates = computeEveningReminderScheduleDates(
@@ -183,6 +203,48 @@ describe("Evening catch-up reminders", () => {
 
       expect(reconciled.notificationIds).toHaveLength(6);
       expect(cancelledIds).toHaveLength(7); // Old 7 notifications cancelled
+    });
+
+    it("auto-suppresses today upon reconcile when meal is logged after 6 PM or calorie target is reached", async () => {
+      const store = memoryStore();
+      let nextId = 1;
+
+      const mockScheduler: EveningReminderScheduler = {
+        ensureChannel: vi.fn().mockResolvedValue(undefined),
+        getPermission: vi.fn().mockResolvedValue("granted"),
+        requestPermission: vi.fn().mockResolvedValue("granted"),
+        scheduleAtDate: vi
+          .fn()
+          .mockImplementation(() => Promise.resolve(`notif-${nextId++}`)),
+        cancel: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const now = new Date(2026, 8, 23, 17, 0, 0);
+      await applyEveningReminders(
+        userId,
+        { enabled: true, hour: 20, minute: 30 },
+        { now: () => now },
+        mockScheduler,
+        store,
+      );
+
+      // Reconcile with hasMealAfter6Pm: true
+      const reconciledMeal = await reconcileEveningReminders(
+        userId,
+        { hasMealAfter6Pm: true, now: () => now },
+        mockScheduler,
+        store,
+      );
+      expect(reconciledMeal.notificationIds).toHaveLength(6);
+
+      // Reconcile with calorieTargetReached: true
+      const reconciledCalories = await reconcileEveningReminders(
+        userId,
+        { calorieTargetReached: true, now: () => now },
+        mockScheduler,
+        store,
+      );
+      expect(reconciledCalories.notificationIds).toHaveLength(6);
     });
 
     it("clears notifications when disabled", async () => {

@@ -57,6 +57,7 @@ import {
   loadFirstMealReminders,
   reconcileFirstMealReminders,
 } from "./first-meal-reminders";
+import { reconcileEveningReminders } from "./evening-catch-up-reminders";
 import { FirstMealRoutineModal } from "./first-meal-routine-modal";
 import type { FoodEntry } from "@mizyun/contracts";
 import { apiClient } from "@/composition/api-client";
@@ -460,6 +461,14 @@ export function LogMealScreen() {
       if (userId !== null) {
         await clearLoggingDraft(userId, "meal");
         await reconcileFirstMealReminders(userId, { todayLogged: true });
+        const mealDate = fixedConsumedAt
+          ? new Date(fixedConsumedAt)
+          : new Date();
+        const isToday = mealDate.toDateString() === new Date().toDateString();
+        const hasMealAfter6Pm = isToday && mealDate.getHours() >= 18;
+        if (hasMealAfter6Pm) {
+          void reconcileEveningReminders(userId, { hasMealAfter6Pm: true });
+        }
         const reminderSettings = await loadFirstMealReminders(userId);
         if (!reminderSettings.enabled && !reminderSettings.promptDismissed) {
           setShowRoutineModal(true);

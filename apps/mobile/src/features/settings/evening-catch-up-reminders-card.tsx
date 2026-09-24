@@ -84,8 +84,8 @@ export function EveningCatchUpRemindersCard({
       <ThemedText type="smallBold">Evening food-log catch-up</ThemedText>
       <ThemedText type="small" themeColor="textSecondary">
         Optional reminder asking: “Anything else to add from today?” Review your
-        day and confirm completeness without the app guessing. Automatically
-        suppressed once you've confirmed today's log is complete.
+        day without the app guessing. Automatically suppressed once you've
+        logged a meal after 6:00 PM or reached your calorie target.
       </ThemedText>
       <ThemedText type="small" style={styles.supportiveText}>
         Missed a meal or day? No stress — habit consistency is built over time,

@@ -80,12 +80,26 @@ export const loadEveningReminders = async (
 
 const ROLLING_SCHEDULE_DAYS = 7;
 
+export interface EveningReminderScheduleOptions {
+  readonly todayCompleted?: boolean;
+  readonly hasMealAfter6Pm?: boolean;
+  readonly calorieTargetReached?: boolean;
+  readonly now?: Date | (() => Date);
+}
+
 export const computeEveningReminderScheduleDates = (
   settings: { readonly hour: number; readonly minute: number },
-  options: { readonly todayCompleted: boolean; readonly now?: Date },
+  options: EveningReminderScheduleOptions = {},
 ): Date[] => {
-  const now = options.now ?? new Date();
+  const now =
+    typeof options.now === "function"
+      ? options.now()
+      : (options.now ?? new Date());
   const dates: Date[] = [];
+  const shouldSuppressToday =
+    Boolean(options.todayCompleted) ||
+    Boolean(options.hasMealAfter6Pm) ||
+    Boolean(options.calorieTargetReached);
 
   for (let offset = 0; offset < ROLLING_SCHEDULE_DAYS; offset++) {
     const target = new Date(
@@ -99,8 +113,9 @@ export const computeEveningReminderScheduleDates = (
     );
 
     if (offset === 0) {
-      if (options.todayCompleted) {
-        // Suppress today's evening reminder because the user explicitly confirmed day completion.
+      if (shouldSuppressToday) {
+        // Suppress today's evening reminder because the user explicitly confirmed day completion,
+        // logged a meal after 6:00 PM, or reached their daily calorie target.
         continue;
       }
       if (target.getTime() <= now.getTime()) {
@@ -129,10 +144,7 @@ export const applyEveningReminders = async (
     readonly hour: number;
     readonly minute: number;
   },
-  options: {
-    readonly todayCompleted?: boolean;
-    readonly now?: () => Date;
-  } = {},
+  options: EveningReminderScheduleOptions = {},
   scheduler: EveningReminderScheduler = expoEveningReminderScheduler,
   store: EveningReminderStore = SecureStore,
 ): Promise<
@@ -141,7 +153,10 @@ export const applyEveningReminders = async (
 > => {
   const previous = await loadEveningReminders(userId, store);
   const nextIds: string[] = [];
-  const now = options.now ? options.now() : new Date();
+  const now =
+    typeof options.now === "function"
+      ? options.now()
+      : (options.now ?? new Date());
 
   try {
     if (requested.enabled) {
@@ -154,14 +169,16 @@ export const applyEveningReminders = async (
       }
 
       const scheduleDates = computeEveningReminderScheduleDates(requested, {
-        todayCompleted: options.todayCompleted ?? false,
+        todayCompleted: options.todayCompleted,
+        hasMealAfter6Pm: options.hasMealAfter6Pm,
+        calorieTargetReached: options.calorieTargetReached,
         now,
       });
 
       for (const date of scheduleDates) {
         const id = await scheduler.scheduleAtDate(date, {
           title: "Evening food log catch-up",
-          body: "Anything else to add from today? Review your day or confirm you're all done.",
+          body: "Anything else to add from today? Add missed meals or review your day.",
           data: {
             url: "/meals",
             source: "evening_catch_up_reminder",
@@ -194,10 +211,7 @@ export const applyEveningReminders = async (
 
 export const reconcileEveningReminders = async (
   userId: string,
-  options: {
-    readonly todayCompleted: boolean;
-    readonly now?: () => Date;
-  },
+  options: EveningReminderScheduleOptions = {},
   scheduler: EveningReminderScheduler = expoEveningReminderScheduler,
   store: EveningReminderStore = SecureStore,
 ): Promise<EveningCatchUpReminderSettings> => {
