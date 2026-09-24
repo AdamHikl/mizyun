@@ -57,7 +57,7 @@ set +a
 : "${MIZYUN_PRODUCTION_DB_URL:?missing MIZYUN_PRODUCTION_DB_URL}"
 : "${MIZYUN_DB_CONTAINER:=supabase-db}"
 : "${MIZYUN_PRODUCTION_DB_SSLMODE:=disable}"
-: "${MIZYUN_API_SERVICE:=mizyun-api}"
+: "${MIZYUN_API_SERVICE:=mizyun-api.service}"
 : "${MIZYUN_LOCAL_API_URL:=http://127.0.0.1:4000}"
 
 # 3. Cross-environment service guard
@@ -66,6 +66,7 @@ if [[ "$normalized_service" == "mizyun-api-dev"* ]]; then
   echo "FATAL: Refusing to run production promotion against dev service $MIZYUN_API_SERVICE." >&2
   exit 2
 fi
+service_unit="${normalized_service}.service"
 
 if [[ "$MIZYUN_PRODUCTION_DB_URL" =~ :5433(/|\?|$) ]]; then
   echo "FATAL: MIZYUN_PRODUCTION_DB_URL points to dev database port 5433! Refusing production promotion." >&2
@@ -124,7 +125,7 @@ rollback_code() {
   echo "Promotion failed near line $failure_line; restoring API code $previous_sha." >&2
   git checkout --detach "$previous_sha" >/dev/null 2>&1 || rollback_ok=false
   pnpm install --frozen-lockfile >/dev/null 2>&1 || rollback_ok=false
-  sudo -n systemctl restart "$MIZYUN_API_SERVICE" >/dev/null 2>&1 || rollback_ok=false
+  sudo -n systemctl restart "$service_unit" >/dev/null 2>&1 || rollback_ok=false
 
   local rollback_healthy=false
   local rollback_attempts="${MIZYUN_HEALTH_RETRIES:-40}"
@@ -185,7 +186,7 @@ pnpm exec supabase db push --db-url "$production_db_url" --dry-run --yes
 pnpm exec supabase db push --db-url "$production_db_url" --yes
 migrations_applied=true
 
-sudo -n systemctl restart "$MIZYUN_API_SERVICE"
+sudo -n systemctl restart "$service_unit"
 api_ready=false
 max_attempts="${MIZYUN_HEALTH_RETRIES:-40}"
 sleep_duration="${MIZYUN_HEALTH_SLEEP:-1}"
