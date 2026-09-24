@@ -13,7 +13,7 @@
       "config": {
         "usesNonExemptEncryption": false
       },
-      "buildNumber": "1",
+      "buildNumber": "6",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Mizyun accesses a photo only when you choose it for a meal draft or your private progress timeline.",
         "NSPhotoLibraryAddUsageDescription": "Mizyun saves photos to your photo library only when you explicitly export a progress photo.",
