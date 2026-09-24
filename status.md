@@ -177,8 +177,8 @@ Founder decision 2026-09-23: prioritize a presentable, distinctive demo and prog
   - Public health smoke test: `curl https://mizyun-api.phiskel.com/v1/health` -> HTTP 200 `{"status":"ok","service":"mizyun-api","timestamp":"2026-09-24T17:19:09.447Z"}`.
 - **iOS App Store Release Build**:
   - Build numbering: iOS App Store build numbers 1–5 consumed; active release build number is **6** (configured in `apps/mobile/app.json`). Future builds must strictly increment from 6 upward.
-  - Release archive targeting build 6 is actively building. Previous build 4 archive preserved at `apps/mobile/ios/build/Mizyun-0aadf95b.xcarchive` (`CFBundleIdentifier: com.mizyun.app`, `CFBundleShortVersionString: 1.0.0`, `CFBundleVersion: 4`, Apple Team `LQJNDVBL43`).
-  - Ready for App Store Connect distribution via Xcode Organizer (`open apps/mobile/ios/build/Mizyun-*.xcarchive`).
+  - Release archive for **Build 6** created cleanly and preserved at: `apps/mobile/ios/build/Mizyun-9d505384.xcarchive` (`CFBundleIdentifier: com.mizyun.app`, `CFBundleShortVersionString: 1.0.0`, `CFBundleVersion: 6`, Apple Team `LQJNDVBL43`, created `2026-09-24T18:30:19Z`).
+  - Ready for App Store Connect distribution via Xcode Organizer (`open apps/mobile/ios/build/Mizyun-9d505384.xcarchive`).
 - **Android Google Play Release Bundle**:
   - Clean production prebuild executed (`com.mizyun.app`, `versionCode 1`, `versionName 1.0.0`).
   - Release App Bundle `:app:bundleRelease` compiled successfully (`BUILD SUCCESSFUL in 2m 32s`).
