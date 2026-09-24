@@ -31,7 +31,7 @@ Founder decision 2026-09-23: prioritize a presentable, distinctive demo and prog
 | ----------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | Local       | `/Users/adam/Documents/mizyun`                                     | `a564a49ed5c52c6f145cfeb3709b1192dafe818e` (clean working tree, pushed to `origin/main`)       | Local workspace matches origin/main                                                              |
 | Dev         | Hetzner CX23, `/var/lib/mizyun/dev/repo`, `mizyun-api-dev.service` | `779e83cb2a472a901f5909f3d64805bdcf70ad5d`; public health HTTP 200 at 2026-09-24T15:45:15.394Z | Dev backend running latest features (#41, #52, #118, #119, #121, #122, #123, ops/AI token fixes) |
-| Production  | Hetzner CX23, `/var/lib/mizyun/repo`, `mizyun-api.service`         | `43917fa4b69acff04b931c4ef927dab21466a932`; public health was HTTP 200 in the cutover session  | No current-session Production verification or release                                            |
+| Production  | Hetzner CX23, `/var/lib/mizyun/repo`, `mizyun-api.service`         | `0aadf95b5ff85d9cfc8bf5485e68a72525080e84`; public health HTTP 200 at 2026-09-24T17:19:09.447Z | Promoted accepted SHA, encrypted backup taken, migrations applied, older clients verified        |
 | Recovery    | Raspberry Pi 5                                                     | Encrypted daily Production archive workflow and accepted restore point `20260919T103343Z`      | Recovery storage only; not a deployment target or writable failover                              |
 
 ## Rules and open gates that must survive handoff
@@ -160,6 +160,30 @@ Founder decision 2026-09-23: prioritize a presentable, distinctive demo and prog
   - Built Release binary via `xcodebuild` targeting scheme `MizyunDev` with team `LQJNDVBL43` (`itinn s.r.o.`).
   - Installed `.app` via `xcrun devicectl device install app` and launched standalone (no Metro on port 8081).
   - Launch timestamp: `2026-09-24T15:47:24Z`.
+
+## Verification — Production Backend Promotion, Backward Compatibility & Store Release Builds, 2026-09-24
+
+- **Target commit**: `0aadf95b5ff85d9cfc8bf5485e68a72525080e84` (clean working tree, pushed to `origin/main`).
+- **Backward compatibility independent review**:
+  - Independent reviewer subagent audited the diff between previous production (`43917fa`) and candidate (`0aadf95`).
+  - Verified non-breaking changes across all API endpoints: food entries pagination/cursor, workout idempotency/operation IDs, multilingual Coach intent classification, and legal 302 redirects.
+  - Verified forward migrations `20260917120000_workout_lifecycle_queries_and_idempotency.sql` and `20260924140000_fix_ai_token_reservations_and_leases.sql` are strictly additive and preserve existing tables, types, and data.
+  - Review verdict: **APPROVED**.
+- **Hetzner Production Backend promotion (`pnpm deploy:production 0aadf95b5ff85d9cfc8bf5485e68a72525080e84`)**:
+  - Pre-deployment encrypted database and storage backup verified (`/var/backups/mizyun/production-backup-20260924T171830Z.tar.gz.age`).
+  - Fetched and checked out exact accepted SHA `0aadf95b5ff85d9cfc8bf5485e68a72525080e84`.
+  - Reconciled and applied forward migrations to PostgreSQL 17 on port 5432 via `supabase db push --yes`.
+  - Service unit `mizyun-api.service` successfully restarted on port 4000.
+  - Public health smoke test: `curl https://mizyun-api.phiskel.com/v1/health` -> HTTP 200 `{"status":"ok","service":"mizyun-api","timestamp":"2026-09-24T17:19:09.447Z"}`.
+- **iOS App Store Release Build**:
+  - Disposable worktree native prebuild and Xcode archive succeeded (`** ARCHIVE SUCCEEDED **`).
+  - Release archive preserved at `apps/mobile/ios/build/Mizyun-0aadf95b.xcarchive` (`CFBundleIdentifier: com.mizyun.app`, `CFBundleShortVersionString: 1.0.0`, `CFBundleVersion: 4`, Apple Team `LQJNDVBL43`).
+  - Ready for App Store Connect distribution via Xcode Organizer (`open apps/mobile/ios/build/Mizyun-0aadf95b.xcarchive`).
+- **Android Google Play Release Bundle**:
+  - Clean production prebuild executed (`com.mizyun.app`, `versionCode 1`, `versionName 1.0.0`).
+  - Release App Bundle `:app:bundleRelease` compiled successfully (`BUILD SUCCESSFUL in 2m 32s`).
+  - Generated artifact: `apps/mobile/android/app/build/outputs/bundle/release/app-release.aab` (76,925,815 bytes, SHA-256 `141b2607de5ccb5e93c40f9b0cb2d205a9cbbba045408204b2fd07a77808906b`).
+  - Merged `AndroidManifest.xml` and embedded Hermes bytecode verified pointing to production endpoints (`https://mizyun-api.phiskel.com` and `https://mizyun-supabase.phiskel.com`).
 
 ## Next exact action
 
