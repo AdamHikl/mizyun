@@ -183,7 +183,7 @@ Founder decision 2026-09-23: prioritize a presentable, distinctive demo and prog
   - Google Play rejected the earlier `1.0.0` / code `1` artifact because it was signed with the Android debug certificate (`5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25`); that artifact is superseded.
   - Fresh clean Production prebuild generated `com.mizyun.app`, `versionName 1.0.6`, `versionCode 6`, min SDK 24 and target SDK 36. Full `pnpm check` passed before the store build, including the new synchronized-version mismatch regression.
   - Gradle `:app:bundleRelease` completed successfully and signed the AAB directly with the dedicated Mizyun upload key from macOS Keychain. Independent `jarsigner`, ZIP, certificate and bundle-manifest checks passed; upload certificate SHA-1 is `A3:37:60:CF:83:BB:54:87:FC:71:F0:38:D4:6B:97:21:CA:A0:70:4D`.
-  - Generated `1.0.6` / code `6` artifact: `apps/mobile/android/app/build/outputs/bundle/release/app-release.aab` (76,926,605 bytes, SHA-256 `e23b4b6b759c0566792102ea8fd9ea67990204a24026bab018f82e49c2cfee75`). Stable source-SHA archive and Google Play upload remain pending.
+  - Preserved upload candidate from source commit `3c20835953737604bdb03567e519b13c0823df5b`: `apps/mobile/dist/google-play/Mizyun-1.0.6-code6-3c20835953737604bdb03567e519b13c0823df5b.aab` (76,926,605 bytes, SHA-256 `e23b4b6b759c0566792102ea8fd9ea67990204a24026bab018f82e49c2cfee75`). Google Play upload remains pending.
 
 ## Next exact action
 
