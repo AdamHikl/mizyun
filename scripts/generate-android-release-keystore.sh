@@ -12,6 +12,8 @@ if [[ -f "$keystore_path" ]]; then
 fi
 
 echo "=== Mizyun Android Release Keystore Generator ==="
+echo "WARNING: Mizyun already has an enrolled Google Play upload key."
+echo "Do not use this generator for a normal release or replace the existing key without completing Google Play upload-key reset/recovery."
 echo "Generating production release keystore at: $keystore_path"
 
 keytool -genkeypair \
@@ -34,5 +36,7 @@ echo "  export MIZYUN_RELEASE_KEY_ALIAS=\"$alias_name\""
 echo "  export MIZYUN_RELEASE_STORE_PASSWORD=\"<your-keystore-password>\""
 echo "  export MIZYUN_RELEASE_KEY_PASSWORD=\"<your-key-password>\""
 echo "  pnpm mobile:founder-production:android:bundleRelease"
+echo "  pnpm mobile:founder-production:android:signBundle"
+echo "  pnpm mobile:release-artifacts:list"
 echo ""
 echo "IMPORTANT: Back up this keystore file and passwords safely! Google Play requires this key for all future updates."

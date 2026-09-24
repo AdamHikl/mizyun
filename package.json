@@ -41,6 +41,7 @@
     "mobile:founder-production:android:assembleRelease": "bash scripts/mobile-founder-production-android.sh assembleRelease",
     "mobile:founder-production:android:bundleRelease": "bash scripts/mobile-founder-production-android.sh bundleRelease",
     "mobile:founder-production:android:signBundle": "bash scripts/sign-production-android-bundle.sh",
+    "mobile:release-artifacts:list": "bash scripts/list-mobile-release-artifacts.sh",
     "mobile:install:ios:dev": "bash scripts/mobile-device-install.sh ios dev",
     "mobile:install:ios:production": "bash scripts/mobile-device-install.sh ios production",
     "mobile:install:ios:prod": "bash scripts/mobile-device-install.sh ios production",
@@ -72,6 +73,7 @@
     "navigation:check": "node scripts/navigation/check.mjs",
     "test:navigation": "node --test scripts/navigation/test/*.test.mjs",
     "test:build-matrix": "node scripts/test-build-matrix.mjs",
+    "test:production-android-signing-tooling": "node scripts/test-production-android-signing-tooling.mjs",
     "test:production-ios-ipa-tooling": "node scripts/test-production-ios-ipa-tooling.mjs",
     "test:deployment-safeguards": "node scripts/test-deployment-safeguards.mjs",
     "test:hetzner-operations": "node scripts/test-hetzner-operations.mjs",
@@ -80,7 +82,7 @@
     "test:tier-authority": "node scripts/test-tier-authority-postgrest.mjs",
     "backup:verify": "bash scripts/verify-backup-recovery.sh",
     "test:ai-eval": "node --import tsx scripts/run-ai-evaluation.mjs",
-    "check": "pnpm navigation:check && pnpm test:navigation && pnpm format:check && pnpm typecheck && pnpm --filter @mizyun/mobile bundle:check && pnpm test && pnpm test:deployment-safeguards && pnpm test:hetzner-operations && pnpm test:backup-retention && pnpm test:google-oauth-config && pnpm test:build-matrix && pnpm test:production-ios-ipa-tooling && pnpm test:ai-eval"
+    "check": "pnpm navigation:check && pnpm test:navigation && pnpm format:check && pnpm typecheck && pnpm --filter @mizyun/mobile bundle:check && pnpm test && pnpm test:deployment-safeguards && pnpm test:hetzner-operations && pnpm test:backup-retention && pnpm test:google-oauth-config && pnpm test:build-matrix && pnpm test:production-android-signing-tooling && pnpm test:production-ios-ipa-tooling && pnpm test:ai-eval"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

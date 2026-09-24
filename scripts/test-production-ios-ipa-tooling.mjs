@@ -230,7 +230,10 @@ printf '%s\n' 20260914T150000Z
     { env: testEnvironment },
   );
 
-  const artifactRoot = join(testRepository, "apps/mobile/ios/build/app-store");
+  const artifactRoot = join(
+    testRepository,
+    "apps/mobile/dist/releases/ios/app-store/packages",
+  );
   const releases = readdirSync(artifactRoot).filter(
     (entry) => !entry.startsWith("."),
   );
@@ -238,6 +241,16 @@ printf '%s\n' 20260914T150000Z
     throw new Error(`Expected one published release, found ${releases.length}`);
   }
   const releasePath = join(artifactRoot, releases[0]);
+  const archiveRoot = join(
+    testRepository,
+    "apps/mobile/dist/releases/ios/app-store/archives",
+  );
+  const archives = readdirSync(archiveRoot).filter((entry) =>
+    entry.endsWith(".xcarchive"),
+  );
+  if (archives.length !== 1) {
+    throw new Error(`Expected one preserved archive, found ${archives.length}`);
+  }
   const manifest = JSON.parse(
     readFileSync(join(releasePath, "manifest.json"), "utf8"),
   );

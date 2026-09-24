@@ -35,6 +35,7 @@
 - **Definition of Done**: [`docs/QUALITY_GATES.md`](QUALITY_GATES.md) — data, mobile, calculation, media, and AI quality bars.
 - **Provider Checklist**: [`docs/BEFORE_TESTING.md`](BEFORE_TESTING.md) — requirements before enabling live external model calls.
 - **Release Verification**: [`docs/REMEDIATION_EVIDENCE_CHECKLIST.md`](REMEDIATION_EVIDENCE_CHECKLIST.md) — Q1–Q9 closure criteria & evidence.
+- **Mobile Release Artifacts**: [`docs/MOBILE_RELEASE_ARTIFACTS.md`](MOBILE_RELEASE_ARTIFACTS.md) — canonical local layout for preserved Android and iOS deliverables.
 
 ## 6. Developer Navigation Commands
 

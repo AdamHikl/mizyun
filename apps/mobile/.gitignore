@@ -3,7 +3,7 @@
 # dependencies
 node_modules/
 
-# Expo
+# Expo (dist/releases is the ignored local custody area for signed artifacts)
 .expo/
 dist/
 web-build/

@@ -101,22 +101,15 @@ MIZYUN_ALLOW_DEBUG_KEYSTORE_IN_RELEASE=true pnpm mobile:founder-production:andro
 
 #### C. Google Play Store Release Bundle (`.aab`)
 
-1. Generate your production release keystore once (if not already created):
+1. Use the existing Mizyun Google Play upload key at `/Users/adam/Backups/mizyun/keys/mizyun-google-play-upload.jks`. Its password is stored in macOS Keychain. Never generate or substitute a new key for this established Play app unless Google Play upload-key reset/recovery has been deliberately completed.
+2. Build and sign the production App Bundle:
    ```bash
-   bash scripts/generate-android-release-keystore.sh
-   ```
-2. Build the signed production App Bundle:
-   ```bash
-   export MIZYUN_RELEASE_KEYSTORE="$HOME/Documents/mizyun/mizyun-release.keystore"
-   export MIZYUN_RELEASE_KEY_ALIAS="mizyun"
-   export MIZYUN_RELEASE_STORE_PASSWORD="<your-password>"
-   export MIZYUN_RELEASE_KEY_PASSWORD="<your-password>"
-
    pnpm mobile:founder-production:android:bundleRelease
+   pnpm mobile:founder-production:android:signBundle
    ```
-   The signed bundle is output to:
-   `apps/mobile/android/app/build/outputs/bundle/release/app-release.aab`
-3. Upload `app-release.aab` directly into Google Play Console (Internal Testing or Production track).
+   The signer retrieves the upload-key password from macOS Keychain, fails on a certificate mismatch, and preserves the verified bundle under:
+   `apps/mobile/dist/releases/android/google-play/`
+3. Run `pnpm mobile:release-artifacts:list`, then upload the correctly versioned preserved AAB from that Google Play directory. Do not upload a raw Gradle output directly.
 
 ---
 

@@ -90,16 +90,55 @@ case "$action" in
     ;;
   bundleRelease)
     shift
+    if [[ -n "$(git -C "$repo_root" status --porcelain --untracked-files=normal)" ]]; then
+      echo "ERROR: Production App Bundle builds require a clean committed working tree." >&2
+      exit 1
+    fi
+    read -r expected_version_name expected_version_code < <(
+      node -e '
+        const { expo } = require(process.argv[1]);
+        process.stdout.write(`${expo.version} ${expo.android.versionCode}\n`);
+      ' "$repo_root/apps/mobile/app.json"
+    )
     if [[ -d "$repo_root/apps/mobile/android" ]]; then
       current_app_id="$(grep "applicationId" "$repo_root/apps/mobile/android/app/build.gradle" | head -n 1 | awk '{print $2}' | tr -d "'\"" || true)"
       if [[ -z "$current_app_id" || "$current_app_id" != "com.mizyun.app" ]]; then
         echo "ERROR: Native Android directory has invalid or mismatched application ID '$current_app_id' (expected 'com.mizyun.app'). Run prebuild first." >&2
         exit 1
       fi
+      current_version_code="$(awk '/^[[:space:]]*versionCode[[:space:]]/ { print $2; exit }' "$repo_root/apps/mobile/android/app/build.gradle" | tr -d "'\"" || true)"
+      current_version_name="$(awk '/^[[:space:]]*versionName[[:space:]]/ { print $2; exit }' "$repo_root/apps/mobile/android/app/build.gradle" | tr -d "'\"" || true)"
+      if [[ "$current_version_name" != "$expected_version_name" || "$current_version_code" != "$expected_version_code" ]]; then
+        echo "ERROR: Native Android version tuple is ${current_version_name:-missing}/${current_version_code:-missing}; expected $expected_version_name/$expected_version_code. Run prebuild first." >&2
+        exit 1
+      fi
     fi
-    exec "$repo_root/apps/mobile/android/gradlew" \
+    "$repo_root/apps/mobile/android/gradlew" \
       --project-dir "$repo_root/apps/mobile/android" \
       :app:bundleRelease "$@"
+    aab_path="$repo_root/apps/mobile/android/app/build/outputs/bundle/release/app-release.aab"
+    metadata_path="$aab_path.build.json"
+    if [[ ! -f "$aab_path" ]]; then
+      echo "ERROR: Gradle completed without producing $aab_path" >&2
+      exit 1
+    fi
+    source_sha="$(git -C "$repo_root" rev-parse HEAD)"
+    aab_sha256="$(shasum -a 256 "$aab_path" | awk '{print $1}')"
+    metadata_staging="$metadata_path.tmp.$$"
+    node -e '
+      const { readFileSync, writeFileSync } = require("node:fs");
+      const [appJsonPath, outputPath, sourceCommit, inputSha256] = process.argv.slice(1);
+      const { expo } = JSON.parse(readFileSync(appJsonPath, "utf8"));
+      writeFileSync(outputPath, JSON.stringify({
+        sourceCommit,
+        bundleIdentifier: expo.android.package,
+        version: expo.version,
+        versionCode: expo.android.versionCode,
+        inputSha256,
+      }, null, 2) + "\n");
+    ' "$repo_root/apps/mobile/app.json" "$metadata_staging" "$source_sha" "$aab_sha256"
+    mv "$metadata_staging" "$metadata_path"
+    echo "Build provenance: $metadata_path"
     ;;
   *)
     echo "Usage: $0 <prebuild|assembleRelease|bundleRelease> [Gradle arguments...]" >&2
