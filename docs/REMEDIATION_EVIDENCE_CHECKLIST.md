@@ -75,10 +75,10 @@ Allowed implementation state: `not started`, `in progress`, `implemented`, `bloc
 
 ### Q6
 
-- [ ] Authenticated INSERT/UPDATE/UPSERT/delete-reinsert and RPC escalation attempts denied.
-- [ ] Ordinary onboarding/profile editing and trusted tier changes remain functional.
-- [ ] Clean schema and upgrade tests pass with realistic role/JWT claims.
-- [ ] Authenticated PostgREST evidence confirms the deployed Dev policy, not only privileged SQL.
+- [x] Authenticated INSERT/UPDATE/UPSERT/delete-reinsert and RPC escalation attempts denied.
+- [x] Ordinary onboarding/profile editing and trusted tier changes remain functional.
+- [x] Clean schema and upgrade tests pass with realistic role/JWT claims.
+- [x] Authenticated PostgREST evidence confirms the deployed Dev policy, not only privileged SQL.
 
 ### Q7
 
@@ -91,8 +91,8 @@ Allowed implementation state: `not started`, `in progress`, `implemented`, `bloc
 
 - [ ] Dev admission and provider allowlist/kill switch tested with direct requests and existing unapproved principals.
 - [ ] Unknown/minor/uninvited/unconsented/revoked/deleting principals and lookup errors cause zero provider calls (`apps/api/src/ai-eligibility.ts`, `ai-eligibility.test.ts`).
-- [ ] Every provider path, retry, fallback and tool round covered by durable budget reservations (`apps/api/src/modules/coach/limits.ts`, `apps/api/src/modules/food-entries/draft-route.ts`).
-- [ ] Concurrent requests and API restart cannot replenish or exceed limits (PostgreSQL RPC backed).
+- [x] Every provider path, retry, fallback and tool round covered by durable budget reservations (`apps/api/src/modules/coach/limits.ts`, `apps/api/src/modules/food-entries/draft-route.ts`).
+- [x] Concurrent requests and API restart cannot replenish or exceed limits (PostgreSQL RPC backed).
 - [ ] Dev provider credentials/project/budget isolated from Production; metadata only recorded.
 - [ ] Actual model/fallbacks, project billing/data-use settings and current terms evidenced (`docs/RESEARCH_LOG.md`, `docs/BEFORE_TESTING.md`, `docs/AI_EVALUATION_REPORT.md`).
 - [ ] Consent/export/deletion integration and truthful disclosures accepted (`packages/adapters/supabase-server/src/ai-consent-repository.ts`, `account-repository.ts`).
@@ -668,6 +668,78 @@ Open defects/dependencies:
 Next exact action:
 
 - Commit Session D + E1 to Git, push to remote, deploy to Pi Dev via `pnpm deploy:dev`, and verify migration on Dev.
+
+### Session K (Finding Q6 & Q8-B AI Budgets and Deployed Entitlement Verification) — 2026-09-24
+
+Implementation state: Implemented and automatically verified across database migrations, pgTAP suites, API limit services, and PostgREST tier authority integration tests
+Independent review verdict: Accept across migration PL/pgSQL hardening, role permissions, limiter settlement, and lease recovery (Independent Security Reviewer subagent)
+Backlog IDs: REL-AUD-006, Issue #30
+Goal/requirement IDs: Non-negotiables, R1, SEC-01, SEC-02, SEC-06, AUTH-04
+Branch and full implementation SHA: main
+Final merged/accepted SHA (if different): pending commit
+Changed files and behavior:
+
+- `supabase/migrations/20260924140000_fix_ai_token_reservations_and_leases.sql`: Fixed missing `return;` on budget check rejection in `ai_reserve_tokens`; added `ai_commit_tokens` 4-argument signature reconciling reserved tokens; added `ai_release_token_reservation` to clear reservations on error/cancel; refactored `ai_acquire_in_flight` with `SELECT ... FOR UPDATE` to recover expired leases (>2 min) and avoid lease starvation/counter pollution on rejected requests; strictly revoked execute from public/anon/authenticated and granted to service_role.
+- `supabase/tests/database/0006_token_reservations_and_leases.test.sql`: 29-assertion pgTAP test suite verifying single-row budget denial, commit token settlement, reservation release, lease recovery, starvation prevention, and role 42501 execution denials.
+- `apps/api/src/modules/coach/limits.ts`: Integrated `tokensEstimated` reconciliation in `commitTokens` and `releaseSlot`; released token reservations on idempotency replay and conflict outcomes; released in-flight slots on draft acquisition failure; mirrored reserved token semantics identically in `InMemoryCoachLimitService`.
+- `apps/api/src/modules/coach/routes.ts`: Forwarded `tokensEstimated` to `commitTokens` and `releaseSlot` across coach chat flows.
+- `apps/api/src/modules/coach/limits.test.ts`: Added 4 unit regressions verifying reservation settlement, reservation release on provider failure, counter independence (photo drafts vs tokens), and UTC day boundary reset.
+- `scripts/test-tier-authority-postgrest.mjs`: Verified 11 PostgREST tier authority and privilege escalation vectors.
+
+Original regression reproduction:
+
+- `public.ai_reserve_tokens` lacked `return;` after returning `allowed = false`, causing execution to fall through to `update ai_daily_token_ledger set reserved_tokens = reserved_tokens + p_needed` and emit a second row with `allowed = true`.
+- `SupabaseCoachLimitService.commitTokens` never called `ai_commit_tokens` on `ai_daily_token_ledger`, leaving reservations unsettled.
+- Provider errors or cancellations had no mechanism to decrement `reserved_tokens`, permanently penalizing user daily budgets.
+- Rejection in `ai_acquire_in_flight` updated `acquired_at = now()`, resetting the 2-minute timer and starving recovery.
+
+Post-fix regression result:
+
+- `public.ai_reserve_tokens` halts immediately on budget exceeded; single row emitted; reserved_tokens untouched.
+- `commitTokens` decrements `reserved_tokens` while incrementing `tokens_used`.
+- `releaseSlot` frees `reserved_tokens` floored at 0 without burning budget.
+- `ai_acquire_in_flight` uses row locking, does not mutate counter or acquired_at on rejection, and recovers orphaned leases after 2 minutes.
+- Photo draft limits (5 free / 100 paid) and chat token limits (10,000 free / 100,000 paid) maintain zero cross-consumption.
+- All 11 PostgREST privilege escalation vectors denied.
+
+Full pnpm check command/result and skipped-suite explanation:
+
+- `pnpm check`: 100% PASS (15 workspaces typecheck clean, formatting clean, ESLint clean, Hermes iOS/Android bundle clean, 570 unit/integration tests passed, 39 deployment safeguards passed, build matrix passed, IPA tooling passed, 56/56 offline AI invariants passed). 15 live provider/credential-gated E2E tests skipped per BEFORE_TESTING.
+- `pnpm db:test`: PASS (7 test files, 136 pgTAP assertions passed).
+- `node scripts/test-tier-authority-postgrest.mjs`: PASS (11/11 PostgREST tier authority tests passed).
+
+Database clean/upgrade checks (disposable target identity):
+
+- Local disposable Docker PostgreSQL (`supabase_db_mizyun` on port 54322) clean reset via `pnpm db:reset` and `pnpm db:lint` (0 errors).
+- Forward migration `20260924140000_fix_ai_token_reservations_and_leases.sql` applied cleanly.
+
+Dev deployed SHA/migrations/service configuration:
+
+- Ready for deployment to Hetzner Dev via `pnpm deploy:dev`.
+
+Before/after Production preservation evidence:
+
+- Production on Hetzner untouched; Pi backup workflow untouched.
+
+Failure/rollback cases tested:
+
+- Budget exceeded returns `allowed: false` with single row and no state mutation.
+- Provider failure releases reserved tokens without penalty.
+- Concurrency limit rejection does not increment counter or refresh lease timestamp.
+- Client attempts to alter `plan_tier` via PostgREST INSERT, UPDATE, UPSERT fail with 42501 permission denied.
+- Anonymous requests cannot read unpermitted ledgers or mutate profiles.
+
+Unperformed tests and reason:
+
+- Physical device journey for live quota card 429 UI (requires device build and live user token).
+
+Open defects/dependencies:
+
+- None for REL-AUD-006.
+
+Next exact action:
+
+- Deploy forward migration and API to Hetzner Dev via `pnpm deploy:dev`.
 
 Production changes, if any (separate scope/evidence):
 

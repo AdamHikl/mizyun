@@ -23,15 +23,16 @@ Founder decision 2026-09-23: prioritize a presentable, distinctive demo and prog
 | #122 persistent workout timer        | Implemented and automatically verified                           | `ActiveWorkoutContext` + `ActiveWorkoutMiniBar` above tabs; live elapsed timer on Workouts Hub & Dashboard; explicit headerLeft minimize (`✕`); 12/12 state tests, 5/5 mini-bar tests, all 53 mobile suites (562 tests) and full `pnpm check` passed; independent code review approved                                                                                                                                                        | Push/deploy to Hetzner Dev; test on physical iOS/Android builds for mini-bar docking, 1-tap resume, and live timer across screens |
 | #41 Coach memory & allergen safety   | Device accepted and closed                                       | Founder verified memory auto-confirmation and recall on physical iOS client against Hetzner Dev; contracts/API default to `status: active` on creation; `MemoryControlsCard` auto-confirms; `COACH_SYSTEM_POLICY` strictly enforces allergies/constraints; `AgentOrchestrator` unconditionally retrieves active constraints; full `pnpm check` passed                                                                                         | Account export/deletion integration remains tracked under #25                                                                     |
 | #52 Hetzner backup recovery & alerts | Implemented and automatically verified                           | Repeat isolated restore drill (`pnpm backup:verify`) verified archive `20260924T021544Z` in 49s: 76/76 DB tables, Storage ACLs/xattrs matched 100%; offline age escrow key verified outside VM/Pi; unattended daily 02:15 UTC cycles verified; systemd OnFailure alert units and dispatcher added; operations safeguards passed                                                                                                               | Connect alert webhook when desired; move Pi backups to external media when archive >25 MB/day                                     |
+| #30 AI budgets & entitlements        | Implemented and automatically verified                           | Fixed fallthrough in `ai_reserve_tokens`, added token reservation settlement and error release in `limits.ts`, hardened `ai_acquire_in_flight` against lease starvation via `FOR UPDATE`; 29/29 pgTAP assertions (`0006_token_reservations_and_leases.test.sql`), 11/11 PostgREST tier authority tests (`test-tier-authority-postgrest.mjs`), 18/18 limits tests, full repository `pnpm check` passed; independent security review approved   | Push/deploy to Hetzner Dev via `pnpm deploy:dev`                                                                                  |
 
 ## Current environment authority
 
-| Environment | Authority                                                          | Last evidenced source                                                                                                          | Scope                                                                                           |
-| ----------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
-| Local       | `/Users/adam/Documents/mizyun`                                     | Package tip `5791555948461fff65f99b4470298a46f08418f5` plus this handoff and isolated remaining operations/device-tooling work | Package commits are local and unpushed; preserve the rejected operations groups described below |
-| Dev         | Hetzner CX23, `/var/lib/mizyun/dev/repo`, `mizyun-api-dev.service` | `ed70df727fdb38940b686b1dd2647d519f8478cd`; public health was HTTP 200 in the deployment session                               | Dev deployment only; later local working-tree changes are not deployed                          |
-| Production  | Hetzner CX23, `/var/lib/mizyun/repo`, `mizyun-api.service`         | `43917fa4b69acff04b931c4ef927dab21466a932`; public health was HTTP 200 in the cutover session                                  | No current-session Production verification or release                                           |
-| Recovery    | Raspberry Pi 5                                                     | Encrypted daily Production archive workflow and accepted restore point `20260919T103343Z`                                      | Recovery storage only; not a deployment target or writable failover                             |
+| Environment | Authority                                                          | Last evidenced source                                                                          | Scope                                                                                            |
+| ----------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Local       | `/Users/adam/Documents/mizyun`                                     | `779e83cb2a472a901f5909f3d64805bdcf70ad5d` (clean working tree, pushed to `origin/main`)       | Local workspace matches origin/main                                                              |
+| Dev         | Hetzner CX23, `/var/lib/mizyun/dev/repo`, `mizyun-api-dev.service` | `779e83cb2a472a901f5909f3d64805bdcf70ad5d`; public health HTTP 200 at 2026-09-24T15:45:15.394Z | Dev backend running latest features (#41, #52, #118, #119, #121, #122, #123, ops/AI token fixes) |
+| Production  | Hetzner CX23, `/var/lib/mizyun/repo`, `mizyun-api.service`         | `43917fa4b69acff04b931c4ef927dab21466a932`; public health was HTTP 200 in the cutover session  | No current-session Production verification or release                                            |
+| Recovery    | Raspberry Pi 5                                                     | Encrypted daily Production archive workflow and accepted restore point `20260919T103343Z`      | Recovery storage only; not a deployment target or writable failover                              |
 
 ## Rules and open gates that must survive handoff
 
@@ -116,6 +117,49 @@ Founder decision 2026-09-23: prioritize a presentable, distinctive demo and prog
 - Unattended backup cycles inspected on Hetzner: daily 02:15 UTC timer verified across 2026-09-19 through 2026-09-24; Pi pulled unattended on 2026-09-20 and 2026-09-21. Achieved RPO is roughly 24 hours.
 - Actionable alerting implemented: added `deploy/hetzner/mizyun-backup-alert@.service` and `deploy/hetzner/mizyun-send-alert.sh` with journald logging and optional webhook dispatch; attached `OnFailure=mizyun-backup-alert@%n.service` to `mizyun-backup.service` and `mizyun-backup-pull.service`. Hetzner operations safeguards extended and passed.
 - Pi capacity reviewed: ~7.5 GiB free on SD card with 1.0 GiB safety floor (~6.5 GiB usable). Retains 90 days (~450 MB at current 5 MB/day); runbook updated with explicit 25 MB/day / 3.0 GiB external SSD mount trigger. Operations acceptance linked to #32.
+
+## Verification — Issue #30 AI budgets and deployed entitlement verification, 2026-09-24
+
+- Forward migration `supabase/migrations/20260924140000_fix_ai_token_reservations_and_leases.sql` implemented and applied cleanly to local disposable PostgreSQL database (`pnpm db:reset`, `pnpm db:lint` clean).
+- PL/pgSQL hardening:
+  - Fixed missing `return;` in `public.ai_reserve_tokens` when budget is exceeded, preventing execution fallthrough to reservation increments and duplicate row emissions.
+  - Replaced `public.ai_commit_tokens` with 4-argument signature that decrements `reserved_tokens` while incrementing `tokens_used`.
+  - Added `public.ai_release_token_reservation` to clear reservations floored at 0 without burning user budget.
+  - Hardened `public.ai_acquire_in_flight` using `SELECT ... FOR UPDATE`: resets expired leases (>2 min) to 1, increments active leases under capacity, and never increments counters or refreshes `acquired_at` on over-capacity rejections (preventing lease recovery starvation).
+  - Revoked execute on all 4 functions from `public`, `anon`, `authenticated`; granted strictly to `service_role`.
+- Limit services & routes:
+  - Updated `SupabaseCoachLimitService.commitTokens` to settle reserved tokens via `ai_commit_tokens` RPC.
+  - Updated `SupabaseCoachLimitService.releaseSlot` to clear reservations via `ai_release_token_reservation` RPC on failure or cancellation.
+  - Reconciled reservations in `acquireSlot` on idempotency replay or conflict outcomes.
+  - Released in-flight slots on draft acquisition failure.
+  - Mirrored identical reservation tracking and settlement in `InMemoryCoachLimitService`.
+  - Forwarded `tokensEstimated` in `routes.ts` across Coach chat turns and catch handlers.
+- Automated verification:
+  - 29/29 pgTAP assertions passed in `0006_token_reservations_and_leases.test.sql` (all 7 pgTAP test suites, 136 assertions passed via `pnpm db:test`).
+  - 11/11 PostgREST tier authority integration tests passed (`node scripts/test-tier-authority-postgrest.mjs`).
+  - 18/18 limits unit regressions passed (`limits.test.ts`), verifying settlement, release, quota separation, and UTC day resets.
+  - Full repository `pnpm check` passed (15 workspaces typecheck clean, ESLint clean, formatting clean, Hermes iOS/Android bundle clean, 570 unit/integration tests passed, 39 deployment safeguards passed, build matrix passed, IPA tooling passed, 56/56 offline AI invariants passed).
+- Independent security & authorization review:
+  - Independent reviewer subagent audited migration, permissions, limiter logic, and lease recovery, and issued a final verdict of **ACCEPT**.
+- Exit criteria remaining:
+  - Push and deploy forward migration and API to Hetzner Dev via `pnpm deploy:dev` (completed below).
+
+## Verification — Hetzner Dev deployment and iOS physical device installation, 2026-09-24
+
+- **Target commit**: `779e83cb2a472a901f5909f3d64805bdcf70ad5d` (clean working tree, pushed to `origin/main`).
+- **Independent review**: Subagent completed independent security, migration, and tooling review with unanimous approval. Recommended token release on conflict/replay was applied in `apps/api/src/modules/coach/limits.ts`.
+- **Hetzner Dev Backend deployment (`pnpm deploy:dev`)**:
+  - Remote host marker verified on `mizyun-hetzner-dev`.
+  - Detached to `779e83c`, updated dependencies via `CI=true pnpm install --frozen-lockfile`.
+  - Reconciled migration `20260924140000_fix_ai_token_reservations_and_leases.sql` against PostgreSQL 17 on port 5433 via `supabase db push --yes`.
+  - Service unit `mizyun-api-dev.service` successfully restarted.
+  - Public health smoke test: `curl https://mizyun-api-dev.phiskel.com/v1/health` -> HTTP 200 `{"status":"ok","service":"mizyun-api","timestamp":"2026-09-24T15:45:15.394Z"}`.
+- **Physical iOS Device Installation (`pnpm mobile:install:ios:dev`)**:
+  - Device: **Adam's Iphone 😋** (`00008140-001114501A86801C`).
+  - Bundle ID: `com.mizyun.development` (Mizyun Dev).
+  - Built Release binary via `xcodebuild` targeting scheme `MizyunDev` with team `LQJNDVBL43` (`itinn s.r.o.`).
+  - Installed `.app` via `xcrun devicectl device install app` and launched standalone (no Metro on port 8081).
+  - Launch timestamp: `2026-09-24T15:47:24Z`.
 
 ## Next exact action
 

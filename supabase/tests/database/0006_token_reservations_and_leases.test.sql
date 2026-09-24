@@ -6,7 +6,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(27);
+select plan(29);
 
 -- Setup synthetic test users in auth.users
 insert into auth.users (id, email)
@@ -158,11 +158,29 @@ select results_eq(
   'ai_acquire_in_flight permits initial request within concurrency limit'
 );
 
+-- Record timestamp
+create temp table _lease_ts as
+select acquired_at from public.ai_in_flight where user_id = 'f0000000-0000-4000-8000-000000000001'::uuid;
+
 -- Second concurrent acquire within active lease is rejected
 select results_eq(
   $$select allowed from public.ai_acquire_in_flight('f0000000-0000-4000-8000-000000000001'::uuid, 1)$$,
   $$values (false)$$,
   'ai_acquire_in_flight rejects concurrent request exceeding concurrency limit'
+);
+
+select is(
+  (select in_flight from public.ai_in_flight
+    where user_id = 'f0000000-0000-4000-8000-000000000001'::uuid),
+  1,
+  'in_flight count is NOT incremented when acquisition is rejected'
+);
+
+select is(
+  (select acquired_at from public.ai_in_flight
+    where user_id = 'f0000000-0000-4000-8000-000000000001'::uuid),
+  (select acquired_at from _lease_ts),
+  'acquired_at is NOT refreshed on rejection (prevents lease starvation)'
 );
 
 -- Simulate lease expiration by backdating acquired_at > 2 minutes

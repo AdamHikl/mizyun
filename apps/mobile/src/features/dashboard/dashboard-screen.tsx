@@ -410,10 +410,10 @@ export function DashboardScreen() {
           macros: freshMacros,
           latestWeightKg: freshWeight,
           energy: freshEnergy,
-          isOfflineSnapshot: isPartialOffline || current.isOfflineSnapshot,
+          isOfflineSnapshot: isPartialOffline,
           cachedAt: isPartialOffline
             ? (cachedSnapshot?.cachedAt ?? current.cachedAt)
-            : current.cachedAt,
+            : null,
           sectionStatus: {
             ...current.sectionStatus,
             nutritionToday: { loading: false, hasError: hasNutritionError },
@@ -504,10 +504,18 @@ export function DashboardScreen() {
         });
       }
 
+      const dailyOffline =
+        (current.sectionStatus.nutritionToday.hasError ||
+          current.sectionStatus.weight.hasError ||
+          current.sectionStatus.energy.hasError) &&
+        cachedSnapshot !== null;
+
       return {
         ...current,
         loading: overallLoading,
         hasError: overallHasError,
+        isOfflineSnapshot: dailyOffline,
+        cachedAt: dailyOffline ? current.cachedAt : null,
       };
     });
   }, [accessToken, reviewPeriod, userId]);
