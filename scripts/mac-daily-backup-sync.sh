@@ -12,8 +12,13 @@ log_file="$log_dir/mizyun-backup-sync.log"
 ssh_alias="${MIZYUN_PRODUCTION_SSH_ALIAS:-rpserver}"
 remote_dir="${MIZYUN_REMOTE_DIR:-/home/mizyun/mizyun}"
 force="${1:-}"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 mkdir -p "$backup_dir" "$log_dir"
+
+# Local retention is independent of whether today's remote backup or sync can
+# run, so offline and already-synchronized days cannot extend local retention.
+node "$script_dir/prune-backups.mjs" --root "$backup_dir" >> "$log_file" 2>&1
 
 log() {
   local msg="[$(date '+%Y-%m-%d %H:%M:%S')] $*"
@@ -38,23 +43,36 @@ if ! ssh -o BatchMode=yes -o ConnectTimeout=8 "$ssh_alias" "true" 2>/dev/null; t
 fi
 
 log "Triggering fresh production backup on $ssh_alias..."
-if ! ssh -o BatchMode=yes "$ssh_alias" "cd $remote_dir && bash scripts/backup-production.sh" >> "$log_file" 2>&1; then
-  log "Warning: remote backup generation returned non-zero. Proceeding to sync existing archives."
+remote_output="$(mktemp)"
+trap 'rm -f "$remote_output"' EXIT INT TERM
+if ! ssh -o BatchMode=yes "$ssh_alias" "cd $remote_dir && bash scripts/backup-production.sh" > "$remote_output" 2>&1; then
+  cat "$remote_output" >> "$log_file"
+  log "ERROR: remote backup generation failed; refusing to mark stale archives as a successful daily backup."
+  exit 1
+fi
+cat "$remote_output" >> "$log_file"
+fresh_name="$(sed -n 's|^Production backup created: .*/\([0-9]\{8\}T[0-9]\{6\}Z\)$|\1|p' "$remote_output" | tail -n 1)"
+if [[ -z "$fresh_name" ]]; then
+  log "ERROR: remote backup did not report a completed timestamped archive."
+  exit 1
 fi
 
 log "Syncing backup archives from $ssh_alias:/srv/mizyun/backups/ to $backup_dir/..."
 rsync -avz --partial "$ssh_alias:/srv/mizyun/backups/" "$backup_dir/" >> "$log_file" 2>&1
 
 # Verify the integrity of the latest backup
-latest_backup="$(find "$backup_dir" -mindepth 1 -maxdepth 1 -type d | sort -r | head -n 1)"
-if [[ -n "$latest_backup" ]] && [[ -f "$latest_backup/SHA256SUMS" ]]; then
-  log "Verifying checksums for latest backup: $(basename "$latest_backup")..."
-  if (cd "$latest_backup" && awk '{print $1 "  " substr($2, match($2, "[^/]+$"))}' SHA256SUMS | shasum -a 256 -c >> "$log_file" 2>&1); then
-    log "Checksum verification passed for $(basename "$latest_backup")."
+latest_backup="$backup_dir/$fresh_name"
+if [[ -f "$latest_backup/SHA256SUMS" ]] && [[ -f "$latest_backup/database.dump" ]] && [[ -f "$latest_backup/private-storage.tar.gz" ]]; then
+  log "Verifying checksums for fresh backup: $fresh_name..."
+  if (cd "$latest_backup" && shasum -a 256 -c SHA256SUMS >> "$log_file" 2>&1); then
+    log "Checksum verification passed for $fresh_name."
   else
-    log "ERROR: Checksum verification failed for $(basename "$latest_backup")!"
+    log "ERROR: Checksum verification failed for $fresh_name!"
     exit 1
   fi
+else
+  log "ERROR: fresh backup $fresh_name is incomplete after synchronization."
+  exit 1
 fi
 
 printf '%s\n' "$today" > "$state_file"

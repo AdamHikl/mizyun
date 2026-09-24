@@ -1,0 +1,11 @@
+[Unit]
+Description=Mizyun backup failure notification for %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/local/sbin/mizyun-send-alert "%i" "Backup or recovery unit %i failed on %H"
+Nice=10
+UMask=0077

@@ -2,6 +2,7 @@
 Description=Create an encrypted Mizyun Production recovery archive
 Requires=docker.service mizyun-supabase.service
 After=docker.service mizyun-supabase.service
+OnFailure=mizyun-backup-alert@%n.service
 
 [Service]
 Type=oneshot

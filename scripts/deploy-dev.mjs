@@ -124,6 +124,7 @@ if (currentHead === targetSha) {
 
     const pnpmInstall = run("pnpm", ["install", "--frozen-lockfile"], {
       cwd: tempWorktree,
+      env: { ...process.env, CI: "true" },
     });
     if (pnpmInstall.status !== 0)
       fail("pnpm install failed in candidate worktree");

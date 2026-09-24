@@ -8,7 +8,7 @@ export const DEPLOYMENT_MANIFEST = {
     defaultSshAlias: "mizyun-hetzner-dev",
     defaultRemoteDir: "/var/lib/mizyun/dev/repo",
     defaultEnvFile: "/etc/mizyun/dev.env",
-    serviceName: "mizyun-api-dev",
+    serviceName: "mizyun-api-dev.service",
     forbiddenServiceName: "mizyun-api",
     localPort: 4100,
     localHealthUrl: "http://127.0.0.1:4100/v1/health",

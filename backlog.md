@@ -93,6 +93,6 @@ gh issue close <issue-number> --reason completed
 | #49   | `AUTH-SMTP-001`        | P1       | active   | Domain-authenticated Auth & transactional email delivery                   | [#49](https://github.com/AdamHikl/mizyun/issues/49) |
 | #50   | `INFRA-WIN-001`        | P0       | active   | Provision Windows/WSL2 founder-production backend                          | [#50](https://github.com/AdamHikl/mizyun/issues/50) |
 | #51   | `INFRA-SELFHOST-001`   | P0       | active   | Self-hosted Mizyun-operated Supabase on Adam's Slovakia PC (alpha)         | [#51](https://github.com/AdamHikl/mizyun/issues/51) |
-| #52   | `INFRA-PORT-001`       | P1       | blocked  | Managed-to-self-hosted portability and restore lab                         | [#52](https://github.com/AdamHikl/mizyun/issues/52) |
+| #52   | `INFRA-PORT-001`       | P1       | done     | Managed-to-self-hosted portability and restore lab                         | [#52](https://github.com/AdamHikl/mizyun/issues/52) |
 | #53   | `INFRA-CUTOVER-001`    | P2       | blocked  | Rehearse and execute production data-plane migration                       | [#53](https://github.com/AdamHikl/mizyun/issues/53) |
 | #54   | `AGENT-SKILLS-001`     | P1       | ready    | Shared agent skills implementation guide and evaluation                    | [#54](https://github.com/AdamHikl/mizyun/issues/54) |

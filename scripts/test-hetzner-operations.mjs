@@ -11,6 +11,8 @@ const files = [
   "deploy/hetzner/mizyun-deploy-ssh-gate",
   "deploy/hetzner/mizyun-backup-reader-shell",
   "deploy/hetzner/recover-production-after-backup.sh",
+  "deploy/hetzner/mizyun-send-alert.sh",
+  "scripts/verify-backup-recovery.sh",
 ];
 
 for (const file of files) {
@@ -48,6 +50,30 @@ const productionPromote = readFileSync("scripts/promote-production.sh", "utf8");
 assert.match(productionPromote, /mizyun-backup-for-deploy\.service/);
 assert.match(productionPromote, /mizyun-production-maintenance\.lock/);
 assert.match(productionPromote, /deployment authority/);
+
+const backupService = readFileSync(
+  "deploy/hetzner/mizyun-backup.service",
+  "utf8",
+);
+assert.match(backupService, /OnFailure=mizyun-backup-alert@%n\.service/);
+
+const pullService = readFileSync(
+  "deploy/hetzner/mizyun-backup-pull.service",
+  "utf8",
+);
+assert.match(pullService, /OnFailure=mizyun-backup-alert@%n\.service/);
+
+const alertService = readFileSync(
+  "deploy/hetzner/mizyun-backup-alert@.service",
+  "utf8",
+);
+assert.match(alertService, /ExecStart=\/usr\/local\/sbin\/mizyun-send-alert/);
+
+const verifyScript = readFileSync("scripts/verify-backup-recovery.sh", "utf8");
+assert.match(verifyScript, /PAYLOAD_SHA256SUMS/);
+assert.match(verifyScript, /table-counts\.tsv/);
+assert.match(verifyScript, /storage-files\.sha256/);
+assert.match(verifyScript, /--xattrs --acls/);
 
 const devDriver = readFileSync("scripts/deploy-dev.mjs", "utf8");
 const productionDriver = readFileSync("scripts/deploy-remote.mjs", "utf8");

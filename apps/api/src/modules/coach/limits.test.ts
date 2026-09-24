@@ -390,4 +390,151 @@ describe("InMemoryCoachLimitService — per-tier caps", () => {
       await service.releaseDraftSlot(userId);
     });
   });
+
+  describe("token reservations and counter independence (REL-AUD-006)", () => {
+    it("reconciles estimated tokens on commitTokens so unused reservations are returned to budget", async () => {
+      let currentTime = new Date("2026-07-23T10:00:00.000Z").getTime();
+      const service = new InMemoryCoachLimitService({
+        clock: () => new Date(currentTime),
+      });
+
+      // Free tier budget is 10,000 tokens.
+      // Acquire slot reserving 1,200 tokens.
+      const first = await service.acquireSlot(
+        buildRequest({ tokensEstimated: 1_200 }),
+      );
+      expect(first.kind).toBe("reserved");
+      if (first.kind !== "reserved") return;
+
+      // Usage snapshot should show 1,200 tokens in use (reserved).
+      let usage = await service.getAiUsage(userId, "free");
+      expect(usage.coach.tokensUsed).toBe(1_200);
+      expect(usage.coach.tokensRemaining).toBe(8_800);
+
+      // Commit actual usage of only 300 tokens out of 1,200 estimated.
+      await service.commitTokens({
+        userId,
+        providerCallId: first.providerCallId,
+        finalStatus: "succeeded",
+        messageId: "msg-1",
+        tokensUsed: 300,
+        tokensEstimated: 1_200,
+      });
+
+      // After settlement, exactly 300 tokens should be counted as used, leaving 9,700 remaining.
+      usage = await service.getAiUsage(userId, "free");
+      expect(usage.coach.tokensUsed).toBe(300);
+      expect(usage.coach.tokensRemaining).toBe(9_700);
+    });
+
+    it("releaseSlot frees reserved tokens so provider failure does not penalize daily budget", async () => {
+      let currentTime = new Date("2026-07-23T10:00:00.000Z").getTime();
+      const service = new InMemoryCoachLimitService({
+        clock: () => new Date(currentTime),
+      });
+
+      // Acquire slot reserving 1,200 tokens.
+      const slot = await service.acquireSlot(
+        buildRequest({ tokensEstimated: 1_200 }),
+      );
+      expect(slot.kind).toBe("reserved");
+      if (slot.kind !== "reserved") return;
+
+      // Provider failure triggers releaseSlot with tokensUsed = 0.
+      await service.releaseSlot({
+        userId,
+        providerCallId: slot.providerCallId,
+        finalStatus: "failed",
+        messageId: null,
+        tokensUsed: 0,
+        tokensEstimated: 1_200,
+      });
+
+      // Tokens should be fully restored to 0 used / 10,000 remaining.
+      const usage = await service.getAiUsage(userId, "free");
+      expect(usage.coach.tokensUsed).toBe(0);
+      expect(usage.coach.tokensRemaining).toBe(10_000);
+    });
+
+    it("photo drafts and chat tokens maintain independent counters without cross-consumption", async () => {
+      let currentTime = new Date("2026-07-23T10:00:00.000Z").getTime();
+      const service = new InMemoryCoachLimitService({
+        clock: () => new Date(currentTime),
+      });
+
+      // 1. Consume all 5 free photo drafts.
+      for (let i = 0; i < 5; i++) {
+        const dSlot = await service.acquireDraftSlot(userId, "free", "photo");
+        expect(dSlot.allowed).toBe(true);
+        await service.commitDraftTokens(userId, 500);
+        currentTime += 65_000; // clear per-minute window
+      }
+
+      // 6th photo draft is rejected.
+      const d6 = await service.acquireDraftSlot(userId, "free", "photo");
+      expect(d6.allowed).toBe(false);
+      expect(d6.reason).toBe("drafts");
+
+      // Verify photo exhaustion does NOT affect chat token budget.
+      let usage = await service.getAiUsage(userId, "free");
+      expect(usage.photos.draftsRemaining).toBe(0);
+      expect(usage.coach.tokensRemaining).toBe(10_000);
+
+      // Chat request still succeeds under full token budget.
+      const chatSlot = await service.acquireSlot(
+        buildRequest({ tokensEstimated: 1_200 }),
+      );
+      expect(chatSlot.kind).toBe("reserved");
+      if (chatSlot.kind !== "reserved") return;
+      await service.commitTokens({
+        userId,
+        providerCallId: chatSlot.providerCallId,
+        finalStatus: "succeeded",
+        messageId: "msg-chat",
+        tokensUsed: 1_200,
+        tokensEstimated: 1_200,
+      });
+
+      // Verify chat tokens do not consume or alter photo draft counters.
+      usage = await service.getAiUsage(userId, "free");
+      expect(usage.coach.tokensUsed).toBe(1_200);
+      expect(usage.coach.tokensRemaining).toBe(8_800);
+      expect(usage.photos.draftsUsed).toBe(5);
+      expect(usage.photos.draftsRemaining).toBe(0);
+    });
+
+    it("resets counters at UTC day boundary", async () => {
+      let currentTime = new Date("2026-07-23T23:59:00.000Z").getTime();
+      const service = new InMemoryCoachLimitService({
+        clock: () => new Date(currentTime),
+      });
+
+      // Use some quota before midnight.
+      const slot = await service.acquireSlot(
+        buildRequest({ tokensEstimated: 2_000 }),
+      );
+      expect(slot.kind).toBe("reserved");
+      if (slot.kind !== "reserved") return;
+      await service.commitTokens({
+        userId,
+        providerCallId: slot.providerCallId,
+        finalStatus: "succeeded",
+        messageId: "msg-day1",
+        tokensUsed: 2_000,
+        tokensEstimated: 2_000,
+      });
+
+      let usage = await service.getAiUsage(userId, "free");
+      expect(usage.coach.tokensUsed).toBe(2_000);
+      expect(usage.resetsAt).toBe("2026-07-24T00:00:00.000Z");
+
+      // Advance clock 2 minutes across midnight UTC.
+      currentTime += 120_000; // 2026-07-24T00:01:00.000Z
+
+      usage = await service.getAiUsage(userId, "free");
+      expect(usage.coach.tokensUsed).toBe(0);
+      expect(usage.coach.tokensRemaining).toBe(10_000);
+      expect(usage.resetsAt).toBe("2026-07-25T00:00:00.000Z");
+    });
+  });
 });

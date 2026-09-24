@@ -2,6 +2,7 @@
 Description=Pull and verify encrypted Hetzner backups on the Pi
 After=network-online.target
 Wants=network-online.target
+OnFailure=mizyun-backup-alert@%n.service
 
 [Service]
 Type=oneshot

@@ -3,6 +3,7 @@ set -Eeuo pipefail
 
 # Ensure standard input is disconnected from any terminal or stream (fail closed on unexpected prompt)
 exec 0</dev/null
+export CI=true
 
 # Runs inside the Hetzner development checkout (/var/lib/mizyun/dev/repo).
 # It is invoked by deploy-dev.mjs and must never touch the production stack.
@@ -53,6 +54,18 @@ if [[ "$current_dir" == *"/home/mizyun/mizyun"* ]] || [[ "$current_dir" == "/var
   exit 2
 fi
 
+# Verify git safe.directory strictly allows only the dev repository and forbids wildcard '*'
+global_safe_dirs="$(git config --global --get-all safe.directory 2>/dev/null || true)"
+if [[ "$global_safe_dirs" == *"*"* ]]; then
+  echo "FATAL: git safe.directory contains unsafe wildcard '*'; must be restricted to $expected_dir." >&2
+  exit 2
+fi
+if [[ -n "$expected_dir" ]] && [[ "$expected_dir" != "/" ]]; then
+  if ! git config --global --get-all safe.directory 2>/dev/null | grep -qFx "$expected_dir"; then
+    git config --global --add safe.directory "$expected_dir" 2>/dev/null || true
+  fi
+fi
+
 # 3. Validation of target commit SHA
 if [[ ! "$target_sha" =~ ^[0-9a-f]{40}$ ]]; then
   echo "Expected one full 40-character development commit SHA." >&2
@@ -71,7 +84,7 @@ set +a
 
 : "${MIZYUN_DEV_DB_URL:?missing MIZYUN_DEV_DB_URL}"
 : "${MIZYUN_DEV_DB_SSLMODE:=disable}"
-: "${MIZYUN_API_SERVICE:=mizyun-api-dev}"
+: "${MIZYUN_API_SERVICE:=mizyun-api-dev.service}"
 : "${MIZYUN_LOCAL_API_URL:=http://127.0.0.1:4100}"
 
 # 4. Cross-environment service guard
@@ -80,6 +93,12 @@ if [[ "$normalized_service" == "mizyun-api" ]]; then
   echo "FATAL: Refusing to run dev promotion against production service $MIZYUN_API_SERVICE." >&2
   exit 2
 fi
+
+if [[ "$normalized_service" != "mizyun-api-dev" ]]; then
+  echo "FATAL: Refusing dev promotion against unauthorized service $MIZYUN_API_SERVICE (expected mizyun-api-dev or mizyun-api-dev.service)." >&2
+  exit 2
+fi
+service_unit="${normalized_service}.service"
 
 if [[ "$MIZYUN_DEV_DB_URL" =~ :5432(/|\?|$) ]]; then
   echo "FATAL: MIZYUN_DEV_DB_URL points to production database port 5432! Refusing dev promotion." >&2
@@ -110,7 +129,7 @@ record_journal() {
   ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
   local entry
   entry="$(printf '{"timestamp":"%s","status":"%s","targetSha":"%s","previousSha":"%s","service":"%s","migrationsApplied":%s,"message":"%s"}' \
-    "$ts" "$status" "$target" "$prev" "$MIZYUN_API_SERVICE" "$migrations_applied" "$message")"
+    "$ts" "$status" "$target" "$prev" "$service_unit" "$migrations_applied" "$message")"
   echo "$entry" >> "$journal_file" 2>/dev/null || true
 }
 
@@ -120,8 +139,8 @@ rollback_code() {
   echo "Dev promotion failed near line $failure_line; restoring API code $previous_sha." >&2
   if [[ "$previous_sha" != "none" ]]; then
     git checkout --detach "$previous_sha" >/dev/null 2>&1 || rollback_ok=false
-    pnpm install --frozen-lockfile >/dev/null 2>&1 || rollback_ok=false
-    sudo -n systemctl restart "$MIZYUN_API_SERVICE" >/dev/null 2>&1 || rollback_ok=false
+    CI=true pnpm install --frozen-lockfile >/dev/null 2>&1 || rollback_ok=false
+    sudo -n systemctl restart "$service_unit" >/dev/null 2>&1 || rollback_ok=false
 
     local rollback_healthy=false
     for _attempt in {1..10}; do
@@ -151,10 +170,26 @@ trap 'rollback_code "$LINENO"' ERR
 trap 'rollback_code "$LINENO"; exit 130' INT
 trap 'rollback_code "$LINENO"; exit 143' TERM
 
-git fetch --prune origin
+# Preflight remote origin configuration
+origin_url="$(git remote get-url origin 2>/dev/null || true)"
+if [[ -z "$origin_url" ]]; then
+  echo "FATAL: git remote 'origin' is not configured." >&2
+  exit 2
+fi
+
+if [[ "$origin_url" == *"/tmp/"* ]] || [[ "$origin_url" =~ \.bundle$ ]] || [[ "$origin_url" == *"/root/"* ]]; then
+  echo "FATAL: git remote 'origin' points to a temporary or root bundle ($origin_url); a durable origin URL is required." >&2
+  exit 2
+fi
+
+export GIT_SSH_COMMAND="ssh -o BatchMode=yes -o ConnectTimeout=15"
+if ! git fetch --prune origin; then
+  echo "FATAL: Failed to fetch from origin ($origin_url). Check network and deploy credentials." >&2
+  exit 2
+fi
 git cat-file -e "${target_sha}^{commit}"
 git checkout --detach "$target_sha"
-pnpm install --frozen-lockfile
+CI=true pnpm install --frozen-lockfile
 
 # 5. Migration ledger reconciliation (unconditional check against target DB)
 echo "Reconciling migration ledger with Dev database..."
@@ -183,7 +218,7 @@ if [[ -f "$unit_template" ]]; then
   fi
 fi
 
-sudo -n systemctl restart "$MIZYUN_API_SERVICE"
+sudo -n systemctl restart "$service_unit"
 api_ready=false
 max_attempts="${MIZYUN_HEALTH_RETRIES:-40}"
 sleep_duration="${MIZYUN_HEALTH_SLEEP:-1}"

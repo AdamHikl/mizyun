@@ -53,7 +53,7 @@ node scripts/check-beta-pro-requests.mjs --json
 > [!CAUTION]
 > Approving or rejecting a request produces live remote and external side effects:
 >
-> 1. Modifies `public.beta_pro_requests` in the remote database on `rpserver`.
+> 1. Modifies `public.beta_pro_requests` in the remote database on the Hetzner primary host.
 > 2. Database trigger `trg_beta_pro_approval` mutates `public.profiles.plan_tier = 'paid'` (or `'free'`).
 > 3. Dispatches a live push notification across the internet to the user's phone via Apple APNs HTTP/2 or Expo Push.
 >

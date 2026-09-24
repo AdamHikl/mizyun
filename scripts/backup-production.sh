@@ -30,17 +30,47 @@ fi
 
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 release_dir="$MIZYUN_BACKUP_DIR/$timestamp"
-mkdir -p "$release_dir"
-chmod 700 "$MIZYUN_BACKUP_DIR" "$release_dir"
+mkdir -p "$MIZYUN_BACKUP_DIR"
+chmod 700 "$MIZYUN_BACKUP_DIR"
+exec 9>"$MIZYUN_BACKUP_DIR/.backup.lock"
+if ! flock -n 9; then
+  echo "Another production backup is already running." >&2
+  exit 1
+fi
+
+# Prune before generation so an unrelated backup failure cannot keep already
+# expired archives in place.
+node scripts/prune-backups.mjs --root "$MIZYUN_BACKUP_DIR"
+
+staging_dir="$(mktemp -d "$MIZYUN_BACKUP_DIR/.incomplete-$timestamp-XXXXXX")"
+cleanup() {
+  if [[ -n "${staging_dir:-}" ]] && [[ -d "$staging_dir" ]]; then
+    rm -rf -- "$staging_dir"
+  fi
+}
+trap cleanup EXIT INT TERM
+chmod 700 "$staging_dir"
 
 docker exec "$MIZYUN_DB_CONTAINER" \
   pg_dump --username postgres --dbname postgres --format=custom \
-  > "$release_dir/database.dump"
-tar --create --gzip --file "$release_dir/private-storage.tar.gz" \
+  > "$staging_dir/database.dump"
+docker exec -i "$MIZYUN_DB_CONTAINER" \
+  pg_restore --list < "$staging_dir/database.dump" > /dev/null
+tar --create --gzip --file "$staging_dir/private-storage.tar.gz" \
   --directory "$MIZYUN_STORAGE_DIR" .
+tar --list --gzip --file "$staging_dir/private-storage.tar.gz" > /dev/null
 
-chmod 600 "$release_dir/database.dump" "$release_dir/private-storage.tar.gz"
-sha256sum "$release_dir/database.dump" \
-  "$release_dir/private-storage.tar.gz" > "$release_dir/SHA256SUMS"
-chmod 600 "$release_dir/SHA256SUMS"
+chmod 600 "$staging_dir/database.dump" "$staging_dir/private-storage.tar.gz"
+(
+  cd "$staging_dir"
+  sha256sum database.dump private-storage.tar.gz > SHA256SUMS
+  sha256sum --check SHA256SUMS > /dev/null
+)
+chmod 600 "$staging_dir/SHA256SUMS"
+if [[ -e "$release_dir" ]]; then
+  echo "Refusing to replace an existing backup: $release_dir" >&2
+  exit 1
+fi
+mv -T -- "$staging_dir" "$release_dir"
+staging_dir=""
 echo "Production backup created: $release_dir"

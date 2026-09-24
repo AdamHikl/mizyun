@@ -10,7 +10,7 @@
 // 6. Health check failure rollback execution (regression for exit 1 bypass)
 // 7. Protected release journal logging
 
-import { spawnSync, spawn } from "node:child_process";
+import { spawnSync, spawn, execFileSync } from "node:child_process";
 import {
   mkdtempSync,
   writeFileSync,
@@ -19,6 +19,7 @@ import {
   rmSync,
   chmodSync,
   existsSync,
+  symlinkSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -249,6 +250,10 @@ if [ "$1" = "exec" ] && [ "$2" = "supabase" ] && [ "$3" = "db" ] && [ "$4" = "pu
   echo "mock supabase db push called: $@" >> "${path.join(tempBase, "supabase.log")}"
   exit 0
 fi
+if [ "$1" = "install" ]; then
+  echo "mock pnpm install called: CI=$CI $@" >> "${path.join(tempBase, "pnpm.log")}"
+  exit 0
+fi
 exit 0
 `,
 );
@@ -321,10 +326,13 @@ writeFileSync(
   devEnvFile,
   `MIZYUN_DEV_DB_URL="postgresql://postgres:postgres@127.0.0.1:5433/postgres"
 MIZYUN_DEV_DB_SSLMODE="disable"
-MIZYUN_API_SERVICE="mizyun-api-dev"
+MIZYUN_API_SERVICE="mizyun-api-dev.service"
 MIZYUN_LOCAL_API_URL="http://127.0.0.1:4100"
 `,
 );
+
+const devGlobalGitConfig = path.join(tempBase, ".gitconfig-dev");
+writeFileSync(devGlobalGitConfig, "");
 
 const devLockFile = path.join(tempBase, "dev.lock");
 
@@ -342,7 +350,7 @@ const runPromoteDev = ({
     env: {
       ...process.env,
       HOME: tempBase,
-      GIT_CONFIG_GLOBAL: "/dev/null",
+      GIT_CONFIG_GLOBAL: devGlobalGitConfig,
       PATH: `${mockBinDir}:${process.env.PATH}`,
       MIZYUN_DEV_ENV_FILE: envFile,
       MIZYUN_DEV_LOCK_FILE: lockFile,
@@ -515,7 +523,7 @@ await test("promote-dev.sh: Unconditionally reconciles migration ledger and logs
   );
   assert(lastEntry.targetSha === commit1, "journal targetSha should match");
   assert(
-    lastEntry.service === "mizyun-api-dev",
+    lastEntry.service === "mizyun-api-dev.service",
     "journal service should match",
   );
 });
@@ -602,6 +610,89 @@ await test("promote-dev.sh: Rollback logs 'rolled_back' when rollback health che
     lastEntry.status === "rolled_back",
     `journal status should be rolled_back, got ${lastEntry.status}`,
   );
+});
+
+await test("promote-dev.sh: Rejects git safe.directory wildcard '*'", () => {
+  const badGitConfig = path.join(tempBase, ".gitconfig-wildcard");
+  writeFileSync(badGitConfig, "[safe]\n\tdirectory = *\n");
+  const res = runPromoteDev({
+    extraEnv: { GIT_CONFIG_GLOBAL: badGitConfig },
+  });
+  assert(res.status === 2, `expected exit 2, got ${res.status}`);
+  assert(
+    res.stderr.includes("contains unsafe wildcard '*'"),
+    `expected wildcard error, got: ${res.stderr}`,
+  );
+});
+
+await test("promote-dev.sh: Enforces non-interactive CI=true for pnpm install", () => {
+  const pnpmLog = path.join(tempBase, "pnpm.log");
+  if (existsSync(pnpmLog)) rmSync(pnpmLog);
+
+  const res = runPromoteDev({ targetSha: commit1 });
+  assert(res.status === 0, `expected exit 0, got ${res.status}: ${res.stderr}`);
+  assert(existsSync(pnpmLog), "pnpm log should exist");
+  const logContent = readFileSync(pnpmLog, "utf8");
+  assert(
+    logContent.includes("mock pnpm install called: CI=true"),
+    `expected CI=true in pnpm install invocation, got: ${logContent}`,
+  );
+});
+
+await test("promote-dev.sh: Normalizes bare service name to .service matching narrow sudoers rule", () => {
+  const systemctlLog = path.join(tempBase, "systemctl.log");
+  if (existsSync(systemctlLog)) rmSync(systemctlLog);
+
+  const bareServiceEnv = path.join(tempBase, "bare-service-dev.env");
+  writeFileSync(
+    bareServiceEnv,
+    `MIZYUN_DEV_DB_URL="postgresql://postgres:postgres@127.0.0.1:5433/postgres"
+MIZYUN_DEV_DB_SSLMODE="disable"
+MIZYUN_API_SERVICE="mizyun-api-dev"
+MIZYUN_LOCAL_API_URL="http://127.0.0.1:4100"
+`,
+  );
+
+  const res = runPromoteDev({ envFile: bareServiceEnv, targetSha: commit1 });
+  assert(res.status === 0, `expected exit 0, got ${res.status}: ${res.stderr}`);
+  assert(existsSync(systemctlLog), "systemctl log should exist");
+  const logContent = readFileSync(systemctlLog, "utf8");
+  assert(
+    logContent.includes("restart mizyun-api-dev.service"),
+    `systemctl restart must use qualified .service unit, got: ${logContent}`,
+  );
+});
+
+await test("promote-dev.sh: Rejects ephemeral .bundle or root origin URLs", () => {
+  git(
+    ["remote", "set-url", "origin", "/var/lib/mizyun/dev/origin.bundle"],
+    devRepoDir,
+  );
+  try {
+    const res = runPromoteDev({ targetSha: commit1 });
+    assert(res.status === 2, `expected exit 2, got ${res.status}`);
+    assert(
+      res.stderr.includes("points to a temporary or root bundle"),
+      `expected bundle rejection error, got: ${res.stderr}`,
+    );
+  } finally {
+    git(["remote", "set-url", "origin", devRepoDir], devRepoDir);
+  }
+});
+
+await test("promote-dev.sh: Fails closed with descriptive error when git fetch fails", () => {
+  const nonExistentRepo = path.join(tempBase, "does-not-exist");
+  git(["remote", "set-url", "origin", nonExistentRepo], devRepoDir);
+  try {
+    const res = runPromoteDev({ targetSha: commit1 });
+    assert(res.status !== 0, `expected non-zero exit, got ${res.status}`);
+    assert(
+      res.stderr.includes("Failed to fetch from origin"),
+      `expected fetch failure message, got: ${res.stderr}`,
+    );
+  } finally {
+    git(["remote", "set-url", "origin", devRepoDir], devRepoDir);
+  }
 });
 
 // --- Production Promotion Safeguard Tests ---
@@ -1113,6 +1204,94 @@ exit 0
     lastEntry.status === "rolled_back",
     `journal status should be rolled_back, got ${lastEntry.status}`,
   );
+});
+
+await test("test-build-matrix.mjs: passes from clean checkout without generated apps/mobile/android directory (#109)", () => {
+  const cleanRepo = mkdtempSync(path.join(tempBase, "clean-repo-"));
+  const root = path.resolve(
+    import.meta.dirname ?? path.dirname(new URL(import.meta.url).pathname),
+    "..",
+  );
+  try {
+    mkdirSync(path.join(cleanRepo, "apps/mobile/plugins"), {
+      recursive: true,
+    });
+    mkdirSync(path.join(cleanRepo, "scripts"), { recursive: true });
+
+    writeFileSync(
+      path.join(cleanRepo, "package.json"),
+      readFileSync(path.join(root, "package.json")),
+    );
+    writeFileSync(
+      path.join(cleanRepo, "apps/mobile/app.config.js"),
+      readFileSync(path.join(root, "apps/mobile/app.config.js")),
+    );
+    writeFileSync(
+      path.join(cleanRepo, "apps/mobile/app.json"),
+      readFileSync(path.join(root, "apps/mobile/app.json")),
+    );
+    writeFileSync(
+      path.join(cleanRepo, "apps/mobile/eas.json"),
+      readFileSync(path.join(root, "apps/mobile/eas.json")),
+    );
+    writeFileSync(
+      path.join(
+        cleanRepo,
+        "apps/mobile/plugins/with-android-release-signing.js",
+      ),
+      readFileSync(
+        path.join(root, "apps/mobile/plugins/with-android-release-signing.js"),
+      ),
+    );
+
+    for (const s of [
+      "mobile-founder-dev-ios.sh",
+      "mobile-founder-production-ios.sh",
+      "build-production-ios-ipa.sh",
+      "mobile-founder-production-android.sh",
+      "mobile-founder-dev-android.sh",
+    ]) {
+      writeFileSync(
+        path.join(cleanRepo, "scripts", s),
+        readFileSync(path.join(root, "scripts", s)),
+      );
+    }
+
+    // Link node_modules so require works in cleanRepo
+    symlinkSync(
+      path.join(root, "node_modules"),
+      path.join(cleanRepo, "node_modules"),
+      "junction",
+    );
+    symlinkSync(
+      path.join(root, "apps/mobile/node_modules"),
+      path.join(cleanRepo, "apps/mobile/node_modules"),
+      "junction",
+    );
+
+    // Verify apps/mobile/android does NOT exist in cleanRepo
+    assert(
+      !existsSync(path.join(cleanRepo, "apps/mobile/android")),
+      "cleanRepo fixture must not contain generated android directory",
+    );
+
+    const out = execFileSync(
+      "node",
+      [path.join(root, "scripts/test-build-matrix.mjs")],
+      {
+        env: { ...process.env, MIZYUN_REPO_ROOT: cleanRepo },
+        encoding: "utf-8",
+      },
+    );
+    assert(
+      out.includes(
+        "All build matrix, native identity, and environment isolation checks PASSED!",
+      ),
+      "test-build-matrix.mjs must pass in clean checkout without android directory",
+    );
+  } finally {
+    rmSync(cleanRepo, { recursive: true, force: true });
+  }
 });
 
 // Cleanup temp test files

@@ -86,6 +86,7 @@ export interface FinalizeRequest {
   readonly finalStatus: Exclude<ProviderCallStatus, "attempting">;
   readonly messageId: string | null;
   readonly tokensUsed: number;
+  readonly tokensEstimated?: number;
 }
 
 export type DraftKind = "text" | "photo" | "refine";
@@ -270,12 +271,26 @@ export class SupabaseCoachLimitService implements CoachLimitService {
           p_user_id: request.userId,
         }),
       );
+      await runQuiet(() =>
+        this.#client.rpc("ai_release_token_reservation", {
+          p_user_id: request.userId,
+          p_day: day,
+          p_tokens: request.tokensEstimated,
+        }),
+      );
       return { kind: "conflict", retryAfter: 1 };
     }
     if (reserve.outcome === "replayed") {
       await runQuiet(() =>
         this.#client.rpc("ai_release_in_flight", {
           p_user_id: request.userId,
+        }),
+      );
+      await runQuiet(() =>
+        this.#client.rpc("ai_release_token_reservation", {
+          p_user_id: request.userId,
+          p_day: day,
+          p_tokens: request.tokensEstimated,
         }),
       );
       return {
@@ -295,6 +310,19 @@ export class SupabaseCoachLimitService implements CoachLimitService {
   }
 
   async commitTokens(request: FinalizeRequest): Promise<void> {
+    const day = sqlDay(this.#clock());
+    const tokensReserved = request.tokensEstimated ?? request.tokensUsed;
+    const commitResult = await this.#client.rpc("ai_commit_tokens", {
+      p_user_id: request.userId,
+      p_day: day,
+      p_tokens_used: request.tokensUsed,
+      p_tokens_reserved: tokensReserved,
+    });
+    if (commitResult.error) {
+      throw new LimitsError(
+        `rpc ai_commit_tokens failed: ${commitResult.error.message}`,
+      );
+    }
     const completeResult = await this.#client.rpc("ai_complete_provider_call", {
       p_provider_call_id: request.providerCallId,
       p_status: request.finalStatus,
@@ -317,10 +345,15 @@ export class SupabaseCoachLimitService implements CoachLimitService {
   }
 
   async releaseSlot(request: FinalizeRequest): Promise<void> {
-    // The migration's `ai_complete_provider_call` only increments
-    // tokens_used when `p_status = 'succeeded'`. Failed releases
-    // therefore leave the daily ledger unchanged, so a re-attempt
-    // with a fresh idempotency key is not penalised.
+    const day = sqlDay(this.#clock());
+    const tokensReserved = request.tokensEstimated ?? 1_200;
+    await runQuiet(() =>
+      this.#client.rpc("ai_release_token_reservation", {
+        p_user_id: request.userId,
+        p_day: day,
+        p_tokens: tokensReserved,
+      }),
+    );
     const completeResult = await this.#client.rpc("ai_complete_provider_call", {
       p_provider_call_id: request.providerCallId,
       p_status: request.finalStatus,
@@ -362,6 +395,9 @@ export class SupabaseCoachLimitService implements CoachLimitService {
       },
     );
     if (inflight.allowed !== true) {
+      await runQuiet(() =>
+        this.#client.rpc("ai_release_in_flight", { p_user_id: userId }),
+      );
       return { allowed: false, reason: "inflight", retryAfter: 1 };
     }
 
@@ -547,6 +583,7 @@ export class SupabaseCoachLimitService implements CoachLimitService {
 interface InMemoryUsageRow {
   readonly day: string;
   tokens: number;
+  reservedTokens: number;
 }
 
 interface InMemoryWindowRow {
@@ -655,7 +692,8 @@ export class InMemoryCoachLimitService implements CoachLimitService {
     // Step 3: daily token gate.
     const usage = this.#usage.get(request.userId);
     const used = usage?.day === day ? usage.tokens : 0;
-    if (used + request.tokensEstimated > cap.dailyTokenBudget) {
+    const reserved = usage?.day === day ? usage.reservedTokens : 0;
+    if (used + reserved + request.tokensEstimated > cap.dailyTokenBudget) {
       this.#inFlight.set(request.userId, Math.max(0, active));
       return {
         kind: "limited",
@@ -669,12 +707,22 @@ export class InMemoryCoachLimitService implements CoachLimitService {
         ),
       };
     }
+    this.#usage.set(request.userId, {
+      day,
+      tokens: used,
+      reservedTokens: reserved + request.tokensEstimated,
+    });
 
     // Step 4: idempotency ledger.
     const key = `${request.userId}:${request.conversationId}:${request.idempotencyKey}`;
     const priorCall = this.#calls.get(key);
     if (priorCall !== undefined) {
       this.#inFlight.set(request.userId, Math.max(0, active));
+      this.#usage.set(request.userId, {
+        day,
+        tokens: used,
+        reservedTokens: reserved,
+      });
       if (priorCall.status === "failed") {
         return { kind: "conflict", retryAfter: 1 };
       }
@@ -711,9 +759,12 @@ export class InMemoryCoachLimitService implements CoachLimitService {
         const day = sqlDay(this.#clock());
         const usage = this.#usage.get(request.userId);
         const used = usage?.day === day ? usage.tokens : 0;
+        const reserved = usage?.day === day ? usage.reservedTokens : 0;
+        const settleReserved = request.tokensEstimated ?? request.tokensUsed;
         this.#usage.set(request.userId, {
           day,
           tokens: used + Math.max(0, request.tokensUsed),
+          reservedTokens: Math.max(0, reserved - settleReserved),
         });
       }
     }
@@ -727,6 +778,16 @@ export class InMemoryCoachLimitService implements CoachLimitService {
       row.status = request.finalStatus;
       row.messageId = request.messageId;
       row.tokensUsed = request.tokensUsed;
+      const day = sqlDay(this.#clock());
+      const usage = this.#usage.get(request.userId);
+      if (usage?.day === day) {
+        const settleReserved = request.tokensEstimated ?? 1_200;
+        this.#usage.set(request.userId, {
+          day,
+          tokens: usage.tokens,
+          reservedTokens: Math.max(0, usage.reservedTokens - settleReserved),
+        });
+      }
     }
     const active = this.#inFlight.get(request.userId) ?? 0;
     this.#inFlight.set(request.userId, Math.max(0, active - 1));
@@ -832,7 +893,8 @@ export class InMemoryCoachLimitService implements CoachLimitService {
     ).toISOString();
 
     const usage = this.#usage.get(userId);
-    const tokensUsed = usage?.day === day ? usage.tokens : 0;
+    const tokensUsed =
+      usage?.day === day ? usage.tokens + (usage.reservedTokens ?? 0) : 0;
 
     const draftUsage = this.#draftUsage.get(userId);
     const draftsUsed = draftUsage?.day === day ? draftUsage.drafts : 0;

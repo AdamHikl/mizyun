@@ -766,12 +766,13 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
       // a misconfigured tiny budget (e.g. test fixture = 1) does not
       // make every request reject before reaching the provider.
       const cap = limits.resolveCap(planTier);
+      const tokensEstimated = Math.min(cap.dailyTokenBudget, 1_200);
       const slot = await limits.acquireSlot({
         userId: principal.userId,
         conversationId,
         idempotencyKey,
         planTier,
-        tokensEstimated: Math.min(cap.dailyTokenBudget, 1_200),
+        tokensEstimated,
       });
 
       if (slot.kind === "limited") {
@@ -1092,6 +1093,7 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
           finalStatus: "succeeded",
           messageId: assistantMessage.id,
           tokensUsed: totalTokens,
+          tokensEstimated,
         });
         const latestConversation =
           (await options.conversationRepository.get(
@@ -1112,6 +1114,7 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
             finalStatus: "failed",
             messageId: null,
             tokensUsed: 0,
+            tokensEstimated,
           })
           .catch(() => {
             // Best-effort release. A subsequent request will

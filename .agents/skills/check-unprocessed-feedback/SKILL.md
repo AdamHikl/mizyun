@@ -17,7 +17,7 @@ Use this skill whenever the user asks:
 
 Mizyun users submit reviews, feature suggestions, and bug reports through the mobile app modal (`POST /v1/feedback`), stored in table `public.user_feedback`.
 
-This utility inspects the primary host (`rpserver`) database and compares results against the local tracking ledger (`processed-feedback.json`), displaying only unreviewed items.
+This utility inspects the primary Hetzner host (`mizyun-hetzner-ops`) database and compares results against the local tracking ledger (`processed-feedback.json`), displaying only unreviewed items.
 
 ---
 
@@ -39,7 +39,7 @@ node scripts/check-user-feedback.mjs --json
 ```
 
 > [!NOTE]
-> Run using standard environment execution. If SSH network access to `rpserver` is restricted by your sandbox, request network elevation.
+> Run using standard environment execution. If SSH network access to Hetzner (`mizyun-hetzner-ops`) is restricted by your sandbox, request network elevation.
 
 ### 2. State Mutation (Mark as Processed)
 

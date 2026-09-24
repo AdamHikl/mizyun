@@ -11,20 +11,33 @@ This guide provides the operational procedures for building, signing, installing
 ### Hardware & Accounts
 
 - **Mac**: Apple Silicon macOS with Xcode 16+ and command-line tools.
-- **Apple Developer Account**: Team ID `PP89XZBW4U` (registered in Xcode under Settings -> Accounts).
+- **Apple Developer Account**: Team ID `LQJNDVBL43` (`itinn s.r.o.`, registered in Xcode under Settings -> Accounts).
 - **iOS Device**: iPhone with **Developer Mode** enabled (Settings -> Privacy & Security -> Developer Mode -> On).
 - **Android Device**: Android phone with **USB Debugging** enabled (Settings -> Developer options -> USB debugging).
-- **Network**: Both Mac and Raspberry Pi 5 connected via Tailscale.
+- **Network**: Hetzner backend connectivity via public endpoints (`phiskel.com`).
 
 ---
 
-## 2. Native Build & Installation Procedures
+## 2. Streamlined 1-Step Installation Engine (Recommended)
 
-### 2.1 iOS Builds (Local via Xcode / `scripts/`)
+Mizyun provides dedicated, non-interactive installation scripts that resolve device IDs, auto-prebuild across variants, build standalone Release binaries without Metro, and launch the app directly:
 
-#### A. Mizyun Dev (`com.mizyun.dev`)
+| Target Platform & Variant                 | 1-Step Command                           | Dry Run / Preflight                                | Agent Skill                  |
+| :---------------------------------------- | :--------------------------------------- | :------------------------------------------------- | :--------------------------- |
+| **iOS Dev** (`com.mizyun.development`)    | `pnpm mobile:install:ios:dev`            | `pnpm mobile:install:ios:dev --dry-run`            | `install-ios-dev`            |
+| **iOS Production** (`com.mizyun.app`)     | `pnpm mobile:install:ios:production`     | `pnpm mobile:install:ios:production --dry-run`     | `install-ios-production`     |
+| **Android Dev** (`com.mizyun.dev`)        | `pnpm mobile:install:android:dev`        | `pnpm mobile:install:android:dev --dry-run`        | `install-android-dev`        |
+| **Android Production** (`com.mizyun.app`) | `pnpm mobile:install:android:production` | `pnpm mobile:install:android:production --dry-run` | `install-android-production` |
 
-Points to Pi Dev (`https://mizyun-api-dev.phiskel.com` / `mizyun-dev://auth/callback`):
+---
+
+## 3. Native Build & Manual Procedures (Reference)
+
+### 3.1 iOS Builds (Local via Xcode / `scripts/`)
+
+#### A. Mizyun Dev (`com.mizyun.development`)
+
+Points to Hetzner Dev (`https://mizyun-api-dev.phiskel.com` / `mizyun-dev://auth/callback`):
 
 ```bash
 # 1. Generate clean native iOS project for Dev variant
@@ -36,7 +49,7 @@ pnpm mobile:founder-dev:ios
 
 #### B. Mizyun Production (`com.mizyun.app`)
 
-Points to Pi Production (`https://mizyun-api.phiskel.com` / `mizyun://auth/callback`):
+Points to Hetzner Production (`https://mizyun-api.phiskel.com` / `mizyun://auth/callback`):
 
 ```bash
 # 1. Generate clean native iOS project for Production variant
@@ -45,7 +58,7 @@ pnpm mobile:founder-production:ios:prebuild
 # 2. Compile and install Release build directly to connected iPhone
 pnpm mobile:founder-production:ios
 
-# If the Apple Personal/Developer Team provisioning profile needs refresh:
+# If the Apple Developer Team provisioning profile needs refresh:
 pnpm mobile:founder-production:ios --renew-profile
 ```
 
@@ -63,7 +76,7 @@ pnpm mobile:founder-production:ios --renew-profile
 
 #### A. Mizyun Dev (`com.mizyun.dev`)
 
-Points to Pi Dev (`https://mizyun-api-dev.phiskel.com`):
+Points to Hetzner Dev (`https://mizyun-api-dev.phiskel.com`):
 
 ```bash
 # 1. Clean prebuild for Dev variant
@@ -115,8 +128,8 @@ Perform these journeys on the physical device to verify release readiness:
 | :------------------------- | :------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------- |
 | **J1: Coexistence**        | Install both `Mizyun Dev` and `Mizyun` on the same phone.            | Both app icons appear side-by-side with distinct names (`Mizyun Dev` vs `Mizyun`). Neither overwrites the other.                              |
 | **J2: Mac-Off Operation**  | Turn off Mac / kill Metro bundler. Launch both apps from cold start. | Both apps launch instantly from their embedded JavaScript bundles without connecting to Metro or Mac.                                         |
-| **J3: Dev Auth Flow**      | In `Mizyun Dev`, trigger magic link sign-in. Tap the email link.     | Intercepted by `mizyun-dev://auth/callback`. Session created on Pi Dev (`5433`). Production remains untouched.                                |
-| **J4: Prod Auth Flow**     | In `Mizyun`, sign in with a production account.                      | Intercepted by `mizyun://auth/callback`. Session created on Pi Production (`5432`).                                                           |
+| **J3: Dev Auth Flow**      | In `Mizyun Dev`, trigger magic link sign-in. Tap the email link.     | Intercepted by `mizyun-dev://auth/callback`. Session created in isolated Hetzner Dev (`5433`). Production remains untouched.                  |
+| **J4: Prod Auth Flow**     | In `Mizyun`, sign in with a production account.                      | Intercepted by `mizyun://auth/callback`. Session created in isolated Hetzner Production (`5432`).                                             |
 | **J5: Token Rejection**    | Attempt cross-environment token exchange.                            | Dev tokens rejected by Production API; Production tokens rejected by Dev API.                                                                 |
 | **J6: Camera Permissions** | Navigate to meal photo draft or progress photos.                     | Prompts native OS camera/library permissions with accurate purpose strings. Allows photo capture; handles denial gracefully without crashing. |
 | **J7: Network Resilience** | Enable Airplane mode while using app, then disable.                  | Shows appropriate offline feedback; does not crash; syncs successfully upon reconnection.                                                     |
