@@ -192,6 +192,38 @@ console.log(
   `✓ Production profile evaluated correctly: com.mizyun.app / Mizyun ${prodConfig.expo.version} (${releaseVersionMatch[1]})`,
 );
 
+const hasPlugin = (config, pluginName) =>
+  config.expo.plugins.some((plugin) =>
+    Array.isArray(plugin) ? plugin[0] === pluginName : plugin === pluginName,
+  );
+for (const [profileName, config] of [
+  ["development", devConfig],
+  ["preview", previewConfig],
+]) {
+  if (!hasPlugin(config, "expo-widgets")) {
+    throw new Error(
+      `${profileName} profile is missing the expo-widgets Live Activity config plugin`,
+    );
+  }
+}
+if (hasPlugin(prodConfig, "expo-widgets")) {
+  throw new Error(
+    "Production profile must not include the Dev-only expo-widgets Live Activity plugin",
+  );
+}
+const mobilePackagePath = resolve(repoRoot, "apps/mobile/package.json");
+if (existsSync(mobilePackagePath)) {
+  const mobilePackage = JSON.parse(readFileSync(mobilePackagePath, "utf-8"));
+  if (!mobilePackage.dependencies?.["expo-widgets"]?.startsWith("~57.")) {
+    throw new Error(
+      "Mobile must pin the Expo SDK 57 expo-widgets dependency for iOS Live Activities",
+    );
+  }
+}
+console.log(
+  "✓ Expo SDK 57 Live Activity extension plugin is enabled for Dev/Preview and absent from Production config",
+);
+
 evalConfigExpectingError(
   {
     MIZYUN_APP_VARIANT: "production",

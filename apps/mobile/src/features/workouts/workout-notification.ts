@@ -1,5 +1,11 @@
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
+import { getAppVariant } from "@/composition/app-variant";
+import {
+  endWorkoutLiveActivity,
+  updateWorkoutLiveActivity,
+  type WorkoutLiveActivityProps,
+} from "./workout-live-activity";
 import {
   kilogramsToDisplayWeight,
   parseTargetLoadToDisplay,
@@ -27,6 +33,12 @@ export interface WorkoutNotificationExerciseProgress {
   readonly completedSetsCount: number;
   readonly targetSetsCount: number;
 }
+
+export const shouldSyncActiveWorkoutNotification = (
+  preferencesLoaded: boolean,
+  liveNotificationEnabled: boolean,
+  hasActiveSession: boolean,
+): boolean => preferencesLoaded && liveNotificationEnabled && hasActiveSession;
 
 export const completedSetsForNotificationEntry = <
   TSet extends { readonly exerciseId: string },
@@ -174,6 +186,31 @@ export const updateActiveWorkoutNotification = async (
   params: ActiveWorkoutNotificationParams,
 ): Promise<string | null> => {
   try {
+    const isResting =
+      params.restTimer != null && Date.now() < params.restTimer.endsAt;
+
+    if (Platform.OS === "ios" && getAppVariant() === "dev") {
+      await dismissLegacyIosActiveWorkoutNotification();
+      const liveActivityProps: WorkoutLiveActivityProps = {
+        workoutId: params.workoutId,
+        workoutName: params.workoutName || "Live Workout",
+        currentExerciseName: params.currentExerciseName,
+        completedSetsCount: params.completedSetsCount,
+        totalPlannedSetsCount: params.totalPlannedSetsCount ?? null,
+        nextSetSummary: params.nextSetSummary ?? null,
+        state: params.allPlannedSetsCompleted
+          ? "complete"
+          : isResting
+            ? "resting"
+            : "active",
+        restStartedAt: isResting
+          ? params.restTimer!.endsAt - params.restTimer!.total * 1000
+          : null,
+        restEndsAt: isResting ? params.restTimer!.endsAt : null,
+      };
+      return await updateWorkoutLiveActivity(liveActivityProps);
+    }
+
     const existing = await Notifications.getPermissionsAsync();
     let status = existing.status;
     if (status !== "granted") {
@@ -196,9 +233,6 @@ export const updateActiveWorkoutNotification = async (
         },
       );
     }
-
-    const isResting =
-      params.restTimer != null && Date.now() < params.restTimer.endsAt;
 
     const title = isResting
       ? `⏱️ Resting · ${params.restTimer!.exerciseName}`
@@ -224,11 +258,6 @@ export const updateActiveWorkoutNotification = async (
           ? `Current: ${params.currentExerciseName} (${params.nextSetSummary})`
           : `Current: ${params.currentExerciseName}`;
 
-    const trigger: Notifications.NotificationTriggerInput =
-      Platform.OS === "android"
-        ? { channelId: ACTIVE_WORKOUT_CHANNEL_ID }
-        : null;
-
     const notificationId = await Notifications.scheduleNotificationAsync({
       identifier: ACTIVE_WORKOUT_NOTIFICATION_ID,
       content: {
@@ -245,7 +274,10 @@ export const updateActiveWorkoutNotification = async (
         priority: "low",
         color: "#10B981",
       },
-      trigger,
+      trigger:
+        Platform.OS === "android"
+          ? { channelId: ACTIVE_WORKOUT_CHANNEL_ID }
+          : null,
     });
 
     return notificationId;
@@ -254,7 +286,29 @@ export const updateActiveWorkoutNotification = async (
   }
 };
 
+const dismissLegacyIosActiveWorkoutNotification = async (): Promise<void> => {
+  try {
+    await Notifications.dismissNotificationAsync(
+      ACTIVE_WORKOUT_NOTIFICATION_ID,
+    );
+  } catch {
+    // Best-effort cleanup for notifications delivered by older builds.
+  }
+  try {
+    await Notifications.cancelScheduledNotificationAsync(
+      ACTIVE_WORKOUT_NOTIFICATION_ID,
+    );
+  } catch {
+    // Best-effort cleanup for notifications scheduled by older builds.
+  }
+};
+
 export const dismissActiveWorkoutNotification = async (): Promise<void> => {
+  if (Platform.OS === "ios" && getAppVariant() === "dev") {
+    await dismissOrphanedDevWorkoutLiveActivity();
+    return;
+  }
+
   try {
     await Notifications.dismissNotificationAsync(
       ACTIVE_WORKOUT_NOTIFICATION_ID,
@@ -270,3 +324,17 @@ export const dismissActiveWorkoutNotification = async (): Promise<void> => {
     // Silently ignore cancellation errors
   }
 };
+
+export const dismissOrphanedDevWorkoutLiveActivity =
+  async (): Promise<void> => {
+    if (Platform.OS !== "ios" || getAppVariant() !== "dev") {
+      return;
+    }
+
+    try {
+      await endWorkoutLiveActivity();
+    } catch {
+      // Silently ignore Live Activity cleanup errors.
+    }
+    await dismissLegacyIosActiveWorkoutNotification();
+  };

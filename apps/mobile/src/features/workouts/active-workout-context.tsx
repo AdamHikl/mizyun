@@ -23,6 +23,8 @@ import {
   type RestTimerState,
 } from "./active-workout-state";
 import { cancelRestNotification } from "./rest-timer-notifications";
+import { dismissOrphanedDevWorkoutLiveActivity } from "./workout-notification";
+import { createActiveWorkoutUnmountCleanup } from "./active-workout-lifecycle";
 
 export interface ActiveWorkoutContextValue {
   readonly activeWorkout: ActiveWorkoutSummary | null;
@@ -91,7 +93,11 @@ export function ActiveWorkoutProvider({
   }, []);
 
   const refreshActiveWorkout = useCallback(async () => {
-    if (!apiConfiguration.configured || !session?.user.id) {
+    if (!apiConfiguration.configured) {
+      return;
+    }
+    if (!session?.user.id) {
+      await dismissOrphanedDevWorkoutLiveActivity();
       return;
     }
     try {
@@ -110,10 +116,13 @@ export function ActiveWorkoutProvider({
           startedAt: incomplete.startedAt,
         });
         setElapsedSeconds(computeElapsedSeconds(incomplete.startedAt));
-      } else if (activeWorkoutRef.current !== null) {
-        setActiveWorkoutState(null);
-        setElapsedSeconds(0);
-        clearRestTimer();
+      } else {
+        await dismissOrphanedDevWorkoutLiveActivity();
+        if (activeWorkoutRef.current !== null) {
+          setActiveWorkoutState(null);
+          setElapsedSeconds(0);
+          clearRestTimer();
+        }
       }
     } catch {
       // Non-fatal background refresh
@@ -124,6 +133,15 @@ export function ActiveWorkoutProvider({
   useEffect(() => {
     void refreshActiveWorkout();
   }, [refreshActiveWorkout]);
+
+  // SessionGate unmounts this provider on sign-out, so remove sensitive
+  // Lock Screen content from the teardown boundary rather than awaiting a
+  // render with a null session.
+  useEffect(
+    () =>
+      createActiveWorkoutUnmountCleanup(dismissOrphanedDevWorkoutLiveActivity),
+    [],
+  );
 
   // Master wall-clock interval timer
   useEffect(() => {

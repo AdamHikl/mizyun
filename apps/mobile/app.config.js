@@ -275,6 +275,7 @@ const plugins = [
         "./plugins/without-ios-push-notifications",
       ]
     : baseExpo.plugins),
+  ...(variantName === "dev" ? ["expo-widgets"] : []),
   ...(enableIosAppleAuth
     ? ["expo-apple-authentication"]
     : ["./plugins/without-ios-apple-auth"]),

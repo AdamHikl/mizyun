@@ -6,6 +6,13 @@ const mockSetNotificationChannelAsync = vi.fn();
 const mockScheduleNotificationAsync = vi.fn();
 const mockDismissNotificationAsync = vi.fn();
 const mockCancelScheduledNotificationAsync = vi.fn();
+const mockUpdateWorkoutLiveActivity = vi.fn();
+const mockEndWorkoutLiveActivity = vi.fn();
+const mockGetAppVariant = vi.fn();
+
+vi.mock("@/composition/app-variant", () => ({
+  getAppVariant: () => mockGetAppVariant(),
+}));
 
 vi.mock("expo-notifications", () => ({
   AndroidImportance: {
@@ -36,15 +43,24 @@ vi.mock("react-native", () => ({
   },
 }));
 
+vi.mock("./workout-live-activity", () => ({
+  updateWorkoutLiveActivity: (...args: unknown[]) =>
+    mockUpdateWorkoutLiveActivity(...args),
+  endWorkoutLiveActivity: (...args: unknown[]) =>
+    mockEndWorkoutLiveActivity(...args),
+}));
+
 import { Platform } from "react-native";
 import {
   ACTIVE_WORKOUT_CHANNEL_ID,
   ACTIVE_WORKOUT_NOTIFICATION_ID,
   completedSetsForNotificationEntry,
   dismissActiveWorkoutNotification,
+  dismissOrphanedDevWorkoutLiveActivity,
   formatNextSetSummary,
   formatRestEndTime,
   selectNextExerciseIndexForNotification,
+  shouldSyncActiveWorkoutNotification,
   updateActiveWorkoutNotification,
 } from "./workout-notification";
 
@@ -52,6 +68,24 @@ describe("workout-notification", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     Platform.OS = "ios";
+    mockGetAppVariant.mockReturnValue("dev");
+    mockUpdateWorkoutLiveActivity.mockResolvedValue("live-activity-123");
+    mockEndWorkoutLiveActivity.mockResolvedValue(undefined);
+  });
+
+  describe("shouldSyncActiveWorkoutNotification", () => {
+    it("waits for persisted preferences before exposing workout data", () => {
+      expect(shouldSyncActiveWorkoutNotification(false, true, true)).toBe(
+        false,
+      );
+      expect(shouldSyncActiveWorkoutNotification(true, false, true)).toBe(
+        false,
+      );
+      expect(shouldSyncActiveWorkoutNotification(true, true, false)).toBe(
+        false,
+      );
+      expect(shouldSyncActiveWorkoutNotification(true, true, true)).toBe(true);
+    });
   });
 
   describe("formatRestEndTime", () => {
@@ -252,12 +286,7 @@ describe("workout-notification", () => {
   });
 
   describe("updateActiveWorkoutNotification", () => {
-    it("returns notification ID and schedules immediately with trigger: null when permission is granted", async () => {
-      mockGetPermissionsAsync.mockResolvedValueOnce({ status: "granted" });
-      mockScheduleNotificationAsync.mockResolvedValueOnce(
-        "notification-id-123",
-      );
-
+    it("updates one iOS Live Activity without scheduling an ordinary status notification", async () => {
       const result = await updateActiveWorkoutNotification({
         workoutId: "w-123",
         workoutName: "Upper Body Power",
@@ -268,29 +297,31 @@ describe("workout-notification", () => {
         nextSetSummary: "80 kg × 8 reps",
       });
 
-      expect(result).toBe("notification-id-123");
-      expect(mockSetNotificationChannelAsync).not.toHaveBeenCalled();
-      expect(mockScheduleNotificationAsync).toHaveBeenCalledWith({
-        identifier: ACTIVE_WORKOUT_NOTIFICATION_ID,
-        content: {
-          title: "🏋️ Workout: Upper Body Power",
-          subtitle: "Set 3 · 2/12 completed",
-          body: "Current: Barbell Bench Press (80 kg × 8 reps)",
-          data: {
-            url: "/log-workout",
-            workoutId: "w-123",
-          },
-          sticky: true,
-          autoDismiss: false,
-          sound: false,
-          priority: "low",
-          color: "#10B981",
-        },
-        trigger: null,
+      expect(result).toBe("live-activity-123");
+      expect(mockUpdateWorkoutLiveActivity).toHaveBeenCalledWith({
+        workoutId: "w-123",
+        workoutName: "Upper Body Power",
+        currentExerciseName: "Barbell Bench Press",
+        completedSetsCount: 2,
+        totalPlannedSetsCount: 12,
+        nextSetSummary: "80 kg × 8 reps",
+        state: "active",
+        restStartedAt: null,
+        restEndsAt: null,
       });
+      expect(mockDismissNotificationAsync).toHaveBeenCalledWith(
+        ACTIVE_WORKOUT_NOTIFICATION_ID,
+      );
+      expect(mockCancelScheduledNotificationAsync).toHaveBeenCalledWith(
+        ACTIVE_WORKOUT_NOTIFICATION_ID,
+      );
+      expect(mockGetPermissionsAsync).not.toHaveBeenCalled();
+      expect(mockSetNotificationChannelAsync).not.toHaveBeenCalled();
+      expect(mockScheduleNotificationAsync).not.toHaveBeenCalled();
     });
 
-    it("requests permission if undetermined and returns null if denied", async () => {
+    it("keeps Android permission handling and returns null if denied", async () => {
+      Platform.OS = "android";
       mockGetPermissionsAsync.mockResolvedValueOnce({ status: "undetermined" });
       mockRequestPermissionsAsync.mockResolvedValueOnce({ status: "denied" });
 
@@ -304,6 +335,31 @@ describe("workout-notification", () => {
       expect(result).toBeNull();
       expect(mockRequestPermissionsAsync).toHaveBeenCalledTimes(1);
       expect(mockScheduleNotificationAsync).not.toHaveBeenCalled();
+      expect(mockUpdateWorkoutLiveActivity).not.toHaveBeenCalled();
+    });
+
+    it("keeps the existing ordinary notification in the Production iOS variant", async () => {
+      mockGetAppVariant.mockReturnValue("production");
+      mockGetPermissionsAsync.mockResolvedValueOnce({ status: "granted" });
+      mockScheduleNotificationAsync.mockResolvedValueOnce(
+        "production-notification-id",
+      );
+
+      const result = await updateActiveWorkoutNotification({
+        workoutId: "w-prod",
+        workoutName: "Production Workout",
+        currentExerciseName: "Squat",
+        completedSetsCount: 1,
+      });
+
+      expect(result).toBe("production-notification-id");
+      expect(mockUpdateWorkoutLiveActivity).not.toHaveBeenCalled();
+      expect(mockScheduleNotificationAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          identifier: ACTIVE_WORKOUT_NOTIFICATION_ID,
+          trigger: null,
+        }),
+      );
     });
 
     it("configures notification channel with LOW importance on Android", async () => {
@@ -338,6 +394,7 @@ describe("workout-notification", () => {
     });
 
     it("formats title, subtitle, and body with rest info when rest timer is active", async () => {
+      Platform.OS = "android";
       mockGetPermissionsAsync.mockResolvedValueOnce({ status: "granted" });
       mockScheduleNotificationAsync.mockResolvedValueOnce("rest-notif-id");
 
@@ -370,6 +427,7 @@ describe("workout-notification", () => {
     });
 
     it("formats rest body with fallback when nextSetSummary is omitted", async () => {
+      Platform.OS = "android";
       mockGetPermissionsAsync.mockResolvedValueOnce({ status: "granted" });
       mockScheduleNotificationAsync.mockResolvedValueOnce("rest-notif-id-2");
 
@@ -397,6 +455,7 @@ describe("workout-notification", () => {
     });
 
     it("prompts finishing instead of another set when the plan is complete", async () => {
+      Platform.OS = "android";
       mockGetPermissionsAsync.mockResolvedValueOnce({ status: "granted" });
       mockScheduleNotificationAsync.mockResolvedValueOnce("complete-notif-id");
 
@@ -425,6 +484,7 @@ describe("workout-notification", () => {
     });
 
     it("keeps the finish prompt after the rest timer clears", async () => {
+      Platform.OS = "android";
       mockGetPermissionsAsync.mockResolvedValueOnce({ status: "granted" });
       mockScheduleNotificationAsync.mockResolvedValueOnce(
         "complete-lifting-notif-id",
@@ -452,6 +512,7 @@ describe("workout-notification", () => {
     });
 
     it("formats lifting state without nextSetSummary or totalPlannedSetsCount", async () => {
+      Platform.OS = "android";
       mockGetPermissionsAsync.mockResolvedValueOnce({ status: "granted" });
       mockScheduleNotificationAsync.mockResolvedValueOnce("lift-notif-id");
 
@@ -475,6 +536,7 @@ describe("workout-notification", () => {
     });
 
     it("returns null when scheduleNotificationAsync throws an error", async () => {
+      Platform.OS = "android";
       mockGetPermissionsAsync.mockResolvedValueOnce({ status: "granted" });
       mockScheduleNotificationAsync.mockRejectedValueOnce(
         new Error("Scheduling failed"),
@@ -489,12 +551,105 @@ describe("workout-notification", () => {
 
       expect(result).toBeNull();
     });
+
+    it("maps an active rest timer into the iOS Live Activity countdown state", async () => {
+      const now = Date.now();
+      const nowSpy = vi.spyOn(Date, "now").mockReturnValue(now);
+      const restEndsAt = now + 90000;
+
+      await updateActiveWorkoutNotification({
+        workoutId: "w-123",
+        workoutName: "Full Body",
+        currentExerciseName: "Deadlift",
+        completedSetsCount: 3,
+        totalPlannedSetsCount: 15,
+        nextSetSummary: "140 kg × 5 reps",
+        restTimer: {
+          endsAt: restEndsAt,
+          total: 90,
+          exerciseName: "Deadlift",
+        },
+      });
+
+      expect(mockUpdateWorkoutLiveActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          state: "resting",
+          restStartedAt: now,
+          restEndsAt,
+        }),
+      );
+      nowSpy.mockRestore();
+    });
+
+    it("maps completed planned sets into the iOS completion state", async () => {
+      await updateActiveWorkoutNotification({
+        workoutId: "w-123",
+        workoutName: "Full Body",
+        currentExerciseName: "Workout",
+        completedSetsCount: 9,
+        totalPlannedSetsCount: 9,
+        allPlannedSetsCompleted: true,
+      });
+
+      expect(mockUpdateWorkoutLiveActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          state: "complete",
+          restStartedAt: null,
+          restEndsAt: null,
+        }),
+      );
+    });
+
+    it("returns null without falling back to normal iOS notifications when Live Activities fail", async () => {
+      mockUpdateWorkoutLiveActivity.mockRejectedValueOnce(
+        new Error("Live Activities disabled"),
+      );
+
+      const result = await updateActiveWorkoutNotification({
+        workoutId: "w-123",
+        workoutName: "Push",
+        currentExerciseName: "Bench Press",
+        completedSetsCount: 0,
+      });
+
+      expect(result).toBeNull();
+      expect(mockScheduleNotificationAsync).not.toHaveBeenCalled();
+    });
   });
 
   describe("dismissActiveWorkoutNotification", () => {
-    it("calls dismissNotificationAsync and cancelScheduledNotificationAsync", async () => {
+    it("ends the iOS Live Activity and cleans up a legacy delivered notification", async () => {
       await dismissActiveWorkoutNotification();
 
+      expect(mockEndWorkoutLiveActivity).toHaveBeenCalledTimes(1);
+      expect(mockDismissNotificationAsync).toHaveBeenCalledWith(
+        ACTIVE_WORKOUT_NOTIFICATION_ID,
+      );
+      expect(mockCancelScheduledNotificationAsync).toHaveBeenCalledWith(
+        ACTIVE_WORKOUT_NOTIFICATION_ID,
+      );
+    });
+
+    it("keeps Android notification dismissal unchanged", async () => {
+      Platform.OS = "android";
+
+      await dismissActiveWorkoutNotification();
+
+      expect(mockEndWorkoutLiveActivity).not.toHaveBeenCalled();
+      expect(mockDismissNotificationAsync).toHaveBeenCalledWith(
+        ACTIVE_WORKOUT_NOTIFICATION_ID,
+      );
+      expect(mockCancelScheduledNotificationAsync).toHaveBeenCalledWith(
+        ACTIVE_WORKOUT_NOTIFICATION_ID,
+      );
+    });
+
+    it("keeps Production iOS dismissal on the existing notification path", async () => {
+      mockGetAppVariant.mockReturnValue("production");
+
+      await dismissActiveWorkoutNotification();
+
+      expect(mockEndWorkoutLiveActivity).not.toHaveBeenCalled();
       expect(mockDismissNotificationAsync).toHaveBeenCalledWith(
         ACTIVE_WORKOUT_NOTIFICATION_ID,
       );
@@ -512,6 +667,27 @@ describe("workout-notification", () => {
       );
 
       await expect(dismissActiveWorkoutNotification()).resolves.not.toThrow();
+    });
+  });
+
+  describe("dismissOrphanedDevWorkoutLiveActivity", () => {
+    it("ends a recovered Dev iOS activity after authoritative no-workout recovery", async () => {
+      await dismissOrphanedDevWorkoutLiveActivity();
+
+      expect(mockEndWorkoutLiveActivity).toHaveBeenCalledTimes(1);
+      expect(mockDismissNotificationAsync).toHaveBeenCalledWith(
+        ACTIVE_WORKOUT_NOTIFICATION_ID,
+      );
+    });
+
+    it("does not alter Production iOS notification state", async () => {
+      mockGetAppVariant.mockReturnValue("production");
+
+      await dismissOrphanedDevWorkoutLiveActivity();
+
+      expect(mockEndWorkoutLiveActivity).not.toHaveBeenCalled();
+      expect(mockDismissNotificationAsync).not.toHaveBeenCalled();
+      expect(mockCancelScheduledNotificationAsync).not.toHaveBeenCalled();
     });
   });
 });

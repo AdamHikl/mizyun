@@ -68,6 +68,7 @@ import {
   dismissActiveWorkoutNotification,
   formatNextSetSummary,
   selectNextExerciseIndexForNotification,
+  shouldSyncActiveWorkoutNotification,
   updateActiveWorkoutNotification,
 } from "@/features/workouts/workout-notification";
 
@@ -178,7 +179,9 @@ export function LogWorkoutScreen() {
   const [globalRestSeconds, setGlobalRestSeconds] =
     useState<number>(DEFAULT_REST_SECONDS);
   const [liveNotificationEnabled, setLiveNotificationEnabled] =
-    useState<boolean>(true);
+    useState<boolean>(false);
+  const [workoutPreferencesLoaded, setWorkoutPreferencesLoaded] =
+    useState(false);
   const [autoAdvanceTargetWeights, setAutoAdvanceTargetWeights] =
     useState<boolean>(true);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -302,11 +305,13 @@ export function LogWorkoutScreen() {
   // Load workout preferences (global rest timer setting and live notification toggle)
   useEffect(() => {
     let active = true;
+    setWorkoutPreferencesLoaded(false);
     void loadWorkoutPreferences(userId ?? undefined).then((prefs) => {
       if (!active) return;
       setGlobalRestSeconds(prefs.defaultRestSeconds);
       setLiveNotificationEnabled(prefs.liveNotificationEnabled);
       setAutoAdvanceTargetWeights(prefs.autoAdvanceTargetWeights);
+      setWorkoutPreferencesLoaded(true);
     });
     return () => {
       active = false;
@@ -602,7 +607,14 @@ export function LogWorkoutScreen() {
 
   // Synchronize live workout session notification
   useEffect(() => {
-    if (!liveNotificationEnabled || !activeSessionSummary) {
+    if (
+      !shouldSyncActiveWorkoutNotification(
+        workoutPreferencesLoaded,
+        liveNotificationEnabled,
+        activeSessionSummary !== null,
+      ) ||
+      !activeSessionSummary
+    ) {
       return;
     }
 
@@ -623,14 +635,19 @@ export function LogWorkoutScreen() {
           }
         : null,
     });
-  }, [activeSessionSummary, liveNotificationEnabled, restTimer]);
+  }, [
+    activeSessionSummary,
+    liveNotificationEnabled,
+    restTimer,
+    workoutPreferencesLoaded,
+  ]);
 
   // Clean up notification if user disabled the setting
   useEffect(() => {
-    if (!liveNotificationEnabled) {
+    if (workoutPreferencesLoaded && !liveNotificationEnabled) {
       void dismissActiveWorkoutNotification();
     }
-  }, [liveNotificationEnabled]);
+  }, [liveNotificationEnabled, workoutPreferencesLoaded]);
 
   // Start workout action
   const onStart = useCallback(async () => {
@@ -1069,7 +1086,6 @@ export function LogWorkoutScreen() {
               setRestTimer(null);
               clearContextRestTimer?.();
               setContextActiveWorkout?.(null);
-              void dismissActiveWorkoutNotification();
               setBusy(true);
 
               if (autoAdvanceTargetWeights && progressedItems.length > 0) {
@@ -1094,6 +1110,7 @@ export function LogWorkoutScreen() {
                 );
                 return setMessage(result.message);
               }
+              void dismissActiveWorkoutNotification();
               measurement.current?.complete();
               if (userId !== null) await clearLoggingDraft(userId, "workout");
               router.back();
@@ -1142,9 +1159,9 @@ export function LogWorkoutScreen() {
             setRestTimer(null);
             clearContextRestTimer?.();
             setContextActiveWorkout?.(null);
-            void dismissActiveWorkoutNotification();
             const result = await abandonWorkout(workspace.workout!.id);
             if (!result.ok) return setMessage(result.message);
+            void dismissActiveWorkoutNotification();
             if (userId !== null) await clearLoggingDraft(userId, "workout");
             router.back();
           })();

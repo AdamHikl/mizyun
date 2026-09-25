@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { Pressable, StyleSheet, Switch, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Switch, View } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { getAppVariant } from "@/composition/app-variant";
 import { Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import {
@@ -26,6 +27,8 @@ export function WorkoutSettingsCard({
   userId,
   onSaved,
 }: WorkoutSettingsCardProps) {
+  const usesWorkoutLiveActivity =
+    Platform.OS === "ios" && getAppVariant() === "dev";
   const theme = useTheme();
   const [restSeconds, setRestSeconds] = useState<number>(DEFAULT_REST_SECONDS);
   const [liveNotificationEnabled, setLiveNotificationEnabled] =
@@ -87,13 +90,19 @@ export function WorkoutSettingsCard({
       if (saved) {
         setFeedback(
           nextVal
-            ? "Saved: Live workout notification enabled"
-            : "Saved: Live workout notification disabled",
+            ? `Saved: ${usesWorkoutLiveActivity ? "Workout Live Activity" : "Live workout notification"} enabled`
+            : `Saved: ${usesWorkoutLiveActivity ? "Workout Live Activity" : "Live workout notification"} disabled`,
         );
         onSaved?.(prefs);
       }
     },
-    [autoAdvanceTargetWeights, onSaved, restSeconds, userId],
+    [
+      autoAdvanceTargetWeights,
+      onSaved,
+      restSeconds,
+      userId,
+      usesWorkoutLiveActivity,
+    ],
   );
 
   const toggleAutoAdvance = useCallback(
@@ -218,17 +227,26 @@ export function WorkoutSettingsCard({
         </View>
       </View>
 
-      {/* Live Workout Notification Toggle */}
+      {/* Live Workout Status Toggle */}
       <View style={styles.notificationToggleSection}>
         <View style={styles.notificationToggleInfo}>
-          <ThemedText type="smallBold">Live workout notification</ThemedText>
+          <ThemedText type="smallBold">
+            {usesWorkoutLiveActivity
+              ? "Workout Live Activity"
+              : "Live workout notification"}
+          </ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
-            Show an always-on lock screen notification with current exercise,
-            target load, reps, and rest timer during active sessions.
+            {usesWorkoutLiveActivity
+              ? "Show one updating workout card on the Lock Screen and Dynamic Island with your current exercise, set progress, and rest timer."
+              : "Show an always-on lock screen notification with current exercise, target load, reps, and rest timer during active sessions."}
           </ThemedText>
         </View>
         <Switch
-          accessibilityLabel="Toggle live workout notification"
+          accessibilityLabel={
+            usesWorkoutLiveActivity
+              ? "Toggle workout Live Activity"
+              : "Toggle live workout notification"
+          }
           value={liveNotificationEnabled}
           onValueChange={(val) => void toggleLiveNotification(val)}
           trackColor={{ false: "rgba(148, 163, 184, 0.2)", true: "#10B981" }}
