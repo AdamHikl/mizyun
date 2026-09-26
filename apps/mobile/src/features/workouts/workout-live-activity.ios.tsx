@@ -1,6 +1,5 @@
 import { HStack, Image, Text, VStack } from "@expo/ui/swift-ui";
 import {
-  fixedSize,
   font,
   foregroundStyle,
   frame,
@@ -108,7 +107,6 @@ const WorkoutLiveActivity = createLiveActivity<WorkoutLiveActivityProps>(
             modifiers={[
               font({ size: 14, weight: "bold", design: "rounded" }),
               foregroundStyle(accentColor),
-              fixedSize({ horizontal: true, vertical: false }),
               frame({ width: 56, alignment: "trailing" }),
             ]}
           />
@@ -117,7 +115,6 @@ const WorkoutLiveActivity = createLiveActivity<WorkoutLiveActivityProps>(
             modifiers={[
               font({ size: 14, weight: "bold", design: "rounded" }),
               foregroundStyle(accentColor),
-              fixedSize({ horizontal: true, vertical: false }),
               frame({ width: 56, alignment: "trailing" }),
             ]}
           >
