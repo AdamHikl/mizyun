@@ -6,6 +6,10 @@
 
 Founder decision 2026-09-23: prioritize a presentable, distinctive demo and program partnerships toward a longer-term ambition of over 100,000 users. [INVENTURE-001 / #125](https://github.com/AdamHikl/mizyun/issues/125) is ready for execution; the [program plan](docs/INVENTURE_PROGRAM_PLAN_2026-09-23.md) defines the nine-day schedule, pitch, acceptance checks and growth experiments. Planning documents are updated; demo assets, interviews, pilot commitments and event-build acceptance remain outstanding. Defer SIMPLIFY-03 and unrelated feature expansion. All release gates below remain in force.
 
+## Website conversion — issue #127 (2026-09-26)
+
+The separate website checkout now has local commit `12653905b88bab4d5f1d391cb64a365908cfb2e4` for [#127](https://github.com/AdamHikl/mizyun/issues/127): clearer audience/benefit copy, written example-day workflow, availability/AI/privacy FAQ, responsive layout, route assertions and dated research. The existing auth callback's lint failure was repaired; a non-author helper reviewed token clearing, allowed schemes and redirects without a blocking finding. Fresh website `npm run lint`, `npm test` (10/10), `npm run build`, Prettier and diff checks passed. Local browser checks found no overflow at 320/375/768/1280 px, keyboard skip focus worked, and synthetic recovery/invalid callbacks rendered after URL clearing. Public `/mizyun` returned HTTP 200 but still served previous copy. The direct Play URL returned 404 and Apple's Slovak search returned zero results; public listing availability remains unverified. The approved images remain beta captures. No website deployment, real workflow recording, refreshed release-build captures, physical-device acceptance, or #128 click measurement is claimed. Next action: review a real sample-data recording and current-build captures, then add independently verified store links when public; prepare the complete candidate for publication approval.
+
 ## Existing engineering work
 
 | Work                                  | State                                                            | Qualified evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Blocker / next exact action                                                                                                                                   |
@@ -28,12 +32,12 @@ Founder decision 2026-09-23: prioritize a presentable, distinctive demo and prog
 
 ## Current environment authority
 
-| Environment | Authority                                                          | Last evidenced source                                                                          | Scope                                                                                                  |
-| ----------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Local       | `/Users/adam/Documents/mizyun`                                     | `bac5676c3c67b5997687d4050a66d99c4c4132f5` (clean working tree, pushed to `origin/main`)       | Local workspace matches origin/main                                                                    |
-| Dev         | Hetzner CX23, `/var/lib/mizyun/dev/repo`, `mizyun-api-dev.service` | `bac5676c3c67b5997687d4050a66d99c4c4132f5`; public health HTTP 200 at 2026-09-26T07:57:21.049Z | Dev backend running latest features (#41, #52, #118, #119, #121, #122, #123, #126, ops/AI token fixes) |
-| Production  | Hetzner CX23, `/var/lib/mizyun/repo`, `mizyun-api.service`         | `0aadf95b5ff85d9cfc8bf5485e68a72525080e84`; public health HTTP 200 at 2026-09-24T17:19:09.447Z | Promoted accepted SHA, encrypted backup taken, migrations applied, older clients verified              |
-| Recovery    | Raspberry Pi 5                                                     | Encrypted daily Production archive workflow and accepted restore point `20260919T103343Z`      | Recovery storage only; not a deployment target or writable failover                                    |
+| Environment | Authority                                                          | Last evidenced source                                                                              | Scope                                                                                                  |
+| ----------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Local       | `/Users/adam/Documents/mizyun`                                     | `d53edcf6ca3fecce3c42b79edf16d23b76f30b0f` (HEAD and local `origin/main`; live remote not checked) | Main app source is untouched by #127; this status edit is uncommitted                                  |
+| Dev         | Hetzner CX23, `/var/lib/mizyun/dev/repo`, `mizyun-api-dev.service` | `bac5676c3c67b5997687d4050a66d99c4c4132f5`; public health HTTP 200 at 2026-09-26T07:57:21.049Z     | Dev backend running latest features (#41, #52, #118, #119, #121, #122, #123, #126, ops/AI token fixes) |
+| Production  | Hetzner CX23, `/var/lib/mizyun/repo`, `mizyun-api.service`         | `0aadf95b5ff85d9cfc8bf5485e68a72525080e84`; public health HTTP 200 at 2026-09-24T17:19:09.447Z     | Promoted accepted SHA, encrypted backup taken, migrations applied, older clients verified              |
+| Recovery    | Raspberry Pi 5                                                     | Encrypted daily Production archive workflow and accepted restore point `20260919T103343Z`          | Recovery storage only; not a deployment target or writable failover                                    |
 
 ## Rules and open gates that must survive handoff
 
@@ -204,7 +208,7 @@ Founder decision 2026-09-23: prioritize a presentable, distinctive demo and prog
 
 ## Next exact action
 
-For #125, record the proposed 90-second journey on the current physical build, identify its source/build/environment, and rank interruptions and unsupported claims. Select only the smallest demo/first-use repair slice; prepare interviews and the pitch alongside acceptance work. No public access expansion until its existing gates pass.
+For #127, obtain a release-candidate recording of one complete daily workflow and refreshed screenshots with source/build and asset provenance. Verify live public App Store and Google Play destinations before adding buttons; coordinate any store-click measurement with #128 and the privacy policy. Then re-run website checks and request publication approval on the complete candidate. #125's physical demo and interview preparation remain the active program priority; no public access expansion until its existing gates pass.
 
 ## Evidence index
 
