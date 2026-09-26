@@ -1,5 +1,6 @@
 import { HStack, Image, Text, VStack } from "@expo/ui/swift-ui";
 import {
+  fixedSize,
   font,
   foregroundStyle,
   frame,
@@ -99,7 +100,30 @@ const WorkoutLiveActivity = createLiveActivity<WorkoutLiveActivityProps>(
           color={accentColor}
         />
       ),
-      compactTrailing: timer,
+      compactTrailing:
+        restStart && restEnd ? (
+          <Text
+            timerInterval={{ lower: restStart, upper: restEnd }}
+            countsDown
+            modifiers={[
+              font({ size: 14, weight: "bold", design: "rounded" }),
+              foregroundStyle(accentColor),
+              fixedSize({ horizontal: true, vertical: false }),
+              frame({ width: 56, alignment: "trailing" }),
+            ]}
+          />
+        ) : (
+          <Text
+            modifiers={[
+              font({ size: 14, weight: "bold", design: "rounded" }),
+              foregroundStyle(accentColor),
+              fixedSize({ horizontal: true, vertical: false }),
+              frame({ width: 56, alignment: "trailing" }),
+            ]}
+          >
+            {progress}
+          </Text>
+        ),
       minimal: (
         <Image
           systemName={isResting ? "timer" : "dumbbell.fill"}
