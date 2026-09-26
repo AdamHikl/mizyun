@@ -1,11 +1,7 @@
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { getAppVariant } from "@/composition/app-variant";
-import {
-  endWorkoutLiveActivity,
-  updateWorkoutLiveActivity,
-  type WorkoutLiveActivityProps,
-} from "./workout-live-activity";
+import type { WorkoutLiveActivityProps } from "./workout-live-activity";
 import {
   kilogramsToDisplayWeight,
   parseTargetLoadToDisplay,
@@ -208,6 +204,8 @@ export const updateActiveWorkoutNotification = async (
           : null,
         restEndsAt: isResting ? params.restTimer!.endsAt : null,
       };
+      const { updateWorkoutLiveActivity } =
+        await import("./workout-live-activity");
       return await updateWorkoutLiveActivity(liveActivityProps);
     }
 
@@ -332,6 +330,8 @@ export const dismissOrphanedDevWorkoutLiveActivity =
     }
 
     try {
+      const { endWorkoutLiveActivity } =
+        await import("./workout-live-activity");
       await endWorkoutLiveActivity();
     } catch {
       // Silently ignore Live Activity cleanup errors.

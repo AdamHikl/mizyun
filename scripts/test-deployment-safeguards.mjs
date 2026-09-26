@@ -1216,6 +1216,9 @@ await test("test-build-matrix.mjs: passes from clean checkout without generated 
     mkdirSync(path.join(cleanRepo, "apps/mobile/plugins"), {
       recursive: true,
     });
+    mkdirSync(path.join(cleanRepo, "apps/mobile/src/features/workouts"), {
+      recursive: true,
+    });
     mkdirSync(path.join(cleanRepo, "scripts"), { recursive: true });
 
     writeFileSync(
@@ -1234,6 +1237,18 @@ await test("test-build-matrix.mjs: passes from clean checkout without generated 
       path.join(cleanRepo, "apps/mobile/eas.json"),
       readFileSync(path.join(root, "apps/mobile/eas.json")),
     );
+    for (const source of [
+      "workout-notification.ts",
+      "workout-live-activity.ios.tsx",
+      "workout-live-activity.tsx",
+    ]) {
+      writeFileSync(
+        path.join(cleanRepo, "apps/mobile/src/features/workouts", source),
+        readFileSync(
+          path.join(root, "apps/mobile/src/features/workouts", source),
+        ),
+      );
+    }
     writeFileSync(
       path.join(
         cleanRepo,

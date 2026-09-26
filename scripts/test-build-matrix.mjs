@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -222,6 +222,49 @@ if (existsSync(mobilePackagePath)) {
 }
 console.log(
   "✓ Expo SDK 57 Live Activity extension plugin is enabled for Dev/Preview and absent from Production config",
+);
+
+// Metro checks .ts before .tsx, so a generic .ts adapter can shadow .ios.tsx.
+const mobileRequire = createRequire(mobilePackagePath);
+const metroRequire = createRequire(mobileRequire.resolve("expo/metro-config"));
+const metroResolve = metroRequire("metro-resolver").resolve;
+const sourceExts = mobileRequire("expo/metro-config").getDefaultConfig(
+  resolve(repoRoot, "apps/mobile"),
+).resolver.sourceExts;
+const workoutDir = resolve(repoRoot, "apps/mobile/src/features/workouts");
+const resolutionContext = {
+  originModulePath: resolve(workoutDir, "workout-notification.ts"),
+  assetExts: new Set(),
+  sourceExts,
+  preferNativePlatform: true,
+  getPackageForModule: () => null,
+  fileSystemLookup: (path) => {
+    if (!existsSync(path)) return { exists: false };
+    const stats = statSync(path);
+    return {
+      exists: true,
+      type: stats.isFile() ? "f" : "d",
+      realPath: path,
+    };
+  },
+};
+for (const [platform, expected] of [
+  ["ios", "workout-live-activity.ios.tsx"],
+  ["android", "workout-live-activity.tsx"],
+]) {
+  const resolved = metroResolve(
+    resolutionContext,
+    "./workout-live-activity",
+    platform,
+  );
+  if (resolved.filePath !== resolve(workoutDir, expected)) {
+    throw new Error(
+      `Metro resolved ${platform} workout Live Activity to ${resolved.filePath}; expected ${expected}`,
+    );
+  }
+}
+console.log(
+  "✓ Metro selects the native iOS Live Activity and Android no-op adapter",
 );
 
 evalConfigExpectingError(
