@@ -33,6 +33,7 @@ import {
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { analyticsClient } from "@/composition/analytics-client";
+import { getAppVariant } from "@/composition/app-variant";
 import { classifyAnalyticsFailure } from "@/features/analytics/classify-failure";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { useAuth } from "@/features/auth/auth-context";
@@ -60,7 +61,9 @@ import {
   scheduleRestNotification,
 } from "@/features/workouts/rest-timer-notifications";
 import {
+  restTimerNextAction,
   useOptionalActiveWorkout,
+  type CurrentWorkoutNextAction,
   type RestTimerState,
 } from "@/features/workouts";
 import {
@@ -1283,6 +1286,7 @@ export function LogWorkoutScreen() {
       {restTimer !== null ? (
         <FloatingRestTimer
           rest={restTimer}
+          current={activeSessionSummary}
           onAdjust={(delta) => {
             const currentEndsAt = restTimer.endsAt;
             const currentTotal = restTimer.total;
@@ -1816,9 +1820,14 @@ function LiveExerciseCard(props: {
 // ==========================================
 function FloatingRestTimer(props: {
   readonly rest: RestTimerState;
+  readonly current: CurrentWorkoutNextAction | null;
   readonly onAdjust: (delta: number) => void;
   readonly onSkip: () => void;
 }) {
+  const showNextAction = Platform.OS === "ios" && getAppVariant() === "dev";
+  const nextAction = showNextAction
+    ? restTimerNextAction(props.rest, props.current)
+    : null;
   const remaining = Math.max(
     0,
     Math.ceil((props.rest.endsAt - Date.now()) / 1000),
@@ -1832,9 +1841,22 @@ function FloatingRestTimer(props: {
     <View style={styles.floatingTimerContainer}>
       <View style={styles.floatingTimerBar}>
         <View style={styles.timerInfoBlock}>
-          <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-            ⏱ Rest ({props.rest.exerciseName})
+          <ThemedText
+            type="small"
+            themeColor="textSecondary"
+            numberOfLines={nextAction ? 2 : 1}
+          >
+            ⏱ {nextAction?.title ?? `Rest (${props.rest.exerciseName})`}
           </ThemedText>
+          {nextAction?.detail ? (
+            <ThemedText
+              type="small"
+              themeColor="textSecondary"
+              numberOfLines={1}
+            >
+              {nextAction.detail}
+            </ThemedText>
+          ) : null}
           <ThemedText type="subtitle" style={styles.timerCountdown}>
             {formatStopwatch(remaining)}
           </ThemedText>
