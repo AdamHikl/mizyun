@@ -1,6 +1,6 @@
 # Mizyun current status
 
-> Fast-changing operational snapshot. Last updated: **2026-09-26**. Historical handoffs are preserved in the [latest dated archive](docs/archive/status/STATUS_HISTORY_2026-09-13_THROUGH_2026-09-22.md) and older files beside it; they are evidence, not current instructions.
+> Fast-changing operational snapshot. Last updated: **2026-09-27**. Historical handoffs are preserved in the [latest dated archive](docs/archive/status/STATUS_HISTORY_2026-09-13_THROUGH_2026-09-22.md) and older files beside it; they are evidence, not current instructions.
 
 ## Active priority — InVenture, October 2–3
 
@@ -9,6 +9,12 @@ Founder decision 2026-09-23: prioritize a presentable, distinctive demo and prog
 ## Website conversion — issue #127 (2026-09-26)
 
 The separate website checkout now has local commit `12653905b88bab4d5f1d391cb64a365908cfb2e4` for [#127](https://github.com/AdamHikl/mizyun/issues/127): clearer audience/benefit copy, written example-day workflow, availability/AI/privacy FAQ, responsive layout, route assertions and dated research. The existing auth callback's lint failure was repaired; a non-author helper reviewed token clearing, allowed schemes and redirects without a blocking finding. Fresh website `npm run lint`, `npm test` (10/10), `npm run build`, Prettier and diff checks passed. Local browser checks found no overflow at 320/375/768/1280 px, keyboard skip focus worked, and synthetic recovery/invalid callbacks rendered after URL clearing. Public `/mizyun` returned HTTP 200 but still served previous copy. The direct Play URL returned 404 and Apple's Slovak search returned zero results; public listing availability remains unverified. The approved images remain beta captures. No website deployment, real workflow recording, refreshed release-build captures, physical-device acceptance, or #128 click measurement is claimed. Next action: review a real sample-data recording and current-build captures, then add independently verified store links when public; prepare the complete candidate for publication approval.
+
+## Dev Android workout Live Update — issue #130 (2026-09-27)
+
+Source commit `1da22aff2d87642532744dc5e97c747a16bf3a56` adds a Dev-only Android 16 Live Update request with one native workout notification, system rest countdown, next exercise/set, exact-workout deep link, user-dismissal suppression, and lifecycle cleanup. Android before API 36 and Production continue through the ordinary workout notification; the separate `Rest Over!` alert remains. Independent review identified dismissal/fallback and programmatic-cleanup defects, both repaired before commit. Dated platform research and ADR-0027 record the design. No backend deployment or Production release occurred.
+
+Fresh `pnpm check` passed on this source (navigation, formatting, typechecks, iOS/Android bundles, tests and release safeguards). Android Dev `assembleDebug` and a standalone `assembleRelease` both passed with the local debug-keystore test override. The release APK SHA-256 is `a18dcde002c7415835009e22f0cb5d40e0a5b7e4de23c1e0e7e2a0bb70610975`; its merged manifest contains `POST_PROMOTED_NOTIFICATIONS` and the dismissal receiver. It installed and launched without Metro on an API 36 Pixel 9 emulator, where the sign-in screen rendered. The emulator had no signed-in workout, so a promoted chip, live rest countdown, tap routing, user dismissal, opt-out, finish/discard and sign-out were **not** visually accepted. Next exact action: sign in on an Android 16 Dev device, start a workout, log a set and inspect the status chip and notification shade through rest, then exercise tap and cleanup paths; repeat ordinary fallback on an older Android device before closing #130.
 
 ## Existing engineering work
 
