@@ -8,6 +8,9 @@ const mockDismissNotificationAsync = vi.fn();
 const mockCancelScheduledNotificationAsync = vi.fn();
 const mockUpdateWorkoutLiveActivity = vi.fn();
 const mockEndWorkoutLiveActivity = vi.fn();
+const mockUpdateWorkoutLiveUpdate = vi.fn();
+const mockDismissWorkoutLiveUpdate = vi.fn();
+const mockCreateURL = vi.fn();
 const mockGetAppVariant = vi.fn();
 
 vi.mock("@/composition/app-variant", () => ({
@@ -40,7 +43,19 @@ vi.mock("expo-notifications", () => ({
 vi.mock("react-native", () => ({
   Platform: {
     OS: "ios",
+    Version: 27,
   },
+}));
+
+vi.mock("expo-linking", () => ({
+  createURL: (...args: unknown[]) => mockCreateURL(...args),
+}));
+
+vi.mock("../../../modules/workout-live-update", () => ({
+  updateWorkoutLiveUpdate: (...args: unknown[]) =>
+    mockUpdateWorkoutLiveUpdate(...args),
+  dismissWorkoutLiveUpdate: (...args: unknown[]) =>
+    mockDismissWorkoutLiveUpdate(...args),
 }));
 
 vi.mock("./workout-live-activity", () => ({
@@ -68,9 +83,13 @@ describe("workout-notification", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     Platform.OS = "ios";
+    Platform.Version = 27;
     mockGetAppVariant.mockReturnValue("dev");
     mockUpdateWorkoutLiveActivity.mockResolvedValue("live-activity-123");
     mockEndWorkoutLiveActivity.mockResolvedValue(undefined);
+    mockUpdateWorkoutLiveUpdate.mockResolvedValue("posted");
+    mockDismissWorkoutLiveUpdate.mockResolvedValue(true);
+    mockCreateURL.mockReturnValue("mizyun-dev:///log-workout?workoutId=w-123");
   });
 
   describe("shouldSyncActiveWorkoutNotification", () => {
@@ -286,6 +305,102 @@ describe("workout-notification", () => {
   });
 
   describe("updateActiveWorkoutNotification", () => {
+    it("posts one Dev Android 16 Live Update with the exact workout link and rest deadline", async () => {
+      Platform.OS = "android";
+      Platform.Version = 36;
+      mockGetPermissionsAsync.mockResolvedValueOnce({ status: "granted" });
+      const restEndsAt = Date.now() + 90000;
+
+      const result = await updateActiveWorkoutNotification({
+        workoutId: "w-123",
+        workoutName: "Full Body",
+        currentExerciseName: "Deadlift",
+        completedSetsCount: 3,
+        totalPlannedSetsCount: 12,
+        nextSetSummary: "140 kg × 5 reps",
+        restTimer: {
+          endsAt: restEndsAt,
+          total: 90,
+          exerciseName: "Deadlift",
+        },
+      });
+
+      expect(result).toBe(ACTIVE_WORKOUT_NOTIFICATION_ID);
+      expect(mockCreateURL).toHaveBeenCalledWith("/log-workout", {
+        queryParams: { workoutId: "w-123" },
+      });
+      expect(mockUpdateWorkoutLiveUpdate).toHaveBeenCalledWith({
+        workoutId: "w-123",
+        workoutName: "Full Body",
+        currentExerciseName: "Deadlift",
+        nextSetSummary: "140 kg × 5 reps",
+        completedSetsCount: 3,
+        totalPlannedSetsCount: 12,
+        allPlannedSetsCompleted: undefined,
+        restEndsAt,
+        deepLinkUrl: "mizyun-dev:///log-workout?workoutId=w-123",
+      });
+      expect(mockScheduleNotificationAsync).not.toHaveBeenCalled();
+      expect(mockDismissNotificationAsync).toHaveBeenCalledWith(
+        ACTIVE_WORKOUT_NOTIFICATION_ID,
+      );
+    });
+
+    it("falls back to the ordinary notification when the Android Live Update cannot post", async () => {
+      Platform.OS = "android";
+      Platform.Version = 36;
+      mockGetPermissionsAsync.mockResolvedValueOnce({ status: "granted" });
+      mockUpdateWorkoutLiveUpdate.mockResolvedValueOnce("fallback");
+      mockScheduleNotificationAsync.mockResolvedValueOnce("fallback-id");
+
+      const result = await updateActiveWorkoutNotification({
+        workoutId: "w-123",
+        workoutName: "Push",
+        currentExerciseName: "Bench Press",
+        completedSetsCount: 0,
+      });
+
+      expect(result).toBe("fallback-id");
+      expect(mockScheduleNotificationAsync).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not repost an ordinary notification after the user dismissed this workout", async () => {
+      Platform.OS = "android";
+      Platform.Version = 36;
+      mockGetPermissionsAsync.mockResolvedValueOnce({ status: "granted" });
+      mockUpdateWorkoutLiveUpdate.mockResolvedValueOnce("suppressed");
+
+      expect(
+        await updateActiveWorkoutNotification({
+          workoutId: "w-123",
+          workoutName: "Push",
+          currentExerciseName: "Bench Press",
+          completedSetsCount: 1,
+        }),
+      ).toBeNull();
+      expect(mockScheduleNotificationAsync).not.toHaveBeenCalled();
+      expect(mockDismissNotificationAsync).toHaveBeenCalledWith(
+        ACTIVE_WORKOUT_NOTIFICATION_ID,
+      );
+    });
+
+    it("keeps Production Android on the ordinary notification path at API 36", async () => {
+      Platform.OS = "android";
+      Platform.Version = 36;
+      mockGetAppVariant.mockReturnValue("production");
+      mockGetPermissionsAsync.mockResolvedValueOnce({ status: "granted" });
+      mockScheduleNotificationAsync.mockResolvedValueOnce("production-id");
+
+      expect(
+        await updateActiveWorkoutNotification({
+          workoutId: "w-123",
+          workoutName: "Push",
+          currentExerciseName: "Bench Press",
+          completedSetsCount: 0,
+        }),
+      ).toBe("production-id");
+      expect(mockUpdateWorkoutLiveUpdate).not.toHaveBeenCalled();
+    });
     it("updates one iOS Live Activity without scheduling an ordinary status notification", async () => {
       const result = await updateActiveWorkoutNotification({
         workoutId: "w-123",
@@ -636,6 +751,7 @@ describe("workout-notification", () => {
       await dismissActiveWorkoutNotification();
 
       expect(mockEndWorkoutLiveActivity).not.toHaveBeenCalled();
+      expect(mockDismissWorkoutLiveUpdate).toHaveBeenCalledTimes(1);
       expect(mockDismissNotificationAsync).toHaveBeenCalledWith(
         ACTIVE_WORKOUT_NOTIFICATION_ID,
       );

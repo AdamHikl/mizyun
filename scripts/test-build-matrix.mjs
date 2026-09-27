@@ -205,10 +205,20 @@ for (const [profileName, config] of [
       `${profileName} profile is missing the expo-widgets Live Activity config plugin`,
     );
   }
+  if (!hasPlugin(config, "./plugins/with-android-workout-live-update")) {
+    throw new Error(
+      `${profileName} profile is missing the Android workout Live Update permission plugin`,
+    );
+  }
 }
 if (hasPlugin(prodConfig, "expo-widgets")) {
   throw new Error(
     "Production profile must not include the Dev-only expo-widgets Live Activity plugin",
+  );
+}
+if (hasPlugin(prodConfig, "./plugins/with-android-workout-live-update")) {
+  throw new Error(
+    "Production profile must not include the Dev-only Android Live Update permission plugin",
   );
 }
 const mobilePackagePath = resolve(repoRoot, "apps/mobile/package.json");

@@ -276,6 +276,9 @@ const plugins = [
       ]
     : baseExpo.plugins),
   ...(variantName === "dev" ? ["expo-widgets"] : []),
+  ...(variantName === "dev"
+    ? ["./plugins/with-android-workout-live-update"]
+    : []),
   ...(enableIosAppleAuth
     ? ["expo-apple-authentication"]
     : ["./plugins/without-ios-apple-auth"]),

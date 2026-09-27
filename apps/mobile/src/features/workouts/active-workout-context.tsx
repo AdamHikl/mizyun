@@ -23,7 +23,7 @@ import {
   type RestTimerState,
 } from "./active-workout-state";
 import { cancelRestNotification } from "./rest-timer-notifications";
-import { dismissOrphanedDevWorkoutLiveActivity } from "./workout-notification";
+import { dismissOrphanedDevWorkoutStatus } from "./workout-notification";
 import { createActiveWorkoutUnmountCleanup } from "./active-workout-lifecycle";
 
 export interface ActiveWorkoutContextValue {
@@ -97,7 +97,7 @@ export function ActiveWorkoutProvider({
       return;
     }
     if (!session?.user.id) {
-      await dismissOrphanedDevWorkoutLiveActivity();
+      await dismissOrphanedDevWorkoutStatus();
       return;
     }
     try {
@@ -117,7 +117,7 @@ export function ActiveWorkoutProvider({
         });
         setElapsedSeconds(computeElapsedSeconds(incomplete.startedAt));
       } else {
-        await dismissOrphanedDevWorkoutLiveActivity();
+        await dismissOrphanedDevWorkoutStatus();
         if (activeWorkoutRef.current !== null) {
           setActiveWorkoutState(null);
           setElapsedSeconds(0);
@@ -138,8 +138,7 @@ export function ActiveWorkoutProvider({
   // Lock Screen content from the teardown boundary rather than awaiting a
   // render with a null session.
   useEffect(
-    () =>
-      createActiveWorkoutUnmountCleanup(dismissOrphanedDevWorkoutLiveActivity),
+    () => createActiveWorkoutUnmountCleanup(dismissOrphanedDevWorkoutStatus),
     [],
   );
 

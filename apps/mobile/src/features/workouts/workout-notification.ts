@@ -1,4 +1,5 @@
 import * as Notifications from "expo-notifications";
+import * as Linking from "expo-linking";
 import { Platform } from "react-native";
 import { getAppVariant } from "@/composition/app-variant";
 import type { WorkoutLiveActivityProps } from "./workout-live-activity";
@@ -11,6 +12,11 @@ import {
 
 export const ACTIVE_WORKOUT_NOTIFICATION_ID = "active-workout-session";
 export const ACTIVE_WORKOUT_CHANNEL_ID = "active-workout-session";
+
+const usesDevAndroidLiveUpdate = (): boolean =>
+  Platform.OS === "android" &&
+  Number(Platform.Version) >= 36 &&
+  getAppVariant() === "dev";
 
 export interface ActiveWorkoutNotificationParams {
   workoutId: string;
@@ -186,7 +192,7 @@ export const updateActiveWorkoutNotification = async (
       params.restTimer != null && Date.now() < params.restTimer.endsAt;
 
     if (Platform.OS === "ios" && getAppVariant() === "dev") {
-      await dismissLegacyIosActiveWorkoutNotification();
+      await dismissLegacyActiveWorkoutNotification();
       const liveActivityProps: WorkoutLiveActivityProps = {
         workoutId: params.workoutId,
         workoutName: params.workoutName || "Live Workout",
@@ -217,6 +223,32 @@ export const updateActiveWorkoutNotification = async (
     }
     if (status !== "granted") {
       return null;
+    }
+
+    if (usesDevAndroidLiveUpdate()) {
+      try {
+        const { updateWorkoutLiveUpdate } =
+          await import("../../../modules/workout-live-update");
+        const result = await updateWorkoutLiveUpdate({
+          workoutId: params.workoutId,
+          workoutName: params.workoutName || "Live Workout",
+          currentExerciseName: params.currentExerciseName,
+          nextSetSummary: params.nextSetSummary,
+          completedSetsCount: params.completedSetsCount,
+          totalPlannedSetsCount: params.totalPlannedSetsCount,
+          allPlannedSetsCompleted: params.allPlannedSetsCompleted,
+          restEndsAt: isResting ? params.restTimer!.endsAt : undefined,
+          deepLinkUrl: Linking.createURL("/log-workout", {
+            queryParams: { workoutId: params.workoutId },
+          }),
+        });
+        if (result === "posted" || result === "suppressed") {
+          await dismissLegacyActiveWorkoutNotification();
+          return result === "posted" ? ACTIVE_WORKOUT_NOTIFICATION_ID : null;
+        }
+      } catch {
+        // The ordinary notification remains available if the native module fails.
+      }
     }
 
     if (Platform.OS === "android") {
@@ -284,7 +316,7 @@ export const updateActiveWorkoutNotification = async (
   }
 };
 
-const dismissLegacyIosActiveWorkoutNotification = async (): Promise<void> => {
+const dismissLegacyActiveWorkoutNotification = async (): Promise<void> => {
   try {
     await Notifications.dismissNotificationAsync(
       ACTIVE_WORKOUT_NOTIFICATION_ID,
@@ -302,39 +334,43 @@ const dismissLegacyIosActiveWorkoutNotification = async (): Promise<void> => {
 };
 
 export const dismissActiveWorkoutNotification = async (): Promise<void> => {
-  if (Platform.OS === "ios" && getAppVariant() === "dev") {
-    await dismissOrphanedDevWorkoutLiveActivity();
+  if (
+    getAppVariant() === "dev" &&
+    (Platform.OS === "ios" || Platform.OS === "android")
+  ) {
+    await dismissOrphanedDevWorkoutStatus();
     return;
   }
 
-  try {
-    await Notifications.dismissNotificationAsync(
-      ACTIVE_WORKOUT_NOTIFICATION_ID,
-    );
-  } catch {
-    // Silently ignore dismissal errors
-  }
-  try {
-    await Notifications.cancelScheduledNotificationAsync(
-      ACTIVE_WORKOUT_NOTIFICATION_ID,
-    );
-  } catch {
-    // Silently ignore cancellation errors
-  }
+  await dismissLegacyActiveWorkoutNotification();
 };
 
-export const dismissOrphanedDevWorkoutLiveActivity =
-  async (): Promise<void> => {
-    if (Platform.OS !== "ios" || getAppVariant() !== "dev") {
-      return;
-    }
+export const dismissOrphanedDevWorkoutStatus = async (): Promise<void> => {
+  if (getAppVariant() !== "dev") return;
 
+  if (Platform.OS === "ios") {
     try {
       const { endWorkoutLiveActivity } =
         await import("./workout-live-activity");
       await endWorkoutLiveActivity();
     } catch {
-      // Silently ignore Live Activity cleanup errors.
+      // Best-effort cleanup if the activity is unavailable.
     }
-    await dismissLegacyIosActiveWorkoutNotification();
-  };
+  } else if (Platform.OS === "android") {
+    try {
+      const { dismissWorkoutLiveUpdate } =
+        await import("../../../modules/workout-live-update");
+      await dismissWorkoutLiveUpdate();
+    } catch {
+      // Best-effort cleanup for builds without the native module.
+    }
+  } else {
+    return;
+  }
+
+  await dismissLegacyActiveWorkoutNotification();
+};
+
+// Retain the prior export for callers built against the iOS-only helper.
+export const dismissOrphanedDevWorkoutLiveActivity =
+  dismissOrphanedDevWorkoutStatus;

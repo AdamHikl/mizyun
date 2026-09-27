@@ -1,5 +1,7 @@
 # Architecture Decision Records (ADR) Index
 
+- [ADR-0027 — Dev Android workout Live Update](0027-dev-android-workout-live-update.md): accepted 2026-09-27; native Android 16 ongoing notification, countdown and fallback.
+
 - [ADR-0025 — Root Stack over Native Tabs for cross-tab modal navigation](0025-root-stack-over-native-tabs.md): accepted 2026-09-11; restores previous tab when dismissing modals, superseding ADR-0006.
 - [ADR-0024 — Self-service AI consent access](0024-self-service-ai-consent-access.md): accepted 2026-09-10; removes manual email admission while retaining authentication, consent and usage protections.
 
