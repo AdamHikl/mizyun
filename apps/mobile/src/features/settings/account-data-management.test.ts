@@ -388,7 +388,7 @@ describe("account-data-management", () => {
     expect(eveningCancelled).toEqual(["evening-notif-1"]);
   });
 
-  it("clearLocalUserData purges offline cache and workout preferences", async () => {
+  it("clearLocalUserData purges offline cache, workout preferences, and step opt-in", async () => {
     const userId = "00000000-0000-4000-8000-000000000001";
     const cacheMap = new Map<string, string>([
       [`mizyun.offline-cache.profile.${userId}`, '{"profile":{}}'],
@@ -406,6 +406,7 @@ describe("account-data-management", () => {
 
     const workoutPrefMap = new Map<string, string>([
       [`mizyun.workout-preferences.${userId}`, '{"defaultRestSeconds":90}'],
+      [`mizyun.health-steps.enabled.${userId}`, "1"],
     ]);
     const workoutPreferencesStore = {
       getItemAsync: async (k: string) => workoutPrefMap.get(k) ?? null,

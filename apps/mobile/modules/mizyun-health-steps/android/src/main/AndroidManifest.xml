@@ -1,0 +1,31 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:tools="http://schemas.android.com/tools">
+  <!-- The module never invokes Health Connect below API 28. Preserve Mizyun's API 24 fallback. -->
+  <uses-sdk tools:overrideLibrary="androidx.health.connect.client" />
+  <uses-permission android:name="android.permission.health.READ_STEPS" />
+
+  <queries>
+    <package android:name="com.google.android.apps.healthdata" />
+  </queries>
+
+  <application>
+    <activity
+      android:name=".HealthStepsPermissionsRationaleActivity"
+      android:exported="true">
+      <intent-filter>
+        <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+      </intent-filter>
+    </activity>
+
+    <activity-alias
+      android:name=".HealthStepsPermissionUsageActivity"
+      android:exported="true"
+      android:targetActivity=".HealthStepsPermissionsRationaleActivity"
+      android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+        <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+      </intent-filter>
+    </activity-alias>
+  </application>
+</manifest>

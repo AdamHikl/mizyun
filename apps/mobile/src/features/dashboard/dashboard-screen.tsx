@@ -22,6 +22,10 @@ import { apiClient } from "@/composition/api-client";
 import { analyticsClient } from "@/composition/analytics-client";
 import { isProgressPhotosEnabled } from "@/composition/app-variant";
 import { useAuth } from "@/features/auth/auth-context";
+import {
+  readTodaySteps,
+  type DailyStepsResult,
+} from "@/features/health-steps/health-steps";
 import { useTheme } from "@/hooks/use-theme";
 import { formatTime12 } from "@/components/ui/ios-time-picker";
 import {
@@ -246,6 +250,8 @@ const actions = [
 export function DashboardScreen() {
   const { profile, session, openOnboarding } = useAuth();
   const [metrics, setMetrics] = useState<MetricsState>(EMPTY_METRICS);
+  const [steps, setSteps] = useState<DailyStepsResult>({ kind: "off" });
+  const stepsRequestId = useRef(0);
   const [recentMeal, setRecentMeal] = useState<FoodEntry | null>(null);
   const [firstMealReminders, setFirstMealReminders] =
     useState<FirstMealReminderSettings | null>(null);
@@ -530,11 +536,22 @@ export function DashboardScreen() {
     });
   }, [accessToken, reviewPeriod, userId]);
 
+  const loadSteps = useCallback(async (): Promise<void> => {
+    const requestId = ++stepsRequestId.current;
+    setSteps({ kind: "loading" });
+    if (userId === null) {
+      setSteps({ kind: "off" });
+      return;
+    }
+    const result = await readTodaySteps(userId);
+    if (requestId === stepsRequestId.current) setSteps(result);
+  }, [userId]);
+
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadMetrics();
+    await Promise.all([loadMetrics(), loadSteps()]);
     setRefreshing(false);
-  }, [loadMetrics]);
+  }, [loadMetrics, loadSteps]);
 
   useFocusEffect(
     useCallback(() => {
@@ -543,7 +560,11 @@ export function DashboardScreen() {
         properties: { feature: "dashboard" },
       });
       void loadMetrics();
-    }, [loadMetrics]),
+      void loadSteps();
+      return () => {
+        stepsRequestId.current += 1;
+      };
+    }, [loadMetrics, loadSteps]),
   );
 
   const workoutContext = useOptionalActiveWorkout();
@@ -703,6 +724,30 @@ export function DashboardScreen() {
               onPress={() => void router.push("/workouts" as Href)}
             />
           </View>
+
+          <MetricCard
+            label="Steps today"
+            accessibilityLabel={
+              steps.kind === "ready"
+                ? `Steps today: ${steps.count.toLocaleString()}. Open Settings.`
+                : "Steps today unavailable. Open Settings."
+            }
+            value={steps.kind === "ready" ? steps.count.toLocaleString() : "—"}
+            detail={
+              steps.kind === "ready"
+                ? `Read on this device from ${Platform.OS === "ios" ? "Apple Health" : "Health Connect"}`
+                : steps.kind === "loading"
+                  ? "Reading steps…"
+                  : steps.kind === "off"
+                    ? "Enable in Settings →"
+                    : steps.kind === "install_required"
+                      ? "Install Health Connect in Settings →"
+                      : steps.kind === "no_data"
+                        ? "No readable step data today; check permissions →"
+                        : "Steps unavailable; check Settings →"
+            }
+            onPress={() => void router.push("/settings" as Href)}
+          />
 
           {/* 3. Quick Log Action Dock */}
           <View style={styles.section}>
@@ -1335,6 +1380,7 @@ function AuditValue(props: { readonly label: string; readonly value: string }) {
 
 function MetricCard(props: {
   readonly label: string;
+  readonly accessibilityLabel?: string;
   readonly value: string;
   readonly detail: string;
   readonly onPress?: () => void;
@@ -1357,7 +1403,7 @@ function MetricCard(props: {
     return (
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={props.label}
+        accessibilityLabel={props.accessibilityLabel ?? props.label}
         onPress={props.onPress}
         style={{ flex: 1 }}
       >

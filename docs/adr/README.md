@@ -1,5 +1,7 @@
 # Architecture Decision Records (ADR) Index
 
+- [ADR-0028 — Optional device-only step reading](0028-optional-device-only-steps.md): accepted 2026-09-28; opt-in HealthKit/Health Connect steps on device.
+
 - [ADR-0027 — Dev Android workout Live Update](0027-dev-android-workout-live-update.md): accepted 2026-09-27; native Android 16 ongoing notification, countdown and fallback.
 
 - [ADR-0025 — Root Stack over Native Tabs for cross-tab modal navigation](0025-root-stack-over-native-tabs.md): accepted 2026-09-11; restores previous tab when dismissing modals, superseding ADR-0006.

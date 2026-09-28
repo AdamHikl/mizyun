@@ -1088,6 +1088,60 @@
       "openAcceptance": []
     },
     {
+      "id": "health-steps",
+      "title": "Optional Health Platform Steps",
+      "summary": "Opt-in, device-only daily step totals from iOS HealthKit and Android Health Connect.",
+      "aliases": ["steps", "healthkit", "health connect", "activity"],
+      "entryPoints": [
+        "apps/mobile/modules/mizyun-health-steps/index.ts",
+        "apps/mobile/src/features/health-steps/health-steps.ts"
+      ],
+      "ownedPaths": [
+        "apps/mobile/modules/mizyun-health-steps",
+        "apps/mobile/src/features/health-steps"
+      ],
+      "contracts": [],
+      "domainPort": [],
+      "api": [],
+      "ui": [
+        "apps/mobile/src/features/health-steps/health-steps-settings-card.tsx",
+        "apps/mobile/src/features/dashboard/dashboard-screen.tsx",
+        "apps/mobile/src/features/settings/settings-screen.tsx"
+      ],
+      "adapters": ["apps/mobile/modules/mizyun-health-steps"],
+      "dataTables": [],
+      "migrationPaths": [],
+      "tests": ["apps/mobile/src/features/health-steps/health-steps.test.ts"],
+      "relations": [
+        {
+          "type": "relatedTo",
+          "target": "profile-goals-energy",
+          "reason": "Steps appear on the dashboard but do not change energy estimates"
+        },
+        {
+          "type": "dependsOn",
+          "target": "auth",
+          "reason": "Local opt-in is scoped to the signed-in user"
+        }
+      ],
+      "docs": [
+        "docs/adr/0028-optional-device-only-steps.md",
+        "docs/PRODUCT_REQUIREMENTS.md#activity-and-health-platforms"
+      ],
+      "verificationCommands": [
+        "pnpm --filter @mizyun/mobile test src/features/health-steps/health-steps.test.ts"
+      ],
+      "lastReviewedSha": "f8b0257585c5af4b95c4c71fa46fb7c42235dd21",
+      "lastReviewedDate": "2026-09-28",
+      "limitations": "No backend sync or calorie adjustment; physical permission and step-count acceptance pending",
+      "requirements": ["ACT-01"],
+      "openAcceptance": [
+        "Physical iPhone and Android granted/denied/revoked checks",
+        "Public privacy policy and Google Play Health declarations before release",
+        "ACT-02–04 source provenance and idempotent persisted sync remain future scope"
+      ]
+    },
+    {
       "id": "system-health",
       "title": "System Health & Diagnostics",
       "summary": "Public health check endpoints (/v1/health) used by uptime monitors, deployment scripts, and rollback triggers.",

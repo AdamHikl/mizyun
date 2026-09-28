@@ -43,6 +43,7 @@ import { RegionalFoodStandardsCard } from "./regional-food-standards-card";
 import { getCountryStandardDisplay } from "./regional-food-standards-data";
 import { AiUsageCard } from "./ai-usage-card";
 import { WorkoutSettingsCard } from "./workout-settings-card";
+import { HealthStepsSettingsCard } from "../health-steps/health-steps-settings-card";
 import {
   applyCoachReminders,
   loadCoachReminders,
@@ -85,6 +86,7 @@ export function SettingsScreen() {
     reminders: false,
     memory: false,
     analytics: false,
+    healthSteps: false,
     accountData: false,
     legal: false,
   });
@@ -150,6 +152,7 @@ export function SettingsScreen() {
         ...prev,
         memory: true,
         analytics: true,
+        healthSteps: true,
         accountData: true,
       }));
     } else if (cat === "session") {
@@ -679,6 +682,19 @@ export function SettingsScreen() {
                 PRIVACY, DATA & MEMORY
               </ThemedText>
             </View>
+
+            {session !== null ? (
+              <CollapsibleSection
+                id="healthSteps"
+                icon="👟"
+                title="Steps from Health"
+                subtitle="Optional, read-only device connection"
+                isOpen={!!openSections.healthSteps}
+                onToggle={() => toggleSection("healthSteps")}
+              >
+                <HealthStepsSettingsCard userId={session.user.id} />
+              </CollapsibleSection>
+            ) : null}
 
             <CollapsibleSection
               id="memory"

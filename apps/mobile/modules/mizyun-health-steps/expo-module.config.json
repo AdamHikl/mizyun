@@ -1,0 +1,9 @@
+{
+  "platforms": ["ios", "android"],
+  "ios": {
+    "modules": ["MizyunHealthStepsModule"]
+  },
+  "android": {
+    "modules": ["com.mizyun.healthsteps.HealthStepsModule"]
+  }
+}

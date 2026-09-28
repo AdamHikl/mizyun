@@ -11,7 +11,7 @@ This policy covers the Mizyun mobile app, its supporting services, and the Mizyu
 ## 2. Information Used by Mizyun
 
 - Account email, authentication identifiers, and session details.
-- Profile and fitness information, including height, birth year, weight, activity, goals, meals, workouts, routines, sets, and body measurements.
+- Profile and fitness information, including height, birth year, weight, activity, goals, meals, workouts, routines, sets, and body measurements. If the user enables Steps in Account & Settings, the app reads the current day's step total from Apple Health or Android Health Connect and displays it on the device. Mizyun does not upload or store those imported step totals on its server.
 - Optional media, AI Coach conversations, and memories the user chooses to save.
 - Support messages, consent records, and limited technical or security logs.
 
@@ -33,7 +33,7 @@ Mizyun uses encrypted transport, authenticated user-scoped access, and private m
 
 ## 7. Choices, Export, and Deletion
 
-In Account & Settings, users can review or withdraw AI consent, download a JSON export of available records with media metadata and temporary download links, and start account deletion. A successful deletion removes account data from active systems through a staged process. Backup copies age out under the 90-day retention policy and are not used for ordinary service operation. Files previously exported to a user's device cannot be remotely erased.
+In Account & Settings, users can stop Mizyun from reading steps, review or withdraw AI consent, download a JSON export of available records with media metadata and temporary download links, and start account deletion. Users can separately revoke step access in Apple Health or Android Health Connect. A successful deletion removes account data from active systems through a staged process. Backup copies age out under the 90-day retention policy and are not used for ordinary service operation. Files previously exported to a user's device cannot be remotely erased.
 
 Depending on location, a user may ask to access, correct, erase, restrict, or transfer personal data; object to certain processing; or withdraw consent. A user may also complain to a local data protection authority.
 

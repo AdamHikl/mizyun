@@ -305,6 +305,10 @@ module.exports = {
       bundleIdentifier: variant.iosBundleIdentifier,
       usesAppleSignIn: enableIosAppleAuth,
       buildNumber: effectiveIosBuildNumber,
+      entitlements: {
+        ...baseIos.entitlements,
+        "com.apple.developer.healthkit": true,
+      },
     },
     android: {
       ...baseAndroid,

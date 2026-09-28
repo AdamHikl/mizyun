@@ -33,6 +33,7 @@ import {
 } from "../log-meal/food-day-completion";
 import { purgeOfflineCache } from "../offline-cache/offline-cache-storage";
 import { keyFor as workoutPreferencesKeyFor } from "../workouts/workout-preferences";
+import { healthStepsPreferenceKey } from "../health-steps/health-steps-key";
 
 export interface SecureKeyValueStore {
   getItemAsync(key: string): Promise<string | null>;
@@ -277,6 +278,9 @@ export const clearLocalUserData = async (
     purgeOfflineCache(userId, options.offlineCacheStore),
     Promise.resolve(
       workoutStore.deleteItemAsync(workoutPreferencesKeyFor(userId)),
+    ).catch(() => {}),
+    Promise.resolve(
+      workoutStore.deleteItemAsync(healthStepsPreferenceKey(userId)),
     ).catch(() => {}),
     ...matchedFiles.map(async (file) => {
       await file.delete();
