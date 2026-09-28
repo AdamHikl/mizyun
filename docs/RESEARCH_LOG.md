@@ -1,5 +1,11 @@
 # Research log
 
+## 2026-09-28 — Early notification permission during mobile setup
+
+- **Primary sources accessed 2026-09-28:** [Expo SDK 57 Notifications](https://docs.expo.dev/versions/v57.0.0/sdk/notifications/), [Apple notification authorization](https://developer.apple.com/documentation/usernotifications/asking-permission-to-use-notifications), and [Android notification runtime permission](https://developer.android.com/develop/ui/compose/notifications/notification-permission).
+- Expo SDK 57 requires an Android notification channel before obtaining a push token; Android 13+ requires runtime notification permission for new installs. iOS records the first permission response and normally does not display the system prompt again after denial. Consequence: show a contextual, optional setup action before the Beta Pro request, create the Android general-updates channel before asking, and offer device Settings when the OS cannot ask again.
+- Apple recommends requesting in context. Consequence: explain Beta Pro decisions and optional reminders on the first setup screen, then request only after the user taps Enable notifications. Background token registration checks existing permission without unexpectedly prompting after setup. A grant is not proof of remote delivery; current server token storage remains tied to an existing Beta Pro request.
+
 ## 2026-09-28 — Optional read-only steps from Apple Health and Android Health Connect
 
 - **Primary sources accessed 2026-09-28:** [Apple HealthKit setup](https://developer.apple.com/documentation/HealthKit/setting-up-healthkit), [Apple authorization](https://developer.apple.com/documentation/HealthKit/authorizing-access-to-health-data), [Apple statistics queries](https://developer.apple.com/documentation/healthkit/hkstatisticsquery), [Android Health Connect setup](https://developer.android.com/health-and-fitness/health-connect/get-started), [Android read guidance](https://developer.android.com/health-and-fitness/health-connect/read-data), [Health Connect Jetpack releases](https://developer.android.com/jetpack/androidx/releases/health-connect), [Expo SDK 57](https://docs.expo.dev/versions/v57.0.0/), and [Expo local module setup](https://docs.expo.dev/modules/get-started/).

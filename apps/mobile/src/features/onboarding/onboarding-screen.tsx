@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import * as Notifications from "expo-notifications";
 import { bucketDuration, bucketTaps } from "@mizyun/observability";
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -24,6 +26,8 @@ import { useOptionalAuth } from "@/features/auth/auth-context";
 import {
   fetchBetaProStatus,
   requestBetaProPass,
+  requestSetupNotificationPermission,
+  registerDevicePushToken,
 } from "@/features/beta-pro/beta-pro-client";
 import { weightUnitLabel } from "@/lib/weight-units";
 import { lengthUnitLabel } from "@/lib/length-units";
@@ -139,6 +143,8 @@ export function OnboardingScreen({
             </ThemedText>
           </View>
 
+          {step === "welcome" ? <NotificationPermissionPrompt /> : null}
+
           <StepBody
             step={step}
             form={form}
@@ -196,6 +202,98 @@ export function OnboardingScreen({
           </View>
         </ScrollView>
       </SafeAreaView>
+    </ThemedView>
+  );
+}
+
+function NotificationPermissionPrompt() {
+  const [permission, setPermission] = useState<
+    "loading" | "available" | "granted" | "settings" | "busy"
+  >("loading");
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void Notifications.getPermissionsAsync()
+      .then((result) => {
+        if (active) {
+          setPermission(
+            result.granted
+              ? "granted"
+              : result.canAskAgain
+                ? "available"
+                : "settings",
+          );
+        }
+      })
+      .catch(() => {
+        if (active) setPermission("available");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const enable = useCallback(async () => {
+    setPermission("busy");
+    setMessage(null);
+    try {
+      const result = await requestSetupNotificationPermission();
+      if (result === "granted") {
+        setPermission("granted");
+        void registerDevicePushToken(apiClient);
+      } else {
+        const current = await Notifications.getPermissionsAsync();
+        setPermission(current.canAskAgain ? "available" : "settings");
+        setMessage("Notifications are off. You can still finish setup.");
+      }
+    } catch {
+      setPermission("available");
+      setMessage("Could not check notification access. Try again later.");
+    }
+  }, []);
+
+  return (
+    <ThemedView type="backgroundElement" style={styles.analyticsPrompt}>
+      <ThemedText type="smallBold">Get useful updates</ThemedText>
+      <ThemedText type="small" themeColor="textSecondary">
+        Allow notifications for your Beta Pro Pass decision, workout alerts, and
+        reminders you choose later. You can change this in device settings.
+      </ThemedText>
+      {permission === "granted" ? (
+        <ThemedText type="smallBold">✓ Notifications enabled</ThemedText>
+      ) : (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={
+            permission === "settings"
+              ? "Open notification settings"
+              : "Enable notifications"
+          }
+          disabled={permission === "loading" || permission === "busy"}
+          onPress={() => {
+            if (permission === "settings") {
+              void Linking.openSettings();
+            } else {
+              void enable();
+            }
+          }}
+          style={styles.analyticsChoice}
+        >
+          <ThemedText type="smallBold">
+            {permission === "settings"
+              ? "Open Settings"
+              : permission === "busy"
+                ? "Checking…"
+                : "Enable notifications"}
+          </ThemedText>
+        </Pressable>
+      )}
+      {message ? (
+        <ThemedText type="small" themeColor="textSecondary">
+          {message}
+        </ThemedText>
+      ) : null}
     </ThemedView>
   );
 }

@@ -41,7 +41,7 @@
       [
         "expo-notifications",
         {
-          "defaultChannel": "coach-reminders"
+          "defaultChannel": "general-updates"
         }
       ],
       [

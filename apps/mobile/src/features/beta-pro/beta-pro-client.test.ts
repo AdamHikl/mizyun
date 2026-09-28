@@ -4,6 +4,7 @@ import {
   fetchBetaProStatus,
   registerDevicePushToken,
   requestBetaProPass,
+  requestSetupNotificationPermission,
 } from "./beta-pro-client";
 
 const mockGetPermissionsAsync = vi.fn().mockResolvedValue({ granted: true });
@@ -16,15 +17,39 @@ const mockGetDevicePushTokenAsync = vi
 const mockGetExpoPushTokenAsync = vi
   .fn()
   .mockResolvedValue({ data: "ExponentPushToken[mock]" });
+const mockSetNotificationChannelAsync = vi.fn().mockResolvedValue(null);
 
 vi.mock("expo-notifications", () => ({
   getPermissionsAsync: () => mockGetPermissionsAsync(),
   requestPermissionsAsync: () => mockRequestPermissionsAsync(),
   getDevicePushTokenAsync: () => mockGetDevicePushTokenAsync(),
   getExpoPushTokenAsync: () => mockGetExpoPushTokenAsync(),
+  setNotificationChannelAsync: (...args: unknown[]) =>
+    mockSetNotificationChannelAsync(...args),
+  AndroidImportance: { DEFAULT: 3 },
 }));
 
+vi.mock("react-native", () => ({ Platform: { OS: "android" } }));
+
 describe("beta-pro-client", () => {
+  describe("setup notification permission", () => {
+    it("creates the Android channel before requesting permission", async () => {
+      mockGetPermissionsAsync.mockResolvedValueOnce({
+        granted: false,
+        canAskAgain: true,
+      });
+      mockRequestPermissionsAsync.mockResolvedValueOnce({ granted: true });
+      expect(await requestSetupNotificationPermission()).toBe("granted");
+      expect(mockSetNotificationChannelAsync).toHaveBeenCalledWith(
+        "general-updates",
+        expect.objectContaining({ name: "Mizyun updates" }),
+      );
+      expect(mockRequestPermissionsAsync).toHaveBeenCalledTimes(1);
+      expect(
+        mockSetNotificationChannelAsync.mock.invocationCallOrder[0],
+      ).toBeLessThan(mockRequestPermissionsAsync.mock.invocationCallOrder[0]!);
+    });
+  });
   describe("fetchBetaProStatus", () => {
     it("queries /v1/beta-pro/status and returns response", async () => {
       const mockResponse = {
@@ -149,6 +174,7 @@ describe("beta-pro-client", () => {
     });
 
     it("returns null when permissions are not granted", async () => {
+      mockRequestPermissionsAsync.mockClear();
       mockGetPermissionsAsync.mockResolvedValueOnce({
         granted: false,
         canAskAgain: false,
@@ -160,6 +186,7 @@ describe("beta-pro-client", () => {
       const token = await registerDevicePushToken(client);
       expect(token).toBeNull();
       expect(request).not.toHaveBeenCalled();
+      expect(mockRequestPermissionsAsync).not.toHaveBeenCalled();
     });
   });
 });
