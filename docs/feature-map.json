@@ -464,7 +464,8 @@
       ],
       "ownedPaths": [
         "apps/api/src/modules/account",
-        "apps/mobile/src/features/settings"
+        "apps/mobile/src/features/settings",
+        "apps/mobile/src/features/theme"
       ],
       "contracts": ["packages/contracts/src/account.ts"],
       "domainPort": ["packages/core/src/account.ts"],
@@ -483,6 +484,8 @@
       "tests": [
         "apps/api/src/modules/account/routes.test.ts",
         "apps/mobile/src/features/settings/account-data-management.test.ts",
+        "apps/mobile/src/features/settings/appearance-settings-card.test.ts",
+        "apps/mobile/src/features/theme/theme-preference.test.ts",
         "supabase/tests/database/0004_account_deletion.test.sql"
       ],
       "relations": [

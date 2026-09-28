@@ -8,9 +8,10 @@ import {
 } from "expo-router";
 import * as Notifications from "expo-notifications";
 import * as SplashScreen from "expo-splash-screen";
+import { StatusBar } from "expo-status-bar";
 import { parseDeepLinkFragment } from "@mizyun/identity";
 import { useEffect } from "react";
-import { AppState, Linking, useColorScheme } from "react-native";
+import { AppState, Linking } from "react-native";
 
 import { AnimatedSplashOverlay } from "@/components/animated-icon";
 import ActiveWorkoutMiniBar from "@/components/active-workout-mini-bar";
@@ -22,7 +23,9 @@ import {
   useAuth,
 } from "@/features/auth/auth-context";
 import { registerDevicePushToken } from "@/features/beta-pro/beta-pro-client";
+import { ThemePreferenceProvider } from "@/features/theme/theme-context";
 import { ActiveWorkoutProvider } from "@/features/workouts";
+import { useColorScheme } from "@/hooks/use-color-scheme";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -247,9 +250,18 @@ function PushRegistrationBridge() {
 }
 
 export default function TabLayout() {
+  return (
+    <ThemePreferenceProvider>
+      <TabLayoutContent />
+    </ThemePreferenceProvider>
+  );
+}
+
+function TabLayoutContent() {
   const colorScheme = useColorScheme();
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+      <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
       <AnimatedSplashOverlay />
       <AnalyticsSessionBridge />
       <AuthProvider>

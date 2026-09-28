@@ -42,8 +42,10 @@ import { ProfileSettingsCard } from "./profile-settings-card";
 import { RegionalFoodStandardsCard } from "./regional-food-standards-card";
 import { getCountryStandardDisplay } from "./regional-food-standards-data";
 import { AiUsageCard } from "./ai-usage-card";
+import { AppearanceSettingsCard } from "./appearance-settings-card";
 import { WorkoutSettingsCard } from "./workout-settings-card";
 import { HealthStepsSettingsCard } from "../health-steps/health-steps-settings-card";
+import { useThemePreference } from "@/features/theme/theme-context";
 import {
   applyCoachReminders,
   loadCoachReminders,
@@ -70,12 +72,14 @@ type SettingsCategory =
 export function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { signOut, profile, refreshProfile, session } = useAuth();
+  const { preference: themePreference } = useThemePreference();
   const [state, setState] = useState<PrincipalRenderState>({
     kind: "loading",
   });
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>("all");
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     identity: false,
+    appearance: false,
     security: false,
     profile: true,
     goal: true,
@@ -159,6 +163,7 @@ export function SettingsScreen() {
       setOpenSections((prev) => ({
         ...prev,
         identity: true,
+        appearance: true,
         accountData: true,
       }));
     }
@@ -206,6 +211,12 @@ export function SettingsScreen() {
   const foodStandardsDisplay = getCountryStandardDisplay(
     profile?.coachingPreferences?.countryCode,
   );
+  const appearanceDisplay =
+    themePreference === "auto"
+      ? "Auto (System) · Follows device"
+      : themePreference === "light"
+        ? "Light · Always light"
+        : "Dark · Always dark";
   const aiProviderDisplay = "Gemini 3.8";
 
   const showProfileGroup =
@@ -749,6 +760,17 @@ export function SettingsScreen() {
               onToggle={() => toggleSection("identity")}
             >
               <PrincipalCard state={state} onRetry={refresh} />
+            </CollapsibleSection>
+
+            <CollapsibleSection
+              id="appearance"
+              icon="🎨"
+              title="Appearance & Theme"
+              subtitle={appearanceDisplay}
+              isOpen={!!openSections.appearance}
+              onToggle={() => toggleSection("appearance")}
+            >
+              <AppearanceSettingsCard />
             </CollapsibleSection>
 
             <CollapsibleSection
