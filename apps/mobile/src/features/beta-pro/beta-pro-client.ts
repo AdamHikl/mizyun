@@ -8,30 +8,6 @@ import {
   type BetaProStatusResponse,
 } from "@mizyun/contracts";
 import type { Result } from "@mizyun/core";
-import { Platform } from "react-native";
-
-async function ensurePushChannel(
-  Notifications: typeof import("expo-notifications"),
-): Promise<void> {
-  if (Platform.OS === "android") {
-    await Notifications.setNotificationChannelAsync("general-updates", {
-      name: "Mizyun updates",
-      importance: Notifications.AndroidImportance.DEFAULT,
-    });
-  }
-}
-
-export async function requestSetupNotificationPermission(): Promise<
-  "granted" | "denied"
-> {
-  const Notifications = await import("expo-notifications");
-  await ensurePushChannel(Notifications);
-  let permission = await Notifications.getPermissionsAsync();
-  if (!permission.granted && permission.canAskAgain) {
-    permission = await Notifications.requestPermissionsAsync();
-  }
-  return permission.granted ? "granted" : "denied";
-}
 
 export async function fetchBetaProStatus(
   client: ApiClient,
@@ -59,7 +35,6 @@ export async function requestBetaProPass(
   } else {
     try {
       const Notifications = await import("expo-notifications");
-      await ensurePushChannel(Notifications);
       let perm = await Notifications.getPermissionsAsync();
       if (!perm.granted && perm.canAskAgain) {
         perm = await Notifications.requestPermissionsAsync();
@@ -97,11 +72,13 @@ export async function registerDevicePushToken(
 ): Promise<string | null> {
   try {
     const Notifications = await import("expo-notifications");
-    const perm = await Notifications.getPermissionsAsync();
+    let perm = await Notifications.getPermissionsAsync();
+    if (!perm.granted && perm.canAskAgain) {
+      perm = await Notifications.requestPermissionsAsync();
+    }
     if (!perm.granted) {
       return null;
     }
-    await ensurePushChannel(Notifications);
 
     let pushToken: string | undefined;
     try {
