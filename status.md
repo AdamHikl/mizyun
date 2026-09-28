@@ -1,10 +1,16 @@
 # Mizyun current status
 
-> Fast-changing operational snapshot. Last updated: **2026-09-27**. Historical handoffs are preserved in the [latest dated archive](docs/archive/status/STATUS_HISTORY_2026-09-13_THROUGH_2026-09-22.md) and older files beside it; they are evidence, not current instructions.
+> Fast-changing operational snapshot. Last updated: **2026-09-28**. Historical handoffs are preserved in the [latest dated archive](docs/archive/status/STATUS_HISTORY_2026-09-13_THROUGH_2026-09-22.md) and older files beside it; they are evidence, not current instructions.
 
 ## Active priority — InVenture, October 2–3
 
 Founder decision 2026-09-23: prioritize a presentable, distinctive demo and program partnerships toward a longer-term ambition of over 100,000 users. [INVENTURE-001 / #125](https://github.com/AdamHikl/mizyun/issues/125) is ready for execution; the [program plan](docs/INVENTURE_PROGRAM_PLAN_2026-09-23.md) defines the nine-day schedule, pitch, acceptance checks and growth experiments. Planning documents are updated; demo assets, interviews, pilot commitments and event-build acceptance remain outstanding. Defer SIMPLIFY-03 and unrelated feature expansion. All release gates below remain in force.
+
+## Optional read-only steps — issues #39 and #40 (2026-09-28)
+
+Source `cfe1bb0507416e517c148fec5c5d9280bf9e58a6` adds opt-in, device-only daily step display from iOS HealthKit and Android Health Connect. Settings requests only step-read access, allows stopping reads, and stores the choice per account on device; account deletion clears the choice. Imported totals are neither uploaded nor used in calorie calculations. ADR-0028 and the dated research log record the design. An independent review found no confirmed blocker; the Android API 24 launch and iOS midnight-boundary behavior remain device checks.
+
+Fresh `pnpm check` passed on this source: navigation, formatting, typechecks, both Metro bundles, 594 mobile tests, 570 API tests, release safeguards, and offline AI evaluation; 15 credential-gated API E2E tests remained skipped under `docs/BEFORE_TESTING.md`. Clean Dev native prebuilds passed on both platforms. The iOS `MizyunHealthSteps` simulator target built with signing disabled, and Android `:mizyun-health-steps:compileDebugKotlin` plus `:app:processDebugMainManifest` passed; the merged manifest contains `READ_STEPS` and the permission-rationale activity. No step permission, imported total, revocation, or API 24 fallback has been accepted on a physical device, and no Dev deployment or Production release occurred. Next exact action: install a fresh Dev build on an iPhone and an Android device with Health Connect, then verify opt-in, a real daily total, denied/revoked access, stop-reading behavior, local-day rollover, and account switching; check Android API 24 launch separately. Publish the updated public privacy policy and complete Play Health declarations before store distribution. Keep #39 and #40 open until their broader acceptance criteria are met.
 
 ## Website conversion — issue #127 (2026-09-27)
 
