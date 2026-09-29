@@ -6,6 +6,12 @@
 
 Founder decision 2026-09-23: prioritize a presentable, distinctive demo and program partnerships toward a longer-term ambition of over 100,000 users. [INVENTURE-001 / #125](https://github.com/AdamHikl/mizyun/issues/125) is ready for execution; the [program plan](docs/INVENTURE_PROGRAM_PLAN_2026-09-23.md) defines the nine-day schedule, pitch, acceptance checks and growth experiments. Planning documents are updated; demo assets, interviews, pilot commitments and event-build acceptance remain outstanding. Defer SIMPLIFY-03 and unrelated feature expansion. All release gates below remain in force.
 
+## Dev backend deployment and iOS Dev device installation (2026-09-29)
+
+- **Backend Deployment**: Successfully deployed commit `17766196b6e769d99913e83bdde7cbf04096db8c` to Hetzner Dev (`mizyun-api-dev.service` / port 4100). Applied forward migrations `20260929180000_workout_set_types.sql` and `20260929190000_advanced_food_nutrients.sql`. Public health endpoint `https://mizyun-api-dev.phiskel.com/v1/health` responded HTTP 200 `{"status":"ok","service":"mizyun-api","timestamp":"2026-09-29T18:18:49.241Z"}`.
+- **Mobile Device Installation (iOS Dev)**: Standalone signed Release binary compiled via `xcodebuild` (scheme `MizyunDev`, team `LQJNDVBL43`, bundle `com.mizyun.development`), installed onto connected iPhone (`Adam's Iphone 😋`, UDID `00008140-001114501A86801C`) via `xcrun devicectl device install app`, and launched without Metro bundler.
+- **Verification & Next Steps**: Dev backend and iPhone Dev app are synchronized on `17766196`. Ready for physical device verification of active workout exercise reordering (#138), set types & logging action (#139), advanced Pro nutrition (#134), account navigation & settings search (#133), and adult consent recovery (#135).
+
 ## Active workout exercise reordering — issue #138 (2026-09-29)
 
 Implemented and automatically verified [WORKOUT-REORDER-001](docs/ACTIVE_WORKOUT_REORDER_EXERCISES_PLAN_2026-09-29.md):
@@ -140,12 +146,12 @@ Fresh `pnpm check` passed on this source (navigation, formatting, typechecks, iO
 
 ## Current environment authority
 
-| Environment | Authority                                                          | Last evidenced source                                                                          | Scope                                                                                                  |
-| ----------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Local       | `/Users/adam/Documents/mizyun`                                     | `bb7ec832d70aee4e1f45af6c19221720bafc60bf` (compact Island repair committed locally)           | Dev iOS compact Island width and live countdown visually verified; lifecycle checks remain.            |
-| Dev         | Hetzner CX23, `/var/lib/mizyun/dev/repo`, `mizyun-api-dev.service` | `bac5676c3c67b5997687d4050a66d99c4c4132f5`; public health HTTP 200 at 2026-09-26T07:57:21.049Z | Dev backend running latest features (#41, #52, #118, #119, #121, #122, #123, #126, ops/AI token fixes) |
-| Production  | Hetzner CX23, `/var/lib/mizyun/repo`, `mizyun-api.service`         | `0aadf95b5ff85d9cfc8bf5485e68a72525080e84`; public health HTTP 200 at 2026-09-24T17:19:09.447Z | Promoted accepted SHA, encrypted backup taken, migrations applied, older clients verified              |
-| Recovery    | Raspberry Pi 5                                                     | Encrypted daily Production archive workflow and accepted restore point `20260919T103343Z`      | Recovery storage only; not a deployment target or writable failover                                    |
+| Environment | Authority                                                          | Last evidenced source                                                                          | Scope                                                                                                                   |
+| ----------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Local       | `/Users/adam/Documents/mizyun`                                     | `bb7ec832d70aee4e1f45af6c19221720bafc60bf` (compact Island repair committed locally)           | Dev iOS compact Island width and live countdown visually verified; lifecycle checks remain.                             |
+| Dev         | Hetzner CX23, `/var/lib/mizyun/dev/repo`, `mizyun-api-dev.service` | `17766196b6e769d99913e83bdde7cbf04096db8c`; public health HTTP 200 at 2026-09-29T18:18:49.241Z | Dev backend running latest features (#133, #134, #135, #138, #139; set types and advanced nutrition migrations applied) |
+| Production  | Hetzner CX23, `/var/lib/mizyun/repo`, `mizyun-api.service`         | `0aadf95b5ff85d9cfc8bf5485e68a72525080e84`; public health HTTP 200 at 2026-09-24T17:19:09.447Z | Promoted accepted SHA, encrypted backup taken, migrations applied, older clients verified                               |
+| Recovery    | Raspberry Pi 5                                                     | Encrypted daily Production archive workflow and accepted restore point `20260919T103343Z`      | Recovery storage only; not a deployment target or writable failover                                                     |
 
 ## Rules and open gates that must survive handoff
 
