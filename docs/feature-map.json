@@ -460,19 +460,24 @@
       ],
       "entryPoints": [
         "apps/api/src/modules/account/routes.ts",
+        "apps/mobile/src/features/settings/index.ts",
         "apps/mobile/src/features/settings/account-data-management.ts"
       ],
       "ownedPaths": [
         "apps/api/src/modules/account",
         "apps/mobile/src/features/settings",
-        "apps/mobile/src/features/theme"
+        "apps/mobile/src/features/theme",
+        "apps/mobile/src/app/account-settings"
       ],
       "contracts": ["packages/contracts/src/account.ts"],
       "domainPort": ["packages/core/src/account.ts"],
       "api": ["apps/api/src/modules/account/routes.ts"],
       "ui": [
         "apps/mobile/src/features/settings/account-data-management.ts",
-        "apps/mobile/src/features/settings/principal-state.ts"
+        "apps/mobile/src/features/settings/principal-state.ts",
+        "apps/mobile/src/features/settings/settings-screen.tsx",
+        "apps/mobile/src/features/settings/settings-category-screen.tsx",
+        "apps/mobile/src/features/settings/settings-detail-screen.tsx"
       ],
       "adapters": [
         "packages/adapters/supabase-server/src/account-repository.ts"
@@ -485,6 +490,8 @@
         "apps/api/src/modules/account/routes.test.ts",
         "apps/mobile/src/features/settings/account-data-management.test.ts",
         "apps/mobile/src/features/settings/appearance-settings-card.test.ts",
+        "apps/mobile/src/features/settings/settings-catalog.test.ts",
+        "apps/mobile/src/features/settings/settings-search.test.ts",
         "apps/mobile/src/features/theme/theme-preference.test.ts",
         "supabase/tests/database/0004_account_deletion.test.sql"
       ],

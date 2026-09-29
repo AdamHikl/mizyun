@@ -311,6 +311,14 @@ function TabLayoutContent() {
                 name="auth/callback"
                 options={{ headerShown: false }}
               />
+              <Stack.Screen
+                name="account-settings/category/[categoryId]"
+                options={{ title: "Settings" }}
+              />
+              <Stack.Screen
+                name="account-settings/[settingId]"
+                options={{ title: "Settings" }}
+              />
             </Stack>
             <ActiveWorkoutMiniBar />
           </ActiveWorkoutProvider>
