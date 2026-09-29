@@ -65,6 +65,35 @@ describe("routines module", () => {
       expect(exercises[0]?.name).toBe("Push up");
     });
 
+    it("extracts from sessionExercises with highest precedence", () => {
+      const workout = createWorkout({
+        details: {
+          sessionExercises: [
+            {
+              name: "Overhead Press",
+              catalogId: "ohp",
+              sets: 4,
+              targetReps: "5",
+              targetLoad: "60 kg",
+            },
+          ],
+          coachPlan: {
+            exercises: [
+              {
+                name: "Bench Press",
+                sets: 3,
+              },
+            ],
+          },
+        },
+      });
+
+      const exercises = extractPlannedExercisesFromWorkout(workout);
+      expect(exercises).toHaveLength(1);
+      expect(exercises[0]?.name).toBe("Overhead Press");
+      expect(exercises[0]?.targetLoad).toBe("60 kg");
+    });
+
     it("extracts from coachPlan.exercises", () => {
       const workout = createWorkout({
         details: {

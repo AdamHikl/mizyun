@@ -13,6 +13,7 @@ interface WorkoutSetRow extends Record<string, unknown> {
   readonly workout_id: string;
   readonly exercise_id: string;
   readonly sequence: number;
+  readonly set_type?: string | null;
   readonly repetitions: number | null;
   readonly load_kg: number | null;
   readonly duration_seconds: number | null;
@@ -28,6 +29,7 @@ export const workoutSetFromRow = (row: WorkoutSetRow): StoredWorkoutSet => ({
   workoutId: row.workout_id,
   exerciseId: row.exercise_id,
   sequence: row.sequence,
+  setType: (row.set_type as StoredWorkoutSet["setType"]) ?? "normal",
   repetitions: row.repetitions,
   loadKg: row.load_kg,
   durationSeconds: row.duration_seconds,
@@ -44,6 +46,7 @@ const toInsertRow = (set: StoredWorkoutSet): Partial<WorkoutSetRow> => ({
   workout_id: set.workoutId,
   exercise_id: set.exerciseId,
   sequence: set.sequence,
+  set_type: set.setType ?? "normal",
   repetitions: set.repetitions,
   load_kg: set.loadKg,
   duration_seconds: set.durationSeconds,

@@ -849,6 +849,8 @@ export const buildApp = (
   void app.register(foodEntriesRoutes, {
     prefix: "/v1/food-entries",
     foodEntryRepository,
+    betaProRepository,
+    profileRepository,
   });
   void app.register(foodDraftRoutes, {
     prefix: "/v1/food-entries",

@@ -150,6 +150,15 @@ export const extractPlannedExercisesFromWorkout = (
     };
   };
 
+  // 0. Active session exercises (sessionExercises)
+  const sessionExercises = (details as Record<string, unknown>)
+    .sessionExercises;
+  if (Array.isArray(sessionExercises)) {
+    return (sessionExercises as Array<Record<string, unknown>>).map(
+      mapExercise,
+    );
+  }
+
   // 1. MultiWorkoutPlan (coachPlan)
   const coachPlan = (details as Record<string, unknown>).coachPlan;
   if (

@@ -44,6 +44,15 @@ export const MAX_DISTANCE_METERS = 1_000_000;
 export const MAX_PERCEIVED_EXERTION = 10;
 export const MIN_PERCEIVED_EXERTION = 0;
 
+export type WorkoutSetType = "normal" | "warmup" | "drop" | "failure";
+
+export const VALID_WORKOUT_SET_TYPES: ReadonlySet<string> = new Set([
+  "normal",
+  "warmup",
+  "drop",
+  "failure",
+]);
+
 /**
  * Editable domain shape. The wire schema in `@mizyun/contracts`
  * adds `id`, `userId`, `workoutId`, and `createdAt`. This type is
@@ -52,6 +61,7 @@ export const MIN_PERCEIVED_EXERTION = 0;
 export interface WorkoutSetCore {
   readonly exerciseId: string;
   readonly sequence: number;
+  readonly setType?: WorkoutSetType;
   readonly repetitions: number | null;
   readonly loadKg: number | null;
   readonly durationSeconds: number | null;
@@ -76,6 +86,7 @@ export interface StoredWorkoutSet extends WorkoutSetCore {
  */
 export type WorkoutSetValidationError =
   | { readonly kind: "empty_set" }
+  | { readonly kind: "invalid_set_type" }
   | {
       readonly kind: "repetitions_out_of_range";
       readonly min: number;
@@ -154,12 +165,20 @@ const validatePerceivedExertion = (
  */
 export const validateWorkoutSetCreate = (create: {
   readonly sequence?: number;
+  readonly setType?: string | null;
   readonly repetitions?: number | null;
   readonly loadKg?: number | null;
   readonly durationSeconds?: number | null;
   readonly distanceMeters?: number | null;
   readonly perceivedExertion?: number | null;
 }): WorkoutSetValidationError | null => {
+  if (
+    create.setType !== undefined &&
+    create.setType !== null &&
+    !VALID_WORKOUT_SET_TYPES.has(create.setType)
+  ) {
+    return { kind: "invalid_set_type" };
+  }
   const e0 = validateNonNegative(
     create.repetitions,
     0,
@@ -227,12 +246,12 @@ export interface ExerciseRecentSetsSummary {
  * exercise into the UI's summary view. Pure: same inputs, same
  * outputs.
  *
- *   - `bestLoadKg` is the maximum `loadKg` across the input. A
- *     set without `loadKg` is ignored.
+ *   - `bestLoadKg` is the maximum `loadKg` across the input (excluding warmup sets).
+ *     A set without `loadKg` is ignored.
  *   - `lastSessionVolumeKg` is the volume
  *     (`loadKg * repetitions`) of the most-recent session for the
- *     exercise. A session is identified by the
- *     `workoutId`. Sessions whose sets have no load (cardio,
+ *     exercise (excluding warmup sets). A session is identified by the
+ *     `workoutId`. Sessions whose working sets have no load (cardio,
  *     bodyweight) report `null` (volume is meaningless for them).
  *   - `totalSetCount` is the size of the input.
  *
@@ -247,6 +266,7 @@ export const summariseExerciseSets = (
   }
   let bestLoadKg: number | null = null;
   for (const s of sets) {
+    if (s.setType === "warmup") continue;
     if (s.loadKg !== null && (bestLoadKg === null || s.loadKg > bestLoadKg)) {
       bestLoadKg = s.loadKg;
     }
@@ -255,20 +275,26 @@ export const summariseExerciseSets = (
   let lastSessionVolumeKg: number | null = null;
   if (newest !== undefined) {
     const sessionId = newest.workoutId;
-    // Volume is only meaningful when every set in the session has
-    // a load × reps contribution. A single non-load set (cardio,
+    // Volume is only meaningful when every working set in the session has
+    // a load × reps contribution. A single non-load working set (cardio,
     // bodyweight) makes the whole session's volume unreportable.
     let tainted = false;
     let volume = 0;
+    let workingSetsCount = 0;
     for (const s of sets) {
       if (s.workoutId !== sessionId) continue;
+      if (s.setType === "warmup") continue;
+      workingSetsCount++;
       if (s.loadKg === null || s.repetitions === null) {
         tainted = true;
         continue;
       }
       volume += s.loadKg * s.repetitions;
     }
-    lastSessionVolumeKg = tainted ? null : Math.round(volume * 1000) / 1000;
+    lastSessionVolumeKg =
+      tainted || workingSetsCount === 0
+        ? null
+        : Math.round(volume * 1000) / 1000;
   }
   return {
     bestLoadKg,

@@ -46,10 +46,19 @@ import {
   isRecoverableMealDraft,
   isStaleMealTimestamp,
   mealFormStringsFromDraft,
+  mealFormStringsFromEntry,
   parseOptionalNutritionNumber,
   portionGramsStringFromDraft,
   upgradeLegacyMealDraft,
+  advancedNutrientsFromForm,
+  sameAdvancedNutrients,
+  needsFreshAdvancedGrant,
+  type MealFormStrings,
 } from "./meal-form";
+import {
+  AdvancedNutrientFields,
+  useAdvancedNutritionCapability,
+} from "./advanced-nutrition";
 import { normalizeMealPhoto } from "./meal-photo";
 import { fetchFoodHistory } from "./meal-lifecycle-data";
 import { getEntryGrams } from "./meal-scale";
@@ -97,7 +106,7 @@ const draftEvidenceLines = (
 };
 
 export function LogMealScreen() {
-  const { session, profile } = useAuth();
+  const { session, profile, refreshProfile } = useAuth();
   const theme = useTheme();
   const [name, setName] = useState("");
   const [portionGrams, setPortionGrams] = useState("");
@@ -105,6 +114,13 @@ export function LogMealScreen() {
   const [protein, setProtein] = useState("");
   const [carbs, setCarbs] = useState("");
   const [fat, setFat] = useState("");
+  const [advanced, setAdvanced] = useState<MealFormStrings>({
+    name: "",
+    calories: "",
+    protein: "",
+    carbs: "",
+    fat: "",
+  });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draftLoaded, setDraftLoaded] = useState(false);
@@ -137,6 +153,7 @@ export function LogMealScreen() {
   const measurement = useRef<LoggingFlowMeasurement | null>(null);
   const hadFailure = useRef(false);
   const userId = session?.user.id ?? null;
+  const advancedCapability = useAdvancedNutritionCapability(userId);
 
   useEffect(() => {
     let active = true;
@@ -165,18 +182,26 @@ export function LogMealScreen() {
     return list;
   }, [recentMeals]);
 
-  const onSelectRecentMeal = useCallback((meal: FoodEntry) => {
-    measurement.current?.tap();
-    setName(meal.name);
-    setCalories(meal.caloriesKcal != null ? String(meal.caloriesKcal) : "");
-    setProtein(meal.proteinG != null ? String(meal.proteinG) : "");
-    setCarbs(meal.carbohydrateG != null ? String(meal.carbohydrateG) : "");
-    setFat(meal.fatG != null ? String(meal.fatG) : "");
-    const grams = getEntryGrams(meal);
-    if (grams != null) {
-      setPortionGrams(String(grams));
-    }
-  }, []);
+  const onSelectRecentMeal = useCallback(
+    (meal: FoodEntry) => {
+      measurement.current?.tap();
+      setName(meal.name);
+      setCalories(meal.caloriesKcal != null ? String(meal.caloriesKcal) : "");
+      setProtein(meal.proteinG != null ? String(meal.proteinG) : "");
+      setCarbs(meal.carbohydrateG != null ? String(meal.carbohydrateG) : "");
+      setFat(meal.fatG != null ? String(meal.fatG) : "");
+      setAdvanced(
+        advancedCapability.enabled
+          ? mealFormStringsFromEntry(meal)
+          : { name: "", calories: "", protein: "", carbs: "", fat: "" },
+      );
+      const grams = getEntryGrams(meal);
+      if (grams != null) {
+        setPortionGrams(String(grams));
+      }
+    },
+    [advancedCapability.enabled],
+  );
 
   const loadAiUsage = useCallback(async () => {
     try {
@@ -231,6 +256,7 @@ export function LogMealScreen() {
           setProtein(upgraded.protein);
           setCarbs(upgraded.carbs);
           setFat(upgraded.fat);
+          setAdvanced(upgraded);
           setMealDescription(upgraded.description ?? "");
           setAiDraft(upgraded.aiDraft ?? null);
           setSourceProposalId(upgraded.sourceProposalId ?? null);
@@ -270,6 +296,11 @@ export function LogMealScreen() {
       protein,
       carbs,
       fat,
+      fibre: advanced.fibre,
+      saturatedFat: advanced.saturatedFat,
+      totalSugars: advanced.totalSugars,
+      sodium: advanced.sodium,
+      cholesterol: advanced.cholesterol,
       clientOperationId: clientOperationId ?? undefined,
       consumedAt: consumedAt ?? undefined,
       submissionVersion: 1,
@@ -290,6 +321,7 @@ export function LogMealScreen() {
     consumedAt,
     draftLoaded,
     fat,
+    advanced,
     mealDescription,
     name,
     portionGrams,
@@ -313,6 +345,14 @@ export function LogMealScreen() {
     const parsedProtein = parseOptionalNutritionNumber(protein);
     const parsedCarbs = parseOptionalNutritionNumber(carbs);
     const parsedFat = parseOptionalNutritionNumber(fat);
+    const parsedAdvanced = advancedNutrientsFromForm(advanced);
+    const hasAdvancedInput = [
+      advanced.fibre,
+      advanced.saturatedFat,
+      advanced.totalSugars,
+      advanced.sodium,
+      advanced.cholesterol,
+    ].some((value) => (value ?? "").trim().length > 0);
     if (
       !parsedCalories.ok ||
       !parsedPortionGrams.ok ||
@@ -321,7 +361,8 @@ export function LogMealScreen() {
         parsedPortionGrams.value <= 0) ||
       !parsedProtein.ok ||
       !parsedCarbs.ok ||
-      !parsedFat.ok
+      !parsedFat.ok ||
+      (hasAdvancedInput && parsedAdvanced === null)
     ) {
       isSubmittingRef.current = false;
       setSubmitting(false);
@@ -332,7 +373,6 @@ export function LogMealScreen() {
       );
       return;
     }
-
     const prev = submittedOperationRef.current;
     const isRetryCandidate = prev !== null && hadFailure.current;
 
@@ -353,6 +393,8 @@ export function LogMealScreen() {
       prev.proteinG === parsedProtein.value &&
       prev.carbohydrateG === parsedCarbs.value &&
       prev.fatG === parsedFat.value &&
+      parsedAdvanced !== null &&
+      sameAdvancedNutrients(prev, parsedAdvanced) &&
       prev.consumedAt === fixedConsumedAt;
 
     // A retryable failure may represent a committed request whose response was
@@ -364,6 +406,18 @@ export function LogMealScreen() {
       measurement.current?.fail("submit", "unexpected", true);
       setError(
         "This meal may already have been saved. Retry the submitted values first, or start a new meal entry after confirming the original result.",
+      );
+      return;
+    }
+
+    if (
+      needsFreshAdvancedGrant(hasAdvancedInput, isRetryOfPrev) &&
+      !(await advancedCapability.refresh())
+    ) {
+      isSubmittingRef.current = false;
+      setSubmitting(false);
+      setError(
+        "More nutrient values require an active Pro grant. Your draft is saved; restore access or clear those values before submitting.",
       );
       return;
     }
@@ -392,6 +446,11 @@ export function LogMealScreen() {
         protein,
         carbs,
         fat,
+        fibre: advanced.fibre,
+        saturatedFat: advanced.saturatedFat,
+        totalSugars: advanced.totalSugars,
+        sodium: advanced.sodium,
+        cholesterol: advanced.cholesterol,
         clientOperationId: opId,
         consumedAt: fixedConsumedAt,
         submissionVersion: 1,
@@ -441,16 +500,22 @@ export function LogMealScreen() {
         : {}),
     };
 
-    const form: LogMealForm = {
-      clientOperationId: opId,
-      name,
-      caloriesKcal: parsedCalories.value,
-      proteinG: parsedProtein.value,
-      carbohydrateG: parsedCarbs.value,
-      fatG: parsedFat.value,
-      consumedAt: fixedConsumedAt,
-      ...(Object.keys(details).length === 0 ? {} : { details }),
-    };
+    const form: LogMealForm =
+      isRetryOfPrev && prev !== null
+        ? prev
+        : {
+            clientOperationId: opId,
+            name,
+            caloriesKcal: parsedCalories.value,
+            proteinG: parsedProtein.value,
+            carbohydrateG: parsedCarbs.value,
+            fatG: parsedFat.value,
+            ...(hasAdvancedInput && parsedAdvanced !== null
+              ? parsedAdvanced
+              : {}),
+            consumedAt: fixedConsumedAt,
+            ...(Object.keys(details).length === 0 ? {} : { details }),
+          };
     submittedOperationRef.current = form;
 
     const result = await submitLogMeal(form);
@@ -495,6 +560,8 @@ export function LogMealScreen() {
     clientOperationId,
     consumedAt,
     fat,
+    advanced,
+    advancedCapability,
     mealDescription,
     name,
     portionGrams,
@@ -713,6 +780,8 @@ export function LogMealScreen() {
     confirmConsent,
     declineConsent,
     requestAction,
+    isSaving: isAiConsentSaving,
+    error: aiConsentError,
   } = useAiConsentController({
     userId,
     apiClient,
@@ -766,6 +835,7 @@ export function LogMealScreen() {
     setProtein("");
     setCarbs("");
     setFat("");
+    setAdvanced({ name: "", calories: "", protein: "", carbs: "", fat: "" });
     setMealDescription("");
     setAttachedPhoto(null);
     setDraftWarnings([]);
@@ -1126,6 +1196,14 @@ export function LogMealScreen() {
             </View>
           </View>
 
+          <AdvancedNutrientFields
+            form={advanced}
+            enabled={advancedCapability.enabled}
+            onChange={(field, value) =>
+              setAdvanced((current) => ({ ...current, [field]: value }))
+            }
+          />
+
           {aiDraft !== null ? (
             <View style={styles.refineBlock}>
               <ThemedText type="small" themeColor="textSecondary">
@@ -1254,7 +1332,13 @@ export function LogMealScreen() {
 
       <AiConsentModal
         visible={aiConsentModalVisible}
-        onConsent={() => void confirmConsent()}
+        isSaving={isAiConsentSaving}
+        error={aiConsentError}
+        currentBirthYear={profile?.birthYear ?? null}
+        onConsent={async (birthYear) => {
+          await confirmConsent(birthYear);
+          if (birthYear !== undefined) void refreshProfile();
+        }}
         onDecline={() => {
           declineConsent();
           setError(

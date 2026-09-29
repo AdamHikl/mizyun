@@ -411,6 +411,17 @@ export const patchFromForm = (form: LogMealForm): FoodEntryPatch | null => {
     proteinG: form.proteinG,
     carbohydrateG: form.carbohydrateG,
     fatG: form.fatG,
+    ...(form.fibreG === undefined ? {} : { fibreG: form.fibreG }),
+    ...(form.saturatedFatG === undefined
+      ? {}
+      : { saturatedFatG: form.saturatedFatG }),
+    ...(form.totalSugarsG === undefined
+      ? {}
+      : { totalSugarsG: form.totalSugarsG }),
+    ...(form.sodiumMg === undefined ? {} : { sodiumMg: form.sodiumMg }),
+    ...(form.cholesterolMg === undefined
+      ? {}
+      : { cholesterolMg: form.cholesterolMg }),
     ...(form.details !== undefined ? { details: form.details } : {}),
   });
   return parsed.success ? parsed.data : null;
@@ -585,13 +596,15 @@ export const deleteFoodEntryWith = async (
 
 export const copyFoodEntry = async (
   entry: FoodEntry,
+  includeAdvanced = false,
 ): Promise<FoodMutationResult> =>
-  copyFoodEntryWith(apiClient, entry, () => new Date());
+  copyFoodEntryWith(apiClient, entry, () => new Date(), includeAdvanced);
 
 export const copyFoodEntryWith = async (
   client: ApiClient,
   entry: FoodEntry,
   now: () => Date = () => new Date(),
+  includeAdvanced = false,
 ): Promise<FoodMutationResult> => {
   const payload: FoodEntryCreate = {
     name: entry.name,
@@ -600,6 +613,15 @@ export const copyFoodEntryWith = async (
     proteinG: entry.proteinG,
     carbohydrateG: entry.carbohydrateG,
     fatG: entry.fatG,
+    ...(includeAdvanced
+      ? {
+          fibreG: entry.fibreG,
+          saturatedFatG: entry.saturatedFatG,
+          totalSugarsG: entry.totalSugarsG,
+          sodiumMg: entry.sodiumMg,
+          cholesterolMg: entry.cholesterolMg,
+        }
+      : {}),
     details: entry.details,
   };
   const parsed = foodEntryCreateSchema.safeParse(payload);

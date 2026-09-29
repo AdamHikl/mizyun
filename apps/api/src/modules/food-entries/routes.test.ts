@@ -10,6 +10,7 @@ import { InMemoryMemoryStore } from "@mizyun/memory";
 
 import { buildApp } from "../../app.js";
 import { InMemoryFoodEntryRepository } from "../../food-entry-repository.js";
+import { InMemoryBetaProRepository } from "../../beta-pro-repository.js";
 
 const userA: UserId = "00000000-0000-4000-8000-000000000001" as UserId;
 const userB: UserId = "00000000-0000-4000-8000-000000000002" as UserId;
@@ -33,7 +34,10 @@ const tokenVerifierFor = (
       : null,
 });
 
-const build = (verifier: AccessTokenVerifier) => {
+const build = (
+  verifier: AccessTokenVerifier,
+  betaProRepository = new InMemoryBetaProRepository(),
+) => {
   const foodEntryRepository = new InMemoryFoodEntryRepository();
   const app = buildApp({
     tokenVerifier: verifier,
@@ -42,9 +46,25 @@ const build = (verifier: AccessTokenVerifier) => {
       memories: new InMemoryMemoryStore(),
     }),
     foodEntryRepository,
+    betaProRepository,
   });
   apps.push(app);
   return { app, foodEntryRepository };
+};
+
+const approvedBetaPro = (): InMemoryBetaProRepository => {
+  const repository = new InMemoryBetaProRepository();
+  repository.__seedForTest({
+    id: "00000000-0000-4000-8000-00000000b001",
+    userId: userA,
+    email: "example@example.test",
+    pushToken: null,
+    status: "approved",
+    notes: null,
+    createdAt: new Date("2026-09-29T12:00:00Z"),
+    reviewedAt: new Date("2026-09-29T12:01:00Z"),
+  });
+  return repository;
 };
 
 const seedEntry = (
@@ -428,6 +448,181 @@ describe("GET /v1/food-entries", () => {
     expect(response.json()).toMatchObject({
       error: { code: "VALIDATION_ERROR", message: "Invalid cursor format" },
     });
+  });
+});
+
+describe("advanced nutrition Pro boundary", () => {
+  const headers = { authorization: "Bearer valid" };
+  const advancedMeal = {
+    name: "Oats",
+    caloriesKcal: 200,
+    carbohydrateG: 30,
+    fatG: 4,
+    fibreG: 5,
+    saturatedFatG: 1,
+    totalSugarsG: 2,
+    sodiumMg: 12,
+    cholesterolMg: 0,
+  };
+
+  it("rejects advanced writes for non-Pro while basic meals remain available", async () => {
+    const { app } = build(tokenVerifierFor({ userId: userA }));
+    const capability = await app.inject({
+      method: "GET",
+      url: "/v1/food-entries/capabilities",
+      headers,
+    });
+    expect(capability.json()).toEqual({
+      advancedNutrition: false,
+      source: "none",
+    });
+    const rejected = await app.inject({
+      method: "POST",
+      url: "/v1/food-entries",
+      headers,
+      payload: advancedMeal,
+    });
+    expect(rejected.statusCode).toBe(403);
+    expect(rejected.json().error.code).toBe("PREMIUM_REQUIRED");
+    const basic = await app.inject({
+      method: "POST",
+      url: "/v1/food-entries",
+      headers,
+      payload: { name: "Oats", caloriesKcal: 200 },
+    });
+    expect(basic.statusCode).toBe(200);
+  });
+
+  it("accepts approved Beta Pro and marks incomplete nutrients honestly", async () => {
+    const { app } = build(
+      tokenVerifierFor({ userId: userA }),
+      approvedBetaPro(),
+    );
+    const capability = await app.inject({
+      method: "GET",
+      url: "/v1/food-entries/capabilities",
+      headers,
+    });
+    expect(capability.json()).toEqual({
+      advancedNutrition: true,
+      source: "beta_pro",
+    });
+    const first = await app.inject({
+      method: "POST",
+      url: "/v1/food-entries",
+      headers,
+      payload: { ...advancedMeal, consumedAt: "2026-09-29T10:00:00Z" },
+    });
+    expect(first.statusCode).toBe(200);
+    expect(first.json().foodEntry.fibreG).toBe(5);
+    const second = await app.inject({
+      method: "POST",
+      url: "/v1/food-entries",
+      headers,
+      payload: { name: "Unknown fibre", consumedAt: "2026-09-29T11:00:00Z" },
+    });
+    expect(second.statusCode).toBe(200);
+    const summary = await app.inject({
+      method: "GET",
+      url: "/v1/food-entries/summary?date=2026-09-29",
+      headers,
+    });
+    expect(summary.statusCode).toBe(200);
+    expect(summary.json().summary.fibreG).toBeNull();
+    expect(summary.json().summary.advancedCoverage.fibreG).toBe(1);
+  });
+
+  it("paginates every entry before declaring a complete daily total", async () => {
+    const { app, foodEntryRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+      approvedBetaPro(),
+    );
+    for (let index = 0; index < 400; index += 1) {
+      seedEntry(foodEntryRepository, {
+        id: `00000000-0000-4000-8000-${index.toString(16).padStart(12, "0")}`,
+        consumedAt: new Date(
+          `2026-09-29T${String(index % 24).padStart(2, "0")}:00:00Z`,
+        ),
+        fibreG: 1,
+      });
+    }
+    const summary = await app.inject({
+      method: "GET",
+      url: "/v1/food-entries/summary?date=2026-09-29",
+      headers,
+    });
+    expect(summary.statusCode).toBe(200);
+    expect(summary.json().summary.entryCount).toBe(400);
+    expect(summary.json().summary.fibreG).toBe(400);
+    expect(summary.json().summary.advancedCoverage.fibreG).toBe(400);
+  });
+
+  it("accepts aggregate totals above a single meal's bound", async () => {
+    const { app, foodEntryRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+      approvedBetaPro(),
+    );
+    seedEntry(foodEntryRepository, {
+      id: "00000000-0000-4000-8000-00000000a111",
+      consumedAt: new Date("2026-09-29T10:00:00Z"),
+      fibreG: 9000,
+    });
+    seedEntry(foodEntryRepository, {
+      id: "00000000-0000-4000-8000-00000000a112",
+      consumedAt: new Date("2026-09-29T11:00:00Z"),
+      fibreG: 9000,
+    });
+    const summary = await app.inject({
+      method: "GET",
+      url: "/v1/food-entries/summary?date=2026-09-29",
+      headers,
+    });
+    expect(summary.statusCode).toBe(200);
+    expect(summary.json().summary.fibreG).toBe(18_000);
+  });
+
+  it("replays a committed advanced meal after Pro lapses without creating another", async () => {
+    const betaProRepository = approvedBetaPro();
+    const { app, foodEntryRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+      betaProRepository,
+    );
+    const payload = {
+      ...advancedMeal,
+      clientOperationId: "00000000-0000-4000-8000-00000000a901",
+    };
+    const first = await app.inject({
+      method: "POST",
+      url: "/v1/food-entries",
+      headers,
+      payload,
+    });
+    expect(first.statusCode).toBe(200);
+    betaProRepository.__seedForTest({
+      id: "00000000-0000-4000-8000-00000000b001",
+      userId: userA,
+      email: "example@example.test",
+      pushToken: null,
+      status: "rejected",
+      notes: null,
+      createdAt: new Date("2026-09-29T12:00:00Z"),
+      reviewedAt: new Date("2026-09-29T12:01:00Z"),
+    });
+    const replay = await app.inject({
+      method: "POST",
+      url: "/v1/food-entries",
+      headers,
+      payload,
+    });
+    expect(replay.statusCode).toBe(200);
+    expect(replay.json().foodEntry.id).toBe(first.json().foodEntry.id);
+    const rows = await foodEntryRepository.list(userA, {
+      from: null,
+      to: null,
+      limit: 10,
+      accessToken: "test-token",
+    });
+    expect(rows).toHaveLength(1);
   });
 });
 

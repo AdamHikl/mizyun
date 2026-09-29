@@ -25,6 +25,11 @@ interface FoodEntryRow extends Record<string, unknown> {
   readonly protein_g: number | null;
   readonly carbohydrate_g: number | null;
   readonly fat_g: number | null;
+  readonly fibre_g: number | null;
+  readonly saturated_fat_g: number | null;
+  readonly total_sugars_g: number | null;
+  readonly sodium_mg: number | null;
+  readonly cholesterol_mg: number | null;
   readonly source: FoodSource;
   readonly confidence: number | null;
   readonly confirmed_by_user: boolean;
@@ -43,6 +48,11 @@ export const foodEntryFromRow = (row: FoodEntryRow): StoredFoodEntry => ({
   proteinG: row.protein_g,
   carbohydrateG: row.carbohydrate_g,
   fatG: row.fat_g,
+  fibreG: row.fibre_g ?? null,
+  saturatedFatG: row.saturated_fat_g ?? null,
+  totalSugarsG: row.total_sugars_g ?? null,
+  sodiumMg: row.sodium_mg ?? null,
+  cholesterolMg: row.cholesterol_mg ?? null,
   source: row.source,
   confidence: row.confidence,
   confirmedByUser: row.confirmed_by_user,
@@ -65,6 +75,11 @@ const toInsertRow = (
   protein_g: entry.proteinG,
   carbohydrate_g: entry.carbohydrateG,
   fat_g: entry.fatG,
+  fibre_g: entry.fibreG ?? null,
+  saturated_fat_g: entry.saturatedFatG ?? null,
+  total_sugars_g: entry.totalSugarsG ?? null,
+  sodium_mg: entry.sodiumMg ?? null,
+  cholesterol_mg: entry.cholesterolMg ?? null,
   source: entry.source,
   confidence: entry.confidence,
   confirmed_by_user: entry.confirmedByUser,

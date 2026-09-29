@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  advancedNutrientsFromForm,
+  sameAdvancedNutrients,
+  needsFreshAdvancedGrant,
   isRecoverableMealDraft,
   isStaleMealTimestamp,
   mealFormStringsFromDraft,
@@ -50,7 +53,53 @@ describe("mealFormStringsFromEntry", () => {
       protein: "",
       carbs: "30",
       fat: "4",
+      fibre: "",
+      saturatedFat: "",
+      totalSugars: "",
+      sodium: "",
+      cholesterol: "",
     });
+  });
+});
+
+describe("advanced nutrient form", () => {
+  it("distinguishes recorded zero, missing, and invalid values", () => {
+    const form = {
+      name: "Oats",
+      calories: "",
+      protein: "",
+      carbs: "",
+      fat: "",
+      fibre: "0",
+      saturatedFat: "",
+      totalSugars: "3,5",
+      sodium: "120",
+      cholesterol: "",
+    };
+    expect(advancedNutrientsFromForm(form)).toEqual({
+      fibreG: 0,
+      saturatedFatG: null,
+      totalSugarsG: 3.5,
+      sodiumMg: 120,
+      cholesterolMg: null,
+    });
+    expect(advancedNutrientsFromForm({ ...form, fibre: "-1" })).toBeNull();
+  });
+
+  it("replays an identical Pro payload after lapse but treats clearing a field as an edit", () => {
+    const submitted = {
+      fibreG: 4,
+      saturatedFatG: null,
+      totalSugarsG: 0,
+      sodiumMg: null,
+      cholesterolMg: null,
+    };
+    expect(sameAdvancedNutrients(submitted, submitted)).toBe(true);
+    expect(needsFreshAdvancedGrant(true, true)).toBe(false);
+    const cleared = { ...submitted, fibreG: null };
+    expect(sameAdvancedNutrients(submitted, cleared)).toBe(false);
+    expect(needsFreshAdvancedGrant(true, false)).toBe(true);
+    expect(needsFreshAdvancedGrant(false, false)).toBe(false);
   });
 });
 

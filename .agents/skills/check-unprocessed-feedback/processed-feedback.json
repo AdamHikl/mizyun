@@ -19,6 +19,21 @@
       "id": "3a8bd3dc-93bb-4dab-b0d9-9cd606ef8e65",
       "processedAt": "2026-09-10T17:18:27.989Z",
       "note": "Fixed in AI-ROUTINE-001: exposed available routines to Coach grounding & get_available_routines tool"
+    },
+    {
+      "id": "177eb902-dda1-4df9-850b-f923095247e2",
+      "processedAt": "2026-09-29T15:29:51.770Z",
+      "note": "Logged as issue #137"
+    },
+    {
+      "id": "b3ef31a5-25f0-4f54-8f8c-c3b3de767c6d",
+      "processedAt": "2026-09-29T15:29:55.963Z",
+      "note": "Logged as issue #138"
+    },
+    {
+      "id": "cda27b78-b913-4b2a-9319-5826f24b8cea",
+      "processedAt": "2026-09-29T15:30:00.579Z",
+      "note": "Logged as issue #139"
     }
   ]
 }

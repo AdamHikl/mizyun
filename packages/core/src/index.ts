@@ -81,6 +81,7 @@ export {
 
 export {
   CALORIES_MAX,
+  ADVANCED_NUTRIENT_FIELDS,
   CALORIES_MIN,
   FOOD_NAME_MAX,
   MACRO_MAX,
@@ -90,6 +91,7 @@ export {
   validateFoodEntryCreate,
   validateFoodEntryPatch,
   type DailyFoodSummary,
+  type AdvancedNutrientField,
   type FoodEntryCore,
   type FoodEntryPatch,
   type FoodEntryRepository,
@@ -144,10 +146,12 @@ export {
   MIN_PERCEIVED_EXERTION,
   summariseExerciseSets,
   validateWorkoutSetCreate,
+  VALID_WORKOUT_SET_TYPES,
   type ExerciseRecentSetsSummary,
   type StoredWorkoutSet,
   type WorkoutSetCore,
   type WorkoutSetRepository,
+  type WorkoutSetType,
   type WorkoutSetValidationError,
 } from "./workout-set";
 

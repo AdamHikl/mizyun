@@ -94,6 +94,13 @@ const validationErrorToApi = (
         message: `perceivedExertion must be between ${error.min} and ${error.max}.`,
         requestId,
       };
+    case "invalid_set_type":
+      return {
+        status: 422,
+        code: "VALIDATION_ERROR",
+        message: "setType must be normal, warmup, drop, or failure.",
+        requestId,
+      };
     case "sequence_out_of_range":
       return {
         status: 422,
@@ -112,6 +119,7 @@ const toWire = (set: StoredWorkoutSet): WorkoutSetResponse =>
       workoutId: set.workoutId,
       exerciseId: set.exerciseId,
       sequence: set.sequence,
+      setType: set.setType,
       repetitions: set.repetitions,
       loadKg: set.loadKg,
       durationSeconds: set.durationSeconds,
@@ -287,6 +295,9 @@ export const workoutSetsRoutes: FastifyPluginAsync<
             : new Date();
       const validation = validateWorkoutSetCreate({
         sequence,
+        ...(parsed.data.setType !== undefined
+          ? { setType: parsed.data.setType }
+          : {}),
         ...(parsed.data.repetitions !== undefined
           ? { repetitions: parsed.data.repetitions }
           : {}),
@@ -321,6 +332,7 @@ export const workoutSetsRoutes: FastifyPluginAsync<
         workoutId,
         exerciseId: parsed.data.exerciseId,
         sequence,
+        setType: parsed.data.setType ?? "normal",
         repetitions: parsed.data.repetitions ?? null,
         loadKg: parsed.data.loadKg ?? null,
         durationSeconds: parsed.data.durationSeconds ?? null,

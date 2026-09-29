@@ -1,9 +1,10 @@
 import type { FastifyPluginAsync } from "fastify";
-import type {
-  AccountExport,
-  AccountRepository,
-  AiConsentRepository,
-  ProfileRepository,
+import {
+  applyProfilePatch,
+  type AccountExport,
+  type AccountRepository,
+  type AiConsentRepository,
+  type ProfileRepository,
 } from "@mizyun/core";
 import type { MemoryRecord, MemoryStore } from "@mizyun/memory";
 import type { ServerAppleAuthConfiguration } from "@mizyun/config";
@@ -126,6 +127,11 @@ const accountExportToWire = (
         proteinG: f.proteinG,
         carbohydrateG: f.carbohydrateG,
         fatG: f.fatG,
+        fibreG: f.fibreG ?? null,
+        saturatedFatG: f.saturatedFatG ?? null,
+        totalSugarsG: f.totalSugarsG ?? null,
+        sodiumMg: f.sodiumMg ?? null,
+        cholesterolMg: f.cholesterolMg ?? null,
         source: f.source,
         confidence: f.confidence,
         confirmedByUser: f.confirmedByUser,
@@ -514,17 +520,30 @@ export const accountRoutes: FastifyPluginAsync<AccountRoutesOptions> = async (
         }
 
         if (options.profileRepository) {
-          const profile = await options.profileRepository.getOrCreate(
+          let profile = await options.profileRepository.getOrCreate(
             principal.userId,
             { now, accessToken: principal.accessToken },
           );
+          if (parsed.data.birthYear !== undefined) {
+            profile = await options.profileRepository.update(
+              principal.userId,
+              applyProfilePatch(
+                profile,
+                { birthYear: parsed.data.birthYear },
+                now,
+              ),
+              { accessToken: principal.accessToken },
+            );
+          }
           if (!isAdultEligibleForAi(profile, now)) {
             await sendApiError(
               reply,
               request,
               403,
               "AI_AGE_RESTRICTED",
-              "Mizyun AI features require adult eligibility (18 years or older) under provider terms.",
+              profile.birthYear === null
+                ? "Mizyun AI features require confirmed adult status (18+). Please specify your birth year."
+                : "Mizyun AI features require adult eligibility (18 years or older) under provider terms.",
             );
             return;
           }

@@ -21,6 +21,7 @@ export type ApiErrorCode =
   | "AI_AGE_RESTRICTED"
   | "AI_CONSENT_REQUIRED"
   | "AI_NOT_INVITED"
+  | "PREMIUM_REQUIRED"
   | "INTERNAL_ERROR";
 
 interface ApiErrorBody {

@@ -324,7 +324,7 @@ describe("summariseFoodEntries", () => {
       from: "2026-07-10",
       to: "2026-07-10",
     });
-    expect(summaries).toEqual([
+    expect(summaries).toMatchObject([
       {
         date: "2026-07-10",
         entryCount: 2,
@@ -462,7 +462,7 @@ describe("summariseFoodEntries", () => {
       from: "2026-07-10",
       to: "2026-07-10",
     });
-    expect(summaries).toEqual([
+    expect(summaries).toMatchObject([
       {
         date: "2026-07-10",
         entryCount: 1,
@@ -472,5 +472,29 @@ describe("summariseFoodEntries", () => {
         fatG: null,
       },
     ]);
+  });
+
+  it("separates known advanced subtotal from an incomplete daily total", () => {
+    const entries = [
+      baseStored({
+        id: "00000000-0000-4000-8000-00000000a011",
+        fibreG: 5,
+        sodiumMg: 0,
+      }),
+      baseStored({
+        id: "00000000-0000-4000-8000-00000000a012",
+        fibreG: null,
+        sodiumMg: 10,
+      }),
+    ];
+    const summary = summariseFoodEntries(entries, {
+      from: "2026-07-10",
+      to: "2026-07-10",
+    })[0]!;
+    expect(summary.fibreG).toBeNull();
+    expect(summary.advancedCoverage?.fibreG).toBe(1);
+    expect(summary.advancedKnownSubtotal?.fibreG).toBe(5);
+    expect(summary.sodiumMg).toBe(10);
+    expect(summary.advancedCoverage?.sodiumMg).toBe(2);
   });
 });

@@ -6,6 +6,8 @@
  * planned or historical load targets, handling unit conversions deterministically.
  */
 
+import type { WorkoutSetType } from "./workout-set";
+
 /** Conversion factor: 1 lb = 0.45359237 kg (international avoirdupois pound). */
 export const POUNDS_TO_KG_MULTIPLIER = 0.45359237;
 
@@ -46,6 +48,7 @@ export interface CompletedSetProgressionInput {
   readonly loadKg: number | null;
   readonly repetitions: number | null;
   readonly perceivedExertion?: number | null;
+  readonly setType?: WorkoutSetType;
 }
 
 export interface ExerciseCatalogItemInput {
@@ -133,11 +136,15 @@ export const evaluateExerciseProgression = (params: {
     readonly loadKg: number | null;
     readonly repetitions: number | null;
     readonly perceivedExertion?: number | null;
+    readonly setType?: WorkoutSetType;
   }>;
 }): ExerciseProgressionEvaluation => {
   let peakLoadKg: number | null = null;
 
   for (const set of params.completedSets) {
+    if (set.setType === "warmup") {
+      continue;
+    }
     if (
       set.loadKg !== null &&
       set.loadKg !== undefined &&

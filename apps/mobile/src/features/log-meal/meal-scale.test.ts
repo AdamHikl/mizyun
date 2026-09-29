@@ -6,6 +6,7 @@ import {
   getEntryGrams,
   getEntryMealGroup,
   scaleNutrition,
+  scaledAdvancedPatchForExisting,
   scaleNutritionFromKnownPortion,
   updateGramsInName,
   withMealGrams,
@@ -62,6 +63,46 @@ describe("updateGramsInName", () => {
 });
 
 describe("scaleNutrition", () => {
+  it("keeps existing advanced nutrients proportional on a downgraded portion edit", () => {
+    const entry = {
+      ...FAKE_ENTRY,
+      fibreG: 3,
+      saturatedFatG: null,
+      totalSugarsG: 0,
+      sodiumMg: 125,
+      cholesterolMg: null,
+    };
+    const scaled = scaleNutrition({ ...entry, grams: 100 }, 200);
+    expect(scaledAdvancedPatchForExisting(entry, scaled)).toEqual({
+      fibreG: 6,
+      totalSugarsG: 0,
+      sodiumMg: 250,
+    });
+  });
+  it("scales optional nutrients while preserving missing values", () => {
+    const scaled = scaleNutrition(
+      {
+        caloriesKcal: 100,
+        proteinG: null,
+        carbohydrateG: null,
+        fatG: null,
+        fibreG: 3,
+        saturatedFatG: null,
+        totalSugarsG: 0,
+        sodiumMg: 125,
+        cholesterolMg: 20,
+        grams: 100,
+      },
+      200,
+    );
+    expect(scaled).toMatchObject({
+      fibreG: 6,
+      saturatedFatG: null,
+      totalSugarsG: 0,
+      sodiumMg: 250,
+      cholesterolMg: 40,
+    });
+  });
   it("scales calories and macros proportionally", () => {
     const base = {
       caloriesKcal: 330,

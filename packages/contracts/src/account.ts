@@ -194,6 +194,12 @@ export const updateAiConsentSchema = z.object({
   granted: z.boolean(),
   confirmedAdult: z.boolean(),
   consentVersion: z.string().default(CURRENT_AI_CONSENT_VERSION),
+  birthYear: z
+    .number()
+    .int()
+    .min(1900)
+    .max(new Date().getFullYear())
+    .optional(),
 });
 
 export type UpdateAiConsent = z.infer<typeof updateAiConsentSchema>;

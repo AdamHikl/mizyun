@@ -22,6 +22,7 @@ import {
   type ExerciseRecentSetsResponse,
   type Workout,
   type WorkoutSet,
+  type WorkoutSetType,
 } from "@mizyun/contracts";
 import {
   computeWorkoutProgressions,
@@ -51,6 +52,8 @@ import {
 } from "@/lib/weight-units";
 import { ExerciseLibraryModal } from "@/features/workouts/exercise-library-modal";
 import { ExerciseProgressionModal } from "@/features/workouts/exercise-progression-modal";
+import { ReorderExercisesModal } from "@/features/workouts/reorder-exercises-modal";
+import { SetTypeModal } from "@/features/workouts/set-type-modal";
 import { startRoutineSession } from "@/features/workouts/workouts-hub-data";
 import {
   DEFAULT_REST_SECONDS,
@@ -85,6 +88,7 @@ import {
   extractPlannedExercises,
   loadRecentPerformance,
   loadWorkoutWorkspace,
+  reorderWorkoutExercises,
   startWorkout,
   type PlannedExercise,
   type WorkoutWorkspace,
@@ -139,6 +143,7 @@ interface PendingSetInput {
   durationSeconds: string;
   distanceMeters: string;
   rpe: string;
+  setType?: WorkoutSetType;
 }
 
 export function LogWorkoutScreen() {
@@ -173,6 +178,12 @@ export function LogWorkoutScreen() {
     string | null
   >(null);
   const [libraryVisible, setLibraryVisible] = useState(false);
+  const [selectedSetTypeEntry, setSelectedSetTypeEntry] =
+    useState<ExerciseEntry | null>(null);
+  const [reorderModalVisible, setReorderModalVisible] = useState(false);
+  const [orderedExerciseKeys, setOrderedExerciseKeys] = useState<
+    ReadonlyArray<string>
+  >([]);
   const [restTimer, setRestTimer] = useState<RestTimerState | null>(() =>
     contextRestTimer && Date.now() < contextRestTimer.endsAt
       ? contextRestTimer
@@ -494,14 +505,64 @@ export function LogWorkoutScreen() {
       }
     });
 
-    return Array.from(map.values());
+    const list = Array.from(map.values());
+    if (orderedExerciseKeys.length === 0) {
+      return list;
+    }
+    return [...list].sort((a, b) => {
+      const keyA = a.name.trim().toLowerCase();
+      const keyB = b.name.trim().toLowerCase();
+      const idxA = orderedExerciseKeys.indexOf(keyA);
+      const idxB = orderedExerciseKeys.indexOf(keyB);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return 0;
+    });
   }, [
     extraExercises,
     globalRestSeconds,
+    orderedExerciseKeys,
     plannedExercises,
     workspace.exercises,
     workspace.sets,
   ]);
+
+  useEffect(() => {
+    setOrderedExerciseKeys([]);
+  }, [workspace.workout?.id]);
+
+  const handleMoveExercise = useCallback(
+    (fromIndex: number, toIndex: number) => {
+      if (
+        fromIndex < 0 ||
+        fromIndex >= exerciseEntries.length ||
+        toIndex < 0 ||
+        toIndex >= exerciseEntries.length ||
+        fromIndex === toIndex
+      ) {
+        return;
+      }
+      const next = [...exerciseEntries];
+      const [moved] = next.splice(fromIndex, 1);
+      if (!moved) return;
+      next.splice(toIndex, 0, moved);
+
+      const nextKeys = next.map((e) => e.name.trim().toLowerCase());
+      setOrderedExerciseKeys(nextKeys);
+
+      if (workspace.workout && !isRoutineDetails(workspace.workout.details)) {
+        void reorderWorkoutExercises(workspace.workout, next).then((result) => {
+          if (result.ok) {
+            setWorkspace((curr) =>
+              curr.workout ? { ...curr, workout: result.workout } : curr,
+            );
+          }
+        });
+      }
+    },
+    [exerciseEntries, workspace.workout],
+  );
 
   // Pre-load recent performance for all active exercises
   useEffect(() => {
@@ -804,6 +865,7 @@ export function LogWorkoutScreen() {
             durationSeconds: "",
             distanceMeters: "",
             rpe: "",
+            setType: "normal",
           };
 
         const completedSets = workspace.sets.filter(
@@ -865,6 +927,7 @@ export function LogWorkoutScreen() {
 
         setBusy(true);
         setMessage(null);
+        const setTypeVal = currentInput.setType ?? "normal";
         const result = await addWorkoutSet(workspace.workout.id, {
           exerciseId: resolvedExerciseId,
           repetitions: repsVal,
@@ -872,6 +935,7 @@ export function LogWorkoutScreen() {
           durationSeconds: currentInput.durationSeconds,
           distanceMeters: currentInput.distanceMeters,
           perceivedExertion: currentInput.rpe,
+          setType: setTypeVal,
           unitSystem,
         });
         setBusy(false);
@@ -970,14 +1034,18 @@ export function LogWorkoutScreen() {
         }));
 
         // Keep load and reps prefilled for next set so next tap is ready!
+        const nextSetType: WorkoutSetType =
+          setTypeVal === "warmup" ? "warmup" : "normal";
         updatePendingInput(entry.id, {
           load: loadVal,
           reps: repsVal,
+          setType: nextSetType,
         });
         if (resolvedExerciseId !== entry.id) {
           updatePendingInput(resolvedExerciseId, {
             load: loadVal,
             reps: repsVal,
+            setType: nextSetType,
           });
         }
 
@@ -1257,7 +1325,10 @@ export function LogWorkoutScreen() {
                 onLogSet={handleLogSet}
                 onRemoveSet={handleRemoveSet}
                 onOpenProgression={(name) => setProgressionExerciseName(name)}
+                onOpenSetTypeModal={(entry) => setSelectedSetTypeEntry(entry)}
                 onOpenLibrary={() => setLibraryVisible(true)}
+                onMoveExercise={handleMoveExercise}
+                onOpenReorderModal={() => setReorderModalVisible(true)}
                 onFinish={handleFinish}
                 onAbandon={confirmAbandon}
                 onInteraction={() => measurement.current?.tap()}
@@ -1372,6 +1443,39 @@ export function LogWorkoutScreen() {
           exerciseName={progressionExerciseName}
         />
       ) : null}
+
+      {/* Set Type Modal */}
+      {selectedSetTypeEntry !== null ? (
+        <SetTypeModal
+          visible={selectedSetTypeEntry !== null}
+          currentType={
+            pendingInputs[selectedSetTypeEntry.id]?.setType ??
+            pendingInputs[selectedSetTypeEntry.name]?.setType ??
+            "normal"
+          }
+          exerciseName={selectedSetTypeEntry.name}
+          onSelectType={(newType) => {
+            updatePendingInput(selectedSetTypeEntry.id, { setType: newType });
+            if (selectedSetTypeEntry.id !== selectedSetTypeEntry.name) {
+              updatePendingInput(selectedSetTypeEntry.name, {
+                setType: newType,
+              });
+            }
+            setSelectedSetTypeEntry(null);
+          }}
+          onClose={() => setSelectedSetTypeEntry(null)}
+        />
+      ) : null}
+
+      {/* Reorder Exercises Modal */}
+      {reorderModalVisible ? (
+        <ReorderExercisesModal
+          visible={reorderModalVisible}
+          exercises={exerciseEntries}
+          onMoveExercise={handleMoveExercise}
+          onClose={() => setReorderModalVisible(false)}
+        />
+      ) : null}
     </ThemedView>
   );
 }
@@ -1464,7 +1568,10 @@ function ActiveWorkoutFeed(props: {
   readonly onLogSet: (exercise: ExerciseEntry) => void;
   readonly onRemoveSet: (set: WorkoutSet) => void;
   readonly onOpenProgression: (name: string) => void;
+  readonly onOpenSetTypeModal: (entry: ExerciseEntry) => void;
   readonly onOpenLibrary: () => void;
+  readonly onMoveExercise: (fromIndex: number, toIndex: number) => void;
+  readonly onOpenReorderModal: () => void;
   readonly onFinish: () => void;
   readonly onAbandon: () => void;
   readonly onInteraction: () => void;
@@ -1473,7 +1580,11 @@ function ActiveWorkoutFeed(props: {
   const totalSets = props.savedSets.length;
   const totalVolumeKg = useMemo(() => {
     return props.savedSets.reduce((acc, s) => {
-      if (s.loadKg !== null && s.repetitions !== null) {
+      if (
+        s.setType !== "warmup" &&
+        s.loadKg !== null &&
+        s.repetitions !== null
+      ) {
         return acc + s.loadKg * s.repetitions;
       }
       return acc;
@@ -1496,9 +1607,27 @@ function ActiveWorkoutFeed(props: {
               {formatStopwatch(props.elapsedSeconds)}
             </ThemedText>
           </View>
-          <ThemedText type="small" themeColor="textSecondary">
-            {totalSets} sets · {displayVolume} {unit} volume
-          </ThemedText>
+          <View style={styles.liveHeaderRight}>
+            <ThemedText type="small" themeColor="textSecondary">
+              {totalSets} sets · {displayVolume} {unit} volume
+            </ThemedText>
+            {props.exercises.length > 1 ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Reorder exercises"
+                onPress={() => {
+                  props.onInteraction();
+                  props.onOpenReorderModal();
+                }}
+                style={styles.reorderFeedButton}
+                hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
+              >
+                <ThemedText style={styles.reorderFeedButtonText}>
+                  ⇅ Reorder
+                </ThemedText>
+              </Pressable>
+            ) : null}
+          </View>
         </View>
       </View>
 
@@ -1531,6 +1660,8 @@ function ActiveWorkoutFeed(props: {
             <LiveExerciseCard
               key={`${entry.name}-${index}`}
               entry={entry}
+              index={index}
+              totalExercises={props.exercises.length}
               completedSets={completedSets}
               recentPerformance={recentPerf}
               pendingInput={
@@ -1541,6 +1672,7 @@ function ActiveWorkoutFeed(props: {
                   durationSeconds: "",
                   distanceMeters: "",
                   rpe: "",
+                  setType: "normal",
                 }
               }
               unitSystem={props.unitSystem}
@@ -1552,6 +1684,9 @@ function ActiveWorkoutFeed(props: {
               onLogSet={() => props.onLogSet(entry)}
               onRemoveSet={props.onRemoveSet}
               onOpenProgression={() => props.onOpenProgression(entry.name)}
+              onOpenSetTypeModal={() => props.onOpenSetTypeModal(entry)}
+              onMoveUp={() => props.onMoveExercise(index, index - 1)}
+              onMoveDown={() => props.onMoveExercise(index, index + 1)}
               onInteraction={props.onInteraction}
             />
           );
@@ -1560,19 +1695,39 @@ function ActiveWorkoutFeed(props: {
 
       {/* Add Exercise & Workout Controls */}
       <View style={styles.bottomControls}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Add Exercise to Workout"
-          onPress={() => {
-            props.onInteraction();
-            props.onOpenLibrary();
-          }}
-          style={styles.addExerciseButton}
-        >
-          <ThemedText type="smallBold" style={styles.addExerciseText}>
-            + Add Exercise
-          </ThemedText>
-        </Pressable>
+        <View style={styles.addExerciseControlsRow}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Add Exercise to Workout"
+            onPress={() => {
+              props.onInteraction();
+              props.onOpenLibrary();
+            }}
+            style={[
+              styles.addExerciseButton,
+              props.exercises.length > 1 ? { flex: 1 } : null,
+            ]}
+          >
+            <ThemedText type="smallBold" style={styles.addExerciseText}>
+              + Add Exercise
+            </ThemedText>
+          </Pressable>
+          {props.exercises.length > 1 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Reorder exercises"
+              onPress={() => {
+                props.onInteraction();
+                props.onOpenReorderModal();
+              }}
+              style={styles.reorderAllButton}
+            >
+              <ThemedText type="smallBold" style={styles.reorderAllText}>
+                ⇅ Reorder
+              </ThemedText>
+            </Pressable>
+          ) : null}
+        </View>
 
         <View style={styles.finishActions}>
           <Button
@@ -1591,11 +1746,42 @@ function ActiveWorkoutFeed(props: {
   );
 }
 
+function renderSetBadge(setType: WorkoutSetType | undefined, sequence: number) {
+  if (setType === "warmup") {
+    return (
+      <View style={[styles.badgeBase, styles.warmupBadge]}>
+        <ThemedText style={styles.warmupBadgeText}>W</ThemedText>
+      </View>
+    );
+  }
+  if (setType === "failure") {
+    return (
+      <View style={[styles.badgeBase, styles.failureBadge]}>
+        <ThemedText style={styles.failureBadgeText}>F</ThemedText>
+      </View>
+    );
+  }
+  if (setType === "drop") {
+    return (
+      <View style={[styles.badgeBase, styles.dropBadge]}>
+        <ThemedText style={styles.dropBadgeText}>D</ThemedText>
+      </View>
+    );
+  }
+  return (
+    <ThemedText type="smallBold" style={styles.colSet}>
+      {sequence}
+    </ThemedText>
+  );
+}
+
 // ==========================================
 // Individual Exercise Card with Inline Set Table
 // ==========================================
 function LiveExerciseCard(props: {
   readonly entry: ExerciseEntry;
+  readonly index: number;
+  readonly totalExercises: number;
   readonly completedSets: ReadonlyArray<WorkoutSet>;
   readonly recentPerformance: ExerciseRecentSetsResponse | null;
   readonly pendingInput: PendingSetInput;
@@ -1606,6 +1792,9 @@ function LiveExerciseCard(props: {
   readonly onLogSet: () => void;
   readonly onRemoveSet: (set: WorkoutSet) => void;
   readonly onOpenProgression: () => void;
+  readonly onOpenSetTypeModal: () => void;
+  readonly onMoveUp?: () => void;
+  readonly onMoveDown?: () => void;
   readonly onInteraction: () => void;
 }) {
   const unit = weightUnitLabel(props.unitSystem);
@@ -1663,16 +1852,52 @@ function LiveExerciseCard(props: {
           </ThemedText>
         </View>
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`View progression for ${props.entry.name}`}
-          onPress={props.onOpenProgression}
-          style={styles.progressionBadge}
-        >
-          <ThemedText type="smallBold" style={styles.progressionBadgeText}>
-            📈 History →
-          </ThemedText>
-        </Pressable>
+        <View style={styles.exerciseHeaderRight}>
+          {props.totalExercises > 1 ? (
+            <View style={styles.cardReorderButtons}>
+              {props.index > 0 ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Move ${props.entry.name} up`}
+                  onPress={() => {
+                    props.onInteraction();
+                    props.onMoveUp?.();
+                  }}
+                  style={styles.cardReorderBtn}
+                  hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
+                >
+                  <ThemedText style={styles.cardReorderBtnText}>↑</ThemedText>
+                </Pressable>
+              ) : null}
+              {props.index < props.totalExercises - 1 ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Move ${props.entry.name} down`}
+                  onPress={() => {
+                    props.onInteraction();
+                    props.onMoveDown?.();
+                  }}
+                  style={styles.cardReorderBtn}
+                  hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
+                >
+                  <ThemedText style={styles.cardReorderBtnText}>↓</ThemedText>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`View progression for ${props.entry.name}`}
+            onPress={props.onOpenProgression}
+            style={styles.progressionBadge}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <ThemedText type="smallBold" style={styles.progressionBadgeText}>
+              📈 History →
+            </ThemedText>
+          </Pressable>
+        </View>
       </View>
 
       {/* Set Table */}
@@ -1706,9 +1931,9 @@ function LiveExerciseCard(props: {
 
           return (
             <View key={set.id} style={styles.completedSetRow}>
-              <ThemedText type="smallBold" style={styles.colSet}>
-                {i + 1}
-              </ThemedText>
+              <View style={styles.colSetWrapper}>
+                {renderSetBadge(set.setType, i + 1)}
+              </View>
               <ThemedText
                 type="small"
                 themeColor="textSecondary"
@@ -1738,9 +1963,15 @@ function LiveExerciseCard(props: {
 
         {/* Active / Pending Set Row */}
         <View style={styles.activeSetRow}>
-          <ThemedText type="smallBold" style={styles.colSet}>
-            {nextSetSequence}
-          </ThemedText>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Set ${nextSetSequence} type: ${props.pendingInput.setType ?? "normal"}. Tap to change set type.`}
+            hitSlop={{ top: 0, bottom: 0, left: 8, right: 8 }}
+            onPress={props.onOpenSetTypeModal}
+            style={styles.colSetPressable}
+          >
+            {renderSetBadge(props.pendingInput.setType, nextSetSequence)}
+          </Pressable>
 
           <ThemedText
             type="small"
@@ -1799,16 +2030,16 @@ function LiveExerciseCard(props: {
         </View>
       </View>
 
-      {/* Add Set Footer */}
+      {/* Log Set Footer */}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Add Set for ${props.entry.name}`}
+        accessibilityLabel={`Log set ${nextSetSequence} for ${props.entry.name}`}
         disabled={props.busy}
         onPress={props.onLogSet}
-        style={styles.addSetRow}
+        style={styles.logSetFooterRow}
       >
-        <ThemedText type="smallBold" style={styles.addSetText}>
-          + Add Set {nextSetSequence}
+        <ThemedText type="smallBold" style={styles.logSetFooterText}>
+          ✓ Log Set {nextSetSequence}
         </ThemedText>
       </Pressable>
     </View>
@@ -2056,6 +2287,24 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: "#10B981",
   },
+  liveHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+  },
+  reorderFeedButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.25)",
+  },
+  reorderFeedButtonText: {
+    fontSize: 12,
+    color: "#10B981",
+    fontWeight: "600",
+  },
   emptyExercisesCard: {
     padding: Spacing.six,
     borderRadius: Spacing.three,
@@ -2083,6 +2332,28 @@ const styles = StyleSheet.create({
   },
   exerciseNameText: {
     fontSize: 17,
+    fontWeight: "700",
+  },
+  exerciseHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  cardReorderButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  cardReorderBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    backgroundColor: "rgba(148, 163, 184, 0.15)",
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cardReorderBtnText: {
+    fontSize: 13,
     fontWeight: "700",
   },
   progressionBadge: {
@@ -2151,6 +2422,53 @@ const styles = StyleSheet.create({
   colSet: {
     width: 36,
     color: "#8A8D91",
+    textAlign: "center",
+  },
+  colSetWrapper: {
+    width: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  colSetPressable: {
+    width: 36,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  badgeBase: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
+  warmupBadge: {
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    borderColor: "#F59E0B",
+  },
+  warmupBadgeText: {
+    color: "#F59E0B",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  failureBadge: {
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
+    borderColor: "#EF4444",
+  },
+  failureBadgeText: {
+    color: "#EF4444",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  dropBadge: {
+    backgroundColor: "rgba(139, 92, 246, 0.15)",
+    borderColor: "#8B5CF6",
+  },
+  dropBadgeText: {
+    color: "#8B5CF6",
+    fontSize: 12,
+    fontWeight: "700",
   },
   colPrev: {
     flex: 1,
@@ -2213,9 +2531,28 @@ const styles = StyleSheet.create({
   addSetText: {
     color: "#10B981",
   },
+  logSetFooterRow: {
+    paddingVertical: Spacing.two,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: Spacing.two,
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.3)",
+  },
+  logSetFooterText: {
+    color: "#10B981",
+    fontSize: 14,
+    fontWeight: "700",
+  },
   bottomControls: {
     gap: Spacing.three,
     marginTop: Spacing.two,
+  },
+  addExerciseControlsRow: {
+    flexDirection: "row",
+    gap: Spacing.two,
   },
   addExerciseButton: {
     paddingVertical: Spacing.three,
@@ -2228,6 +2565,19 @@ const styles = StyleSheet.create({
   },
   addExerciseText: {
     color: "#10B981",
+  },
+  reorderAllButton: {
+    paddingHorizontal: Spacing.four,
+    backgroundColor: "rgba(148, 163, 184, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.2)",
+    borderRadius: Spacing.three,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reorderAllText: {
+    fontSize: 14,
+    fontWeight: "600",
   },
   finishActions: {
     gap: Spacing.two,

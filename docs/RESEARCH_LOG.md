@@ -1,5 +1,23 @@
 # Research log
 
+## 2026-09-29 — Advanced nutrition implementation: server and database authorization
+
+- [Supabase Row Level Security guidance](https://supabase.com/docs/guides/database/postgres/row-level-security), accessed 2026-09-29: RLS protects row ownership but does not express this feature's Pro column-level rule. The existing `food_entries` authenticated Data API grant allows direct writes, so the implementation uses both an API capability check and a database trigger that checks server-owned `profiles.plan_tier` or an approved Beta Pro request. A local database test covers direct insert, downgrade, correction, and clearing. No new table or RLS policy is needed for the additive nullable columns.
+
+## 2026-09-29 — Active workout set addition clarification and set types (planning)
+
+- Primary sources accessed 2026-09-29: [Hevy Knowledge Base & Set Types](https://hevyapp.com/), [Strong App Help & Workout Logging](https://help.strongapp.io/), [ACSM Guidelines for Exercise Testing and Prescription (11th ed., resistance training volume and warmup)](https://www.acsm.org/), and [NSCA Essentials of Strength Training and Conditioning (4th ed., warm-up protocols and working sets)](https://www.nsca.com/).
+- Findings:
+  - Resistance training principles distinguish sub-maximal warmup sets (neuromuscular potentiation and injury prevention) from working sets (stimulative volume for hypertrophy and strength). In logging applications (Hevy, Strong), warmup sets are tagged ('W') and excluded from effective volume calculations and 1RM personal records so volume trends represent actual training stimulus.
+  - Failure sets ('F') denote maximal concentric exertion (RPE 10 / 0 RIR), while Drop sets ('D') denote immediately reduced-load extended sets.
+  - Workout logging UX clarity: The action of completing an active set (checking off or saving the set) must be clearly distinguished from creating/appending a new set row. In Mizyun, having an inline pending row 4 and directly underneath a button "+ Add Set 4" calling the identical completion handler created semantic confusion. The pending row requires clear completion semantics (`✓` / "Log Set {N}"), while "+ Add Set" must cleanly represent appending an additional set.
+- Consequence: Authored implementation plan `docs/ACTIVE_WORKOUT_SET_CLARIFICATION_AND_TYPES_PLAN_2026-09-29.md` for issue #139 with additive schema migration, core volume adjustment, and mobile set type selector. No runtime changes or migrations executed in this session.
+
+## 2026-09-29 — Advanced nutrition tracking for Pro (planning)
+
+- Primary sources accessed 2026-09-29: [WHO fats/carbohydrates](https://www.who.int/news/item/17-07-2023-who-updates-guidelines-on-fats-and-carbohydrates), [WHO sodium](https://www.who.int/tools/elena/interventions/sodium-cvd-adults), [European Commission nutrition labelling](https://food.ec.europa.eu/food-safety/labelling-and-nutrition/food-information-consumers-legislation/nutrition-labelling_en), [FDA Daily Values](https://www.fda.gov/food/nutrition-facts-label/daily-value-nutrition-and-supplement-facts-labels), [AHA 2026 dietary guidance](https://professional.heart.org/en/science-news/2026-dietary-guidance-to-improve-cardiovascular-health/top-things-to-know), [USDA zero versus missing nutrient values](https://fdc.nal.usda.gov/docs/cndb-documentation-cn27.pdf), and [EFSA added/free sugars assessment](https://www.efsa.europa.eu/en/news/added-and-free-sugars-should-be-low-possible).
+- Consequence: plan optional fibre, saturated fat, total sugars, sodium, and dietary cholesterol for Pro; keep missing distinct from zero; use canonical sodium with EU salt conversion; do not conflate total and added sugars; do not impose a default cholesterol target. General reference values are educational rather than personalized goals. Later micronutrients and AI extraction require separate data-quality and safety evaluation. See [NUTR-PRO-001 plan](ADVANCED_NUTRITION_PRO_PLAN_2026-09-29.md). No runtime change in this planning session.
+
 ## 2026-09-29 — Account navigation and local settings search (planning)
 
 - Installed source declares Expo `~57.0.23`, Expo Router `~57.0.21`, React Native `0.86.3`. [Expo SDK 57 reference](https://docs.expo.dev/versions/v57.0.0/) and [Router notation](https://docs.expo.dev/router/basics/notation/), accessed 2026-09-29: routing is file based, with layout files defining navigation relationships. Consequence: retain the Account tab route and plan thin detail routes around existing editors; no framework upgrade.

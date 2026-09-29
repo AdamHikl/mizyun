@@ -46,6 +46,11 @@ export interface FoodEntryCore {
   readonly proteinG: number | null;
   readonly carbohydrateG: number | null;
   readonly fatG: number | null;
+  readonly fibreG?: number | null;
+  readonly saturatedFatG?: number | null;
+  readonly totalSugarsG?: number | null;
+  readonly sodiumMg?: number | null;
+  readonly cholesterolMg?: number | null;
   readonly details: Readonly<Record<string, unknown>>;
 }
 
@@ -84,6 +89,11 @@ export type FoodEntryPatch = {
   readonly proteinG?: number | null | undefined;
   readonly carbohydrateG?: number | null | undefined;
   readonly fatG?: number | null | undefined;
+  readonly fibreG?: number | null | undefined;
+  readonly saturatedFatG?: number | null | undefined;
+  readonly totalSugarsG?: number | null | undefined;
+  readonly sodiumMg?: number | null | undefined;
+  readonly cholesterolMg?: number | null | undefined;
   readonly details?: Readonly<Record<string, unknown>> | undefined;
 };
 
@@ -115,7 +125,57 @@ export type FoodEntryValidationError =
     }
   | {
       readonly kind: "details_must_be_object";
-    };
+    }
+  | { readonly kind: "advanced_nutrition_invalid"; readonly field: string };
+
+export const ADVANCED_NUTRIENT_FIELDS = [
+  "fibreG",
+  "saturatedFatG",
+  "totalSugarsG",
+  "sodiumMg",
+  "cholesterolMg",
+] as const;
+export type AdvancedNutrientField = (typeof ADVANCED_NUTRIENT_FIELDS)[number];
+
+const validateAdvanced = (entry: {
+  readonly fibreG?: number | null | undefined;
+  readonly saturatedFatG?: number | null | undefined;
+  readonly totalSugarsG?: number | null | undefined;
+  readonly sodiumMg?: number | null | undefined;
+  readonly cholesterolMg?: number | null | undefined;
+  readonly fatG?: number | null | undefined;
+  readonly carbohydrateG?: number | null | undefined;
+}): FoodEntryValidationError | null => {
+  for (const field of ADVANCED_NUTRIENT_FIELDS) {
+    const value = entry[field];
+    const max = field.endsWith("Mg") ? 100_000 : 10_000;
+    if (
+      value !== undefined &&
+      value !== null &&
+      (!Number.isFinite(value) ||
+        value < 0 ||
+        value > max ||
+        Math.abs(Math.round(value * 100) - value * 100) > 1e-7)
+    ) {
+      return { kind: "advanced_nutrition_invalid", field };
+    }
+  }
+  if (
+    entry.saturatedFatG != null &&
+    entry.fatG != null &&
+    entry.saturatedFatG > entry.fatG
+  ) {
+    return { kind: "advanced_nutrition_invalid", field: "saturatedFatG" };
+  }
+  if (
+    entry.totalSugarsG != null &&
+    entry.carbohydrateG != null &&
+    entry.totalSugarsG > entry.carbohydrateG
+  ) {
+    return { kind: "advanced_nutrition_invalid", field: "totalSugarsG" };
+  }
+  return null;
+};
 
 const isBlank = (value: string): boolean => value.trim().length === 0;
 
@@ -196,6 +256,11 @@ export const validateFoodEntryCreate = (create: {
   readonly proteinG?: number | null;
   readonly carbohydrateG?: number | null;
   readonly fatG?: number | null;
+  readonly fibreG?: number | null;
+  readonly saturatedFatG?: number | null;
+  readonly totalSugarsG?: number | null;
+  readonly sodiumMg?: number | null;
+  readonly cholesterolMg?: number | null;
   readonly details?: Readonly<Record<string, unknown>>;
 }): FoodEntryValidationError | null => {
   const e0 = validateName(create.name);
@@ -219,7 +284,7 @@ export const validateFoodEntryCreate = (create: {
   if (e4 !== null) return e4;
   const e5 = validateDetails(create.details);
   if (e5 !== null) return e5;
-  return null;
+  return validateAdvanced(create);
 };
 
 /**
@@ -236,6 +301,7 @@ export const validateFoodEntryPatch = (
     patch.proteinG !== undefined ||
     patch.carbohydrateG !== undefined ||
     patch.fatG !== undefined ||
+    ADVANCED_NUTRIENT_FIELDS.some((field) => patch[field] !== undefined) ||
     patch.details !== undefined;
   if (!touched) return { kind: "empty_patch" };
 
@@ -261,7 +327,7 @@ export const validateFoodEntryPatch = (
   if (e4 !== null) return e4;
   const e5 = validateDetails(patch.details);
   if (e5 !== null) return e5;
-  return null;
+  return validateAdvanced(patch);
 };
 
 /**
@@ -292,6 +358,12 @@ export const applyFoodEntryPatch = (
       ? stored.carbohydrateG
       : patch.carbohydrateG,
   fatG: patch.fatG === undefined ? stored.fatG : patch.fatG,
+  ...Object.fromEntries(
+    ADVANCED_NUTRIENT_FIELDS.flatMap((field) => {
+      const value = patch[field] === undefined ? stored[field] : patch[field];
+      return value === undefined ? [] : [[field, value]];
+    }),
+  ),
   details: patch.details === undefined ? stored.details : { ...patch.details },
   createdAt: stored.createdAt,
   updatedAt: now,
@@ -407,6 +479,15 @@ export interface DailyFoodSummary {
   readonly proteinG: number | null;
   readonly carbohydrateG: number | null;
   readonly fatG: number | null;
+  readonly fibreG?: number | null;
+  readonly saturatedFatG?: number | null;
+  readonly totalSugarsG?: number | null;
+  readonly sodiumMg?: number | null;
+  readonly cholesterolMg?: number | null;
+  readonly advancedCoverage?: Readonly<Record<AdvancedNutrientField, number>>;
+  readonly advancedKnownSubtotal?: Readonly<
+    Record<AdvancedNutrientField, number>
+  >;
 }
 
 const roundTo2 = (value: number): number => Math.round(value * 100) / 100;
@@ -468,6 +549,7 @@ export const summariseFoodEntries = (
       readonly protein: Array<number | null>;
       readonly carbohydrate: Array<number | null>;
       readonly fat: Array<number | null>;
+      readonly advanced: Record<AdvancedNutrientField, Array<number | null>>;
       count: number;
     }
   >();
@@ -483,6 +565,12 @@ export const summariseFoodEntries = (
         protein: [entry.proteinG],
         carbohydrate: [entry.carbohydrateG],
         fat: [entry.fatG],
+        advanced: Object.fromEntries(
+          ADVANCED_NUTRIENT_FIELDS.map((field) => [
+            field,
+            [entry[field] ?? null],
+          ]),
+        ) as Record<AdvancedNutrientField, Array<number | null>>,
         count: 1,
       });
     } else {
@@ -490,6 +578,8 @@ export const summariseFoodEntries = (
       existing.protein.push(entry.proteinG);
       existing.carbohydrate.push(entry.carbohydrateG);
       existing.fat.push(entry.fatG);
+      for (const field of ADVANCED_NUTRIENT_FIELDS)
+        existing.advanced[field].push(entry[field] ?? null);
       existing.count += 1;
     }
   }
@@ -503,5 +593,28 @@ export const summariseFoodEntries = (
       proteinG: sumNullable(b.protein),
       carbohydrateG: sumNullable(b.carbohydrate),
       fatG: sumNullable(b.fat),
+      ...Object.fromEntries(
+        ADVANCED_NUTRIENT_FIELDS.map((field) => [
+          field,
+          sumNullable(b.advanced[field]),
+        ]),
+      ),
+      advancedCoverage: Object.fromEntries(
+        ADVANCED_NUTRIENT_FIELDS.map((field) => [
+          field,
+          b.advanced[field].filter((value) => value !== null).length,
+        ]),
+      ) as Record<AdvancedNutrientField, number>,
+      advancedKnownSubtotal: Object.fromEntries(
+        ADVANCED_NUTRIENT_FIELDS.map((field) => [
+          field,
+          roundTo2(
+            b.advanced[field].reduce<number>(
+              (total, value) => total + (value ?? 0),
+              0,
+            ),
+          ),
+        ]),
+      ) as Record<AdvancedNutrientField, number>,
     }));
 };

@@ -39,7 +39,8 @@ export interface AiConsentControllerOptions {
     userId: string,
     granted: boolean,
     confirmedAdult: boolean,
-  ) => Promise<boolean>;
+    birthYear?: number,
+  ) => Promise<boolean | { ok: boolean; error?: string }>;
   readonly revokeConsent?: (userId: string) => Promise<boolean>;
   readonly autoLoad?: boolean;
 }
@@ -51,11 +52,12 @@ export interface AiConsentControllerState {
   readonly error: string | null;
   readonly pendingAction: PendingAiAction | null;
   readonly isModalVisible: boolean;
+  readonly isSaving: boolean;
 }
 
 export interface AiConsentControllerActions {
   readonly requestAction: (action: PendingAiAction) => Promise<void>;
-  readonly confirmConsent: () => Promise<void>;
+  readonly confirmConsent: (birthYear?: number) => Promise<void>;
   readonly declineConsent: () => void;
   readonly revokeConsent: () => Promise<boolean>;
   readonly retryPendingAction: () => Promise<void>;
@@ -76,9 +78,17 @@ const defaultSaveConsent = async (
   userId: string,
   granted: boolean,
   confirmedAdult: boolean,
+  birthYear?: number,
   apiClient?: ApiClient,
-): Promise<boolean> => {
-  return saveAiConsent(userId, granted, confirmedAdult, undefined, apiClient);
+): Promise<{ ok: boolean; error?: string }> => {
+  return saveAiConsent(
+    userId,
+    granted,
+    confirmedAdult,
+    undefined,
+    apiClient,
+    birthYear,
+  );
 };
 
 const defaultRevokeConsent = async (
@@ -119,8 +129,14 @@ export class AiConsentController {
         ((userId) => defaultGetConsent(userId, options.apiClient)),
       saveConsent:
         options.saveConsent ??
-        ((userId, granted, adult) =>
-          defaultSaveConsent(userId, granted, adult, options.apiClient)),
+        ((userId, granted, adult, birthYear) =>
+          defaultSaveConsent(
+            userId,
+            granted,
+            adult,
+            birthYear,
+            options.apiClient,
+          )),
       revokeConsent:
         options.revokeConsent ??
         ((userId) => defaultRevokeConsent(userId, options.apiClient)),
@@ -138,6 +154,7 @@ export class AiConsentController {
       error: null,
       pendingAction: null,
       isModalVisible: false,
+      isSaving: false,
     };
 
     if (this.options.autoLoad && options.userId !== null) {
@@ -306,9 +323,16 @@ export class AiConsentController {
     });
   }
 
-  public async confirmConsent(): Promise<void> {
+  public async confirmConsent(birthYear?: number): Promise<void> {
     const targetUserId = this.options.userId;
     if (this.isDestroyed || targetUserId === null) {
+      if (targetUserId === null) {
+        this.updateState({
+          status: "error",
+          error: "You must be signed in to confirm AI consent.",
+          isSaving: false,
+        });
+      }
       return;
     }
 
@@ -321,13 +345,24 @@ export class AiConsentController {
     const generation = this.currentGeneration;
 
     try {
-      this.updateState({ status: "saving", error: null });
+      this.updateState({ status: "saving", error: null, isSaving: true });
 
-      let saved = false;
+      let saveResult: boolean | { ok: boolean; error?: string } = false;
       try {
-        saved = await this.options.saveConsent(targetUserId, true, true);
+        saveResult =
+          birthYear !== undefined
+            ? await this.options.saveConsent(
+                targetUserId,
+                true,
+                true,
+                birthYear,
+              )
+            : await this.options.saveConsent(targetUserId, true, true);
       } catch {
-        saved = false;
+        saveResult = {
+          ok: false,
+          error: "Failed to save AI consent. Please try again.",
+        };
       }
 
       if (
@@ -339,7 +374,14 @@ export class AiConsentController {
         return;
       }
 
-      if (saved) {
+      const isSuccess =
+        typeof saveResult === "boolean" ? saveResult : saveResult.ok;
+      const errorMessage =
+        typeof saveResult === "object" && saveResult.error
+          ? saveResult.error
+          : "Failed to save AI consent. Please try again.";
+
+      if (isSuccess) {
         const actionToDispatch = this.state.pendingAction;
         // Clear pendingAction before executing
         this.updateState({
@@ -348,6 +390,7 @@ export class AiConsentController {
           confirmedAdult: true,
           error: null,
           pendingAction: null,
+          isSaving: false,
         });
 
         if (actionToDispatch !== null) {
@@ -363,11 +406,15 @@ export class AiConsentController {
       } else {
         this.updateState({
           status: "error",
-          error: "Failed to save AI consent. Please try again.",
+          error: errorMessage,
+          isSaving: false,
         });
       }
     } finally {
       this.isSaving = false;
+      if (this.state.isSaving) {
+        this.updateState({ isSaving: false });
+      }
     }
   }
 
@@ -503,7 +550,7 @@ export function useAiConsentController(
   );
 
   const confirmConsent = useCallback(
-    () => controller.confirmConsent(),
+    (birthYear?: number) => controller.confirmConsent(birthYear),
     [controller],
   );
 

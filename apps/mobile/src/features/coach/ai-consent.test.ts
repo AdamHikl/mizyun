@@ -33,7 +33,7 @@ describe("ai-consent", () => {
   it("persists and reloads granted consent with adult confirmation", async () => {
     const store = new MemorySecureStore();
     const saved = await saveAiConsent("user-1", true, true, store);
-    expect(saved).toBe(true);
+    expect(saved.ok).toBe(true);
 
     const result = await loadAiConsent("user-1", store);
     expect(result.granted).toBe(true);
@@ -43,7 +43,8 @@ describe("ai-consent", () => {
 
   it("persists non-granted state", async () => {
     const store = new MemorySecureStore();
-    await saveAiConsent("user-1", false, false, store);
+    const saved = await saveAiConsent("user-1", false, false, store);
+    expect(saved.ok).toBe(true);
 
     const result = await loadAiConsent("user-1", store);
     expect(result.granted).toBe(false);
@@ -93,9 +94,10 @@ describe("ai-consent", () => {
       confirmedAdult: false,
       consentedAt: null,
     });
-    expect(await saveAiConsent("user-1", true, true, throwingStore)).toBe(
-      false,
-    );
+    expect(await saveAiConsent("user-1", true, true, throwingStore)).toEqual({
+      ok: false,
+      error: "Disk error",
+    });
     expect(await revokeAiConsent("user-1", throwingStore)).toBe(false);
   });
 
@@ -169,7 +171,7 @@ describe("ai-consent", () => {
       store,
       mockApiClient as any,
     );
-    expect(saved).toBe(true);
+    expect(saved.ok).toBe(true);
 
     // Revoke calls PUT with granted: false and clears store
     const revoked = await revokeAiConsent(
@@ -180,6 +182,83 @@ describe("ai-consent", () => {
     expect(revoked).toBe(true);
     const afterRevoke = await store.getItemAsync("mizyun.ai-consent.user-1");
     expect(afterRevoke).toBeNull();
+  });
+
+  it("sends birthYear when saving consent with birthYear", async () => {
+    const store = new MemorySecureStore();
+    let sentBody: unknown = null;
+    const mockApiClient = {
+      request: async (options: {
+        readonly method: string;
+        readonly path: string;
+        readonly body?: unknown;
+      }) => {
+        sentBody = options.body;
+        return {
+          ok: true as const,
+          value: {
+            consent: {
+              granted: true,
+              confirmedAdult: true,
+              consentVersion: "2026-09-08",
+              consentedAt: "2026-09-08T12:00:00Z",
+              revokedAt: null,
+            },
+          },
+        };
+      },
+      status: () => ({
+        configured: true as const,
+        baseUrl: "https://api.test",
+      }),
+    };
+
+    const saved = await saveAiConsent(
+      "user-1",
+      true,
+      true,
+      store,
+      mockApiClient as any,
+      1995,
+    );
+    expect(saved.ok).toBe(true);
+    expect(sentBody).toMatchObject({
+      granted: true,
+      confirmedAdult: true,
+      birthYear: 1995,
+    });
+  });
+
+  it("returns server error message when server rejects consent", async () => {
+    const store = new MemorySecureStore();
+    const failingApiClient = {
+      request: async () => ({
+        ok: false as const,
+        error: {
+          kind: "http_error" as const,
+          status: 403,
+          code: "forbidden",
+          message:
+            "Mizyun AI features require confirmed adult status (18+). Please specify your birth year.",
+        },
+      }),
+      status: () => ({
+        configured: true as const,
+        baseUrl: "https://api.test",
+      }),
+    };
+
+    const saved = await saveAiConsent(
+      "user-1",
+      true,
+      true,
+      store,
+      failingApiClient as any,
+    );
+    expect(saved.ok).toBe(false);
+    expect(saved.error).toBe(
+      "Mizyun AI features require confirmed adult status (18+). Please specify your birth year.",
+    );
   });
 
   it("falls back to local store if server request fails", async () => {

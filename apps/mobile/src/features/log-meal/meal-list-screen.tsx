@@ -19,7 +19,7 @@ import {
 } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { FoodEntry } from "@mizyun/contracts";
+import type { DailyFoodSummary, FoodEntry } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -31,6 +31,15 @@ import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
 import { getIsoLocalDate } from "./food-day-completion";
 import { reconcileEveningReminders } from "./evening-catch-up-reminders";
+import {
+  fetchCurrentWeekSummaries,
+  useAdvancedNutritionCapability,
+} from "./advanced-nutrition";
+import {
+  ADVANCED_DISPLAY_FIELDS,
+  advancedNutrientLines,
+  weeklyAdvancedNutrientLines,
+} from "./advanced-nutrition-data";
 
 import { filterFoodDayGroups } from "./meal-history-filter";
 import {
@@ -54,6 +63,7 @@ import {
   extractGramsFromName,
   getEntryGrams,
   scaleNutritionFromKnownPortion,
+  scaledAdvancedPatchForExisting,
   updateGramsInName,
   withMealGrams,
 } from "./meal-scale";
@@ -138,7 +148,17 @@ interface PortionModalState {
 export function MealListScreen() {
   const theme = useTheme();
   const { session } = useAuth();
+  const advancedCapability = useAdvancedNutritionCapability(
+    session?.user.id ?? null,
+  );
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [visibleAdvancedFields, setVisibleAdvancedFields] = useState<string[]>(
+    ADVANCED_DISPLAY_FIELDS.map(({ key }) => key),
+  );
+  const [weeklySummaries, setWeeklySummaries] =
+    useState<ReadonlyArray<DailyFoodSummary> | null>(null);
   const userId = session?.user?.id ?? null;
+  useEffect(() => setWeeklySummaries(null), [userId]);
   const params = useLocalSearchParams<{ source?: string }>();
   const [state, setState] = useState<MealListState>(INITIAL_STATE);
   const [dismissEveningBanner, setDismissEveningBanner] = useState(false);
@@ -316,14 +336,36 @@ export function MealListScreen() {
         properties: { feature: "nutrition_history" },
       });
       void load();
-    }, [load]),
+      void advancedCapability.refresh();
+    }, [load, advancedCapability.refresh]),
   );
+
+  useEffect(() => {
+    if (!advancedCapability.enabled) {
+      setWeeklySummaries(null);
+      return;
+    }
+    let active = true;
+    void fetchCurrentWeekSummaries()
+      .then((summaries) => {
+        if (active) setWeeklySummaries(summaries);
+      })
+      .catch(() => {
+        if (active) setWeeklySummaries(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [advancedCapability.enabled, state.entries, userId]);
 
   const copy = useCallback(
     async (entry: FoodEntry): Promise<void> => {
       setBusyEntryId(entry.id);
       setState((current) => ({ ...current, message: null }));
-      const result = await copyFoodEntry(entry);
+      const result = await copyFoodEntry(
+        entry,
+        await advancedCapability.refresh(),
+      );
       setBusyEntryId(null);
       if (!result.ok) {
         setState((current) => ({ ...current, message: result.message }));
@@ -331,7 +373,7 @@ export function MealListScreen() {
       }
       await load();
     },
-    [load],
+    [load, advancedCapability],
   );
 
   const remove = useCallback(
@@ -532,6 +574,11 @@ export function MealListScreen() {
           proteinG: entry.proteinG,
           carbohydrateG: entry.carbohydrateG,
           fatG: entry.fatG,
+          fibreG: entry.fibreG,
+          saturatedFatG: entry.saturatedFatG,
+          totalSugarsG: entry.totalSugarsG,
+          sodiumMg: entry.sodiumMg,
+          cholesterolMg: entry.cholesterolMg,
           grams: baseGrams,
         },
         parsedGrams,
@@ -549,6 +596,7 @@ export function MealListScreen() {
         proteinG: scaled.proteinG,
         carbohydrateG: scaled.carbohydrateG,
         fatG: scaled.fatG,
+        ...scaledAdvancedPatchForExisting(entry, scaled),
         details: withMealGrams(entry.details, parsedGrams),
       };
 
@@ -612,6 +660,86 @@ export function MealListScreen() {
               </ThemedText>
             </View>
           </Pressable>
+
+          {advancedCapability.enabled ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Show or hide more nutrient totals"
+              onPress={() => setShowAdvanced((value) => !value)}
+              style={styles.inlineButton}
+            >
+              <ThemedText type="smallBold">
+                {showAdvanced ? "Hide" : "Show"} more nutrients
+              </ThemedText>
+            </Pressable>
+          ) : null}
+
+          {advancedCapability.enabled && showAdvanced ? (
+            <ThemedView type="backgroundElement" style={styles.section}>
+              <ThemedText type="smallBold">
+                This week · more nutrients
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                Completeness covers nutrient values in logged meals. It does not
+                mean every food eaten was logged.
+              </ThemedText>
+              <View
+                style={{
+                  flexDirection: "row",
+                  flexWrap: "wrap",
+                  gap: 8,
+                  marginVertical: 8,
+                }}
+              >
+                {ADVANCED_DISPLAY_FIELDS.map(({ key, label }) => (
+                  <Pressable
+                    key={key}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{
+                      checked: visibleAdvancedFields.includes(key),
+                    }}
+                    accessibilityLabel={`Show ${label}`}
+                    onPress={() =>
+                      setVisibleAdvancedFields((current) =>
+                        current.includes(key)
+                          ? current.filter((item) => item !== key)
+                          : [...current, key],
+                      )
+                    }
+                    style={{
+                      borderWidth: 1,
+                      borderColor: theme.border,
+                      borderRadius: 8,
+                      padding: 8,
+                    }}
+                  >
+                    <ThemedText type="small">
+                      {visibleAdvancedFields.includes(key) ? "✓ " : ""}
+                      {label}
+                    </ThemedText>
+                  </Pressable>
+                ))}
+              </View>
+              {weeklySummaries === null ? (
+                <ThemedText type="small" themeColor="textSecondary">
+                  Weekly nutrient summary unavailable.
+                </ThemedText>
+              ) : (
+                weeklyAdvancedNutrientLines(
+                  weeklySummaries,
+                  visibleAdvancedFields,
+                ).map((line) => (
+                  <ThemedText
+                    key={line}
+                    type="small"
+                    themeColor="textSecondary"
+                  >
+                    {line}
+                  </ThemedText>
+                ))
+              )}
+            </ThemedView>
+          ) : null}
 
           {state.message !== null ? (
             <ThemedView type="backgroundElement" style={styles.messageCard}>
@@ -959,6 +1087,22 @@ export function MealListScreen() {
                       )}
                     </View>
 
+                    {advancedCapability.enabled && showAdvanced
+                      ? advancedNutrientLines(
+                          group.entries,
+                          visibleAdvancedFields,
+                        ).map((line) => (
+                          <ThemedText
+                            key={line}
+                            type="small"
+                            themeColor="textSecondary"
+                          >
+                            {group.isPartial ? "Partial loaded history · " : ""}
+                            {line}
+                          </ThemedText>
+                        ))
+                      : null}
+
                     {/* Day Entries List (clusters & standalone meals) */}
                     <View style={styles.dayEntries}>
                       {clusters.map((clusterItem, index) => {
@@ -1023,6 +1167,12 @@ export function MealListScreen() {
                                   <MealEntryRow
                                     key={child.id}
                                     entry={child}
+                                    showAdvanced={
+                                      advancedCapability.enabled && showAdvanced
+                                    }
+                                    visibleAdvancedFields={
+                                      visibleAdvancedFields
+                                    }
                                     isGrouping={isGroupingThisDay}
                                     isSelected={selectedEntryIds.has(child.id)}
                                     onToggleSelect={() =>
@@ -1052,6 +1202,10 @@ export function MealListScreen() {
                           <MealEntryRow
                             key={clusterItem.entry.id}
                             entry={clusterItem.entry}
+                            showAdvanced={
+                              advancedCapability.enabled && showAdvanced
+                            }
+                            visibleAdvancedFields={visibleAdvancedFields}
                             isGrouping={isGroupingThisDay}
                             isSelected={selectedEntryIds.has(
                               clusterItem.entry.id,
@@ -1304,6 +1458,8 @@ export function MealListScreen() {
 
 function MealEntryRow(props: {
   readonly entry: FoodEntry;
+  readonly showAdvanced: boolean;
+  readonly visibleAdvancedFields: ReadonlyArray<string>;
   readonly isGrouping: boolean;
   readonly isSelected: boolean;
   readonly onToggleSelect: () => void;
@@ -1317,6 +1473,8 @@ function MealEntryRow(props: {
 }) {
   const {
     entry,
+    showAdvanced,
+    visibleAdvancedFields,
     isGrouping,
     isSelected,
     onToggleSelect,
@@ -1424,6 +1582,14 @@ function MealEntryRow(props: {
         ) : null}
       </View>
 
+      {showAdvanced
+        ? advancedNutrientLines([entry], visibleAdvancedFields).map((line) => (
+            <ThemedText key={line} type="small" themeColor="textSecondary">
+              {line}
+            </ThemedText>
+          ))
+        : null}
+
       {/* Entry Actions */}
       <View style={styles.entryActions}>
         <EntryAction label="Edit" disabled={busy} onPress={onEdit} />
@@ -1466,6 +1632,11 @@ function AdjustPortionModal(props: {
         proteinG: portionTarget.entry.proteinG,
         carbohydrateG: portionTarget.entry.carbohydrateG,
         fatG: portionTarget.entry.fatG,
+        fibreG: portionTarget.entry.fibreG,
+        saturatedFatG: portionTarget.entry.saturatedFatG,
+        totalSugarsG: portionTarget.entry.totalSugarsG,
+        sodiumMg: portionTarget.entry.sodiumMg,
+        cholesterolMg: portionTarget.entry.cholesterolMg,
       };
     }
     return scaleNutritionFromKnownPortion(
@@ -1474,6 +1645,11 @@ function AdjustPortionModal(props: {
         proteinG: portionTarget.entry.proteinG,
         carbohydrateG: portionTarget.entry.carbohydrateG,
         fatG: portionTarget.entry.fatG,
+        fibreG: portionTarget.entry.fibreG,
+        saturatedFatG: portionTarget.entry.saturatedFatG,
+        totalSugarsG: portionTarget.entry.totalSugarsG,
+        sodiumMg: portionTarget.entry.sodiumMg,
+        cholesterolMg: portionTarget.entry.cholesterolMg,
         grams: portionTarget.baseGrams,
       },
       parsedGrams,

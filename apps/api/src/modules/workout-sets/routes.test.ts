@@ -111,6 +111,7 @@ const seedSet = (
     workoutId: WORKOUT_ID,
     exerciseId: EXERCISE_ID,
     sequence: 1,
+    setType: "normal",
     repetitions: 8,
     loadKg: 60,
     durationSeconds: null,
@@ -148,6 +149,31 @@ describe("POST /v1/workouts/:workoutId/sets", () => {
     expect(response.json().workoutSet.sequence).toBe(1);
     expect(response.json().workoutSet.userId).toBe(userA);
     expect(response.json().workoutSet.workoutId).toBe(WORKOUT_ID);
+    expect(response.json().workoutSet.setType).toBe("normal");
+  });
+
+  it("creates a set with explicit setType (e.g. warmup)", async () => {
+    const { app, workoutRepository, exerciseRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    seedWorkout(workoutRepository);
+    seedExercise(exerciseRepository);
+    const response = await app.inject({
+      method: "POST",
+      url: `/v1/workouts/${WORKOUT_ID}/sets`,
+      headers: {
+        authorization: "Bearer valid",
+        "content-type": "application/json",
+      },
+      payload: {
+        exerciseId: EXERCISE_ID,
+        repetitions: 10,
+        loadKg: 40,
+        setType: "warmup",
+      },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().workoutSet.setType).toBe("warmup");
   });
 
   it("rejects logging a set directly on a reusable routine", async () => {

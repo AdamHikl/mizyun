@@ -48,7 +48,8 @@ interface BuildTestContextOptions {
 
 const build = (options: BuildTestContextOptions = {}) => {
   const profileRepository = new InMemoryProfileRepository({
-    defaultBirthYear: options.birthYear ?? 1990,
+    defaultBirthYear:
+      options.birthYear !== undefined ? options.birthYear : 1990,
     defaultTimezone: "UTC",
     defaultUnitSystem: "metric",
   });
@@ -201,6 +202,69 @@ describe("AI Consent Endpoints & Authorization Boundary", () => {
           code: "AI_AGE_RESTRICTED",
         },
       });
+    });
+
+    it("rejects when profile birthYear is null and no birthYear is provided in payload", async () => {
+      const { app } = build({
+        defaultConsentGranted: false,
+        birthYear: null,
+      });
+      const response = await app.inject({
+        method: "PUT",
+        url: "/v1/account/ai-consent",
+        headers: {
+          authorization: "Bearer valid",
+          "content-type": "application/json",
+        },
+        payload: {
+          granted: true,
+          confirmedAdult: true,
+          consentVersion: CURRENT_AI_CONSENT_VERSION,
+        },
+      });
+      expect(response.statusCode).toBe(403);
+      expect(response.json()).toMatchObject({
+        error: {
+          code: "AI_AGE_RESTRICTED",
+          message:
+            "Mizyun AI features require confirmed adult status (18+). Please specify your birth year.",
+        },
+      });
+    });
+
+    it("updates profile birthYear and grants consent when adult birthYear is provided in payload", async () => {
+      const { app, profileRepository } = build({
+        defaultConsentGranted: false,
+        birthYear: null,
+      });
+      const response = await app.inject({
+        method: "PUT",
+        url: "/v1/account/ai-consent",
+        headers: {
+          authorization: "Bearer valid",
+          "content-type": "application/json",
+        },
+        payload: {
+          granted: true,
+          confirmedAdult: true,
+          consentVersion: CURRENT_AI_CONSENT_VERSION,
+          birthYear: 1995,
+        },
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({
+        consent: {
+          granted: true,
+          confirmedAdult: true,
+          consentVersion: CURRENT_AI_CONSENT_VERSION,
+        },
+      });
+
+      const updatedProfile = await profileRepository.getOrCreate(userA, {
+        now: new Date(),
+        accessToken: "valid",
+      });
+      expect(updatedProfile.birthYear).toBe(1995);
     });
 
     it("records valid granted consent and makes it queryable via GET", async () => {

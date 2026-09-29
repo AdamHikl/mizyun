@@ -548,6 +548,77 @@ describe("ai-consent-controller", () => {
       expect(onExecuteAction).not.toHaveBeenCalled();
     });
 
+    it("forwards birthYear to saveConsent and transitions isSaving during confirmConsent", async () => {
+      let resolveSave:
+        ((val: boolean | { ok: boolean; error?: string }) => void) | null =
+        null;
+      const saveConsent = vi.fn().mockImplementation(() => {
+        return new Promise<boolean | { ok: boolean; error?: string }>(
+          (resolve) => {
+            resolveSave = resolve;
+          },
+        );
+      });
+      const onExecuteAction = vi.fn();
+
+      const controller = createAiConsentController({
+        userId: "user-1",
+        getConsent: async () => ({ granted: false, confirmedAdult: false }),
+        saveConsent,
+        onExecuteAction,
+      });
+      await controller.waitForLoad();
+
+      await controller.requestAction({
+        kind: "coach_message",
+        text: "Plan my week",
+      });
+
+      expect(controller.getState().isSaving).toBe(false);
+
+      const confirmPromise = controller.confirmConsent(1998);
+
+      expect(controller.getState().isSaving).toBe(true);
+      expect(controller.getState().status).toBe("saving");
+      expect(saveConsent).toHaveBeenCalledWith("user-1", true, true, 1998);
+
+      resolveSave!({ ok: true });
+      await confirmPromise;
+
+      expect(controller.getState().isSaving).toBe(false);
+      expect(controller.getState().status).toBe("ready");
+      expect(onExecuteAction).toHaveBeenCalledTimes(1);
+    });
+
+    it("surfaces server error message when saveConsent returns an error object", async () => {
+      const saveConsent = vi.fn().mockResolvedValue({
+        ok: false,
+        error:
+          "Mizyun AI features require confirmed adult status (18+). Please specify your birth year.",
+      });
+
+      const controller = createAiConsentController({
+        userId: "user-1",
+        getConsent: async () => ({ granted: false, confirmedAdult: false }),
+        saveConsent,
+      });
+      await controller.waitForLoad();
+
+      await controller.requestAction({
+        kind: "coach_message",
+        text: "Hello",
+      });
+
+      await controller.confirmConsent();
+
+      expect(controller.getState().status).toBe("error");
+      expect(controller.getState().error).toBe(
+        "Mizyun AI features require confirmed adult status (18+). Please specify your birth year.",
+      );
+      expect(controller.getState().isSaving).toBe(false);
+      expect(controller.getState().isModalVisible).toBe(true);
+    });
+
     it("calling confirmConsent after error retries saving and dispatches pending action on success", async () => {
       let failFirst = true;
       const saveConsent = vi.fn().mockImplementation(async () => {

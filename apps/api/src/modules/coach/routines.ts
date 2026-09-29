@@ -26,6 +26,12 @@ const extractRawExercises = (
     return [];
   }
 
+  // 0. Active session exercises (sessionExercises)
+  const sessionExercises = details.sessionExercises;
+  if (Array.isArray(sessionExercises)) {
+    return sessionExercises;
+  }
+
   // 1. CoachPlan (coachPlan.exercises or coachPlan.session.exercises)
   const coachPlan = details.coachPlan;
   if (coachPlan && typeof coachPlan === "object") {

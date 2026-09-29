@@ -45,6 +45,27 @@ const utcOffsetMinutesSchema = z.coerce.number().int().gte(-840).lte(840);
  * total to negative territory.
  */
 const macroSchema = z.number().gte(0).lte(10_000).multipleOf(0.01);
+const milligramSchema = z.number().gte(0).lte(100_000).multipleOf(0.01);
+const aggregateNutritionSchema = z.number().finite().nonnegative();
+
+export const advancedNutritionSchema = z.object({
+  fibreG: macroSchema.nullable(),
+  saturatedFatG: macroSchema.nullable(),
+  totalSugarsG: macroSchema.nullable(),
+  sodiumMg: milligramSchema.nullable(),
+  cholesterolMg: milligramSchema.nullable(),
+});
+export type AdvancedNutrition = z.infer<typeof advancedNutritionSchema>;
+
+export const advancedNutritionCapabilitySchema = z.object({
+  advancedNutrition: z.boolean(),
+  source: z.enum(["paid", "beta_pro", "none"]),
+});
+export const advancedNutritionCapabilityResponseSchema =
+  advancedNutritionCapabilitySchema;
+export type AdvancedNutritionCapability = z.infer<
+  typeof advancedNutritionCapabilitySchema
+>;
 
 export const foodEntrySchema = z.object({
   id: z.string().uuid(),
@@ -55,6 +76,7 @@ export const foodEntrySchema = z.object({
   proteinG: macroSchema.nullable(),
   carbohydrateG: macroSchema.nullable(),
   fatG: macroSchema.nullable(),
+  ...advancedNutritionSchema.partial().shape,
   source: foodSourceSchema,
   confidence: z.number().gte(0).lte(1).nullable(),
   confirmedByUser: z.boolean(),
@@ -99,6 +121,7 @@ export const foodEntryCreateSchema = z
     proteinG: foodEntrySchema.shape.proteinG.optional(),
     carbohydrateG: foodEntrySchema.shape.carbohydrateG.optional(),
     fatG: foodEntrySchema.shape.fatG.optional(),
+    ...advancedNutritionSchema.partial().shape,
     details: z.record(z.unknown()).optional(),
   })
   .strict();
@@ -122,6 +145,7 @@ export const foodEntryPatchSchema = z
     proteinG: foodEntrySchema.shape.proteinG.nullable().optional(),
     carbohydrateG: foodEntrySchema.shape.carbohydrateG.nullable().optional(),
     fatG: foodEntrySchema.shape.fatG.nullable().optional(),
+    ...advancedNutritionSchema.partial().shape,
     details: z.record(z.unknown()).optional(),
   })
   .strict()
@@ -133,6 +157,11 @@ export const foodEntryPatchSchema = z
       patch.proteinG !== undefined ||
       patch.carbohydrateG !== undefined ||
       patch.fatG !== undefined ||
+      patch.fibreG !== undefined ||
+      patch.saturatedFatG !== undefined ||
+      patch.totalSugarsG !== undefined ||
+      patch.sodiumMg !== undefined ||
+      patch.cholesterolMg !== undefined ||
       patch.details !== undefined,
     { message: "at least one field must be present" },
   );
@@ -185,10 +214,33 @@ export type FoodEntryListQuery = z.infer<typeof foodEntryListQuerySchema>;
 export const dailyFoodSummarySchema = z.object({
   date: isoDateSchema,
   entryCount: z.number().int().gte(0),
-  caloriesKcal: z.number().gte(0).lte(20_000).multipleOf(0.01).nullable(),
-  proteinG: macroSchema.nullable(),
-  carbohydrateG: macroSchema.nullable(),
-  fatG: macroSchema.nullable(),
+  caloriesKcal: aggregateNutritionSchema.nullable(),
+  proteinG: aggregateNutritionSchema.nullable(),
+  carbohydrateG: aggregateNutritionSchema.nullable(),
+  fatG: aggregateNutritionSchema.nullable(),
+  fibreG: aggregateNutritionSchema.nullable().optional(),
+  saturatedFatG: aggregateNutritionSchema.nullable().optional(),
+  totalSugarsG: aggregateNutritionSchema.nullable().optional(),
+  sodiumMg: aggregateNutritionSchema.nullable().optional(),
+  cholesterolMg: aggregateNutritionSchema.nullable().optional(),
+  advancedCoverage: z
+    .object({
+      fibreG: z.number().int().nonnegative(),
+      saturatedFatG: z.number().int().nonnegative(),
+      totalSugarsG: z.number().int().nonnegative(),
+      sodiumMg: z.number().int().nonnegative(),
+      cholesterolMg: z.number().int().nonnegative(),
+    })
+    .optional(),
+  advancedKnownSubtotal: z
+    .object({
+      fibreG: aggregateNutritionSchema,
+      saturatedFatG: aggregateNutritionSchema,
+      totalSugarsG: aggregateNutritionSchema,
+      sodiumMg: aggregateNutritionSchema,
+      cholesterolMg: aggregateNutritionSchema,
+    })
+    .optional(),
 });
 
 export type DailyFoodSummary = z.infer<typeof dailyFoodSummarySchema>;

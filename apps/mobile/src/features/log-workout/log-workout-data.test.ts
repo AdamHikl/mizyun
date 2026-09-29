@@ -17,6 +17,7 @@ import {
   extractPlannedExercises,
   loadRecentPerformanceWith,
   loadWorkoutWorkspaceWith,
+  reorderWorkoutExercisesWith,
   startWorkoutWith,
 } from "./log-workout-data";
 
@@ -250,6 +251,36 @@ describe("workout lifecycle", () => {
         repetitions: 5,
         loadKg: 102.058,
         perceivedExertion: 8.5,
+      },
+    });
+  });
+
+  it("submits setType when specified (e.g. warmup, failure, drop)", async () => {
+    const requests: RequestOptions[] = [];
+    const result = await addWorkoutSetWith(
+      queuedClient([{ ok: true, value: { workoutSet: {} } }], requests),
+      WORKOUT_ID,
+      {
+        exerciseId: EXERCISE_ID,
+        repetitions: "10",
+        load: "60",
+        durationSeconds: "",
+        distanceMeters: "",
+        perceivedExertion: "7",
+        setType: "warmup",
+        unitSystem: "metric",
+      },
+      () => NOW,
+    );
+    expect(result.ok).toBe(true);
+    expect(requests[0]).toMatchObject({
+      method: "POST",
+      body: {
+        exerciseId: EXERCISE_ID,
+        repetitions: 10,
+        loadKg: 60,
+        perceivedExertion: 7,
+        setType: "warmup",
       },
     });
   });
@@ -516,6 +547,139 @@ describe("extractPlannedExercises", () => {
     ).toEqual([]);
   });
 
+  it("extracts planned exercises from sessionExercises with highest precedence over coachPlan", () => {
+    const sessionWorkout: Workout = {
+      ...WORKOUT,
+      details: {
+        sessionExercises: [
+          {
+            name: "Incline Dumbbell Press",
+            catalogId: "incline-db-press",
+            targetSets: 4,
+            repsMin: 8,
+            repsMax: 10,
+            restSeconds: 120,
+            targetLoad: "32 kg",
+          },
+          {
+            name: "Barbell Bench Press",
+            catalogId: "bench-press",
+            targetSets: 3,
+            repsMin: 6,
+            repsMax: 8,
+            restSeconds: 180,
+            targetLoad: "100 kg",
+          },
+        ],
+        coachPlan: {
+          exercises: [
+            {
+              name: "Barbell Bench Press",
+              catalogId: "bench-press",
+              sets: 3,
+            },
+            {
+              name: "Incline Dumbbell Press",
+              catalogId: "incline-db-press",
+              sets: 4,
+            },
+          ],
+        },
+      },
+    };
+
+    const planned = extractPlannedExercises(sessionWorkout);
+    expect(planned).toHaveLength(2);
+    expect(planned[0]?.name).toBe("Incline Dumbbell Press");
+    expect(planned[0]?.targetLoad).toBe("32 kg");
+    expect(planned[1]?.name).toBe("Barbell Bench Press");
+    expect(planned[1]?.targetLoad).toBe("100 kg");
+  });
+
+  describe("reorderWorkoutExercisesWith", () => {
+    it("persists reordered exercises to sessionExercises via PUT preserving lifecycle", async () => {
+      const requests: RequestOptions[] = [];
+      const client = queuedClient(
+        [
+          {
+            ok: true,
+            value: {
+              workout: {
+                ...WORKOUT,
+              },
+            },
+          },
+        ],
+        requests,
+      );
+
+      const workoutWithLifecycle: Workout = {
+        ...WORKOUT,
+        details: {
+          workoutLifecycle: {
+            kind: "session",
+            routineId: "00000000-0000-4000-8000-000000000099",
+          },
+        },
+      };
+
+      const reorderedList = [
+        {
+          name: "Incline Dumbbell Press",
+          catalogId: "incline-db-press",
+          targetSets: 4,
+          repsMin: 8,
+          repsMax: 10,
+          restSeconds: 120,
+          targetLoad: "30 kg",
+        },
+        {
+          name: "Barbell Bench Press",
+          catalogId: "bench-press",
+          targetSets: 3,
+          repsMin: 6,
+          repsMax: 8,
+          restSeconds: 180,
+          targetLoad: "90 kg",
+        },
+      ];
+
+      const result = await reorderWorkoutExercisesWith(
+        client,
+        workoutWithLifecycle,
+        reorderedList,
+      );
+
+      expect(result.ok).toBe(true);
+      expect(requests[0]?.path).toBe(`/v1/workouts/${WORKOUT_ID}`);
+
+      const details = (requests[0]?.body as Record<string, unknown>)
+        ?.details as Record<string, unknown>;
+      expect(details.sessionExercises).toEqual(reorderedList);
+      expect(readWorkoutLifecycle(details)).toEqual({
+        kind: "session",
+        routineId: "00000000-0000-4000-8000-000000000099",
+      });
+    });
+
+    it("returns an error message when the API request fails", async () => {
+      const client = queuedClient([
+        {
+          ok: false,
+          error: { kind: "network_error", cause: new Error("Network down") },
+        },
+      ]);
+
+      const result = await reorderWorkoutExercisesWith(client, WORKOUT, [
+        { name: "Pushups" },
+      ]);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.message).toContain("Network unavailable");
+      }
+    });
+  });
+
   describe("applyCompletedWorkoutProgressionsWith", () => {
     it("detects progression, updates exercise target load and parent routine template", async () => {
       const routineId = "00000000-0000-4000-8000-000000000099";
@@ -561,6 +725,7 @@ describe("extractPlannedExercises", () => {
           workoutId: WORKOUT_ID,
           exerciseId: EXERCISE_ID,
           sequence: 1,
+          setType: "normal" as const,
           repetitions: 5,
           loadKg: 105,
           durationSeconds: null,
@@ -676,6 +841,7 @@ describe("extractPlannedExercises", () => {
           workoutId: WORKOUT_ID,
           exerciseId: EXERCISE_ID,
           sequence: 1,
+          setType: "normal" as const,
           repetitions: 5,
           loadKg: 95, // Below 100 kg target
           durationSeconds: null,

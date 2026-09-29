@@ -49,12 +49,22 @@ const distanceMetersSchema = z.number().gte(0).lte(1_000_000).multipleOf(0.01);
 /** Bounded RPE, 0..10. */
 const perceivedExertionSchema = z.number().gte(0).lte(10).multipleOf(0.1);
 
+export const workoutSetTypeSchema = z.enum([
+  "normal",
+  "warmup",
+  "drop",
+  "failure",
+]);
+
+export type WorkoutSetType = z.infer<typeof workoutSetTypeSchema>;
+
 export const workoutSetSchema = z.object({
   id: z.string().uuid(),
   userId: z.string().uuid(),
   workoutId: z.string().uuid(),
   exerciseId: z.string().uuid(),
   sequence: z.number().int().gte(1).lte(MAX_SEQUENCE),
+  setType: workoutSetTypeSchema.default("normal"),
   repetitions: repetitionsSchema.nullable(),
   loadKg: loadKgSchema.nullable(),
   durationSeconds: durationSecondsSchema.nullable(),
@@ -99,6 +109,7 @@ export const workoutSetCreateSchema = z
   .object({
     exerciseId: z.string().uuid(),
     sequence: z.number().int().gte(1).lte(MAX_SEQUENCE).optional(),
+    setType: workoutSetTypeSchema.optional(),
     repetitions: repetitionsSchema.nullable().optional(),
     loadKg: loadKgSchema.nullable().optional(),
     durationSeconds: durationSecondsSchema.nullable().optional(),

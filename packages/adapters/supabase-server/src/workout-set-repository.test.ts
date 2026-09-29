@@ -67,6 +67,7 @@ describe("SupabaseWorkoutSetRepository.create", () => {
       workoutId: setRow.workout_id,
       exerciseId: setRow.exercise_id,
       sequence: 1,
+      setType: "normal",
       repetitions: 8,
       loadKg: 60,
       durationSeconds: null,
@@ -82,6 +83,7 @@ describe("SupabaseWorkoutSetRepository.create", () => {
     );
     expect(result.loadKg).toBe(60);
     expect(result.perceivedExertion).toBe(7.5);
+    expect(result.setType).toBe("normal");
   });
 
   it("translates the (workout_id, sequence) unique violation", async () => {
@@ -103,6 +105,7 @@ describe("SupabaseWorkoutSetRepository.create", () => {
       workoutId: setRow.workout_id,
       exerciseId: setRow.exercise_id,
       sequence: 1,
+      setType: "normal",
       repetitions: 8,
       loadKg: 60,
       durationSeconds: null,

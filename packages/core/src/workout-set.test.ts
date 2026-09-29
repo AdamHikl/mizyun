@@ -17,6 +17,7 @@ const baseSet = (
   workoutId: "00000000-0000-4000-8000-00000000b001",
   exerciseId: "00000000-0000-4000-8000-00000000c001",
   sequence: 1,
+  setType: "normal",
   repetitions: 8,
   loadKg: 60,
   durationSeconds: null,
@@ -120,6 +121,27 @@ describe("validateWorkoutSetCreate", () => {
     expect(
       validateWorkoutSetCreate({ repetitions: 8, perceivedExertion: 10 }),
     ).toBeNull();
+  });
+
+  it("accepts valid set types", () => {
+    expect(
+      validateWorkoutSetCreate({ repetitions: 8, setType: "normal" }),
+    ).toBeNull();
+    expect(
+      validateWorkoutSetCreate({ repetitions: 8, setType: "warmup" }),
+    ).toBeNull();
+    expect(
+      validateWorkoutSetCreate({ repetitions: 8, setType: "drop" }),
+    ).toBeNull();
+    expect(
+      validateWorkoutSetCreate({ repetitions: 8, setType: "failure" }),
+    ).toBeNull();
+  });
+
+  it("rejects an invalid set type", () => {
+    expect(
+      validateWorkoutSetCreate({ repetitions: 8, setType: "super_set" as any }),
+    ).toEqual({ kind: "invalid_set_type" });
   });
 });
 
@@ -227,5 +249,110 @@ describe("summariseExerciseSets", () => {
       }),
     ];
     expect(summariseExerciseSets(sets).lastSessionVolumeKg).toBe(61.725);
+  });
+
+  it("ignores warmup sets when computing bestLoadKg", () => {
+    const sets = [
+      baseSet({
+        id: "00000000-0000-4000-8000-00000000a001",
+        loadKg: 120,
+        setType: "warmup",
+      }),
+      baseSet({
+        id: "00000000-0000-4000-8000-00000000a002",
+        loadKg: 100,
+        setType: "normal",
+      }),
+      baseSet({
+        id: "00000000-0000-4000-8000-00000000a003",
+        loadKg: 95,
+        setType: "failure",
+      }),
+      baseSet({
+        id: "00000000-0000-4000-8000-00000000a004",
+        loadKg: 80,
+        setType: "drop",
+      }),
+    ];
+    // 120kg was a warmup, so working best load is 100kg
+    expect(summariseExerciseSets(sets).bestLoadKg).toBe(100);
+  });
+
+  it("includes normal, drop, and failure sets in lastSessionVolumeKg while excluding warmup sets", () => {
+    const sets = [
+      baseSet({
+        id: "00000000-0000-4000-8000-00000000a001",
+        workoutId: "00000000-0000-4000-8000-00000000b001",
+        loadKg: 50,
+        repetitions: 10,
+        setType: "warmup", // 50 * 10 = 500 (excluded)
+      }),
+      baseSet({
+        id: "00000000-0000-4000-8000-00000000a002",
+        workoutId: "00000000-0000-4000-8000-00000000b001",
+        loadKg: 100,
+        repetitions: 5,
+        setType: "normal", // 100 * 5 = 500
+      }),
+      baseSet({
+        id: "00000000-0000-4000-8000-00000000a003",
+        workoutId: "00000000-0000-4000-8000-00000000b001",
+        loadKg: 100,
+        repetitions: 4,
+        setType: "failure", // 100 * 4 = 400
+      }),
+      baseSet({
+        id: "00000000-0000-4000-8000-00000000a004",
+        workoutId: "00000000-0000-4000-8000-00000000b001",
+        loadKg: 80,
+        repetitions: 8,
+        setType: "drop", // 80 * 8 = 640
+      }),
+    ];
+    // Volume: 500 (normal) + 400 (failure) + 640 (drop) = 1540 (warmup excluded)
+    const summary = summariseExerciseSets(sets);
+    expect(summary.lastSessionVolumeKg).toBe(1540);
+    expect(summary.totalSetCount).toBe(4);
+  });
+
+  it("does not taint lastSessionVolumeKg when a warmup set lacks load/reps", () => {
+    const sets = [
+      baseSet({
+        id: "00000000-0000-4000-8000-00000000a001",
+        workoutId: "00000000-0000-4000-8000-00000000b001",
+        loadKg: null,
+        durationSeconds: 300,
+        setType: "warmup", // warmup stretching/cardio with no load
+      }),
+      baseSet({
+        id: "00000000-0000-4000-8000-00000000a002",
+        workoutId: "00000000-0000-4000-8000-00000000b001",
+        loadKg: 100,
+        repetitions: 5,
+        setType: "normal",
+      }),
+    ];
+    // Normal set contributes 500; warmup cardio set does not taint working volume
+    expect(summariseExerciseSets(sets).lastSessionVolumeKg).toBe(500);
+  });
+
+  it("returns null for lastSessionVolumeKg when a session contains only warmup sets", () => {
+    const sets = [
+      baseSet({
+        id: "00000000-0000-4000-8000-00000000a001",
+        workoutId: "00000000-0000-4000-8000-00000000b001",
+        loadKg: 40,
+        repetitions: 10,
+        setType: "warmup",
+      }),
+      baseSet({
+        id: "00000000-0000-4000-8000-00000000a002",
+        workoutId: "00000000-0000-4000-8000-00000000b001",
+        loadKg: 60,
+        repetitions: 5,
+        setType: "warmup",
+      }),
+    ];
+    expect(summariseExerciseSets(sets).lastSessionVolumeKg).toBeNull();
   });
 });

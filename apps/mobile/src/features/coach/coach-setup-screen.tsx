@@ -116,7 +116,7 @@ export function CoachSetupScreen() {
     prompt?: string;
     autoSend?: string;
   }>();
-  const { session } = useAuth();
+  const { session, profile, refreshProfile } = useAuth();
   const theme = useTheme();
   const userId = session?.user.id ?? null;
   const [status, setStatus] = useState<CoachProviderStatus | null>(null);
@@ -446,6 +446,8 @@ export function CoachSetupScreen() {
     confirmConsent,
     declineConsent,
     requestAction,
+    isSaving: isAiConsentSaving,
+    error: aiConsentError,
   } = useAiConsentController({
     userId,
     apiClient,
@@ -1123,7 +1125,13 @@ export function CoachSetupScreen() {
 
       <AiConsentModal
         visible={aiConsentModalVisible}
-        onConsent={() => void confirmConsent()}
+        isSaving={isAiConsentSaving}
+        error={aiConsentError}
+        currentBirthYear={profile?.birthYear ?? null}
+        onConsent={async (birthYear) => {
+          await confirmConsent(birthYear);
+          if (birthYear !== undefined) void refreshProfile();
+        }}
         onDecline={() => {
           declineConsent();
           setMessage(

@@ -1,4 +1,14 @@
-import { Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { useState } from "react";
+import {
+  ActivityIndicator,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/themed-text";
@@ -8,7 +18,10 @@ import { useTheme } from "@/hooks/use-theme";
 
 export interface AiConsentModalProps {
   readonly visible: boolean;
-  readonly onConsent: () => void;
+  readonly isSaving?: boolean;
+  readonly error?: string | null;
+  readonly currentBirthYear?: number | null;
+  readonly onConsent: (birthYear?: number) => void | Promise<void>;
   readonly onDecline: () => void;
 }
 
@@ -23,17 +36,56 @@ export interface AiConsentModalProps {
  */
 export function AiConsentModal({
   visible,
+  isSaving = false,
+  error = null,
+  currentBirthYear = null,
   onConsent,
   onDecline,
 }: AiConsentModalProps) {
   const theme = useTheme();
+  const [birthYearInput, setBirthYearInput] = useState("");
+
+  const currentYear = new Date().getFullYear();
+  const needsBirthYear = currentBirthYear == null;
+
+  let parsedBirthYear: number | undefined = undefined;
+  let validationError: string | null = null;
+
+  if (needsBirthYear) {
+    const trimmed = birthYearInput.trim();
+    if (trimmed.length > 0) {
+      const num = Number(trimmed);
+      if (!Number.isInteger(num) || num < 1900 || num > currentYear) {
+        validationError = "Please enter a valid birth year (e.g. 1995).";
+      } else if (currentYear - num < 18) {
+        validationError =
+          "Mizyun AI features require you to be 18 years or older.";
+      } else {
+        parsedBirthYear = num;
+      }
+    }
+  } else if (currentBirthYear !== null && currentYear - currentBirthYear < 18) {
+    validationError =
+      "Mizyun AI features require adult eligibility (18 years or older).";
+  }
+
+  const isConsentDisabled =
+    isSaving ||
+    (needsBirthYear && parsedBirthYear === undefined) ||
+    validationError !== null;
 
   return (
     <Modal
       visible={visible}
       animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={onDecline}
+      presentationStyle={
+        Platform.OS === "ios"
+          ? Platform.isPad
+            ? "formSheet"
+            : "pageSheet"
+          : undefined
+      }
+      onRequestClose={isSaving ? undefined : onDecline}
     >
       <ThemedView style={styles.container}>
         <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
@@ -98,6 +150,41 @@ export function AiConsentModal({
                 by individuals who are 18 years of age or older. By continuing,
                 you confirm that you are at least 18 years old.
               </ThemedText>
+              {needsBirthYear && (
+                <View style={styles.birthYearSection}>
+                  <ThemedText type="smallBold">
+                    Confirm your birth year:
+                  </ThemedText>
+                  <TextInput
+                    style={[
+                      styles.birthYearInput,
+                      {
+                        color: theme.text,
+                        borderColor: validationError ? "#EF4444" : theme.border,
+                        backgroundColor: theme.backgroundElement,
+                      },
+                    ]}
+                    placeholder={`YYYY (e.g. ${currentYear - 25})`}
+                    placeholderTextColor="#64748B"
+                    keyboardType="number-pad"
+                    maxLength={4}
+                    value={birthYearInput}
+                    onChangeText={setBirthYearInput}
+                    editable={!isSaving}
+                    accessibilityLabel="Birth year for adult verification"
+                  />
+                  {validationError && (
+                    <ThemedText type="small" style={styles.validationText}>
+                      {validationError}
+                    </ThemedText>
+                  )}
+                </View>
+              )}
+              {!needsBirthYear && validationError && (
+                <ThemedText type="small" style={styles.validationText}>
+                  {validationError}
+                </ThemedText>
+              )}
             </ThemedView>
 
             <ThemedView type="backgroundElement" style={styles.card}>
@@ -120,27 +207,48 @@ export function AiConsentModal({
               },
             ]}
           >
+            {error && (
+              <View style={styles.errorBanner}>
+                <ThemedText type="small" style={styles.errorBannerText}>
+                  {error}
+                </ThemedText>
+              </View>
+            )}
+
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Confirm adult eligibility and grant AI consent"
-              onPress={onConsent}
+              accessibilityState={{
+                disabled: isConsentDisabled,
+                busy: isSaving,
+              }}
+              disabled={isConsentDisabled}
+              onPress={() => void onConsent(parsedBirthYear)}
               style={({ pressed }) => [
                 styles.primaryButton,
-                pressed && styles.pressed,
+                isConsentDisabled && styles.disabledPrimaryButton,
+                pressed && !isConsentDisabled && styles.pressed,
               ]}
             >
-              <ThemedText type="smallBold" style={styles.primaryButtonText}>
-                I am 18+ and I Consent
-              </ThemedText>
+              {isSaving ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <ThemedText type="smallBold" style={styles.primaryButtonText}>
+                  I am 18+ and I Consent
+                </ThemedText>
+              )}
             </Pressable>
 
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Decline AI consent"
+              accessibilityState={{ disabled: isSaving }}
+              disabled={isSaving}
               onPress={onDecline}
               style={({ pressed }) => [
                 styles.secondaryButton,
-                pressed && styles.pressed,
+                isSaving && styles.disabledSecondaryButton,
+                pressed && !isSaving && styles.pressed,
               ]}
             >
               <ThemedText type="smallBold" themeColor="textSecondary">
@@ -187,10 +295,36 @@ const styles = StyleSheet.create({
   cardHeader: {
     fontSize: 15,
   },
+  birthYearSection: {
+    marginTop: Spacing.two,
+    gap: Spacing.one,
+  },
+  birthYearInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: 10,
+    fontSize: 16,
+  },
+  validationText: {
+    color: "#EF4444",
+    marginTop: 2,
+  },
   buttonContainer: {
     padding: Spacing.four,
     borderTopWidth: 1,
     gap: Spacing.two,
+  },
+  errorBanner: {
+    backgroundColor: "rgba(239, 68, 68, 0.12)",
+    borderColor: "#EF4444",
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: Spacing.two,
+  },
+  errorBannerText: {
+    color: "#EF4444",
+    textAlign: "center",
   },
   primaryButton: {
     backgroundColor: "#10B981",
@@ -198,6 +332,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
+    minHeight: 48,
+  },
+  disabledPrimaryButton: {
+    backgroundColor: "#6EE7B7",
+    opacity: 0.6,
   },
   primaryButtonText: {
     color: "#FFFFFF",
@@ -208,6 +347,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
+    minHeight: 44,
+  },
+  disabledSecondaryButton: {
+    opacity: 0.5,
   },
   pressed: {
     opacity: 0.8,

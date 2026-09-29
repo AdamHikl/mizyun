@@ -1,18 +1,21 @@
 import type { FastifyPluginAsync } from "fastify";
 import {
   applyFoodEntryPatch,
+  ADVANCED_NUTRIENT_FIELDS,
   summariseFoodEntries,
   validateFoodEntryCreate,
   validateFoodEntryPatch,
   type DailyFoodSummary,
   type FoodEntryPatch,
   type FoodEntryRepository,
+  type ProfileRepository,
   type FoodEntryValidationError,
   type FoodSource,
   type StoredFoodEntry,
 } from "@mizyun/core";
 import {
   dailyFoodSummaryListResponseSchema,
+  advancedNutritionCapabilitySchema,
   dailyFoodSummaryResponseSchema,
   foodEntryCreateSchema,
   foodEntryListQuerySchema,
@@ -27,10 +30,35 @@ import {
 } from "@mizyun/contracts";
 
 import { sendApiError } from "../../errors.js";
+import type { BetaProRepository } from "../../beta-pro-repository.js";
 
 interface FoodEntriesRoutesOptions {
   readonly foodEntryRepository: FoodEntryRepository;
+  readonly betaProRepository?: BetaProRepository;
+  readonly profileRepository?: ProfileRepository;
 }
+
+const advancedNutritionSource = async (
+  options: FoodEntriesRoutesOptions,
+  userId: StoredFoodEntry["userId"],
+  accessToken: string,
+): Promise<"paid" | "beta_pro" | "none"> => {
+  const beta = await options.betaProRepository?.getRequest(userId, {
+    accessToken,
+  });
+  if (beta?.status === "approved") return "beta_pro";
+  const profile = await options.profileRepository?.getOrCreate(userId, {
+    accessToken,
+    now: new Date(),
+  });
+  return profile?.planTier === "paid" ? "paid" : "none";
+};
+const hasAdvancedNutrition = async (
+  options: FoodEntriesRoutesOptions,
+  userId: StoredFoodEntry["userId"],
+  accessToken: string,
+): Promise<boolean> =>
+  (await advancedNutritionSource(options, userId, accessToken)) !== "none";
 
 const GENERIC_UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -116,6 +144,13 @@ const validationErrorToApi = (
         message: "details must be a JSON object.",
         requestId,
       };
+    case "advanced_nutrition_invalid":
+      return {
+        status: 422,
+        code: "VALIDATION_ERROR",
+        message: `${error.field} is not a valid nutrition value.`,
+        requestId,
+      };
   }
 };
 
@@ -136,6 +171,11 @@ const toWire = (entry: StoredFoodEntry): FoodEntryResponse =>
       proteinG: entry.proteinG,
       carbohydrateG: entry.carbohydrateG,
       fatG: entry.fatG,
+      fibreG: entry.fibreG ?? null,
+      saturatedFatG: entry.saturatedFatG ?? null,
+      totalSugarsG: entry.totalSugarsG ?? null,
+      sodiumMg: entry.sodiumMg ?? null,
+      cholesterolMg: entry.cholesterolMg ?? null,
       source: entry.source,
       confidence: entry.confidence,
       confirmedByUser: entry.confirmedByUser,
@@ -145,6 +185,40 @@ const toWire = (entry: StoredFoodEntry): FoodEntryResponse =>
       updatedAt: entry.updatedAt.toISOString(),
     },
   });
+
+const basicSummary = (summary: DailyFoodSummary): DailyFoodSummary => ({
+  date: summary.date,
+  entryCount: summary.entryCount,
+  caloriesKcal: summary.caloriesKcal,
+  proteinG: summary.proteinG,
+  carbohydrateG: summary.carbohydrateG,
+  fatG: summary.fatG,
+});
+
+const listAllForSummary = async (
+  repository: FoodEntryRepository,
+  userId: StoredFoodEntry["userId"],
+  accessToken: string,
+  from: Date | null,
+  to: Date | null,
+): Promise<StoredFoodEntry[]> => {
+  const entries: StoredFoodEntry[] = [];
+  let cursor: { consumedAt: Date; id: string } | null = null;
+  for (let page = 0; page < 10_000; page += 1) {
+    const batch = await repository.list(userId, {
+      from,
+      to,
+      limit: 200,
+      cursor,
+      accessToken,
+    });
+    entries.push(...batch);
+    if (batch.length < 200) return entries;
+    const last = batch[batch.length - 1]!;
+    cursor = { consumedAt: last.consumedAt, id: last.id };
+  }
+  throw new Error("food summary exceeded safe pagination limit");
+};
 
 const toLocalDateString = (date: Date, utcOffsetMinutes = 0): string => {
   const localMs = date.getTime() + utcOffsetMinutes * 60_000;
@@ -218,6 +292,23 @@ const listToWire = (
 export const foodEntriesRoutes: FastifyPluginAsync<
   FoodEntriesRoutesOptions
 > = async (app, options) => {
+  app.get(
+    "/capabilities",
+    { preHandler: app.authenticate },
+    async (request) => {
+      const principal = request.principal;
+      if (!principal) throw new Error("principal missing after authentication");
+      const source = await advancedNutritionSource(
+        options,
+        principal.userId,
+        principal.accessToken,
+      );
+      return advancedNutritionCapabilitySchema.parse({
+        advancedNutrition: source !== "none",
+        source,
+      });
+    },
+  );
   // GET /v1/food-entries — return the verified user's food entries,
   // newest-first. `from` and `to` are optional inclusive date
   // filters in `YYYY-MM-DD` (UTC); `limit` caps the page size;
@@ -345,6 +436,11 @@ export const foodEntriesRoutes: FastifyPluginAsync<
           ? { carbohydrateG: parsed.data.carbohydrateG }
           : {}),
         ...(parsed.data.fatG !== undefined ? { fatG: parsed.data.fatG } : {}),
+        ...Object.fromEntries(
+          ADVANCED_NUTRIENT_FIELDS.filter(
+            (field) => parsed.data[field] !== undefined,
+          ).map((field) => [field, parsed.data[field]]),
+        ),
         ...(parsed.data.details !== undefined
           ? { details: parsed.data.details }
           : {}),
@@ -402,6 +498,10 @@ export const foodEntriesRoutes: FastifyPluginAsync<
         )
           return false;
         if ((existing.fatG ?? null) !== (incoming.fatG ?? null)) return false;
+        for (const field of ADVANCED_NUTRIENT_FIELDS) {
+          if ((existing[field] ?? null) !== (incoming[field] ?? null))
+            return false;
+        }
 
         if (incoming.consumedAt !== undefined) {
           const incomingTime = new Date(incoming.consumedAt).getTime();
@@ -448,6 +548,24 @@ export const foodEntriesRoutes: FastifyPluginAsync<
         }
       }
 
+      if (
+        ADVANCED_NUTRIENT_FIELDS.some((field) => parsed.data[field] != null) &&
+        !(await hasAdvancedNutrition(
+          options,
+          principal.userId,
+          principal.accessToken,
+        ))
+      ) {
+        await sendApiError(
+          reply,
+          request,
+          403,
+          "PREMIUM_REQUIRED",
+          "Pro access is required to add advanced nutrition values.",
+        );
+        return;
+      }
+
       const now = new Date();
       const id = crypto.randomUUID();
       const stored: StoredFoodEntry = {
@@ -463,6 +581,11 @@ export const foodEntriesRoutes: FastifyPluginAsync<
         proteinG: parsed.data.proteinG ?? null,
         carbohydrateG: parsed.data.carbohydrateG ?? null,
         fatG: parsed.data.fatG ?? null,
+        fibreG: parsed.data.fibreG ?? null,
+        saturatedFatG: parsed.data.saturatedFatG ?? null,
+        totalSugarsG: parsed.data.totalSugarsG ?? null,
+        sodiumMg: parsed.data.sodiumMg ?? null,
+        cholesterolMg: parsed.data.cholesterolMg ?? null,
         details: parsed.data.details ? { ...parsed.data.details } : {},
         createdAt: now,
         updatedAt: now,
@@ -610,6 +733,11 @@ export const foodEntriesRoutes: FastifyPluginAsync<
               fatG: parsed.data.fatG === null ? null : parsed.data.fatG,
             }
           : {}),
+        ...Object.fromEntries(
+          ADVANCED_NUTRIENT_FIELDS.filter(
+            (field) => parsed.data[field] !== undefined,
+          ).map((field) => [field, parsed.data[field]]),
+        ),
         ...(parsed.data.details !== undefined
           ? { details: parsed.data.details }
           : {}),
@@ -627,6 +755,37 @@ export const foodEntriesRoutes: FastifyPluginAsync<
         return;
       }
       const next = applyFoodEntryPatch(stored, patch, new Date());
+      const combinedValidation = validateFoodEntryCreate(next);
+      if (combinedValidation !== null) {
+        const apiError = validationErrorToApi(combinedValidation, request.id);
+        await sendApiError(
+          reply,
+          request,
+          apiError.status,
+          apiError.code,
+          apiError.message,
+        );
+        return;
+      }
+      if (
+        ADVANCED_NUTRIENT_FIELDS.some(
+          (field) => stored[field] == null && next[field] != null,
+        ) &&
+        !(await hasAdvancedNutrition(
+          options,
+          principal.userId,
+          principal.accessToken,
+        ))
+      ) {
+        await sendApiError(
+          reply,
+          request,
+          403,
+          "PREMIUM_REQUIRED",
+          "Pro access is required to add advanced nutrition values.",
+        );
+        return;
+      }
       const saved = await options.foodEntryRepository.update(next, {
         accessToken: principal.accessToken,
       });
@@ -712,6 +871,11 @@ export const foodEntriesRoutes: FastifyPluginAsync<
         );
         return;
       }
+      const advancedNutrition = await hasAdvancedNutrition(
+        options,
+        principal.userId,
+        principal.accessToken,
+      );
       const DEFAULT_RANGE_LIMIT = 92;
       const MAX_RANGE_LIMIT = 366;
       if (parsed.data.date !== undefined) {
@@ -724,14 +888,12 @@ export const foodEntriesRoutes: FastifyPluginAsync<
           parsed.data.date,
           parsed.data.utcOffsetMinutes,
         );
-        const entries = await options.foodEntryRepository.list(
+        const entries = await listAllForSummary(
+          options.foodEntryRepository,
           principal.userId,
-          {
-            from,
-            to,
-            limit: MAX_RANGE_LIMIT,
-            accessToken: principal.accessToken,
-          },
+          principal.accessToken,
+          from,
+          to,
         );
         const summaries = summariseFoodEntries(entries, {
           from: parsed.data.date,
@@ -749,7 +911,9 @@ export const foodEntriesRoutes: FastifyPluginAsync<
           fatG: null,
         };
         const summary = summaries[0] ?? empty;
-        return dailyFoodSummaryResponseSchema.parse({ summary });
+        return dailyFoodSummaryResponseSchema.parse({
+          summary: advancedNutrition ? summary : basicSummary(summary),
+        });
       }
       const from = parsed.data.from
         ? isoDateToStartOfDay(parsed.data.from, parsed.data.utcOffsetMinutes)
@@ -759,16 +923,13 @@ export const foodEntriesRoutes: FastifyPluginAsync<
         : null;
       const limit = parsed.data.limit ?? DEFAULT_RANGE_LIMIT;
       const cappedLimit = Math.min(MAX_RANGE_LIMIT, Math.max(1, limit));
-      const entries = await options.foodEntryRepository.list(principal.userId, {
+      const entries = await listAllForSummary(
+        options.foodEntryRepository,
+        principal.userId,
+        principal.accessToken,
         from,
         to,
-        limit: cappedLimit * 50 /* headroom */,
-        accessToken: principal.accessToken,
-      });
-      // The repo paginates by row count, not by calendar day; we
-      // re-slice the resulting summaries by day count after
-      // aggregation so a user who logged 50 entries on day 1 doesn't
-      // push every subsequent day off the page.
+      );
       const summaries = summariseFoodEntries(entries, {
         from: parsed.data.from as string,
         to: parsed.data.to as string,
@@ -776,7 +937,9 @@ export const foodEntriesRoutes: FastifyPluginAsync<
           ? { utcOffsetMinutes: parsed.data.utcOffsetMinutes }
           : {}),
       }).slice(0, cappedLimit);
-      return dailyFoodSummaryListResponseSchema.parse({ summaries });
+      return dailyFoodSummaryListResponseSchema.parse({
+        summaries: advancedNutrition ? summaries : summaries.map(basicSummary),
+      });
     },
   );
 };

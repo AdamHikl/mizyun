@@ -7,3 +7,4 @@ export * from "./rest-timer-presentation";
 export * from "./workout-notification";
 export * from "./active-workout-state";
 export * from "./active-workout-context";
+export * from "./reorder-exercises-modal";

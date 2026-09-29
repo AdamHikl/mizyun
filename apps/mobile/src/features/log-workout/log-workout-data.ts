@@ -30,6 +30,7 @@ import {
   type WorkoutSet,
   type WorkoutSetListResponse,
   type WorkoutSetResponse,
+  type WorkoutSetType,
 } from "@mizyun/contracts";
 
 import { apiClient } from "@/composition/api-client";
@@ -66,6 +67,7 @@ export interface WorkoutSetForm {
   readonly durationSeconds: string;
   readonly distanceMeters: string;
   readonly perceivedExertion: string;
+  readonly setType?: WorkoutSetType;
   readonly unitSystem: "metric" | "imperial";
 }
 
@@ -103,6 +105,9 @@ export const extractPlannedExercises = (
 
   const rawList: unknown[] = (() => {
     const d = details as Record<string, unknown>;
+    // 0. sessionExercises (explicitly ordered exercises for the active session)
+    if (Array.isArray(d.sessionExercises)) return d.sessionExercises;
+
     // 1. CoachPlan (coachPlan.exercises or coachPlan.session.exercises)
     const coachPlan = d.coachPlan;
     if (coachPlan && typeof coachPlan === "object") {
@@ -442,6 +447,7 @@ export const addWorkoutSetWith = async (
   }
   const parsed = workoutSetCreateSchema.safeParse({
     exerciseId: form.exerciseId,
+    ...(form.setType !== undefined ? { setType: form.setType } : {}),
     ...(typeof repetitions === "number" ? { repetitions } : {}),
     ...(typeof load === "number"
       ? { loadKg: displayWeightToKilograms(load, form.unitSystem) }
@@ -630,4 +636,81 @@ export const applyCompletedWorkoutProgressionsWith = async (
   }
 
   return { progressedItems, routineUpdated };
+};
+
+export type ReorderWorkoutExercisesResult =
+  | { readonly ok: true; readonly workout: Workout }
+  | { readonly ok: false; readonly message: string };
+
+export interface ReorderableExercise {
+  readonly name: string;
+  readonly catalogId?: string;
+  readonly targetSets?: number;
+  readonly sets?: number;
+  readonly repsMin?: number | null;
+  readonly repsMax?: number | null;
+  readonly durationMinutes?: number | null;
+  readonly restSeconds?: number;
+  readonly targetLoad?: string;
+}
+
+export const reorderWorkoutExercises = async (
+  workout: Workout,
+  reorderedExercises: ReadonlyArray<ReorderableExercise>,
+): Promise<ReorderWorkoutExercisesResult> =>
+  reorderWorkoutExercisesWith(apiClient, workout, reorderedExercises);
+
+export const reorderWorkoutExercisesWith = async (
+  client: ApiClient,
+  workout: Workout,
+  reorderedExercises: ReadonlyArray<ReorderableExercise>,
+): Promise<ReorderWorkoutExercisesResult> => {
+  const existingDetails =
+    workout.details && typeof workout.details === "object"
+      ? (workout.details as Record<string, unknown>)
+      : {};
+
+  const sessionExercises = reorderedExercises.map((e) => ({
+    name: e.name,
+    ...(e.catalogId !== undefined && e.catalogId.length > 0
+      ? { catalogId: e.catalogId }
+      : {}),
+    targetSets: e.targetSets ?? e.sets ?? 3,
+    ...(e.repsMin !== undefined && e.repsMin !== null
+      ? { repsMin: e.repsMin }
+      : {}),
+    ...(e.repsMax !== undefined && e.repsMax !== null
+      ? { repsMax: e.repsMax }
+      : {}),
+    ...(e.durationMinutes !== undefined && e.durationMinutes !== null
+      ? { durationMinutes: e.durationMinutes }
+      : {}),
+    restSeconds: e.restSeconds ?? 90,
+    ...(e.targetLoad ? { targetLoad: e.targetLoad } : {}),
+  }));
+
+  const body = workoutPatchSchema.safeParse({
+    details: withWorkoutLifecycle(
+      {
+        ...existingDetails,
+        sessionExercises,
+      },
+      readWorkoutLifecycle(workout.details) ?? { kind: "session" },
+    ),
+  });
+
+  if (!body.success) {
+    return { ok: false, message: "Invalid workout details." };
+  }
+
+  const result = await client.request<WorkoutResponse>({
+    method: "PUT",
+    path: `/v1/workouts/${encodeURIComponent(workout.id)}`,
+    body: body.data,
+    schema: workoutResponseSchema,
+  });
+
+  return result.ok
+    ? { ok: true, workout: result.value.workout }
+    : { ok: false, message: humanize(result.error, "Reorder exercises") };
 };

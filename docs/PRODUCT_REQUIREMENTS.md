@@ -38,6 +38,7 @@
 - **NUT-04:** Estimated calories/macros include range, confidence/provenance, and assumptions when available.
 - **NUT-05:** An estimated entry cannot become authoritative until the user confirms or edits it.
 - **NUT-06:** The app can retain reusable foods/meals without silently changing historical entries.
+- **NUT-07:** Pro users can optionally record and review fibre, saturated fat, total sugars, sodium, and dietary cholesterol on confirmed meals. Missing values remain unknown, partial totals disclose coverage, and free or downgraded users retain access, correction, export, and deletion of previously recorded values.
 
 ### Energy model
 

@@ -172,6 +172,62 @@ describe("evaluateExerciseProgression", () => {
     });
   });
 
+  it("ignores warmup sets so warmups do not trigger progression", () => {
+    const result = evaluateExerciseProgression({
+      currentTargetLoadKg: 80,
+      completedSets: [
+        { loadKg: 100, repetitions: 5, setType: "warmup" }, // 100kg warmup should be ignored!
+        { loadKg: 75, repetitions: 8, setType: "normal" }, // 75kg < 80kg target
+      ],
+    });
+
+    expect(result).toEqual({
+      progressed: false,
+      previousTargetKg: 80,
+      nextTargetKg: 80,
+      peakLoadKg: 75,
+      reason: "target_not_exceeded",
+    });
+  });
+
+  it("evaluates progression using drop and failure sets as valid working sets", () => {
+    const result = evaluateExerciseProgression({
+      currentTargetLoadKg: 80,
+      completedSets: [
+        { loadKg: 60, repetitions: 10, setType: "warmup" },
+        { loadKg: 80, repetitions: 8, setType: "normal" },
+        { loadKg: 85, repetitions: 4, setType: "failure" }, // progressed on failure set
+        { loadKg: 70, repetitions: 10, setType: "drop" },
+      ],
+    });
+
+    expect(result).toEqual({
+      progressed: true,
+      previousTargetKg: 80,
+      nextTargetKg: 85,
+      peakLoadKg: 85,
+      reason: "load_increased",
+    });
+  });
+
+  it("reports no_valid_sets when only warmup sets are completed", () => {
+    const result = evaluateExerciseProgression({
+      currentTargetLoadKg: 80,
+      completedSets: [
+        { loadKg: 50, repetitions: 10, setType: "warmup" },
+        { loadKg: 70, repetitions: 8, setType: "warmup" },
+      ],
+    });
+
+    expect(result).toEqual({
+      progressed: false,
+      previousTargetKg: 80,
+      nextTargetKg: 80,
+      peakLoadKg: null,
+      reason: "no_valid_sets",
+    });
+  });
+
   it("reports no_valid_sets when no completed sets meet validity criteria", () => {
     const resultEmpty = evaluateExerciseProgression({
       currentTargetLoadKg: 80,
@@ -363,6 +419,41 @@ describe("computeWorkoutProgressions", () => {
       peakLoadKg: 14,
       nextTargetKg: 14,
       reason: "load_increased",
+    });
+  });
+
+  it("filters out warmup sets during batch workout evaluation", () => {
+    const exercises = [{ id: "bench", name: "Bench Press" }];
+    const plannedExercises = [{ name: "Bench Press", targetLoadKg: 100 }];
+    const completedSets = [
+      {
+        exerciseId: "bench",
+        loadKg: 110,
+        repetitions: 3,
+        setType: "warmup" as const,
+      },
+      {
+        exerciseId: "bench",
+        loadKg: 95,
+        repetitions: 6,
+        setType: "normal" as const,
+      },
+    ];
+
+    const progressions = computeWorkoutProgressions({
+      exercises,
+      plannedExercises,
+      completedSets,
+    });
+
+    expect(progressions).toHaveLength(1);
+    expect(progressions[0]).toMatchObject({
+      exerciseId: "bench",
+      currentTargetLoadKg: 100,
+      progressed: false,
+      peakLoadKg: 95,
+      nextTargetKg: 100,
+      reason: "target_not_exceeded",
     });
   });
 });

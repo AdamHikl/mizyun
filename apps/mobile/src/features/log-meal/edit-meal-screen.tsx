@@ -37,6 +37,8 @@ import {
   mealFormStringsFromDraft,
   mealFormStringsFromEntry,
   parseOptionalNutritionNumber,
+  advancedNutrientsFromForm,
+  ADVANCED_NUTRIENT_FIELDS,
   type MealFormStrings,
 } from "./meal-form";
 import { fetchFoodEntry, updateFoodEntry } from "./meal-lifecycle-data";
@@ -49,6 +51,10 @@ import {
   withMealGrams,
   withMealGroup,
 } from "./meal-scale";
+import {
+  AdvancedNutrientFields,
+  useAdvancedNutritionCapability,
+} from "./advanced-nutrition";
 
 const EMPTY_FORM: MealFormStrings = {
   name: "",
@@ -56,6 +62,11 @@ const EMPTY_FORM: MealFormStrings = {
   protein: "",
   carbs: "",
   fat: "",
+  fibre: "",
+  saturatedFat: "",
+  totalSugars: "",
+  sodium: "",
+  cholesterol: "",
 };
 
 const MEAL_GROUP_PRESETS = ["Breakfast", "Lunch", "Dinner", "Snack"] as const;
@@ -106,6 +117,11 @@ const isMealFormStrings = (value: unknown): value is MealFormStrings =>
     (field) =>
       field in value &&
       typeof (value as Record<string, unknown>)[field] === "string",
+  ) &&
+  ADVANCED_NUTRIENT_FIELDS.every(
+    (field) =>
+      (value as Record<string, unknown>)[field] === undefined ||
+      typeof (value as Record<string, unknown>)[field] === "string",
   );
 
 interface NutritionBaseline {
@@ -113,14 +129,20 @@ interface NutritionBaseline {
   readonly proteinG: number | null;
   readonly carbohydrateG: number | null;
   readonly fatG: number | null;
+  readonly fibreG?: number | null;
+  readonly saturatedFatG?: number | null;
+  readonly totalSugarsG?: number | null;
+  readonly sodiumMg?: number | null;
+  readonly cholesterolMg?: number | null;
   readonly grams: number;
 }
 
 export function EditMealScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
   const entryId = typeof params.id === "string" ? params.id : null;
-  const { session } = useAuth();
+  const { session, profile, refreshProfile } = useAuth();
   const userId = session?.user.id ?? null;
+  const advancedCapability = useAdvancedNutritionCapability(userId);
   const theme = useTheme();
   const [entry, setEntry] = useState<FoodEntry | null>(null);
   const [form, setForm] = useState<MealFormStrings>(EMPTY_FORM);
@@ -174,6 +196,11 @@ export function EditMealScreen() {
           proteinG: loadedEntry.proteinG,
           carbohydrateG: loadedEntry.carbohydrateG,
           fatG: loadedEntry.fatG,
+          fibreG: loadedEntry.fibreG,
+          saturatedFatG: loadedEntry.saturatedFatG,
+          totalSugarsG: loadedEntry.totalSugarsG,
+          sodiumMg: loadedEntry.sodiumMg,
+          cholesterolMg: loadedEntry.cholesterolMg,
           grams: detectedGrams,
         };
       } else {
@@ -232,6 +259,7 @@ export function EditMealScreen() {
           proteinG: p.ok ? p.value : null,
           carbohydrateG: c.ok ? c.value : null,
           fatG: f.ok ? f.value : null,
+          ...advancedNutrientsFromForm(form),
           grams: parsedGrams,
         };
         return;
@@ -252,6 +280,14 @@ export function EditMealScreen() {
           carbs:
             scaled.carbohydrateG === null ? "" : String(scaled.carbohydrateG),
           fat: scaled.fatG === null ? "" : String(scaled.fatG),
+          fibre: scaled.fibreG == null ? "" : String(scaled.fibreG),
+          saturatedFat:
+            scaled.saturatedFatG == null ? "" : String(scaled.saturatedFatG),
+          totalSugars:
+            scaled.totalSugarsG == null ? "" : String(scaled.totalSugarsG),
+          sodium: scaled.sodiumMg == null ? "" : String(scaled.sodiumMg),
+          cholesterol:
+            scaled.cholesterolMg == null ? "" : String(scaled.cholesterolMg),
         };
       });
     },
@@ -396,6 +432,8 @@ export function EditMealScreen() {
     confirmConsent,
     declineConsent,
     requestAction,
+    isSaving: isAiConsentSaving,
+    error: aiConsentError,
   } = useAiConsentController({
     userId,
     apiClient,
@@ -418,9 +456,39 @@ export function EditMealScreen() {
     const protein = parseOptionalNutritionNumber(form.protein);
     const carbs = parseOptionalNutritionNumber(form.carbs);
     const fat = parseOptionalNutritionNumber(form.fat);
+    const advancedValues = advancedNutrientsFromForm(form);
     if (!calories.ok || !protein.ok || !carbs.ok || !fat.ok) {
       setMessage("Calories and macros must be positive numbers or blank.");
       return;
+    }
+    if (advancedValues === null) {
+      setMessage("More nutrient values must be positive numbers or blank.");
+      return;
+    }
+    const advancedChanged =
+      advancedValues !== null &&
+      (advancedValues.fibreG !== (entry.fibreG ?? null) ||
+        advancedValues.saturatedFatG !== (entry.saturatedFatG ?? null) ||
+        advancedValues.totalSugarsG !== (entry.totalSugarsG ?? null) ||
+        advancedValues.sodiumMg !== (entry.sodiumMg ?? null) ||
+        advancedValues.cholesterolMg !== (entry.cholesterolMg ?? null));
+    if (advancedChanged && !(await advancedCapability.refresh())) {
+      const fillsMissing =
+        advancedValues !== null &&
+        ((entry.fibreG == null && advancedValues.fibreG !== null) ||
+          (entry.saturatedFatG == null &&
+            advancedValues.saturatedFatG !== null) ||
+          (entry.totalSugarsG == null &&
+            advancedValues.totalSugarsG !== null) ||
+          (entry.sodiumMg == null && advancedValues.sodiumMg !== null) ||
+          (entry.cholesterolMg == null &&
+            advancedValues.cholesterolMg !== null));
+      if (fillsMissing) {
+        setMessage(
+          "An active Pro grant is required to add new nutrient values. Existing values can still be corrected or cleared.",
+        );
+        return;
+      }
     }
 
     let nextDetails = (entry.details ?? {}) as Record<string, unknown>;
@@ -470,6 +538,7 @@ export function EditMealScreen() {
       proteinG: protein.value,
       carbohydrateG: carbs.value,
       fatG: fat.value,
+      ...(advancedChanged && advancedValues !== null ? advancedValues : {}),
       details: nextDetails,
     };
     setSubmitting(true);
@@ -485,6 +554,7 @@ export function EditMealScreen() {
     router.back();
   }, [
     aiDraft,
+    advancedCapability,
     calculationText,
     draftKind,
     entry,
@@ -618,6 +688,25 @@ export function EditMealScreen() {
                   />
                 </View>
               </View>
+
+              <AdvancedNutrientFields
+                form={form}
+                enabled={advancedCapability.enabled}
+                editableWhenFree={[
+                  ...(entry.fibreG == null ? [] : ["fibre" as const]),
+                  ...(entry.saturatedFatG == null
+                    ? []
+                    : ["saturatedFat" as const]),
+                  ...(entry.totalSugarsG == null
+                    ? []
+                    : ["totalSugars" as const]),
+                  ...(entry.sodiumMg == null ? [] : ["sodium" as const]),
+                  ...(entry.cholesterolMg == null
+                    ? []
+                    : ["cholesterol" as const]),
+                ]}
+                onChange={patchForm}
+              />
 
               {/* AI Meal Calculation Breakdown */}
               {calculationText !== null ? (
@@ -858,7 +947,13 @@ export function EditMealScreen() {
 
       <AiConsentModal
         visible={aiConsentModalVisible}
-        onConsent={() => void confirmConsent()}
+        isSaving={isAiConsentSaving}
+        error={aiConsentError}
+        currentBirthYear={profile?.birthYear ?? null}
+        onConsent={async (birthYear) => {
+          await confirmConsent(birthYear);
+          if (birthYear !== undefined) void refreshProfile();
+        }}
         onDecline={() => {
           declineConsent();
           setRefineMessage(

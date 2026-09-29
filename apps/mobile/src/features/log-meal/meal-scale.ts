@@ -5,6 +5,11 @@ export interface BaseNutritionWithGrams {
   readonly proteinG: number | null;
   readonly carbohydrateG: number | null;
   readonly fatG: number | null;
+  readonly fibreG?: number | null;
+  readonly saturatedFatG?: number | null;
+  readonly totalSugarsG?: number | null;
+  readonly sodiumMg?: number | null;
+  readonly cholesterolMg?: number | null;
   readonly grams: number;
 }
 
@@ -13,8 +18,32 @@ export interface ScaledNutrition {
   readonly proteinG: number | null;
   readonly carbohydrateG: number | null;
   readonly fatG: number | null;
+  readonly fibreG?: number | null;
+  readonly saturatedFatG?: number | null;
+  readonly totalSugarsG?: number | null;
+  readonly sodiumMg?: number | null;
+  readonly cholesterolMg?: number | null;
   readonly ratio: number;
 }
+
+/** Keep already recorded advanced values in sync after a portion change. */
+export const scaledAdvancedPatchForExisting = (
+  entry: Pick<
+    FoodEntry,
+    "fibreG" | "saturatedFatG" | "totalSugarsG" | "sodiumMg" | "cholesterolMg"
+  >,
+  scaled: ScaledNutrition,
+) => ({
+  ...(entry.fibreG == null ? {} : { fibreG: scaled.fibreG }),
+  ...(entry.saturatedFatG == null
+    ? {}
+    : { saturatedFatG: scaled.saturatedFatG }),
+  ...(entry.totalSugarsG == null ? {} : { totalSugarsG: scaled.totalSugarsG }),
+  ...(entry.sodiumMg == null ? {} : { sodiumMg: scaled.sodiumMg }),
+  ...(entry.cholesterolMg == null
+    ? {}
+    : { cholesterolMg: scaled.cholesterolMg }),
+});
 
 export interface MealGroupInfo {
   readonly id: string;
@@ -89,6 +118,11 @@ export const scaleNutrition = (
       proteinG: base.proteinG,
       carbohydrateG: base.carbohydrateG,
       fatG: base.fatG,
+      fibreG: base.fibreG,
+      saturatedFatG: base.saturatedFatG,
+      totalSugarsG: base.totalSugarsG,
+      sodiumMg: base.sodiumMg,
+      cholesterolMg: base.cholesterolMg,
       ratio: 1,
     };
   }
@@ -100,6 +134,11 @@ export const scaleNutrition = (
     proteinG: roundMacro(base.proteinG, ratio),
     carbohydrateG: roundMacro(base.carbohydrateG, ratio),
     fatG: roundMacro(base.fatG, ratio),
+    fibreG: roundMacro(base.fibreG ?? null, ratio),
+    saturatedFatG: roundMacro(base.saturatedFatG ?? null, ratio),
+    totalSugarsG: roundMacro(base.totalSugarsG ?? null, ratio),
+    sodiumMg: roundCalories(base.sodiumMg ?? null, ratio),
+    cholesterolMg: roundCalories(base.cholesterolMg ?? null, ratio),
     ratio,
   };
 };
@@ -121,6 +160,11 @@ export const scaleNutritionFromKnownPortion = (
         proteinG: base.proteinG,
         carbohydrateG: base.carbohydrateG,
         fatG: base.fatG,
+        fibreG: base.fibreG,
+        saturatedFatG: base.saturatedFatG,
+        totalSugarsG: base.totalSugarsG,
+        sodiumMg: base.sodiumMg,
+        cholesterolMg: base.cholesterolMg,
         ratio: 1,
       }
     : scaleNutrition({ ...base, grams: base.grams }, targetGrams);

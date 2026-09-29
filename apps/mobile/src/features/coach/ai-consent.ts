@@ -103,6 +103,11 @@ export const loadAiConsent = async (
   return localStatus;
 };
 
+export interface SaveAiConsentResult {
+  readonly ok: boolean;
+  readonly error?: string;
+}
+
 /**
  * Persists the user's explicit consent to third-party AI processing (Google Gemini).
  * Syncs with server /v1/account/ai-consent when apiClient is provided.
@@ -113,7 +118,8 @@ export const saveAiConsent = async (
   confirmedAdult: boolean,
   store: SecureStoreClient = SecureStore,
   apiClient?: ApiClient,
-): Promise<boolean> => {
+  birthYear?: number,
+): Promise<SaveAiConsentResult> => {
   let consentedAt = granted ? new Date().toISOString() : null;
   if (apiClient) {
     try {
@@ -124,15 +130,39 @@ export const saveAiConsent = async (
           granted,
           confirmedAdult,
           consentVersion: CURRENT_AI_CONSENT_VERSION,
+          ...(birthYear !== undefined ? { birthYear } : {}),
         },
         schema: aiConsentResponseSchema,
       });
       if (!res.ok) {
-        return false;
+        let errorMessage = "Failed to save AI consent.";
+        if (res.error.kind === "http_error") {
+          errorMessage = res.error.message || errorMessage;
+        } else if (res.error.kind === "not_configured") {
+          errorMessage = res.error.reason;
+        } else if (
+          res.error.kind === "no_session" ||
+          res.error.kind === "session_expired"
+        ) {
+          errorMessage = "Your session has expired. Please sign in again.";
+        } else if (res.error.kind === "network_error") {
+          errorMessage =
+            "Network error. Please check your internet connection.";
+        }
+        return {
+          ok: false,
+          error: errorMessage,
+        };
       }
       consentedAt = res.value.consent.consentedAt;
-    } catch {
-      return false;
+    } catch (err) {
+      return {
+        ok: false,
+        error:
+          err instanceof Error
+            ? err.message
+            : "Failed to connect to the server. Please check your internet connection.",
+      };
     }
   }
 
@@ -144,9 +174,15 @@ export const saveAiConsent = async (
       consentVersion: CURRENT_AI_CONSENT_VERSION,
     };
     await store.setItemAsync(consentKey(userId), JSON.stringify(status));
-    return true;
-  } catch {
-    return false;
+    return { ok: true };
+  } catch (err) {
+    return {
+      ok: false,
+      error:
+        err instanceof Error
+          ? err.message
+          : "Failed to save consent locally on device.",
+    };
   }
 };
 

@@ -499,6 +499,9 @@ export type GoalPatch = z.infer<typeof goalPatchSchema>;
 
 export {
   foodDraftCandidateSchema,
+  advancedNutritionCapabilityResponseSchema,
+  advancedNutritionCapabilitySchema,
+  advancedNutritionSchema,
   foodDraftResponseSchema,
   foodRefineDraftRequestSchema,
   foodTextDraftRequestSchema,
@@ -576,12 +579,14 @@ export {
   workoutSetListResponseSchema,
   workoutSetResponseSchema,
   workoutSetSchema,
+  workoutSetTypeSchema,
   type ExerciseRecentSetsQuery,
   type ExerciseRecentSetsResponse,
   type WorkoutSet,
   type WorkoutSetCreate,
   type WorkoutSetListResponse,
   type WorkoutSetResponse,
+  type WorkoutSetType,
 } from "./workout-set";
 
 export {

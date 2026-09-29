@@ -44,7 +44,60 @@ export interface MealFormStrings {
   readonly protein: string;
   readonly carbs: string;
   readonly fat: string;
+  readonly fibre?: string;
+  readonly saturatedFat?: string;
+  readonly totalSugars?: string;
+  readonly sodium?: string;
+  readonly cholesterol?: string;
 }
+
+export const ADVANCED_NUTRIENT_FIELDS = [
+  "fibre",
+  "saturatedFat",
+  "totalSugars",
+  "sodium",
+  "cholesterol",
+] as const;
+
+export const advancedNutrientsFromForm = (form: MealFormStrings) => {
+  const values = ADVANCED_NUTRIENT_FIELDS.map((field) =>
+    parseOptionalNutritionNumber(form[field] ?? ""),
+  );
+  if (values.some((value) => !value.ok)) return null;
+  const valueAt = (index: number): number | null => {
+    const result = values[index];
+    return result?.ok ? result.value : null;
+  };
+  return {
+    fibreG: valueAt(0),
+    saturatedFatG: valueAt(1),
+    totalSugarsG: valueAt(2),
+    sodiumMg: valueAt(3),
+    cholesterolMg: valueAt(4),
+  };
+};
+
+export const sameAdvancedNutrients = (
+  previous: {
+    readonly fibreG?: number | null;
+    readonly saturatedFatG?: number | null;
+    readonly totalSugarsG?: number | null;
+    readonly sodiumMg?: number | null;
+    readonly cholesterolMg?: number | null;
+  },
+  current: NonNullable<ReturnType<typeof advancedNutrientsFromForm>>,
+): boolean =>
+  (previous.fibreG ?? null) === current.fibreG &&
+  (previous.saturatedFatG ?? null) === current.saturatedFatG &&
+  (previous.totalSugarsG ?? null) === current.totalSugarsG &&
+  (previous.sodiumMg ?? null) === current.sodiumMg &&
+  (previous.cholesterolMg ?? null) === current.cholesterolMg;
+
+/** An exact idempotent replay must be allowed to reconcile a lost response. */
+export const needsFreshAdvancedGrant = (
+  hasAdvancedInput: boolean,
+  isExactRetry: boolean,
+): boolean => hasAdvancedInput && !isExactRetry;
 
 export interface RecoverableMealDraft extends MealFormStrings {
   readonly portionGrams?: string;
@@ -93,6 +146,9 @@ export const isRecoverableMealDraft = (
   const photoUriValid =
     record.attachedPhotoUri === undefined ||
     typeof record.attachedPhotoUri === "string";
+  const advancedValid = ADVANCED_NUTRIENT_FIELDS.every(
+    (field) => record[field] === undefined || typeof record[field] === "string",
+  );
   return (
     stringsValid &&
     portionGramsValid &&
@@ -103,7 +159,8 @@ export const isRecoverableMealDraft = (
     aiDraftValid &&
     proposalIdValid &&
     refineValid &&
-    photoUriValid
+    photoUriValid &&
+    advancedValid
   );
 };
 
@@ -159,6 +216,11 @@ export const mealFormStringsFromEntry = (
   protein: editableNumber(entry.proteinG),
   carbs: editableNumber(entry.carbohydrateG),
   fat: editableNumber(entry.fatG),
+  fibre: editableNumber(entry.fibreG ?? null),
+  saturatedFat: editableNumber(entry.saturatedFatG ?? null),
+  totalSugars: editableNumber(entry.totalSugarsG ?? null),
+  sodium: editableNumber(entry.sodiumMg ?? null),
+  cholesterol: editableNumber(entry.cholesterolMg ?? null),
 });
 
 /**

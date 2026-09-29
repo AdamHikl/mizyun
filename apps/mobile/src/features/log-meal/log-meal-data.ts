@@ -33,6 +33,11 @@ export interface LogMealForm {
   readonly proteinG: number | null;
   readonly carbohydrateG: number | null;
   readonly fatG: number | null;
+  readonly fibreG?: number | null;
+  readonly saturatedFatG?: number | null;
+  readonly totalSugarsG?: number | null;
+  readonly sodiumMg?: number | null;
+  readonly cholesterolMg?: number | null;
   readonly consumedAt: string | null;
   readonly details?: Readonly<Record<string, unknown>>;
 }
@@ -97,6 +102,15 @@ export const submitLogMealWith = async (
       ? { carbohydrateG: form.carbohydrateG }
       : {}),
     ...(form.fatG !== null ? { fatG: form.fatG } : {}),
+    ...(form.fibreG == null ? {} : { fibreG: form.fibreG }),
+    ...(form.saturatedFatG == null
+      ? {}
+      : { saturatedFatG: form.saturatedFatG }),
+    ...(form.totalSugarsG == null ? {} : { totalSugarsG: form.totalSugarsG }),
+    ...(form.sodiumMg == null ? {} : { sodiumMg: form.sodiumMg }),
+    ...(form.cholesterolMg == null
+      ? {}
+      : { cholesterolMg: form.cholesterolMg }),
     ...(form.details === undefined ? {} : { details: form.details }),
   };
   const parsed = foodEntryCreateSchema.safeParse(payload);
