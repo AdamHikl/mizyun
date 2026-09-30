@@ -14,4 +14,16 @@ Deploy the exact candidate to `/var/lib/mizyun/dev/repo`; install only the Dev m
 
 ## Operational evidence
 
-Pending execution. The earlier closed deployment and binary are historical in [the original Dev deployment record](COMMUNITY_DEV_DEPLOYMENT_2026-09-30.md). Production is outside this operation.
+**Dev deployed:** `282d740d93b338fb508cbad2a8fa27f5a605b9c8`, journal success at2026-09-30T18:34:06Z, previous49d3e19. The driver reran exact-candidate `pnpm check` successfully, database ledger was already current through20260930230000, remote HEAD/recorded SHA match and checkout remains pristine. Public health200 at18:38:30.992Z; anonymous profile/feed401 with canonical request IDs after activation.
+
+**Dev activation:** at18:38:02Z, effective API flags and database singleton agree: master/enrollment/discovery/publish/engagement true, deliveryfalse, cohort_requiredtrue. Transactional assertions require exactly one existing eligible principal in the cohort, exactly one singleton, admitted enrollmenttrue and outsiderfalse before commit. No Community profile, consent, graph, sharing or private-health mutation was performed. Only the six Dev flags were changed atomically; other config/credentials and ownership/mode/extended attributes were preserved, with a private root0600 Dev config backup.
+
+**Privacy maintenance:** only the Dev service/timer were installed, validated with `systemd-analyze verify`, and enabled. Initial and postactivation ticks exited0 with claims/accepted/receipts0; timeractive and APIactive. The script bypasses all delivery/receipt callbacks regardless of environment flags. Forward withdrawal/retention functionality is available; actual leave/rejoin remains a user journey to exercise. Deployment/account activation received independent non-author review including precommit control/cohort assertions.
+
+**iPhone installed:** signed standalone Release `com.mizyun.development`,1.0.6(6), teamLQJNDVBL43, Adam's iPhone16Pro `00008140-001114501A86801C`, Xcode27.0. Install succeeded at18:35:38Z. `codesign --verify --deep --strict` passes with signing trust-store access; bundle embeds exact Dev API/Auth/callback. main.jsbundle7090548bytes SHA256 `0d56edb625cf0a31cd41021f34c0eae58e87a5c32a27e62815b57cb3c19f9cc7`, distinct from the earlier closed binary. Both automatic and explicit foreground launch were blocked by the locked device; launch and signed-in feature acceptance remain pending until Adam unlocks/opens it.
+
+Production received no writes, deployment, restart, configuration change or installation in this segment, and no further Production probes were performed under the latest instruction. The earlier closed deployment and binary remain historical in [the original Dev deployment record](COMMUNITY_DEV_DEPLOYMENT_2026-09-30.md).
+
+## Next exact user journey and remaining gates
+
+Open Mizyun Dev, sign into the admitted Dev account, then **Account → Privacy & data → Community** (or Account search for Community). Deliberately choose Join, accept adult/rules confirmation, select a handle, then use Following feed/Find friends and explicit workout sharing preview. Verify leave/rejoin cleanup and permission-loss behavior. A second separately authorized Dev identity is required for two-person follow/approval/reaction journeys. Push delivery stays disabled; participant/device/provider/operator/contact/legal/restore/pilot acceptance remain open. No full feature or pilot acceptance is inferred from installation or health checks.

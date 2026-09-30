@@ -1148,7 +1148,7 @@
       "openAcceptance": [
         "Physical iPhone and Android granted/denied/revoked checks",
         "Public privacy policy and Google Play Health declarations before release",
-        "ACT-02–04 source provenance and idempotent persisted sync remain future scope"
+        "ACT-02\u201304 source provenance and idempotent persisted sync remain future scope"
       ]
     },
     {
@@ -1447,7 +1447,7 @@
         "pnpm --filter @mizyun/mobile test src/features/community/",
         "pnpm supabase test db"
       ],
-      "lastReviewedSha": "f063d7a78e38e3bf6cad7e44f0b7edfcc74f16c9",
+      "lastReviewedSha": "d81c10f60c0aebc6b2240e48e69e4678addc8079",
       "lastReviewedDate": "2026-09-30",
       "limitations": "Dev-only client enrollment requires exact Dev targets; server cohort is authoritative. Founder Dev testing activation is explicitly authorized for a confirmed account; broader participant/Dev/device/provider/operator/legal/restore/pilot acceptance remains pending.",
       "requirements": [
@@ -1475,7 +1475,7 @@
         "COMM-04 physical relationship/graph/block/mute/account-switch acceptance and reporting/delivery/retention dependencies",
         "COMM-05 installed cold/warm/login/QR/environment/account-switch and not-installed fallback acceptance",
         "COMM-06 physical preview/publish/edit/unpublish/source-delete acceptance and feed/delivery dependencies",
-        "COMM-07–16 feed, moderation, inbox/delivery, lifecycle/export/restore, rollout and exact-candidate pilot gates"
+        "COMM-07\u201316 feed, moderation, inbox/delivery, lifecycle/export/restore, rollout and exact-candidate pilot gates"
       ]
     }
   ]
