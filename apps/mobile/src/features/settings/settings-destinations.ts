@@ -122,6 +122,7 @@ export const ALLOWED_EXTERNAL_ROUTES = [
   "/body",
   "/progress-photos",
   "/feedback",
+  "/community/settings",
 ] as const;
 
 export type AllowedExternalRoute = (typeof ALLOWED_EXTERNAL_ROUTES)[number];

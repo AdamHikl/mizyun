@@ -749,6 +749,33 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
     keywords: ["data sharing", "privacy permission", "opt out of ai"],
   },
 
+  {
+    id: "community-settings",
+    destinationId: "community-settings",
+    label: "Community",
+    description:
+      "Optional social profile, exact-handle discovery and withdrawal",
+    categoryId: "privacy-data",
+    categoryLabel: "Privacy & data",
+    breadcrumb: "Account → Privacy & data",
+    aliases: [
+      "friends",
+      "community",
+      "social profile",
+      "discovery",
+      "leave community",
+    ],
+    intentPhrases: [
+      "join community",
+      "stop sharing with friends",
+      "hide my handle",
+      "leave community",
+      "edit my social name",
+    ],
+    targetType: "external-route",
+    targetRoute: "/community/settings",
+    availabilityRule: "signed-in",
+  },
   // ── Privacy & data ──
   {
     id: "coach-memory-privacy",

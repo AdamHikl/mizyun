@@ -37,6 +37,7 @@ import { analyticsClient } from "@/composition/analytics-client";
 import { getAppVariant } from "@/composition/app-variant";
 import { classifyAnalyticsFailure } from "@/features/analytics/classify-failure";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import { ShareWorkoutModal, useCommunityProfile } from "@/features/community";
 import { useAuth } from "@/features/auth/auth-context";
 import {
   clearLoggingDraft,
@@ -149,6 +150,11 @@ interface PendingSetInput {
 export function LogWorkoutScreen() {
   const { workoutId } = useLocalSearchParams<{ workoutId?: string }>();
   const { profile, session } = useAuth();
+  const community = useCommunityProfile({
+    principalKey: session?.user.id ?? null,
+    birthYear: profile?.birthYear,
+  });
+  const [completedShareId, setCompletedShareId] = useState<string | null>(null);
   const theme = useTheme();
   const workoutContext = useOptionalActiveWorkout();
   const setContextActiveWorkout = workoutContext?.setActiveWorkout;
@@ -1184,13 +1190,30 @@ export function LogWorkoutScreen() {
               void dismissActiveWorkoutNotification();
               measurement.current?.complete();
               if (userId !== null) await clearLoggingDraft(userId, "workout");
-              router.back();
+              if (community.isEnrolled) {
+                Alert.alert(
+                  "Workout saved privately",
+                  "Sharing is optional. Review a separate card before publishing.",
+                  [
+                    {
+                      text: "Keep private",
+                      style: "cancel",
+                      onPress: () => router.back(),
+                    },
+                    {
+                      text: "Review sharing",
+                      onPress: () => setCompletedShareId(workspace.workout!.id),
+                    },
+                  ],
+                );
+              } else router.back();
             })();
           },
         },
       ],
     );
   }, [
+    community.isEnrolled,
     autoAdvanceTargetWeights,
     clearContextRestTimer,
     elapsedSeconds,
@@ -1426,6 +1449,17 @@ export function LogWorkoutScreen() {
         />
       ) : null}
 
+      {completedShareId && (
+        <ShareWorkoutModal
+          key={`${session?.user.id}:${completedShareId}`}
+          visible
+          workoutId={completedShareId}
+          onDismiss={() => {
+            setCompletedShareId(null);
+            router.back();
+          }}
+        />
+      )}
       {/* Exercise Library Modal to Add Exercises */}
       {libraryVisible ? (
         <ExerciseLibraryModal

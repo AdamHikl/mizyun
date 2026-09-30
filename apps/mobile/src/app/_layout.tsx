@@ -5,16 +5,19 @@ import {
   ThemeProvider,
   router,
   type Href,
+  useRootNavigationState,
 } from "expo-router";
 import * as Notifications from "expo-notifications";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { parseDeepLinkFragment } from "@mizyun/identity";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { AppState, Linking } from "react-native";
 
 import { AnimatedSplashOverlay } from "@/components/animated-icon";
 import ActiveWorkoutMiniBar from "@/components/active-workout-mini-bar";
+import { getAppVariant } from "@/composition/app-variant";
+import { parseCommunityInvitationLink } from "@/features/community";
 import { analyticsClient } from "@/composition/analytics-client";
 import { apiClient, apiConfiguration } from "@/composition/api-client";
 import {
@@ -84,7 +87,18 @@ function AnalyticsSessionBridge() {
  * `Linking.addEventListener("url", ...)` (warm start).
  */
 function DeepLinkBridge() {
-  const { consumeDeepLink, explorePreview } = useAuth();
+  const { consumeDeepLink, explorePreview, session } = useAuth();
+  const navigation = useRootNavigationState();
+  const [pendingInvitation, setPendingInvitation] = useState<string | null>(
+    null,
+  );
+  const invitationScheme = getAppVariant() === "dev" ? "mizyun-dev" : "mizyun";
+
+  useEffect(() => {
+    if (!pendingInvitation || !session || !navigation?.key) return;
+    router.push(`/community/invite?token=${pendingInvitation}` as Href);
+    setPendingInvitation(null);
+  }, [pendingInvitation, session, navigation?.key]);
 
   useEffect(() => {
     let active = true;
@@ -97,7 +111,13 @@ function DeepLinkBridge() {
         explorePreview();
         return;
       }
+      const token = parseCommunityInvitationLink(rawUrl, invitationScheme);
+      if (token) {
+        setPendingInvitation(token);
+        return;
+      }
       const payload = parseDeepLinkFragment(rawUrl);
+
       if (!payload) return;
       void consumeDeepLink(payload).catch(() => {
         // The auth boundary surfaces errors through its own state
@@ -115,7 +135,7 @@ function DeepLinkBridge() {
       active = false;
       subscription.remove();
     };
-  }, [consumeDeepLink, explorePreview]);
+  }, [consumeDeepLink, explorePreview, invitationScheme]);
 
   return null;
 }
@@ -319,7 +339,16 @@ function TabLayoutContent() {
                 name="account-settings/[settingId]"
                 options={{ title: "Settings" }}
               />
+              <Stack.Screen
+                name="community/relationships"
+                options={{ title: "Your friends" }}
+              />
+              <Stack.Screen
+                name="community/invite"
+                options={{ title: "Friend Invitation", presentation: "modal" }}
+              />
             </Stack>
+
             <ActiveWorkoutMiniBar />
           </ActiveWorkoutProvider>
         </SessionGate>

@@ -11,6 +11,7 @@ import { BrandWordmark } from "@/components/brand-wordmark";
 import { FeedbackHeaderButton } from "@/components/feedback-header-button";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { analyticsClient } from "@/composition/analytics-client";
+import { ShareWorkoutModal, useCommunityProfile } from "@/features/community";
 import { useAuth } from "@/features/auth/auth-context";
 
 import {
@@ -37,7 +38,12 @@ const INITIAL_DATA: WorkoutsHubResult = {
 };
 
 export function WorkoutsHubScreen() {
-  const { profile } = useAuth();
+  const { profile, session } = useAuth();
+  const community = useCommunityProfile({
+    principalKey: session?.user.id ?? null,
+    birthYear: profile?.birthYear,
+  });
+  const [sharingWorkoutId, setSharingWorkoutId] = useState<string | null>(null);
   const unitSystem = profile?.unitSystem ?? "metric";
   const [data, setData] = useState<WorkoutsHubResult>(INITIAL_DATA);
   const [loading, setLoading] = useState(true);
@@ -452,6 +458,11 @@ export function WorkoutsHubScreen() {
                     unitSystem={unitSystem}
                     isBusy={busyWorkoutId === item.workout.id}
                     onOpen={() => handleOpenWorkout(item.workout.id)}
+                    onShare={
+                      community.isEnrolled
+                        ? () => setSharingWorkoutId(item.workout.id)
+                        : undefined
+                    }
                     onEdit={() => handleEditWorkout(item)}
                     onDelete={() => handleConfirmDelete(item)}
                     onPressExercise={(name) => setProgressionExerciseName(name)}
@@ -463,6 +474,14 @@ export function WorkoutsHubScreen() {
         </ScrollView>
       </SafeAreaView>
 
+      {sharingWorkoutId && (
+        <ShareWorkoutModal
+          key={`${session?.user.id}:${sharingWorkoutId}`}
+          visible
+          workoutId={sharingWorkoutId}
+          onDismiss={() => setSharingWorkoutId(null)}
+        />
+      )}
       <ExerciseLibraryModal
         visible={libraryVisible}
         onClose={() => setLibraryVisible(false)}
@@ -618,6 +637,7 @@ function PlannedWorkoutCard(props: {
 }
 
 function CompletedWorkoutCard(props: {
+  readonly onShare?: () => void;
   readonly item: ProcessedWorkout;
   readonly unitSystem: "metric" | "imperial";
   readonly isBusy: boolean;
@@ -705,6 +725,15 @@ function CompletedWorkoutCard(props: {
         </View>
       ) : null}
 
+      {props.onShare && (
+        <Pressable
+          onPress={props.onShare}
+          accessibilityRole="button"
+          style={styles.reviewButton}
+        >
+          <ThemedText type="smallBold">Review sharing / unpublish</ThemedText>
+        </Pressable>
+      )}
       {/* Actions */}
       <View style={styles.cardActionsRow}>
         <View style={styles.cardActionsLeft}>
