@@ -1,0 +1,25 @@
+[Unit]
+Description=Mizyun Dev Community privacy maintenance
+After=network-online.target mizyun-supabase-dev.service
+Requires=mizyun-supabase-dev.service
+
+[Service]
+Type=oneshot
+User=mizyun-dev-api
+Group=mizyun-dev-api
+WorkingDirectory=/var/lib/mizyun/dev/repo
+EnvironmentFile=/etc/mizyun/dev.env
+ExecStart=/usr/local/bin/node /var/lib/mizyun/dev/repo/scripts/community-dev-maintenance.mjs
+TimeoutStartSec=90
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+InaccessiblePaths=/etc/mizyun/production.env /var/lib/mizyun/repo /srv/mizyun/supabase /srv/mizyun/migration /var/run/docker.sock
+ReadWritePaths=/tmp
+MemoryMax=256M
+CPUQuota=50%
+UMask=0077

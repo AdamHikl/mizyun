@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Mizyun Dev Community privacy maintenance every minute
+
+[Timer]
+OnBootSec=30s
+OnUnitInactiveSec=60s
+AccuracySec=5s
+Unit=mizyun-community-dev-maintenance.service
+
+[Install]
+WantedBy=timers.target
