@@ -16,6 +16,12 @@ Retention: publication max 365 days with deadline read denial; revoked payload m
 
 Founder Adam Hikl owns operator acceptance; named trained backup, verified contact, report/appeal coverage and scoped staff tooling remain #148/#153 prerequisites. Ordinary first review target 24 hours, urgent concerns four hours under accepted coverage. Four-week pilot: five independent friend pairs, half of study-consenting cohort returns in two weeks including week four, complete critical comprehension among study-consenting assessed participants (unassessed members recorded separately), timely reports, no unauthorized/private-source access or unresolved deletion/restore defects. No statistical/public-launch claims follow from these thresholds. The narrow private-source/social-artifact wording in goals is reconciled; first-beta exclusion and post-MVP sequencing remain unchanged, so plan.md and BUSINESS_ALIGNMENT.md do not change.
 
+## COMM-10–16 implementation revision — 2026-09-30
+
+#149–153 source work proceeds on the preserved coherent dirty candidate; #154/#155 prepare disclosure/acceptance evidence. New notification180000, operations190000 and lifecycle200000 migrations add durable inbox/session registry/outbox, independent database controls/cohort and withdrawal/deletion/export/expiry boundaries. Withdrawal now blocks re-enrollment until generation cleanup finishes; tests explicitly exercise the barrier rather than silently resetting generation. Current-source review preserves same-day abuse counters, reporter confidentiality and minimal active-sanction appeal identity. The13-category Community export is independently versioned/live-keyset, not a database snapshot.
+
+[Acceptance register](COMMUNITY_ACCEPTANCE_EVIDENCE.md), [legal/store gate](COMMUNITY_LEGAL_STORE_CHECKLIST.md) and [operations runbook](tutorials/COMMUNITY_OPERATIONS_RUNBOOK.md) track exact remaining exits. Source implementation does not close physical/provider/Dev/restore/operator/legal/admission gates. Admission and delivery stay closed; Production/Store and a larger Dev cohort remain separate decisions.
+
 ## A. Context and scope
 
 The request is to follow friends and see their activity. Build an optional friends experience first, then expand only when users value it and operations can support it. A working community needs identity, consent, relationships, discoverability, useful shared activity, encouragement, safety, staffed moderation, notifications, portability, reliable operation and evidence of voluntary return.
@@ -358,6 +364,8 @@ Make community safety usable and operational before any social pilot admission.
 - [ ] A removed card remains reportable through bounded evidence without becoming publicly readable.
 - [ ] Named operator resolves and audits a synthetic report, escalation and appeal within the declared target; an unattended queue fails launch acceptance.
 - [ ] Record source/commands/outcomes/skips; run applicable focused tests and `pnpm check` for runtime changes. Independent non-author authorization/lifecycle review where affected; real local database/storage proof where affected; device acceptance is separate.
+
+Local progress2026-09-30: COMM-09 source implementation and independent authorization review completed; [evidence](COMMUNITY_MODERATION_EVIDENCE_2026-09-30.md) records caller-owned receipts, deterministic filtering, MFA staff/assignment/audit, atomic decisions, independent appeals and mobile restricted safety. Empty scratch passes399 SQL assertions plus quota/claim races. Adam deferred trained backup/contact acceptance until Community functionality is exercised. #148 stays open for physical Dev/both-platform, staffed/contact, retention/delivery and admission dependencies; no pilot or Production release implied.
 
 ### COMM-10 — Implement community inbox, notification preferences and safe push
 

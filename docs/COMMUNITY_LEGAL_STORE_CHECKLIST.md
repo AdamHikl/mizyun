@@ -1,0 +1,43 @@
+# Community legal and store gates — COMM-15 / #154
+
+Date: 2026-09-30. Status: **NOT ACCEPTED; admission closed**. Source preparation is not legal approval, a published website update, Store metadata acceptance or a release. Founder/operator sign-off and qualified review where applicability is uncertain remain required.
+
+## Enabled scope and data map
+
+The candidate keeps private tracking independent from optional Community. Separate adult declaration and version `2026-09-30` acceptance precede profile creation. Profiles include handle/name/avatar/bio; discovery is an explicit choice. Friends approve directional follows. Only deliberately published category/day and optional duration are shared; exercises/weights/notes/media/location/calories/heart rate remain outside social snapshots. Supportive fixed reactions, confidential reports, independent appeals and generic notifications are included. No comments, messaging, groups, contact matching or public feed is enabled.
+
+| Category                         | Purpose / audience                       | Retention and reversibility                                                                                                                                                      | Review required                                                                                               |
+| -------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Social identity / graph          | Member identity and chosen friends       | Withdrawal hides immediately; cleanup barrier prevents old generation erasure of new enrollment; display/bio expiry30 days; blocks remain until explicit removal/account erasure | Controller identity; purpose and lawful basis; identity/handle reservation disclosure                         |
+| Selected activity                | Explicit sharing with approved followers | Dynamic authorization; revocation/source deletion/withdrawal;365-day viewing bound, cleanup maintenance                                                                          | Fitness/health and special-category implications; explicit-consent appropriateness and withdrawal wording     |
+| Reactions                        | Encouragement to card owner              | Remove/block/version refresh excludes old event; account-bound export                                                                                                            | Linked identity, purpose and retention disclosure                                                             |
+| Inbox / device registry / outbox | Generic optional updates                 | Inbox/dedupe30 days, outbox1 day, devices30 days; five devices/account; session/generation/audience checks at send                                                               | Expo/APNs/FCM provider roles, token handling, international transfers and provider receipt retention          |
+| Reports / receipts / appeals     | Necessary safety and independent review  | Receipts30 days; closed case evidence180 days; open-case necessity review weekly; active sanctions retain only minimum appealable decision after evidence expiry                 | Lawful basis, accountable access, legal hold policy, subject/reporter confidentiality and regional escalation |
+| Backup recovery                  | Recovery only                            | VM7-day export buffer / Pi90-day encrypted archives; approximately daily RPO; replay revocations before serving after restore                                                    | Retention rationale, restore erasure replay proof and #25/#26 dependencies                                    |
+
+These are engineering behavior/constraints. They do not establish an approved legal basis. Identify controller, processors and contact routes; assess GDPR consent/special-category basis, DPIA and DSA applicability with qualified review. The EU official text fetch was access-challenged in this session; no refreshed legal interpretation is claimed.
+
+## Primary-source checks and consequences
+
+Sources inspected2026-09-30:
+
+- [Apple App Review Guidelines1.2](https://developer.apple.com/app-store/review/guidelines/): prepare filtering/report/block/contact demonstration and actual timely moderation evidence. Source tests alone do not establish ongoing response coverage.
+- [Google Play UGC](https://support.google.com/googleplay/android-developer/answer/9876937?hl=en): acceptance must precede UGC creation; demonstrate in-app reporting/blocking and ongoing moderation. Private following still constitutes UGC.
+- [Google Child Safety Standards applicability](https://support.google.com/googleplay/android-developer/answer/14747720?hl=en): current scope includes Anonymous/Random Chat and declared Social/Dating categories; adult-only access does not exempt an in-scope app. Record the actual Play category and final functionality; do not assume either applicability or exemption from this fitness pilot. If applicable, verify globally reachable named CSAE standards, in-app feedback, escalation/legal duties and designated competent contact.
+- [GDPR official text](https://eur-lex.europa.eu/eli/reg/2016/679/oj/eng) and [DSA official text](https://eur-lex.europa.eu/eli/reg/2022/2065/oj/eng): legal-review references only; access challenge prevented fresh text inspection.
+
+## Approval and publication register
+
+Every row needs a named approver, date and evidence URL/artifact before acceptance; none has been supplied or fabricated.
+
+| Gate                                                         | Current evidence                                       | Remaining exact action                                                                                                            |
+| ------------------------------------------------------------ | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| Versioned terms before UGC; refusal retains private tracking | Existing source/API/SQL acceptance guards              | Physically exercise refusal/enroll/share on both platforms; approve final terms copy                                              |
+| Privacy / lawful basis / DPIA / DSA                          | Data map above; no qualified determination             | Obtain named reviewer determination with scope and basis                                                                          |
+| Standards and working support/safety route                   | Repository standards and honest unavailable-contact UI | Publish approved copy in separate `/Users/adam/Documents/mizyun-website`; test routes and response coverage                       |
+| Child safety                                                 | Dated source and applicability questions               | Verify actual Play category, record signed determination and applicable declaration/contact                                       |
+| Apple labels / age rating / review notes                     | Preparation only                                       | Map identifiers/social/fitness data, linkage/purposes and sharing to actual enabled candidate; prepare synthetic reviewer journey |
+| Google Data safety / content rating / health declarations    | Preparation only                                       | Match collection/sharing, encryption, retention/deletion and social UGC to actual enabled candidate                               |
+| Reviewer demonstration                                       | Synthetic local tests only                             | Provide synthetic accounts; demonstrate report/block/private-vs-shared/withdrawal/export/deletion on actual accepted build        |
+
+Website publishing, Store submissions and Production promotion remain separate actions. Preserve original #140/#148/#151/#153 gates; #154 stays open.

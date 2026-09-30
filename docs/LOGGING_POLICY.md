@@ -37,6 +37,8 @@ The redact list in `apps/api/src/logging.ts` is the single source of truth. Toda
 | `req.body.email`            | PII; we route identity by user ID, not email.           |
 | `res.headers['set-cookie']` | Response cookie; reverse-direction leakage vector.      |
 
+Community request URLs are reduced to `/v1/community/[redacted]`. Confidential report and appeal notes/reasons, staff/reviewer notes, target IDs and interaction receipt IDs are also covered by body redaction paths; normal request serialization omits bodies entirely. Staff case evidence lives in the restricted database audit, never generic API logs.
+
 The list is enforced by `apps/api/src/logging.test.ts` so removing a path is a deliberate code change, not a refactor side-effect.
 
 The pino censor string is the default `[Redacted]`. Tests assert this string appears in the log line when a sensitive field is sent, and assert the sensitive value never does.

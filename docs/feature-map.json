@@ -1205,7 +1205,15 @@
         "apps/mobile/src/app/community/invite.tsx",
         "apps/mobile/src/app/community/settings.tsx",
         "apps/mobile/src/features/community/index.ts",
-        "apps/mobile/src/app/community/relationships.tsx"
+        "apps/mobile/src/app/community/relationships.tsx",
+        "apps/mobile/src/features/community/safety/index.ts",
+        "scripts/community-moderation.mjs",
+        "apps/mobile/src/app/community/safety.tsx",
+        "apps/api/src/modules/community/report-routes.ts",
+        "apps/api/src/modules/community/moderation-routes.ts",
+        "apps/api/src/modules/community/notification-routes.ts",
+        "scripts/community-worker.mjs",
+        "apps/mobile/src/features/community/notifications/index.ts"
       ],
       "ownedPaths": [
         "packages/contracts/src/community.ts",
@@ -1214,17 +1222,35 @@
         "apps/api/src/community-repository.ts",
         "apps/api/src/modules/community",
         "apps/mobile/src/app/community",
-        "apps/mobile/src/features/community"
+        "apps/mobile/src/features/community",
+        "packages/contracts/src/community-notifications.ts",
+        "packages/core/src/community-notifications.ts",
+        "packages/adapters/supabase-server/src/community-notification-repository.ts",
+        "packages/adapters/supabase-server/src/community-account-export.ts",
+        "scripts/community-worker.mjs"
       ],
-      "contracts": ["packages/contracts/src/community.ts"],
-      "domainPort": ["packages/core/src/community.ts"],
+      "contracts": [
+        "packages/contracts/src/community.ts",
+        "packages/contracts/src/community-notifications.ts"
+      ],
+      "domainPort": [
+        "packages/core/src/community.ts",
+        "packages/core/src/community-notifications.ts"
+      ],
       "api": [
         "apps/api/src/community-repository.ts",
         "apps/api/src/modules/community/profile-routes.ts",
         "apps/api/src/modules/community/relationship-routes.ts",
         "apps/api/src/modules/community/invitation-routes.ts",
         "apps/api/src/modules/community/publication-routes.ts",
-        "apps/api/src/modules/community/discovery-routes.ts"
+        "apps/api/src/modules/community/discovery-routes.ts",
+        "apps/api/src/modules/community/feed-routes.ts",
+        "apps/api/src/modules/community/reaction-routes.ts",
+        "apps/api/src/modules/community/report-routes.ts",
+        "apps/api/src/modules/community/moderation-routes.ts",
+        "apps/api/src/modules/community/notification-routes.ts",
+        "apps/api/src/modules/community/operations.ts",
+        "apps/api/src/community-notification-repository.ts"
       ],
       "ui": [
         "apps/mobile/src/features/community/community-client.ts",
@@ -1235,10 +1261,39 @@
         "apps/mobile/src/app/community/settings.tsx",
         "apps/mobile/src/features/community/index.ts",
         "apps/mobile/src/features/community/relationships/screen.tsx",
-        "apps/mobile/src/features/community/discovery/screen.tsx"
+        "apps/mobile/src/features/community/discovery/screen.tsx",
+        "apps/mobile/src/features/community/feed/feed-screen.tsx",
+        "apps/mobile/src/features/community/feed/activity-detail-screen.tsx",
+        "apps/mobile/src/app/community/index.tsx",
+        "apps/mobile/src/app/community/activity/[id].tsx",
+        "apps/mobile/src/features/community/reactions/reaction-bar.tsx",
+        "apps/mobile/src/features/community/reactions/reactors-modal.tsx",
+        "apps/mobile/src/features/community/reactions/index.ts",
+        "apps/mobile/src/features/community/safety/report-modal.tsx",
+        "apps/mobile/src/features/community/safety/index.ts",
+        "apps/mobile/src/features/community/safety/safety-screen.tsx",
+        "apps/mobile/src/features/community/safety/safety-api.ts",
+        "apps/mobile/src/app/community/safety.tsx",
+        "apps/mobile/src/features/community/notifications/push-native.ts",
+        "apps/mobile/src/features/community/notifications/preferences-screen.tsx",
+        "apps/mobile/src/features/community/notifications/quiet-hours.ts",
+        "apps/mobile/src/features/community/notifications/device-alerts-control.tsx",
+        "apps/mobile/src/features/community/notifications/inbox-screen.tsx",
+        "apps/mobile/src/features/community/notifications/index.ts",
+        "apps/mobile/src/features/community/notifications/push-lifecycle.ts",
+        "apps/mobile/src/features/community/notifications/notification-client.ts",
+        "apps/mobile/src/features/community/notifications/controller.ts",
+        "apps/mobile/src/features/community/state/visibility-epoch.ts",
+        "apps/mobile/src/app/community/inbox.tsx",
+        "apps/mobile/src/app/community/notifications.tsx",
+        "apps/mobile/src/features/community/notifications/notification-bridge.tsx",
+        "apps/mobile/src/features/community/notifications/tap-controller.ts",
+        "apps/mobile/src/features/community/push.ts"
       ],
       "adapters": [
-        "packages/adapters/supabase-server/src/community-repository.ts"
+        "packages/adapters/supabase-server/src/community-repository.ts",
+        "packages/adapters/supabase-server/src/community-notification-repository.ts",
+        "packages/adapters/supabase-server/src/community-account-export.ts"
       ],
       "dataTables": [
         "community_profiles",
@@ -1247,6 +1302,9 @@
         "shared_activities",
         "community_reactions",
         "community_reports",
+        "community_report_usage",
+        "community_moderation_actions",
+        "community_moderation_appeals",
         "community_invitations",
         "community_mutes",
         "community_follow_operations",
@@ -1254,7 +1312,18 @@
         "community_follow_cooldowns",
         "community_discovery_attempts",
         "community_invitation_usage",
-        "community_publication_usage"
+        "community_publication_usage",
+        "community_moderation_staff",
+        "community_report_receipts",
+        "community_moderation_sanctions",
+        "community_notification_preferences",
+        "community_inbox_events",
+        "community_notification_dedupe",
+        "community_push_tokens",
+        "community_notification_outbox",
+        "community_operations",
+        "community_pilot_cohort",
+        "community_withdrawal_jobs"
       ],
       "migrationPaths": [
         "supabase/migrations/20260930100000_community_foundation.sql",
@@ -1263,7 +1332,14 @@
         "supabase/migrations/20260930120000_community_relationship_controls.sql",
         "supabase/migrations/20260930140000_community_discovery_controls.sql",
         "supabase/migrations/20260930150000_community_publication_controls.sql",
-        "supabase/migrations/20260930160000_community_account_deletion_cooldowns.sql"
+        "supabase/migrations/20260930160000_community_account_deletion_cooldowns.sql",
+        "supabase/migrations/20260930170000_community_reporting_and_moderation.sql",
+        "supabase/migrations/20260930180000_community_notifications.sql",
+        "supabase/migrations/20260930190000_community_operations.sql",
+        "supabase/migrations/20260930200000_community_account_lifecycle.sql",
+        "supabase/migrations/20260930210000_community_admission_read_controls.sql",
+        "supabase/migrations/20260930220000_community_receipt_delivery_bounds.sql",
+        "supabase/migrations/20260930230000_community_erasure_audit.sql"
       ],
       "tests": [
         "packages/contracts/src/community.test.ts",
@@ -1295,7 +1371,38 @@
         "supabase/tests/database/0013_community_discovery_controls.test.sql",
         "supabase/tests/database/0014_community_publication_controls.test.sql",
         "scripts/test-community-publication-concurrency.py",
-        "supabase/tests/database/0015_community_account_deletion_cooldowns.test.sql"
+        "supabase/tests/database/0015_community_account_deletion_cooldowns.test.sql",
+        "apps/api/src/modules/community/feed-routes.test.ts",
+        "apps/mobile/src/features/community/feed/controller.test.ts",
+        "apps/mobile/src/features/community/feed/formatters.test.ts",
+        "apps/mobile/src/features/community/feed/activity-card.test.ts",
+        "apps/api/src/modules/community/reaction-routes.test.ts",
+        "apps/mobile/src/features/community/reactions/reaction-bar.test.ts",
+        "apps/api/src/modules/community/report-routes.test.ts",
+        "apps/api/src/modules/community/moderation-routes.test.ts",
+        "apps/mobile/src/features/community/safety/report-modal.test.tsx",
+        "scripts/community-moderation.test.mjs",
+        "apps/mobile/src/features/community/safety/safety-screen.test.tsx",
+        "supabase/tests/database/0016_community_moderation.test.sql",
+        "scripts/test-community-moderation-concurrency.py",
+        "apps/api/src/modules/community/notification-routes.test.ts",
+        "apps/api/src/modules/community/operations.test.ts",
+        "packages/core/src/community-notifications.test.ts",
+        "packages/adapters/supabase-server/src/community-account-export.test.ts",
+        "supabase/tests/database/0017_community_notifications_operations.test.sql",
+        "supabase/tests/database/0018_community_account_lifecycle.test.sql",
+        "scripts/community-worker.test.mjs",
+        "apps/mobile/src/features/community/state/visibility-epoch.test.ts",
+        "apps/mobile/src/features/community/notifications/controller.test.ts",
+        "apps/mobile/src/features/community/notifications/tap-controller.test.ts",
+        "apps/mobile/src/features/community/notifications/push-lifecycle.test.ts",
+        "scripts/test-community-capacity.py",
+        "supabase/tests/database/0019_community_admission_read_controls.test.sql",
+        "supabase/tests/database/0020_community_receipt_delivery_bounds.test.sql",
+        "supabase/tests/database/0021_community_erasure_audit.test.sql",
+        "apps/mobile/src/features/auth/session-bound-sign-out.test.ts",
+        "packages/adapters/supabase-mobile/src/index.test.ts",
+        "apps/mobile/src/features/auth/auth-bootstrap.test.ts"
       ],
       "relations": [
         {
@@ -1311,6 +1418,8 @@
       ],
       "docs": [
         "docs/COMMUNITY_PRODUCT_CONTRACT.md",
+        "docs/COMMUNITY_STANDARDS.md",
+        "docs/tutorials/COMMUNITY_MODERATION_RUNBOOK.md",
         "docs/adr/0030-explicit-community-publication.md",
         "docs/COMMUNITY_REVIEW_EVIDENCE_2026-09-30.md",
         "docs/COMMUNITY_UX_VALIDATION_2026-09-30.md",
@@ -1319,7 +1428,13 @@
         "docs/COMMUNITY_ENROLLMENT_EVIDENCE_2026-09-30.md",
         "docs/COMMUNITY_RELATIONSHIPS_EVIDENCE_2026-09-30.md",
         "docs/COMMUNITY_DISCOVERY_PUBLICATION_EVIDENCE_2026-09-30.md",
-        "docs/COMMUNITY_COMMIT_EVIDENCE_2026-09-30.md"
+        "docs/COMMUNITY_COMMIT_EVIDENCE_2026-09-30.md",
+        "docs/COMMUNITY_MODERATION_EVIDENCE_2026-09-30.md",
+        "docs/COMMUNITY_LEGAL_STORE_CHECKLIST.md",
+        "docs/COMMUNITY_ACCEPTANCE_EVIDENCE.md",
+        "docs/tutorials/COMMUNITY_OPERATIONS_RUNBOOK.md",
+        "docs/COMMUNITY_FINAL_REVIEW_2026-09-30.md",
+        "docs/COMMUNITY_FINAL_REVIEW_SOURCE_2026-09-30.json"
       ],
       "verificationCommands": [
         "pnpm --filter @mizyun/contracts test src/community.test.ts",
@@ -1330,9 +1445,9 @@
         "pnpm --filter @mizyun/mobile test src/features/community/",
         "pnpm supabase test db"
       ],
-      "lastReviewedSha": "4155a6628849da7a1e17844e33d7230421e46638",
+      "lastReviewedSha": "f063d7a78e38e3bf6cad7e44f0b7edfcc74f16c9",
       "lastReviewedDate": "2026-09-30",
-      "limitations": "Local reviewed implementation, admission closed; discovery/QR/revocation and explicit duration-off completion/history sharing implemented. Dev deployment, physical link/QR/account-switch/sharing acceptance and reporting/delivery/retention/pilot prerequisites remain open.",
+      "limitations": "Reviewed coherent #140–155 source; admission/delivery defaults closed at API/database boundaries. Participant, exact Dev/token/provider/physical device, operator/legal/restore/pilot acceptance remains pending. See final review evidence.",
       "requirements": [
         "COMMUNITY-01",
         "COMMUNITY-02",

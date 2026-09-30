@@ -239,3 +239,20 @@ Every export response includes a top-level `manifest` metadata block:
   }
 }
 ```
+
+## Community subtree — COMM-12 / #151 (2026-09-30)
+
+The existing top-level export envelope remains `2026-09-08`; the separate `community` subtree has `schemaVersion: 2026-09-30`, `consistency: live_keyset`, `completeness: complete`, per-category counts and explicit categories. This subtree is not a cross-table or database snapshot. Each category reads deterministic owner-scoped lexicographic keys in500-row pages with1000-page budget. RPC failure, repeated/nonadvancing cursor or exhausted budget fails the export rather than claiming completeness. Concurrent inserts/withdrawal can affect different live category reads. Missing account-lifecycle acceptance from #25/#26 remains open.
+
+| Category                        | Included ownership                                                           | Excluded data                                                                        |
+| ------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| identity                        | Own social identity, generation and terms/adult acceptance receipts          | Other members' profiles                                                              |
+| relationships                   | Incoming/outgoing own graph with permitted edge references/status/timestamps | Other users' unrelated edges                                                         |
+| blocks / mutes                  | Own safety choices                                                           | Who blocked/reported the exporter                                                    |
+| activities / reactions          | Own published snapshots/source reference and own reaction records            | Other people's private workouts, reaction identities on their unrelated cards        |
+| invitations                     | Own invite metadata/expiry/revocation                                        | Bearer invitation token                                                              |
+| reports / appeals               | Own reporter case status/text and own appeal                                 | Other reporters' identities, staff notes/operators/evidence, unrelated subject cases |
+| notificationPreferences / inbox | Own settings and retained event metadata                                     | Private source health details                                                        |
+| pushRegistrations / delivery    | Own installation metadata and delivery status/attempts/expiry                | Device push token, Auth session ID, lease IDs, internal dedupe keys                  |
+
+Withdrawal keeps the account/private diary, safety blocks, preferences and current-day abuse counters; asynchronous durable generation cleanup physically removes old publication/inbox/device artifacts. Same-day reenrollment cannot reset invitation/publication quotas. Account deletion separately batches all introduced owner/incoming references before Auth erasure, guarded by the exact deletion-job lease. A reporter deletion preserves only an anonymized minimal case if needed for an active sanction's independent appeal; expired closed-case evidence is removed, and no retention/legal approval is inferred from the implementation.
