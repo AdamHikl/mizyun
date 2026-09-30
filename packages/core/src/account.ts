@@ -101,6 +101,15 @@ export interface AccountExport {
   readonly privateMedia: ReadonlyArray<ExportedMediaAsset>;
   readonly feedback: ReadonlyArray<UserFeedback>;
   readonly aiConsent?: StoredAiConsent | null;
+  readonly community?: {
+    readonly schemaVersion: "2026-09-30";
+    readonly consistency: "live_keyset";
+    readonly completeness: "complete";
+    readonly counts: Readonly<Record<string, number>>;
+    readonly categories: Readonly<
+      Record<string, readonly Record<string, unknown>[]>
+    >;
+  };
   readonly productAnalytics?: {
     readonly consent: StoredProductAnalyticsConsent | null;
     readonly events: ReadonlyArray<StoredProductAnalyticsEvent>;

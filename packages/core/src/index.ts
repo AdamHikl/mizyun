@@ -314,3 +314,5 @@ export {
 } from "./progressive-overload";
 
 export * from "./community";
+
+export * from "./community-notifications";

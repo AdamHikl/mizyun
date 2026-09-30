@@ -94,6 +94,16 @@ export const privateMediaStubSchema = exportedMediaAssetSchema;
  * represented; reserved fields default to empty arrays until the
  * per-feature list endpoints land.
  */
+export const communityAccountExportSchema = z
+  .object({
+    schemaVersion: z.literal("2026-09-30"),
+    consistency: z.literal("live_keyset"),
+    completeness: z.literal("complete"),
+    counts: z.record(z.number().int().nonnegative()),
+    categories: z.record(z.array(z.record(z.unknown()))),
+  })
+  .strict();
+
 export const accountExportSchema = z.object({
   manifest: exportManifestSchema.optional(),
   userId: z.string().uuid(),
@@ -110,6 +120,7 @@ export const accountExportSchema = z.object({
   privateMedia: z.array(exportedMediaAssetSchema),
   feedback: z.array(z.unknown()).default([]),
   aiConsent: z.unknown().nullable().optional(),
+  community: communityAccountExportSchema.optional(),
   productAnalytics: z
     .object({
       consent: analyticsConsentResponseSchema.nullable(),

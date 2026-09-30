@@ -52,3 +52,5 @@ export {
   BUILD_IDENTITIES,
   validateBuildMatrix,
 } from "./build-matrix";
+
+export * from "./community";

@@ -81,10 +81,11 @@ export type CommunityRelationshipStatus = z.infer<
 
 export const communityReportReasonSchema = z.enum([
   "harassment",
-  "offensive_content",
   "impersonation",
   "spam",
+  "unsafe_or_sexual_content",
   "other",
+  "offensive_content",
 ]);
 export type CommunityReportReason = z.infer<typeof communityReportReasonSchema>;
 
@@ -351,17 +352,148 @@ export type SetCommunityReactionInput = z.infer<
   typeof setCommunityReactionSchema
 >;
 
+export const reactorSummarySchema = z.object({
+  userId: z.string().uuid(),
+  handle: communityHandleSchema,
+  displayName: z.string(),
+  avatarSymbol: z.string(),
+  reaction: communityReactionKindSchema,
+  createdAt: z.string().datetime(),
+});
+export type ReactorSummary = z.infer<typeof reactorSummarySchema>;
+
+export const activityReactionsResponseSchema = z.object({
+  activityId: z.string().uuid(),
+  reactionCounts: z.record(
+    communityReactionKindSchema,
+    z.number().int().nonnegative(),
+  ),
+  viewerReaction: communityReactionKindSchema.nullable(),
+  reactors: z.array(reactorSummarySchema).optional(),
+});
+export type ActivityReactionsResponse = z.infer<
+  typeof activityReactionsResponseSchema
+>;
+
 export const createCommunityReportSchema = z
   .object({
     targetType: z.enum(["profile", "activity"]),
     targetId: z.string().min(1),
     reason: communityReportReasonSchema,
-    notes: z.string().trim().max(500).optional().nullable(),
+    notes: z.string().trim().max(1000).optional().nullable(),
+    alsoBlock: z.boolean().optional(),
+    interactionReceiptId: z.string().uuid().optional(),
   })
   .strict();
 export type CreateCommunityReportInput = z.infer<
   typeof createCommunityReportSchema
 >;
+
+export const communityReportResponseSchema = z.object({
+  id: z.string().uuid(),
+  status: z.enum(["submitted", "under_review", "resolved", "dismissed"]),
+  createdAt: z.string().datetime(),
+  safetyContact: z.string().nullable(),
+  blocked: z.boolean().optional(),
+  message: z.string(),
+});
+export type CommunityReportResponse = z.infer<
+  typeof communityReportResponseSchema
+>;
+
+export const communityReportSummaryDtoSchema = z.object({
+  id: z.string().uuid(),
+  targetType: z.enum(["profile", "activity"]),
+  targetId: z.string(),
+  reason: communityReportReasonSchema,
+  status: z.enum(["submitted", "under_review", "resolved", "dismissed"]),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export type CommunityReportSummaryDto = z.infer<
+  typeof communityReportSummaryDtoSchema
+>;
+
+export const communityReportListResponseSchema = z.array(
+  communityReportSummaryDtoSchema,
+);
+export type CommunityReportListResponse = z.infer<
+  typeof communityReportListResponseSchema
+>;
+
+export const safetyContactInfoSchema = z.object({
+  available: z.boolean().optional(),
+  contactEmail: z.string().email().nullable(),
+  emergencyAdvice: z.string(),
+  standardsUrl: z.string().url().nullable(),
+  ordinaryResponseHours: z.number().int().positive(),
+  urgentResponseHours: z.number().int().positive(),
+});
+export type SafetyContactInfo = z.infer<typeof safetyContactInfoSchema>;
+
+export const moderationQueueItemSchema = z.object({
+  evidenceSnapshot: z.record(z.unknown()).optional(),
+  id: z.string().uuid(),
+  reporterUserId: z.string().uuid().nullable(),
+  targetType: z.enum(["profile", "activity"]),
+  targetId: z.string(),
+  reason: communityReportReasonSchema,
+  notes: z.string().nullable(),
+  status: z.enum(["submitted", "under_review", "resolved", "dismissed"]),
+  priority: z.enum(["normal", "urgent"]),
+  assignedTo: z.string().nullable(),
+  decision: z.enum(["warn", "remove", "suspend", "ban", "dismiss"]).nullable(),
+  decisionReason: z.string().nullable(),
+  staffNotes: z.string().nullable(),
+  actionTakenAt: z.string().datetime().nullable(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export type ModerationQueueItem = z.infer<typeof moderationQueueItemSchema>;
+
+export const moderationActionSchema = z
+  .object({
+    action: z.enum(["warn", "remove", "suspend", "ban", "dismiss"]),
+    reason: z.string().trim().min(1).max(500),
+    staffNotes: z.string().trim().max(1000).optional().nullable(),
+    suspensionDurationDays: z
+      .union([z.literal(7), z.literal(14), z.literal(30)])
+      .optional()
+      .nullable(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.action === "suspend" && value.suspensionDurationDays == null)
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["suspensionDurationDays"],
+        message: "Choose a 7, 14 or 30-day suspension.",
+      });
+  });
+export type ModerationActionInput = z.infer<typeof moderationActionSchema>;
+
+export const createModerationAppealSchema = z
+  .object({
+    reportId: z.string().uuid(),
+    reason: z.string().trim().min(1).max(1000),
+  })
+  .strict();
+export type CreateModerationAppealInput = z.infer<
+  typeof createModerationAppealSchema
+>;
+
+export const moderationAppealDtoSchema = z.object({
+  id: z.string().uuid(),
+  reportId: z.string().uuid(),
+  appellantUserId: z.string().uuid(),
+  reason: z.string(),
+  status: z.enum(["pending", "approved", "rejected"]),
+  reviewedBy: z.string().nullable(),
+  reviewerNotes: z.string().nullable(),
+  resolvedAt: z.string().datetime().nullable(),
+  createdAt: z.string().datetime(),
+});
+export type ModerationAppealDto = z.infer<typeof moderationAppealDtoSchema>;
 
 export const communityInvitationDtoSchema = z.object({
   id: z.string().uuid(),
@@ -485,3 +617,30 @@ export const mutedUserListResponseSchema = z.object({
   nextCursor: z.string().nullable(),
 });
 export type MutedUserListResponse = z.infer<typeof mutedUserListResponseSchema>;
+
+export const communityFeedResponseSchema = z.object({
+  items: z.array(sharedActivityFeedItemDtoSchema),
+  nextCursor: z.string().nullable().optional(),
+});
+export type CommunityFeedResponse = z.infer<typeof communityFeedResponseSchema>;
+
+export const communitySafetyReceiptResponseSchema = z.object({
+  id: z.string().uuid(),
+});
+export const communitySafetyReceiptListSchema = z.array(
+  z.object({
+    id: z.string().uuid(),
+    targetType: z.enum(["profile", "activity"]),
+    targetId: z.string(),
+    expiresAt: z.string().datetime(),
+  }),
+);
+export const communitySafetyNoticeListSchema = z.array(
+  communityReportSummaryDtoSchema.omit({ updatedAt: true }).extend({
+    decision: z
+      .enum(["warn", "remove", "suspend", "ban", "dismiss"])
+      .nullable(),
+    actionTakenAt: z.string().datetime().nullable(),
+    suspensionExpiresAt: z.string().datetime().nullable(),
+  }),
+);

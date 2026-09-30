@@ -11,8 +11,12 @@ import {
   isInvitationValid,
   normalizeCommunityHandle,
   toPublicCommunityProfile,
+  validateContentSafety,
+  redactReportForSubject,
+  MAX_REPORTS_PER_DAY,
   type StoredCommunityInvitation,
   type StoredCommunityProfile,
+  type StoredCommunityReport,
 } from "./community";
 
 const userA = "c0000000-0000-4000-8000-000000000001" as UserId;
@@ -317,10 +321,24 @@ describe("canViewSharedActivity", () => {
 });
 
 describe("canReactToActivity", () => {
-  it("allows reaction only if user can view and card is not revoked", () => {
+  it("allows reaction only if user can view, card is not revoked, and user is not author", () => {
     expect(canReactToActivity({ canView: true, cardIsRevoked: false })).toBe(
       true,
     );
+    expect(
+      canReactToActivity({
+        canView: true,
+        cardIsRevoked: false,
+        isAuthor: false,
+      }),
+    ).toBe(true);
+    expect(
+      canReactToActivity({
+        canView: true,
+        cardIsRevoked: false,
+        isAuthor: true,
+      }),
+    ).toBe(false);
     expect(canReactToActivity({ canView: false, cardIsRevoked: false })).toBe(
       false,
     );
@@ -360,5 +378,93 @@ describe("isInvitationValid", () => {
     expect(
       isInvitationValid(baseInvite, new Date("2026-10-07T12:00:00Z")),
     ).toBe(false);
+  });
+});
+
+describe("validateContentSafety", () => {
+  it("allows safe text and empty text", () => {
+    expect(validateContentSafety("Completed a great 5k run today!").ok).toBe(
+      true,
+    );
+    expect(validateContentSafety("").ok).toBe(true);
+    expect(validateContentSafety(null).ok).toBe(true);
+  });
+
+  it("detects severe harassment / threats", () => {
+    const res = validateContentSafety("You should go kill yourself now");
+    expect(res.ok).toBe(false);
+    expect(res.violationCategory).toBe("harassment");
+  });
+
+  it("detects body shaming and pro-eating disorder content", () => {
+    const res1 = validateContentSafety("Check out these thinspo tips");
+    expect(res1.ok).toBe(false);
+    expect(res1.violationCategory).toBe("body_shaming");
+
+    const res2 = validateContentSafety("You are a fat pig");
+    expect(res2.ok).toBe(false);
+    expect(res2.violationCategory).toBe("body_shaming");
+  });
+
+  it("detects dangerous fitness advice and extreme dehydration", () => {
+    const res = validateContentSafety(
+      "Do a dry fast for 5 days to cut weight fast",
+    );
+    expect(res.ok).toBe(false);
+    expect(res.violationCategory).toBe("dangerous_fitness");
+  });
+
+  it("detects scams and commercial spam patterns", () => {
+    const res = validateContentSafety("Buy followers cheap at our link");
+    expect(res.ok).toBe(false);
+    expect(res.violationCategory).toBe("scam_spam");
+  });
+
+  it("detects impersonation of Mizyun officials", () => {
+    const res = validateContentSafety("Message official Mizyun support here");
+    expect(res.ok).toBe(false);
+    expect(res.violationCategory).toBe("impersonation");
+  });
+
+  it("detects prohibited sexual content / CSAE", () => {
+    const res = validateContentSafety("prohibited csam link");
+    expect(res.ok).toBe(false);
+    expect(res.violationCategory).toBe("sexual_content");
+  });
+});
+
+describe("redactReportForSubject", () => {
+  it("redacts reporterUserId and staffNotes when exposing report summary to subject", () => {
+    const report: StoredCommunityReport = {
+      id: "rep-1",
+      reporterUserId: userA,
+      targetType: "activity",
+      targetId: "act-1",
+      reason: "harassment",
+      notes: "Private reporter notes detailing encounter",
+      status: "resolved",
+      priority: "normal",
+      assignedTo: "staff-1",
+      decision: "remove",
+      decisionReason: "Policy violation",
+      staffNotes: "Internal operator notes - highly confidential",
+      actionTakenAt: new Date("2026-09-30T10:00:00Z"),
+      createdAt: new Date("2026-09-30T09:00:00Z"),
+      updatedAt: new Date("2026-09-30T10:00:00Z"),
+    };
+
+    const redacted = redactReportForSubject(report);
+    expect(redacted.id).toBe("rep-1");
+    expect(redacted.targetId).toBe("act-1");
+    expect(redacted.status).toBe("resolved");
+    const record = redacted as unknown as Record<string, unknown>;
+    expect(record.reporterUserId).toBeUndefined();
+    expect(record.notes).toBeUndefined();
+    expect(record.staffNotes).toBeUndefined();
+    expect(record.assignedTo).toBeUndefined();
+  });
+
+  it("enforces MAX_REPORTS_PER_DAY = 10", () => {
+    expect(MAX_REPORTS_PER_DAY).toBe(10);
   });
 });

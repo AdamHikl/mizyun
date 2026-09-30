@@ -1,21 +1,31 @@
 import { describe, expect, it } from "vitest";
 import {
+  activityReactionsResponseSchema,
   authorSharedActivityDtoSchema,
   blockedUserListResponseSchema,
   communityBlockDtoSchema,
+  communityFeedResponseSchema,
   communityHandleSchema,
   communityInvitationDtoSchema,
   communityProfileDtoSchema,
   createBlockSchema,
   createCommunityProfileSchema,
   createCommunityReportSchema,
+  communityReportResponseSchema,
+  communityReportSummaryDtoSchema,
   createInvitationResponseSchema,
   followRelationshipDtoSchema,
   handleAvailabilityResponseSchema,
+  moderationActionSchema,
+  moderationAppealDtoSchema,
+  createModerationAppealSchema,
+  moderationQueueItemSchema,
   publicCommunityProfileDtoSchema,
   publishWorkoutActivitySchema,
+  reactorSummarySchema,
   relationshipListResponseSchema,
   resolveInvitationResponseSchema,
+  safetyContactInfoSchema,
   searchProfilesResponseSchema,
   sendFollowRequestSchema,
   setCommunityReactionSchema,
@@ -333,14 +343,145 @@ describe("reactions and reports", () => {
     ).toThrow();
   });
 
-  it("validates createCommunityReportSchema", () => {
+  it("validates reactorSummarySchema and activityReactionsResponseSchema", () => {
+    const reactor = {
+      userId: "c0000000-0000-4000-8000-000000000001",
+      handle: "sam_runner",
+      displayName: "Sam Runner",
+      avatarSymbol: "SR",
+      reaction: "fire",
+      createdAt: "2026-09-30T12:00:00.000Z",
+    };
+    expect(reactorSummarySchema.parse(reactor)).toEqual(reactor);
+
+    const responseWithoutReactors = {
+      activityId: "f0000000-0000-4000-8000-000000000001",
+      reactionCounts: {
+        clap: 2,
+        fire: 1,
+        high_five: 0,
+        fist_bump: 0,
+        thumbs_up: 0,
+      },
+      viewerReaction: "clap",
+    };
+    expect(
+      activityReactionsResponseSchema.parse(responseWithoutReactors),
+    ).toEqual(responseWithoutReactors);
+
+    const responseWithReactors = {
+      ...responseWithoutReactors,
+      reactors: [reactor],
+    };
+    expect(activityReactionsResponseSchema.parse(responseWithReactors)).toEqual(
+      responseWithReactors,
+    );
+  });
+
+  it("validates createCommunityReportSchema with all reasons and bounds", () => {
     const report = {
       targetType: "activity",
       targetId: "f0000000-0000-4000-8000-000000000001",
-      reason: "offensive_content",
-      notes: "Contains inappropriate handle or text",
+      reason: "unsafe_or_sexual_content",
+      notes: "Contains prohibited content",
+      alsoBlock: true,
+      interactionReceiptId: "e0000000-0000-4000-8000-000000000001",
     };
     expect(createCommunityReportSchema.parse(report)).toEqual(report);
+
+    // Rejects notes exceeding 1000 characters
+    expect(() =>
+      createCommunityReportSchema.parse({
+        ...report,
+        notes: "a".repeat(1001),
+      }),
+    ).toThrow();
+  });
+
+  it("validates communityReportResponseSchema", () => {
+    const response = {
+      id: "f0000000-0000-4000-8000-000000000001",
+      status: "submitted",
+      createdAt: "2026-09-30T10:00:00.000Z",
+      safetyContact: "safety@mizyun.com",
+      message: "Report received. We will review it.",
+    };
+    expect(communityReportResponseSchema.parse(response)).toEqual(response);
+  });
+
+  it("validates communityReportSummaryDtoSchema", () => {
+    const summary = {
+      id: "f0000000-0000-4000-8000-000000000001",
+      targetType: "profile",
+      targetId: "c0000000-0000-4000-8000-000000000001",
+      reason: "harassment",
+      status: "under_review",
+      createdAt: "2026-09-30T10:00:00.000Z",
+      updatedAt: "2026-09-30T10:30:00.000Z",
+    };
+    expect(communityReportSummaryDtoSchema.parse(summary)).toEqual(summary);
+  });
+
+  it("validates safetyContactInfoSchema", () => {
+    const contact = {
+      contactEmail: "safety@mizyun.com",
+      emergencyAdvice:
+        "If in immediate danger, contact local emergency services.",
+      standardsUrl: "https://mizyun.com/community-standards",
+      ordinaryResponseHours: 24,
+      urgentResponseHours: 4,
+    };
+    expect(safetyContactInfoSchema.parse(contact)).toEqual(contact);
+  });
+
+  it("validates moderationQueueItemSchema, moderationActionSchema, and appeal schemas", () => {
+    const queueItem = {
+      id: "f0000000-0000-4000-8000-000000000001",
+      reporterUserId: "a0000000-0000-4000-8000-000000000001",
+      targetType: "profile",
+      targetId: "b0000000-0000-4000-8000-000000000001",
+      reason: "harassment",
+      notes: "Abusive handle and behavior",
+      status: "submitted",
+      priority: "normal",
+      assignedTo: null,
+      decision: null,
+      decisionReason: null,
+      staffNotes: null,
+      actionTakenAt: null,
+      createdAt: "2026-09-30T10:00:00.000Z",
+      updatedAt: "2026-09-30T10:00:00.000Z",
+    };
+    expect(moderationQueueItemSchema.parse(queueItem)).toEqual(queueItem);
+
+    const action = {
+      action: "warn",
+      reason: "Violated community standards on harassment",
+      staffNotes: "First offense, issued warning",
+    };
+    expect(moderationActionSchema.parse(action)).toEqual({
+      ...action,
+      suspensionDurationDays: undefined,
+    });
+
+    const appeal = {
+      reportId: "f0000000-0000-4000-8000-000000000001",
+      reason: "The reported content was taken out of context",
+    };
+    expect(createModerationAppealSchema.parse(appeal)).toEqual(appeal);
+
+    const appealDto = {
+      id: "e0000000-0000-4000-8000-000000000001",
+      reportId: "f0000000-0000-4000-8000-000000000001",
+      appellantUserId: "b0000000-0000-4000-8000-000000000001",
+      reason: "The reported content was taken out of context",
+      status: "pending",
+      reviewedBy: null,
+      reviewerNotes: null,
+      resolvedAt: null,
+      createdAt: "2026-09-30T11:00:00.000Z",
+    };
+    expect(moderationAppealDtoSchema.parse(appealDto)).toEqual(appealDto);
   });
 });
 
@@ -492,5 +633,37 @@ describe("publicCommunityProfile and search/list schemas", () => {
       followerCount: 5,
     };
     expect(workoutSharePreviewDtoSchema.parse(preview)).toEqual(preview);
+  });
+
+  it("validates communityFeedResponseSchema", () => {
+    const item = {
+      id: "f0000000-0000-4000-8000-000000000001",
+      authorUserId: "a0000000-0000-4000-8000-000000000001",
+      authorHandle: "alex_fit",
+      authorDisplayName: "Alex",
+      authorAvatarSymbol: "AL",
+      category: "running" as const,
+      sharedDay: "2026-09-30",
+      durationSeconds: 1800,
+      publishedAt: "2026-09-30T10:00:00.000Z",
+      reactionCounts: {
+        clap: 2,
+        fire: 0,
+        high_five: 1,
+        fist_bump: 0,
+        thumbs_up: 0,
+      },
+      viewerReaction: null,
+    };
+
+    const feed = {
+      items: [item],
+      nextCursor:
+        "2026-09-30T10:00:00.000Z|f0000000-0000-4000-8000-000000000001",
+    };
+    expect(communityFeedResponseSchema.parse(feed)).toEqual(feed);
+
+    const emptyFeed = { items: [], nextCursor: null };
+    expect(communityFeedResponseSchema.parse(emptyFeed)).toEqual(emptyFeed);
   });
 });
