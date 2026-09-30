@@ -312,3 +312,5 @@ export {
   type ProgressionReason,
   type WorkoutExerciseProgression,
 } from "./progressive-overload";
+
+export * from "./community";
