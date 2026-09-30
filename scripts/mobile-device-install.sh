@@ -270,6 +270,14 @@ install_ios() {
     fi
   fi
 
+  # A same-bundle native project may have been generated with Apple auth disabled.
+  if [[ "$variant" == "dev" && "$MIZYUN_ENABLE_APPLE_AUTH" == "1" && $need_prebuild -eq 0 ]]; then
+    if ! node "$repo_root/scripts/verify-ios-apple-auth.mjs" "$ios_dir/MizyunDev/MizyunDev.entitlements"; then
+      echo "Dev native Apple sign-in capability missing. Synchronizing with clean prebuild..."
+      need_prebuild=1
+    fi
+  fi
+
   if [[ $need_prebuild -eq 1 ]]; then
     echo "Running: pnpm --filter @mizyun/mobile exec expo prebuild --clean --platform ios"
     if [[ $flag_dry_run -eq 0 ]]; then
@@ -319,6 +327,10 @@ install_ios() {
   if [[ ! -d "$app_bundle_path" ]]; then
     echo "ERROR: Built application bundle not found at $app_bundle_path" >&2
     exit 1
+  fi
+
+  if [[ "$variant" == "dev" && "$MIZYUN_ENABLE_APPLE_AUTH" == "1" ]]; then
+    node "$repo_root/scripts/verify-ios-apple-auth.mjs" --signed "$app_bundle_path"
   fi
 
   echo "Installing application onto $device_name ($device_id)..."

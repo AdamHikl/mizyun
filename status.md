@@ -2,6 +2,14 @@
 
 > Updated 2026-09-30. Earlier package evidence, operational snapshots and concurrent work are preserved in [the pre-review archive](docs/archive/status/STATUS_COMMUNITY_PRE_FINAL_REVIEW_2026-09-30.md). Historical next actions are not current instructions.
 
+## Community Dev Apple sign-in blocker — 2026-09-30
+
+Adam reported Apple sign-in failing before the Apple sheet. Actual native project and signed Dev app lacked Apple capability. Dev installer reused matching bundle ID without checking entitlements. Added Dev-only missing-capability regeneration and signed Default-capability refusal before install; baseline installer fails the new regression, corrected installer passes7checks. Independent non-author review approved. Fresh `pnpm check` exit0 (mobile995/API730, 15 gated skips, dual Hermes/typechecks/safeguards). [#164 and durable evidence](docs/COMMUNITY_APPLE_DEV_ACCEPTANCE_2026-09-30.md) retain exact proof and separate acceptance.
+
+Corrected standalone Dev1.0.6(6) installed on Adam's exact iPhone at19:15:36Z; actual signed capability and signature verification pass. Embedded JS hash remains `0d56edb625cf0a31cd41021f34c0eae58e87a5c32a27e62815b57cb3c19f9cc7`. Console attached to corrected mainPID70346 at19:16:17Z. No backend changes/deploy required; Dev remains282d740. No Production actions.
+
+**Device sign-in accepted:** Adam confirms the Apple sheet appears and sign-in succeeds; Dev Auth ID-token200 corroborates at19:16:28Z. **Next exact action:** verify returning-user sign-out/sign-in, then resume deliberate Community join/share/unpublish. Community acceptance remains pending; no issue closed. Partner identity still requires separate authorization.
+
 ## Community founder Dev testing activation — 2026-09-30
 
 Adam authorized interactive Dev Community testing and explicitly excluded Production. **Dev deployed** at `282d740d93b338fb508cbad2a8fa27f5a605b9c8` (runtime `d81c10f60c0aebc6b2240e48e69e4678addc8079`), fresh exact-candidate `pnpm check` passes, remote checkout pristine, migration ledger current through230000. Public health200 and anonymous profile/feed401. Exactly one supplied eligible Dev principal is admitted; cohort_requiredtrue, master/growth true, deliveryfalse. No auto-enrollment/consent/profile/graph/publication occurred. Independent review approved source and transaction assertions. Dev privacy timer runs with zero push claims/receipts. [Durable evidence and 193-path source manifest](docs/COMMUNITY_DEV_TESTING_2026-09-30.md) record the exact scope and checks.
