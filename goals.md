@@ -147,7 +147,7 @@ The current engineering plan must prioritize measurable end-to-end user journeys
 
 ## Non-negotiable release constraints
 
-- No cross-user read or write may succeed.
+- No cross-user read or write of private health, nutrition, workout, profile, coaching or media records may succeed. Separately opted-in social artifacts may be read only through the explicit audience policies in COMMUNITY-01–16 and ADR-0030; the private source tables remain closed. This post-MVP design exception does not change the first-beta follower exclusion or approve launch.
 - No server, service-role, or model secret may ship in a mobile bundle.
 - Body photos remain private and are never used to diagnose or assert precise body composition.
 - Photo-derived food data remains unconfirmed until the user accepts or edits it.
