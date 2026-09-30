@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { generateAvatarSymbol } from "@mizyun/core";
 import {
   ActivityIndicator,
@@ -13,7 +19,7 @@ import {
   View,
 } from "react-native";
 import { router, Stack, useFocusEffect, type Href } from "expo-router";
-import { BottomTabInset } from "@/constants/theme";
+import { BottomTabInset, MaxContentWidth } from "@/constants/theme";
 import { ThemedText } from "@/components/themed-text";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
@@ -174,7 +180,7 @@ function SettingsContent({
       style={[styles.page, { backgroundColor: theme.background }]}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      {!embedded && <Stack.Screen options={{ title: "Community" }} />}
+      {!embedded && <Stack.Screen options={{ title: "Profile & privacy" }} />}
       <ScrollView
         contentContainerStyle={[
           styles.content,
@@ -182,61 +188,54 @@ function SettingsContent({
         ]}
         keyboardShouldPersistTaps="handled"
       >
-        <ThemedText type="subtitle">
-          {embedded
-            ? state.isWithdrawn
-              ? "Rejoin Community"
-              : "Join Community"
-            : "Community"}
-        </ThemedText>
-        <ThemedText>
-          Encourage friends with workouts that you choose to share. Your private
-          tracking works without this.
-        </ThemedText>
+        <View style={styles.intro}>
+          <ThemedText accessibilityRole="header" type="subtitle">
+            {editing
+              ? "Profile & privacy"
+              : state.isWithdrawn
+                ? "Rejoin Community"
+                : "Join Community"}
+          </ThemedText>
+          <ThemedText themeColor="textSecondary">
+            Encourage friends with workouts you choose to share.
+          </ThemedText>
+        </View>
+        <Section title="Your choice" highlighted>
+          <ThemedText>
+            Joining shares no saved workouts and requests no notification
+            permission. Your private tracking works without Community.
+          </ThemedText>
+          <ThemedText type="small">
+            Community changes no analytics, AI or health permissions.
+          </ThemedText>
+          {!editing && (
+            <ThemedText type="small">
+              Create a separate social identity. Nothing is copied from your
+              private profile. Your social name, handle and shared workout day
+              can identify you.
+            </ThemedText>
+          )}
+        </Section>
         <Action
           label="Keep tracking privately"
+          variant="link"
+          disabled={state.isSaving}
           onPress={() => router.replace("/(tabs)")}
         />
-        {!embedded &&
-          principalKey !== null &&
-          state.profile?.status === "active" && (
-            <Action
-              label="View following feed"
-              onPress={() => router.push("/community" as Href)}
-            />
-          )}
-        {!embedded && principalKey !== null && (
-          <Action
-            label="Requests, followers and safety lists"
-            onPress={() => router.push("/community/relationships" as Href)}
-          />
-        )}
 
-        {!embedded && principalKey !== null && (
-          <>
-            <Action
-              label="Community inbox"
-              onPress={() => router.push("/community/inbox" as Href)}
-            />
-            <Action
-              label="Community notification preferences"
-              onPress={() => router.push("/community/notifications" as Href)}
-            />
-          </>
-        )}
-        <Action
-          label="Community reports, appeals and safety contact"
-          onPress={() => router.push("/community/safety" as Href)}
-        />
         {principalKey === null ? (
-          <ThemedText>Sign in to manage your Community choices.</ThemedText>
+          <Section title="Sign in first">
+            <ThemedText>Sign in to manage your Community choices.</ThemedText>
+          </Section>
         ) : state.status === "idle" || state.status === "loading" ? (
-          <View accessibilityLabel="Loading Community settings" accessible>
-            <ActivityIndicator />
-            <ThemedText>Checking your Community status…</ThemedText>
-          </View>
+          <Section title="Checking your Community status">
+            <View accessibilityLabel="Loading Community settings" accessible>
+              <ActivityIndicator />
+              <ThemedText>Checking your Community status…</ThemedText>
+            </View>
+          </Section>
         ) : state.status === "error" ? (
-          <>
+          <Section title="We could not check your status">
             <ThemedText accessibilityLiveRegion="polite">
               {state.error ?? "Community is unavailable."}
             </ThemedText>
@@ -246,180 +245,198 @@ function SettingsContent({
             </ThemedText>
             <Action
               label="Check Community status"
+              variant="primary"
               onPress={() => void load()}
             />
-          </>
+          </Section>
         ) : (
           <>
             {!state.isAdultEligible && (
-              <ThemedText>
-                We cannot confirm eligibility from your birth year. Community is
-                available when this check passes. Your private tracking stays
-                available. With birth year only, eligibility requires a whole
-                birth year of {new Date().getUTCFullYear() - 19} or earlier.
-                Someone born the following year must wait until the next UTC
-                calendar year. This check does not verify identity or birthday.
-              </ThemedText>
+              <Section title="Eligibility check">
+                <ThemedText>
+                  We cannot confirm eligibility from your birth year. For this
+                  check, you must have been born in{" "}
+                  {new Date().getUTCFullYear() - 19} or earlier. If you were
+                  born the following year, wait until the next UTC calendar
+                  year. This does not verify identity or birthday.
+                </ThemedText>
+              </Section>
             )}
             {suspended || !state.isAdultEligible ? (
-              <ThemedText>
-                Community is unavailable. Private tracking and the account
-                controls remain available.
-              </ThemedText>
+              <Section title="Community is unavailable">
+                <ThemedText>
+                  Private tracking and the account controls remain available.
+                </ThemedText>
+              </Section>
             ) : (
               <>
                 {state.isWithdrawn && (
-                  <ThemedText>
-                    You left Community. @{state.profile?.handle} stays reserved
-                    to your account. Returning needs fresh adult declaration and
-                    rules consent; follows, cards and invitations do not return.
+                  <Section title="A fresh start">
+                    <ThemedText>
+                      @{state.profile?.handle} stays reserved to your account.
+                      Returning needs a fresh adult declaration and rules
+                      consent. Previous follows, cards and invitations do not
+                      return.
+                    </ThemedText>
+                  </Section>
+                )}
+                <Section title="Your Community profile">
+                  <ThemedText type="small" themeColor="textSecondary">
+                    This is how friends will recognize you in Community.
                   </ThemedText>
-                )}
-                {!editing && (
-                  <>
-                    <ThemedText>
-                      Only your currently approved followers see shared cards,
-                      including earlier cards still shared. Follow approval is
-                      directional. Joining shares no saved workouts and requests
-                      no notification permission.
-                    </ThemedText>
-                    <ThemedText>
-                      Your social name, handle and workout day can identify you.
-                      Enter a separate social identity; nothing is copied from
-                      your private profile.
-                    </ThemedText>
-                    <ThemedText>
-                      Birth year check: a whole year of{" "}
-                      {new Date().getUTCFullYear() - 19} or earlier is eligible.
-                      The following birth year must wait until the next UTC
-                      calendar year. This is not identity verification.
-                    </ThemedText>
-                    <Choice
-                      label="I am 18 or older"
-                      checked={form.adultDeclaration}
-                      disabled={state.isSaving}
-                      onChange={(value) => patch("adultDeclaration", value)}
-                    />
-                    <Choice
-                      label="I accept the Community rules (2026-09-30)"
-                      checked={form.acceptedTerms}
-                      disabled={state.isSaving}
-                      onChange={(value) => patch("acceptedTerms", value)}
-                    />
-                  </>
-                )}
-                <Action
-                  label="Read Community rules and privacy"
-                  onPress={() => router.push("/community/rules" as Href)}
-                />
-                <Field
-                  label="Handle"
-                  value={form.handle}
-                  editable={!state.profile && !state.isSaving}
-                  onChange={(value) => patch("handle", value)}
-                  handle
-                />
-                <ThemedText type="small">
-                  3–24 lowercase letters, digits or underscore. Your handle
-                  cannot change during this pilot and stays reserved when you
-                  leave.
-                </ThemedText>
-                <Field
-                  label="Social display name"
-                  value={form.displayName}
-                  editable={
-                    !state.isSaving &&
-                    (editing ? canEdit : state.isAdultEligible)
-                  }
-                  onChange={(value) => patch("displayName", value)}
-                />
-                <Field
-                  label="Initials (optional, 1–4 characters)"
-                  value={form.avatarSymbol}
-                  editable={
-                    !state.isSaving &&
-                    (editing ? canEdit : state.isAdultEligible)
-                  }
-                  onChange={(value) => patch("avatarSymbol", value)}
-                />
-                {form.displayName.trim() !== "" && (
-                  <InitialsAvatar
-                    symbol={
-                      form.avatarSymbol.trim() ||
-                      generateAvatarSymbol(form.displayName)
+                  <Field
+                    label="Social display name"
+                    value={form.displayName}
+                    editable={
+                      !state.isSaving &&
+                      (editing ? canEdit : state.isAdultEligible)
                     }
-                    seed={form.handle}
-                    accessibilityLabel={`Initials badge: ${form.avatarSymbol.trim() || generateAvatarSymbol(form.displayName)}`}
+                    onChange={(value) => patch("displayName", value)}
                   />
-                )}
-                <Field
-                  label="Bio (optional, up to 160 characters)"
-                  value={form.bio}
-                  editable={
-                    !state.isSaving &&
-                    (editing ? canEdit : state.isAdultEligible)
-                  }
-                  onChange={(value) => patch("bio", value)}
-                  multiline
-                />
-                <ThemedText type="small">
-                  Keep sensitive health details, links, email addresses and
-                  phone numbers out of your social profile.
-                </ThemedText>
-                <Choice
-                  label="Allow friends to find my exact handle"
-                  checked={form.isSearchable}
-                  disabled={state.isSaving || !state.isAdultEligible}
-                  onChange={(value) => patch("isSearchable", value)}
-                />
-                <ThemedText type="small">
-                  An invite can work with search off. Turning search off does
-                  not end existing follows or invites. Saving changes no
-                  notification, analytics, AI or health permissions.
-                </ThemedText>
-                {!validation.success && (
-                  <ThemedText accessibilityLiveRegion="polite" type="small">
-                    {validation.error.issues[0]?.message}
+                  <Field
+                    label="Handle"
+                    value={form.handle}
+                    editable={!state.profile && !state.isSaving}
+                    onChange={(value) => patch("handle", value)}
+                    handle
+                  />
+                  <ThemedText type="small" themeColor="textSecondary">
+                    3–24 lowercase letters, digits or underscore. Your handle
+                    cannot change during this pilot and stays reserved when you
+                    leave.
                   </ThemedText>
-                )}
-                {!editing && !COMMUNITY_ENROLLMENT_OPEN && (
+                  {form.displayName.trim() !== "" && (
+                    <View style={styles.profilePreview}>
+                      <InitialsAvatar
+                        symbol={
+                          form.avatarSymbol.trim() ||
+                          generateAvatarSymbol(form.displayName)
+                        }
+                        seed={form.handle}
+                        accessibilityLabel={`Initials badge: ${form.avatarSymbol.trim() || generateAvatarSymbol(form.displayName)}`}
+                      />
+                      <ThemedText type="small" themeColor="textSecondary">
+                        Your Community badge
+                      </ThemedText>
+                    </View>
+                  )}
+                </Section>
+                <Section title="Optional details">
+                  <ThemedText type="small" themeColor="textSecondary">
+                    Leave these blank if you prefer. Your badge uses your
+                    display name's initials by default.
+                  </ThemedText>
+                  <Field
+                    label="Initials (optional, 1–4 characters)"
+                    value={form.avatarSymbol}
+                    editable={
+                      !state.isSaving &&
+                      (editing ? canEdit : state.isAdultEligible)
+                    }
+                    onChange={(value) => patch("avatarSymbol", value)}
+                  />
+                  <Field
+                    label="Bio (optional, up to 160 characters)"
+                    value={form.bio}
+                    editable={
+                      !state.isSaving &&
+                      (editing ? canEdit : state.isAdultEligible)
+                    }
+                    onChange={(value) => patch("bio", value)}
+                    multiline
+                  />
+                  <ThemedText type="small" themeColor="textSecondary">
+                    Keep sensitive health details, links, email addresses and
+                    phone numbers out of your social profile.
+                  </ThemedText>
+                </Section>
+                <Section title="Discovery">
+                  <Choice
+                    label="Allow friends to find my exact handle"
+                    checked={form.isSearchable}
+                    disabled={state.isSaving || !state.isAdultEligible}
+                    onChange={(value) => patch("isSearchable", value)}
+                  />
+                  <ThemedText type="small" themeColor="textSecondary">
+                    An invitation can work with search off. Turning search off
+                    does not end existing follows or invitations.
+                  </ThemedText>
+                  {editing && (
+                    <ThemedText type="small" themeColor="textSecondary">
+                      Saving changes no notification, analytics, AI or health
+                      permissions.
+                    </ThemedText>
+                  )}
+                </Section>
+                <Section
+                  title={editing ? "Sharing & rules" : "Before you join"}
+                >
                   <ThemedText>
-                    Community enrollment is not open yet. A verified safety
-                    contact, legal review and pilot acceptance are still
-                    pending.
+                    Only your currently approved followers see shared cards,
+                    including earlier cards still shared. Follow approval is
+                    directional: following someone does not let them follow you.
                   </ThemedText>
-                )}
-                <Action
-                  label={
-                    state.isSaving
-                      ? "Saving…"
-                      : editing
-                        ? "Save Community profile"
-                        : "Join Community"
-                  }
-                  disabled={!canSubmit}
-                  onPress={() => void save()}
-                />
-                {!editing && (
+                  {!editing && (
+                    <ThemedText type="small" themeColor="textSecondary">
+                      For our birth-year check, you must have been born in{" "}
+                      {new Date().getUTCFullYear() - 19} or earlier. If you were
+                      born the following year, wait until the next UTC calendar
+                      year. This does not verify identity or birthday.
+                    </ThemedText>
+                  )}
                   <Action
-                    label="Not now"
-                    disabled={state.isSaving}
-                    onPress={() => router.replace("/(tabs)")}
+                    label="Read Community rules and privacy"
+                    variant="link"
+                    onPress={() => router.push("/community/rules" as Href)}
                   />
-                )}
+                  {!editing && (
+                    <>
+                      <Choice
+                        label="I am 18 or older"
+                        checked={form.adultDeclaration}
+                        disabled={state.isSaving}
+                        onChange={(value) => patch("adultDeclaration", value)}
+                      />
+                      <Choice
+                        label="I accept the Community rules (2026-09-30)"
+                        checked={form.acceptedTerms}
+                        disabled={state.isSaving}
+                        onChange={(value) => patch("acceptedTerms", value)}
+                      />
+                    </>
+                  )}
+                </Section>
+                <View style={styles.submitGroup}>
+                  {!validation.success && (
+                    <ThemedText accessibilityLiveRegion="polite" type="small">
+                      {validation.error.issues[0]?.message}
+                    </ThemedText>
+                  )}
+                  {!editing && !COMMUNITY_ENROLLMENT_OPEN && (
+                    <ThemedText>
+                      Community enrollment is not open yet. A verified safety
+                      contact, legal review and pilot acceptance are still
+                      pending.
+                    </ThemedText>
+                  )}
+                  <Action
+                    label={
+                      state.isSaving
+                        ? "Saving…"
+                        : editing
+                          ? "Save Community profile"
+                          : "Join Community"
+                    }
+                    variant="primary"
+                    disabled={!canSubmit}
+                    onPress={() => void save()}
+                  />
+                </View>
               </>
             )}
           </>
         )}
-        {principalKey !== null &&
-          ((state.profile && state.profile.status !== "withdrawn") ||
-            state.status === "error") && (
-            <Action
-              label="Leave Community"
-              disabled={state.isSaving}
-              onPress={confirmWithdrawal}
-            />
-          )}
+
         {state.status !== "error" && state.error && (
           <ThemedText accessibilityLiveRegion="polite">
             {state.error}
@@ -428,32 +445,110 @@ function SettingsContent({
         {message && (
           <ThemedText accessibilityLiveRegion="polite">{message}</ThemedText>
         )}
-        <ThemedText type="small">
-          Community safety contact and appeal coverage are not verified yet. For
-          imminent danger, contact your local emergency services.
-        </ThemedText>
-        {!embedded && (
-          <>
+        {!embedded && principalKey !== null && (
+          <Section title="Community shortcuts">
+            {state.profile?.status === "active" && (
+              <Action
+                label="View following feed"
+                onPress={() => router.push("/community" as Href)}
+              />
+            )}
             <Action
-              label="Account help and support"
-              onPress={() => router.push("/account-settings/legal" as Href)}
+              label="Requests, followers and safety lists"
+              onPress={() => router.push("/community/relationships" as Href)}
             />
             <Action
-              label="Account export and deletion"
-              onPress={() =>
-                router.push(
-                  "/account-settings/account-data?anchor=export" as Href,
-                )
-              }
+              label="Community inbox"
+              onPress={() => router.push("/community/inbox" as Href)}
             />
             <Action
-              label="Account and sign out"
-              onPress={() => router.push("/account-settings/identity" as Href)}
+              label="Community notification preferences"
+              onPress={() => router.push("/community/notifications" as Href)}
             />
-          </>
+          </Section>
         )}
+        <Section title="Help & safety">
+          <Action
+            label="Community reports, appeals and safety contact"
+            variant="link"
+            onPress={() => router.push("/community/safety" as Href)}
+          />
+          <ThemedText type="small" themeColor="textSecondary">
+            Community safety contact and appeal coverage are not verified yet.
+            For imminent danger, contact your local emergency services.
+          </ThemedText>
+          {!embedded && (
+            <>
+              <Action
+                label="Account help and support"
+                variant="link"
+                onPress={() => router.push("/account-settings/legal" as Href)}
+              />
+              <Action
+                label="Account export and deletion"
+                variant="link"
+                onPress={() =>
+                  router.push(
+                    "/account-settings/account-data?anchor=export" as Href,
+                  )
+                }
+              />
+              <Action
+                label="Account and sign out"
+                variant="link"
+                onPress={() =>
+                  router.push("/account-settings/identity" as Href)
+                }
+              />
+            </>
+          )}
+        </Section>
+        {principalKey !== null &&
+          ((state.profile && state.profile.status !== "withdrawn") ||
+            state.status === "error") && (
+            <Section title="Participation">
+              <ThemedText type="small" themeColor="textSecondary">
+                Leaving ends Community participation. Your private tracking,
+                Coach access and paid entitlement stay available.
+              </ThemedText>
+              <Action
+                label="Leave Community"
+                variant="destructive"
+                disabled={state.isSaving}
+                onPress={confirmWithdrawal}
+              />
+            </Section>
+          )}
       </ScrollView>
     </KeyboardAvoidingView>
+  );
+}
+
+function Section({
+  title,
+  children,
+  highlighted = false,
+}: {
+  title: string;
+  children: ReactNode;
+  highlighted?: boolean;
+}) {
+  const theme = useTheme();
+  return (
+    <View
+      style={[
+        styles.section,
+        {
+          backgroundColor: highlighted ? theme.primaryLight : theme.background,
+          borderColor: theme.border,
+        },
+      ]}
+    >
+      <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
+        {title}
+      </ThemedText>
+      {children}
+    </View>
   );
 }
 
@@ -461,10 +556,12 @@ function Action({
   label,
   onPress,
   disabled = false,
+  variant = "secondary",
 }: {
   label: string;
   onPress: () => void;
   disabled?: boolean;
+  variant?: "primary" | "secondary" | "link" | "destructive";
 }) {
   const theme = useTheme();
   return (
@@ -475,10 +572,27 @@ function Action({
       onPress={onPress}
       style={[
         styles.action,
-        { borderColor: theme.border, opacity: disabled ? 0.5 : 1 },
+        {
+          borderColor:
+            variant === "primary"
+              ? theme.primary
+              : variant === "link"
+                ? "transparent"
+                : theme.border,
+          backgroundColor:
+            variant === "primary" ? theme.primaryLight : "transparent",
+          opacity: disabled ? 0.5 : 1,
+        },
       ]}
     >
-      <ThemedText>{label}</ThemedText>
+      <ThemedText
+        style={[
+          variant === "primary" && styles.primaryLabel,
+          variant === "destructive" && styles.destructiveLabel,
+        ]}
+      >
+        {label}
+      </ThemedText>
     </Pressable>
   );
 }
@@ -543,7 +657,7 @@ function Field({
           {
             color: theme.text,
             borderColor: theme.border,
-            backgroundColor: theme.backgroundElement,
+            backgroundColor: theme.background,
           },
         ]}
       />
@@ -553,7 +667,21 @@ function Field({
 
 const styles = StyleSheet.create({
   page: { flex: 1 },
-  content: { padding: 20, gap: 16, paddingBottom: 40 },
+  content: {
+    padding: 20,
+    gap: 20,
+    paddingBottom: 40,
+    width: "100%",
+    maxWidth: MaxContentWidth,
+    alignSelf: "center",
+  },
+  intro: { gap: 8 },
+  section: { padding: 20, gap: 16, borderWidth: 1, borderRadius: 20 },
+  sectionTitle: { fontSize: 20, lineHeight: 28, fontWeight: "700" },
+  profilePreview: { gap: 8, alignItems: "flex-start" },
+  submitGroup: { gap: 12 },
+  primaryLabel: { fontWeight: "700", textAlign: "center" },
+  destructiveLabel: { fontWeight: "700" },
   action: {
     minHeight: 48,
     borderWidth: 1,

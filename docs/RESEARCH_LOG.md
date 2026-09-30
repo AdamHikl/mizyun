@@ -1,5 +1,9 @@
 # Research log
 
+## 2026-09-30 — Community information architecture refinement
+
+- Rechecked [Expo SDK57](https://docs.expo.dev/versions/v57.0.0/) and [React Native accessibility](https://reactnative.dev/docs/accessibility) today. Consequence: visible section headings, descriptive navigation hints, scalable wrapping text and at least48-point actions; avoid fixed-height cards or new segmented navigation. Use existing theme colors and tab clearance. Single-page joining preserves drafts and explicit consent; error states must not present a failed read as an empty feed. Information architecture helper review guides grouping, without changing admission or sharing authority.
+
 ## 2026-09-30 — Joining inside the Community tab
 
 - Rechecked [Expo SDK57](https://docs.expo.dev/versions/v57.0.0/) and [Expo Router Stack](https://docs.expo.dev/router/advanced/stack/) today. Consequence: reuse the existing enrollment form as embedded tab content without a root Stack screen override; preserve the standalone settings URL for profile/privacy management. Explicit enrollment success triggers fresh membership verification before feed access. No platform, backend, admission or consent policy changes.

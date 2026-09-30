@@ -20,6 +20,7 @@ import {
 } from "react-native";
 import { Link, type Href, useFocusEffect, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { BottomTabInset, MaxContentWidth } from "@/constants/theme";
 import { AccountHeaderActions } from "@/components/account-header-button";
 import type { SharedActivityFeedItemDto } from "@mizyun/contracts";
 import { apiClient } from "@/composition/api-client";
@@ -232,52 +233,96 @@ function FeedScreenContent({
       >
         Community
       </Text>
+      <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+        Encourage friends, one shared workout at a time.
+      </Text>
       <View style={styles.quickLinks}>
-        <Link href={"/community/invite" as Href} asChild>
+        {[
+          {
+            href: "/community/invite",
+            label: "Find friends",
+            description: "Search a handle or send an invite",
+            accessibilityLabel: "Find Friends",
+          },
+          {
+            href: "/community/relationships",
+            label: "Friends & requests",
+            description: "Approve requests and manage follows",
+            accessibilityLabel: "Your friends and requests",
+          },
+          {
+            href: "/community/inbox",
+            label: "Inbox",
+            description: "Updates about your shared activity",
+            accessibilityLabel: "Community inbox",
+          },
+          {
+            href: "/community/settings",
+            label: "Profile & privacy",
+            description: "Your social profile and Community choices",
+            accessibilityLabel: "My Community profile and settings",
+          },
+        ].map((destination) => (
+          <Link key={destination.href} href={destination.href as Href} asChild>
+            <Pressable
+              style={[
+                styles.navigationCard,
+                {
+                  borderColor: colors.border,
+                  backgroundColor: colors.background,
+                },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={destination.accessibilityLabel}
+              accessibilityHint={destination.description}
+            >
+              <Text style={[styles.navigationTitle, { color: colors.text }]}>
+                {destination.label}
+              </Text>
+              <Text
+                style={[
+                  styles.navigationDescription,
+                  { color: colors.textSecondary },
+                ]}
+              >
+                {destination.description}
+              </Text>
+            </Pressable>
+          </Link>
+        ))}
+      </View>
+      <View
+        style={[styles.sharingNote, { backgroundColor: colors.primaryLight }]}
+      >
+        <Text style={[styles.noteTitle, { color: colors.text }]}>
+          Sharing is your choice
+        </Text>
+        <Text style={[styles.noteBody, { color: colors.text }]}>
+          From a saved workout, preview a card before sharing. Cards show only a
+          category, your selected day and optional duration. Your workout
+          details stay private.
+        </Text>
+        <Link href={"/workouts" as Href} asChild>
           <Pressable
-            style={[styles.quickLinkPill, { borderColor: colors.border }]}
             accessibilityRole="button"
-            accessibilityLabel="Find Friends"
+            accessibilityLabel="Open saved workouts"
+            style={styles.noteAction}
           >
-            <Text style={[styles.quickLinkText, { color: colors.text }]}>
-              Find friends
-            </Text>
-          </Pressable>
-        </Link>
-        <Link href={"/community/relationships" as Href} asChild>
-          <Pressable
-            style={[styles.quickLinkPill, { borderColor: colors.border }]}
-            accessibilityRole="button"
-            accessibilityLabel="Your friends and requests"
-          >
-            <Text style={[styles.quickLinkText, { color: colors.text }]}>
-              Requests
-            </Text>
-          </Pressable>
-        </Link>
-        <Link href={"/community/inbox" as Href} asChild>
-          <Pressable
-            style={[styles.quickLinkPill, { borderColor: colors.border }]}
-            accessibilityRole="button"
-            accessibilityLabel="Community inbox"
-          >
-            <Text style={[styles.quickLinkText, { color: colors.text }]}>
-              Inbox
-            </Text>
-          </Pressable>
-        </Link>
-        <Link href={"/community/settings" as Href} asChild>
-          <Pressable
-            style={[styles.quickLinkPill, { borderColor: colors.border }]}
-            accessibilityRole="button"
-            accessibilityLabel="My Community profile and settings"
-          >
-            <Text style={[styles.quickLinkText, { color: colors.text }]}>
-              My profile
+            <Text style={[styles.noteTitle, { color: colors.text }]}>
+              Open saved workouts →
             </Text>
           </Pressable>
         </Link>
       </View>
+      <Text
+        accessibilityRole="header"
+        style={[styles.feedHeading, { color: colors.text }]}
+      >
+        Following feed
+      </Text>
+      <Text style={[styles.feedDescription, { color: colors.textSecondary }]}>
+        Workouts shared by friends who approved your follow request.
+      </Text>
 
       {state.error ? (
         <View style={[styles.errorBanner, { backgroundColor: "#DC262615" }]}>
@@ -307,24 +352,36 @@ function FeedScreenContent({
     <View style={styles.emptyContainer}>
       {state.status === "loading" ? (
         <ActivityIndicator size="large" color={colors.primary} />
+      ) : state.error ? (
+        <>
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>
+            Activity is unavailable
+          </Text>
+          <Text style={[styles.emptyBody, { color: colors.textSecondary }]}>
+            Use Retry above to check again. Your private tracking stays
+            available.
+          </Text>
+        </>
       ) : (
         <>
           <Text style={[styles.emptyTitle, { color: colors.text }]}>
             No shared workouts yet
           </Text>
           <Text style={[styles.emptyBody, { color: colors.textSecondary }]}>
-            Find a friend to see their activity, or keep tracking workouts
-            privately.
+            Follow a friend and wait for their approval. Workouts they choose to
+            share will appear here. Your own workouts stay private until you
+            choose to share.
           </Text>
           <Link href={"/community/invite" as Href} asChild>
             <Pressable
-              style={[styles.inviteButton, { backgroundColor: colors.primary }]}
+              style={[
+                styles.inviteButton,
+                { backgroundColor: colors.primaryLight },
+              ]}
               accessibilityRole="button"
               accessibilityLabel="Find a friend"
             >
-              <Text
-                style={[styles.inviteButtonText, { color: colors.background }]}
-              >
+              <Text style={[styles.inviteButtonText, { color: colors.text }]}>
                 Find a friend
               </Text>
             </Pressable>
@@ -388,7 +445,10 @@ const styles = StyleSheet.create({
   },
   listContent: {
     flexGrow: 1,
-    paddingBottom: 24,
+    paddingBottom: BottomTabInset + 24,
+    width: "100%",
+    maxWidth: MaxContentWidth,
+    alignSelf: "center",
   },
   accountHeader: {
     alignItems: "flex-end",
@@ -398,7 +458,7 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "700",
     marginHorizontal: 16,
-    marginBottom: 16,
+    marginBottom: 4,
   },
   privateButton: {
     minHeight: 48,
@@ -409,23 +469,46 @@ const styles = StyleSheet.create({
   headerBar: {
     paddingVertical: 12,
   },
+  subtitle: {
+    fontSize: 16,
+    lineHeight: 24,
+    marginHorizontal: 16,
+    marginBottom: 20,
+  },
   quickLinks: {
     flexDirection: "row",
-    gap: 8,
+    gap: 12,
     paddingHorizontal: 16,
     flexWrap: "wrap",
   },
-  quickLinkPill: {
-    minHeight: 48,
-    justifyContent: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
+  navigationCard: {
+    flexGrow: 1,
+    flexBasis: "45%",
+    minWidth: 140,
+    minHeight: 96,
+    padding: 16,
+    gap: 6,
+    borderRadius: 16,
     borderWidth: 1,
   },
-  quickLinkText: {
-    fontSize: 13,
-    fontWeight: "500",
+  navigationTitle: { fontSize: 16, lineHeight: 23, fontWeight: "700" },
+  navigationDescription: { fontSize: 14, lineHeight: 20 },
+  sharingNote: { margin: 16, padding: 16, gap: 6, borderRadius: 16 },
+  noteTitle: { fontSize: 15, lineHeight: 22, fontWeight: "600" },
+  noteBody: { fontSize: 14, lineHeight: 21 },
+  noteAction: { minHeight: 48, justifyContent: "center" },
+  feedHeading: {
+    fontSize: 21,
+    lineHeight: 28,
+    fontWeight: "700",
+    marginHorizontal: 16,
+  },
+  feedDescription: {
+    fontSize: 14,
+    lineHeight: 21,
+    marginHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 12,
   },
   errorBanner: {
     marginHorizontal: 16,
@@ -456,7 +539,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 32,
-    paddingTop: 64,
+    paddingTop: 32,
+    paddingBottom: 24,
   },
   emptyTitle: {
     fontSize: 18,
@@ -471,6 +555,8 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   inviteButton: {
+    minHeight: 48,
+    justifyContent: "center",
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 12,

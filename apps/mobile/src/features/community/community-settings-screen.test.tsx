@@ -82,6 +82,13 @@ function find(node: any, predicate: (node: any) => boolean): any {
   if (!node || typeof node !== "object") return null;
   return predicate(node) ? node : find(node.props?.children, predicate);
 }
+function textContent(node: any): string {
+  if (Array.isArray(node)) return node.map(textContent).join(" ");
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  return node && typeof node === "object"
+    ? textContent(node.props?.children)
+    : "";
+}
 function button(tree: any, label: string): any {
   return find(
     tree,
@@ -159,5 +166,104 @@ describe("embedded Community joining", () => {
     expect(mocks.enroll).not.toHaveBeenCalled();
     expect(find(render(), (node) => node.type === "StackScreen")).toBeTruthy();
     expect(button(render(), "Account export and deletion")).toBeTruthy();
+  });
+  it("keeps audience, history and separate unchecked declarations visible before joining", () => {
+    mocks.form.adultDeclaration = false;
+    mocks.form.acceptedTerms = false;
+    const tree = render({ embedded: true });
+    const copy = textContent(tree);
+    expect(copy).toContain("including earlier cards still shared");
+    expect(copy).toContain("following someone does not let them follow you");
+    expect(copy).toContain("Nothing is copied from your private profile");
+    const adult = find(
+      tree,
+      (node) => node.props?.accessibilityLabel === "I am 18 or older",
+    );
+    const consent = find(
+      tree,
+      (node) =>
+        node.props?.accessibilityLabel ===
+        "I accept the Community rules (2026-09-30)",
+    );
+    expect(adult.props.accessibilityState.checked).toBe(false);
+    expect(consent.props.accessibilityState.checked).toBe(false);
+    expect(button(tree, "Join Community").props.disabled).toBe(true);
+    expect(mocks.enroll).not.toHaveBeenCalled();
+  });
+  it.each(["loading", "error"])(
+    "shows status recovery instead of the joining form while %s",
+    (status) => {
+      mocks.state.status = status;
+      const tree = render({ embedded: true });
+      expect(button(tree, "Join Community")).toBeFalsy();
+      expect(button(tree, "Keep tracking privately")).toBeTruthy();
+      if (status === "error") {
+        button(tree, "Check Community status").props.onPress();
+        expect(mocks.load).toHaveBeenCalled();
+        expect(button(tree, "Leave Community")).toBeTruthy();
+      }
+      expect(mocks.enroll).not.toHaveBeenCalled();
+    },
+  );
+  it("keeps the conservative birth-year gate and private exit when ineligible", () => {
+    mocks.state.isAdultEligible = false;
+    const tree = render({ embedded: true });
+    expect(button(tree, "Join Community")).toBeFalsy();
+    expect(textContent(tree)).toContain(
+      String(new Date().getUTCFullYear() - 19),
+    );
+    expect(textContent(tree)).toContain("does not verify identity or birthday");
+    button(tree, "Keep tracking privately").props.onPress();
+    expect(mocks.replace).toHaveBeenCalledWith("/(tabs)");
+    expect(mocks.enroll).not.toHaveBeenCalled();
+  });
+  it("reserves a withdrawn handle and requires fresh consent without recovering history", () => {
+    mocks.state.isWithdrawn = true;
+    mocks.state.profile = {
+      userId: "account-a",
+      generation: 2,
+      status: "withdrawn",
+      handle: "friend_a",
+    };
+    mocks.form.acceptedTerms = false;
+    mocks.form.adultDeclaration = false;
+    const tree = render({ embedded: true });
+    const handle = find(
+      tree,
+      (node) =>
+        node.type === "TextInput" && node.props.accessibilityLabel === "Handle",
+    );
+    expect(handle.props.editable).toBe(false);
+    expect(textContent(tree)).toContain(
+      "Previous follows, cards and invitations do not return",
+    );
+    expect(button(tree, "Join Community").props.disabled).toBe(true);
+    expect(button(tree, "Leave Community")).toBeFalsy();
+    expect(mocks.enroll).not.toHaveBeenCalled();
+  });
+  it("saves an enrolled profile independently of join-only declarations", async () => {
+    mocks.state.isEnrolled = true;
+    mocks.state.profile = {
+      userId: "account-a",
+      generation: 2,
+      status: "active",
+      handle: "friend_a",
+    };
+    mocks.form.acceptedTerms = false;
+    mocks.form.adultDeclaration = false;
+    mocks.update.mockResolvedValue({ ok: true });
+    const tree = render();
+    expect(button(tree, "Join Community")).toBeFalsy();
+    expect(
+      find(
+        tree,
+        (node) => node.props?.accessibilityLabel === "I am 18 or older",
+      ),
+    ).toBeFalsy();
+    button(tree, "Save Community profile").props.onPress();
+    await Promise.resolve();
+    expect(mocks.update).toHaveBeenCalledTimes(1);
+    expect(mocks.update.mock.calls[0][0]).not.toHaveProperty("acceptedTerms");
+    expect(mocks.enroll).not.toHaveBeenCalled();
   });
 });

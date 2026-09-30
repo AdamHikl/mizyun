@@ -2,6 +2,12 @@
 
 > Updated 2026-09-30. Earlier package evidence, operational snapshots and concurrent work are preserved in [the pre-review archive](docs/archive/status/STATUS_COMMUNITY_PRE_FINAL_REVIEW_2026-09-30.md). Historical next actions are not current instructions.
 
+## Community UI refinement — 2026-09-30
+
+Adam requested refined navigation/understanding and an information architecture agent under #150. Clean baseline `66e46907e0489cdd1b8eb06546333390b5a49067`. Information architect reorganizes the existing single-page join form into profile, optional details, discovery and consent sections; coordinator adds descriptive Community navigation cards, following-feed/sharing guidance and honest feed-error states. Existing authority/consent/privacy/recovery stays intact. [Durable design/evidence](docs/COMMUNITY_UI_REFINEMENT_2026-09-30.md).
+
+**Automatically verified:** independent non-author review approved after contrast correction; focused69/5files pass. Fresh corrected-source `pnpm check` exit0 (mobile1019/API730,15 gated API skips, dual Hermes/typechecks/navigation/formatting/safeguards). **Next exact action:** commit/push and install exact Dev iPhone candidate. Physical refined joining/navigation/accessibility remains pending; no backend or Production changes.
+
 ## Community joining inside the tab — 2026-09-30
 
 Adam requested joining directly in Community. Implemented under #142/#150 from clean `2b1e0ead461413c28d098b39ef8d441c5a289a52`: reuse the enrollment/profile/consent form inside the tab, preserve secondary Account privacy settings, and verify membership before showing the feed. Explicit adult/rules consent, server admission, private profile separation and private tracking exit remain. Helper owns embedded form/tests; coordinator owns feed integration/continuity/resources; independent review covers recovery and lifecycle boundaries. No backend or Production change.

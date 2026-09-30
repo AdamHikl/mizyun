@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   enrolled: false,
+  feedError: null as string | null,
   status: "ready",
   refresh: vi.fn(),
   request: vi.fn(),
@@ -68,7 +69,7 @@ vi.mock("react-native", () => ({
   ScrollView: "ScrollView",
   RefreshControl: "RefreshControl",
   ActivityIndicator: "ActivityIndicator",
-  Platform: { OS: "ios" },
+  Platform: { OS: "ios", select: (values: any) => values.ios },
   AppState: {
     currentState: "active",
     addEventListener: (_event: string, callback: (state: string) => void) => {
@@ -115,7 +116,12 @@ vi.mock("./activity-card", () => ({ ActivityCard: "ActivityCard" }));
 vi.mock("./controller", () => ({
   FeedController: class {
     subscribe = vi.fn();
-    getSnapshot = () => ({ status: "idle", items: [], hasMore: false });
+    getSnapshot = () => ({
+      status: "idle",
+      items: [],
+      hasMore: false,
+      error: mocks.feedError,
+    });
     pause = vi.fn();
     resume = vi.fn();
     refresh = mocks.refresh;
@@ -151,6 +157,7 @@ function linkFor(node: any, label: string): any {
 
 beforeEach(() => {
   mocks.enrolled = false;
+  mocks.feedError = null;
   mocks.status = "ready";
   hooks.slots = [];
   hooks.effects = [];
@@ -213,6 +220,28 @@ describe("Community home participation and navigation", () => {
       linkFor(header, "My Community profile and settings").props.href,
     ).toBe("/community/settings");
     expect(mocks.request).not.toHaveBeenCalled();
+  });
+  it("explains navigation destinations and keeps sharing a separate explicit workout action", async () => {
+    mocks.enrolled = true;
+    const tree = await settledRender();
+    const header = tree.props.children[1].props.ListHeaderComponent;
+    expect(linkFor(header, "Your friends and requests").props.href).toBe(
+      "/community/relationships",
+    );
+    expect(
+      find(header, "Your friends and requests").props.accessibilityHint,
+    ).toBe("Approve requests and manage follows");
+    expect(linkFor(header, "Open saved workouts").props.href).toBe("/workouts");
+    expect(mocks.request).not.toHaveBeenCalled();
+  });
+  it("does not describe a failed feed read as an empty friends feed", async () => {
+    mocks.enrolled = true;
+    mocks.feedError = "Could not load activity";
+    const tree = await settledRender();
+    const empty = tree.props.children[1].props.ListEmptyComponent;
+    expect(JSON.stringify(empty)).toContain("Activity is unavailable");
+    expect(JSON.stringify(empty)).not.toContain("No shared workouts yet");
+    expect(linkFor(empty, "Find a friend")).toBeFalsy();
   });
 });
 
