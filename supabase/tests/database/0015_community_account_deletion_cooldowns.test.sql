@@ -1,4 +1,6 @@
 begin;
+-- Synthetic fixture explicitly activates Community; production defaults stay closed.
+update public.community_operations set enabled=true,enrollment=true,discovery=true,publish=true,engagement=true,cohort_required=false;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 select no_plan();
@@ -42,16 +44,16 @@ delete from public.community_follow_cooldowns where user_id in (
 select is((select count(*) from public.community_follow_cooldowns where user_id in (
  'c0150000-0000-4000-8000-000000000009','c0150000-0000-4000-8000-000000000011')),0::bigint,'ordinary cleanup starts without pre-existing cooldowns');
 
-set local role authenticated;
+set local role authenticated;set local request.jwt.claim.role='authenticated';
 set local request.jwt.claim.role = 'authenticated';
 set local request.jwt.claim.sub = 'c0150000-0000-4000-8000-000000000009';
 select lives_ok($$insert into public.community_blocks(blocker_user_id,blocked_user_id) values(auth.uid(),'c0150000-0000-4000-8000-000000000010')$$,'block still cleans a declined edge');
-reset role;
+reset role;set local request.jwt.claim.role='service_role';
 select is((select count(*) from public.community_follow_cooldowns where user_id='c0150000-0000-4000-8000-000000000009' and expires_at > now()),1::bigint,'block preserves cooldown while both Auth principals exist');
-set local role authenticated;
+set local role authenticated;set local request.jwt.claim.role='authenticated';
 set local request.jwt.claim.sub = 'c0150000-0000-4000-8000-000000000011';
 select lives_ok($$select public.community_withdraw_profile()$$,'withdrawal still cleans a canceled edge');
-reset role;
+reset role;set local request.jwt.claim.role='service_role';
 select is((select count(*) from public.community_follow_cooldowns where user_id='c0150000-0000-4000-8000-000000000011' and expires_at > now()),1::bigint,'withdrawal preserves cooldown while both Auth principals exist');
 select is((select count(*) from public.community_relationships where follower_user_id in (
  'c0150000-0000-4000-8000-000000000009','c0150000-0000-4000-8000-000000000011')),0::bigint,'block and withdrawal remove ordinary edges');

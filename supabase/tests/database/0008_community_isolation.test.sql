@@ -1,4 +1,6 @@
 begin;
+-- Synthetic fixture explicitly activates Community; production defaults stay closed.
+update public.community_operations set enabled=true,enrollment=true,discovery=true,publish=true,engagement=true,cohort_required=false;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 select plan(16);
@@ -11,7 +13,7 @@ set local role anon;
 set local request.jwt.claim.role = 'anon';
 select throws_ok($$select * from public.community_profiles$$,'42501',null,'Anonymous profile reads denied');
 select throws_ok($$select * from public.community_save_profile('usera','User A','UA',null,false,true,'2026-09-30')$$,'42501',null,'Anonymous enrollment denied');
-set local role authenticated;
+set local role authenticated;set local request.jwt.claim.role='authenticated';
 set local request.jwt.claim.role = 'authenticated';
 set local request.jwt.claim.sub = 'c0000000-0000-4000-8000-000000000001';
 select lives_ok($$select * from public.community_save_profile('usera','User A','UA','Private social bio',false,true,'2026-09-30')$$,'Adult explicit enrollment accepted');
@@ -30,11 +32,11 @@ select lives_ok($$select * from public.community_request_follow('c0000000-0000-4
 select throws_ok($$update public.community_relationships set status='approved' where follower_user_id=auth.uid()$$,'P0001','community_unavailable','Requester cannot self-approve');
 set local request.jwt.claim.sub = 'c0000000-0000-4000-8000-000000000001';
 select lives_ok($$update public.community_relationships set status='approved' where target_user_id=auth.uid()$$,'Recipient approves pending edge');
-reset role;
+reset role;set local request.jwt.claim.role='service_role';
 set local request.jwt.claim.role = 'service_role';
 insert into public.workouts(id,user_id,name,started_at,completed_at,details)
 values('d0000000-0000-4000-8000-000000000001','c0000000-0000-4000-8000-000000000001','Never shared private name',now()-interval '1 hour',now(),'{"workoutLifecycle":{"kind":"session"}}');
-set local role authenticated;
+set local role authenticated;set local request.jwt.claim.role='authenticated';
 set local request.jwt.claim.role = 'authenticated';
 set local request.jwt.claim.sub = 'c0000000-0000-4000-8000-000000000001';
 select lives_ok($$select * from public.community_publish_activity('d0000000-0000-4000-8000-000000000001','strength',(now() at time zone 'UTC')::date::text,3600,1,'a0000000-0000-4000-8000-000000000001')$$,'Completed owned session publication accepted');

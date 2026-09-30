@@ -1,11 +1,13 @@
 begin;
+-- Synthetic fixture explicitly activates Community; production defaults stay closed.
+update public.community_operations set enabled=true,enrollment=true,discovery=true,publish=true,engagement=true,cohort_required=false;
 create extension if not exists pgtap with schema extensions;
 set local search_path=public,extensions;
 select no_plan();
 insert into auth.users(id,email) values('ce000000-0000-4000-8000-000000000001','publication-control@mizyun.test');
 update public.profiles set birth_year=1990 where id='ce000000-0000-4000-8000-000000000001';
 insert into public.workouts(id,user_id,name,started_at,completed_at,details) values('de000000-0000-4000-8000-000000000001','ce000000-0000-4000-8000-000000000001','Private title',now()-interval '1 hour',now(),'{"workoutLifecycle":{"kind":"session"}}');
-set local role authenticated;
+set local role authenticated;set local request.jwt.claim.role='authenticated';
 set local request.jwt.claim.role='authenticated';
 set local request.jwt.claim.sub='ce000000-0000-4000-8000-000000000001';
 select * from public.community_save_profile('publish_controls','Author','AU',null,false,true,'2026-09-30');
@@ -20,11 +22,11 @@ select is((select version from public.community_update_activity((select id from 
 select throws_ok($$select * from public.community_publish_activity('de000000-0000-4000-8000-000000000001','other',(now() at time zone 'UTC')::date::text,null,1,'ae000000-0000-4000-8000-000000000002',1,false)$$,'P0001','community_conflict','Old preview cannot overwrite another edit');
 select throws_ok($$select * from public.community_update_activity((select id from public.shared_activities),null,1)$$,'P0001','community_conflict','Old PATCH preview cannot overwrite another edit');
 select throws_ok($$select public.community_unpublish_activity((select id from public.shared_activities),1)$$,'P0001','community_conflict','Old unpublish cannot revoke current incarnation');
-reset role;
+reset role;set local request.jwt.claim.role='service_role';
 set local request.jwt.claim.role='service_role';
 update public.shared_activities set published_at=now()-interval '1 hour';
 select is((select used from public.community_publication_usage),2,'Only successful creation/edit consumed quota');
-set local role authenticated;
+set local role authenticated;set local request.jwt.claim.role='authenticated';
 set local request.jwt.claim.role='authenticated';
 select * from public.community_publish_activity('de000000-0000-4000-8000-000000000001','other',(now() at time zone 'UTC')::date::text,null,1,'ae000000-0000-4000-8000-000000000002',2,false);
 select is((select published_at from public.shared_activities),now()-interval '1 hour','Refresh preserves feed chronology');
@@ -38,9 +40,12 @@ select throws_ok($$select * from public.community_update_activity((select id fro
 select public.community_unpublish_activity((select id from public.shared_activities),20);
 select lives_ok($$select public.community_unpublish_activity((select id from public.shared_activities),20)$$,'Revocation retry allowed after quota exhausted');
 select community_delete_all_for_user();
+reset role;set local request.jwt.claim.role='service_role';
+select * from public.community_withdrawal_batch('ce000000-0000-4000-8000-000000000001',1);
+set local role authenticated;set local request.jwt.claim.role='authenticated';
 select * from public.community_save_profile('publish_controls','Author','AU',null,false,true,'2026-09-30');
 select throws_ok($$select * from public.community_publish_activity('de000000-0000-4000-8000-000000000001','strength',(now() at time zone 'UTC')::date::text,null,2,'ae000000-0000-4000-8000-000000000004',0,false)$$,'P0001','community_rate_limited','Social cleanup cannot reset publication quota');
-reset role;
+reset role;set local request.jwt.claim.role='service_role';
 select is((select used from public.community_publication_usage),20,'Counter survives social cleanup');
 select * from finish();
 rollback;

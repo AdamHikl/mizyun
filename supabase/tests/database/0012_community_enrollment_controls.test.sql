@@ -1,4 +1,6 @@
 begin;
+-- Synthetic fixture explicitly activates Community; production defaults stay closed.
+update public.community_operations set enabled=true,enrollment=true,discovery=true,publish=true,engagement=true,cohort_required=false;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 select no_plan();
@@ -8,7 +10,7 @@ insert into auth.users(id,email) values
 ('c1200000-0000-4000-8000-000000000003','enrollment-c@mizyun.test');
 update public.profiles set birth_year = extract(year from now() at time zone 'UTC')::integer - 19
 where id::text like 'c1200000-%';
-set local role authenticated;
+set local role authenticated;set local request.jwt.claim.role='authenticated';
 set local request.jwt.claim.sub = 'c1200000-0000-4000-8000-000000000001';
 select throws_ok($$select * from public.community_save_profile('receipt_a','Participant','PA',null,false)$$,'P0001','community_conflict','Legacy RPC cannot imply enrollment consent');
 select throws_ok($$select * from public.community_save_profile('receipt_a','Participant','PA',null,false,false,'2026-09-30')$$,'P0001','community_conflict','False declaration cannot enroll');
@@ -29,6 +31,9 @@ select throws_ok($$select * from public.community_save_profile('receipt_a','Part
 select * from public.community_withdraw_profile();
 select is((select status from public.community_get_profile(auth.uid())),'withdrawn','Withdrawn owner keeps reserved identity');
 select throws_ok($$select * from public.community_save_profile('receipt_a','Participant','PA',null,false)$$,'P0001','community_conflict','PATCH cannot reenroll withdrawn profile');
+reset role;set local request.jwt.claim.role='service_role';
+select * from public.community_withdrawal_batch('c1200000-0000-4000-8000-000000000001',1);
+set local role authenticated;set local request.jwt.claim.role='authenticated';
 select lives_ok($$select * from public.community_save_profile('receipt_a','Participant','PA',null,false,true,'2026-09-30')$$,'Fresh reenrollment');
 select is((select generation from public.community_get_profile(auth.uid())),2,'Reenrollment increments generation once');
 select * from public.community_save_profile('receipt_a','Participant','PA',null,true);
@@ -40,21 +45,21 @@ select * from public.community_save_profile('receipt_b','Participant B','PB',nul
 select is((select count(*) from public.community_get_profile('c1200000-0000-4000-8000-000000000001')),1::bigint,'Other member receives visible minimal searchable identity');
 select ok((select adult_declared_at is null and terms_accepted_at is null and terms_version is null from public.community_get_profile('c1200000-0000-4000-8000-000000000001')),'Visible other-member projection strips every receipt field');
 -- The actual Auth-row cascade, not only direct social deletion, creates quarantine.
-reset role;
+reset role;set local request.jwt.claim.role='service_role';
 delete from auth.users where id = 'c1200000-0000-4000-8000-000000000001';
 select ok((select expires_at = now() + interval '90 days' from public.community_handle_quarantine where handle='receipt_a'),'Auth deletion creates 90-day quarantine');
-set local role authenticated;
+set local role authenticated;set local request.jwt.claim.role='authenticated';
 select is((select available from public.community_handle_available('receipt_a')),false,'Deleted handle unavailable');
 set local request.jwt.claim.sub = 'c1200000-0000-4000-8000-000000000003';
 select throws_ok($$select * from public.community_save_profile('receipt_a','Participant C','PC',null,false,true,'2026-09-30')$$,'P0001','community_handle_taken','Fresh account cannot reuse quarantined handle');
-reset role;
+reset role;set local request.jwt.claim.role='service_role';
 update public.community_handle_quarantine set expires_at = now() where handle='receipt_a';
-set local role authenticated;
+set local role authenticated;set local request.jwt.claim.role='authenticated';
 select lives_ok($$select * from public.community_save_profile('receipt_a','Participant C','PC',null,false,true,'2026-09-30')$$,'Handle reusable at exact quarantine deadline');
 set local request.jwt.claim.sub = 'c1200000-0000-4000-8000-000000000002';
 select * from public.community_withdraw_profile();
 select throws_ok($$select * from public.community_save_profile('receipt_a','Participant','PA',null,false,true,'2026-09-30')$$,'P0001','community_conflict','Immutable own handle cannot impersonate deleted account');
-reset role;
+reset role;set local request.jwt.claim.role='service_role';
 update public.profiles set birth_year = extract(year from now() at time zone 'UTC')::integer - 18 where id = 'c1200000-0000-4000-8000-000000000002';
 select ok(not public.community_eligible('c1200000-0000-4000-8000-000000000002'),'Ambiguous calendar age fails closed');
 set local timezone = 'Pacific/Kiritimati';
@@ -66,15 +71,17 @@ select ok(not public.community_eligible('c1200000-0000-4000-8000-000000000002'),
 update public.profiles set birth_year = 1899 where id = 'c1200000-0000-4000-8000-000000000002';
 select ok(not public.community_eligible('c1200000-0000-4000-8000-000000000002'),'Out of range year fails closed');
 update public.profiles set birth_year = 1990 where id = 'c1200000-0000-4000-8000-000000000002';
-set local role authenticated;
+select * from public.community_withdrawal_batch('c1200000-0000-4000-8000-000000000002',1);
+set local role authenticated;set local request.jwt.claim.role='authenticated';
 select * from public.community_save_profile('receipt_b','Participant B','PB',null,false,true,'2026-09-30');
-reset role;
+reset role;set local request.jwt.claim.role='service_role';
 update public.profiles set birth_year = extract(year from now() at time zone 'UTC')::integer - 18 where id = 'c1200000-0000-4000-8000-000000000002';
 select is((select status from public.community_profiles where user_id='c1200000-0000-4000-8000-000000000002'),'withdrawn','Eligibility correction withdraws atomically');
 update public.profiles set birth_year = 1990 where id = 'c1200000-0000-4000-8000-000000000002';
+select * from public.community_withdrawal_batch('c1200000-0000-4000-8000-000000000002',1);
 select is((select status from public.community_profiles where user_id='c1200000-0000-4000-8000-000000000002'),'withdrawn','Eligibility restoration never reenrolls');
 update public.community_profiles set status='suspended' where user_id='c1200000-0000-4000-8000-000000000002';
-set local role authenticated;
+set local role authenticated;set local request.jwt.claim.role='authenticated';
 select throws_ok($$select * from public.community_save_profile('receipt_b','Participant B','PB',null,false,true,'2026-09-30')$$,'P0001','community_unavailable','Fresh receipt cannot evade suspension');
 select * from public.community_withdraw_profile();
 select is((select status from public.community_get_profile(auth.uid())),'suspended','Withdrawal cannot erase suspension');

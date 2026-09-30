@@ -1,4 +1,6 @@
 begin;
+-- Synthetic fixture explicitly activates Community; production defaults stay closed.
+update public.community_operations set enabled=true,enrollment=true,discovery=true,publish=true,engagement=true,cohort_required=false;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
@@ -101,7 +103,7 @@ insert into public.community_invitations (id, token, inviter_user_id, expires_at
 
 -- An authenticated account with no community enrollment must not browse the
 -- directory or enroll directly without adult eligibility/accepted current terms.
-set local role authenticated;
+set local role authenticated;set local request.jwt.claim.role='authenticated';
 set local request.jwt.claim.role = 'authenticated';
 set local request.jwt.claim.sub = 'c9000000-0000-4000-8000-000000000003';
 select is(pg_temp.community_visible_count($$select * from public.community_profiles where user_id <> 'c9000000-0000-4000-8000-000000000003'$$), 0::bigint,
@@ -119,7 +121,7 @@ select ok(pg_temp.community_write_denied($$delete from public.community_profiles
 
 -- Reset state after an expected failing baseline assertion, so each regression
 -- remains independently meaningful even when the unfixed migration allows it.
-reset role;
+reset role;set local request.jwt.claim.role='service_role';
 set local request.jwt.claim.role = 'service_role';
 delete from public.community_profiles where user_id in ('c9000000-0000-4000-8000-000000000003', 'c9000000-0000-4000-8000-000000000005');
 insert into public.community_profiles (user_id, handle, display_name, is_searchable, status)
@@ -128,7 +130,7 @@ on conflict (user_id) do update set status = 'suspended';
 insert into public.community_relationships (id, follower_user_id, target_user_id, status)
 values ('a9000000-0000-4000-8000-000000000001', 'c9000000-0000-4000-8000-000000000002', 'c9000000-0000-4000-8000-000000000001', 'pending');
 
-set local role authenticated;
+set local role authenticated;set local request.jwt.claim.role='authenticated';
 set local request.jwt.claim.role = 'authenticated';
 set local request.jwt.claim.sub = 'c9000000-0000-4000-8000-000000000001';
 select is(pg_temp.community_resolved_invitation('boundary-private-invite-token-00002')->'inviter'->>'user_id',
@@ -151,7 +153,7 @@ set local request.jwt.claim.sub = 'c9000000-0000-4000-8000-000000000001';
 select ok(pg_temp.community_write_denied($$insert into public.shared_activities (user_id, source_workout_id, category, shared_day) values ('c9000000-0000-4000-8000-000000000001', 'd9000000-0000-4000-8000-000000000003', 'other', '2026-09-30')$$),
   'Author cannot publish an incomplete source workout directly');
 
-reset role;
+reset role;set local request.jwt.claim.role='service_role';
 set local request.jwt.claim.role = 'service_role';
 -- Remove baseline artifacts and restore the original pending edge before block.
 delete from public.shared_activities where source_workout_id in ('d9000000-0000-4000-8000-000000000001', 'd9000000-0000-4000-8000-000000000003');
@@ -159,7 +161,7 @@ delete from public.community_relationships where id = 'a9000000-0000-4000-8000-0
 insert into public.community_blocks (blocker_user_id, blocked_user_id)
 values ('c9000000-0000-4000-8000-000000000001', 'c9000000-0000-4000-8000-000000000002');
 
-set local role authenticated;
+set local role authenticated;set local request.jwt.claim.role='authenticated';
 set local request.jwt.claim.role = 'authenticated';
 set local request.jwt.claim.sub = 'c9000000-0000-4000-8000-000000000002';
 select is(pg_temp.community_visible_count($$select * from public.community_profiles where user_id = 'c9000000-0000-4000-8000-000000000001'$$), 0::bigint,
@@ -174,7 +176,7 @@ select is(pg_temp.community_resolved_invitation('boundary-known-invite-token-000
 -- Setup a fresh authorized card/edge as a trusted fixture, then exercise direct
 -- source mutation as its owner. Source eligibility must be a DB invariant, not
 -- only an API route side effect.
-reset role;
+reset role;set local request.jwt.claim.role='service_role';
 set local request.jwt.claim.role = 'service_role';
 delete from public.community_blocks where blocker_user_id = 'c9000000-0000-4000-8000-000000000001';
 delete from public.community_relationships where follower_user_id = 'c9000000-0000-4000-8000-000000000002' and target_user_id = 'c9000000-0000-4000-8000-000000000001';
@@ -185,7 +187,7 @@ values ('f9000000-0000-4000-8000-000000000001', 'c9000000-0000-4000-8000-0000000
 insert into public.community_reactions (activity_id, user_id, reaction)
 values ('f9000000-0000-4000-8000-000000000001', 'c9000000-0000-4000-8000-000000000002', 'clap');
 
-set local role authenticated;
+set local role authenticated;set local request.jwt.claim.role='authenticated';
 set local request.jwt.claim.role = 'authenticated';
 set local request.jwt.claim.sub = 'c9000000-0000-4000-8000-000000000002';
 select is(pg_temp.community_visible_count($$select source_workout_id from public.shared_activities where id = 'f9000000-0000-4000-8000-000000000001'$$), 0::bigint,
@@ -196,7 +198,7 @@ select lives_ok($$update public.workouts set completed_at = null where id = 'd90
 set local request.jwt.claim.sub = 'c9000000-0000-4000-8000-000000000002';
 select is(pg_temp.community_visible_count($$select * from public.shared_activities where id = 'f9000000-0000-4000-8000-000000000001'$$), 0::bigint,
   'Source uncompletion atomically denies follower access');
-reset role;
+reset role;set local request.jwt.claim.role='service_role';
 set local request.jwt.claim.role = 'service_role';
 select is((select count(*) from public.community_reactions where activity_id = 'f9000000-0000-4000-8000-000000000001'), 0::bigint,
   'Source uncompletion atomically invalidates all prior reactions');
@@ -204,7 +206,7 @@ select is((select count(*) from public.community_reactions where activity_id = '
 -- Deleting an actual source must remove or revoke its artifact even without API.
 update public.workouts set completed_at = now() where id = 'd9000000-0000-4000-8000-000000000001';
 update public.shared_activities set revoked_at = null where id = 'f9000000-0000-4000-8000-000000000001';
-set local role authenticated;
+set local role authenticated;set local request.jwt.claim.role='authenticated';
 set local request.jwt.claim.role = 'authenticated';
 set local request.jwt.claim.sub = 'c9000000-0000-4000-8000-000000000001';
 select lives_ok($$delete from public.workouts where id = 'd9000000-0000-4000-8000-000000000001'$$,
@@ -215,7 +217,7 @@ select is(pg_temp.community_visible_count($$select * from public.shared_activiti
 
 -- Trusted lifecycle transition models the application accepting withdrawal.
 -- Cleanup must be atomic, keep stable safety restrictions and prevent resurrection.
-reset role;
+reset role;set local request.jwt.claim.role='service_role';
 set local request.jwt.claim.role = 'service_role';
 update public.profiles set birth_year = extract(year from now())::integer - 30
 where id = 'c9000000-0000-4000-8000-000000000003';
@@ -238,7 +240,7 @@ select is((select count(*) from public.community_invitations where inviter_user_
 select is((select count(*) from public.community_blocks where blocker_user_id = 'c9000000-0000-4000-8000-000000000001' and blocked_user_id = 'c9000000-0000-4000-8000-000000000002'), 1::bigint,
   'Withdrawal preserves another participants stable block');
 
-set local role authenticated;
+set local role authenticated;set local request.jwt.claim.role='authenticated';
 set local request.jwt.claim.role = 'authenticated';
 set local request.jwt.claim.sub = 'c9000000-0000-4000-8000-000000000002';
 select ok(pg_temp.community_write_denied($$update public.community_profiles set status = 'active' where user_id = 'c9000000-0000-4000-8000-000000000002'$$),
@@ -246,8 +248,9 @@ select ok(pg_temp.community_write_denied($$update public.community_profiles set 
 select ok(pg_temp.community_write_denied($$update public.community_profiles set generation = 99 where user_id = 'c9000000-0000-4000-8000-000000000002'$$),
   'Participant cannot forge enrollment generation directly');
 
-reset role;
+reset role;set local request.jwt.claim.role='service_role';
 set local request.jwt.claim.role = 'service_role';
+select * from public.community_withdrawal_batch('c9000000-0000-4000-8000-000000000002',1);
 update public.community_profiles set status = 'active', generation = 2
 where user_id = 'c9000000-0000-4000-8000-000000000002';
 select is((select count(*) from public.shared_activities where user_id = 'c9000000-0000-4000-8000-000000000002' and revoked_at is null), 0::bigint,

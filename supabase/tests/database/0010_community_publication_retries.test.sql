@@ -1,4 +1,6 @@
 begin;
+-- Synthetic fixture explicitly activates Community; production defaults stay closed.
+update public.community_operations set enabled=true,enrollment=true,discovery=true,publish=true,engagement=true,cohort_required=false;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 select no_plan();
@@ -9,7 +11,7 @@ insert into auth.users(id,email) values
 update public.profiles set birth_year=1990 where id::text like 'ca000000-%';
 insert into public.workouts(id,user_id,name,started_at,completed_at,details)
 values('da000000-0000-4000-8000-000000000001','ca000000-0000-4000-8000-000000000001','Private source',now()-interval '1 hour',now(),'{"workoutLifecycle":{"kind":"session"}}');
-set local role authenticated;
+set local role authenticated;set local request.jwt.claim.role='authenticated';
 set local request.jwt.claim.role='authenticated';
 set local request.jwt.claim.sub='ca000000-0000-4000-8000-000000000001';
 select is((select available from public.community_handle_available('retry_author')),true,'Unclaimed handle reports available before enrollment');
@@ -28,10 +30,10 @@ update public.community_relationships set status='canceled' where follower_user_
 delete from public.community_relationships where follower_user_id=auth.uid();
 select is((select count(*) from public.community_relationships),1::bigint,'Raw delete cannot erase canceled request cooldown');
 select throws_ok($$select * from public.community_request_follow('ca000000-0000-4000-8000-000000000001','AbCdEf0123456789_-AbCd','e1430000-0000-4000-8000-000000000104')$$,'P0001','community_rate_limited','Cancel/delete/retry cannot bypass cooldown');
-reset role;
+reset role;set local request.jwt.claim.role='service_role';
 set local request.jwt.claim.role='service_role';
 update public.community_relationships set status='pending' where follower_user_id='ca000000-0000-4000-8000-000000000002';
-set local role authenticated;
+set local role authenticated;set local request.jwt.claim.role='authenticated';
 set local request.jwt.claim.role='authenticated';
 set local request.jwt.claim.sub='ca000000-0000-4000-8000-000000000001';
 update public.community_relationships set status='approved' where target_user_id=auth.uid();
@@ -45,10 +47,10 @@ insert into public.community_reactions(activity_id,user_id,reaction) select id,a
 set local request.jwt.claim.sub='ca000000-0000-4000-8000-000000000001';
 select * from public.community_update_activity((select id from public.shared_activities),null);
 select is((select version from public.shared_activities),2,'Duration edit advances snapshot version');
-reset role;
+reset role;set local request.jwt.claim.role='service_role';
 set local request.jwt.claim.role='service_role';
 select is((select count(*) from public.community_reactions where user_id='ca000000-0000-4000-8000-000000000002'),0::bigint,'Duration edit invalidates all follower reactions');
-set local role authenticated;
+set local role authenticated;set local request.jwt.claim.role='authenticated';
 set local request.jwt.claim.role='authenticated';
 set local request.jwt.claim.sub='ca000000-0000-4000-8000-000000000001';
 select throws_ok($$select * from public.community_publish_activity('da000000-0000-4000-8000-000000000001','strength',(now() at time zone 'UTC')::date::text,3600,1,'aa000000-0000-4000-8000-000000000001')$$,'P0001','community_conflict','Old operation cannot replay after snapshot edit');
@@ -57,16 +59,19 @@ select throws_ok($$update public.shared_activities set revoked_at=null where use
 select throws_ok($$select * from public.community_publish_activity('da000000-0000-4000-8000-000000000001','strength',(now() at time zone 'UTC')::date::text,3600,1,'aa000000-0000-4000-8000-000000000001')$$,'P0001','community_conflict','Revoked operation remains rejected');
 select lives_ok($$select * from public.community_publish_activity('da000000-0000-4000-8000-000000000001','strength',(now() at time zone 'UTC')::date::text,null,1,'aa000000-0000-4000-8000-000000000002',2,true)$$,'New explicit operation may republish revoked source');
 select community_withdraw_profile();
+reset role;set local request.jwt.claim.role='service_role';
+select * from public.community_withdrawal_batch('ca000000-0000-4000-8000-000000000001',1);
+set local role authenticated;set local request.jwt.claim.role='authenticated';
 select * from public.community_save_profile('retry_author','Author','AU',null,false,true,'2026-09-30');
 select is((select generation from public.community_get_profile(auth.uid())),2,'Explicit reenrollment advances generation');
 select throws_ok($$select * from public.community_publish_activity('da000000-0000-4000-8000-000000000001','strength',(now() at time zone 'UTC')::date::text,null,1,'aa000000-0000-4000-8000-000000000003')$$,'P0001','community_conflict','Old generation confirmation fails');
-select * from public.community_publish_activity('da000000-0000-4000-8000-000000000001','strength',(now() at time zone 'UTC')::date::text,null,2,'aa000000-0000-4000-8000-000000000003',3,true);
+select * from public.community_publish_activity('da000000-0000-4000-8000-000000000001','strength',(now() at time zone 'UTC')::date::text,null,2,'aa000000-0000-4000-8000-000000000003',0,false);
 delete from public.workouts where id='da000000-0000-4000-8000-000000000001';
-reset role;
+reset role;set local request.jwt.claim.role='service_role';
 set local request.jwt.claim.role='service_role';
 insert into public.workouts(id,user_id,name,started_at,completed_at,details)
 values('da000000-0000-4000-8000-000000000001','ca000000-0000-4000-8000-000000000001','Recreated private source',now()-interval '1 hour',now(),'{"workoutLifecycle":{"kind":"session"}}');
-set local role authenticated;
+set local role authenticated;set local request.jwt.claim.role='authenticated';
 set local request.jwt.claim.role='authenticated';
 set local request.jwt.claim.sub='ca000000-0000-4000-8000-000000000001';
 select throws_ok($$select * from public.community_publish_activity('da000000-0000-4000-8000-000000000001','strength',(now() at time zone 'UTC')::date::text,null,2,'aa000000-0000-4000-8000-000000000003',3,true)$$,'P0001','community_conflict','Deleted source retains operation tombstone even if UUID recreated');
