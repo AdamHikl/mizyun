@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   enrolled: false,
   feedError: null as string | null,
+  feedStatus: "idle",
+  feedItems: [] as any[],
   status: "ready",
   refresh: vi.fn(),
   request: vi.fn(),
@@ -117,8 +119,8 @@ vi.mock("./controller", () => ({
   FeedController: class {
     subscribe = vi.fn();
     getSnapshot = () => ({
-      status: "idle",
-      items: [],
+      status: mocks.feedStatus,
+      items: mocks.feedItems,
       hasMore: false,
       error: mocks.feedError,
     });
@@ -158,6 +160,8 @@ function linkFor(node: any, label: string): any {
 beforeEach(() => {
   mocks.enrolled = false;
   mocks.feedError = null;
+  mocks.feedStatus = "idle";
+  mocks.feedItems = [];
   mocks.status = "ready";
   hooks.slots = [];
   hooks.effects = [];
@@ -246,6 +250,77 @@ describe("Community home participation and navigation", () => {
 });
 
 describe("Community retained tab membership freshness", () => {
+  it("keeps public navigation on refocus without spinner or stale cards", async () => {
+    mocks.enrolled = true;
+    await settledRender();
+    mocks.cleanup?.();
+    mocks.feedItems = [{ id: "stale-card" }];
+    mocks.feedStatus = "refreshing";
+    let finish!: () => void;
+    mocks.load.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    mocks.cleanup = mocks.focus!();
+    const tree = render();
+    const list = tree.props.children[1];
+    expect(list.type).toBe("FlatList");
+    expect(list.props.data).toEqual([]);
+    expect(list.props.refreshControl.props.refreshing).toBe(false);
+    expect(JSON.stringify(list.props.ListEmptyComponent)).not.toContain(
+      "No shared workouts yet",
+    );
+    expect(JSON.stringify(tree)).not.toContain("ActivityIndicator");
+    finish();
+    await Promise.resolve();
+  });
+
+  it("shows refresh progress only for a deliberate pull", async () => {
+    mocks.enrolled = true;
+    await settledRender();
+    mocks.feedStatus = "refreshing";
+    let tree = render();
+    expect(tree.props.children[1].props.refreshControl.props.refreshing).toBe(
+      false,
+    );
+    expect(
+      JSON.stringify(tree.props.children[1].props.ListEmptyComponent),
+    ).not.toContain("No shared workouts yet");
+    let finish!: () => void;
+    mocks.refresh.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const pending =
+      tree.props.children[1].props.refreshControl.props.onRefresh();
+    tree = render();
+    expect(tree.props.children[1].props.refreshControl.props.refreshing).toBe(
+      true,
+    );
+    finish();
+    await pending;
+    expect(
+      render().props.children[1].props.refreshControl.props.refreshing,
+    ).toBe(false);
+  });
+  it("replaces the public shell with recovery after a failed fresh membership check", async () => {
+    mocks.enrolled = true;
+    await settledRender();
+    mocks.cleanup?.();
+    mocks.load.mockImplementationOnce(async () => {
+      mocks.enrolled = false;
+      mocks.status = "error";
+    });
+    mocks.cleanup = mocks.focus!();
+    expect(render().props.children[1].type).toBe("FlatList");
+    await Promise.resolve();
+    expect(render().props.children[1].type).toBe("CommunitySettingsScreen");
+    expect(mocks.refresh).toHaveBeenCalledTimes(1);
+  });
   it("rechecks joining in settings before loading the following feed", async () => {
     await settledRender();
     expect(mocks.refresh).not.toHaveBeenCalled();
@@ -288,7 +363,8 @@ describe("Community retained tab membership freshness", () => {
     );
     mocks.cleanup = mocks.focus!();
     let tree = render();
-    expect(tree.props.children[1].type).toBe("ScrollView");
+    expect(tree.props.children[1].type).toBe("FlatList");
+    expect(tree.props.children[1].props.data).toEqual([]);
     expect(mocks.refresh).toHaveBeenCalledTimes(1);
     finish();
     await Promise.resolve();
@@ -303,7 +379,8 @@ describe("Community foreground verification", () => {
     mocks.enrolled = true;
     await settledRender();
     mocks.appState!("background");
-    expect(render().props.children[1].type).toBe("ScrollView");
+    expect(render().props.children[1].type).toBe("FlatList");
+    expect(render().props.children[1].props.data).toEqual([]);
     let finish!: () => void;
     mocks.load.mockImplementationOnce(
       () =>
@@ -315,7 +392,8 @@ describe("Community foreground verification", () => {
         }),
     );
     mocks.appState!("active");
-    expect(render().props.children[1].type).toBe("ScrollView");
+    expect(render().props.children[1].type).toBe("FlatList");
+    expect(render().props.children[1].props.data).toEqual([]);
     expect(mocks.refresh).toHaveBeenCalledTimes(1);
     finish();
     await Promise.resolve();

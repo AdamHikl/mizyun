@@ -62,6 +62,14 @@ function FeedScreenContent({
   });
   const [membershipVerified, setMembershipVerified] = useState(false);
   const membershipRevision = useRef(0);
+  // Remembers presentation only, never permission or protected feed content.
+  const hasShownHub = useRef(false);
+  const [manualRefreshing, setManualRefreshing] = useState(false);
+  useEffect(() => {
+    if (membershipVerified)
+      hasShownHub.current =
+        community.status === "ready" && community.isEnrolled;
+  }, [membershipVerified, community.status, community.isEnrolled]);
 
   const alive = useRef(true);
   useEffect(() => {
@@ -94,6 +102,7 @@ function FeedScreenContent({
   const revalidateMembership = useCallback(async () => {
     const revision = ++membershipRevision.current;
     setMembershipVerified(false);
+    setManualRefreshing(false);
     alive.current = false;
     controller.pause();
     await community.actions.load();
@@ -112,6 +121,7 @@ function FeedScreenContent({
       return () => {
         membershipRevision.current += 1;
         focused.current = false;
+        setManualRefreshing(false);
         alive.current = false;
         controller.pause();
       };
@@ -123,6 +133,7 @@ function FeedScreenContent({
       if (next !== "active") {
         membershipRevision.current += 1;
         setMembershipVerified(false);
+        setManualRefreshing(false);
         alive.current = false;
         controller.pause();
       } else if (focused.current) void revalidateMembership();
@@ -140,9 +151,27 @@ function FeedScreenContent({
     membershipVerified,
   ]);
 
-  const handleRefresh = useCallback(() => {
-    void controller.refresh();
-  }, [controller]);
+  const handleRefresh = useCallback(async () => {
+    if (
+      !membershipVerified ||
+      !enrolled.current ||
+      !focused.current ||
+      !foreground.current
+    )
+      return;
+    const revision = membershipRevision.current;
+    setManualRefreshing(true);
+    try {
+      await controller.refresh();
+    } finally {
+      if (
+        focused.current &&
+        foreground.current &&
+        revision === membershipRevision.current
+      )
+        setManualRefreshing(false);
+    }
+  }, [controller, membershipVerified]);
 
   const handleEndReached = useCallback(() => {
     if (state.hasMore && state.status === "idle") {
@@ -180,11 +209,13 @@ function FeedScreenContent({
   );
 
   // Opening Community never enrolls or shares on the user's behalf.
-  if (!membershipVerified || !community.isEnrolled) {
-    const checking =
-      !membershipVerified ||
-      community.status === "loading" ||
-      community.status === "idle";
+  const checkingMembership =
+    !membershipVerified ||
+    community.status === "loading" ||
+    community.status === "idle";
+  const showPublicHub = checkingMembership && hasShownHub.current;
+  if ((!membershipVerified || !community.isEnrolled) && !showPublicHub) {
+    const checking = checkingMembership;
 
     return (
       <SafeAreaView
@@ -350,8 +381,10 @@ function FeedScreenContent({
   // Empty state
   const emptyComponent = (
     <View style={styles.emptyContainer}>
-      {state.status === "loading" ? (
-        <ActivityIndicator size="large" color={colors.primary} />
+      {!membershipVerified ||
+      state.status === "loading" ||
+      state.status === "refreshing" ? (
+        <View accessible accessibilityLabel="Updating shared activity" />
       ) : state.error ? (
         <>
           <Text style={[styles.emptyTitle, { color: colors.text }]}>
@@ -396,7 +429,7 @@ function FeedScreenContent({
     <View style={styles.footerContainer}>
       {state.status === "loading_more" ? (
         <ActivityIndicator size="small" color={colors.primary} />
-      ) : state.items.length > 0 && !state.hasMore ? (
+      ) : membershipVerified && state.items.length > 0 && !state.hasMore ? (
         <Text style={[styles.caughtUpText, { color: colors.textSecondary }]}>
           You're all caught up
         </Text>
@@ -414,7 +447,7 @@ function FeedScreenContent({
       </View>
       <FlatList
         data={
-          (community.isEnrolled
+          (membershipVerified && community.isEnrolled
             ? state.items
             : []) as SharedActivityFeedItemDto[]
         }
@@ -427,7 +460,7 @@ function FeedScreenContent({
         onEndReachedThreshold={0.4}
         refreshControl={
           <RefreshControl
-            refreshing={state.status === "refreshing"}
+            refreshing={manualRefreshing && state.status === "refreshing"}
             onRefresh={handleRefresh}
             tintColor={colors.primary}
           />

@@ -1,5 +1,9 @@
 # Research log
 
+## 2026-09-30 — Community return loading flash
+
+- Rechecked [Expo SDK57](https://docs.expo.dev/versions/v57.0.0/) and [React Navigation useFocusEffect](https://reactnavigation.org/docs/use-focus-effect/) today: focus/blur callbacks and asynchronous completion need cancellation/current-result checks. Consequence: retain only generic navigation presentation during verification; keep protected data clearing and fresh membership guards. Automatic refresh presentation is distinct from deliberate pull-to-refresh. No permission or cache-policy relaxation.
+
 ## 2026-09-30 — Community information architecture refinement
 
 - Rechecked [Expo SDK57](https://docs.expo.dev/versions/v57.0.0/) and [React Native accessibility](https://reactnative.dev/docs/accessibility) today. Consequence: visible section headings, descriptive navigation hints, scalable wrapping text and at least48-point actions; avoid fixed-height cards or new segmented navigation. Use existing theme colors and tab clearance. Single-page joining preserves drafts and explicit consent; error states must not present a failed read as an empty feed. Information architecture helper review guides grouping, without changing admission or sharing authority.

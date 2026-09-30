@@ -2,6 +2,12 @@
 
 > Updated 2026-09-30. Earlier package evidence, operational snapshots and concurrent work are preserved in [the pre-review archive](docs/archive/status/STATUS_COMMUNITY_PRE_FINAL_REVIEW_2026-09-30.md). Historical next actions are not current instructions.
 
+## Community return loading flash — 2026-09-30
+
+Adam confirms joining succeeded on ed7a362 and earlier private exit/return worked. Sanitized Dev enrollment POST201 corroborates at21:02:29Z, requestreq-8x; physical persistence/sharing/accessibility remain unaccepted. Reports spinner flash every return; tracked #165. Clean baselinee014f78. Correction keeps only generic public hub during fresh membership verification, with all protected cards still cleared/hidden; automatic refresh indicator suppressed, deliberate pull preserved. Independent review approved; focused56tests and mobile typecheck pass, reviewer all-mobile1022pass. [Durable bug/acceptance evidence](docs/COMMUNITY_RETURN_LOADING_DEV_2026-09-30.md).
+
+**Automatically verified:** fresh settled-source `pnpm check` exit0 (mobile1022/API730,15 gated API skips, dual Hermes/typechecks/navigation/formatting/safeguards). **Next exact action:** commit/push and install exact Dev candidate, then Adam verifies repeat tab return/manual pull/offline recovery. No backend/Production operation; original Community acceptance stays separate.
+
 ## Community UI refinement — 2026-09-30
 
 Adam requested refined navigation/understanding and an information architecture agent under #150. Clean baseline `66e46907e0489cdd1b8eb06546333390b5a49067`. Information architect reorganizes the existing single-page join form into profile, optional details, discovery and consent sections; coordinator adds descriptive Community navigation cards, following-feed/sharing guidance and honest feed-error states. Existing authority/consent/privacy/recovery stays intact. [Durable design/evidence](docs/COMMUNITY_UI_REFINEMENT_2026-09-30.md).
