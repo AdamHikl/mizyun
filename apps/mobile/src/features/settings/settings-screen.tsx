@@ -7,6 +7,7 @@ import { isProgressPhotosEnabled } from "@/composition/app-variant";
 import { analyticsClient } from "@/composition/analytics-client";
 import { useAuth } from "@/features/auth/auth-context";
 import { useThemePreference } from "@/features/theme/theme-context";
+import { useTheme } from "@/hooks/use-theme";
 import {
   applyCoachReminders,
   loadCoachReminders,
@@ -39,6 +40,7 @@ import { SettingsSearchResults } from "./settings-search-results";
 
 export function SettingsScreen() {
   const insets = useSafeAreaInsets();
+  const theme = useTheme();
   const { signOut, profile, refreshProfile, session, openOnboarding } =
     useAuth();
   const { preference: themePreference } = useThemePreference();
@@ -252,8 +254,8 @@ export function SettingsScreen() {
               value={searchQuery}
               onChangeText={setSearchQuery}
               placeholder="Search settings (e.g. dark mode, units, reminders)..."
-              placeholderTextColor="rgba(128, 128, 128, 0.7)"
-              style={styles.searchInput}
+              placeholderTextColor={theme.textSecondary}
+              style={[styles.searchInput, { color: theme.text }]}
               accessibilityLabel="Search settings"
               accessibilityHint="Search by name or describe what you want to change"
               returnKeyType="search"
@@ -520,7 +522,6 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 15,
-    color: "inherit",
     paddingVertical: 0,
   },
   clearSearchButton: {
