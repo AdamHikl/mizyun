@@ -6,6 +6,7 @@ import {
   validateWorkoutCreate,
   validateWorkoutPatch,
   withWorkoutLifecycle,
+  type CommunityRepository,
   type StoredWorkout,
   type WorkoutPatch,
   type WorkoutRepository,
@@ -26,6 +27,7 @@ import { sendApiError } from "../../errors.js";
 
 interface WorkoutsRoutesOptions {
   readonly workoutRepository: WorkoutRepository;
+  readonly communityRepository?: CommunityRepository;
 }
 
 const GENERIC_UUID =
@@ -570,6 +572,17 @@ export const workoutsRoutes: FastifyPluginAsync<WorkoutsRoutesOptions> = async (
         return;
       }
       const next = applyWorkoutPatch(stored, patch, new Date());
+      if (
+        stored.completedAt !== null &&
+        next.completedAt === null &&
+        options.communityRepository
+      ) {
+        await options.communityRepository.revokeActivitiesForWorkout(
+          id,
+          principal.userId,
+          { accessToken: principal.accessToken },
+        );
+      }
       const saved = await options.workoutRepository.update(next, {
         accessToken: principal.accessToken,
       });
@@ -611,6 +624,13 @@ export const workoutsRoutes: FastifyPluginAsync<WorkoutsRoutesOptions> = async (
           "No workout with that id exists for this user.",
         );
         return;
+      }
+      if (options.communityRepository) {
+        await options.communityRepository.revokeActivitiesForWorkout(
+          id,
+          principal.userId,
+          { accessToken: principal.accessToken },
+        );
       }
       await options.workoutRepository.delete(id, {
         accessToken: principal.accessToken,

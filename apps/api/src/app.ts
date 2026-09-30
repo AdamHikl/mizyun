@@ -31,6 +31,7 @@ import {
   type AccountRepository,
   type AiConsentRepository,
   type BodyMeasurementRepository,
+  type CommunityRepository,
   type ConversationRepository,
   type EmailSender,
   type ExerciseRepository,
@@ -112,6 +113,16 @@ import { InMemoryMediaAssetRepository } from "./media-asset-repository.js";
 import { InMemoryProfileRepository } from "./profile-repository.js";
 import { InMemoryWorkoutRepository } from "./workout-repository.js";
 import { InMemoryWorkoutSetRepository } from "./workout-set-repository.js";
+import { InMemoryCommunityRepository } from "./community-repository.js";
+import { communityProfileRoutes } from "./modules/community/profile-routes.js";
+import { communityRelationshipRoutes } from "./modules/community/relationship-routes.js";
+import {
+  communityDiscoveryRoutes,
+  CommunityDiscoveryRateLimiter,
+} from "./modules/community/discovery-routes.js";
+import { communityInvitationRoutes } from "./modules/community/invitation-routes.js";
+import { communityPublicationRoutes } from "./modules/community/publication-routes.js";
+
 import {
   SupabaseProfileRepository,
   SupabaseGoalRepository,
@@ -125,6 +136,7 @@ import {
   SupabaseMediaAssetRepository,
   SupabaseAccountRepository,
   SupabaseAiConsentRepository,
+  SupabaseCommunityRepository,
   SupabaseMediaStorage,
   createSupabaseServiceRoleClient,
   type RepositorySupabaseClient,
@@ -247,6 +259,7 @@ export interface AppDependencies {
   readonly feedbackRepository?: FeedbackRepository;
   readonly accountRepository?: AccountRepository;
   readonly betaProRepository?: BetaProRepository;
+  readonly communityRepository?: CommunityRepository;
   readonly aiConsentRepository?: AiConsentRepository;
   readonly productAnalyticsRepository?: ProductAnalyticsRepository;
   readonly mediaAssetRepository?: MediaAssetRepository;
@@ -582,6 +595,12 @@ export const buildApp = (
         })
       : new InMemoryBetaProRepository());
 
+  const communityRepository: CommunityRepository =
+    dependencies.communityRepository ??
+    (sp
+      ? new SupabaseCommunityRepository({ clientFor: sp.clientFor })
+      : new InMemoryCommunityRepository());
+
   const productAnalyticsRepository: ProductAnalyticsRepository =
     dependencies.productAnalyticsRepository ??
     (sp
@@ -870,7 +889,9 @@ export const buildApp = (
   void app.register(workoutsRoutes, {
     prefix: "/v1/workouts",
     workoutRepository,
+    communityRepository,
   });
+
   void app.register(bodyMeasurementsRoutes, {
     prefix: "/v1/body-measurements",
     bodyMeasurementRepository,
@@ -971,6 +992,39 @@ export const buildApp = (
   void app.register(analyticsRoutes, {
     prefix: "/v1/analytics",
     productAnalyticsRepository,
+  });
+  void app.register(communityProfileRoutes, {
+    prefix: "/v1/community",
+    communityRepository,
+    profileRepository,
+  });
+  void app.register(communityRelationshipRoutes, {
+    prefix: "/v1/community",
+    communityRepository,
+  });
+  const discoveryRateLimiter = new CommunityDiscoveryRateLimiter();
+  void app.register(communityDiscoveryRoutes, {
+    prefix: "/v1/community",
+    communityRepository,
+    discoveryRateLimiter,
+  });
+  void app.register(communityInvitationRoutes, {
+    prefix: "/v1/community",
+    communityRepository,
+    discoveryRateLimiter,
+    invitationScheme:
+      configResult.ok &&
+      new URL(
+        configResult.value.supabaseConfig?.publicUrl ?? "https://invalid.local",
+      ).hostname === "mizyun-supabase-dev.phiskel.com"
+        ? "mizyun-dev"
+        : "mizyun",
+  });
+  void app.register(communityPublicationRoutes, {
+    prefix: "/v1/community",
+    communityRepository,
+    profileRepository,
+    workoutRepository,
   });
 
   // MEM-001 — the long-lived memory store used by both the

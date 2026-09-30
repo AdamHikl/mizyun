@@ -88,7 +88,12 @@ const requestSerializer = (request: {
   headers?: unknown;
 }): Record<string, unknown> => ({
   method: request.method,
-  url: request.url,
+  // Community URL paths contain bearer invitation secrets and search queries.
+  url:
+    typeof request.url === "string" &&
+    request.url.split("?")[0]?.startsWith("/v1/community/")
+      ? "/v1/community/[redacted]"
+      : request.url,
   host: request.host,
   remoteAddress: request.ip,
   remotePort:

@@ -223,7 +223,12 @@ export class HttpApiClient implements ApiClient {
     }
 
     const session = await this.#authClient.getSession();
-    if (!session) {
+    if (
+      !session ||
+      (options.expectedUserId !== undefined &&
+        options.expectedUserId !== session.user.id) ||
+      options.isCurrent?.() === false
+    ) {
       return err({ kind: "no_session" });
     }
 
@@ -252,6 +257,19 @@ export class HttpApiClient implements ApiClient {
     }
 
     if (response.status === 401) {
+      if (options.expectedUserId !== undefined) {
+        // A reply from a retired account must not clear a newer session.
+        const current = await this.#authClient.getSession().catch(() => null);
+        if (
+          !current ||
+          current.user.id !== session.user.id ||
+          current.accessToken !== session.accessToken ||
+          options.isCurrent?.() === false
+        ) {
+          return err({ kind: "session_expired" });
+        }
+      }
+
       // Fire-and-forget: the existing AuthContext subscribe path will
       // surface the cleared session. Awaiting here would couple the
       // request lifecycle to a network call we have no use for.

@@ -50,6 +50,19 @@ describe("loggerConfig", () => {
     expect(typeof config.logger.serializers.error).toBe("function");
   });
 
+  it("redacts community invitation tokens and handle queries in request URLs", () => {
+    const config = loggerConfig("development");
+    if (config.logger === false) throw new Error("logger unavailable");
+    for (const url of [
+      "/v1/community/invitations/private-bearer-token",
+      "/v1/community/search?q=private_handle",
+    ]) {
+      expect(config.logger.serializers.req({ url }).url).toBe(
+        "/v1/community/[redacted]",
+      );
+    }
+  });
+
   it("safeErrorSerializer strips `cause` and `errors` chains from an error", () => {
     const config = loggerConfig("development");
     expect(config.logger).not.toBe(false);

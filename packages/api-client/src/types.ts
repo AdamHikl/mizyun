@@ -62,6 +62,10 @@ export interface RequestOptions<TBody = unknown> {
   readonly schema?: z.ZodTypeAny;
   /** Caller-controlled cancellation. Forwarded to `fetch`. */
   readonly signal?: AbortSignal;
+  /** Bind account-sensitive intent across asynchronous token lookup. */
+  readonly expectedUserId?: string;
+  /** False when the originating screen/controller has been retired. */
+  readonly isCurrent?: () => boolean;
   /**
    * Extra request headers. Caller-provided `Authorization` is intentionally
    * ignored — the bearer token is the client's responsibility.

@@ -36,6 +36,54 @@ const jsonResponse = (status: number, body: unknown): Response =>
   }) as unknown as Response;
 
 describe("HttpApiClient — token attachment", () => {
+  it("does not send account-sensitive intent after deferred token lookup changes principal", async () => {
+    let resolveSession!: (session: AuthSession) => void;
+    const fetchMock = vi.fn();
+    const client = new HttpApiClient({
+      baseUrl: "https://api.example.test",
+      authClient: buildAuthClient({
+        getSession: () =>
+          new Promise((resolve) => {
+            resolveSession = resolve;
+          }),
+      }),
+      fetch: fetchMock,
+    });
+    const result = client.request({
+      method: "POST",
+      path: "/v1/community/follow-requests",
+      expectedUserId: "account-a",
+    });
+    resolveSession(buildSession({ user: { id: "account-b" as never } }));
+    expect(await result).toEqual({ ok: false, error: { kind: "no_session" } });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("does not send intent from a retired controller after token lookup", async () => {
+    let resolveSession!: (session: AuthSession) => void;
+    let active = true;
+    const fetchMock = vi.fn();
+    const client = new HttpApiClient({
+      baseUrl: "https://api.example.test",
+      authClient: buildAuthClient({
+        getSession: () =>
+          new Promise((resolve) => {
+            resolveSession = resolve;
+          }),
+      }),
+      fetch: fetchMock,
+    });
+    const result = client.request({
+      method: "POST",
+      path: "/v1/community/profile",
+      isCurrent: () => active,
+    });
+    active = false;
+    resolveSession(buildSession());
+    expect(await result).toEqual({ ok: false, error: { kind: "no_session" } });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("attaches Authorization: Bearer <token> from getSession()", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, {}));
     const authClient = buildAuthClient({
@@ -91,6 +139,41 @@ describe("HttpApiClient — token attachment", () => {
 });
 
 describe("HttpApiClient — 401 handling", () => {
+  it("a stale scoped 401 never signs out the next account", async () => {
+    let current = buildSession({ user: { id: "account-a" as never } });
+    let respond!: (response: Response) => void;
+    const signOut = vi.fn().mockResolvedValue(undefined);
+    const client = new HttpApiClient({
+      baseUrl: "https://api.test",
+      authClient: buildAuthClient({
+        getSession: () => Promise.resolve(current),
+        signOut,
+      }),
+      fetch: vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            respond = resolve;
+          }),
+      ),
+    });
+    const pending = client.request({
+      method: "GET",
+      path: "/v1/community/profile",
+      expectedUserId: "account-a",
+    });
+    await Promise.resolve();
+    current = buildSession({
+      user: { id: "account-b" as never },
+      accessToken: "next-token",
+    });
+    respond(jsonResponse(401, {}));
+    expect(await pending).toEqual({
+      ok: false,
+      error: { kind: "session_expired" },
+    });
+    expect(signOut).not.toHaveBeenCalled();
+  });
+
   it("returns err({ kind: 'session_expired' }) and triggers authClient.signOut() on 401", async () => {
     const signOut = vi.fn().mockResolvedValue(undefined);
     const fetchMock = vi.fn().mockResolvedValue(

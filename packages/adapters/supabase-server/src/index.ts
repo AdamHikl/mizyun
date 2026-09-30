@@ -280,3 +280,18 @@ export {
   type ProductAnalyticsEventRow,
   type SupabaseProductAnalyticsRepositoryOptions,
 } from "./product-analytics-repository.js";
+export {
+  SupabaseCommunityRepository,
+  communityProfileFromRow,
+  followRelationshipFromRow,
+  communityBlockFromRow,
+  sharedActivityFromRow,
+  communityReportFromRow,
+  type CommunityProfileRow,
+  type CommunityRelationshipRow,
+  type CommunityBlockRow,
+  type SharedActivityRow,
+  type CommunityReactionRow,
+  type CommunityReportRow,
+  type SupabaseCommunityRepositoryOptions,
+} from "./community-repository.js";
