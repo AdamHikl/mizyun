@@ -1,6 +1,11 @@
+import { deregisterCommunityPush } from "@/features/community/push";
 import type { Profile } from "@mizyun/contracts";
 import type { UserId } from "@mizyun/core";
-import type { AuthSession, DeepLinkPayload } from "@mizyun/identity";
+import {
+  isSameAuthSession,
+  type AuthSession,
+  type DeepLinkPayload,
+} from "@mizyun/identity";
 import {
   createContext,
   useCallback,
@@ -22,6 +27,8 @@ import { LoadingScreen } from "./loading-screen";
 import { OnboardingScreen } from "@/features/onboarding/onboarding-screen";
 import { ResetPasswordScreen } from "./reset-password-screen";
 import { resolveSessionGateTarget } from "./session-gate-state";
+import { signOutCapturedSession } from "./session-bound-sign-out";
+import { hydrateAuthBootstrap } from "./auth-bootstrap";
 import {
   loadCachedProfile,
   purgeOfflineCache,
@@ -105,6 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [recoveryState, setRecoveryState] = useState(false);
   const [isOnboardingActive, setIsOnboardingActive] = useState(false);
   const profileRequestVersion = useRef(0);
+  const pushSession = useRef<AuthSession | null>(null);
 
   const openOnboarding = useCallback(() => setIsOnboardingActive(true), []);
   const closeOnboarding = useCallback(() => setIsOnboardingActive(false), []);
@@ -134,6 +142,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const applySession = useCallback(
     (nextSession: AuthSession | null): void => {
+      const previousPushSession = pushSession.current;
+      pushSession.current = nextSession;
+      if (
+        previousPushSession &&
+        previousPushSession.user.id !== nextSession?.user.id
+      ) {
+        setProfile(null);
+        setIsOnboardingActive(false);
+        setRecoveryState(false);
+      }
+      if (
+        previousPushSession &&
+        previousPushSession.user.id !== nextSession?.user.id
+      )
+        void deregisterCommunityPush(previousPushSession);
       const requestVersion = ++profileRequestVersion.current;
       setSession(nextSession);
       if (nextSession === null) {
@@ -199,21 +222,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     let active = true;
-    authClient
-      .getSession()
-      .then(async (value) => {
-        if (!active) return;
-        if (value?.user.id && value.accessToken !== "preview-token") {
-          const cached = await loadCachedProfile(value.user.id).catch(
-            () => null,
-          );
-          if (active && cached) {
-            setProfile(cached.profile);
-          }
-        }
-        applySession(value);
-      })
-      .finally(() => active && setLoading(false));
+    const startupRevision = profileRequestVersion.current;
+    void hydrateAuthBootstrap({
+      isCurrent: () =>
+        active && profileRequestVersion.current === startupRevision,
+      getSession: () => authClient.getSession(),
+      cachedProfile: async (userId) =>
+        (await loadCachedProfile(userId))?.profile ?? null,
+      applyProfile: setProfile,
+      applySession,
+    }).finally(() => active && setLoading(false));
     const unsubscribe = authClient.subscribe(
       (value) => active && applySession(value),
     );
@@ -235,6 +253,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const refreshProfile = useCallback(async () => {
+    if (!session || !isSameAuthSession(session, pushSession.current)) return;
     const requestVersion = ++profileRequestVersion.current;
     setProfileLoading(true);
     const currentUserId = session?.user.id;
@@ -261,7 +280,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfileLoading(false);
       }
     }
-  }, [fetchProfile, session?.user.id]);
+  }, [fetchProfile, session]);
 
   const clearRecoveryState = useCallback(() => setRecoveryState(false), []);
 
@@ -270,16 +289,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [applySession]);
 
   const signOut = useCallback(async () => {
-    const currentUserId = session?.user.id;
-    if (currentUserId && session?.accessToken !== "preview-token") {
-      await purgeOfflineCache(currentUserId).catch(() => {});
-    }
-    if (session?.accessToken === "preview-token") {
-      applySession(null);
-      return;
-    }
-    await authClient.signOut();
-    applySession(null);
+    await signOutCapturedSession(session, {
+      current: () => pushSession.current,
+      purge: purgeOfflineCache,
+      deregister: deregisterCommunityPush,
+      signOut: (captured) => authClient.signOut(captured),
+      clear: () => applySession(null),
+    });
   }, [applySession, session?.accessToken, session?.user.id]);
 
   const value = useMemo<AuthContextValue>(

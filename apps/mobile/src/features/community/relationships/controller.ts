@@ -90,6 +90,10 @@ export class RelationshipsController {
       this.listeners.delete(listener);
     };
   };
+  captureIntent(): () => boolean {
+    const revision = this.revision;
+    return () => this.active && revision === this.revision;
+  }
   resume(): void {
     this.active = true;
   }

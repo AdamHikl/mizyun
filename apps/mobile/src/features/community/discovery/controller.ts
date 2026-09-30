@@ -78,6 +78,10 @@ export class DiscoveryController {
     this.state = { ...this.state, ...patch };
     for (const listener of this.listeners) listener();
   }
+  captureIntent(): () => boolean {
+    const revision = this.revision;
+    return () => this.active && revision === this.revision;
+  }
   pause() {
     this.active = false;
     this.revision++;

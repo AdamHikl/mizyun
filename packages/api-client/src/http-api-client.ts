@@ -107,7 +107,7 @@ export class HttpApiClient implements ApiClient {
     }
 
     if (response.status === 401) {
-      void this.#authClient.signOut().catch(() => {});
+      void this.#authClient.signOut(session).catch(() => {});
       return err({ kind: "session_expired" });
     }
 
@@ -176,7 +176,7 @@ export class HttpApiClient implements ApiClient {
       return err(mapFetchError(cause));
     }
     if (response.status === 401) {
-      void this.#authClient.signOut().catch(() => {});
+      void this.#authClient.signOut(session).catch(() => {});
       return err({ kind: "session_expired" });
     }
     if (!response.ok) {
@@ -273,7 +273,7 @@ export class HttpApiClient implements ApiClient {
       // Fire-and-forget: the existing AuthContext subscribe path will
       // surface the cleared session. Awaiting here would couple the
       // request lifecycle to a network call we have no use for.
-      void this.#authClient.signOut().catch(() => {
+      void this.#authClient.signOut(session).catch(() => {
         // Sign-out failure is non-fatal for the request — the local
         // session may already be gone.
       });

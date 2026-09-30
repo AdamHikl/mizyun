@@ -158,12 +158,35 @@ function SettingsContent({
           label="Keep tracking privately"
           onPress={() => router.replace("/(tabs)")}
         />
+        {principalKey !== null && state.profile?.status === "active" && (
+          <Action
+            label="View following feed"
+            onPress={() => router.push("/community" as Href)}
+          />
+        )}
         {principalKey !== null && (
           <Action
             label="Requests, followers and safety lists"
             onPress={() => router.push("/community/relationships" as Href)}
           />
         )}
+
+        {principalKey !== null && (
+          <>
+            <Action
+              label="Community inbox"
+              onPress={() => router.push("/community/inbox" as Href)}
+            />
+            <Action
+              label="Community notification preferences"
+              onPress={() => router.push("/community/notifications" as Href)}
+            />
+          </>
+        )}
+        <Action
+          label="Community reports, appeals and safety contact"
+          onPress={() => router.push("/community/safety" as Href)}
+        />
         {principalKey === null ? (
           <ThemedText>Sign in to manage your Community choices.</ThemedText>
         ) : state.status === "idle" || state.status === "loading" ? (

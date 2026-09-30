@@ -177,4 +177,13 @@ describe("owner relationship controller", () => {
     expect(controller.getState().notice).toBeNull();
     expect(request).toHaveBeenCalledTimes(3);
   });
+  it("does not revive pre-background confirmation intents after foreground", async () => {
+    const { controller } = setup();
+    const confirm = controller.captureIntent();
+    expect(confirm()).toBe(true);
+    controller.pause();
+    controller.resume();
+    expect(confirm()).toBe(false);
+    expect(controller.captureIntent()()).toBe(true);
+  });
 });

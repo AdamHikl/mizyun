@@ -17,7 +17,10 @@ import { AppState, Linking } from "react-native";
 import { AnimatedSplashOverlay } from "@/components/animated-icon";
 import ActiveWorkoutMiniBar from "@/components/active-workout-mini-bar";
 import { getAppVariant } from "@/composition/app-variant";
-import { parseCommunityInvitationLink } from "@/features/community";
+import {
+  CommunityNotificationBridge,
+  parseCommunityInvitationLink,
+} from "@/features/community";
 import { analyticsClient } from "@/composition/analytics-client";
 import { apiClient, apiConfiguration } from "@/composition/api-client";
 import {
@@ -288,6 +291,7 @@ function TabLayoutContent() {
         <DeepLinkBridge />
         <SessionGate>
           <PushRegistrationBridge />
+          <CommunityNotificationBridge />
           <CoachNotificationBridge />
           <WorkoutNotificationBridge />
           <MealNotificationBridge />
@@ -338,6 +342,22 @@ function TabLayoutContent() {
               <Stack.Screen
                 name="account-settings/[settingId]"
                 options={{ title: "Settings" }}
+              />
+              <Stack.Screen
+                name="community/inbox"
+                options={{ title: "Community inbox" }}
+              />
+              <Stack.Screen
+                name="community/notifications"
+                options={{ title: "Community notifications" }}
+              />
+              <Stack.Screen
+                name="community/index"
+                options={{ title: "Community" }}
+              />
+              <Stack.Screen
+                name="community/activity/[id]"
+                options={{ title: "Shared activity" }}
               />
               <Stack.Screen
                 name="community/relationships"

@@ -12,6 +12,7 @@ import {
 import type { UserId } from "@mizyun/core";
 import {
   IdentityError,
+  isSameAuthSession,
   type AuthClient,
   type AuthConfigurationStatus,
   type AuthSession,
@@ -37,6 +38,23 @@ const secureStorePrimitive: StringStorage = {
 const toAuthSession = (session: Session | null): AuthSession | null => {
   if (!session) return null;
   const email = session.user.email;
+  let sessionId: string | undefined;
+  try {
+    const encoded = session.access_token.split(".")[1];
+    if (!encoded) throw new Error("Opaque auth token");
+    const claims = JSON.parse(
+      atob(encoded.replace(/-/g, "+").replace(/_/g, "/")),
+    );
+    if (
+      typeof claims.session_id === "string" &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        claims.session_id,
+      )
+    )
+      sessionId = claims.session_id;
+  } catch {
+    /* Opaque tokens fall back to exact token identity. */
+  }
   const provider =
     (session.user.app_metadata?.provider as string | undefined) ??
     (session.user.identities?.[0]?.provider as string | undefined) ??
@@ -48,6 +66,7 @@ const toAuthSession = (session: Session | null): AuthSession | null => {
       provider,
     },
     accessToken: session.access_token,
+    ...(sessionId ? { sessionId } : {}),
     ...(session.expires_at
       ? { expiresAt: new Date(session.expires_at * 1000) }
       : {}),
@@ -74,6 +93,12 @@ export interface SupabaseMobileConfiguration {
 
 export class SupabaseMobileAuthClient implements AuthClient {
   readonly #disposers: Array<() => void> = [];
+  #transitions: Promise<unknown> = Promise.resolve();
+  #transition<T>(run: () => Promise<T>): Promise<T> {
+    const next = this.#transitions.then(run, run);
+    this.#transitions = next.catch(() => undefined);
+    return next;
+  }
   // Set to true when the last deep link delivered was a `kind:
   // "recovery"` payload, and cleared after `updatePassword` succeeds.
   // The AuthContext reads this to decide whether to show the
@@ -123,7 +148,23 @@ export class SupabaseMobileAuthClient implements AuthClient {
     return toAuthSession(data.session);
   }
 
-  async signInWithPassword(
+  signInWithPassword(credentials: PasswordCredentials): Promise<AuthSession> {
+    return this.#transition(() => this.#signInWithPassword(credentials));
+  }
+  signUpWithPassword(credentials: PasswordCredentials): Promise<SignUpResult> {
+    return this.#transition(() => this.#signUpWithPassword(credentials));
+  }
+  signInWithIdToken(credentials: IdTokenCredentials): Promise<AuthSession> {
+    return this.#transition(() => this.#signInWithIdToken(credentials));
+  }
+  consumeDeepLink(payload: DeepLinkPayload): Promise<AuthSession> {
+    return this.#transition(() => this.#consumeDeepLink(payload));
+  }
+  updatePassword(password: { password: string }): Promise<void> {
+    return this.#transition(() => this.#updatePassword(password));
+  }
+
+  async #signInWithPassword(
     credentials: PasswordCredentials,
   ): Promise<AuthSession> {
     const { data, error } =
@@ -138,7 +179,7 @@ export class SupabaseMobileAuthClient implements AuthClient {
     return session;
   }
 
-  async signUpWithPassword(
+  async #signUpWithPassword(
     credentials: PasswordCredentials,
   ): Promise<SignUpResult> {
     const { data, error } = await this.client.auth.signUp({
@@ -172,7 +213,7 @@ export class SupabaseMobileAuthClient implements AuthClient {
     return { url: data.url };
   }
 
-  async signInWithIdToken(
+  async #signInWithIdToken(
     credentials: IdTokenCredentials,
   ): Promise<AuthSession> {
     const { data, error } = await this.client.auth.signInWithIdToken({
@@ -194,13 +235,21 @@ export class SupabaseMobileAuthClient implements AuthClient {
     return session;
   }
 
-  async signOut(): Promise<void> {
-    const { error } = await this.client.auth.signOut();
-    if (error) throw asIdentityError(error);
-    this.#inRecovery = false;
+  signOut(capturedSession?: AuthSession): Promise<void> {
+    // GoTrue removes persisted session state after its remote logout returns.
+    // Keep newer session establishment behind that entire SDK operation.
+    return this.#transition(async () => {
+      if (capturedSession) {
+        const current = await this.getSession();
+        if (!isSameAuthSession(capturedSession, current)) return;
+      }
+      const { error } = await this.client.auth.signOut();
+      if (error) throw asIdentityError(error);
+      this.#inRecovery = false;
+    });
   }
 
-  async consumeDeepLink(payload: DeepLinkPayload): Promise<AuthSession> {
+  async #consumeDeepLink(payload: DeepLinkPayload): Promise<AuthSession> {
     if (payload.kind === "recovery") this.#inRecovery = true;
     const { data, error } = await this.client.auth.setSession({
       access_token: payload.accessToken,
@@ -217,7 +266,7 @@ export class SupabaseMobileAuthClient implements AuthClient {
     return session;
   }
 
-  async updatePassword(newPassword: { password: string }): Promise<void> {
+  async #updatePassword(newPassword: { password: string }): Promise<void> {
     const currentSession = await this.client.auth.getSession();
     if (!this.#inRecovery && !currentSession.data.session) {
       throw new IdentityError(

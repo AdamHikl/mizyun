@@ -28,6 +28,8 @@ vi.mock("expo-secure-store", () => ({
 }));
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { AuthSession } from "@mizyun/identity";
+import type { UserId } from "@mizyun/core";
 import {
   createSupabaseMobileAuthClient,
   SupabaseMobileAuthClient,
@@ -144,6 +146,248 @@ const createMockSupabaseClient = (overrides: {
 };
 
 describe("SupabaseMobileAuthClient", () => {
+  describe("captured logout and session transitions", () => {
+    const alice: AuthSession = {
+      user: { id: "alice" as UserId },
+      accessToken: "alice-token",
+    };
+    const bobSession = { access_token: "bob-token", user: { id: "bob" } };
+    const aliceSession = { access_token: "alice-token", user: { id: "alice" } };
+    it.each(["password", "signup", "idtoken", "deep-link"])(
+      "a pending old logout cannot clear a newer %s session",
+      async (method) => {
+        let session: typeof aliceSession | null = aliceSession;
+        let finish!: () => void;
+        const waiting = new Promise<void>((done) => {
+          finish = done;
+        });
+        const establish = vi.fn(async () => {
+          session = bobSession;
+          return { data: { session }, error: null };
+        });
+        const mockClient = createMockSupabaseClient({
+          signOut: vi.fn(async () => {
+            await waiting;
+            session = null;
+            return { error: null };
+          }),
+          signInWithPassword: establish,
+          signUp: establish,
+          signInWithIdToken: establish,
+          setSession: establish,
+        });
+        vi.mocked(mockClient.auth.getSession).mockImplementation(
+          async () => ({ data: { session }, error: null }) as any,
+        );
+        const client = new SupabaseMobileAuthClient(mockClient);
+        const logout = client.signOut(alice);
+        for (let i = 0; i < 10; i++) await Promise.resolve();
+        const login =
+          method === "password"
+            ? client.signInWithPassword({
+                email: "bob@example.com",
+                password: "password",
+              })
+            : method === "signup"
+              ? client.signUpWithPassword({
+                  email: "bob@example.com",
+                  password: "password",
+                })
+              : method === "idtoken"
+                ? client.signInWithIdToken({
+                    provider: "apple",
+                    token: "id-token",
+                  })
+                : client.consumeDeepLink({
+                    kind: "oauth",
+                    accessToken: "bob-token",
+                    refreshToken: "bob-refresh",
+                  });
+        finish();
+        await logout;
+        await login;
+        expect((await client.getSession())?.user.id).toBe("bob");
+      },
+    );
+    it("does not invoke SDK logout for an old callback after another account is current", async () => {
+      const mockClient = createMockSupabaseClient({});
+      vi.mocked(mockClient.auth.getSession).mockResolvedValue({
+        data: { session: bobSession },
+        error: null,
+      } as any);
+      await new SupabaseMobileAuthClient(mockClient).signOut(alice);
+      expect(mockClient.auth.signOut).not.toHaveBeenCalled();
+    });
+    it.each(["signup", "deep-link"])(
+      "an old logout queued after pending %s cannot clear its result",
+      async (method) => {
+        let session: typeof aliceSession | null = aliceSession;
+        let finish!: () => void;
+        const waiting = new Promise<void>((done) => {
+          finish = done;
+        });
+        const establish = vi.fn(async () => {
+          await waiting;
+          session = bobSession;
+          return { data: { session }, error: null };
+        });
+        const mockClient = createMockSupabaseClient({
+          signUp: establish,
+          setSession: establish,
+        });
+        vi.mocked(mockClient.auth.getSession).mockImplementation(
+          async () => ({ data: { session }, error: null }) as any,
+        );
+        const client = new SupabaseMobileAuthClient(mockClient);
+        const login =
+          method === "signup"
+            ? client.signUpWithPassword({
+                email: "bob@example.com",
+                password: "password",
+              })
+            : client.consumeDeepLink({
+                kind: "oauth",
+                accessToken: "bob-token",
+                refreshToken: "bob-refresh",
+              });
+        const logout = client.signOut(alice);
+        finish();
+        await login;
+        await logout;
+        expect(mockClient.auth.signOut).not.toHaveBeenCalled();
+        expect((await client.getSession())?.user.id).toBe("bob");
+      },
+    );
+    const sessionToken = (sessionId: string) =>
+      `header.${btoa(JSON.stringify({ session_id: sessionId }))}.signature`;
+    const firstSessionId = "00000000-0000-4000-8000-000000000001";
+    const nextSessionId = "00000000-0000-4000-8000-000000000002";
+    it.each([true, false])(
+      "uses stable session identity for same-user rotated tokens (same session: %s)",
+      async (same) => {
+        const mockClient = createMockSupabaseClient({});
+        vi.mocked(mockClient.auth.getSession).mockResolvedValue({
+          data: {
+            session: {
+              ...aliceSession,
+              access_token: sessionToken(same ? firstSessionId : nextSessionId),
+            },
+          },
+          error: null,
+        } as any);
+        await new SupabaseMobileAuthClient(mockClient).signOut({
+          ...alice,
+          sessionId: firstSessionId,
+        });
+        expect(mockClient.auth.signOut).toHaveBeenCalledTimes(same ? 1 : 0);
+      },
+    );
+    it("a failed old logout releases the transition queue for the next login", async () => {
+      const mockClient = createMockSupabaseClient({
+        signOut: vi.fn(async () => ({ error: new Error("remote failure") })),
+      });
+      const client = new SupabaseMobileAuthClient(mockClient);
+      const logout = client.signOut();
+      const login = client.signInWithPassword({
+        email: "next@example.com",
+        password: "password",
+      });
+      await expect(logout).rejects.toThrow("remote failure");
+      expect((await login).user.id).toBe(
+        "00000000-0000-4000-8000-000000000001",
+      );
+    });
+    it("preserves the newer SDK session and auth events across a deferred real SDK logout response", async () => {
+      const sdk = await vi.importActual<typeof import("@supabase/supabase-js")>(
+        "@supabase/supabase-js",
+      );
+      const firstUser = "00000000-0000-4000-8000-000000000011";
+      const nextUser = "00000000-0000-4000-8000-000000000012";
+      let tokenRequests = 0;
+      let finishLogout!: (response: Response) => void;
+      let reachedLogout!: () => void;
+      const waiting = new Promise<Response>((done) => {
+        finishLogout = done;
+      });
+      const started = new Promise<void>((done) => {
+        reachedLogout = done;
+      });
+      const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/logout")) {
+          reachedLogout();
+          return waiting;
+        }
+        if (!url.includes("/token"))
+          throw new Error("Unexpected test SDK request");
+        const userId = ++tokenRequests === 1 ? firstUser : nextUser;
+        const expiresAt = Math.floor(Date.now() / 1000) + 3600;
+        const claims = {
+          sub: userId,
+          exp: expiresAt,
+          session_id: userId,
+          aud: "authenticated",
+        };
+        const token = `${btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }))}.${btoa(JSON.stringify(claims))}.test-signature`;
+        return new Response(
+          JSON.stringify({
+            access_token: token,
+            refresh_token: `refresh-${userId}`,
+            token_type: "bearer",
+            expires_in: 3600,
+            expires_at: expiresAt,
+            user: {
+              id: userId,
+              aud: "authenticated",
+              app_metadata: {},
+              user_metadata: {},
+              created_at: new Date().toISOString(),
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      });
+      const supabase = sdk.createClient(
+        "https://auth.test.invalid",
+        "test-publishable-key",
+        {
+          auth: {
+            persistSession: false,
+            autoRefreshToken: false,
+            detectSessionInUrl: false,
+          },
+          global: { fetch: fetcher },
+        },
+      );
+      const client = new SupabaseMobileAuthClient(supabase);
+      const events: Array<string | null> = [];
+      const unsubscribe = client.subscribe((session) =>
+        events.push(session?.user.id ?? null),
+      );
+      try {
+        const first = await client.signInWithPassword({
+          email: "first@example.test",
+          password: "test-password",
+        });
+        const logout = client.signOut(first);
+        await started;
+        const next = client.signInWithPassword({
+          email: "next@example.test",
+          password: "test-password",
+        });
+        expect(tokenRequests).toBe(1);
+        finishLogout(new Response(null, { status: 204 }));
+        await logout;
+        await next;
+        expect((await client.getSession())?.user.id).toBe(nextUser);
+        expect(events.at(-1)).toBe(nextUser);
+        expect(events.slice(events.indexOf(nextUser))).not.toContain(null);
+      } finally {
+        unsubscribe();
+        client.dispose();
+      }
+    });
+  });
   describe("factory configuration", () => {
     it("preserves the app variant redirect URI for OAuth", async () => {
       const mockClient = createMockSupabaseClient({});

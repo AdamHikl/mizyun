@@ -6,15 +6,19 @@ import {
   createCommunityInvitation,
   enrollCommunityProfile,
   fetchBlockedUsers,
+  fetchCommunityFeed,
   fetchCommunityInvitations,
   fetchCommunityProfile,
   fetchFollowers,
   fetchFollowing,
   fetchIncomingFollowRequests,
+  fetchMyCommunityReports,
   fetchOutgoingFollowRequests,
   fetchPublicCommunityProfile,
+  fetchSafetyContact,
   fetchSharedActivity,
   fetchWorkoutSharePreview,
+  getActivityReactions,
   humanizeCommunityError,
   publishWorkoutActivity,
   removeFollower,
@@ -23,6 +27,9 @@ import {
   respondToFollowRequest,
   revokeCommunityInvitation,
   searchCommunityProfiles,
+  setActivityReaction,
+  submitCommunityReport,
+  submitModerationAppeal,
   unblockUser,
   unfollowUser,
   unpublishActivity,
@@ -614,6 +621,364 @@ describe("community-client", () => {
           path: "/v1/community/activities/act-1",
         }),
       );
+    });
+  });
+
+  describe("following feed (COMM-07)", () => {
+    it("fetches community feed without query params via GET /v1/community/feed", async () => {
+      const mockFeed = {
+        items: [
+          {
+            id: "act-1",
+            authorUserId: "u-1",
+            authorHandle: "alex_runner",
+            authorDisplayName: "Alex",
+            authorAvatarSymbol: "AR",
+            category: "running",
+            sharedDay: "2026-09-30",
+            durationSeconds: 1800,
+            publishedAt: new Date().toISOString(),
+            reactionCounts: { clap: 1 },
+            viewerReaction: "clap",
+          },
+        ],
+        nextCursor: null,
+      };
+      const request = vi.fn().mockResolvedValue({ ok: true, value: mockFeed });
+      const client = { request } as unknown as ApiClient;
+
+      const result = await fetchCommunityFeed(client);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.items).toHaveLength(1);
+        expect(result.value.items[0].authorHandle).toBe("alex_runner");
+        expect(result.value.nextCursor).toBeNull();
+      }
+      expect(request).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: "GET",
+          path: "/v1/community/feed",
+        }),
+      );
+    });
+
+    it("passes limit and cursor query params", async () => {
+      const mockFeed = {
+        items: [],
+        nextCursor: "cursor-next",
+      };
+      const request = vi.fn().mockResolvedValue({ ok: true, value: mockFeed });
+      const client = { request } as unknown as ApiClient;
+
+      const result = await fetchCommunityFeed(client, {
+        limit: 20,
+        cursor: "cursor-token-123",
+      });
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.nextCursor).toBe("cursor-next");
+      }
+      expect(request).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: "GET",
+          path: "/v1/community/feed?limit=20&cursor=cursor-token-123",
+        }),
+      );
+    });
+
+    it("passes only limit query param when cursor is omitted", async () => {
+      const request = vi.fn().mockResolvedValue({
+        ok: true,
+        value: { items: [], nextCursor: null },
+      });
+      const client = { request } as unknown as ApiClient;
+
+      await fetchCommunityFeed(client, { limit: 10 });
+      expect(request).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: "GET",
+          path: "/v1/community/feed?limit=10",
+        }),
+      );
+    });
+  });
+
+  describe("reactions (COMM-08)", () => {
+    it("sets activity reaction via PUT /v1/community/activities/:id/reaction", async () => {
+      const mockResponse = {
+        activityId: "act-1",
+        reactionCounts: {
+          clap: 1,
+          fire: 0,
+          high_five: 0,
+          fist_bump: 0,
+          thumbs_up: 0,
+        },
+        viewerReaction: "clap",
+      };
+      const request = vi
+        .fn()
+        .mockResolvedValue({ ok: true, value: mockResponse });
+      const client = { request } as unknown as ApiClient;
+
+      const result = await setActivityReaction(client, "act-1", "clap");
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.viewerReaction).toBe("clap");
+        expect(result.value.reactionCounts.clap).toBe(1);
+      }
+      expect(request).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: "PUT",
+          path: "/v1/community/activities/act-1/reaction",
+          body: { reaction: "clap" },
+        }),
+      );
+    });
+
+    it("removes activity reaction by passing null", async () => {
+      const mockResponse = {
+        activityId: "act-1",
+        reactionCounts: {
+          clap: 0,
+          fire: 0,
+          high_five: 0,
+          fist_bump: 0,
+          thumbs_up: 0,
+        },
+        viewerReaction: null,
+      };
+      const request = vi
+        .fn()
+        .mockResolvedValue({ ok: true, value: mockResponse });
+      const client = { request } as unknown as ApiClient;
+
+      const result = await setActivityReaction(client, "act-1", null);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.viewerReaction).toBeNull();
+        expect(result.value.reactionCounts.clap).toBe(0);
+      }
+      expect(request).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: "PUT",
+          path: "/v1/community/activities/act-1/reaction",
+          body: { reaction: null },
+        }),
+      );
+    });
+
+    it("gets activity reactions via GET /v1/community/activities/:id/reactions", async () => {
+      const mockResponse = {
+        activityId: "act-1",
+        reactionCounts: {
+          clap: 2,
+          fire: 1,
+          high_five: 0,
+          fist_bump: 0,
+          thumbs_up: 0,
+        },
+        viewerReaction: "fire",
+        reactors: [
+          {
+            userId: "u-2",
+            handle: "maria_run",
+            displayName: "Maria",
+            avatarSymbol: "MR",
+            reaction: "fire",
+            createdAt: "2026-09-30T10:00:00.000Z",
+          },
+        ],
+      };
+      const request = vi
+        .fn()
+        .mockResolvedValue({ ok: true, value: mockResponse });
+      const client = { request } as unknown as ApiClient;
+
+      const result = await getActivityReactions(client, "act-1");
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.activityId).toBe("act-1");
+        expect(result.value.reactors).toHaveLength(1);
+        expect(result.value.reactors?.[0].handle).toBe("maria_run");
+      }
+      expect(request).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: "GET",
+          path: "/v1/community/activities/act-1/reactions",
+        }),
+      );
+    });
+  });
+
+  describe("safety & reporting (COMM-09)", () => {
+    it("submits community report via POST /v1/community/reports", async () => {
+      const mockResponse = {
+        id: "rep-1",
+        status: "submitted",
+        createdAt: "2026-09-30T10:00:00.000Z",
+        safetyContact: "safety@mizyun.com",
+        message: "Report received.",
+      };
+      const request = vi
+        .fn()
+        .mockResolvedValue({ ok: true, value: mockResponse });
+      const client = { request } as unknown as ApiClient;
+
+      const result = await submitCommunityReport(client, {
+        targetType: "activity",
+        targetId: "act-1",
+        reason: "harassment",
+        notes: "Offensive comment in shared workout",
+        alsoBlock: true,
+      });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.id).toBe("rep-1");
+        expect(result.value.status).toBe("submitted");
+      }
+      expect(request).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: "POST",
+          path: "/v1/community/reports",
+          body: {
+            targetType: "activity",
+            targetId: "act-1",
+            reason: "harassment",
+            notes: "Offensive comment in shared workout",
+            alsoBlock: true,
+          },
+        }),
+      );
+    });
+
+    it("fetches caller reports via GET /v1/community/reports", async () => {
+      const mockReports = [
+        {
+          id: "rep-1",
+          targetType: "profile",
+          targetId: "user-bad",
+          reason: "spam",
+          status: "submitted",
+          createdAt: "2026-09-30T10:00:00.000Z",
+          updatedAt: "2026-09-30T10:00:00.000Z",
+        },
+      ];
+      const request = vi
+        .fn()
+        .mockResolvedValue({ ok: true, value: mockReports });
+      const client = { request } as unknown as ApiClient;
+
+      const result = await fetchMyCommunityReports(client);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value).toHaveLength(1);
+        expect(result.value[0].reason).toBe("spam");
+      }
+      expect(request).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: "GET",
+          path: "/v1/community/reports",
+        }),
+      );
+    });
+
+    it("fetches safety contact via GET /v1/community/safety/contact", async () => {
+      const mockContact = {
+        contactEmail: "safety@mizyun.com",
+        emergencyAdvice:
+          "If you or someone else is in immediate danger, contact local emergency services immediately.",
+        standardsUrl: "https://mizyun.com/community/standards",
+        ordinaryResponseHours: 24,
+        urgentResponseHours: 4,
+      };
+      const request = vi
+        .fn()
+        .mockResolvedValue({ ok: true, value: mockContact });
+      const client = { request } as unknown as ApiClient;
+
+      const result = await fetchSafetyContact(client);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.contactEmail).toBe("safety@mizyun.com");
+        expect(result.value.ordinaryResponseHours).toBe(24);
+        expect(result.value.urgentResponseHours).toBe(4);
+      }
+      expect(request).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: "GET",
+          path: "/v1/community/safety/contact",
+        }),
+      );
+    });
+
+    it("submits moderation appeal via POST /v1/community/appeals", async () => {
+      const mockAppeal = {
+        id: "app-1",
+        reportId: "rep-1",
+        appellantUserId: "u-1",
+        reason: "My bio was a harmless joke, not an attack",
+        status: "pending",
+        reviewedBy: null,
+        reviewerNotes: null,
+        resolvedAt: null,
+        createdAt: "2026-09-30T10:00:00.000Z",
+      };
+      const request = vi
+        .fn()
+        .mockResolvedValue({ ok: true, value: mockAppeal });
+      const client = { request } as unknown as ApiClient;
+
+      const result = await submitModerationAppeal(client, {
+        reportId: "rep-1",
+        reason: "My bio was a harmless joke, not an attack",
+      });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.id).toBe("app-1");
+        expect(result.value.status).toBe("pending");
+      }
+      expect(request).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: "POST",
+          path: "/v1/community/appeals",
+          body: {
+            reportId: "rep-1",
+            reason: "My bio was a harmless joke, not an attack",
+          },
+        }),
+      );
+    });
+
+    it("humanizes safety-specific error codes", () => {
+      expect(
+        humanizeCommunityError({
+          kind: "http_error",
+          status: 429,
+          code: "DAILY_REPORT_LIMIT_EXCEEDED",
+          message: "Daily report limit reached",
+        }),
+      ).toContain("daily reporting limit (10 per day)");
+
+      expect(
+        humanizeCommunityError({
+          kind: "http_error",
+          status: 400,
+          code: "CONTENT_SAFETY_VIOLATION",
+          message: "Prohibited content detected",
+        }),
+      ).toContain("violates our community safety standards");
+
+      expect(
+        humanizeCommunityError({
+          kind: "http_error",
+          status: 400,
+          code: "INTERACTION_EXPIRED",
+          message: "Interaction expired",
+        }),
+      ).toContain("older than 30 days");
     });
   });
 });

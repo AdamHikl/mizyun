@@ -29,6 +29,9 @@ import { InitialsAvatar } from "../initials-avatar";
 import { DiscoveryController } from "./controller";
 import { DiscoveryAccessGate } from "./access-gate";
 import { invitationQrMatrix } from "./qr-matrix";
+import { ReportModal } from "../safety";
+import { captureSafetyReceipt } from "../safety/safety-api";
+import { scopeCommunityClient } from "../scoped-client";
 
 export function DiscoveryScreen({
   token,
@@ -59,6 +62,32 @@ export function DiscoveryScreen({
       ),
     [principalKey, token],
   );
+  const currentController = useRef(controller);
+  currentController.current = controller;
+  const [reportTarget, setReportTarget] = useState<{
+    user: PublicCommunityProfileDto;
+    receiptId?: string;
+    controller: DiscoveryController;
+  } | null>(null);
+  const openReport = async (user: PublicCommunityProfileDto) => {
+    const intentCurrent = controller.captureIntent();
+    const valid = () =>
+      alive.current &&
+      currentController.current === controller &&
+      intentCurrent();
+    if (!principalKey || !valid()) return;
+    const receipt = await captureSafetyReceipt(
+      scopeCommunityClient(apiClient, principalKey, valid),
+      "profile",
+      user.userId,
+    );
+    if (valid())
+      setReportTarget({
+        user,
+        controller,
+        ...(receipt.ok ? { receiptId: receipt.value.id } : {}),
+      });
+  };
   const state = useSyncExternalStore(
     controller.subscribe,
     controller.getState,
@@ -76,6 +105,7 @@ export function DiscoveryScreen({
     controller.pause();
     accessGate.invalidate();
     setQuery("");
+    setReportTarget(null);
     if (focused.current && foreground.current && principalKey)
       void accessGate.revalidate(loadProfile);
   }, [controller, accessGate, loadProfile, principalKey]);
@@ -89,6 +119,7 @@ export function DiscoveryScreen({
         controller.pause();
         accessGate.invalidate();
         setQuery("");
+        setReportTarget(null);
       };
     }, [controller, accessGate, revalidate]),
   );
@@ -143,6 +174,7 @@ export function DiscoveryScreen({
     () => (link ? invitationQrMatrix(link) : null),
     [link],
   );
+  const renderIntent = controller.captureIntent();
   const button = (
     label: string,
     onPress: () => void,
@@ -194,7 +226,7 @@ export function DiscoveryScreen({
               {
                 text: "Send request",
                 onPress: () => {
-                  if (alive.current)
+                  if (alive.current && renderIntent())
                     void controller.follow(user, fromInvitation);
                 },
               },
@@ -202,6 +234,13 @@ export function DiscoveryScreen({
           ),
         )
       )}
+      {user.userId !== principalKey &&
+        button(
+          fromInvitation
+            ? "Report invitation or inviter"
+            : "Report profile or handle",
+          () => void openReport(user),
+        )}
     </View>
   );
   return (
@@ -209,7 +248,32 @@ export function DiscoveryScreen({
       style={{ flex: 1, backgroundColor: colors.background }}
       contentContainerStyle={styles.content}
     >
-      <Text style={[styles.title, { color: colors.text }]}>Find a friend</Text>
+      {reportTarget && reportTarget.controller === controller && (
+        <ReportModal
+          visible
+          targetType="profile"
+          targetId={reportTarget.user.userId}
+          targetHandle={reportTarget.user.handle}
+          principalKey={principalKey}
+          interactionReceiptId={reportTarget.receiptId}
+          onClose={() => setReportTarget(null)}
+          onSuccess={(_id, blocked) => {
+            if (blocked) revalidate();
+          }}
+        />
+      )}
+      <Link
+        href={"/community/safety" as Href}
+        style={{ color: colors.primary }}
+      >
+        Reports, appeals and safety contact
+      </Link>
+      <Text
+        accessibilityRole="header"
+        style={[styles.title, { color: colors.text }]}
+      >
+        Find a friend
+      </Text>
       <Text style={{ color: colors.textSecondary }}>
         Invitations reveal only your friend's name, handle and initials. They
         never join or follow automatically.
@@ -343,7 +407,7 @@ export function DiscoveryScreen({
                     message: `Connect with me on Mizyun: ${link}`,
                     url: link,
                   }).catch(() => {
-                    if (alive.current)
+                    if (alive.current && renderIntent())
                       Alert.alert("Could not share", "Try sharing again.");
                   });
               })}
@@ -386,7 +450,7 @@ export function DiscoveryScreen({
                             text: "Revoke",
                             style: "destructive",
                             onPress: () => {
-                              if (alive.current)
+                              if (alive.current && renderIntent())
                                 void controller.revoke(item.id);
                             },
                           },

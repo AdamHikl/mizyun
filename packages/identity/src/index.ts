@@ -10,6 +10,27 @@ export interface AuthSession {
   readonly user: AuthUser;
   readonly accessToken: string;
   readonly expiresAt?: Date;
+  /** Provider session identity, stable across access-token refreshes. */
+  readonly sessionId?: string;
+}
+
+/** Compare auth lifecycle authority, never use this as token verification. */
+export function isSameAuthSession(
+  left: {
+    readonly user: { readonly id: string };
+    readonly accessToken: string;
+    readonly sessionId?: string;
+  } | null,
+  right: {
+    readonly user: { readonly id: string };
+    readonly accessToken: string;
+    readonly sessionId?: string;
+  } | null,
+): boolean {
+  if (!left || !right || left.user.id !== right.user.id) return false;
+  return left.sessionId && right.sessionId
+    ? left.sessionId === right.sessionId
+    : left.accessToken === right.accessToken;
 }
 
 export interface AuthPrincipal {
@@ -120,7 +141,7 @@ export interface AuthClient {
   signUpWithPassword(credentials: PasswordCredentials): Promise<SignUpResult>;
   signInWithOAuth(options: OAuthSignInOptions): Promise<OAuthSignInResult>;
   signInWithIdToken(credentials: IdTokenCredentials): Promise<AuthSession>;
-  signOut(): Promise<void>;
+  signOut(capturedSession?: AuthSession): Promise<void>;
   /**
    * Consume a deep-link payload delivered by the auth provider (e.g.
    * `mizyun://auth/callback#access_token=...&refresh_token=...&type=recovery`).

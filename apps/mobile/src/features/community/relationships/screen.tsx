@@ -1,10 +1,11 @@
-import { useFocusEffect } from "expo-router";
+import { Link, useFocusEffect, type Href } from "expo-router";
 import React, {
   useEffect,
   useCallback,
   useMemo,
   useRef,
   useSyncExternalStore,
+  useState,
 } from "react";
 import {
   AppState,
@@ -20,6 +21,9 @@ import { apiClient } from "@/composition/api-client";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
 import { useCommunityProfile } from "../use-community-profile";
+import { ReportModal } from "../safety";
+import { captureSafetyReceipt } from "../safety/safety-api";
+import { scopeCommunityClient } from "../scoped-client";
 import {
   RelationshipsController,
   type RelationshipList,
@@ -55,6 +59,47 @@ function OwnerRelationships({
   const colors = useTheme();
   const community = useCommunityProfile({ principalKey, birthYear });
   const alive = useRef(true);
+  const [reportTarget, setReportTarget] = useState<{
+    row: RelationshipRow;
+    receiptId?: string;
+  } | null>(null);
+  const openReport = async (row: RelationshipRow) => {
+    const intentCurrent = controller.captureIntent();
+    if (!principalKey || !alive.current || !intentCurrent()) return;
+    const receipt = await captureSafetyReceipt(
+      scopeCommunityClient(
+        apiClient,
+        principalKey,
+        () => alive.current && intentCurrent(),
+      ),
+      "profile",
+      row.user.userId,
+    );
+    if (alive.current && intentCurrent())
+      setReportTarget({
+        row,
+        ...(receipt.ok ? { receiptId: receipt.value.id } : {}),
+      });
+  };
+  const perform = async (action: RelationshipAction, row: RelationshipRow) => {
+    const intentCurrent = controller.captureIntent();
+    if (!alive.current || !intentCurrent()) return;
+    if (
+      principalKey &&
+      ["block", "remove", "unfollow", "cancel", "decline"].includes(action)
+    ) {
+      await captureSafetyReceipt(
+        scopeCommunityClient(
+          apiClient,
+          principalKey,
+          () => alive.current && intentCurrent(),
+        ),
+        "profile",
+        row.user.userId,
+      );
+    }
+    if (alive.current && intentCurrent()) await controller.act(action, row);
+  };
   const controller = useMemo(
     () =>
       new RelationshipsController(apiClient, principalKey, () => alive.current),
@@ -85,6 +130,7 @@ function OwnerRelationships({
         focused.current = false;
         alive.current = false;
         controller.pause();
+        setReportTarget(null);
       };
     }, [controller, reload]),
   );
@@ -94,6 +140,7 @@ function OwnerRelationships({
       if (next !== "active") {
         alive.current = false;
         controller.pause();
+        setReportTarget(null);
       } else reload();
     });
     return () => subscription.remove();
@@ -132,9 +179,10 @@ function OwnerRelationships({
         "Stops following this person and ends your access to their shared workouts.",
       unblock: "Previous follows and requests will not be restored.",
     };
+    const intentCurrent = controller.captureIntent();
     const message = explanations[action];
     if (!message) {
-      void controller.act(action, row);
+      void perform(action, row);
       return;
     }
     Alert.alert(
@@ -145,7 +193,7 @@ function OwnerRelationships({
         {
           text: "Confirm",
           onPress: () => {
-            if (alive.current) void controller.act(action, row);
+            if (alive.current && intentCurrent()) void perform(action, row);
           },
         },
       ],
@@ -156,7 +204,35 @@ function OwnerRelationships({
       style={{ flex: 1, backgroundColor: colors.background }}
       contentContainerStyle={styles.content}
     >
-      <Text style={[styles.title, { color: colors.text }]}>Your friends</Text>
+      {reportTarget && (
+        <ReportModal
+          visible
+          targetType="profile"
+          targetId={reportTarget.row.user.userId}
+          targetHandle={reportTarget.row.user.handle}
+          principalKey={principalKey}
+          interactionReceiptId={reportTarget.receiptId}
+          onClose={() => setReportTarget(null)}
+          onSuccess={(_id, blocked) => {
+            if (blocked) {
+              setReportTarget(null);
+              reload();
+            }
+          }}
+        />
+      )}
+      <Link
+        href={"/community/safety" as Href}
+        style={{ color: colors.primary }}
+      >
+        Reports, appeals and safety contact
+      </Link>
+      <Text
+        accessibilityRole="header"
+        style={[styles.title, { color: colors.text }]}
+      >
+        Your friends
+      </Text>
       <Text style={{ color: colors.textSecondary }}>
         Following is directional. Approval lets that person see your shared
         cards; it does not follow them back. Muting changes your feed
@@ -221,6 +297,7 @@ function OwnerRelationships({
               @{row.user.handle}
             </Text>
             <View style={styles.wrap}>
+              {button("Report profile or handle", () => void openReport(row))}
               {state.list === "incoming" && [
                 button("Approve", () => confirm("approve", row)),
                 button("Decline", () => confirm("decline", row)),

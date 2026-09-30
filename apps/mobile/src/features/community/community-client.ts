@@ -1,21 +1,27 @@
 import type { ApiClient, ApiError } from "@mizyun/api-client";
 import {
+  activityReactionsResponseSchema,
   authorSharedActivityDtoSchema,
   blockedUserListResponseSchema,
   mutedUserListResponseSchema,
   setCommunityMuteSchema,
   communityBlockDtoSchema,
+  communityFeedResponseSchema,
   communityInvitationListResponseSchema,
   communityProfileDtoSchema,
+  communityReportListResponseSchema,
+  communityReportResponseSchema,
   createInvitationResponseSchema,
   followRelationshipDtoSchema,
   handleAvailabilityResponseSchema,
+  moderationAppealDtoSchema,
   publicCommunityProfileDtoSchema,
   publishWorkoutActivitySchema,
   relationshipListResponseSchema,
   removeFollowerResponseSchema,
   resolveInvitationResponseSchema,
   revokeInvitationResponseSchema,
+  safetyContactInfoSchema,
   searchProfilesResponseSchema,
   sharedActivityFeedItemDtoSchema,
   unblockCommunityResponseSchema,
@@ -24,22 +30,32 @@ import {
   updateSharedActivitySchema,
   withdrawCommunityResponseSchema,
   workoutSharePreviewDtoSchema,
+  type ActivityReactionsResponse,
   type AuthorSharedActivityDto,
   type BlockedUserListResponse,
   type MutedUserListResponse,
   type CommunityBlockDto,
+  type CommunityFeedResponse,
   type CommunityInvitationListResponse,
   type CommunityProfileDto,
+  type CommunityReactionKind,
+  type CommunityReportListResponse,
+  type CommunityReportResponse,
   type CreateCommunityProfileInput,
+  type CreateCommunityReportInput,
   type CreateInvitationResponse,
+  type CreateModerationAppealInput,
   type FollowRelationshipDto,
   type HandleAvailabilityResponse,
+  type ModerationAppealDto,
   type PublicCommunityProfileDto,
   type PublishWorkoutActivityInput,
+  type ReactorSummary,
   type RelationshipListResponse,
   type RemoveFollowerResponse,
   type ResolveInvitationResponse,
   type RevokeInvitationResponse,
+  type SafetyContactInfo,
   type SearchProfilesResponse,
   type SharedActivityFeedItemDto,
   type UnblockCommunityResponse,
@@ -51,6 +67,9 @@ import {
   type WorkoutSharePreviewDto,
 } from "@mizyun/contracts";
 import type { Result } from "@mizyun/core";
+
+export type ScopedCommunityClient = ApiClient;
+export type CommunityClientError = ApiError;
 
 // ==========================================
 // Profile & Identity (COMM-03)
@@ -424,6 +443,98 @@ export async function fetchSharedActivity(
   });
 }
 
+export async function fetchCommunityFeed(
+  client: ApiClient,
+  query?: { limit?: number; cursor?: string },
+): Promise<Result<CommunityFeedResponse, ApiError>> {
+  const params = new URLSearchParams();
+  if (query?.limit) params.set("limit", String(query.limit));
+  if (query?.cursor) params.set("cursor", query.cursor);
+  const qs = params.toString();
+  return client.request<CommunityFeedResponse>({
+    method: "GET",
+    path: `/v1/community/feed${qs ? `?${qs}` : ""}`,
+    schema: communityFeedResponseSchema,
+  });
+}
+
+// ==========================================
+// Reactions (COMM-08)
+// ==========================================
+
+export async function setActivityReaction(
+  client: ScopedCommunityClient,
+  activityId: string,
+  reaction: CommunityReactionKind | null,
+): Promise<Result<ActivityReactionsResponse, CommunityClientError>> {
+  return client.request<ActivityReactionsResponse>({
+    method: "PUT",
+    path: `/v1/community/activities/${encodeURIComponent(activityId)}/reaction`,
+    body: { reaction },
+    schema: activityReactionsResponseSchema,
+  });
+}
+
+export async function getActivityReactions(
+  client: ScopedCommunityClient,
+  activityId: string,
+): Promise<Result<ActivityReactionsResponse, CommunityClientError>> {
+  return client.request<ActivityReactionsResponse>({
+    method: "GET",
+    path: `/v1/community/activities/${encodeURIComponent(activityId)}/reactions`,
+    schema: activityReactionsResponseSchema,
+  });
+}
+
+// ==========================================
+// Safety & Reporting (COMM-09)
+// ==========================================
+
+export async function submitCommunityReport(
+  client: ApiClient,
+  input: CreateCommunityReportInput,
+): Promise<Result<CommunityReportResponse, ApiError>> {
+  return client.request<CommunityReportResponse>({
+    method: "POST",
+    path: "/v1/community/reports",
+    body: input,
+    schema: communityReportResponseSchema,
+  });
+}
+
+export async function fetchMyCommunityReports(
+  client: ApiClient,
+  page?: { limit?: number; cursor?: string },
+): Promise<Result<CommunityReportListResponse, ApiError>> {
+  return client.request<CommunityReportListResponse>({
+    method: "GET",
+    path: `/v1/community/reports${communityPageQuery(page)}`,
+    schema: communityReportListResponseSchema,
+  });
+}
+
+export async function fetchSafetyContact(
+  client: ApiClient,
+): Promise<Result<SafetyContactInfo, ApiError>> {
+  return client.request<SafetyContactInfo>({
+    method: "GET",
+    path: "/v1/community/safety/contact",
+    schema: safetyContactInfoSchema,
+  });
+}
+
+export async function submitModerationAppeal(
+  client: ApiClient,
+  input: CreateModerationAppealInput,
+): Promise<Result<ModerationAppealDto, ApiError>> {
+  return client.request<ModerationAppealDto>({
+    method: "POST",
+    path: "/v1/community/appeals",
+    body: input,
+    schema: moderationAppealDtoSchema,
+  });
+}
+
 // ==========================================
 // Error Humanization
 // ==========================================
@@ -462,6 +573,15 @@ export function humanizeCommunityError(
       }
       if (error.code === "NOT_FOUND") {
         return "User or request not found.";
+      }
+      if (error.code === "DAILY_REPORT_LIMIT_EXCEEDED") {
+        return "You have reached the daily reporting limit (10 per day). See Community safety for the verified contact. For immediate danger, contact local emergency services.";
+      }
+      if (error.code === "CONTENT_SAFETY_VIOLATION") {
+        return "This text violates our community safety standards. Please revise before submitting.";
+      }
+      if (error.code === "INTERACTION_EXPIRED") {
+        return "This interaction is older than 30 days and can no longer be reported.";
       }
       if (error.status === 429) {
         return "Too many requests. Please try again later.";

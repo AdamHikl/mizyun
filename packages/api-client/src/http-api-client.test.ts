@@ -197,6 +197,7 @@ describe("HttpApiClient — 401 handling", () => {
     if (result.ok) return;
     expect(result.error.kind).toBe("session_expired");
     expect(signOut).toHaveBeenCalledTimes(1);
+    expect(signOut).toHaveBeenCalledWith(buildSession());
   });
 
   it("does not retry the request after 401", async () => {
@@ -697,6 +698,7 @@ describe("HttpApiClient — food photo drafts", () => {
       error: { kind: "session_expired" },
     });
     expect(signOut).toHaveBeenCalledTimes(1);
+    expect(signOut).toHaveBeenCalledWith(buildSession());
   });
 
   it("preserves a structured rate-limit response", async () => {
