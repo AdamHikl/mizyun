@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import {
   generateAvatarSymbol,
   CommunityMutationError,
+  type ActivityReactionsResult,
   type CommunityProfileStatus,
   type CommunityReactionKind,
   type CommunityRelationshipStatus,
@@ -13,6 +14,7 @@ import {
   type StoredCommunityReaction,
   type StoredCommunityReport,
   type StoredFollowRelationship,
+  type StoredModerationAppeal,
   type StoredSharedActivity,
   type UserId,
   type WorkoutCategory,
@@ -25,6 +27,13 @@ export class InMemoryCommunityRepository implements CommunityRepository {
     const count = this.#publicationUsage.get(key) ?? 0;
     if (count >= 20) throw new CommunityMutationError("rate_limited");
     this.#publicationUsage.set(key, count + 1);
+  }
+  readonly #reportUsage = new Map<string, number>();
+  #consumeReport(userId: UserId) {
+    const key = `${userId}:${new Date().toISOString().slice(0, 10)}`;
+    const count = this.#reportUsage.get(key) ?? 0;
+    if (count >= 10) throw new CommunityMutationError("rate_limited");
+    this.#reportUsage.set(key, count + 1);
   }
   readonly #profiles = new Map<UserId, StoredCommunityProfile>();
   readonly #followCooldowns = new Map<string, Date>();
@@ -42,6 +51,76 @@ export class InMemoryCommunityRepository implements CommunityRepository {
   readonly #activities = new Map<string, StoredSharedActivity>();
   readonly #reactions = new Map<string, StoredCommunityReaction>();
   readonly #reports = new Map<string, StoredCommunityReport>();
+  readonly #reportReceipts = new Map<
+    string,
+    {
+      id: string;
+      userId: UserId;
+      targetType: "profile" | "activity";
+      targetId: string;
+      expiresAt: Date;
+    }
+  >();
+  readonly #sanctions = new Map<
+    string,
+    { userId: UserId; expiresAt: Date | null; reversed: boolean }
+  >();
+  #canReport(
+    userId: UserId,
+    targetType: "profile" | "activity",
+    targetId: string,
+  ): boolean {
+    const targetUserId =
+      targetType === "activity"
+        ? this.#activities.get(targetId)?.userId
+        : (targetId as UserId);
+    if (
+      !targetUserId ||
+      targetUserId === userId ||
+      this.#profiles.get(userId)?.status !== "active" ||
+      this.#profiles.get(targetUserId)?.status !== "active" ||
+      this.#blocked(userId, targetUserId)
+    )
+      return false;
+    const related = [...this.#relationships.values()].some(
+      (r) =>
+        (r.followerUserId === userId && r.targetUserId === targetUserId) ||
+        (r.followerUserId === targetUserId && r.targetUserId === userId),
+    );
+    const approved = [...this.#relationships.values()].some(
+      (r) =>
+        r.followerUserId === userId &&
+        r.targetUserId === targetUserId &&
+        r.status === "approved",
+    );
+    return targetType === "profile"
+      ? Boolean(this.#profiles.get(targetUserId)?.isSearchable || related)
+      : Boolean(approved && !this.#activities.get(targetId)?.revokedAt);
+  }
+  #rememberPair(a: UserId, b: UserId): void {
+    for (const [userId, targetId] of [
+      [a, b],
+      [b, a],
+    ] as const) {
+      const id = crypto.randomUUID();
+      this.#reportReceipts.set(id, {
+        id,
+        userId,
+        targetType: "profile",
+        targetId,
+        expiresAt: new Date(Date.now() + 30 * 86400000),
+      });
+    }
+  }
+  #hasSanction(userId: UserId): boolean {
+    return [...this.#sanctions.values()].some(
+      (s) =>
+        s.userId === userId &&
+        !s.reversed &&
+        (!s.expiresAt || s.expiresAt.getTime() > Date.now()),
+    );
+  }
+  readonly #appeals = new Map<string, StoredModerationAppeal>();
   readonly #invitations = new Map<string, StoredCommunityInvitation>();
   readonly #invitationUsage = new Map<
     UserId,
@@ -58,7 +137,7 @@ export class InMemoryCommunityRepository implements CommunityRepository {
 
   #requireActive(userId: UserId): StoredCommunityProfile {
     const profile = this.#profiles.get(userId);
-    if (!profile || profile.status !== "active")
+    if (!profile || profile.status !== "active" || this.#hasSanction(userId))
       throw new CommunityMutationError("unavailable");
     return profile;
   }
@@ -133,9 +212,15 @@ export class InMemoryCommunityRepository implements CommunityRepository {
     },
     _options?: { readonly accessToken?: string },
   ): Promise<StoredCommunityProfile> {
+    if (this.#hasSanction(userId))
+      throw new CommunityMutationError("unavailable");
     const normalizedHandle = profile.handle.trim().toLowerCase();
     const existing = this.#profiles.get(userId);
-    if (existing?.status === "suspended")
+    if (
+      existing?.status === "suspended" &&
+      (!profile.enrollmentConsent ||
+        ![...this.#sanctions.values()].some((s) => s.userId === userId))
+    )
       throw new CommunityMutationError("unavailable");
     if (existing && existing.handle !== normalizedHandle)
       throw new CommunityMutationError("conflict");
@@ -158,7 +243,7 @@ export class InMemoryCommunityRepository implements CommunityRepository {
       isSearchable: profile.isSearchable ?? false,
       status: "active",
       generation: existing
-        ? existing.status === "withdrawn"
+        ? existing.status !== "active"
           ? existing.generation + 1
           : existing.generation
         : 1,
@@ -212,6 +297,7 @@ export class InMemoryCommunityRepository implements CommunityRepository {
     // Sever all incoming & outgoing relationships in both directions
     for (const [id, rel] of this.#relationships.entries()) {
       if (rel.followerUserId === userId || rel.targetUserId === userId) {
+        this.#rememberPair(rel.followerUserId, rel.targetUserId);
         this.#relationships.delete(id);
       }
     }
@@ -592,6 +678,7 @@ export class InMemoryCommunityRepository implements CommunityRepository {
           });
         } else if (rel.status === "approved") {
           this.#purgeFollowerReactions(followerUserId, targetUserId);
+          this.#rememberPair(rel.followerUserId, rel.targetUserId);
           this.#relationships.delete(id);
         }
       }
@@ -614,6 +701,7 @@ export class InMemoryCommunityRepository implements CommunityRepository {
       ) {
         if (rel.status === "approved") {
           this.#purgeFollowerReactions(followerUserId, authorUserId);
+          this.#rememberPair(rel.followerUserId, rel.targetUserId);
           this.#relationships.delete(id);
         }
       }
@@ -651,6 +739,7 @@ export class InMemoryCommunityRepository implements CommunityRepository {
         (rel.followerUserId === blockedUserId &&
           rel.targetUserId === blockerUserId)
       ) {
+        this.#rememberPair(rel.followerUserId, rel.targetUserId);
         this.#relationships.delete(relId);
       }
     }
@@ -1067,6 +1156,7 @@ export class InMemoryCommunityRepository implements CommunityRepository {
       publishedAt: now,
       revokedAt: null,
     };
+
     this.#activities.set(id, shared);
     this.#publicationOperations.set(operationKey, {
       fingerprint,
@@ -1153,21 +1243,40 @@ export class InMemoryCommunityRepository implements CommunityRepository {
   async getFeed(
     viewerUserId: UserId,
     options?: {
-      readonly accessToken?: string;
-      readonly limit?: number;
-      readonly beforeCursor?: string;
+      readonly accessToken?: string | undefined;
+      readonly limit?: number | undefined;
+      readonly beforeCursor?: string | null | undefined;
     },
   ): Promise<{
     readonly items: readonly StoredSharedActivity[];
-    readonly nextCursor?: string;
+    readonly nextCursor?: string | null | undefined;
   }> {
     this.#requireActive(viewerUserId);
-    const limit = Math.min(options?.limit ?? 20, 50);
+    const limit = Math.max(1, Math.min(options?.limit ?? 20, 50));
+    let beforeTime: Date | null = null;
+    let beforeId: string | null = null;
+    if (options?.beforeCursor) {
+      const parts = options.beforeCursor.split("|");
+      if (
+        parts.length !== 2 ||
+        !parts[0] ||
+        !parts[1] ||
+        !Number.isFinite(Date.parse(parts[0])) ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          parts[1],
+        )
+      ) {
+        throw new Error("Invalid community feed cursor");
+      }
+      beforeTime = new Date(parts[0]);
+      beforeId = parts[1];
+    }
     const candidateActivities: StoredSharedActivity[] = [];
 
     for (const act of this.#activities.values()) {
-      if (act.revokedAt || this.#profiles.get(act.userId)?.status !== "active")
-        continue;
+      if (act.revokedAt) continue;
+      const authorProfile = this.#profiles.get(act.userId);
+      if (!authorProfile || authorProfile.status !== "active") continue;
       if (await this.isBlockedBilateral(viewerUserId, act.userId)) continue;
       if (this.#mutes.has(`${viewerUserId}:${act.userId}`)) continue;
 
@@ -1176,26 +1285,91 @@ export class InMemoryCommunityRepository implements CommunityRepository {
       } else {
         const rel = await this.getRelationship(viewerUserId, act.userId);
         if (rel?.status === "approved") {
-          candidateActivities.push(act);
+          candidateActivities.push({
+            ...act,
+            sourceWorkoutId: "00000000-0000-0000-0000-000000000000",
+          });
         }
       }
     }
 
-    candidateActivities.sort(
-      (a, b) => b.publishedAt.getTime() - a.publishedAt.getTime(),
-    );
+    candidateActivities.sort((a, b) => {
+      const timeDiff = b.publishedAt.getTime() - a.publishedAt.getTime();
+      if (timeDiff !== 0) return timeDiff;
+      return b.id.localeCompare(a.id);
+    });
 
-    const items = candidateActivities.slice(0, limit);
+    const filtered =
+      beforeTime && beforeId
+        ? candidateActivities.filter((act) => {
+            const actTime = act.publishedAt.getTime();
+            const targetTime = beforeTime!.getTime();
+            if (actTime < targetTime) return true;
+            if (actTime === targetTime) return act.id < beforeId!;
+            return false;
+          })
+        : candidateActivities;
+
+    const items = filtered.slice(0, limit);
     const last = items[items.length - 1];
     const nextCursor =
       items.length === limit && last
-        ? last.publishedAt.toISOString()
+        ? `${last.publishedAt.toISOString()}|${last.id}`
         : undefined;
 
     return {
       items,
       ...(nextCursor ? { nextCursor } : {}),
     };
+  }
+
+  #computeReactionCountsAndViewerReaction(
+    activityId: string,
+    viewerUserId: UserId,
+  ): {
+    readonly reactionCounts: Record<CommunityReactionKind, number>;
+    readonly viewerReaction: CommunityReactionKind | null;
+  } {
+    const counts: Record<CommunityReactionKind, number> = {
+      clap: 0,
+      fire: 0,
+      high_five: 0,
+      fist_bump: 0,
+      thumbs_up: 0,
+    };
+    let viewerReaction: CommunityReactionKind | null = null;
+    const activity = this.#activities.get(activityId);
+    if (!activity || activity.revokedAt) {
+      return { reactionCounts: counts, viewerReaction: null };
+    }
+    const authorProfile = this.#profiles.get(activity.userId);
+    if (!authorProfile || authorProfile.status !== "active") {
+      return { reactionCounts: counts, viewerReaction: null };
+    }
+
+    for (const react of this.#reactions.values()) {
+      if (react.activityId !== activityId) continue;
+      const reactorProfile = this.#profiles.get(react.userId);
+      if (!reactorProfile || reactorProfile.status !== "active") continue;
+      // Bilateral block suppression
+      if (this.#blocked(viewerUserId, react.userId)) continue;
+      if (this.#blocked(activity.userId, react.userId)) continue;
+      // Reactor must still be approved follower
+      const isApprovedFollower = [...this.#relationships.values()].some(
+        (rel) =>
+          rel.followerUserId === react.userId &&
+          rel.targetUserId === activity.userId &&
+          rel.status === "approved",
+      );
+      if (!isApprovedFollower) continue;
+
+      counts[react.reaction] = (counts[react.reaction] ?? 0) + 1;
+      if (react.userId === viewerUserId) {
+        viewerReaction = react.reaction;
+      }
+    }
+
+    return { reactionCounts: counts, viewerReaction };
   }
 
   async setReaction(
@@ -1226,14 +1400,172 @@ export class InMemoryCommunityRepository implements CommunityRepository {
     )
       throw new CommunityMutationError("unavailable");
     const now = new Date();
+    const existing = this.#reactions.get(key);
     this.#reactions.set(key, {
-      id: crypto.randomUUID(),
+      id: existing?.id ?? crypto.randomUUID(),
       activityId,
       userId,
       reaction,
-      createdAt: now,
+      createdAt: existing?.createdAt ?? now,
       updatedAt: now,
     });
+  }
+
+  async getReactionsForActivity(
+    activityId: string,
+    viewerUserId: UserId,
+    _options?: { readonly accessToken?: string },
+  ): Promise<ActivityReactionsResult> {
+    this.#requireActive(viewerUserId);
+    const activity = this.#activities.get(activityId);
+    if (!activity || activity.revokedAt) {
+      throw new CommunityMutationError("unavailable");
+    }
+    const authorProfile = this.#profiles.get(activity.userId);
+    if (!authorProfile || authorProfile.status !== "active") {
+      throw new CommunityMutationError("unavailable");
+    }
+
+    const isAuthor = activity.userId === viewerUserId;
+    if (!isAuthor) {
+      if (this.#blocked(viewerUserId, activity.userId)) {
+        throw new CommunityMutationError("unavailable");
+      }
+      const isApproved = [...this.#relationships.values()].some(
+        (rel) =>
+          rel.followerUserId === viewerUserId &&
+          rel.targetUserId === activity.userId &&
+          rel.status === "approved",
+      );
+      if (!isApproved) {
+        throw new CommunityMutationError("unavailable");
+      }
+    }
+
+    const { reactionCounts, viewerReaction } =
+      this.#computeReactionCountsAndViewerReaction(activityId, viewerUserId);
+
+    let reactors:
+      | {
+          userId: UserId;
+          handle: string;
+          displayName: string;
+          avatarSymbol: string;
+          reaction: CommunityReactionKind;
+          createdAt: Date;
+        }[]
+      | undefined = undefined;
+
+    if (isAuthor) {
+      reactors = [];
+      for (const react of this.#reactions.values()) {
+        if (react.activityId !== activityId) continue;
+        const reactorProfile = this.#profiles.get(react.userId);
+        if (!reactorProfile || reactorProfile.status !== "active") continue;
+        if (this.#blocked(viewerUserId, react.userId)) continue;
+        const isApproved = [...this.#relationships.values()].some(
+          (rel) =>
+            rel.followerUserId === react.userId &&
+            rel.targetUserId === activity.userId &&
+            rel.status === "approved",
+        );
+        if (!isApproved) continue;
+
+        reactors.push({
+          userId: react.userId,
+          handle: reactorProfile.handle,
+          displayName: reactorProfile.displayName,
+          avatarSymbol: reactorProfile.avatarSymbol,
+          reaction: react.reaction,
+          createdAt: react.createdAt,
+        });
+      }
+      reactors.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    }
+
+    return {
+      activityId,
+      reactionCounts,
+      viewerReaction,
+      ...(reactors !== undefined ? { reactors } : {}),
+    };
+  }
+
+  async getReactionsForActivities(
+    activityIds: readonly string[],
+    viewerUserId: UserId,
+    _options?: { readonly accessToken?: string },
+  ): Promise<
+    Map<
+      string,
+      {
+        readonly reactionCounts: Record<CommunityReactionKind, number>;
+        readonly viewerReaction: CommunityReactionKind | null;
+      }
+    >
+  > {
+    const result = new Map<
+      string,
+      {
+        readonly reactionCounts: Record<CommunityReactionKind, number>;
+        readonly viewerReaction: CommunityReactionKind | null;
+      }
+    >();
+    for (const activityId of activityIds) {
+      result.set(
+        activityId,
+        this.#computeReactionCountsAndViewerReaction(activityId, viewerUserId),
+      );
+    }
+    return result;
+  }
+
+  async issueReportReceipt(
+    userId: UserId,
+    targetType: "profile" | "activity",
+    targetId: string,
+    _options?: { readonly accessToken?: string },
+  ): Promise<string> {
+    if (!this.#canReport(userId, targetType, targetId))
+      throw new CommunityMutationError("unavailable");
+    const id = crypto.randomUUID();
+    this.#reportReceipts.set(id, {
+      id,
+      userId,
+      targetType,
+      targetId,
+      expiresAt: new Date(Date.now() + 30 * 86400000),
+    });
+    return id;
+  }
+  async listReportReceipts(
+    userId: UserId,
+    _options?: { readonly accessToken?: string },
+  ) {
+    return [...this.#reportReceipts.values()]
+      .filter((r) => r.userId === userId && r.expiresAt.getTime() > Date.now())
+      .slice(-100)
+      .map(({ id, targetType, targetId, expiresAt }) => ({
+        id,
+        targetType,
+        targetId,
+        expiresAt,
+      }));
+  }
+  async getModerationNotices(
+    userId: UserId,
+    _options?: { readonly accessToken?: string },
+  ) {
+    return [...this.#reports.values()]
+      .filter(
+        (r) =>
+          r.decision &&
+          r.decision !== "dismiss" &&
+          (r.targetType === "profile"
+            ? r.targetId === userId
+            : this.#activities.get(r.targetId)?.userId === userId),
+      )
+      .slice(-100);
   }
 
   async createReport(
@@ -1243,9 +1575,49 @@ export class InMemoryCommunityRepository implements CommunityRepository {
       readonly targetId: string;
       readonly reason: CommunityReportReason;
       readonly notes?: string | null;
+      readonly priority?: "normal" | "urgent";
+      readonly interactionReceiptId?: string;
     },
     _options?: { readonly accessToken?: string },
   ): Promise<StoredCommunityReport> {
+    const receipt = report.interactionReceiptId
+      ? this.#reportReceipts.get(report.interactionReceiptId)
+      : [...this.#reportReceipts.values()].find(
+          (r) =>
+            r.userId === reporterUserId &&
+            r.targetType === report.targetType &&
+            r.targetId === report.targetId &&
+            r.expiresAt.getTime() > Date.now(),
+        );
+    if (
+      report.interactionReceiptId
+        ? !receipt ||
+          receipt.userId !== reporterUserId ||
+          receipt.targetType !== report.targetType ||
+          receipt.targetId !== report.targetId ||
+          receipt.expiresAt.getTime() <= Date.now()
+        : !receipt &&
+          !this.#canReport(reporterUserId, report.targetType, report.targetId)
+    )
+      throw new CommunityMutationError("unavailable");
+    const duplicate = [...this.#reports.values()].find(
+      (r) =>
+        r.reporterUserId === reporterUserId &&
+        r.targetType === report.targetType &&
+        r.targetId === report.targetId &&
+        r.reason === report.reason &&
+        (r.status === "submitted" || r.status === "under_review"),
+    );
+    if (duplicate) {
+      const updated = {
+        ...duplicate,
+        notes: report.notes ?? duplicate.notes,
+        updatedAt: new Date(),
+      };
+      this.#reports.set(updated.id, updated);
+      return updated;
+    }
+    this.#consumeReport(reporterUserId);
     const id = crypto.randomUUID();
     const now = new Date();
     const r: StoredCommunityReport = {
@@ -1256,11 +1628,330 @@ export class InMemoryCommunityRepository implements CommunityRepository {
       reason: report.reason,
       notes: report.notes ?? null,
       status: "submitted",
+      priority:
+        report.reason === "harassment" ||
+        report.reason === "unsafe_or_sexual_content"
+          ? "urgent"
+          : "normal",
+      assignedTo: null,
+      decision: null,
+      decisionReason: null,
+      staffNotes: null,
+      actionTakenAt: null,
       createdAt: now,
       updatedAt: now,
     };
     this.#reports.set(id, r);
     return r;
+  }
+
+  async getReportsByReporter(
+    reporterUserId: UserId,
+    _options?: { readonly accessToken?: string },
+  ): Promise<readonly StoredCommunityReport[]> {
+    return [...this.#reports.values()]
+      .filter((r) => r.reporterUserId === reporterUserId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async getReportById(
+    reportId: string,
+    _options?: { readonly accessToken?: string },
+  ): Promise<StoredCommunityReport | null> {
+    return this.#reports.get(reportId) ?? null;
+  }
+
+  async getModerationQueue(options?: {
+    readonly accessToken?: string;
+    readonly status?: "submitted" | "under_review" | "resolved" | "dismissed";
+    readonly limit?: number;
+    readonly offset?: number;
+  }): Promise<readonly StoredCommunityReport[]> {
+    const list = [...this.#reports.values()].filter((r) =>
+      options?.status
+        ? r.status === options.status
+        : r.status === "submitted" || r.status === "under_review",
+    );
+    return list
+      .sort((a, b) => {
+        if (a.priority === "urgent" && b.priority !== "urgent") return -1;
+        if (b.priority === "urgent" && a.priority !== "urgent") return 1;
+        return a.createdAt.getTime() - b.createdAt.getTime();
+      })
+      .slice(
+        options?.offset ?? 0,
+        (options?.offset ?? 0) + (options?.limit ?? 100),
+      );
+  }
+
+  async claimModerationReport(
+    reportId: string,
+    options?: {
+      readonly accessToken?: string;
+      readonly staffOperator?: string;
+    },
+  ): Promise<StoredCommunityReport> {
+    const r = this.#reports.get(reportId);
+    const operator = options?.staffOperator;
+    if (
+      !r ||
+      !operator ||
+      r.decision ||
+      (r.assignedTo && r.assignedTo !== operator)
+    )
+      throw new CommunityMutationError("conflict");
+    const subject =
+      r.targetType === "profile"
+        ? r.targetId
+        : this.#activities.get(r.targetId)?.userId;
+    if (operator === r.reporterUserId || operator === subject)
+      throw new CommunityMutationError("access_denied");
+    const updated = {
+      ...r,
+      status: "under_review" as const,
+      assignedTo: operator,
+      updatedAt: new Date(),
+    };
+    this.#reports.set(reportId, updated);
+    return updated;
+  }
+  async getModerationAppeals(options?: {
+    readonly accessToken?: string;
+    readonly limit?: number;
+    readonly offset?: number;
+  }) {
+    return [...this.#appeals.values()]
+      .filter((a) => a.status === "pending")
+      .slice(
+        options?.offset ?? 0,
+        (options?.offset ?? 0) + (options?.limit ?? 100),
+      );
+  }
+
+  async applyModerationAction(
+    reportId: string,
+    action: {
+      readonly decision: "warn" | "remove" | "suspend" | "ban" | "dismiss";
+      readonly decisionReason: string;
+      readonly staffNotes?: string | null;
+      readonly staffOperator: string;
+      readonly suspensionDurationDays?: number | null;
+    },
+    _options?: { readonly accessToken?: string },
+  ): Promise<StoredCommunityReport> {
+    const report = this.#reports.get(reportId);
+    if (!report) throw new CommunityMutationError("unavailable");
+    if (report.decision) throw new CommunityMutationError("conflict");
+    if (report.assignedTo && report.assignedTo !== action.staffOperator)
+      throw new CommunityMutationError("conflict");
+
+    const subject =
+      report.targetType === "profile"
+        ? (report.targetId as UserId)
+        : this.#activities.get(report.targetId)?.userId;
+    if (
+      (action.decision === "suspend" || action.decision === "ban") &&
+      !subject
+    )
+      throw new CommunityMutationError("unavailable");
+    if (
+      subject === action.staffOperator ||
+      report.reporterUserId === action.staffOperator
+    )
+      throw new CommunityMutationError("access_denied");
+    if (
+      action.decision === "suspend" &&
+      ![7, 14, 30].includes(action.suspensionDurationDays ?? 0)
+    )
+      throw new CommunityMutationError("invalid_input");
+    const now = new Date();
+    const updated: StoredCommunityReport = {
+      ...report,
+      status: action.decision === "dismiss" ? "dismissed" : "resolved",
+      decision: action.decision,
+      decisionReason: action.decisionReason,
+      staffNotes: action.staffNotes ?? null,
+      actionTakenAt: now,
+      suspensionExpiresAt:
+        action.decision === "suspend"
+          ? new Date(
+              now.getTime() + (action.suspensionDurationDays ?? 7) * 86400000,
+            )
+          : null,
+      assignedTo: action.staffOperator,
+      updatedAt: now,
+    };
+    this.#reports.set(reportId, updated);
+
+    // Apply enforcement side effects
+    if (action.decision === "remove" && report.targetType === "activity") {
+      const act = this.#activities.get(report.targetId);
+      if (act) {
+        this.#activities.set(report.targetId, {
+          ...act,
+          revokedAt: now,
+        });
+        this.#purgeReactions(report.targetId);
+      }
+    } else if (
+      action.decision === "remove" &&
+      report.targetType === "profile"
+    ) {
+      const prof = this.#profiles.get(report.targetId as UserId);
+      if (prof)
+        this.#profiles.set(prof.userId, {
+          ...prof,
+          displayName: "Member",
+          bio: null,
+          updatedAt: now,
+        });
+    } else if (action.decision === "suspend" || action.decision === "ban") {
+      const targetUserId =
+        report.targetType === "profile"
+          ? (report.targetId as UserId)
+          : this.#activities.get(report.targetId)?.userId;
+      if (!targetUserId) throw new CommunityMutationError("unavailable");
+      this.#sanctions.set(reportId, {
+        userId: targetUserId,
+        expiresAt:
+          action.decision === "ban"
+            ? null
+            : new Date(
+                now.getTime() + (action.suspensionDurationDays ?? 7) * 86400000,
+              ),
+        reversed: false,
+      });
+      const prof = this.#profiles.get(targetUserId);
+      if (prof) {
+        this.#profiles.set(targetUserId, {
+          ...prof,
+          status: "withdrawn",
+          isSearchable: false,
+          updatedAt: now,
+        });
+      }
+      if (action.decision === "ban" || action.decision === "suspend") {
+        for (const [id, act] of this.#activities) {
+          if (act.userId === targetUserId) {
+            this.#activities.set(id, {
+              ...act,
+              revokedAt: now,
+            });
+            this.#purgeReactions(id);
+          }
+        }
+      }
+    }
+
+    return updated;
+  }
+
+  async createModerationAppeal(
+    appellantUserId: UserId,
+    appeal: {
+      readonly reportId: string;
+      readonly reason: string;
+    },
+    _options?: { readonly accessToken?: string },
+  ): Promise<StoredModerationAppeal> {
+    const report = this.#reports.get(appeal.reportId);
+    const subject =
+      report?.targetType === "profile"
+        ? report.targetId
+        : this.#activities.get(report?.targetId ?? "")?.userId;
+    if (
+      !report ||
+      subject !== appellantUserId ||
+      !report.decision ||
+      report.decision === "dismiss"
+    )
+      throw new CommunityMutationError("unavailable");
+    const existing = [...this.#appeals.values()].find(
+      (a) =>
+        a.reportId === appeal.reportId && a.appellantUserId === appellantUserId,
+    );
+    if (existing) return existing;
+    const id = crypto.randomUUID();
+    const now = new Date();
+    const item: StoredModerationAppeal = {
+      id,
+      reportId: appeal.reportId,
+      appellantUserId,
+      reason: appeal.reason,
+      status: "pending",
+      reviewedBy: null,
+      reviewerNotes: null,
+      resolvedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.#appeals.set(id, item);
+    return item;
+  }
+
+  async getAppealById(
+    appealId: string,
+    _options?: { readonly accessToken?: string },
+  ): Promise<StoredModerationAppeal | null> {
+    return this.#appeals.get(appealId) ?? null;
+  }
+
+  async resolveModerationAppeal(
+    appealId: string,
+    resolution: {
+      readonly status: "approved" | "rejected";
+      readonly reviewerNotes?: string | null;
+      readonly reviewedBy: string;
+    },
+    _options?: { readonly accessToken?: string },
+  ): Promise<StoredModerationAppeal> {
+    const appeal = this.#appeals.get(appealId);
+    if (!appeal) throw new CommunityMutationError("unavailable");
+    const original = this.#reports.get(appeal.reportId);
+    if (
+      appeal.status !== "pending" ||
+      original?.assignedTo === resolution.reviewedBy ||
+      original?.reporterUserId === resolution.reviewedBy ||
+      appeal.appellantUserId === resolution.reviewedBy
+    )
+      throw new CommunityMutationError("conflict");
+
+    const now = new Date();
+    const updated: StoredModerationAppeal = {
+      ...appeal,
+      status: resolution.status,
+      reviewerNotes: resolution.reviewerNotes ?? null,
+      reviewedBy: resolution.reviewedBy,
+      resolvedAt: now,
+      updatedAt: now,
+    };
+    this.#appeals.set(appealId, updated);
+
+    if (resolution.status === "approved") {
+      const sanction = this.#sanctions.get(appeal.reportId);
+      if (sanction)
+        this.#sanctions.set(appeal.reportId, { ...sanction, reversed: true });
+      // Reversal never republishes cards or reenrolls an account. Fresh user intent is required.
+    }
+
+    return updated;
+  }
+
+  async hasRecentInteraction(
+    userId: UserId,
+    targetUserId: UserId,
+    windowDays = 30,
+    _options?: { readonly accessToken?: string },
+  ): Promise<boolean> {
+    const cutoff =
+      Date.now() + (30 - Math.min(30, Math.max(1, windowDays))) * 86400000;
+    return [...this.#reportReceipts.values()].some(
+      (r) =>
+        r.userId === userId &&
+        r.targetType === "profile" &&
+        r.targetId === targetUserId &&
+        r.expiresAt.getTime() > cutoff,
+    );
   }
 
   async deleteAllForUser(
@@ -1290,6 +1981,7 @@ export class InMemoryCommunityRepository implements CommunityRepository {
     }
     for (const [id, rel] of this.#relationships.entries()) {
       if (rel.followerUserId === userId || rel.targetUserId === userId) {
+        this.#rememberPair(rel.followerUserId, rel.targetUserId);
         this.#relationships.delete(id);
       }
     }

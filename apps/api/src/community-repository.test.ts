@@ -309,3 +309,249 @@ describe("COMM-04 UTC daily limits and durable cooldown", () => {
     );
   });
 });
+
+describe("COMM-07 feed keyset pagination and audience boundaries", () => {
+  it("pages feed records deterministically across equal timestamps and masks workout source ID", async () => {
+    const repo = await enrolled();
+    const rel = await repo.sendFollowRequest(bob, alice);
+    await repo.updateRelationshipStatus(rel.id, alice, "approved");
+
+    const fixedTime = new Date("2026-09-30T12:00:00Z");
+    vi.useFakeTimers();
+    vi.setSystemTime(fixedTime);
+
+    const card1 = await repo.publishActivity(alice, {
+      sourceWorkoutId: "10000000-0000-4000-8000-000000000001",
+      category: "strength",
+      sharedDay: "2026-09-29",
+      durationSeconds: 1800,
+      enrollmentGeneration: 1,
+      operationId: "20000000-0000-4000-8000-000000000001",
+    });
+    const card2 = await repo.publishActivity(alice, {
+      sourceWorkoutId: "10000000-0000-4000-8000-000000000002",
+      category: "running",
+      sharedDay: "2026-09-30",
+      durationSeconds: 2400,
+      enrollmentGeneration: 1,
+      operationId: "20000000-0000-4000-8000-000000000002",
+    });
+    vi.useRealTimers();
+
+    const page1 = await repo.getFeed(bob, { limit: 1 });
+    expect(page1.items).toHaveLength(1);
+    expect(page1.nextCursor).toBeDefined();
+    // Verify sourceWorkoutId is masked for follower
+    expect(page1.items[0]?.sourceWorkoutId).toBe(
+      "00000000-0000-0000-0000-000000000000",
+    );
+
+    const page2 = await repo.getFeed(bob, {
+      limit: 1,
+      beforeCursor: page1.nextCursor,
+    });
+    expect(page2.items).toHaveLength(1);
+    expect(page2.items[0]?.id).not.toBe(page1.items[0]?.id);
+
+    const allIds = [page1.items[0]!.id, page2.items[0]!.id];
+    expect(allIds).toContain(card1.id);
+    expect(allIds).toContain(card2.id);
+  });
+
+  it("rejects malformed feed cursor", async () => {
+    const repo = await enrolled();
+    await expect(
+      repo.getFeed(bob, { beforeCursor: "invalid-cursor-without-pipe" }),
+    ).rejects.toThrow("Invalid community feed cursor");
+
+    await expect(
+      repo.getFeed(bob, { beforeCursor: "2026-09-30T10:00:00Z|not-a-uuid" }),
+    ).rejects.toThrow("Invalid community feed cursor");
+  });
+
+  it("excludes author cards after author withdrawal or intervening block", async () => {
+    const repo = await enrolled();
+    const rel = await repo.sendFollowRequest(bob, alice);
+    await repo.updateRelationshipStatus(rel.id, alice, "approved");
+    await repo.publishActivity(alice, publication);
+
+    expect((await repo.getFeed(bob)).items).toHaveLength(1);
+
+    // Block suppresses feed
+    await repo.blockUser(bob, alice);
+    expect((await repo.getFeed(bob)).items).toHaveLength(0);
+
+    // Unblock does not reconnect, feed remains empty
+    await repo.unblockUser(bob, alice);
+    expect((await repo.getFeed(bob)).items).toHaveLength(0);
+  });
+
+  it("handles reactions with author identity visibility, bilateral block suppression, and invalidation", async () => {
+    const repo = new InMemoryCommunityRepository();
+    const alice = "u-alice" as UserId;
+    const bob = "u-bob" as UserId;
+    const charlie = "u-charlie" as UserId;
+
+    await repo.saveProfile(
+      alice,
+      {
+        handle: "alice",
+        displayName: "Alice",
+        isSearchable: true,
+        enrollmentConsent: {
+          adultDeclaration: true,
+          termsVersion: "2026-09-30",
+        },
+      },
+      { accessToken: "t-alice" },
+    );
+    await repo.saveProfile(
+      bob,
+      {
+        handle: "bob",
+        displayName: "Bob",
+        enrollmentConsent: {
+          adultDeclaration: true,
+          termsVersion: "2026-09-30",
+        },
+      },
+      { accessToken: "t-bob" },
+    );
+    await repo.saveProfile(
+      charlie,
+      {
+        handle: "charlie",
+        displayName: "Charlie",
+        enrollmentConsent: {
+          adultDeclaration: true,
+          termsVersion: "2026-09-30",
+        },
+      },
+      { accessToken: "t-charlie" },
+    );
+
+    // Bob and Charlie follow Alice
+    await repo.sendFollowRequest(bob, alice, { operationId: "op-b1" });
+    const bobRel = (await repo.getIncomingFollowRequests(alice))[0]!;
+    await repo.updateRelationshipStatus(
+      bobRel.relationship.id,
+      alice,
+      "approved",
+    );
+
+    await repo.sendFollowRequest(charlie, alice, { operationId: "op-c1" });
+    const charlieRel = (await repo.getIncomingFollowRequests(alice))[0]!;
+    await repo.updateRelationshipStatus(
+      charlieRel.relationship.id,
+      alice,
+      "approved",
+    );
+
+    // Alice publishes an activity
+    const activity = await repo.publishActivity(
+      alice,
+      {
+        enrollmentGeneration: 1,
+        operationId: "op-pub1",
+        sourceWorkoutId: "w-1",
+        category: "running",
+        sharedDay: "2026-09-30",
+        durationSeconds: 1800,
+      },
+      { accessToken: "t-alice" },
+    );
+
+    // Alice (author) cannot react to her own card
+    await expect(
+      repo.setReaction(activity.id, alice, "clap"),
+    ).rejects.toThrow();
+
+    // Bob reacts with clap
+    await repo.setReaction(activity.id, bob, "clap");
+    let bobView = await repo.getReactionsForActivity(activity.id, bob);
+    expect(bobView.reactionCounts.clap).toBe(1);
+    expect(bobView.viewerReaction).toBe("clap");
+    expect(bobView.reactors).toBeUndefined(); // non-author sees NO reactor list
+
+    // Charlie reacts with fire
+    await repo.setReaction(activity.id, charlie, "fire");
+    bobView = await repo.getReactionsForActivity(activity.id, bob);
+    expect(bobView.reactionCounts.clap).toBe(1);
+    expect(bobView.reactionCounts.fire).toBe(1);
+
+    // Alice (author) sees permitted reactor identities
+    const aliceView = await repo.getReactionsForActivity(activity.id, alice);
+    expect(aliceView.reactors).toHaveLength(2);
+    expect(aliceView.reactors?.map((r) => r.handle).sort()).toEqual([
+      "bob",
+      "charlie",
+    ]);
+
+    // Bob changes reaction to fire
+    await repo.setReaction(activity.id, bob, "fire");
+    bobView = await repo.getReactionsForActivity(activity.id, bob);
+    expect(bobView.reactionCounts.clap).toBe(0);
+    expect(bobView.reactionCounts.fire).toBe(2);
+    expect(bobView.viewerReaction).toBe("fire");
+
+    // Bob removes reaction by passing null
+    await repo.setReaction(activity.id, bob, null);
+    bobView = await repo.getReactionsForActivity(activity.id, bob);
+    expect(bobView.reactionCounts.fire).toBe(1);
+    expect(bobView.viewerReaction).toBeNull();
+
+    // Bob reacts again with clap
+    await repo.setReaction(activity.id, bob, "clap");
+
+    // Bilateral block suppression: Bob blocks Charlie
+    await repo.blockUser(bob, charlie);
+    // When Bob views, Charlie's reaction is suppressed from aggregate count
+    bobView = await repo.getReactionsForActivity(activity.id, bob);
+    expect(bobView.reactionCounts.clap).toBe(1);
+    expect(bobView.reactionCounts.fire).toBe(0); // Charlie's fire is suppressed for Bob!
+
+    // Unblock does not reconnect, but if Charlie unfollows Alice, Charlie's reaction is invalidated
+    await repo.unblockUser(bob, charlie);
+    await repo.unfollow(charlie, alice, { accessToken: "t-charlie" });
+    const viewAfterUnfollow = await repo.getReactionsForActivity(
+      activity.id,
+      alice,
+    );
+    expect(viewAfterUnfollow.reactionCounts.fire).toBe(0); // Charlie's reaction is permanently purged
+
+    // Reapproval of Charlie cannot restore old reaction
+    await repo.sendFollowRequest(charlie, alice, { operationId: "op-c2" });
+    const charlieRel2 = (await repo.getIncomingFollowRequests(alice))[0]!;
+    await repo.updateRelationshipStatus(
+      charlieRel2.relationship.id,
+      alice,
+      "approved",
+    );
+    const viewAfterReapproval = await repo.getReactionsForActivity(
+      activity.id,
+      alice,
+    );
+    expect(viewAfterReapproval.reactionCounts.fire).toBe(0);
+
+    // Card version update purges all card reactions
+    await repo.publishActivity(
+      alice,
+      {
+        enrollmentGeneration: 1,
+        operationId: "op-pub2",
+        sourceWorkoutId: "w-1",
+        expectedVersion: 1,
+        expectedRevoked: false,
+        category: "running",
+        sharedDay: "2026-09-30",
+        durationSeconds: 2000,
+      },
+      { accessToken: "t-alice" },
+    );
+    const viewAfterCardUpdate = await repo.getReactionsForActivity(
+      activity.id,
+      alice,
+    );
+    expect(viewAfterCardUpdate.reactionCounts.clap).toBe(0);
+  });
+});

@@ -18,6 +18,7 @@ import {
   createSupabaseRepositoryClient,
   createSupabaseStorageClient,
   SupabaseProductAnalyticsRepository,
+  SupabaseCommunityNotificationRepository,
 } from "@mizyun/adapter-supabase-server";
 import { SesEmailSender } from "@mizyun/adapter-ses";
 import {
@@ -32,6 +33,7 @@ import {
   type AiConsentRepository,
   type BodyMeasurementRepository,
   type CommunityRepository,
+  type CommunityNotificationRepository,
   type ConversationRepository,
   type EmailSender,
   type ExerciseRepository,
@@ -48,6 +50,8 @@ import {
 } from "@mizyun/core";
 import {
   loadServerConfig,
+  loadCommunityOperations,
+  type CommunityOperationsConfig,
   type ServerAppleAuthConfiguration,
   type ServerConfig,
 } from "@mizyun/config";
@@ -113,6 +117,9 @@ import { InMemoryMediaAssetRepository } from "./media-asset-repository.js";
 import { InMemoryProfileRepository } from "./profile-repository.js";
 import { InMemoryWorkoutRepository } from "./workout-repository.js";
 import { InMemoryWorkoutSetRepository } from "./workout-set-repository.js";
+import { communityNotificationRoutes } from "./modules/community/notification-routes.js";
+import { communityOperationGate } from "./modules/community/operations.js";
+import { InMemoryCommunityNotificationRepository } from "./community-notification-repository.js";
 import { InMemoryCommunityRepository } from "./community-repository.js";
 import { communityProfileRoutes } from "./modules/community/profile-routes.js";
 import { communityRelationshipRoutes } from "./modules/community/relationship-routes.js";
@@ -122,6 +129,10 @@ import {
 } from "./modules/community/discovery-routes.js";
 import { communityInvitationRoutes } from "./modules/community/invitation-routes.js";
 import { communityPublicationRoutes } from "./modules/community/publication-routes.js";
+import { communityFeedRoutes } from "./modules/community/feed-routes.js";
+import { communityReactionRoutes } from "./modules/community/reaction-routes.js";
+import { reportRoutes as communityReportRoutes } from "./modules/community/report-routes.js";
+import { moderationRoutes as communityModerationRoutes } from "./modules/community/moderation-routes.js";
 
 import {
   SupabaseProfileRepository,
@@ -213,6 +224,7 @@ export interface CoachControlOptions {
 }
 
 export interface AppDependencies {
+  readonly communityOperations?: CommunityOperationsConfig;
   /**
    * Pre-constructed orchestrator. When supplied, `buildApp`
    * uses it as-is. When omitted, `buildApp` constructs one
@@ -260,6 +272,7 @@ export interface AppDependencies {
   readonly accountRepository?: AccountRepository;
   readonly betaProRepository?: BetaProRepository;
   readonly communityRepository?: CommunityRepository;
+  readonly communityNotifications?: CommunityNotificationRepository;
   readonly aiConsentRepository?: AiConsentRepository;
   readonly productAnalyticsRepository?: ProductAnalyticsRepository;
   readonly mediaAssetRepository?: MediaAssetRepository;
@@ -601,6 +614,12 @@ export const buildApp = (
       ? new SupabaseCommunityRepository({ clientFor: sp.clientFor })
       : new InMemoryCommunityRepository());
 
+  const communityNotifications =
+    dependencies.communityNotifications ??
+    (sp
+      ? new SupabaseCommunityNotificationRepository(sp.clientFor)
+      : new InMemoryCommunityNotificationRepository());
+
   const productAnalyticsRepository: ProductAnalyticsRepository =
     dependencies.productAnalyticsRepository ??
     (sp
@@ -614,6 +633,7 @@ export const buildApp = (
     dependencies.accountRepository ??
     (sp
       ? new SupabaseAccountRepository({
+          communityLifecycleEnabled: true,
           profileRepository,
           goalRepository,
           foodEntryRepository,
@@ -993,6 +1013,29 @@ export const buildApp = (
     prefix: "/v1/analytics",
     productAnalyticsRepository,
   });
+  const communityOperations =
+    dependencies.communityOperations ?? loadCommunityOperations(process.env);
+  app.addHook("preValidation", async (request, reply) => {
+    const removingReaction =
+      /\/reaction(?:s)?$/.test(request.url.split("?")[0] ?? "") &&
+      request.body !== null &&
+      typeof request.body === "object" &&
+      (request.body as { reaction?: unknown }).reaction === null;
+    const gate = removingReaction
+      ? null
+      : communityOperationGate(request.method, request.url);
+    if (gate && !communityOperations[gate])
+      return reply.code(503).send({
+        error: {
+          code: "SERVICE_UNAVAILABLE",
+          message: "Community action is temporarily unavailable.",
+        },
+      });
+  });
+  void app.register(communityNotificationRoutes, {
+    prefix: "/v1/community",
+    notifications: communityNotifications,
+  });
   void app.register(communityProfileRoutes, {
     prefix: "/v1/community",
     communityRepository,
@@ -1025,6 +1068,22 @@ export const buildApp = (
     communityRepository,
     profileRepository,
     workoutRepository,
+  });
+  void app.register(communityFeedRoutes, {
+    prefix: "/v1/community",
+    communityRepository,
+  });
+  void app.register(communityReactionRoutes, {
+    prefix: "/v1/community",
+    communityRepository,
+  });
+  void app.register(communityReportRoutes, {
+    prefix: "/v1/community",
+    communityRepository,
+  });
+  void app.register(communityModerationRoutes, {
+    prefix: "/v1/community",
+    communityRepository,
   });
 
   // MEM-001 — the long-lived memory store used by both the

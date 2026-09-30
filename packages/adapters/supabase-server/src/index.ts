@@ -109,6 +109,13 @@ export interface RepositoryTableBuilder<T> {
   insert(
     row: Partial<T> | ReadonlyArray<Partial<T>>,
   ): RepositoryQueryBuilder<T>;
+  upsert(
+    row: Partial<T> | ReadonlyArray<Partial<T>>,
+    options?: {
+      readonly onConflict?: string;
+      readonly ignoreDuplicates?: boolean;
+    },
+  ): RepositoryQueryBuilder<T>;
   update(row: Partial<T>): RepositoryQueryBuilder<T>;
   delete(): RepositoryQueryBuilder<T>;
 }
@@ -295,3 +302,5 @@ export {
   type CommunityReportRow,
   type SupabaseCommunityRepositoryOptions,
 } from "./community-repository.js";
+
+export * from "./community-notification-repository.js";

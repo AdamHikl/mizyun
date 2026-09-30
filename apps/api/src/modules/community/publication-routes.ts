@@ -622,6 +622,13 @@ export const communityPublicationRoutes: FastifyPluginAsync<
         }
       }
 
+      const reactions =
+        await options.communityRepository.getReactionsForActivity(
+          activity.id,
+          principal.userId,
+          { accessToken: principal.accessToken },
+        );
+
       return sharedActivityFeedItemDtoSchema.parse({
         id: activity.id,
         authorUserId: activity.userId,
@@ -632,8 +639,8 @@ export const communityPublicationRoutes: FastifyPluginAsync<
         sharedDay: activity.sharedDay,
         durationSeconds: activity.durationSeconds,
         publishedAt: activity.publishedAt.toISOString(),
-        reactionCounts: defaultReactionCounts,
-        viewerReaction: null,
+        reactionCounts: reactions.reactionCounts,
+        viewerReaction: reactions.viewerReaction,
       });
     },
   );

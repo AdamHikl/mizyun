@@ -667,3 +667,75 @@ describe("Community database operation boundaries", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 });
+
+describe("Moderation transport authority", () => {
+  it("uses an atomic RPC and never forwards caller-supplied staff identity", async () => {
+    const row = {
+      id: "report",
+      reporter_user_id: callerId,
+      target_type: "profile",
+      target_id: otherId,
+      reason: "harassment",
+      notes: null,
+      status: "resolved",
+      created_at: "2026-09-30T00:00:00Z",
+      updated_at: "2026-09-30T00:00:00Z",
+    };
+    const { repository, rpc, from } = rpcRepository({
+      community_apply_moderation_action: { data: [row], error: null },
+    });
+    await repository.applyModerationAction(
+      "report",
+      {
+        decision: "suspend",
+        decisionReason: "Harassment",
+        staffOperator: "forged",
+        suspensionDurationDays: 3,
+      },
+      { accessToken: callerToken },
+    );
+    expect(rpc).toHaveBeenCalledWith("community_apply_moderation_action", {
+      p_report_id: "report",
+      p_decision: "suspend",
+      p_decision_reason: "Harassment",
+      p_staff_notes: null,
+      p_suspension_duration_days: 3,
+    });
+    expect(from).not.toHaveBeenCalled();
+  });
+  it("forwards an opaque receipt and keeps urgency authoritative in SQL", async () => {
+    const row = {
+      id: "report",
+      reporter_user_id: callerId,
+      target_type: "profile",
+      target_id: otherId,
+      reason: "harassment",
+      notes: "quoted evidence",
+      status: "submitted",
+      created_at: "2026-09-30T00:00:00Z",
+      updated_at: "2026-09-30T00:00:00Z",
+    };
+    const { repository, rpc } = rpcRepository({
+      community_submit_report: { data: [row], error: null },
+    });
+    await repository.createReport(
+      callerId,
+      {
+        targetType: "profile",
+        targetId: otherId,
+        reason: "harassment",
+        notes: "quoted evidence",
+        priority: "urgent",
+        interactionReceiptId: "receipt",
+      },
+      { accessToken: callerToken },
+    );
+    expect(rpc).toHaveBeenCalledWith("community_submit_report", {
+      p_target_type: "profile",
+      p_target_id: otherId,
+      p_reason: "harassment",
+      p_notes: "quoted evidence",
+      p_interaction_receipt_id: "receipt",
+    });
+  });
+});

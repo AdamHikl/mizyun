@@ -27,6 +27,12 @@ const REDACT_PATHS = [
   "req.body.session",
   "req.body.token",
   "req.body.email",
+  "req.body.notes",
+  "req.body.reason",
+  "req.body.staffNotes",
+  "req.body.reviewerNotes",
+  "req.body.targetId",
+  "req.body.interactionReceiptId",
   "res.headers['set-cookie']",
 ] as const;
 

@@ -94,6 +94,14 @@ const setupTestApp = async () => {
   const communityRepository = new InMemoryCommunityRepository();
 
   const app = buildApp({
+    communityOperations: {
+      browsing: true,
+      enrollment: true,
+      discovery: true,
+      publish: true,
+      engagement: true,
+      delivery: false,
+    },
     tokenVerifier: tokenVerifierFor({ userId: userAdult }),
     profileRepository,
     communityRepository,
@@ -684,5 +692,58 @@ describe("community profile privacy regressions", () => {
     const suspended = await app.inject(request);
     expect(suspended.json().available).toBe(false);
     expect(suspended.json().userId).toBeUndefined();
+  });
+
+  it("rejects enrollment and updates containing prohibited text (harassment, body shaming, scams, impersonation)", async () => {
+    const { app } = await setupTestApp();
+
+    // Prohibited impersonation handle
+    const impRes = await app.inject({
+      method: "POST",
+      url: "/v1/community/profile",
+      headers: { authorization: "Bearer token-adult" },
+      payload: {
+        handle: "mizyun_admin",
+        displayName: "Mizyun Admin",
+        adultDeclaration: true,
+        termsVersion: "2026-09-30",
+        acceptedTerms: true,
+      },
+    });
+    expect(impRes.statusCode).toBe(422);
+    expect(impRes.json().error.message).toContain("Impersonation");
+
+    // Prohibited body shaming in displayName
+    const bsRes = await app.inject({
+      method: "POST",
+      url: "/v1/community/profile",
+      headers: { authorization: "Bearer token-adult" },
+      payload: {
+        handle: "valid_handle",
+        displayName: "You fat pig",
+        adultDeclaration: true,
+        termsVersion: "2026-09-30",
+        acceptedTerms: true,
+      },
+    });
+    expect(bsRes.statusCode).toBe(422);
+    expect(bsRes.json().error.message).toContain("Body shaming");
+
+    // Prohibited scam in bio during enrollment
+    const scamRes = await app.inject({
+      method: "POST",
+      url: "/v1/community/profile",
+      headers: { authorization: "Bearer token-adult" },
+      payload: {
+        handle: "valid_handle_2",
+        displayName: "Good Runner",
+        bio: "Buy followers cheap at link",
+        adultDeclaration: true,
+        termsVersion: "2026-09-30",
+        acceptedTerms: true,
+      },
+    });
+    expect(scamRes.statusCode).toBe(422);
+    expect(scamRes.json().error.message).toContain("spam, scam");
   });
 });

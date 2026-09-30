@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { exportCommunityAccount } from "./community-account-export.js";
 
 import {
   type AccountDeletionError,
@@ -140,6 +141,7 @@ async function fetchAllPaged<T extends Record<string, unknown>>(
 }
 
 export interface SupabaseAccountRepositoryOptions {
+  readonly communityLifecycleEnabled?: boolean;
   readonly profileRepository: ProfileRepository;
   readonly goalRepository: GoalRepository;
   readonly foodEntryRepository: FoodEntryRepository;
@@ -184,6 +186,7 @@ export interface SupabaseAccountRepositoryOptions {
  *   4. Failure in any cleanup stage halts execution and marks the job `failed` (resumable/retryable).
  */
 export class SupabaseAccountRepository implements AccountRepository {
+  readonly #communityLifecycleEnabled: boolean;
   readonly #profileRepository: ProfileRepository;
   readonly #goalRepository: GoalRepository;
   readonly #foodEntryRepository: FoodEntryRepository;
@@ -204,6 +207,8 @@ export class SupabaseAccountRepository implements AccountRepository {
   readonly #clock: { readonly now: () => Date };
 
   constructor(options: SupabaseAccountRepositoryOptions) {
+    this.#communityLifecycleEnabled =
+      options.communityLifecycleEnabled ?? false;
     this.#profileRepository = options.profileRepository;
     this.#goalRepository = options.goalRepository;
     this.#foodEntryRepository = options.foodEntryRepository;
@@ -235,6 +240,11 @@ export class SupabaseAccountRepository implements AccountRepository {
       );
     }
 
+    if (this.#communityLifecycleEnabled && this.#clientFor === null) {
+      throw new RepositoryError(
+        "Community export requires a principal-scoped RPC client",
+      );
+    }
     const now = this.#clock.now();
     let profile: StoredProfile | null;
     let goals: ReadonlyArray<StoredGoal>;
@@ -251,9 +261,12 @@ export class SupabaseAccountRepository implements AccountRepository {
     let productAnalyticsEvents: ReadonlyArray<StoredProductAnalyticsEvent> = [];
     let memoryCount = 0;
     let hasMediaSigningFailures = false;
+    let community: AccountExport["community"];
 
     if (this.#clientFor !== null) {
       const client = this.#clientFor(token);
+      if (this.#communityLifecycleEnabled)
+        community = await exportCommunityAccount(client);
 
       profile = await this.#profileRepository.getOrCreate(userId, {
         now,
@@ -615,6 +628,7 @@ export class SupabaseAccountRepository implements AccountRepository {
 
     return {
       manifest,
+      ...(community ? { community } : {}),
       userId,
       generatedAt: now,
       profile,
@@ -1088,6 +1102,35 @@ export class SupabaseAccountRepository implements AccountRepository {
       throw new RepositoryError(
         "Worker lease lost or taken over by another worker during auth deletion",
       );
+    }
+
+    if (this.#communityLifecycleEnabled) {
+      let complete = false;
+      for (let batch = 0; batch < 20; batch++) {
+        const { data, error } = await this.#serviceRoleClient.rpc<{
+          deleted_count: number;
+          complete: boolean;
+        }>("community_account_cleanup_batch", {
+          p_user_id: userId,
+          p_job_id: job.id,
+          p_worker_id: workerId,
+          p_limit: 500,
+        });
+        if (error || !data?.[0]) {
+          throw new RepositoryError(
+            "Community account cleanup failed; retry after lease expiry",
+          );
+        }
+        if (data[0].complete) {
+          complete = true;
+          break;
+        }
+      }
+      if (!complete) {
+        throw new RepositoryError(
+          "Community account cleanup requires another bounded retry",
+        );
+      }
     }
 
     const adminAuth = (

@@ -2,6 +2,7 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import {
   isAdultEligibleForCommunity,
   toPublicCommunityProfile,
+  validateContentSafety,
   type CommunityRepository,
   type ProfileRepository,
   type StoredCommunityProfile,
@@ -91,6 +92,23 @@ export const communityProfileRoutes: FastifyPluginAsync<
           "VALIDATION_ERROR",
           parsed.error.issues.map((i) => i.message).join("; "),
         );
+      }
+
+      for (const field of [
+        parsed.data.handle,
+        parsed.data.displayName,
+        parsed.data.bio,
+      ]) {
+        const safety = validateContentSafety(field);
+        if (!safety.ok) {
+          return sendApiError(
+            reply,
+            request,
+            422,
+            "VALIDATION_ERROR",
+            safety.reason ?? "Content violates community standards",
+          );
+        }
       }
 
       // Verify adult age eligibility from user's base account profile
@@ -206,6 +224,21 @@ export const communityProfileRoutes: FastifyPluginAsync<
           "VALIDATION_ERROR",
           parsed.error.issues.map((i) => i.message).join("; "),
         );
+      }
+
+      for (const field of [parsed.data.displayName, parsed.data.bio]) {
+        if (field !== undefined) {
+          const safety = validateContentSafety(field);
+          if (!safety.ok) {
+            return sendApiError(
+              reply,
+              request,
+              422,
+              "VALIDATION_ERROR",
+              safety.reason ?? "Content violates community standards",
+            );
+          }
+        }
       }
 
       const saved = await options.communityRepository.saveProfile(

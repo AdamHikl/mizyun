@@ -67,6 +67,14 @@ const setupTestApp = async () => {
   const communityRepository = new InMemoryCommunityRepository();
 
   const app = buildApp({
+    communityOperations: {
+      browsing: true,
+      enrollment: true,
+      discovery: true,
+      publish: true,
+      engagement: true,
+      delivery: false,
+    },
     tokenVerifier: tokenVerifierFor(),
     profileRepository,
     communityRepository,

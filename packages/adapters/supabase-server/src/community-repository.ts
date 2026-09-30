@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import {
   CommunityMutationError,
   generateAvatarSymbol,
+  type ActivityReactionsResult,
   type CommunityProfileStatus,
   type CommunityReactionKind,
   type CommunityRelationshipStatus,
@@ -13,6 +14,7 @@ import {
   type StoredCommunityReaction,
   type StoredCommunityReport,
   type StoredFollowRelationship,
+  type StoredModerationAppeal,
   type StoredSharedActivity,
   type UserId,
   type WorkoutCategory,
@@ -98,13 +100,34 @@ export interface CommunityReactionRow extends Record<string, unknown> {
 }
 
 export interface CommunityReportRow extends Record<string, unknown> {
+  readonly evidence_snapshot?: Record<string, unknown>;
   readonly id: string;
-  readonly reporter_user_id: string;
+  readonly reporter_user_id: string | null;
   readonly target_type: string;
   readonly target_id: string;
   readonly reason: string;
   readonly notes: string | null;
   readonly status: string;
+  readonly priority?: string;
+  readonly assigned_to?: string | null;
+  readonly decision?: string | null;
+  readonly decision_reason?: string | null;
+  readonly staff_notes?: string | null;
+  readonly action_taken_at?: string | null;
+  readonly suspension_expires_at?: string | null;
+  readonly created_at: string;
+  readonly updated_at: string;
+}
+
+export interface CommunityModerationAppealRow extends Record<string, unknown> {
+  readonly id: string;
+  readonly report_id: string;
+  readonly appellant_user_id: string;
+  readonly reason: string;
+  readonly status: string;
+  readonly reviewed_by: string | null;
+  readonly reviewer_notes: string | null;
+  readonly resolved_at: string | null;
   readonly created_at: string;
   readonly updated_at: string;
 }
@@ -161,13 +184,39 @@ export const sharedActivityFromRow = (
 export const communityReportFromRow = (
   row: CommunityReportRow,
 ): StoredCommunityReport => ({
+  ...(row.evidence_snapshot ? { evidenceSnapshot: row.evidence_snapshot } : {}),
   id: row.id,
-  reporterUserId: row.reporter_user_id as UserId,
+  reporterUserId: row.reporter_user_id as UserId | null,
   targetType: row.target_type as "profile" | "activity",
   targetId: row.target_id,
   reason: row.reason as CommunityReportReason,
   notes: row.notes,
   status: row.status as "submitted" | "under_review" | "resolved" | "dismissed",
+  priority: (row.priority as "normal" | "urgent") ?? "normal",
+  assignedTo: row.assigned_to ?? null,
+  decision:
+    (row.decision as "warn" | "remove" | "suspend" | "ban" | "dismiss") ?? null,
+  decisionReason: row.decision_reason ?? null,
+  staffNotes: row.staff_notes ?? null,
+  actionTakenAt: row.action_taken_at ? new Date(row.action_taken_at) : null,
+  suspensionExpiresAt: row.suspension_expires_at
+    ? new Date(row.suspension_expires_at)
+    : null,
+  createdAt: new Date(row.created_at),
+  updatedAt: new Date(row.updated_at),
+});
+
+export const communityModerationAppealFromRow = (
+  row: CommunityModerationAppealRow,
+): StoredModerationAppeal => ({
+  id: row.id,
+  reportId: row.report_id,
+  appellantUserId: row.appellant_user_id as UserId,
+  reason: row.reason,
+  status: row.status as "pending" | "approved" | "rejected",
+  reviewedBy: row.reviewed_by ?? null,
+  reviewerNotes: row.reviewer_notes ?? null,
+  resolvedAt: row.resolved_at ? new Date(row.resolved_at) : null,
   createdAt: new Date(row.created_at),
   updatedAt: new Date(row.updated_at),
 });
@@ -189,6 +238,11 @@ export class SupabaseCommunityRepository implements CommunityRepository {
   }): never {
     if (error.code === "P0001") {
       switch (error.message) {
+        case "community_access_denied":
+          throw new CommunityMutationError("access_denied");
+        case "community_invalid_action":
+        case "community_invalid_report":
+          throw new CommunityMutationError("invalid_input");
         case "community_conflict":
           throw new CommunityMutationError("conflict");
         case "community_rate_limited":
@@ -1083,12 +1137,12 @@ export class SupabaseCommunityRepository implements CommunityRepository {
     _viewerUserId: UserId,
     options: {
       readonly accessToken: string;
-      readonly limit?: number;
-      readonly beforeCursor?: string;
+      readonly limit?: number | undefined;
+      readonly beforeCursor?: string | null | undefined;
     },
   ): Promise<{
     readonly items: readonly StoredSharedActivity[];
-    readonly nextCursor?: string;
+    readonly nextCursor?: string | null | undefined;
   }> {
     const limit = Math.max(1, Math.min(options.limit ?? 20, 50));
     let beforeTime: string | null = null;
@@ -1150,45 +1204,395 @@ export class SupabaseCommunityRepository implements CommunityRepository {
 
     const { error } = await client
       .from<CommunityReactionRow>("community_reactions")
-      .insert({
-        activity_id: activityId,
-        user_id: userId,
-        reaction,
-        updated_at: new Date().toISOString(),
-      });
+      .upsert(
+        {
+          activity_id: activityId,
+          user_id: userId,
+          reaction,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "activity_id,user_id" },
+      );
 
     if (error) {
       this.#throwDatabaseError(error);
     }
   }
 
+  async getReactionsForActivity(
+    activityId: string,
+    viewerUserId: UserId,
+    options: { readonly accessToken: string },
+  ): Promise<ActivityReactionsResult> {
+    const client = this.#clientFor(options.accessToken);
+    const activity = await this.getActivityById(activityId, options);
+    if (!activity || activity.revokedAt) {
+      throw new CommunityMutationError("unavailable");
+    }
+    const isAuthor = activity.userId === viewerUserId;
+
+    const { data, error } = await client
+      .from<CommunityReactionRow>("community_reactions")
+      .select("*")
+      .eq("activity_id", activityId);
+
+    if (error) this.#throwDatabaseError(error);
+
+    const counts: Record<CommunityReactionKind, number> = {
+      clap: 0,
+      fire: 0,
+      high_five: 0,
+      fist_bump: 0,
+      thumbs_up: 0,
+    };
+    let viewerReaction: CommunityReactionKind | null = null;
+    const reactors: {
+      userId: UserId;
+      handle: string;
+      displayName: string;
+      avatarSymbol: string;
+      reaction: CommunityReactionKind;
+      createdAt: Date;
+    }[] = [];
+
+    for (const row of data ?? []) {
+      const reactionKind = row.reaction as CommunityReactionKind;
+      if (counts[reactionKind] === undefined) continue;
+
+      const isBlocked = await this.isBlockedBilateral(
+        viewerUserId,
+        row.user_id as UserId,
+        options,
+      );
+      if (isBlocked) continue;
+
+      counts[reactionKind] = (counts[reactionKind] ?? 0) + 1;
+      if (row.user_id === viewerUserId) {
+        viewerReaction = reactionKind;
+      }
+
+      if (isAuthor) {
+        const reactorProfile = await this.getProfile(
+          row.user_id as UserId,
+          options,
+        );
+        if (reactorProfile && reactorProfile.status === "active") {
+          reactors.push({
+            userId: row.user_id as UserId,
+            handle: reactorProfile.handle,
+            displayName: reactorProfile.displayName,
+            avatarSymbol: reactorProfile.avatarSymbol,
+            reaction: reactionKind,
+            createdAt: new Date(row.created_at as string),
+          });
+        }
+      }
+    }
+
+    reactors.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+    return {
+      activityId,
+      reactionCounts: counts,
+      viewerReaction,
+      ...(isAuthor ? { reactors } : {}),
+    };
+  }
+
+  async getReactionsForActivities(
+    activityIds: readonly string[],
+    viewerUserId: UserId,
+    options: { readonly accessToken: string },
+  ): Promise<
+    Map<
+      string,
+      {
+        readonly reactionCounts: Record<CommunityReactionKind, number>;
+        readonly viewerReaction: CommunityReactionKind | null;
+      }
+    >
+  > {
+    const result = new Map<
+      string,
+      {
+        readonly reactionCounts: Record<CommunityReactionKind, number>;
+        readonly viewerReaction: CommunityReactionKind | null;
+      }
+    >();
+
+    for (const id of activityIds) {
+      const res = await this.getReactionsForActivity(id, viewerUserId, options);
+      result.set(id, {
+        reactionCounts: res.reactionCounts,
+        viewerReaction: res.viewerReaction,
+      });
+    }
+
+    return result;
+  }
+
+  async issueReportReceipt(
+    _userId: UserId,
+    targetType: "profile" | "activity",
+    targetId: string,
+    options: { readonly accessToken: string },
+  ): Promise<string> {
+    const rows = await this.#rpcRows<{ id: string } & Record<string, unknown>>(
+      "community_issue_report_receipt",
+      { p_target_type: targetType, p_target_id: targetId },
+      options,
+    );
+    if (!rows[0]) throw new RepositoryError("Receipt unavailable");
+    return rows[0].id;
+  }
+
+  async listReportReceipts(
+    _userId: UserId,
+    options: { readonly accessToken: string },
+  ): Promise<
+    readonly {
+      id: string;
+      targetType: "profile" | "activity";
+      targetId: string;
+      expiresAt: Date;
+    }[]
+  > {
+    const rows = await this.#rpcRows<
+      {
+        id: string;
+        target_type: "profile" | "activity";
+        target_id: string;
+        expires_at: string;
+      } & Record<string, unknown>
+    >("community_report_receipts_for_caller", {}, options);
+    return rows.map((r) => ({
+      id: r.id,
+      targetType: r.target_type,
+      targetId: r.target_id,
+      expiresAt: new Date(r.expires_at),
+    }));
+  }
+
+  async getModerationNotices(
+    _userId: UserId,
+    options: { readonly accessToken: string },
+  ): Promise<readonly StoredCommunityReport[]> {
+    return (
+      await this.#rpcRows<CommunityReportRow>(
+        "community_moderation_notices",
+        {},
+        options,
+      )
+    ).map(communityReportFromRow);
+  }
+
   async createReport(
-    reporterUserId: UserId,
+    _reporterUserId: UserId,
     report: {
       readonly targetType: "profile" | "activity";
       readonly targetId: string;
       readonly reason: CommunityReportReason;
       readonly notes?: string | null;
+      readonly priority?: "normal" | "urgent";
+      readonly interactionReceiptId?: string | null;
     },
     options: { readonly accessToken: string },
   ): Promise<StoredCommunityReport> {
-    const client = this.#clientFor(options.accessToken);
-    const { data, error } = await client
-      .from<CommunityReportRow>("community_reports")
-      .insert({
-        reporter_user_id: reporterUserId,
-        target_type: report.targetType,
-        target_id: report.targetId,
-        reason: report.reason,
-        notes: report.notes ?? null,
-        status: "submitted",
-      })
-      .select("*")
-      .single();
+    const rows = await this.#rpcRows<CommunityReportRow>(
+      "community_submit_report",
+      {
+        p_target_type: report.targetType,
+        p_target_id: report.targetId,
+        p_reason: report.reason,
+        p_notes: report.notes ?? null,
+        p_interaction_receipt_id: report.interactionReceiptId ?? null,
+      },
+      options,
+    );
+    if (!rows[0]) throw new RepositoryError("Failed to create report");
+    return communityReportFromRow(rows[0]);
+  }
 
+  async getReportsByReporter(
+    reporterUserId: UserId,
+    options: { readonly accessToken: string },
+  ): Promise<readonly StoredCommunityReport[]> {
+    const { data, error } = await this.#clientFor(options.accessToken)
+      .from<CommunityReportRow>("community_reports")
+      .select(
+        "id,reporter_user_id,target_type,target_id,reason,notes,status,priority,decision,decision_reason,action_taken_at,suspension_expires_at,created_at,updated_at",
+      )
+      .eq("reporter_user_id", reporterUserId)
+      .order("created_at", { ascending: false });
     if (error) this.#throwDatabaseError(error);
-    if (!data) throw new RepositoryError("Failed to create report");
-    return communityReportFromRow(data);
+    return (data ?? []).map(communityReportFromRow);
+  }
+  async getReportById(
+    reportId: string,
+    options: { readonly accessToken: string },
+  ): Promise<StoredCommunityReport | null> {
+    const rows = await this.#rpcRows<CommunityReportRow>(
+      "community_get_report",
+      { p_report_id: reportId },
+      options,
+    );
+    return rows[0] ? communityReportFromRow(rows[0]) : null;
+  }
+
+  async getModerationQueue(options?: {
+    readonly accessToken?: string;
+    readonly status?: "submitted" | "under_review" | "resolved" | "dismissed";
+    readonly limit?: number;
+    readonly offset?: number;
+  }): Promise<readonly StoredCommunityReport[]> {
+    if (!options?.accessToken)
+      throw new RepositoryError("Authentication required");
+    return (
+      await this.#rpcRows<CommunityReportRow>(
+        "community_moderation_queue",
+        {
+          p_status: options.status ?? null,
+          p_limit: options.limit ?? 50,
+          p_offset: options.offset ?? 0,
+        },
+        { accessToken: options.accessToken },
+      )
+    ).map(communityReportFromRow);
+  }
+  async claimModerationReport(
+    reportId: string,
+    options?: { readonly accessToken?: string },
+  ): Promise<StoredCommunityReport> {
+    if (!options?.accessToken)
+      throw new RepositoryError("Authentication required");
+    const rows = await this.#rpcRows<CommunityReportRow>(
+      "community_claim_report",
+      { p_report_id: reportId },
+      { accessToken: options.accessToken },
+    );
+    if (!rows[0]) throw new RepositoryError("Report not found");
+    return communityReportFromRow(rows[0]);
+  }
+  async getModerationAppeals(options?: {
+    readonly accessToken?: string;
+    readonly limit?: number;
+    readonly offset?: number;
+  }): Promise<readonly StoredModerationAppeal[]> {
+    if (!options?.accessToken)
+      throw new RepositoryError("Authentication required");
+    return (
+      await this.#rpcRows<CommunityModerationAppealRow>(
+        "community_moderation_appeals_queue",
+        { p_limit: options.limit ?? 50, p_offset: options.offset ?? 0 },
+        { accessToken: options.accessToken },
+      )
+    ).map(communityModerationAppealFromRow);
+  }
+  async applyModerationAction(
+    reportId: string,
+    action: {
+      readonly decision: "warn" | "remove" | "suspend" | "ban" | "dismiss";
+      readonly decisionReason: string;
+      readonly staffNotes?: string | null;
+      readonly staffOperator: string;
+      readonly suspensionDurationDays?: number | null;
+    },
+    options?: { readonly accessToken?: string },
+  ): Promise<StoredCommunityReport> {
+    if (!options?.accessToken)
+      throw new RepositoryError("Authentication required");
+    const rows = await this.#rpcRows<CommunityReportRow>(
+      "community_apply_moderation_action",
+      {
+        p_report_id: reportId,
+        p_decision: action.decision,
+        p_decision_reason: action.decisionReason,
+        p_staff_notes: action.staffNotes ?? null,
+        p_suspension_duration_days: action.suspensionDurationDays ?? null,
+      },
+      { accessToken: options.accessToken },
+    );
+    if (!rows[0]) throw new RepositoryError("Report not found");
+    return communityReportFromRow(rows[0]);
+  }
+  async createModerationAppeal(
+    _appellantUserId: UserId,
+    appeal: { readonly reportId: string; readonly reason: string },
+    options?: { readonly accessToken?: string },
+  ): Promise<StoredModerationAppeal> {
+    if (!options?.accessToken)
+      throw new RepositoryError("Authentication required");
+    const rows = await this.#rpcRows<CommunityModerationAppealRow>(
+      "community_create_moderation_appeal",
+      { p_report_id: appeal.reportId, p_reason: appeal.reason },
+      { accessToken: options.accessToken },
+    );
+    if (!rows[0]) throw new RepositoryError("Failed to create appeal");
+    return {
+      ...communityModerationAppealFromRow(rows[0]),
+      reviewedBy: null,
+      reviewerNotes: null,
+    };
+  }
+  async getAppealById(
+    appealId: string,
+    options: { readonly accessToken: string },
+  ): Promise<StoredModerationAppeal | null> {
+    const rows = await this.#rpcRows<CommunityModerationAppealRow>(
+      "community_get_appeal",
+      { p_appeal_id: appealId },
+      options,
+    );
+    return rows[0] ? communityModerationAppealFromRow(rows[0]) : null;
+  }
+  async resolveModerationAppeal(
+    appealId: string,
+    resolution: {
+      readonly status: "approved" | "rejected";
+      readonly reviewerNotes?: string | null;
+      readonly reviewedBy: string;
+    },
+    options?: { readonly accessToken?: string },
+  ): Promise<StoredModerationAppeal> {
+    if (!options?.accessToken)
+      throw new RepositoryError("Authentication required");
+    const rows = await this.#rpcRows<CommunityModerationAppealRow>(
+      "community_resolve_moderation_appeal",
+      {
+        p_appeal_id: appealId,
+        p_status: resolution.status,
+        p_reviewer_notes: resolution.reviewerNotes ?? null,
+      },
+      { accessToken: options.accessToken },
+    );
+    if (!rows[0]) throw new RepositoryError("Appeal not found");
+    return communityModerationAppealFromRow(rows[0]);
+  }
+
+  async hasRecentInteraction(
+    userId: UserId,
+    targetUserId: UserId,
+    windowDays: number = 30,
+    options?: { readonly accessToken?: string },
+  ): Promise<boolean> {
+    if (!options?.accessToken) return false;
+    try {
+      const rows = await this.#rpcRows<
+        { readonly result: boolean } & Record<string, unknown>
+      >(
+        "community_has_recent_interaction",
+        {
+          p_caller: userId,
+          p_target_id: targetUserId,
+          p_target_type: "profile",
+          p_window_days: windowDays,
+        },
+        { accessToken: options.accessToken },
+      );
+      return Boolean(rows[0]?.result);
+    } catch {
+      return false;
+    }
   }
 
   async deleteAllForUser(

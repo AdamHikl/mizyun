@@ -344,6 +344,117 @@ describe("SupabaseAccountRepository", () => {
     expect(job?.challengeHash).toBe(expectedHash);
   });
 
+  it("Community cleanup completes before external Auth erasure", async () => {
+    const opts = createMockOptions();
+    const rpc = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: [{ deleted_count: 500, complete: false }],
+        error: null,
+      })
+      .mockResolvedValue({
+        data: [{ deleted_count: 2, complete: true }],
+        error: null,
+      });
+    Object.assign(opts.serviceRoleClient, { rpc });
+    const repo = new SupabaseAccountRepository({
+      ...opts,
+      communityLifecycleEnabled: true,
+    });
+    const now = new Date();
+    const confirmationToken = await repo.issueDeletionChallenge(testUserId, {
+      ttlSeconds: 300,
+      now,
+    });
+    await expect(
+      repo.deleteUser(testUserId, {
+        confirmationToken,
+        now,
+        accessToken: "token",
+      }),
+    ).resolves.toEqual({ deleted: true });
+    expect(rpc).toHaveBeenCalledTimes(2);
+    expect(rpc).toHaveBeenCalledWith(
+      "community_account_cleanup_batch",
+      expect.objectContaining({
+        p_user_id: testUserId,
+        p_limit: 500,
+        p_worker_id: expect.any(String),
+      }),
+    );
+    expect(rpc.mock.invocationCallOrder[1]).toBeLessThan(
+      opts.deleteUserMock.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it("Community cleanup failure preserves Auth and resumes after lease loss", async () => {
+    const opts = createMockOptions();
+    const rpc = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: "lost response" },
+      })
+      .mockResolvedValue({
+        data: [{ deleted_count: 0, complete: true }],
+        error: null,
+      });
+    Object.assign(opts.serviceRoleClient, { rpc });
+    const repo = new SupabaseAccountRepository({
+      ...opts,
+      communityLifecycleEnabled: true,
+    });
+    const now = new Date();
+    const confirmationToken = await repo.issueDeletionChallenge(testUserId, {
+      ttlSeconds: 600,
+      now,
+    });
+    await expect(
+      repo.deleteUser(testUserId, {
+        confirmationToken,
+        now,
+        accessToken: "token",
+      }),
+    ).rejects.toThrow("Community account cleanup failed");
+    expect(opts.deleteUserMock).not.toHaveBeenCalled();
+    expect(opts.jobsTable.rows[0]?.stage).toBe("auth");
+    await expect(
+      repo.deleteUser(testUserId, {
+        confirmationToken,
+        now: new Date(now.getTime() + 180000),
+        accessToken: "token",
+      }),
+    ).resolves.toEqual({ deleted: true });
+    expect(opts.deleteUserMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("Community cleanup batch budget cannot prematurely delete Auth", async () => {
+    const opts = createMockOptions();
+    const rpc = vi.fn().mockResolvedValue({
+      data: [{ deleted_count: 500, complete: false }],
+      error: null,
+    });
+    Object.assign(opts.serviceRoleClient, { rpc });
+    const repo = new SupabaseAccountRepository({
+      ...opts,
+      communityLifecycleEnabled: true,
+    });
+    const now = new Date();
+    const confirmationToken = await repo.issueDeletionChallenge(testUserId, {
+      ttlSeconds: 600,
+      now,
+    });
+    await expect(
+      repo.deleteUser(testUserId, {
+        confirmationToken,
+        now,
+        accessToken: "token",
+      }),
+    ).rejects.toThrow("bounded retry");
+    expect(rpc).toHaveBeenCalledTimes(20);
+    expect(opts.deleteUserMock).not.toHaveBeenCalled();
+  });
+
   it("deleteUser rejects missing challenge", async () => {
     const opts = createMockOptions();
     const repo = new SupabaseAccountRepository(opts);

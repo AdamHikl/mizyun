@@ -10,6 +10,24 @@ export const registerCommunityErrorHandler = (app: FastifyInstance): void => {
       return fallback.call(app, error, request, reply);
     }
     switch (error.code) {
+      case "access_denied":
+      case "unauthorized":
+        return sendApiError(
+          reply,
+          request,
+          403,
+          "FORBIDDEN",
+          "This operation is not permitted.",
+        );
+      case "invalid_input":
+      case "content_violation":
+        return sendApiError(
+          reply,
+          request,
+          422,
+          "VALIDATION_ERROR",
+          "Invalid Community input.",
+        );
       case "invalid_profile":
         return sendApiError(
           reply,
@@ -18,6 +36,7 @@ export const registerCommunityErrorHandler = (app: FastifyInstance): void => {
           "VALIDATION_ERROR",
           "Use plain social text without contact details in your bio.",
         );
+      case "not_found":
       case "unavailable":
         return sendApiError(
           reply,

@@ -79,6 +79,7 @@ const accountExportToWire = (
             },
           }
         : undefined,
+      community: exportDoc.community,
       userId: exportDoc.userId,
       generatedAt: exportDoc.generatedAt.toISOString(),
       // `z.unknown()` carries the stored shape; we hand back the
