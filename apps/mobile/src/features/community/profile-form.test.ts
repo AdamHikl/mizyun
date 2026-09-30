@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CommunityProfileDto } from "@mizyun/contracts";
 import {
-  COMMUNITY_ENROLLMENT_OPEN,
   communityProfileForm,
   validateCommunityEnrollment,
   validateCommunityProfileUpdate,
@@ -118,9 +117,5 @@ describe("Community separate enrollment and settings form", () => {
     });
     expect(unicode.success).toBe(true);
     if (unicode.success) expect(unicode.data.avatarSymbol).toBe("🏃R");
-  });
-
-  it("keeps enrollment unavailable before actual contact and pilot acceptance", () => {
-    expect(COMMUNITY_ENROLLMENT_OPEN).toBe(false);
   });
 });

@@ -16,10 +16,10 @@ import { router, Stack, useFocusEffect, type Href } from "expo-router";
 import { ThemedText } from "@/components/themed-text";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
+import { COMMUNITY_ENROLLMENT_OPEN } from "@/composition/community-admission";
 import { InitialsAvatar } from "./initials-avatar";
 import { useCommunityProfile } from "./use-community-profile";
 import {
-  COMMUNITY_ENROLLMENT_OPEN,
   communityProfileForm,
   validateCommunityEnrollment,
   validateCommunityProfileUpdate,

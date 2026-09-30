@@ -6,8 +6,6 @@ import {
   type CommunityProfileDto,
 } from "@mizyun/contracts";
 
-/** Admission remains closed until verified contact/legal/pilot acceptance. */
-export const COMMUNITY_ENROLLMENT_OPEN = false;
 export const COMMUNITY_RULES_VERSION = COMMUNITY_TERMS_VERSION;
 
 export interface CommunityProfileForm {
