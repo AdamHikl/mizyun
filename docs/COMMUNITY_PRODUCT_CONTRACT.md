@@ -330,4 +330,4 @@ The design-segment next action was #142; subsequent sessions implemented #142–
 
 ## 2026-09-30 primary navigation decision
 
-Adam approved Home / Workouts / Meals / Coach / Community as the five primary tabs, with Account available through the header avatar on each. Community home groups the following feed, Find friends, Requests, Inbox and My profile/settings; nonparticipants receive deliberate Join and Keep tracking privately. The Account privacy/settings entry remains secondary. See [ADR-0031](adr/0031-community-tab-account-header.md). No admission, publication, visibility or pilot acceptance rule changes.
+Adam approved Home / Workouts / Meals / Coach / Community as the five primary tabs, with Account available through the header avatar on each. Community home groups the following feed, Find friends, Requests, Inbox and My profile/settings; nonparticipants receive the deliberate joining/profile/consent form directly in the Community tab and Keep tracking privately. The Account privacy/settings entry remains secondary. See [ADR-0031](adr/0031-community-tab-account-header.md). No admission, publication, visibility or pilot acceptance rule changes.

@@ -1,5 +1,9 @@
 # Research log
 
+## 2026-09-30 — Joining inside the Community tab
+
+- Rechecked [Expo SDK57](https://docs.expo.dev/versions/v57.0.0/) and [Expo Router Stack](https://docs.expo.dev/router/advanced/stack/) today. Consequence: reuse the existing enrollment form as embedded tab content without a root Stack screen override; preserve the standalone settings URL for profile/privacy management. Explicit enrollment success triggers fresh membership verification before feed access. No platform, backend, admission or consent policy changes.
+
 ## 2026-09-30 — Community #140–155 final review corrections
 
 - [Expo SDK57](https://docs.expo.dev/versions/v57.0.0/), [notifications](https://docs.expo.dev/versions/v57.0.0/sdk/notifications/), [React effect cleanup](https://react.dev/reference/react/useEffect) and [refs](https://react.dev/reference/react/useRef), accessed today: permission/token/session lifecycles and asynchronous results require current-principal checks. Consequence: captured-session logout, preserved newer device binding and immediate parent-card invalidation after authority denial; physical notification/accessibility behavior remains a separate gate.

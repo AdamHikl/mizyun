@@ -402,7 +402,7 @@ Make the complete friends experience reachable on iOS and Android without slowin
 
 **Implementation steps**
 
-1. Use Account → Community entry and root-stack routes by default, preserving the existing five tabs; any new primary tab requires UX evidence under COMM-01. Respect #133 settings catalog/navigation patterns.
+1. Follow Adam’s authorized 2026-09-30 navigation decision (ADR-0031): Home / Workouts / Meals / Coach / Community, with Account in header avatars. Put optional joining/profile/consent directly in Community; retain Account privacy entry and root-stack settings as secondary management routes. Original target-user and platform acceptance remains open. Respect #133 settings catalog/navigation patterns.
 2. Integrate enrollment, identity, requests/lists, find/invite, share preview, feed, report/block/mute, notification preferences and leave-community screens.
 3. Provide meaningful empty/loading/error/retry/disabled states, confirmation for destructive withdrawal, request status feedback, keyboard safety and accessible non-gesture alternatives.
 4. Verify VoiceOver/TalkBack, large text, dark/light, small phones/iPad, RTL-ready layout, metric/imperial and timezone boundaries. Do not add permission prompts at signup for optional community.

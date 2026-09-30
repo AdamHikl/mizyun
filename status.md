@@ -2,6 +2,12 @@
 
 > Updated 2026-09-30. Earlier package evidence, operational snapshots and concurrent work are preserved in [the pre-review archive](docs/archive/status/STATUS_COMMUNITY_PRE_FINAL_REVIEW_2026-09-30.md). Historical next actions are not current instructions.
 
+## Community joining inside the tab — 2026-09-30
+
+Adam requested joining directly in Community. In progress under #142/#150 from clean `2b1e0ead461413c28d098b39ef8d441c5a289a52`: reuse the enrollment/profile/consent form inside the tab, preserve secondary Account privacy settings, and verify membership before showing the feed. Explicit adult/rules consent, server admission, private profile separation and private tracking exit remain. Helper owns embedded form/tests; coordinator owns feed integration/continuity/resources; independent review covers recovery and lifecycle boundaries. No backend or Production change.
+
+**Automatically verified:** independent non-author review approved corrected lost-response recovery; focused61tests pass. Fresh settled-source `pnpm check` exit0 (mobile1011/API730,15 gated API skips, dual Hermes/typechecks/safeguards). [Durable inline joining evidence](docs/COMMUNITY_INLINE_JOIN_DEV_2026-09-30.md). **Next exact action:** commit/push and install exact Dev candidate on Adam’s iPhone. Earlier navigation acceptance applies only to the previous build; inline enrollment acceptance remains pending.
+
 ## Community primary navigation — 2026-09-30
 
 Adam approved five tabs Home / Workouts / Meals / Coach / Community, with Account in a consistent header avatar. Work is active under #150 on `codex/community-140-145`, baseline `0ac0371eb4900a19e77afb7e531d83e5f3b1e3fe`; initial tree clean. Existing `/community` moves into tabs and `/settings` moves to root Stack without changing URLs; private Home remains default. Community groups feed/Find friends/Requests/Inbox/My profile, with voluntary join/private exit and no auto enrollment/sharing. [ADR-0031](docs/adr/0031-community-tab-account-header.md) records the approved navigation choice.

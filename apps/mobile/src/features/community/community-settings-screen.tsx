@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native";
 import { router, Stack, useFocusEffect, type Href } from "expo-router";
+import { BottomTabInset } from "@/constants/theme";
 import { ThemedText } from "@/components/themed-text";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
@@ -26,13 +27,25 @@ import {
   type CommunityProfileForm,
 } from "./profile-form";
 
-export function CommunitySettingsScreen() {
+interface CommunitySettingsScreenProps {
+  /** Join within the Community tab; the tab provides its own header. */
+  embedded?: boolean;
+  /** Notifies verified membership, including recovery after an ambiguous save. */
+  onJoined?: () => void;
+}
+
+export function CommunitySettingsScreen({
+  embedded = false,
+  onJoined,
+}: CommunitySettingsScreenProps = {}) {
   const { session, profile } = useAuth();
   return (
     <SettingsContent
       key={session?.user.id ?? "signed-out"}
       principalKey={session?.user.id ?? null}
       birthYear={profile?.birthYear}
+      embedded={embedded}
+      onJoined={onJoined}
     />
   );
 }
@@ -40,9 +53,13 @@ export function CommunitySettingsScreen() {
 function SettingsContent({
   principalKey,
   birthYear,
+  embedded,
+  onJoined,
 }: {
   principalKey: string | null;
   birthYear?: number | null;
+  embedded: boolean;
+  onJoined?: () => void;
 }) {
   const theme = useTheme();
   const { state, actions } = useCommunityProfile({
@@ -56,6 +73,18 @@ function SettingsContent({
     communityProfileForm(null),
   );
   const loadedIdentity = useRef<string | null>(null);
+  const notifiedEnrollment = useRef(false);
+  useEffect(() => {
+    if (
+      embedded &&
+      state.status === "ready" &&
+      state.isEnrolled &&
+      !notifiedEnrollment.current
+    ) {
+      notifiedEnrollment.current = true;
+      onJoined?.();
+    }
+  }, [embedded, state.status, state.isEnrolled, onJoined]);
   const { load } = actions;
   useFocusEffect(
     useCallback(() => {
@@ -111,8 +140,9 @@ function SettingsContent({
       const enrollment = validateCommunityEnrollment(form);
       if (!enrollment.success) return;
       const result = await actions.enroll(enrollment.data);
-      if (result.ok)
+      if (result.ok) {
         setMessage("You joined Community. No workouts were shared.");
+      }
     }
   };
   const confirmWithdrawal = () => {
@@ -144,12 +174,21 @@ function SettingsContent({
       style={[styles.page, { backgroundColor: theme.background }]}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <Stack.Screen options={{ title: "Community" }} />
+      {!embedded && <Stack.Screen options={{ title: "Community" }} />}
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          embedded && { paddingBottom: BottomTabInset + 40 },
+        ]}
         keyboardShouldPersistTaps="handled"
       >
-        <ThemedText type="subtitle">Community</ThemedText>
+        <ThemedText type="subtitle">
+          {embedded
+            ? state.isWithdrawn
+              ? "Rejoin Community"
+              : "Join Community"
+            : "Community"}
+        </ThemedText>
         <ThemedText>
           Encourage friends with workouts that you choose to share. Your private
           tracking works without this.
@@ -158,20 +197,22 @@ function SettingsContent({
           label="Keep tracking privately"
           onPress={() => router.replace("/(tabs)")}
         />
-        {principalKey !== null && state.profile?.status === "active" && (
-          <Action
-            label="View following feed"
-            onPress={() => router.push("/community" as Href)}
-          />
-        )}
-        {principalKey !== null && (
+        {!embedded &&
+          principalKey !== null &&
+          state.profile?.status === "active" && (
+            <Action
+              label="View following feed"
+              onPress={() => router.push("/community" as Href)}
+            />
+          )}
+        {!embedded && principalKey !== null && (
           <Action
             label="Requests, followers and safety lists"
             onPress={() => router.push("/community/relationships" as Href)}
           />
         )}
 
-        {principalKey !== null && (
+        {!embedded && principalKey !== null && (
           <>
             <Action
               label="Community inbox"
@@ -223,7 +264,7 @@ function SettingsContent({
             {suspended || !state.isAdultEligible ? (
               <ThemedText>
                 Community is unavailable. Private tracking and the account
-                controls below remain available.
+                controls remain available.
               </ThemedText>
             ) : (
               <>
@@ -391,20 +432,26 @@ function SettingsContent({
           Community safety contact and appeal coverage are not verified yet. For
           imminent danger, contact your local emergency services.
         </ThemedText>
-        <Action
-          label="Account help and support"
-          onPress={() => router.push("/account-settings/legal" as Href)}
-        />
-        <Action
-          label="Account export and deletion"
-          onPress={() =>
-            router.push("/account-settings/account-data?anchor=export" as Href)
-          }
-        />
-        <Action
-          label="Account and sign out"
-          onPress={() => router.push("/account-settings/identity" as Href)}
-        />
+        {!embedded && (
+          <>
+            <Action
+              label="Account help and support"
+              onPress={() => router.push("/account-settings/legal" as Href)}
+            />
+            <Action
+              label="Account export and deletion"
+              onPress={() =>
+                router.push(
+                  "/account-settings/account-data?anchor=export" as Href,
+                )
+              }
+            />
+            <Action
+              label="Account and sign out"
+              onPress={() => router.push("/account-settings/identity" as Href)}
+            />
+          </>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );

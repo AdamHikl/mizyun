@@ -121,6 +121,9 @@ vi.mock("./controller", () => ({
     refresh = mocks.refresh;
   },
 }));
+vi.mock("../community-settings-screen", () => ({
+  CommunitySettingsScreen: "CommunitySettingsScreen",
+}));
 import { FeedScreen } from "./feed-screen";
 
 // Inspect the actual render output; native layout/device acceptance is separate.
@@ -164,26 +167,41 @@ async function settledRender() {
   return render();
 }
 describe("Community home participation and navigation", () => {
-  it("offers a private tracking exit without enrollment, publication or feed loading", async () => {
+  it("hosts deliberate joining inside the tab without enrollment or feed loading", async () => {
     const tree = await settledRender();
-    expect(linkFor(tree, "Join Community").props.href).toBe(
-      "/community/settings",
-    );
-    expect(linkFor(tree, "Keep tracking privately").props.href).toBe("/");
+    const form = tree.props.children[1];
+    expect(form.type).toBe("CommunitySettingsScreen");
+    expect(form.props.embedded).toBe(true);
     expect(mocks.refresh).not.toHaveBeenCalled();
     expect(mocks.request).not.toHaveBeenCalled();
   });
-  it.each(["loading", "idle", "error"])(
+  it("revalidates membership after explicit inline enrollment succeeds", async () => {
+    const tree = await settledRender();
+    mocks.enrolled = true;
+    tree.props.children[1].props.onJoined();
+    await Promise.resolve();
+    const joined = render();
+    expect(joined.props.children[1].type).toBe("FlatList");
+    expect(mocks.load).toHaveBeenCalledTimes(2);
+    expect(mocks.refresh).toHaveBeenCalledTimes(1);
+  });
+  it.each(["loading", "idle"])(
     "does not present joining as available while profile status is %s",
     async (status) => {
       mocks.status = status;
       const tree = await settledRender();
-      expect(find(tree, "Join Community")).toBeFalsy();
+      expect(tree.props.children[1].type).toBe("ScrollView");
       expect(find(tree, "Keep tracking privately")).toBeTruthy();
       expect(mocks.refresh).not.toHaveBeenCalled();
       expect(mocks.request).not.toHaveBeenCalled();
     },
   );
+  it("hosts status recovery inline after a failed membership read", async () => {
+    mocks.status = "error";
+    const tree = await settledRender();
+    expect(tree.props.children[1].type).toBe("CommunitySettingsScreen");
+    expect(mocks.refresh).not.toHaveBeenCalled();
+  });
   it("makes inbox directly reachable from the enrolled Community home", async () => {
     mocks.enrolled = true;
     const tree = await settledRender();
@@ -246,7 +264,7 @@ describe("Community retained tab membership freshness", () => {
     finish();
     await Promise.resolve();
     tree = render();
-    expect(find(tree, "Join Community")).toBeTruthy();
+    expect(tree.props.children[1].type).toBe("CommunitySettingsScreen");
     expect(mocks.refresh).toHaveBeenCalledTimes(1);
   });
 });
@@ -272,7 +290,7 @@ describe("Community foreground verification", () => {
     expect(mocks.refresh).toHaveBeenCalledTimes(1);
     finish();
     await Promise.resolve();
-    expect(find(render(), "Join Community")).toBeTruthy();
+    expect(render().props.children[1].type).toBe("CommunitySettingsScreen");
     expect(mocks.refresh).toHaveBeenCalledTimes(1);
   });
   it("does not restore a feed from a verification result after leaving the tab", async () => {

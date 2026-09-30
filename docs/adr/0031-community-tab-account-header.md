@@ -10,7 +10,7 @@ Adam approved a dedicated Community destination alongside private tracking, with
 
 Keep five primary tabs: Home, Workouts, Meals, Coach, Community. Home remains default. Move existing `/community` feed into the tabs group, with Find friends, Requests, Inbox and My profile/settings shortcuts. Move Account to the root Stack while preserving `/settings` and existing account detail URLs. All primary screens expose an accessible Account avatar button. Account keeps native Back to the originating tab, following ADR-0025's shared-screen pattern.
 
-Opening Community does not enroll, grant consent, request notification permission, follow or publish. Nonparticipants receive a voluntary explanation, deliberate join route and private tracking exit. Retained tab state must revalidate participation on focus/foreground before showing feed content; loading/offline/denial cannot preserve stale access. Private workout sharing remains an explicit preview/publish action from the workout.
+Opening Community does not enroll, grant consent, request notification permission, follow or publish. Adam's follow-up decision puts the deliberate joining/profile/consent form directly inside the Community tab, with a private tracking exit. Successful explicit enrollment revalidates membership before showing the feed. Account privacy controls and `/community/settings` remain secondary management entries. Retained tab state must revalidate participation on focus/foreground before showing feed content; loading/offline/denial cannot preserve stale access. Private workout sharing remains an explicit preview/publish action from the workout.
 
 ## Consequences and acceptance
 

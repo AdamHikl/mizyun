@@ -26,6 +26,7 @@ import { apiClient } from "@/composition/api-client";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
 import { useCommunityProfile } from "../use-community-profile";
+import { CommunitySettingsScreen } from "../community-settings-screen";
 import { scopeCommunityClient } from "../scoped-client";
 import { FeedController } from "./controller";
 import { ActivityCard } from "./activity-card";
@@ -183,7 +184,7 @@ function FeedScreenContent({
       !membershipVerified ||
       community.status === "loading" ||
       community.status === "idle";
-    const canJoin = community.status === "ready" && !community.profile;
+
     return (
       <SafeAreaView
         edges={["top", "left", "right"]}
@@ -192,65 +193,32 @@ function FeedScreenContent({
         <View style={styles.accountHeader}>
           <AccountHeaderActions />
         </View>
-        <ScrollView contentContainerStyle={styles.centered}>
-          <Text
-            accessibilityRole="header"
-            style={[styles.notEnrolledTitle, { color: colors.text }]}
-          >
-            Community
-          </Text>
-          {checking ? (
-            <ActivityIndicator color={colors.primary} />
-          ) : (
-            <>
-              <Text
-                style={[
-                  styles.notEnrolledBody,
-                  { color: colors.textSecondary },
-                ]}
-              >
-                {canJoin
-                  ? "Community is optional. Share selected workout completion cards with approved friends. Joining shares nothing automatically, and your private tracking stays available."
-                  : (community.error ??
-                    "Community is unavailable. Your private tracking stays available.")}
-              </Text>
-              <Link href={"/community/settings" as Href} asChild>
-                <Pressable
-                  style={[
-                    styles.primaryButton,
-                    { backgroundColor: colors.primary },
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    canJoin ? "Join Community" : "Review Community status"
-                  }
-                >
-                  <Text
-                    style={[
-                      styles.primaryButtonText,
-                      { color: colors.background },
-                    ]}
-                  >
-                    {canJoin ? "Join Community" : "Review Community status"}
-                  </Text>
-                </Pressable>
-              </Link>
-            </>
-          )}
-          <Link href="/" asChild>
-            <Pressable
-              style={styles.privateButton}
-              accessibilityRole="button"
-              accessibilityLabel="Keep tracking privately"
+        {checking ? (
+          <ScrollView contentContainerStyle={styles.centered}>
+            <Text
+              accessibilityRole="header"
+              style={[styles.notEnrolledTitle, { color: colors.text }]}
             >
-              <Text
-                style={[styles.primaryButtonText, { color: colors.primary }]}
+              Community
+            </Text>
+            <ActivityIndicator color={colors.primary} />
+            <Link href="/" asChild>
+              <Pressable
+                style={styles.privateButton}
+                accessibilityRole="button"
+                accessibilityLabel="Keep tracking privately"
               >
-                Keep tracking privately
-              </Text>
-            </Pressable>
-          </Link>
-        </ScrollView>
+                <Text
+                  style={[styles.primaryButtonText, { color: colors.primary }]}
+                >
+                  Keep tracking privately
+                </Text>
+              </Pressable>
+            </Link>
+          </ScrollView>
+        ) : (
+          <CommunitySettingsScreen embedded onJoined={revalidateMembership} />
+        )}
       </SafeAreaView>
     );
   }
