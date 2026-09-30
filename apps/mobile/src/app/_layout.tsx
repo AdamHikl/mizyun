@@ -351,10 +351,7 @@ function TabLayoutContent() {
                 name="community/notifications"
                 options={{ title: "Community notifications" }}
               />
-              <Stack.Screen
-                name="community/index"
-                options={{ title: "Community" }}
-              />
+              <Stack.Screen name="settings" options={{ title: "Account" }} />
               <Stack.Screen
                 name="community/activity/[id]"
                 options={{ title: "Shared activity" }}

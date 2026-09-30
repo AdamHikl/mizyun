@@ -36,3 +36,7 @@ Restructure mobile app navigation to the canonical Expo Router architecture:
 - **Stable Public Routes**: Route URLs (`/`, `/workouts`, `/meals`, `/coach`, `/settings`, `/log-meal`, `/log-workout`, `/feedback`, etc.) remain identical because Expo Router route groups `(...)` are omitted from URL paths. No calling code or deep-link handlers require changes.
 - **Native Fidelity**: Interactive swipe-to-dismiss on iOS natively reveals the presenting tab screen without visual snapping or state jump.
 - **ADR-0006 Superseded**: Replaces the nested `(home)` stack approach with the standard root stack wrapping tabs pattern.
+
+## 2026-09-30 navigation update
+
+[ADR-0031](0031-community-tab-account-header.md) replaces the Account tab with Community and moves `/settings` into this shared root Stack. The original modal/Back architecture remains; the tab enumeration above records the original decision.

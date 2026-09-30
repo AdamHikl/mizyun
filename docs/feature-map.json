@@ -922,21 +922,29 @@
         "apps/api/src/server.ts",
         "apps/api/src/app.ts",
         "apps/mobile/src/app",
-        "apps/mobile/src/composition"
+        "apps/mobile/src/composition",
+        "apps/mobile/src/components/account-header-button.tsx",
+        "apps/mobile/src/components/account-header-button.test.ts",
+        "apps/mobile/src/components/app-tabs.tsx",
+        "apps/mobile/src/components/app-tabs.web.tsx"
       ],
       "contracts": [],
       "domainPort": [],
       "api": ["apps/api/src/server.ts", "apps/api/src/app.ts"],
       "ui": [
         "apps/mobile/src/app/_layout.tsx",
-        "apps/mobile/src/app/(tabs)/_layout.tsx"
+        "apps/mobile/src/app/(tabs)/_layout.tsx",
+        "apps/mobile/src/components/account-header-button.tsx",
+        "apps/mobile/src/app/settings.tsx",
+        "apps/mobile/src/app/(tabs)/community.tsx"
       ],
       "adapters": [],
       "dataTables": [],
       "migrationPaths": [],
       "tests": [
         "apps/api/src/app.test.ts",
-        "apps/mobile/src/composition/app-variant.test.ts"
+        "apps/mobile/src/composition/app-variant.test.ts",
+        "apps/mobile/src/components/account-header-button.test.ts"
       ],
       "relations": [
         {
@@ -1264,7 +1272,7 @@
         "apps/mobile/src/features/community/discovery/screen.tsx",
         "apps/mobile/src/features/community/feed/feed-screen.tsx",
         "apps/mobile/src/features/community/feed/activity-detail-screen.tsx",
-        "apps/mobile/src/app/community/index.tsx",
+        "apps/mobile/src/app/(tabs)/community.tsx",
         "apps/mobile/src/app/community/activity/[id].tsx",
         "apps/mobile/src/features/community/reactions/reaction-bar.tsx",
         "apps/mobile/src/features/community/reactions/reactors-modal.tsx",

@@ -24,7 +24,7 @@ import type { DailyFoodSummary, FoodEntry } from "@mizyun/contracts";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { BrandWordmark } from "@/components/brand-wordmark";
-import { FeedbackHeaderButton } from "@/components/feedback-header-button";
+import { AccountHeaderActions } from "@/components/account-header-button";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { analyticsClient } from "@/composition/analytics-client";
 import { useAuth } from "@/features/auth/auth-context";
@@ -627,7 +627,7 @@ export function MealListScreen() {
           <View style={styles.header}>
             <View style={styles.headerTopRow}>
               <BrandWordmark />
-              <FeedbackHeaderButton />
+              <AccountHeaderActions />
             </View>
             <ThemedText type="subtitle">Meals</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">

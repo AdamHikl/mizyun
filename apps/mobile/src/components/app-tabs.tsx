@@ -53,11 +53,11 @@ export default function AppTabs() {
         />
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="settings">
-        <NativeTabs.Trigger.Label>Account</NativeTabs.Trigger.Label>
+      <NativeTabs.Trigger name="community">
+        <NativeTabs.Trigger.Label>Community</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon
-          sf="person.crop.circle"
-          src={require("@/assets/images/tabIcons/settings.png")}
+          sf="person.2.fill"
+          md="group"
           renderingMode="template"
         />
       </NativeTabs.Trigger>

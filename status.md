@@ -2,6 +2,14 @@
 
 > Updated 2026-09-30. Earlier package evidence, operational snapshots and concurrent work are preserved in [the pre-review archive](docs/archive/status/STATUS_COMMUNITY_PRE_FINAL_REVIEW_2026-09-30.md). Historical next actions are not current instructions.
 
+## Community primary navigation — 2026-09-30
+
+Adam approved five tabs Home / Workouts / Meals / Coach / Community, with Account in a consistent header avatar. Work is active under #150 on `codex/community-140-145`, baseline `0ac0371eb4900a19e77afb7e531d83e5f3b1e3fe`; initial tree clean. Existing `/community` moves into tabs and `/settings` moves to root Stack without changing URLs; private Home remains default. Community groups feed/Find friends/Requests/Inbox/My profile, with voluntary join/private exit and no auto enrollment/sharing. [ADR-0031](docs/adr/0031-community-tab-account-header.md) records the approved navigation choice.
+
+Helper owns feed UI/tests; coordinator owns routes/header/continuity/resources. Independent review found and accepted the corrected retained-tab membership refresh: focus/foreground hides feed before a fresh profile read, with late-response guards. Fresh full `pnpm check` exit0 (mobile1006/API730, 15 gated API skips, dual Hermes/typechecks/safeguards); focused independent screen/controller checks50pass. Exact signed Dev build/install and physical navigation acceptance are pending. No backend, schema or Production operation.
+
+**Next exact action:** commit/push the verified navigation candidate, install standalone Dev on Adam's iPhone and accept five tabs, Account Back, join/leave return and accessibility. Original Community/partner/operator/legal/restore/push/pilot gates and returning Apple login stay separate.
+
 ## Community Dev Apple sign-in blocker — 2026-09-30
 
 Adam reported Apple sign-in failing before the Apple sheet. Actual native project and signed Dev app lacked Apple capability. Dev installer reused matching bundle ID without checking entitlements. Added Dev-only missing-capability regeneration and signed Default-capability refusal before install; baseline installer fails the new regression, corrected installer passes7checks. Independent non-author review approved. Fresh `pnpm check` exit0 (mobile995/API730, 15 gated skips, dual Hermes/typechecks/safeguards). [#164 and durable evidence](docs/COMMUNITY_APPLE_DEV_ACCEPTANCE_2026-09-30.md) retain exact proof and separate acceptance.

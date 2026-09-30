@@ -31,7 +31,7 @@ import {
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { BrandWordmark } from "@/components/brand-wordmark";
-import { FeedbackHeaderButton } from "@/components/feedback-header-button";
+import { AccountHeaderActions } from "@/components/account-header-button";
 import {
   BottomTabInset,
   Colors,
@@ -646,7 +646,7 @@ export function CoachSetupScreen() {
             <View style={styles.headerTopRow}>
               <BrandWordmark />
               <View style={styles.headerActions}>
-                <FeedbackHeaderButton />
+                <AccountHeaderActions />
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Toggle training plan & advisory info"

@@ -2,7 +2,7 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { BrandWordmark } from "@/components/brand-wordmark";
 import { FeedbackHeaderButton } from "@/components/feedback-header-button";
-import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import { MaxContentWidth, Spacing } from "@/constants/theme";
 import { isProgressPhotosEnabled } from "@/composition/app-variant";
 import { analyticsClient } from "@/composition/analytics-client";
 import { useAuth } from "@/features/auth/auth-context";
@@ -148,8 +148,8 @@ export function SettingsScreen() {
         ? "Light mode"
         : "Dark mode";
 
-  const topPadding = Math.max(insets.top, 24) + Spacing.two;
-  const bottomPadding = BottomTabInset + insets.bottom + Spacing.six;
+  const topPadding = Spacing.two;
+  const bottomPadding = insets.bottom + Spacing.six;
 
   const isSearching = searchQuery.trim().length > 0;
 

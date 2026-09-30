@@ -3,6 +3,7 @@ import React, {
   useEffect,
   useMemo,
   useRef,
+  useState,
   useSyncExternalStore,
 } from "react";
 import {
@@ -10,12 +11,16 @@ import {
   AppState,
   FlatList,
   Pressable,
+  Platform,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 import { Link, type Href, useFocusEffect, useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { AccountHeaderActions } from "@/components/account-header-button";
 import type { SharedActivityFeedItemDto } from "@mizyun/contracts";
 import { apiClient } from "@/composition/api-client";
 import { useAuth } from "@/features/auth/auth-context";
@@ -48,7 +53,13 @@ function FeedScreenContent({
 }) {
   const colors = useTheme();
   const router = useRouter();
-  const community = useCommunityProfile({ principalKey, birthYear });
+  const community = useCommunityProfile({
+    principalKey,
+    birthYear,
+    autoLoad: false,
+  });
+  const [membershipVerified, setMembershipVerified] = useState(false);
+  const membershipRevision = useRef(0);
 
   const alive = useRef(true);
   useEffect(() => {
@@ -73,32 +84,49 @@ function FeedScreenContent({
   const enrolled = useRef(community.isEnrolled);
   enrolled.current = community.isEnrolled;
   const loadFeed = useCallback(() => {
-    if (!focused.current || !foreground.current) return;
+    if (!focused.current || !foreground.current || !membershipVerified) return;
     alive.current = true;
     controller.resume();
     if (enrolled.current) void controller.refresh();
-  }, [controller]);
+  }, [controller, membershipVerified]);
+  const revalidateMembership = useCallback(async () => {
+    const revision = ++membershipRevision.current;
+    setMembershipVerified(false);
+    alive.current = false;
+    controller.pause();
+    await community.actions.load();
+    if (
+      revision !== membershipRevision.current ||
+      !focused.current ||
+      !foreground.current
+    )
+      return;
+    setMembershipVerified(true);
+  }, [controller, community.actions.load]);
   useFocusEffect(
     useCallback(() => {
       focused.current = true;
-      loadFeed();
+      void revalidateMembership();
       return () => {
+        membershipRevision.current += 1;
         focused.current = false;
         alive.current = false;
         controller.pause();
       };
-    }, [controller, loadFeed]),
+    }, [controller, revalidateMembership]),
   );
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (next) => {
       foreground.current = next === "active";
       if (next !== "active") {
+        membershipRevision.current += 1;
+        setMembershipVerified(false);
         alive.current = false;
         controller.pause();
-      } else loadFeed();
+      } else if (focused.current) void revalidateMembership();
     });
     return () => subscription.remove();
-  }, [controller, loadFeed]);
+  }, [controller, revalidateMembership]);
   useEffect(() => {
     controller.pause();
     loadFeed();
@@ -107,6 +135,7 @@ function FeedScreenContent({
     loadFeed,
     community.isEnrolled,
     community.profile?.generation,
+    membershipVerified,
   ]);
 
   const handleRefresh = useCallback(() => {
@@ -148,36 +177,93 @@ function FeedScreenContent({
     [principalKey, router, scopedClient, controller, loadFeed],
   );
 
-  // If user is not enrolled in Community
-  if (community.status !== "loading" && !community.isEnrolled) {
+  // Opening Community never enrolls or shares on the user's behalf.
+  if (!membershipVerified || !community.isEnrolled) {
+    const checking =
+      !membershipVerified ||
+      community.status === "loading" ||
+      community.status === "idle";
+    const canJoin = community.status === "ready" && !community.profile;
     return (
-      <View style={[styles.centered, { backgroundColor: colors.background }]}>
-        <Text style={[styles.notEnrolledTitle, { color: colors.text }]}>
-          Mizyun Friends
-        </Text>
-        <Text style={[styles.notEnrolledBody, { color: colors.textSecondary }]}>
-          Share workout progress with approved friends privately.
-        </Text>
-        <Link href={"/community/settings" as Href} asChild>
-          <Pressable
-            style={[styles.primaryButton, { backgroundColor: colors.primary }]}
-            accessibilityRole="button"
-            accessibilityLabel="Join Community"
+      <SafeAreaView
+        edges={["top", "left", "right"]}
+        style={[styles.container, { backgroundColor: colors.background }]}
+      >
+        <View style={styles.accountHeader}>
+          <AccountHeaderActions />
+        </View>
+        <ScrollView contentContainerStyle={styles.centered}>
+          <Text
+            accessibilityRole="header"
+            style={[styles.notEnrolledTitle, { color: colors.text }]}
           >
-            <Text
-              style={[styles.primaryButtonText, { color: colors.background }]}
+            Community
+          </Text>
+          {checking ? (
+            <ActivityIndicator color={colors.primary} />
+          ) : (
+            <>
+              <Text
+                style={[
+                  styles.notEnrolledBody,
+                  { color: colors.textSecondary },
+                ]}
+              >
+                {canJoin
+                  ? "Community is optional. Share selected workout completion cards with approved friends. Joining shares nothing automatically, and your private tracking stays available."
+                  : (community.error ??
+                    "Community is unavailable. Your private tracking stays available.")}
+              </Text>
+              <Link href={"/community/settings" as Href} asChild>
+                <Pressable
+                  style={[
+                    styles.primaryButton,
+                    { backgroundColor: colors.primary },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    canJoin ? "Join Community" : "Review Community status"
+                  }
+                >
+                  <Text
+                    style={[
+                      styles.primaryButtonText,
+                      { color: colors.background },
+                    ]}
+                  >
+                    {canJoin ? "Join Community" : "Review Community status"}
+                  </Text>
+                </Pressable>
+              </Link>
+            </>
+          )}
+          <Link href="/" asChild>
+            <Pressable
+              style={styles.privateButton}
+              accessibilityRole="button"
+              accessibilityLabel="Keep tracking privately"
             >
-              Join Community
-            </Text>
-          </Pressable>
-        </Link>
-      </View>
+              <Text
+                style={[styles.primaryButtonText, { color: colors.primary }]}
+              >
+                Keep tracking privately
+              </Text>
+            </Pressable>
+          </Link>
+        </ScrollView>
+      </SafeAreaView>
     );
   }
 
   // Header quick links
   const headerComponent = (
     <View style={styles.headerBar}>
+      <Text
+        accessibilityRole="header"
+        style={[styles.heading, { color: colors.text }]}
+      >
+        Community
+      </Text>
       <View style={styles.quickLinks}>
         <Link href={"/community/invite" as Href} asChild>
           <Pressable
@@ -186,7 +272,7 @@ function FeedScreenContent({
             accessibilityLabel="Find Friends"
           >
             <Text style={[styles.quickLinkText, { color: colors.text }]}>
-              🔍 Find friends
+              Find friends
             </Text>
           </Pressable>
         </Link>
@@ -197,7 +283,18 @@ function FeedScreenContent({
             accessibilityLabel="Your friends and requests"
           >
             <Text style={[styles.quickLinkText, { color: colors.text }]}>
-              👥 Requests
+              Requests
+            </Text>
+          </Pressable>
+        </Link>
+        <Link href={"/community/inbox" as Href} asChild>
+          <Pressable
+            style={[styles.quickLinkPill, { borderColor: colors.border }]}
+            accessibilityRole="button"
+            accessibilityLabel="Community inbox"
+          >
+            <Text style={[styles.quickLinkText, { color: colors.text }]}>
+              Inbox
             </Text>
           </Pressable>
         </Link>
@@ -205,10 +302,10 @@ function FeedScreenContent({
           <Pressable
             style={[styles.quickLinkPill, { borderColor: colors.border }]}
             accessibilityRole="button"
-            accessibilityLabel="Community settings"
+            accessibilityLabel="My Community profile and settings"
           >
             <Text style={[styles.quickLinkText, { color: colors.text }]}>
-              ⚙️ Settings
+              My profile
             </Text>
           </Pressable>
         </Link>
@@ -283,7 +380,13 @@ function FeedScreenContent({
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView
+      edges={["top", "left", "right"]}
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
+      <View style={styles.accountHeader}>
+        <AccountHeaderActions />
+      </View>
       <FlatList
         data={
           (community.isEnrolled
@@ -306,17 +409,34 @@ function FeedScreenContent({
         }
         contentContainerStyle={styles.listContent}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    paddingTop: Platform.OS === "web" ? 80 : 0,
   },
   listContent: {
     flexGrow: 1,
     paddingBottom: 24,
+  },
+  accountHeader: {
+    alignItems: "flex-end",
+    paddingHorizontal: 16,
+  },
+  heading: {
+    fontSize: 28,
+    fontWeight: "700",
+    marginHorizontal: 16,
+    marginBottom: 16,
+  },
+  privateButton: {
+    minHeight: 48,
+    justifyContent: "center",
+    paddingHorizontal: 12,
+    marginTop: 12,
   },
   headerBar: {
     paddingVertical: 12,
@@ -399,7 +519,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   centered: {
-    flex: 1,
+    flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
@@ -416,6 +536,8 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   primaryButton: {
+    minHeight: 48,
+    justifyContent: "center",
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 12,

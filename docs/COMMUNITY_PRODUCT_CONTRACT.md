@@ -327,3 +327,7 @@ Subsequent source sessions implemented #142’s conservative `year - 19` rule, f
 Design review can accept the rules, matrix, wireframes, copy, threat model and ownership inventory. #140's original plan also requires adult target-user feedback including someone who declines Community. That work has not been performed by an agent; [the validation pack](COMMUNITY_UX_VALIDATION_2026-09-30.md) supplies a consent-respecting protocol and unfilled evidence template. Keep #140 open until genuine feedback is reviewed, material confusion is corrected and retested, or the user explicitly changes the acceptance scope without losing the gate.
 
 The design-segment next action was #142; subsequent sessions implemented #142–145 source. Current acceptance and next actions are in the combined evidence and latest status. Do not treat starting #142 as pilot launch permission. No runtime, migration, deployment or native acceptance is provided by this documentation revision.
+
+## 2026-09-30 primary navigation decision
+
+Adam approved Home / Workouts / Meals / Coach / Community as the five primary tabs, with Account available through the header avatar on each. Community home groups the following feed, Find friends, Requests, Inbox and My profile/settings; nonparticipants receive deliberate Join and Keep tracking privately. The Account privacy/settings entry remains secondary. See [ADR-0031](adr/0031-community-tab-account-header.md). No admission, publication, visibility or pilot acceptance rule changes.

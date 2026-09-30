@@ -16,7 +16,7 @@ import { formatStopwatch, useOptionalActiveWorkout } from "@/features/workouts";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { BrandWordmark } from "@/components/brand-wordmark";
-import { FeedbackHeaderButton } from "@/components/feedback-header-button";
+import { AccountHeaderActions } from "@/components/account-header-button";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { apiClient } from "@/composition/api-client";
 import { analyticsClient } from "@/composition/analytics-client";
@@ -608,7 +608,7 @@ export function DashboardScreen() {
           <View style={styles.header}>
             <View style={styles.headerTopRow}>
               <BrandWordmark />
-              <FeedbackHeaderButton />
+              <AccountHeaderActions />
             </View>
             <ThemedText type="subtitle">
               {profile?.displayName
