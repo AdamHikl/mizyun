@@ -1,3 +1,4 @@
+import { sendApiError } from "./errors.js";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -1025,12 +1026,13 @@ export const buildApp = (
       ? null
       : communityOperationGate(request.method, request.url);
     if (gate && !communityOperations[gate])
-      return reply.code(503).send({
-        error: {
-          code: "SERVICE_UNAVAILABLE",
-          message: "Community action is temporarily unavailable.",
-        },
-      });
+      return sendApiError(
+        reply,
+        request,
+        503,
+        "SERVICE_UNAVAILABLE",
+        "Community action is temporarily unavailable.",
+      );
   });
   void app.register(communityNotificationRoutes, {
     prefix: "/v1/community",

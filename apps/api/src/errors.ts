@@ -9,6 +9,7 @@ import type { LimitReasonKind } from "@mizyun/contracts";
  * contract change and should be reviewed against `docs/LOGGING_POLICY.md`.
  */
 export type ApiErrorCode =
+  | "SERVICE_UNAVAILABLE"
   | "AUTHENTICATION_REQUIRED"
   | "INVALID_ACCESS_TOKEN"
   | "AUTHENTICATION_UNAVAILABLE"

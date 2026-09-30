@@ -70,9 +70,16 @@ describe("Community operations", () => {
         ["GET", "/v1/community/profiles/00000000-0000-4000-8000-000000000002"],
         ["POST", "/v1/community/profile"],
       ] as const) {
-        expect((await app.inject({ method, url, headers })).statusCode).toBe(
-          503,
-        );
+        const response = await app.inject({
+          method,
+          url,
+          headers: { ...headers, "x-request-id": "closed-community-check" },
+        });
+        expect(response.statusCode).toBe(503);
+        expect(response.json().error).toMatchObject({
+          code: "SERVICE_UNAVAILABLE",
+          requestId: "closed-community-check",
+        });
       }
       expect(
         (
