@@ -1,0 +1,23 @@
+{
+  "head": "877d1898e9205c4be19c6344e1cf1d533f4ff312",
+  "workingTree": "preserved uncommitted foundation and concurrent142 plus143",
+  "sha256": {
+    "apps/mobile/src/features/community/relationships/controller.test.ts": "91b2b154723cac459807cc677414f32bc01ff0aa86c3bee445a2c3772721ae64",
+    "apps/mobile/src/features/community/relationships/screen.tsx": "3e01a1c17a7a506bc2876ebdcf137c6204cbe0b88e84f7779b53de5a9428ca4e",
+    "apps/mobile/src/features/community/relationships/controller.ts": "3a3268792bae74a8efd71bf64c5c0eea65a3568e171464db35b23e0eb4b7c112",
+    "apps/mobile/src/app/community/relationships.tsx": "1929892af36bfe07d8ba530ae176da6e8b3be01d5397f878a665a07455d0090d",
+    "apps/mobile/src/app/community/invite.tsx": "2faea53fd2b5a799fdb625508a2aab0751fff1477facca336cd7babad6eff7c7",
+    "apps/mobile/src/features/community/community-client.ts": "ac0eb2eb7058a90d55a1728cfd5de4d3a3691d5bf2561490a3ca7ed2c62a98d3",
+    "apps/mobile/src/features/community/invitation-actions.ts": "fe9d11cbae6c2866f12a1bfb4c37038577479612a8dc6aed3965d53ab76de398",
+    "apps/mobile/src/features/community/community-settings-screen.tsx": "0f4cb9f60977ac2cba2a62ae864f7624800ec5a3f19eeb75b28269c125b8644f",
+    "packages/contracts/src/community.ts": "7f9e60693a8aced906e3a63a15ffd1cc06ec9236aae6b17cb277e3bfeb69ee00",
+    "packages/core/src/community.ts": "32b59d753d800d3953aec3b815bf66b7d3b8dab5f48d30450a5cd0c313c6ba47",
+    "packages/adapters/supabase-server/src/community-repository.ts": "7fff5ebaa03351bf87930f65f72dd104a1f7830b0b8ebe1fc1093370e7fdcbcc",
+    "apps/api/src/community-repository.ts": "c530a963a7a7242ecfe94d6d45b9acd7362d6913f2d0b20ab4c76201abb70bfc",
+    "apps/api/src/modules/community/relationship-routes.ts": "efba38875de787687a1c7419a39a49004b454c9ded30d79b5034ad9987339bbb",
+    "supabase/migrations/20260930120000_community_relationship_controls.sql": "13f29327f965648db4ad7223326e0edd3dbd1be680f5d730df50a94ca2f89d57",
+    "supabase/migrations/20260930130000_community_enrollment_controls.sql": "2796d25e884374a7e23f386e74630f043dd77c2f18cb63d482fbf07e5bd45659",
+    "supabase/tests/database/0011_community_relationship_controls.test.sql": "70e3468a7c14d73da835a0074c6186c45cae6b09487fcf6136af435c672531ba",
+    "scripts/test-community-relationship-concurrency.py": "7f4b28331d8ddea4dfec70b2da44c3fa4ec28a00730b1d37c2cfd571e71c44af"
+  }
+}

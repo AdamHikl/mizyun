@@ -1182,6 +1182,184 @@
       "limitations": "Returns service name, timestamp, and ok status; does not exercise database transaction isolation",
       "requirements": ["INFRA-01"],
       "openAcceptance": []
+    },
+    {
+      "id": "community",
+      "title": "Community & Friend Workout Sharing",
+      "summary": "Opt-in social foundation with directional follow relationships, bilateral blocking, field-limited published workout activity snapshots, supportive reactions, and reporting.",
+      "aliases": [
+        "community",
+        "social",
+        "friends",
+        "following",
+        "share workout"
+      ],
+      "entryPoints": [
+        "packages/contracts/src/community.ts",
+        "packages/core/src/community.ts",
+        "packages/adapters/supabase-server/src/community-repository.ts",
+        "apps/api/src/modules/community/profile-routes.ts",
+        "apps/api/src/modules/community/relationship-routes.ts",
+        "apps/api/src/modules/community/invitation-routes.ts",
+        "apps/api/src/modules/community/publication-routes.ts",
+        "apps/mobile/src/app/community/invite.tsx",
+        "apps/mobile/src/app/community/settings.tsx",
+        "apps/mobile/src/features/community/index.ts",
+        "apps/mobile/src/app/community/relationships.tsx"
+      ],
+      "ownedPaths": [
+        "packages/contracts/src/community.ts",
+        "packages/core/src/community.ts",
+        "packages/adapters/supabase-server/src/community-repository.ts",
+        "apps/api/src/community-repository.ts",
+        "apps/api/src/modules/community",
+        "apps/mobile/src/app/community",
+        "apps/mobile/src/features/community"
+      ],
+      "contracts": ["packages/contracts/src/community.ts"],
+      "domainPort": ["packages/core/src/community.ts"],
+      "api": [
+        "apps/api/src/community-repository.ts",
+        "apps/api/src/modules/community/profile-routes.ts",
+        "apps/api/src/modules/community/relationship-routes.ts",
+        "apps/api/src/modules/community/invitation-routes.ts",
+        "apps/api/src/modules/community/publication-routes.ts",
+        "apps/api/src/modules/community/discovery-routes.ts"
+      ],
+      "ui": [
+        "apps/mobile/src/features/community/community-client.ts",
+        "apps/mobile/src/features/community/initials-avatar.tsx",
+        "apps/mobile/src/features/community/use-community-profile.ts",
+        "apps/mobile/src/features/community/share-workout-modal.tsx",
+        "apps/mobile/src/app/community/invite.tsx",
+        "apps/mobile/src/app/community/settings.tsx",
+        "apps/mobile/src/features/community/index.ts",
+        "apps/mobile/src/features/community/relationships/screen.tsx",
+        "apps/mobile/src/features/community/discovery/screen.tsx"
+      ],
+      "adapters": [
+        "packages/adapters/supabase-server/src/community-repository.ts"
+      ],
+      "dataTables": [
+        "community_profiles",
+        "community_relationships",
+        "community_blocks",
+        "shared_activities",
+        "community_reactions",
+        "community_reports",
+        "community_invitations",
+        "community_mutes",
+        "community_follow_operations",
+        "community_follow_request_events",
+        "community_follow_cooldowns",
+        "community_discovery_attempts",
+        "community_invitation_usage",
+        "community_publication_usage"
+      ],
+      "migrationPaths": [
+        "supabase/migrations/20260930100000_community_foundation.sql",
+        "supabase/migrations/20260930110000_community_review_hardening.sql",
+        "supabase/migrations/20260930130000_community_enrollment_controls.sql",
+        "supabase/migrations/20260930120000_community_relationship_controls.sql",
+        "supabase/migrations/20260930140000_community_discovery_controls.sql",
+        "supabase/migrations/20260930150000_community_publication_controls.sql",
+        "supabase/migrations/20260930160000_community_account_deletion_cooldowns.sql"
+      ],
+      "tests": [
+        "packages/contracts/src/community.test.ts",
+        "packages/core/src/community.test.ts",
+        "packages/adapters/supabase-server/src/community-repository.test.ts",
+        "apps/api/src/modules/community/profile-routes.test.ts",
+        "apps/api/src/modules/community/relationship-routes.test.ts",
+        "apps/api/src/modules/community/invitation-routes.test.ts",
+        "apps/api/src/modules/community/publication-routes.test.ts",
+        "apps/mobile/src/features/community/community-client.test.ts",
+        "apps/mobile/src/features/community/initials-avatar.test.ts",
+        "apps/mobile/src/features/community/use-community-profile.test.ts",
+        "supabase/tests/database/0008_community_isolation.test.sql",
+        "apps/api/src/community-repository.test.ts",
+        "apps/api/src/logging.test.ts",
+        "packages/api-client/src/http-api-client.test.ts",
+        "supabase/tests/database/0009_community_boundary_regressions.test.sql",
+        "supabase/tests/database/0010_community_publication_retries.test.sql",
+        "supabase/tests/database/0012_community_enrollment_controls.test.sql",
+        "apps/mobile/src/features/community/profile-form.test.ts",
+        "scripts/test-community-enrollment-concurrency.py",
+        "apps/mobile/src/features/community/relationships/controller.test.ts",
+        "supabase/tests/database/0011_community_relationship_controls.test.sql",
+        "scripts/test-community-relationship-concurrency.py",
+        "apps/api/src/modules/community/discovery-routes.test.ts",
+        "apps/mobile/src/features/community/discovery/controller.test.ts",
+        "apps/mobile/src/features/community/discovery/access-gate.test.ts",
+        "apps/mobile/src/features/community/discovery/qr-matrix.test.ts",
+        "supabase/tests/database/0013_community_discovery_controls.test.sql",
+        "supabase/tests/database/0014_community_publication_controls.test.sql",
+        "scripts/test-community-publication-concurrency.py",
+        "supabase/tests/database/0015_community_account_deletion_cooldowns.test.sql"
+      ],
+      "relations": [
+        {
+          "type": "dependsOn",
+          "target": "auth",
+          "reason": "Authenticated user context and adult age eligibility verification"
+        },
+        {
+          "type": "dependsOn",
+          "target": "workouts-sets",
+          "reason": "Workout completion source for published snapshot creation"
+        }
+      ],
+      "docs": [
+        "docs/COMMUNITY_PRODUCT_CONTRACT.md",
+        "docs/adr/0030-explicit-community-publication.md",
+        "docs/COMMUNITY_REVIEW_EVIDENCE_2026-09-30.md",
+        "docs/COMMUNITY_UX_VALIDATION_2026-09-30.md",
+        "docs/COMMUNITY_IMPLEMENTATION_PLAN_2026-09-29.md",
+        "docs/COMMUNITY_DESIGN_EVIDENCE_2026-09-30.md",
+        "docs/COMMUNITY_ENROLLMENT_EVIDENCE_2026-09-30.md",
+        "docs/COMMUNITY_RELATIONSHIPS_EVIDENCE_2026-09-30.md",
+        "docs/COMMUNITY_DISCOVERY_PUBLICATION_EVIDENCE_2026-09-30.md",
+        "docs/COMMUNITY_COMMIT_EVIDENCE_2026-09-30.md"
+      ],
+      "verificationCommands": [
+        "pnpm --filter @mizyun/contracts test src/community.test.ts",
+        "pnpm --filter @mizyun/core test src/community.test.ts",
+        "pnpm --filter @mizyun/adapter-supabase-server test src/community-repository.test.ts",
+        "pnpm --filter @mizyun/api test src/modules/community/profile-routes.test.ts",
+        "pnpm --filter @mizyun/api test src/modules/community/relationship-routes.test.ts",
+        "pnpm --filter @mizyun/mobile test src/features/community/",
+        "pnpm supabase test db"
+      ],
+      "lastReviewedSha": "4155a6628849da7a1e17844e33d7230421e46638",
+      "lastReviewedDate": "2026-09-30",
+      "limitations": "Local reviewed implementation, admission closed; discovery/QR/revocation and explicit duration-off completion/history sharing implemented. Dev deployment, physical link/QR/account-switch/sharing acceptance and reporting/delivery/retention/pilot prerequisites remain open.",
+      "requirements": [
+        "COMMUNITY-01",
+        "COMMUNITY-02",
+        "COMMUNITY-03",
+        "COMMUNITY-04",
+        "COMMUNITY-05",
+        "COMMUNITY-06",
+        "COMMUNITY-07",
+        "COMMUNITY-08",
+        "COMMUNITY-09",
+        "COMMUNITY-10",
+        "COMMUNITY-11",
+        "COMMUNITY-12",
+        "COMMUNITY-13",
+        "COMMUNITY-14",
+        "COMMUNITY-15",
+        "COMMUNITY-16",
+        "SEC-03"
+      ],
+      "openAcceptance": [
+        "COMM-01 genuine adult target-user validation including voluntary decliner; design/source complete",
+        "COMM-03 physical enrollment/settings/withdrawal and contact/legal/moderation/retention/admission gates",
+        "COMM-04 physical relationship/graph/block/mute/account-switch acceptance and reporting/delivery/retention dependencies",
+        "COMM-05 installed cold/warm/login/QR/environment/account-switch and not-installed fallback acceptance",
+        "COMM-06 physical preview/publish/edit/unpublish/source-delete acceptance and feed/delivery dependencies",
+        "COMM-07–16 feed, moderation, inbox/delivery, lifecycle/export/restore, rollout and exact-candidate pilot gates"
+      ]
     }
   ]
 }
