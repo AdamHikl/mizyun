@@ -2,15 +2,29 @@
 
 > Updated 2026-09-30. Earlier package evidence, operational snapshots and concurrent work are preserved in [the pre-review archive](docs/archive/status/STATUS_COMMUNITY_PRE_FINAL_REVIEW_2026-09-30.md). Historical next actions are not current instructions.
 
-## Community #140–155 final review and publication
+## Community founder Dev testing activation — 2026-09-30
+
+Adam explicitly requested interactive Dev Community testing, latest Dev backend/iPhone installation, and no Production changes. His supplied sign-in identity resolves to exactly one existing eligible Dev principal; no automatic enrollment or social mutations are authorized. Mobile hardcoded closure is replaced by exact validated Dev variant/API/Auth/callback gating; server cohort remains authoritative. Coordinator adds a hardened Dev-only maintenance unit/timer for withdrawal/retention, without push/receipt calls, and normalizes disabled-operation request IDs (#163). Independent non-author review approves the settled design and source.
+
+**Next exact action:** fresh combined `pnpm check` passed; publish verified runtime `d81c10f60c0aebc6b2240e48e69e4678addc8079` and deploy its documentation descendant to Dev; install verified Dev maintenance, admit only the identified Dev account (`cohort_required=true`, deliveryfalse), preserve other environment settings and credentials, then install/relaunch the standalone iPhone build into Community settings. Keep the original participant/device/operator/legal/restore/pilot gates open. Production is outside this work.
+
+## Community Dev deployment — 2026-09-30
+
+Adam confirmed deployment and standalone iPhone installation of `49d3e19f5cc0e7d0c4bc4c1fd5ff68adad651300`. **Dev deployed**: fresh exact-candidate `pnpm check` passes; encrypted Dev DB snapshot taken; all14 Community migrations through230000 applied; remote HEAD/journal/pristine checkout match. Public health200, unauthenticated profile401 and globally closed feed503. Live REST service-JWT own-target controls200 and both cross-targets401; new Dev aggregate RPC200. [Durable deployment evidence](docs/COMMUNITY_DEV_DEPLOYMENT_2026-09-30.md) records exact targets, snapshot, checks and qualifications.
+
+**iPhone installed**: signed standalone Release `com.mizyun.development`1.0.6(6), Xcode27.0, Adam's iPhone16Pro `00008140-001114501A86801C`; Dev endpoints/embedded bundle/entitlements verified. Initial automatic launch was blocked by the locked device; Adam later opened the app and main PID69763 was verified. No signed-in Community feature acceptance claimed. Admission/delivery controls and cohort stay closed. Logging follow-up [#163](https://github.com/AdamHikl/mizyun/issues/163) records missing requestId in the disabled-operation503 response.
+
+This is the earlier closed candidate. Adam reported it open but unable to access interactive Community; the newer founder Dev testing entry above is current. No broader cohort, push delivery or Production/Store release is inferred.
+
+## Community #140–155 source review and publication (before deployment)
 
 Review/fixes complete in source on `codex/community-140-145`, base `f37a0f7491b4d1f3732c00c62f6385c7bcc7a59e`, preserving prior #146–155 work and the existing settings fix. [Final review evidence](docs/COMMUNITY_FINAL_REVIEW_2026-09-30.md) supersedes older Community candidate claims; prior dated manifests/log results remain historical.
 
-Corrected closed admission/cohort/global read controls, frozen privacy reductions, invitation discovery bypass, Auth-deletion lock ordering, bounded deduplicated reporting receipts/ambiguous activity query, expired-card delivery, original queue-age metrics, short serial push leases, terminal-control injection and erased moderation audit copies. Mobile/identity review fixes captured-session logout/SDK transition ordering, newer push bindings, reaction permission-loss card invalidation and cold-start/profile owner isolation. Forward210000/220000/230000 are Mac-scratch-only at this point; no remote migrations or device changes.
+Corrected closed admission/cohort/global read controls, frozen privacy reductions, invitation discovery bypass, Auth-deletion lock ordering, bounded deduplicated reporting receipts/ambiguous activity query, expired-card delivery, original queue-age metrics, short serial push leases, terminal-control injection and erased moderation audit copies. Mobile/identity review fixes captured-session logout/SDK transition ordering, newer push bindings, reaction permission-loss card invalidation and cold-start/profile owner isolation. At review completion, forward210000/220000/230000 were Mac-scratch-only; the newer deployment entry above records their actual Dev application.
 
 Fresh `pnpm check` passes (mobile 977/API 730, 15 existing gated skips, dual Hermes exports, typechecks, safeguards, 56 offline invariants and 26 CLI/worker tests). Isolated SQL passes 526 assertions/22 files plus real enrollment/relationship/publication/moderation races and synthetic capacity. Combined runtime SHA `f063d7a78e38e3bf6cad7e44f0b7edfcc74f16c9` matches the final 187-file manifest. Original participant/device/provider/operator/legal/restore/pilot exits remain open; #141 local foundation remains done. Admission/delivery defaults closed and require explicit target/cohort activation. Source completion is separate from release acceptance.
 
-**Next exact action:** after the six-commit GitHub publication, ask Adam to confirm the exact pushed SHA **before** any Hetzner Dev backend deployment or iPhone build/install. This is the user's explicit action boundary; no Dev/Production/Store action is authorized yet.
+The six implementation/evidence commits were pushed at `49d3e19f5cc0e7d0c4bc4c1fd5ff68adad651300`. Adam subsequently confirmed the Dev/iPhone action; see the newer deployment entry above. Original participant/device/operator/legal/restore/pilot exits remain open.
 
 ## Active priority — InVenture, October 2–3
 
@@ -22,12 +36,12 @@ The pre-review archive preserves workout reordering/set types (#138/#139), iPad 
 
 ## Current environment authority
 
-| Environment | Authority                                                          | Last evidenced source                                                                             | Scope                                                                                                                   |
-| ----------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Local       | `/Users/adam/Documents/mizyun`                                     | `f063d7a78e38e3bf6cad7e44f0b7edfcc74f16c9` (combined runtime; final documentation commit follows) | Community source/automatic verification; no new Dev/device acceptance                                                   |
-| Dev         | Hetzner CX23, `/var/lib/mizyun/dev/repo`, `mizyun-api-dev.service` | `17766196b6e769d99913e83bdde7cbf04096db8c`; public health HTTP 200 at 2026-09-29T18:18:49.241Z    | Dev backend running latest features (#133, #134, #135, #138, #139; set types and advanced nutrition migrations applied) |
-| Production  | Hetzner CX23, `/var/lib/mizyun/repo`, `mizyun-api.service`         | `0aadf95b5ff85d9cfc8bf5485e68a72525080e84`; public health HTTP 200 at 2026-09-24T17:19:09.447Z    | Promoted accepted SHA, encrypted backup taken, migrations applied, older clients verified                               |
-| Recovery    | Raspberry Pi 5                                                     | Encrypted daily Production archive workflow and accepted restore point `20260919T103343Z`         | Recovery storage only; not a deployment target or writable failover                                                     |
+| Environment | Authority                                                          | Last evidenced source                                                                             | Scope                                                                                                    |
+| ----------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Local       | `/Users/adam/Documents/mizyun`                                     | `f063d7a78e38e3bf6cad7e44f0b7edfcc74f16c9` (combined runtime; final documentation commit follows) | Community source/automatic verification; no new Dev/device acceptance                                    |
+| Dev         | Hetzner CX23, `/var/lib/mizyun/dev/repo`, `mizyun-api-dev.service` | `49d3e19f5cc0e7d0c4bc4c1fd5ff68adad651300`; public health200 at2026-09-30T17:47:18Z               | Community migrations through230000 applied; admission/delivery closed; device feature acceptance pending |
+| Production  | Hetzner CX23, `/var/lib/mizyun/repo`, `mizyun-api.service`         | `0aadf95b5ff85d9cfc8bf5485e68a72525080e84`; public health HTTP 200 at 2026-09-24T17:19:09.447Z    | Promoted accepted SHA, encrypted backup taken, migrations applied, older clients verified                |
+| Recovery    | Raspberry Pi 5                                                     | Encrypted daily Production archive workflow and accepted restore point `20260919T103343Z`         | Recovery storage only; not a deployment target or writable failover                                      |
 
 ## Rules and open gates that must survive handoff
 

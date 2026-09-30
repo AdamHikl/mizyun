@@ -1402,7 +1402,9 @@
         "supabase/tests/database/0021_community_erasure_audit.test.sql",
         "apps/mobile/src/features/auth/session-bound-sign-out.test.ts",
         "packages/adapters/supabase-mobile/src/index.test.ts",
-        "apps/mobile/src/features/auth/auth-bootstrap.test.ts"
+        "apps/mobile/src/features/auth/auth-bootstrap.test.ts",
+        "apps/mobile/src/composition/community-admission.test.ts",
+        "scripts/community-dev-maintenance.test.mjs"
       ],
       "relations": [
         {
@@ -1447,7 +1449,7 @@
       ],
       "lastReviewedSha": "f063d7a78e38e3bf6cad7e44f0b7edfcc74f16c9",
       "lastReviewedDate": "2026-09-30",
-      "limitations": "Reviewed coherent #140–155 source; admission/delivery defaults closed at API/database boundaries. Participant, exact Dev/token/provider/physical device, operator/legal/restore/pilot acceptance remains pending. See final review evidence.",
+      "limitations": "Dev-only client enrollment requires exact Dev targets; server cohort is authoritative. Founder Dev testing activation is explicitly authorized for a confirmed account; broader participant/Dev/device/provider/operator/legal/restore/pilot acceptance remains pending.",
       "requirements": [
         "COMMUNITY-01",
         "COMMUNITY-02",
