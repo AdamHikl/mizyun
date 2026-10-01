@@ -2,6 +2,14 @@
 
 > Updated 2026-10-01. Earlier package evidence, operational snapshots and concurrent work are preserved in [the pre-review archive](docs/archive/status/STATUS_COMMUNITY_PRE_FINAL_REVIEW_2026-09-30.md). Historical next actions are not current instructions.
 
+## Community authorized partner Dev admission — 2026-10-01
+
+Adam explicitly authorized one existing eligible partner Dev account. Independent non-author helper reviewed source and exact admission transaction; coordinator verified the unique Hetzner marker, pristine Dev checkout `282d740d93b338fb508cbad2a8fa27f5a605b9c8`, exact Dev unit/env and `mizyun-dev-db` localhost5433 target. Locked transaction committed only the partner cohort row; independent post-commit read confirms exactly2 admitted principals, founder preserved, partner eligible/profile absent, cohort_requiredtrue and deliveryfalse. Master/enrollment/discovery/publish/engagement remain enabled. No automatic joining/consent/profile/follows/sharing, deploy/restart/configuration, or Production operation. [Durable admission and two-account acceptance sequence](docs/COMMUNITY_PARTNER_DEV_2026-10-01.md).
+
+**Automatically verified:** fresh `pnpm check` exit0 (mobile1023/API730;15 existing credential/policy-gated API skips, typechecks, dual Hermes exports, formatting/navigation/safeguards). Changed-document formatting and `git diff --check` pass. No new native/device acceptance claimed.
+
+**Next exact action:** partner opens Mizyun Dev → Community and deliberately joins with a distinct handle; test exact-handle discovery, pending denial and directional approval, then explicit safe preview/publish, feed/reactions/inbox and unpublish/stale-card revocation. Invitation/revocation, mute/removal/block/reporting, offline/restart/accessibility and leave/rejoin follow. Do not delete founder account. Partner admission does not satisfy #143–145/#155 original device/both-platform/operator/legal/restore/push/pilot gates. Installed runtime remains33ba0fb; its latest visual acceptance remains pending.
+
 ## Community feed layout and IA — 2026-10-01
 
 Adam's screenshot/request continues #150 from clean `c910b20f8839ed67abb6ec6630ac6149ca8a5788`. Coordinator owns feed UI/tests/continuity; read-only IA helper reviews existing patterns and the diff. Corrected `Link asChild` style arrays at the installed Expo Router Slot boundary so navigation and empty-state actions retain their native styles. Added the shared branded header/typography, compact neutral navigation cards/chevrons, Following before sharing guidance, a concise actionable empty state and neutral sharing footer. Header wraps and footer text shrinks for large text. No membership/controller, backend, consent or publication changes.
@@ -78,12 +86,12 @@ The pre-review archive preserves workout reordering/set types (#138/#139), iPad 
 
 ## Current environment authority
 
-| Environment | Authority                                                          | Last evidenced source                                                                          | Scope                                                                                                                     |
-| ----------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Local       | `/Users/adam/Documents/mizyun`                                     | `40a7190c72b68a688295ee8327bb057aaac18755` (Community return loading fix)                      | Navigation source/automatic verification and Dev iPhone installation; physical navigation acceptance pending              |
-| Dev         | Hetzner CX23, `/var/lib/mizyun/dev/repo`, `mizyun-api-dev.service` | `282d740d93b338fb508cbad2a8fa27f5a605b9c8`; public health200 at2026-09-30T18:38:30Z            | Community migrations through230000; one-account Dev admission enabled, delivery off; signed-in feature acceptance pending |
-| Production  | Hetzner CX23, `/var/lib/mizyun/repo`, `mizyun-api.service`         | `0aadf95b5ff85d9cfc8bf5485e68a72525080e84`; public health HTTP 200 at 2026-09-24T17:19:09.447Z | Promoted accepted SHA, encrypted backup taken, migrations applied, older clients verified                                 |
-| Recovery    | Raspberry Pi 5                                                     | Encrypted daily Production archive workflow and accepted restore point `20260919T103343Z`      | Recovery storage only; not a deployment target or writable failover                                                       |
+| Environment | Authority                                                          | Last evidenced source                                                                          | Scope                                                                                                                      |
+| ----------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Local       | `/Users/adam/Documents/mizyun`                                     | `33ba0fbc1ac3095479f5a8547ea51c72be6e1df0` (Community feed layout)                             | Navigation source/automatic verification and Dev iPhone installation; physical navigation acceptance pending               |
+| Dev         | Hetzner CX23, `/var/lib/mizyun/dev/repo`, `mizyun-api-dev.service` | `282d740d93b338fb508cbad2a8fa27f5a605b9c8`; public health200 at2026-09-30T18:38:30Z            | Community migrations through230000; two-account Dev admission enabled, delivery off; two-account device acceptance pending |
+| Production  | Hetzner CX23, `/var/lib/mizyun/repo`, `mizyun-api.service`         | `0aadf95b5ff85d9cfc8bf5485e68a72525080e84`; public health HTTP 200 at 2026-09-24T17:19:09.447Z | Promoted accepted SHA, encrypted backup taken, migrations applied, older clients verified                                  |
+| Recovery    | Raspberry Pi 5                                                     | Encrypted daily Production archive workflow and accepted restore point `20260919T103343Z`      | Recovery storage only; not a deployment target or writable failover                                                        |
 
 ## Rules and open gates that must survive handoff
 
