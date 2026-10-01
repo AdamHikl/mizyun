@@ -12,11 +12,14 @@ import {
   Alert,
   ActivityIndicator,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { MaxContentWidth } from "@/constants/theme";
+import { InitialsAvatar } from "../initials-avatar";
 import { apiClient } from "@/composition/api-client";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
@@ -31,14 +34,52 @@ import {
   type RelationshipAction,
 } from "./controller";
 
-const lists: ReadonlyArray<{ key: RelationshipList; label: string }> = [
-  { key: "incoming", label: "Requests for you" },
-  { key: "outgoing", label: "Requests you sent" },
-  { key: "followers", label: "Your followers" },
-  { key: "following", label: "You follow" },
-  { key: "blocked", label: "Blocked" },
-  { key: "muted", label: "Muted" },
-];
+const listInfo: Record<
+  RelationshipList,
+  { title: string; description: string; empty: string; hint: string }
+> = {
+  incoming: {
+    title: "Received requests",
+    description:
+      "Approve someone to let them see your shared workouts. Following back is separate.",
+    empty: "No follow requests",
+    hint: "New requests will appear here for you to approve or decline.",
+  },
+  outgoing: {
+    title: "Sent requests",
+    description:
+      "Waiting for their approval before you can see their shared workouts.",
+    empty: "No requests waiting",
+    hint: "Find a friend by their exact handle or share an invitation.",
+  },
+  following: {
+    title: "Following",
+    description: "People whose shared workouts you can see.",
+    empty: "You're not following anyone yet",
+    hint: "Find a friend and request to follow. They choose whether to approve.",
+  },
+  followers: {
+    title: "Followers",
+    description:
+      "People you've approved to see your shared workouts, including past cards still shared.",
+    empty: "No followers yet",
+    hint: "When someone requests to follow you, approve them from Requests.",
+  },
+  muted: {
+    title: "Muted people",
+    description:
+      "Hidden from your feed. Muting keeps following and access unchanged.",
+    empty: "No muted people",
+    hint: "You can mute someone from the options in Following.",
+  },
+  blocked: {
+    title: "Blocked people",
+    description:
+      "Interaction is blocked in both directions. Unblocking restores no follows or requests.",
+    empty: "No blocked people",
+    hint: "People you block will appear here. You can unblock them at any time.",
+  },
+};
 export function RelationshipsScreen() {
   const { session, profile } = useAuth();
   return (
@@ -59,6 +100,8 @@ function OwnerRelationships({
   const colors = useTheme();
   const community = useCommunityProfile({ principalKey, birthYear });
   const alive = useRef(true);
+  const [optionsUser, setOptionsUser] = useState<string | null>(null);
+  const [showSafety, setShowSafety] = useState(false);
   const [reportTarget, setReportTarget] = useState<{
     row: RelationshipRow;
     receiptId?: string;
@@ -131,6 +174,7 @@ function OwnerRelationships({
         alive.current = false;
         controller.pause();
         setReportTarget(null);
+        setOptionsUser(null);
       };
     }, [controller, reload]),
   );
@@ -141,6 +185,7 @@ function OwnerRelationships({
         alive.current = false;
         controller.pause();
         setReportTarget(null);
+        setOptionsUser(null);
       } else reload();
     });
     return () => subscription.remove();
@@ -152,7 +197,12 @@ function OwnerRelationships({
   const enabled =
     community.isEnrolled || state.list === "blocked" || state.list === "muted";
   const busy = state.loading || state.pending;
-  const button = (label: string, onPress: () => void, disabled = busy) => (
+  const button = (
+    label: string,
+    onPress: () => void,
+    disabled = busy,
+    primary = false,
+  ) => (
     <Pressable
       key={label}
       onPress={onPress}
@@ -161,10 +211,21 @@ function OwnerRelationships({
       accessibilityState={{ disabled }}
       style={[
         styles.button,
-        { borderColor: colors.border, opacity: disabled ? 0.5 : 1 },
+        {
+          borderColor: primary ? colors.primary : colors.border,
+          backgroundColor: primary ? "#047857" : colors.backgroundElement,
+          opacity: disabled ? 0.5 : 1,
+        },
       ]}
     >
-      <Text style={{ color: colors.text }}>{label}</Text>
+      <Text
+        style={[
+          styles.buttonText,
+          { color: primary ? "#FFFFFF" : colors.text },
+        ]}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
   const confirm = (action: RelationshipAction, row: RelationshipRow) => {
@@ -199,10 +260,61 @@ function OwnerRelationships({
       ],
     );
   };
+  const info = listInfo[state.list];
+  const safetyList = state.list === "muted" || state.list === "blocked";
+  const requestsList = state.list === "incoming" || state.list === "outgoing";
+  const select = (key: RelationshipList, label: string, selected: boolean) => (
+    <Pressable
+      key={key}
+      accessibilityRole="tab"
+      accessibilityState={{
+        selected,
+        disabled:
+          busy ||
+          (!community.isEnrolled && key !== "blocked" && key !== "muted"),
+      }}
+      disabled={
+        busy || (!community.isEnrolled && key !== "blocked" && key !== "muted")
+      }
+      onPress={() => {
+        setOptionsUser(null);
+        void controller.load(key);
+      }}
+      style={[
+        styles.tab,
+        {
+          borderColor: selected ? colors.primary : colors.border,
+          backgroundColor: selected
+            ? colors.backgroundElement
+            : colors.background,
+          opacity: busy ? 0.5 : 1,
+        },
+      ]}
+    >
+      <Text
+        style={[
+          styles.buttonText,
+          { color: selected ? colors.text : colors.textSecondary },
+        ]}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
       contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={state.loading}
+          onRefresh={() => {
+            if (enabled && !busy) void controller.load();
+          }}
+          enabled={enabled && !busy}
+          tintColor={colors.primary}
+        />
+      }
     >
       {reportTarget && (
         <ReportModal
@@ -216,52 +328,92 @@ function OwnerRelationships({
           onSuccess={(_id, blocked) => {
             if (blocked) {
               setReportTarget(null);
+              setOptionsUser(null);
               reload();
             }
           }}
         />
       )}
-      <Link
-        href={"/community/safety" as Href}
-        style={{ color: colors.primary }}
-      >
-        Reports, appeals and safety contact
-      </Link>
-      <Text
-        accessibilityRole="header"
-        style={[styles.title, { color: colors.text }]}
-      >
-        Your friends
-      </Text>
-      <Text style={{ color: colors.textSecondary }}>
-        Following is directional. Approval lets that person see your shared
-        cards; it does not follow them back. Muting changes your feed
-        preference, without changing access.
-      </Text>
-      {!community.isEnrolled && (
-        <Text accessibilityLiveRegion="polite" style={{ color: colors.text }}>
-          {community.error ??
-            "Join Mizyun Friends to manage follows. Your safety lists stay available."}
+      <View style={styles.intro}>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+          Choose who you follow and who sees your shared workouts.
         </Text>
-      )}
-      <View style={styles.wrap}>
-        {lists.map((list) =>
-          button(
-            list.label,
-            () => void controller.load(list.key),
-            busy ||
-              (!community.isEnrolled &&
-                list.key !== "blocked" &&
-                list.key !== "muted"),
-          ),
+        {community.isEnrolled && (
+          <Link
+            href={"/community/invite" as Href}
+            style={[styles.findLink, { color: colors.primary }]}
+            accessibilityRole="link"
+          >
+            Find friends →
+          </Link>
         )}
       </View>
-      <Text
-        accessibilityRole="header"
-        style={[styles.title, { color: colors.text }]}
-      >
-        {lists.find((list) => list.key === state.list)?.label}
-      </Text>
+      <View style={styles.tabs} accessibilityRole="tablist">
+        {select("incoming", "Requests", requestsList)}
+        {select("following", "Following", state.list === "following")}
+        {select("followers", "Followers", state.list === "followers")}
+      </View>
+      {requestsList && (
+        <View style={styles.wrap} accessibilityRole="tablist">
+          {select("incoming", "Received", state.list === "incoming")}
+          {select("outgoing", "Sent", state.list === "outgoing")}
+        </View>
+      )}
+      {safetyList ? (
+        <Text style={[styles.buttonText, { color: colors.textSecondary }]}>
+          Safety & preferences
+        </Text>
+      ) : (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: showSafety || safetyList }}
+          onPress={() => {
+            if (safetyList) {
+              setShowSafety(true);
+            } else setShowSafety(!showSafety);
+          }}
+          style={styles.safetyToggle}
+        >
+          <Text style={[styles.buttonText, { color: colors.textSecondary }]}>
+            Safety & preferences {showSafety || safetyList ? "−" : "+"}
+          </Text>
+        </Pressable>
+      )}
+      {(showSafety || safetyList) && (
+        <View style={[styles.safetyPanel, { borderColor: colors.border }]}>
+          <View style={styles.wrap} accessibilityRole="tablist">
+            {select("muted", "Muted", state.list === "muted")}
+            {select("blocked", "Blocked", state.list === "blocked")}
+          </View>
+          <Link
+            href={"/community/safety" as Href}
+            accessibilityRole="link"
+            style={[styles.findLink, { color: colors.primary }]}
+          >
+            Reports, appeals & safety contact →
+          </Link>
+        </View>
+      )}
+      {!community.isEnrolled && (
+        <Text
+          accessibilityLiveRegion="polite"
+          style={{ color: colors.textSecondary }}
+        >
+          {community.error ??
+            "Join Community to manage follows. Your safety lists remain available."}
+        </Text>
+      )}
+      <View style={styles.section}>
+        <Text
+          accessibilityRole="header"
+          style={[styles.title, { color: colors.text }]}
+        >
+          {info.title}
+        </Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+          {info.description}
+        </Text>
+      </View>
       {state.notice && (
         <Text accessibilityLiveRegion="polite" style={{ color: colors.text }}>
           {state.notice}
@@ -278,44 +430,113 @@ function OwnerRelationships({
           color={colors.primary}
         />
       )}
-      {enabled && button("Refresh", () => void controller.load(), busy)}
+      {enabled &&
+        state.error &&
+        button("Try again", () => void controller.load(), busy)}
       {enabled && !busy && !state.error && state.rows.length === 0 && (
-        <Text style={{ color: colors.textSecondary }}>
-          No people in this list.
-        </Text>
+        <View
+          style={[styles.empty, { backgroundColor: colors.backgroundElement }]}
+        >
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>
+            {info.empty}
+          </Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+            {info.hint}
+          </Text>
+          {community.isEnrolled &&
+            ["incoming", "outgoing", "following"].includes(state.list) && (
+              <Link
+                href={"/community/invite" as Href}
+                accessibilityRole="link"
+                style={[styles.findLink, { color: colors.primary }]}
+              >
+                Find friends →
+              </Link>
+            )}
+        </View>
       )}
       {enabled &&
         state.rows.map((row) => (
           <View
             key={row.user.userId}
-            style={[styles.card, { backgroundColor: colors.backgroundElement }]}
+            style={[
+              styles.card,
+              {
+                backgroundColor: colors.backgroundElement,
+                borderColor: colors.border,
+              },
+            ]}
           >
-            <Text style={{ color: colors.text, fontSize: 18 }}>
-              {row.user.displayName}
-            </Text>
-            <Text style={{ color: colors.textSecondary }}>
-              @{row.user.handle}
-            </Text>
-            <View style={styles.wrap}>
-              {button("Report profile or handle", () => void openReport(row))}
-              {state.list === "incoming" && [
-                button("Approve", () => confirm("approve", row)),
-                button("Decline", () => confirm("decline", row)),
-              ]}
-              {state.list === "outgoing" &&
-                button("Cancel request", () => confirm("cancel", row))}
-              {state.list === "followers" &&
-                button("Remove follower", () => confirm("remove", row))}
-              {state.list === "following" && [
-                button("Unfollow", () => confirm("unfollow", row)),
-                button("Mute", () => confirm("mute", row)),
-              ]}
-              {state.list === "muted" &&
-                button("Unmute", () => confirm("unmute", row))}
-              {state.list === "blocked"
-                ? button("Unblock", () => confirm("unblock", row))
-                : button("Block", () => confirm("block", row))}
+            <View style={styles.identity}>
+              <InitialsAvatar
+                symbol={row.user.avatarSymbol}
+                seed={row.user.handle}
+                size={44}
+              />
+              <View style={styles.name}>
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                  {row.user.displayName}
+                </Text>
+                <Text style={{ color: colors.textSecondary }}>
+                  @{row.user.handle}
+                </Text>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Options for @${row.user.handle}`}
+                disabled={busy}
+                onPress={() =>
+                  setOptionsUser(
+                    optionsUser === row.user.userId ? null : row.user.userId,
+                  )
+                }
+                accessibilityState={{
+                  disabled: busy,
+                  expanded: optionsUser === row.user.userId,
+                }}
+                style={styles.options}
+              >
+                <Text
+                  style={[styles.buttonText, { color: colors.textSecondary }]}
+                >
+                  •••
+                </Text>
+              </Pressable>
             </View>
+            {optionsUser === row.user.userId && (
+              <View
+                style={[
+                  styles.wrap,
+                  styles.rowOptions,
+                  { borderColor: colors.border },
+                ]}
+              >
+                {state.list === "following" && [
+                  button("Mute", () => confirm("mute", row)),
+                  button("Unfollow", () => confirm("unfollow", row)),
+                ]}
+                {state.list === "followers" &&
+                  button("Remove follower", () => confirm("remove", row))}
+                {button("Report profile or handle", () => void openReport(row))}
+                {state.list !== "blocked" &&
+                  button("Block", () => confirm("block", row))}
+              </View>
+            )}
+            {state.list === "incoming" && (
+              <View style={styles.wrap}>
+                {button("Approve", () => confirm("approve", row), busy, true)}
+                {button("Decline", () => confirm("decline", row))}
+              </View>
+            )}
+            {state.list === "outgoing" && (
+              <View style={styles.wrap}>
+                {button("Cancel request", () => confirm("cancel", row))}
+              </View>
+            )}
+            {state.list === "blocked" &&
+              button("Unblock", () => confirm("unblock", row))}
+            {state.list === "muted" &&
+              button("Unmute", () => confirm("unmute", row))}
           </View>
         ))}
       {state.cursor &&
@@ -324,15 +545,55 @@ function OwnerRelationships({
   );
 }
 const styles = StyleSheet.create({
-  content: { padding: 20, gap: 16, paddingBottom: 48 },
-  title: { fontSize: 22, fontWeight: "600" },
+  content: {
+    padding: 20,
+    gap: 16,
+    paddingBottom: 48,
+    width: "100%",
+    maxWidth: MaxContentWidth,
+    alignSelf: "center",
+  },
+  intro: { gap: 8 },
+  subtitle: { fontSize: 15, lineHeight: 22 },
+  title: { fontSize: 22, fontWeight: "700" },
+  section: { gap: 6 },
+  tabs: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  tab: {
+    minHeight: 48,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderBottomWidth: 2,
+    borderRadius: 10,
+    justifyContent: "center",
+    flexGrow: 1,
+  },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  buttonText: { fontSize: 15, fontWeight: "600" },
   button: {
     minHeight: 48,
     padding: 12,
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: 12,
     justifyContent: "center",
   },
-  card: { padding: 16, borderRadius: 14, gap: 8 },
+  findLink: {
+    fontSize: 15,
+    fontWeight: "600",
+    paddingVertical: 12,
+    minHeight: 48,
+  },
+  safetyToggle: { minHeight: 48, justifyContent: "center" },
+  safetyPanel: { borderWidth: 1, borderRadius: 14, padding: 12, gap: 8 },
+  empty: { padding: 24, borderRadius: 18, gap: 10 },
+  emptyTitle: { fontSize: 17, fontWeight: "600" },
+  card: { padding: 16, borderRadius: 16, borderWidth: 1, gap: 14 },
+  rowOptions: { borderTopWidth: 1, paddingTop: 12 },
+  identity: { flexDirection: "row", alignItems: "center", gap: 12 },
+  name: { flex: 1, gap: 4 },
+  options: {
+    minHeight: 48,
+    minWidth: 48,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });
