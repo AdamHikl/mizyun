@@ -24,7 +24,16 @@ import { requestSafetyContact, type VerifiedSafetyContact } from "./safety-api";
 
 export interface ReportModalProps {
   readonly visible: boolean;
-  readonly targetType: "activity" | "profile";
+  readonly targetType:
+    | "profile"
+    | "activity"
+    | "comment"
+    | "group"
+    | "group_post"
+    | "routine"
+    | "message"
+    | "challenge"
+    | "media";
   readonly targetId: string;
   readonly targetHandle?: string;
   readonly principalKey: string | null;

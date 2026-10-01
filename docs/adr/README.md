@@ -45,3 +45,5 @@
 | [ADR-0030](0030-explicit-community-publication.md)                           | Explicit community publication boundary and isolated social auth | Accepted   | 2026-09-29 | —                                                                                                                                            | Isolated social tables, field-limited snapshot publication, and bilateral blocking |
 
 - [ADR-0031 — Community tab and Account header entry](0031-community-tab-account-header.md): accepted 2026-09-30; five tabs, stable Account URL and deliberate participation.
+
+- [ADR-0032 — Community Dev expansion boundaries](0032-community-dev-expansion-boundaries.md): accepted2026-10-01; separate switches/consent/audiences and Dev-only source sequence.

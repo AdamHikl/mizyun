@@ -304,3 +304,19 @@ export {
 } from "./community-repository.js";
 
 export * from "./community-notification-repository.js";
+
+export * from "./community-messaging.js";
+
+export * from "./community-broader-discovery.js";
+
+export * from "./community-comments-repository.js";
+
+export * from "./community-groups-repository.js";
+
+export * from "./community-routines-repository.js";
+
+export * from "./community-challenges.js";
+
+export * from "./community-features.js";
+
+export * from "./community-media.js";

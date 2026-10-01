@@ -1,0 +1,706 @@
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  AppState,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { type Href, useFocusEffect, useRouter } from "expo-router";
+import * as Crypto from "expo-crypto";
+import {
+  type CommunityGroupRequest,
+  type CommunityGroupResult,
+  type RelationshipListItemDto,
+} from "@mizyun/contracts";
+import { apiClient } from "@/composition/api-client";
+import { useAuth } from "@/features/auth/auth-context";
+import { useTheme } from "@/hooks/use-theme";
+import { scopeCommunityClient } from "../scoped-client";
+import { ReportModal } from "../safety/report-modal";
+import { createGroupMutationIntentStore } from "./mutation-intent";
+import { fetchFollowing, humanizeCommunityError } from "../community-client";
+import { CommunityIntro } from "../community-presentation";
+import { groupAction } from "./client";
+
+export function GroupsScreen() {
+  const { session } = useAuth();
+  return (
+    <Content
+      key={session?.user.id ?? "signed-out"}
+      principal={session?.user.id ?? null}
+    />
+  );
+}
+function Content({ principal }: { principal: string | null }) {
+  const theme = useTheme();
+  const router = useRouter();
+  const lifetime = useRef({ active: true, focused: false, revision: 0 });
+  const protectedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const protectedRevision = useRef(0);
+  const [result, setResult] = useState<CommunityGroupResult | null>(null);
+  const [groups, setGroups] = useState<CommunityGroupResult["groups"]>([]);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const [rules, setRules] = useState("Be kind. Share only what you choose.");
+  const [code, setCode] = useState("");
+  const [issuedCode, setIssuedCode] = useState("");
+  const [body, setBody] = useState("");
+  const [friends, setFriends] = useState<RelationshipListItemDto[]>([]);
+  const [events, setEvents] = useState<CommunityGroupResult["events"]>([]);
+  const [report, setReport] = useState<{
+    type: "group" | "group_post";
+    id: string;
+  } | null>(null);
+  const intents = useRef(createGroupMutationIntentStore(Crypto.randomUUID));
+  const [reason, setReason] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
+  const discardProtected = useCallback(() => {
+    if (protectedTimer.current !== null) clearTimeout(protectedTimer.current);
+    protectedTimer.current = null;
+    protectedRevision.current++;
+    setResult(null);
+    setGroups([]);
+    setFriends([]);
+    setEvents([]);
+    setReport(null);
+    setIssuedCode("");
+  }, []);
+  useEffect(
+    () => () => {
+      lifetime.current.active = false;
+      lifetime.current.revision++;
+      discardProtected();
+    },
+    [discardProtected],
+  );
+  const load = useCallback(async () => {
+    if (!principal || !lifetime.current.focused) {
+      setBusy(false);
+      return;
+    }
+    const revision = ++lifetime.current.revision;
+    const expiresAt = Date.now() + 10_000;
+    const valid = () =>
+      lifetime.current.active &&
+      lifetime.current.focused &&
+      lifetime.current.revision === revision &&
+      Date.now() < expiresAt;
+    setBusy(true);
+    discardProtected();
+    protectedTimer.current = setTimeout(() => {
+      discardProtected();
+      setBusy(false);
+      setMessage("Refresh to check your current group access.");
+    }, 10_000);
+    const client = scopeCommunityClient(apiClient, principal, valid);
+    const list = await groupAction(client, { operation: "list" });
+    if (!valid()) return;
+    if (!list.ok) {
+      setMessage(humanizeCommunityError(list.error));
+      setBusy(false);
+      return;
+    }
+    setGroups(list.value.groups);
+    const inbox = await groupAction(client, { operation: "inbox" });
+    if (!valid()) return;
+    if (inbox.ok) setEvents(inbox.value.events);
+    const group = list.value.groups.find((item) => item.id === selected);
+    if (group) setResult({ ...list.value, group });
+    if (group?.state === "member") {
+      const read = await groupAction(client, {
+        operation: "read",
+        groupId: group.id,
+      });
+      if (!valid()) return;
+      if (read.ok) setResult(read.value);
+      else setMessage(humanizeCommunityError(read.error));
+    }
+    if (group?.role !== "member" && group?.state === "member") {
+      const following = await fetchFollowing(client, { limit: 50 });
+      if (!valid()) return;
+      if (following.ok)
+        setFriends(
+          following.value.items.filter((item) => item.status === "approved"),
+        );
+    }
+    setBusy(false);
+  }, [principal, selected, discardProtected]);
+  useFocusEffect(
+    useCallback(() => {
+      lifetime.current.active = true;
+      lifetime.current.focused = AppState.currentState === "active";
+      setMessage(null);
+      void load();
+      const sub = AppState.addEventListener("change", (state) => {
+        const active = state === "active";
+        if (lifetime.current.focused === active) return;
+        lifetime.current.focused = active;
+        lifetime.current.revision++;
+        discardProtected();
+        setResult(null);
+        setGroups([]);
+        setFriends([]);
+        setEvents([]);
+        setReport(null);
+        setBusy(false);
+        setBody("");
+        setName("");
+        setCode("");
+        setReason("");
+        setConfirmed(false);
+        intents.current.clear();
+        if (active) void load();
+      });
+      return () => {
+        sub.remove();
+        lifetime.current.focused = false;
+        lifetime.current.revision++;
+        discardProtected();
+        setResult(null);
+        setGroups([]);
+        setFriends([]);
+        setEvents([]);
+        setReport(null);
+        setBody("");
+        setName("");
+        setCode("");
+        setReason("");
+        setConfirmed(false);
+        intents.current.clear();
+      };
+    }, [load, discardProtected]),
+  );
+  const act = async (request: CommunityGroupRequest) => {
+    if (busy || !principal || !lifetime.current.focused) return;
+    const revision = ++lifetime.current.revision;
+    const valid = () =>
+      lifetime.current.active &&
+      lifetime.current.focused &&
+      lifetime.current.revision === revision;
+    setBusy(true);
+    setMessage(null);
+    const response = await groupAction(
+      scopeCommunityClient(apiClient, principal, valid),
+      request,
+    );
+    if (!valid()) return;
+    setBusy(false);
+    if (!response.ok) {
+      setMessage(humanizeCommunityError(response.error));
+      setResult(null);
+      return;
+    }
+    if (request.operation === "create" || request.operation === "post")
+      intents.current.complete(request.operation);
+    const invitationCode = response.value.inviteCode;
+    const invitationDeadline = Date.now() + 10_000;
+    if (response.value.group) setSelected(response.value.group.id);
+    setBody("");
+    setConfirmed(false);
+    if (request.operation === "create") setName("");
+    await load();
+    if (
+      invitationCode &&
+      lifetime.current.active &&
+      lifetime.current.focused &&
+      lifetime.current.revision === revision + 1 &&
+      Date.now() < invitationDeadline
+    ) {
+      setIssuedCode(invitationCode);
+      setMessage(
+        "This code expires in seven days. Requests still need approval.",
+      );
+    }
+  };
+  const confirmAction = (
+    title: string,
+    description: string,
+    request: CommunityGroupRequest,
+  ) => {
+    const revision = lifetime.current.revision;
+    const capturedProtectedRevision = protectedRevision.current;
+    Alert.alert(title, description, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Confirm",
+        style: "destructive",
+        onPress: () => {
+          if (
+            lifetime.current.revision === revision &&
+            protectedRevision.current === capturedProtectedRevision
+          )
+            void act(request);
+        },
+      },
+    ]);
+  };
+  const group = result?.group;
+  const base = group
+    ? { groupId: group.id, membershipVersion: group.membershipVersion }
+    : null;
+  const button = (label: string, action: () => void, disabled = false) => (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ disabled: busy || disabled }}
+      disabled={busy || disabled}
+      onPress={action}
+      style={{
+        minHeight: 44,
+        padding: 12,
+        borderRadius: 12,
+        backgroundColor: theme.backgroundElement,
+        borderWidth: 1,
+        borderColor: theme.border,
+      }}
+    >
+      <Text style={{ color: theme.text }}>{label}</Text>
+    </Pressable>
+  );
+  const input = (
+    label: string,
+    value: string,
+    change: (v: string) => void,
+    maxLength: number,
+  ) => (
+    <View style={{ gap: 6 }}>
+      <Text style={{ color: theme.text }}>{label}</Text>
+      <TextInput
+        accessibilityLabel={label}
+        value={value}
+        onChangeText={change}
+        maxLength={maxLength}
+        editable={!busy}
+        multiline
+        style={{
+          color: theme.text,
+          borderColor: theme.border,
+          borderWidth: 1,
+          borderRadius: 12,
+          padding: 12,
+          minHeight: 44,
+        }}
+      />
+    </View>
+  );
+  return (
+    <>
+      <ScrollView
+        contentContainerStyle={{
+          padding: 20,
+          gap: 12,
+          backgroundColor: theme.background,
+        }}
+        keyboardShouldPersistTaps="handled"
+      >
+        <CommunityIntro
+          icon="👥"
+          title="Private groups"
+          description="A separate space for small friend groups. Your workout diary stays private. New members see posts made after they join. Blocking hides shared-group content from that person."
+        />
+        {!principal && (
+          <Text style={{ color: theme.text }}>
+            Sign in to manage your groups.
+          </Text>
+        )}
+        {busy && (
+          <ActivityIndicator accessibilityLabel="Checking current group access" />
+        )}
+        {message && (
+          <Text accessibilityRole="alert" style={{ color: theme.text }}>
+            {message}
+          </Text>
+        )}
+        {issuedCode && (
+          <Text selectable style={{ color: theme.text }}>
+            Invitation code: {issuedCode}
+          </Text>
+        )}
+        {events.length > 0 && (
+          <View style={{ gap: 6 }}>
+            <Text accessibilityRole="header" style={{ color: theme.text }}>
+              Group updates
+            </Text>
+            {events.slice(0, 10).map((event) => (
+              <Text key={event.id} style={{ color: theme.text }}>
+                {(
+                  {
+                    invitation: "You have a private group invitation.",
+                    join_request: "A group join request needs review.",
+                    membership_changed: "A group membership changed.",
+                    owner_transfer: "You now own a group.",
+                    owner_recovered: "Group ownership was recovered to you.",
+                    appeal: "A group appeal needs review.",
+                    appeal_decision: "Your group appeal has a decision.",
+                  } as Record<string, string>
+                )[event.kind] ?? "A group update is available."}
+              </Text>
+            ))}
+          </View>
+        )}
+        {groups.map((item) => (
+          <View key={item.id} style={{ gap: 6 }}>
+            {button(`${item.name} · ${item.state}`, () => setSelected(item.id))}
+          </View>
+        ))}
+        {button(
+          "Refresh groups",
+          () => {
+            setMessage(null);
+            void load();
+          },
+          !principal,
+        )}
+        {!group && (
+          <>
+            {input("Group name", name, setName, 60)}
+            {input("Group rules", rules, setRules, 1000)}
+            {button(
+              "Create a private group",
+              () =>
+                void act({
+                  operation: "create",
+                  name,
+                  rules,
+                  operationId: intents.current.operationId("create", {
+                    name: name.trim(),
+                    rules: rules.trim(),
+                  }),
+                }),
+              !name.trim() || !rules.trim() || !principal,
+            )}
+            {input("Private invitation code", code, setCode, 32)}
+            {button(
+              "Request to join",
+              () => void act({ operation: "request", token: code.trim() }),
+              !/^[a-f0-9]{32}$/.test(code) || !principal,
+            )}
+          </>
+        )}
+        {group && base && (
+          <>
+            <Text
+              accessibilityRole="header"
+              style={{ fontSize: 22, color: theme.text }}
+            >
+              {group.name}
+            </Text>
+            <Text style={{ color: theme.text }}>{group.rules}</Text>
+            {group.role !== "owner" &&
+              button("Report group or moderator abuse", () =>
+                setReport({ type: "group", id: group.id }),
+              )}
+            {group.state === "invited" &&
+              button(
+                "Accept this invitation",
+                () => void act({ operation: "join", ...base }),
+              )}
+            {button(
+              group.role === "owner"
+                ? "Leave (transfer ownership first if members remain)"
+                : "Leave group",
+              () => void act({ operation: "leave", ...base }),
+            )}
+            {button("Back to all groups", () => setSelected(null))}
+            {group.state === "member" && (
+              <>
+                <Text style={{ color: theme.text }}>
+                  Posts go only to this group. There is no automatic workout
+                  sharing. Removing a post cannot retract copies already seen.
+                </Text>
+                {button("Cooperative goals · add progress yourself", () =>
+                  router.push(
+                    `/community/challenges?groupId=${encodeURIComponent(group.id)}` as Href,
+                  ),
+                )}
+                {input(
+                  "Your group post",
+                  body,
+                  (value) => {
+                    setBody(value);
+                    setConfirmed(false);
+                  },
+                  1000,
+                )}
+                {button(
+                  confirmed
+                    ? "Group audience confirmed ✓"
+                    : "Confirm this text is for the current group members",
+                  () => setConfirmed(!confirmed),
+                )}
+                {button(
+                  "Publish this group post",
+                  () =>
+                    void act({
+                      operation: "post",
+                      ...base,
+                      body,
+                      acceptedAudience: true,
+                      operationId: intents.current.operationId("post", {
+                        ...base,
+                        body: body.trim(),
+                      }),
+                    }),
+                  !confirmed || !body.trim(),
+                )}
+                {(result?.posts ?? []).map((post) => (
+                  <View
+                    key={post.id}
+                    style={{
+                      padding: 14,
+                      gap: 6,
+                      borderRadius: 14,
+                      backgroundColor: theme.backgroundElement,
+                    }}
+                  >
+                    <Text style={{ color: theme.text, fontWeight: "600" }}>
+                      {post.displayName}
+                    </Text>
+                    <Text style={{ color: theme.text }}>{post.body}</Text>
+                    {post.userId !== principal &&
+                      button("Report post", () =>
+                        setReport({ type: "group_post", id: post.id }),
+                      )}
+                    {(post.userId === principal || group.role !== "member") &&
+                      button(
+                        "Remove post",
+                        () =>
+                          void act({
+                            operation: "deletePost",
+                            ...base,
+                            postId: post.id,
+                          }),
+                      )}
+                  </View>
+                ))}
+                {group.role !== "member" && (
+                  <>
+                    <Text style={{ color: theme.text }}>
+                      Invite someone you already follow. They choose whether to
+                      join.
+                    </Text>
+                    {friends.map((friend) => (
+                      <View key={friend.user.userId}>
+                        {button(
+                          `Invite ${friend.user.displayName} (@${friend.user.handle})`,
+                          () =>
+                            void act({
+                              operation: "invite",
+                              ...base,
+                              targetUserId: friend.user.userId,
+                            }),
+                        )}
+                      </View>
+                    ))}
+                    {friends.length === 0 && (
+                      <Text style={{ color: theme.text }}>
+                        Follow a friend before inviting them to this group.
+                      </Text>
+                    )}
+                    {button(
+                      "Create a seven-day request code",
+                      () => void act({ operation: "code", ...base }),
+                    )}
+                    {code && (
+                      <Text selectable style={{ color: theme.text }}>
+                        Private request code: {code}
+                      </Text>
+                    )}
+                  </>
+                )}
+                {group.role === "owner" && (
+                  <>
+                    {input("Updated group rules", rules, setRules, 1000)}
+                    {button(
+                      "Save group rules",
+                      () => void act({ operation: "rules", ...base, rules }),
+                      !rules.trim(),
+                    )}
+                  </>
+                )}
+                {(result?.members ?? []).map((member) => (
+                  <View key={member.userId} style={{ gap: 6 }}>
+                    <Text style={{ color: theme.text }}>
+                      {member.displayName} · @{member.handle} · {member.role} ·{" "}
+                      {member.state}
+                    </Text>
+                    {group.role !== "member" &&
+                      member.userId !== principal &&
+                      member.role !== "owner" && (
+                        <>
+                          {member.state === "pending" &&
+                            button(
+                              "Approve request",
+                              () =>
+                                void act({
+                                  operation: "approve",
+                                  ...base,
+                                  targetUserId: member.userId,
+                                  targetMembershipVersion:
+                                    member.membershipVersion,
+                                }),
+                            )}
+                          {member.state !== "banned" &&
+                            button("Remove member", () =>
+                              confirmAction(
+                                "Remove this member?",
+                                "They lose access and their group posts are hidden.",
+                                {
+                                  operation: "remove",
+                                  ...base,
+                                  targetUserId: member.userId,
+                                  targetMembershipVersion:
+                                    member.membershipVersion,
+                                },
+                              ),
+                            )}
+                          {member.state === "banned" &&
+                            group.role === "owner" &&
+                            button(
+                              "Lift group ban (fresh request required)",
+                              () =>
+                                void act({
+                                  operation: "unban",
+                                  ...base,
+                                  targetUserId: member.userId,
+                                  targetMembershipVersion:
+                                    member.membershipVersion,
+                                }),
+                            )}
+                          {reason.trim() &&
+                            button("Ban with the reason below", () =>
+                              confirmAction(
+                                "Ban this member?",
+                                "They cannot request access until this ban is lifted.",
+                                {
+                                  operation: "ban",
+                                  ...base,
+                                  targetUserId: member.userId,
+                                  targetMembershipVersion:
+                                    member.membershipVersion,
+                                  reason,
+                                },
+                              ),
+                            )}
+                          {group.role === "owner" &&
+                            member.state === "member" && (
+                              <>
+                                {button(
+                                  member.role === "moderator"
+                                    ? "Make member"
+                                    : "Make moderator",
+                                  () =>
+                                    void act({
+                                      operation: "role",
+                                      ...base,
+                                      targetUserId: member.userId,
+                                      targetMembershipVersion:
+                                        member.membershipVersion,
+                                      role:
+                                        member.role === "moderator"
+                                          ? "member"
+                                          : "moderator",
+                                    }),
+                                )}
+                                {button(
+                                  "Transfer ownership to this member",
+                                  () =>
+                                    confirmAction(
+                                      "Transfer group ownership?",
+                                      "This member will control the group. You become a regular member.",
+                                      {
+                                        operation: "transfer",
+                                        ...base,
+                                        targetUserId: member.userId,
+                                        targetMembershipVersion:
+                                          member.membershipVersion,
+                                      },
+                                    ),
+                                )}
+                              </>
+                            )}
+                        </>
+                      )}
+                  </View>
+                ))}
+              </>
+            )}
+            {input("Ban or appeal reason", reason, setReason, 500)}
+            {(group.state === "banned" || group.state === "removed") &&
+              button(
+                "Appeal membership removal",
+                () => void act({ operation: "appeal", ...base, reason }),
+                !reason.trim(),
+              )}
+            {(result?.appeals ?? [])
+              .filter((appeal) => appeal.groupId === group.id)
+              .map((appeal) => (
+                <View key={appeal.id}>
+                  <Text style={{ color: theme.text }}>
+                    {appeal.reason} · {appeal.status}
+                  </Text>
+                  {group.role === "owner" && appeal.status === "pending" && (
+                    <>
+                      {button(
+                        "Approve appeal (fresh request required)",
+                        () =>
+                          void act({
+                            operation: "resolveAppeal",
+                            ...base,
+                            appealId: appeal.id,
+                            appealMembershipVersion: appeal.membershipVersion,
+                            decision: "approved",
+                            reason,
+                          }),
+                        !reason.trim(),
+                      )}
+                      {button(
+                        "Reject appeal",
+                        () =>
+                          void act({
+                            operation: "resolveAppeal",
+                            ...base,
+                            appealId: appeal.id,
+                            appealMembershipVersion: appeal.membershipVersion,
+                            decision: "rejected",
+                            reason,
+                          }),
+                        !reason.trim(),
+                      )}
+                    </>
+                  )}
+                </View>
+              ))}
+            {group.role === "owner" &&
+              button("Disband this group and remove its posts", () =>
+                confirmAction(
+                  "Disband this group?",
+                  "All memberships and group posts will be removed.",
+                  { operation: "disband", ...base },
+                ),
+              )}
+          </>
+        )}
+      </ScrollView>
+      {report && (
+        <ReportModal
+          visible
+          targetType={report.type}
+          targetId={report.id}
+          principalKey={principal}
+          onClose={() => setReport(null)}
+          onSuccess={() => {
+            setMessage("Report submitted.");
+            setReport(null);
+            void load();
+          }}
+        />
+      )}
+    </>
+  );
+}

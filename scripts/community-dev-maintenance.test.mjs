@@ -39,7 +39,9 @@ test("Dev maintenance finishes withdrawal and retention without claiming or cont
         });
         return new Response(JSON.stringify([{ complete: ++batches === 2 }]));
       }
-      assert.equal(name, "community_retention_batch");
+      assert.ok(
+        ["community_retention_batch", "community_media_cleanup"].includes(name),
+      );
       return new Response("[]");
     },
   });
@@ -48,6 +50,7 @@ test("Dev maintenance finishes withdrawal and retention without claiming or cont
     "community_withdrawal_batch",
     "community_withdrawal_batch",
     "community_retention_batch",
+    "community_media_cleanup",
   ]);
   assert.equal(stats.cleanupBatches, 2);
   assert.equal(stats.claims, 0);
@@ -105,4 +108,46 @@ test("failed maintenance or redirect stops before later work and never logs serv
     /Community worker RPC failed/,
   );
   assert.equal(requests, 1);
+});
+
+test("Dev timer removes both immutable media objects before acknowledging, even with delivery off", async () => {
+  const id = "12000000-0000-4000-8000-000000000001";
+  const calls = [];
+  await runDevCommunityMaintenance({
+    ...target,
+    fetchImpl: async (url, options) => {
+      assert.equal(options.redirect, "error");
+      const path = new URL(String(url)).pathname;
+      if (path.startsWith("/storage/")) {
+        assert.equal(path, "/storage/v1/object/community-media");
+        assert.equal(options.method, "DELETE");
+        assert.deepEqual(JSON.parse(options.body), {
+          prefixes: [
+            `quarantine/${id}/image.jpg`,
+            `quarantine/${id}/thumbnail.jpg`,
+          ],
+        });
+        calls.push("storage");
+        return new Response("[]");
+      }
+      const name = path.split("/").at(-1);
+      if (name !== "community_media_cleanup") return new Response("[]");
+      const args = JSON.parse(options.body);
+      calls.push(args.p_operation);
+      return new Response(
+        JSON.stringify(
+          args.p_operation === "claim"
+            ? [
+                {
+                  id,
+                  imagePath: `quarantine/${id}/image.jpg`,
+                  thumbnailPath: `quarantine/${id}/thumbnail.jpg`,
+                },
+              ]
+            : {},
+        ),
+      );
+    },
+  });
+  assert.deepEqual(calls, ["claim", "storage", "ack"]);
 });

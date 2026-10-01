@@ -55,6 +55,53 @@ const setupTestApp = async (options?: {
 };
 
 describe("report-routes", () => {
+  it.each([
+    "comment",
+    "group",
+    "group_post",
+    "routine",
+    "message",
+    "challenge",
+    "media",
+  ] as const)(
+    "accepts %s receipt targets through current authenticated repository authority",
+    async (targetType) => {
+      const { app, repo } = await setupTestApp();
+      const issue = vi
+        .spyOn(repo, "issueReportReceipt")
+        .mockResolvedValue(userC);
+      const response = await app.inject({
+        method: "POST",
+        url: "/v1/community/safety/receipts",
+        payload: { targetType, targetId: userB },
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ id: userC });
+      expect(issue).toHaveBeenCalledWith(userA, targetType, userB, {
+        accessToken: `token-${userA}`,
+      });
+      await app.close();
+    },
+  );
+  it.each([
+    { targetType: "private_workout", targetId: userB },
+    { targetType: "message", targetId: "not-an-id" },
+    { targetType: "challenge", targetId: userB, userId: userC },
+  ])(
+    "rejects forged receipt targets before authority calls",
+    async (payload) => {
+      const { app, repo } = await setupTestApp();
+      const issue = vi.spyOn(repo, "issueReportReceipt");
+      const response = await app.inject({
+        method: "POST",
+        url: "/v1/community/safety/receipts",
+        payload,
+      });
+      expect(response.statusCode).toBe(422);
+      expect(issue).not.toHaveBeenCalled();
+      await app.close();
+    },
+  );
   it("GET /v1/community/safety/contact returns configured verified contact and guidelines", async () => {
     const { app } = await setupTestApp();
 

@@ -102,7 +102,7 @@ export interface AccountExport {
   readonly feedback: ReadonlyArray<UserFeedback>;
   readonly aiConsent?: StoredAiConsent | null;
   readonly community?: {
-    readonly schemaVersion: "2026-09-30";
+    readonly schemaVersion: "2026-09-30" | "2026-10-01";
     readonly consistency: "live_keyset";
     readonly completeness: "complete";
     readonly counts: Readonly<Record<string, number>>;

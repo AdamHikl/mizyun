@@ -21,6 +21,10 @@ export interface ReportRoutesOptions {
   };
 }
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const receiptTargetSchema = createCommunityReportSchema.pick({
+  targetType: true,
+  targetId: true,
+});
 const summary = (r: StoredCommunityReport) => ({
   id: r.id,
   targetType: r.targetType,
@@ -78,16 +82,8 @@ export const reportRoutes: FastifyPluginAsync<ReportRoutesOptions> = async (
     { preHandler: app.authenticate },
     async (request, reply) => {
       const principal = request.principal!;
-      const body = request.body as {
-        targetType?: unknown;
-        targetId?: unknown;
-      } | null;
-      if (
-        !body ||
-        (body.targetType !== "profile" && body.targetType !== "activity") ||
-        typeof body.targetId !== "string" ||
-        !UUID.test(body.targetId)
-      )
+      const parsed = receiptTargetSchema.safeParse(request.body);
+      if (!parsed.success || !UUID.test(parsed.data.targetId))
         return sendApiError(
           reply,
           request,
@@ -97,8 +93,8 @@ export const reportRoutes: FastifyPluginAsync<ReportRoutesOptions> = async (
         );
       const id = await options.communityRepository.issueReportReceipt(
         principal.userId,
-        body.targetType,
-        body.targetId,
+        parsed.data.targetType,
+        parsed.data.targetId,
         { accessToken: principal.accessToken },
       );
       return { id };

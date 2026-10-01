@@ -7,6 +7,7 @@ host. All fixture/control changes and concurrency checks run in the scratch;
 the shared local database is never reset. Docker is required.
 """
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -57,16 +58,21 @@ def main():
         sql("\n".join(grants))
         sql("grant usage on schema extensions to authenticated,anon,service_role;")
         applied = []
+        source_hashes = {}
         for migration in sorted((ROOT / "supabase/migrations").glob("*.sql")):
             version = migration.name.split("_", 1)[0]
             if version not in versions:
-                sql(migration.read_text())
+                source = migration.read_text()
+                source_hashes[str(migration.relative_to(ROOT))] = hashlib.sha256(source.encode()).hexdigest()
+                sql(source)
                 applied.append(version)
         sql("insert into storage.buckets(id,name,public) values('private-media','private-media',false) on conflict do nothing;")
         total = 0
         tests = sorted((ROOT / "supabase/tests/database").glob("*.sql"))
         for test in tests:
-            output = sql(test.read_text())
+            source = test.read_text()
+            source_hashes[str(test.relative_to(ROOT))] = hashlib.sha256(source.encode()).hexdigest()
+            output = sql(source)
             (args.logs / (test.name + ".log")).write_text(output)
             plans = re.findall(r"1\.\.(\d+)", output)
             if "not ok" in output or not plans or "Looks like" in output:
@@ -77,6 +83,7 @@ def main():
         concurrency = sorted((ROOT / "scripts").glob("test-community-*-concurrency.py"))
         for script in [ROOT / "scripts/test-community-capacity.py", *concurrency]:
             source = script.read_text()
+            source_hashes[str(script.relative_to(ROOT))] = hashlib.sha256(source.encode()).hexdigest()
             source, replaced = re.subn(r"DATABASE\s*=\s*['\"][^'\"]+['\"]", "DATABASE='" + db + "'", source)
             if replaced != 1:
                 raise RuntimeError("Scratch target missing/ambiguous: " + script.name)
@@ -85,7 +92,7 @@ def main():
             print(output.strip(), flush=True)
         summary = {"scratch_database": db, "base_migrations": sorted(versions),
                    "applied_migrations": applied, "assertions": total, "sql_files": len(tests),
-                   "shared_user_data_copied": False, "kept_for_transport": args.keep_scratch}
+                   "shared_user_data_copied": False, "kept_for_transport": args.keep_scratch, "source_sha256": source_hashes}
         (args.logs / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
         print(json.dumps(summary), flush=True)
         accepted = True

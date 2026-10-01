@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createCommunityMediaCleaner } from "./community-media-cleanup.mjs";
 import { pathToFileURL } from "node:url";
 /** Bounded single tick. Environment service credentials never enter command arguments/logs. */
 export async function runCommunityTick({
@@ -6,6 +7,7 @@ export async function runCommunityTick({
   push,
   deliveryEnabled = false,
   receipts,
+  cleanupMedia,
 }) {
   const stats = {
     claims: 0,
@@ -29,6 +31,7 @@ export async function runCommunityTick({
     }
   }
   await rpc("community_retention_batch", { p_limit: 500 });
+  if (cleanupMedia) await cleanupMedia();
   if (receipts) {
     const pendingReceipts = await rpc("community_notification_receipts", {
       p_limit: 20,
@@ -191,6 +194,11 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     });
     const stats = await runCommunityTick({
       rpc,
+      cleanupMedia: createCommunityMediaCleaner({
+        rpc,
+        url: process.env.COMMUNITY_WORKER_SUPABASE_URL,
+        key: process.env.COMMUNITY_WORKER_SERVICE_KEY,
+      }),
       push: (message) =>
         expoPush(message, { accessToken: process.env.EXPO_ACCESS_TOKEN }),
       deliveryEnabled: process.env.COMMUNITY_DELIVERY_ENABLED === "true",

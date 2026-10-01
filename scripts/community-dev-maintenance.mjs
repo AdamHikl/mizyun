@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { createServiceRpc, runCommunityTick } from "./community-worker.mjs";
 
+import { createCommunityMediaCleaner } from "./community-media-cleanup.mjs";
+
 const DEV_URL = "http://127.0.0.1:8100";
 const HETZNER_ROLE = "hetzner-primary-1d36b436-f4d5-4a29-b249-4153975563f3";
 
@@ -32,7 +34,17 @@ export async function runDevCommunityMaintenance({
     fetchImpl: (url, options) =>
       fetchImpl(url, { ...options, redirect: "error" }),
   });
-  return runCommunityTick({ rpc, deliveryEnabled: false });
+  return runCommunityTick({
+    rpc,
+    deliveryEnabled: false,
+    cleanupMedia: createCommunityMediaCleaner({
+      rpc,
+      url: DEV_URL,
+      key: env.SUPABASE_SERVICE_ROLE_KEY,
+      fetchImpl: (url, options) =>
+        fetchImpl(url, { ...options, redirect: "error" }),
+    }),
+  });
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {

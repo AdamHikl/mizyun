@@ -190,7 +190,16 @@ export const communityReportFromRow = (
   ...(row.evidence_snapshot ? { evidenceSnapshot: row.evidence_snapshot } : {}),
   id: row.id,
   reporterUserId: row.reporter_user_id as UserId | null,
-  targetType: row.target_type as "profile" | "activity",
+  targetType: row.target_type as
+    | "profile"
+    | "activity"
+    | "comment"
+    | "group"
+    | "group_post"
+    | "routine"
+    | "message"
+    | "challenge"
+    | "media",
   targetId: row.target_id,
   reason: row.reason as CommunityReportReason,
   notes: row.notes,
@@ -1352,7 +1361,16 @@ export class SupabaseCommunityRepository implements CommunityRepository {
 
   async issueReportReceipt(
     _userId: UserId,
-    targetType: "profile" | "activity",
+    targetType:
+      | "profile"
+      | "activity"
+      | "comment"
+      | "group"
+      | "group_post"
+      | "routine"
+      | "message"
+      | "challenge"
+      | "media",
     targetId: string,
     options: { readonly accessToken: string },
   ): Promise<string> {
@@ -1371,7 +1389,16 @@ export class SupabaseCommunityRepository implements CommunityRepository {
   ): Promise<
     readonly {
       id: string;
-      targetType: "profile" | "activity";
+      targetType:
+        | "profile"
+        | "activity"
+        | "comment"
+        | "group"
+        | "group_post"
+        | "routine"
+        | "message"
+        | "challenge"
+        | "media";
       targetId: string;
       expiresAt: Date;
     }[]
@@ -1379,7 +1406,16 @@ export class SupabaseCommunityRepository implements CommunityRepository {
     const rows = await this.#rpcRows<
       {
         id: string;
-        target_type: "profile" | "activity";
+        target_type:
+          | "profile"
+          | "activity"
+          | "comment"
+          | "group"
+          | "group_post"
+          | "routine"
+          | "message"
+          | "challenge"
+          | "media";
         target_id: string;
         expires_at: string;
       } & Record<string, unknown>
@@ -1408,7 +1444,16 @@ export class SupabaseCommunityRepository implements CommunityRepository {
   async createReport(
     _reporterUserId: UserId,
     report: {
-      readonly targetType: "profile" | "activity";
+      readonly targetType:
+        | "profile"
+        | "activity"
+        | "comment"
+        | "group"
+        | "group_post"
+        | "routine"
+        | "message"
+        | "challenge"
+        | "media";
       readonly targetId: string;
       readonly reason: CommunityReportReason;
       readonly notes?: string | null;

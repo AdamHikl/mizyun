@@ -15,6 +15,24 @@ export const SOCIAL_EXPORT_CATEGORIES = [
   "inbox",
   "pushRegistrations",
   "delivery",
+  "comments",
+  "commentPreferences",
+  "commentMentions",
+  "groupMemberships",
+  "groupPosts",
+  "groupAppeals",
+  "groupEvents",
+  "groupOperations",
+  "routineShares",
+  "routineImports",
+  "messages",
+  "messageOperations",
+  "messagingPreferences",
+  "broaderDiscoveryPreferences",
+  "challenges",
+  "challengeContributions",
+  "media",
+  "mediaReviews",
 ] as const;
 
 interface ExportRow extends Record<string, unknown> {
@@ -60,7 +78,7 @@ export async function exportCommunityAccount(client: RepositorySupabaseClient) {
     counts[category] = items.length;
   }
   return {
-    schemaVersion: "2026-09-30" as const,
+    schemaVersion: "2026-10-01" as const,
     consistency: "live_keyset" as const,
     completeness: "complete" as const,
     counts,

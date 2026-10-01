@@ -1,3 +1,26 @@
+import { communityMediaRoutes } from "./modules/community/media-routes.js";
+import {
+  SupabaseCommunityMediaService,
+  createSupabaseCommunityMediaStorage,
+} from "@mizyun/adapter-supabase-server";
+import { communityFeatureRoutes } from "./modules/community/feature-routes.js";
+import { SupabaseCommunityFeatureStatus } from "@mizyun/adapter-supabase-server";
+import { communityChallengeRoutes } from "./modules/community/challenge-routes.js";
+import { communityGroupRoutes } from "./modules/community/group-routes.js";
+import { communityCommentRoutes } from "./modules/community/comment-routes.js";
+import { communityRoutineRoutes } from "./modules/community/routine-routes.js";
+import {
+  SupabaseCommunityChallengesRepository,
+  SupabaseCommunityGroupsRepository,
+  SupabaseCommunityCommentsRepository,
+  SupabaseCommunityRoutineRepository,
+} from "@mizyun/adapter-supabase-server";
+import { communityMessagingRoutes } from "./modules/community/messaging-routes.js";
+import { communityBroaderDiscoveryRoutes } from "./modules/community/broader-discovery-routes.js";
+import {
+  SupabaseCommunityMessagingRepository,
+  SupabaseCommunityBroaderDiscoveryRepository,
+} from "@mizyun/adapter-supabase-server";
 import { sendApiError } from "./errors.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -119,7 +142,10 @@ import { InMemoryProfileRepository } from "./profile-repository.js";
 import { InMemoryWorkoutRepository } from "./workout-repository.js";
 import { InMemoryWorkoutSetRepository } from "./workout-set-repository.js";
 import { communityNotificationRoutes } from "./modules/community/notification-routes.js";
-import { communityOperationGate } from "./modules/community/operations.js";
+import {
+  communityOperationGate,
+  communityExpansionOperationGate,
+} from "./modules/community/operations.js";
 import { InMemoryCommunityNotificationRepository } from "./community-notification-repository.js";
 import { InMemoryCommunityRepository } from "./community-repository.js";
 import { communityProfileRoutes } from "./modules/community/profile-routes.js";
@@ -1024,7 +1050,11 @@ export const buildApp = (
       (request.body as { reaction?: unknown }).reaction === null;
     const gate = removingReaction
       ? null
-      : communityOperationGate(request.method, request.url);
+      : (communityExpansionOperationGate(
+          request.method,
+          request.url,
+          request.body,
+        ) ?? communityOperationGate(request.method, request.url));
     if (gate && !communityOperations[gate])
       return sendApiError(
         reply,
@@ -1033,6 +1063,60 @@ export const buildApp = (
         "SERVICE_UNAVAILABLE",
         "Community action is temporarily unavailable.",
       );
+  });
+  void app.register(communityFeatureRoutes, {
+    prefix: "/v1/community",
+    read: sp
+      ? (token) => new SupabaseCommunityFeatureStatus(sp.clientFor).read(token)
+      : async () => [],
+  });
+  const mediaConfig = configResult.ok
+    ? configResult.value.supabaseConfig
+    : null;
+  if (sp?.serviceRoleClient && mediaConfig?.serviceRoleKey) {
+    void app.register(communityMediaRoutes, {
+      prefix: "/v1/community",
+      media: new SupabaseCommunityMediaService({
+        clientFor: sp.clientFor,
+        serviceClient: sp.serviceRoleClient,
+        storage: createSupabaseCommunityMediaStorage({
+          url: mediaConfig.url,
+          serviceRoleKey: mediaConfig.serviceRoleKey,
+        }),
+      }),
+    });
+  }
+  if (sp) {
+    void app.register(communityGroupRoutes, {
+      prefix: "/v1/community",
+      groups: new SupabaseCommunityGroupsRepository(sp.clientFor),
+    });
+    void app.register(communityCommentRoutes, {
+      prefix: "/v1/community",
+      comments: new SupabaseCommunityCommentsRepository(sp.clientFor),
+    });
+    void app.register(communityRoutineRoutes, {
+      prefix: "/v1/community",
+      routines: new SupabaseCommunityRoutineRepository(sp.clientFor),
+    });
+  }
+  void app.register(communityChallengeRoutes, {
+    prefix: "/v1/community",
+    repository: sp
+      ? new SupabaseCommunityChallengesRepository(sp.clientFor)
+      : null,
+  });
+  void app.register(communityMessagingRoutes, {
+    prefix: "/v1/community",
+    repository: sp
+      ? new SupabaseCommunityMessagingRepository(sp.clientFor)
+      : null,
+  });
+  void app.register(communityBroaderDiscoveryRoutes, {
+    prefix: "/v1/community",
+    repository: sp
+      ? new SupabaseCommunityBroaderDiscoveryRepository(sp.clientFor)
+      : null,
   });
   void app.register(communityNotificationRoutes, {
     prefix: "/v1/community",

@@ -418,7 +418,17 @@ export type ActivityReactionsResponse = z.infer<
 
 export const createCommunityReportSchema = z
   .object({
-    targetType: z.enum(["profile", "activity"]),
+    targetType: z.enum([
+      "profile",
+      "activity",
+      "comment",
+      "group",
+      "group_post",
+      "routine",
+      "message",
+      "challenge",
+      "media",
+    ]),
     targetId: z.string().min(1),
     reason: communityReportReasonSchema,
     notes: z.string().trim().max(1000).optional().nullable(),
@@ -444,7 +454,17 @@ export type CommunityReportResponse = z.infer<
 
 export const communityReportSummaryDtoSchema = z.object({
   id: z.string().uuid(),
-  targetType: z.enum(["profile", "activity"]),
+  targetType: z.enum([
+    "profile",
+    "activity",
+    "comment",
+    "group",
+    "group_post",
+    "routine",
+    "message",
+    "challenge",
+    "media",
+  ]),
   targetId: z.string(),
   reason: communityReportReasonSchema,
   status: z.enum(["submitted", "under_review", "resolved", "dismissed"]),
@@ -476,7 +496,17 @@ export const moderationQueueItemSchema = z.object({
   evidenceSnapshot: z.record(z.unknown()).optional(),
   id: z.string().uuid(),
   reporterUserId: z.string().uuid().nullable(),
-  targetType: z.enum(["profile", "activity"]),
+  targetType: z.enum([
+    "profile",
+    "activity",
+    "comment",
+    "group",
+    "group_post",
+    "routine",
+    "message",
+    "challenge",
+    "media",
+  ]),
   targetId: z.string(),
   reason: communityReportReasonSchema,
   notes: z.string().nullable(),
@@ -672,7 +702,17 @@ export const communitySafetyReceiptResponseSchema = z.object({
 export const communitySafetyReceiptListSchema = z.array(
   z.object({
     id: z.string().uuid(),
-    targetType: z.enum(["profile", "activity"]),
+    targetType: z.enum([
+      "profile",
+      "activity",
+      "comment",
+      "group",
+      "group_post",
+      "routine",
+      "message",
+      "challenge",
+      "media",
+    ]),
     targetId: z.string(),
     expiresAt: z.string().datetime(),
   }),

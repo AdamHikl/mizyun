@@ -361,3 +361,7 @@ Reduce logging friction with vision-assisted drafts while preserving confirmatio
 - Add or amend an ADR when a durable architecture choice changes.
 - Update `status.md` at the end of every development session.
 - Do not mark a phase complete until its exit evidence is reproducible.
+
+### Community Dev sequence amendment (2026-10-01)
+
+Adam authorized #156–162 source development on Dev before the original post-pilot sequence. Work now includes comments, private groups, cooperative challenges, opt-in text messaging, separate moderated media, independent routine copies and bounded opt-in prefix discovery. See ADR-0032 and the Community implementation plan amendment. Existing participant/operator/legal/native/recovery/pilot acceptance remains open; Production is excluded.

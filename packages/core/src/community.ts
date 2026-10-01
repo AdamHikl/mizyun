@@ -112,7 +112,16 @@ export interface StoredCommunityReport {
   readonly evidenceSnapshot?: Readonly<Record<string, unknown>>;
   readonly id: string;
   readonly reporterUserId: UserId | null;
-  readonly targetType: "profile" | "activity";
+  readonly targetType:
+    | "profile"
+    | "activity"
+    | "comment"
+    | "group"
+    | "group_post"
+    | "routine"
+    | "message"
+    | "challenge"
+    | "media";
   readonly targetId: string;
   readonly reason: CommunityReportReason;
   readonly notes: string | null;
@@ -642,7 +651,16 @@ export interface CommunityRepository {
 
   issueReportReceipt(
     userId: UserId,
-    targetType: "profile" | "activity",
+    targetType:
+      | "profile"
+      | "activity"
+      | "comment"
+      | "group"
+      | "group_post"
+      | "routine"
+      | "message"
+      | "challenge"
+      | "media",
     targetId: string,
     options?: { readonly accessToken?: string },
   ): Promise<string>;
@@ -653,7 +671,16 @@ export interface CommunityRepository {
   ): Promise<
     readonly {
       readonly id: string;
-      readonly targetType: "profile" | "activity";
+      readonly targetType:
+        | "profile"
+        | "activity"
+        | "comment"
+        | "group"
+        | "group_post"
+        | "routine"
+        | "message"
+        | "challenge"
+        | "media";
       readonly targetId: string;
       readonly expiresAt: Date;
     }[]
@@ -667,7 +694,16 @@ export interface CommunityRepository {
   createReport(
     reporterUserId: UserId,
     report: {
-      readonly targetType: "profile" | "activity";
+      readonly targetType:
+        | "profile"
+        | "activity"
+        | "comment"
+        | "group"
+        | "group_post"
+        | "routine"
+        | "message"
+        | "challenge"
+        | "media";
       readonly targetId: string;
       readonly reason: CommunityReportReason;
       readonly notes?: string | null;
@@ -836,7 +872,16 @@ export const RECENT_INTERACTION_WINDOW_DAYS = 30;
 
 export interface RedactedReportForSubject {
   readonly id: string;
-  readonly targetType: "profile" | "activity";
+  readonly targetType:
+    | "profile"
+    | "activity"
+    | "comment"
+    | "group"
+    | "group_post"
+    | "routine"
+    | "message"
+    | "challenge"
+    | "media";
   readonly targetId: string;
   readonly reason: CommunityReportReason;
   readonly status: "submitted" | "under_review" | "resolved" | "dismissed";

@@ -709,7 +709,8 @@
         "scripts/deploy-dev.mjs",
         "scripts/deploy-remote.mjs",
         "scripts/promote-dev.sh",
-        "scripts/promote-production.sh"
+        "scripts/promote-production.sh",
+        "scripts/backup-dev-encrypted.py"
       ],
       "ownedPaths": [
         "deploy/raspberry-pi",
@@ -738,7 +739,8 @@
         "scripts/test-build-matrix.mjs",
         "packages/config/src/build-matrix.test.ts",
         "packages/config/src/server.test.ts",
-        "packages/config/src/mobile.test.ts"
+        "packages/config/src/mobile.test.ts",
+        "scripts/test-backup-dev-encrypted.py"
       ],
       "relations": [
         {
@@ -1194,7 +1196,7 @@
     {
       "id": "community",
       "title": "Community & Friend Workout Sharing",
-      "summary": "Opt-in social foundation with directional follow relationships, bilateral blocking, field-limited published workout activity snapshots, supportive reactions, and reporting.",
+      "summary": "Opt-in friends, comments, private groups, cooperative challenges, mutual messages, quarantined photos, deliberate routine snapshots and bounded consent-based discovery on Dev.",
       "aliases": [
         "community",
         "social",
@@ -1237,15 +1239,54 @@
         "packages/adapters/supabase-server/src/community-account-export.ts",
         "scripts/community-worker.mjs",
         "scripts/verify-community-local-db.py",
-        "scripts/test-community-postgrest.py"
+        "scripts/test-community-postgrest.py",
+        "packages/contracts/src/community-broader-discovery.ts",
+        "packages/contracts/src/community-challenges.ts",
+        "packages/contracts/src/community-comments.ts",
+        "packages/contracts/src/community-features.ts",
+        "packages/contracts/src/community-groups.ts",
+        "packages/contracts/src/community-media.ts",
+        "packages/contracts/src/community-messaging.ts",
+        "packages/contracts/src/community-routines.ts",
+        "packages/core/src/community-broader-discovery.ts",
+        "packages/core/src/community-challenges.ts",
+        "packages/core/src/community-comments.ts",
+        "packages/core/src/community-groups.ts",
+        "packages/core/src/community-media.ts",
+        "packages/core/src/community-messaging.ts",
+        "packages/core/src/community-routines.ts",
+        "packages/adapters/supabase-server/src/community-broader-discovery.ts",
+        "packages/adapters/supabase-server/src/community-challenges.ts",
+        "packages/adapters/supabase-server/src/community-comments-repository.ts",
+        "packages/adapters/supabase-server/src/community-features.ts",
+        "packages/adapters/supabase-server/src/community-groups-repository.ts",
+        "packages/adapters/supabase-server/src/community-media.ts",
+        "packages/adapters/supabase-server/src/community-messaging.ts",
+        "packages/adapters/supabase-server/src/community-routines-repository.ts",
+        "scripts/community-media-cleanup.mjs"
       ],
       "contracts": [
         "packages/contracts/src/community.ts",
-        "packages/contracts/src/community-notifications.ts"
+        "packages/contracts/src/community-notifications.ts",
+        "packages/contracts/src/community-broader-discovery.ts",
+        "packages/contracts/src/community-challenges.ts",
+        "packages/contracts/src/community-comments.ts",
+        "packages/contracts/src/community-features.ts",
+        "packages/contracts/src/community-groups.ts",
+        "packages/contracts/src/community-media.ts",
+        "packages/contracts/src/community-messaging.ts",
+        "packages/contracts/src/community-routines.ts"
       ],
       "domainPort": [
         "packages/core/src/community.ts",
-        "packages/core/src/community-notifications.ts"
+        "packages/core/src/community-notifications.ts",
+        "packages/core/src/community-broader-discovery.ts",
+        "packages/core/src/community-challenges.ts",
+        "packages/core/src/community-comments.ts",
+        "packages/core/src/community-groups.ts",
+        "packages/core/src/community-media.ts",
+        "packages/core/src/community-messaging.ts",
+        "packages/core/src/community-routines.ts"
       ],
       "api": [
         "apps/api/src/community-repository.ts",
@@ -1260,7 +1301,15 @@
         "apps/api/src/modules/community/moderation-routes.ts",
         "apps/api/src/modules/community/notification-routes.ts",
         "apps/api/src/modules/community/operations.ts",
-        "apps/api/src/community-notification-repository.ts"
+        "apps/api/src/community-notification-repository.ts",
+        "apps/api/src/modules/community/broader-discovery-routes.ts",
+        "apps/api/src/modules/community/challenge-routes.ts",
+        "apps/api/src/modules/community/comment-routes.ts",
+        "apps/api/src/modules/community/feature-routes.ts",
+        "apps/api/src/modules/community/group-routes.ts",
+        "apps/api/src/modules/community/media-routes.ts",
+        "apps/api/src/modules/community/messaging-routes.ts",
+        "apps/api/src/modules/community/routine-routes.ts"
       ],
       "ui": [
         "apps/mobile/src/features/community/community-client.ts",
@@ -1300,12 +1349,28 @@
         "apps/mobile/src/features/community/notifications/notification-bridge.tsx",
         "apps/mobile/src/features/community/notifications/tap-controller.ts",
         "apps/mobile/src/features/community/push.ts",
-        "apps/mobile/src/features/community/community-presentation.tsx"
+        "apps/mobile/src/features/community/community-presentation.tsx",
+        "apps/mobile/src/features/community/broader-discovery/screen.tsx",
+        "apps/mobile/src/features/community/challenges/screen.tsx",
+        "apps/mobile/src/features/community/comments/screen.tsx",
+        "apps/mobile/src/features/community/expansions/screen.tsx",
+        "apps/mobile/src/features/community/groups/screen.tsx",
+        "apps/mobile/src/features/community/media/screen.tsx",
+        "apps/mobile/src/features/community/messaging/screen.tsx",
+        "apps/mobile/src/features/community/routines/screen.tsx"
       ],
       "adapters": [
         "packages/adapters/supabase-server/src/community-repository.ts",
         "packages/adapters/supabase-server/src/community-notification-repository.ts",
-        "packages/adapters/supabase-server/src/community-account-export.ts"
+        "packages/adapters/supabase-server/src/community-account-export.ts",
+        "packages/adapters/supabase-server/src/community-broader-discovery.ts",
+        "packages/adapters/supabase-server/src/community-challenges.ts",
+        "packages/adapters/supabase-server/src/community-comments-repository.ts",
+        "packages/adapters/supabase-server/src/community-features.ts",
+        "packages/adapters/supabase-server/src/community-groups-repository.ts",
+        "packages/adapters/supabase-server/src/community-media.ts",
+        "packages/adapters/supabase-server/src/community-messaging.ts",
+        "packages/adapters/supabase-server/src/community-routines-repository.ts"
       ],
       "dataTables": [
         "community_profiles",
@@ -1335,7 +1400,33 @@
         "community_notification_outbox",
         "community_operations",
         "community_pilot_cohort",
-        "community_withdrawal_jobs"
+        "community_withdrawal_jobs",
+        "community_comments",
+        "community_comment_settings",
+        "community_comment_preferences",
+        "community_comment_operations",
+        "community_comment_usage",
+        "community_comment_mentions",
+        "community_routine_shares",
+        "community_routine_imports",
+        "community_broader_discovery_preferences",
+        "community_broader_discovery_usage",
+        "community_challenges",
+        "community_challenge_members",
+        "community_challenge_contributions",
+        "community_messaging_preferences",
+        "community_messages",
+        "community_message_operations",
+        "community_groups",
+        "community_group_members",
+        "community_group_posts",
+        "community_group_operations",
+        "community_group_appeals",
+        "community_group_events",
+        "community_feature_controls",
+        "community_media_assets",
+        "community_media_review_actions",
+        "community_media_cleanup_jobs"
       ],
       "migrationPaths": [
         "supabase/migrations/20260930100000_community_foundation.sql",
@@ -1353,7 +1444,16 @@
         "supabase/migrations/20260930220000_community_receipt_delivery_bounds.sql",
         "supabase/migrations/20260930230000_community_erasure_audit.sql",
         "supabase/migrations/20261001130000_community_follow_back.sql",
-        "supabase/migrations/20261001140000_community_detailed_workout_sharing.sql"
+        "supabase/migrations/20261001140000_community_detailed_workout_sharing.sql",
+        "supabase/migrations/20261001190000_community_expansion_controls.sql",
+        "supabase/migrations/20261001200000_community_comments.sql",
+        "supabase/migrations/20261001201000_community_groups.sql",
+        "supabase/migrations/20261001202000_community_routines.sql",
+        "supabase/migrations/20261001203000_community_messaging.sql",
+        "supabase/migrations/20261001204000_community_broader_discovery.sql",
+        "supabase/migrations/20261001205000_community_challenges.sql",
+        "supabase/migrations/20261001206000_community_media.sql",
+        "supabase/migrations/20261001207000_community_expansion_lifecycle.sql"
       ],
       "tests": [
         "packages/contracts/src/community.test.ts",
@@ -1429,7 +1529,23 @@
         "apps/mobile/src/features/community/notifications/inbox-screen.test.tsx",
         "scripts/test-community-postgrest.py",
         "scripts/test-community-postgrest.test.py",
-        "scripts/verify-community-local-db.py"
+        "scripts/verify-community-local-db.py",
+        "supabase/tests/database/0025_community_comments.test.sql",
+        "supabase/tests/database/0026_community_groups.test.sql",
+        "supabase/tests/database/0027_community_routines.test.sql",
+        "supabase/tests/database/0028_community_messaging.test.sql",
+        "supabase/tests/database/0029_community_broader_discovery.test.sql",
+        "supabase/tests/database/0030_community_media.test.sql",
+        "supabase/tests/database/0031_community_challenges.test.sql",
+        "scripts/community-media-cleanup.test.mjs",
+        "supabase/tests/database/0032_community_expansion_lifecycle.test.sql",
+        "scripts/test-community-expansion-concurrency.py",
+        "scripts/test-community-expansion-postgrest.py",
+        "scripts/test-community-media-storage.ts",
+        "scripts/verify-community-expansion-transport.py",
+        "scripts/verify-community-dev-expansions.py",
+        "apps/mobile/src/features/community/expansions/use-expansion-command.test.ts",
+        "apps/mobile/src/features/community/comments/screen.test.tsx"
       ],
       "relations": [
         {
@@ -1462,7 +1578,9 @@
         "docs/COMMUNITY_ACCEPTANCE_EVIDENCE.md",
         "docs/tutorials/COMMUNITY_OPERATIONS_RUNBOOK.md",
         "docs/COMMUNITY_FINAL_REVIEW_2026-09-30.md",
-        "docs/COMMUNITY_FINAL_REVIEW_SOURCE_2026-09-30.json"
+        "docs/COMMUNITY_FINAL_REVIEW_SOURCE_2026-09-30.json",
+        "docs/adr/0032-community-dev-expansion-boundaries.md",
+        "docs/COMMUNITY_EXPANSIONS_DEV_EVIDENCE_2026-10-01.md"
       ],
       "verificationCommands": [
         "pnpm --filter @mizyun/contracts test src/community.test.ts",
@@ -1474,7 +1592,7 @@
         "pnpm supabase test db"
       ],
       "lastReviewedSha": "d81c10f60c0aebc6b2240e48e69e4678addc8079",
-      "lastReviewedDate": "2026-09-30",
+      "lastReviewedDate": "2026-10-01",
       "limitations": "Dev-only client enrollment requires exact Dev targets; server cohort is authoritative. Founder Dev testing activation is explicitly authorized for a confirmed account; broader participant/Dev/device/provider/operator/legal/restore/pilot acceptance remains pending.",
       "requirements": [
         "COMMUNITY-01",
@@ -1501,7 +1619,8 @@
         "COMM-04 physical relationship/graph/block/mute/account-switch acceptance and reporting/delivery/retention dependencies",
         "COMM-05 installed cold/warm/login/QR/environment/account-switch and not-installed fallback acceptance",
         "COMM-06 physical preview/publish/edit/unpublish/source-delete acceptance and feed/delivery dependencies",
-        "COMM-07\u201316 feed, moderation, inbox/delivery, lifecycle/export/restore, rollout and exact-candidate pilot gates"
+        "COMM-07\u201316 feed, moderation, inbox/delivery, lifecycle/export/restore, rollout and exact-candidate pilot gates",
+        "COMM-17\u201323 expansion real Auth/Storage, device, moderation, lifecycle, restore and Dev acceptance on the exact final candidate"
       ]
     }
   ]

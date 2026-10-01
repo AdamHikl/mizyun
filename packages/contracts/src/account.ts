@@ -96,7 +96,7 @@ export const privateMediaStubSchema = exportedMediaAssetSchema;
  */
 export const communityAccountExportSchema = z
   .object({
-    schemaVersion: z.literal("2026-09-30"),
+    schemaVersion: z.enum(["2026-09-30", "2026-10-01"]),
     consistency: z.literal("live_keyset"),
     completeness: z.literal("complete"),
     counts: z.record(z.number().int().nonnegative()),

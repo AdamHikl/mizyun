@@ -43,3 +43,94 @@ export function communityOperationGate(
     return "engagement";
   return null;
 }
+
+/** Expansion commands preserve safety reductions while honoring existing server growth switches. */
+export function communityExpansionOperationGate(
+  method: string,
+  url: string,
+  body: unknown,
+): keyof CommunityOperationsConfig | null {
+  const path = url.split("?")[0] ?? "";
+  const args =
+    body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+  if (
+    path === "/v1/community/messaging" ||
+    path === "/v1/community/broader-discovery"
+  ) {
+    if (
+      args.operation === "delete" ||
+      args.operation === "listMine" ||
+      (args.operation === "preferences" && args.enabled !== true)
+    )
+      return null;
+    return ["list", "contacts", "search"].includes(String(args.operation))
+      ? "browsing"
+      : "engagement";
+  }
+  if (
+    path === "/v1/community/groups/operations" ||
+    path === "/v1/community/challenges"
+  ) {
+    if (path === "/v1/community/groups/operations" && args.operation === "list")
+      return null;
+    if (
+      [
+        "getMine",
+        "listMine",
+        "leave",
+        "disband",
+        "deletePost",
+        "appeal",
+        "cancel",
+        "removeContribution",
+        "staffAppeals",
+        "staffResolveAppeal",
+        "remove",
+        "ban",
+      ].includes(String(args.operation))
+    )
+      return null;
+    return ["list", "get", "read", "inbox", "members", "appeals"].includes(
+      String(args.operation),
+    )
+      ? "browsing"
+      : "engagement";
+  }
+  if (path.includes("/comments")) {
+    if (
+      method === "DELETE" ||
+      path.endsWith("/report") ||
+      args.enabled === false ||
+      args.mentions === false ||
+      args.allowMentions === false
+    )
+      return null;
+    return method === "GET" ? "browsing" : "engagement";
+  }
+  if (
+    method === "GET" &&
+    /^(?:\/v1\/community\/(?:routines|media))$/.test(path) &&
+    new URL(url, "https://local.invalid").searchParams.get("mine") === "true"
+  )
+    return null;
+  if (
+    path.startsWith("/v1/community/media") &&
+    (path.includes("/moderation") ||
+      path.includes("/reports/") ||
+      path.endsWith("/review"))
+  )
+    return null;
+  if (path.startsWith("/v1/community/routines"))
+    return method === "DELETE"
+      ? null
+      : method === "GET"
+        ? "browsing"
+        : "publish";
+  if (path.startsWith("/v1/community/media"))
+    return method === "DELETE"
+      ? null
+      : method === "GET"
+        ? "browsing"
+        : "publish";
+  return null;
+}

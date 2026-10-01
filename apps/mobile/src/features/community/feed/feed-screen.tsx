@@ -374,6 +374,17 @@ function FeedScreenContent({
             primary: false,
             accessibilityLabel: "My Community profile and settings",
           },
+          {
+            href: "/community/more",
+            label: "Together",
+            description: "Groups, messages, routines and sharing choices",
+            caption: "More ways to connect",
+            icon: "🌱",
+            surface: accents.mint,
+            ink: accents.mintText,
+            primary: false,
+            accessibilityLabel: "More Community features",
+          },
         ].map((destination) => (
           <Link key={destination.href} href={destination.href as Href} asChild>
             <Pressable

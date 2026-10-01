@@ -57,7 +57,16 @@ export class InMemoryCommunityRepository implements CommunityRepository {
     {
       id: string;
       userId: UserId;
-      targetType: "profile" | "activity";
+      targetType:
+        | "profile"
+        | "activity"
+        | "comment"
+        | "group"
+        | "group_post"
+        | "routine"
+        | "message"
+        | "challenge"
+        | "media";
       targetId: string;
       expiresAt: Date;
     }
@@ -68,7 +77,16 @@ export class InMemoryCommunityRepository implements CommunityRepository {
   >();
   #canReport(
     userId: UserId,
-    targetType: "profile" | "activity",
+    targetType:
+      | "profile"
+      | "activity"
+      | "comment"
+      | "group"
+      | "group_post"
+      | "routine"
+      | "message"
+      | "challenge"
+      | "media",
     targetId: string,
   ): boolean {
     const targetUserId =
@@ -1545,7 +1563,16 @@ export class InMemoryCommunityRepository implements CommunityRepository {
 
   async issueReportReceipt(
     userId: UserId,
-    targetType: "profile" | "activity",
+    targetType:
+      | "profile"
+      | "activity"
+      | "comment"
+      | "group"
+      | "group_post"
+      | "routine"
+      | "message"
+      | "challenge"
+      | "media",
     targetId: string,
     _options?: { readonly accessToken?: string },
   ): Promise<string> {
@@ -1594,7 +1621,16 @@ export class InMemoryCommunityRepository implements CommunityRepository {
   async createReport(
     reporterUserId: UserId,
     report: {
-      readonly targetType: "profile" | "activity";
+      readonly targetType:
+        | "profile"
+        | "activity"
+        | "comment"
+        | "group"
+        | "group_post"
+        | "routine"
+        | "message"
+        | "challenge"
+        | "media";
       readonly targetId: string;
       readonly reason: CommunityReportReason;
       readonly notes?: string | null;

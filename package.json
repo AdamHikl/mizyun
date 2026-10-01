@@ -81,7 +81,7 @@
     "test:google-oauth-config": "node --test scripts/validate-google-oauth-env.test.mjs",
     "test:tier-authority": "node scripts/test-tier-authority-postgrest.mjs",
     "backup:verify": "bash scripts/verify-backup-recovery.sh",
-    "test:community-operations": "node --test scripts/community-moderation.test.mjs scripts/community-worker.test.mjs scripts/community-dev-maintenance.test.mjs",
+    "test:community-operations": "node --test scripts/community-moderation.test.mjs scripts/community-worker.test.mjs scripts/community-media-cleanup.test.mjs scripts/community-dev-maintenance.test.mjs && python3 scripts/test-backup-dev-encrypted.py",
     "test:ai-eval": "node --import tsx scripts/run-ai-evaluation.mjs",
     "check": "pnpm navigation:check && pnpm test:navigation && pnpm format:check && pnpm typecheck && pnpm --filter @mizyun/mobile bundle:check && pnpm test && pnpm test:deployment-safeguards && pnpm test:hetzner-operations && pnpm test:backup-retention && pnpm test:google-oauth-config && pnpm test:build-matrix && pnpm test:production-android-signing-tooling && pnpm test:production-ios-ipa-tooling && pnpm test:ai-eval && pnpm test:community-operations && pnpm test:dev-ios-apple-auth",
     "test:dev-ios-apple-auth": "node scripts/test-dev-ios-apple-auth.mjs"

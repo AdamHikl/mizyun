@@ -15,7 +15,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useRouter, type Href } from "expo-router";
 import type { SharedActivityFeedItemDto } from "@mizyun/contracts";
 import { apiClient } from "@/composition/api-client";
 import { useTheme } from "@/hooks/use-theme";
@@ -371,6 +371,26 @@ export function ActivityDetailScreen({
         ) : null}
 
         {/* Reactions Section */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open comments and conversation choices"
+          onPress={() =>
+            router.push(
+              `/community/comments?activityId=${encodeURIComponent(activity.id)}` as Href,
+            )
+          }
+          style={{
+            padding: 14,
+            minHeight: 48,
+            borderWidth: 1,
+            borderColor: colors.border,
+            borderRadius: 12,
+          }}
+        >
+          <Text style={{ color: colors.text }}>
+            Comments and conversation choices
+          </Text>
+        </Pressable>
         <View style={styles.reactionsSection}>
           <Text
             style={[styles.reactionsTitle, { color: colors.textSecondary }]}
