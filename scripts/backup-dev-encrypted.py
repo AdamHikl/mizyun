@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import pwd
+import re
 import signal
 import shutil
 import stat
@@ -141,6 +142,57 @@ def inspect():
     return entries
 
 
+def guard_stop_dependencies():
+    """Refuse a shared unit reached by a Dev stop transaction.
+
+    Requires/BindTo reverse edges and PartOf/stop propagation can stop a
+    dependent even when this exporter never names it in a stop command.
+    Inspect the full closure before recording or stopping any resource.
+    """
+    pending = list(UNITS)
+    visited = set()
+    reverse = ("RequiredBy", "RequisiteOf", "BoundBy", "ConsistsOf", "PropagatesStopTo")
+    completion_hooks = ("OnSuccess", "OnFailure")
+    forward = ("Requires", "Requisite", "Wants", "BindsTo", "Upholds")
+    while pending:
+        unit = pending.pop()
+        if unit in visited:
+            continue
+        visited.add(unit)
+        hooks = (*completion_hooks, "ExecStop", "ExecStopPost") if unit.endswith(".service") else completion_hooks
+        properties = (*reverse, *hooks, *forward)
+        raw = run(["systemctl", "show", unit, "--all",
+                   *["--property=" + value for value in properties]]).decode()
+        values = dict(line.split("=", 1) for line in raw.splitlines() if "=" in line)
+        if unit.endswith(".service"):
+            # systemctl omits empty command arrays on this host even with
+            # --all. Independently refuse stop directives in the unit and
+            # all its drop-ins before treating those absent arrays as empty.
+            definition = run(["systemctl", "cat", unit, "--no-pager"]).decode()
+            if re.search(r"(?m)^\s*ExecStop(?:Post)?\s*=", definition):
+                raise RuntimeError("Dev freeze has unverified stop or completion hooks")
+            values.setdefault("ExecStop", "")
+            values.setdefault("ExecStopPost", "")
+        if set(values) != set(properties):
+            raise RuntimeError("Cannot verify Dev stop dependencies")
+        if any(values[name].strip() for name in hooks):
+            raise RuntimeError("Dev freeze has unverified stop or completion hooks")
+        for dependent in {name for key in reverse for name in values[key].split()}:
+            # Refuse even an inactive shared unit: state can change between
+            # inspection and the stop transaction, and inactive bridges can
+            # still have jobs/dependents. Traverse all owned edges.
+            if dependent not in UNITS:
+                raise RuntimeError("Dev freeze would affect a shared dependency")
+            pending.append(dependent)
+        for dependency in {name for key in forward for name in values[key].split()}:
+            unneeded = run(["systemctl", "show", dependency,
+                            "--property=StopWhenUnneeded", "--value"]).decode().strip()
+            if unneeded not in ("yes", "no"):
+                raise RuntimeError("Cannot verify Dev unneeded dependency")
+            if unneeded == "yes" and dependency not in UNITS:
+                raise RuntimeError("Dev freeze could stop an unneeded shared dependency")
+
+
 def main():
     if os.geteuid() != 0:
         raise RuntimeError("Dev backup requires root")
@@ -174,6 +226,7 @@ def main():
         return
     if __import__("sys").argv[1:]:
         raise RuntimeError("Unexpected backup arguments")
+    guard_stop_dependencies()
     if STATE.exists():
         raise RuntimeError("Prior recovery state exists; resume before starting")
     if run(["git", "-c", "safe.directory=" + str(REPO), "-C", str(REPO), "status", "--porcelain"]).strip():

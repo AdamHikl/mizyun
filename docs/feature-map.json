@@ -1223,7 +1223,8 @@
         "apps/api/src/modules/community/moderation-routes.ts",
         "apps/api/src/modules/community/notification-routes.ts",
         "scripts/community-worker.mjs",
-        "apps/mobile/src/features/community/notifications/index.ts"
+        "apps/mobile/src/features/community/notifications/index.ts",
+        "scripts/restore-dev-quarantined.py"
       ],
       "ownedPaths": [
         "packages/contracts/src/community.ts",
@@ -1263,7 +1264,9 @@
         "packages/adapters/supabase-server/src/community-media.ts",
         "packages/adapters/supabase-server/src/community-messaging.ts",
         "packages/adapters/supabase-server/src/community-routines-repository.ts",
-        "scripts/community-media-cleanup.mjs"
+        "scripts/community-media-cleanup.mjs",
+        "scripts/sql/quarantine-community-restored-dev.sql",
+        "deploy/raspberry-pi/docker-compose.dev.yml"
       ],
       "contracts": [
         "packages/contracts/src/community.ts",
@@ -1545,7 +1548,8 @@
         "scripts/verify-community-expansion-transport.py",
         "scripts/verify-community-dev-expansions.py",
         "apps/mobile/src/features/community/expansions/use-expansion-command.test.ts",
-        "apps/mobile/src/features/community/comments/screen.test.tsx"
+        "apps/mobile/src/features/community/comments/screen.test.tsx",
+        "scripts/test-restore-dev-quarantined.py"
       ],
       "relations": [
         {

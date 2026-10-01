@@ -15,7 +15,10 @@ assert env['SUPABASE_URL']=='http://127.0.0.1:8100' and env['API_PORT']=='4100' 
 assert env.get('COMMUNITY_DELIVERY_ENABLED')=='false'
 dbconfig=json.loads(subprocess.check_output(['docker','inspect','mizyun-dev-db'],text=True))[0]
 assert any(v['HostPort']=='5433' and v['HostIp']=='127.0.0.1' for v in dbconfig['NetworkSettings']['Ports']['5432/tcp'])
-key=env['SUPABASE_SERVICE_ROLE_KEY'];anon=env['SUPABASE_ANON_KEY'];assert anon and anon!=key
+gateway=json.loads(subprocess.check_output(['docker','inspect','mizyun-dev-kong'],text=True))[0]
+assert gateway['Config']['Labels']['com.docker.compose.project']=='mizyun-dev' and set(gateway['NetworkSettings']['Networks'])=={'mizyun-dev_default'}
+gateway_env=dict(x.split('=',1) for x in gateway['Config']['Env'] if '=' in x)
+key=env['SUPABASE_SERVICE_ROLE_KEY'];anon=gateway_env['SUPABASE_ANON_KEY'];assert anon and anon!=key
 api='https://mizyun-api-dev.phiskel.com';sb='https://mizyun-supabase-dev.phiskel.com';users=[];handles=[];emails=[];passes=[]
 class NoRedirects(urllib.request.HTTPRedirectHandler):
  def redirect_request(self,*a):raise RuntimeError('Redirect refused')
@@ -26,7 +29,8 @@ def req(method,path,token=None,body=None,service=False,local_cleanup=False):
  if local_cleanup:
   assert service and method in ['PATCH','DELETE'] and (path.startswith('/rest/v1/community_feature_controls?feature=eq.') or path.startswith('/auth/v1/admin/users/'))
   target='http://127.0.0.1:8100'
- headers={'Content-Type':'application/json','Accept':'application/json','User-Agent':'Mizyun-Dev-acceptance/1.0'}
+ headers={'Accept':'application/json','User-Agent':'Mizyun-Dev-acceptance/1.0'}
+ if body is not None:headers['Content-Type']='application/json'
  if target in [sb,'http://127.0.0.1:8100']:headers.update({'apikey':key if service else anon,'Prefer':'return=representation'})
  if service:headers['Authorization']='Bearer '+key
  elif token:headers['Authorization']='Bearer '+token
@@ -57,7 +61,8 @@ controls=sbget('community_operations')[0]
 check('Original two-account Dev cohort retained',len(before)==2)
 check('Actual Dev controls enabled with closed cohort and delivery off',all(controls[k] for k in ['enabled','enrollment','discovery','publish','engagement','cohort_required']) and controls['delivery'] is False)
 try:
- code,_=req("PATCH","/rest/v1/community_feature_controls",body={"enabled":True},service=True);check("Temporary Dev feature test switches",code==200)
+ for feature in features:
+  code,_=req("PATCH","/rest/v1/community_feature_controls?feature=eq."+feature['feature'],body={"enabled":True},service=True);check("Temporary Dev feature test switch HTTP "+str(code),code==200)
  tokens=[]
  for i in range(3):
   email='community-http-'+uuid.uuid4().hex+'@mizyun.test';password=secrets.token_urlsafe(24)
@@ -107,7 +112,7 @@ try:
  # Actual expansion API routes, not only direct database RPCs.
  def ok(method,path,token,body=None):
   code,value=req(method,path,token,body)
-  check('Public Dev expansion route '+path.split('?')[0],code in [200,201,204])
+  check('Public Dev expansion route '+path.split('?')[0]+' HTTP '+str(code),code in [200,201,204])
   return value
  def op(path,token,operation,**body):return ok('POST',path,token,dict(operation=operation,**body))
  def denied(method,path,token=None,body=None):

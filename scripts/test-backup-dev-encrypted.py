@@ -105,6 +105,71 @@ class InspectBoundaryTests(unittest.TestCase):
             self.inspect(containers(), extra_names=("realtime-dev.supabase-realtime",))
 
 
+class StopDependencyTests(unittest.TestCase):
+    def command(self, graph, active):
+        def run(args):
+            if args[:2] == ["systemctl", "cat"]:
+                return b"[Service]\nExecStart=/approved/dev\n"
+            if args[-1] == "--value":
+                return active.get(args[2], "no").encode()
+            return "\n".join(name + "=" + " ".join(graph.get(args[2], {}).get(name, []))
+                             for name in [arg.removeprefix("--property=") for arg in args[3:] if arg.startswith("--property=")]).encode()
+        return run
+
+    def test_real_shared_tunnel_requires_dev_api_refused_before_any_stop(self):
+        graph = {"mizyun-api-dev.service": {"RequiredBy": ["cloudflared.service"]}}
+        with patch.object(backup, "run", side_effect=self.command(graph, {"cloudflared.service": "active"})) as run:
+            with self.assertRaisesRegex(RuntimeError, "shared dependency"):
+                backup.guard_stop_dependencies()
+            self.assertTrue(all(c.args[0][:2] in (["systemctl", "show"], ["systemctl", "cat"]) for c in run.call_args_list))
+
+    def test_every_reverse_stop_edge_is_checked(self):
+        for kind in ("RequiredBy", "RequisiteOf", "BoundBy", "ConsistsOf", "PropagatesStopTo"):
+            with self.subTest(kind=kind), patch.object(backup, "run", side_effect=self.command(
+                    {"mizyun-api-dev.service": {kind: ["shared.service"]}}, {"shared.service": "activating"})):
+                with self.assertRaisesRegex(RuntimeError, "shared dependency"):
+                    backup.guard_stop_dependencies()
+
+    def test_owned_cycle_is_safe_but_inactive_shared_edge_is_refused(self):
+        graph = {"mizyun-api-dev.service": {"RequiredBy": [backup.UNITS[0]]},
+                 backup.UNITS[0]: {"ConsistsOf": ["mizyun-api-dev.service"]}}
+        with patch.object(backup, "run", side_effect=self.command(graph, {unit: "active" for unit in backup.UNITS})):
+            backup.guard_stop_dependencies()
+        graph['mizyun-api-dev.service']['RequiredBy'].append('shared.service')
+        with patch.object(backup, "run", side_effect=self.command(graph, {'shared.service':'inactive'})):
+            with self.assertRaisesRegex(RuntimeError, "shared dependency"):
+                backup.guard_stop_dependencies()
+
+    def test_missing_dependency_inventory_fails_closed(self):
+        with patch.object(backup, "run", return_value=b"RequiredBy=\n"):
+            with self.assertRaisesRegex(RuntimeError, "Cannot verify"):
+                backup.guard_stop_dependencies()
+
+    def test_unneeded_shared_dependency_and_unknown_state_fail_closed(self):
+        for state in ("yes", "", "unexpected"):
+            with self.subTest(state=state), patch.object(backup, "run", side_effect=self.command(
+                    {"mizyun-api-dev.service": {"Requires": ["shared.service"]}}, {"shared.service": state})):
+                with self.assertRaisesRegex(RuntimeError, "dependency"):
+                    backup.guard_stop_dependencies()
+
+    def test_custom_stop_and_completion_hooks_are_refused(self):
+        for kind in ("ExecStop", "ExecStopPost", "OnSuccess", "OnFailure"):
+            with self.subTest(kind=kind), patch.object(backup, "run", side_effect=self.command(
+                    {"mizyun-api-dev.service": {kind: ["unreviewed-handler"]}}, {})):
+                with self.assertRaisesRegex(RuntimeError, "hooks"):
+                    backup.guard_stop_dependencies()
+
+    def test_stop_directive_in_dropin_is_refused_even_when_property_omitted(self):
+        original = self.command({}, {})
+        def command(args):
+            if args[:2] == ["systemctl", "cat"]:
+                return b"[Service]\nExecStopPost=/unreviewed/shared-script\n"
+            return original(args)
+        with patch.object(backup, "run", side_effect=command):
+            with self.assertRaisesRegex(RuntimeError, "hooks"):
+                backup.guard_stop_dependencies()
+
+
 class ResumeBoundaryTests(unittest.TestCase):
     def setUp(self):
         self.saved = {
