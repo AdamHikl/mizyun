@@ -2,6 +2,7 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import type { CommunityRepository } from "@mizyun/core";
 import {
   communityFeedResponseSchema,
+  sharedWorkoutDetailsSchema,
   communityListQuerySchema,
   type CommunityFeedResponse,
   type SharedActivityFeedItemDto,
@@ -135,6 +136,9 @@ export const communityFeedRoutes: FastifyPluginAsync<
           category: item.category,
           sharedDay: item.sharedDay,
           durationSeconds: item.durationSeconds,
+          workoutDetails: sharedWorkoutDetailsSchema
+            .nullable()
+            .parse(item.workoutDetails ?? null),
           publishedAt: item.publishedAt.toISOString(),
           reactionCounts: defaultReactionCounts,
           viewerReaction: null,

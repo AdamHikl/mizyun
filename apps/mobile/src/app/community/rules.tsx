@@ -68,8 +68,12 @@ export default function CommunityRulesScreen() {
       <ThemedText>
         A handle, workout day or optional duration can identify you or reveal
         habits. Community has no access to private health integrations or Coach
-        context. Social photos, comments and direct messages are outside this
-        pilot.
+        context. A separate, optional sharing choice can include completed
+        exercises, set types, reps, weights and set durations. Preview every
+        field before confirming; custom exercise names can reveal personal
+        information. Workout titles and notes stay private. Existing summary
+        cards are never automatically expanded. Social photos, comments and
+        direct messages are outside this pilot.
       </ThemedText>
       <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
         Leaving and returning

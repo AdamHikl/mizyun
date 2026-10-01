@@ -73,6 +73,18 @@ export interface StoredCommunityBlock {
   readonly createdAt: Date;
 }
 
+export interface SharedWorkoutDetails {
+  readonly exercises: readonly {
+    readonly name: string;
+    readonly sets: readonly {
+      readonly setType: "normal" | "warmup" | "drop" | "failure";
+      readonly repetitions: number | null;
+      readonly loadKg: number | null;
+      readonly durationSeconds: number | null;
+    }[];
+  }[];
+}
+
 export interface StoredSharedActivity {
   readonly id: string;
   readonly userId: UserId;
@@ -80,6 +92,7 @@ export interface StoredSharedActivity {
   readonly category: WorkoutCategory;
   readonly sharedDay: string;
   readonly durationSeconds: number | null;
+  readonly workoutDetails?: SharedWorkoutDetails | null;
   readonly version: number;
   readonly publishedAt: Date;
   readonly revokedAt: Date | null;
@@ -557,6 +570,8 @@ export interface CommunityRepository {
       /** API-validated current source duration; real DB rechecks its own source. */
       readonly currentSourceDurationSeconds?: number | null;
       readonly currentSourceDay?: string;
+      readonly workoutDetails?: SharedWorkoutDetails | null;
+      readonly currentSourceWorkoutDetails?: SharedWorkoutDetails | null;
     },
     options: { readonly accessToken: string },
   ): Promise<StoredSharedActivity>;

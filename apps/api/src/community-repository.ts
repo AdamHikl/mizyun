@@ -16,6 +16,7 @@ import {
   type StoredFollowRelationship,
   type StoredModerationAppeal,
   type StoredSharedActivity,
+  type SharedWorkoutDetails,
   type UserId,
   type WorkoutCategory,
 } from "@mizyun/core";
@@ -1069,6 +1070,8 @@ export class InMemoryCommunityRepository implements CommunityRepository {
       /** API-validated current source duration; real DB rechecks its own source. */
       readonly currentSourceDurationSeconds?: number | null;
       readonly currentSourceDay?: string;
+      readonly workoutDetails?: SharedWorkoutDetails | null;
+      readonly currentSourceWorkoutDetails?: SharedWorkoutDetails | null;
       readonly enrollmentGeneration: number;
       readonly operationId: string;
     },
@@ -1078,8 +1081,12 @@ export class InMemoryCommunityRepository implements CommunityRepository {
     if (profile.generation !== activity.enrollmentGeneration)
       throw new CommunityMutationError("conflict");
     const operationKey = `${userId}:${activity.operationId}`;
-    const { currentSourceDurationSeconds, currentSourceDay, ...confirmation } =
-      activity;
+    const {
+      currentSourceDurationSeconds,
+      currentSourceDay,
+      currentSourceWorkoutDetails,
+      ...confirmation
+    } = activity;
     const fingerprint = JSON.stringify(confirmation);
     const operation = this.#publicationOperations.get(operationKey);
     if (operation) {
@@ -1093,6 +1100,12 @@ export class InMemoryCommunityRepository implements CommunityRepository {
         throw new CommunityMutationError("conflict");
       return previous;
     }
+    if (
+      activity.workoutDetails != null &&
+      JSON.stringify(activity.workoutDetails) !==
+        JSON.stringify(currentSourceWorkoutDetails)
+    )
+      throw new CommunityMutationError("conflict");
     if (
       activity.durationSeconds !== null &&
       currentSourceDurationSeconds !== undefined &&
@@ -1135,6 +1148,7 @@ export class InMemoryCommunityRepository implements CommunityRepository {
           category: activity.category,
           sharedDay: activity.sharedDay,
           durationSeconds: activity.durationSeconds,
+          workoutDetails: activity.workoutDetails ?? null,
           version: act.version + 1,
           revokedAt: null,
           publishedAt: act.revokedAt ? now : act.publishedAt,
@@ -1160,6 +1174,7 @@ export class InMemoryCommunityRepository implements CommunityRepository {
       category: activity.category,
       sharedDay: activity.sharedDay,
       durationSeconds: activity.durationSeconds,
+      workoutDetails: activity.workoutDetails ?? null,
       version: 1,
       publishedAt: now,
       revokedAt: null,

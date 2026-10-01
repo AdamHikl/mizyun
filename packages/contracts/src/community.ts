@@ -287,6 +287,44 @@ export type BlockedUserListResponse = z.infer<
   typeof blockedUserListResponseSchema
 >;
 
+export const sharedWorkoutDetailsSchema = z
+  .object({
+    exercises: z
+      .array(
+        z
+          .object({
+            name: z.string().trim().min(1).max(120),
+            sets: z
+              .array(
+                z
+                  .object({
+                    setType: z.enum(["normal", "warmup", "drop", "failure"]),
+                    repetitions: z.number().min(0).max(9999.99).nullable(),
+                    loadKg: z.number().min(0).max(9999.999).nullable(),
+                    durationSeconds: z
+                      .number()
+                      .int()
+                      .min(0)
+                      .max(86400)
+                      .nullable(),
+                  })
+                  .strict(),
+              )
+              .min(1)
+              .max(500),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(100),
+  })
+  .strict()
+  .refine(
+    (value) => value.exercises.reduce((n, e) => n + e.sets.length, 0) <= 500,
+    "At most 500 completed sets can be shared",
+  );
+export type SharedWorkoutDetails = z.infer<typeof sharedWorkoutDetailsSchema>;
+
 export const publishWorkoutActivitySchema = z
   .object({
     workoutId: z.string().uuid(),
@@ -296,6 +334,8 @@ export const publishWorkoutActivitySchema = z
     expectedRevoked: z.boolean().default(false),
     expectedDurationSeconds: z.number().int().min(0).max(86400).optional(),
     includeDuration: z.boolean().default(false),
+    includeWorkoutDetails: z.boolean().default(false),
+    expectedWorkoutDetails: sharedWorkoutDetailsSchema.optional(),
     sharedDay: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/, "sharedDay must be in YYYY-MM-DD format")
@@ -322,6 +362,7 @@ export const sharedActivityFeedItemDtoSchema = z.object({
   category: workoutCategorySchema,
   sharedDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   durationSeconds: z.number().int().nonnegative().nullable(),
+  workoutDetails: sharedWorkoutDetailsSchema.nullable().default(null),
   publishedAt: z.string().datetime(),
   reactionCounts: z.record(
     communityReactionKindSchema,
@@ -566,6 +607,7 @@ export const workoutSharePreviewDtoSchema = z.object({
   category: workoutCategorySchema,
   sharedDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   durationSeconds: z.number().int().nonnegative().nullable(),
+  workoutDetails: sharedWorkoutDetailsSchema.nullable().default(null),
   followerCount: z.number().int().nonnegative(),
 });
 export type WorkoutSharePreviewDto = z.infer<

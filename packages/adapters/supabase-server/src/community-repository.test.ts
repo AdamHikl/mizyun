@@ -492,6 +492,7 @@ describe("Community database operation boundaries", () => {
       p_operation_id: publication.operationId,
       p_expected_version: publication.expectedVersion,
       p_expected_revoked: publication.expectedRevoked,
+      p_workout_details: null,
     });
     expect(rpc.mock.calls[1]).toEqual(rpc.mock.calls[0]);
     expect(from).not.toHaveBeenCalled();

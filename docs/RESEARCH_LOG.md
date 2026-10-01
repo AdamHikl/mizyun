@@ -1,5 +1,11 @@
 # Research log
 
+## 2026-10-01 — Explicit detailed workout sharing (#167)
+
+- Reviewed Hevy's official [social features](https://www.hevyapp.com/features/social-features/) and [sharing workouts versus routines](https://help.hevyapp.com/hc/en-us/articles/34953501503895-How-to-Share-Workouts-and-Routines-in-Hevy). Completed workout views expose exercises, set counts/types, weights, reps, RPE, duration, personal records and exercise notes. Routine sharing is a template and does not include the sender's usual weights/reps. Directly shared Hevy content may be viewable without an account. These facts describe Hevy; Mizyun does not acquire public web sharing from this change.
+- Adam explicitly authorized actual exercise/set/weight/duration sharing today. Consequence: add separately unchecked detailed sharing, exact preview and a detached snapshot of completed exercise names/set types/reps/weights/set durations. Keep duration separately optional; exclude titles/notes/RPE/measurements/health integrations/media/Coach context. Existing minimal cards receive no backfill. Custom names may reveal sensitive information and are shown/disclosed before confirmation.
+- Reviewed [Expo SDK57](https://docs.expo.dev/versions/v57.0.0/), [Supabase RLS](https://supabase.com/docs/guides/database/postgres/row-level-security) and [PostgreSQL JSON functions](https://www.postgresql.org/docs/current/functions-json.html). Consequence: maintain native accessible choices and principal-bound lifecycle, derive exact allowlisted JSON from owner-scoped database source under the existing transaction lock, preserve source isolation/current audience checks and original-operation replay, and extend owner export/restricted moderation evidence without generic push payload detail.
+
 ## 2026-10-01 — Followers follow-back action (#166)
 
 - Reviewed [Expo SDK 57](https://docs.expo.dev/versions/v57.0.0/), [React Native 0.86 Pressable](https://reactnative.dev/docs/0.86/pressable) and [accessibility](https://reactnative.dev/docs/0.86/accessibility). Consequence: visible wrapping 48-point button, target-specific accessible label and approval hint, disabled while loading/saving; owner-scoped memory-only relationship reads.

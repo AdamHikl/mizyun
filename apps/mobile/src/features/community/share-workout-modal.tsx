@@ -11,6 +11,8 @@ import {
   Text,
   View,
 } from "react-native";
+import { useTheme } from "@/hooks/use-theme";
+import { SharedWorkoutDetails } from "./shared-workout-details";
 import { randomUUID } from "expo-crypto";
 import type {
   AuthorSharedActivityDto,
@@ -59,6 +61,8 @@ export function ShareWorkoutModal({
   onRevoked,
   existingActivityId,
 }: ShareWorkoutModalProps) {
+  const colors = useTheme();
+  const styles = createStyles(colors);
   const { session, profile: accountProfile } = useAuth();
   const principalKey = session?.user.id ?? null;
   const {
@@ -127,6 +131,7 @@ export function ShareWorkoutModal({
   );
   const [preview, setPreview] = useState<WorkoutSharePreviewDto | null>(null);
   const [includeDuration, setIncludeDuration] = useState(false);
+  const [includeWorkoutDetails, setIncludeWorkoutDetails] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -135,6 +140,7 @@ export function ShareWorkoutModal({
     setPreview(null);
     setError(null);
     setIncludeDuration(false);
+    setIncludeWorkoutDetails(false);
     setSubmitting(false);
     if (!visible || !workoutId || !principalKey || !foreground.current) return;
     setLoading(true);
@@ -167,6 +173,14 @@ export function ShareWorkoutModal({
                 sharedDay: existing.sharedDay,
               }
             : res.value,
+        );
+        setIncludeWorkoutDetails(
+          Boolean(
+            res.value.workoutDetails &&
+            existing &&
+            !existing.revokedAt &&
+            existing.workoutDetails,
+          ),
         );
         setIncludeDuration(
           existing && !existing.revokedAt
@@ -233,6 +247,7 @@ export function ShareWorkoutModal({
       workoutId,
       preview,
       includeDuration,
+      includeWorkoutDetails,
       existingActivityId: effectiveActivityId,
       operationId: publicationOperation.current,
       enrollmentGeneration,
@@ -330,7 +345,7 @@ export function ShareWorkoutModal({
           profileStatus === "loading" ||
           profileStatus === "idle" ? (
             <View style={styles.centerBox}>
-              <ActivityIndicator size="large" color="#007AFF" />
+              <ActivityIndicator size="large" color={colors.primary} />
               <Text style={styles.loadingText}>
                 Preparing workout preview...
               </Text>
@@ -461,6 +476,7 @@ export function ShareWorkoutModal({
               {durationMin !== null && (
                 <Pressable
                   style={styles.checkboxRow}
+                  disabled={submitting}
                   onPress={() => {
                     publicationOperation.current = null;
                     setIncludeDuration((prev) => !prev);
@@ -482,13 +498,67 @@ export function ShareWorkoutModal({
                 </Pressable>
               )}
 
-              {/* Privacy Guarantee Notice */}
-              <View style={styles.privacyNoticeBox}>
-                <Text style={styles.privacyHeading}>🔒 Privacy Guarantee:</Text>
+              {preview?.workoutDetails ? (
+                <Pressable
+                  style={styles.checkboxRow}
+                  disabled={submitting}
+                  onPress={() => {
+                    publicationOperation.current = null;
+                    setIncludeWorkoutDetails((value) => !value);
+                  }}
+                  accessibilityRole="checkbox"
+                  accessibilityLabel="Include exercises, sets, reps and weights"
+                  accessibilityState={{
+                    checked: includeWorkoutDetails,
+                    disabled: submitting,
+                  }}
+                >
+                  <View
+                    style={[
+                      styles.checkbox,
+                      includeWorkoutDetails && styles.checkboxActive,
+                    ]}
+                  >
+                    {includeWorkoutDetails && (
+                      <Text style={styles.checkmark}>✓</Text>
+                    )}
+                  </View>
+                  <Text style={[styles.checkboxLabel, { flex: 1 }]}>
+                    Include exercises, sets, reps and weights
+                  </Text>
+                </Pressable>
+              ) : null}
+              {includeWorkoutDetails && preview?.workoutDetails ? (
+                <View style={styles.previewBox}>
+                  <Text style={styles.previewHeading}>
+                    These workout details will be shared
+                  </Text>
+                  <SharedWorkoutDetails details={preview.workoutDetails} />
+                </View>
+              ) : null}
+
+              {preview?.workoutDetails ? (
                 <Text style={styles.privacyBody}>
-                  Only this generic category, selected day and optional duration
-                  are shared. Your private workout stays private. Updating
-                  clears encouragement reactions.
+                  Check every exercise name before sharing. Custom names can
+                  contain personal information.
+                </Text>
+              ) : preview?.existingActivity?.workoutDetails ? (
+                <Text style={styles.privacyBody}>
+                  Current workout details are unavailable. Confirming this
+                  update removes the previously shared exercise and set details.
+                </Text>
+              ) : null}
+              {/* Sharing disclosure */}
+              <View style={styles.privacyNoticeBox}>
+                <Text style={styles.privacyHeading}>
+                  🔒 You choose what to share
+                </Text>
+                <Text style={styles.privacyBody}>
+                  Your category and selected day are shared. Duration and
+                  workout details are shared only when selected above. Workout
+                  titles, notes, health integrations, Coach context and
+                  unselected fields stay private. Updating clears encouragement
+                  reactions.
                 </Text>
               </View>
 
@@ -510,7 +580,7 @@ export function ShareWorkoutModal({
                   accessibilityRole="button"
                 >
                   {submitting ? (
-                    <ActivityIndicator color="#FFFFFF" />
+                    <ActivityIndicator color={colors.text} />
                   ) : (
                     <Text style={styles.primaryBtnText}>
                       {preview?.existingActivity?.revokedAt
@@ -566,197 +636,198 @@ export function ShareWorkoutModal({
   );
 }
 
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    justifyContent: "flex-end",
-  },
-  card: {
-    backgroundColor: "#1C1C1E",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 24,
-    maxHeight: "90%",
-  },
-  headerRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  title: {
-    color: "#FFFFFF",
-    fontSize: 20,
-    fontWeight: "700",
-  },
-  closeBtn: {
-    color: "#8E8E93",
-    fontSize: 20,
-    padding: 4,
-  },
-  subtitle: {
-    color: "#34C759",
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 16,
-  },
-  previewHeading: {
-    color: "#8E8E93",
-    fontSize: 13,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 8,
-  },
-  previewBox: {
-    backgroundColor: "#2C2C2E",
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "#3A3A3C",
-  },
-  authorRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  authorTextCol: {
-    marginLeft: 12,
-  },
-  authorName: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  authorHandle: {
-    color: "#8E8E93",
-    fontSize: 13,
-  },
-  activityDetails: {
-    paddingLeft: 4,
-  },
-  categoryText: {
-    color: "#FFFFFF",
-    fontSize: 17,
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  metaText: {
-    color: "#8E8E93",
-    fontSize: 14,
-  },
-  checkboxRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: "#8E8E93",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 10,
-  },
-  checkboxActive: {
-    backgroundColor: "#007AFF",
-    borderColor: "#007AFF",
-  },
-  checkmark: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  checkboxLabel: {
-    color: "#FFFFFF",
-    fontSize: 15,
-  },
-  privacyNoticeBox: {
-    backgroundColor: "rgba(0,122,255,0.1)",
-    borderLeftWidth: 3,
-    borderLeftColor: "#007AFF",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 14,
-  },
-  privacyHeading: {
-    color: "#007AFF",
-    fontSize: 13,
-    fontWeight: "700",
-    marginBottom: 2,
-  },
-  privacyBody: {
-    color: "#D1D1D6",
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  audienceText: {
-    color: "#8E8E93",
-    fontSize: 13,
-    textAlign: "center",
-    marginBottom: 16,
-  },
-  btnCol: {
-    gap: 10,
-  },
-  primaryBtn: {
-    backgroundColor: "#007AFF",
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  primaryBtnText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  unpublishBtn: {
-    backgroundColor: "rgba(255,69,58,0.15)",
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  unpublishBtnText: {
-    color: "#FF453A",
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  keepPrivateBtn: {
-    paddingVertical: 10,
-    alignItems: "center",
-  },
-  keepPrivateText: {
-    color: "#8E8E93",
-    fontSize: 15,
-  },
-  centerBox: {
-    padding: 30,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  loadingText: {
-    color: "#8E8E93",
-    fontSize: 14,
-    marginTop: 12,
-  },
-  notEnrolledText: {
-    color: "#FF9F0A",
-    fontSize: 15,
-    textAlign: "center",
-    marginBottom: 16,
-  },
-  errorText: {
-    color: "#FF453A",
-    fontSize: 14,
-    textAlign: "center",
-    marginBottom: 16,
-  },
-  btnDisabled: {
-    opacity: 0.6,
-  },
-});
+const createStyles = (colors: ReturnType<typeof useTheme>) =>
+  StyleSheet.create({
+    overlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.55)",
+      justifyContent: "flex-end",
+    },
+    card: {
+      backgroundColor: colors.background,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      padding: 24,
+      maxHeight: "90%",
+    },
+    headerRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 12,
+    },
+    title: {
+      color: colors.text,
+      fontSize: 20,
+      fontWeight: "700",
+    },
+    closeBtn: {
+      color: colors.textSecondary,
+      fontSize: 20,
+      padding: 4,
+    },
+    subtitle: {
+      color: "#34C759",
+      fontSize: 16,
+      fontWeight: "600",
+      marginBottom: 16,
+    },
+    previewHeading: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      fontWeight: "600",
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+      marginBottom: 8,
+    },
+    previewBox: {
+      backgroundColor: colors.backgroundElement,
+      borderRadius: 14,
+      padding: 16,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    authorRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 12,
+    },
+    authorTextCol: {
+      marginLeft: 12,
+    },
+    authorName: {
+      color: colors.text,
+      fontSize: 15,
+      fontWeight: "600",
+    },
+    authorHandle: {
+      color: colors.textSecondary,
+      fontSize: 13,
+    },
+    activityDetails: {
+      paddingLeft: 4,
+    },
+    categoryText: {
+      color: colors.text,
+      fontSize: 17,
+      fontWeight: "600",
+      marginBottom: 4,
+    },
+    metaText: {
+      color: colors.textSecondary,
+      fontSize: 14,
+    },
+    checkboxRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 16,
+    },
+    checkbox: {
+      width: 22,
+      height: 22,
+      borderRadius: 6,
+      borderWidth: 2,
+      borderColor: colors.textSecondary,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: 10,
+    },
+    checkboxActive: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    checkmark: {
+      color: "#FFFFFF",
+      fontSize: 14,
+      fontWeight: "700",
+    },
+    checkboxLabel: {
+      color: colors.text,
+      fontSize: 15,
+    },
+    privacyNoticeBox: {
+      backgroundColor: "rgba(0,122,255,0.1)",
+      borderLeftWidth: 3,
+      borderLeftColor: colors.primary,
+      borderRadius: 8,
+      padding: 12,
+      marginBottom: 14,
+    },
+    privacyHeading: {
+      color: colors.primary,
+      fontSize: 13,
+      fontWeight: "700",
+      marginBottom: 2,
+    },
+    privacyBody: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      lineHeight: 16,
+    },
+    audienceText: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      textAlign: "center",
+      marginBottom: 16,
+    },
+    btnCol: {
+      gap: 10,
+    },
+    primaryBtn: {
+      backgroundColor: colors.primary,
+      borderRadius: 12,
+      paddingVertical: 14,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    primaryBtnText: {
+      color: "#FFFFFF",
+      fontSize: 16,
+      fontWeight: "600",
+    },
+    unpublishBtn: {
+      backgroundColor: "rgba(255,69,58,0.15)",
+      borderRadius: 12,
+      paddingVertical: 12,
+      alignItems: "center",
+    },
+    unpublishBtnText: {
+      color: "#FF453A",
+      fontSize: 15,
+      fontWeight: "600",
+    },
+    keepPrivateBtn: {
+      paddingVertical: 10,
+      alignItems: "center",
+    },
+    keepPrivateText: {
+      color: colors.textSecondary,
+      fontSize: 15,
+    },
+    centerBox: {
+      padding: 30,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    loadingText: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      marginTop: 12,
+    },
+    notEnrolledText: {
+      color: "#FF9F0A",
+      fontSize: 15,
+      textAlign: "center",
+      marginBottom: 16,
+    },
+    errorText: {
+      color: "#FF453A",
+      fontSize: 14,
+      textAlign: "center",
+      marginBottom: 16,
+    },
+    btnDisabled: {
+      opacity: 0.6,
+    },
+  });

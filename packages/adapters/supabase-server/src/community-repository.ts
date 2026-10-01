@@ -16,6 +16,7 @@ import {
   type StoredFollowRelationship,
   type StoredModerationAppeal,
   type StoredSharedActivity,
+  type SharedWorkoutDetails,
   type UserId,
   type WorkoutCategory,
 } from "@mizyun/core";
@@ -85,6 +86,7 @@ export interface SharedActivityRow extends Record<string, unknown> {
   readonly category: string;
   readonly shared_day: string;
   readonly duration_seconds: number | null;
+  readonly workout_details?: SharedWorkoutDetails | null;
   readonly version: number;
   readonly published_at: string;
   readonly revoked_at: string | null;
@@ -176,6 +178,7 @@ export const sharedActivityFromRow = (
   category: row.category as WorkoutCategory,
   sharedDay: row.shared_day,
   durationSeconds: row.duration_seconds,
+  workoutDetails: row.workout_details ?? null,
   version: row.version,
   publishedAt: new Date(row.published_at),
   revokedAt: row.revoked_at ? new Date(row.revoked_at) : null,
@@ -1035,6 +1038,8 @@ export class SupabaseCommunityRepository implements CommunityRepository {
       /** API-validated current source duration; real DB rechecks its own source. */
       readonly currentSourceDurationSeconds?: number | null;
       readonly currentSourceDay?: string;
+      readonly workoutDetails?: SharedWorkoutDetails | null;
+      readonly currentSourceWorkoutDetails?: SharedWorkoutDetails | null;
     },
     options: { readonly accessToken: string },
   ): Promise<StoredSharedActivity> {
@@ -1049,6 +1054,7 @@ export class SupabaseCommunityRepository implements CommunityRepository {
         p_operation_id: activity.operationId,
         p_expected_version: activity.expectedVersion ?? 0,
         p_expected_revoked: activity.expectedRevoked ?? false,
+        p_workout_details: activity.workoutDetails ?? null,
       },
       options,
     );

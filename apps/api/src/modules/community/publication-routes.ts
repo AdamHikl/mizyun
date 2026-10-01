@@ -1,12 +1,17 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
-import { isSessionDetails } from "@mizyun/core";
+import { isSessionDetails, validateContentSafety } from "@mizyun/core";
 import type {
   CommunityRepository,
   ProfileRepository,
   WorkoutRepository,
+  WorkoutSetRepository,
+  ExerciseRepository,
+  UserId,
 } from "@mizyun/core";
 import {
   authorSharedActivityDtoSchema,
+  sharedWorkoutDetailsSchema,
+  type SharedWorkoutDetails,
   publishWorkoutActivitySchema,
   sharedActivityFeedItemDtoSchema,
   unpublishActivityResponseSchema,
@@ -24,9 +29,54 @@ const GENERIC_UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface CommunityPublicationRoutesOptions {
+  readonly workoutSetRepository?: WorkoutSetRepository;
+  readonly exerciseRepository?: ExerciseRepository;
   readonly communityRepository: CommunityRepository;
   readonly workoutRepository: WorkoutRepository;
   readonly profileRepository: ProfileRepository;
+}
+
+async function readWorkoutDetails(
+  options: CommunityPublicationRoutesOptions,
+  workoutId: string,
+  userId: UserId,
+  accessToken: string,
+): Promise<SharedWorkoutDetails | null> {
+  if (!options.workoutSetRepository || !options.exerciseRepository) return null;
+  const sets = (
+    await options.workoutSetRepository.listForWorkout(workoutId, {
+      accessToken,
+    })
+  )
+    .filter((set) => set.userId === userId && set.completedAt !== null)
+    .sort((a, b) => a.sequence - b.sequence);
+  if (!sets.length) return null;
+  const groups = new Map<
+    string,
+    { name: string; sets: SharedWorkoutDetails["exercises"][number]["sets"] }
+  >();
+  for (const set of sets) {
+    let group = groups.get(set.exerciseId);
+    if (!group) {
+      const exercise = await options.exerciseRepository.getById(
+        set.exerciseId,
+        { accessToken },
+      );
+      if (!exercise || exercise.userId !== userId) return null;
+      group = { name: exercise.name, sets: [] };
+      groups.set(set.exerciseId, group);
+    }
+    group.sets.push({
+      setType: set.setType ?? "normal",
+      repetitions: set.repetitions,
+      loadKg: set.loadKg,
+      durationSeconds: set.durationSeconds,
+    });
+  }
+  const parsed = sharedWorkoutDetailsSchema.safeParse({
+    exercises: [...groups.values()],
+  });
+  return parsed.success ? parsed.data : null;
 }
 
 const defaultReactionCounts = {
@@ -164,6 +214,7 @@ export const communityPublicationRoutes: FastifyPluginAsync<
             category: existing.category,
             sharedDay: existing.sharedDay,
             durationSeconds: existing.durationSeconds,
+            workoutDetails: existing.workoutDetails ?? null,
             publishedAt: existing.publishedAt.toISOString(),
             sourceWorkoutId: existing.sourceWorkoutId,
             version: existing.version,
@@ -180,6 +231,12 @@ export const communityPublicationRoutes: FastifyPluginAsync<
         sharedDay,
         durationSeconds,
         followerCount,
+        workoutDetails: await readWorkoutDetails(
+          options,
+          workout.id,
+          principal.userId,
+          principal.accessToken,
+        ),
       });
     },
   );
@@ -279,6 +336,52 @@ export const communityPublicationRoutes: FastifyPluginAsync<
       const confirmedDuration = parsed.data.includeDuration
         ? parsed.data.expectedDurationSeconds!
         : null;
+      if (
+        parsed.data.includeWorkoutDetails &&
+        !parsed.data.expectedWorkoutDetails
+      )
+        return sendApiError(
+          reply,
+          request,
+          409,
+          "CONFLICT",
+          "Preview the exercise and set details before sharing.",
+        );
+      if (
+        !parsed.data.includeWorkoutDetails &&
+        parsed.data.expectedWorkoutDetails
+      )
+        return sendApiError(
+          reply,
+          request,
+          422,
+          "VALIDATION_ERROR",
+          "Choose whether to include workout details.",
+        );
+      const workoutDetails = parsed.data.includeWorkoutDetails
+        ? parsed.data.expectedWorkoutDetails!
+        : null;
+      if (
+        workoutDetails &&
+        workoutDetails.exercises.some(
+          (exercise) => !validateContentSafety(exercise.name).ok,
+        )
+      )
+        return sendApiError(
+          reply,
+          request,
+          422,
+          "VALIDATION_ERROR",
+          "An exercise name cannot be shared under Community rules.",
+        );
+      const currentSourceWorkoutDetails = workoutDetails
+        ? await readWorkoutDetails(
+            options,
+            workout.id,
+            principal.userId,
+            principal.accessToken,
+          )
+        : null;
       const published = await options.communityRepository.publishActivity(
         principal.userId,
         {
@@ -292,6 +395,8 @@ export const communityPublicationRoutes: FastifyPluginAsync<
           durationSeconds: confirmedDuration,
           currentSourceDurationSeconds: durationSeconds,
           currentSourceDay: workout.completedAt.toISOString().slice(0, 10),
+          workoutDetails,
+          currentSourceWorkoutDetails,
         },
         { accessToken: principal.accessToken },
       );
@@ -306,6 +411,7 @@ export const communityPublicationRoutes: FastifyPluginAsync<
         category: published.category,
         sharedDay: published.sharedDay,
         durationSeconds: published.durationSeconds,
+        workoutDetails: published.workoutDetails ?? null,
         publishedAt: published.publishedAt.toISOString(),
         sourceWorkoutId: published.sourceWorkoutId,
         version: published.version,
@@ -449,6 +555,7 @@ export const communityPublicationRoutes: FastifyPluginAsync<
         category: updated.category,
         sharedDay: updated.sharedDay,
         durationSeconds: updated.durationSeconds,
+        workoutDetails: updated.workoutDetails ?? null,
         publishedAt: updated.publishedAt.toISOString(),
         sourceWorkoutId: updated.sourceWorkoutId,
         version: updated.version,
@@ -638,6 +745,7 @@ export const communityPublicationRoutes: FastifyPluginAsync<
         category: activity.category,
         sharedDay: activity.sharedDay,
         durationSeconds: activity.durationSeconds,
+        workoutDetails: activity.workoutDetails ?? null,
         publishedAt: activity.publishedAt.toISOString(),
         reactionCounts: reactions.reactionCounts,
         viewerReaction: reactions.viewerReaction,

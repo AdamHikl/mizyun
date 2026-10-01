@@ -1,0 +1,25 @@
+# Explicit detailed workout sharing — 2026-10-01 (#167 / #145)
+
+## Authorized behavior
+
+Adam requested research of Hevy and implementation of actual workout exercise/set/weight/duration sharing. Baseline `99bb9dc` includes the concurrent separately reviewed follow-back package; its source, documentation and acceptance gates are preserved. Sharing remains a deliberate transaction separate from private saving. Summary is the default; selecting **Include exercises, sets, reps and weights** previews every exercise name and completed set type/reps/weight in kilograms/set duration. Whole-workout duration remains separately optional. Existing summary cards remain minimal with no automatic backfill.
+
+Titles, notes, RPE, source IDs/precise timestamps, distance, measurements, media, location, health integrations and Coach context are excluded. Custom exercise names can reveal personal information, so the preview warns users. An author with unavailable current details can explicitly update an existing detailed card to a summary, with removal disclosed; it cannot get stuck behind an invisible selected checkbox.
+
+## Authority and lifecycle
+
+Migration `20261001140000_community_detailed_workout_sharing.sql` adds nullable `workout_details`, rebuilds only the bounded allowlist from the author's completed sets/exercises under the existing social lock, and compares it with the confirmed snapshot for each new operation. Limits are100exercises/500completedsets. Set/exercise statement mutations take the same lock before row locks. Minimal legacy operation receipts remain compatible; lost-response retry resolves its original snapshot before comparing ordinary private edits. A changed operation payload conflicts, and stale new confirmation fails.
+
+Reads use stored social snapshots under existing current audience/eligibility/block/generation/expiry checks, never follower access to private source tables. Explicit republishing changes version and clears reactions; narrow duration PATCH preserves details. Existing unpublish, source deletion/unconfirmation, withdrawal and purge apply. Owner export and restricted report evidence include only the published projection; generic notification payloads gain no detail.
+
+## Fresh evidence
+
+- Focused mobile Community:275tests/28files passed. Focused API Community/publication/in-memory:156tests/13files passed. Contracts58 and adapter38 passed; API/core/contracts/adapter/mobile typechecks passed.
+- Independent non-author helper reviewed actual migration/API/mobile/docs/concurrency diffs. Initial review87tests/7files passed, final recovery/render/action13tests/3files passed and settled diff approved. Coordinator resolved the modal unavailable-details finding and inaccurate blanket health-data disclosure.
+- Coordinator restored **schema only**, application ACLs and forward migrations into local Docker `supabase_db_mizyun`, isolated `mizyun_share167_scratch`; no user data copied, existing local/remote databases untouched. Setup corrected unavailable system/extension/global grant privileges before verification. All Community SQL008–023:400assertions/16files passed, with no `not ok` or SQL errors. New0023 includes11assertions for old minimal retry, exact detail projection, direct RPC overposting/stale denial, owner export, original snapshot retry after private edit, duration PATCH preservation, unrelated denial, approved follower feed and unpublish revocation.
+- Coordinator's detailed concurrency script passed simultaneous exercise-edit/publication and source-delete/publication permitted-outcome checks. It does not force every possible lock interleaving. Synthetic accounts and scratch database were removed.
+- Fresh serial `pnpm check` exit0: mobile1052/API736 plus15existing policy/credential-gated API skips, package suites/typechecks, dual Hermes exports, navigation/formatting and safeguards. An initial full gate stopped at final native-tooling fixture due to a concurrent preflight temporary-file collision; that run is not a pass. Exact Dev deployment/install evidence is recorded separately in `status.md` once completed.
+
+## Separate acceptance
+
+Dev-only backend update and installed client are distinct from two-account acceptance. Next physical check: preview a real workout, confirm details are initially unchecked, select and compare every published exercise/set/weight/duration with the recipient's card; verify private notes/title excluded, private source endpoint denied, ordinary private edits leave snapshot unchanged, explicit refresh updates it, then unpublish/block/source-delete and check recipient foreground recovery. Large text/VoiceOver, Android, restore, operator/legal, push and broader pilot gates remain separate. No Production or Store operation.

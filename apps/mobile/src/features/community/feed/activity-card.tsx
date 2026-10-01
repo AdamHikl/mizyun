@@ -6,6 +6,7 @@ import type {
 } from "@mizyun/contracts";
 import { useTheme } from "@/hooks/use-theme";
 import type { ScopedCommunityClient } from "../community-client";
+import { SharedWorkoutDetails } from "../shared-workout-details";
 import { InitialsAvatar } from "../initials-avatar";
 import { ReactionBar } from "../reactions";
 import {
@@ -116,7 +117,7 @@ export function ActivityCard({
         style={styles.content}
         onPress={onPress}
         accessibilityRole="button"
-        accessibilityLabel={`${item.authorDisplayName} (@${item.authorHandle}) shared ${categoryLabel} on ${sharedDayLabel}${duration ? `, duration ${duration.accessible}` : ""}`}
+        accessibilityLabel={`${item.authorDisplayName} (@${item.authorHandle}) shared ${categoryLabel} on ${sharedDayLabel}${duration ? `, duration ${duration.accessible}` : ""}${item.workoutDetails ? `, ${item.workoutDetails.exercises.length} exercises, workout details shared` : ""}`}
         accessibilityHint="Open shared workout details"
       >
         <Text style={[styles.categoryTitle, { color: colors.text }]}>
@@ -140,6 +141,9 @@ export function ActivityCard({
             </View>
           ) : null}
         </View>
+        {item.workoutDetails ? (
+          <SharedWorkoutDetails details={item.workoutDetails} compact />
+        ) : null}
       </Pressable>
 
       {/* Reactions Bar */}

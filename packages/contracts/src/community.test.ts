@@ -216,6 +216,7 @@ describe("sharedActivity schemas & BOLA data minimization", () => {
       ...valid,
       expectedVersion: 0,
       expectedRevoked: false,
+      includeWorkoutDetails: false,
     });
   });
 
@@ -632,7 +633,10 @@ describe("publicCommunityProfile and search/list schemas", () => {
       durationSeconds: 3600,
       followerCount: 5,
     };
-    expect(workoutSharePreviewDtoSchema.parse(preview)).toEqual(preview);
+    expect(workoutSharePreviewDtoSchema.parse(preview)).toEqual({
+      ...preview,
+      workoutDetails: null,
+    });
   });
 
   it("validates communityFeedResponseSchema", () => {
@@ -661,7 +665,10 @@ describe("publicCommunityProfile and search/list schemas", () => {
       nextCursor:
         "2026-09-30T10:00:00.000Z|f0000000-0000-4000-8000-000000000001",
     };
-    expect(communityFeedResponseSchema.parse(feed)).toEqual(feed);
+    expect(communityFeedResponseSchema.parse(feed)).toEqual({
+      ...feed,
+      items: feed.items.map((item) => ({ ...item, workoutDetails: null })),
+    });
 
     const emptyFeed = { items: [], nextCursor: null };
     expect(communityFeedResponseSchema.parse(emptyFeed)).toEqual(emptyFeed);

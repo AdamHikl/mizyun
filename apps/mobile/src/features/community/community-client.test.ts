@@ -590,6 +590,7 @@ describe("community-client", () => {
         category: "strength",
         sharedDay: "2026-09-29",
         includeDuration: true,
+        includeWorkoutDetails: false,
         expectedDurationSeconds: 2700,
         expectedVersion: 0,
         expectedRevoked: false,

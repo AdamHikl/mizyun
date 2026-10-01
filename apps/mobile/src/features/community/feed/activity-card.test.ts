@@ -32,6 +32,7 @@ const mockItem: SharedActivityFeedItemDto = {
   category: "strength",
   sharedDay: "2026-09-29",
   durationSeconds: 2700,
+  workoutDetails: null,
   publishedAt: "2026-09-30T10:00:00.000Z",
   reactionCounts: {
     clap: 3,
@@ -63,6 +64,33 @@ describe("ActivityCard", () => {
     expect(content.props.accessibilityLabel).toContain("Sep 29, 2026");
   });
 
+  it("announces explicitly shared details in the feed while old cards remain minimal", () => {
+    const details = {
+      exercises: [
+        {
+          name: "Squat",
+          sets: [
+            {
+              setType: "normal" as const,
+              repetitions: 8,
+              loadKg: 60,
+              durationSeconds: null,
+            },
+          ],
+        },
+      ],
+    };
+    const detailed = ActivityCard({
+      item: { ...mockItem, workoutDetails: details },
+    });
+    expect(detailed.props.children[1].props.accessibilityLabel).toContain(
+      "1 exercises, workout details shared",
+    );
+    const minimal = ActivityCard({ item: mockItem });
+    expect(minimal.props.children[1].props.accessibilityLabel).not.toContain(
+      "workout details shared",
+    );
+  });
   it("handles null duration gracefully", () => {
     const itemWithoutDuration = { ...mockItem, durationSeconds: null };
     const element = ActivityCard({

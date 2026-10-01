@@ -5,6 +5,8 @@ import type { AccessTokenVerifier } from "@mizyun/identity";
 import { buildApp } from "../../app.js";
 import { InMemoryProfileRepository } from "../../profile-repository.js";
 import { InMemoryWorkoutRepository } from "../../workout-repository.js";
+import { InMemoryExerciseRepository } from "../../exercise-repository.js";
+import { InMemoryWorkoutSetRepository } from "../../workout-set-repository.js";
 import { InMemoryCommunityRepository } from "../../community-repository.js";
 
 const userAlice: UserId = "00000000-0000-4000-8000-000000000001" as UserId;
@@ -68,7 +70,11 @@ const setupTestApp = async () => {
   const communityRepository = new InMemoryCommunityRepository();
   const workoutRepository = new InMemoryWorkoutRepository();
 
+  const exerciseRepository = new InMemoryExerciseRepository();
+  const workoutSetRepository = new InMemoryWorkoutSetRepository();
   const app = buildApp({
+    exerciseRepository,
+    workoutSetRepository,
     communityOperations: {
       browsing: true,
       enrollment: true,
@@ -84,7 +90,13 @@ const setupTestApp = async () => {
   });
   apps.push(app);
   await app.ready();
-  return { app, communityRepository, workoutRepository };
+  return {
+    app,
+    communityRepository,
+    workoutRepository,
+    exerciseRepository,
+    workoutSetRepository,
+  };
 };
 
 const createCompletedWorkout = async (
@@ -115,6 +127,126 @@ const createCompletedWorkout = async (
 };
 
 describe("Community Workout Publication Routes", () => {
+  it("previews and explicitly shares completed sets without private metadata; stale and forged snapshots fail", async () => {
+    const {
+      app,
+      communityRepository,
+      workoutRepository,
+      exerciseRepository,
+      workoutSetRepository,
+    } = await setupTestApp();
+    await communityRepository.saveProfile(
+      userAlice,
+      { handle: "detail_author", displayName: "Author", isSearchable: false },
+      { accessToken: "token-alice" },
+    );
+    const workout = await createCompletedWorkout(workoutRepository, userAlice);
+    const exerciseId = "70000000-0000-4000-8000-000000000001";
+    const now = new Date();
+    await exerciseRepository.create(
+      userAlice,
+      {
+        id: exerciseId,
+        userId: userAlice,
+        name: "Bench press",
+        instructions: "Private medical cue",
+        metadata: { health: "private" },
+        createdAt: now,
+        updatedAt: now,
+      },
+      { accessToken: "token-alice" },
+    );
+    for (let sequence = 1; sequence <= 2; sequence++)
+      await workoutSetRepository.create(
+        userAlice,
+        {
+          id: `80000000-0000-4000-8000-00000000000${sequence}`,
+          userId: userAlice,
+          workoutId: workout.id,
+          exerciseId,
+          sequence,
+          setType: "normal",
+          repetitions: 8,
+          loadKg: 60,
+          durationSeconds: null,
+          distanceMeters: 99,
+          perceivedExertion: 9,
+          completedAt: sequence === 1 ? now : null,
+          createdAt: now,
+        },
+        { accessToken: "token-alice" },
+      );
+    const preview = await app.inject({
+      method: "GET",
+      url: `/v1/community/workouts/${workout.id}/preview`,
+      headers: { authorization: "Bearer token-alice" },
+    });
+    const expected = {
+      exercises: [
+        {
+          name: "Bench press",
+          sets: [
+            {
+              setType: "normal",
+              repetitions: 8,
+              loadKg: 60,
+              durationSeconds: null,
+            },
+          ],
+        },
+      ],
+    };
+    expect(preview.json().workoutDetails).toEqual(expected);
+    const payload = {
+      workoutId: workout.id,
+      enrollmentGeneration: 1,
+      operationId: "30000000-0000-4000-8000-000000000091",
+      category: "strength",
+      sharedDay: "2026-09-29",
+      includeWorkoutDetails: true,
+      expectedWorkoutDetails: expected,
+    };
+    const publish = () =>
+      app.inject({
+        method: "POST",
+        url: "/v1/community/activities",
+        headers: { authorization: "Bearer token-alice" },
+        payload,
+      });
+    const first = await publish();
+    expect(first.statusCode).toBe(201);
+    expect(first.json().workoutDetails).toEqual(expected);
+    const serialized = JSON.stringify(first.json());
+    for (const hidden of [
+      "Private medical cue",
+      "health",
+      "perceivedExertion",
+      "distanceMeters",
+      workout.name,
+      workout.notes,
+    ])
+      expect(serialized).not.toContain(hidden!);
+    const exercise = await exerciseRepository.getById(exerciseId, {
+      accessToken: "token-alice",
+    });
+    await exerciseRepository.update(
+      { ...exercise!, name: "Changed privately" },
+      { accessToken: "token-alice" },
+    );
+    expect((await publish()).json().workoutDetails).toEqual(expected);
+    const stale = await app.inject({
+      method: "POST",
+      url: "/v1/community/activities",
+      headers: { authorization: "Bearer token-alice" },
+      payload: {
+        ...payload,
+        operationId: "30000000-0000-4000-8000-000000000092",
+        expectedVersion: 1,
+      },
+    });
+    expect(stale.statusCode).toBe(409);
+  });
+
   it("returns the original snapshot on lost-response retry after private duration edits", async () => {
     const { app, communityRepository, workoutRepository } =
       await setupTestApp();

@@ -1066,6 +1066,8 @@ export const buildApp = (
         : "mizyun",
   });
   void app.register(communityPublicationRoutes, {
+    workoutSetRepository,
+    exerciseRepository,
     prefix: "/v1/community",
     communityRepository,
     profileRepository,

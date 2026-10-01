@@ -1265,6 +1265,7 @@
         "apps/mobile/src/features/community/initials-avatar.tsx",
         "apps/mobile/src/features/community/use-community-profile.ts",
         "apps/mobile/src/features/community/share-workout-modal.tsx",
+        "apps/mobile/src/features/community/shared-workout-details.tsx",
         "apps/mobile/src/app/community/invite.tsx",
         "apps/mobile/src/app/community/settings.tsx",
         "apps/mobile/src/features/community/index.ts",
@@ -1349,7 +1350,8 @@
         "supabase/migrations/20260930210000_community_admission_read_controls.sql",
         "supabase/migrations/20260930220000_community_receipt_delivery_bounds.sql",
         "supabase/migrations/20260930230000_community_erasure_audit.sql",
-        "supabase/migrations/20261001130000_community_follow_back.sql"
+        "supabase/migrations/20261001130000_community_follow_back.sql",
+        "supabase/migrations/20261001140000_community_detailed_workout_sharing.sql"
       ],
       "tests": [
         "packages/contracts/src/community.test.ts",
@@ -1411,6 +1413,12 @@
         "supabase/tests/database/0020_community_receipt_delivery_bounds.test.sql",
         "supabase/tests/database/0021_community_erasure_audit.test.sql",
         "supabase/tests/database/0022_community_follow_back.test.sql",
+        "supabase/tests/database/0023_community_detailed_workout_sharing.test.sql",
+        "scripts/test-community-detailed-publication-concurrency.py",
+        "packages/contracts/src/community-detailed-workout.test.ts",
+        "apps/api/src/community-detailed-sharing.test.ts",
+        "apps/mobile/src/features/community/share-workout-modal.test.tsx",
+        "apps/mobile/src/features/community/shared-workout-details.test.tsx",
         "apps/mobile/src/features/auth/session-bound-sign-out.test.ts",
         "packages/adapters/supabase-mobile/src/index.test.ts",
         "apps/mobile/src/features/auth/auth-bootstrap.test.ts",
@@ -1432,6 +1440,7 @@
       ],
       "docs": [
         "docs/COMMUNITY_PRODUCT_CONTRACT.md",
+        "docs/COMMUNITY_DETAILED_SHARING_EVIDENCE_2026-10-01.md",
         "docs/COMMUNITY_STANDARDS.md",
         "docs/tutorials/COMMUNITY_MODERATION_RUNBOOK.md",
         "docs/adr/0030-explicit-community-publication.md",

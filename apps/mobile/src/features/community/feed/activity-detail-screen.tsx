@@ -21,6 +21,7 @@ import {
 } from "../community-client";
 import { scopeCommunityClient } from "../scoped-client";
 import { VisibilityEpoch } from "../state/visibility-epoch";
+import { SharedWorkoutDetails } from "../shared-workout-details";
 import { InitialsAvatar } from "../initials-avatar";
 import { ReactionBar } from "../reactions";
 import { ReportModal } from "../safety";
@@ -348,6 +349,10 @@ export function ActivityDetailScreen({
             </View>
           ) : null}
         </View>
+
+        {activity.workoutDetails ? (
+          <SharedWorkoutDetails details={activity.workoutDetails} />
+        ) : null}
 
         {/* Reactions Section */}
         <View style={styles.reactionsSection}>

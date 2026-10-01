@@ -499,8 +499,9 @@ function FeedScreenContent({
           Your workout. Your choice.
         </Text>
         <Text style={[styles.noteBody, { color: accents.purpleText }]}>
-          Choose a saved workout and preview before sharing. Only category,
-          selected day and optional duration are shared. Details stay private.
+          Preview a saved workout before sharing. Choose a simple summary or
+          include exercises, sets and weights. Notes and health integrations
+          stay private.
         </Text>
         <Link href={"/workouts" as Href} asChild>
           <Pressable

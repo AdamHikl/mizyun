@@ -11,6 +11,7 @@ const preview = {
   category: "strength" as const,
   sharedDay: "2026-09-01",
   durationSeconds: 1234,
+  workoutDetails: null,
   followerCount: 3,
   enrollmentGeneration: 1,
 };
@@ -62,6 +63,7 @@ describe("workout sharing boundary", () => {
           category: "strength",
           sharedDay: "2026-09-01",
           includeDuration: true,
+          includeWorkoutDetails: false,
           expectedDurationSeconds: 1234,
           expectedVersion: 0,
           expectedRevoked: false,
@@ -86,6 +88,7 @@ describe("workout sharing boundary", () => {
           category: "strength",
           sharedDay: "2026-09-01",
           durationSeconds: 1234,
+          workoutDetails: null,
           publishedAt: "2026-09-01T12:00:00Z",
           reactionCounts: {},
           viewerReaction: null,
@@ -102,5 +105,70 @@ describe("workout sharing boundary", () => {
         body: expect.objectContaining({ ...intent, includeDuration: false }),
       }),
     );
+  });
+});
+
+const workoutDetails = {
+  exercises: [
+    {
+      name: "Squat",
+      sets: [
+        {
+          setType: "normal" as const,
+          repetitions: 8,
+          loadKg: 60,
+          durationSeconds: null,
+        },
+      ],
+    },
+  ],
+};
+describe("explicit detailed publication", () => {
+  it("does not send private details until selected", async () => {
+    const request = vi.fn().mockResolvedValue({ ok: true, value: {} });
+    await saveWorkoutShare({ request } as unknown as ApiClient, {
+      ...intent,
+      workoutId: preview.workoutId,
+      preview: { ...preview, workoutDetails },
+      includeDuration: false,
+    });
+    const body = request.mock.calls[0]![0].body;
+    expect(body.includeWorkoutDetails).toBe(false);
+    expect(body).not.toHaveProperty("expectedWorkoutDetails");
+  });
+  it("retains the exact confirmed projection and operation across a lost-response retry", async () => {
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, error: { kind: "network_error" } })
+      .mockResolvedValueOnce({ ok: true, value: {} });
+    const input = {
+      ...intent,
+      workoutId: preview.workoutId,
+      preview: { ...preview, workoutDetails },
+      includeDuration: false,
+      includeWorkoutDetails: true,
+    };
+    await saveWorkoutShare({ request } as unknown as ApiClient, input);
+    await saveWorkoutShare({ request } as unknown as ApiClient, input);
+    expect(request.mock.calls[0]![0].body).toEqual(
+      request.mock.calls[1]![0].body,
+    );
+    expect(request.mock.calls[0]![0].body).toMatchObject({
+      includeWorkoutDetails: true,
+      expectedWorkoutDetails: workoutDetails,
+      operationId: intent.operationId,
+    });
+  });
+  it("refuses a missing detail preview instead of silently sharing a different projection", async () => {
+    const request = vi.fn();
+    const result = await saveWorkoutShare({ request } as unknown as ApiClient, {
+      ...intent,
+      workoutId: preview.workoutId,
+      preview: { ...preview, workoutDetails: null },
+      includeDuration: false,
+      includeWorkoutDetails: true,
+    });
+    expect(result.ok).toBe(false);
+    expect(request).not.toHaveBeenCalled();
   });
 });
