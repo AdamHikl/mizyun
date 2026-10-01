@@ -1,6 +1,12 @@
 # Mizyun current status
 
-> Updated 2026-09-30. Earlier package evidence, operational snapshots and concurrent work are preserved in [the pre-review archive](docs/archive/status/STATUS_COMMUNITY_PRE_FINAL_REVIEW_2026-09-30.md). Historical next actions are not current instructions.
+> Updated 2026-10-01. Earlier package evidence, operational snapshots and concurrent work are preserved in [the pre-review archive](docs/archive/status/STATUS_COMMUNITY_PRE_FINAL_REVIEW_2026-09-30.md). Historical next actions are not current instructions.
+
+## Community feed layout and IA — 2026-10-01
+
+Adam's screenshot/request continues #150 from clean `c910b20f8839ed67abb6ec6630ac6149ca8a5788`. Coordinator owns feed UI/tests/continuity; read-only IA helper reviews existing patterns and the diff. Corrected `Link asChild` style arrays at the installed Expo Router Slot boundary so navigation and empty-state actions retain their native styles. Added the shared branded header/typography, compact neutral navigation cards/chevrons, Following before sharing guidance, a concise actionable empty state and neutral sharing footer. Header wraps and footer text shrinks for large text. No membership/controller, backend, consent or publication changes.
+
+**Automatically verified:** regression demonstrated failure on original arrays; focused screen/controller tests38/2files pass. Independent IA/source review approved after header/footer large-text fixes. Fresh settled-source `pnpm check` exit0 (mobile1023/API730,15 credential-gated API skips, dual Hermes/typechecks/navigation/formatting/safeguards); `git diff --check` passes. **Next exact action:** install/visually accept Community on a standalone Dev phone: narrow/large text, light/dark, all shortcuts, empty/feed/error, tab clearance and pull-to-refresh. Dev install/device acceptance/Production are unrun for this change; original Community acceptance remains separate.
 
 ## Community return loading flash — 2026-09-30
 

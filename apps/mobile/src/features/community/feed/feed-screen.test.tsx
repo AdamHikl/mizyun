@@ -63,7 +63,11 @@ vi.mock("react", async (original) => {
   };
 });
 vi.mock("react-native", () => ({
-  StyleSheet: { create: (styles: unknown) => styles },
+  StyleSheet: {
+    create: (styles: unknown) => styles,
+    flatten: (styles: any) =>
+      Array.isArray(styles) ? Object.assign({}, ...styles) : styles,
+  },
   Text: "Text",
   View: "View",
   Pressable: "Pressable",
@@ -82,6 +86,9 @@ vi.mock("react-native", () => ({
 }));
 vi.mock("react-native-safe-area-context", () => ({
   SafeAreaView: "SafeAreaView",
+}));
+vi.mock("@/components/brand-wordmark", () => ({
+  BrandWordmark: "BrandWordmark",
 }));
 vi.mock("@/components/account-header-button", () => ({
   AccountHeaderActions: "AccountHeaderActions",
@@ -235,8 +242,32 @@ describe("Community home participation and navigation", () => {
     expect(
       find(header, "Your friends and requests").props.accessibilityHint,
     ).toBe("Approve requests and manage follows");
-    expect(linkFor(header, "Open saved workouts").props.href).toBe("/workouts");
+    expect(
+      linkFor(
+        tree.props.children[1].props.ListFooterComponent,
+        "Open saved workouts",
+      ).props.href,
+    ).toBe("/workouts");
+    expect(linkFor(header, "Open saved workouts")).toBeFalsy();
     expect(mocks.request).not.toHaveBeenCalled();
+  });
+  it("passes flat native styles through router links so navigation cards retain their layout", async () => {
+    mocks.enrolled = true;
+    const list = (await settledRender()).props.children[1];
+    for (const label of [
+      "Find Friends",
+      "Your friends and requests",
+      "Community inbox",
+      "My Community profile and settings",
+    ]) {
+      const action = find(list.props.ListHeaderComponent, label);
+      expect(Array.isArray(action.props.style)).toBe(false);
+      expect(action.props.style.borderRadius).toBe(16);
+      expect(action.props.style.minHeight).toBeGreaterThanOrEqual(48);
+    }
+    const invite = find(list.props.ListEmptyComponent, "Find a friend");
+    expect(Array.isArray(invite.props.style)).toBe(false);
+    expect(invite.props.style.minHeight).toBeGreaterThanOrEqual(48);
   });
   it("does not describe a failed feed read as an empty friends feed", async () => {
     mocks.enrolled = true;

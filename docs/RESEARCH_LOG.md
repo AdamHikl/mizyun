@@ -1,5 +1,11 @@
 # Research log
 
+## 2026-10-01 — Community feed layout and information architecture (#150)
+
+- Reviewed [Expo SDK 57](https://docs.expo.dev/versions/v57.0.0/), [React Native accessibility](https://reactnative.dev/docs/accessibility) and [ScrollView](https://reactnative.dev/docs/scrollview) today. Consequence: preserve existing native tab clearance, scalable wrapping text, explicit button labels/hints and minimum48-point actions; no new navigation, permissions or lifecycle behavior.
+- Inspected installed Expo Router57.0.21 `build/ui/Slot.js`: its React Native shim explicitly rejects child style arrays in development and instructs callers to flatten styles. The underlying Slot merges style objects. Consequence: flatten navigation/empty-state Pressable styles at `Link asChild`; the new render regression failed on the original arrays before the correction. This explains the screenshot's missing card styling at the source boundary; installed-device confirmation remains pending.
+- Design inference from the app's Workouts header and an independent IA helper: shared brand/header typography, compact neutral shortcuts, Following content before sharing education, one actionable empty state, and a neutral sharing footer. Preserve explicit saved-workout preview/publish and approval-dependent feed access.
+
 ## 2026-09-30 — Community return loading flash
 
 - Rechecked [Expo SDK57](https://docs.expo.dev/versions/v57.0.0/) and [React Navigation useFocusEffect](https://reactnavigation.org/docs/use-focus-effect/) today: focus/blur callbacks and asynchronous completion need cancellation/current-result checks. Consequence: retain only generic navigation presentation during verification; keep protected data clearing and fresh membership guards. Automatic refresh presentation is distinct from deliberate pull-to-refresh. No permission or cache-policy relaxation.

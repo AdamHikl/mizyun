@@ -21,6 +21,7 @@ import {
 import { Link, type Href, useFocusEffect, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BottomTabInset, MaxContentWidth } from "@/constants/theme";
+import { BrandWordmark } from "@/components/brand-wordmark";
 import { AccountHeaderActions } from "@/components/account-header-button";
 import type { SharedActivityFeedItemDto } from "@mizyun/contracts";
 import { apiClient } from "@/composition/api-client";
@@ -223,6 +224,7 @@ function FeedScreenContent({
         style={[styles.container, { backgroundColor: colors.background }]}
       >
         <View style={styles.accountHeader}>
+          <BrandWordmark />
           <AccountHeaderActions />
         </View>
         {checking ? (
@@ -265,7 +267,7 @@ function FeedScreenContent({
         Community
       </Text>
       <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-        Encourage friends, one shared workout at a time.
+        A little encouragement, together.
       </Text>
       <View style={styles.quickLinks}>
         {[
@@ -273,86 +275,78 @@ function FeedScreenContent({
             href: "/community/invite",
             label: "Find friends",
             description: "Search a handle or send an invite",
+            caption: "Search or invite",
             accessibilityLabel: "Find Friends",
           },
           {
             href: "/community/relationships",
             label: "Friends & requests",
             description: "Approve requests and manage follows",
+            caption: "Following & requests",
             accessibilityLabel: "Your friends and requests",
           },
           {
             href: "/community/inbox",
             label: "Inbox",
             description: "Updates about your shared activity",
+            caption: "Community updates",
             accessibilityLabel: "Community inbox",
           },
           {
             href: "/community/settings",
             label: "Profile & privacy",
             description: "Your social profile and Community choices",
+            caption: "Your Community choices",
             accessibilityLabel: "My Community profile and settings",
           },
         ].map((destination) => (
           <Link key={destination.href} href={destination.href as Href} asChild>
             <Pressable
-              style={[
+              style={StyleSheet.flatten([
                 styles.navigationCard,
                 {
                   borderColor: colors.border,
-                  backgroundColor: colors.background,
+                  backgroundColor: colors.backgroundElement,
                 },
-              ]}
+              ])}
               accessibilityRole="button"
               accessibilityLabel={destination.accessibilityLabel}
               accessibilityHint={destination.description}
             >
-              <Text style={[styles.navigationTitle, { color: colors.text }]}>
-                {destination.label}
-              </Text>
+              <View style={styles.navigationTopRow}>
+                <Text style={[styles.navigationTitle, { color: colors.text }]}>
+                  {destination.label}
+                </Text>
+                <Text
+                  accessible={false}
+                  style={[
+                    styles.navigationArrow,
+                    { color: colors.textSecondary },
+                  ]}
+                >
+                  ›
+                </Text>
+              </View>
               <Text
                 style={[
                   styles.navigationDescription,
                   { color: colors.textSecondary },
                 ]}
               >
-                {destination.description}
+                {destination.caption}
               </Text>
             </Pressable>
           </Link>
         ))}
       </View>
-      <View
-        style={[styles.sharingNote, { backgroundColor: colors.primaryLight }]}
-      >
-        <Text style={[styles.noteTitle, { color: colors.text }]}>
-          Sharing is your choice
-        </Text>
-        <Text style={[styles.noteBody, { color: colors.text }]}>
-          From a saved workout, preview a card before sharing. Cards show only a
-          category, your selected day and optional duration. Your workout
-          details stay private.
-        </Text>
-        <Link href={"/workouts" as Href} asChild>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Open saved workouts"
-            style={styles.noteAction}
-          >
-            <Text style={[styles.noteTitle, { color: colors.text }]}>
-              Open saved workouts →
-            </Text>
-          </Pressable>
-        </Link>
-      </View>
       <Text
         accessibilityRole="header"
         style={[styles.feedHeading, { color: colors.text }]}
       >
-        Following feed
+        Following
       </Text>
       <Text style={[styles.feedDescription, { color: colors.textSecondary }]}>
-        Workouts shared by friends who approved your follow request.
+        Shared workouts from friends you follow.
       </Text>
 
       {state.error ? (
@@ -380,7 +374,15 @@ function FeedScreenContent({
 
   // Empty state
   const emptyComponent = (
-    <View style={styles.emptyContainer}>
+    <View
+      style={[
+        styles.emptyContainer,
+        {
+          backgroundColor: colors.backgroundElement,
+          borderColor: colors.border,
+        },
+      ]}
+    >
       {!membershipVerified ||
       state.status === "loading" ||
       state.status === "refreshing" ? (
@@ -401,21 +403,20 @@ function FeedScreenContent({
             No shared workouts yet
           </Text>
           <Text style={[styles.emptyBody, { color: colors.textSecondary }]}>
-            Follow a friend and wait for their approval. Workouts they choose to
-            share will appear here. Your own workouts stay private until you
-            choose to share.
+            Find a friend to follow. Once they approve your request, workouts
+            they choose to share will appear here.
           </Text>
           <Link href={"/community/invite" as Href} asChild>
             <Pressable
-              style={[
+              style={StyleSheet.flatten([
                 styles.inviteButton,
                 { backgroundColor: colors.primaryLight },
-              ]}
+              ])}
               accessibilityRole="button"
               accessibilityLabel="Find a friend"
             >
               <Text style={[styles.inviteButtonText, { color: colors.text }]}>
-                Find a friend
+                Find friends
               </Text>
             </Pressable>
           </Link>
@@ -427,6 +428,46 @@ function FeedScreenContent({
   // Footer component (pagination loading or caught up indicator)
   const footerComponent = (
     <View style={styles.footerContainer}>
+      <View
+        style={[
+          styles.sharingNote,
+          {
+            backgroundColor: colors.backgroundElement,
+            borderColor: colors.border,
+          },
+        ]}
+      >
+        <Text style={[styles.noteTitle, { color: colors.text }]}>
+          Sharing is your choice
+        </Text>
+        <Text style={[styles.noteBody, { color: colors.textSecondary }]}>
+          Preview a saved workout before sharing. Only its category, selected
+          day and optional duration are shared. Workout details stay private.
+        </Text>
+        <Link href={"/workouts" as Href} asChild>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open saved workouts"
+            style={styles.noteAction}
+          >
+            <Text
+              style={[
+                styles.noteTitle,
+                styles.noteActionLabel,
+                { color: colors.text },
+              ]}
+            >
+              Open saved workouts
+            </Text>
+            <Text
+              accessible={false}
+              style={[styles.navigationArrow, { color: colors.textSecondary }]}
+            >
+              ›
+            </Text>
+          </Pressable>
+        </Link>
+      </View>
       {state.status === "loading_more" ? (
         <ActivityIndicator size="small" color={colors.primary} />
       ) : membershipVerified && state.items.length > 0 && !state.hasMore ? (
@@ -443,6 +484,7 @@ function FeedScreenContent({
       style={[styles.container, { backgroundColor: colors.background }]}
     >
       <View style={styles.accountHeader}>
+        <BrandWordmark />
         <AccountHeaderActions />
       </View>
       <FlatList
@@ -484,12 +526,17 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
   accountHeader: {
-    alignItems: "flex-end",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 8,
     paddingHorizontal: 16,
   },
   heading: {
-    fontSize: 28,
-    fontWeight: "700",
+    fontSize: 32,
+    lineHeight: 44,
+    fontWeight: "600",
     marginHorizontal: 16,
     marginBottom: 4,
   },
@@ -503,33 +550,49 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   subtitle: {
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 14,
+    lineHeight: 20,
     marginHorizontal: 16,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   quickLinks: {
     flexDirection: "row",
-    gap: 12,
+    gap: 8,
     paddingHorizontal: 16,
+    marginBottom: 24,
     flexWrap: "wrap",
   },
   navigationCard: {
     flexGrow: 1,
     flexBasis: "45%",
     minWidth: 140,
-    minHeight: 96,
+    minHeight: 80,
+    padding: 12,
+    gap: 4,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  navigationTopRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  navigationTitle: { flex: 1, fontSize: 14, lineHeight: 20, fontWeight: "700" },
+  navigationArrow: { fontSize: 24, lineHeight: 28 },
+  navigationDescription: { fontSize: 14, lineHeight: 20 },
+  sharingNote: {
+    marginHorizontal: 16,
     padding: 16,
     gap: 6,
     borderRadius: 16,
     borderWidth: 1,
   },
-  navigationTitle: { fontSize: 16, lineHeight: 23, fontWeight: "700" },
-  navigationDescription: { fontSize: 14, lineHeight: 20 },
-  sharingNote: { margin: 16, padding: 16, gap: 6, borderRadius: 16 },
   noteTitle: { fontSize: 15, lineHeight: 22, fontWeight: "600" },
   noteBody: { fontSize: 14, lineHeight: 21 },
-  noteAction: { minHeight: 48, justifyContent: "center" },
+  noteAction: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  noteActionLabel: { flex: 1, flexShrink: 1 },
   feedHeading: {
     fontSize: 21,
     lineHeight: 28,
@@ -568,12 +631,12 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   emptyContainer: {
-    flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 32,
-    paddingTop: 32,
-    paddingBottom: 24,
+    marginHorizontal: 16,
+    padding: 24,
+    borderRadius: 20,
+    borderWidth: 1,
   },
   emptyTitle: {
     fontSize: 18,
@@ -600,9 +663,10 @@ const styles = StyleSheet.create({
   },
   footerContainer: {
     paddingVertical: 20,
-    alignItems: "center",
+    gap: 20,
   },
   caughtUpText: {
+    textAlign: "center",
     fontSize: 13,
   },
   centered: {
