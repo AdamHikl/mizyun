@@ -19,6 +19,7 @@ import {
   View,
 } from "react-native";
 import { MaxContentWidth } from "@/constants/theme";
+import { CommunityIntro, useCommunityPalette } from "../community-presentation";
 import { InitialsAvatar } from "../initials-avatar";
 import { apiClient } from "@/composition/api-client";
 import { useAuth } from "@/features/auth/auth-context";
@@ -98,6 +99,7 @@ function OwnerRelationships({
   birthYear?: number | null;
 }) {
   const colors = useTheme();
+  const palette = useCommunityPalette();
   const community = useCommunityProfile({ principalKey, birthYear });
   const alive = useRef(true);
   const [optionsUser, setOptionsUser] = useState<string | null>(null);
@@ -284,9 +286,7 @@ function OwnerRelationships({
         styles.tab,
         {
           borderColor: selected ? colors.primary : colors.border,
-          backgroundColor: selected
-            ? colors.backgroundElement
-            : colors.background,
+          backgroundColor: selected ? palette.purple : colors.background,
           opacity: busy ? 0.5 : 1,
         },
       ]}
@@ -335,9 +335,12 @@ function OwnerRelationships({
         />
       )}
       <View style={styles.intro}>
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          Choose who you follow and who sees your shared workouts.
-        </Text>
+        <CommunityIntro
+          icon="👥"
+          title="Friends & requests"
+          description="Choose who you follow and who sees your shared workouts."
+          tone="purple"
+        />
         {community.isEnrolled && (
           <Link
             href={"/community/invite" as Href}
@@ -434,13 +437,11 @@ function OwnerRelationships({
         state.error &&
         button("Try again", () => void controller.load(), busy)}
       {enabled && !busy && !state.error && state.rows.length === 0 && (
-        <View
-          style={[styles.empty, { backgroundColor: colors.backgroundElement }]}
-        >
+        <View style={[styles.empty, { backgroundColor: palette.purple }]}>
           <Text style={[styles.emptyTitle, { color: colors.text }]}>
             {info.empty}
           </Text>
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+          <Text style={[styles.subtitle, { color: palette.purpleText }]}>
             {info.hint}
           </Text>
           {community.isEnrolled &&

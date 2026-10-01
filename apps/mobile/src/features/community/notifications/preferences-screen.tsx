@@ -11,6 +11,8 @@ import {
   View,
 } from "react-native";
 import { Stack, router, useFocusEffect } from "expo-router";
+import { MaxContentWidth } from "@/constants/theme";
+import { CommunityIntro } from "../community-presentation";
 import { apiClient } from "@/composition/api-client";
 import { ThemedText } from "@/components/themed-text";
 import { useAuth } from "@/features/auth/auth-context";
@@ -149,7 +151,10 @@ function PreferencesContent({ principal }: { principal: string | null }) {
       disabled={disabled}
       accessibilityRole="button"
       accessibilityState={{ disabled }}
-      style={[styles.action, { borderColor: theme.border }]}
+      style={[
+        styles.action,
+        { borderColor: theme.border, backgroundColor: theme.backgroundElement },
+      ]}
     >
       <ThemedText>{label}</ThemedText>
     </Pressable>
@@ -159,7 +164,7 @@ function PreferencesContent({ principal }: { principal: string | null }) {
     value: boolean,
     onChange: (value: boolean) => void,
   ) => (
-    <View style={styles.toggle}>
+    <View style={[styles.toggle, { backgroundColor: theme.backgroundElement }]}>
       <ThemedText style={{ flex: 1 }}>{label}</ThemedText>
       <Switch
         accessibilityLabel={label}
@@ -197,11 +202,15 @@ function PreferencesContent({ principal }: { principal: string | null }) {
         keyboardShouldPersistTaps="handled"
       >
         <Stack.Screen options={{ title: "Community notifications" }} />
-        <ThemedText type="subtitle">Community notifications</ThemedText>
+        <CommunityIntro
+          icon="🔔"
+          title="Updates, your way"
+          description="Choose the little nudges you want, and take quiet time when you need it."
+          tone="blue"
+        />
         <ThemedText>
-          Choose which Community updates you receive. Device delivery remains
-          disabled until the pilot is accepted. Your inbox and private tracking
-          remain available without push permission.
+          Phone notifications are not enabled yet. Your inbox and private
+          tracking work without notification permission.
         </ThemedText>
         {action("Keep tracking privately", () => router.replace("/(tabs)"))}
         {message && (
@@ -236,8 +245,10 @@ function PreferencesContent({ principal }: { principal: string | null }) {
                   : null,
               }),
             )}
-            {input("Timezone (IANA name)", preferences.timezone, (timezone) =>
-              setPreferences({ ...preferences, timezone }),
+            {input(
+              "Your timezone (e.g. Europe/Bratislava)",
+              preferences.timezone,
+              (timezone) => setPreferences({ ...preferences, timezone }),
             )}
             {preferences.quietHours && (
               <>
@@ -266,19 +277,28 @@ function PreferencesContent({ principal }: { principal: string | null }) {
   );
 }
 const styles = StyleSheet.create({
-  content: { padding: 20, gap: 16, paddingBottom: 40 },
+  content: {
+    padding: 20,
+    gap: 16,
+    paddingBottom: 40,
+    width: "100%",
+    maxWidth: MaxContentWidth,
+    alignSelf: "center",
+  },
   action: {
     minHeight: 48,
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: 14,
     padding: 12,
     justifyContent: "center",
   },
   toggle: {
-    minHeight: 48,
+    minHeight: 56,
+    borderRadius: 16,
+    padding: 12,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
   },
-  input: { minHeight: 48, borderWidth: 1, borderRadius: 10, padding: 12 },
+  input: { minHeight: 48, borderWidth: 1, borderRadius: 14, padding: 12 },
 });

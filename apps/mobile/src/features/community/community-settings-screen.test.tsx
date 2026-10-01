@@ -29,6 +29,7 @@ vi.mock("react-native", () => ({
   ScrollView: "ScrollView",
   StyleSheet: { create: (styles: unknown) => styles },
   TextInput: "TextInput",
+  Text: "Text",
   View: "View",
 }));
 vi.mock("expo-router", () => ({

@@ -1,6 +1,8 @@
 import { Stack } from "expo-router";
 import { ScrollView, StyleSheet } from "react-native";
 import { ThemedText } from "@/components/themed-text";
+import { CommunityIntro } from "@/features/community";
+import { MaxContentWidth } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 
 export default function CommunityRulesScreen() {
@@ -11,16 +13,27 @@ export default function CommunityRulesScreen() {
       contentContainerStyle={styles.content}
     >
       <Stack.Screen options={{ title: "Community rules & privacy" }} />
-      <ThemedText type="subtitle">Community rules & privacy</ThemedText>
+      <CommunityIntro
+        icon="📖"
+        title="Community rules & privacy"
+        description="A welcoming space starts with clear choices and respect for each other."
+        tone="peach"
+      />
       <ThemedText>
         Rules version: 2026-09-30. Enrollment is closed while safety contact,
         legal review and pilot acceptance are pending.
+      </ThemedText>
+      <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
+        Your choice
       </ThemedText>
       <ThemedText>
         Community is optional. Declining or leaving preserves private tracking,
         Coach access and paid entitlement. Adult declaration, these rules,
         exact-handle discovery, follow approvals, every publication and
         notification permission are separate choices.
+      </ThemedText>
+      <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
+        Your Community identity
       </ThemedText>
       <ThemedText>
         Choose a separate social name, handle and initials. Your private profile
@@ -29,12 +42,18 @@ export default function CommunityRulesScreen() {
         year 18 years before the current year must wait until the next UTC year.
         The check does not verify identity or birthday.
       </ThemedText>
+      <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
+        Who can see shared workouts
+      </ThemedText>
       <ThemedText>
         Your currently approved followers can see still-shared earlier cards and
         future cards you deliberately share. Following is directional. Saving a
         private workout never shares it. Search is off by default; a valid
         invite can let someone request to follow you even with search off. Your
         handle cannot change during the pilot.
+      </ThemedText>
+      <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
+        Respect each other
       </ThemedText>
       <ThemedText>
         Do not harass, threaten, impersonate or spam people. Hate, sexual
@@ -43,11 +62,17 @@ export default function CommunityRulesScreen() {
         sensitive health details, links, emails and phone contact information
         out of social text. Profile text is subject to filtering and moderation.
       </ThemedText>
+      <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
+        What stays private
+      </ThemedText>
       <ThemedText>
         A handle, workout day or optional duration can identify you or reveal
         habits. Community has no access to private health integrations or Coach
         context. Social photos, comments and direct messages are outside this
         pilot.
+      </ThemedText>
+      <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
+        Leaving and returning
       </ThemedText>
       <ThemedText>
         Leaving immediately hides your profile and cards, ends follows and
@@ -55,6 +80,9 @@ export default function CommunityRulesScreen() {
         Rejoining requires fresh choices and creates a new enrollment
         generation; it restores no follows, shared cards, invitations or
         reactions. Blocks and account restrictions remain.
+      </ThemedText>
+      <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
+        Data and retention
       </ThemedText>
       <ThemedText>
         Selected retention limits: withdrawn profile text and revoked card
@@ -66,11 +94,17 @@ export default function CommunityRulesScreen() {
         archives remain up to 90 days, with newer deletion and revocation state
         applied before a restore serves users.
       </ThemedText>
+      <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
+        Export and deletion
+      </ThemedText>
       <ThemedText>
         Export and account deletion remain available through Account settings.
         Community retention, export and restore acceptance are pending;
         enrollment stays closed until those checks and the full disclosures are
         accepted.
+      </ThemedText>
+      <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
+        Help and safety
       </ThemedText>
       <ThemedText>
         Community safety contact, reporting coverage and independent appeals are
@@ -82,5 +116,13 @@ export default function CommunityRulesScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 20, gap: 18, paddingBottom: 40 },
+  content: {
+    padding: 20,
+    gap: 18,
+    paddingBottom: 40,
+    width: "100%",
+    maxWidth: MaxContentWidth,
+    alignSelf: "center",
+  },
+  sectionTitle: { fontSize: 20, fontWeight: "700", marginTop: 12 },
 });

@@ -25,6 +25,7 @@ import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
 import { COMMUNITY_ENROLLMENT_OPEN } from "@/composition/community-admission";
 import { InitialsAvatar } from "./initials-avatar";
+import { CommunityIntro, useCommunityPalette } from "./community-presentation";
 import { useCommunityProfile } from "./use-community-profile";
 import {
   communityProfileForm,
@@ -188,19 +189,23 @@ function SettingsContent({
         ]}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.intro}>
-          <ThemedText accessibilityRole="header" type="subtitle">
-            {editing
-              ? "Profile & privacy"
+        <CommunityIntro
+          icon={editing ? "🌿" : "👋"}
+          title={
+            editing
+              ? "Make it yours"
               : state.isWithdrawn
-                ? "Rejoin Community"
-                : "Join Community"}
-          </ThemedText>
-          <ThemedText themeColor="textSecondary">
-            Encourage friends with workouts you choose to share.
-          </ThemedText>
-        </View>
-        <Section title="Your choice" highlighted>
+                ? "A fresh start"
+                : "A little support, together"
+          }
+          description={
+            editing
+              ? "Your Community identity and sharing choices, in one place."
+              : "Create a profile for the friends you choose to connect with."
+          }
+          tone="peach"
+        />
+        <Section title="Always your choice" highlighted icon="🛡️">
           <ThemedText>
             Joining shares no saved workouts and requests no notification
             permission. Your private tracking works without Community.
@@ -280,7 +285,7 @@ function SettingsContent({
                     </ThemedText>
                   </Section>
                 )}
-                <Section title="Your Community profile">
+                <Section title="How friends see you" icon="🙂" tone="peach">
                   <ThemedText type="small" themeColor="textSecondary">
                     This is how friends will recognize you in Community.
                   </ThemedText>
@@ -315,13 +320,20 @@ function SettingsContent({
                         seed={form.handle}
                         accessibilityLabel={`Initials badge: ${form.avatarSymbol.trim() || generateAvatarSymbol(form.displayName)}`}
                       />
-                      <ThemedText type="small" themeColor="textSecondary">
-                        Your Community badge
-                      </ThemedText>
+                      <View style={styles.flex}>
+                        <ThemedText style={{ fontWeight: "700" }}>
+                          {form.displayName.trim()}
+                        </ThemedText>
+                        <ThemedText type="small" themeColor="textSecondary">
+                          {form.handle.trim()
+                            ? `@${form.handle.trim()}`
+                            : "Your Community badge"}
+                        </ThemedText>
+                      </View>
                     </View>
                   )}
                 </Section>
-                <Section title="Optional details">
+                <Section title="A little about you" icon="✨" tone="purple">
                   <ThemedText type="small" themeColor="textSecondary">
                     Leave these blank if you prefer. Your badge uses your
                     display name's initials by default.
@@ -350,7 +362,7 @@ function SettingsContent({
                     phone numbers out of your social profile.
                   </ThemedText>
                 </Section>
-                <Section title="Discovery">
+                <Section title="Let friends find you" icon="🔎" tone="mint">
                   <Choice
                     label="Allow friends to find my exact handle"
                     checked={form.isSearchable}
@@ -369,7 +381,9 @@ function SettingsContent({
                   )}
                 </Section>
                 <Section
-                  title={editing ? "Sharing & rules" : "Before you join"}
+                  title={editing ? "Your sharing choices" : "Before you join"}
+                  icon="🛡️"
+                  tone="blue"
                 >
                   <ThemedText>
                     Only your currently approved followers see shared cards,
@@ -446,7 +460,7 @@ function SettingsContent({
           <ThemedText accessibilityLiveRegion="polite">{message}</ThemedText>
         )}
         {!embedded && principalKey !== null && (
-          <Section title="Community shortcuts">
+          <Section title="Around Community" icon="👥" tone="purple">
             {state.profile?.status === "active" && (
               <Action
                 label="View following feed"
@@ -467,7 +481,7 @@ function SettingsContent({
             />
           </Section>
         )}
-        <Section title="Help & safety">
+        <Section title="Help & safety" icon="🛟" tone="blue">
           <Action
             label="Community reports, appeals and safety contact"
             variant="link"
@@ -506,7 +520,7 @@ function SettingsContent({
         {principalKey !== null &&
           ((state.profile && state.profile.status !== "withdrawn") ||
             state.status === "error") && (
-            <Section title="Participation">
+            <Section title="Take a step back" icon="🌱" tone="peach">
               <ThemedText type="small" themeColor="textSecondary">
                 Leaving ends Community participation. Your private tracking,
                 Coach access and paid entitlement stay available.
@@ -528,25 +542,44 @@ function Section({
   title,
   children,
   highlighted = false,
+  icon,
+  tone = "mint",
 }: {
   title: string;
   children: ReactNode;
   highlighted?: boolean;
+  icon?: string;
+  tone?: "mint" | "purple" | "blue" | "peach";
 }) {
   const theme = useTheme();
+  const palette = useCommunityPalette();
   return (
     <View
       style={[
         styles.section,
         {
-          backgroundColor: highlighted ? theme.primaryLight : theme.background,
-          borderColor: theme.border,
+          backgroundColor: highlighted ? palette.mint : theme.backgroundElement,
+          borderColor: "transparent",
         },
       ]}
     >
-      <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
-        {title}
-      </ThemedText>
+      <View style={styles.sectionHeading}>
+        {icon && (
+          <View
+            style={[styles.sectionIcon, { backgroundColor: palette[tone] }]}
+          >
+            <ThemedText accessible={false} style={{ fontSize: 20 }}>
+              {icon}
+            </ThemedText>
+          </View>
+        )}
+        <ThemedText
+          accessibilityRole="header"
+          style={[styles.sectionTitle, styles.flex]}
+        >
+          {title}
+        </ThemedText>
+      </View>
       {children}
     </View>
   );
@@ -608,6 +641,8 @@ function Choice({
   onChange: (value: boolean) => void;
   disabled: boolean;
 }) {
+  const palette = useCommunityPalette();
+  const theme = useTheme();
   return (
     <Pressable
       accessibilityRole="checkbox"
@@ -617,7 +652,26 @@ function Choice({
       onPress={() => onChange(!checked)}
       style={styles.choice}
     >
-      <ThemedText accessible={false}>{checked ? "☑" : "☐"}</ThemedText>
+      <View
+        style={[
+          styles.checkMark,
+          {
+            backgroundColor: checked ? palette.mint : theme.backgroundElement,
+            borderWidth: 1.5,
+            borderColor: theme.textSecondary,
+          },
+        ]}
+      >
+        <ThemedText
+          accessible={false}
+          style={{
+            color: checked ? palette.mintText : palette.blueText,
+            fontWeight: "700",
+          }}
+        >
+          {checked ? "✓" : ""}
+        </ThemedText>
+      </View>
       <ThemedText style={styles.flex} accessible={false}>
         {label}
       </ThemedText>
@@ -675,10 +729,29 @@ const styles = StyleSheet.create({
     maxWidth: MaxContentWidth,
     alignSelf: "center",
   },
-  intro: { gap: 8 },
+  sectionHeading: { flexDirection: "row", gap: 12, alignItems: "center" },
+  sectionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  checkMark: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   section: { padding: 20, gap: 16, borderWidth: 1, borderRadius: 20 },
   sectionTitle: { fontSize: 20, lineHeight: 28, fontWeight: "700" },
-  profilePreview: { gap: 8, alignItems: "flex-start" },
+  profilePreview: {
+    gap: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+  },
   submitGroup: { gap: 12 },
   primaryLabel: { fontWeight: "700", textAlign: "center" },
   destructiveLabel: { fontWeight: "700" },

@@ -30,6 +30,7 @@ import { useTheme } from "@/hooks/use-theme";
 import { useCommunityProfile } from "../use-community-profile";
 import { CommunitySettingsScreen } from "../community-settings-screen";
 import { scopeCommunityClient } from "../scoped-client";
+import { useCommunityPalette } from "../community-presentation";
 import { FeedController } from "./controller";
 import { ActivityCard } from "./activity-card";
 
@@ -55,6 +56,7 @@ function FeedScreenContent({
   readonly birthYear?: number | null;
 }) {
   const colors = useTheme();
+  const accents = useCommunityPalette();
   const router = useRouter();
   const community = useCommunityProfile({
     principalKey,
@@ -257,29 +259,6 @@ function FeedScreenContent({
     );
   }
 
-  // Color belongs to navigation and encouragement, never permission/status.
-  const accents =
-    colors.background === "#0B0F12"
-      ? {
-          mint: "#12392F",
-          mintText: "#C5F5DE",
-          purple: "#2C2441",
-          purpleText: "#E1D4FF",
-          blue: "#17334A",
-          blueText: "#C6E8FF",
-          peach: "#3E2C24",
-          peachText: "#FFDDC5",
-        }
-      : {
-          mint: "#D7F5E5",
-          mintText: "#14543B",
-          purple: "#EEE6FF",
-          purpleText: "#4C327A",
-          blue: "#E0F1FF",
-          blueText: "#244D72",
-          peach: "#FFEBDD",
-          peachText: "#74442A",
-        };
   // Header quick links
   const headerComponent = (
     <View style={styles.headerBar}>

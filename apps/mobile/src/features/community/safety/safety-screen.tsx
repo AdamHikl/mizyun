@@ -12,6 +12,8 @@ import {
   moderationAppealDtoSchema,
   type CommunityReportSummaryDto,
 } from "@mizyun/contracts";
+import { MaxContentWidth } from "@/constants/theme";
+import { CommunityIntro } from "../community-presentation";
 import { apiClient } from "@/composition/api-client";
 import { ThemedText } from "@/components/themed-text";
 import { useAuth } from "@/features/auth/auth-context";
@@ -198,7 +200,10 @@ export function SafetyContent({
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={[styles.action, { borderColor: theme.border }]}
+      style={[
+        styles.action,
+        { borderColor: theme.border, backgroundColor: theme.backgroundElement },
+      ]}
     >
       <ThemedText>{label}</ThemedText>
     </Pressable>
@@ -210,7 +215,12 @@ export function SafetyContent({
       keyboardShouldPersistTaps="handled"
     >
       <Stack.Screen options={{ title: "Community safety" }} />
-      <ThemedText type="subtitle">Community safety</ThemedText>
+      <CommunityIntro
+        icon="🛡️"
+        title="Help & safety"
+        description="Manage your boundaries, report a concern or check an appeal."
+        tone="peach"
+      />
       <ThemedText>
         For immediate danger, contact local emergency services. Mizyun reports
         are not an emergency response service.
@@ -250,7 +260,13 @@ export function SafetyContent({
             <ThemedText>No report history loaded.</ThemedText>
           )}
           {reports.map((report) => (
-            <View key={report.id} style={styles.record}>
+            <View
+              key={report.id}
+              style={[
+                styles.record,
+                { backgroundColor: theme.backgroundElement },
+              ]}
+            >
               <ThemedText>Case {report.id}</ThemedText>
               <ThemedText>
                 {report.reason.replaceAll("_", " ")} ·{" "}
@@ -370,11 +386,18 @@ export function SafetyContent({
   );
 }
 const styles = StyleSheet.create({
-  content: { padding: 20, gap: 16, paddingBottom: 40 },
+  content: {
+    padding: 20,
+    gap: 16,
+    paddingBottom: 40,
+    width: "100%",
+    maxWidth: MaxContentWidth,
+    alignSelf: "center",
+  },
   action: {
     minHeight: 48,
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: 14,
     padding: 12,
     justifyContent: "center",
   },

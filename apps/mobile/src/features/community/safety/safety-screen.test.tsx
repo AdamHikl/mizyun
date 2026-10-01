@@ -58,7 +58,7 @@ vi.mock("react-native", () => ({
   TextInput: "TextInput",
   ActivityIndicator: "ActivityIndicator",
   KeyboardAvoidingView: "KeyboardAvoidingView",
-  Platform: { OS: "ios" },
+  Platform: { OS: "ios", select: (values: any) => values.ios },
   Linking: { openURL: vi.fn() },
 }));
 vi.mock("@/hooks/use-theme", () => ({

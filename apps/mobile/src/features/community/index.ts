@@ -12,3 +12,5 @@ export * from "./reactions";
 export * from "./safety";
 
 export * from "./notifications";
+
+export { CommunityIntro } from "./community-presentation";

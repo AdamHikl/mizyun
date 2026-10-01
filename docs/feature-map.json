@@ -1296,7 +1296,8 @@
         "apps/mobile/src/app/community/notifications.tsx",
         "apps/mobile/src/features/community/notifications/notification-bridge.tsx",
         "apps/mobile/src/features/community/notifications/tap-controller.ts",
-        "apps/mobile/src/features/community/push.ts"
+        "apps/mobile/src/features/community/push.ts",
+        "apps/mobile/src/features/community/community-presentation.tsx"
       ],
       "adapters": [
         "packages/adapters/supabase-server/src/community-repository.ts",
@@ -1412,7 +1413,8 @@
         "packages/adapters/supabase-mobile/src/index.test.ts",
         "apps/mobile/src/features/auth/auth-bootstrap.test.ts",
         "apps/mobile/src/composition/community-admission.test.ts",
-        "scripts/community-dev-maintenance.test.mjs"
+        "scripts/community-dev-maintenance.test.mjs",
+        "apps/mobile/src/features/community/notifications/inbox-screen.test.tsx"
       ],
       "relations": [
         {

@@ -10,6 +10,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Text,
   View,
 } from "react-native";
 import {
@@ -19,6 +20,8 @@ import {
   useLocalSearchParams,
   type Href,
 } from "expo-router";
+import { MaxContentWidth } from "@/constants/theme";
+import { CommunityIntro, useCommunityPalette } from "../community-presentation";
 import { apiClient } from "@/composition/api-client";
 import { ThemedText } from "@/components/themed-text";
 import { useAuth } from "@/features/auth/auth-context";
@@ -26,10 +29,10 @@ import { useTheme } from "@/hooks/use-theme";
 import { InboxController, notificationDestinationPath } from "./controller";
 
 const labels = {
-  request: "A follow request was received",
-  approval: "A follow request was approved",
-  reaction: "An encouragement was received",
-  moderation: "A Community safety update is available",
+  request: "New follow request",
+  approval: "Follow request approved",
+  reaction: "Someone cheered you on",
+  moderation: "Community safety update",
 };
 export function CommunityInboxScreen() {
   const { session } = useAuth();
@@ -42,6 +45,7 @@ export function CommunityInboxScreen() {
 }
 function InboxContent({ principal }: { principal: string | null }) {
   const theme = useTheme();
+  const palette = useCommunityPalette();
   const { notice } = useLocalSearchParams<{ notice?: string }>();
   const alive = useRef(true);
   const controller = useMemo(
@@ -89,7 +93,10 @@ function InboxContent({ principal }: { principal: string | null }) {
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled }}
-      style={[styles.action, { borderColor: theme.border }]}
+      style={[
+        styles.action,
+        { borderColor: theme.border, backgroundColor: theme.backgroundElement },
+      ]}
     >
       <ThemedText>{label}</ThemedText>
     </Pressable>
@@ -106,7 +113,12 @@ function InboxContent({ principal }: { principal: string | null }) {
       contentContainerStyle={styles.content}
     >
       <Stack.Screen options={{ title: "Community inbox" }} />
-      <ThemedText type="subtitle">Community inbox</ThemedText>
+      <CommunityIntro
+        icon="💬"
+        title="Your Community inbox"
+        description="Follow requests, little cheers and important updates, all in one place."
+        tone="blue"
+      />
       {notice === "read_unconfirmed" && (
         <ThemedText accessibilityLiveRegion="polite">
           The update was checked, but read status could not be saved. Refresh
@@ -119,9 +131,8 @@ function InboxContent({ principal }: { principal: string | null }) {
           accessible updates.
         </ThemedText>
       )}
-      <ThemedText>
-        Updates are shown after checking current access. No device notification
-        permission is needed.
+      <ThemedText style={{ color: theme.textSecondary }}>
+        You can read updates here without enabling phone notifications.
       </ThemedText>
       {action("Notification preferences", () =>
         router.push("/community/notifications" as Href),
@@ -139,11 +150,43 @@ function InboxContent({ principal }: { principal: string | null }) {
               {state.error}
             </ThemedText>
           )}
-          {!state.busy && !state.error && state.items.length === 0 && (
-            <ThemedText>No Community updates.</ThemedText>
+          {!state.error && state.items.length === 0 && (
+            <View style={[styles.empty, { backgroundColor: palette.blue }]}>
+              <Text accessible={false} style={styles.emptyIcon}>
+                🙌
+              </Text>
+              <ThemedText
+                style={[styles.emptyTitle, { color: palette.blueText }]}
+              >
+                A little encouragement goes a long way
+              </ThemedText>
+              <ThemedText style={{ color: palette.blueText }}>
+                Requests and reactions will appear here when friends connect
+                with you.
+              </ThemedText>
+            </View>
           )}
           {state.items.map((item) => (
-            <View key={item.id} style={styles.record}>
+            <View
+              key={item.id}
+              style={[
+                styles.record,
+                {
+                  backgroundColor: theme.backgroundElement,
+                  borderColor: theme.border,
+                },
+              ]}
+            >
+              <Text accessible={false} style={styles.emptyIcon}>
+                {
+                  {
+                    request: "👋",
+                    approval: "🤝",
+                    reaction: "🙌",
+                    moderation: "🛡️",
+                  }[item.kind]
+                }
+              </Text>
               <ThemedText>
                 {item.readAt ? "Read" : "Unread"} ·{" "}
                 {new Date(item.createdAt).toLocaleString()}
@@ -165,13 +208,23 @@ function InboxContent({ principal }: { principal: string | null }) {
   );
 }
 const styles = StyleSheet.create({
-  content: { padding: 20, gap: 16, paddingBottom: 40 },
+  content: {
+    padding: 20,
+    gap: 16,
+    paddingBottom: 40,
+    width: "100%",
+    maxWidth: MaxContentWidth,
+    alignSelf: "center",
+  },
+  empty: { padding: 24, gap: 10, borderRadius: 20 },
+  emptyIcon: { fontSize: 28 },
+  emptyTitle: { fontSize: 18, fontWeight: "600" },
   action: {
     minHeight: 48,
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: 14,
     padding: 12,
     justifyContent: "center",
   },
-  record: { gap: 8 },
+  record: { gap: 8, borderWidth: 1, borderRadius: 18, padding: 16 },
 });

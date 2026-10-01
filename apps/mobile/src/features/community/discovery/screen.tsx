@@ -23,9 +23,11 @@ import type { PublicCommunityProfileDto } from "@mizyun/contracts";
 import { apiClient } from "@/composition/api-client";
 import { getAppVariant } from "@/composition/app-variant";
 import { useTheme } from "@/hooks/use-theme";
+import { MaxContentWidth } from "@/constants/theme";
 import { useCommunityProfile } from "../use-community-profile";
 import { buildCommunityInvitationLink } from "../invitation-links";
 import { InitialsAvatar } from "../initials-avatar";
+import { CommunityIntro, useCommunityPalette } from "../community-presentation";
 import { DiscoveryController } from "./controller";
 import { DiscoveryAccessGate } from "./access-gate";
 import { invitationQrMatrix } from "./qr-matrix";
@@ -43,6 +45,7 @@ export function DiscoveryScreen({
   birthYear?: number | null;
 }) {
   const colors = useTheme();
+  const palette = useCommunityPalette();
   const community = useCommunityProfile({
     principalKey,
     birthYear,
@@ -179,6 +182,7 @@ export function DiscoveryScreen({
     label: string,
     onPress: () => void,
     disabled = state.busy,
+    primary = false,
   ) => (
     <Pressable
       key={label}
@@ -188,10 +192,22 @@ export function DiscoveryScreen({
       onPress={onPress}
       style={[
         styles.button,
-        { borderColor: colors.border, opacity: disabled ? 0.5 : 1 },
+        {
+          borderColor: primary ? "transparent" : colors.border,
+          backgroundColor: primary ? palette.mint : "transparent",
+          opacity: disabled ? 0.5 : 1,
+        },
       ]}
     >
-      <Text style={{ color: colors.text }}>{label}</Text>
+      <Text
+        style={{
+          color: primary ? palette.mintText : colors.text,
+          fontWeight: primary ? "700" : "500",
+          textAlign: "center",
+        }}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
   const userCard = (
@@ -199,15 +215,19 @@ export function DiscoveryScreen({
     fromInvitation: boolean,
   ) => (
     <View style={[styles.card, { backgroundColor: colors.backgroundElement }]}>
-      <InitialsAvatar
-        symbol={user.avatarSymbol}
-        seed={user.displayName}
-        accessibilityLabel={user.displayName}
-      />
-      <Text style={[styles.subtitle, { color: colors.text }]}>
-        {user.displayName}
-      </Text>
-      <Text style={{ color: colors.textSecondary }}>@{user.handle}</Text>
+      <View style={styles.identityRow}>
+        <InitialsAvatar
+          symbol={user.avatarSymbol}
+          seed={user.displayName}
+          accessibilityLabel={user.displayName}
+        />
+        <View style={styles.identityCopy}>
+          <Text style={[styles.subtitle, { color: colors.text }]}>
+            {user.displayName}
+          </Text>
+          <Text style={{ color: colors.textSecondary }}>@{user.handle}</Text>
+        </View>
+      </View>
       {user.userId === principalKey ? (
         <Text style={{ color: colors.text }}>This is your profile.</Text>
       ) : ["following", "mutual"].includes(
@@ -217,21 +237,25 @@ export function DiscoveryScreen({
       ) : user.relationshipWithViewer === "pending_outgoing" ? (
         <Text style={{ color: colors.text }}>Request pending</Text>
       ) : (
-        button("Request to follow", () =>
-          Alert.alert(
-            `Follow @${user.handle}?`,
-            `Request as @${community.profile?.handle}. They must approve before you can see their shared workouts. This does not give them access to yours.`,
-            [
-              { text: "Cancel", style: "cancel" },
-              {
-                text: "Send request",
-                onPress: () => {
-                  if (alive.current && renderIntent())
-                    void controller.follow(user, fromInvitation);
+        button(
+          "Request to follow",
+          () =>
+            Alert.alert(
+              `Follow @${user.handle}?`,
+              `Request as @${community.profile?.handle}. They must approve before you can see their shared workouts. This does not give them access to yours.`,
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Send request",
+                  onPress: () => {
+                    if (alive.current && renderIntent())
+                      void controller.follow(user, fromInvitation);
+                  },
                 },
-              },
-            ],
-          ),
+              ],
+            ),
+          state.busy,
+          true,
         )
       )}
       {user.userId !== principalKey &&
@@ -247,6 +271,7 @@ export function DiscoveryScreen({
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
       contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
     >
       {reportTarget && reportTarget.controller === controller && (
         <ReportModal
@@ -262,34 +287,25 @@ export function DiscoveryScreen({
           }}
         />
       )}
-      <Link
-        href={"/community/safety" as Href}
-        style={{ color: colors.primary }}
-      >
-        Reports, appeals and safety contact
-      </Link>
-      <Text
-        accessibilityRole="header"
-        style={[styles.title, { color: colors.text }]}
-      >
-        Find a friend
-      </Text>
-      <Text style={{ color: colors.textSecondary }}>
-        Invitations reveal only your friend's name, handle and initials. They
-        never join or follow automatically.
-      </Text>
+      <CommunityIntro
+        icon="👋"
+        title="Find your people"
+        description="A friend, a little encouragement. Connect with a handle or an invitation."
+        tone="mint"
+      />
       {accessFresh && community.isEnrolled && community.status === "ready" ? (
         <>
-          <Text style={{ color: colors.text }}>
-            You are using @{community.profile?.handle} (
-            {community.profile?.displayName}).
-          </Text>
-          <Link
-            href={"/community/relationships" as Href}
-            style={{ color: colors.primary }}
-          >
-            Manage your friends and requests
-          </Link>
+          <View style={styles.contextRow}>
+            <Text style={[styles.contextCopy, { color: colors.textSecondary }]}>
+              Connecting as @{community.profile?.handle}
+            </Text>
+            <Link
+              href={"/community/relationships" as Href}
+              style={{ color: colors.primary, fontWeight: "600" }}
+            >
+              Your friends →
+            </Link>
+          </View>
           {state.busy && (
             <ActivityIndicator
               color={colors.primary}
@@ -323,166 +339,239 @@ export function DiscoveryScreen({
                   )}
             </>
           )}
-          {button("Refresh", revalidate)}
-          <Text style={[styles.subtitle, { color: colors.text }]}>
-            Exact handle
-          </Text>
-          <Text style={{ color: colors.textSecondary }}>
-            Only friends who enabled handle search can appear. No suggestions,
-            contact uploads or email lookup.
-          </Text>
-          <TextInput
-            accessibilityLabel="Exact friend handle"
-            placeholder="@handle"
-            placeholderTextColor={colors.textSecondary}
-            autoCorrect={false}
-            autoCapitalize="none"
-            value={query}
-            editable={!state.busy}
-            onChangeText={(value) => {
-              setQuery(value);
-              controller.clearSearch();
-            }}
-            onSubmitEditing={() => void controller.search(query)}
+          <View
             style={[
-              styles.input,
-              { color: colors.text, borderColor: colors.border },
+              styles.section,
+              { backgroundColor: colors.backgroundElement },
             ]}
-          />
-          {button("Find exact handle", () => void controller.search(query))}
-          {state.result
-            ? userCard(state.result, false)
-            : state.searched && (
-                <Text style={{ color: colors.text }}>
-                  No discoverable profile is available for that handle.
-                </Text>
-              )}
-          <Text style={[styles.subtitle, { color: colors.text }]}>
-            Your invitations
-          </Text>
-          <Text style={{ color: colors.textSecondary }}>
-            Reusable for up to seven days. Anyone holding a link can see your
-            minimal identity and request to follow. Turning handle search off
-            does not revoke links; revoke each invitation here.
-          </Text>
-          {button("Create invitation", () => void controller.create())}
-          {link && matrix && (
-            <View
-              style={[
-                styles.card,
-                { backgroundColor: colors.backgroundElement },
-              ]}
-            >
-              <Text style={{ color: colors.text }}>
-                Invitation QR — expires{" "}
-                {new Date(invitation!.expiresAt).toLocaleString()}
-              </Text>
+          >
+            <View style={styles.sectionHeading}>
               <View
-                accessible
-                accessibilityLabel="Invitation QR code. Use Share invitation as an accessible alternative."
-                style={{ alignSelf: "center", backgroundColor: "white" }}
+                style={[styles.sectionIcon, { backgroundColor: palette.blue }]}
               >
-                {matrix.map((row, index) => (
-                  <View key={index} style={{ flexDirection: "row" }}>
-                    {row.map((dark, column) => (
-                      <View
-                        key={column}
-                        style={{
-                          width: 5,
-                          height: 5,
-                          backgroundColor: dark ? "black" : "white",
-                        }}
-                      />
-                    ))}
-                  </View>
-                ))}
+                <Text accessible={false} style={styles.icon}>
+                  🔎
+                </Text>
               </View>
-              {button("Share invitation", () => {
-                if (
-                  alive.current &&
-                  controller.getState().displayedInvitation === invitation &&
-                  Date.parse(invitation!.expiresAt) > Date.now()
-                )
-                  void Share.share({
-                    message: `Connect with me on Mizyun: ${link}`,
-                    url: link,
-                  }).catch(() => {
-                    if (alive.current && renderIntent())
-                      Alert.alert("Could not share", "Try sharing again.");
-                  });
-              })}
+              <Text
+                accessibilityRole="header"
+                style={[
+                  styles.subtitle,
+                  styles.identityCopy,
+                  { color: colors.text },
+                ]}
+              >
+                Search a handle
+              </Text>
             </View>
-          )}
-          {state.invitations.map((item, index) => {
-            const available =
-              !item.revokedAt && Date.parse(item.expiresAt) > Date.now();
-            return (
+            <Text style={[styles.body, { color: colors.textSecondary }]}>
+              Ask your friend for their exact @handle. They need to allow handle
+              search in their profile.
+            </Text>
+            <TextInput
+              accessibilityLabel="Exact friend handle"
+              placeholder="@handle"
+              placeholderTextColor={colors.textSecondary}
+              autoCorrect={false}
+              autoCapitalize="none"
+              value={query}
+              editable={!state.busy}
+              onChangeText={(value) => {
+                setQuery(value);
+                controller.clearSearch();
+              }}
+              onSubmitEditing={() => void controller.search(query)}
+              style={[
+                styles.input,
+                { color: colors.text, borderColor: colors.border },
+              ]}
+            />
+            {button(
+              "Find exact handle",
+              () => void controller.search(query),
+              state.busy,
+              true,
+            )}
+            {state.result
+              ? userCard(state.result, false)
+              : state.searched && (
+                  <Text style={{ color: colors.text }}>
+                    No discoverable profile is available for that handle.
+                  </Text>
+                )}
+            <Text style={[styles.smallCopy, { color: colors.textSecondary }]}>
+              No contact uploads, email lookup or suggested strangers.
+            </Text>
+          </View>
+          <View
+            style={[
+              styles.section,
+              { backgroundColor: colors.backgroundElement },
+            ]}
+          >
+            <View style={styles.sectionHeading}>
               <View
-                key={item.id}
+                style={[
+                  styles.sectionIcon,
+                  { backgroundColor: palette.purple },
+                ]}
+              >
+                <Text accessible={false} style={styles.icon}>
+                  💌
+                </Text>
+              </View>
+              <Text
+                accessibilityRole="header"
+                style={[
+                  styles.subtitle,
+                  styles.identityCopy,
+                  { color: colors.text },
+                ]}
+              >
+                Invite a friend
+              </Text>
+            </View>
+            <Text style={{ color: colors.textSecondary }}>
+              Send a link or show a QR code, even with handle search off. Your
+              friend still chooses to request a follow, and you approve it.
+            </Text>
+            {button(
+              "Create invitation",
+              () => void controller.create(),
+              state.busy,
+              true,
+            )}
+            <Text style={[styles.smallCopy, { color: colors.textSecondary }]}>
+              Links work for up to seven days. Anyone with a link can see your
+              name, handle and initials. Turning search off does not revoke
+              links; revoke each one here.
+            </Text>
+            {link && matrix && (
+              <View
                 style={[
                   styles.card,
                   { backgroundColor: colors.backgroundElement },
                 ]}
               >
                 <Text style={{ color: colors.text }}>
-                  Invitation {index + 1} —{" "}
-                  {item.revokedAt
-                    ? "Revoked"
-                    : available
-                      ? "Active"
-                      : "Expired"}
+                  Invitation QR — expires{" "}
+                  {new Date(invitation!.expiresAt).toLocaleString()}
                 </Text>
-                <Text style={{ color: colors.textSecondary }}>
-                  Expires {new Date(item.expiresAt).toLocaleString()}
-                </Text>
-                {available && (
-                  <View style={styles.row}>
-                    {button("Show QR and share", () =>
-                      controller.show(item.id),
-                    )}
-                    {button("Revoke", () =>
-                      Alert.alert(
-                        "Revoke invitation?",
-                        "This link and QR will stop working. Existing follows are unchanged.",
-                        [
-                          { text: "Cancel", style: "cancel" },
-                          {
-                            text: "Revoke",
-                            style: "destructive",
-                            onPress: () => {
-                              if (alive.current && renderIntent())
-                                void controller.revoke(item.id);
-                            },
-                          },
-                        ],
-                      ),
-                    )}
-                  </View>
-                )}
+                <View
+                  accessible
+                  accessibilityLabel="Invitation QR code. Use Share invitation as an accessible alternative."
+                  style={{ alignSelf: "center", backgroundColor: "white" }}
+                >
+                  {matrix.map((row, index) => (
+                    <View key={index} style={{ flexDirection: "row" }}>
+                      {row.map((dark, column) => (
+                        <View
+                          key={column}
+                          style={{
+                            width: 5,
+                            height: 5,
+                            backgroundColor: dark ? "black" : "white",
+                          }}
+                        />
+                      ))}
+                    </View>
+                  ))}
+                </View>
+                {button("Share invitation", () => {
+                  if (
+                    alive.current &&
+                    controller.getState().displayedInvitation === invitation &&
+                    Date.parse(invitation!.expiresAt) > Date.now()
+                  )
+                    void Share.share({
+                      message: `Connect with me on Mizyun: ${link}`,
+                      url: link,
+                    }).catch(() => {
+                      if (alive.current && renderIntent())
+                        Alert.alert("Could not share", "Try sharing again.");
+                    });
+                })}
               </View>
-            );
-          })}
+            )}
+            {state.invitations.length > 0 && (
+              <Text
+                accessibilityRole="header"
+                style={[styles.subtitle, { color: colors.text }]}
+              >
+                Your invitations
+              </Text>
+            )}
+            {state.invitations.map((item, index) => {
+              const available =
+                !item.revokedAt && Date.parse(item.expiresAt) > Date.now();
+              return (
+                <View
+                  key={item.id}
+                  style={[
+                    styles.card,
+                    { backgroundColor: colors.backgroundElement },
+                  ]}
+                >
+                  <Text style={{ color: colors.text }}>
+                    Invitation {index + 1} —{" "}
+                    {item.revokedAt
+                      ? "Revoked"
+                      : available
+                        ? "Active"
+                        : "Expired"}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary }}>
+                    Expires {new Date(item.expiresAt).toLocaleString()}
+                  </Text>
+                  {available && (
+                    <View style={styles.row}>
+                      {button("Show QR and share", () =>
+                        controller.show(item.id),
+                      )}
+                      {button("Revoke", () =>
+                        Alert.alert(
+                          "Revoke invitation?",
+                          "This link and QR will stop working. Existing follows are unchanged.",
+                          [
+                            { text: "Cancel", style: "cancel" },
+                            {
+                              text: "Revoke",
+                              style: "destructive",
+                              onPress: () => {
+                                if (alive.current && renderIntent())
+                                  void controller.revoke(item.id);
+                              },
+                            },
+                          ],
+                        ),
+                      )}
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+          <View style={[styles.footer, { borderColor: colors.border }]}>
+            {button("Refresh friends and invitations", revalidate)}
+          </View>
         </>
       ) : (
         <>
           <Text accessibilityLiveRegion="polite" style={{ color: colors.text }}>
             {community.status === "loading" ||
             (community.isEnrolled && !accessFresh)
-              ? "Checking your Friends access…"
+              ? "Checking your Community access…"
               : (community.error ??
                 (principalKey
-                  ? "Join Mizyun Friends separately before viewing this invitation. Pilot admission stays closed until approved. Private tracking stays available."
-                  : "Sign in before viewing an invitation. Your friend's identity is hidden until Friends access is checked."))}
+                  ? "Join Community before viewing this invitation. Participation requires admission during this pilot. Your private tracking stays available."
+                  : "Sign in before viewing an invitation. Your friend's identity is hidden until Community access is checked."))}
           </Text>
           <Link href={"/account" as Href} style={{ color: colors.primary }}>
             Return to Account
           </Link>
           {principalKey && (
-            <Link
-              href={"/community/settings" as Href}
-              style={{ color: colors.primary }}
-            >
-              Friends profile and enrollment
+            <Link href={"/community" as Href} style={{ color: colors.primary }}>
+              Open Community to join
             </Link>
           )}
           {principalKey &&
@@ -497,12 +586,47 @@ export function DiscoveryScreen({
           </Text>
         </>
       )}
+      <Link
+        href={"/community/safety" as Href}
+        style={{ color: colors.primary, paddingVertical: 12 }}
+      >
+        Reports, appeals and safety contact
+      </Link>
     </ScrollView>
   );
 }
 const styles = StyleSheet.create({
-  content: { padding: 20, gap: 16, paddingBottom: 48 },
-  title: { fontSize: 24, fontWeight: "600" },
+  content: {
+    padding: 20,
+    gap: 20,
+    paddingBottom: 48,
+    maxWidth: MaxContentWidth,
+    width: "100%",
+    alignSelf: "center",
+  },
+  contextRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  contextCopy: { flexShrink: 1, lineHeight: 22 },
+  identityRow: { flexDirection: "row", gap: 12, alignItems: "center" },
+  identityCopy: { flex: 1, gap: 4 },
+  section: { padding: 20, borderRadius: 24, gap: 16 },
+  sectionHeading: { flexDirection: "row", alignItems: "center", gap: 12 },
+  sectionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  icon: { fontSize: 22 },
+  body: { lineHeight: 23 },
+  smallCopy: { fontSize: 13, lineHeight: 20 },
+  footer: { borderTopWidth: 1, paddingTop: 20 },
   subtitle: { fontSize: 18, fontWeight: "600" },
   button: {
     minHeight: 48,
@@ -511,7 +635,7 @@ const styles = StyleSheet.create({
     padding: 12,
     justifyContent: "center",
   },
-  card: { padding: 16, borderRadius: 14, gap: 12 },
+  card: { padding: 16, borderRadius: 18, gap: 12 },
   row: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   input: { minHeight: 48, borderWidth: 1, borderRadius: 10, padding: 12 },
 });
