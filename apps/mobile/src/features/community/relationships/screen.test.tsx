@@ -147,6 +147,7 @@ beforeEach(() => {
   mocks.rows = [];
   mocks.error = null;
   mocks.loading = false;
+  mocks.pending = false;
   vi.clearAllMocks();
 });
 describe("friends navigation and actions", () => {
@@ -201,6 +202,53 @@ describe("friends navigation and actions", () => {
     expect(mocks.alert.mock.calls[0][1]).toContain("including past cards");
     expect(mocks.alert.mock.calls[0][1]).toContain("does not follow them back");
     expect(mocks.act).not.toHaveBeenCalled();
+  });
+  it("offers follow back directly on a follower card without opening options", () => {
+    mocks.list = "followers";
+    mocks.rows = [
+      {
+        user: { userId: "b", displayName: "Partner", handle: "partner" },
+        relationshipId: "r",
+        outgoingFollowStatus: "none",
+      },
+    ];
+    const tree = render();
+    const follow = control(tree, "Follow back @partner");
+    expect(follow).toBeTruthy();
+    expect(follow.props.accessibilityHint).toContain("approve");
+    follow.props.onPress();
+    expect(mocks.act).toHaveBeenCalledWith("follow", mocks.rows[0]);
+    expect(mocks.alert).not.toHaveBeenCalled();
+  });
+  it.each(["pending", "approved"])(
+    "shows %s outgoing state without offering another request",
+    (status) => {
+      mocks.list = "followers";
+      mocks.rows = [
+        {
+          user: { userId: "b", displayName: "Partner", handle: "partner" },
+          outgoingFollowStatus: status,
+        },
+      ];
+      const tree = render();
+      expect(text(tree)).toContain(
+        status === "pending" ? "Requested" : "Following",
+      );
+      expect(control(tree, "Follow back @partner")).toBeUndefined();
+    },
+  );
+  it("disables follow back during a mutation and hides it after leaving", () => {
+    mocks.list = "followers";
+    mocks.rows = [
+      {
+        user: { userId: "b", handle: "partner" },
+        outgoingFollowStatus: "none",
+      },
+    ];
+    mocks.pending = true;
+    expect(control(render(), "Follow back @partner").props.disabled).toBe(true);
+    mocks.enrolled = false;
+    expect(control(render(), "Follow back @partner")).toBeUndefined();
   });
   it("reveals every Following option without an Android multi-button Alert", () => {
     mocks.list = "following";

@@ -1,6 +1,7 @@
 import type { ApiClient, ApiError } from "@mizyun/api-client";
 import type { PublicCommunityProfileDto } from "@mizyun/contracts";
 import type { Result } from "@mizyun/core";
+import { randomUUID } from "expo-crypto";
 import { scopeCommunityClient } from "../scoped-client";
 import {
   fetchFollowers,
@@ -10,6 +11,7 @@ import {
   fetchBlockedUsers,
   fetchMutedUsers,
   respondToFollowRequest,
+  requestFollow,
   unfollowUser,
   removeFollower,
   blockUser,
@@ -21,6 +23,7 @@ import {
 export type RelationshipList =
   "incoming" | "outgoing" | "followers" | "following" | "blocked" | "muted";
 export type RelationshipAction =
+  | "follow"
   | "approve"
   | "decline"
   | "cancel"
@@ -33,6 +36,7 @@ export type RelationshipAction =
 export interface RelationshipRow {
   readonly user: PublicCommunityProfileDto;
   readonly relationshipId?: string;
+  readonly outgoingFollowStatus?: "none" | "pending" | "approved";
 }
 export interface RelationshipState {
   readonly list: RelationshipList;
@@ -131,7 +135,7 @@ export class RelationshipsController {
     )
       return;
     const revision = ++this.revision;
-    const oldRows = more ? this.state.rows : [];
+    let oldRows = more ? this.state.rows : [];
     const page = {
       limit: 20,
       ...(more && this.state.cursor ? { cursor: this.state.cursor } : {}),
@@ -179,6 +183,49 @@ export class RelationshipsController {
         following: fetchFollowing,
       };
       result = await loaders[list](this.client, page);
+      if (list === "followers" && result.ok) {
+        // Owner graph caps are 30 approved and 20 outgoing pending. Read both
+        // completely before offering a new request; an unavailable state fails closed.
+        const [following, outgoing] = await Promise.all([
+          fetchFollowing(this.client, { limit: 50 }),
+          fetchOutgoingFollowRequests(this.client, { limit: 50 }),
+        ]);
+        if (!following.ok) result = following;
+        else if (!outgoing.ok) result = outgoing;
+        else if (following.value.nextCursor || outgoing.value.nextCursor)
+          result = { ok: false, error: { kind: "network_error", cause: null } };
+        else {
+          const approved = new Set(
+            following.value.items.map((item) => item.user.userId),
+          );
+          const pending = new Set(
+            outgoing.value.items.map((item) => item.user.userId),
+          );
+          result = {
+            ok: true,
+            value: {
+              ...result.value,
+              items: result.value.items.map((item) => ({
+                ...item,
+                outgoingFollowStatus: approved.has(item.user.userId)
+                  ? "approved"
+                  : pending.has(item.user.userId)
+                    ? "pending"
+                    : "none",
+              })),
+            },
+          };
+          // Refresh reverse states on previously loaded pages too.
+          oldRows = oldRows.map((item) => ({
+            ...item,
+            outgoingFollowStatus: approved.has(item.user.userId)
+              ? "approved"
+              : pending.has(item.user.userId)
+                ? "pending"
+                : "none",
+          }));
+        }
+      }
     }
     if (!this.active || revision !== this.revision) return;
     if (!result.ok) {
@@ -213,11 +260,32 @@ export class RelationshipsController {
       )
     )
       return;
+    if (
+      action === "follow" &&
+      (this.state.list !== "followers" ||
+        !this.state.rows.some(
+          (item) =>
+            item.user.userId === row.user.userId &&
+            item.outgoingFollowStatus === "none",
+        ))
+    )
+      return;
     const revision = ++this.revision;
     const list = this.state.list;
     this.update({ pending: true, error: null, notice: null });
     let result: Result<unknown, ApiError>;
-    if (action === "approve" || action === "decline" || action === "cancel") {
+    if (action === "follow") {
+      result = await requestFollow(
+        this.client,
+        row.user.userId,
+        undefined,
+        randomUUID(),
+      );
+    } else if (
+      action === "approve" ||
+      action === "decline" ||
+      action === "cancel"
+    ) {
       if (!row.relationshipId) {
         this.update({
           pending: false,
@@ -272,15 +340,21 @@ export class RelationshipsController {
     this.update({
       pending: false,
       notice:
-        action === "approve"
-          ? "Follower approved. Following them back requires a separate request."
-          : action === "unblock"
-            ? "Unblocked. Previous follows and requests were not restored."
-            : action === "mute"
-              ? "Muted. Your follow and their access are unchanged."
-              : action === "unmute"
-                ? "Unmuted."
-                : "Saved.",
+        action === "follow"
+          ? (result.value as { status: string }).status === "approved"
+            ? "You already follow this friend."
+            : (result.value as { status: string }).status === "pending"
+              ? "Request sent. Your friend must approve before you can see their shared workouts."
+              : "This request ended. Refresh before trying again."
+          : action === "approve"
+            ? "Follower approved. Following them back requires a separate request."
+            : action === "unblock"
+              ? "Unblocked. Previous follows and requests were not restored."
+              : action === "mute"
+                ? "Muted. Your follow and their access are unchanged."
+                : action === "unmute"
+                  ? "Unmuted."
+                  : "Saved.",
     });
     await this.load(list);
   }

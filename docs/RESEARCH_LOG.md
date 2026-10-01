@@ -1,5 +1,10 @@
 # Research log
 
+## 2026-10-01 — Followers follow-back action (#166)
+
+- Reviewed [Expo SDK 57](https://docs.expo.dev/versions/v57.0.0/), [React Native 0.86 Pressable](https://reactnative.dev/docs/0.86/pressable) and [accessibility](https://reactnative.dev/docs/0.86/accessibility). Consequence: visible wrapping 48-point button, target-specific accessible label and approval hint, disabled while loading/saving; owner-scoped memory-only relationship reads.
+- Reviewed [Supabase database functions](https://supabase.com/docs/guides/database/functions) and [PostgreSQL CREATE FUNCTION](https://www.postgresql.org/docs/current/sql-createfunction.html). Consequence: forward replacement preserves SECURITY DEFINER empty search path, grants, existing lock, active/block checks, operation replay, quotas and cooldowns. Only an approved incoming edge supplies the additional hidden-profile request capability; pending followers and guessed UUIDs do not. This creates pending outgoing access, never automatic approval or search visibility.
+
 ## 2026-10-01 — Community feed layout and information architecture (#150)
 
 - Reviewed [Expo SDK 57](https://docs.expo.dev/versions/v57.0.0/), [React Native accessibility](https://reactnative.dev/docs/accessibility) and [ScrollView](https://reactnative.dev/docs/scrollview) today. Consequence: preserve existing native tab clearance, scalable wrapping text, explicit button labels/hints and minimum48-point actions; no new navigation, permissions or lifecycle behavior.

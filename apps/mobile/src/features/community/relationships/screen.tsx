@@ -204,12 +204,16 @@ function OwnerRelationships({
     onPress: () => void,
     disabled = busy,
     primary = false,
+    accessibilityLabel?: string,
+    accessibilityHint?: string,
   ) => (
     <Pressable
       key={label}
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint={accessibilityHint}
       accessibilityState={{ disabled }}
       style={[
         styles.button,
@@ -504,6 +508,33 @@ function OwnerRelationships({
                 </Text>
               </Pressable>
             </View>
+            {state.list === "followers" && (
+              <View style={styles.wrap}>
+                {row.outgoingFollowStatus === "none" &&
+                  button(
+                    "Follow back",
+                    () => confirm("follow", row),
+                    busy,
+                    true,
+                    `Follow back @${row.user.handle}`,
+                    "Sends a follow request. They must approve before you can see their shared workouts.",
+                  )}
+                {row.outgoingFollowStatus === "pending" && (
+                  <Text
+                    style={[styles.buttonText, { color: colors.textSecondary }]}
+                  >
+                    Requested · Waiting for approval
+                  </Text>
+                )}
+                {row.outgoingFollowStatus === "approved" && (
+                  <Text
+                    style={[styles.buttonText, { color: colors.textSecondary }]}
+                  >
+                    Following
+                  </Text>
+                )}
+              </View>
+            )}
             {optionsUser === row.user.userId && (
               <View
                 style={[

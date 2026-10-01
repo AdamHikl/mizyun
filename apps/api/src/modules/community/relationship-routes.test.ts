@@ -135,6 +135,44 @@ describe("Community Relationship Routes", () => {
     expect(dupRes.json().id).toBe(followRes.json().id);
   });
 
+  it("lets approved followers receive a separate request while hidden; pending followers do not qualify", async () => {
+    const { app, communityRepository } = await setupTestApp();
+    await communityRepository.saveProfile(
+      userBob,
+      { handle: "bob_lift", displayName: "Bob", isSearchable: false },
+      { accessToken: "token-bob" },
+    );
+    const incoming = await communityRepository.sendFollowRequest(
+      userBob,
+      userAlice,
+      { accessToken: "token-bob", operationId: crypto.randomUUID() },
+    );
+    const followBack = () =>
+      app.inject({
+        method: "POST",
+        url: "/v1/community/relationships/follow",
+        headers: { authorization: "Bearer token-alice" },
+        payload: { targetUserId: userBob, operationId: crypto.randomUUID() },
+      });
+    expect((await followBack()).statusCode).toBe(404);
+    await communityRepository.updateRelationshipStatus(
+      incoming.id,
+      userAlice,
+      "approved",
+      { accessToken: "token-alice" },
+    );
+    const response = await followBack();
+    expect(response.statusCode).toBe(201);
+    expect(response.json().status).toBe("pending");
+    expect(response.json().followerUserId).toBe(userAlice);
+    expect(
+      (
+        await communityRepository.getRelationship(userBob, userAlice, {
+          accessToken: "token-alice",
+        })
+      )?.status,
+    ).toBe("approved");
+  });
   it("handles follow request lifecycle: approve, decline, and forgery prevention", async () => {
     const { app } = await setupTestApp();
 

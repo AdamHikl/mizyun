@@ -128,7 +128,7 @@ My followers [Remove follower]
 My following [Unfollow] [Mute] [Block / Report]
 ```
 
-Follow-back remains a separate action. Removing a follower: “They lose access to your shared cards. Following them, if any, is unchanged.” Block: “You will lose both follow connections. They cannot view or interact with you through Community. Unblocking will not reconnect you.” No “they were notified” claims. Approval racing block/withdrawal resolves to unavailable and clears stale data. Cooldown/capacity errors give a retry time or capacity explanation without exposing another person's state.
+Follow-back remains a separate action. Followers offers a visible Follow back button, or Requested/Following for an existing outgoing edge. An approved follower may receive this separate request even with handle search disabled; their approval is still required and search visibility stays unchanged. Removing a follower: “They lose access to your shared cards. Following them, if any, is unchanged.” Block: “You will lose both follow connections. They cannot view or interact with you through Community. Unblocking will not reconnect you.” No “they were notified” claims. Approval racing block/withdrawal resolves to unavailable and clears stale data. Cooldown/capacity errors give a retry time or capacity explanation without exposing another person's state.
 
 ### D. Save, preview and card update — #145 / #150
 

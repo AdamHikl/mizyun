@@ -66,3 +66,7 @@ Caller-owned safety evidence uses exact live-snapshot deduplication and120 new r
 ## Founder Dev functional testing amendment — 2026-09-30
 
 Adam explicitly authorized interactive Community testing on the latest Dev backend/iPhone, excluding Production. This limited exception opens client enrollment only for the validated Dev variant and exact Dev targets, backed by service-managed single-principal cohort admission. Cohort_required remains true and delivery false. Consent/profile/follows/publication remain deliberate user actions. A Dev-only no-delivery maintenance timer processes withdrawal and retention so leave/rejoin can be tested. This does not authorize broader pilot admission or waive participant, operator/contact, legal, restore, push or device acceptance. [Exact source and operational evidence](../COMMUNITY_DEV_TESTING_2026-09-30.md) supersedes older closure statements only for this named Dev functional scope.
+
+## 2026-10-01 clarification — follow back (#166)
+
+An approved follower may receive a separate follow-back request from the person they follow, including when handle search is disabled. This established owner graph capability grants no search visibility or automatic reciprocal approval. The existing locked request RPC enforces current eligibility, bilateral blocking, operation replay, cooldowns and quotas. Pending/removed followers provide no additional capability. The Followers UI reads the complete bounded outgoing graph before displaying Follow back, Requested or Following.

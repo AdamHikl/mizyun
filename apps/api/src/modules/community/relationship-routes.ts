@@ -205,26 +205,33 @@ export const communityRelationshipRoutes: FastifyPluginAsync<
       existing?.status !== "pending" &&
       existing?.status !== "approved"
     ) {
-      if (!parsed.data.invitationToken)
-        return sendApiError(
-          reply,
-          request,
-          404,
-          "NOT_FOUND",
-          "User unavailable.",
-        );
-      const invited = await options.communityRepository.getInvitationProfile(
-        parsed.data.invitationToken,
+      const incoming = await options.communityRepository.getRelationship(
+        targetUserId,
+        principal.userId,
         { accessToken: principal.accessToken },
       );
-      if (invited?.userId !== targetUserId)
-        return sendApiError(
-          reply,
-          request,
-          404,
-          "NOT_FOUND",
-          "User unavailable.",
+      if (incoming?.status !== "approved") {
+        if (!parsed.data.invitationToken)
+          return sendApiError(
+            reply,
+            request,
+            404,
+            "NOT_FOUND",
+            "User unavailable.",
+          );
+        const invited = await options.communityRepository.getInvitationProfile(
+          parsed.data.invitationToken,
+          { accessToken: principal.accessToken },
         );
+        if (invited?.userId !== targetUserId)
+          return sendApiError(
+            reply,
+            request,
+            404,
+            "NOT_FOUND",
+            "User unavailable.",
+          );
+      }
     }
     const canSend = canSendFollowRequest({
       followerUserId: principal.userId,

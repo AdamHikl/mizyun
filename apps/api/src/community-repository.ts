@@ -545,7 +545,15 @@ export class InMemoryCommunityRepository implements CommunityRepository {
       }
       return existing;
     }
-    if (!this.#profiles.get(targetUserId)?.isSearchable) {
+    if (
+      !this.#profiles.get(targetUserId)?.isSearchable &&
+      ![...this.#relationships.values()].some(
+        (rel) =>
+          rel.followerUserId === targetUserId &&
+          rel.targetUserId === followerUserId &&
+          rel.status === "approved",
+      )
+    ) {
       const invitation = [...this.#invitations.values()].find(
         (inv) =>
           inv.token === _options?.invitationToken &&

@@ -1348,7 +1348,8 @@
         "supabase/migrations/20260930200000_community_account_lifecycle.sql",
         "supabase/migrations/20260930210000_community_admission_read_controls.sql",
         "supabase/migrations/20260930220000_community_receipt_delivery_bounds.sql",
-        "supabase/migrations/20260930230000_community_erasure_audit.sql"
+        "supabase/migrations/20260930230000_community_erasure_audit.sql",
+        "supabase/migrations/20261001130000_community_follow_back.sql"
       ],
       "tests": [
         "packages/contracts/src/community.test.ts",
@@ -1409,6 +1410,7 @@
         "supabase/tests/database/0019_community_admission_read_controls.test.sql",
         "supabase/tests/database/0020_community_receipt_delivery_bounds.test.sql",
         "supabase/tests/database/0021_community_erasure_audit.test.sql",
+        "supabase/tests/database/0022_community_follow_back.test.sql",
         "apps/mobile/src/features/auth/session-bound-sign-out.test.ts",
         "packages/adapters/supabase-mobile/src/index.test.ts",
         "apps/mobile/src/features/auth/auth-bootstrap.test.ts",
