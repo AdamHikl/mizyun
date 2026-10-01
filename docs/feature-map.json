@@ -1584,7 +1584,8 @@
         "docs/COMMUNITY_FINAL_REVIEW_2026-09-30.md",
         "docs/COMMUNITY_FINAL_REVIEW_SOURCE_2026-09-30.json",
         "docs/adr/0032-community-dev-expansion-boundaries.md",
-        "docs/COMMUNITY_EXPANSIONS_DEV_EVIDENCE_2026-10-01.md"
+        "docs/COMMUNITY_EXPANSIONS_DEV_EVIDENCE_2026-10-01.md",
+        "docs/COMMUNITY_DEV_QUARANTINE_SYNTHETIC_2026-10-01.json"
       ],
       "verificationCommands": [
         "pnpm --filter @mizyun/contracts test src/community.test.ts",

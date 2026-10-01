@@ -1,0 +1,22 @@
+{
+  "archiveSHA256": "30e79926b9fbeb38dc99032618cfe34b8ea8eab4868b61189e67a06f9a717b50",
+  "candidateMigrationHead": "20261001207000",
+  "candidateSHA": "3ef0744e9d4fcb8d98f4f571500edb53bdcb9f9b",
+  "databaseCountsVerified": 118,
+  "disposableResourcesRemoved": true,
+  "environment": "dev",
+  "externalLedgerVerified": false,
+  "forwardMigrationsApplied": 0,
+  "payloadIntegrityVerified": true,
+  "quarantineApplied": true,
+  "reopenPermitted": false,
+  "restoredMigrationLedgerUpdated": false,
+  "revocationsReconciled": false,
+  "sourceSHA": "5492c9a9d6bcffb226d52952cde55d3f6db72790",
+  "storageAclRestored": false,
+  "storageFilesVerified": 1,
+  "fixture": "synthetic-only schema plus one generated account and one generated file",
+  "realUserDataCopied": false,
+  "syntheticPrivateKeyRemoved": true,
+  "plaintextFixtureRemoved": true
+}
