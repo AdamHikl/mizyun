@@ -1235,7 +1235,9 @@
         "packages/core/src/community-notifications.ts",
         "packages/adapters/supabase-server/src/community-notification-repository.ts",
         "packages/adapters/supabase-server/src/community-account-export.ts",
-        "scripts/community-worker.mjs"
+        "scripts/community-worker.mjs",
+        "scripts/verify-community-local-db.py",
+        "scripts/test-community-postgrest.py"
       ],
       "contracts": [
         "packages/contracts/src/community.ts",
@@ -1424,7 +1426,10 @@
         "apps/mobile/src/features/auth/auth-bootstrap.test.ts",
         "apps/mobile/src/composition/community-admission.test.ts",
         "scripts/community-dev-maintenance.test.mjs",
-        "apps/mobile/src/features/community/notifications/inbox-screen.test.tsx"
+        "apps/mobile/src/features/community/notifications/inbox-screen.test.tsx",
+        "scripts/test-community-postgrest.py",
+        "scripts/test-community-postgrest.test.py",
+        "scripts/verify-community-local-db.py"
       ],
       "relations": [
         {

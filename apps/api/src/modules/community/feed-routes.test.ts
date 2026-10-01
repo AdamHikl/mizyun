@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { UserId } from "@mizyun/core";
 import type { AccessTokenVerifier } from "@mizyun/identity";
 
@@ -285,6 +285,86 @@ describe("GET /v1/community/feed", () => {
       headers: { authorization: "Bearer token-bob" },
     });
     expect(blockedRes.json().items).toHaveLength(0);
+  });
+
+  it("bounds concurrent per-card authorization and preserves order and denial", async () => {
+    const { app, communityRepository } = await setupTestApp();
+    for (const [id, handle] of [
+      [userAlice, "alice"],
+      [userBob, "bob"],
+    ] as const) {
+      await communityRepository.saveProfile(id, {
+        handle,
+        displayName: handle,
+        isSearchable: true,
+      });
+    }
+    const edge = await communityRepository.sendFollowRequest(
+      userBob,
+      userAlice,
+    );
+    await communityRepository.updateRelationshipStatus(
+      edge.id,
+      userAlice,
+      "approved",
+    );
+    for (let i = 1; i <= 6; i++) {
+      await communityRepository.publishActivity(userAlice, {
+        sourceWorkoutId: `10000000-0000-4000-8000-00000000000${i}`,
+        category: "strength",
+        sharedDay: "2026-09-29",
+        durationSeconds: null,
+        enrollmentGeneration: 1,
+        operationId: `20000000-0000-4000-8000-00000000000${i}`,
+      });
+    }
+    const expected = await communityRepository.getFeed(userBob, {
+      accessToken: "token-bob",
+    });
+    // Hold the selected page stable so deferred I/O belongs to the route's
+    // post-selection authority checks, rather than the in-memory feed query.
+    vi.spyOn(communityRepository, "getFeed").mockResolvedValue(expected);
+    let paused = true;
+    const releases: (() => void)[] = [];
+    const original =
+      communityRepository.isBlockedBilateral.bind(communityRepository);
+    const checks = vi
+      .spyOn(communityRepository, "isBlockedBilateral")
+      .mockImplementation(async (...args) => {
+        if (paused)
+          await new Promise<void>((resolve) => releases.push(resolve));
+        return original(...args);
+      });
+    const relationships = vi.spyOn(communityRepository, "getRelationship");
+    const response = app.inject({
+      method: "GET",
+      url: "/v1/community/feed",
+      headers: { authorization: "Bearer token-bob" },
+    });
+    // Start injection before inspecting pending I/O; no wall-clock latency assertion.
+    const pending = response.then((value) => value);
+    try {
+      await vi.waitFor(() => expect(checks).toHaveBeenCalledTimes(5));
+      expect(relationships).not.toHaveBeenCalled();
+    } finally {
+      paused = false;
+      releases.forEach((release) => release());
+    }
+    const result = await pending;
+    expect(result.statusCode).toBe(200);
+    expect(checks).toHaveBeenCalledTimes(6);
+    expect(relationships).toHaveBeenCalledTimes(6);
+    expect(result.json().items.map((item: { id: string }) => item.id)).toEqual(
+      expected.items.map((item) => item.id),
+    );
+    // A denial discovered after initial feed selection must still hide every card.
+    checks.mockResolvedValue(true);
+    const denied = await app.inject({
+      method: "GET",
+      url: "/v1/community/feed",
+      headers: { authorization: "Bearer token-bob" },
+    });
+    expect(denied.json().items).toEqual([]);
   });
 
   it("handles pagination with limit and cursor, rejecting invalid cursor", async () => {

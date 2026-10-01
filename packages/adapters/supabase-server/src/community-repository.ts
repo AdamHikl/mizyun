@@ -1326,12 +1326,25 @@ export class SupabaseCommunityRepository implements CommunityRepository {
       }
     >();
 
-    for (const id of activityIds) {
-      const res = await this.getReactionsForActivity(id, viewerUserId, options);
-      result.set(id, {
-        reactionCounts: res.reactionCounts,
-        viewerReaction: res.viewerReaction,
-      });
+    // Each read still reauthorizes the card and filters blocked reactors.
+    // A denied/failed read rejects the page; never substitute stale counts.
+    for (let offset = 0; offset < activityIds.length; offset += 5) {
+      const batch = await Promise.all(
+        activityIds.slice(offset, offset + 5).map(async (id) => ({
+          id,
+          reactions: await this.getReactionsForActivity(
+            id,
+            viewerUserId,
+            options,
+          ),
+        })),
+      );
+      for (const { id, reactions } of batch) {
+        result.set(id, {
+          reactionCounts: reactions.reactionCounts,
+          viewerReaction: reactions.viewerReaction,
+        });
+      }
     }
 
     return result;

@@ -93,56 +93,75 @@ export const communityFeedRoutes: FastifyPluginAsync<
       );
 
       const authorUserIds = [...new Set(feedResult.items.map((i) => i.userId))];
-      const profiles = await Promise.all(
-        authorUserIds.map(async (authorId) => {
-          const p = await options.communityRepository.getProfile(authorId, {
-            accessToken: principal.accessToken,
-          });
-          return [authorId, p] as const;
-        }),
-      );
-      const profileMap = new Map(profiles);
+      const profileMap = new Map<
+        string,
+        Awaited<ReturnType<CommunityRepository["getProfile"]>>
+      >();
+      for (let offset = 0; offset < authorUserIds.length; offset += 5) {
+        const profiles = await Promise.all(
+          authorUserIds.slice(offset, offset + 5).map(async (authorId) => {
+            const profile = await options.communityRepository.getProfile(
+              authorId,
+              {
+                accessToken: principal.accessToken,
+              },
+            );
+            return [authorId, profile] as const;
+          }),
+        );
+        for (const [authorId, profile] of profiles)
+          profileMap.set(authorId, profile);
+      }
 
       const validItems: SharedActivityFeedItemDto[] = [];
 
-      for (const item of feedResult.items) {
-        if (item.revokedAt !== null) continue;
-        const author = profileMap.get(item.userId);
-        if (!author || author.status !== "active") continue;
+      // Keep every current-authority check, but cap independent I/O at five
+      // cards. Promise.all preserves chronological order within each batch.
+      for (let offset = 0; offset < feedResult.items.length; offset += 5) {
+        const batch = await Promise.all(
+          feedResult.items
+            .slice(offset, offset + 5)
+            .map(async (item): Promise<SharedActivityFeedItemDto | null> => {
+              if (item.revokedAt !== null) return null;
+              const author = profileMap.get(item.userId);
+              if (!author || author.status !== "active") return null;
 
-        if (item.userId !== principal.userId) {
-          const isBlocked =
-            await options.communityRepository.isBlockedBilateral(
-              principal.userId,
-              item.userId,
-              { accessToken: principal.accessToken },
-            );
-          if (isBlocked) continue;
+              if (item.userId !== principal.userId) {
+                const isBlocked =
+                  await options.communityRepository.isBlockedBilateral(
+                    principal.userId,
+                    item.userId,
+                    { accessToken: principal.accessToken },
+                  );
+                if (isBlocked) return null;
 
-          const rel = await options.communityRepository.getRelationship(
-            principal.userId,
-            item.userId,
-            { accessToken: principal.accessToken },
-          );
-          if (!rel || rel.status !== "approved") continue;
-        }
+                const rel = await options.communityRepository.getRelationship(
+                  principal.userId,
+                  item.userId,
+                  { accessToken: principal.accessToken },
+                );
+                if (!rel || rel.status !== "approved") return null;
+              }
 
-        validItems.push({
-          id: item.id,
-          authorUserId: item.userId,
-          authorHandle: author.handle,
-          authorDisplayName: author.displayName,
-          authorAvatarSymbol: author.avatarSymbol,
-          category: item.category,
-          sharedDay: item.sharedDay,
-          durationSeconds: item.durationSeconds,
-          workoutDetails: sharedWorkoutDetailsSchema
-            .nullable()
-            .parse(item.workoutDetails ?? null),
-          publishedAt: item.publishedAt.toISOString(),
-          reactionCounts: defaultReactionCounts,
-          viewerReaction: null,
-        });
+              return {
+                id: item.id,
+                authorUserId: item.userId,
+                authorHandle: author.handle,
+                authorDisplayName: author.displayName,
+                authorAvatarSymbol: author.avatarSymbol,
+                category: item.category,
+                sharedDay: item.sharedDay,
+                durationSeconds: item.durationSeconds,
+                workoutDetails: sharedWorkoutDetailsSchema
+                  .nullable()
+                  .parse(item.workoutDetails ?? null),
+                publishedAt: item.publishedAt.toISOString(),
+                reactionCounts: defaultReactionCounts,
+                viewerReaction: null,
+              };
+            }),
+        );
+        for (const item of batch) if (item) validItems.push(item);
       }
 
       const activityIds = validItems.map((i) => i.id);

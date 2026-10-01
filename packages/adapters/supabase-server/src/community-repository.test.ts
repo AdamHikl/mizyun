@@ -740,3 +740,64 @@ describe("Moderation transport authority", () => {
     });
   });
 });
+
+describe("Bounded feed reaction reads", () => {
+  it("overlaps at most five independent authority reads while retaining order", async () => {
+    const { repository } = rpcRepository({});
+    const ids = Array.from({ length: 12 }, (_, index) => `activity-${index}`);
+    let paused = true;
+    const releases: (() => void)[] = [];
+    let active = 0;
+    let maximum = 0;
+    const read = vi
+      .spyOn(repository, "getReactionsForActivity")
+      .mockImplementation(async (id) => {
+        active++;
+        maximum = Math.max(maximum, active);
+        if (paused)
+          await new Promise<void>((resolve) => releases.push(resolve));
+        active--;
+        return {
+          activityId: id,
+          reactionCounts: {
+            clap: 1,
+            fire: 0,
+            high_five: 0,
+            fist_bump: 0,
+            thumbs_up: 0,
+          },
+          viewerReaction: "clap",
+        };
+      });
+    const pending = repository.getReactionsForActivities(ids, callerId, {
+      accessToken: callerToken,
+    });
+    try {
+      await vi.waitFor(() => expect(read).toHaveBeenCalledTimes(5));
+      expect(maximum).toBe(5);
+    } finally {
+      paused = false;
+      releases.forEach((release) => release());
+    }
+    const result = await pending;
+    expect([...result.keys()]).toEqual(ids);
+    expect(read).toHaveBeenCalledTimes(12);
+    expect(maximum).toBe(5);
+    for (const id of ids)
+      expect(read).toHaveBeenCalledWith(id, callerId, {
+        accessToken: callerToken,
+      });
+  });
+
+  it("fails the entire page when a card becomes unauthorized", async () => {
+    const { repository } = rpcRepository({});
+    vi.spyOn(repository, "getReactionsForActivity").mockRejectedValue(
+      new CommunityMutationError("unavailable"),
+    );
+    await expect(
+      repository.getReactionsForActivities(["revoked", "other"], callerId, {
+        accessToken: callerToken,
+      }),
+    ).rejects.toThrow("unavailable");
+  });
+});
