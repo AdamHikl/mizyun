@@ -257,6 +257,33 @@ function FeedScreenContent({
     );
   }
 
+  // Color belongs to navigation and encouragement, never permission/status.
+  const accents =
+    colors.background === "#0B0F12"
+      ? {
+          mint: "#12392F",
+          mintText: "#C5F5DE",
+          purple: "#2C2441",
+          purpleText: "#E1D4FF",
+          blue: "#17334A",
+          blueText: "#C6E8FF",
+          peach: "#3E2C24",
+          peachText: "#FFDDC5",
+        }
+      : {
+          mint: "#D7F5E5",
+          mintText: "#14543B",
+          purple: "#EEE6FF",
+          purpleText: "#4C327A",
+          blue: "#E0F1FF",
+          blueText: "#244D72",
+          peach: "#FFEBDD",
+          peachText: "#74442A",
+        };
+  const updatingEmpty =
+    !membershipVerified ||
+    state.status === "loading" ||
+    state.status === "refreshing";
   // Header quick links
   const headerComponent = (
     <View style={styles.headerBar}>
@@ -275,14 +302,23 @@ function FeedScreenContent({
             href: "/community/invite",
             label: "Find friends",
             description: "Search a handle or send an invite",
-            caption: "Search or invite",
+            caption:
+              "A little support goes a long way. Search a handle or invite a friend.",
+            icon: "👋",
+            surface: accents.mint,
+            ink: accents.mintText,
+            primary: true,
             accessibilityLabel: "Find Friends",
           },
           {
             href: "/community/relationships",
-            label: "Friends & requests",
+            label: "Friends",
             description: "Approve requests and manage follows",
             caption: "Following & requests",
+            icon: "👥",
+            surface: accents.purple,
+            ink: accents.purpleText,
+            primary: false,
             accessibilityLabel: "Your friends and requests",
           },
           {
@@ -290,13 +326,21 @@ function FeedScreenContent({
             label: "Inbox",
             description: "Updates about your shared activity",
             caption: "Community updates",
+            icon: "💬",
+            surface: accents.blue,
+            ink: accents.blueText,
+            primary: false,
             accessibilityLabel: "Community inbox",
           },
           {
             href: "/community/settings",
-            label: "Profile & privacy",
+            label: "Profile",
             description: "Your social profile and Community choices",
             caption: "Your Community choices",
+            icon: "🌿",
+            surface: accents.peach,
+            ink: accents.peachText,
+            primary: false,
             accessibilityLabel: "My Community profile and settings",
           },
         ].map((destination) => (
@@ -304,37 +348,60 @@ function FeedScreenContent({
             <Pressable
               style={StyleSheet.flatten([
                 styles.navigationCard,
+                destination.primary
+                  ? styles.findFriendsCard
+                  : styles.shortcutCard,
                 {
-                  borderColor: colors.border,
-                  backgroundColor: colors.backgroundElement,
+                  borderColor: destination.surface,
+                  backgroundColor: destination.surface,
                 },
               ])}
               accessibilityRole="button"
               accessibilityLabel={destination.accessibilityLabel}
               accessibilityHint={destination.description}
             >
-              <View style={styles.navigationTopRow}>
-                <Text style={[styles.navigationTitle, { color: colors.text }]}>
-                  {destination.label}
-                </Text>
+              <View
+                style={
+                  destination.primary
+                    ? styles.navigationTopRow
+                    : styles.shortcutTopRow
+                }
+              >
                 <Text
                   accessible={false}
+                  importantForAccessibility="no"
+                  style={styles.navigationIcon}
+                >
+                  {destination.icon}
+                </Text>
+                <Text
                   style={[
-                    styles.navigationArrow,
-                    { color: colors.textSecondary },
+                    styles.navigationTitle,
+                    !destination.primary && styles.shortcutTitle,
+                    { color: destination.ink },
                   ]}
                 >
-                  ›
+                  {destination.label}
                 </Text>
+                {destination.primary && (
+                  <Text
+                    accessible={false}
+                    style={[styles.navigationArrow, { color: destination.ink }]}
+                  >
+                    ›
+                  </Text>
+                )}
               </View>
-              <Text
-                style={[
-                  styles.navigationDescription,
-                  { color: colors.textSecondary },
-                ]}
-              >
-                {destination.caption}
-              </Text>
+              {destination.primary && (
+                <Text
+                  style={[
+                    styles.navigationDescription,
+                    { color: destination.ink },
+                  ]}
+                >
+                  {destination.caption}
+                </Text>
+              )}
             </Pressable>
           </Link>
         ))}
@@ -343,7 +410,7 @@ function FeedScreenContent({
         accessibilityRole="header"
         style={[styles.feedHeading, { color: colors.text }]}
       >
-        Following
+        Friends’ activity
       </Text>
       <Text style={[styles.feedDescription, { color: colors.textSecondary }]}>
         Shared workouts from friends you follow.
@@ -376,46 +443,63 @@ function FeedScreenContent({
   const emptyComponent = (
     <View
       style={[
-        styles.emptyContainer,
+        updatingEmpty ? styles.updatingSpace : styles.emptyContainer,
         {
-          backgroundColor: colors.backgroundElement,
-          borderColor: colors.border,
+          backgroundColor: updatingEmpty ? "transparent" : accents.mint,
+          borderColor: "transparent",
         },
       ]}
     >
-      {!membershipVerified ||
-      state.status === "loading" ||
-      state.status === "refreshing" ? (
+      {updatingEmpty ? (
         <View accessible accessibilityLabel="Updating shared activity" />
       ) : state.error ? (
         <>
           <Text style={[styles.emptyTitle, { color: colors.text }]}>
             Activity is unavailable
           </Text>
-          <Text style={[styles.emptyBody, { color: colors.textSecondary }]}>
+          <Text style={[styles.emptyBody, { color: accents.mintText }]}>
             Use Retry above to check again. Your private tracking stays
             available.
           </Text>
         </>
       ) : (
         <>
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>
+          <View
+            style={styles.encouragementArt}
+            accessible={false}
+            importantForAccessibility="no-hide-descendants"
+          >
+            <Text
+              style={[styles.artBubble, { backgroundColor: accents.purple }]}
+            >
+              👏
+            </Text>
+            <Text
+              style={[styles.artBubble, { backgroundColor: accents.peach }]}
+            >
+              🙌
+            </Text>
+            <Text style={[styles.artBubble, { backgroundColor: accents.blue }]}>
+              💪
+            </Text>
+          </View>
+          <Text style={[styles.emptyTitle, { color: accents.mintText }]}>
             No shared workouts yet
           </Text>
-          <Text style={[styles.emptyBody, { color: colors.textSecondary }]}>
-            Find a friend to follow. Once they approve your request, workouts
-            they choose to share will appear here.
+          <Text style={[styles.emptyBody, { color: accents.mintText }]}>
+            A place to cheer each other on. Follow a friend; after they approve,
+            the workouts they choose to share will appear here.
           </Text>
           <Link href={"/community/invite" as Href} asChild>
             <Pressable
               style={StyleSheet.flatten([
                 styles.inviteButton,
-                { backgroundColor: colors.primaryLight },
+                { backgroundColor: "#047857" },
               ])}
               accessibilityRole="button"
               accessibilityLabel="Find a friend"
             >
-              <Text style={[styles.inviteButtonText, { color: colors.text }]}>
+              <Text style={[styles.inviteButtonText, { color: "#FFFFFF" }]}>
                 Find friends
               </Text>
             </Pressable>
@@ -432,17 +516,17 @@ function FeedScreenContent({
         style={[
           styles.sharingNote,
           {
-            backgroundColor: colors.backgroundElement,
-            borderColor: colors.border,
+            backgroundColor: accents.purple,
+            borderColor: accents.purple,
           },
         ]}
       >
-        <Text style={[styles.noteTitle, { color: colors.text }]}>
-          Sharing is your choice
+        <Text style={[styles.noteTitle, { color: accents.purpleText }]}>
+          Your workout. Your choice.
         </Text>
-        <Text style={[styles.noteBody, { color: colors.textSecondary }]}>
-          Preview a saved workout before sharing. Only its category, selected
-          day and optional duration are shared. Workout details stay private.
+        <Text style={[styles.noteBody, { color: accents.purpleText }]}>
+          Choose a saved workout and preview before sharing. Only category,
+          selected day and optional duration are shared. Details stay private.
         </Text>
         <Link href={"/workouts" as Href} asChild>
           <Pressable
@@ -562,17 +646,25 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     flexWrap: "wrap",
   },
+  findFriendsCard: { flexBasis: "100%", padding: 18 },
+  shortcutCard: { flexBasis: "28%", minWidth: 88 },
+  shortcutTopRow: { alignItems: "center", gap: 6 },
+  shortcutTitle: { textAlign: "center", flex: 0 },
+  navigationIcon: { fontSize: 26, marginBottom: 4 },
   navigationCard: {
     flexGrow: 1,
-    flexBasis: "45%",
-    minWidth: 140,
     minHeight: 80,
     padding: 12,
     gap: 4,
     borderRadius: 16,
     borderWidth: 1,
   },
-  navigationTopRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  navigationTopRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 8,
+  },
   navigationTitle: { flex: 1, fontSize: 14, lineHeight: 20, fontWeight: "700" },
   navigationArrow: { fontSize: 24, lineHeight: 28 },
   navigationDescription: { fontSize: 14, lineHeight: 20 },
@@ -629,6 +721,21 @@ const styles = StyleSheet.create({
   retryText: {
     fontSize: 13,
     fontWeight: "600",
+  },
+  updatingSpace: { height: 0 },
+  encouragementArt: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    maxWidth: "100%",
+    gap: 10,
+    marginBottom: 16,
+  },
+  artBubble: {
+    fontSize: 28,
+    padding: 12,
+    borderRadius: 28,
+    overflow: "hidden",
   },
   emptyContainer: {
     alignItems: "center",

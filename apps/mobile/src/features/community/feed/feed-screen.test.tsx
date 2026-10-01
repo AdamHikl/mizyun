@@ -269,6 +269,34 @@ describe("Community home participation and navigation", () => {
     expect(Array.isArray(invite.props.style)).toBe(false);
     expect(invite.props.style.minHeight).toBeGreaterThanOrEqual(48);
   });
+  it("makes discovery primary and keeps management shortcuts compact, without inventing social counts", async () => {
+    mocks.enrolled = true;
+    const list = (await settledRender()).props.children[1];
+    const primary = find(list.props.ListHeaderComponent, "Find Friends");
+    const friends = find(
+      list.props.ListHeaderComponent,
+      "Your friends and requests",
+    );
+    expect(primary.props.style.flexBasis).toBe("100%");
+    expect(friends.props.style.flexBasis).toBe("28%");
+    expect(primary.props.style.backgroundColor).not.toBe(
+      friends.props.style.backgroundColor,
+    );
+    expect(primary.props.accessibilityHint).toContain("handle");
+  });
+  it("removes the blank outlined capsule during automatic feed refresh", async () => {
+    mocks.enrolled = true;
+    await settledRender();
+    mocks.feedStatus = "refreshing";
+    const list = render().props.children[1];
+    const empty = list.props.ListEmptyComponent;
+    const style = Object.assign({}, ...empty.props.style);
+    expect(style.height).toBe(0);
+    expect(style.borderWidth).toBeUndefined();
+    expect(style.backgroundColor).toBe("transparent");
+    expect(list.props.refreshControl.props.refreshing).toBe(false);
+    expect(list.props.data).toEqual([]);
+  });
   it("does not describe a failed feed read as an empty friends feed", async () => {
     mocks.enrolled = true;
     mocks.feedError = "Could not load activity";
