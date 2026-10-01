@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   AppState,
@@ -130,6 +136,15 @@ export function ActivityDetailScreen({
     setLoading(false);
   }, [activityId, principalKey]);
 
+  const reactionsClient = useMemo(() => {
+    const requestEpoch = epoch.current.capture();
+    return scopeCommunityClient(
+      apiClient,
+      principalKey,
+      () => alive.current && lifetime.current === current && requestEpoch(),
+    );
+  }, [principalKey, current, activity]);
+
   const focused = useRef(false);
   const foreground = useRef(AppState.currentState === "active");
   const clear = useCallback(() => {
@@ -158,6 +173,7 @@ export function ActivityDetailScreen({
   );
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (next) => {
+      if (foreground.current === (next === "active")) return;
       foreground.current = next === "active";
       if (next !== "active") clear();
       else resume();
@@ -368,11 +384,7 @@ export function ActivityDetailScreen({
             initialReactionCounts={activity.reactionCounts}
             initialViewerReaction={activity.viewerReaction}
             onUnavailable={clear}
-            scopedClient={
-              principalKey
-                ? scopeCommunityClient(apiClient, principalKey, isCurrent)
-                : undefined
-            }
+            scopedClient={principalKey ? reactionsClient : undefined}
             onReactionChanged={(newViewerReaction, newCounts) => {
               setActivity((prev) =>
                 prev

@@ -66,12 +66,14 @@ function InboxContent({ principal }: { principal: string | null }) {
   useFocusEffect(
     useCallback(() => {
       let focused = true;
+      let foreground = AppState.currentState === "active";
       if (AppState.currentState === "active") {
         controller.resume();
         void controller.load();
       } else controller.pause();
       const subscription = AppState.addEventListener("change", (value) => {
-        if (!focused) return;
+        if (!focused || foreground === (value === "active")) return;
+        foreground = value === "active";
         controller.pause();
         if (value === "active") {
           controller.resume();
@@ -150,7 +152,7 @@ function InboxContent({ principal }: { principal: string | null }) {
               {state.error}
             </ThemedText>
           )}
-          {!state.error && state.items.length === 0 && (
+          {!state.busy && !state.error && state.items.length === 0 && (
             <View style={[styles.empty, { backgroundColor: palette.blue }]}>
               <Text accessible={false} style={styles.emptyIcon}>
                 🙌

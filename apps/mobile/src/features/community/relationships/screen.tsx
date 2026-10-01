@@ -182,6 +182,7 @@ function OwnerRelationships({
   );
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (next) => {
+      if (foreground.current === (next === "active")) return;
       foreground.current = next === "active";
       if (next !== "active") {
         alive.current = false;

@@ -93,14 +93,23 @@ function SettingsContent({
     }
   }, [embedded, state.status, state.isEnrolled, onJoined]);
   const { load } = actions;
+  const foreground = useRef(AppState.currentState === "active");
+  const focused = useRef(false);
   useFocusEffect(
     useCallback(() => {
-      if (principalKey !== null) void load();
+      focused.current = true;
+      if (foreground.current && principalKey !== null) void load();
+      return () => {
+        focused.current = false;
+      };
     }, [load, principalKey]),
   );
   useEffect(() => {
     const listener = AppState.addEventListener("change", (next) => {
-      if (next === "active" && principalKey !== null) void load();
+      if (foreground.current === (next === "active")) return;
+      foreground.current = next === "active";
+      if (foreground.current && focused.current && principalKey !== null)
+        void load();
     });
     return () => listener.remove();
   }, [load, principalKey]);

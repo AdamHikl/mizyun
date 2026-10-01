@@ -67,12 +67,24 @@ function FeedScreenContent({
   const membershipRevision = useRef(0);
   // Remembers presentation only, never permission or protected feed content.
   const hasShownHub = useRef(false);
+  const hasShownActivity = useRef(false);
+  const prefetchedFeed = useRef<{ generation: number | undefined } | null>(
+    null,
+  );
+  const verifiedGeneration = useRef<number | undefined>(undefined);
   const [manualRefreshing, setManualRefreshing] = useState(false);
   useEffect(() => {
     if (membershipVerified)
       hasShownHub.current =
         community.status === "ready" && community.isEnrolled;
-  }, [membershipVerified, community.status, community.isEnrolled]);
+    if (membershipVerified && community.status === "ready")
+      verifiedGeneration.current = community.profile?.generation;
+  }, [
+    membershipVerified,
+    community.status,
+    community.isEnrolled,
+    community.profile?.generation,
+  ]);
 
   const alive = useRef(true);
   useEffect(() => {
@@ -92,6 +104,11 @@ function FeedScreenContent({
     controller.getSnapshot,
   );
 
+  useEffect(() => {
+    if (membershipVerified && state.status === "idle")
+      hasShownActivity.current = state.items.length > 0;
+  }, [membershipVerified, state.status, state.items.length]);
+
   const focused = useRef(false);
   const foreground = useRef(AppState.currentState === "active");
   const enrolled = useRef(community.isEnrolled);
@@ -108,7 +125,20 @@ function FeedScreenContent({
     setManualRefreshing(false);
     alive.current = false;
     controller.pause();
-    await community.actions.load();
+    // The feed endpoint checks its own audience authority. Overlap the two
+    // reads on a returning hub, but reveal nothing until both have settled.
+    prefetchedFeed.current =
+      hasShownHub.current && principalKey !== null
+        ? { generation: verifiedGeneration.current }
+        : null;
+    const feedRead = prefetchedFeed.current
+      ? (() => {
+          alive.current = true;
+          controller.resume();
+          return controller.refresh();
+        })()
+      : Promise.resolve();
+    await Promise.all([community.actions.load(), feedRead]);
     if (
       revision !== membershipRevision.current ||
       !focused.current ||
@@ -116,7 +146,7 @@ function FeedScreenContent({
     )
       return;
     setMembershipVerified(true);
-  }, [controller, community.actions.load]);
+  }, [controller, community.actions.load, principalKey]);
   useFocusEffect(
     useCallback(() => {
       focused.current = true;
@@ -132,6 +162,7 @@ function FeedScreenContent({
   );
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (next) => {
+      if (foreground.current === (next === "active")) return;
       foreground.current = next === "active";
       if (next !== "active") {
         membershipRevision.current += 1;
@@ -144,6 +175,18 @@ function FeedScreenContent({
     return () => subscription.remove();
   }, [controller, revalidateMembership]);
   useEffect(() => {
+    if (!membershipVerified) return;
+    if (!community.isEnrolled) {
+      prefetchedFeed.current = null;
+      controller.pause();
+      return;
+    }
+    if (prefetchedFeed.current) {
+      const sameGeneration =
+        prefetchedFeed.current.generation === community.profile?.generation;
+      prefetchedFeed.current = null;
+      if (sameGeneration) return;
+    }
     controller.pause();
     loadFeed();
   }, [
@@ -182,13 +225,26 @@ function FeedScreenContent({
     }
   }, [controller, state.hasMore, state.status]);
 
-  const scopedClient = useMemo(
-    () =>
-      principalKey
-        ? scopeCommunityClient(apiClient, principalKey, () => alive.current)
-        : undefined,
-    [principalKey],
-  );
+  const feedGenerationMatches =
+    !prefetchedFeed.current ||
+    prefetchedFeed.current.generation === community.profile?.generation;
+
+  const visibleRevision = membershipRevision.current;
+  const scopedClient = useMemo(() => {
+    const revision = visibleRevision;
+    return principalKey
+      ? scopeCommunityClient(
+          apiClient,
+          principalKey,
+          () =>
+            alive.current &&
+            focused.current &&
+            foreground.current &&
+            membershipVerified &&
+            revision === membershipRevision.current,
+        )
+      : undefined;
+  }, [principalKey, membershipVerified, visibleRevision]);
 
   const renderItem = useCallback(
     ({ item }: { item: SharedActivityFeedItemDto }) => (
@@ -414,74 +470,116 @@ function FeedScreenContent({
     </View>
   );
 
-  // Static public encouragement stays identical while access/feed refresh.
-  // It asserts nothing about current membership or the number of shared cards.
-  const emptyComponent = (
-    <View
-      style={[
-        styles.emptyContainer,
-        {
-          backgroundColor: accents.mint,
-          borderColor: "transparent",
-        },
-      ]}
-    >
-      {state.error ? (
-        <>
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>
-            Activity is unavailable
-          </Text>
-          <Text style={[styles.emptyBody, { color: accents.mintText }]}>
-            Use Retry above to check again. Your private tracking stays
-            available.
-          </Text>
-        </>
-      ) : (
-        <>
-          <View
-            style={styles.encouragementArt}
-            accessible={false}
-            importantForAccessibility="no-hide-descendants"
-          >
-            <Text
-              style={[styles.artBubble, { backgroundColor: accents.purple }]}
-            >
-              👏
+  // Retain only generic presentation while protected cards are revalidated.
+  // A previously populated feed must not flash the empty encouragement panel.
+  const checkingActivity =
+    !feedGenerationMatches ||
+    checkingMembership ||
+    state.status === "loading" ||
+    state.status === "refreshing";
+  const emptyComponent =
+    checkingActivity && hasShownActivity.current && !state.error ? (
+      <View
+        accessibilityLabel="Checking shared workouts"
+        accessibilityState={{ busy: true }}
+        style={[
+          styles.activityPlaceholder,
+          {
+            backgroundColor: colors.backgroundElement,
+            borderColor: colors.border,
+          },
+        ]}
+      >
+        <View
+          accessible={false}
+          style={[
+            styles.placeholderLine,
+            { backgroundColor: colors.border, width: "45%" },
+          ]}
+        />
+        <View
+          accessible={false}
+          style={[
+            styles.placeholderLine,
+            { backgroundColor: colors.border, width: "70%" },
+          ]}
+        />
+        <View
+          accessible={false}
+          style={[
+            styles.placeholderLine,
+            { backgroundColor: colors.border, width: "90%" },
+          ]}
+        />
+      </View>
+    ) : (
+      <View
+        style={[
+          styles.emptyContainer,
+          {
+            backgroundColor: accents.mint,
+            borderColor: "transparent",
+          },
+        ]}
+      >
+        {state.error ? (
+          <>
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>
+              Activity is unavailable
             </Text>
-            <Text
-              style={[styles.artBubble, { backgroundColor: accents.peach }]}
-            >
-              🙌
+            <Text style={[styles.emptyBody, { color: accents.mintText }]}>
+              Use Retry above to check again. Your private tracking stays
+              available.
             </Text>
-            <Text style={[styles.artBubble, { backgroundColor: accents.blue }]}>
-              💪
-            </Text>
-          </View>
-          <Text style={[styles.emptyTitle, { color: accents.mintText }]}>
-            Cheer each other on
-          </Text>
-          <Text style={[styles.emptyBody, { color: accents.mintText }]}>
-            Follow a friend. After they approve, the workouts they choose to
-            share appear here.
-          </Text>
-          <Link href={"/community/invite" as Href} asChild>
-            <Pressable
-              style={StyleSheet.flatten([
-                styles.inviteButton,
-                { backgroundColor: "#047857" },
-              ])}
-              accessibilityRole="button"
-              accessibilityLabel="Find a friend"
+          </>
+        ) : (
+          <>
+            <View
+              style={styles.encouragementArt}
+              accessible={false}
+              importantForAccessibility="no-hide-descendants"
             >
-              <Text style={[styles.inviteButtonText, { color: "#FFFFFF" }]}>
-                Find friends
+              <Text
+                style={[styles.artBubble, { backgroundColor: accents.purple }]}
+              >
+                👏
               </Text>
-            </Pressable>
-          </Link>
-        </>
-      )}
-    </View>
-  );
+              <Text
+                style={[styles.artBubble, { backgroundColor: accents.peach }]}
+              >
+                🙌
+              </Text>
+              <Text
+                style={[styles.artBubble, { backgroundColor: accents.blue }]}
+              >
+                💪
+              </Text>
+            </View>
+            <Text style={[styles.emptyTitle, { color: accents.mintText }]}>
+              Cheer each other on
+            </Text>
+            <Text style={[styles.emptyBody, { color: accents.mintText }]}>
+              Follow a friend. After they approve, the workouts they choose to
+              share appear here.
+            </Text>
+            <Link href={"/community/invite" as Href} asChild>
+              <Pressable
+                style={StyleSheet.flatten([
+                  styles.inviteButton,
+                  { backgroundColor: "#047857" },
+                ])}
+                accessibilityRole="button"
+                accessibilityLabel="Find a friend"
+              >
+                <Text style={[styles.inviteButtonText, { color: "#FFFFFF" }]}>
+                  Find friends
+                </Text>
+              </Pressable>
+            </Link>
+          </>
+        )}
+      </View>
+    );
 
   // Footer component (pagination loading or caught up indicator)
   const footerComponent = (
@@ -548,7 +646,7 @@ function FeedScreenContent({
       </View>
       <FlatList
         data={
-          (membershipVerified && community.isEnrolled
+          (membershipVerified && feedGenerationMatches && community.isEnrolled
             ? state.items
             : []) as SharedActivityFeedItemDto[]
         }
@@ -573,6 +671,16 @@ function FeedScreenContent({
 }
 
 const styles = StyleSheet.create({
+  activityPlaceholder: {
+    minHeight: 320,
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 20,
+    gap: 24,
+    marginTop: 24,
+    marginBottom: 16,
+  },
+  placeholderLine: { height: 16, borderRadius: 8 },
   container: {
     flex: 1,
     paddingTop: Platform.OS === "web" ? 80 : 0,

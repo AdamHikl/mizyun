@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  principal: "account-a",
+  principal: "account-a" as string | null,
   appState: null as null | ((state: string) => void),
   fetch: vi.fn(),
   save: vi.fn(),
@@ -75,7 +75,7 @@ vi.mock("react-native", () => ({
 vi.mock("@/hooks/use-theme", () => ({ useTheme: () => ({}) }));
 vi.mock("@/features/auth/auth-context", () => ({
   useAuth: () => ({
-    session: { user: { id: mocks.principal } },
+    session: mocks.principal ? { user: { id: mocks.principal } } : null,
     profile: { birthYear: 1990 },
   }),
 }));
@@ -195,6 +195,31 @@ beforeEach(() => {
   mocks.save.mockResolvedValue({ ok: true, value: { id: "activity-a" } });
 });
 describe("actual sharing modal selection and lifecycle", () => {
+  it("ends loading with a closeable sign-in message when signed out", async () => {
+    mocks.principal = null;
+    const tree = await load();
+    expect(text(tree)).toContain("Sign in to share a workout");
+    expect(text(tree)).not.toContain("Preparing workout preview");
+    expect(mocks.fetch).not.toHaveBeenCalled();
+    find(
+      tree,
+      (node) => node.props?.accessibilityLabel === "Close",
+    ).props.onPress();
+    expect(mocks.dismiss).toHaveBeenCalledOnce();
+  });
+
+  it("does not discard a sharing choice on an unchanged active event", async () => {
+    let tree = await load();
+    checkbox(tree).props.onPress();
+    render();
+    mocks.appState!("active");
+    await Promise.resolve();
+    tree = render();
+    expect(mocks.fetch).toHaveBeenCalledOnce();
+    expect(mocks.load).not.toHaveBeenCalled();
+    expect(checkbox(tree).props.accessibilityState.checked).toBe(true);
+  });
+
   it("defaults a new workout to summary and requires an explicit detail choice", async () => {
     let tree = await load();
     expect(checkbox(tree).props.accessibilityState.checked).toBe(false);

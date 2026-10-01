@@ -128,6 +128,7 @@ export function DiscoveryScreen({
   );
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (next) => {
+      if (foreground.current === (next === "active")) return;
       foreground.current = next === "active";
       revalidate();
     });

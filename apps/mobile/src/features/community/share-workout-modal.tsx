@@ -91,11 +91,12 @@ export function ShareWorkoutModal({
   const [foregroundRevision, setForegroundRevision] = useState(0);
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (next) => {
+      if (foreground.current === (next === "active")) return;
       foreground.current = next === "active";
       selectionRevision.current += 1;
       setPreview(null);
       publicationOperation.current = null;
-      if (next === "active") {
+      if (next === "active" && currentSelection.current.visible) {
         void profileActions.load();
         setForegroundRevision((revision) => revision + 1);
       }
@@ -340,10 +341,16 @@ export function ShareWorkoutModal({
             </Pressable>
           </View>
 
-          {!foreground.current ||
-          loading ||
-          profileStatus === "loading" ||
-          profileStatus === "idle" ? (
+          {!principalKey ? (
+            <View style={styles.centerBox}>
+              <Text style={styles.notEnrolledText}>
+                Sign in to share a workout.
+              </Text>
+            </View>
+          ) : !foreground.current ||
+            loading ||
+            profileStatus === "loading" ||
+            profileStatus === "idle" ? (
             <View style={styles.centerBox}>
               <ActivityIndicator size="large" color={colors.primary} />
               <Text style={styles.loadingText}>

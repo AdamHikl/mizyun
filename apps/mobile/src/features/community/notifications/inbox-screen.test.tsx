@@ -175,6 +175,7 @@ describe("Community inbox presentation and destinations", () => {
     let tree = render();
     expect(action(tree, "Checking updates…").props.disabled).toBe(true);
     expect(text(tree)).not.toContain("No Community updates");
+    expect(text(tree)).not.toContain("A little encouragement goes a long way");
     mocks.busy = false;
     mocks.error = "Could not load updates";
     tree = render();

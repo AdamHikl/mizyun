@@ -1,5 +1,9 @@
 # Research log
 
+## 2026-10-01 — Community repeated loading (#168)
+
+- [Expo SDK 57](https://docs.expo.dev/versions/v57.0.0/), [React effects](https://react.dev/reference/react/useEffect), [React memoization](https://react.dev/reference/react/useMemo) and [React Native AppState](https://reactnative.dev/docs/appstate), accessed today: effects track dependency identity and asynchronous results require cleanup; AppState describes foreground transitions. Consequence: stable detail reactions client, unchanged-foreground event suppression, signed-out sharing recovery and concurrent returning feed/membership reads with protected results hidden until both settle. Existing memory-only privacy/authority boundaries stay in force; generic card placeholders retain presentation only.
+
 ## 2026-10-01 — Explicit detailed workout sharing (#167)
 
 - Reviewed Hevy's official [social features](https://www.hevyapp.com/features/social-features/) and [sharing workouts versus routines](https://help.hevyapp.com/hc/en-us/articles/34953501503895-How-to-Share-Workouts-and-Routines-in-Hevy). Completed workout views expose exercises, set counts/types, weights, reps, RPE, duration, personal records and exercise notes. Routine sharing is a template and does not include the sender's usual weights/reps. Directly shared Hevy content may be viewable without an account. These facts describe Hevy; Mizyun does not acquire public web sharing from this change.

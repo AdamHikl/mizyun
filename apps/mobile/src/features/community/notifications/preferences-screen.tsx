@@ -79,7 +79,8 @@ function PreferencesContent({ principal }: { principal: string | null }) {
       lifetime.current.foreground = AppState.currentState === "active";
       void load();
       const subscription = AppState.addEventListener("change", (value) => {
-        if (!focused) return;
+        if (!focused || lifetime.current.foreground === (value === "active"))
+          return;
         lifetime.current.foreground = value === "active";
         lifetime.current.revision++;
         setPreferences(null);
