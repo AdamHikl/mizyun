@@ -2,6 +2,12 @@
 
 > Updated 2026-10-01. Earlier package evidence, operational snapshots and concurrent work are preserved in [the pre-review archive](docs/archive/status/STATUS_COMMUNITY_PRE_FINAL_REVIEW_2026-09-30.md). Historical next actions are not current instructions.
 
+## Community return layout jump — 2026-10-01
+
+Adam's4.47s screen recording (device12:45,5G) reproduces collapse/expansion: Community encouragement panel missing through1.1s, appears by1.7s and pushes sharing footer down; after Coach/return it disappears again. Baseline `da97150` contains zero-height automatic refresh fallback from the warmer UI change. Coordinator owns feed/tests/docs; read-only lifecycle helper independently reviews. Replace that fallback with identical generic encouragement while pending/empty; no current empty-feed/membership claim. Protected cards still clear, fresh membership/HTTP validation remains, first-entry and errors/manual pull remain distinct. No backend or Production action.
+
+**Verified so far:** new actual-render regressions fail against baseline (2fail/16pass), then focused feed49tests/4files and mobile typecheck pass after correction. Independent non-author review approved exact diff. Fresh `pnpm check` exit0 (mobile1030/API730;15 existing gated API skips, typechecks, dual Hermes exports, navigation/formatting/safeguards). `git diff --check` passes. Native install follows; physical retest remains pending. **Next exact action:** repeat Community → Coach → Community several times on installed Dev; confirm panel/footer stay stable and deliberate pull works, then existing two-account/privacy/offline checks. Original #150/#143–155 exits remain open; earlier #165 spinner acceptance is separate.
+
 ## Community warmth and visual hierarchy — 2026-10-01
 
 Adam's Community screenshot/request continues #150 from clean `cc18b40d6a9529c78d8e1c1de22278ed5f113f20`. Coordinator owns feed presentation/tests/continuity; read-only visual helper researches official Hevy/Strava/NRC concepts and reviews final diff. Primary mint Find friends card, compact Friends/Inbox/Profile icon shortcuts, distinct light/dark accent surfaces, encouraging empty state and lavender explicit-sharing note replace neutral dashboard tiles. Refreshing empty feeds no longer draw a blank outlined capsule. All four routes/accessibility hints, Slot style flattening and existing membership/card/pull/privacy guards retained; no fabricated people/counts, automatic sharing, new features or backend changes.

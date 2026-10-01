@@ -280,10 +280,6 @@ function FeedScreenContent({
           peach: "#FFEBDD",
           peachText: "#74442A",
         };
-  const updatingEmpty =
-    !membershipVerified ||
-    state.status === "loading" ||
-    state.status === "refreshing";
   // Header quick links
   const headerComponent = (
     <View style={styles.headerBar}>
@@ -439,20 +435,19 @@ function FeedScreenContent({
     </View>
   );
 
-  // Empty state
+  // Static public encouragement stays identical while access/feed refresh.
+  // It asserts nothing about current membership or the number of shared cards.
   const emptyComponent = (
     <View
       style={[
-        updatingEmpty ? styles.updatingSpace : styles.emptyContainer,
+        styles.emptyContainer,
         {
-          backgroundColor: updatingEmpty ? "transparent" : accents.mint,
+          backgroundColor: accents.mint,
           borderColor: "transparent",
         },
       ]}
     >
-      {updatingEmpty ? (
-        <View accessible accessibilityLabel="Updating shared activity" />
-      ) : state.error ? (
+      {state.error ? (
         <>
           <Text style={[styles.emptyTitle, { color: colors.text }]}>
             Activity is unavailable
@@ -484,11 +479,11 @@ function FeedScreenContent({
             </Text>
           </View>
           <Text style={[styles.emptyTitle, { color: accents.mintText }]}>
-            No shared workouts yet
+            Cheer each other on
           </Text>
           <Text style={[styles.emptyBody, { color: accents.mintText }]}>
-            A place to cheer each other on. Follow a friend; after they approve,
-            the workouts they choose to share will appear here.
+            Follow a friend. After they approve, the workouts they choose to
+            share appear here.
           </Text>
           <Link href={"/community/invite" as Href} asChild>
             <Pressable
@@ -722,7 +717,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
   },
-  updatingSpace: { height: 0 },
   encouragementArt: {
     flexDirection: "row",
     flexWrap: "wrap",

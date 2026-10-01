@@ -284,16 +284,15 @@ describe("Community home participation and navigation", () => {
     );
     expect(primary.props.accessibilityHint).toContain("handle");
   });
-  it("removes the blank outlined capsule during automatic feed refresh", async () => {
+  it("keeps the public encouragement panel identical during automatic feed refresh", async () => {
     mocks.enrolled = true;
-    await settledRender();
+    const before = (await settledRender()).props.children[1].props
+      .ListEmptyComponent;
     mocks.feedStatus = "refreshing";
     const list = render().props.children[1];
-    const empty = list.props.ListEmptyComponent;
-    const style = Object.assign({}, ...empty.props.style);
-    expect(style.height).toBe(0);
-    expect(style.borderWidth).toBeUndefined();
-    expect(style.backgroundColor).toBe("transparent");
+    expect(JSON.stringify(list.props.ListEmptyComponent)).toBe(
+      JSON.stringify(before),
+    );
     expect(list.props.refreshControl.props.refreshing).toBe(false);
     expect(list.props.data).toEqual([]);
   });
@@ -311,7 +310,8 @@ describe("Community home participation and navigation", () => {
 describe("Community retained tab membership freshness", () => {
   it("keeps public navigation on refocus without spinner or stale cards", async () => {
     mocks.enrolled = true;
-    await settledRender();
+    const previousPanel = (await settledRender()).props.children[1].props
+      .ListEmptyComponent;
     mocks.cleanup?.();
     mocks.feedItems = [{ id: "stale-card" }];
     mocks.feedStatus = "refreshing";
@@ -327,6 +327,9 @@ describe("Community retained tab membership freshness", () => {
     const list = tree.props.children[1];
     expect(list.type).toBe("FlatList");
     expect(list.props.data).toEqual([]);
+    expect(JSON.stringify(list.props.ListEmptyComponent)).toBe(
+      JSON.stringify(previousPanel),
+    );
     expect(list.props.refreshControl.props.refreshing).toBe(false);
     expect(JSON.stringify(list.props.ListEmptyComponent)).not.toContain(
       "No shared workouts yet",
