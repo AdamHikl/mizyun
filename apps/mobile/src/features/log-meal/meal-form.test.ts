@@ -8,6 +8,8 @@ import {
   isStaleMealTimestamp,
   mealFormStringsFromDraft,
   mealFormStringsFromEntry,
+  mealDraftFromCurrentForm,
+  mergeMealDraftIntoForm,
   parseOptionalNutritionNumber,
   portionGramsStringFromDraft,
   upgradeLegacyMealDraft,
@@ -194,6 +196,154 @@ describe("recoverable AI meal drafts", () => {
       sourceProposalId: "00000000-0000-4000-8000-000000000123",
       aiDraft: { provenance: { inputKind: "text" } },
     });
+  });
+
+  it("recovers estimated extra nutrients with zero and unknown values after restart", () => {
+    const estimated = {
+      ...candidate,
+      fibreG: 0,
+      saturatedFatG: null,
+      totalSugarsG: 3.5,
+      sodiumMg: 400,
+      cholesterolMg: 0,
+    };
+    const stored = JSON.parse(
+      JSON.stringify({
+        ...mealFormStringsFromDraft(estimated),
+        aiDraft: estimated,
+      }),
+    );
+    expect(isRecoverableMealDraft(stored)).toBe(true);
+    const upgraded = upgradeLegacyMealDraft(stored);
+    expect(advancedNutrientsFromForm(upgraded)).toEqual({
+      fibreG: 0,
+      saturatedFatG: null,
+      totalSugarsG: 3.5,
+      sodiumMg: 400,
+      cholesterolMg: 0,
+    });
+    const refinedBase = mealDraftFromCurrentForm(
+      estimated,
+      { ...upgraded, calories: "310", sodium: "0" },
+      "180",
+      true,
+    );
+    expect(refinedBase).toMatchObject({
+      caloriesKcal: 310,
+      portionWeightG: 180,
+      fibreG: 0,
+      sodiumMg: 0,
+      calorieRangeKcal: null,
+    });
+    expect(
+      mealDraftFromCurrentForm(
+        estimated,
+        { ...upgraded, fibre: "bad" },
+        "180",
+        true,
+      ),
+    ).toBeNull();
+  });
+
+  it("clears the previous meal's extra nutrients when a new basic draft replaces it", () => {
+    const previous = {
+      ...mealFormStringsFromDraft(candidate),
+      name: "Synthetic previous meal",
+      fibre: "8",
+      saturatedFat: "3",
+      totalSugars: "0",
+      sodium: "450",
+      cholesterol: "20",
+    };
+    const basic = { ...candidate, name: "Synthetic different meal" };
+    const replacement = mergeMealDraftIntoForm(
+      previous,
+      basic,
+      true,
+      "replace",
+    );
+    expect(replacement).toMatchObject({
+      name: "Synthetic different meal",
+      fibre: "",
+      saturatedFat: "",
+      totalSugars: "",
+      sodium: "",
+      cholesterol: "",
+    });
+    expect(advancedNutrientsFromForm(replacement)).toEqual({
+      fibreG: null,
+      saturatedFatG: null,
+      totalSugarsG: null,
+      sodiumMg: null,
+      cholesterolMg: null,
+    });
+    // Refine an existing meal instead of replacing it: label values remain.
+    expect(mergeMealDraftIntoForm(previous, basic, true)).toMatchObject({
+      fibre: "8",
+      sodium: "450",
+      totalSugars: "0",
+    });
+  });
+
+  it("replaces previous nutrients with rich new estimates and clears estimates when access is absent", () => {
+    const previous = {
+      ...mealFormStringsFromDraft(candidate),
+      fibre: "8",
+      sodium: "450",
+      cholesterol: "20",
+    };
+    const rich = {
+      ...candidate,
+      fibreG: 0,
+      saturatedFatG: null,
+      totalSugarsG: 4,
+      sodiumMg: 120,
+      cholesterolMg: null,
+    };
+    expect(
+      mergeMealDraftIntoForm(previous, rich, true, "replace"),
+    ).toMatchObject({
+      fibre: "0",
+      saturatedFat: "",
+      totalSugars: "4",
+      sodium: "120",
+      cholesterol: "",
+    });
+    expect(
+      mergeMealDraftIntoForm(previous, rich, false, "replace"),
+    ).toMatchObject({
+      fibre: "",
+      saturatedFat: "",
+      totalSugars: "",
+      sodium: "",
+      cholesterol: "",
+    });
+  });
+
+  it("preserves old-provider omissions and ignores extra fields when the current grant is absent", () => {
+    const form = {
+      ...mealFormStringsFromDraft(candidate),
+      fibre: "3",
+      sodium: "100",
+    };
+    expect(mergeMealDraftIntoForm(form, candidate, true)).toMatchObject({
+      fibre: "3",
+      sodium: "100",
+    });
+    expect(
+      mergeMealDraftIntoForm(
+        form,
+        { ...candidate, fibreG: null, sodiumMg: 0 },
+        true,
+      ),
+    ).toMatchObject({ fibre: "", sodium: "0" });
+    expect(
+      mergeMealDraftIntoForm(
+        form,
+        { ...candidate, fibreG: 8, sodiumMg: 0 },
+        false,
+      ),
+    ).toMatchObject({ fibre: "3", sodium: "100" });
   });
 
   it("accepts an AI draft candidate with full calculation text", () => {

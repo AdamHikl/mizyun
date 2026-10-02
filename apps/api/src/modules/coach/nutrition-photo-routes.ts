@@ -24,9 +24,15 @@ import {
 import { authorizeAiAccess } from "../../ai-eligibility.js";
 import { sendApiError } from "../../errors.js";
 import type { FoodDraftRateLimiter } from "../food-entries/draft-rate-limit.js";
+import {
+  draftForCapability,
+  hasAdvancedNutritionForDraft,
+} from "../food-entries/index.js";
+import type { BetaProRepository } from "../../beta-pro-repository.js";
 import type { CoachLimitService } from "./limits.js";
 
 interface CoachNutritionPhotoRoutesOptions {
+  readonly betaProRepository?: BetaProRepository;
   readonly conversationRepository: ConversationRepository;
   readonly profileRepository: ProfileRepository;
   readonly aiConsentRepository?: AiConsentRepository;
@@ -312,12 +318,23 @@ export const coachNutritionPhotoRoutes: FastifyPluginAsync<
         : options.nutritionDraftProvider;
 
       try {
-        const candidate = await draftProvider.generateDraft({
+        const includeAdvancedNutrition = await hasAdvancedNutritionForDraft(
+          options,
+          principal.userId,
+          principal.accessToken,
+          profile.planTier,
+        );
+        const generated = await draftProvider.generateDraft({
           userId: principal.userId as UserId,
           photo: new Uint8Array(photo),
           mimeType,
           requestId: crypto.randomUUID(),
+          includeAdvancedNutrition,
         });
+        const candidate = draftForCapability(
+          generated,
+          includeAdvancedNutrition,
+        );
         const actionProposal = coachNutritionProposalSchema.parse({
           id: crypto.randomUUID(),
           kind: "meal_log",
@@ -330,7 +347,7 @@ export const coachNutritionPhotoRoutes: FastifyPluginAsync<
               id: crypto.randomUUID(),
               conversationId,
               role: "assistant",
-              text: "I drafted a meal estimate from the photo. Review the portion, calories, and macros before logging it.",
+              text: "I drafted a meal estimate from the photo. Review the portion and nutrition estimates before logging it.",
               status: "complete",
               idempotencyKey: null,
               providerMetadata: {

@@ -47,6 +47,9 @@ import {
   isStaleMealTimestamp,
   mealFormStringsFromDraft,
   mealFormStringsFromEntry,
+  mealDraftFromCurrentForm,
+  mealDraftForAdvancedAccess,
+  mergeMealDraftIntoForm,
   parseOptionalNutritionNumber,
   portionGramsStringFromDraft,
   upgradeLegacyMealDraft,
@@ -646,6 +649,7 @@ export function LogMealScreen() {
           setError(draft.message);
           return;
         }
+        const advancedEnabled = await advancedCapability.refresh();
         const strings = mealFormStringsFromDraft(draft.draft);
         setName(strings.name);
         setPortionGrams(portionGramsStringFromDraft(draft.draft));
@@ -653,8 +657,16 @@ export function LogMealScreen() {
         setProtein(strings.protein);
         setCarbs(strings.carbs);
         setFat(strings.fat);
+        setAdvanced((current) =>
+          mergeMealDraftIntoForm(
+            current,
+            draft.draft,
+            advancedEnabled,
+            "replace",
+          ),
+        );
         setDraftWarnings(draftEvidenceLines(draft.draft));
-        setAiDraft(draft.draft);
+        setAiDraft(mealDraftForAdvancedAccess(draft.draft, advancedEnabled));
         setSourceProposalId(null);
         setConsumedAt(new Date().toISOString());
         void loadAiUsage();
@@ -671,7 +683,7 @@ export function LogMealScreen() {
         setSnapping(false);
       }
     },
-    [attachedPhoto, loadAiUsage, mealDescription],
+    [advancedCapability.refresh, attachedPhoto, loadAiUsage, mealDescription],
   );
 
   const executeTextDraft = useCallback(
@@ -693,6 +705,7 @@ export function LogMealScreen() {
           setError(result.message);
           return;
         }
+        const advancedEnabled = await advancedCapability.refresh();
         const strings = mealFormStringsFromDraft(result.draft);
         setName(strings.name);
         setPortionGrams(portionGramsStringFromDraft(result.draft));
@@ -700,8 +713,16 @@ export function LogMealScreen() {
         setProtein(strings.protein);
         setCarbs(strings.carbs);
         setFat(strings.fat);
+        setAdvanced((current) =>
+          mergeMealDraftIntoForm(
+            current,
+            result.draft,
+            advancedEnabled,
+            "replace",
+          ),
+        );
         setDraftWarnings(draftEvidenceLines(result.draft));
-        setAiDraft(result.draft);
+        setAiDraft(mealDraftForAdvancedAccess(result.draft, advancedEnabled));
         setSourceProposalId(null);
         setConsumedAt(new Date().toISOString());
         void loadAiUsage();
@@ -714,7 +735,11 @@ export function LogMealScreen() {
         setSnapping(false);
       }
     },
-    [loadAiUsage],
+    [
+      advancedCapability.refresh,
+      loadAiUsage,
+      profile?.coachingPreferences?.countryCode,
+    ],
   );
 
   const executeRefineDraft = useCallback(
@@ -730,20 +755,25 @@ export function LogMealScreen() {
       setRefining(true);
       setError(null);
       try {
-        const parsedCurrentPortion = parseOptionalNutritionNumber(portionGrams);
-        const result = await refineMealDraft(
-          {
-            ...aiDraft,
-            ...(parsedCurrentPortion.ok
-              ? { portionWeightG: parsedCurrentPortion.value }
-              : {}),
-          },
-          instruction,
+        const advancedEnabledForInput = await advancedCapability.refresh();
+        const currentDraft = mealDraftFromCurrentForm(
+          aiDraft,
+          { ...advanced, name, calories, protein, carbs, fat },
+          portionGrams,
+          advancedEnabledForInput,
         );
+        if (currentDraft === null) {
+          setError(
+            "Check the nutrient values and portion weight before refining.",
+          );
+          return;
+        }
+        const result = await refineMealDraft(currentDraft, instruction);
         if (!result.ok) {
           setError(result.message);
           return;
         }
+        const advancedEnabled = await advancedCapability.refresh();
         const strings = mealFormStringsFromDraft(result.draft);
         setName(strings.name);
         setPortionGrams(portionGramsStringFromDraft(result.draft));
@@ -751,15 +781,31 @@ export function LogMealScreen() {
         setProtein(strings.protein);
         setCarbs(strings.carbs);
         setFat(strings.fat);
+        setAdvanced((current) =>
+          mergeMealDraftIntoForm(current, result.draft, advancedEnabled),
+        );
         setDraftWarnings(draftEvidenceLines(result.draft));
-        setAiDraft(result.draft);
+        setAiDraft(mealDraftForAdvancedAccess(result.draft, advancedEnabled));
         void loadAiUsage();
         measurement.current?.complete();
       } finally {
         setRefining(false);
       }
     },
-    [aiDraft, loadAiUsage, portionGrams, refining, submitting],
+    [
+      advanced,
+      advancedCapability.refresh,
+      aiDraft,
+      calories,
+      carbs,
+      fat,
+      loadAiUsage,
+      name,
+      portionGrams,
+      protein,
+      refining,
+      submitting,
+    ],
   );
 
   const executeAiAction = useCallback(
@@ -927,7 +973,7 @@ export function LogMealScreen() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Remove attached photo"
-                disabled={snapping || submitting}
+                disabled={snapping || submitting || refining}
                 onPress={onRemovePhoto}
                 style={({ pressed }) => [
                   styles.removePhotoButton,
@@ -947,10 +993,10 @@ export function LogMealScreen() {
               testID="process-meal-photo-button"
               accessibilityLabel="Process photo with AI"
               accessibilityHint="Send the attached photo and your description to Mizyun to generate a meal draft with estimated portion weight, calories, and macros."
-              disabled={snapping || submitting}
+              disabled={snapping || submitting || refining}
               accessibilityState={{
                 busy: snapping,
-                disabled: snapping || submitting,
+                disabled: snapping || submitting || refining,
               }}
               onPress={() => {
                 void onProcessPhoto();
@@ -977,10 +1023,10 @@ export function LogMealScreen() {
               {mealDescription.trim().length >= 2 ? (
                 <Pressable
                   accessibilityRole="button"
-                  disabled={snapping || submitting}
+                  disabled={snapping || submitting || refining}
                   accessibilityState={{
                     busy: snapping,
-                    disabled: snapping || submitting,
+                    disabled: snapping || submitting || refining,
                   }}
                   onPress={() => void onTextDraft()}
                   style={({ pressed }) => [
@@ -1008,9 +1054,9 @@ export function LogMealScreen() {
                   testID="take-meal-photo-button"
                   accessibilityLabel="Take a meal photo"
                   accessibilityHint="Open the camera to take a meal photo and attach it to this entry."
-                  disabled={snapping || submitting}
+                  disabled={snapping || submitting || refining}
                   accessibilityState={{
-                    disabled: snapping || submitting,
+                    disabled: snapping || submitting || refining,
                   }}
                   onPress={() => {
                     void onTakePhoto();
@@ -1028,9 +1074,9 @@ export function LogMealScreen() {
                   testID="snap-meal-button"
                   accessibilityLabel="Choose a meal photo"
                   accessibilityHint="Open the photo library to pick a meal photo and attach it to this entry."
-                  disabled={snapping || submitting}
+                  disabled={snapping || submitting || refining}
                   accessibilityState={{
-                    disabled: snapping || submitting,
+                    disabled: snapping || submitting || refining,
                   }}
                   onPress={() => {
                     void onChoosePhoto();
@@ -1090,6 +1136,7 @@ export function LogMealScreen() {
                     key={meal.id}
                     accessibilityRole="button"
                     accessibilityLabel={`Reuse meal ${meal.name}`}
+                    disabled={snapping || refining || submitting}
                     onPress={() => onSelectRecentMeal(meal)}
                     style={({ pressed }) => [
                       styles.recentMealChip,
@@ -1127,6 +1174,7 @@ export function LogMealScreen() {
             placeholder="e.g. Toast with butter"
             autoFocus
             inputColor={theme.text}
+            editable={!snapping && !refining && !submitting}
           />
 
           <Field
@@ -1143,6 +1191,7 @@ export function LogMealScreen() {
                 : "optional"
             }
             inputColor={theme.text}
+            editable={!snapping && !refining && !submitting}
           />
 
           <Field
@@ -1155,6 +1204,7 @@ export function LogMealScreen() {
             keyboardType="numeric"
             helperText={calorieHint}
             inputColor={theme.text}
+            editable={!snapping && !refining && !submitting}
           />
 
           <View style={styles.macroRow}>
@@ -1168,6 +1218,7 @@ export function LogMealScreen() {
                 placeholder="0"
                 keyboardType="numeric"
                 inputColor={theme.text}
+                editable={!snapping && !refining && !submitting}
               />
             </View>
             <View style={styles.macroField}>
@@ -1180,6 +1231,7 @@ export function LogMealScreen() {
                 placeholder="0"
                 keyboardType="numeric"
                 inputColor={theme.text}
+                editable={!snapping && !refining && !submitting}
               />
             </View>
             <View style={styles.macroField}>
@@ -1192,6 +1244,7 @@ export function LogMealScreen() {
                 placeholder="0"
                 keyboardType="numeric"
                 inputColor={theme.text}
+                editable={!snapping && !refining && !submitting}
               />
             </View>
           </View>
@@ -1199,6 +1252,7 @@ export function LogMealScreen() {
           <AdvancedNutrientFields
             form={advanced}
             enabled={advancedCapability.enabled}
+            editable={!snapping && !refining && !submitting}
             onChange={(field, value) =>
               setAdvanced((current) => ({ ...current, [field]: value }))
             }
@@ -1212,7 +1266,8 @@ export function LogMealScreen() {
               <ThemedText type="small" themeColor="textSecondary">
                 Tell the AI how to adjust the values above — for example “make
                 the chicken 200g instead of 100g”. The form will be re-filled
-                with the refined estimate.
+                with the refined estimate. Review uncertain values before
+                saving.
               </ThemedText>
               <TextInput
                 testID="meal-refine-input"
@@ -1368,6 +1423,7 @@ function Field(props: {
   readonly autoFocus?: boolean;
   readonly keyboardType?: "default" | "numeric";
   readonly inputColor: string;
+  readonly editable?: boolean;
 }) {
   return (
     <View style={styles.field}>
@@ -1377,6 +1433,7 @@ function Field(props: {
       <TextInput
         testID={props.testID}
         value={props.value}
+        editable={props.editable}
         onChangeText={props.onChangeText}
         onFocus={props.onFocus}
         placeholder={props.placeholder}

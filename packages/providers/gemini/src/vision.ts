@@ -80,7 +80,33 @@ const visionOutputSchema = z.object({
     .nullish()
     .transform((v) => (v && v.trim().length > 0 ? v.trim() : null)),
 });
-type VisionModelOutput = z.infer<typeof visionOutputSchema>;
+const advancedNutritionValueSchema = (maximum: number) =>
+  z
+    .number()
+    .finite()
+    .nonnegative()
+    .lte(maximum)
+    .nullish()
+    .transform((value) => value ?? null);
+const advancedNutritionOutputSchema = z.object({
+  fibreG: advancedNutritionValueSchema(10_000),
+  saturatedFatG: advancedNutritionValueSchema(10_000),
+  totalSugarsG: advancedNutritionValueSchema(10_000),
+  sodiumMg: advancedNutritionValueSchema(100_000),
+  cholesterolMg: advancedNutritionValueSchema(100_000),
+});
+const advancedVisionOutputSchema = visionOutputSchema.extend(
+  advancedNutritionOutputSchema.shape,
+);
+type VisionModelOutput = z.infer<typeof visionOutputSchema> &
+  Partial<z.infer<typeof advancedNutritionOutputSchema>>;
+const ADVANCED_NUTRIENT_KEYS = [
+  "fibreG",
+  "saturatedFatG",
+  "totalSugarsG",
+  "sodiumMg",
+  "cholesterolMg",
+] as const;
 
 export const normalizeCandidateValues = (
   candidate: VisionModelOutput,
@@ -177,6 +203,42 @@ export const normalizeCandidateValues = (
     };
   }
 
+  const advancedNutrition: Partial<
+    z.infer<typeof advancedNutritionOutputSchema>
+  > = {};
+  for (const key of ADVANCED_NUTRIENT_KEYS) {
+    const value = candidate[key];
+    if (value !== undefined) {
+      advancedNutrition[key] =
+        value === null ? null : Math.round(value * 100) / 100;
+    }
+  }
+  // Subset nutrients must remain compatible with the persisted meal validator.
+  // Keep usable estimates and make only contradictory fields unknown.
+  const contradictions: string[] = [];
+  if (
+    advancedNutrition.saturatedFatG != null &&
+    fatG !== null &&
+    advancedNutrition.saturatedFatG > fatG
+  ) {
+    advancedNutrition.saturatedFatG = null;
+    contradictions.push("saturated fat exceeded total fat");
+  }
+  if (
+    advancedNutrition.totalSugarsG != null &&
+    carbohydrateG !== null &&
+    advancedNutrition.totalSugarsG > carbohydrateG
+  ) {
+    advancedNutrition.totalSugarsG = null;
+    contradictions.push("total sugars exceeded total carbohydrates");
+  }
+  if (contradictions.length > 0) {
+    warnings = [
+      ...warnings.slice(0, 7),
+      `AI ${contradictions.join(" and ")}. These estimates were left blank; confirm the values before saving.`,
+    ];
+  }
+
   return {
     name,
     portionWeightG,
@@ -192,6 +254,7 @@ export const normalizeCandidateValues = (
     warnings,
     assumptions,
     calculation: calculation ?? null,
+    ...advancedNutrition,
   };
 };
 
@@ -323,8 +386,64 @@ const geminiVisionOutputJsonSchema = {
   ],
 };
 
-const NUTRITION_DRAFT_PROMPT_VERSION = "nutrition-draft-v3";
-const NUTRITION_DRAFT_REFINE_PROMPT_VERSION = "nutrition-draft-refine-v2";
+const advancedNutrientJsonProperties = {
+  fibreG: {
+    type: "NUMBER",
+    nullable: true,
+    description:
+      "Estimated total fibre in grams for the edible portion; null when unknown.",
+  },
+  saturatedFatG: {
+    type: "NUMBER",
+    nullable: true,
+    description:
+      "Estimated total saturated fat in grams for the edible portion; null when unknown.",
+  },
+  totalSugarsG: {
+    type: "NUMBER",
+    nullable: true,
+    description:
+      "Estimated total sugars in grams for the edible portion; null when unknown.",
+  },
+  sodiumMg: {
+    type: "NUMBER",
+    nullable: true,
+    description:
+      "Estimated total sodium in milligrams for the edible portion; null when unknown.",
+  },
+  cholesterolMg: {
+    type: "NUMBER",
+    nullable: true,
+    description:
+      "Estimated total dietary cholesterol in milligrams for the edible portion; null when unknown.",
+  },
+};
+const geminiAdvancedVisionOutputJsonSchema = {
+  ...geminiVisionOutputJsonSchema,
+  properties: {
+    ...geminiVisionOutputJsonSchema.properties,
+    ...advancedNutrientJsonProperties,
+  },
+  required: [
+    ...geminiVisionOutputJsonSchema.required,
+    ...ADVANCED_NUTRIENT_KEYS,
+  ],
+};
+
+const NUTRITION_DRAFT_PROMPT_VERSION = "nutrition-draft-v4";
+const NUTRITION_DRAFT_REFINE_PROMPT_VERSION = "nutrition-draft-refine-v3";
+const advancedNutritionSystemPolicy = [
+  "Also estimate meal-total fibreG, saturatedFatG and totalSugarsG in grams, and sodiumMg and cholesterolMg in milligrams, for the same edible portion. Round these to at most two decimal places.",
+  "Prefer nutrition values from supplied readable labels or official nutrition facts for the exact product/portion; scale serving values to the consumed portion. Never claim a source was verified unless supplied search findings support it.",
+  "When labels are unavailable, use plausible food/ingredient and portion estimates, explicitly explain their uncertainty and ingredient assumptions in warnings and assumptions. Sodium, sugars and fat composition can vary with hidden ingredients and preparation.",
+  "Never derive advanced nutrients from calories or macros. Return null separately for any advanced nutrient with insufficient food, ingredient or portion information. Never replace unknown values with zero; use zero only when supported by the available evidence.",
+  "Saturated fat must not exceed total fat, and total sugars must not exceed total carbohydrates; return null for any contradictory estimate rather than changing its macro total.",
+  "Advanced nutrient estimates are advisory and require user confirmation before saving. Do not add medical claims or dietary targets.",
+].join("\n");
+const advancedNutritionRefinePolicy = [
+  "Preserve known advanced nutrient values for instructions that do not change food, recipe, nutrition or portion. For a pure portion change, scale existing known advanced values proportionally and preserve unknown values as null.",
+  "Only replace a known value when the instruction changes the relevant ingredient/portion or supplies a corrected label value. Do not invent values for an unknown field from existing macros; explain any new estimate or uncertainty.",
+].join("\n");
 
 export const visionSystemPolicy = [
   "You are a nutrition photo analyzer. Use only the photo and the user's hint.",
@@ -332,9 +451,9 @@ export const visionSystemPolicy = [
   "Estimate the total edible portion weight (portionWeightG) represented by the nutrition totals. Sum all edible food and drink components, exclude containers and tableware, and explain the portion assumption. Do not default to 100g unless the evidence genuinely supports 100g.",
   "Estimate total calories (caloriesKcal) and all three macronutrients (proteinG, carbohydrateG, fatG) for the identified meal.",
   "Round portionWeightG and macro grams to one decimal place, and kcal to an integer. Always supply non-null point estimates (midpoint) whenever food is identified.",
-  "For every estimate, return a plausible low/high range and list the portion or ingredient assumptions that drive it.",
+  "For calories and macros, return a plausible low/high range and list the portion or ingredient assumptions that drive it.",
   "In calculation, provide the complete itemized breakdown showing each ingredient, portion, and nutritional calculation that drives the totals.",
-  "Set all numeric fields to null only if you cannot identify any food or drink.",
+  "Set portionWeightG, caloriesKcal and macro fields to null only if you cannot identify any food or drink.",
   "Never make medical claims or suggest a daily calorie target.",
   "Output strictly the JSON schema requested.",
 ].join("\n");
@@ -344,14 +463,14 @@ export const textNutritionSystemPolicy = [
   "Estimate the total edible portion weight (portionWeightG) represented by the nutrition totals. Sum all edible food and drink components, exclude containers and tableware, and explain the portion assumption. Do not default to 100g unless the description or published serving genuinely supports 100g.",
   "Estimate total calories (caloriesKcal) and all three macronutrients (proteinG, carbohydrateG, fatG) for the identified meal.",
   "Round portionWeightG and macro grams to one decimal place, and kcal to an integer. Always supply non-null point estimates (midpoint) whenever food is identified.",
-  "For every estimate, return a plausible low/high range and list the portion or ingredient assumptions that drive it.",
+  "For calories and macros, return a plausible low/high range and list the portion or ingredient assumptions that drive it.",
   "In calculation, provide the complete itemized breakdown showing each ingredient, portion, and nutritional calculation that drives the totals.",
   "For fast-food chains and restaurants (McDonald's, Burger King, KFC, Subway, Starbucks, etc.), prioritize official published nutrition facts.",
   "Respect regional and country differences: Central Europe / EU vs US portion sizes and beverage sugar formulations differ significantly.",
   "Explicitly handle single vs double patty burger sizes: e.g. Single Big Tasty Bacon in Central Europe is 588 kcal with 1 standard patty, vs Double Big Tasty at ~850–900 kcal with 150g patty. Never assign double-patty calorie counts when 'Single' is specified.",
   "When a user's country code is provided (e.g. 'SK'), prioritize official nutrition standards and portion sizes for that specific country.",
   "If the exact regional recipe or portion is ambiguous, capture the uncertainty in calorieRangeKcal, explain the assumption in assumptions, and assign conservative confidence (< 0.75).",
-  "Set all numeric fields to null only if you cannot identify any food or drink.",
+  "Set portionWeightG, caloriesKcal and macro fields to null only if you cannot identify any food or drink.",
   "Never make medical claims or suggest a daily calorie target.",
   "Output strictly the JSON schema requested.",
 ].join("\n");
@@ -422,7 +541,7 @@ const refineSystemPolicy = [
   "When the instruction references a current value (e.g. '200g instead of 100g'), scale the affected macros proportionally and surface the new low/high range.",
   "Keep portionWeightG aligned with the total edible portion represented by the refined calories and macros; update it whenever the instruction changes portion size.",
   "In calculation, return an updated itemized breakdown reflecting the adjusted portions and calculations.",
-  "Always supply non-null point estimates (caloriesKcal, proteinG, carbohydrateG, fatG) and ranges for all nutrition values.",
+  "Always supply non-null point estimates (caloriesKcal, proteinG, carbohydrateG, fatG) and ranges for calories and macros.",
   "When the instruction is ambiguous or unsafe, leave the draft unchanged, lower the confidence, and add a warning describing why.",
   "Preserve the same JSON schema. Keep inputKind from the original draft unless the instruction explicitly switches input kind.",
   "Never make medical claims, diagnose, or suggest a daily calorie target.",
@@ -431,6 +550,7 @@ const refineSystemPolicy = [
 const refineUserPrompt = (
   currentDraft: RefineFoodDraftRequest["currentDraft"],
   instruction: string,
+  includeAdvancedNutrition: boolean,
 ): string => {
   const lines = [
     "Current meal draft:",
@@ -440,6 +560,15 @@ const refineUserPrompt = (
     `Protein: ${currentDraft.proteinG ?? "(empty)"} g`,
     `Carbs: ${currentDraft.carbohydrateG ?? "(empty)"} g`,
     `Fat: ${currentDraft.fatG ?? "(empty)"} g`,
+    ...(includeAdvancedNutrition
+      ? [
+          `Fibre: ${currentDraft.fibreG ?? "(unknown)"} g`,
+          `Saturated fat: ${currentDraft.saturatedFatG ?? "(unknown)"} g`,
+          `Total sugars: ${currentDraft.totalSugarsG ?? "(unknown)"} g`,
+          `Sodium: ${currentDraft.sodiumMg ?? "(unknown)"} mg`,
+          `Dietary cholesterol: ${currentDraft.cholesterolMg ?? "(unknown)"} mg`,
+        ]
+      : []),
     `Confidence: ${currentDraft.confidence}`,
     ...(currentDraft.calculation
       ? [`Current calculation: ${currentDraft.calculation}`]
@@ -685,6 +814,7 @@ const isUnsafeOutput = (
 
 const parseGeminiVisionResponse = (
   raw: unknown,
+  includeAdvancedNutrition: boolean,
 ): {
   readonly candidate: VisionModelOutput;
   readonly resolvedModel: string | null;
@@ -721,7 +851,9 @@ const parseGeminiVisionResponse = (
     .trim();
   try {
     const parsed: unknown = JSON.parse(cleaned);
-    const result = visionOutputSchema.safeParse(parsed);
+    const result = (
+      includeAdvancedNutrition ? advancedVisionOutputSchema : visionOutputSchema
+    ).safeParse(parsed);
     if (result.success) {
       return {
         candidate: normalizeCandidateValues(result.data),
@@ -804,6 +936,7 @@ export class GeminiVisionProvider implements VisionDraftProvider {
         },
       ],
       "photo",
+      { includeAdvancedNutrition: request.includeAdvancedNutrition === true },
     );
   }
 
@@ -829,7 +962,10 @@ export class GeminiVisionProvider implements VisionDraftProvider {
       isBrandOrRestaurantQuery(request.description)
     ) {
       try {
-        const searchPrompt = `Search the web for official published nutrition facts (calories in kcal, protein, carbohydrates, fat) for the following meal/food item. Note the specific restaurant, regional/country menu (${countryInfo}), and portion size:\n"${request.description.trim()}"`;
+        const searchNutrients = request.includeAdvancedNutrition
+          ? "calories in kcal, protein, carbohydrates, fat, fibre, saturated fat, total sugars in grams, sodium and dietary cholesterol in milligrams"
+          : "calories in kcal, protein, carbohydrates, fat";
+        const searchPrompt = `Search the web for official published nutrition facts (${searchNutrients}) for the following meal/food item. Note the specific restaurant, regional/country menu (${countryInfo}), and portion size:\n"${request.description.trim()}"`;
         const searchResponse = await this.#client.generateContent(
           {
             model: this.#model,
@@ -853,6 +989,7 @@ export class GeminiVisionProvider implements VisionDraftProvider {
           const structuredPrompt = `Estimate an editable meal draft from this user description and verified search findings.\n\nUser description: "${request.description.trim()}"${countrySuffix}\n\nVerified search findings:\n${groundedText}`;
           return await this.#generate([{ text: structuredPrompt }], "text", {
             systemPolicy: textNutritionSystemPolicy,
+            includeAdvancedNutrition: request.includeAdvancedNutrition === true,
           });
         }
       } catch {
@@ -867,7 +1004,10 @@ export class GeminiVisionProvider implements VisionDraftProvider {
         },
       ],
       "text",
-      { systemPolicy: textNutritionSystemPolicy },
+      {
+        systemPolicy: textNutritionSystemPolicy,
+        includeAdvancedNutrition: request.includeAdvancedNutrition === true,
+      },
     );
   }
 
@@ -888,12 +1028,19 @@ export class GeminiVisionProvider implements VisionDraftProvider {
         false,
       );
     }
-    const content = refineUserPrompt(request.currentDraft, request.instruction);
+    const content = refineUserPrompt(
+      request.currentDraft,
+      request.instruction,
+      request.includeAdvancedNutrition === true,
+    );
     return this.#generate(
       [{ text: content }],
       request.currentDraft.provenance.inputKind,
       {
-        systemPolicy: refineSystemPolicy,
+        systemPolicy: request.includeAdvancedNutrition
+          ? [refineSystemPolicy, advancedNutritionRefinePolicy].join("\n")
+          : refineSystemPolicy,
+        includeAdvancedNutrition: request.includeAdvancedNutrition === true,
         promptVersion: NUTRITION_DRAFT_REFINE_PROMPT_VERSION,
       },
     );
@@ -905,9 +1052,15 @@ export class GeminiVisionProvider implements VisionDraftProvider {
     overrides: {
       readonly systemPolicy?: string;
       readonly promptVersion?: string;
+      readonly includeAdvancedNutrition?: boolean;
     } = {},
   ): Promise<VisionDraftCandidate> {
-    const systemPolicy = overrides.systemPolicy ?? visionSystemPolicy;
+    const includeAdvancedNutrition =
+      overrides.includeAdvancedNutrition === true;
+    const basicSystemPolicy = overrides.systemPolicy ?? visionSystemPolicy;
+    const systemPolicy = includeAdvancedNutrition
+      ? [basicSystemPolicy, advancedNutritionSystemPolicy].join("\n")
+      : basicSystemPolicy;
     const promptVersion =
       overrides.promptVersion ?? NUTRITION_DRAFT_PROMPT_VERSION;
 
@@ -923,7 +1076,9 @@ export class GeminiVisionProvider implements VisionDraftProvider {
         temperature: 0.2,
         maxOutputTokens: this.#maxOutputTokens,
         responseMimeType: "application/json",
-        responseSchema: geminiVisionOutputJsonSchema,
+        responseSchema: includeAdvancedNutrition
+          ? geminiAdvancedVisionOutputJsonSchema
+          : geminiVisionOutputJsonSchema,
         ...(isThinkingCapable
           ? { thinkingConfig: { thinkingBudget: this.#thinkingBudget } }
           : {}),
@@ -979,7 +1134,10 @@ export class GeminiVisionProvider implements VisionDraftProvider {
       }
     }
 
-    const parsedResponse = parseGeminiVisionResponse(callResult.raw);
+    const parsedResponse = parseGeminiVisionResponse(
+      callResult.raw,
+      includeAdvancedNutrition,
+    );
     if (parsedResponse === null) {
       throw new VisionProviderError(
         "malformed_response",
@@ -998,13 +1156,22 @@ export class GeminiVisionProvider implements VisionDraftProvider {
         proteinG: null,
         carbohydrateG: null,
         fatG: null,
+        ...(includeAdvancedNutrition
+          ? {
+              fibreG: null,
+              saturatedFatG: null,
+              totalSugarsG: null,
+              sodiumMg: null,
+              cholesterolMg: null,
+            }
+          : {}),
         calorieRangeKcal: null,
         proteinRangeG: null,
         carbohydrateRangeG: null,
         fatRangeG: null,
         confidence: parsed.confidence,
         warnings: [
-          ...parsed.warnings,
+          ...parsed.warnings.slice(0, 7),
           "The AI suggestion was rejected by the safety policy. Please enter the values manually.",
         ],
         assumptions: [],

@@ -50,6 +50,11 @@ import {
 import { sendApiError } from "../../errors.js";
 import type { CoachLimitService, DraftKind } from "../coach/limits.js";
 import { FoodDraftRateLimiter } from "./draft-rate-limit.js";
+import type { BetaProRepository } from "../../beta-pro-repository.js";
+import {
+  draftForCapability,
+  hasAdvancedNutritionForDraft,
+} from "./advanced-nutrition.js";
 
 interface FoodDraftRoutesOptions {
   readonly visionProvider: VisionDraftProvider;
@@ -57,6 +62,7 @@ interface FoodDraftRoutesOptions {
     provider: AiProvider,
   ) => VisionDraftProvider;
   readonly profileRepository?: ProfileRepository;
+  readonly betaProRepository?: BetaProRepository;
   readonly aiConsentRepository?: AiConsentRepository;
   readonly rateLimiter?: FoodDraftRateLimiter;
   readonly limits?: CoachLimitService;
@@ -130,6 +136,7 @@ export const foodDraftRoutes: FastifyPluginAsync<
     AiAuthorizationResult & {
       readonly countryCode?: string | null;
       readonly planTier?: PlanTier;
+      readonly includeAdvancedNutrition?: boolean;
     }
   > => {
     if (!options.profileRepository) {
@@ -156,10 +163,20 @@ export const foodDraftRoutes: FastifyPluginAsync<
         userEmail,
         allowedEmails: options.allowedEmails,
       });
+      let includeAdvancedNutrition = false;
+      if (auth.authorized) {
+        includeAdvancedNutrition = await hasAdvancedNutritionForDraft(
+          options,
+          userId,
+          accessToken,
+          profile.planTier,
+        );
+      }
       return {
         ...auth,
         countryCode: profile.coachingPreferences?.countryCode ?? null,
         planTier: profile.planTier,
+        includeAdvancedNutrition,
       };
     } catch {
       return {
@@ -339,15 +356,19 @@ export const foodDraftRoutes: FastifyPluginAsync<
           description: parsed.data.description,
           requestId,
           countryCode: resolvedCountryCode,
+          includeAdvancedNutrition: auth.includeAdvancedNutrition ?? false,
         });
         await commitDraftLimit(
           principal.userId as UserId,
           candidate.tokensUsed ?? 500,
         );
         committed = true;
-        return reply
-          .status(200)
-          .send(foodDraftResponseSchema.parse({ draft: candidate, requestId }));
+        return reply.status(200).send(
+          foodDraftResponseSchema.parse({
+            draft: draftForCapability(candidate, auth.includeAdvancedNutrition),
+            requestId,
+          }),
+        );
       } catch (error) {
         if (error instanceof VisionProviderError) {
           const status = visionFailureToHttpStatus(error.kind);
@@ -461,16 +482,23 @@ export const foodDraftRoutes: FastifyPluginAsync<
         }
         const candidate = await vision.refineDraft({
           userId: principal.userId as UserId,
-          currentDraft: parsed.data.currentDraft,
+          currentDraft: draftForCapability(
+            parsed.data.currentDraft,
+            auth.includeAdvancedNutrition,
+          ),
           instruction: parsed.data.instruction,
           requestId,
+          includeAdvancedNutrition: auth.includeAdvancedNutrition ?? false,
         });
         // Refine is free and does not consume daily meal draft quota; release in-flight slot
         await releaseDraftLimit(principal.userId as UserId, "refine");
         released = true;
-        return reply
-          .status(200)
-          .send(foodDraftResponseSchema.parse({ draft: candidate, requestId }));
+        return reply.status(200).send(
+          foodDraftResponseSchema.parse({
+            draft: draftForCapability(candidate, auth.includeAdvancedNutrition),
+            requestId,
+          }),
+        );
       } catch (error) {
         if (error instanceof VisionProviderError) {
           const status = visionFailureToHttpStatus(error.kind);
@@ -639,6 +667,7 @@ export const foodDraftRoutes: FastifyPluginAsync<
           ...(textHint !== undefined ? { textHint } : {}),
           requestId,
           countryCode: auth.countryCode ?? null,
+          includeAdvancedNutrition: auth.includeAdvancedNutrition ?? false,
         };
 
         const vision = await resolveActiveVisionProvider(
@@ -652,9 +681,12 @@ export const foodDraftRoutes: FastifyPluginAsync<
           candidate.tokensUsed ?? 1500,
         );
         committed = true;
-        return reply
-          .status(200)
-          .send(foodDraftResponseSchema.parse({ draft: candidate, requestId }));
+        return reply.status(200).send(
+          foodDraftResponseSchema.parse({
+            draft: draftForCapability(candidate, auth.includeAdvancedNutrition),
+            requestId,
+          }),
+        );
       } catch (error) {
         if (error instanceof VisionProviderError) {
           const status = visionFailureToHttpStatus(error.kind);

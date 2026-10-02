@@ -27,6 +27,56 @@ describe("DisabledAgentProvider", () => {
 });
 
 describe("StubVisionProvider portion estimates", () => {
+  it("preserves unknown advanced nutrients and scales known values only with the server opt-in", async () => {
+    const provider = new StubVisionProvider();
+    const userId = "00000000-0000-4000-8000-000000000001" as UserId;
+    const initial = await provider.generateTextDraft({
+      userId,
+      description: "lunch",
+      includeAdvancedNutrition: true,
+    });
+    expect(initial).toMatchObject({
+      fibreG: null,
+      saturatedFatG: null,
+      totalSugarsG: null,
+      sodiumMg: null,
+      cholesterolMg: null,
+    });
+    const currentDraft = {
+      ...initial,
+      fibreG: 3.21,
+      totalSugarsG: 0,
+      sodiumMg: 400,
+    };
+    const refined = await provider.refineDraft({
+      userId,
+      currentDraft,
+      instruction: "double the portion",
+      includeAdvancedNutrition: true,
+    });
+    expect(refined).toMatchObject({
+      fibreG: 6.42,
+      saturatedFatG: null,
+      totalSugarsG: 0,
+      sodiumMg: 800,
+      cholesterolMg: null,
+    });
+    const basic = await provider.refineDraft({
+      userId,
+      currentDraft,
+      instruction: "double the portion",
+    });
+    const unchangedBasic = await provider.refineDraft({
+      userId,
+      currentDraft,
+      instruction: "rename it lunch",
+    });
+    expect(basic).not.toHaveProperty("fibreG");
+    expect(unchangedBasic).not.toHaveProperty("sodiumMg");
+    expect(
+      await provider.generateTextDraft({ userId, description: "lunch" }),
+    ).not.toHaveProperty("fibreG");
+  });
   it("returns and proportionally refines a non-default portion weight", async () => {
     const provider = new StubVisionProvider();
     const userId = "00000000-0000-4000-8000-000000000001" as UserId;

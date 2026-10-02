@@ -39,6 +39,7 @@
 - **NUT-05:** An estimated entry cannot become authoritative until the user confirms or edits it.
 - **NUT-06:** The app can retain reusable foods/meals without silently changing historical entries.
 - **NUT-07:** Pro users can optionally record and review fibre, saturated fat, total sugars, sodium, and dietary cholesterol on confirmed meals. Missing values remain unknown, partial totals disclose coverage, and free or downgraded users retain access, correction, export, and deletion of previously recorded values.
+- **NUT-08:** With existing AI consent/adult eligibility and a server-authoritative Pro grant, photo/text meal drafts and deliberate refinements can suggest those five additional nutrients. Estimates remain editable and uncertain until explicit confirmation; unknown values remain blank and client settings or quota overrides cannot grant access. Refinement must use current edits and must not overwrite changes made during a request. No historical backfill is automatic.
 
 ### Energy model
 

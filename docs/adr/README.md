@@ -49,3 +49,5 @@
 - [ADR-0032 — Community Dev expansion boundaries](0032-community-dev-expansion-boundaries.md): accepted2026-10-01; separate switches/consent/audiences and Dev-only source sequence.
 
 - [ADR-0034 — Derived local navigation for coding agents](0034-derived-agent-navigation.md): accepted 2026-10-02; on-demand source/config facts, disposable parse cache, bounded packets and shared client workflow.
+
+- [ADR-0035 — AI estimates for additional meal nutrients](0035-ai-advanced-nutrient-drafts.md): accepted for local implementation 2026-10-02; server-authorized editable estimates, unknown-value preservation and explicit confirmation; provider/device acceptance remains separate.

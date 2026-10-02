@@ -736,6 +736,66 @@ describe("coach routes", () => {
     expect(thread.json().messages).toHaveLength(2);
   });
 
+  it.each(["free", "paid"] as const)(
+    "%s text meal proposals preserve only authorized additional nutrients",
+    async (tier) => {
+      const stub = new StubVisionProvider();
+      let enabled: boolean | undefined;
+      const extras = {
+        fibreG: 3,
+        saturatedFatG: 0,
+        totalSugarsG: null,
+        sodiumMg: 410,
+        cholesterolMg: 50,
+      };
+      const provider: VisionDraftProvider = {
+        status: () => stub.status(),
+        generateDraft: (request) => stub.generateDraft(request),
+        generateTextDraft: async (request) => {
+          enabled = request.includeAdvancedNutrition;
+          return { ...(await stub.generateTextDraft(request)), ...extras };
+        },
+      };
+      const { app, respond } = makeApp(
+        undefined,
+        undefined,
+        {
+          visionProvider: provider,
+          planTierOverride: "paid",
+        },
+        tokenVerifier,
+        new InMemoryProfileRepository({
+          defaultTimezone: "UTC",
+          defaultUnitSystem: "metric",
+          defaultBirthYear: 1990,
+          defaultPlanTier: tier,
+        }),
+      );
+      const id = await createConversation(app);
+      const response = await app.inject({
+        method: "POST",
+        url: `/v1/coach/conversations/${id}/messages`,
+        headers: { ...auth, "idempotency-key": "extra-nutrients-text-0001" },
+        payload: { text: "I had 250g of tuna for dinner" },
+      });
+      expect(response.statusCode).toBe(200);
+      expect(enabled).toBe(tier === "paid");
+      const candidate =
+        response.json().assistantMessage.actionProposal.candidate;
+      if (tier === "paid") expect(candidate).toMatchObject(extras);
+      else
+        for (const key of Object.keys(extras))
+          expect(candidate).not.toHaveProperty(key);
+      expect(respond).not.toHaveBeenCalled();
+      const meals = await app.inject({
+        method: "GET",
+        url: "/v1/food-entries",
+        headers: auth,
+      });
+      expect(meals.json().foodEntries).toEqual([]);
+    },
+  );
+
   it("persists an editable nutrition proposal for an explicit meal log without giving the Coach a write tool", async () => {
     const { app, respond } = makeApp(undefined, undefined, {
       visionProvider: new StubVisionProvider(),

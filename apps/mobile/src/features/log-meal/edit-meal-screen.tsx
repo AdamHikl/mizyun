@@ -34,7 +34,9 @@ import { AiConsentModal } from "@/features/coach/ai-consent-modal";
 import { refineMealDraftWith, type LogMealForm } from "./log-meal-data";
 import {
   createOperationId,
-  mealFormStringsFromDraft,
+  mealDraftFromCurrentForm,
+  mealDraftForAdvancedAccess,
+  mergeMealDraftIntoForm,
   mealFormStringsFromEntry,
   parseOptionalNutritionNumber,
   advancedNutrientsFromForm,
@@ -161,6 +163,9 @@ export function EditMealScreen() {
   const draftKind = entryId === null ? null : (`meal-edit-${entryId}` as const);
 
   const baselineRef = useRef<NutritionBaseline | null>(null);
+  const editVersion = useRef(0);
+  const aiRequestInFlight = useRef(false);
+  const saveInFlight = useRef(false);
 
   useEffect(() => {
     if (entryId === null || userId === null || draftKind === null) {
@@ -237,6 +242,7 @@ export function EditMealScreen() {
 
   const patchForm = useCallback(
     (field: keyof MealFormStrings, value: string): void => {
+      editVersion.current += 1;
       setForm((current) => ({ ...current, [field]: value }));
     },
     [],
@@ -244,6 +250,7 @@ export function EditMealScreen() {
 
   const handleGramsChange = useCallback(
     (newGramsRaw: string): void => {
+      editVersion.current += 1;
       setGrams(newGramsRaw);
       const parsedGrams = Number(newGramsRaw.trim().replace(",", "."));
       if (!Number.isFinite(parsedGrams) || parsedGrams <= 0) return;
@@ -291,7 +298,7 @@ export function EditMealScreen() {
         };
       });
     },
-    [form.calories, form.carbs, form.fat, form.protein],
+    [form],
   );
 
   const adjustGramsDelta = useCallback(
@@ -321,46 +328,65 @@ export function EditMealScreen() {
   const executeRefineDraft = useCallback(
     async (instruction: string) => {
       const trimmed = instruction.trim();
-      if (trimmed.length < 2 || entry === null || refining || submitting) {
+      if (
+        trimmed.length < 2 ||
+        entry === null ||
+        aiRequestInFlight.current ||
+        saveInFlight.current ||
+        refining ||
+        submitting
+      ) {
         return;
       }
+      aiRequestInFlight.current = true;
+      const requestEditVersion = editVersion.current;
       setRefining(true);
       setRefineMessage(null);
       setMessage(null);
 
-      const parsedCal = parseOptionalNutritionNumber(form.calories);
-      const parsedProt = parseOptionalNutritionNumber(form.protein);
-      const parsedCarb = parseOptionalNutritionNumber(form.carbs);
-      const parsedFat = parseOptionalNutritionNumber(form.fat);
-
-      const baseCandidate: FoodDraftCandidate = {
-        name: form.name.trim().length > 0 ? form.name.trim() : entry.name,
-        portionWeightG:
-          Number.isFinite(Number(grams.trim().replace(",", "."))) &&
-          Number(grams.trim().replace(",", ".")) > 0
-            ? Number(grams.trim().replace(",", "."))
-            : getEntryGrams(entry),
-        caloriesKcal: parsedCal.ok ? parsedCal.value : entry.caloriesKcal,
-        proteinG: parsedProt.ok ? parsedProt.value : entry.proteinG,
-        carbohydrateG: parsedCarb.ok ? parsedCarb.value : entry.carbohydrateG,
-        fatG: parsedFat.ok ? parsedFat.value : entry.fatG,
-        calorieRangeKcal: aiDraft?.calorieRangeKcal ?? null,
-        proteinRangeG: aiDraft?.proteinRangeG ?? null,
-        carbohydrateRangeG: aiDraft?.carbohydrateRangeG ?? null,
-        fatRangeG: aiDraft?.fatRangeG ?? null,
-        confidence: aiDraft?.confidence ?? 0.85,
-        warnings: aiDraft?.warnings ?? [],
-        assumptions: aiDraft?.assumptions ?? [],
-        calculation: calculationText ?? aiDraft?.calculation ?? null,
-        provenance: aiDraft?.provenance ?? {
-          inputKind: "text",
-          provider: "logged-meal",
-          model: "logged-refine",
-          promptVersion: "refine-logged-v1",
-        },
-      };
-
       try {
+        const advancedEnabledForInput = await advancedCapability.refresh();
+        if (editVersion.current !== requestEditVersion) {
+          setRefineMessage(
+            "Your meal changed while preparing AI. Refine again to use your latest edits.",
+          );
+          return;
+        }
+        const originalCandidate: FoodDraftCandidate = aiDraft ?? {
+          name: entry.name,
+          portionWeightG: getEntryGrams(entry),
+          caloriesKcal: entry.caloriesKcal,
+          proteinG: entry.proteinG,
+          carbohydrateG: entry.carbohydrateG,
+          fatG: entry.fatG,
+          calorieRangeKcal: null,
+          proteinRangeG: null,
+          carbohydrateRangeG: null,
+          fatRangeG: null,
+          confidence: 0.85,
+          warnings: [],
+          assumptions: [],
+          calculation: calculationText,
+          provenance: {
+            inputKind: "text",
+            provider: "logged-meal",
+            model: "logged-refine",
+            promptVersion: "refine-logged-v1",
+          },
+        };
+        const baseCandidate = mealDraftFromCurrentForm(
+          originalCandidate,
+          form,
+          grams,
+          advancedEnabledForInput,
+        );
+        if (baseCandidate === null) {
+          setRefineMessage(
+            "Check the nutrient values and portion weight before refining.",
+          );
+          return;
+        }
+
         const result = await refineMealDraftWith(
           apiClient,
           baseCandidate,
@@ -370,22 +396,31 @@ export function EditMealScreen() {
           setRefineMessage(result.message);
           return;
         }
-        const updatedCandidate = result.draft;
-        const strings = mealFormStringsFromDraft(updatedCandidate);
-        setForm((current) => ({
-          ...current,
-          name: strings.name || current.name,
-          calories: strings.calories,
-          protein: strings.protein,
-          carbs: strings.carbs,
-          fat: strings.fat,
-        }));
+        const advancedEnabled = await advancedCapability.refresh();
+        if (editVersion.current !== requestEditVersion) {
+          setRefineMessage(
+            "Your meal changed while AI was estimating. Your edits are kept; refine again to use them.",
+          );
+          return;
+        }
+        const updatedCandidate = mealDraftForAdvancedAccess(
+          result.draft,
+          advancedEnabled,
+        );
+        const nextForm = mergeMealDraftIntoForm(
+          form,
+          updatedCandidate,
+          advancedEnabled,
+        );
+        setForm({ ...nextForm, name: nextForm.name || form.name });
         setAiDraft(updatedCandidate);
         if (updatedCandidate.calculation) {
           setCalculationText(updatedCandidate.calculation);
         }
         setRefineInstruction("");
-        setRefineMessage("✨ Meal adjusted by AI. Review and save below.");
+        setRefineMessage(
+          "Meal adjusted by AI. Estimates are uncertain; review and save below.",
+        );
 
         const detectedGrams =
           updatedCandidate.portionWeightG ??
@@ -396,16 +431,20 @@ export function EditMealScreen() {
           setGrams(String(detectedGrams));
         }
 
-        if (baselineRef.current !== null && baselineRef.current.grams > 0) {
+        if (
+          (detectedGrams !== null && detectedGrams > 0) ||
+          (baselineRef.current !== null && baselineRef.current.grams > 0)
+        ) {
           const nextGrams =
             detectedGrams !== null && detectedGrams > 0
               ? detectedGrams
-              : baselineRef.current.grams;
+              : baselineRef.current!.grams;
           baselineRef.current = {
             caloriesKcal: updatedCandidate.caloriesKcal,
             proteinG: updatedCandidate.proteinG,
             carbohydrateG: updatedCandidate.carbohydrateG,
             fatG: updatedCandidate.fatG,
+            ...advancedNutrientsFromForm(nextForm),
             grams: nextGrams,
           };
         }
@@ -413,9 +452,19 @@ export function EditMealScreen() {
         setRefineMessage("Failed to refine meal with AI. Please try again.");
       } finally {
         setRefining(false);
+        aiRequestInFlight.current = false;
       }
     },
-    [aiDraft, calculationText, entry, form, grams, refining, submitting],
+    [
+      advancedCapability.refresh,
+      aiDraft,
+      calculationText,
+      entry,
+      form,
+      grams,
+      refining,
+      submitting,
+    ],
   );
 
   const executeAiAction = useCallback(
@@ -450,108 +499,120 @@ export function EditMealScreen() {
   }, [refineInstruction, refining, requestAction, submitting]);
 
   const save = useCallback(async (): Promise<void> => {
-    if (entry === null || entryId === null) return;
-    setMessage(null);
-    const calories = parseOptionalNutritionNumber(form.calories);
-    const protein = parseOptionalNutritionNumber(form.protein);
-    const carbs = parseOptionalNutritionNumber(form.carbs);
-    const fat = parseOptionalNutritionNumber(form.fat);
-    const advancedValues = advancedNutrientsFromForm(form);
-    if (!calories.ok || !protein.ok || !carbs.ok || !fat.ok) {
-      setMessage("Calories and macros must be positive numbers or blank.");
+    if (
+      entry === null ||
+      entryId === null ||
+      aiRequestInFlight.current ||
+      saveInFlight.current ||
+      submitting
+    )
       return;
-    }
-    if (advancedValues === null) {
-      setMessage("More nutrient values must be positive numbers or blank.");
-      return;
-    }
-    const advancedChanged =
-      advancedValues !== null &&
-      (advancedValues.fibreG !== (entry.fibreG ?? null) ||
-        advancedValues.saturatedFatG !== (entry.saturatedFatG ?? null) ||
-        advancedValues.totalSugarsG !== (entry.totalSugarsG ?? null) ||
-        advancedValues.sodiumMg !== (entry.sodiumMg ?? null) ||
-        advancedValues.cholesterolMg !== (entry.cholesterolMg ?? null));
-    if (advancedChanged && !(await advancedCapability.refresh())) {
-      const fillsMissing =
-        advancedValues !== null &&
-        ((entry.fibreG == null && advancedValues.fibreG !== null) ||
-          (entry.saturatedFatG == null &&
-            advancedValues.saturatedFatG !== null) ||
-          (entry.totalSugarsG == null &&
-            advancedValues.totalSugarsG !== null) ||
-          (entry.sodiumMg == null && advancedValues.sodiumMg !== null) ||
-          (entry.cholesterolMg == null &&
-            advancedValues.cholesterolMg !== null));
-      if (fillsMissing) {
-        setMessage(
-          "An active Pro grant is required to add new nutrient values. Existing values can still be corrected or cleared.",
-        );
+    saveInFlight.current = true;
+    setSubmitting(true);
+    try {
+      setMessage(null);
+      const calories = parseOptionalNutritionNumber(form.calories);
+      const protein = parseOptionalNutritionNumber(form.protein);
+      const carbs = parseOptionalNutritionNumber(form.carbs);
+      const fat = parseOptionalNutritionNumber(form.fat);
+      const advancedValues = advancedNutrientsFromForm(form);
+      if (!calories.ok || !protein.ok || !carbs.ok || !fat.ok) {
+        setMessage("Calories and macros must be positive numbers or blank.");
         return;
       }
-    }
+      if (advancedValues === null) {
+        setMessage("More nutrient values must be positive numbers or blank.");
+        return;
+      }
+      const advancedChanged =
+        advancedValues !== null &&
+        (advancedValues.fibreG !== (entry.fibreG ?? null) ||
+          advancedValues.saturatedFatG !== (entry.saturatedFatG ?? null) ||
+          advancedValues.totalSugarsG !== (entry.totalSugarsG ?? null) ||
+          advancedValues.sodiumMg !== (entry.sodiumMg ?? null) ||
+          advancedValues.cholesterolMg !== (entry.cholesterolMg ?? null));
+      if (advancedChanged && !(await advancedCapability.refresh())) {
+        const fillsMissing =
+          advancedValues !== null &&
+          ((entry.fibreG == null && advancedValues.fibreG !== null) ||
+            (entry.saturatedFatG == null &&
+              advancedValues.saturatedFatG !== null) ||
+            (entry.totalSugarsG == null &&
+              advancedValues.totalSugarsG !== null) ||
+            (entry.sodiumMg == null && advancedValues.sodiumMg !== null) ||
+            (entry.cholesterolMg == null &&
+              advancedValues.cholesterolMg !== null));
+        if (fillsMissing) {
+          setMessage(
+            "An active Pro grant is required to add new nutrient values. Existing values can still be corrected or cleared.",
+          );
+          return;
+        }
+      }
 
-    let nextDetails = (entry.details ?? {}) as Record<string, unknown>;
-    const parsedGrams = Number(grams.trim().replace(",", "."));
-    if (Number.isFinite(parsedGrams) && parsedGrams > 0) {
-      nextDetails = withMealGrams(nextDetails, parsedGrams);
-    } else {
-      nextDetails = withMealGrams(nextDetails, null);
-    }
+      let nextDetails = (entry.details ?? {}) as Record<string, unknown>;
+      const parsedGrams = Number(grams.trim().replace(",", "."));
+      if (Number.isFinite(parsedGrams) && parsedGrams > 0) {
+        nextDetails = withMealGrams(nextDetails, parsedGrams);
+      } else {
+        nextDetails = withMealGrams(nextDetails, null);
+      }
 
-    const trimmedGroup = mealGroupName.trim();
-    if (trimmedGroup.length > 0) {
-      nextDetails = withMealGroup(nextDetails, {
-        id: mealGroupId ?? createOperationId(),
-        name: trimmedGroup,
-      });
-    } else {
-      nextDetails = withMealGroup(nextDetails, null);
-    }
+      const trimmedGroup = mealGroupName.trim();
+      if (trimmedGroup.length > 0) {
+        nextDetails = withMealGroup(nextDetails, {
+          id: mealGroupId ?? createOperationId(),
+          name: trimmedGroup,
+        });
+      } else {
+        nextDetails = withMealGroup(nextDetails, null);
+      }
 
-    if (calculationText !== null || aiDraft !== null) {
-      const currentDraftObj =
-        aiDraft ??
-        (nextDetails && typeof nextDetails === "object"
-          ? (nextDetails as Record<string, unknown>).aiDraft
-          : undefined);
-      const updatedAiDraft =
-        currentDraftObj && typeof currentDraftObj === "object"
-          ? {
-              ...(currentDraftObj as Record<string, unknown>),
-              ...(calculationText ? { calculation: calculationText } : {}),
-              userConfirmed: true,
-            }
-          : undefined;
+      if (calculationText !== null || aiDraft !== null) {
+        const currentDraftObj =
+          aiDraft ??
+          (nextDetails && typeof nextDetails === "object"
+            ? (nextDetails as Record<string, unknown>).aiDraft
+            : undefined);
+        const updatedAiDraft =
+          currentDraftObj && typeof currentDraftObj === "object"
+            ? {
+                ...(currentDraftObj as Record<string, unknown>),
+                ...(calculationText ? { calculation: calculationText } : {}),
+                userConfirmed: true,
+              }
+            : undefined;
 
-      nextDetails = {
-        ...nextDetails,
-        ...(calculationText ? { calculationText } : {}),
-        ...(updatedAiDraft ? { aiDraft: updatedAiDraft } : {}),
+        nextDetails = {
+          ...nextDetails,
+          ...(calculationText ? { calculationText } : {}),
+          ...(updatedAiDraft ? { aiDraft: updatedAiDraft } : {}),
+        };
+      }
+
+      const patch: LogMealForm = {
+        name: form.name,
+        consumedAt: entry.consumedAt,
+        caloriesKcal: calories.value,
+        proteinG: protein.value,
+        carbohydrateG: carbs.value,
+        fatG: fat.value,
+        ...(advancedChanged && advancedValues !== null ? advancedValues : {}),
+        details: nextDetails,
       };
+      const result = await updateFoodEntry(entryId, patch);
+      if (!result.ok) {
+        setMessage(result.message);
+        return;
+      }
+      if (userId !== null && draftKind !== null) {
+        await clearLoggingDraft(userId, draftKind);
+      }
+      router.back();
+    } finally {
+      saveInFlight.current = false;
+      setSubmitting(false);
     }
-
-    const patch: LogMealForm = {
-      name: form.name,
-      consumedAt: entry.consumedAt,
-      caloriesKcal: calories.value,
-      proteinG: protein.value,
-      carbohydrateG: carbs.value,
-      fatG: fat.value,
-      ...(advancedChanged && advancedValues !== null ? advancedValues : {}),
-      details: nextDetails,
-    };
-    setSubmitting(true);
-    const result = await updateFoodEntry(entryId, patch);
-    setSubmitting(false);
-    if (!result.ok) {
-      setMessage(result.message);
-      return;
-    }
-    if (userId !== null && draftKind !== null) {
-      await clearLoggingDraft(userId, draftKind);
-    }
-    router.back();
   }, [
     aiDraft,
     advancedCapability,
@@ -564,6 +625,7 @@ export function EditMealScreen() {
     mealGroupId,
     mealGroupName,
     userId,
+    submitting,
   ]);
 
   return (
@@ -752,13 +814,14 @@ export function EditMealScreen() {
                     ✨ Refine with AI
                   </ThemedText>
                   <ThemedText type="small" themeColor="textSecondary">
-                    Adjust portion sizes, swap ingredients, or specify changes
+                    Adjust ingredients or ask to estimate missing nutrients.
+                    Review estimates before saving.
                   </ThemedText>
                 </View>
                 <View style={styles.refineInputRow}>
                   <TextInput
                     accessibilityLabel="AI refine instruction"
-                    placeholder="e.g. only ate half the rice, add 1 egg…"
+                    placeholder="e.g. estimate fibre, sugars and sodium…"
                     placeholderTextColor="#8A8D91"
                     style={[styles.refineInput, { color: theme.text }]}
                     value={refineInstruction}
@@ -927,10 +990,10 @@ export function EditMealScreen() {
               accessibilityRole="button"
               accessibilityLabel="Save meal changes"
               accessibilityState={{
-                disabled: submitting,
+                disabled: submitting || refining,
                 busy: submitting,
               }}
-              disabled={submitting}
+              disabled={submitting || refining}
               onPress={() => void save()}
               style={({ pressed }) => [
                 styles.submit,

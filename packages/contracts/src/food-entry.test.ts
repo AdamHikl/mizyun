@@ -45,6 +45,60 @@ describe("food-entry local-day queries", () => {
 });
 
 describe("nutrition draft contracts", () => {
+  const nutrientCandidate = {
+    name: "Synthetic labelled meal",
+    caloriesKcal: 350,
+    proteinG: 20,
+    carbohydrateG: 30,
+    fatG: 16,
+    calorieRangeKcal: null,
+    proteinRangeG: null,
+    carbohydrateRangeG: null,
+    fatRangeG: null,
+    confidence: 0.7,
+    warnings: ["Review estimates before saving."],
+    assumptions: [],
+    provenance: {
+      inputKind: "text" as const,
+      provider: "synthetic",
+      model: "fixture",
+      promptVersion: "fixture-v1",
+    },
+  };
+
+  it("retains extra nutrient estimates, explicit zero and unknown through refinement", () => {
+    const candidate = {
+      ...nutrientCandidate,
+      fibreG: 4.25,
+      saturatedFatG: 0,
+      totalSugarsG: null,
+      sodiumMg: 410.5,
+      cholesterolMg: 50,
+    };
+    expect(foodDraftCandidateSchema.parse(candidate)).toMatchObject(candidate);
+    expect(
+      foodRefineDraftRequestSchema.parse({
+        currentDraft: candidate,
+        instruction: "Estimate additional nutrients for this meal",
+      }).currentDraft,
+    ).toMatchObject(candidate);
+  });
+
+  it.each([
+    ["fibreG", -1],
+    ["saturatedFatG", 10_001],
+    ["totalSugarsG", 0.001],
+    ["sodiumMg", 100_001],
+    ["cholesterolMg", Infinity],
+  ])("rejects invalid extra estimate %s=%s", (key, value) => {
+    expect(
+      foodDraftCandidateSchema.safeParse({
+        ...nutrientCandidate,
+        [key]: value,
+      }).success,
+    ).toBe(false);
+  });
+
   it("accepts an editable candidate with uncertainty and provenance", () => {
     expect(
       foodDraftCandidateSchema.parse({

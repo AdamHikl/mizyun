@@ -876,3 +876,294 @@ describe("GeminiVisionProvider", () => {
     expect(result.caloriesKcal).toBe(550);
   });
 });
+
+describe("Gemini advanced nutrient drafts", () => {
+  const advanced = {
+    fibreG: 2.346,
+    saturatedFatG: 1.234,
+    totalSugarsG: 0,
+    sodiumMg: 455.678,
+    cholesterolMg: null,
+  };
+  const setup = (output: Record<string, unknown>) => {
+    const generateContent = vi.fn<GeminiVisionClient["generateContent"]>(
+      async () => ({
+        candidates: [
+          {
+            content: {
+              parts: [
+                { text: JSON.stringify({ ...candidateOutput, ...output }) },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+    const provider = new GeminiVisionProvider({
+      apiKey: "synthetic-key",
+      model: "gemini-2.5-flash",
+      timeoutMs: 5000,
+      maxOutputTokens: 1000,
+      externalAccess: true,
+      enableSearchGrounding: false,
+      client: { generateContent },
+    });
+    return { provider, generateContent };
+  };
+
+  it("retains advanced photo estimates only for the server opt-in and rounds without losing zero or null", async () => {
+    const { provider, generateContent } = setup(advanced);
+    const result = await provider.generateDraft({
+      ...request,
+      includeAdvancedNutrition: true,
+    });
+    expect(result).toMatchObject({
+      fibreG: 2.35,
+      saturatedFatG: 1.23,
+      totalSugarsG: 0,
+      sodiumMg: 455.68,
+      cholesterolMg: null,
+    });
+    expect(
+      generateContent.mock.calls[0]?.[0].generationConfig?.responseSchema,
+    ).toMatchObject({
+      properties: {
+        fibreG: { type: "NUMBER", nullable: true },
+        sodiumMg: { type: "NUMBER", nullable: true },
+      },
+      required: expect.arrayContaining(Object.keys(advanced)),
+    });
+    expect(
+      generateContent.mock.calls[0]?.[0].systemInstruction?.parts[0]?.text,
+    ).toContain("Never derive advanced nutrients from calories or macros");
+  });
+
+  it("keeps the basic-only schema and strips unsolicited advanced values when disabled", async () => {
+    const { provider, generateContent } = setup(advanced);
+    const result = await provider.generateDraft(request);
+    for (const key of Object.keys(advanced))
+      expect(result).not.toHaveProperty(key);
+    const schema =
+      generateContent.mock.calls[0]?.[0].generationConfig?.responseSchema;
+    expect(schema).not.toHaveProperty("properties.fibreG");
+    expect(
+      generateContent.mock.calls[0]?.[0].systemInstruction?.parts[0]?.text,
+    ).not.toContain("sodiumMg");
+  });
+
+  it("preserves unknown advanced nutrition instead of deriving it from known macros", async () => {
+    const { provider } = setup({ fibreG: null, totalSugarsG: null });
+    const result = await provider.generateTextDraft({
+      userId: request.userId,
+      description: "chicken and rice",
+      includeAdvancedNutrition: true,
+    });
+    expect(result).toMatchObject({
+      fibreG: null,
+      saturatedFatG: null,
+      totalSugarsG: null,
+      sodiumMg: null,
+      cholesterolMg: null,
+    });
+    expect(result.caloriesKcal).toBe(420);
+  });
+
+  it.each([
+    ["fibreG", -1],
+    ["saturatedFatG", 10000.01],
+    ["totalSugarsG", "10"],
+    ["sodiumMg", 100000.01],
+    ["cholesterolMg", -1],
+  ])("rejects invalid enabled %s output", async (field, value) => {
+    const { provider } = setup({ ...advanced, [field]: value });
+    await expect(
+      provider.generateDraft({ ...request, includeAdvancedNutrition: true }),
+    ).rejects.toMatchObject({ kind: "malformed_response" });
+  });
+
+  it("clears only contradictory advanced values and preserves a bounded warning", async () => {
+    const { provider } = setup({
+      ...advanced,
+      saturatedFatG: 10,
+      totalSugarsG: 46,
+      warnings: Array.from(
+        { length: 8 },
+        (_, index) => `Original warning ${index}`,
+      ),
+    });
+    const result = await provider.generateDraft({
+      ...request,
+      includeAdvancedNutrition: true,
+    });
+    expect(result).toMatchObject({
+      saturatedFatG: null,
+      totalSugarsG: null,
+      fibreG: 2.35,
+      sodiumMg: 455.68,
+      caloriesKcal: 420,
+      fatG: 9,
+      carbohydrateG: 45,
+    });
+    expect(result.warnings).toHaveLength(8);
+    expect(result.warnings.join(" ")).toContain(
+      "saturated fat exceeded total fat",
+    );
+    expect(result.warnings.join(" ")).toContain(
+      "total sugars exceeded total carbohydrates",
+    );
+  });
+
+  it("accepts advanced subset values equal to their macro totals and preserves unknown totals", async () => {
+    const { provider } = setup({
+      ...advanced,
+      saturatedFatG: 9,
+      totalSugarsG: 45,
+    });
+    expect(
+      await provider.generateDraft({
+        ...request,
+        includeAdvancedNutrition: true,
+      }),
+    ).toMatchObject({ saturatedFatG: 9, totalSugarsG: 45 });
+    const unknown = setup({
+      ...advanced,
+      caloriesKcal: null,
+      fatG: null,
+      fatRangeG: null,
+      carbohydrateG: null,
+      carbohydrateRangeG: null,
+    });
+    expect(
+      await unknown.provider.generateDraft({
+        ...request,
+        includeAdvancedNutrition: true,
+      }),
+    ).toMatchObject({
+      saturatedFatG: 1.23,
+      totalSugarsG: 0,
+      fatG: null,
+      carbohydrateG: null,
+    });
+  });
+
+  it("rejects nonfinite model numbers instead of treating them as an unknown value", async () => {
+    const { provider, generateContent } = setup({ fibreG: 1 });
+    generateContent.mockResolvedValueOnce({
+      candidates: [
+        {
+          content: {
+            parts: [
+              {
+                text: JSON.stringify({ ...candidateOutput, fibreG: 1 }).replace(
+                  '"fibreG":1',
+                  '"fibreG":1e309',
+                ),
+              },
+            ],
+          },
+        },
+      ],
+    });
+    await expect(
+      provider.generateDraft({ ...request, includeAdvancedNutrition: true }),
+    ).rejects.toMatchObject({ kind: "malformed_response" });
+  });
+
+  it("keeps advanced opt-in across grounded search and the structured text step", async () => {
+    const { generateContent } = setup(advanced);
+    generateContent.mockResolvedValueOnce({
+      candidates: [
+        {
+          content: {
+            parts: [
+              {
+                text: "Synthetic published facts: sodium 500 mg and sugars 4 g per serving.",
+              },
+            ],
+          },
+        },
+      ],
+    });
+    const provider = new GeminiVisionProvider({
+      apiKey: "synthetic-key",
+      model: "gemini-2.5-flash",
+      timeoutMs: 5000,
+      maxOutputTokens: 1000,
+      externalAccess: true,
+      enableSearchGrounding: true,
+      client: { generateContent },
+    });
+    const result = await provider.generateTextDraft({
+      userId: request.userId,
+      description: "restaurant chicken and rice",
+      includeAdvancedNutrition: true,
+    });
+    expect(result.sodiumMg).toBe(455.68);
+    expect(
+      getPartText(generateContent.mock.calls[0]?.[0].contents[0]?.parts[0]),
+    ).toContain("sodium and dietary cholesterol in milligrams");
+    expect(
+      generateContent.mock.calls[1]?.[0].generationConfig?.responseSchema,
+    ).toHaveProperty("properties.totalSugarsG");
+  });
+
+  it("passes current advanced values to refinement only when enabled", async () => {
+    const { provider, generateContent } = setup(advanced);
+    const currentDraft = {
+      ...candidateOutput,
+      ...advanced,
+      provenance: {
+        inputKind: "photo" as const,
+        provider: "gemini",
+        model: "gemini-2.5-flash",
+        promptVersion: "older",
+      },
+    };
+    const result = await provider.refineDraft({
+      userId: request.userId,
+      currentDraft,
+      instruction: "rename to lunch",
+      includeAdvancedNutrition: true,
+    });
+    expect(result).toHaveProperty("sodiumMg", 455.68);
+    const prompt = getPartText(
+      generateContent.mock.calls[0]?.[0].contents[0]?.parts[0],
+    );
+    expect(prompt).toContain("Sodium: 455.678 mg");
+    expect(prompt).toContain("Dietary cholesterol: (unknown) mg");
+    await provider.refineDraft({
+      userId: request.userId,
+      currentDraft,
+      instruction: "rename to lunch",
+    });
+    expect(
+      getPartText(generateContent.mock.calls[1]?.[0].contents[0]?.parts[0]),
+    ).not.toContain("Sodium:");
+  });
+
+  it("clears advanced values with all other nutrition when the output is unsafe", async () => {
+    const { provider } = setup({
+      ...advanced,
+      name: "Prescribe medication",
+      warnings: Array.from(
+        { length: 8 },
+        (_, index) => `Original warning ${index}`,
+      ),
+    });
+    const result = await provider.generateDraft({
+      ...request,
+      includeAdvancedNutrition: true,
+    });
+    expect(result).toMatchObject({
+      name: null,
+      caloriesKcal: null,
+      fibreG: null,
+      saturatedFatG: null,
+      totalSugarsG: null,
+      sodiumMg: null,
+      cholesterolMg: null,
+    });
+    expect(result.warnings).toHaveLength(8);
+    expect(result.warnings[7]).toContain("rejected by the safety policy");
+  });
+});

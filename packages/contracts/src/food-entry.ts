@@ -350,6 +350,9 @@ export const foodDraftCandidateSchema = z.object({
   proteinG: macroSchema.nullable(),
   carbohydrateG: macroSchema.nullable(),
   fatG: macroSchema.nullable(),
+  // Optional for compatibility with basic-only providers and saved drafts.
+  // Null means unknown; these remain estimates until the user confirms them.
+  ...advancedNutritionSchema.partial().shape,
   calorieRangeKcal: nutritionEstimateRangeSchema.nullable(),
   proteinRangeG: nutritionEstimateRangeSchema.nullable(),
   carbohydrateRangeG: nutritionEstimateRangeSchema.nullable(),

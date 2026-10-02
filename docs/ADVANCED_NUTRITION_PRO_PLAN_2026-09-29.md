@@ -1,5 +1,7 @@
 # Advanced nutrition tracking for Pro — implementation plan
 
+> Scope extension 2026-10-02: Adam authorized AI filling of the five additional nutrients in [#178](https://github.com/AdamHikl/mizyun/issues/178). [ADR-0035](adr/0035-ai-advanced-nutrient-drafts.md) supersedes this original plan's AI-extraction exclusion for local draft/refine implementation. Historical rows are not backfilled; provider quality and exact-candidate device acceptance remain separate.
+
 **Work package:** NUTR-PRO-001 / [issue #134](https://github.com/AdamHikl/mizyun/issues/134)  
 **Mode:** Planning only, 2026-09-29. No feature code, migration, build, or deployment in this session.  
 **Baseline:** planning began at `0b2540c` on `main` while Account navigation changes were in progress; that work was committed concurrently as `abac660`. Preserve it. This work follows the October 2–3 InVenture demo priority; it does not change `plan.md` sequencing.

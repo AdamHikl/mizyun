@@ -905,6 +905,8 @@ export {
 export type VisionMimeType = "image/jpeg" | "image/png" | "image/webp";
 
 export interface VisionDraftRequest {
+  /** Set only by the server after checking advanced nutrition capability. */
+  readonly includeAdvancedNutrition?: boolean;
   readonly userId: UserId;
   readonly photo: Readonly<Uint8Array>;
   readonly mimeType: VisionMimeType;
@@ -926,6 +928,8 @@ export interface VisionDraftRequest {
 }
 
 export interface TextFoodDraftRequest {
+  /** Set only by the server after checking advanced nutrition capability. */
+  readonly includeAdvancedNutrition?: boolean;
   readonly userId: UserId;
   readonly description: string;
   readonly requestId?: string;
@@ -947,6 +951,8 @@ export interface TextFoodDraftRequest {
  * existing values.
  */
 export interface RefineFoodDraftRequest {
+  /** Set only by the server after checking advanced nutrition capability. */
+  readonly includeAdvancedNutrition?: boolean;
   readonly userId: UserId;
   readonly currentDraft: VisionDraftCandidate;
   readonly instruction: string;
@@ -979,6 +985,12 @@ export interface VisionDraftCandidate {
   readonly proteinG: number | null;
   readonly carbohydrateG: number | null;
   readonly fatG: number | null;
+  /** Optional meal totals; missing/null means unknown, never zero. */
+  readonly fibreG?: number | null | undefined;
+  readonly saturatedFatG?: number | null | undefined;
+  readonly totalSugarsG?: number | null | undefined;
+  readonly sodiumMg?: number | null | undefined;
+  readonly cholesterolMg?: number | null | undefined;
   readonly calorieRangeKcal: NutritionEstimateRange | null;
   readonly proteinRangeG: NutritionEstimateRange | null;
   readonly carbohydrateRangeG: NutritionEstimateRange | null;
@@ -1099,6 +1111,15 @@ export class StubVisionProvider implements VisionDraftProvider {
       proteinG: 12,
       carbohydrateG: 40,
       fatG: 14,
+      ...(request.includeAdvancedNutrition
+        ? {
+            fibreG: null,
+            saturatedFatG: null,
+            totalSugarsG: null,
+            sodiumMg: null,
+            cholesterolMg: null,
+          }
+        : {}),
       calorieRangeKcal: { low: 280, high: 430 },
       proteinRangeG: { low: 9, high: 16 },
       carbohydrateRangeG: { low: 32, high: 50 },
@@ -1128,6 +1149,9 @@ export class StubVisionProvider implements VisionDraftProvider {
       photo: new Uint8Array(),
       mimeType: "image/jpeg",
       textHint: request.description,
+      ...(request.includeAdvancedNutrition === undefined
+        ? {}
+        : { includeAdvancedNutrition: request.includeAdvancedNutrition }),
       ...(request.requestId === undefined
         ? {}
         : { requestId: request.requestId }),
@@ -1147,7 +1171,24 @@ export class StubVisionProvider implements VisionDraftProvider {
     // round-trip. Anything we don't recognise is echoed back
     // with a low-confidence warning.
     const instruction = request.instruction.trim().toLowerCase();
-    const draft = request.currentDraft;
+    const {
+      fibreG,
+      saturatedFatG,
+      totalSugarsG,
+      sodiumMg,
+      cholesterolMg,
+      ...basicDraft
+    } = request.currentDraft;
+    const draft: VisionDraftCandidate = request.includeAdvancedNutrition
+      ? {
+          ...basicDraft,
+          fibreG: fibreG ?? null,
+          saturatedFatG: saturatedFatG ?? null,
+          totalSugarsG: totalSugarsG ?? null,
+          sodiumMg: sodiumMg ?? null,
+          cholesterolMg: cholesterolMg ?? null,
+        }
+      : basicDraft;
     const scale = (() => {
       if (/\b(double|2x|twice as much|two times)\b/.test(instruction)) {
         return 2;
@@ -1213,6 +1254,15 @@ export class StubVisionProvider implements VisionDraftProvider {
       proteinG: scaledNumber(draft.proteinG),
       carbohydrateG: scaledNumber(draft.carbohydrateG),
       fatG: scaledNumber(draft.fatG),
+      ...(request.includeAdvancedNutrition
+        ? {
+            fibreG: scaledNumber(draft.fibreG ?? null),
+            saturatedFatG: scaledNumber(draft.saturatedFatG ?? null),
+            totalSugarsG: scaledNumber(draft.totalSugarsG ?? null),
+            sodiumMg: scaledNumber(draft.sodiumMg ?? null),
+            cholesterolMg: scaledNumber(draft.cholesterolMg ?? null),
+          }
+        : {}),
       calorieRangeKcal: scaledRange(draft.calorieRangeKcal),
       proteinRangeG: scaledRange(draft.proteinRangeG),
       carbohydrateRangeG: scaledRange(draft.carbohydrateRangeG),

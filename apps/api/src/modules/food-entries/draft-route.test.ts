@@ -12,6 +12,10 @@ import type { AccessTokenVerifier } from "@mizyun/identity";
 import type { ProfileRepository } from "@mizyun/core";
 import { buildApp } from "../../app.js";
 import { InMemoryProfileRepository } from "../../profile-repository.js";
+import {
+  InMemoryBetaProRepository,
+  type BetaProRepository,
+} from "../../beta-pro-repository.js";
 import type { CoachLimitService } from "../coach/limits.js";
 import { FoodDraftRateLimiter } from "./draft-rate-limit.js";
 
@@ -31,10 +35,14 @@ const makeApps = (options: {
   readonly limits?: CoachLimitService;
   readonly resolvePlanTier?: () => "free" | "paid";
   readonly profileRepository?: ProfileRepository;
+  readonly betaProRepository?: BetaProRepository;
 }) => {
   const rateLimiter = options.rateLimiter ?? new FoodDraftRateLimiter();
   const app = buildApp({
     tokenVerifier,
+    ...(options.betaProRepository
+      ? { betaProRepository: options.betaProRepository }
+      : {}),
     ...(options.profileRepository
       ? { profileRepository: options.profileRepository }
       : {}),
@@ -238,6 +246,156 @@ describe("Food draft route — happy path", () => {
     expect(receivedBytes!.length).toBe(ONE_PIXEL_PNG.length);
     expect(receivedMime).toBe("image/jpeg");
     expect(receivedHint).toBe("Dinner");
+  });
+});
+
+describe("AI advanced nutrient capability", () => {
+  const values = {
+    fibreG: 4.25,
+    saturatedFatG: 0,
+    totalSugarsG: null,
+    sodiumMg: 410.5,
+    cholesterolMg: 50,
+  };
+
+  it.each([
+    ["free", "none", false],
+    ["free", "pending", false],
+    ["free", "rejected", false],
+    ["free", "approved", true],
+    ["paid", "none", true],
+  ] as const)(
+    "%s / Beta Pro %s gates photo, text and refinement estimates",
+    async (tier, betaStatus, expected) => {
+      const profiles = new InMemoryProfileRepository({
+        defaultTimezone: "UTC",
+        defaultUnitSystem: "metric",
+        defaultBirthYear: 1990,
+        defaultPlanTier: tier,
+      });
+      const beta = new InMemoryBetaProRepository();
+      if (betaStatus !== "none") {
+        beta.__seedForTest({
+          id: randomUUID(),
+          userId: userId as never,
+          email: "synthetic@example.test",
+          pushToken: null,
+          status: betaStatus,
+          notes: null,
+          createdAt: new Date(),
+          reviewedAt: null,
+        });
+      }
+      const requests: Array<{
+        readonly includeAdvancedNutrition?: boolean;
+        readonly currentDraft?: VisionDraftCandidate;
+      }> = [];
+      const candidate = {
+        ...(await new StubVisionProvider().generateTextDraft({
+          userId: userId as never,
+          description: "Eggs and toast",
+        })),
+        ...values,
+      };
+      const provider: VisionDraftProvider = {
+        status: async () => ({ ready: true, provider: "synthetic" }),
+        generateDraft: async (request) => {
+          requests.push(request);
+          return candidate;
+        },
+        generateTextDraft: async (request) => {
+          requests.push(request);
+          return candidate;
+        },
+        refineDraft: async (request) => {
+          requests.push(request);
+          return candidate;
+        },
+      };
+      const { app } = makeApps({
+        visionProvider: provider,
+        profileRepository: profiles,
+        betaProRepository: beta,
+        // A quota-tier override must never grant the nutrient capability.
+        resolvePlanTier: () => "paid",
+        rateLimiter: new FoodDraftRateLimiter({ paidPerMinute: 100 }),
+      });
+      const text = await app.inject({
+        method: "POST",
+        url: "/v1/food-entries/draft/text",
+        headers: auth,
+        payload: { description: "Eggs and toast" },
+      });
+      const photo = await postDraft(
+        app,
+        buildForm({
+          name: "meal.png",
+          content: ONE_PIXEL_PNG,
+          type: "image/png",
+        }),
+      );
+      const refined = await postRefine(app, {
+        currentDraft: candidate,
+        instruction: "Estimate the additional nutrients",
+      });
+      for (const response of [text, photo, refined]) {
+        expect(response.statusCode).toBe(200);
+        if (expected) expect(response.json().draft).toMatchObject(values);
+        else
+          for (const key of Object.keys(values)) {
+            expect(response.json().draft).not.toHaveProperty(key);
+          }
+      }
+      expect(requests).toHaveLength(3);
+      for (const request of requests) {
+        expect(request.includeAdvancedNutrition).toBe(expected);
+      }
+      const refineBase = requests[2]?.currentDraft;
+      if (expected) expect(refineBase).toMatchObject(values);
+      else
+        for (const key of Object.keys(values)) {
+          expect(refineBase).not.toHaveProperty(key);
+        }
+    },
+  );
+
+  it("fails closed on entitlement errors while basic AI drafts remain usable", async () => {
+    const beta = new InMemoryBetaProRepository();
+    vi.spyOn(beta, "getRequest").mockRejectedValue(
+      new Error("lookup unavailable"),
+    );
+    const provider = new StubVisionProvider();
+    const spy = vi.spyOn(provider, "generateTextDraft");
+    const { app } = makeApps({
+      visionProvider: provider,
+      betaProRepository: beta,
+    });
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/food-entries/draft/text",
+      headers: auth,
+      payload: { description: "Eggs and toast" },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(spy.mock.calls[0]?.[0].includeAdvancedNutrition).toBe(false);
+    expect(response.json().draft.caloriesKcal).toBe(350);
+  });
+
+  it("does not accept a client-selected advanced entitlement", async () => {
+    const provider = new StubVisionProvider();
+    const spy = vi.spyOn(provider, "generateTextDraft");
+    const { app } = makeApps({ visionProvider: provider });
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/food-entries/draft/text",
+      headers: auth,
+      payload: {
+        description: "Eggs and toast",
+        includeAdvancedNutrition: true,
+      },
+    });
+    expect(response.statusCode).toBe(422);
+    expect(spy).not.toHaveBeenCalled();
   });
 });
 

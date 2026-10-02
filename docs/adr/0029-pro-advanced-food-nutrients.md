@@ -2,6 +2,8 @@
 
 **Status:** Accepted for NUTR-PRO-001, 2026-09-29
 
+**2026-10-02 amendment:** [ADR-0035](0035-ai-advanced-nutrient-drafts.md), authorized by Adam in #178, extends the local AI draft/refine implementation to the five additional nutrients. The basic-only AI restriction below describes the original release scope; live quality and device acceptance remain separate gates. Storage, entitlement, missing-value and confirmation rules remain in force.
+
 ## Context
 
 Mizyun stores confirmed food entries with typed nullable calories and basic macros. Pro needs optional fibre, saturated fat, total sugars, sodium, and dietary cholesterol. Existing users and older clients must continue to work; missing nutrient data must not be misrepresented as zero. Authenticated clients can also reach Supabase's Data API, so an API-only Pro check is insufficient.

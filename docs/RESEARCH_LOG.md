@@ -1,5 +1,11 @@
 # Research log
 
+## 2026-10-02 — Additional nutrients in AI meal drafts (#178)
+
+- [Gemini structured outputs](https://ai.google.dev/gemini-api/docs/structured-output) and [image understanding](https://ai.google.dev/gemini-api/docs/image-understanding), accessed 2026-10-02: structured schemas support numeric/null output and existing multimodal inline inputs. Consequence: preserve the current generateContent transport/schema dialect and model; extend only authorized responses, validate bounds/units and subset consistency in the application, and keep null distinct from zero. Schema conformance does not establish factual nutrition accuracy; synthetic adapters do not satisfy measured provider acceptance.
+- [Zod schema API](https://zod.dev/api), accessed 2026-10-02: optional and nullable have different semantics. Consequence: extend the installed Zod3.25 draft schema with existing bounded nullable nutrient shapes made optional; older drafts remain compatible, absent refinement fields preserve entered values, explicit null represents unknown and zero remains recorded.
+- [Expo SDK57](https://docs.expo.dev/versions/v57.0.0/), accessed 2026-10-02: retain existing form/device APIs without new native packages or permissions. Consequence: update text/photo/refine mapping, await current capability where needed, guard in-flight edits and keep explicit Save. Native keyboard/accessibility and provider accuracy remain acceptance gates. [ADR-0035](adr/0035-ai-advanced-nutrient-drafts.md) records the scope extension; no billing, admission, deployment or Production changes.
+
 ## 2026-10-01 — Community repeated loading (#168)
 
 - [Expo SDK 57](https://docs.expo.dev/versions/v57.0.0/), [React effects](https://react.dev/reference/react/useEffect), [React memoization](https://react.dev/reference/react/useMemo) and [React Native AppState](https://reactnative.dev/docs/appstate), accessed today: effects track dependency identity and asynchronous results require cleanup; AppState describes foreground transitions. Consequence: stable detail reactions client, unchanged-foreground event suppression, signed-out sharing recovery and concurrent returning feed/membership reads with protected results hidden until both settle. Existing memory-only privacy/authority boundaries stay in force; generic card placeholders retain presentation only.

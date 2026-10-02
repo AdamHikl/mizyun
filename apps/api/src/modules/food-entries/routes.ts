@@ -31,6 +31,7 @@ import {
 
 import { sendApiError } from "../../errors.js";
 import type { BetaProRepository } from "../../beta-pro-repository.js";
+import { resolveAdvancedNutritionSource as advancedNutritionSource } from "./advanced-nutrition.js";
 
 interface FoodEntriesRoutesOptions {
   readonly foodEntryRepository: FoodEntryRepository;
@@ -38,21 +39,6 @@ interface FoodEntriesRoutesOptions {
   readonly profileRepository?: ProfileRepository;
 }
 
-const advancedNutritionSource = async (
-  options: FoodEntriesRoutesOptions,
-  userId: StoredFoodEntry["userId"],
-  accessToken: string,
-): Promise<"paid" | "beta_pro" | "none"> => {
-  const beta = await options.betaProRepository?.getRequest(userId, {
-    accessToken,
-  });
-  if (beta?.status === "approved") return "beta_pro";
-  const profile = await options.profileRepository?.getOrCreate(userId, {
-    accessToken,
-    now: new Date(),
-  });
-  return profile?.planTier === "paid" ? "paid" : "none";
-};
 const hasAdvancedNutrition = async (
   options: FoodEntriesRoutesOptions,
   userId: StoredFoodEntry["userId"],

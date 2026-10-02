@@ -234,6 +234,11 @@ export const mealFormStringsFromDraft = (candidate: {
   readonly proteinG: number | null;
   readonly carbohydrateG: number | null;
   readonly fatG: number | null;
+  readonly fibreG?: number | null;
+  readonly saturatedFatG?: number | null;
+  readonly totalSugarsG?: number | null;
+  readonly sodiumMg?: number | null;
+  readonly cholesterolMg?: number | null;
   readonly calorieRangeKcal?: {
     readonly low: number;
     readonly high: number;
@@ -288,6 +293,114 @@ export const mealFormStringsFromDraft = (candidate: {
     protein: editableNumber(protein),
     carbs: editableNumber(carbs),
     fat: editableNumber(fat),
+    // Missing fields from older providers are not instructions to erase a
+    // user's label values. Explicit null means the estimate is unknown.
+    ...(candidate.fibreG === undefined
+      ? {}
+      : { fibre: editableNumber(candidate.fibreG) }),
+    ...(candidate.saturatedFatG === undefined
+      ? {}
+      : { saturatedFat: editableNumber(candidate.saturatedFatG) }),
+    ...(candidate.totalSugarsG === undefined
+      ? {}
+      : { totalSugars: editableNumber(candidate.totalSugarsG) }),
+    ...(candidate.sodiumMg === undefined
+      ? {}
+      : { sodium: editableNumber(candidate.sodiumMg) }),
+    ...(candidate.cholesterolMg === undefined
+      ? {}
+      : { cholesterol: editableNumber(candidate.cholesterolMg) }),
+  };
+};
+
+/** Refinement preserves omitted label values; a replacement starts unknown. */
+export const mergeMealDraftIntoForm = (
+  current: MealFormStrings,
+  candidate: Parameters<typeof mealFormStringsFromDraft>[0],
+  advancedEnabled: boolean,
+  mode: "refine" | "replace" = "refine",
+): MealFormStrings => {
+  const strings = mealFormStringsFromDraft(candidate);
+  const { fibre, saturatedFat, totalSugars, sodium, cholesterol, ...macros } =
+    strings;
+  return {
+    ...current,
+    ...(mode === "replace"
+      ? {
+          fibre: "",
+          saturatedFat: "",
+          totalSugars: "",
+          sodium: "",
+          cholesterol: "",
+        }
+      : {}),
+    ...macros,
+    ...(advancedEnabled
+      ? {
+          ...(fibre === undefined ? {} : { fibre }),
+          ...(saturatedFat === undefined ? {} : { saturatedFat }),
+          ...(totalSugars === undefined ? {} : { totalSugars }),
+          ...(sodium === undefined ? {} : { sodium }),
+          ...(cholesterol === undefined ? {} : { cholesterol }),
+        }
+      : {}),
+  };
+};
+
+/** Drop unpublished Pro estimates when access changes before review. */
+export const mealDraftForAdvancedAccess = (
+  candidate: FoodDraftCandidate,
+  advancedEnabled: boolean,
+): FoodDraftCandidate => {
+  if (advancedEnabled) return candidate;
+  const {
+    fibreG,
+    saturatedFatG,
+    totalSugarsG,
+    sodiumMg,
+    cholesterolMg,
+    ...base
+  } = candidate;
+  return base;
+};
+
+/** Refine what is on screen, including edits made after the AI response. */
+export const mealDraftFromCurrentForm = (
+  candidate: FoodDraftCandidate,
+  form: MealFormStrings,
+  portionGrams: string,
+  advancedEnabled: boolean,
+): FoodDraftCandidate | null => {
+  const calories = parseOptionalNutritionNumber(form.calories);
+  const protein = parseOptionalNutritionNumber(form.protein);
+  const carbs = parseOptionalNutritionNumber(form.carbs);
+  const fat = parseOptionalNutritionNumber(form.fat);
+  const portion = parseOptionalNutritionNumber(portionGrams);
+  const advanced = advancedNutrientsFromForm(form);
+  if (
+    !calories.ok ||
+    !protein.ok ||
+    !carbs.ok ||
+    !fat.ok ||
+    !portion.ok ||
+    (portion.value !== null && portion.value <= 0) ||
+    (advancedEnabled && advanced === null)
+  )
+    return null;
+  const base = mealDraftForAdvancedAccess(candidate, false);
+  return {
+    ...base,
+    name: form.name.trim() || candidate.name,
+    caloriesKcal: calories.value,
+    proteinG: protein.value,
+    carbohydrateG: carbs.value,
+    fatG: fat.value,
+    portionWeightG: portion.value,
+    calorieRangeKcal: null,
+    proteinRangeG: null,
+    carbohydrateRangeG: null,
+    fatRangeG: null,
+    ...(advancedEnabled && advanced !== null ? advanced : {}),
   };
 };
 

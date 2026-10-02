@@ -9,6 +9,7 @@ import type { UserId } from "@mizyun/core";
 import type { AccessTokenVerifier } from "@mizyun/identity";
 
 import { buildApp } from "../../app.js";
+import { InMemoryProfileRepository } from "../../profile-repository.js";
 
 const userId = "00000000-0000-4000-8000-000000000001" as UserId;
 const otherUserId = "00000000-0000-4000-8000-000000000099" as UserId;
@@ -78,6 +79,57 @@ const postPhoto = (
 };
 
 describe("Coach nutrition photo proposals", () => {
+  it.each(["free", "paid"] as const)(
+    "%s photo proposals preserve only server-authorized extra estimates",
+    async (tier) => {
+      const stub = new StubVisionProvider();
+      let enabled: boolean | undefined;
+      const extras = {
+        fibreG: 3,
+        saturatedFatG: 0,
+        totalSugarsG: null,
+        sodiumMg: 410,
+        cholesterolMg: 50,
+      };
+      const provider: VisionDraftProvider = {
+        status: () => stub.status(),
+        generateDraft: async (request) => {
+          enabled = request.includeAdvancedNutrition;
+          return { ...(await stub.generateDraft(request)), ...extras };
+        },
+      };
+      const app = buildApp({
+        tokenVerifier,
+        profileRepository: new InMemoryProfileRepository({
+          defaultTimezone: "UTC",
+          defaultUnitSystem: "metric",
+          defaultBirthYear: 1990,
+          defaultPlanTier: tier,
+        }),
+        coachControls: { visionProvider: provider, planTierOverride: "paid" },
+      });
+      apps.push(app);
+      const id = await createConversation(app);
+      const response = await postPhoto(app, id, "extra-nutrients-photo-0001");
+      expect(response.statusCode).toBe(200);
+      expect(enabled).toBe(tier === "paid");
+      const candidate =
+        response.json().assistantMessage.actionProposal.candidate;
+      if (tier === "paid") expect(candidate).toMatchObject(extras);
+      else
+        for (const key of Object.keys(extras))
+          expect(candidate).not.toHaveProperty(key);
+      const thread = await app.inject({
+        method: "GET",
+        url: `/v1/coach/conversations/${id}`,
+        headers: auth,
+      });
+      expect(thread.json().messages[1].actionProposal.candidate).toEqual(
+        candidate,
+      );
+    },
+  );
+
   it("persists one editable proposal and replays it idempotently", async () => {
     const app = makeApp(new StubVisionProvider());
     const conversationId = await createConversation(app);

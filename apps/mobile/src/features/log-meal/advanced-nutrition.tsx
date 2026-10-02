@@ -82,10 +82,12 @@ export function AdvancedNutrientFields({
   onChange,
   enabled,
   editableWhenFree = [],
+  editable = true,
 }: {
   readonly form: MealFormStrings;
   readonly onChange: (field: keyof MealFormStrings, value: string) => void;
   readonly enabled: boolean;
+  readonly editable?: boolean;
   readonly editableWhenFree?: ReadonlyArray<keyof MealFormStrings>;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -107,8 +109,9 @@ export function AdvancedNutrientFields({
         enabled || editableWhenFree.length > 0 ? (
           <>
             <ThemedText type="small" themeColor="textSecondary">
-              Optional label values. Blank means not recorded. Existing values
-              can be corrected or cleared.
+              Label values or AI estimates. AI estimates are uncertain; review
+              before saving. Blank means not recorded. Existing values can be
+              corrected or cleared.
             </ThemedText>
             {fields
               .filter(([key]) => enabled || editableWhenFree.includes(key))
@@ -121,6 +124,7 @@ export function AdvancedNutrientFields({
                     accessibilityLabel={
                       key === "sodium" && saltMode ? "Salt in grams" : label
                     }
+                    editable={editable}
                     keyboardType="decimal-pad"
                     placeholder="Not recorded"
                     placeholderTextColor={theme.textSecondary}

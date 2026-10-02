@@ -6,7 +6,7 @@
     {
       "id": "meal-logging",
       "title": "Meal & Nutrition Logging",
-      "summary": "Manual food CRUD, keyset-paginated history/search, macro/calorie calculations, local-day offsets, offline drafts, and photo/text draft generation.",
+      "summary": "Manual food CRUD, keyset-paginated history/search, macro/calorie calculations, local-day offsets, offline drafts, and photo/text/refine generation with Pro nutrient estimates.",
       "aliases": ["food", "nutrition", "calories", "macros", "diet", "meal"],
       "entryPoints": [
         "apps/api/src/modules/food-entries/routes.ts",
@@ -45,6 +45,7 @@
       "tests": [
         "apps/api/src/modules/food-entries/routes.test.ts",
         "apps/api/src/modules/food-entries/draft-route.test.ts",
+        "apps/mobile/src/features/log-meal/edit-meal-screen.test.tsx",
         "apps/mobile/src/features/log-meal/log-meal-data.test.ts",
         "apps/mobile/src/features/log-meal/meal-form.test.ts",
         "apps/mobile/src/features/log-meal/meal-lifecycle-data.test.ts",
@@ -74,6 +75,8 @@
       ],
       "docs": [
         "docs/adr/0007-local-day-offset-boundaries.md",
+        "docs/adr/0035-ai-advanced-nutrient-drafts.md",
+        "docs/AI_ADVANCED_NUTRIENTS_EVIDENCE_2026-10-02.md",
         "docs/patterns/README.md#pat-001",
         "docs/MUTATION_IDEMPOTENCY_AUDIT.md"
       ],
@@ -84,7 +87,7 @@
       "lastReviewedSha": "ed70df727fdb38940b686b1dd2647d519f8478cd",
       "lastReviewedDate": "2026-09-22",
       "limitations": "Reviewed against HEAD plus disclosed local pagination and meal-workflow changes. Live vision model photo drafting requires external provider evaluation per BEFORE_TESTING.md",
-      "requirements": ["NUTR-01", "NUTR-02", "REL-AUD-007"],
+      "requirements": ["NUTR-01", "NUTR-02", "NUT-08", "REL-AUD-007"],
       "openAcceptance": [
         "REL-AUD-007/Q2: Durable unknown-outcome persistence for ambiguous retries across network drops"
       ]

@@ -55,6 +55,11 @@ import {
 } from "../../ai-eligibility.js";
 import { sendApiError } from "../../errors.js";
 import type { FoodDraftRateLimiter } from "../food-entries/draft-rate-limit.js";
+import {
+  draftForCapability,
+  hasAdvancedNutritionForDraft,
+} from "../food-entries/index.js";
+import type { BetaProRepository } from "../../beta-pro-repository.js";
 import { buildCoachGrounding } from "./grounding.js";
 import { isExplicitDailyPlanIntent } from "./daily-plan-action.js";
 import type { CoachLimitService } from "./limits.js";
@@ -80,6 +85,7 @@ import {
 } from "./workout-edit-action.js";
 
 interface CoachRoutesOptions {
+  readonly betaProRepository?: BetaProRepository;
   readonly agent: AgentOrchestrator;
   readonly resolveAgent?: (
     provider: import("@mizyun/contracts").AiProvider,
@@ -685,11 +691,22 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
               false,
             );
           }
-          const candidate = await draftProvider.generateTextDraft({
+          const includeAdvancedNutrition = await hasAdvancedNutritionForDraft(
+            options,
+            principal.userId,
+            principal.accessToken,
+            profile.planTier,
+          );
+          const generated = await draftProvider.generateTextDraft({
             userId: principal.userId as UserId,
             description: parsed.data.text,
             requestId: crypto.randomUUID(),
+            includeAdvancedNutrition,
           });
+          const candidate = draftForCapability(
+            generated,
+            includeAdvancedNutrition,
+          );
           const actionProposal = coachNutritionProposalSchema.parse({
             id: crypto.randomUUID(),
             kind: "meal_log",
@@ -702,7 +719,7 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
                 id: crypto.randomUUID(),
                 conversationId,
                 role: "assistant",
-                text: "I drafted that meal from your description. Review the portion, calories, and macros before logging it.",
+                text: "I drafted that meal from your description. Review the portion and nutrition estimates before logging it.",
                 status: "complete",
                 idempotencyKey: null,
                 providerMetadata: {
