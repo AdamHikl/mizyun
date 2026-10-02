@@ -3,6 +3,8 @@ const mocks = vi.hoisted(() => ({
   action: vi.fn(),
   focus: null as any,
   cleanup: null as any,
+  deadlines: new WeakMap<object, number>(),
+  invalidate: vi.fn(),
 }));
 const hooks = vi.hoisted(() => ({ slots: [] as any[], index: 0 }));
 vi.mock("react", async (original) => ({
@@ -65,6 +67,10 @@ vi.mock("@/hooks/use-theme", () => ({ useTheme: () => ({ text: "black" }) }));
 vi.mock("@/composition/api-client", () => ({ apiClient: {} }));
 vi.mock("../community-presentation", () => ({ CommunityIntro: "Intro" }));
 vi.mock("../safety/report-modal", () => ({ ReportModal: "Report" }));
+vi.mock("../state/read-cache", () => ({
+  getCommunityReadDeadline: (value: object) => mocks.deadlines.get(value),
+  invalidateCommunityReads: mocks.invalidate,
+}));
 vi.mock("./client", () => ({ groupAction: mocks.action }));
 vi.mock("../community-client", async (original) => ({
   ...(await original<typeof import("../community-client")>()),
@@ -107,6 +113,7 @@ beforeEach(() => {
   mocks.focus = null;
   mocks.cleanup = null;
   vi.clearAllMocks();
+  mocks.deadlines = new WeakMap();
   mocks.action.mockImplementation(async (_client, request) => ({
     ok: true,
     value:
@@ -205,6 +212,75 @@ describe("bounded private-group rendering", () => {
       false,
     );
     expect(text(render())).not.toContain("Private title");
+  });
+  it("keeps the focus lifecycle stable when selecting a group and loads the detail once", async () => {
+    render();
+    await settle();
+    const focus = mocks.focus;
+    control(render(), "Private title · member").props.onPress();
+    render();
+    await settle();
+    render();
+    expect(mocks.focus).toBe(focus);
+    expect(
+      mocks.action.mock.calls.filter(
+        ([, request]) => request.operation === "read",
+      ),
+    ).toHaveLength(1);
+    expect(mocks.action).toHaveBeenCalledTimes(5);
+  });
+  it("loads a newly created selected group once without restarting focus", async () => {
+    render();
+    await settle();
+    const focus = mocks.focus;
+    const original = mocks.action.getMockImplementation()!;
+    mocks.action.mockImplementation(async (client, request) =>
+      request.operation === "create"
+        ? { ok: true, value: { group } }
+        : original(client, request),
+    );
+    nodes(render())
+      .find(
+        (node) =>
+          node.type === "Input" &&
+          node.props.accessibilityLabel === "Group name",
+      )
+      .props.onChangeText("New group");
+    control(render(), "Create a private group").props.onPress();
+    render();
+    await settle();
+    render();
+    expect(mocks.focus).toBe(focus);
+    expect(
+      mocks.action.mock.calls.filter(
+        ([, request]) => request.operation === "read",
+      ),
+    ).toHaveLength(1);
+    expect(mocks.action).toHaveBeenCalledTimes(6);
+    expect(text(render())).toContain("Shared text");
+  });
+  it("uses the earliest original authorization deadline for restored list, inbox and detail reads", async () => {
+    vi.setSystemTime(5_000);
+    const original = mocks.action.getMockImplementation()!;
+    mocks.action.mockImplementation(async (client, request) => {
+      const response = await original(client, request);
+      mocks.deadlines.set(
+        response.value,
+        request.operation === "inbox" ? 9_000 : 10_000,
+      );
+      return response;
+    });
+    render();
+    await settle();
+    control(render(), "Private title · member").props.onPress();
+    render();
+    await settle();
+    expect(text(render())).toContain("Shared text");
+    await vi.advanceTimersByTimeAsync(4_000);
+    expect(text(render())).not.toContain("Shared text");
+    expect(control(render(), "Refresh groups").props.disabled).toBe(false);
+    control(render(), "Refresh groups").props.onPress();
+    expect(mocks.invalidate).toHaveBeenCalledTimes(1);
   });
   it("does not refill after a delayed protected group read exceeds the load deadline", async () => {
     render();

@@ -18,6 +18,10 @@ import {
 } from "react";
 
 import { apiClient, apiConfiguration } from "@/composition/api-client";
+import {
+  invalidateCommunityReads,
+  setCommunityReadPrincipal,
+} from "@/features/community/state/read-cache";
 import { authClient } from "@/composition/auth-client";
 import { analyticsClient } from "@/composition/analytics-client";
 import { profileResponseSchema } from "@mizyun/contracts";
@@ -142,6 +146,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const applySession = useCallback(
     (nextSession: AuthSession | null): void => {
+      setCommunityReadPrincipal(nextSession?.user.id ?? null);
       const previousPushSession = pushSession.current;
       pushSession.current = nextSession;
       if (
@@ -289,6 +294,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [applySession]);
 
   const signOut = useCallback(async () => {
+    invalidateCommunityReads();
     await signOutCapturedSession(session, {
       current: () => pushSession.current,
       purge: purgeOfflineCache,

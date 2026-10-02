@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   request: vi.fn(),
+  deadline: vi.fn(),
+  invalidate: vi.fn(),
   alert: vi.fn(),
   picker: vi.fn(),
   save: vi.fn(),
@@ -119,6 +121,10 @@ vi.mock("@/features/community", () => ({
   ReportModal: "ReportModal",
   scopeCommunityClient: (client: unknown) => client,
 }));
+vi.mock("../state/read-cache", () => ({
+  getCommunityReadDeadline: mocks.deadline,
+  invalidateCommunityReads: mocks.invalidate,
+}));
 import { CommunityMediaScreen } from "./screen";
 const item = {
   id: "a1600000-0000-4000-8000-000000000001",
@@ -160,6 +166,7 @@ beforeEach(() => {
   mocks.cleanup = null;
   mocks.appState = null;
   vi.clearAllMocks();
+  mocks.deadline.mockReturnValue(undefined);
   mocks.request.mockImplementation(async (options) =>
     options.path.endsWith("/content")
       ? { ok: true, value: { mimeType: "image/jpeg", base64: "AQIDBA==" } }
@@ -180,6 +187,15 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe("protected media screen lifecycle", () => {
+  it("bounds fresh image bytes by the reused metadata page's original deadline", async () => {
+    mocks.deadline.mockReturnValue(Date.now() + 1_000);
+    render();
+    await flush();
+    expect(nodes(render(), "Image")).toHaveLength(1);
+    vi.advanceTimersByTime(1_000);
+    expect(nodes(render(), "Image")).toHaveLength(0);
+    expect(JSON.stringify(nodes(render(), "Text"))).not.toContain(item.altText);
+  });
   it("expires delivered metadata and bytes without waiting for another interaction", async () => {
     render();
     await flush();

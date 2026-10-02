@@ -1,3 +1,4 @@
+import { invalidateCommunityReads } from "../state/read-cache";
 import { useAuth } from "@/features/auth/auth-context";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -236,7 +237,10 @@ function CommunityMessagingScreenContent() {
             <ExpansionButton
               label="Refresh message choices"
               disabled={state.busy || blockBusy}
-              onPress={() => void state.run({ operation: "preferences" })}
+              onPress={() => {
+                invalidateCommunityReads();
+                void state.run({ operation: "preferences" });
+              }}
             />
             {typeof state.data?.enabled === "boolean" && (
               <Text style={{ color: t.text }}>
@@ -369,9 +373,10 @@ function CommunityMessagingScreenContent() {
             <ExpansionButton
               label="Refresh conversation"
               disabled={state.busy || blockBusy}
-              onPress={() =>
-                void state.run({ operation: "list", peerId: peer })
-              }
+              onPress={() => {
+                invalidateCommunityReads();
+                void state.run({ operation: "list", peerId: peer });
+              }}
             />
             {state.data?.messages?.map((m) => (
               <View

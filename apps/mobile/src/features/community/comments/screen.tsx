@@ -286,7 +286,7 @@ function CommentsContent({
           <>
             {button(
               state.busy ? "Checking comments…" : "Refresh",
-              () => void controller.load(),
+              () => void controller.refresh(),
             )}
             {state.error && (
               <ThemedText accessibilityLiveRegion="polite">

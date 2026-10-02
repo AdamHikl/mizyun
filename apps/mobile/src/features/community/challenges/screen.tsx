@@ -1,3 +1,4 @@
+import { invalidateCommunityReads } from "../state/read-cache";
 import { useAuth } from "@/features/auth/auth-context";
 import React, { useCallback, useState } from "react";
 import {
@@ -177,12 +178,13 @@ function CommunityChallengesScreenContent() {
             <ExpansionButton
               disabled={state.busy || workoutsBusy}
               label="Refresh challenges"
-              onPress={() =>
+              onPress={() => {
+                invalidateCommunityReads();
                 void state.run({
                   operation: manage ? "listMine" : "list",
                   ...(manage ? {} : { groupId }),
-                })
-              }
+                });
+              }}
             />
             {state.data?.challenges?.map((c) => (
               <ExpansionButton
@@ -284,9 +286,10 @@ function CommunityChallengesScreenContent() {
             <ExpansionButton
               disabled={state.busy || workoutsBusy}
               label="Refresh progress"
-              onPress={() =>
-                void state.run({ operation: manage ? "getMine" : "get", id })
-              }
+              onPress={() => {
+                invalidateCommunityReads();
+                void state.run({ operation: manage ? "getMine" : "get", id });
+              }}
             />
             {current && (
               <>

@@ -27,6 +27,7 @@ import {
   submitModerationAppeal,
 } from "../community-client";
 import { scopeCommunityClient } from "../scoped-client";
+import { invalidateCommunityReads } from "../state/read-cache";
 import { ReportModal } from "./report-modal";
 import {
   ownNoticeListSchema,
@@ -297,7 +298,10 @@ export function SafetyContent({
           <>
             {action(
               loading ? "Checking safety history…" : "Refresh safety history",
-              () => void load(),
+              () => {
+                invalidateCommunityReads();
+                void load();
+              },
               loading || sending,
             )}
             {message && (

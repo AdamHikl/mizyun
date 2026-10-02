@@ -28,6 +28,10 @@ import { createGroupMutationIntentStore } from "./mutation-intent";
 import { fetchFollowing, humanizeCommunityError } from "../community-client";
 import { CommunityIntro } from "../community-presentation";
 import { groupAction } from "./client";
+import {
+  getCommunityReadDeadline,
+  invalidateCommunityReads,
+} from "../state/read-cache";
 
 const hasControlCharacters = (value: string) =>
   /[\u0000-\u001f\u007f]/.test(value.trim());
@@ -50,6 +54,8 @@ function Content({ principal }: { principal: string | null }) {
   const [result, setResult] = useState<CommunityGroupResult | null>(null);
   const [groups, setGroups] = useState<CommunityGroupResult["groups"]>([]);
   const [selected, setSelected] = useState<string | null>(null);
+  const selectedRef = useRef<string | null>(null);
+  selectedRef.current = selected;
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -93,7 +99,7 @@ function Content({ principal }: { principal: string | null }) {
       return;
     }
     const revision = ++lifetime.current.revision;
-    const expiresAt = Date.now() + 10_000;
+    let expiresAt = Date.now() + 10_000;
     const valid = () =>
       lifetime.current.active &&
       lifetime.current.focused &&
@@ -101,52 +107,77 @@ function Content({ principal }: { principal: string | null }) {
       Date.now() < expiresAt;
     setBusy(true);
     discardProtected();
-    protectedTimer.current = setTimeout(() => {
+    const expire = () => {
       discardProtected();
       setBusy(false);
       setMessage("Refresh to check your current group access.");
-    }, 10_000);
+    };
+    const armTimer = () => {
+      if (protectedTimer.current !== null) clearTimeout(protectedTimer.current);
+      protectedTimer.current = setTimeout(
+        expire,
+        Math.max(0, expiresAt - Date.now()),
+      );
+    };
+    const consumeDeadline = (value: unknown) => {
+      expiresAt = Math.min(
+        expiresAt,
+        getCommunityReadDeadline(value) ?? expiresAt,
+      );
+      armTimer();
+      if (!valid()) {
+        expire();
+        return false;
+      }
+      return true;
+    };
+    armTimer();
     const client = scopeCommunityClient(apiClient, principal, valid);
-    const list = await groupAction(client, { operation: "list" });
+    const [list, inbox] = await Promise.all([
+      groupAction(client, { operation: "list" }),
+      groupAction(client, { operation: "inbox" }),
+    ]);
     if (!valid()) return;
     if (!list.ok) {
       setMessage(humanizeCommunityError(list.error));
       setBusy(false);
       return;
     }
+    if (!consumeDeadline(list.value)) return;
+    if (inbox.ok && !consumeDeadline(inbox.value)) return;
     setGroups(list.value.groups);
-    const inbox = await groupAction(client, { operation: "inbox" });
-    if (!valid()) return;
     if (inbox.ok) setEvents(inbox.value.events);
-    const group = list.value.groups.find((item) => item.id === selected);
+    const group = list.value.groups.find(
+      (item) => item.id === selectedRef.current,
+    );
     if (group) {
       setResult({ ...list.value, group });
       setRules(group.rules);
     }
     if (group?.state === "member") {
-      const read = await groupAction(client, {
-        operation: "read",
-        groupId: group.id,
-      });
+      const [read, following] = await Promise.all([
+        groupAction(client, { operation: "read", groupId: group.id }),
+        group.role !== "member"
+          ? fetchFollowing(client, { limit: 50 })
+          : Promise.resolve(null),
+      ]);
       if (!valid()) return;
       if (read.ok) {
+        if (!consumeDeadline(read.value)) return;
+        if (following?.ok && !consumeDeadline(following.value)) return;
         setResult(read.value);
         setRules(read.value.group?.rules ?? group.rules);
+        if (following?.ok)
+          setFriends(
+            following.value.items.filter((item) => item.status === "approved"),
+          );
       } else {
         setResult(null);
         setMessage(humanizeCommunityError(read.error));
       }
     }
-    if (group?.role !== "member" && group?.state === "member") {
-      const following = await fetchFollowing(client, { limit: 50 });
-      if (!valid()) return;
-      if (following.ok)
-        setFriends(
-          following.value.items.filter((item) => item.status === "approved"),
-        );
-    }
     setBusy(false);
-  }, [principal, selected, discardProtected]);
+  }, [principal, discardProtected]);
   useFocusEffect(
     useCallback(() => {
       lifetime.current.active = true;
@@ -192,6 +223,16 @@ function Content({ principal }: { principal: string | null }) {
       };
     }, [load, discardProtected]),
   );
+  const selectGroup = (id: string | null) => {
+    selectedRef.current = id;
+    setSelected(id);
+    setBody("");
+    setReason("");
+    setConfirmed(false);
+    intents.current.clear();
+    setMessage(null);
+    void load();
+  };
   const act = async (request: CommunityGroupRequest) => {
     if (busy || !principal || !lifetime.current.focused) return;
     const revision = ++lifetime.current.revision;
@@ -218,7 +259,10 @@ function Content({ principal }: { principal: string | null }) {
       intents.current.complete(request.operation);
     const invitationCode = response.value.inviteCode;
     const invitationDeadline = Date.now() + 10_000;
-    if (response.value.group) setSelected(response.value.group.id);
+    if (response.value.group) {
+      selectedRef.current = response.value.group.id;
+      setSelected(response.value.group.id);
+    }
     setBody("");
     setConfirmed(false);
     if (request.operation === "create") setName("");
@@ -384,19 +428,20 @@ function Content({ principal }: { principal: string | null }) {
           groups.map((item) => (
             <View key={item.id} style={{ gap: 6 }}>
               {button(`${item.name} · ${item.state}`, () =>
-                setSelected(item.id),
+                selectGroup(item.id),
               )}
             </View>
           ))}
         {button(
           "Refresh groups",
           () => {
+            invalidateCommunityReads();
             setMessage(null);
             void load();
           },
           !principal,
         )}
-        {selected && button("Back to all groups", () => setSelected(null))}
+        {selected && button("Back to all groups", () => selectGroup(null))}
         {!selected && !busy && !message && groups.length === 0 && principal && (
           <Text style={{ color: theme.textSecondary }}>
             You have no groups yet. Create one or use a private invitation code.

@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   request: vi.fn(),
+  deadline: vi.fn(),
+  invalidate: vi.fn(),
   alert: vi.fn(),
   picker: vi.fn(),
   save: vi.fn(),
@@ -119,6 +121,10 @@ vi.mock("@/features/community", () => ({
   ReportModal: "ReportModal",
   scopeCommunityClient: (client: unknown) => client,
 }));
+vi.mock("../state/read-cache", () => ({
+  getCommunityReadDeadline: mocks.deadline,
+  invalidateCommunityReads: mocks.invalidate,
+}));
 import { CommunityRoutinesScreen } from "./screen";
 const item = {
   id: "a1610000-0000-4000-8000-000000000001",
@@ -175,6 +181,7 @@ beforeEach(() => {
   mocks.cleanup = null;
   mocks.appState = null;
   vi.clearAllMocks();
+  mocks.deadline.mockReturnValue(undefined);
   mocks.request.mockImplementation(async (options) =>
     options.path.startsWith("/v1/workouts")
       ? {
@@ -194,6 +201,40 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe("protected routine snapshot freshness", () => {
+  it("renders shared routines without waiting for a slow private routine chooser", async () => {
+    let release!: (value: any) => void;
+    mocks.request.mockImplementation((options) =>
+      options.path.startsWith("/v1/workouts")
+        ? new Promise((resolve) => {
+            release = resolve;
+          })
+        : Promise.resolve({
+            ok: true,
+            value: { items: [item], nextCursor: "next-page" },
+          }),
+    );
+    render();
+    await flush();
+    expect(text()).toContain(item.snapshot.title);
+    button(render(), "Next page of shared routines").props.onPress();
+    await flush();
+    expect(
+      mocks.request.mock.calls.filter(([options]) =>
+        options.path.startsWith("/v1/workouts"),
+      ),
+    ).toHaveLength(1);
+    release({ ok: true, value: { workouts: [] } });
+    await flush();
+  });
+  it("does not renew a reused shared routine page beyond its original deadline", async () => {
+    const deadline = Date.now() + 1_000;
+    mocks.deadline.mockReturnValue(deadline);
+    render();
+    await flush();
+    expect(text()).toContain(item.snapshot.title);
+    vi.advanceTimersByTime(1_000);
+    expect(text()).not.toContain(item.snapshot.title);
+  });
   it("expires authored exercise snapshots while the route remains foregrounded", async () => {
     render();
     await flush();

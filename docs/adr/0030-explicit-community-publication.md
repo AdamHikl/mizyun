@@ -1,5 +1,7 @@
 # ADR-0030: Explicit community publication and isolated social authorization
 
+Ordinary foreground navigation read reuse is narrowly amended by [ADR-0033](0033-community-foreground-navigation-reads.md) (2026-10-02); background/account/mutation/denial and displayed-intent retirement remain required.
+
 **Status:** Accepted publication architecture, 2026-09-29; design clarification 2026-09-30. This ADR is not pilot, user-validation, deployment or release acceptance. [COMM-01 revision](../COMMUNITY_PRODUCT_CONTRACT.md) is the current product contract; [local implementation evidence](../COMMUNITY_REVIEW_EVIDENCE_2026-09-30.md) records a separate tier.
 
 ## Context

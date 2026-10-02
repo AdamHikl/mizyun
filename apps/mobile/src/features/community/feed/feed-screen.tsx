@@ -33,6 +33,7 @@ import { scopeCommunityClient } from "../scoped-client";
 import { useCommunityPalette } from "../community-presentation";
 import { FeedController } from "./controller";
 import { ActivityCard } from "./activity-card";
+import { invalidateCommunityReads } from "../state/read-cache";
 
 export function FeedScreen() {
   const { session, profile } = useAuth();
@@ -206,6 +207,7 @@ function FeedScreenContent({
     )
       return;
     const revision = membershipRevision.current;
+    invalidateCommunityReads();
     setManualRefreshing(true);
     try {
       await controller.refresh();
@@ -253,6 +255,7 @@ function FeedScreenContent({
         viewerUserId={principalKey ?? ""}
         scopedClient={scopedClient}
         onUnavailable={() => {
+          invalidateCommunityReads();
           controller.pause();
           loadFeed();
         }}

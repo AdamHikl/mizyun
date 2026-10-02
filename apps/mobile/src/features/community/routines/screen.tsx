@@ -1,3 +1,7 @@
+import {
+  getCommunityReadDeadline,
+  invalidateCommunityReads,
+} from "../state/read-cache";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   Alert,
@@ -48,12 +52,17 @@ function RoutinesContent({ principal }: { principal: string | null }) {
   const expiry = useRef<ReturnType<typeof setTimeout> | null>(null);
   const active = useRef(false);
   const actionLock = useRef<symbol | null>(null);
+  const privateRead = useRef(0);
+  const privateLoaded = useRef(false);
+  const privatePending = useRef(false);
   const client = useMemo(
     () => scopeCommunityClient(apiClient, principal, () => active.current),
     [principal],
   );
   const [shares, setShares] = useState<CommunityRoutineShare[]>([]);
   const [routines, setRoutines] = useState<Workout[]>([]);
+  const [privateBusy, setPrivateBusy] = useState(false);
+  const [privateError, setPrivateError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [preview, setPreview] = useState<CommunityRoutinePreview | null>(null);
@@ -74,6 +83,11 @@ function RoutinesContent({ principal }: { principal: string | null }) {
     actionLock.current = null;
     setShares([]);
     setRoutines([]);
+    privateRead.current++;
+    privateLoaded.current = false;
+    privatePending.current = false;
+    setPrivateBusy(false);
+    setPrivateError(null);
     setPreview(null);
     setSelected(null);
     setOperation(null);
@@ -82,20 +96,20 @@ function RoutinesContent({ principal }: { principal: string | null }) {
     setBusy(false);
   }, []);
   const load = useCallback(
-    async (append = false, mine = mineOnly) => {
+    async (append = false, mine = mineOnly, refreshPrivate = false) => {
       const current = ++epoch.current;
       const read = ++freshRead.current;
       freshLoading.current = true;
-      const deadline = Date.now() + 10_000;
+      let deadline = Date.now() + 10_000;
       if (expiry.current !== null) clearTimeout(expiry.current);
       // Hide the old authorization result before starting another request.
       setShares([]);
-      setRoutines([]);
       setReport(null);
       setPreview(null);
-      expiry.current = setTimeout(() => {
+      const retire = () => {
         if (freshRead.current !== read) return;
         freshRead.current++;
+        if (expiry.current !== null) clearTimeout(expiry.current);
         expiry.current = null;
         setShares([]);
         setReport(null);
@@ -105,46 +119,74 @@ function RoutinesContent({ principal }: { principal: string | null }) {
           setBusy(false);
         }
         setNotice("Refresh shared routines to check current access.");
-      }, 10_000);
+      };
+      expiry.current = setTimeout(retire, 10_000);
       setBusy(true);
       setError(null);
-      const [page, privateRows] = await Promise.all([
-        listRoutineShares(
-          client,
-          mine,
-          append ? (cursor ?? undefined) : undefined,
-        ).catch(() => ({ ok: false as const })),
-        client
+      const pageRequest = listRoutineShares(
+        client,
+        mine,
+        append ? (cursor ?? undefined) : undefined,
+      ).catch(() => ({ ok: false as const }));
+      // Private source choices are independent of the protected shared list.
+      // Paging and audience changes must not refetch an unchanged private diary.
+      if (
+        !append &&
+        (refreshPrivate || (!privateLoaded.current && !privatePending.current))
+      ) {
+        const privateRequest = ++privateRead.current;
+        privatePending.current = true;
+        setPrivateBusy(true);
+        setPrivateError(null);
+        setRoutines([]);
+        void client
           .request<WorkoutListResponse>({
             method: "GET",
             path: "/v1/workouts?kind=routine&limit=200",
             schema: workoutListResponseSchema,
           })
-          .catch(() => ({ ok: false as const })),
-      ]);
+          .catch(() => ({ ok: false as const }))
+          .then((rows) => {
+            if (privateRead.current !== privateRequest || !active.current)
+              return;
+            privatePending.current = false;
+            setPrivateBusy(false);
+            privateLoaded.current = rows.ok;
+            if (rows.ok) setRoutines(rows.value.workouts);
+            else
+              setPrivateError(
+                "Your private routines could not be loaded. Refresh to try again.",
+              );
+          });
+      }
+      const page = await pageRequest;
+      if (page.ok)
+        deadline = Math.min(
+          deadline,
+          getCommunityReadDeadline(page.value) ?? deadline,
+        );
       if (
         current !== epoch.current ||
         freshRead.current !== read ||
-        Date.now() >= deadline ||
         !active.current
       )
         return;
+      if (Date.now() >= deadline) {
+        retire();
+        return;
+      }
+      if (expiry.current !== null) clearTimeout(expiry.current);
+      expiry.current = setTimeout(retire, deadline - Date.now());
       freshLoading.current = false;
       setBusy(false);
       if (!page.ok) {
         setShares([]);
-        setRoutines([]);
         setError(
           "Shared routines are unavailable. Refresh to check your current access.",
         );
         return;
       }
       setShares(page.value.items);
-      setRoutines(privateRows.ok ? privateRows.value.workouts : []);
-      if (!privateRows.ok)
-        setError(
-          "Your private routines could not be loaded. You can still browse and manage shared routines.",
-        );
       setCursor(page.value.nextCursor);
     },
     [client, cursor, mineOnly],
@@ -296,12 +338,25 @@ function RoutinesContent({ principal }: { principal: string | null }) {
         )}
         {button(
           busy ? "Loading…" : "Refresh routines",
-          () => void load(),
+          () => {
+            invalidateCommunityReads();
+            void load(false, mineOnly, true);
+          },
           busy || !principal,
         )}
         <Text style={{ color: theme.text, fontSize: 18, fontWeight: "600" }}>
           Choose your private routine
         </Text>
+        {privateBusy && (
+          <Text style={{ color: theme.textSecondary }}>
+            Loading your private routines…
+          </Text>
+        )}
+        {privateError && (
+          <Text accessibilityRole="alert" style={{ color: theme.text }}>
+            {privateError}
+          </Text>
+        )}
         {routines.map((r) => (
           <View key={r.id}>
             {button(`${selected === r.id ? "Selected: " : ""}${r.name}`, () => {

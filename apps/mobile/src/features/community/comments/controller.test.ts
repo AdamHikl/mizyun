@@ -1,6 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ApiClient } from "@mizyun/api-client";
 import { CommentsController } from "./controller";
+const cache = vi.hoisted(() => ({
+  deadlines: new WeakMap<object, number>(),
+  invalidate: vi.fn(),
+}));
+vi.mock("../state/read-cache", () => ({
+  getCommunityReadDeadline: (value: object) => cache.deadlines.get(value),
+  invalidateCommunityReads: cache.invalidate,
+}));
 const author = {
   userId: "alice",
   handle: "alice",
@@ -56,7 +64,95 @@ describe("comment memory and authorization lifetime", () => {
     expect(controller.getSnapshot().privacyRevision).toBeGreaterThan(
       privacyRevision,
     );
-    expect(request).toHaveBeenCalledTimes(3);
+    expect(request).toHaveBeenCalledTimes(4);
+    controller.pause();
+  });
+  it("expires compound restored reads at the earliest original deadline, without extending their lease", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(5_000);
+    const comments = page();
+    const candidates = { items: [author] };
+    cache.deadlines.set(comments, 10_000);
+    cache.deadlines.set(candidates, 9_000);
+    let denied = false;
+    const request = vi.fn(async (options) =>
+      denied
+        ? { ok: false, error: { kind: "no_session" } }
+        : {
+            ok: true,
+            value: options.path.endsWith("candidates") ? candidates : comments,
+          },
+    );
+    const controller = new CommentsController(
+      client(request),
+      "alice",
+      "activity",
+    );
+    await controller.load();
+    expect(controller.getSnapshot().items).toHaveLength(1);
+    denied = true;
+    await vi.advanceTimersByTimeAsync(3_999);
+    expect(controller.getSnapshot().items).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(controller.getSnapshot().items).toEqual([]);
+    expect(controller.getSnapshot().candidates).toEqual([]);
+    controller.pause();
+  });
+  it("starts candidates alongside the page and invalidates navigation reads only for explicit refresh", async () => {
+    let finish!: (response: unknown) => void;
+    const request = vi.fn((options) =>
+      options.path.endsWith("candidates")
+        ? Promise.resolve({ ok: true, value: { items: [] } })
+        : new Promise((resolve) => {
+            finish = resolve;
+          }),
+    );
+    const controller = new CommentsController(
+      client(request),
+      "alice",
+      "activity",
+    );
+    cache.invalidate.mockClear();
+    const loading = controller.load();
+    await Promise.resolve();
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(cache.invalidate).not.toHaveBeenCalled();
+    finish({ ok: true, value: page() });
+    await loading;
+    request.mockImplementation(async (options) => ({
+      ok: true,
+      value: options.path.endsWith("candidates") ? { items: [] } : page(),
+    }));
+    await controller.refresh();
+    expect(cache.invalidate).toHaveBeenCalledTimes(1);
+    controller.pause();
+  });
+  it("does not restart a lease when candidates arrive after a failed page read", async () => {
+    vi.useFakeTimers();
+    let finish!: (response: unknown) => void;
+    const request = vi.fn((options) =>
+      options.path.endsWith("candidates")
+        ? new Promise((resolve) => {
+            finish = resolve;
+          })
+        : Promise.resolve({ ok: false, error: { kind: "no_session" } }),
+    );
+    const controller = new CommentsController(
+      client(request),
+      "alice",
+      "activity",
+    );
+    await controller.load();
+    expect(controller.getSnapshot().error).not.toBeNull();
+    const candidates = { items: [author] };
+    cache.deadlines.set(candidates, Date.now() + 10_000);
+    finish({ ok: true, value: candidates });
+    await Promise.resolve();
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(controller.getSnapshot().items).toEqual([]);
+    expect(controller.getSnapshot().candidates).toEqual([]);
     controller.pause();
   });
   it("a stalled candidate check cannot extend the first page authority or restore expired content", async () => {

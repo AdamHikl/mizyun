@@ -19,6 +19,7 @@ import ActiveWorkoutMiniBar from "@/components/active-workout-mini-bar";
 import { getAppVariant } from "@/composition/app-variant";
 import {
   CommunityNotificationBridge,
+  CommunityReadLifecycle,
   parseCommunityInvitationLink,
 } from "@/features/community";
 import { analyticsClient } from "@/composition/analytics-client";
@@ -288,6 +289,7 @@ function TabLayoutContent() {
       <AnimatedSplashOverlay />
       <AnalyticsSessionBridge />
       <AuthProvider>
+        <CommunityReadLifecycle />
         <DeepLinkBridge />
         <SessionGate>
           <PushRegistrationBridge />

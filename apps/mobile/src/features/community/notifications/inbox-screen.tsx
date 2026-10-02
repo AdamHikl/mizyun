@@ -27,6 +27,7 @@ import { ThemedText } from "@/components/themed-text";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
 import { InboxController, notificationDestinationPath } from "./controller";
+import { invalidateCommunityReads } from "../state/read-cache";
 
 const labels = {
   request: "New follow request",
@@ -144,7 +145,10 @@ function InboxContent({ principal }: { principal: string | null }) {
         <>
           {action(
             state.busy ? "Checking updates…" : "Refresh inbox",
-            () => void controller.load(),
+            () => {
+              invalidateCommunityReads();
+              void controller.load();
+            },
             state.busy,
           )}
           {state.error && (

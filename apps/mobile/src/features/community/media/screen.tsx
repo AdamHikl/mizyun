@@ -1,3 +1,7 @@
+import {
+  getCommunityReadDeadline,
+  invalidateCommunityReads,
+} from "../state/read-cache";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   Alert,
@@ -91,14 +95,15 @@ function MediaContent({ principal }: { principal: string | null }) {
       const current = ++epoch.current;
       const read = ++freshRead.current;
       freshLoading.current = true;
-      const deadline = Date.now() + 10_000;
+      let deadline = Date.now() + 10_000;
       if (expiry.current !== null) clearTimeout(expiry.current);
       // Expiry is tied to the authorization request start, including byte reads.
       setItems([]);
       setReport(null);
-      expiry.current = setTimeout(() => {
+      const retire = () => {
         if (freshRead.current !== read) return;
         freshRead.current++;
+        if (expiry.current !== null) clearTimeout(expiry.current);
         expiry.current = null;
         setItems([]);
         setImages({});
@@ -109,7 +114,8 @@ function MediaContent({ principal }: { principal: string | null }) {
           setBusy(false);
         }
         setError("Refresh images to check current access.");
-      }, 10_000);
+      };
+      expiry.current = setTimeout(retire, 10_000);
       setBusy(true);
       setError(null);
       setImages({});
@@ -121,10 +127,20 @@ function MediaContent({ principal }: { principal: string | null }) {
       if (
         current !== epoch.current ||
         freshRead.current !== read ||
-        Date.now() >= deadline ||
         !active.current
       )
         return;
+      if (result.ok)
+        deadline = Math.min(
+          deadline,
+          getCommunityReadDeadline(result.value) ?? deadline,
+        );
+      if (Date.now() >= deadline) {
+        retire();
+        return;
+      }
+      if (expiry.current !== null) clearTimeout(expiry.current);
+      expiry.current = setTimeout(retire, deadline - Date.now());
       if (!result.ok) {
         freshLoading.current = false;
         setBusy(false);
@@ -445,7 +461,10 @@ function MediaContent({ principal }: { principal: string | null }) {
         })}
         {button(
           busy ? "Loading…" : "Refresh",
-          () => void load(),
+          () => {
+            invalidateCommunityReads();
+            void load();
+          },
           busy || !principal,
         )}
         {mode === "review" && (

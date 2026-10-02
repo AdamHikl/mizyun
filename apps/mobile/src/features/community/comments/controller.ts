@@ -14,6 +14,10 @@ import {
   reportComment,
 } from "./client";
 import { communityCommentSettingsSchema } from "@mizyun/contracts";
+import {
+  getCommunityReadDeadline,
+  invalidateCommunityReads,
+} from "../state/read-cache";
 
 interface CommentState extends CommunityCommentPage {
   privacyRevision: number;
@@ -76,15 +80,36 @@ export class CommentsController {
     this.expiresAt = null;
     this.leaseRevision++;
   }
-  private beginReadLease() {
+  private beginReadLease(
+    expiresAt = Date.now() + COMMENT_AUTHORITY_LIFETIME_MS,
+  ) {
     this.clearExpiry();
-    this.expiresAt = Date.now() + COMMENT_AUTHORITY_LIFETIME_MS;
+    this.expiresAt = expiresAt;
     const lease = this.leaseRevision;
-    this.expiryTimer = setTimeout(() => {
-      if (lease === this.leaseRevision) this.expire();
-    }, COMMENT_AUTHORITY_LIFETIME_MS);
+    this.expiryTimer = setTimeout(
+      () => {
+        if (lease === this.leaseRevision) this.expire();
+      },
+      Math.max(0, expiresAt - Date.now()),
+    );
     // Node-only test/runtime timer housekeeping; native timers are numeric.
     if (typeof this.expiryTimer === "object") this.expiryTimer.unref?.();
+  }
+  private consumeDeadline(value: unknown): boolean {
+    const deadline = Math.min(
+      this.expiresAt ?? Infinity,
+      getCommunityReadDeadline(value) ?? Infinity,
+    );
+    if (Date.now() >= deadline) {
+      this.expire();
+      return false;
+    }
+    if (deadline !== this.expiresAt) this.beginReadLease(deadline);
+    return true;
+  }
+  refresh() {
+    invalidateCommunityReads();
+    return this.load();
   }
   private expire() {
     const wasBusy = this.state.busy;
@@ -160,6 +185,11 @@ export class CommentsController {
         });
         return;
       }
+      if (
+        !this.consumeDeadline(inbox.value) ||
+        !this.consumeDeadline(preferences.value)
+      )
+        return;
       this.update({
         ...empty(),
         mentions: inbox.value.items,
@@ -167,6 +197,12 @@ export class CommentsController {
       });
       return;
     }
+    const candidatesRead = fetchCommentCandidates(client, this.activityId).then(
+      (response) => {
+        if (current() && response.ok) this.consumeDeadline(response.value);
+        return response;
+      },
+    );
     let cursor: string | undefined;
     let page: CommunityCommentPage | undefined;
     const items = new Map<string, CommunityComment>();
@@ -176,6 +212,8 @@ export class CommentsController {
       const result = await fetchCommentPage(client, this.activityId, cursor);
       if (!current()) return;
       if (!result.ok) {
+        // Retire the concurrently pending candidates check with this failed read.
+        this.revision++;
         this.clearExpiry();
         this.update({
           ...empty(),
@@ -183,12 +221,13 @@ export class CommentsController {
         });
         return;
       }
+      if (!this.consumeDeadline(result.value)) return;
       page = result.value;
       for (const item of page.items) items.set(item.id, item);
       cursor = page.nextCursor ?? undefined;
       if (!cursor) break;
     }
-    const candidates = await fetchCommentCandidates(client, this.activityId);
+    const candidates = await candidatesRead;
     if (!current()) return;
     if (!candidates.ok || !page) {
       this.clearExpiry();

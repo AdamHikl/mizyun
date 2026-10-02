@@ -36,6 +36,7 @@ import { invitationQrMatrix } from "./qr-matrix";
 import { ReportModal } from "../safety";
 import { captureSafetyReceipt } from "../safety/safety-api";
 import { scopeCommunityClient } from "../scoped-client";
+import { invalidateCommunityReads } from "../state/read-cache";
 
 export function DiscoveryScreen({
   token,
@@ -571,7 +572,10 @@ export function DiscoveryScreen({
               })}
             </View>
             <View style={[styles.footer, { borderColor: colors.border }]}>
-              {button("Refresh friends and invitations", revalidate)}
+              {button("Refresh friends and invitations", () => {
+                invalidateCommunityReads();
+                revalidate();
+              })}
             </View>
           </>
         ) : (

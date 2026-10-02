@@ -1,3 +1,4 @@
+import { invalidateCommunityReads } from "../state/read-cache";
 import { useAuth } from "@/features/auth/auth-context";
 import React, { useCallback, useRef, useState } from "react";
 import {
@@ -157,7 +158,10 @@ function CommunityBroaderDiscoveryScreenContent() {
         <ExpansionButton
           label="Refresh my discovery choice"
           disabled={state.busy || followBusy}
-          onPress={() => void state.run({ operation: "preferences" })}
+          onPress={() => {
+            invalidateCommunityReads();
+            void state.run({ operation: "preferences" });
+          }}
         />
         <ExpansionButton
           label="Let members find my handle prefix"

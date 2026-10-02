@@ -3,6 +3,8 @@ import { communityMessagingResponseSchema } from "@mizyun/contracts";
 const mocks = vi.hoisted(() => ({
   principal: "owner" as string | null,
   request: vi.fn(),
+  deadline: vi.fn(),
+  invalidate: vi.fn(),
   listener: null as null | ((state: string) => void),
   focus: null as any,
   cleanup: null as any,
@@ -58,6 +60,10 @@ vi.mock("@/features/auth/auth-context", () => ({
 vi.mock("@/composition/api-client", () => ({
   apiClient: { request: mocks.request },
 }));
+vi.mock("../state/read-cache", () => ({
+  getCommunityReadDeadline: mocks.deadline,
+  invalidateCommunityReads: mocks.invalidate,
+}));
 import { useExpansionCommand } from "./use-expansion-command";
 const schema = communityMessagingResponseSchema;
 function render() {
@@ -78,6 +84,7 @@ beforeEach(() => {
   mocks.listener = null;
   mocks.principal = "owner";
   vi.clearAllMocks();
+  mocks.deadline.mockReturnValue(undefined);
   mocks.request.mockResolvedValue({ ok: true, value: { body: "protected" } });
 });
 afterEach(() => {
@@ -85,6 +92,23 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe("expansion protected-result lifetime", () => {
+  it("uses only the remaining original lease when a read is reused", async () => {
+    vi.setSystemTime(9_000);
+    mocks.deadline.mockReturnValue(10_000);
+    await render().run({ operation: "list" });
+    expect(render().data).not.toBeNull();
+    await vi.advanceTimersByTimeAsync(999);
+    expect(render().data).not.toBeNull();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(render().data).toBeNull();
+    expect(mocks.request).toHaveBeenCalledOnce();
+  });
+  it("refuses an already-expired reused read instead of granting a new lease", async () => {
+    vi.setSystemTime(10_000);
+    mocks.deadline.mockReturnValue(10_000);
+    expect(await render().run({ operation: "list" })).toBeNull();
+    expect(render().data).toBeNull();
+  });
   it("keeps current data and pending actions through unchanged active events", async () => {
     await render().run({ operation: "list" });
     const pending = deferred();

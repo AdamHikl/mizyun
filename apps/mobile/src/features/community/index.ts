@@ -14,3 +14,5 @@ export * from "./safety";
 export * from "./notifications";
 
 export { CommunityIntro } from "./community-presentation";
+export { CommunityReadLifecycle } from "./state/read-lifecycle";
+export { invalidateCommunityReads } from "./state/read-cache";

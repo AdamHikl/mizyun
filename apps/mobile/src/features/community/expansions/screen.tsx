@@ -1,3 +1,4 @@
+import { invalidateCommunityReads } from "../state/read-cache";
 import React, { useCallback } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { Stack, router, type Href, useFocusEffect } from "expo-router";
@@ -87,7 +88,10 @@ function Content() {
       <ExpansionButton
         label={state.busy ? "Checking availability…" : "Refresh availability"}
         disabled={state.busy}
-        onPress={() => void state.run({})}
+        onPress={() => {
+          invalidateCommunityReads();
+          void state.run({});
+        }}
       />
       {destinations.map((d) => {
         const feature = state.data?.find((f) => f.feature === d.feature);

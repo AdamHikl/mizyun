@@ -1,5 +1,7 @@
 # ADR-0032: Explicit Community expansion boundaries on Dev
 
+Invisible foreground navigation records may survive ordinary blur under [ADR-0033](0033-community-foreground-navigation-reads.md) (2026-10-02). Displayed data/intents still retire on blur and reused expansion results retain their original ten-second deadline.
+
 Date: 2026-10-01. Status: Accepted for Dev implementation.
 
 Adam explicitly authorized #156–162 development before the original post-pilot sequence. This authorizes implementation, isolated verification and Dev deployment/install; it does not supply participant, operator, legal, Store or physical acceptance evidence. Production remains excluded.

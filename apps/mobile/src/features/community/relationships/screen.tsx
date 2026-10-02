@@ -33,6 +33,7 @@ import { useCommunityProfile } from "../use-community-profile";
 import { ReportModal } from "../safety";
 import { captureSafetyReceipt } from "../safety/safety-api";
 import { scopeCommunityClient } from "../scoped-client";
+import { invalidateCommunityReads } from "../state/read-cache";
 import {
   RelationshipsController,
   type RelationshipList,
@@ -330,7 +331,10 @@ function OwnerRelationships({
         <RefreshControl
           refreshing={state.loading}
           onRefresh={() => {
-            if (enabled && !busy) void controller.load();
+            if (enabled && !busy) {
+              invalidateCommunityReads();
+              void controller.load();
+            }
           }}
           enabled={enabled && !busy}
           tintColor={colors.primary}

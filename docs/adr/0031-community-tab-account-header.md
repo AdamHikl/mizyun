@@ -1,5 +1,7 @@
 # ADR 0031: Community tab and Account header entry
 
+The focus read rule is narrowly amended by [ADR-0033](0033-community-foreground-navigation-reads.md) (2026-10-02) for still-valid foreground navigation records; genuine foreground entry requires new backend reads.
+
 - Status: Accepted
 - Date: 2026-09-30
 - Related: [ADR-0025](0025-root-stack-over-native-tabs.md), [ADR-0030](0030-explicit-community-publication.md)

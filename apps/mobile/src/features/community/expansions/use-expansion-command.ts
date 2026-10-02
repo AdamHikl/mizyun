@@ -5,6 +5,7 @@ import type { CommunityResponseSchema } from "@mizyun/contracts";
 import { apiClient } from "@/composition/api-client";
 import { useAuth } from "@/features/auth/auth-context";
 import { scopeCommunityClient } from "../scoped-client";
+import { getCommunityReadDeadline } from "../state/read-cache";
 const PROTECTED_RESULT_LIFETIME_MS = 10_000;
 /** Foreground results expire independently of pending requests; refresh is always deliberate. */
 export function useExpansionCommand<T>(
@@ -40,7 +41,7 @@ export function useExpansionCommand<T>(
       if (!principal || identity.current !== principal || !active.current)
         return null;
       const id = ++epoch.current;
-      const expiresAt = Date.now() + PROTECTED_RESULT_LIFETIME_MS;
+      let expiresAt = Date.now() + PROTECTED_RESULT_LIFETIME_MS;
       setBusy(true);
       setError(null);
       const client = scopeCommunityClient(
@@ -65,6 +66,11 @@ export function useExpansionCommand<T>(
       )
         return null;
       setBusy(false);
+      if (result.ok)
+        expiresAt = Math.min(
+          expiresAt,
+          getCommunityReadDeadline(result.value) ?? expiresAt,
+        );
       if (Date.now() >= expiresAt) {
         discardResult();
         setError("Refresh to check your current Community access.");
