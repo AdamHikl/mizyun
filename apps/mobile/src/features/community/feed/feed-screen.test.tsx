@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   feedItems: [] as any[],
   status: "ready",
   refresh: vi.fn(),
+  pause: vi.fn(),
   request: vi.fn(),
   load: vi.fn(),
   focus: null as null | (() => () => void),
@@ -133,7 +134,7 @@ vi.mock("./controller", () => ({
       hasMore: false,
       error: mocks.feedError,
     });
-    pause = vi.fn();
+    pause = mocks.pause;
     resume = vi.fn();
     refresh = mocks.refresh;
   },
@@ -180,6 +181,8 @@ beforeEach(() => {
   mocks.appState = null;
   vi.clearAllMocks();
   mocks.load.mockImplementation(async () => undefined);
+  mocks.pause.mockImplementation(() => undefined);
+  mocks.refresh.mockImplementation(async () => undefined);
 });
 async function flushAsync() {
   for (let i = 0; i < 5; i++) await Promise.resolve();
@@ -290,14 +293,20 @@ describe("Community home participation and navigation", () => {
     );
     expect(primary.props.accessibilityHint).toContain("handle");
   });
-  it("keeps the public encouragement panel identical during automatic feed refresh", async () => {
+  it("keeps navigation stable and shows the checking placeholder during automatic feed refresh", async () => {
     mocks.enrolled = true;
     const before = (await settledRender()).props.children[1].props
-      .ListEmptyComponent;
+      .ListHeaderComponent;
     mocks.feedStatus = "refreshing";
     const list = render().props.children[1];
-    expect(JSON.stringify(list.props.ListEmptyComponent)).toBe(
+    expect(JSON.stringify(list.props.ListHeaderComponent)).toBe(
       JSON.stringify(before),
+    );
+    expect(JSON.stringify(list.props.ListEmptyComponent)).toContain(
+      "Checking shared workouts",
+    );
+    expect(JSON.stringify(list.props.ListEmptyComponent)).not.toContain(
+      "Cheer each other on",
     );
     expect(list.props.refreshControl.props.refreshing).toBe(false);
     expect(list.props.data).toEqual([]);
@@ -314,6 +323,79 @@ describe("Community home participation and navigation", () => {
 });
 
 describe("Community retained tab membership freshness", () => {
+  it("does not flash encouragement in the actual unloaded blur reset frame before refocus", async () => {
+    mocks.enrolled = true;
+    mocks.feedItems = [{ id: "previous-card" }];
+    await settledRender();
+    render();
+    mocks.pause.mockImplementation(() => {
+      mocks.feedStatus = "unloaded";
+      mocks.feedItems = [];
+    });
+    mocks.cleanup?.();
+    // A retained tab can render its cleared controller snapshot before the
+    // next focus effect begins its membership/feed revalidation.
+    const reset = render().props.children[1];
+    expect(reset.props.data).toEqual([]);
+    expect(JSON.stringify(reset.props.ListEmptyComponent)).not.toContain(
+      "Cheer each other on",
+    );
+    expect(JSON.stringify(reset.props.ListEmptyComponent)).toContain(
+      "Checking shared workouts",
+    );
+    let finishMembership!: () => void;
+    let finishFeed!: () => void;
+    mocks.load.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishMembership = resolve;
+        }),
+    );
+    mocks.refresh.mockImplementationOnce(() => {
+      mocks.feedStatus = "loading";
+      return new Promise<void>((resolve) => {
+        finishFeed = () => {
+          mocks.feedStatus = "idle";
+          mocks.feedItems = [{ id: "current-card" }];
+          resolve();
+        };
+      });
+    });
+    mocks.cleanup = mocks.focus!();
+    const pending = render().props.children[1];
+    expect(pending.props.data).toEqual([]);
+    expect(JSON.stringify(pending.props.ListEmptyComponent)).not.toContain(
+      "Cheer each other on",
+    );
+    finishMembership();
+    finishFeed();
+    await flushAsync();
+    await flushAsync();
+    expect(render().props.children[1].props.data).toEqual([
+      { id: "current-card" },
+    ]);
+  });
+  it("does not show encouragement in the first membership-ready frame before the feed has loaded", async () => {
+    mocks.enrolled = true;
+    mocks.feedStatus = "unloaded";
+    const list = (await settledRender()).props.children[1];
+    expect(list.props.data).toEqual([]);
+    expect(JSON.stringify(list.props.ListEmptyComponent)).not.toContain(
+      "Cheer each other on",
+    );
+    expect(JSON.stringify(list.props.ListEmptyComponent)).toContain(
+      "Checking shared workouts",
+    );
+  });
+  it("shows encouragement after a successful conclusively empty feed read", async () => {
+    mocks.enrolled = true;
+    mocks.feedStatus = "idle";
+    const list = (await settledRender()).props.children[1];
+    expect(list.props.data).toEqual([]);
+    expect(JSON.stringify(list.props.ListEmptyComponent)).toContain(
+      "Cheer each other on",
+    );
+  });
   it("rebinds visible card intents after a fast refocus without an intermediate render", async () => {
     mocks.enrolled = true;
     mocks.feedItems = [{ id: "card-a" }];
@@ -400,8 +482,8 @@ describe("Community retained tab membership freshness", () => {
 
   it("keeps public navigation on refocus without spinner or stale cards", async () => {
     mocks.enrolled = true;
-    const previousPanel = (await settledRender()).props.children[1].props
-      .ListEmptyComponent;
+    const previousHeader = (await settledRender()).props.children[1].props
+      .ListHeaderComponent;
     mocks.cleanup?.();
     mocks.feedItems = [{ id: "stale-card" }];
     mocks.feedStatus = "refreshing";
@@ -417,8 +499,14 @@ describe("Community retained tab membership freshness", () => {
     const list = tree.props.children[1];
     expect(list.type).toBe("FlatList");
     expect(list.props.data).toEqual([]);
-    expect(JSON.stringify(list.props.ListEmptyComponent)).toBe(
-      JSON.stringify(previousPanel),
+    expect(JSON.stringify(list.props.ListHeaderComponent)).toBe(
+      JSON.stringify(previousHeader),
+    );
+    expect(JSON.stringify(list.props.ListEmptyComponent)).toContain(
+      "Checking shared workouts",
+    );
+    expect(JSON.stringify(list.props.ListEmptyComponent)).not.toContain(
+      "Cheer each other on",
     );
     expect(list.props.refreshControl.props.refreshing).toBe(false);
     expect(JSON.stringify(list.props.ListEmptyComponent)).not.toContain(

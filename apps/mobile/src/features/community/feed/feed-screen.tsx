@@ -68,7 +68,6 @@ function FeedScreenContent({
   const membershipRevision = useRef(0);
   // Remembers presentation only, never permission or protected feed content.
   const hasShownHub = useRef(false);
-  const hasShownActivity = useRef(false);
   const prefetchedFeed = useRef<{ generation: number | undefined } | null>(
     null,
   );
@@ -104,11 +103,6 @@ function FeedScreenContent({
     controller.subscribe,
     controller.getSnapshot,
   );
-
-  useEffect(() => {
-    if (membershipVerified && state.status === "idle")
-      hasShownActivity.current = state.items.length > 0;
-  }, [membershipVerified, state.status, state.items.length]);
 
   const focused = useRef(false);
   const foreground = useRef(AppState.currentState === "active");
@@ -155,6 +149,7 @@ function FeedScreenContent({
       return () => {
         membershipRevision.current += 1;
         focused.current = false;
+        setMembershipVerified(false);
         setManualRefreshing(false);
         alive.current = false;
         controller.pause();
@@ -484,15 +479,14 @@ function FeedScreenContent({
     </View>
   );
 
-  // Retain only generic presentation while protected cards are revalidated.
-  // A previously populated feed must not flash the empty encouragement panel.
+  // A reset/unread feed is not an empty feed. Only a completed read can
+  // establish the encouragement state, including the frame before refocus.
   const checkingActivity =
     !feedGenerationMatches ||
     checkingMembership ||
-    state.status === "loading" ||
-    state.status === "refreshing";
+    (state.status !== "idle" && state.status !== "error");
   const emptyComponent =
-    checkingActivity && hasShownActivity.current && !state.error ? (
+    checkingActivity && !state.error ? (
       <View
         accessibilityLabel="Checking shared workouts"
         accessibilityState={{ busy: true }}

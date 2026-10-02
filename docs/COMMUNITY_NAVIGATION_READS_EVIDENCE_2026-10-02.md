@@ -23,3 +23,11 @@ Fresh final `pnpm check` PASS (exit 0), log `/private/tmp/community-168-navigati
 ## Installed-device acceptance still required
 
 On the new standalone candidate, navigate populated Community → detail/Requests/Inbox/Groups/Messages/Routines → Back within and beyond ten seconds; distinguish initial, reused, expired and explicit-refresh behavior. Check real background/offline recovery, account switch, leave/rejoin and partner revocation. Sensitive photos/previews/search/token resolution must remain freshly authorized. Record PASS/FAIL/NOT TESTED and actual timing; installation/process launch alone cannot accept these journeys.
+
+## 2026-10-02 — Community empty-state transition correction
+
+Adam clarified the remaining installed-device symptom: returning from another tab briefly displays “Cheer each other on” before the populated feed. The supplied short recording was inspected locally; exact zero-tolerance video frames show the encouragement widget at 2.40 seconds and the shared workout at 2.45 seconds. This proves the visible transition, not backend request counts. Source establishes the failure: pause/reset represented an unread feed as `idle` with zero items; blur left membership verified, and the historical populated flag could be overwritten by that reset. The render then treated unavailable/unread data as confirmed empty before the focus read settled.
+
+Correction: distinguish `unloaded` from successfully read `idle`; invalidate visible membership on blur, and render a neutral checking placeholder until a feed read completes. The encouragement panel appears only for a completed, successfully empty feed; errors retain recovery. This does not broaden the cache lifetime or expose prior protected cards.
+
+Focused feed-screen25/controller22 tests PASS; the helper demonstrated both newly covered incorrect frames failing before the fix. Independent non-author review accepted. Fresh `pnpm check` PASS (exit0), log `/private/tmp/community-168-empty-flash-check.log`: mobile1145/107files, API783 with15 existing gated skips, contracts159/core351/server-adapter144; typechecks/format/navigation, dualHermes exports and existing safeguards pass. No database/provider integration reruns or backend/Production changes. Updated native installation remains separate from physical acceptance.

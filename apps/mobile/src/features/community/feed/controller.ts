@@ -8,7 +8,8 @@ import {
 
 export interface FeedState {
   readonly items: readonly SharedActivityFeedItemDto[];
-  readonly status: "idle" | "loading" | "refreshing" | "loading_more" | "error";
+  readonly status:
+    "unloaded" | "idle" | "loading" | "refreshing" | "loading_more" | "error";
   readonly error: string | null;
   readonly nextCursor: string | null;
   readonly hasMore: boolean;
@@ -16,7 +17,7 @@ export interface FeedState {
 
 export const INITIAL_FEED_STATE: FeedState = {
   items: [],
-  status: "idle",
+  status: "unloaded",
   error: null,
   nextCursor: null,
   hasMore: false,
