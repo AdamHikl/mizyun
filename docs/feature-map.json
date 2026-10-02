@@ -1590,6 +1590,8 @@
         "docs/adr/0033-community-foreground-navigation-reads.md",
         "docs/COMMUNITY_NAVIGATION_READS_EVIDENCE_2026-10-02.md",
         "docs/COMMUNITY_EXPANSIONS_DEV_EVIDENCE_2026-10-01.md",
+        "docs/COMMUNITY_DEV_TEST_GUIDE_2026-10-02.md",
+        "docs/COMMUNITY_UX_AUDIT_2026-10-02.md",
         "docs/COMMUNITY_DEV_QUARANTINE_SYNTHETIC_2026-10-01.json"
       ],
       "verificationCommands": [
