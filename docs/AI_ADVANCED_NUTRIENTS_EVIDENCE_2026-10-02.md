@@ -1,6 +1,6 @@
 # AI additional nutrients — implementation and acceptance evidence
 
-Date: 2026-10-02. Work item [#178](https://github.com/AdamHikl/mizyun/issues/178), requirement NUT-08, [ADR-0035](adr/0035-ai-advanced-nutrient-drafts.md). Baseline `1797fedbf3818b2f228b88decde6f2a91bfa2405`; clean `main` startup, implementation branch `codex/ai-advanced-nutrients`.
+Date: 2026-10-02. Work item [#178](https://github.com/AdamHikl/mizyun/issues/178), requirement NUT-08, [ADR-0035](adr/0035-ai-advanced-nutrient-drafts.md). Baseline `1797fedbf3818b2f228b88decde6f2a91bfa2405`; clean `main` startup, implementation branch `codex/ai-advanced-nutrients`. Accepted local source commit `86214068ae5bf92e38c11a668410d1315f481e62`; subsequent evidence-only commits do not change runtime source.
 
 ## Implemented behavior
 
