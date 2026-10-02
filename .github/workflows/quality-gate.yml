@@ -3,17 +3,8 @@ name: quality-gate
 on:
   push:
     branches: [main]
+  # Always run so shared configuration and documentation changes are checked.
   pull_request:
-    paths:
-      - "apps/**"
-      - "packages/**"
-      - "scripts/**"
-      - ".github/workflows/**"
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
-      - "tsconfig.json"
-      - "turbo.json"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

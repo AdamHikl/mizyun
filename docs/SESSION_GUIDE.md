@@ -36,6 +36,7 @@ If evidence is insufficient, label a claim unverified with a source link. Never 
 2. Read the compact current `status.md` and [`docs/START_HERE.md`](./START_HERE.md). (Read full `goals.md` and `docs/BUSINESS_ALIGNMENT.md` when addressing product direction, pricing, scope changes, or uncertain intent; read full `plan.md` when changing roadmap sequencing).
 3. Identify the active work item and its definition of done from `status.md` and GitHub Issues (`gh issue list --label "status:active"` or `--state open`); read any applicable nested instructions (e.g. `apps/mobile/AGENTS.md`).
 4. Use [`docs/feature-map.json`](./feature-map.json) or `pnpm context <feature-id>` to select relevant requirements, ADRs, runbooks, open findings, source code, and tests.
+   Narrow discovery with `pnpm context <feature-id> --query "<task>"`, `pnpm context --path <file>` or `--symbol <name>`. Read returned source and instruction files before editing; automatic index refresh does not accept review drift. See [shared navigation](AGENT_NAVIGATION_GUIDE.md).
 5. State expected impacts and delegate a bounded independent subtask with disjoint file ownership and acceptance checks, per `AGENTS.md`.
 
 Normal startup reading (`AGENTS.md` + `status.md` + `docs/START_HERE.md`) should remain at or below 350 lines, with `status.md` at or below 120 lines. Record lines and bytes when compacting; `SIMPLIFY-02` will add an advisory validator warning. Never truncate safety rules or active gates merely to satisfy the budget.

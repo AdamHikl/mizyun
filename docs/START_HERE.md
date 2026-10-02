@@ -43,13 +43,18 @@
 # Explore a feature's code, contracts, tests, relationships, and instructions
 pnpm context <feature-id>        # e.g., pnpm context meal-logging
 pnpm context --list              # list all mapped features
+pnpm context community --query "follow back" # bounded task discovery
+pnpm context --path packages/contracts/src/food-entry.ts
 
 # Analyze blast radius and affected features from your changes
 pnpm impact --since origin/main  # advisory change impact analysis
+pnpm impact --path packages/contracts/src/food-entry.ts
 
 # Validate feature map, local links/anchors, and architectural boundaries
 pnpm navigation:check
 ```
+
+See the [shared navigation guide](AGENT_NAVIGATION_GUIDE.md) for automatic refresh, cache exclusions, packet budgets and cross-client limits.
 
 ## 7. Historical Archive
 

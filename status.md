@@ -1,6 +1,14 @@
 # Mizyun current status
 
-> Updated 2026-10-01. Earlier work and exact acceptance evidence are preserved in [the pre-expansions archive](docs/archive/status/STATUS_COMMUNITY_PRE_EXPANSIONS_2026-10-01.md). Historical next actions are not current instructions.
+> Updated 2026-10-02. Earlier work and exact acceptance evidence are preserved in [the pre-expansions archive](docs/archive/status/STATUS_COMMUNITY_PRE_EXPANSIONS_2026-10-01.md). Historical next actions are not current instructions.
+
+## Automatic shared agent navigation (#177)
+
+Implemented current-source/config indexing with an ignored incremental parse cache, bounded query/path/symbol context and transitive advisory source impact. New files inherit owned-directory intent; every PR checks new/renamed ownership including configured workspace roots. Shared Codex/Antigravity session and handoff skills use the same commands. [Guide](docs/AGENT_NAVIGATION_GUIDE.md), [ADR-0034](docs/adr/0034-derived-agent-navigation.md), [qualified evidence](docs/AGENT_NAVIGATION_ACCEPTANCE.md). Independent review resolved four reproduced snapshot/export/deletion findings; final focused packet9/9 PASS. Base `3eb8735767db371e61738a64d5003b958ee938a0`; unrelated Community/Coach work preserved.
+
+**Verification:** fresh final `pnpm check` PASS (exit0): navigation72/72, mobile1145/API783(15 existing credential-gated skips), contracts159/core351/server-adapter144; formatting/typechecks/dualHermes/all existing safeguards. Log `/private/tmp/mizyun-agent-navigation-check-final.log`. Local index experiment: 1,080 files/2,355 edges/15 packages, cold1,194ms/warm552–563ms with0 reparses; context default8,192-byte cap. These are tooling/size proxies, not measured model tokens or accepted-task latency. Existing review drift, legacy unmapped sources and startup byte-size warnings remain explicit. No app/provider/DB/native/backend/Production operations.
+
+**Next exact action:** use the shared commands in fresh Codex and Antigravity sessions and record skill discovery/task behavior plus a controlled efficiency comparison under [#54](https://github.com/AdamHikl/mizyun/issues/54); installed-client compatibility is not claimed from static tests.
 
 ## Community expansions implemented and deployed on Dev
 

@@ -47,3 +47,5 @@
 - [ADR-0031 — Community tab and Account header entry](0031-community-tab-account-header.md): accepted 2026-09-30; five tabs, stable Account URL and deliberate participation.
 
 - [ADR-0032 — Community Dev expansion boundaries](0032-community-dev-expansion-boundaries.md): accepted2026-10-01; separate switches/consent/audiences and Dev-only source sequence.
+
+- [ADR-0034 — Derived local navigation for coding agents](0034-derived-agent-navigation.md): accepted 2026-10-02; on-demand source/config facts, disposable parse cache, bounded packets and shared client workflow.

@@ -42,7 +42,10 @@ Follow the verification progression from focused to repository-wide:
 
    ```bash
    pnpm navigation:check
+   pnpm navigation:check --since origin/main
    ```
+
+   The comparison rejects new/renamed source ownership gaps; existing unmapped paths remain visible warnings. Inspect advisory `pnpm impact --since origin/main` reason chains, unresolved imports and candidate tests. Current source discovery and cached parse reuse are not acceptance evidence.
 
 3. **Format Verification**:
    Ensure files match Prettier style:

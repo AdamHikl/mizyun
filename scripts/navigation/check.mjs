@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import ts from "typescript";
+import { getRepositoryIndex } from "./repository-index.mjs";
 import {
   loadFeatureMap,
   getFeaturesForPath,
@@ -431,7 +433,69 @@ export function validateStartupSize(repoRoot) {
       `Startup size advisory: normal startup set has ${totalLines} lines (target <= 350).`,
     );
   }
+  if (status && status.bytes > 12288)
+    warnings.push(
+      `Startup size advisory: status.md has ${status.bytes} bytes (target <= 12288).`,
+    );
+  if (totalBytes > 32768)
+    warnings.push(
+      `Startup size advisory: normal startup set has ${totalBytes} bytes (target <= 32768).`,
+    );
   return { errors, warnings, measurements, totalLines, totalBytes };
+}
+
+// Added/renamed paths must have intent ownership. Existing legacy gaps remain
+// visible in validateMappedSourceCoverage rather than becoming a moving baseline.
+export function validateNewSourceCoverage(repoRoot, sinceRef) {
+  const errors = [];
+  try {
+    const git = (args) =>
+      execFileSync("git", ["-c", "core.fsmonitor=false", ...args], {
+        cwd: repoRoot,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    const reference = git([
+      "rev-parse",
+      "--verify",
+      "--end-of-options",
+      `${sinceRef}^{commit}`,
+    ]).trim();
+    const base = git(["merge-base", reference, "HEAD"]).trim();
+    const baseline = new Set(
+      git(["ls-tree", "-r", "--name-only", "-z", base])
+        .split("\0")
+        .filter(Boolean),
+    );
+    const index = getRepositoryIndex(repoRoot, { cache: false });
+    const coverageRoots = [
+      ...new Set([...COVERAGE_ROOTS, ...index.packages.map((pkg) => pkg.path)]),
+    ];
+    const map = loadFeatureMap(repoRoot);
+    const addedPaths = index.files
+      .filter((file) => file.kind === "source")
+      .map((file) => file.path)
+      .filter(
+        (file) =>
+          !baseline.has(file) &&
+          coverageRoots.some(
+            (prefix) => prefix === "." || file.startsWith(`${prefix}/`),
+          ),
+      )
+      .sort();
+    for (const file of addedPaths)
+      if (!getFeaturesForPath(map, file).length)
+        errors.push(
+          `New source ownership gap: '${file}' is not mapped; add an owned path or explicit feature reference.`,
+        );
+    return { errors, warnings: [], addedPaths, base };
+  } catch (error) {
+    return {
+      errors: [`New source coverage unavailable: ${error.message}`],
+      warnings: [],
+      addedPaths: [],
+    };
+  }
 }
 
 export function validateMarkdownLinks(repoRoot) {
@@ -448,6 +512,7 @@ export function validateMarkdownLinks(repoRoot) {
     "docs/tutorials/README.md",
     "docs/patterns/README.md",
     "docs/AGENT_NAVIGATION_ACCEPTANCE.md",
+    "docs/AGENT_NAVIGATION_GUIDE.md",
   ];
 
   // Discover all archive markdown files
@@ -697,7 +762,7 @@ export function validateImportBoundaries(repoRoot) {
   return { errors, warnings };
 }
 
-export function runAllChecks(repoRoot = getRepoRoot()) {
+export function runAllChecks(repoRoot = getRepoRoot(), options = {}) {
   console.log("=== Mizyun Navigation & Boundary Checks ===");
   console.log("");
 
@@ -729,6 +794,15 @@ export function runAllChecks(repoRoot = getRepoRoot()) {
   }
   for (const w of coverageResult.warnings) console.warn(`  WARN: ${w}`);
   totalWarnings += coverageResult.warnings.length;
+  if (options.since) {
+    const newResult = validateNewSourceCoverage(repoRoot, options.since);
+    for (const error of newResult.errors) console.error(`  FAIL: ${error}`);
+    totalErrors += newResult.errors.length;
+    if (!newResult.errors.length)
+      console.log(
+        `  PASS: ${newResult.addedPaths.length} new source paths have intent ownership since ${newResult.base.slice(0, 8)}.`,
+      );
+  }
   console.log("");
 
   // 3. Startup size advisory
@@ -773,6 +847,22 @@ export function runAllChecks(repoRoot = getRepoRoot()) {
   totalWarnings += boundaryResult.warnings.length;
   console.log("");
 
+  console.log("6. Refreshing source/config discovery...");
+  try {
+    const index = getRepositoryIndex(repoRoot, { cache: false });
+    console.log(
+      `  PASS: Current snapshot ${index.snapshot.id}; ${index.files.length} files / ${index.edges.length} source edges / ${index.packages.length} workspace packages.`,
+    );
+    console.log(
+      `  INFO: ${index.unresolved.length} unresolved imports (includes external/nonliteral imports; static graph is advisory).`,
+    );
+    for (const warning of index.warnings) console.warn(`  WARN: ${warning}`);
+    totalWarnings += index.warnings.length;
+  } catch (error) {
+    console.error(`  FAIL: Discovery refresh unavailable: ${error.message}`);
+    totalErrors++;
+  }
+
   console.log(
     "--------------------------------------------------------------------------------",
   );
@@ -796,7 +886,12 @@ function main() {
     process.exit(1);
   }
 
-  const success = runAllChecks(repoRoot);
+  const args = process.argv.slice(2);
+  if (args.length && (args.length !== 2 || args[0] !== "--since" || !args[1])) {
+    console.error("Usage: pnpm navigation:check [--since <Git ref>]");
+    process.exit(1);
+  }
+  const success = runAllChecks(repoRoot, { since: args[1] });
   process.exit(success ? 0 : 1);
 }
 

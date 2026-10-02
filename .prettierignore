@@ -4,4 +4,5 @@ apps/mobile/ios/
 apps/mobile/android/
 apps/mobile/modules/*/android/build/
 pnpm-lock.yaml
+.cache/mizyun-navigation/
 .agents/tasks/batch-report-*.json

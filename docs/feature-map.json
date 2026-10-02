@@ -1632,6 +1632,50 @@
         "COMM-07\u201316 feed, moderation, inbox/delivery, lifecycle/export/restore, rollout and exact-candidate pilot gates",
         "COMM-17\u201323 expansion real Auth/Storage, device, moderation, lifecycle, restore and Dev acceptance on the exact final candidate"
       ]
+    },
+    {
+      "id": "agent-navigation",
+      "title": "Shared agent navigation and impact",
+      "summary": "Automatically refresh local source/config discovery, bounded task context and advisory source impact across coding agents.",
+      "aliases": ["agent-nav", "repository-context", "repo-map", "code-index"],
+      "entryPoints": [
+        "scripts/navigation/context.mjs",
+        "scripts/navigation/impact.mjs",
+        "scripts/navigation/check.mjs"
+      ],
+      "ownedPaths": [
+        "scripts/navigation",
+        ".agents/skills/mizyun-session-context",
+        ".agents/skills/mizyun-verify-handoff",
+        ".github/workflows/navigation-check.yml",
+        ".github/workflows/quality-gate.yml"
+      ],
+      "contracts": [],
+      "domainPort": [],
+      "api": [],
+      "ui": [],
+      "adapters": [],
+      "dataTables": [],
+      "migrationPaths": [],
+      "tests": ["scripts/navigation/test"],
+      "relations": [],
+      "docs": [
+        "docs/AGENT_NAVIGATION_GUIDE.md",
+        "docs/AGENT_NAVIGATION_ACCEPTANCE.md",
+        "docs/adr/0034-derived-agent-navigation.md"
+      ],
+      "verificationCommands": [
+        "pnpm navigation:check",
+        "pnpm test:navigation",
+        "pnpm navigation:check --since origin/main"
+      ],
+      "lastReviewedSha": "3eb8735767db371e61738a64d5003b958ee938a0",
+      "lastReviewedDate": "2026-10-02",
+      "limitations": "Reviewed HEAD plus disclosed local tooling changes. Static relationships are advisory; automatic refresh is not semantic review or release acceptance.",
+      "requirements": ["AGENT-NAV-005 / GitHub #177"],
+      "openAcceptance": [
+        "GitHub #54: fresh Codex and Antigravity sessions must demonstrate shared skill discovery and behavior; no installed-client or token-saving measurement is inferred from CLI fixtures."
+      ]
     }
   ]
 }

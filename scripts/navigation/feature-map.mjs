@@ -181,6 +181,8 @@ export function classifyFeaturesForPath(mapData, relativePath) {
       ...(feature.ui || []),
       ...(feature.adapters || []),
       ...(feature.tests || []),
+      ...(feature.migrationPaths || []),
+      ...(feature.docs || []).map((reference) => reference.split("#")[0]),
     ];
     if (
       referencePaths.some((referencePath) =>

@@ -225,3 +225,20 @@ Following the independent review in `docs/AGENT_NAVIGATION_REVIEW_2026-09-09.md`
 - `pnpm test:navigation`: Passed (27/27 tests passing, ~1.8s)
 - `pnpm check`: Passed (navigation checks, test:navigation, format:check, typecheck, bundle:check, unit tests, deployment safeguards, build matrix, AI evaluation invariants)
 - `git diff --check`: Passed (0 whitespace or conflict marker errors)
+
+### 8. Automatically derived source navigation (AGENT-NAV-005 / #177, 2026-10-02)
+
+Implemented on base `3eb8735767db371e61738a64d5003b958ee938a0` plus disclosed local tooling changes; no application/runtime deployment. [ADR-0034](adr/0034-derived-agent-navigation.md) and [operator guide](AGENT_NAVIGATION_GUIDE.md) define scope and limits. Existing unrelated Community/Coach documentation changes were preserved.
+
+- Incremental parse cache is worktree-local, ignored and disposable. Index requests rehash safe tracked/nonignored-untracked inventory, resolve current workspace/configuration, and retain SHA/content provenance. Safe inert parsing, cache corruption, inherited configuration, branch/worktree isolation and bounded concurrent-edit retry/failure have fixture coverage.
+- Source impact traverses reverse imports/reexports with runtime/type reasons, explicit coarse package/configuration signals and conservative deleted-target candidates. Static relationships/test names do not prove dynamic behavior, SQL/RLS or complete test coverage.
+- Context adds query/path/exact top-level symbol selection. Default text is capped by bytes and lines, with omissions explicit. Mandatory instructions, requirements, limitations and acceptance gates cannot be silently dropped. Reviewed dates are separate from automatic freshness.
+- PR checks run for every changed path and enforce new/renamed source ownership across conventional and configured workspace roots. Existing legacy gaps remain warnings. No vector service, provider dependency, MCP daemon or new installed dependency was added.
+
+Independent read-only helper review reproduced four P2 failures: runtime export targets, deleted alias/fallback targets, concurrent Git/index inputs, and old CLI intent versus a replaced feature map. Each was fixed with focused regressions and independently reverified. A nonreproducible guide symbol was corrected. No remaining actionable review findings.
+
+**Measured local proxies:** Node25.3.0 / TS5.9.3 / pnpm10.33.0, 1,080 files / 2,355 source edges / 15 workspace packages. A no-cache index took 1,194ms; three warm index requests took 557/563/552ms, with zero reparses and 1,080 records reused. These are one local index experiment, not end-to-end agent latency or token measurements. Same-current-feature-map Community text from the base formatter was 14,248 bytes / 116 lines; revised feature packet was 7,075 bytes / 113 lines, task `community --query "follow back"` 8,125 bytes / 92 lines and contract-path packet 5,493 bytes / 70 lines. Text bytes are a proxy, not token savings or equivalent task success.
+
+**Verification:** fresh final `pnpm check` PASS (exit0): navigation72/72, mobile1145, API783 with15 existing credential-gated skips, contracts159/core351/server-adapter144; formatting/typechecks/dual Hermes bundles and all existing safeguards passed. Final focused packet fixtures passed9/9. An earlier final-gate attempt stopped on an incorrect new status link anchor; corrected the link, then reran the full gate successfully. Final gate log: `/private/tmp/mizyun-agent-navigation-check-final.log`. Provider integration remains disabled; no external model, real-user data, native device or backend acceptance was attempted.
+
+**Remaining acceptance:** [#54](https://github.com/AdamHikl/mizyun/issues/54) still requires fresh Codex and Antigravity skill-discovery/task-behavior tests and controlled before/after metrics. Shared skills and commands are implemented; installed-client behavior, model token reduction, CI hosted execution and release acceptance are not inferred from local CLI fixtures.

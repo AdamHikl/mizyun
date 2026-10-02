@@ -23,6 +23,11 @@ function createGitFixture() {
   runGit(["config", "user.name", "Test User"]);
   runGit(["config", "commit.gpgsign", "false"]);
 
+  fs.writeFileSync(
+    path.join(dir, "pnpm-workspace.yaml"),
+    "packages:\n  - 'packages/*'\n",
+  );
+
   // Create producer package in packages/producer
   const producerDir = path.join(dir, "packages/producer");
   fs.mkdirSync(path.join(producerDir, "src"), { recursive: true });
@@ -32,6 +37,7 @@ function createGitFixture() {
       {
         name: "@fixture/producer",
         version: "1.0.0",
+        exports: "./src/index.ts",
         dependencies: {},
       },
       null,
@@ -231,7 +237,7 @@ test("synthetic fixture: ownership, manifest references, and reverse dependencie
       report.propagatedImpacts.some(
         (impact) =>
           impact.id === "consumer-feat" &&
-          impact.signal === "package-reverse-dep",
+          impact.signal === "source-reverse-dep",
       ),
     );
     assert.ok(
@@ -333,14 +339,14 @@ test("synthetic fixture: producer package change triggers reverse dependency imp
       consumerImpact,
       "Expected reverse dependency impact on consumer-feat without manual dependsOn",
     );
-    assert.equal(consumerImpact.signal, "package-reverse-dep");
+    assert.equal(consumerImpact.signal, "source-reverse-dep");
     assert.ok(
-      consumerImpact.reasonChain.includes("@fixture/producer"),
-      "Reason chain should cite producer package",
+      consumerImpact.reasonChain.includes("packages/producer/src/index.ts"),
+      "Reason chain should cite producer source file",
     );
     assert.ok(
-      consumerImpact.reasonChain.includes("@fixture/consumer"),
-      "Reason chain should cite consumer package",
+      consumerImpact.reasonChain.includes("packages/consumer/src/index.ts"),
+      "Reason chain should cite consumer source file",
     );
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });

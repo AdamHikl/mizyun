@@ -42,10 +42,13 @@ Do not read entire module trees or scan arbitrary files. Use repository navigati
      ```
      Select the closest matching vertical feature and run `pnpm context <feature-id>`.
 
+   For a task-specific packet, use `pnpm context <feature-id> --query "<task>"`; when the owner is unknown, use `pnpm context --query "<task>"`, `--path <file>` or `--symbol <exact-declaration>`. Default text is bounded by bytes and lines. Read returned current source and applicable instructions. `--json` returns the retained metadata packet; `--no-cache` bypasses disposable local cache. Files/configuration refresh on each request; reviewed dates and acceptance do not.
+
 2. **Assess Change Blast Radius**:
    When proposing changes that span packages or existing contracts, inspect advisory downstream impacts:
    ```bash
-   pnpm impact --since HEAD~1
+   pnpm impact --since origin/main
+   pnpm impact --path packages/contracts/src/food-entry.ts
    ```
    _(Note: Impact output is advisory; it highlights affected features but never waives `pnpm check` or release gates)._
 

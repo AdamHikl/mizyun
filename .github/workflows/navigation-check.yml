@@ -3,16 +3,8 @@ name: navigation-check
 on:
   push:
     branches: [main]
+  # Always run: new workspace/config paths must not bypass navigation checks.
   pull_request:
-    paths:
-      - "docs/**"
-      - "scripts/navigation/**"
-      - "packages/**"
-      - "apps/**"
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - "status.md"
-      - "AGENTS.md"
 
 jobs:
   check:
@@ -20,6 +12,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
         with:
@@ -35,6 +29,12 @@ jobs:
 
       - name: Run navigation structure and boundary check
         run: pnpm navigation:check
+
+      - name: Reject new source ownership gaps
+        if: github.event_name == 'pull_request'
+        env:
+          NAVIGATION_BASE: ${{ github.event.pull_request.base.sha }}
+        run: pnpm navigation:check --since "$NAVIGATION_BASE"
 
       - name: Run navigation fixture tests
         run: pnpm test:navigation

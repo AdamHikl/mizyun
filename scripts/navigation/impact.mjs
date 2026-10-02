@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
+import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -8,6 +9,7 @@ import {
   classifyFeaturesForPath,
   getRepoRoot,
 } from "./feature-map.mjs";
+import { getRepositoryIndex } from "./repository-index.mjs";
 
 function runGit(args, cwd, env = process.env) {
   try {
@@ -112,7 +114,7 @@ function getChangedFiles(repoRoot, sinceRef) {
   );
   const untrackedTokens = untrackedOutput
     .split("\0")
-    .filter((t) => t.length > 0);
+    .filter((t) => t.length > 0 && !t.startsWith(".cache/mizyun-navigation/"));
   for (const f of untrackedTokens) {
     fileSet.add(f);
   }
@@ -145,59 +147,28 @@ function isPermittedPath(filePath) {
   return true;
 }
 
-export function loadWorkspacePackages(repoRoot) {
-  const packages = new Map(); // pkgName -> { name, relDir, deps: Set }
-  const dirToPkg = new Map(); // relDir -> pkgName
-
-  const searchDirs = [
-    "packages",
-    "packages/adapters",
-    "packages/providers",
-    "apps",
-  ];
-  for (const sDir of searchDirs) {
-    const fullSearchDir = path.join(repoRoot, sDir);
-    if (!fs.existsSync(fullSearchDir)) continue;
-    const entries = fs.readdirSync(fullSearchDir, { withFileTypes: true });
-    for (const ent of entries) {
-      if (ent.isDirectory()) {
-        const pkgJsonPath = path.join(fullSearchDir, ent.name, "package.json");
-        if (fs.existsSync(pkgJsonPath)) {
-          try {
-            const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, "utf8"));
-            const relDir = path.relative(
-              repoRoot,
-              path.join(fullSearchDir, ent.name),
-            );
-            const deps = new Set([
-              ...Object.keys(pkgJson.dependencies || {}),
-              ...Object.keys(pkgJson.devDependencies || {}),
-            ]);
-            packages.set(pkgJson.name, {
-              name: pkgJson.name,
-              relDir,
-              deps,
-            });
-            dirToPkg.set(relDir, pkgJson.name);
-          } catch {
-            // Ignore invalid package.json
-          }
-        }
-      }
-    }
+export function loadWorkspacePackages(
+  repoRoot,
+  index = getRepositoryIndex(repoRoot),
+) {
+  const packages = new Map();
+  const dirToPkg = new Map();
+  for (const pkg of index.packages) {
+    packages.set(pkg.name, {
+      name: pkg.name,
+      relDir: pkg.path,
+      deps: new Set(pkg.dependencies),
+    });
+    dirToPkg.set(pkg.path, pkg.name);
   }
-
-  // Reverse dependencies: pkgName -> Set<consumerPkgName>
   const reverseDeps = new Map();
-  for (const [consumerName, info] of packages.entries()) {
+  for (const [consumerName, info] of packages) {
     for (const depName of info.deps) {
-      if (packages.has(depName)) {
-        if (!reverseDeps.has(depName)) reverseDeps.set(depName, new Set());
-        reverseDeps.get(depName).add(consumerName);
-      }
+      if (!packages.has(depName)) continue;
+      if (!reverseDeps.has(depName)) reverseDeps.set(depName, new Set());
+      reverseDeps.get(depName).add(consumerName);
     }
   }
-
   return { packages, dirToPkg, reverseDeps };
 }
 
@@ -241,17 +212,215 @@ function findFeaturesForPackage(pkgInfo, mapData) {
   return Array.from(matched);
 }
 
-export function analyzeImpact(repoRoot, sinceRef) {
+const GRAPH_LIMITS = { maxStates: 10000, maxDepth: 64 };
+
+function missingRelativeCandidates(file, specifier) {
+  if (!specifier?.startsWith(".")) return [];
+  const base = path.posix.normalize(
+    path.posix.join(path.posix.dirname(file), specifier),
+  );
+  const candidates = [base];
+  const ext = path.posix.extname(base);
+  if ([".js", ".jsx", ".mjs", ".cjs"].includes(ext)) {
+    const stem = base.slice(0, -ext.length);
+    candidates.push(
+      ...[".ts", ".tsx", ".mts", ".cts"].map((suffix) => stem + suffix),
+    );
+  }
+  if (!ext) {
+    for (const suffix of [
+      ".ts",
+      ".tsx",
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".cjs",
+      ".mts",
+      ".cts",
+    ]) {
+      candidates.push(base + suffix, `${base}/index${suffix}`);
+    }
+  }
+  return candidates;
+}
+
+function traceSourceImpacts(index, changedFiles) {
+  const reverse = new Map();
+  const addEdge = (edge) => {
+    if (!isPermittedPath(edge.from) || !isPermittedPath(edge.to)) return;
+    if (!reverse.has(edge.to)) reverse.set(edge.to, []);
+    reverse.get(edge.to).push(edge);
+  };
+  for (const edge of index.edges) addEdge(edge);
+  const indexed = new Set(index.files.map((file) => file.path));
+  const missingChanged = new Set(
+    changedFiles.filter((file) => !indexed.has(file)),
+  );
+  for (const file of index.files) {
+    for (const imported of file.imports || []) {
+      // Inspect every import, including those that currently resolve to a
+      // fallback. A vanished higher-priority module may have changed meaning.
+      for (const candidate of imported.candidates ||
+        missingRelativeCandidates(file.path, imported.specifier)) {
+        if (!missingChanged.has(candidate)) continue;
+        addEdge({
+          from: file.path,
+          to: candidate,
+          specifier: imported.specifier,
+          line: imported.line,
+          typeOnly: !!imported.typeOnly,
+          unresolved: true,
+        });
+      }
+    }
+  }
+  const queue = changedFiles.slice(0, GRAPH_LIMITS.maxStates).map((file) => ({
+    file,
+    origin: file,
+    edges: [],
+    typeOnly: false,
+    unresolved: false,
+  }));
+  const visited = new Set(
+    queue.map((state) => `${state.file}:runtime:resolved`),
+  );
+  const impacts = new Map();
+  let truncated = changedFiles.length > GRAPH_LIMITS.maxStates;
+  let cursor = 0;
+  while (cursor < queue.length) {
+    const state = queue[cursor++];
+    const edges = reverse.get(state.file) || [];
+    if (state.edges.length >= GRAPH_LIMITS.maxDepth && edges.length) {
+      truncated = true;
+      continue;
+    }
+    for (const edge of edges) {
+      const typeOnly = state.typeOnly || edge.typeOnly;
+      const mode = typeOnly ? "type-only" : "runtime";
+      const conservative = state.unresolved || !!edge.unresolved;
+      const key = `${edge.from}:${mode}:${conservative ? "unresolved" : "resolved"}`;
+      if (visited.has(key)) continue;
+      if (visited.size >= GRAPH_LIMITS.maxStates) {
+        truncated = true;
+        continue;
+      }
+      visited.add(key);
+      const next = {
+        file: edge.from,
+        origin: state.origin,
+        edges: [...state.edges, edge],
+        typeOnly,
+        unresolved: conservative,
+      };
+      queue.push(next);
+      if (!impacts.has(next.file))
+        impacts.set(next.file, {
+          path: next.file,
+          signals: new Set(),
+          reasons: [],
+        });
+      const impact = impacts.get(next.file);
+      impact.signals.add(typeOnly ? "type-import" : "runtime-import");
+      if (next.unresolved) impact.signals.add("unresolved-import");
+      impact.reasons.push({
+        origin: next.origin,
+        signal: mode,
+        conservative: next.unresolved,
+        reasonChain: [next.origin, ...next.edges.map((item) => item.from)].join(
+          " -> ",
+        ),
+        edges: next.edges,
+      });
+    }
+  }
+  return {
+    impacts: Array.from(impacts.values(), (impact) => ({
+      ...impact,
+      signals: [...impact.signals],
+    })),
+    traversal: { ...GRAPH_LIMITS, visitedStates: visited.size, truncated },
+  };
+}
+
+function isTestPath(file) {
+  return /(?:^|\/)(?:__tests__|test|tests)(?:\/|$)|(?:\.|-)(?:test|spec)\.[cm]?[jt]sx?$/.test(
+    file,
+  );
+}
+
+function configurationScope(file, index, ws) {
+  if (
+    !/(?:^|\/)(?:package\.json|app\.json|eas\.json|pnpm-workspace\.yaml|pnpm-lock\.yaml|tsconfig[^/]*\.json|(?:babel|metro|jest|vitest|vite|eslint|prettier|app)\.config\.[^/]+)$/.test(
+      file,
+    )
+  )
+    return null;
+  const pkg = findPackageForFile(file, ws.dirToPkg);
+  const scope = pkg ? ws.packages.get(pkg).relDir : ".";
+  const files = index.files
+    .filter(
+      (entry) =>
+        /\.[cm]?[jt]sx?$/.test(entry.path) &&
+        (scope === "." || entry.path.startsWith(scope + "/")),
+    )
+    .map((entry) => entry.path);
+  return {
+    path: file,
+    scope,
+    signal: "configuration-scope",
+    coarse: true,
+    impactedFiles: files.slice(0, GRAPH_LIMITS.maxStates),
+    totalScopedFiles: files.length,
+    truncated: files.length > GRAPH_LIMITS.maxStates,
+  };
+}
+
+export function analyzeImpact(repoRoot, sinceRef = "HEAD", options = {}) {
+  const mapPath = path.join(repoRoot, "docs/feature-map.json");
+  const mapHash = () =>
+    crypto.createHash("sha256").update(fs.readFileSync(mapPath)).digest("hex");
+  const initialMapHash = mapHash();
   const mapData = loadFeatureMap(repoRoot);
   const gitInfo = getChangedFiles(repoRoot, sinceRef);
-  const ws = loadWorkspacePackages(repoRoot);
+  const index = getRepositoryIndex(repoRoot, { cache: true });
+  if (
+    mapHash() !== initialMapHash ||
+    index.files.find((file) => file.path === "docs/feature-map.json")?.hash !==
+      initialMapHash ||
+    index.snapshot.headSha !== gitInfo.headSha
+  ) {
+    throw new Error(
+      "Repository changed during impact capture; retry on a stable working tree.",
+    );
+  }
+  const ws = loadWorkspacePackages(repoRoot, index);
+  const explicitPaths = options.paths || (options.path ? [options.path] : []);
+  const analyzedFiles = [
+    ...new Set([
+      ...gitInfo.files,
+      ...explicitPaths.map((file) => {
+        const relative = path
+          .relative(repoRoot, path.resolve(repoRoot, file))
+          .split(path.sep)
+          .join("/");
+        if (relative === ".." || relative.startsWith("../") || !relative)
+          throw new Error(`Path must be inside the repository: ${file}`);
+        return relative;
+      }),
+    ]),
+  ].sort();
+  const permittedFiles = analyzedFiles.filter(isPermittedPath);
+  const source = traceSourceImpacts(index, permittedFiles);
+  const configurationImpacts = permittedFiles
+    .map((file) => configurationScope(file, index, ws))
+    .filter(Boolean);
 
   const directImpacts = new Map(); // featureId -> { feature, files: [], signals: Set }
   const referencedImpacts = new Map(); // featureId -> { feature, files: [], signal }
   const propagatedImpacts = new Map(); // featureId -> { feature, reasonChain: string, signal: string }
   const unmappedFiles = [];
 
-  for (const file of gitInfo.files) {
+  for (const file of analyzedFiles) {
     if (!isPermittedPath(file)) continue;
 
     const { owners, consumers } = classifyFeaturesForPath(mapData, file);
@@ -284,35 +453,83 @@ export function analyzeImpact(repoRoot, sinceRef) {
     } else {
       unmappedFiles.push(file);
     }
+  }
 
-    // Also trace package-level reverse dependencies
-    const producerPkgName = findPackageForFile(file, ws.dirToPkg);
-    if (producerPkgName && ws.reverseDeps.has(producerPkgName)) {
-      const consumers = ws.reverseDeps.get(producerPkgName);
-      for (const consumerPkgName of consumers) {
-        const consumerInfo = ws.packages.get(consumerPkgName);
-        if (consumerInfo) {
-          const consumerFeatures = findFeaturesForPackage(
-            consumerInfo,
-            mapData,
-          );
-          for (const cfId of consumerFeatures) {
-            if (
-              !directImpacts.has(cfId) &&
-              !referencedImpacts.has(cfId) &&
-              !propagatedImpacts.has(cfId)
-            ) {
-              const cfFeat = mapData.featuresById.get(cfId);
-              if (cfFeat) {
-                propagatedImpacts.set(cfId, {
-                  feature: cfFeat,
-                  reasonChain: `${file} -> ${producerPkgName} -> ${consumerPkgName} -> ${cfId}`,
-                  signal: "package-reverse-dep",
-                });
-              }
-            }
-          }
+  // Source importers are concrete file signals, even within a single package
+  // and even when the feature manifest has no relation or ownership entry.
+  for (const impact of source.impacts) {
+    const { owners, consumers } = classifyFeaturesForPath(mapData, impact.path);
+    for (const feat of [...owners, ...consumers]) {
+      if (directImpacts.has(feat.id) || referencedImpacts.has(feat.id))
+        continue;
+      if (!propagatedImpacts.has(feat.id)) {
+        propagatedImpacts.set(feat.id, {
+          feature: feat,
+          signal: "source-reverse-dep",
+          signals: new Set(),
+          reasons: [],
+          files: [],
+        });
+      }
+      const target = propagatedImpacts.get(feat.id);
+      impact.signals.forEach((signal) => target.signals.add(signal));
+      target.reasons.push(...impact.reasons);
+      target.files.push(impact.path);
+      target.reasonChain ||= impact.reasons[0].reasonChain;
+    }
+  }
+
+  // Manifests are a coarse fallback: a declared dependency alone does not
+  // prove an import or a file-level impact. Preserve it as a separate signal.
+  for (const file of permittedFiles) {
+    const producer = findPackageForFile(file, ws.dirToPkg);
+    if (!producer) continue;
+    const queue = [{ name: producer, chain: [file, producer] }];
+    const visited = new Set([producer]);
+    for (let cursor = 0; cursor < queue.length; cursor++) {
+      const current = queue[cursor];
+      for (const consumer of ws.reverseDeps.get(current.name) || []) {
+        if (visited.has(consumer)) continue;
+        visited.add(consumer);
+        const chain = [...current.chain, consumer];
+        queue.push({ name: consumer, chain });
+        for (const id of findFeaturesForPackage(
+          ws.packages.get(consumer),
+          mapData,
+        )) {
+          if (
+            directImpacts.has(id) ||
+            referencedImpacts.has(id) ||
+            propagatedImpacts.has(id)
+          )
+            continue;
+          propagatedImpacts.set(id, {
+            feature: mapData.featuresById.get(id),
+            signal: "package-reverse-dep",
+            coarse: true,
+            reasonChain: `${chain.join(" -> ")} -> ${id} (coarse package-manifest fallback)`,
+          });
         }
+      }
+    }
+  }
+
+  for (const config of configurationImpacts) {
+    for (const file of config.impactedFiles) {
+      const { owners, consumers } = classifyFeaturesForPath(mapData, file);
+      for (const feat of [...owners, ...consumers]) {
+        if (
+          directImpacts.has(feat.id) ||
+          referencedImpacts.has(feat.id) ||
+          propagatedImpacts.has(feat.id)
+        )
+          continue;
+        propagatedImpacts.set(feat.id, {
+          feature: feat,
+          signal: "configuration-scope",
+          coarse: true,
+          reasonChain: `${config.path} -> ${config.scope} configuration scope -> ${file}`,
+        });
       }
     }
   }
@@ -337,7 +554,7 @@ export function analyzeImpact(repoRoot, sinceRef) {
           visited.add(rel.target);
           propagatedImpacts.set(rel.target, {
             feature: targetFeat,
-            reasonChain: `${currentId} -> [affects] ${rel.target} (${rel.reason})`,
+            reasonChain: `${propagatedImpacts.get(currentId)?.reasonChain || directImpacts.get(currentId)?.files[0] || referencedImpacts.get(currentId)?.files[0] || currentId} -> ${currentId} -> [affects] ${rel.target} (${rel.reason})`,
             signal: "semantic-affects",
           });
           queue.push(rel.target);
@@ -347,7 +564,13 @@ export function analyzeImpact(repoRoot, sinceRef) {
   }
 
   // Collect suggested tests & commands
-  const suggestedTests = new Set();
+  const suggestedTests = new Set(
+    [
+      ...permittedFiles,
+      ...source.impacts.map((impact) => impact.path),
+      ...configurationImpacts.flatMap((impact) => impact.impactedFiles),
+    ].filter(isTestPath),
+  );
   const suggestedCommands = new Set();
 
   const allAffected = [
@@ -361,7 +584,7 @@ export function analyzeImpact(repoRoot, sinceRef) {
     for (const c of feat.verificationCommands || []) suggestedCommands.add(c);
   }
 
-  return {
+  const report = {
     git: {
       headSha: gitInfo.headSha,
       baseSha: gitInfo.baseSha,
@@ -385,11 +608,62 @@ export function analyzeImpact(repoRoot, sinceRef) {
       title: v.feature.title,
       signal: v.signal,
       reasonChain: v.reasonChain,
+      ...(v.coarse ? { coarse: true } : {}),
+      ...(v.signals
+        ? {
+            signals: [...v.signals],
+            impactedFiles: v.files,
+            reasons: v.reasons,
+          }
+        : {}),
     })),
     unmappedFiles,
+    analyzedFiles: permittedFiles,
+    sourceImpacts: source.impacts,
+    configurationImpacts,
+    coverage: {
+      snapshot: index.snapshot,
+      traversal: source.traversal,
+      reasonPolicy:
+        "Shortest complete chain per reached file, type/runtime and resolved/conservative signal; alternate origins and paths are not enumerated.",
+      unresolvedImports: index.unresolved,
+      unmappedImpactedFiles: source.impacts
+        .map((impact) => impact.path)
+        .filter((file) => {
+          const { owners, consumers } = classifyFeaturesForPath(mapData, file);
+          return !owners.length && !consumers.length;
+        }),
+      excludedChangedFiles: analyzedFiles.filter(
+        (file) => !isPermittedPath(file),
+      ),
+      unindexedChangedFiles: permittedFiles.filter(
+        (file) => !index.files.some((indexed) => indexed.path === file),
+      ),
+      warnings: [
+        ...index.warnings,
+        "Static source and package-manifest signals are advisory; dynamic imports, generated code, configuration and runtime behavior may be incomplete.",
+        ...(source.traversal.truncated
+          ? [
+              "Source traversal reached its bound; inspect omitted downstream paths manually.",
+            ]
+          : []),
+      ],
+    },
     suggestedTests: Array.from(suggestedTests).sort(),
     suggestedCommands: Array.from(suggestedCommands).sort(),
   };
+  const finalIndex = getRepositoryIndex(repoRoot, { cache: true });
+  if (
+    finalIndex.snapshot.id !== index.snapshot.id ||
+    mapHash() !== initialMapHash ||
+    JSON.stringify(getChangedFiles(repoRoot, sinceRef)) !==
+      JSON.stringify(gitInfo)
+  ) {
+    throw new Error(
+      "Repository changed during impact capture; retry on a stable working tree.",
+    );
+  }
+  return report;
 }
 
 export function printTextReport(report) {
@@ -471,6 +745,28 @@ export function printTextReport(report) {
     console.log("");
   }
 
+  console.log(
+    `--- Source Import Impacts (${report.sourceImpacts?.length || 0}) ---`,
+  );
+  for (const impact of (report.sourceImpacts || []).slice(0, 15)) {
+    console.log(`  • ${impact.path} [${impact.signals.join(", ")}]`);
+    for (const reason of impact.reasons)
+      console.log(`      ${reason.reasonChain}`);
+  }
+  if ((report.sourceImpacts?.length || 0) > 15)
+    console.log(
+      `  ... ${report.sourceImpacts.length - 15} more source impact(s); use --json for complete results.`,
+    );
+  for (const config of report.configurationImpacts || [])
+    console.log(
+      `  Configuration: ${config.path} -> ${config.scope} (${config.totalScopedFiles} scoped files; coarse).`,
+    );
+  console.log(
+    `Coverage: ${report.coverage?.unresolvedImports.length || 0} unresolved imports; ${report.coverage?.unmappedImpactedFiles.length || 0} unmapped impacted files.`,
+  );
+  for (const warning of report.coverage?.warnings || [])
+    console.log(`  Warning: ${warning}`);
+  console.log("");
   console.log("--- Advisory Verification Commands ---");
   if (report.suggestedCommands.length > 0) {
     for (const cmd of report.suggestedCommands) {
@@ -513,7 +809,14 @@ function main() {
   }
 
   try {
-    const report = analyzeImpact(repoRoot, sinceRef);
+    const paths = [];
+    for (let i = 0; i < args.length; i++) {
+      if (args[i] !== "--path") continue;
+      if (!args[i + 1] || args[i + 1].startsWith("--"))
+        throw new Error("--path requires a repository file path");
+      paths.push(args[++i]);
+    }
+    const report = analyzeImpact(repoRoot, sinceRef, { paths });
     if (isJson) {
       console.log(JSON.stringify(report, null, 2));
     } else {

@@ -18,6 +18,7 @@ coverage/
 .turbo/
 .expo/
 .eslintcache
+.cache/mizyun-navigation/
 *.tsbuildinfo
 
 # Local App Store captures and rendered upload artifacts may contain user data.
