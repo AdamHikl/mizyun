@@ -1,0 +1,162 @@
+{
+  "date": "2026-10-02T20:50:50.754Z",
+  "root": "/Users/adam/.codex/worktrees/agent-navigation-efficiency/mizyun",
+  "sourceSha": "1797fedbf3818b2f228b88decde6f2a91bfa2405",
+  "node": "v25.3.0",
+  "typescript": "5.9.3",
+  "method": "Load base index source from Git into an in-memory ES module, changing only the TypeScript import to its installed worktree path. Warm both implementations twice. Alternate base/new calls against the identical current worktree; discard pairs if path/content/kind hashes differ or new graph cache misses. Compare complete edges, unresolved dependencies and packages for every accepted pair. Both use disk parse metadata; the new implementation additionally reuses its ignored graph cache.",
+  "records": [
+    {
+      "sample": 1,
+      "contentSignature": "12ca1a8bd79bc6235227ec150cf7c23dc41f6e7d247091d46100f812af8e533e",
+      "files": 1086,
+      "edges": 2361,
+      "baseMs": 598.8,
+      "newMs": 319.2,
+      "baseStats": {
+        "parsed": 0,
+        "reused": 1086,
+        "files": 1086
+      },
+      "newStats": {
+        "parsed": 0,
+        "reused": 1086,
+        "files": 1086,
+        "graphCache": "hit",
+        "graphResolved": 0
+      },
+      "equivalentGraph": true
+    },
+    {
+      "sample": 2,
+      "contentSignature": "12ca1a8bd79bc6235227ec150cf7c23dc41f6e7d247091d46100f812af8e533e",
+      "files": 1086,
+      "edges": 2361,
+      "baseMs": 613.1,
+      "newMs": 324.8,
+      "baseStats": {
+        "parsed": 0,
+        "reused": 1086,
+        "files": 1086
+      },
+      "newStats": {
+        "parsed": 0,
+        "reused": 1086,
+        "files": 1086,
+        "graphCache": "hit",
+        "graphResolved": 0
+      },
+      "equivalentGraph": true
+    },
+    {
+      "sample": 3,
+      "contentSignature": "12ca1a8bd79bc6235227ec150cf7c23dc41f6e7d247091d46100f812af8e533e",
+      "files": 1086,
+      "edges": 2361,
+      "baseMs": 591.8,
+      "newMs": 330.9,
+      "baseStats": {
+        "parsed": 0,
+        "reused": 1086,
+        "files": 1086
+      },
+      "newStats": {
+        "parsed": 0,
+        "reused": 1086,
+        "files": 1086,
+        "graphCache": "hit",
+        "graphResolved": 0
+      },
+      "equivalentGraph": true
+    },
+    {
+      "sample": 4,
+      "contentSignature": "12ca1a8bd79bc6235227ec150cf7c23dc41f6e7d247091d46100f812af8e533e",
+      "files": 1086,
+      "edges": 2361,
+      "baseMs": 624.8,
+      "newMs": 329.3,
+      "baseStats": {
+        "parsed": 0,
+        "reused": 1086,
+        "files": 1086
+      },
+      "newStats": {
+        "parsed": 0,
+        "reused": 1086,
+        "files": 1086,
+        "graphCache": "hit",
+        "graphResolved": 0
+      },
+      "equivalentGraph": true
+    },
+    {
+      "sample": 5,
+      "contentSignature": "12ca1a8bd79bc6235227ec150cf7c23dc41f6e7d247091d46100f812af8e533e",
+      "files": 1086,
+      "edges": 2361,
+      "baseMs": 620.9,
+      "newMs": 331.6,
+      "baseStats": {
+        "parsed": 0,
+        "reused": 1086,
+        "files": 1086
+      },
+      "newStats": {
+        "parsed": 0,
+        "reused": 1086,
+        "files": 1086,
+        "graphCache": "hit",
+        "graphResolved": 0
+      },
+      "equivalentGraph": true
+    },
+    {
+      "sample": 6,
+      "contentSignature": "12ca1a8bd79bc6235227ec150cf7c23dc41f6e7d247091d46100f812af8e533e",
+      "files": 1086,
+      "edges": 2361,
+      "baseMs": 600.2,
+      "newMs": 320.2,
+      "baseStats": {
+        "parsed": 0,
+        "reused": 1086,
+        "files": 1086
+      },
+      "newStats": {
+        "parsed": 0,
+        "reused": 1086,
+        "files": 1086,
+        "graphCache": "hit",
+        "graphResolved": 0
+      },
+      "equivalentGraph": true
+    },
+    {
+      "sample": 7,
+      "contentSignature": "12ca1a8bd79bc6235227ec150cf7c23dc41f6e7d247091d46100f812af8e533e",
+      "files": 1086,
+      "edges": 2361,
+      "baseMs": 590.4,
+      "newMs": 320.6,
+      "baseStats": {
+        "parsed": 0,
+        "reused": 1086,
+        "files": 1086
+      },
+      "newStats": {
+        "parsed": 0,
+        "reused": 1086,
+        "files": 1086,
+        "graphCache": "hit",
+        "graphResolved": 0
+      },
+      "equivalentGraph": true
+    }
+  ],
+  "discarded": [],
+  "medians": {
+    "baseMs": 600.2,
+    "newMs": 324.8
+  }
+}

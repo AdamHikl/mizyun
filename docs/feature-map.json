@@ -1643,7 +1643,9 @@
       "entryPoints": [
         "scripts/navigation/context.mjs",
         "scripts/navigation/impact.mjs",
-        "scripts/navigation/check.mjs"
+        "scripts/navigation/check.mjs",
+        "scripts/navigation/read.mjs",
+        "scripts/navigation/bench.mjs"
       ],
       "ownedPaths": [
         "scripts/navigation",
@@ -1664,7 +1666,9 @@
       "docs": [
         "docs/AGENT_NAVIGATION_GUIDE.md",
         "docs/AGENT_NAVIGATION_ACCEPTANCE.md",
-        "docs/adr/0034-derived-agent-navigation.md"
+        "docs/adr/0034-derived-agent-navigation.md",
+        "docs/AGENT_EFFICIENCY_PLAN_2026-10-02.md",
+        "docs/adr/0036-focused-agent-retrieval-and-graph-cache.md"
       ],
       "verificationCommands": [
         "pnpm navigation:check",
@@ -1674,7 +1678,10 @@
       "lastReviewedSha": "3eb8735767db371e61738a64d5003b958ee938a0",
       "lastReviewedDate": "2026-10-02",
       "limitations": "Reviewed HEAD plus disclosed local tooling changes. Static relationships are advisory; automatic refresh is not semantic review or release acceptance.",
-      "requirements": ["AGENT-NAV-005 / GitHub #177"],
+      "requirements": [
+        "AGENT-NAV-005 / GitHub #177",
+        "AGENT-NAV-006 / GitHub #180"
+      ],
       "openAcceptance": [
         "GitHub #54: fresh Codex and Antigravity sessions must demonstrate shared skill discovery and behavior; no installed-client or token-saving measurement is inferred from CLI fixtures."
       ]

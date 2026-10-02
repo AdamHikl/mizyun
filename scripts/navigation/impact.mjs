@@ -72,6 +72,7 @@ function getChangedFiles(repoRoot, sinceRef) {
   }
 
   const fileSet = new Set();
+  const localFileSet = new Set();
 
   // 1. Committed diff if baseSha is known
   if (baseSha && baseSha !== headSha) {
@@ -99,12 +100,14 @@ function getChangedFiles(repoRoot, sinceRef) {
   );
   for (const f of parseNulDelimitedDiff(stagedOutput)) {
     fileSet.add(f);
+    localFileSet.add(f);
   }
 
   // 3. Unstaged tracked changes
   const unstagedOutput = runGit(["diff", "-z", "--name-status"], repoRoot);
   for (const f of parseNulDelimitedDiff(unstagedOutput)) {
     fileSet.add(f);
+    localFileSet.add(f);
   }
 
   // 4. Untracked non-ignored files
@@ -117,12 +120,14 @@ function getChangedFiles(repoRoot, sinceRef) {
     .filter((t) => t.length > 0 && !t.startsWith(".cache/mizyun-navigation/"));
   for (const f of untrackedTokens) {
     fileSet.add(f);
+    localFileSet.add(f);
   }
 
   return {
     headSha,
     baseSha,
     files: Array.from(fileSet).sort(),
+    localFiles: Array.from(localFileSet).sort(),
     hasLocalChanges:
       stagedOutput.length > 0 ||
       unstagedOutput.length > 0 ||
@@ -395,10 +400,9 @@ export function analyzeImpact(repoRoot, sinceRef = "HEAD", options = {}) {
   }
   const ws = loadWorkspacePackages(repoRoot, index);
   const explicitPaths = options.paths || (options.path ? [options.path] : []);
-  const analyzedFiles = [
-    ...new Set([
-      ...gitInfo.files,
-      ...explicitPaths.map((file) => {
+  const selectedPaths = [
+    ...new Set(
+      explicitPaths.map((file) => {
         const relative = path
           .relative(repoRoot, path.resolve(repoRoot, file))
           .split(path.sep)
@@ -407,8 +411,36 @@ export function analyzeImpact(repoRoot, sinceRef = "HEAD", options = {}) {
           throw new Error(`Path must be inside the repository: ${file}`);
         return relative;
       }),
+    ),
+  ].sort();
+  const includeWorkingTree =
+    selectedPaths.length === 0 || options.includeWorkingTree === true;
+  const analyzedFiles = [
+    ...new Set([
+      ...selectedPaths,
+      ...(includeWorkingTree ? gitInfo.files : []),
     ]),
   ].sort();
+  const includedChanges = gitInfo.files.filter((file) =>
+    analyzedFiles.includes(file),
+  );
+  const scope = {
+    mode: selectedPaths.length
+      ? includeWorkingTree
+        ? "combined"
+        : "selected-paths"
+      : "changes",
+    selectedPaths,
+    includeWorkingTree,
+    comparisonRef: sinceRef,
+    includedChangeCount: includedChanges.length,
+    excludedChangeCount: gitInfo.files.length - includedChanges.length,
+    observedLocalChangeCount: gitInfo.localFiles.length,
+    excludedLocalChangeCount: gitInfo.localFiles.filter(
+      (file) => !analyzedFiles.includes(file),
+    ).length,
+    analyzedSeedCount: analyzedFiles.length,
+  };
   const permittedFiles = analyzedFiles.filter(isPermittedPath);
   const source = traceSourceImpacts(index, permittedFiles);
   const configurationImpacts = permittedFiles
@@ -585,6 +617,7 @@ export function analyzeImpact(repoRoot, sinceRef = "HEAD", options = {}) {
   }
 
   const report = {
+    scope,
     git: {
       headSha: gitInfo.headSha,
       baseSha: gitInfo.baseSha,
@@ -666,165 +699,248 @@ export function analyzeImpact(repoRoot, sinceRef = "HEAD", options = {}) {
   return report;
 }
 
-export function printTextReport(report) {
-  console.log(
-    "================================================================================",
-  );
-  console.log("MIZYUN ADVISORY IMPACT ANALYSIS");
-  console.log(
-    "================================================================================",
-  );
-  console.log(
-    `Comparison base: ${
-      report.git.baseSha ? `${report.git.baseSha.slice(0, 8)} -> ` : ""
-    }HEAD (${report.git.headSha.slice(0, 8)})`,
-  );
-  console.log(
-    `Includes local changes: ${
-      report.git.hasLocalChanges ? "YES (staged/unstaged/untracked)" : "NO"
-    }`,
-  );
-  console.log(`Total changed files: ${report.git.totalFilesChanged}`);
-  console.log("");
+const DEFAULT_BUDGET_BYTES = 8192;
+const DEFAULT_MAX_LINES = 120;
+const MIN_BUDGET_BYTES = 2048;
+const MAX_BUDGET_BYTES = 1048576;
 
-  console.log("--- Directly Affected Features ---");
-  if (report.directImpacts.length > 0) {
-    for (const imp of report.directImpacts) {
-      console.log(`  • ${imp.title} [${imp.id}] (${imp.signals.join(", ")})`);
-      for (const f of imp.changedFiles.slice(0, 5)) {
-        console.log(`      - ${f}`);
-      }
-      if (imp.changedFiles.length > 5) {
-        console.log(
-          `      ... and ${imp.changedFiles.length - 5} more file(s)`,
-        );
-      }
-    }
-  } else {
-    console.log("  (None detected)");
-  }
-  console.log("");
-
-  console.log("--- Referenced Consumers ---");
-  if (report.referencedImpacts.length > 0) {
-    for (const imp of report.referencedImpacts) {
-      console.log(`  • ${imp.title} [${imp.id}] [${imp.signal}]`);
-      for (const f of imp.changedFiles.slice(0, 5)) console.log(`      - ${f}`);
-      if (imp.changedFiles.length > 5) {
-        console.log(
-          `      ... and ${imp.changedFiles.length - 5} more file(s)`,
-        );
-      }
-    }
-  } else {
-    console.log("  (None detected)");
-  }
-  console.log("");
-
-  console.log("--- Propagated Downstream Impacts ---");
-  if (report.propagatedImpacts.length > 0) {
-    for (const imp of report.propagatedImpacts) {
-      console.log(`  • ${imp.title} [${imp.id}] [${imp.signal}]`);
-      console.log(`      Reason: ${imp.reasonChain}`);
-    }
-  } else {
-    console.log("  (None detected)");
-  }
-  console.log("");
-
-  if (report.unmappedFiles.length > 0) {
-    console.log(
-      `--- Unmapped Permitted Files (${report.unmappedFiles.length}) ---`,
+function validateBudget(value) {
+  if (
+    !Number.isSafeInteger(value) ||
+    value < MIN_BUDGET_BYTES ||
+    value > MAX_BUDGET_BYTES
+  )
+    throw new Error(
+      "--budget-bytes must be an integer between 2048 and 1048576.",
     );
-    for (const uf of report.unmappedFiles.slice(0, 8)) {
-      console.log(`  ? ${uf}`);
-    }
-    if (report.unmappedFiles.length > 8) {
-      console.log(`  ... and ${report.unmappedFiles.length - 8} more`);
-    }
-    console.log("");
-  }
+  return value;
+}
 
-  console.log(
-    `--- Source Import Impacts (${report.sourceImpacts?.length || 0}) ---`,
+// Render whole records only. Inert commands and complete reason chains either
+// fit or are counted as omitted; UTF-8 bytes and the final newline are included.
+export function renderImpactReport(report, options = {}) {
+  const budgetBytes = validateBudget(
+    options.budgetBytes ?? DEFAULT_BUDGET_BYTES,
   );
-  for (const impact of (report.sourceImpacts || []).slice(0, 15)) {
-    console.log(`  • ${impact.path} [${impact.signals.join(", ")}]`);
-    for (const reason of impact.reasons)
-      console.log(`      ${reason.reasonChain}`);
+  const maxLines = options.maxLines ?? DEFAULT_MAX_LINES;
+  if (!Number.isSafeInteger(maxLines) || maxLines < 8)
+    throw new Error("maxLines must be an integer of at least 8.");
+  const oneLine = (value) => String(value).replace(/[\r\n\t]/g, " ");
+  const entries = [];
+  const addGroup = (records, priority = 100) =>
+    entries.push({
+      records: records.map(([kind, text]) => ({ kind, text: oneLine(text) })),
+      priority,
+    });
+  const add = (kind, text, priority) => addGroup([[kind, text]], priority);
+  // Reserve a useful overview before any large list consumes the budget.
+  // Whole source/feature groups keep the impact and all its reasons together.
+  (report.scope?.selectedPaths || []).forEach((file, i) =>
+    add("seeds", `Selected: ${file}`, i < 3 ? 0 : 100),
+  );
+  (report.suggestedCommands || []).forEach((command, i) =>
+    add("checks", `Check (advisory): ${command}`, i < 3 ? 1 : 100),
+  );
+  if (!report.suggestedCommands?.length) add("checks", "Check: pnpm check", 1);
+  (report.suggestedTests || []).forEach((file, i) =>
+    add("tests", `Test: ${file}`, i < 5 ? 2 : 100),
+  );
+  (report.coverage?.warnings || []).forEach((warning, i) =>
+    add("warnings", `Warning: ${warning}`, i < 2 ? 3 : 100),
+  );
+  (report.sourceImpacts || []).forEach((impact, i) =>
+    addGroup(
+      [
+        ["sources", `Source: ${impact.path} [${impact.signals.join(", ")}]`],
+        ...impact.reasons.map((reason) => [
+          "reasons",
+          `  ${reason.conservative ? "Conservative reason" : "Reason"}: ${reason.reasonChain}`,
+        ]),
+      ],
+      i < 3 ? 4 : 100,
+    ),
+  );
+  report.directImpacts.forEach((impact, i) =>
+    addGroup(
+      [
+        [
+          "direct",
+          `Direct: ${impact.title} [${impact.id}] (${impact.signals.join(", ")})`,
+        ],
+        ...impact.changedFiles.map((file) => [
+          "directPaths",
+          `  Changed: ${file}`,
+        ]),
+      ],
+      i < 1 ? 5 : 100,
+    ),
+  );
+  report.propagatedImpacts.forEach((impact, i) =>
+    addGroup(
+      [
+        [
+          "propagated",
+          `Feature: ${impact.title} [${impact.id}] [${impact.signal}${impact.coarse ? ", coarse" : ""}]`,
+        ],
+        ["reasons", `  Reason: ${impact.reasonChain}`],
+      ],
+      i < 1 ? 6 : 100,
+    ),
+  );
+  (report.configurationImpacts || []).forEach((config, i) =>
+    add(
+      "configs",
+      `Configuration: ${config.path} -> ${config.scope} (${config.totalScopedFiles} scoped files; coarse).`,
+      i < 1 ? 7 : 100,
+    ),
+  );
+  report.referencedImpacts.forEach((impact, i) =>
+    addGroup(
+      [
+        [
+          "references",
+          `Reference: ${impact.title} [${impact.id}] [${impact.signal}]`,
+        ],
+        ...impact.changedFiles.map((file) => [
+          "referencePaths",
+          `  Changed: ${file}`,
+        ]),
+      ],
+      i < 1 ? 8 : 100,
+    ),
+  );
+  for (const file of report.unmappedFiles)
+    add("unmapped", `Unmapped seed: ${file}`);
+  entries.sort((a, b) => a.priority - b.priority);
+
+  const scope = report.scope;
+  const header = [
+    "MIZYUN ADVISORY IMPACT ANALYSIS",
+    `Scope: ${scope?.mode || "changes"}; seeds ${scope?.analyzedSeedCount ?? report.analyzedFiles?.length ?? report.git.totalFilesChanged}; observed changes ${report.git.totalFilesChanged}; excluded changes ${scope?.excludedChangeCount || 0} (local ${scope?.excludedLocalChangeCount || 0}).`,
+    `HEAD ${report.git.headSha.slice(0, 8)}; comparison base ${report.git.baseSha?.slice(0, 8) || "none"}; local changes ${report.git.hasLocalChanges ? "present" : "none"}.`,
+    `Coverage: ${report.coverage?.unresolvedImports.length || 0} unresolved imports; ${report.coverage?.unmappedImpactedFiles.length || 0} unmapped impacted files; ${report.coverage?.unindexedChangedFiles.length || 0} unindexed seeds; source traversal ${report.coverage?.traversal.truncated ? "TRUNCATED" : "within bounds"}.`,
+    "Advisory: static imports, configuration and package manifests may miss runtime behavior.",
+    "These results and commands do NOT waive pnpm check or release gates.",
+  ];
+  const omissions = {};
+  for (const entry of entries) {
+    for (const record of entry.records)
+      omissions[record.kind] = (omissions[record.kind] || 0) + 1;
   }
-  if ((report.sourceImpacts?.length || 0) > 15)
-    console.log(
-      `  ... ${report.sourceImpacts.length - 15} more source impact(s); use --json for complete results.`,
+  const footer = () => {
+    const omitted = Object.entries(omissions).filter(([, count]) => count > 0);
+    return omitted.length
+      ? `Omitted (use --json or --all): ${omitted.map(([kind, count]) => `${kind}=${count}`).join(", ")}.`
+      : "Omitted: none.";
+  };
+  const reserveBytes = Buffer.byteLength(footer() + "\n", "utf8");
+  let bytes = Buffer.byteLength(header.join("\n") + "\n", "utf8");
+  const lines = [...header];
+  for (const entry of entries) {
+    const size = Buffer.byteLength(
+      entry.records.map((record) => record.text).join("\n") + "\n",
+      "utf8",
     );
-  for (const config of report.configurationImpacts || [])
-    console.log(
-      `  Configuration: ${config.path} -> ${config.scope} (${config.totalScopedFiles} scoped files; coarse).`,
-    );
-  console.log(
-    `Coverage: ${report.coverage?.unresolvedImports.length || 0} unresolved imports; ${report.coverage?.unmappedImpactedFiles.length || 0} unmapped impacted files.`,
-  );
-  for (const warning of report.coverage?.warnings || [])
-    console.log(`  Warning: ${warning}`);
-  console.log("");
-  console.log("--- Advisory Verification Commands ---");
-  if (report.suggestedCommands.length > 0) {
-    for (const cmd of report.suggestedCommands) {
-      console.log(`  • ${cmd}`);
-    }
-  } else {
-    console.log("  Run standard verification: pnpm check");
+    if (
+      !options.all &&
+      (bytes + size + reserveBytes > budgetBytes ||
+        lines.length + entry.records.length + 1 > maxLines)
+    )
+      continue;
+    lines.push(...entry.records.map((record) => record.text));
+    bytes += size;
+    for (const record of entry.records) omissions[record.kind]--;
   }
-  console.log("");
-  console.log(
-    "Note: Impact results and commands are advisory. They do NOT waive pnpm check or release gates.",
-  );
+  lines.push(footer());
+  const text = lines.join("\n");
+  const outputBytes = Buffer.byteLength(text + "\n", "utf8");
+  if (!options.all && (outputBytes > budgetBytes || lines.length > maxLines))
+    throw new Error("Impact header exceeds the requested output budget.");
+  return {
+    text,
+    bytes: outputBytes,
+    lines: lines.length,
+    budgetBytes,
+    maxLines,
+    omissions,
+  };
+}
+
+export function printTextReport(report, options = {}) {
+  const rendered = renderImpactReport(report, options);
+  console.log(rendered.text);
+  return rendered;
+}
+
+export function parseImpactArgs(args) {
+  const parsed = {
+    paths: [],
+    sinceRef: "HEAD",
+    includeWorkingTree: false,
+    json: false,
+    all: false,
+    budgetBytes: DEFAULT_BUDGET_BYTES,
+    help: false,
+  };
+  const seen = new Set();
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    const flag = arg === "-h" ? "--help" : arg;
+    if (
+      ![
+        "--path",
+        "--since",
+        "--budget-bytes",
+        "--include-working-tree",
+        "--json",
+        "--all",
+        "--help",
+      ].includes(flag)
+    )
+      throw new Error(`Unknown option '${arg}'.`);
+    if (flag !== "--path" && seen.has(flag))
+      throw new Error(`Duplicate option '${flag}'.`);
+    seen.add(flag);
+    if (["--path", "--since", "--budget-bytes"].includes(flag)) {
+      const value = args[++i];
+      if (!value || value.startsWith("-"))
+        throw new Error(`${flag} requires a value.`);
+      if (flag === "--path") parsed.paths.push(value);
+      else if (flag === "--since") parsed.sinceRef = value;
+      else {
+        if (!/^\d+$/.test(value))
+          throw new Error("--budget-bytes requires a decimal integer.");
+        parsed.budgetBytes = validateBudget(Number(value));
+      }
+    } else if (flag === "--include-working-tree")
+      parsed.includeWorkingTree = true;
+    else if (flag === "--json") parsed.json = true;
+    else if (flag === "--all") parsed.all = true;
+    else parsed.help = true;
+  }
+  if (parsed.includeWorkingTree && !parsed.paths.length)
+    throw new Error("--include-working-tree requires --path.");
+  if (parsed.json && parsed.all) throw new Error("Use either --json or --all.");
+  if ((parsed.json || parsed.all) && seen.has("--budget-bytes"))
+    throw new Error("--budget-bytes cannot be combined with --json or --all.");
+  return parsed;
 }
 
 function main() {
-  const args = process.argv.slice(2);
-  const isJson = args.includes("--json");
-
-  let sinceRef = "HEAD";
-  const sinceIdx = args.indexOf("--since");
-  if (
-    sinceIdx !== -1 &&
-    args[sinceIdx + 1] &&
-    !args[sinceIdx + 1].startsWith("--")
-  ) {
-    sinceRef = args[sinceIdx + 1];
-  } else if (sinceIdx !== -1) {
-    console.error(
-      "Error: --since requires a git ref (e.g. --since origin/main)",
-    );
-    process.exit(1);
-  }
-
-  let repoRoot;
   try {
-    repoRoot = getRepoRoot();
-  } catch (err) {
-    console.error(`Error: ${err.message}`);
-    process.exit(1);
-  }
-
-  try {
-    const paths = [];
-    for (let i = 0; i < args.length; i++) {
-      if (args[i] !== "--path") continue;
-      if (!args[i + 1] || args[i + 1].startsWith("--"))
-        throw new Error("--path requires a repository file path");
-      paths.push(args[++i]);
+    const options = parseImpactArgs(process.argv.slice(2));
+    if (options.help) {
+      console.log(
+        "Usage: pnpm impact [--since <ref>] [--path <file> ...] [--include-working-tree] [--json | --all] [--budget-bytes <n>]\nPaths select only their own seeds; --include-working-tree combines comparison and local changes.\nWithout paths, --since retains merge-base plus staged/unstaged/untracked changes.\nDefault text limits: 8192 UTF-8 bytes, 120 lines. --json and --all show complete results.",
+      );
+      return;
     }
-    const report = analyzeImpact(repoRoot, sinceRef, { paths });
-    if (isJson) {
-      console.log(JSON.stringify(report, null, 2));
-    } else {
-      printTextReport(report);
-    }
+    const report = analyzeImpact(getRepoRoot(), options.sinceRef, options);
+    if (options.json) console.log(JSON.stringify(report, null, 2));
+    else printTextReport(report, options);
   } catch (err) {
     console.error(`Impact analysis failed: ${err.message}`);
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 

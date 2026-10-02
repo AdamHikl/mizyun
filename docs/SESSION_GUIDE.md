@@ -37,7 +37,9 @@ If evidence is insufficient, label a claim unverified with a source link. Never 
 3. Identify the active work item and its definition of done from `status.md` and GitHub Issues (`gh issue list --label "status:active"` or `--state open`); read any applicable nested instructions (e.g. `apps/mobile/AGENTS.md`).
 4. Use [`docs/feature-map.json`](./feature-map.json) or `pnpm context <feature-id>` to select relevant requirements, ADRs, runbooks, open findings, source code, and tests.
    Narrow discovery with `pnpm context <feature-id> --query "<task>"`, `pnpm context --path <file>` or `--symbol <name>`. Read returned source and instruction files before editing; automatic index refresh does not accept review drift. See [shared navigation](AGENT_NAVIGATION_GUIDE.md).
-5. State expected impacts and delegate a bounded independent subtask with disjoint file ownership and acceptance checks, per `AGENTS.md`.
+5. State expected impacts and delegate a bounded independent subtask with disjoint file ownership and acceptance checks, per `AGENTS.md`. Include the baseline, focused requirements/gates, allowed files and expected evidence. Each helper reads its applicable instructions; the coordinator owns full session continuity.
+
+Run mandatory startup reads once in full and reuse them while current. For subsequent status lookups, `pnpm nav:read status.md --outline` locates sections; `--heading "Exact heading"` reads a complete relevant section. Read full status when current authority, applicable gates or conflicting handoffs are uncertain. An outline does not establish gate contents.
 
 Normal startup reading (`AGENTS.md` + `status.md` + `docs/START_HERE.md`) should remain at or below 350 lines, with `status.md` at or below 120 lines. Record lines and bytes when compacting; `SIMPLIFY-02` will add an advisory validator warning. Never truncate safety rules or active gates merely to satisfy the budget.
 
@@ -47,6 +49,8 @@ Normal startup reading (`AGENTS.md` + `status.md` + `docs/START_HERE.md`) should
 - The coordinator owns shared continuity documents, integration, commits, remote mutations and final verification. Assign disjoint helper write ownership; serialize operations on shared database and native-build resources. Preserve work from other active sessions.
 - Get independent agent review for authentication, authorization, privacy lifecycle, migrations/RLS, AI access/budgets and deployment changes. Review findings must be resolved or recorded as open blockers, not hidden behind passing helper tests.
 - Prefer feature-vertical changes: contract/domain → port → adapter → API/UI → tests.
+- Keep bounded navigation calls separate from large output batches. Use `pnpm nav:read` for complete symbols, line ranges and document sections; expand callers/tests when needed. Instructions must be read in full. Use task-only `pnpm impact --path <file>` by default; add `--include-working-tree` explicitly to examine combined changes.
+- Use `pnpm navigation:bench --json` for repeatable cache/timing/output-size proxies. Parent-context isolation does not imply lower aggregate helper cost; actual model-token and accepted-task comparisons require client evidence under #54.
 - Do not bypass an interface merely because only one provider exists today.
 - Update tests with behavior, not afterward as cleanup.
 - Run focused tests frequently; run the full gate before committing.

@@ -3,7 +3,11 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { analyzeImpact } from "../impact.mjs";
+import {
+  analyzeImpact,
+  parseImpactArgs,
+  renderImpactReport,
+} from "../impact.mjs";
 
 function fixture(extraFiles = {}) {
   const root = fs.mkdtempSync("/tmp/mizyun-impact-graph-");
@@ -483,6 +487,231 @@ test("impact rejects changed file inventory introduced during source capture", (
     assert.equal(introduced, true);
   } finally {
     fs.readFileSync = read;
+    f.close();
+  }
+});
+
+test("selected paths exclude unrelated staged, unstaged and untracked seeds", () => {
+  const f = fixture();
+  try {
+    f.write("modules/ui/src/unrelated.ts", "export const unrelated = false;\n");
+    f.git("add", "modules/ui/src/unrelated.ts");
+    f.write(
+      "tsconfig.json",
+      JSON.stringify({ compilerOptions: { strict: true } }),
+    );
+    f.write("docs/unrelated.md", "# Unrelated note\n");
+    const report = analyzeImpact(f.root, "HEAD", {
+      paths: ["modules/logic/src/value.ts", "modules/logic/src/./value.ts"],
+    });
+    assert.deepEqual(report.analyzedFiles, ["modules/logic/src/value.ts"]);
+    assert.equal(report.configurationImpacts.length, 0);
+    assert.ok(
+      !report.directImpacts.some((impact) => impact.id === "unrelated"),
+    );
+    assert.equal(report.scope.mode, "selected-paths");
+    assert.equal(report.scope.excludedChangeCount, 3);
+    assert.equal(report.scope.includeWorkingTree, false);
+    assert.equal(report.git.hasLocalChanges, true);
+  } finally {
+    f.close();
+  }
+});
+
+test("working tree inclusion is explicit and no-path since keeps legacy change scope", () => {
+  const f = fixture();
+  try {
+    const base = f.git("rev-parse", "HEAD");
+    f.write("modules/ui/src/unrelated.ts", "export const unrelated = false;\n");
+    f.git("add", ".");
+    f.git("commit", "-m", "Unrelated committed change");
+    f.write("docs/untracked.md", "# Untracked\n");
+    const selected = analyzeImpact(f.root, base, {
+      path: "modules/logic/src/value.ts",
+    });
+    assert.deepEqual(selected.analyzedFiles, ["modules/logic/src/value.ts"]);
+    const combined = analyzeImpact(f.root, base, {
+      path: "modules/logic/src/value.ts",
+      includeWorkingTree: true,
+    });
+    assert.deepEqual(combined.analyzedFiles, [
+      "docs/untracked.md",
+      "modules/logic/src/value.ts",
+      "modules/ui/src/unrelated.ts",
+    ]);
+    assert.equal(combined.scope.mode, "combined");
+    const legacy = analyzeImpact(f.root, base);
+    assert.deepEqual(legacy.analyzedFiles, [
+      "docs/untracked.md",
+      "modules/ui/src/unrelated.ts",
+    ]);
+    assert.equal(legacy.scope.mode, "changes");
+    assert.equal(legacy.git.baseSha, base);
+  } finally {
+    f.close();
+  }
+});
+
+test("selected deletion and configuration retain their own advisory boundary", () => {
+  const f = fixture();
+  try {
+    fs.unlinkSync(path.join(f.root, "modules/logic/src/value.ts"));
+    f.write("docs/noise.md", "# Noise\n");
+    const deletion = analyzeImpact(f.root, "HEAD", {
+      path: "modules/logic/src/value.ts",
+    });
+    assert.ok(
+      deletion.sourceImpacts.some(
+        (impact) =>
+          impact.path === "modules/ui/src/alias.ts" &&
+          impact.signals.includes("type-import"),
+      ),
+    );
+    assert.ok(
+      deletion.suggestedTests.includes("modules/ui/src/screen.test.ts"),
+    );
+    const config = analyzeImpact(f.root, "HEAD", { path: "tsconfig.json" });
+    assert.deepEqual(config.analyzedFiles, ["tsconfig.json"]);
+    assert.equal(config.configurationImpacts[0].coarse, true);
+    assert.ok(config.suggestedTests.includes("modules/ui/src/screen.test.ts"));
+    assert.equal(config.scope.excludedLocalChangeCount, 2);
+  } finally {
+    f.close();
+  }
+});
+
+test("impact argument parser accepts deliberate scopes and rejects unknown, duplicate or conflicting flags", () => {
+  const valid = parseImpactArgs([
+    "--path",
+    "a.ts",
+    "--path",
+    "a.ts",
+    "--since",
+    "main",
+    "--include-working-tree",
+    "--budget-bytes",
+    "4096",
+  ]);
+  assert.deepEqual(valid.paths, ["a.ts", "a.ts"]);
+  assert.equal(valid.sinceRef, "main");
+  assert.equal(valid.includeWorkingTree, true);
+  assert.equal(valid.budgetBytes, 4096);
+  for (const args of [
+    ["--unknown"],
+    ["bare-path.ts"],
+    ["--path"],
+    ["--path", "--json"],
+    ["--since"],
+    ["--since", "HEAD", "--since", "main"],
+    ["--json", "--json"],
+    ["--include-working-tree"],
+    ["--json", "--all"],
+    ["--all", "--budget-bytes", "2048"],
+    ["--json", "--budget-bytes", "2048"],
+    ["--budget-bytes", "2e3"],
+    ["--budget-bytes", "2047"],
+    ["--budget-bytes", "1048577"],
+    ["--budget-bytes", "4096", "--budget-bytes", "8192"],
+  ])
+    assert.throws(() => parseImpactArgs(args), Error, JSON.stringify(args));
+  assert.equal(parseImpactArgs(["--all"]).all, true);
+  assert.equal(parseImpactArgs(["-h"]).help, true);
+});
+
+test("human impact output respects UTF-8 bytes and lines with exact omissions and early tests", () => {
+  const f = fixture();
+  try {
+    const report = analyzeImpact(f.root, "HEAD", {
+      path: "modules/logic/src/value.ts",
+    });
+    report.suggestedTests = Array.from(
+      { length: 160 },
+      (_, i) => `tests/例-${i}.test.ts`,
+    );
+    report.suggestedCommands = ["pnpm check"];
+    report.propagatedImpacts.push({
+      id: "long",
+      title: "界".repeat(10000),
+      signal: "coarse",
+      reasonChain: "界".repeat(10000),
+    });
+    const rendered = renderImpactReport(report, { budgetBytes: 2048 });
+    assert.ok(rendered.bytes <= 2048);
+    assert.ok(rendered.lines <= 120);
+    assert.equal(rendered.bytes, Buffer.byteLength(rendered.text + "\n"));
+    const shownTests = rendered.text
+      .split("\n")
+      .filter((line) => line.startsWith("Test: ")).length;
+    assert.ok(shownTests > 0);
+    assert.equal(rendered.omissions.tests, 160 - shownTests);
+    assert.match(rendered.text, new RegExp(`tests=${160 - shownTests}`));
+    assert.match(rendered.text, /do NOT waive pnpm check or release gates/);
+    assert.match(rendered.text, /may miss runtime behavior/);
+    assert.match(rendered.text, /use --json or --all/);
+    const defaultOutput = renderImpactReport(report);
+    assert.ok(defaultOutput.bytes <= 8192);
+    assert.ok(defaultOutput.lines <= 120);
+    assert.match(
+      defaultOutput.text,
+      /Selected: modules\/logic\/src\/value\.ts/,
+    );
+    assert.match(defaultOutput.text, /Check \(advisory\): pnpm check/);
+    assert.match(defaultOutput.text, /Source: modules\/logic\/src\/barrel\.ts/);
+    assert.match(
+      defaultOutput.text,
+      /Reason: modules\/logic\/src\/value\.ts -> modules\/logic\/src\/barrel\.ts/,
+    );
+    assert.match(defaultOutput.text, /Warning:/);
+    const complete = renderImpactReport(report, { all: true });
+    assert.ok(complete.bytes > 8192);
+    assert.ok(Object.values(complete.omissions).every((value) => value === 0));
+    assert.equal(complete.text.match(/^Test: /gm).length, 160);
+    const lineLimited = renderImpactReport(report, { maxLines: 8 });
+    assert.equal(lineLimited.lines, 8);
+    assert.equal(lineLimited.omissions.seeds, 0);
+    assert.equal(lineLimited.omissions.tests, 160);
+  } finally {
+    f.close();
+  }
+});
+
+test("CLI exposes selected scope as JSON and rejects flags before repository work", () => {
+  const f = fixture();
+  const cli = new URL("../impact.mjs", import.meta.url);
+  try {
+    f.write("docs/dirty.md", "# Dirty\n");
+    const raw = execFileSync(
+      process.execPath,
+      [cli.pathname, "--path", "modules/logic/src/value.ts", "--json"],
+      { cwd: f.root, encoding: "utf8" },
+    );
+    const report = JSON.parse(raw);
+    assert.equal(report.scope.mode, "selected-paths");
+    assert.deepEqual(report.analyzedFiles, ["modules/logic/src/value.ts"]);
+    assert.equal(report.scope.excludedLocalChangeCount, 1);
+    assert.throws(
+      () =>
+        execFileSync(process.execPath, [cli.pathname, "--typo"], {
+          cwd: "/tmp",
+          stdio: "pipe",
+        }),
+      (error) =>
+        error.status === 1 && /Unknown option/.test(error.stderr.toString()),
+    );
+    const human = execFileSync(
+      process.execPath,
+      [
+        cli.pathname,
+        "--path",
+        "modules/logic/src/value.ts",
+        "--budget-bytes",
+        "2048",
+      ],
+      { cwd: f.root, encoding: "utf8" },
+    );
+    assert.ok(Buffer.byteLength(human) <= 2048);
+    assert.ok(human.trimEnd().split("\n").length <= 120);
+  } finally {
     f.close();
   }
 });

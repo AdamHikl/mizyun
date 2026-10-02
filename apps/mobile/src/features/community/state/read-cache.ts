@@ -285,7 +285,8 @@ export class CommunityReadCache implements ApiClient {
               () => this.entries.delete(key),
               Math.max(0, expiresAt - Date.now()),
             );
-            if (typeof timer === "object") timer.unref?.();
+            if (typeof timer === "object")
+              (timer as { unref?: () => void }).unref?.();
             const previous = this.entries.get(key);
             if (previous) clearTimeout(previous.timer);
             this.entries.set(key, {

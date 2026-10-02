@@ -49,3 +49,5 @@
 - [ADR-0032 — Community Dev expansion boundaries](0032-community-dev-expansion-boundaries.md): accepted2026-10-01; separate switches/consent/audiences and Dev-only source sequence.
 
 - [ADR-0034 — Derived local navigation for coding agents](0034-derived-agent-navigation.md): accepted 2026-10-02; on-demand source/config facts, disposable parse cache, bounded packets and shared client workflow.
+
+- [ADR-0036 — Focused retrieval and validated graph reuse](0036-focused-agent-retrieval-and-graph-cache.md): accepted 2026-10-02; task-only impact, complete source/doc excerpts, safe resolution caching and repeatable proxy measurements.
