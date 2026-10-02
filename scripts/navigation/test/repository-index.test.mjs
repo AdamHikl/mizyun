@@ -559,3 +559,412 @@ test("deleted relative, alias and workspace candidates remain visible when an al
     );
   }
 });
+
+const graphCacheFile = (root) =>
+  path.join(root, ".cache/mizyun-navigation/graph-cache.json");
+const inheritedOptions = (root, owner = "consumer") => ({
+  compilerOptions: {
+    moduleResolution: "Bundler",
+    module: "ESNext",
+    baseUrl: root,
+    paths: { "@local/*": [`modules/${owner}/src/*`] },
+  },
+});
+
+test("warm graph cache performs zero resolutions and cache:false neither reads nor writes caches", (t) => {
+  const { root } = fixture(t);
+  const cold = getRepositoryIndex(root);
+  assert.equal(cold.stats.graphCache, "miss");
+  assert.ok(cold.stats.graphResolved > 0);
+  const graphBefore = fs.readFileSync(graphCacheFile(root), "utf8");
+  const parseBefore = fs.readFileSync(
+    path.join(root, ".cache/mizyun-navigation/parse-cache.json"),
+    "utf8",
+  );
+  const warm = getRepositoryIndex(root);
+  assert.equal(warm.stats.graphCache, "hit");
+  assert.equal(warm.stats.graphResolved, 0);
+  assert.deepEqual(warm.edges, cold.edges);
+  assert.deepEqual(warm.files, cold.files);
+  assert.deepEqual(warm.warnings, cold.warnings);
+  const cacheReads = [];
+  const originalOpen = fs.openSync;
+  const originalWrite = fs.writeFileSync;
+  try {
+    fs.openSync = function (filename, ...rest) {
+      if (
+        typeof filename === "string" &&
+        filename.startsWith(path.join(root, ".cache"))
+      )
+        cacheReads.push(filename);
+      return originalOpen.call(this, filename, ...rest);
+    };
+    fs.writeFileSync = function (filename, ...rest) {
+      if (
+        typeof filename === "string" &&
+        filename.startsWith(path.join(root, ".cache"))
+      )
+        throw new Error("Disabled caches must not write");
+      return originalWrite.call(this, filename, ...rest);
+    };
+    const uncached = getRepositoryIndex(root, { cache: false });
+    assert.equal(uncached.stats.graphCache, "disabled");
+    assert.equal(uncached.stats.reused, 0);
+    assert.ok(uncached.stats.graphResolved > 0);
+    assert.deepEqual(uncached.edges, cold.edges);
+    assert.equal(uncached.snapshot.id, cold.snapshot.id);
+    assert.deepEqual(cacheReads, []);
+  } finally {
+    fs.openSync = originalOpen;
+    fs.writeFileSync = originalWrite;
+  }
+  assert.equal(fs.readFileSync(graphCacheFile(root), "utf8"), graphBefore);
+  assert.equal(
+    fs.readFileSync(
+      path.join(root, ".cache/mizyun-navigation/parse-cache.json"),
+      "utf8",
+    ),
+    parseBefore,
+  );
+  assert.ok(!graphBefore.includes("export const value = 1"));
+  assert.ok(!graphBefore.includes('"symbols"'));
+  assert.ok(!graphBefore.includes('"headings"'));
+});
+
+test("same-size same-time installed inherited config edits invalidate the warm graph", (t) => {
+  const { root, write } = fixture(t);
+  write("modules/producer/src/local.ts", "export const local = true;\n");
+  write(
+    "node_modules/shared-config/tsconfig.base.json",
+    inheritedOptions(root),
+  );
+  write("tsconfig.json", {
+    extends: "./node_modules/shared-config/tsconfig.base.json",
+  });
+  const first = getRepositoryIndex(root);
+  assert.equal(getRepositoryIndex(root).stats.graphCache, "hit");
+  const config = path.join(
+    root,
+    "node_modules/shared-config/tsconfig.base.json",
+  );
+  const before = fs.statSync(config);
+  write(
+    "node_modules/shared-config/tsconfig.base.json",
+    inheritedOptions(root, "producer"),
+  );
+  fs.utimesSync(config, before.atime, before.mtime);
+  assert.equal(fs.statSync(config).size, before.size);
+  const changed = getRepositoryIndex(root);
+  assert.equal(changed.stats.graphCache, "miss");
+  assert.equal(changed.stats.parsed, 0);
+  assert.notEqual(changed.snapshot.id, first.snapshot.id);
+  assert.ok(
+    changed.edges.some(
+      (edge) =>
+        edge.specifier === "@local/local" &&
+        edge.to === "modules/producer/src/local.ts",
+    ),
+  );
+  assert.equal(getRepositoryIndex(root).stats.graphCache, "hit");
+  fs.unlinkSync(config);
+  const removed = getRepositoryIndex(root);
+  assert.equal(removed.stats.graphCache, "miss");
+  assert.ok(!removed.edges.some((edge) => edge.specifier === "@local/local"));
+});
+
+test("negative installed configuration lookups invalidate when a missing config appears", (t) => {
+  const { root, write } = fixture(t);
+  write("tsconfig.json", {
+    extends: "./node_modules/missing-config/tsconfig.base.json",
+  });
+  const missing = getRepositoryIndex(root);
+  assert.equal(getRepositoryIndex(root).stats.graphCache, "hit");
+  assert.ok(!missing.edges.some((edge) => edge.specifier === "@local/local"));
+  const cache = JSON.parse(fs.readFileSync(graphCacheFile(root), "utf8"));
+  assert.ok(
+    cache.lookups.some(
+      (lookup) =>
+        lookup.path === "node_modules/missing-config/tsconfig.base.json" &&
+        lookup.state === "missing",
+    ),
+  );
+  write(
+    "node_modules/missing-config/tsconfig.base.json",
+    inheritedOptions(root),
+  );
+  const found = getRepositoryIndex(root);
+  assert.equal(found.stats.graphCache, "miss");
+  assert.equal(found.stats.parsed, 0);
+  assert.notEqual(found.snapshot.id, missing.snapshot.id);
+  assert.ok(found.edges.some((edge) => edge.specifier === "@local/local"));
+});
+
+test("higher-priority installed config directory appearance invalidates an ancestor fallback", (t) => {
+  const { root, write } = fixture(t);
+  write("modules/producer/src/local.ts", "export const local = true;\n");
+  write(
+    "node_modules/shared-config/tsconfig.base.json",
+    inheritedOptions(root),
+  );
+  write("modules/consumer/tsconfig.json", {
+    extends: "shared-config/tsconfig.base",
+  });
+  const ancestor = getRepositoryIndex(root);
+  assert.equal(getRepositoryIndex(root).stats.graphCache, "hit");
+  assert.ok(
+    ancestor.edges.some(
+      (edge) =>
+        edge.specifier === "@local/local" &&
+        edge.to === "modules/consumer/src/local.ts",
+    ),
+  );
+  write(
+    "modules/consumer/node_modules/shared-config/tsconfig.base.json",
+    inheritedOptions(root, "producer"),
+  );
+  const nearer = getRepositoryIndex(root);
+  assert.equal(nearer.stats.graphCache, "miss");
+  assert.equal(nearer.stats.parsed, 0);
+  assert.ok(
+    nearer.edges.some(
+      (edge) =>
+        edge.specifier === "@local/local" &&
+        edge.to === "modules/producer/src/local.ts",
+    ),
+  );
+});
+
+test("installed config symlink retargets invalidate and external config contents remain unread", (t) => {
+  const { root, write } = fixture(t);
+  write("modules/producer/src/local.ts", "export const local = true;\n");
+  write("node_modules/config-one/tsconfig.base.json", inheritedOptions(root));
+  write(
+    "node_modules/config-two/tsconfig.base.json",
+    inheritedOptions(root, "producer"),
+  );
+  fs.symlinkSync("config-one", path.join(root, "node_modules/current-config"));
+  write("tsconfig.json", {
+    extends: "./node_modules/current-config/tsconfig.base.json",
+  });
+  const first = getRepositoryIndex(root);
+  assert.equal(getRepositoryIndex(root).stats.graphCache, "hit");
+  fs.unlinkSync(path.join(root, "node_modules/current-config"));
+  fs.symlinkSync("config-two", path.join(root, "node_modules/current-config"));
+  const retargeted = getRepositoryIndex(root);
+  assert.equal(retargeted.stats.graphCache, "miss");
+  assert.notEqual(retargeted.snapshot.id, first.snapshot.id);
+  assert.ok(
+    retargeted.edges.some(
+      (edge) =>
+        edge.specifier === "@local/local" &&
+        edge.to === "modules/producer/src/local.ts",
+    ),
+  );
+  const outside = fs.mkdtempSync(
+    path.join(os.tmpdir(), "mizyun-index-outside-config-"),
+  );
+  t.after(() => fs.rmSync(outside, { recursive: true, force: true }));
+  fs.writeFileSync(
+    path.join(outside, "tsconfig.base.json"),
+    '{"compilerOptions":{"baseUrl":"NEVER_READ_GRAPH_CONFIG"}}',
+  );
+  fs.unlinkSync(path.join(root, "node_modules/current-config"));
+  fs.symlinkSync(outside, path.join(root, "node_modules/current-config"));
+  const rejected = getRepositoryIndex(root);
+  assert.equal(rejected.stats.graphCache, "miss");
+  assert.ok(!JSON.stringify(rejected).includes("NEVER_READ_GRAPH_CONFIG"));
+  assert.ok(
+    !fs
+      .readFileSync(graphCacheFile(root), "utf8")
+      .includes("NEVER_READ_GRAPH_CONFIG"),
+  );
+  assert.ok(!rejected.edges.some((edge) => edge.specifier === "@local/local"));
+  fs.unlinkSync(path.join(root, "node_modules/current-config"));
+  fs.symlinkSync("config-one", path.join(root, "node_modules/current-config"));
+  const returned = getRepositoryIndex(root);
+  assert.equal(returned.stats.graphCache, "miss");
+  assert.ok(returned.edges.some((edge) => edge.specifier === "@local/local"));
+});
+
+test("corrupt/version/root graph cache entries rebuild and warm reuse never overwrites them", (t) => {
+  const { root } = fixture(t);
+  const initial = getRepositoryIndex(root);
+  fs.writeFileSync(graphCacheFile(root), "{corrupt");
+  const repaired = getRepositoryIndex(root);
+  assert.equal(repaired.stats.graphCache, "miss");
+  assert.equal(repaired.stats.parsed, 0);
+  assert.ok(
+    repaired.warnings.some((warning) =>
+      warning.includes("graph cache unavailable or corrupt"),
+    ),
+  );
+  assert.deepEqual(repaired.edges, initial.edges);
+  assert.equal(getRepositoryIndex(root).stats.graphCache, "hit");
+  for (const [key, value] of [
+    ["resolver", "old-resolver"],
+    ["root", path.dirname(root)],
+    ["schemaVersion", -1],
+  ]) {
+    const cache = JSON.parse(fs.readFileSync(graphCacheFile(root), "utf8"));
+    cache[key] = value;
+    fs.writeFileSync(graphCacheFile(root), JSON.stringify(cache));
+    assert.equal(getRepositoryIndex(root).stats.graphCache, "miss", key);
+    assert.equal(getRepositoryIndex(root).stats.graphCache, "hit", key);
+  }
+  const originalRename = fs.renameSync;
+  let writes = 0;
+  try {
+    fs.renameSync = function (...args) {
+      writes++;
+      return originalRename.apply(this, args);
+    };
+    const warm = getRepositoryIndex(root);
+    assert.equal(warm.stats.graphCache, "hit");
+    assert.equal(warm.stats.graphResolved, 0);
+    assert.equal(writes, 0);
+  } finally {
+    fs.renameSync = originalRename;
+  }
+});
+
+test("warm graph revalidates concurrent source and inherited config edits before returning", (t) => {
+  const { root, write } = fixture(t);
+  write("modules/producer/src/local.ts", "export const local = true;\n");
+  write(
+    "node_modules/shared-config/tsconfig.base.json",
+    inheritedOptions(root),
+  );
+  write("tsconfig.json", {
+    extends: "./node_modules/shared-config/tsconfig.base.json",
+  });
+  getRepositoryIndex(root);
+  const originalRead = fs.readFileSync;
+  let edited = false;
+  try {
+    fs.readFileSync = function (...args) {
+      const result = originalRead.apply(this, args);
+      if (
+        !edited &&
+        typeof result === "string" &&
+        result === "export const value = 1;\n"
+      ) {
+        edited = true;
+        write(
+          "modules/producer/src/value.ts",
+          "export const sourceChangedDuringHit = true;\n",
+        );
+      }
+      return result;
+    };
+    const currentSource = getRepositoryIndex(root);
+    assert.equal(
+      file(currentSource, "modules/producer/src/value.ts").symbols[0].name,
+      "sourceChangedDuringHit",
+    );
+    fs.readFileSync = originalRead;
+    getRepositoryIndex(root);
+    edited = false;
+    fs.readFileSync = function (...args) {
+      const result = originalRead.apply(this, args);
+      if (
+        !edited &&
+        typeof result === "string" &&
+        result === JSON.stringify(inheritedOptions(root))
+      ) {
+        edited = true;
+        write(
+          "node_modules/shared-config/tsconfig.base.json",
+          inheritedOptions(root, "producer"),
+        );
+      }
+      return result;
+    };
+    const currentConfig = getRepositoryIndex(root);
+    assert.equal(currentConfig.stats.graphCache, "miss");
+    assert.ok(
+      currentConfig.edges.some(
+        (edge) =>
+          edge.specifier === "@local/local" &&
+          edge.to === "modules/producer/src/local.ts",
+      ),
+    );
+  } finally {
+    fs.readFileSync = originalRead;
+  }
+});
+
+test("unavailable configuration dependencies bypass graph persistence and recover safely", (t) => {
+  const { root, write } = fixture(t);
+  write(
+    "node_modules/shared-config/tsconfig.base.json",
+    inheritedOptions(root),
+  );
+  write("tsconfig.json", {
+    extends: "./node_modules/shared-config/tsconfig.base.json",
+  });
+  getRepositoryIndex(root);
+  const previous = fs.readFileSync(graphCacheFile(root), "utf8");
+  const config = path.join(
+    root,
+    "node_modules/shared-config/tsconfig.base.json",
+  );
+  const originalOpen = fs.openSync;
+  try {
+    fs.openSync = function (filename, ...args) {
+      if (filename === config) {
+        const error = new Error("Synthetic config access denial");
+        error.code = "EACCES";
+        throw error;
+      }
+      return originalOpen.call(this, filename, ...args);
+    };
+    const unavailable = getRepositoryIndex(root);
+    assert.equal(unavailable.stats.graphCache, "miss");
+    assert.ok(
+      unavailable.warnings.some((warning) =>
+        warning.includes("graph cache bypassed"),
+      ),
+    );
+    assert.ok(
+      !unavailable.edges.some((edge) => edge.specifier === "@local/local"),
+    );
+    assert.equal(fs.readFileSync(graphCacheFile(root), "utf8"), previous);
+  } finally {
+    fs.openSync = originalOpen;
+  }
+  const recovered = getRepositoryIndex(root);
+  assert.equal(recovered.stats.graphCache, "hit");
+  assert.ok(recovered.edges.some((edge) => edge.specifier === "@local/local"));
+});
+
+test("persistently changing inherited configuration fails after bounded warm retries", (t) => {
+  const { root, write } = fixture(t);
+  write(
+    "node_modules/shared-config/tsconfig.base.json",
+    inheritedOptions(root),
+  );
+  write("tsconfig.json", {
+    extends: "./node_modules/shared-config/tsconfig.base.json",
+  });
+  getRepositoryIndex(root);
+  const originalRead = fs.readFileSync;
+  const first = JSON.stringify(inheritedOptions(root));
+  const second = JSON.stringify(inheritedOptions(root, "producer"));
+  try {
+    fs.readFileSync = function (...args) {
+      const result = originalRead.apply(this, args);
+      if (result === first || result === second)
+        write(
+          "node_modules/shared-config/tsconfig.base.json",
+          result === first ? second : first,
+        );
+      return result;
+    };
+    assert.throws(
+      () => getRepositoryIndex(root),
+      /changed during indexing after three attempts/,
+    );
+  } finally {
+    fs.readFileSync = originalRead;
+  }
+});

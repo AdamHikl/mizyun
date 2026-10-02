@@ -23,7 +23,8 @@ Use this skill at the beginning of a substantive task, when resuming after a con
 
 2. **Operational State & Routing**:
    Read root [`AGENTS.md`](../../../AGENTS.md), [`status.md`](../../../status.md), and [`docs/START_HERE.md`](../../../docs/START_HERE.md).
-   - Identify the active work package, current deployed SHAs, and open gates.
+   - Identify the active work package, current deployed SHAs, and open gates. Read these mandatory startup documents in full once; an outline is only a locator, not a substitute for policy or gate contents.
+   - Reuse already loaded context until it changes. For later status lookups, use `pnpm nav:read status.md --outline` and read the newest applicable section completely with `--heading`; use the full document if authority or continuity is uncertain.
    - For product intent or pricing questions, consult [`goals.md`](../../../goals.md) and [`docs/BUSINESS_ALIGNMENT.md`](../../../docs/BUSINESS_ALIGNMENT.md).
    - For roadmap sequencing changes, consult [`plan.md`](../../../plan.md).
 
@@ -50,7 +51,7 @@ Do not read entire module trees or scan arbitrary files. Use repository navigati
    pnpm impact --since origin/main
    pnpm impact --path packages/contracts/src/food-entry.ts
    ```
-   _(Note: Impact output is advisory; it highlights affected features but never waives `pnpm check` or release gates)._
+   With `--path`, only selected seeds are analyzed; unrelated working-tree edits are excluded. Use `--include-working-tree` deliberately for a combined report. Without paths, `--since` retains merge-base plus local changes. Default text is bounded; JSON retains the structured report. Impact remains advisory and never waives `pnpm check` or release gates.
 
 ## 3. Targeted File Reading
 
@@ -63,8 +64,9 @@ From the `pnpm context <feature-id>` output, read only the specific files releva
 5. Presentation & hooks (`apps/mobile/src/features/...`)
 6. Focused test suites (`*.test.ts`)
 
-> [!TIP]
-> If command output is truncated, request the targeted remaining slice or read specific line ranges rather than re-running the entire command.
+Use `pnpm nav:read <file> --symbol <exact-name>`, `--lines <start:end>`, or `--heading "Exact heading"` to request a complete selection with current hash/line provenance. `--outline` locates document headings. The default is 8,192 bytes and 120 lines; oversized selections fail explicitly. Narrow the selection or raise the explicit bounds. Read every applicable instruction file in full; bounded instruction-file excerpts are rejected.
+
+Keep bounded navigation output in separate calls from large file reads so aggregate output limits do not erase the packet. Expand to the surrounding code and caller/test bodies when needed to understand a change; a symbol excerpt is not complete semantic impact or acceptance evidence.
 
 ## 4. Assemble the Context Packet
 
@@ -74,4 +76,4 @@ Before implementing, formulate a concise mental or written context packet contai
 - **Baseline State**: Current HEAD SHA, list of pre-existing modified files to preserve.
 - **Feature Pointers**: Primary entry points, schema contracts, and applicable nested instructions (e.g. `apps/mobile/AGENTS.md`).
 - **Requirement & Gate IDs**: Applicable requirement IDs (e.g. `NUTR-01`) and open remediation checklist items (e.g. `Q2`, `Q9`).
-- **Helper Delegation**: Define at least one concrete, bounded subtask with disjoint file ownership to delegate to a helper agent (per `AGENTS.md`).
+- **Helper Delegation**: Define at least one concrete, bounded subtask with disjoint file ownership to delegate to a helper agent (per `AGENTS.md`). Give it the task baseline, relevant locations, applicable requirements/gates, allowed files, constraints and expected evidence. Helpers read their applicable instructions and focused sources; do not ask every helper to reconstruct the coordinator's operational history. Return a compact result with changed paths, checks and unresolved risks, not entire file bodies.

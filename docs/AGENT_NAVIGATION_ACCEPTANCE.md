@@ -2,7 +2,41 @@
 
 > Living acceptance register for `DOCS-NAV-001` through `DOCS-NAV-004` and `CODEBASE-SIMPLIFY-001`. Tracks evidence, document inventories, link validation, line counts, manifest coverage, and independent helper exercises.
 
-> **Current status (2026-09-23):** `SIMPLIFY-01` restored compact, current startup guidance and `SIMPLIFY-02` repaired the navigation failure boundaries recorded below. The older sections remain historical evidence; their Pi/Mistral/Qwen topology, old signal names, and blanket completion claims are not current acceptance.
+> **Current status (2026-10-02):** AGENT-NAV-005 and AGENT-NAV-006 provide current bounded local navigation; the dated sections distinguish implementation, verification and client evidence. Older Pi/Mistral/Qwen topology and blanket historical completion claims are not current acceptance.
+
+## 2026-10-02 — AGENT-NAV-006 efficiency implementation (#180)
+
+Saved the [implementation plan](AGENT_EFFICIENCY_PLAN_2026-10-02.md) before coding, then implemented task-only impact (explicit combined scope), complete bounded current-file excerpts/outlines, validated resolved-graph caching and a repeatable benchmark. Shared skills preserve full mandatory startup/instruction reads and gate tiers while avoiding repeat context reconstruction. Design: [ADR-0036](adr/0036-focused-agent-retrieval-and-graph-cache.md).
+
+Isolation: clean managed worktree `/Users/adam/.codex/worktrees/agent-navigation-efficiency/mizyun`, branch `codex/agent-navigation-efficiency`, base `1797fedbf3818b2f228b88decde6f2a91bfa2405`. Concurrent Community/nutrition application and continuity edits in the original checkout were preserved. Helpers authored disjoint impact/index/read modules; coordinator owns shared workflow, benchmark, integration and evidence. A non-author helper reviews code plus a realistic shared-skill Community discovery exercise.
+
+### Focused and independent evidence
+
+- Explicit-path isolation: two real staged/unstaged/untracked fixture failures reproduced against prior implementation, then passed after correction; no-path merge-base comparison remains supported.
+- Reader: 27/27 focused tests PASS, including original AST boundaries, subordinate heading gates, unsafe paths, instruction-file denial, Unicode budgets, oversized selection failure, concurrent writes/replacements, conservative HTML handling and control escaping. Successful selections are complete; outlines do not establish contents.
+- Graph cache: 21/21 focused tests PASS, including zero-resolution warm hits/no rewrite, `cache:false`, same-size/same-time installed config edit/removal, absent dependency appearance, nearer config precedence, internal/outside symlink retargets, corrupt/version/root cache data and concurrent edits. No source bodies/config execution in cache.
+- Shared session/handoff skill frontmatter validation PASS. This establishes static structure, not installed-client discovery or workflow acceptance.
+- Independent review reproduced impact priority starvation: 113 test entries filled a 120-line real report and omitted all seeds/checks/impacts/reasons. Corrected with atomic impact/reason groups and small priority subsets before large lists; the regression failed before correction, then 30/30 focused impact tests passed. Non-author review independently confirmed the corrected real output and passed impact30/30 plus reader/index48/48. No unresolved findings.
+
+### Client evidence and limits
+
+Earlier observed chat `Fix Community workout flash` (thread `01a0fe3c-62e4-7621-91ed-ae1d8cff831a`) ran a current Community context query and explicit-path impact, and read the shared skills. It used the previous system while retaining broad read batches and a helper doing direct reads. Its unrelated dirty changes expanded impact to 365 entries, motivating this task. This is observed Codex uptake, not complete shared-skill acceptance or a controlled performance comparison. No messages were sent to that chat and no changes were made on its behalf.
+
+Current independent skill exercise preserved applicable instructions and gate limitations but initially hit aggregate startup-output truncation and repaired the omitted contents separately. This is recorded uptake friction, not a claim of perfect execution or measured token savings. Actual Antigravity discovery/behavior and comparable accepted-task/model-token results remain OPEN under [#54](https://github.com/AdamHikl/mizyun/issues/54).
+
+### Controlled warm-index measurement
+
+[Raw seven-pair comparison](evidence/agent-navigation/graph-comparison-2026-10-02.json), Node 25.3.0 / TS 5.9.3, 1,086 files / 2,361 edges: warmed the base resolver from `1797fedbf3818b2f228b88decde6f2a91bfa2405` and new implementation twice, then alternated seven old/new calls against identical current worktree content. All pairs have the same path/hash/kind signature and equivalent complete edges, unresolved imports and package summaries; none discarded. Median warm time **600.2ms → 324.8ms** (45.9% lower local index time). All new hits have zero parsing/resolution. Full content hashing/revalidation remains enabled. This is synchronous tooling time on this Mac, not model tokens, full-task speed or aggregate helper cost.
+
+### Final automatic verification
+
+Fresh coordinator `pnpm check` **PASS, exit0**, source base `1797fedbf3818b2f228b88decde6f2a91bfa2405` plus this disclosed isolated worktree diff; log `/private/tmp/mizyun-agent-nav-006-check-accepted.log`. Navigation116/116, mobile1145, API783 with15 existing gated skips, contracts159/core351/server-adapter144; repository formatting/typechecks, both Hermes exports and all deployment/Hetzner/recovery/OAuth/build-matrix/signing/offline-evaluation/Community/Apple safeguards passed. Config suite retains3 existing skips. No disabled credential/live-provider/database/native acceptance suite is counted as passed. `pnpm navigation:check --since 1797fedbf3818b2f228b88decde6f2a91bfa2405` PASS, zero errors; existing review/legacy-ownership/startup-size advisories remain. Shared skill validators and `git diff --check` PASS.
+
+The first gate stopped at two documentation links; repaired our app-specific chat hyperlink and the existing sibling-checkout dependency with a verified immutable website-document URL. The next gate stopped at two pre-existing mobile TS2339 errors in already object-guarded optional timer unref calls. Added only structural type assertions; independent non-author virtual-source review found zero whole-mobile diagnostics and **identical emitted JavaScript** for both files. Fresh focused mobile typecheck PASS and existing comment/read-cache tests21/21 PASS, then the entire gate passed. No authority/expiry/cancellation behavior changed. Actual source diff remains disclosed; no gate was waived.
+
+Final repeatable `node scripts/navigation/bench.mjs --samples 5 --json` ([raw report](evidence/agent-navigation/benchmark-2026-10-02.json)): no-cache median1079.77ms, warm323.17ms, all warm calls graph hit/zero parse/zero resolution. Fresh-process CLI: context8120bytes/99lines/1052.8ms; impact8133bytes/116lines/1223.63ms; complete lines1:30 excerpt2072bytes/36lines/283.9ms versus whole-file10626bytes. These timings differ from index-only timing because CLI startup and report/snapshot validation are included. No-cache is not cold operating-system storage. This output-size comparison describes a selected range plus provenance, not equivalence to a whole file's semantic context or model tokens.
+
+Independent behavioral excerpts located the Community unloaded/reset/loading boundary and retained complete quality-gate items. The full FeedController selection failed with zero stdout at default limits; explicitly raising the line allowance returned the entire declaration. No Community implementation/device journey was performed by the reviewer. No deployment, database/provider call, native/device acceptance, Store upload or Production release belongs to this tooling package.
 
 ## 2026-09-22 — `SIMPLIFY-01` current startup evidence
 

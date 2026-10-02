@@ -1,0 +1,138 @@
+{
+  "date": "2026-10-02T21:05:09.956Z",
+  "node": "v25.3.0",
+  "root": "/Users/adam/.codex/worktrees/agent-navigation-efficiency/mizyun",
+  "headSha": "1797fedbf3818b2f228b88decde6f2a91bfa2405",
+  "snapshot": "cdcff0aa3d6416ece938e1ee48be9abd415d5512669eb9c6ff508f8bfdf8bf4b",
+  "samples": 5,
+  "units": "Index timing: synchronous in-process milliseconds, with full content validation. CLI timing includes a fresh Node process. Sizes: rendered UTF-8 bytes/lines, not model tokens, cost or accepted-task latency.",
+  "index": {
+    "coldMedianMs": 1079.77,
+    "warmMedianMs": 323.17,
+    "cold": [
+      {
+        "milliseconds": 1298.97,
+        "parsed": 1086,
+        "reused": 0,
+        "files": 1086,
+        "graphCache": "disabled",
+        "graphResolved": 3371,
+        "edges": 2361
+      },
+      {
+        "milliseconds": 1094.61,
+        "parsed": 1086,
+        "reused": 0,
+        "files": 1086,
+        "graphCache": "disabled",
+        "graphResolved": 3371,
+        "edges": 2361
+      },
+      {
+        "milliseconds": 1079.77,
+        "parsed": 1086,
+        "reused": 0,
+        "files": 1086,
+        "graphCache": "disabled",
+        "graphResolved": 3371,
+        "edges": 2361
+      },
+      {
+        "milliseconds": 1052.16,
+        "parsed": 1086,
+        "reused": 0,
+        "files": 1086,
+        "graphCache": "disabled",
+        "graphResolved": 3371,
+        "edges": 2361
+      },
+      {
+        "milliseconds": 1053.1,
+        "parsed": 1086,
+        "reused": 0,
+        "files": 1086,
+        "graphCache": "disabled",
+        "graphResolved": 3371,
+        "edges": 2361
+      }
+    ],
+    "prime": {
+      "milliseconds": 323.17,
+      "parsed": 0,
+      "reused": 1086,
+      "files": 1086,
+      "graphCache": "hit",
+      "graphResolved": 0,
+      "edges": 2361
+    },
+    "warm": [
+      {
+        "milliseconds": 323.17,
+        "parsed": 0,
+        "reused": 1086,
+        "files": 1086,
+        "graphCache": "hit",
+        "graphResolved": 0,
+        "edges": 2361
+      },
+      {
+        "milliseconds": 320.84,
+        "parsed": 0,
+        "reused": 1086,
+        "files": 1086,
+        "graphCache": "hit",
+        "graphResolved": 0,
+        "edges": 2361
+      },
+      {
+        "milliseconds": 310.87,
+        "parsed": 0,
+        "reused": 1086,
+        "files": 1086,
+        "graphCache": "hit",
+        "graphResolved": 0,
+        "edges": 2361
+      },
+      {
+        "milliseconds": 332.34,
+        "parsed": 0,
+        "reused": 1086,
+        "files": 1086,
+        "graphCache": "hit",
+        "graphResolved": 0,
+        "edges": 2361
+      },
+      {
+        "milliseconds": 327.31,
+        "parsed": 0,
+        "reused": 1086,
+        "files": 1086,
+        "graphCache": "hit",
+        "graphResolved": 0,
+        "edges": 2361
+      }
+    ]
+  },
+  "output": {
+    "context": {
+      "milliseconds": 1052.8,
+      "bytes": 8120,
+      "lines": 99
+    },
+    "impact": {
+      "milliseconds": 1223.63,
+      "bytes": 8133,
+      "lines": 116,
+      "scope": "selected-path",
+      "path": "apps/mobile/src/features/community/state/read-cache.ts"
+    },
+    "excerpt": {
+      "milliseconds": 283.9,
+      "bytes": 2072,
+      "lines": 36,
+      "path": "apps/mobile/src/features/community/state/read-cache.ts",
+      "selection": "lines 1:30",
+      "wholeFileBytes": 10626
+    }
+  }
+}
