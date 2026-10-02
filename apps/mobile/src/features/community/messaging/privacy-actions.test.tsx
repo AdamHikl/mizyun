@@ -21,8 +21,11 @@ vi.mock("react", async (original) => ({
     return (hooks.slots[index] ??= { current });
   },
   useCallback: (callback: unknown) => callback,
+  useEffect: (callback: () => void) => callback(),
 }));
 vi.mock("react-native", () => ({
+  KeyboardAvoidingView: "KeyboardAvoidingView",
+  Platform: { OS: "ios" },
   Text: "Text",
   View: "View",
   ScrollView: "ScrollView",
@@ -144,6 +147,57 @@ describe("private Community actions", () => {
       operation: "listMine",
       after: "older",
     });
+  });
+  it("does not erase a failed own-message deletion with an automatic read", async () => {
+    button(
+      render(CommunityMessagingScreen),
+      "Manage my sent messages",
+    ).props.onPress();
+    mocks.data = {
+      messages: [
+        { id: "mine", userId: "owner", text: "own body", deleted: false },
+      ],
+    };
+    mocks.run.mockClear();
+    mocks.run.mockResolvedValue(null);
+    button(
+      render(CommunityMessagingScreen),
+      "Delete my message for both people",
+    ).props.onPress();
+    await settle();
+    expect(mocks.run.mock.calls.map(([command]) => command.operation)).toEqual([
+      "delete",
+    ]);
+  });
+  it("retires a message-derived editing draft when protected messages expire", () => {
+    mocks.data = { contacts: [{ userId: "peer", displayName: "Friend" }] };
+    button(render(CommunityMessagingScreen), "Friend").props.onPress();
+    mocks.data = {
+      messages: [
+        {
+          id: "mine",
+          userId: "owner",
+          version: 1,
+          text: "Private message to edit",
+          deleted: false,
+        },
+      ],
+    };
+    button(render(CommunityMessagingScreen), "Edit message").props.onPress();
+    expect(
+      nodes(render(CommunityMessagingScreen)).find(
+        (node) => node.type === "Input",
+      ).props.value,
+    ).toBe("Private message to edit");
+    mocks.data = null;
+    expect(
+      nodes(render(CommunityMessagingScreen)).find(
+        (node) => node.type === "Input",
+      ).props.value,
+    ).toBe("");
+    expect(
+      button(render(CommunityMessagingScreen), "Save message changes"),
+    ).toBeUndefined();
   });
   it("confirms a scoped follow request and reuses its UUID after a lost response", async () => {
     mocks.data = {

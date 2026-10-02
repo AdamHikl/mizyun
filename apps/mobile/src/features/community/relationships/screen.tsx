@@ -1,4 +1,9 @@
-import { Link, useFocusEffect, type Href } from "expo-router";
+import {
+  Link,
+  useFocusEffect,
+  useLocalSearchParams,
+  type Href,
+} from "expo-router";
 import React, {
   useEffect,
   useCallback,
@@ -83,20 +88,26 @@ const listInfo: Record<
 };
 export function RelationshipsScreen() {
   const { session, profile } = useAuth();
+  const { list } = useLocalSearchParams<{ list?: string }>();
+  const initialList: RelationshipList =
+    list === "blocked" || list === "muted" ? list : "incoming";
   return (
     <OwnerRelationships
-      key={session?.user.id ?? "signed-out"}
+      key={`${session?.user.id ?? "signed-out"}:${initialList}`}
       principalKey={session?.user.id ?? null}
       birthYear={profile?.birthYear}
+      initialList={initialList}
     />
   );
 }
 function OwnerRelationships({
   principalKey,
   birthYear,
+  initialList,
 }: {
   principalKey: string | null;
   birthYear?: number | null;
+  initialList: RelationshipList;
 }) {
   const colors = useTheme();
   const palette = useCommunityPalette();
@@ -147,8 +158,13 @@ function OwnerRelationships({
   };
   const controller = useMemo(
     () =>
-      new RelationshipsController(apiClient, principalKey, () => alive.current),
-    [principalKey],
+      new RelationshipsController(
+        apiClient,
+        principalKey,
+        () => alive.current,
+        initialList,
+      ),
+    [principalKey, initialList],
   );
   const state = useSyncExternalStore(
     controller.subscribe,

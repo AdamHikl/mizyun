@@ -6,11 +6,13 @@ import React, {
   useState,
   useSyncExternalStore,
 } from "react";
-import { Link, type Href, useFocusEffect } from "expo-router";
+import { Link, Stack, type Href, useFocusEffect } from "expo-router";
 import {
   ActivityIndicator,
   Alert,
   AppState,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   Share,
@@ -269,331 +271,355 @@ export function DiscoveryScreen({
     </View>
   );
   return (
-    <ScrollView
+    <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: colors.background }}
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled"
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      {reportTarget && reportTarget.controller === controller && (
-        <ReportModal
-          visible
-          targetType="profile"
-          targetId={reportTarget.user.userId}
-          targetHandle={reportTarget.user.handle}
-          principalKey={principalKey}
-          interactionReceiptId={reportTarget.receiptId}
-          onClose={() => setReportTarget(null)}
-          onSuccess={(_id, blocked) => {
-            if (blocked) revalidate();
-          }}
+      <ScrollView
+        style={{ flex: 1, backgroundColor: colors.background }}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Stack.Screen
+          options={{ title: token ? "Friend invitation" : "Find friends" }}
         />
-      )}
-      <CommunityIntro
-        icon="👋"
-        title="Find your people"
-        description="A friend, a little encouragement. Connect with a handle or an invitation."
-        tone="mint"
-      />
-      {accessFresh && community.isEnrolled && community.status === "ready" ? (
-        <>
-          <View style={styles.contextRow}>
-            <Text style={[styles.contextCopy, { color: colors.textSecondary }]}>
-              Connecting as @{community.profile?.handle}
-            </Text>
-            <Link
-              href={"/community/relationships" as Href}
-              style={{ color: colors.primary, fontWeight: "600" }}
-            >
-              Your friends →
-            </Link>
-          </View>
-          {state.busy && (
-            <ActivityIndicator
-              color={colors.primary}
-              accessibilityLabel="Checking friends and invitations"
-            />
-          )}
-          {state.error && (
-            <Text accessibilityRole="alert" style={{ color: colors.text }}>
-              {state.error}
-            </Text>
-          )}
-          {state.notice && (
-            <Text
-              accessibilityLiveRegion="polite"
-              style={{ color: colors.text }}
-            >
-              {state.notice}
-            </Text>
-          )}
-          {token && (
-            <>
-              <Text style={[styles.subtitle, { color: colors.text }]}>
-                Invited by
+        {reportTarget && reportTarget.controller === controller && (
+          <ReportModal
+            visible
+            targetType="profile"
+            targetId={reportTarget.user.userId}
+            targetHandle={reportTarget.user.handle}
+            principalKey={principalKey}
+            interactionReceiptId={reportTarget.receiptId}
+            onClose={() => setReportTarget(null)}
+            onSuccess={(_id, blocked) => {
+              if (blocked) revalidate();
+            }}
+          />
+        )}
+        <CommunityIntro
+          icon="👋"
+          title="Find your people"
+          description="A friend, a little encouragement. Connect with a handle or an invitation."
+          tone="mint"
+        />
+        {accessFresh && community.isEnrolled && community.status === "ready" ? (
+          <>
+            <View style={styles.contextRow}>
+              <Text
+                style={[styles.contextCopy, { color: colors.textSecondary }]}
+              >
+                Connecting as @{community.profile?.handle}
               </Text>
-              {state.inviter
-                ? userCard(state.inviter, true)
-                : !state.busy && (
+              <Link
+                href={"/community/relationships" as Href}
+                style={{ color: colors.primary, fontWeight: "600" }}
+              >
+                Your friends →
+              </Link>
+            </View>
+            {state.busy && (
+              <ActivityIndicator
+                color={colors.primary}
+                accessibilityLabel="Checking friends and invitations"
+              />
+            )}
+            {state.error && (
+              <Text accessibilityRole="alert" style={{ color: colors.text }}>
+                {state.error}
+              </Text>
+            )}
+            {state.notice && (
+              <Text
+                accessibilityLiveRegion="polite"
+                style={{ color: colors.text }}
+              >
+                {state.notice}
+              </Text>
+            )}
+            {token && (
+              <>
+                <Text style={[styles.subtitle, { color: colors.text }]}>
+                  Invited by
+                </Text>
+                {state.inviter
+                  ? userCard(state.inviter, true)
+                  : !state.busy && (
+                      <Text style={{ color: colors.text }}>
+                        Invitation unavailable. Ask your friend for a fresh
+                        link.
+                      </Text>
+                    )}
+              </>
+            )}
+            <View
+              style={[
+                styles.section,
+                { backgroundColor: colors.backgroundElement },
+              ]}
+            >
+              <View style={styles.sectionHeading}>
+                <View
+                  style={[
+                    styles.sectionIcon,
+                    { backgroundColor: palette.blue },
+                  ]}
+                >
+                  <Text accessible={false} style={styles.icon}>
+                    🔎
+                  </Text>
+                </View>
+                <Text
+                  accessibilityRole="header"
+                  style={[
+                    styles.subtitle,
+                    styles.identityCopy,
+                    { color: colors.text },
+                  ]}
+                >
+                  Search a handle
+                </Text>
+              </View>
+              <Text style={[styles.body, { color: colors.textSecondary }]}>
+                Ask your friend for their exact @handle. They need to allow
+                handle search in their profile.
+              </Text>
+              <TextInput
+                accessibilityLabel="Exact friend handle"
+                placeholder="@handle"
+                placeholderTextColor={colors.textSecondary}
+                autoCorrect={false}
+                autoCapitalize="none"
+                maxLength={25}
+                returnKeyType="search"
+                value={query}
+                editable={!state.busy}
+                onChangeText={(value) => {
+                  setQuery(value);
+                  controller.clearSearch();
+                }}
+                onSubmitEditing={() => void controller.search(query)}
+                style={[
+                  styles.input,
+                  { color: colors.text, borderColor: colors.border },
+                ]}
+              />
+              {button(
+                "Find exact handle",
+                () => void controller.search(query),
+                state.busy,
+                true,
+              )}
+              {state.result
+                ? userCard(state.result, false)
+                : state.searched && (
                     <Text style={{ color: colors.text }}>
-                      Invitation unavailable. Ask your friend for a fresh link.
+                      No discoverable profile is available for that handle.
                     </Text>
                   )}
-            </>
-          )}
-          <View
-            style={[
-              styles.section,
-              { backgroundColor: colors.backgroundElement },
-            ]}
-          >
-            <View style={styles.sectionHeading}>
-              <View
-                style={[styles.sectionIcon, { backgroundColor: palette.blue }]}
-              >
-                <Text accessible={false} style={styles.icon}>
-                  🔎
-                </Text>
-              </View>
-              <Text
-                accessibilityRole="header"
-                style={[
-                  styles.subtitle,
-                  styles.identityCopy,
-                  { color: colors.text },
-                ]}
-              >
-                Search a handle
+              <Text style={[styles.smallCopy, { color: colors.textSecondary }]}>
+                No contact uploads, email lookup or suggested strangers.
               </Text>
             </View>
-            <Text style={[styles.body, { color: colors.textSecondary }]}>
-              Ask your friend for their exact @handle. They need to allow handle
-              search in their profile.
-            </Text>
-            <TextInput
-              accessibilityLabel="Exact friend handle"
-              placeholder="@handle"
-              placeholderTextColor={colors.textSecondary}
-              autoCorrect={false}
-              autoCapitalize="none"
-              value={query}
-              editable={!state.busy}
-              onChangeText={(value) => {
-                setQuery(value);
-                controller.clearSearch();
-              }}
-              onSubmitEditing={() => void controller.search(query)}
+            <View
               style={[
-                styles.input,
-                { color: colors.text, borderColor: colors.border },
+                styles.section,
+                { backgroundColor: colors.backgroundElement },
               ]}
-            />
-            {button(
-              "Find exact handle",
-              () => void controller.search(query),
-              state.busy,
-              true,
-            )}
-            {state.result
-              ? userCard(state.result, false)
-              : state.searched && (
-                  <Text style={{ color: colors.text }}>
-                    No discoverable profile is available for that handle.
-                  </Text>
-                )}
-            <Text style={[styles.smallCopy, { color: colors.textSecondary }]}>
-              No contact uploads, email lookup or suggested strangers.
-            </Text>
-          </View>
-          <View
-            style={[
-              styles.section,
-              { backgroundColor: colors.backgroundElement },
-            ]}
-          >
-            <View style={styles.sectionHeading}>
-              <View
-                style={[
-                  styles.sectionIcon,
-                  { backgroundColor: palette.purple },
-                ]}
-              >
-                <Text accessible={false} style={styles.icon}>
-                  💌
-                </Text>
-              </View>
-              <Text
-                accessibilityRole="header"
-                style={[
-                  styles.subtitle,
-                  styles.identityCopy,
-                  { color: colors.text },
-                ]}
-              >
-                Invite a friend
-              </Text>
-            </View>
-            <Text style={{ color: colors.textSecondary }}>
-              Send a link or show a QR code, even with handle search off. Your
-              friend still chooses to request a follow, and you approve it.
-            </Text>
-            {button(
-              "Create invitation",
-              () => void controller.create(),
-              state.busy,
-              true,
-            )}
-            <Text style={[styles.smallCopy, { color: colors.textSecondary }]}>
-              Links work for up to seven days. Anyone with a link can see your
-              name, handle and initials. Turning search off does not revoke
-              links; revoke each one here.
-            </Text>
-            {link && matrix && (
-              <View
-                style={[
-                  styles.card,
-                  { backgroundColor: colors.backgroundElement },
-                ]}
-              >
-                <Text style={{ color: colors.text }}>
-                  Invitation QR — expires{" "}
-                  {new Date(invitation!.expiresAt).toLocaleString()}
-                </Text>
+            >
+              <View style={styles.sectionHeading}>
                 <View
-                  accessible
-                  accessibilityLabel="Invitation QR code. Use Share invitation as an accessible alternative."
-                  style={{ alignSelf: "center", backgroundColor: "white" }}
+                  style={[
+                    styles.sectionIcon,
+                    { backgroundColor: palette.purple },
+                  ]}
                 >
-                  {matrix.map((row, index) => (
-                    <View key={index} style={{ flexDirection: "row" }}>
-                      {row.map((dark, column) => (
-                        <View
-                          key={column}
-                          style={{
-                            width: 5,
-                            height: 5,
-                            backgroundColor: dark ? "black" : "white",
-                          }}
-                        />
-                      ))}
-                    </View>
-                  ))}
+                  <Text accessible={false} style={styles.icon}>
+                    💌
+                  </Text>
                 </View>
-                {button("Share invitation", () => {
-                  if (
-                    alive.current &&
-                    controller.getState().displayedInvitation === invitation &&
-                    Date.parse(invitation!.expiresAt) > Date.now()
-                  )
-                    void Share.share({
-                      message: `Connect with me on Mizyun: ${link}`,
-                      url: link,
-                    }).catch(() => {
-                      if (alive.current && renderIntent())
-                        Alert.alert("Could not share", "Try sharing again.");
-                    });
-                })}
+                <Text
+                  accessibilityRole="header"
+                  style={[
+                    styles.subtitle,
+                    styles.identityCopy,
+                    { color: colors.text },
+                  ]}
+                >
+                  Invite a friend
+                </Text>
               </View>
-            )}
-            {state.invitations.length > 0 && (
-              <Text
-                accessibilityRole="header"
-                style={[styles.subtitle, { color: colors.text }]}
-              >
-                Your invitations
+              <Text style={{ color: colors.textSecondary }}>
+                Send a link or show a QR code, even with handle search off. Your
+                friend still chooses to request a follow, and you approve it.
               </Text>
-            )}
-            {state.invitations.map((item, index) => {
-              const available =
-                !item.revokedAt && Date.parse(item.expiresAt) > Date.now();
-              return (
+              {button(
+                "Create invitation",
+                () => void controller.create(),
+                state.busy,
+                true,
+              )}
+              <Text style={[styles.smallCopy, { color: colors.textSecondary }]}>
+                Links work for up to seven days. Anyone with a link can see your
+                name, handle and initials. Turning search off does not revoke
+                links; revoke each one here.
+              </Text>
+              {link && matrix && (
                 <View
-                  key={item.id}
                   style={[
                     styles.card,
                     { backgroundColor: colors.backgroundElement },
                   ]}
                 >
                   <Text style={{ color: colors.text }}>
-                    Invitation {index + 1} —{" "}
-                    {item.revokedAt
-                      ? "Revoked"
-                      : available
-                        ? "Active"
-                        : "Expired"}
+                    Invitation QR — expires{" "}
+                    {new Date(invitation!.expiresAt).toLocaleString()}
                   </Text>
-                  <Text style={{ color: colors.textSecondary }}>
-                    Expires {new Date(item.expiresAt).toLocaleString()}
-                  </Text>
-                  {available && (
-                    <View style={styles.row}>
-                      {button("Show QR and share", () =>
-                        controller.show(item.id),
-                      )}
-                      {button("Revoke", () =>
-                        Alert.alert(
-                          "Revoke invitation?",
-                          "This link and QR will stop working. Existing follows are unchanged.",
-                          [
-                            { text: "Cancel", style: "cancel" },
-                            {
-                              text: "Revoke",
-                              style: "destructive",
-                              onPress: () => {
-                                if (alive.current && renderIntent())
-                                  void controller.revoke(item.id);
-                              },
-                            },
-                          ],
-                        ),
-                      )}
-                    </View>
-                  )}
+                  <View
+                    accessible
+                    accessibilityLabel="Invitation QR code. Use Share invitation as an accessible alternative."
+                    style={{ alignSelf: "center", backgroundColor: "white" }}
+                  >
+                    {matrix.map((row, index) => (
+                      <View key={index} style={{ flexDirection: "row" }}>
+                        {row.map((dark, column) => (
+                          <View
+                            key={column}
+                            style={{
+                              width: 5,
+                              height: 5,
+                              backgroundColor: dark ? "black" : "white",
+                            }}
+                          />
+                        ))}
+                      </View>
+                    ))}
+                  </View>
+                  {button("Share invitation", () => {
+                    if (
+                      alive.current &&
+                      controller.getState().displayedInvitation ===
+                        invitation &&
+                      Date.parse(invitation!.expiresAt) > Date.now()
+                    )
+                      void Share.share({
+                        message: `Connect with me on Mizyun: ${link}`,
+                        url: link,
+                      }).catch(() => {
+                        if (alive.current && renderIntent())
+                          Alert.alert("Could not share", "Try sharing again.");
+                      });
+                  })}
                 </View>
-              );
-            })}
-          </View>
-          <View style={[styles.footer, { borderColor: colors.border }]}>
-            {button("Refresh friends and invitations", revalidate)}
-          </View>
-        </>
-      ) : (
-        <>
-          <Text accessibilityLiveRegion="polite" style={{ color: colors.text }}>
-            {community.status === "loading" ||
-            (community.isEnrolled && !accessFresh)
-              ? "Checking your Community access…"
-              : (community.error ??
-                (principalKey
-                  ? "Join Community before viewing this invitation. Participation requires admission during this pilot. Your private tracking stays available."
-                  : "Sign in before viewing an invitation. Your friend's identity is hidden until Community access is checked."))}
-          </Text>
-          <Link href={"/account" as Href} style={{ color: colors.primary }}>
-            Return to Account
-          </Link>
-          {principalKey && (
-            <Link href={"/community" as Href} style={{ color: colors.primary }}>
-              Open Community to join
+              )}
+              {state.invitations.length > 0 && (
+                <Text
+                  accessibilityRole="header"
+                  style={[styles.subtitle, { color: colors.text }]}
+                >
+                  Your invitations
+                </Text>
+              )}
+              {state.invitations.map((item, index) => {
+                const available =
+                  !item.revokedAt && Date.parse(item.expiresAt) > Date.now();
+                return (
+                  <View
+                    key={item.id}
+                    style={[
+                      styles.card,
+                      { backgroundColor: colors.backgroundElement },
+                    ]}
+                  >
+                    <Text style={{ color: colors.text }}>
+                      Invitation {index + 1} —{" "}
+                      {item.revokedAt
+                        ? "Revoked"
+                        : available
+                          ? "Active"
+                          : "Expired"}
+                    </Text>
+                    <Text style={{ color: colors.textSecondary }}>
+                      Expires {new Date(item.expiresAt).toLocaleString()}
+                    </Text>
+                    {available && (
+                      <View style={styles.row}>
+                        {button("Show QR and share", () =>
+                          controller.show(item.id),
+                        )}
+                        {button("Revoke", () =>
+                          Alert.alert(
+                            "Revoke invitation?",
+                            "This link and QR will stop working. Existing follows are unchanged.",
+                            [
+                              { text: "Cancel", style: "cancel" },
+                              {
+                                text: "Revoke",
+                                style: "destructive",
+                                onPress: () => {
+                                  if (alive.current && renderIntent())
+                                    void controller.revoke(item.id);
+                                },
+                              },
+                            ],
+                          ),
+                        )}
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+            <View style={[styles.footer, { borderColor: colors.border }]}>
+              {button("Refresh friends and invitations", revalidate)}
+            </View>
+          </>
+        ) : (
+          <>
+            <Text
+              accessibilityLiveRegion="polite"
+              style={{ color: colors.text }}
+            >
+              {community.status === "loading" ||
+              (community.isEnrolled && !accessFresh)
+                ? "Checking your Community access…"
+                : (community.error ??
+                  (principalKey
+                    ? "Join Community before viewing this invitation. Participation requires admission during this pilot. Your private tracking stays available."
+                    : "Sign in before viewing an invitation. Your friend's identity is hidden until Community access is checked."))}
+            </Text>
+            <Link href={"/account" as Href} style={{ color: colors.primary }}>
+              Return to Account
             </Link>
-          )}
-          {principalKey &&
-            button(
-              "Check access again",
-              revalidate,
-              community.status === "loading",
+            {principalKey && (
+              <Link
+                href={"/community" as Href}
+                style={{ color: colors.primary }}
+              >
+                Open Community to join
+              </Link>
             )}
-          <Text style={{ color: colors.textSecondary }}>
-            This invitation stays only in memory during this app session. After
-            restarting, reopen the original link; it will be checked again.
-          </Text>
-        </>
-      )}
-      <Link
-        href={"/community/safety" as Href}
-        style={{ color: colors.primary, paddingVertical: 12 }}
-      >
-        Reports, appeals and safety contact
-      </Link>
-    </ScrollView>
+            {principalKey &&
+              button(
+                "Check access again",
+                revalidate,
+                community.status === "loading",
+              )}
+            <Text style={{ color: colors.textSecondary }}>
+              This invitation stays only in memory during this app session.
+              After restarting, reopen the original link; it will be checked
+              again.
+            </Text>
+          </>
+        )}
+        <Link
+          href={"/community/safety" as Href}
+          style={{ color: colors.primary, paddingVertical: 12 }}
+        >
+          Reports, appeals and safety contact
+        </Link>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 const styles = StyleSheet.create({

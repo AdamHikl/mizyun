@@ -1,5 +1,11 @@
 import React from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
+import {
+  Pressable,
+  Text,
+  TextInput,
+  View,
+  type TextInputProps,
+} from "react-native";
 import { useTheme } from "@/hooks/use-theme";
 export function ExpansionButton({
   label,
@@ -36,11 +42,23 @@ export function ExpansionInput({
   value,
   onChange,
   maxLength = 1000,
+  multiline = true,
+  editable = true,
+  autoCapitalize = "sentences",
+  autoCorrect = true,
+  keyboardType,
+  onSubmitEditing,
 }: {
   label: string;
   value: string;
   onChange: (text: string) => void;
   maxLength?: number;
+  multiline?: boolean;
+  editable?: boolean;
+  autoCapitalize?: TextInputProps["autoCapitalize"];
+  autoCorrect?: boolean;
+  keyboardType?: TextInputProps["keyboardType"];
+  onSubmitEditing?: TextInputProps["onSubmitEditing"];
 }) {
   const t = useTheme();
   return (
@@ -50,7 +68,12 @@ export function ExpansionInput({
         accessibilityLabel={label}
         value={value}
         onChangeText={onChange}
-        multiline
+        multiline={multiline}
+        editable={editable}
+        autoCapitalize={autoCapitalize}
+        autoCorrect={autoCorrect}
+        keyboardType={keyboardType}
+        onSubmitEditing={onSubmitEditing}
         maxLength={maxLength}
         style={{
           padding: 12,
@@ -59,6 +82,7 @@ export function ExpansionInput({
           borderColor: t.border,
           borderRadius: 12,
           color: t.text,
+          opacity: editable ? 1 : 0.5,
         }}
       />
     </View>

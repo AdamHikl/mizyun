@@ -53,7 +53,8 @@ function PreferencesContent({ principal }: { principal: string | null }) {
     };
   }, []);
   const load = useCallback(async () => {
-    if (!lifetime.current.active || !lifetime.current.foreground) return;
+    if (!principal || !lifetime.current.active || !lifetime.current.foreground)
+      return;
     const revision = ++lifetime.current.revision;
     const valid = () =>
       lifetime.current.active &&
@@ -196,7 +197,7 @@ function PreferencesContent({ principal }: { principal: string | null }) {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: theme.background }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView
         contentContainerStyle={styles.content}
@@ -222,7 +223,11 @@ function PreferencesContent({ principal }: { principal: string | null }) {
             lifetime.current.active && lifetime.current.foreground
           }
         />
-        {preferences ? (
+        {!principal ? (
+          <ThemedText>
+            Sign in to manage your Community notification preferences.
+          </ThemedText>
+        ) : preferences ? (
           <>
             {(
               [

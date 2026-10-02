@@ -376,7 +376,7 @@ function FeedScreenContent({
           },
           {
             href: "/community/more",
-            label: "Together",
+            label: "Activities & sharing",
             description: "Groups, messages, routines and sharing choices",
             caption: "More ways to connect",
             icon: "🌱",

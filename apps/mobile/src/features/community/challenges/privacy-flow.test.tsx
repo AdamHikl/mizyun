@@ -16,6 +16,8 @@ vi.mock("react", async (original) => ({
   useCallback: (callback: unknown) => callback,
 }));
 vi.mock("react-native", () => ({
+  KeyboardAvoidingView: "KeyboardAvoidingView",
+  Platform: { OS: "ios" },
   Text: "Text",
   View: "View",
   ScrollView: "ScrollView",
@@ -157,6 +159,16 @@ describe("challenge privacy during growth freezes", () => {
       operation: "getMine",
       id: challengeId,
     });
+  });
+  it("keeps a failed cancellation visible instead of immediately refreshing over it", async () => {
+    const tree = await openMine();
+    mocks.run.mockClear();
+    mocks.run.mockResolvedValueOnce(null);
+    button(tree, "Cancel challenge").props.onPress();
+    await settle();
+    expect(mocks.run.mock.calls.map(([command]) => command.operation)).toEqual([
+      "cancel",
+    ]);
   });
   it("paginates own associations with the server cursor during a freeze", async () => {
     button(render(), "Manage my challenges").props.onPress();

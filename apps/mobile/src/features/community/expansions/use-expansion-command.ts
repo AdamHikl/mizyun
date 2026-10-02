@@ -105,6 +105,7 @@ export function useExpansionCommand<T>(
       };
       active.current = AppState.currentState === "active";
       const sub = AppState.addEventListener("change", (state) => {
+        if (active.current === (state === "active")) return;
         clear();
         active.current = state === "active";
       });

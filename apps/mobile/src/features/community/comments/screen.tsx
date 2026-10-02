@@ -33,6 +33,7 @@ import {
 import { apiClient } from "@/composition/api-client";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
+import { MaxContentWidth } from "@/constants/theme";
 import { ThemedText } from "@/components/themed-text";
 import { CommunityIntro } from "../community-presentation";
 import { CommentsController } from "./controller";
@@ -103,8 +104,9 @@ function CommentsContent({
     setEditing(null);
     setReply(null);
     setReportId(null);
-    // Keep the publication identity for an explicit unchanged retry: an expired
-    // response does not establish whether the original write committed.
+    // An expired edit/reply cannot become a new root comment with the old
+    // target identity. New plain-text drafts retain their unchanged retry ID.
+    if (protectedDraft.current) intent.current = null;
   }, []);
   useEffect(() => {
     // An expiry can clear and immediately start a new read in one render batch.
@@ -200,6 +202,7 @@ function CommentsContent({
       setMentions(comment.mentions.map((person) => person.userId));
     } else setReply(comment.parentId ?? comment.id);
   };
+  const bodyValidation = communityCommentTextSchema.safeParse(body);
   const submit = async () => {
     if (!accepted || !communityCommentTextSchema.safeParse(body).success)
       return;
@@ -247,7 +250,7 @@ function CommentsContent({
     );
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={{ flex: 1, backgroundColor: theme.background }}
     >
       <ScrollView
@@ -262,7 +265,11 @@ function CommentsContent({
         <CommunityIntro
           icon="💬"
           title={activityId ? "A little conversation" : "Your comment updates"}
-          description="Share supportive plain text with the people who can see this workout. Private workout notes stay private."
+          description={
+            activityId
+              ? "Share supportive plain text with the people who can see this workout. Private workout notes stay private."
+              : "Find workouts where an approved friend mentioned you, and choose whether friends can mention you."
+          }
           tone="blue"
         />
         {button(
@@ -301,6 +308,15 @@ function CommentsContent({
               () => void controller.preferences(false),
             )}
             {!activityId &&
+              !state.busy &&
+              !state.error &&
+              state.mentions.length === 0 && (
+                <ThemedText>
+                  No comment updates yet. Mentions from approved friends will
+                  appear here.
+                </ThemedText>
+              )}
+            {!activityId &&
               state.mentions.map((mention) => (
                 <View key={mention.id}>
                   {button("Open mentioned workout", () =>
@@ -325,6 +341,15 @@ function CommentsContent({
                     to open them.
                   </ThemedText>
                 )}
+                {!state.busy &&
+                  !state.error &&
+                  state.enabled &&
+                  state.items.length === 0 && (
+                    <ThemedText>
+                      No comments yet. You can be the first to offer some
+                      encouragement.
+                    </ThemedText>
+                  )}
                 {state.items.map((comment) => (
                   <View
                     key={comment.id}
@@ -400,6 +425,7 @@ function CommentsContent({
                     <TextInput
                       accessibilityLabel="Comment text"
                       multiline
+                      editable={!state.busy}
                       maxLength={500}
                       value={body}
                       onChangeText={(text) => {
@@ -414,9 +440,17 @@ function CommentsContent({
                       ]}
                     />
                     <ThemedText>
-                      {body.length}/500 · No links, contact details or typed
-                      @mentions.
+                      {body.length}/500 · No line breaks, links, contact details
+                      or typed @mentions.
                     </ThemedText>
+                    {body.trim() && !bodyValidation.success && (
+                      <ThemedText
+                        accessibilityLiveRegion="polite"
+                        style={{ color: theme.text }}
+                      >
+                        {bodyValidation.error.issues[0]?.message}
+                      </ThemedText>
+                    )}
                     {state.candidates.length > 0 && (
                       <ThemedText>
                         Optional mentions: only approved friends who opted in
@@ -474,7 +508,14 @@ function CommentsContent({
   );
 }
 const styles = StyleSheet.create({
-  content: { padding: 20, gap: 14, paddingBottom: 48 },
+  content: {
+    padding: 20,
+    gap: 14,
+    paddingBottom: 48,
+    width: "100%",
+    maxWidth: MaxContentWidth,
+    alignSelf: "center",
+  },
   button: {
     minHeight: 48,
     borderRadius: 12,

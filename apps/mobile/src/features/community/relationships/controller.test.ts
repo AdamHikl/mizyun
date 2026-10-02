@@ -24,6 +24,22 @@ function setup(request = vi.fn()) {
   };
 }
 describe("owner relationship controller", () => {
+  it("opens block management directly without loading follow requests", async () => {
+    const request = vi
+      .fn()
+      .mockResolvedValue({ ok: true, value: { items: [] } });
+    const controller = new RelationshipsController(
+      { request } as unknown as ApiClient,
+      "owner",
+      () => true,
+      "blocked",
+    );
+    controller.resume();
+    await controller.load();
+    expect(controller.getState().list).toBe("blocked");
+    expect(request).toHaveBeenCalledOnce();
+    expect(request.mock.calls[0][0].path).toBe("/v1/community/blocks?limit=20");
+  });
   it("discards a page that arrives after a list change", async () => {
     let resolve!: (value: unknown) => void;
     const request = vi

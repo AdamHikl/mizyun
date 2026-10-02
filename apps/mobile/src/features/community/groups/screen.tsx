@@ -3,6 +3,8 @@ import {
   ActivityIndicator,
   Alert,
   AppState,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   Text,
@@ -19,12 +21,16 @@ import {
 import { apiClient } from "@/composition/api-client";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
+import { MaxContentWidth } from "@/constants/theme";
 import { scopeCommunityClient } from "../scoped-client";
 import { ReportModal } from "../safety/report-modal";
 import { createGroupMutationIntentStore } from "./mutation-intent";
 import { fetchFollowing, humanizeCommunityError } from "../community-client";
 import { CommunityIntro } from "../community-presentation";
 import { groupAction } from "./client";
+
+const hasControlCharacters = (value: string) =>
+  /[\u0000-\u001f\u007f]/.test(value.trim());
 
 export function GroupsScreen() {
   const { session } = useAuth();
@@ -70,6 +76,8 @@ function Content({ principal }: { principal: string | null }) {
     setEvents([]);
     setReport(null);
     setIssuedCode("");
+    setRules("Be kind. Share only what you choose.");
+    setConfirmed(false);
   }, []);
   useEffect(
     () => () => {
@@ -111,15 +119,23 @@ function Content({ principal }: { principal: string | null }) {
     if (!valid()) return;
     if (inbox.ok) setEvents(inbox.value.events);
     const group = list.value.groups.find((item) => item.id === selected);
-    if (group) setResult({ ...list.value, group });
+    if (group) {
+      setResult({ ...list.value, group });
+      setRules(group.rules);
+    }
     if (group?.state === "member") {
       const read = await groupAction(client, {
         operation: "read",
         groupId: group.id,
       });
       if (!valid()) return;
-      if (read.ok) setResult(read.value);
-      else setMessage(humanizeCommunityError(read.error));
+      if (read.ok) {
+        setResult(read.value);
+        setRules(read.value.group?.rules ?? group.rules);
+      } else {
+        setResult(null);
+        setMessage(humanizeCommunityError(read.error));
+      }
     }
     if (group?.role !== "member" && group?.state === "member") {
       const following = await fetchFollowing(client, { limit: 50 });
@@ -179,10 +195,12 @@ function Content({ principal }: { principal: string | null }) {
   const act = async (request: CommunityGroupRequest) => {
     if (busy || !principal || !lifetime.current.focused) return;
     const revision = ++lifetime.current.revision;
+    const capturedProtectedRevision = protectedRevision.current;
     const valid = () =>
       lifetime.current.active &&
       lifetime.current.focused &&
-      lifetime.current.revision === revision;
+      lifetime.current.revision === revision &&
+      protectedRevision.current === capturedProtectedRevision;
     setBusy(true);
     setMessage(null);
     const response = await groupAction(
@@ -257,6 +275,7 @@ function Content({ principal }: { principal: string | null }) {
         backgroundColor: theme.backgroundElement,
         borderWidth: 1,
         borderColor: theme.border,
+        opacity: busy || disabled ? 0.5 : 1,
       }}
     >
       <Text style={{ color: theme.text }}>{label}</Text>
@@ -276,7 +295,13 @@ function Content({ principal }: { principal: string | null }) {
         onChangeText={change}
         maxLength={maxLength}
         editable={!busy}
-        multiline
+        multiline={label !== "Private invitation code" && maxLength > 60}
+        submitBehavior="blurAndSubmit"
+        autoCapitalize={
+          label === "Private invitation code" ? "none" : "sentences"
+        }
+        autoCorrect={label !== "Private invitation code"}
+        textAlignVertical="top"
         style={{
           color: theme.text,
           borderColor: theme.border,
@@ -286,13 +311,25 @@ function Content({ principal }: { principal: string | null }) {
           minHeight: 44,
         }}
       />
+      {hasControlCharacters(value) && (
+        <Text accessibilityLiveRegion="polite" style={{ color: theme.text }}>
+          Use plain text without line breaks.
+        </Text>
+      )}
     </View>
   );
   return (
-    <>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={{ flex: 1, backgroundColor: theme.background }}
+    >
       <ScrollView
         contentContainerStyle={{
+          width: "100%",
+          maxWidth: MaxContentWidth,
+          alignSelf: "center",
           padding: 20,
+          paddingBottom: 48,
           gap: 12,
           backgroundColor: theme.background,
         }}
@@ -321,7 +358,7 @@ function Content({ principal }: { principal: string | null }) {
             Invitation code: {issuedCode}
           </Text>
         )}
-        {events.length > 0 && (
+        {!selected && events.length > 0 && (
           <View style={{ gap: 6 }}>
             <Text accessibilityRole="header" style={{ color: theme.text }}>
               Group updates
@@ -343,11 +380,14 @@ function Content({ principal }: { principal: string | null }) {
             ))}
           </View>
         )}
-        {groups.map((item) => (
-          <View key={item.id} style={{ gap: 6 }}>
-            {button(`${item.name} · ${item.state}`, () => setSelected(item.id))}
-          </View>
-        ))}
+        {!selected &&
+          groups.map((item) => (
+            <View key={item.id} style={{ gap: 6 }}>
+              {button(`${item.name} · ${item.state}`, () =>
+                setSelected(item.id),
+              )}
+            </View>
+          ))}
         {button(
           "Refresh groups",
           () => {
@@ -356,8 +396,20 @@ function Content({ principal }: { principal: string | null }) {
           },
           !principal,
         )}
-        {!group && (
+        {selected && button("Back to all groups", () => setSelected(null))}
+        {!selected && !busy && !message && groups.length === 0 && principal && (
+          <Text style={{ color: theme.textSecondary }}>
+            You have no groups yet. Create one or use a private invitation code.
+          </Text>
+        )}
+        {!selected && (
           <>
+            <Text
+              accessibilityRole="header"
+              style={{ fontSize: 20, fontWeight: "600", color: theme.text }}
+            >
+              Create a group
+            </Text>
             {input("Group name", name, setName, 60)}
             {input("Group rules", rules, setRules, 1000)}
             {button(
@@ -372,9 +424,24 @@ function Content({ principal }: { principal: string | null }) {
                     rules: rules.trim(),
                   }),
                 }),
-              !name.trim() || !rules.trim() || !principal,
+              !name.trim() ||
+                !rules.trim() ||
+                hasControlCharacters(name) ||
+                hasControlCharacters(rules) ||
+                !principal,
             )}
-            {input("Private invitation code", code, setCode, 32)}
+            <Text
+              accessibilityRole="header"
+              style={{ fontSize: 20, fontWeight: "600", color: theme.text }}
+            >
+              Join a group
+            </Text>
+            {input(
+              "Private invitation code",
+              code,
+              (value) => setCode(value.trim().toLowerCase()),
+              64,
+            )}
             {button(
               "Request to join",
               () => void act({ operation: "request", token: code.trim() }),
@@ -404,9 +471,13 @@ function Content({ principal }: { principal: string | null }) {
               group.role === "owner"
                 ? "Leave (transfer ownership first if members remain)"
                 : "Leave group",
-              () => void act({ operation: "leave", ...base }),
+              () =>
+                confirmAction(
+                  "Leave this group?",
+                  "You will lose access to this group and its posts.",
+                  { operation: "leave", ...base },
+                ),
             )}
-            {button("Back to all groups", () => setSelected(null))}
             {group.state === "member" && (
               <>
                 <Text style={{ color: theme.text }}>
@@ -446,7 +517,18 @@ function Content({ principal }: { principal: string | null }) {
                         body: body.trim(),
                       }),
                     }),
-                  !confirmed || !body.trim(),
+                  !confirmed || !body.trim() || hasControlCharacters(body),
+                )}
+                <Text
+                  accessibilityRole="header"
+                  style={{ fontSize: 20, fontWeight: "600", color: theme.text }}
+                >
+                  Group posts
+                </Text>
+                {result?.posts.length === 0 && (
+                  <Text style={{ color: theme.textSecondary }}>
+                    No posts are visible in your current membership.
+                  </Text>
                 )}
                 {(result?.posts ?? []).map((post) => (
                   <View
@@ -467,14 +549,16 @@ function Content({ principal }: { principal: string | null }) {
                         setReport({ type: "group_post", id: post.id }),
                       )}
                     {(post.userId === principal || group.role !== "member") &&
-                      button(
-                        "Remove post",
-                        () =>
-                          void act({
+                      button("Remove post", () =>
+                        confirmAction(
+                          "Remove this post?",
+                          "The post will disappear from this group.",
+                          {
                             operation: "deletePost",
                             ...base,
                             postId: post.id,
-                          }),
+                          },
+                        ),
                       )}
                   </View>
                 ))}
@@ -506,11 +590,6 @@ function Content({ principal }: { principal: string | null }) {
                       "Create a seven-day request code",
                       () => void act({ operation: "code", ...base }),
                     )}
-                    {code && (
-                      <Text selectable style={{ color: theme.text }}>
-                        Private request code: {code}
-                      </Text>
-                    )}
                   </>
                 )}
                 {group.role === "owner" && (
@@ -519,10 +598,16 @@ function Content({ principal }: { principal: string | null }) {
                     {button(
                       "Save group rules",
                       () => void act({ operation: "rules", ...base, rules }),
-                      !rules.trim(),
+                      !rules.trim() || hasControlCharacters(rules),
                     )}
                   </>
                 )}
+                <Text
+                  accessibilityRole="header"
+                  style={{ fontSize: 20, fontWeight: "600", color: theme.text }}
+                >
+                  Members and requests
+                </Text>
                 {(result?.members ?? []).map((member) => (
                   <View key={member.userId} style={{ gap: 6 }}>
                     <Text style={{ color: theme.text }}>
@@ -573,6 +658,7 @@ function Content({ principal }: { principal: string | null }) {
                                 }),
                             )}
                           {reason.trim() &&
+                            !hasControlCharacters(reason) &&
                             button("Ban with the reason below", () =>
                               confirmAction(
                                 "Ban this member?",
@@ -630,12 +716,32 @@ function Content({ principal }: { principal: string | null }) {
                 ))}
               </>
             )}
-            {input("Ban or appeal reason", reason, setReason, 500)}
+            {(group.role !== "member" ||
+              group.state === "banned" ||
+              group.state === "removed") &&
+              input(
+                group.state === "banned" || group.state === "removed"
+                  ? "Appeal reason"
+                  : "Moderation or appeal decision reason",
+                reason,
+                setReason,
+                500,
+              )}
+            {group.state === "pending" && (
+              <Text style={{ color: theme.textSecondary }}>
+                Your request is waiting for a group moderator to approve it.
+              </Text>
+            )}
+            {group.state === "invited" && (
+              <Text style={{ color: theme.textSecondary }}>
+                Review the group rules before accepting the invitation.
+              </Text>
+            )}
             {(group.state === "banned" || group.state === "removed") &&
               button(
                 "Appeal membership removal",
                 () => void act({ operation: "appeal", ...base, reason }),
-                !reason.trim(),
+                !reason.trim() || hasControlCharacters(reason),
               )}
             {(result?.appeals ?? [])
               .filter((appeal) => appeal.groupId === group.id)
@@ -657,7 +763,7 @@ function Content({ principal }: { principal: string | null }) {
                             decision: "approved",
                             reason,
                           }),
-                        !reason.trim(),
+                        !reason.trim() || hasControlCharacters(reason),
                       )}
                       {button(
                         "Reject appeal",
@@ -670,7 +776,7 @@ function Content({ principal }: { principal: string | null }) {
                             decision: "rejected",
                             reason,
                           }),
-                        !reason.trim(),
+                        !reason.trim() || hasControlCharacters(reason),
                       )}
                     </>
                   )}
@@ -701,6 +807,6 @@ function Content({ principal }: { principal: string | null }) {
           }}
         />
       )}
-    </>
+    </KeyboardAvoidingView>
   );
 }

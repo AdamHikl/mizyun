@@ -1,5 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  AppState,
+  KeyboardAvoidingView,
+  Platform,
   Linking,
   Pressable,
   ScrollView,
@@ -50,10 +53,20 @@ export function SafetyContent({
   principalKey: string | null;
 }) {
   const theme = useTheme();
-  const lifetime = useRef({ principalKey, active: true, revision: 0 });
+  const lifetime = useRef({
+    principalKey,
+    active: true,
+    foreground: false,
+    revision: 0,
+  });
   if (lifetime.current.principalKey !== principalKey) {
     lifetime.current.active = false;
-    lifetime.current = { principalKey, active: true, revision: 0 };
+    lifetime.current = {
+      principalKey,
+      active: true,
+      foreground: false,
+      revision: 0,
+    };
   }
   const current = lifetime.current;
   useEffect(() => {
@@ -62,7 +75,8 @@ export function SafetyContent({
       current.active = false;
     };
   }, [current]);
-  const isCurrent = () => current.active && lifetime.current === current;
+  const isCurrent = () =>
+    current.active && current.foreground && lifetime.current === current;
   const [reports, setReports] = useState<readonly CommunityReportSummaryDto[]>(
     [],
   );
@@ -137,7 +151,33 @@ export function SafetyContent({
   }, [principalKey, current]);
   useFocusEffect(
     useCallback(() => {
-      void load();
+      const clear = () => {
+        current.foreground = false;
+        current.revision++;
+        setReports([]);
+        setReceipts([]);
+        setNotices([]);
+        setContact(null);
+        setSelected(null);
+        setAppealNotice(null);
+        setReason("");
+        setAppealStatus(null);
+        setMessage(null);
+        setLoading(false);
+        setSending(false);
+      };
+      current.foreground = AppState.currentState === "active";
+      if (current.foreground) void load();
+      const subscription = AppState.addEventListener("change", (next) => {
+        if (current.foreground === (next === "active")) return;
+        clear();
+        current.foreground = next === "active";
+        if (current.foreground) void load();
+      });
+      return () => {
+        subscription.remove();
+        clear();
+      };
     }, [load]),
   );
 
@@ -150,14 +190,16 @@ export function SafetyContent({
       !isCurrent()
     )
       return;
-    const client = scopeCommunityClient(apiClient, principalKey, isCurrent);
+    const revision = current.revision;
+    const valid = () => isCurrent() && current.revision === revision;
+    const client = scopeCommunityClient(apiClient, principalKey, valid);
     setSending(true);
     setMessage(null);
     const result = await submitModerationAppeal(client, {
       reportId: appealNotice.id,
       reason: reason.trim(),
     });
-    if (!isCurrent()) return;
+    if (!valid()) return;
     setSending(false);
     if (result.ok) {
       setAppealStatus({ id: result.value.id, status: result.value.status });
@@ -175,17 +217,19 @@ export function SafetyContent({
   };
   const refreshAppeal = async () => {
     if (!principalKey || !appealStatus || sending || !isCurrent()) return;
+    const revision = current.revision;
+    const valid = () => isCurrent() && current.revision === revision;
     setSending(true);
     const result = await scopeCommunityClient(
       apiClient,
       principalKey,
-      isCurrent,
+      valid,
     ).request<{ id: string; status: "pending" | "approved" | "rejected" }>({
       method: "GET",
       path: `/v1/community/appeals/${encodeURIComponent(appealStatus.id)}`,
       schema: moderationAppealDtoSchema,
     });
-    if (!isCurrent()) return;
+    if (!valid()) return;
     setSending(false);
     if (result.ok)
       setAppealStatus({ id: result.value.id, status: result.value.status });
@@ -209,180 +253,190 @@ export function SafetyContent({
     </Pressable>
   );
   return (
-    <ScrollView
-      style={{ backgroundColor: theme.background }}
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled"
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: theme.background }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <Stack.Screen options={{ title: "Community safety" }} />
-      <CommunityIntro
-        icon="🛡️"
-        title="Help & safety"
-        description="Manage your boundaries, report a concern or check an appeal."
-        tone="peach"
-      />
-      <ThemedText>
-        For immediate danger, contact local emergency services. Mizyun reports
-        are not an emergency response service.
-      </ThemedText>
-      {action("Keep tracking privately", () => router.replace("/(tabs)"))}
-      {action("Manage blocks and safety lists", () =>
-        router.push("/community/relationships" as Href),
-      )}
-      {contact?.available && contact.contactEmail ? (
-        action(
-          `Contact safety: ${contact.contactEmail}`,
-          () => void Linking.openURL(`mailto:${contact.contactEmail}`),
-        )
-      ) : (
+      <ScrollView
+        style={{ backgroundColor: theme.background }}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Stack.Screen options={{ title: "Community safety" }} />
+        <CommunityIntro
+          icon="🛡️"
+          title="Help & safety"
+          description="Manage your boundaries, report a concern or check an appeal."
+          tone="peach"
+        />
         <ThemedText>
-          Verified Community safety contact is currently unavailable.
+          For immediate danger, contact local emergency services. Mizyun reports
+          are not an emergency response service.
         </ThemedText>
-      )}
-      {contact?.available &&
-        contact.standardsUrl &&
-        action(
-          "Community standards",
-          () => void Linking.openURL(contact.standardsUrl!),
+        {action("Keep tracking privately", () => router.replace("/(tabs)"))}
+        {action("Manage blocks and safety lists", () =>
+          router.push("/community/relationships?list=blocked" as Href),
         )}
-      {principalKey ? (
-        <>
-          {action(
-            loading ? "Checking safety history…" : "Refresh safety history",
-            () => void load(),
-            loading,
-          )}
-          {message && (
-            <ThemedText accessibilityLiveRegion="polite">{message}</ThemedText>
-          )}
-          <ThemedText type="subtitle">Your reports</ThemedText>
-          {!loading && reports.length === 0 && (
-            <ThemedText>No report history loaded.</ThemedText>
-          )}
-          {reports.map((report) => (
-            <View
-              key={report.id}
-              style={[
-                styles.record,
-                { backgroundColor: theme.backgroundElement },
-              ]}
-            >
-              <ThemedText>Case {report.id}</ThemedText>
-              <ThemedText>
-                {report.reason.replaceAll("_", " ")} ·{" "}
-                {report.status.replaceAll("_", " ")}
-              </ThemedText>
-            </View>
-          ))}
-          <ThemedText type="subtitle">Report a recent interaction</ThemedText>
+        {contact?.available && contact.contactEmail ? (
+          action(
+            `Contact safety: ${contact.contactEmail}`,
+            () => void Linking.openURL(`mailto:${contact.contactEmail}`),
+          )
+        ) : (
           <ThemedText>
-            Recent references expire after 30 days. They permit reporting
-            without restoring the profile or activity.
+            Verified Community safety contact is currently unavailable.
           </ThemedText>
-          {receipts.map((receipt, index) =>
-            action(
-              `Report recent ${receipt.targetType} interaction ${index + 1}`,
-              () => setSelected(receipt),
-            ),
+        )}
+        {contact?.available &&
+          contact.standardsUrl &&
+          action(
+            "Community standards",
+            () => void Linking.openURL(contact.standardsUrl!),
           )}
-          {appealStatus && (
-            <View style={styles.record}>
-              <ThemedText>
-                Appeal {appealStatus.id}: {appealStatus.status}
+        {principalKey ? (
+          <>
+            {action(
+              loading ? "Checking safety history…" : "Refresh safety history",
+              () => void load(),
+              loading || sending,
+            )}
+            {message && (
+              <ThemedText accessibilityLiveRegion="polite">
+                {message}
               </ThemedText>
-              {action(
-                "Check appeal status",
-                () => void refreshAppeal(),
-                sending,
-              )}
-              <ThemedText>
-                Approval reverses only the linked restriction. It restores no
-                withdrawn profile, shared card or follow connection.
-              </ThemedText>
-            </View>
-          )}
-          <ThemedText type="subtitle">Your moderation notices</ThemedText>
-          {notices.map((notice) => (
-            <View key={notice.id} style={styles.record}>
-              <ThemedText>
-                Reason: {notice.reason.replaceAll("_", " ")} · Decision:{" "}
-                {notice.decision ?? notice.status}
-              </ThemedText>
-              <ThemedText>
-                {notice.decision === "suspend" || notice.decision === "ban"
-                  ? "This decision restricted Community sharing and social access. Private tracking and safety controls remain available. Later appeals or expiry may change the restriction."
-                  : notice.decision === "remove"
-                    ? "This decision removed the reported social content."
-                    : "This notice does not suspend private tracking."}
-              </ThemedText>
-              {notice.suspensionExpiresAt && (
-                <ThemedText>
-                  Recorded restriction expiry:{" "}
-                  {new Date(notice.suspensionExpiresAt).toLocaleString()}.
-                  Returning to Community requires a fresh choice.
-                </ThemedText>
-              )}
-              {action(
-                `Appeal decision ${notice.id}`,
-                () => {
-                  setAppealNotice(notice);
-                  setReason("");
-                  setMessage(null);
-                },
-                sending,
-              )}
-            </View>
-          ))}
-          {appealNotice && (
-            <View style={styles.record}>
-              <ThemedText>Why should this decision be reconsidered?</ThemedText>
-              <TextInput
-                accessibilityLabel="Appeal reason"
-                multiline
-                maxLength={1000}
-                value={reason}
-                onChangeText={setReason}
-                editable={!sending}
+            )}
+            <ThemedText type="subtitle">Your reports</ThemedText>
+            {!loading && !message && reports.length === 0 && (
+              <ThemedText>No reports yet.</ThemedText>
+            )}
+            {reports.map((report) => (
+              <View
+                key={report.id}
                 style={[
-                  styles.input,
-                  { color: theme.text, borderColor: theme.border },
+                  styles.record,
+                  { backgroundColor: theme.backgroundElement },
                 ]}
+              >
+                <ThemedText>Case {report.id}</ThemedText>
+                <ThemedText>
+                  {report.reason.replaceAll("_", " ")} ·{" "}
+                  {report.status.replaceAll("_", " ")}
+                </ThemedText>
+              </View>
+            ))}
+            <ThemedText type="subtitle">Report a recent interaction</ThemedText>
+            <ThemedText>
+              Recent references expire after 30 days. They permit reporting
+              without restoring the profile or activity.
+            </ThemedText>
+            {receipts.map((receipt, index) =>
+              action(
+                `Report recent ${receipt.targetType} interaction ${index + 1}`,
+                () => setSelected(receipt),
+                loading || sending,
+              ),
+            )}
+            {appealStatus && (
+              <View style={styles.record}>
+                <ThemedText>
+                  Appeal {appealStatus.id}: {appealStatus.status}
+                </ThemedText>
+                {action(
+                  "Check appeal status",
+                  () => void refreshAppeal(),
+                  sending,
+                )}
+                <ThemedText>
+                  Approval reverses only the linked restriction. It restores no
+                  withdrawn profile, shared card or follow connection.
+                </ThemedText>
+              </View>
+            )}
+            <ThemedText type="subtitle">Your moderation notices</ThemedText>
+            {notices.map((notice) => (
+              <View key={notice.id} style={styles.record}>
+                <ThemedText>
+                  Reason: {notice.reason.replaceAll("_", " ")} · Decision:{" "}
+                  {notice.decision ?? notice.status}
+                </ThemedText>
+                <ThemedText>
+                  {notice.decision === "suspend" || notice.decision === "ban"
+                    ? "This decision restricted Community sharing and social access. Private tracking and safety controls remain available. Later appeals or expiry may change the restriction."
+                    : notice.decision === "remove"
+                      ? "This decision removed the reported social content."
+                      : "This notice does not suspend private tracking."}
+                </ThemedText>
+                {notice.suspensionExpiresAt && (
+                  <ThemedText>
+                    Recorded restriction expiry:{" "}
+                    {new Date(notice.suspensionExpiresAt).toLocaleString()}.
+                    Returning to Community requires a fresh choice.
+                  </ThemedText>
+                )}
+                {action(
+                  `Appeal decision ${notice.id}`,
+                  () => {
+                    setAppealNotice(notice);
+                    setReason("");
+                    setMessage(null);
+                  },
+                  sending,
+                )}
+              </View>
+            ))}
+            {appealNotice && (
+              <View style={styles.record}>
+                <ThemedText>
+                  Why should this decision be reconsidered?
+                </ThemedText>
+                <TextInput
+                  accessibilityLabel="Appeal reason"
+                  multiline
+                  maxLength={1000}
+                  value={reason}
+                  onChangeText={setReason}
+                  editable={!sending}
+                  style={[
+                    styles.input,
+                    { color: theme.text, borderColor: theme.border },
+                  ]}
+                />
+                {action(
+                  sending ? "Sending appeal…" : "Submit appeal",
+                  () => void appeal(),
+                  sending || !reason.trim(),
+                )}
+                {action(
+                  "Cancel appeal",
+                  () => {
+                    setAppealNotice(null);
+                    setReason("");
+                  },
+                  sending,
+                )}
+              </View>
+            )}
+            {selected && (
+              <ReportModal
+                visible
+                targetType={selected.targetType}
+                targetId={selected.targetId}
+                interactionReceiptId={selected.id}
+                principalKey={principalKey}
+                onClose={() => setSelected(null)}
               />
-              {action(
-                sending ? "Sending appeal…" : "Submit appeal",
-                () => void appeal(),
-                sending || !reason.trim(),
-              )}
-              {action(
-                "Cancel appeal",
-                () => {
-                  setAppealNotice(null);
-                  setReason("");
-                },
-                sending,
-              )}
-            </View>
-          )}
-          {selected && (
-            <ReportModal
-              visible
-              targetType={selected.targetType}
-              targetId={selected.targetId}
-              interactionReceiptId={selected.id}
-              principalKey={principalKey}
-              onClose={() => setSelected(null)}
-            />
-          )}
-        </>
-      ) : (
-        <ThemedText>
-          Sign in to view your reports and appeal decisions.
-        </ThemedText>
-      )}
-      {action("Account export and deletion", () =>
-        router.push("/account-settings/account-data?anchor=export" as Href),
-      )}
-    </ScrollView>
+            )}
+          </>
+        ) : (
+          <ThemedText>
+            Sign in to view your reports and appeal decisions.
+          </ThemedText>
+        )}
+        {action("Account export and deletion", () =>
+          router.push("/account-settings/account-data?anchor=export" as Href),
+        )}
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 const styles = StyleSheet.create({

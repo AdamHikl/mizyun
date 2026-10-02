@@ -4,6 +4,7 @@ import { ThemedText } from "@/components/themed-text";
 import { CommunityIntro } from "@/features/community";
 import { MaxContentWidth } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
+import { COMMUNITY_ENROLLMENT_OPEN } from "@/composition/community-admission";
 
 export default function CommunityRulesScreen() {
   const theme = useTheme();
@@ -20,8 +21,10 @@ export default function CommunityRulesScreen() {
         tone="peach"
       />
       <ThemedText>
-        Rules version: 2026-09-30. Enrollment is closed while safety contact,
-        legal review and pilot acceptance are pending.
+        Rules version: 2026-09-30.{" "}
+        {COMMUNITY_ENROLLMENT_OPEN
+          ? "Community is available only to the approved Dev testing cohort. Broader enrollment, safety coverage and legal acceptance remain pending."
+          : "Enrollment is closed while safety contact, legal review and pilot acceptance are pending."}
       </ThemedText>
       <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
         Your choice
@@ -72,8 +75,21 @@ export default function CommunityRulesScreen() {
         exercises, set types, reps, weights and set durations. Preview every
         field before confirming; custom exercise names can reveal personal
         information. Workout titles and notes stay private. Existing summary
-        cards are never automatically expanded. Social photos, comments and
-        direct messages are outside this pilot.
+        cards are never automatically expanded.
+      </ThemedText>
+      <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
+        Optional Dev features
+      </ThemedText>
+      <ThemedText>
+        Where enabled for Dev testing, comments and mentions, private groups,
+        cooperative challenges, messages, photos, routine sharing and broader
+        handle search each have separate choices. Joining Community enables none
+        of them automatically. Messages require mutual following and both people
+        to opt in. Group history starts with your current membership. Photos are
+        separately selected and held for moderation before sharing; your private
+        tracking photos are never uploaded automatically. Routine imports create
+        independent private copies. Broader search is separately opted in and
+        bounded; there is no public feed or contact upload.
       </ThemedText>
       <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
         Leaving and returning
@@ -103,7 +119,7 @@ export default function CommunityRulesScreen() {
       </ThemedText>
       <ThemedText>
         Export and account deletion remain available through Account settings.
-        Community retention, export and restore acceptance are pending;
+        Community retention, export and restore acceptance are pending; broader
         enrollment stays closed until those checks and the full disclosures are
         accepted.
       </ThemedText>

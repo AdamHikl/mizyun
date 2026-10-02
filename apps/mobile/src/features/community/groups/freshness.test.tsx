@@ -31,6 +31,8 @@ vi.mock("react", async (original) => ({
 }));
 vi.mock("react-native", () => ({
   View: "View",
+  KeyboardAvoidingView: "KeyboardAvoidingView",
+  Platform: { OS: "ios" },
   Text: "Text",
   Pressable: "Pressable",
   ScrollView: "ScrollView",
@@ -58,11 +60,16 @@ vi.mock("expo-crypto", () => ({
 vi.mock("@/features/auth/auth-context", () => ({
   useAuth: () => ({ session: { user: { id: "owner" } } }),
 }));
+vi.mock("@/constants/theme", () => ({ MaxContentWidth: 720 }));
 vi.mock("@/hooks/use-theme", () => ({ useTheme: () => ({ text: "black" }) }));
 vi.mock("@/composition/api-client", () => ({ apiClient: {} }));
 vi.mock("../community-presentation", () => ({ CommunityIntro: "Intro" }));
 vi.mock("../safety/report-modal", () => ({ ReportModal: "Report" }));
 vi.mock("./client", () => ({ groupAction: mocks.action }));
+vi.mock("../community-client", async (original) => ({
+  ...(await original<typeof import("../community-client")>()),
+  fetchFollowing: async () => ({ ok: true, value: { items: [] } }),
+}));
 import { GroupsScreen } from "./screen";
 function render(): any {
   hooks.index = 0;
@@ -142,6 +149,62 @@ describe("bounded private-group rendering", () => {
     expect(text(render())).not.toContain("Private title");
     expect(text(render())).toContain("Refresh to check");
     expect(mocks.action).toHaveBeenCalledTimes(calls);
+  });
+  it("starts the owner's rules editor with saved rules and keeps overview forms out of the detail", async () => {
+    const original = mocks.action.getMockImplementation()!;
+    mocks.action.mockImplementation(async (client, request) => {
+      const response = await original(client, request);
+      if (request.operation === "list")
+        response.value.groups[0] = { ...group, role: "owner" };
+      if (request.operation === "read")
+        response.value.group = { ...group, role: "owner" };
+      return response;
+    });
+    render();
+    await settle();
+    control(render(), "Private title · member").props.onPress();
+    render();
+    await settle();
+    const tree = render();
+    expect(
+      nodes(tree).find(
+        (node) =>
+          node.type === "Input" &&
+          node.props.accessibilityLabel === "Updated group rules",
+      ).props.value,
+    ).toBe("Group rules");
+    expect(control(tree, "Create a private group")).toBeUndefined();
+    expect(control(tree, "Back to all groups")).toBeDefined();
+  });
+  it("does not reload protected data after a mutation response arrives beyond expiry", async () => {
+    render();
+    await settle();
+    let finish!: (response: any) => void;
+    mocks.action.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    nodes(render())
+      .find(
+        (node) =>
+          node.type === "Input" &&
+          node.props.accessibilityLabel === "Group name",
+      )
+      .props.onChangeText("New group");
+    control(render(), "Create a private group").props.onPress();
+    await settle();
+    const count = mocks.action.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(10_000);
+    finish({ ok: true, value: { group } });
+    await settle();
+    expect(mocks.action).toHaveBeenCalledTimes(count);
+    expect(control(render(), "Refresh groups").props.disabled).toBe(false);
+    expect(control(render(), "Create a private group").props.disabled).toBe(
+      false,
+    );
+    expect(text(render())).not.toContain("Private title");
   });
   it("does not refill after a delayed protected group read exceeds the load deadline", async () => {
     render();

@@ -1,6 +1,13 @@
 import { useAuth } from "@/features/auth/auth-context";
 import React, { useCallback, useRef, useState } from "react";
-import { Alert, AppState, ScrollView, Text } from "react-native";
+import {
+  Alert,
+  AppState,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Text,
+} from "react-native";
 import { Stack, useFocusEffect } from "expo-router";
 import { communityBroaderDiscoveryResponseSchema } from "@mizyun/contracts";
 import * as Crypto from "expo-crypto";
@@ -21,6 +28,9 @@ function CommunityBroaderDiscoveryScreenContent() {
   );
   const t = useTheme();
   const [prefix, setPrefix] = useState("");
+  const [searchedPrefix, setSearchedPrefix] = useState("");
+  const normalizedPrefix = prefix.trim().replace(/^@/, "").toLowerCase();
+  const validPrefix = /^[a-z0-9_]{3,24}$/.test(normalizedPrefix);
   const [followBusy, setFollowBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const pendingFollow = useRef<{ userId: string; operationId: string } | null>(
@@ -30,13 +40,18 @@ function CommunityBroaderDiscoveryScreenContent() {
   useFocusEffect(
     useCallback(() => {
       setPrefix("");
+      setSearchedPrefix("");
       setMessage(null);
       setFollowBusy(false);
       pendingFollow.current = null;
       actionLock.current = null;
       void state.run({ operation: "preferences" });
-      const sub = AppState.addEventListener("change", () => {
+      let foreground = AppState.currentState === "active";
+      const sub = AppState.addEventListener("change", (next) => {
+        if (foreground === (next === "active")) return;
+        foreground = next === "active";
         setPrefix("");
+        setSearchedPrefix("");
         setMessage(null);
         setFollowBusy(false);
         pendingFollow.current = null;
@@ -45,6 +60,7 @@ function CommunityBroaderDiscoveryScreenContent() {
       return () => {
         sub.remove();
         setPrefix("");
+        setSearchedPrefix("");
         setMessage(null);
         setFollowBusy(false);
         pendingFollow.current = null;
@@ -101,72 +117,103 @@ function CommunityBroaderDiscoveryScreenContent() {
     );
   };
   return (
-    <ScrollView
-      contentContainerStyle={{
-        padding: 20,
-        gap: 16,
-        backgroundColor: t.background,
-      }}
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: t.background }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <Stack.Screen options={{ title: "Discover friends" }} />
-      <CommunityIntro
-        icon="👋"
-        title="A wider search, by choice"
-        description="Let admitted Community members find your handle from three or more characters. This adds no public cards and never uploads your contacts. Your existing posts still need approved followers."
-      />
-      {state.error && (
-        <Text accessibilityRole="alert" style={{ color: t.text }}>
-          {state.error}
-        </Text>
-      )}
-      {message && (
-        <Text accessibilityRole="alert" style={{ color: t.text }}>
-          {message}
-        </Text>
-      )}
-      <Text style={{ color: t.text }}>
-        Handle prefix discovery:{" "}
-        {state.data?.enabled ? "on" : "off or not loaded"}
-      </Text>
-      <ExpansionButton
-        label="Let members find my handle prefix"
-        disabled={state.busy || followBusy}
-        onPress={() =>
-          void state.run({ operation: "preferences", enabled: true })
-        }
-      />
-      <ExpansionButton
-        label="Turn prefix discovery off"
-        disabled={state.busy || followBusy}
-        onPress={() =>
-          void state.run({ operation: "preferences", enabled: false })
-        }
-      />
-      <ExpansionInput
-        label="First characters of a friend's handle"
-        value={prefix}
-        onChange={setPrefix}
-        maxLength={24}
-      />
-      <ExpansionButton
-        label="Search consenting members"
-        disabled={state.busy || followBusy || prefix.trim().length < 3}
-        onPress={() =>
-          void state.run({
-            operation: "search",
-            prefix: prefix.trim().toLowerCase(),
-          })
-        }
-      />
-      {state.data?.profiles?.map((p) => (
-        <ExpansionButton
-          key={p.userId}
-          label={`Request to follow @${p.handle} · ${p.displayName}`}
-          disabled={state.busy || followBusy}
-          onPress={() => follow(p.userId, p.handle)}
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        style={{ flex: 1, backgroundColor: t.background }}
+        contentContainerStyle={{
+          padding: 20,
+          gap: 16,
+          backgroundColor: t.background,
+        }}
+      >
+        <Stack.Screen options={{ title: "Discover friends" }} />
+        <CommunityIntro
+          icon="👋"
+          title="A wider search, by choice"
+          description="Let admitted Community members find your handle from three or more characters. This adds no public cards and never uploads your contacts. Your existing posts still need approved followers."
         />
-      ))}
-    </ScrollView>
+        {state.error && (
+          <Text accessibilityRole="alert" style={{ color: t.text }}>
+            {state.error}
+          </Text>
+        )}
+        {message && (
+          <Text accessibilityRole="alert" style={{ color: t.text }}>
+            {message}
+          </Text>
+        )}
+        <Text style={{ color: t.text }}>
+          Handle prefix discovery:{" "}
+          {typeof state.data?.enabled === "boolean"
+            ? state.data.enabled
+              ? "on"
+              : "off"
+            : "refresh to check your choice"}
+        </Text>
+        <ExpansionButton
+          label="Refresh my discovery choice"
+          disabled={state.busy || followBusy}
+          onPress={() => void state.run({ operation: "preferences" })}
+        />
+        <ExpansionButton
+          label="Let members find my handle prefix"
+          disabled={state.busy || followBusy}
+          onPress={() =>
+            void state.run({ operation: "preferences", enabled: true })
+          }
+        />
+        <ExpansionButton
+          label="Turn prefix discovery off"
+          disabled={state.busy || followBusy}
+          onPress={() =>
+            void state.run({ operation: "preferences", enabled: false })
+          }
+        />
+        <ExpansionInput
+          label="First characters of a friend's handle"
+          value={prefix}
+          onChange={setPrefix}
+          maxLength={25}
+          multiline={false}
+          editable={!state.busy && !followBusy}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        <Text style={{ color: t.textSecondary }}>
+          Enter at least three letters, numbers or underscores from their
+          handle.
+        </Text>
+        <ExpansionButton
+          label="Search consenting members"
+          disabled={state.busy || followBusy || !validPrefix}
+          onPress={() => {
+            setSearchedPrefix(normalizedPrefix);
+            setMessage(null);
+            void state.run({ operation: "search", prefix: normalizedPrefix });
+          }}
+        />
+        {normalizedPrefix === searchedPrefix &&
+          state.data?.profiles?.length === 0 && (
+            <Text style={{ color: t.textSecondary }}>
+              No consenting members found. Check the handle or try more
+              characters.
+            </Text>
+          )}
+        {normalizedPrefix === searchedPrefix &&
+          state.data?.profiles?.map((p) => (
+            <ExpansionButton
+              key={p.userId}
+              label={`Request to follow @${p.handle} · ${p.displayName}`}
+              disabled={state.busy || followBusy}
+              onPress={() => follow(p.userId, p.handle)}
+            />
+          ))}
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   request: vi.fn(),
+  alert: vi.fn(),
   picker: vi.fn(),
   save: vi.fn(),
   appState: null as null | ((state: string) => void),
@@ -55,13 +56,15 @@ vi.mock("react", async (original) => {
   };
 });
 vi.mock("react-native", () => ({
+  KeyboardAvoidingView: "KeyboardAvoidingView",
+  Platform: { OS: "ios" },
   View: "View",
   Text: "Text",
   Image: "Image",
   TextInput: "TextInput",
   ScrollView: "ScrollView",
   Pressable: "Pressable",
-  Alert: { alert: vi.fn() },
+  Alert: { alert: mocks.alert },
   AppState: {
     currentState: "active",
     addEventListener: (_event: string, callback: (s: string) => void) => {
@@ -347,4 +350,33 @@ describe("protected media screen lifecycle", () => {
       ),
     ).toBe(false);
   });
+  it.each(["background", "expiry"])(
+    "discards a confirmation after %s",
+    async (transition) => {
+      mocks.request.mockImplementation(async (options) =>
+        options.path.endsWith("/content")
+          ? { ok: true, value: { mimeType: "image/jpeg", base64: "AQIDBA==" } }
+          : {
+              ok: true,
+              value: { items: [{ ...item, isOwner: true }], nextCursor: null },
+            },
+      );
+      render();
+      await flush();
+      button(render(), "Remove image").props.onPress();
+      const confirm = mocks.alert.mock.calls.at(-1)![2][1].onPress;
+      if (transition === "background") {
+        mocks.appState!("inactive");
+        mocks.appState!("active");
+        await flush();
+      } else vi.advanceTimersByTime(10_000);
+      confirm();
+      await flush();
+      expect(
+        mocks.request.mock.calls.some(
+          ([options]) => options.method === "DELETE",
+        ),
+      ).toBe(false);
+    },
+  );
 });

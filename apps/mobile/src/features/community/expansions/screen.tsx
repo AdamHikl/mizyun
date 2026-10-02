@@ -1,5 +1,5 @@
 import React, { useCallback } from "react";
-import { ScrollView, Text } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { Stack, router, type Href, useFocusEffect } from "expo-router";
 import { communityFeatureStatusSchema } from "@mizyun/contracts";
 import { useAuth } from "@/features/auth/auth-context";
@@ -29,7 +29,7 @@ const destinations = [
   },
   {
     feature: "routines",
-    title: "Share a routine",
+    title: "Shared routines",
     description: "Preview a plan, or import your own independent copy",
     path: "/community/routines",
   },
@@ -66,13 +66,14 @@ function Content() {
   );
   return (
     <ScrollView
+      style={{ flex: 1, backgroundColor: t.background }}
       contentContainerStyle={{
         padding: 20,
         gap: 16,
         backgroundColor: t.background,
       }}
     >
-      <Stack.Screen options={{ title: "Together" }} />
+      <Stack.Screen options={{ title: "Activities & sharing" }} />
       <CommunityIntro
         icon="🌱"
         title="Connect at your pace"
@@ -84,18 +85,22 @@ function Content() {
         </Text>
       )}
       <ExpansionButton
-        label="Refresh availability"
+        label={state.busy ? "Checking availability…" : "Refresh availability"}
+        disabled={state.busy}
         onPress={() => void state.run({})}
       />
-      {destinations.map((d) => (
-        <React.Fragment key={d.feature}>
-          <ExpansionButton
-            label={`${d.title}${state.data?.some((f) => f.feature === d.feature && f.enabled) ? "" : " · sharing paused"}`}
-            onPress={() => router.push(d.path as Href)}
-          />
-          <Text style={{ color: t.textSecondary }}>{d.description}</Text>
-        </React.Fragment>
-      ))}
+      {destinations.map((d) => {
+        const feature = state.data?.find((f) => f.feature === d.feature);
+        return (
+          <View key={d.feature} style={{ gap: 6 }}>
+            <ExpansionButton
+              label={`${d.title}${feature && !feature.enabled ? " · sharing paused" : ""}`}
+              onPress={() => router.push(d.path as Href)}
+            />
+            <Text style={{ color: t.textSecondary }}>{d.description}</Text>
+          </View>
+        );
+      })}
     </ScrollView>
   );
 }

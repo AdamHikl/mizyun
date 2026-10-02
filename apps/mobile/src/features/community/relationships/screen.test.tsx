@@ -84,7 +84,11 @@ vi.mock("react-native", () => ({
   },
 }));
 
-vi.mock("expo-router", () => ({ Link: "Link", useFocusEffect: () => {} }));
+vi.mock("expo-router", () => ({
+  Link: "Link",
+  useFocusEffect: () => {},
+  useLocalSearchParams: () => ({}),
+}));
 vi.mock("@/hooks/use-theme", () => ({
   useTheme: () => ({ primary: "#10B981", text: "#fff" }),
 }));

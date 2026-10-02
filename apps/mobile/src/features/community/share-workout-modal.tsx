@@ -3,6 +3,8 @@ import {
   ActivityIndicator,
   AppState,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   TextInput,
   Modal,
@@ -326,11 +328,14 @@ export function ShareWorkoutModal({
       transparent
       onRequestClose={onDismiss}
     >
-      <View style={styles.overlay}>
+      <KeyboardAvoidingView
+        style={styles.overlay}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
         <ScrollView style={styles.card} keyboardShouldPersistTaps="handled">
           {/* Header */}
           <View style={styles.headerRow}>
-            <Text style={styles.title}>Share to Friends</Text>
+            <Text style={styles.title}>Share workout</Text>
             <Pressable
               onPress={onDismiss}
               accessibilityRole="button"
@@ -360,11 +365,20 @@ export function ShareWorkoutModal({
           ) : profileError ? (
             <View style={styles.centerBox}>
               <Text style={styles.errorText}>{profileError}</Text>
+              <Pressable
+                style={styles.primaryBtn}
+                onPress={() => void profileActions.load()}
+                accessibilityRole="button"
+              >
+                <Text style={styles.primaryBtnText}>
+                  Check Community status
+                </Text>
+              </Pressable>
             </View>
           ) : !isEnrolled ? (
             <View style={styles.centerBox}>
               <Text style={styles.notEnrolledText}>
-                You must join Mizyun Friends to share workouts with friends.
+                Join Community to share workouts with your approved followers.
               </Text>
               <Pressable
                 style={styles.keepPrivateBtn}
@@ -390,6 +404,19 @@ export function ShareWorkoutModal({
                     {failedAction === "revoke"
                       ? "Retry unpublishing"
                       : "Retry sharing"}
+                  </Text>
+                </Pressable>
+              )}
+              {!preview && (
+                <Pressable
+                  style={styles.primaryBtn}
+                  onPress={() =>
+                    setForegroundRevision((revision) => revision + 1)
+                  }
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.primaryBtnText}>
+                    Reload workout preview
                   </Text>
                 </Pressable>
               )}
@@ -638,7 +665,7 @@ export function ShareWorkoutModal({
             </>
           )}
         </ScrollView>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

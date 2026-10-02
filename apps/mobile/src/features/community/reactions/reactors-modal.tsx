@@ -15,6 +15,8 @@ import {
   humanizeCommunityError,
 } from "../community-client";
 import { InitialsAvatar } from "../initials-avatar";
+import { useTheme } from "@/hooks/use-theme";
+import { MaxContentWidth } from "@/constants/theme";
 import { REACTION_EMOJIS, REACTION_LABELS } from "./constants";
 
 export interface ReactorsModalProps {
@@ -54,6 +56,8 @@ export function ReactorsModal({
   initialReactors,
   onClose,
 }: ReactorsModalProps) {
+  const colors = useTheme();
+  const styles = createStyles(colors);
   const [reactors, setReactors] = useState<readonly ReactorSummary[]>(
     initialReactors ?? [],
   );
@@ -139,7 +143,7 @@ export function ReactorsModal({
           {/* Content */}
           {loading ? (
             <View style={styles.centerBox} testID="reactors-loading">
-              <ActivityIndicator size="small" color="#007AFF" />
+              <ActivityIndicator size="small" color={colors.primary} />
               <Text style={styles.statusText}>Loading reactions...</Text>
             </View>
           ) : error ? (
@@ -205,107 +209,116 @@ export function ReactorsModal({
   );
 }
 
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.55)",
-    justifyContent: "flex-end",
-  },
-  card: {
-    backgroundColor: "#1C1C1E",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 32,
-    maxHeight: "75%",
-    minHeight: 220,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-    paddingBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#2C2C2E",
-  },
-  title: {
-    color: "#FFFFFF",
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  closeBtn: {
-    color: "#8E8E93",
-    fontSize: 18,
-    padding: 4,
-  },
-  centerBox: {
-    paddingVertical: 36,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  statusText: {
-    color: "#8E8E93",
-    fontSize: 14,
-    marginTop: 10,
-  },
-  emptyText: {
-    color: "#8E8E93",
-    fontSize: 15,
-  },
-  errorText: {
-    color: "#FF453A",
-    fontSize: 14,
-    textAlign: "center",
-  },
-  list: {
-    flexGrow: 0,
-  },
-  listContent: {
-    paddingVertical: 4,
-    gap: 12,
-  },
-  reactorRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 6,
-  },
-  avatarWrapper: {
-    position: "relative",
-    marginRight: 12,
-  },
-  reactionBadge: {
-    position: "absolute",
-    bottom: -4,
-    right: -4,
-    backgroundColor: "#2C2C2E",
-    borderRadius: 10,
-    paddingHorizontal: 3,
-    paddingVertical: 1,
-    borderWidth: 1,
-    borderColor: "#3A3A3C",
-  },
-  reactionBadgeEmoji: {
-    fontSize: 11,
-  },
-  infoCol: {
-    flex: 1,
-    justifyContent: "center",
-  },
-  displayName: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  handle: {
-    color: "#8E8E93",
-    fontSize: 13,
-    marginTop: 1,
-  },
-  timeText: {
-    color: "#8E8E93",
-    fontSize: 12,
-    marginLeft: 8,
-  },
-});
+const createStyles = (colors: ReturnType<typeof useTheme>) =>
+  StyleSheet.create({
+    overlay: {
+      flex: 1,
+      backgroundColor: "rgba(0, 0, 0, 0.55)",
+      justifyContent: "flex-end",
+    },
+    card: {
+      backgroundColor: colors.backgroundElement,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      paddingHorizontal: 20,
+      paddingTop: 18,
+      paddingBottom: 32,
+      maxHeight: "75%",
+      minHeight: 220,
+      width: "100%",
+      maxWidth: MaxContentWidth,
+      alignSelf: "center",
+    },
+    header: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 16,
+      paddingBottom: 12,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    title: {
+      color: colors.text,
+      fontSize: 18,
+      fontWeight: "700",
+      flex: 1,
+    },
+    closeBtn: {
+      color: colors.textSecondary,
+      fontSize: 18,
+      padding: 4,
+    },
+    centerBox: {
+      paddingVertical: 36,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    statusText: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      marginTop: 10,
+    },
+    emptyText: {
+      color: colors.textSecondary,
+      fontSize: 15,
+    },
+    errorText: {
+      color: "#FF453A",
+      fontSize: 14,
+      textAlign: "center",
+    },
+    list: {
+      flexGrow: 0,
+    },
+    listContent: {
+      paddingVertical: 4,
+      gap: 12,
+    },
+    reactorRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      flexWrap: "wrap",
+      rowGap: 8,
+      paddingVertical: 6,
+    },
+    avatarWrapper: {
+      position: "relative",
+      marginRight: 12,
+    },
+    reactionBadge: {
+      position: "absolute",
+      bottom: -4,
+      right: -4,
+      backgroundColor: colors.backgroundSelected,
+      borderRadius: 10,
+      paddingHorizontal: 3,
+      paddingVertical: 1,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    reactionBadgeEmoji: {
+      fontSize: 11,
+    },
+    infoCol: {
+      flex: 1,
+      minWidth: 120,
+      justifyContent: "center",
+    },
+    displayName: {
+      color: colors.text,
+      fontSize: 15,
+      fontWeight: "600",
+    },
+    handle: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      marginTop: 1,
+    },
+    timeText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      marginLeft: 8,
+      flexShrink: 1,
+    },
+  });

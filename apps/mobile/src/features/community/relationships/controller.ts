@@ -67,7 +67,9 @@ export class RelationshipsController {
     client: ApiClient,
     principalKey: string | null,
     isCurrent: () => boolean = () => true,
+    initialList: RelationshipList = "incoming",
   ) {
+    this.state = { ...this.state, list: initialList };
     const scoped = scopeCommunityClient(
       client,
       principalKey,

@@ -57,6 +57,8 @@ vi.mock("react", async (original) => {
 vi.mock("react-native", () => ({
   Modal: "Modal",
   View: "View",
+  KeyboardAvoidingView: "KeyboardAvoidingView",
+  Platform: { OS: "ios" },
   Text: "Text",
   Pressable: "Pressable",
   ScrollView: "ScrollView",

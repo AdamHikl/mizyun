@@ -2,6 +2,8 @@ import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   Alert,
   AppState,
+  KeyboardAvoidingView,
+  Platform,
   Image,
   Pressable,
   ScrollView,
@@ -37,6 +39,7 @@ export function CommunityMediaScreen() {
 function MediaContent({ principal }: { principal: string | null }) {
   const theme = useTheme();
   const active = useRef(false);
+  const actionLock = useRef<symbol | null>(null);
   const routeAlive = useRef(false);
   const pickerEpoch = useRef(0);
   const epoch = useRef(0);
@@ -69,6 +72,7 @@ function MediaContent({ principal }: { principal: string | null }) {
     expiry.current = null;
     freshLoading.current = false;
     active.current = false;
+    actionLock.current = null;
     epoch.current++;
     setItems([]);
     setImages({});
@@ -78,6 +82,9 @@ function MediaContent({ principal }: { principal: string | null }) {
     setReport(null);
     setBusy(false);
     setCursor(null);
+    setReviewReason("");
+    setNotice(null);
+    setError(null);
   }, []);
   const load = useCallback(
     async (nextMode = mode, append = false) => {
@@ -204,12 +211,21 @@ function MediaContent({ principal }: { principal: string | null }) {
     action: () => Promise<{ ok: boolean }>,
     message: string,
   ) => {
+    if (!active.current || actionLock.current) return;
+    const token = Symbol();
+    actionLock.current = token;
     const current = epoch.current;
     setBusy(true);
     setError(null);
     try {
       const result = await action();
-      if (current !== epoch.current || !active.current) return;
+      if (
+        current !== epoch.current ||
+        !active.current ||
+        actionLock.current !== token
+      )
+        return;
+      actionLock.current = null;
       setBusy(false);
       if (!result.ok) {
         setItems([]);
@@ -221,10 +237,17 @@ function MediaContent({ principal }: { principal: string | null }) {
       }
       setPrepared(null);
       setRights(false);
+      setAltText("");
+      setReviewReason("");
       setNotice(message);
       await load();
     } catch {
-      if (current === epoch.current && active.current) {
+      if (
+        current === epoch.current &&
+        active.current &&
+        actionLock.current === token
+      ) {
+        actionLock.current = null;
         setBusy(false);
         setItems([]);
         setImages({});
@@ -294,6 +317,8 @@ function MediaContent({ principal }: { principal: string | null }) {
         borderWidth: 1,
         borderColor: theme.border,
         padding: 12,
+        minHeight: 48,
+        justifyContent: "center",
         borderRadius: 12,
         marginVertical: 4,
         opacity: disabled ? 0.5 : 1,
@@ -303,9 +328,15 @@ function MediaContent({ principal }: { principal: string | null }) {
     </Pressable>
   );
   return (
-    <View style={{ flex: 1, backgroundColor: theme.background }}>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: theme.background }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
       <Stack.Screen options={{ title: "Community images" }} />
-      <ScrollView contentContainerStyle={{ padding: 20, gap: 12 }}>
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ padding: 20, gap: 12 }}
+      >
         <Text style={{ color: theme.text, fontSize: 24, fontWeight: "700" }}>
           Choose an image to share
         </Text>
@@ -364,6 +395,7 @@ function MediaContent({ principal }: { principal: string | null }) {
             />
             <Pressable
               disabled={busy}
+              style={{ minHeight: 48, justifyContent: "center" }}
               accessibilityRole="checkbox"
               accessibilityState={{ checked: rights, disabled: busy }}
               onPress={() => setRights(!rights)}
@@ -461,7 +493,9 @@ function MediaContent({ principal }: { principal: string | null }) {
             )}
             <Text style={{ color: theme.text }}>{item.altText}</Text>
             {item.isOwner
-              ? button("Remove image", () =>
+              ? button("Remove image", () => {
+                  const intentEpoch = epoch.current;
+                  const intentRead = freshRead.current;
                   Alert.alert(
                     "Remove this image?",
                     "Followers immediately lose access. A reported image can remain as restricted case evidence for up to 30 days.",
@@ -470,15 +504,22 @@ function MediaContent({ principal }: { principal: string | null }) {
                       {
                         text: "Remove",
                         style: "destructive",
-                        onPress: () =>
+                        onPress: () => {
+                          if (
+                            !active.current ||
+                            epoch.current !== intentEpoch ||
+                            freshRead.current !== intentRead
+                          )
+                            return;
                           void perform(
                             () => removeCommunityMedia(client, item.id),
                             "Image removed from Community.",
-                          ),
+                          );
+                        },
                       },
                     ],
-                  ),
-                )
+                  );
+                })
               : button("Report image", () => setReport(item))}
             {mode === "review" && item.state === "pending" && !item.isOwner && (
               <>
@@ -531,6 +572,6 @@ function MediaContent({ principal }: { principal: string | null }) {
           onClose={() => setReport(null)}
         />
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }

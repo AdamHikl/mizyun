@@ -6,6 +6,7 @@ const hooks = vi.hoisted(() => ({
   index: 0,
   changed: false,
   effects: [] as (() => void)[],
+  appState: null as null | ((state: string) => void),
 }));
 vi.mock("react", async (original) => {
   const actual = await original<typeof import("react")>();
@@ -60,6 +61,13 @@ vi.mock("react-native", () => ({
   KeyboardAvoidingView: "KeyboardAvoidingView",
   Platform: { OS: "ios", select: (values: any) => values.ios },
   Linking: { openURL: vi.fn() },
+  AppState: {
+    currentState: "active",
+    addEventListener: (_event: string, callback: (state: string) => void) => {
+      hooks.appState = callback;
+      return { remove: vi.fn() };
+    },
+  },
 }));
 vi.mock("@/hooks/use-theme", () => ({
   useTheme: () => ({
@@ -109,6 +117,7 @@ beforeEach(() => {
   hooks.index = 0;
   hooks.effects = [];
   hooks.changed = false;
+  hooks.appState = null;
   vi.clearAllMocks();
 });
 vi.mock("expo-router", () => ({
@@ -174,6 +183,43 @@ function response(options: any) {
   return [report];
 }
 describe("Community restricted safety", () => {
+  it("clears safety evidence and appeal drafts on background and rejects late replies", async () => {
+    const pending = deferred<any>();
+    vi.mocked(apiClient.request).mockImplementation(async (options) =>
+      options.path.endsWith("/appeals")
+        ? pending.promise
+        : ({ ok: true, value: response(options) } as any),
+    );
+    render(SafetyContent, { principalKey: "account-a" });
+    await flush();
+    let tree = render(SafetyContent, { principalKey: "account-a" });
+    find(tree, "Appeal decision notice-a").props.onPress();
+    tree = render(SafetyContent, { principalKey: "account-a" });
+    find(tree, "Appeal reason").props.onChangeText("Private appeal draft");
+    const sending = find(
+      render(SafetyContent, { principalKey: "account-a" }),
+      "Submit appeal",
+    ).props.onPress();
+    hooks.appState?.("background");
+    tree = render(SafetyContent, { principalKey: "account-a" });
+    expect(JSON.stringify(tree)).not.toContain("case-a");
+    expect(JSON.stringify(tree)).not.toContain("Private appeal draft");
+    pending.resolve({ ok: true, value: { id: "appeal-a", status: "pending" } });
+    await sending;
+    await flush();
+    expect(
+      JSON.stringify(render(SafetyContent, { principalKey: "account-a" })),
+    ).not.toContain("Appeal received");
+    const request = vi
+      .mocked(apiClient.request)
+      .mock.calls.find(([options]) => options.path.endsWith("/appeals"))![0];
+    expect(request.isCurrent?.()).toBe(false);
+    hooks.appState?.("active");
+    await flush();
+    expect(
+      JSON.stringify(render(SafetyContent, { principalKey: "account-a" })),
+    ).toContain("case-a");
+  });
   it("renders own reports, opaque recent references and appeal form without verified contact links", async () => {
     vi.mocked(apiClient.request).mockImplementation(
       async (options) => ({ ok: true, value: response(options) }) as any,

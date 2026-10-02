@@ -2,6 +2,8 @@ import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   Alert,
   AppState,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   Text,
@@ -45,6 +47,7 @@ function RoutinesContent({ principal }: { principal: string | null }) {
   const freshLoading = useRef(false);
   const expiry = useRef<ReturnType<typeof setTimeout> | null>(null);
   const active = useRef(false);
+  const actionLock = useRef<symbol | null>(null);
   const client = useMemo(
     () => scopeCommunityClient(apiClient, principal, () => active.current),
     [principal],
@@ -68,6 +71,7 @@ function RoutinesContent({ principal }: { principal: string | null }) {
     freshLoading.current = false;
     epoch.current++;
     active.current = false;
+    actionLock.current = null;
     setShares([]);
     setRoutines([]);
     setPreview(null);
@@ -109,13 +113,15 @@ function RoutinesContent({ principal }: { principal: string | null }) {
           client,
           mine,
           append ? (cursor ?? undefined) : undefined,
-        ),
-        client.request<WorkoutListResponse>({
-          method: "GET",
-          path: "/v1/workouts?kind=routine&limit=200",
-          schema: workoutListResponseSchema,
-        }),
-      ]).catch(() => [{ ok: false as const }, { ok: false as const }] as const);
+        ).catch(() => ({ ok: false as const })),
+        client
+          .request<WorkoutListResponse>({
+            method: "GET",
+            path: "/v1/workouts?kind=routine&limit=200",
+            schema: workoutListResponseSchema,
+          })
+          .catch(() => ({ ok: false as const })),
+      ]);
       if (
         current !== epoch.current ||
         freshRead.current !== read ||
@@ -125,7 +131,7 @@ function RoutinesContent({ principal }: { principal: string | null }) {
         return;
       freshLoading.current = false;
       setBusy(false);
-      if (!page.ok || !privateRows.ok) {
+      if (!page.ok) {
         setShares([]);
         setRoutines([]);
         setError(
@@ -134,7 +140,11 @@ function RoutinesContent({ principal }: { principal: string | null }) {
         return;
       }
       setShares(page.value.items);
-      setRoutines(privateRows.value.workouts);
+      setRoutines(privateRows.ok ? privateRows.value.workouts : []);
+      if (!privateRows.ok)
+        setError(
+          "Your private routines could not be loaded. You can still browse and manage shared routines.",
+        );
       setCursor(page.value.nextCursor);
     },
     [client, cursor, mineOnly],
@@ -168,12 +178,21 @@ function RoutinesContent({ principal }: { principal: string | null }) {
     action: () => Promise<{ ok: boolean }>,
     message: string,
   ) => {
+    if (!active.current || actionLock.current) return;
+    const token = Symbol();
+    actionLock.current = token;
     const current = epoch.current;
     setBusy(true);
     setError(null);
     try {
       const result = await action();
-      if (current !== epoch.current || !active.current) return;
+      if (
+        current !== epoch.current ||
+        !active.current ||
+        actionLock.current !== token
+      )
+        return;
+      actionLock.current = null;
       setBusy(false);
       if (!result.ok) {
         setShares([]);
@@ -187,6 +206,8 @@ function RoutinesContent({ principal }: { principal: string | null }) {
       await load();
     } catch {
       if (current === epoch.current && active.current) {
+        if (actionLock.current !== token) return;
+        actionLock.current = null;
         setBusy(false);
         setShares([]);
         setPreview(null);
@@ -205,6 +226,8 @@ function RoutinesContent({ principal }: { principal: string | null }) {
         borderColor: theme.border,
         borderRadius: 12,
         padding: 12,
+        minHeight: 48,
+        justifyContent: "center",
         marginVertical: 5,
         opacity: disabled ? 0.5 : 1,
       }}
@@ -217,7 +240,9 @@ function RoutinesContent({ principal }: { principal: string | null }) {
     const current = epoch.current;
     setBusy(true);
     setError(null);
-    const result = await previewRoutineShare(client, selected, title);
+    const result = await previewRoutineShare(client, selected, title).catch(
+      () => ({ ok: false as const }),
+    );
     if (current !== epoch.current || !active.current) return;
     setBusy(false);
     if (!result.ok) {
@@ -231,9 +256,15 @@ function RoutinesContent({ principal }: { principal: string | null }) {
     setOperation(Crypto.randomUUID());
   };
   return (
-    <View style={{ flex: 1, backgroundColor: theme.background }}>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: theme.background }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
       <Stack.Screen options={{ title: "Shared routines" }} />
-      <ScrollView contentContainerStyle={{ padding: 20, gap: 12 }}>
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ padding: 20, gap: 12 }}
+      >
         <Text style={{ color: theme.text, fontSize: 24, fontWeight: "700" }}>
           Exchange a workout plan
         </Text>
@@ -271,20 +302,22 @@ function RoutinesContent({ principal }: { principal: string | null }) {
         <Text style={{ color: theme.text, fontSize: 18, fontWeight: "600" }}>
           Choose your private routine
         </Text>
-        {routines.map((r) =>
-          button(`${selected === r.id ? "Selected: " : ""}${r.name}`, () => {
-            setSelected(r.id);
-            setPreview(null);
-            setOperation(null);
-          }),
-        )}
+        {routines.map((r) => (
+          <View key={r.id}>
+            {button(`${selected === r.id ? "Selected: " : ""}${r.name}`, () => {
+              setSelected(r.id);
+              setPreview(null);
+              setOperation(null);
+            })}
+          </View>
+        ))}
         {selected && (
           <>
             <TextInput
               editable={!busy}
-              accessibilityLabel="Public routine title"
+              accessibilityLabel="Shared routine title"
               placeholder="Choose a title to share"
-              placeholderTextColor={theme.text}
+              placeholderTextColor={theme.textSecondary}
               maxLength={80}
               value={title}
               onChangeText={(text) => {
@@ -394,7 +427,9 @@ function RoutinesContent({ principal }: { principal: string | null }) {
               )
             ) : (
               <>
-                {button("Import an independent private copy", () =>
+                {button("Import an independent private copy", () => {
+                  const intentEpoch = epoch.current;
+                  const intentRead = freshRead.current;
                   Alert.alert(
                     "Copy this routine?",
                     "This creates an editable private workout routine with attribution. It will not update when the author changes or deletes the shared plan. Review the targets before training.",
@@ -402,15 +437,22 @@ function RoutinesContent({ principal }: { principal: string | null }) {
                       { text: "Cancel", style: "cancel" },
                       {
                         text: "Confirm import",
-                        onPress: () =>
+                        onPress: () => {
+                          if (
+                            !active.current ||
+                            epoch.current !== intentEpoch ||
+                            freshRead.current !== intentRead
+                          )
+                            return;
                           void perform(
                             () => importRoutineShare(client, s.id, s.version),
                             "Private routine imported. Find and edit it in Workouts.",
-                          ),
+                          );
+                        },
                       },
                     ],
-                  ),
-                )}
+                  );
+                })}
                 {button("Report unsafe routine", () => setReport(s))}
               </>
             )}
@@ -427,6 +469,6 @@ function RoutinesContent({ principal }: { principal: string | null }) {
           onClose={() => setReport(null)}
         />
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }

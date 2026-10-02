@@ -97,6 +97,7 @@ vi.mock("@/composition/api-client", () => ({
 vi.mock("@/features/auth/auth-context", () => ({
   useAuth: () => ({ session: { user: { id: "actor" } } }),
 }));
+vi.mock("@/constants/theme", () => ({ MaxContentWidth: 720 }));
 vi.mock("@/hooks/use-theme", () => ({ useTheme: () => ({}) }));
 vi.mock("@/components/themed-text", () => ({ ThemedText: "Text" }));
 vi.mock("../community-presentation", () => ({ CommunityIntro: "Intro" }));
@@ -236,6 +237,54 @@ describe("comments composer authority expiry", () => {
     expect(writes()).toHaveLength(2);
     expect(writes()[1].body).toEqual(first);
     expect(mocks.uuid).toHaveBeenCalledTimes(2);
+  });
+  it("uses a new publication identity when an expired edit becomes an ordinary draft", async () => {
+    const own = { ...item, author: { ...author, userId: "actor" } };
+    mocks.request.mockImplementation(async (options) => ({
+      ok: true,
+      value: options.path.endsWith("candidates")
+        ? { items: [] }
+        : {
+            items: [own],
+            nextCursor: null,
+            enabled: true,
+            canManage: false,
+            allowMentions: false,
+          },
+    }));
+    await start();
+    control(render(), "Edit my comment").props.onPress();
+    render();
+    input(render()).props.onChangeText("My revised text");
+    control(render(), audience).props.onPress();
+    let finish!: (value: unknown) => void;
+    mocks.request.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    control(render(), "Save edited comment").props.onPress();
+    await flush();
+    const writes = () =>
+      mocks.request.mock.calls
+        .map(([options]) => options)
+        .filter((options) => options.method === "POST");
+    expect(writes()[0].body.id).toBe(item.id);
+    await vi.advanceTimersByTimeAsync(10_000);
+    render();
+    render();
+    finish({ ok: true, value: { id: item.id, version: 2 } });
+    await flush();
+    control(render(), "Refresh").props.onPress();
+    await flush();
+    render();
+    control(render(), audience).props.onPress();
+    control(render(), "Publish comment").props.onPress();
+    await flush();
+    expect(writes()).toHaveLength(2);
+    expect(writes()[1].body.id).not.toBe(item.id);
+    expect(writes()[1].body.expectedVersion).toBe(0);
   });
   it("retires reply and mention targets and requires consent again while retaining own text", async () => {
     await start();

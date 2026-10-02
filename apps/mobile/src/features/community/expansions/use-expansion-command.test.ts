@@ -85,6 +85,19 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe("expansion protected-result lifetime", () => {
+  it("keeps current data and pending actions through unchanged active events", async () => {
+    await render().run({ operation: "list" });
+    const pending = deferred();
+    mocks.request.mockReturnValueOnce(pending.promise);
+    const request = render().run({ operation: "send" });
+    mocks.listener!("active");
+    expect(render().data).toEqual({ body: "protected" });
+    pending.resolve({ ok: true, value: { body: "confirmed" } });
+    expect(await request).toEqual({ body: "confirmed" });
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(render().data).toBeNull();
+    expect(mocks.request).toHaveBeenCalledTimes(2);
+  });
   it("does not fill from an initial response held beyond the authorization lifetime", async () => {
     const pending = deferred();
     mocks.request.mockReturnValueOnce(pending.promise);

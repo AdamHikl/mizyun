@@ -31,6 +31,7 @@ vi.mock("react", async (importOriginal) => {
 });
 
 vi.mock("react-native", () => ({
+  Platform: { select: (values: any) => values.ios },
   StyleSheet: {
     create: (styles: unknown) => styles,
     hairlineWidth: 1,
