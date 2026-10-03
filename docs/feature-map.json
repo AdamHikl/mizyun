@@ -25,6 +25,8 @@
         "apps/mobile/src/app/recurring-meals.tsx",
         "packages/core/src/recurring-meal.ts",
         "packages/core/src/recurring-meal.test.ts",
+        "packages/core/src/nutrition-per100g.ts",
+        "packages/core/src/nutrition-per100g.test.ts",
         "packages/adapters/supabase-server/src/recurring-meal-repository.ts",
         "packages/adapters/supabase-server/src/recurring-meal-repository.test.ts",
         "scripts/test-recurring-meals-db.py"
@@ -35,6 +37,7 @@
       ],
       "domainPort": [
         "packages/core/src/food-entry.ts",
+        "packages/core/src/nutrition-per100g.ts",
         "packages/core/src/energy.ts",
         "packages/core/src/recurring-meal.ts"
       ],
@@ -71,6 +74,8 @@
         "apps/api/src/modules/food-entries/draft-route.test.ts",
         "apps/mobile/src/features/log-meal/edit-meal-screen.test.tsx",
         "apps/mobile/src/features/log-meal/log-meal-data.test.ts",
+        "apps/mobile/src/features/log-meal/log-meal-screen.test.tsx",
+        "packages/core/src/nutrition-per100g.test.ts",
         "apps/mobile/src/features/log-meal/meal-form.test.ts",
         "apps/mobile/src/features/log-meal/meal-lifecycle-data.test.ts",
         "apps/mobile/src/features/log-meal/meal-retry-durability.test.ts"
@@ -117,6 +122,7 @@
         "NUTR-01",
         "NUTR-02",
         "NUT-08",
+        "NUT-09",
         "REL-AUD-007",
         "NUTR-REC-001"
       ],

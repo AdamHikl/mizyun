@@ -40,6 +40,7 @@
 - **NUT-06:** The app can retain reusable foods/meals without silently changing historical entries.
 - **NUT-07:** Pro users can optionally record and review fibre, saturated fat, total sugars, sodium, and dietary cholesterol on confirmed meals. Missing values remain unknown, partial totals disclose coverage, and free or downgraded users retain access, correction, export, and deletion of previously recorded values.
 - **NUT-08:** With existing AI consent/adult eligibility and a server-authoritative Pro grant, photo/text meal drafts and deliberate refinements can suggest those five additional nutrients. Estimates remain editable and uncertain until explicit confirmation; unknown values remain blank and client settings or quota overrides cannot grant access. Refinement must use current edits and must not overwrite changes made during a request. No historical backfill is automatic.
+- **NUT-09:** Manual meal creation offers portion totals (default) or label values per 100 g with a required positive food weight in grams. Preview and confirmed Save use `label value × weight ÷ 100`, rounded once to two decimals in kcal/g/mg; blank remains unknown. Draft recovery preserves the chosen basis and raw values. Clear, recent-meal copies and replacement AI estimates restore portion-total mode; existing Pro and retry safeguards apply.
 
 ### Energy model
 

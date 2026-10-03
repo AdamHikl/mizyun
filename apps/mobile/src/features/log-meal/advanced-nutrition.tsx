@@ -83,11 +83,13 @@ export function AdvancedNutrientFields({
   enabled,
   editableWhenFree = [],
   editable = true,
+  per100g = false,
 }: {
   readonly form: MealFormStrings;
   readonly onChange: (field: keyof MealFormStrings, value: string) => void;
   readonly enabled: boolean;
   readonly editable?: boolean;
+  readonly per100g?: boolean;
   readonly editableWhenFree?: ReadonlyArray<keyof MealFormStrings>;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -119,10 +121,12 @@ export function AdvancedNutrientFields({
                 <View key={key} style={{ gap: 4 }}>
                   <ThemedText type="smallBold">
                     {key === "sodium" && saltMode ? "Salt (g)" : label}
+                    {per100g ? " per 100 g" : ""}
                   </ThemedText>
                   <TextInput
                     accessibilityLabel={
-                      key === "sodium" && saltMode ? "Salt in grams" : label
+                      (key === "sodium" && saltMode ? "Salt in grams" : label) +
+                      (per100g ? " per 100 g" : "")
                     }
                     editable={editable}
                     keyboardType="decimal-pad"

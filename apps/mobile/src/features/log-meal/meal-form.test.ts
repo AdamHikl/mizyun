@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   advancedNutrientsFromForm,
+  mealNutritionForSubmission,
   sameAdvancedNutrients,
   needsFreshAdvancedGrant,
   isRecoverableMealDraft,
@@ -14,6 +15,48 @@ import {
   portionGramsStringFromDraft,
   upgradeLegacyMealDraft,
 } from "./meal-form";
+
+describe("per-100-g form recovery", () => {
+  const form = {
+    name: "Synthetic food",
+    calories: "200",
+    protein: "10",
+    carbs: "20",
+    fat: "5",
+  };
+  it("accepts old drafts and the explicit new basis, rejects unknown bases", () => {
+    expect(isRecoverableMealDraft(form)).toBe(true);
+    expect(
+      isRecoverableMealDraft({
+        ...form,
+        nutritionBasis: "per100g",
+        portionGrams: "150",
+      }),
+    ).toBe(true);
+    expect(isRecoverableMealDraft({ ...form, nutritionBasis: "per kg" })).toBe(
+      false,
+    );
+    expect(
+      upgradeLegacyMealDraft({
+        ...form,
+        nutritionBasis: "per100g",
+        portionGrams: "150",
+      }).nutritionBasis,
+    ).toBe("per100g");
+  });
+  it("preserves total-mode values and optional weight without scaling", () => {
+    expect(mealNutritionForSubmission(form, "total", "150")).toMatchObject({
+      ok: true,
+      grams: 150,
+      nutrition: { caloriesKcal: 200, proteinG: 10 },
+    });
+    expect(mealNutritionForSubmission(form, "total", "")).toMatchObject({
+      ok: true,
+      grams: null,
+      nutrition: { caloriesKcal: 200 },
+    });
+  });
+});
 
 describe("parseOptionalNutritionNumber", () => {
   it("distinguishes blank optional values from invalid input", () => {

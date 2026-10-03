@@ -4,6 +4,11 @@ export type UserId = Brand<string, "UserId">;
 export type ConversationId = Brand<string, "ConversationId">;
 export type MemoryId = Brand<string, "MemoryId">;
 
+export {
+  nutritionForWeightFromPer100g,
+  type PortionNutrition,
+} from "./nutrition-per100g";
+
 export type Result<T, E> =
   | { readonly ok: true; readonly value: T }
   | { readonly ok: false; readonly error: E };

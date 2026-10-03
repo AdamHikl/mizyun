@@ -50,13 +50,13 @@ import {
   mealDraftFromCurrentForm,
   mealDraftForAdvancedAccess,
   mergeMealDraftIntoForm,
-  parseOptionalNutritionNumber,
+  mealNutritionForSubmission,
   portionGramsStringFromDraft,
   upgradeLegacyMealDraft,
-  advancedNutrientsFromForm,
   sameAdvancedNutrients,
   needsFreshAdvancedGrant,
   type MealFormStrings,
+  type NutritionEntryBasis,
 } from "./meal-form";
 import {
   AdvancedNutrientFields,
@@ -113,6 +113,8 @@ export function LogMealScreen() {
   const theme = useTheme();
   const [name, setName] = useState("");
   const [portionGrams, setPortionGrams] = useState("");
+  const [nutritionBasis, setNutritionBasis] =
+    useState<NutritionEntryBasis>("total");
   const [calories, setCalories] = useState("");
   const [protein, setProtein] = useState("");
   const [carbs, setCarbs] = useState("");
@@ -188,6 +190,10 @@ export function LogMealScreen() {
   const onSelectRecentMeal = useCallback(
     (meal: FoodEntry) => {
       measurement.current?.tap();
+      setNutritionBasis("total");
+      setAiDraft(null);
+      setDraftWarnings([]);
+      setSourceProposalId(null);
       setName(meal.name);
       setCalories(meal.caloriesKcal != null ? String(meal.caloriesKcal) : "");
       setProtein(meal.proteinG != null ? String(meal.proteinG) : "");
@@ -199,9 +205,7 @@ export function LogMealScreen() {
           : { name: "", calories: "", protein: "", carbs: "", fat: "" },
       );
       const grams = getEntryGrams(meal);
-      if (grams != null) {
-        setPortionGrams(String(grams));
-      }
+      setPortionGrams(grams == null ? "" : String(grams));
     },
     [advancedCapability.enabled],
   );
@@ -250,6 +254,7 @@ export function LogMealScreen() {
           const upgraded = upgradeLegacyMealDraft(draft);
           setClientOperationId(upgraded.clientOperationId);
           setConsumedAt(upgraded.consumedAt);
+          setNutritionBasis(upgraded.nutritionBasis ?? "total");
           setName(upgraded.name);
           setPortionGrams(
             upgraded.portionGrams ??
@@ -295,6 +300,7 @@ export function LogMealScreen() {
     void saveLoggingDraft(userId, "meal", {
       name,
       portionGrams,
+      nutritionBasis,
       calories,
       protein,
       carbs,
@@ -328,6 +334,7 @@ export function LogMealScreen() {
     mealDescription,
     name,
     portionGrams,
+    nutritionBasis,
     protein,
     refineInstruction,
     sourceProposalId,
@@ -343,12 +350,11 @@ export function LogMealScreen() {
     measurement.current?.tap();
     if (hadFailure.current) measurement.current?.retry();
     setError(null);
-    const parsedCalories = parseOptionalNutritionNumber(calories);
-    const parsedPortionGrams = parseOptionalNutritionNumber(portionGrams);
-    const parsedProtein = parseOptionalNutritionNumber(protein);
-    const parsedCarbs = parseOptionalNutritionNumber(carbs);
-    const parsedFat = parseOptionalNutritionNumber(fat);
-    const parsedAdvanced = advancedNutrientsFromForm(advanced);
+    const resolved = mealNutritionForSubmission(
+      { ...advanced, name, calories, protein, carbs, fat },
+      nutritionBasis,
+      portionGrams,
+    );
     const hasAdvancedInput = [
       advanced.fibre,
       advanced.saturatedFat,
@@ -356,26 +362,22 @@ export function LogMealScreen() {
       advanced.sodium,
       advanced.cholesterol,
     ].some((value) => (value ?? "").trim().length > 0);
-    if (
-      !parsedCalories.ok ||
-      !parsedPortionGrams.ok ||
-      (parsedPortionGrams.ok &&
-        parsedPortionGrams.value !== null &&
-        parsedPortionGrams.value <= 0) ||
-      !parsedProtein.ok ||
-      !parsedCarbs.ok ||
-      !parsedFat.ok ||
-      (hasAdvancedInput && parsedAdvanced === null)
-    ) {
+    if (!resolved.ok) {
       isSubmittingRef.current = false;
       setSubmitting(false);
       hadFailure.current = true;
       measurement.current?.fail("validation", "invalid_input", false);
-      setError(
-        "Portion weight, calories, and macros must be positive numbers or blank.",
-      );
+      setError(resolved.message);
       return;
     }
+    const nutrition = resolved.nutrition;
+    const parsedAdvanced = {
+      fibreG: nutrition.fibreG,
+      saturatedFatG: nutrition.saturatedFatG,
+      totalSugarsG: nutrition.totalSugarsG,
+      sodiumMg: nutrition.sodiumMg,
+      cholesterolMg: nutrition.cholesterolMg,
+    };
     const prev = submittedOperationRef.current;
     const isRetryCandidate = prev !== null && hadFailure.current;
 
@@ -391,11 +393,11 @@ export function LogMealScreen() {
       prev !== null &&
       prev.name.trim() === name.trim() &&
       (typeof prev.details?.grams === "number" ? prev.details.grams : null) ===
-        parsedPortionGrams.value &&
-      prev.caloriesKcal === parsedCalories.value &&
-      prev.proteinG === parsedProtein.value &&
-      prev.carbohydrateG === parsedCarbs.value &&
-      prev.fatG === parsedFat.value &&
+        resolved.grams &&
+      prev.caloriesKcal === nutrition.caloriesKcal &&
+      prev.proteinG === nutrition.proteinG &&
+      prev.carbohydrateG === nutrition.carbohydrateG &&
+      prev.fatG === nutrition.fatG &&
       parsedAdvanced !== null &&
       sameAdvancedNutrients(prev, parsedAdvanced) &&
       prev.consumedAt === fixedConsumedAt;
@@ -445,6 +447,7 @@ export function LogMealScreen() {
       const persisted = await saveLoggingDraft(userId, "meal", {
         name,
         portionGrams,
+        nutritionBasis,
         calories,
         protein,
         carbs,
@@ -484,9 +487,7 @@ export function LogMealScreen() {
         : null);
 
     const details: Record<string, unknown> = {
-      ...(parsedPortionGrams.value === null
-        ? {}
-        : { grams: parsedPortionGrams.value }),
+      ...(resolved.grams === null ? {} : { grams: resolved.grams }),
       ...(aiDraft === null
         ? {}
         : {
@@ -509,10 +510,10 @@ export function LogMealScreen() {
         : {
             clientOperationId: opId,
             name,
-            caloriesKcal: parsedCalories.value,
-            proteinG: parsedProtein.value,
-            carbohydrateG: parsedCarbs.value,
-            fatG: parsedFat.value,
+            caloriesKcal: nutrition.caloriesKcal,
+            proteinG: nutrition.proteinG,
+            carbohydrateG: nutrition.carbohydrateG,
+            fatG: nutrition.fatG,
             ...(hasAdvancedInput && parsedAdvanced !== null
               ? parsedAdvanced
               : {}),
@@ -568,6 +569,7 @@ export function LogMealScreen() {
     mealDescription,
     name,
     portionGrams,
+    nutritionBasis,
     protein,
     refineInstruction,
     sourceProposalId,
@@ -651,6 +653,7 @@ export function LogMealScreen() {
         }
         const advancedEnabled = await advancedCapability.refresh();
         const strings = mealFormStringsFromDraft(draft.draft);
+        setNutritionBasis("total");
         setName(strings.name);
         setPortionGrams(portionGramsStringFromDraft(draft.draft));
         setCalories(strings.calories);
@@ -707,6 +710,7 @@ export function LogMealScreen() {
         }
         const advancedEnabled = await advancedCapability.refresh();
         const strings = mealFormStringsFromDraft(result.draft);
+        setNutritionBasis("total");
         setName(strings.name);
         setPortionGrams(portionGramsStringFromDraft(result.draft));
         setCalories(strings.calories);
@@ -775,6 +779,7 @@ export function LogMealScreen() {
         }
         const advancedEnabled = await advancedCapability.refresh();
         const strings = mealFormStringsFromDraft(result.draft);
+        setNutritionBasis("total");
         setName(strings.name);
         setPortionGrams(portionGramsStringFromDraft(result.draft));
         setCalories(strings.calories);
@@ -877,6 +882,7 @@ export function LogMealScreen() {
   const onClear = useCallback(async () => {
     setName("");
     setPortionGrams("");
+    setNutritionBasis("total");
     setCalories("");
     setProtein("");
     setCarbs("");
@@ -896,6 +902,15 @@ export function LogMealScreen() {
       await clearLoggingDraft(userId, "meal");
     }
   }, [userId]);
+
+  const per100g = nutritionBasis === "per100g";
+  const servingPreview = per100g
+    ? mealNutritionForSubmission(
+        { ...advanced, name, calories, protein, carbs, fat },
+        nutritionBasis,
+        portionGrams,
+      )
+    : null;
 
   const calorieHint =
     calories.trim().length > 0 ? "calories recorded" : "calories optional";
@@ -1023,6 +1038,7 @@ export function LogMealScreen() {
               {mealDescription.trim().length >= 2 ? (
                 <Pressable
                   accessibilityRole="button"
+                  accessibilityLabel="Draft from description"
                   disabled={snapping || submitting || refining}
                   accessibilityState={{
                     busy: snapping,
@@ -1177,18 +1193,74 @@ export function LogMealScreen() {
             editable={!snapping && !refining && !submitting}
           />
 
+          {aiDraft === null ? (
+            <View style={styles.field}>
+              <ThemedText type="small" themeColor="textSecondary">
+                Nutrition values
+              </ThemedText>
+              <View style={styles.basisRow}>
+                {(
+                  [
+                    ["total", "For this portion"],
+                    ["per100g", "Per 100 g"],
+                  ] as const
+                ).map(([basis, label]) => (
+                  <Pressable
+                    key={basis}
+                    testID={`meal-basis-${basis}`}
+                    accessibilityRole="button"
+                    accessibilityLabel={label}
+                    accessibilityHint={
+                      basis === "per100g"
+                        ? "Enter food label values per 100 grams and a food weight to calculate totals."
+                        : "Enter the totals for the portion you ate."
+                    }
+                    accessibilityState={{
+                      selected: nutritionBasis === basis,
+                      disabled:
+                        submitting || snapping || refining || !draftLoaded,
+                    }}
+                    disabled={
+                      submitting || snapping || refining || !draftLoaded
+                    }
+                    onPress={() => {
+                      measurement.current?.tap();
+                      setNutritionBasis(basis);
+                    }}
+                    style={[
+                      styles.basisButton,
+                      {
+                        borderColor:
+                          nutritionBasis === basis ? theme.text : theme.border,
+                      },
+                    ]}
+                  >
+                    <ThemedText type="smallBold">{label}</ThemedText>
+                  </Pressable>
+                ))}
+              </View>
+              <ThemedText type="small" themeColor="textSecondary">
+                {per100g
+                  ? "Enter all nutrient values per 100 g from the food label. Totals = label values × food weight ÷ 100."
+                  : "Enter the nutrition totals for the portion you ate."}
+              </ThemedText>
+            </View>
+          ) : null}
+
           <Field
             testID="meal-portion-weight-input"
-            label="Portion weight (g)"
+            label={per100g ? "Food weight (g)" : "Portion weight (g)"}
             value={portionGrams}
             onChangeText={setPortionGrams}
             onFocus={() => measurement.current?.tap()}
             placeholder="e.g. 320"
-            keyboardType="numeric"
+            keyboardType="decimal-pad"
             helperText={
-              aiDraft?.portionWeightG != null
-                ? "AI estimate — review before saving"
-                : "optional"
+              per100g
+                ? "required for values per 100 g"
+                : aiDraft?.portionWeightG != null
+                  ? "AI estimate — review before saving"
+                  : "optional"
             }
             inputColor={theme.text}
             editable={!snapping && !refining && !submitting}
@@ -1196,12 +1268,12 @@ export function LogMealScreen() {
 
           <Field
             testID="meal-calories-input"
-            label="Calories (kcal)"
+            label={per100g ? "Calories (kcal / 100 g)" : "Calories (kcal)"}
             value={calories}
             onChangeText={setCalories}
             onFocus={() => measurement.current?.tap()}
             placeholder="0"
-            keyboardType="numeric"
+            keyboardType="decimal-pad"
             helperText={calorieHint}
             inputColor={theme.text}
             editable={!snapping && !refining && !submitting}
@@ -1211,12 +1283,12 @@ export function LogMealScreen() {
             <View style={styles.macroField}>
               <Field
                 testID="meal-protein-input"
-                label="Protein (g)"
+                label={per100g ? "Protein (g / 100 g)" : "Protein (g)"}
                 value={protein}
                 onChangeText={setProtein}
                 onFocus={() => measurement.current?.tap()}
                 placeholder="0"
-                keyboardType="numeric"
+                keyboardType="decimal-pad"
                 inputColor={theme.text}
                 editable={!snapping && !refining && !submitting}
               />
@@ -1224,12 +1296,12 @@ export function LogMealScreen() {
             <View style={styles.macroField}>
               <Field
                 testID="meal-carbs-input"
-                label="Carbs (g)"
+                label={per100g ? "Carbs (g / 100 g)" : "Carbs (g)"}
                 value={carbs}
                 onChangeText={setCarbs}
                 onFocus={() => measurement.current?.tap()}
                 placeholder="0"
-                keyboardType="numeric"
+                keyboardType="decimal-pad"
                 inputColor={theme.text}
                 editable={!snapping && !refining && !submitting}
               />
@@ -1237,12 +1309,12 @@ export function LogMealScreen() {
             <View style={styles.macroField}>
               <Field
                 testID="meal-fat-input"
-                label="Fat (g)"
+                label={per100g ? "Fat (g / 100 g)" : "Fat (g)"}
                 value={fat}
                 onChangeText={setFat}
                 onFocus={() => measurement.current?.tap()}
                 placeholder="0"
-                keyboardType="numeric"
+                keyboardType="decimal-pad"
                 inputColor={theme.text}
                 editable={!snapping && !refining && !submitting}
               />
@@ -1251,12 +1323,55 @@ export function LogMealScreen() {
 
           <AdvancedNutrientFields
             form={advanced}
+            per100g={per100g}
             enabled={advancedCapability.enabled}
             editable={!snapping && !refining && !submitting}
             onChange={(field, value) =>
               setAdvanced((current) => ({ ...current, [field]: value }))
             }
           />
+
+          {servingPreview !== null ? (
+            <View testID="meal-serving-preview" style={styles.field}>
+              <ThemedText type="smallBold">Totals for this portion</ThemedText>
+              {servingPreview.ok ? (
+                <ThemedText type="small" themeColor="textSecondary">
+                  {[
+                    ["Calories", servingPreview.nutrition.caloriesKcal, "kcal"],
+                    ["Protein", servingPreview.nutrition.proteinG, "g"],
+                    ["Carbs", servingPreview.nutrition.carbohydrateG, "g"],
+                    ["Fat", servingPreview.nutrition.fatG, "g"],
+                    ["Fibre", servingPreview.nutrition.fibreG, "g"],
+                    [
+                      "Saturated fat",
+                      servingPreview.nutrition.saturatedFatG,
+                      "g",
+                    ],
+                    [
+                      "Total sugars",
+                      servingPreview.nutrition.totalSugarsG,
+                      "g",
+                    ],
+                    ["Sodium", servingPreview.nutrition.sodiumMg, "mg"],
+                    [
+                      "Cholesterol",
+                      servingPreview.nutrition.cholesterolMg,
+                      "mg",
+                    ],
+                  ]
+                    .map(
+                      ([label, value, unit]) =>
+                        `${label}: ${value == null ? "unknown" : `${value} ${unit}`}`,
+                    )
+                    .join(" · ")}
+                </ThemedText>
+              ) : (
+                <ThemedText type="small" themeColor="textSecondary">
+                  {servingPreview.message}
+                </ThemedText>
+              )}
+            </View>
+          ) : null}
 
           {aiDraft !== null ? (
             <View style={styles.refineBlock}>
@@ -1421,7 +1536,7 @@ function Field(props: {
   readonly placeholder?: string;
   readonly helperText?: string;
   readonly autoFocus?: boolean;
-  readonly keyboardType?: "default" | "numeric";
+  readonly keyboardType?: "default" | "decimal-pad";
   readonly inputColor: string;
   readonly editable?: boolean;
 }) {
@@ -1463,6 +1578,15 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.four,
     paddingBottom: BottomTabInset + Spacing.six,
     gap: Spacing.three,
+  },
+  basisRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  basisButton: {
+    minHeight: 48,
+    justifyContent: "center",
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
   field: { gap: Spacing.one },
   input: {
