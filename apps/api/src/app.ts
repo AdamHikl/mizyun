@@ -1,3 +1,8 @@
+import { SupabaseRecurringMealRepository } from "@mizyun/adapter-supabase-server";
+import type { RecurringMealRepository } from "@mizyun/core";
+import { InMemoryRecurringMealRepository } from "./recurring-meal-repository.js";
+import { recurringMealsRoutes } from "./modules/recurring-meals/routes.js";
+import { createRecurringMealWorker } from "./modules/recurring-meals/worker.js";
 import { communityMediaRoutes } from "./modules/community/media-routes.js";
 import {
   SupabaseCommunityMediaService,
@@ -290,6 +295,7 @@ export interface AppDependencies {
   readonly profileRepository?: ProfileRepository;
   readonly goalRepository?: GoalRepository;
   readonly foodEntryRepository?: FoodEntryRepository;
+  readonly recurringMealRepository?: RecurringMealRepository;
   readonly exerciseRepository?: ExerciseRepository;
   readonly workoutRepository?: WorkoutRepository;
   readonly workoutSetRepository?: WorkoutSetRepository;
@@ -567,6 +573,28 @@ export const buildApp = (
     (sp
       ? new SupabaseFoodEntryRepository({ clientFor: sp.clientFor })
       : new InMemoryFoodEntryRepository());
+  const recurringMealRepository =
+    dependencies.recurringMealRepository ??
+    (sp
+      ? new SupabaseRecurringMealRepository(sp.clientFor)
+      : new InMemoryRecurringMealRepository(foodEntryRepository));
+  if (sp?.serviceRoleClient) {
+    const serviceClient = sp.serviceRoleClient;
+    const worker = createRecurringMealWorker(
+      async () => {
+        const result = await serviceClient.rpc("recurring_meal_tick", {});
+        if (result.error) throw new Error("Recurring meal tick failed");
+      },
+      () =>
+        app.log.error("Recurring meal scheduler failed; retrying next minute"),
+    );
+    app.addHook("onListen", async () => {
+      worker.start();
+    });
+    app.addHook("onClose", async () => {
+      await worker.close();
+    });
+  }
   const exerciseRepository =
     dependencies.exerciseRepository ??
     (sp
@@ -679,6 +707,7 @@ export const buildApp = (
           clientFor: sp.clientFor,
         })
       : new InMemoryAccountRepository({
+          recurringMealRepository,
           profileRepository,
           goalRepository,
           foodEntryRepository,
@@ -917,6 +946,13 @@ export const buildApp = (
     foodEntryRepository,
     betaProRepository,
     profileRepository,
+  });
+  void app.register(recurringMealsRoutes, {
+    prefix: "/v1/recurring-meals",
+    recurringMealRepository,
+    available:
+      !!sp?.serviceRoleClient ||
+      (!!dependencies.recurringMealRepository && !sp),
   });
   void app.register(foodDraftRoutes, {
     prefix: "/v1/food-entries",

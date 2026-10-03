@@ -121,6 +121,13 @@ export const accountExportSchema = z.object({
   feedback: z.array(z.unknown()).default([]),
   aiConsent: z.unknown().nullable().optional(),
   community: communityAccountExportSchema.optional(),
+  recurringMeals: z
+    .object({
+      schedules: z.array(z.record(z.unknown())),
+      occurrences: z.array(z.record(z.unknown())),
+    })
+    .strict()
+    .optional(),
   productAnalytics: z
     .object({
       consent: analyticsConsentResponseSchema.nullable(),

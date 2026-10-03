@@ -101,6 +101,10 @@ export interface AccountExport {
   readonly privateMedia: ReadonlyArray<ExportedMediaAsset>;
   readonly feedback: ReadonlyArray<UserFeedback>;
   readonly aiConsent?: StoredAiConsent | null;
+  readonly recurringMeals?: {
+    readonly schedules: readonly Record<string, unknown>[];
+    readonly occurrences: readonly Record<string, unknown>[];
+  };
   readonly community?: {
     readonly schemaVersion: "2026-09-30" | "2026-10-01";
     readonly consistency: "live_keyset";

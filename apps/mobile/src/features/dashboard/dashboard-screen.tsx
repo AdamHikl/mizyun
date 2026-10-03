@@ -582,15 +582,31 @@ export function DashboardScreen() {
         name: "feature_viewed",
         properties: { feature: "dashboard" },
       });
-      void loadMetrics();
+      let pending: Promise<void> | null = null;
+      const refreshMetrics = () => {
+        if (pending !== null) return;
+        pending = loadMetrics().finally(() => {
+          pending = null;
+        });
+      };
+      let foreground =
+        AppState.currentState !== "background" &&
+        AppState.currentState !== "inactive";
+      refreshMetrics();
       void loadSteps();
+      // Recurring meals can change nutrition while Home stays open.
+      const timer = setInterval(() => {
+        if (foreground) refreshMetrics();
+      }, 60_000);
       const subscription = AppState.addEventListener("change", (state) => {
-        if (state === "active") {
-          void loadMetrics();
+        foreground = state === "active";
+        if (foreground) {
+          refreshMetrics();
           void loadSteps();
         }
       });
       return () => {
+        clearInterval(timer);
         subscription.remove();
         stepsRequestId.current += 1;
       };

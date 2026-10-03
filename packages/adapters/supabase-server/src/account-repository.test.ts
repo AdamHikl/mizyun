@@ -806,6 +806,75 @@ describe("SupabaseAccountRepository", () => {
     expect(result.manifest?.completeness).toBe("complete");
   });
 
+  it("exports all recurring snapshots and ledger pages with the verified owner filter", async () => {
+    const schedules = Array.from({ length: 501 }, (_, index) => ({
+      id: `schedule-${index}`,
+      user_id: testUserId,
+      stopped_at: index === 0 ? "2026-10-03" : null,
+      template: { name: "Synthetic meal" },
+    }));
+    const occurrences = Array.from({ length: 502 }, (_, index) => ({
+      id: `occurrence-${index}`,
+      user_id: testUserId,
+      food_entry_id: null,
+      skipped: true,
+    }));
+    const queries: {
+      table: string;
+      column: string;
+      owner: unknown;
+      from: number;
+      to: number;
+    }[] = [];
+    const client = {
+      from: vi.fn((table: string) => {
+        let owner: unknown;
+        let column = "";
+        const query = {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn((col: string, value: unknown) => {
+            column = col;
+            owner = value;
+            return query;
+          }),
+          order: vi.fn().mockReturnThis(),
+          range: vi.fn(async (from: number, to: number) => {
+            queries.push({ table, column, owner, from, to });
+            const rows =
+              table === "recurring_meal_schedules"
+                ? schedules
+                : table === "recurring_meal_occurrences"
+                  ? occurrences
+                  : [];
+            return { data: rows.slice(from, to + 1), error: null };
+          }),
+          maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+        };
+        return query;
+      }),
+    } as unknown as RepositorySupabaseClient;
+    const clientFor = vi.fn(() => client);
+    const repo = new SupabaseAccountRepository(
+      createMockOptions({ clientFor }),
+    );
+    const result = await repo.exportForUser(testUserId, {
+      accessToken: "verified-owner-token",
+    });
+    expect(clientFor).toHaveBeenCalledWith("verified-owner-token");
+    expect(result.recurringMeals?.schedules).toEqual(schedules);
+    expect(result.recurringMeals?.occurrences).toEqual(occurrences);
+    const recurrenceQueries = queries.filter((q) =>
+      q.table.startsWith("recurring_meal_"),
+    );
+    expect(recurrenceQueries).toHaveLength(4);
+    expect(
+      recurrenceQueries.every(
+        (q) => q.column === "user_id" && q.owner === testUserId,
+      ),
+    ).toBe(true);
+    expect(recurrenceQueries.filter((q) => q.from === 500)).toHaveLength(2);
+  });
+
   it("getDeletionJobByToken retrieves active deletion job by confirmation token", async () => {
     const opts = createMockOptions();
     const repo = new SupabaseAccountRepository(opts);

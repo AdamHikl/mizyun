@@ -668,3 +668,24 @@ describe("ungroupFoodEntryWith & renameFoodGroupWith", () => {
     expect(body1.details?.mealGroupName).toBe("New Brunch");
   });
 });
+
+it("manual copies do not inherit the automatic occurrence marker", async () => {
+  const requests: RequestOptions[] = [];
+  await copyFoodEntryWith(
+    queuedClient([{ ok: true, value: { foodEntry: ENTRY } }], requests),
+    {
+      ...ENTRY,
+      details: {
+        recurringMeal: {
+          scheduleId: "schedule",
+          localDate: "2026-10-03",
+          timeZone: "UTC",
+        },
+        calculationText: "Saved calculation",
+      },
+    },
+  );
+  expect(
+    (requests[0]?.body as { details: Record<string, unknown> }).details,
+  ).toEqual({ calculationText: "Saved calculation" });
+});

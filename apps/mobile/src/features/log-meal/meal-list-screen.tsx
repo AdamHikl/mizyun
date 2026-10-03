@@ -28,6 +28,7 @@ import { BrandWordmark } from "@/components/brand-wordmark";
 import { AccountHeaderActions } from "@/components/account-header-button";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { analyticsClient } from "@/composition/analytics-client";
+import { isAutomaticallyLogged } from "@/features/recurring-meals/public-data";
 import { getSessionReadVersion } from "@/composition/api-client";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
@@ -165,6 +166,8 @@ export function MealListScreen() {
   currentOwner.current = ownerKey;
   const requestVersion = useRef(0);
   const loaded = useRef(false);
+  const paginationPending = useRef(false);
+  const historyReadPending = useRef(false);
   const lastLoad = useRef<{ version: string; completedAt: number } | null>(
     null,
   );
@@ -201,6 +204,8 @@ export function MealListScreen() {
   useEffect(() => {
     requestVersion.current += 1;
     loaded.current = false;
+    paginationPending.current = false;
+    historyReadPending.current = false;
     lastLoad.current = null;
     setState(INITIAL_STATE);
     setServerSearch(null);
@@ -215,60 +220,126 @@ export function MealListScreen() {
     setRenameTarget(null);
   }, [ownerKey]);
 
-  const load = useCallback(async (): Promise<void> => {
-    const version = ++requestVersion.current;
-    const requestOwner = ownerKey;
-    const readVersion = getSessionReadVersion();
-    setState((current) => ({
-      ...current,
-      loading: !loaded.current,
-      message: null,
-    }));
-    const result = await fetchFoodHistory();
-    if (
-      version !== requestVersion.current ||
-      requestOwner !== currentOwner.current
-    )
-      return;
-    if (result.message !== null) {
+  const load = useCallback(
+    async (preserveOlder = false): Promise<void> => {
+      const version = ++requestVersion.current;
+      historyReadPending.current = true;
+      const requestOwner = ownerKey;
+      const readVersion = getSessionReadVersion();
       setState((current) => ({
         ...current,
-        loading: false,
-        message: result.message,
+        loading: !loaded.current,
+        message: null,
       }));
-      return;
-    }
-    loaded.current = true;
-    lastLoad.current = { version: readVersion, completedAt: Date.now() };
-    if (userId && result.entries) {
-      const today = getIsoLocalDate();
-      const todayEntries = result.entries.filter((e) =>
-        e.consumedAt.startsWith(today),
-      );
-      const hasMealAfter6Pm = todayEntries.some(
-        (e) => new Date(e.consumedAt).getHours() >= 18,
-      );
-      if (hasMealAfter6Pm) {
-        void reconcileEveningReminders(userId, { hasMealAfter6Pm: true });
+      const result = await fetchFoodHistory();
+      if (
+        version !== requestVersion.current ||
+        requestOwner !== currentOwner.current
+      )
+        return;
+      historyReadPending.current = false;
+      if (result.message !== null) {
+        setState((current) => ({
+          ...current,
+          loading: false,
+          message: result.message,
+        }));
+        return;
       }
-    }
-    setState({
-      groups: result.groups,
-      entries: result.entries,
-      loading: false,
-      loadingMore: false,
-      nextCursor: result.nextCursor ?? null,
-      cutoffDateIsPartial: result.cutoffDateIsPartial ?? false,
-      message: result.message,
-    });
-  }, [userId, ownerKey]);
+      loaded.current = true;
+      lastLoad.current = { version: readVersion, completedAt: Date.now() };
+      if (userId && result.entries) {
+        const today = getIsoLocalDate();
+        const todayEntries = result.entries.filter((e) =>
+          e.consumedAt.startsWith(today),
+        );
+        const hasMealAfter6Pm = todayEntries.some(
+          (e) => new Date(e.consumedAt).getHours() >= 18,
+        );
+        if (hasMealAfter6Pm) {
+          void reconcileEveningReminders(userId, { hasMealAfter6Pm: true });
+        }
+      }
+      setState((current) => {
+        if (
+          !preserveOlder ||
+          current.entries.length === 0 ||
+          result.entries.length === 0
+        ) {
+          return {
+            groups: result.groups,
+            entries: result.entries,
+            loading: false,
+            loadingMore: false,
+            nextCursor: result.nextCursor ?? null,
+            cutoffDateIsPartial: result.cutoffDateIsPartial ?? false,
+            message: result.message,
+          };
+        }
+        const oldestIncoming = result.entries.reduce((oldest, entry) => {
+          const time = new Date(entry.consumedAt).getTime();
+          const oldestTime = new Date(oldest.consumedAt).getTime();
+          return time < oldestTime ||
+            (time === oldestTime && entry.id.localeCompare(oldest.id) < 0)
+            ? entry
+            : oldest;
+        });
+        const oldestTime = new Date(oldestIncoming.consumedAt).getTime();
+        const older = current.entries.filter((entry) => {
+          const time = new Date(entry.consumedAt).getTime();
+          return (
+            time < oldestTime ||
+            (time === oldestTime &&
+              entry.id.localeCompare(oldestIncoming.id) < 0)
+          );
+        });
+        const entries = mergeFoodEntries(older, result.entries);
+        const retainedOlderPages = older.length > 0;
+        const nextCursor = retainedOlderPages
+          ? current.nextCursor
+          : (result.nextCursor ?? null);
+        const cutoffDateIsPartial = retainedOlderPages
+          ? current.cutoffDateIsPartial
+          : (result.cutoffDateIsPartial ?? false);
+        return {
+          groups: groupFoodEntriesByDay(entries, new Date(), {
+            cutoffDateIsPartial,
+          }),
+          entries,
+          loading: false,
+          loadingMore: false,
+          nextCursor,
+          cutoffDateIsPartial,
+          message: result.message,
+        };
+      });
+    },
+    [userId, ownerKey],
+  );
 
   const loadMore = useCallback(async (): Promise<void> => {
-    if (state.loadingMore || !state.nextCursor) return;
+    if (
+      state.loadingMore ||
+      paginationPending.current ||
+      historyReadPending.current ||
+      !state.nextCursor
+    )
+      return;
+    paginationPending.current = true;
     setState((current) => ({ ...current, loadingMore: true }));
     const requestOwner = ownerKey;
-    const result = await fetchFoodHistory({ cursor: state.nextCursor });
-    if (requestOwner !== currentOwner.current) return;
+    const readRevision = requestVersion.current;
+    const result = await fetchFoodHistory({ cursor: state.nextCursor }).finally(
+      () => {
+        if (requestOwner === currentOwner.current)
+          paginationPending.current = false;
+      },
+    );
+    if (
+      requestOwner !== currentOwner.current ||
+      readRevision !== requestVersion.current
+    )
+      return;
     if (result.message !== null) {
       setState((current) => ({
         ...current,
@@ -393,18 +464,33 @@ export function MealListScreen() {
       if (
         !previous ||
         previous.version !== getSessionReadVersion() ||
-        Date.now() - previous.completedAt >= 5 * 60 * 1000
+        Date.now() - previous.completedAt >= 60 * 1000
       ) {
         void load();
       }
       void advancedCapability.refresh();
+      let foreground =
+        AppState.currentState !== "background" &&
+        AppState.currentState !== "inactive";
+      const timer = setInterval(() => {
+        if (
+          foreground &&
+          !paginationPending.current &&
+          !historyReadPending.current
+        )
+          void load(true);
+      }, 60_000);
       const subscription = AppState.addEventListener("change", (state) => {
+        foreground = state === "active";
         if (state === "active") {
           void load();
           void advancedCapability.refresh();
         }
       });
-      return () => subscription.remove();
+      return () => {
+        clearInterval(timer);
+        subscription.remove();
+      };
     }, [load, advancedCapability.refresh]),
   );
 
@@ -705,6 +791,15 @@ export function MealListScreen() {
               Manage daily nutrition, logged foods, and history.
             </ThemedText>
           </View>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Recurring meals"
+            onPress={() => router.push("/recurring-meals" as Href)}
+            style={styles.inlineButton}
+          >
+            <ThemedText type="smallBold">Recurring meals</ThemedText>
+          </Pressable>
 
           {/* Primary Action Card: Log a Meal */}
           <Pressable
@@ -1255,6 +1350,11 @@ export function MealListScreen() {
                                         `/edit-meal?id=${encodeURIComponent(child.id)}` as Href,
                                       )
                                     }
+                                    onRepeat={() =>
+                                      router.push(
+                                        `/recurring-meals?sourceEntryId=${encodeURIComponent(child.id)}` as Href,
+                                      )
+                                    }
                                     onResize={() => openPortionAdjuster(child)}
                                     onUngroup={() =>
                                       void handleUngroupItem(child)
@@ -1288,6 +1388,11 @@ export function MealListScreen() {
                             onEdit={() =>
                               router.push(
                                 `/edit-meal?id=${encodeURIComponent(clusterItem.entry.id)}` as Href,
+                              )
+                            }
+                            onRepeat={() =>
+                              router.push(
+                                `/recurring-meals?sourceEntryId=${encodeURIComponent(clusterItem.entry.id)}` as Href,
                               )
                             }
                             onResize={() =>
@@ -1536,6 +1641,7 @@ function MealEntryRow(props: {
   readonly onToggleSelect: () => void;
   readonly busy: boolean;
   readonly onEdit: () => void;
+  readonly onRepeat: () => void;
   readonly onResize: () => void;
   readonly onCopy?: () => void;
   readonly onUngroup?: () => void;
@@ -1552,6 +1658,7 @@ function MealEntryRow(props: {
     busy,
     onEdit,
     onResize,
+    onRepeat,
     onCopy,
     onUngroup,
     onDelete,
@@ -1609,6 +1716,11 @@ function MealEntryRow(props: {
         </View>
       </View>
 
+      {isAutomaticallyLogged(entry.details) ? (
+        <ThemedText type="small" themeColor="textSecondary">
+          Automatically logged · review if your meal changed
+        </ThemedText>
+      ) : null}
       {/* Semantic Macro Badges */}
       <View style={styles.macroBadgesRow}>
         {entry.caloriesKcal !== null ? (
@@ -1664,6 +1776,7 @@ function MealEntryRow(props: {
       {/* Entry Actions */}
       <View style={styles.entryActions}>
         <EntryAction label="Edit" disabled={busy} onPress={onEdit} />
+        <EntryAction label="Repeat" disabled={busy} onPress={onRepeat} />
         <EntryAction label="Resize" disabled={busy} onPress={onResize} />
         {inGroup && onUngroup !== undefined ? (
           <EntryAction label="Ungroup" disabled={busy} onPress={onUngroup} />

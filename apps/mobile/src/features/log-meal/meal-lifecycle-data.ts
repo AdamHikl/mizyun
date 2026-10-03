@@ -606,6 +606,8 @@ export const copyFoodEntryWith = async (
   now: () => Date = () => new Date(),
   includeAdvanced = false,
 ): Promise<FoodMutationResult> => {
+  const details = { ...entry.details };
+  delete details.recurringMeal;
   const payload: FoodEntryCreate = {
     name: entry.name,
     consumedAt: now().toISOString(),
@@ -622,7 +624,7 @@ export const copyFoodEntryWith = async (
           cholesterolMg: entry.cholesterolMg,
         }
       : {}),
-    details: entry.details,
+    details,
   };
   const parsed = foodEntryCreateSchema.safeParse(payload);
   if (!parsed.success) {

@@ -208,7 +208,13 @@ export class SessionReadCache implements ApiClient {
                 }
                 this.entries.set(key, {
                   value: result.value,
-                  expiresAt: this.now() + LIFETIME_MS,
+                  expiresAt:
+                    this.now() +
+                    (/^\/v1\/(?:food-entries(?:\?|$|\/summary)|energy\/summary(?:\?|$))/.test(
+                      key,
+                    )
+                      ? 60_000
+                      : LIFETIME_MS),
                   schema: options.schema,
                   bytes,
                 });

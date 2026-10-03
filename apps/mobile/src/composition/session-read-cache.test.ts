@@ -242,3 +242,28 @@ describe("personal screen navigation reads", () => {
     expect(f.request).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("server scheduled meal freshness", () => {
+  it("expires meal entries and totals after one minute while retaining other screen reads", async () => {
+    const f = fixture();
+    const paths = [
+      "/v1/food-entries?limit=200",
+      "/v1/food-entries/summary?date=2026-10-03",
+      "/v1/energy/summary?date=2026-10-03",
+      options.path,
+    ];
+    for (const path of paths) await f.cache.request({ ...options, path });
+    f.advance(59_999);
+    for (const path of paths) await f.cache.request({ ...options, path });
+    expect(f.request).toHaveBeenCalledTimes(4);
+    f.advance(1);
+    for (const path of paths) await f.cache.request({ ...options, path });
+    expect(f.request).toHaveBeenCalledTimes(7);
+  });
+  it("does not retain schedule management reads", async () => {
+    const f = fixture();
+    await f.cache.request({ ...options, path: "/v1/recurring-meals" });
+    await f.cache.request({ ...options, path: "/v1/recurring-meals" });
+    expect(f.request).toHaveBeenCalledTimes(2);
+  });
+});

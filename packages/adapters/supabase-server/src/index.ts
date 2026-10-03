@@ -320,3 +320,5 @@ export * from "./community-challenges.js";
 export * from "./community-features.js";
 
 export * from "./community-media.js";
+
+export { SupabaseRecurringMealRepository } from "./recurring-meal-repository.js";

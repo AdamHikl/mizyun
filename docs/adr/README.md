@@ -55,3 +55,5 @@
 - [ADR-0036 — Focused retrieval and validated graph reuse](0036-focused-agent-retrieval-and-graph-cache.md): accepted 2026-10-02; task-only impact, complete source/doc excerpts, safe resolution caching and repeatable proxy measurements.
 
 - [ADR-0037 — Personal screen reads at authenticated startup](0037-personal-screen-startup-reads.md): accepted for local implementation 2026-10-03; bounded memory reads, startup prefetch, write/lifecycle invalidation and retained screen content (#182).
+
+- [ADR-0038 — Durable recurring meal logging](0038-recurring-meal-logging.md): accepted 2026-10-03; server-side snapshots, timezone schedules and occurrence ledger.

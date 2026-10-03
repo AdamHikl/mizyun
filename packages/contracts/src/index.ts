@@ -806,3 +806,5 @@ export * from "./community-routines";
 export * from "./community-challenges";
 
 export * from "./community-media";
+
+export * from "./recurring-meal";

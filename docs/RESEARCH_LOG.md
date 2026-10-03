@@ -1,5 +1,11 @@
 # Research log
 
+## Recurring meal logging — 2026-10-03
+
+Primary sources reviewed before implementation: [PostgreSQL 17 named-zone conversion](https://www.postgresql.org/docs/17/functions-datetime.html), [DST gap/fold handling](https://www.postgresql.org/docs/17/datetime-invalid-input.html), [Supabase SQL functions](https://supabase.com/docs/guides/database/functions), [RLS](https://supabase.com/docs/guides/database/postgres/row-level-security), [Fastify lifecycle hooks](https://fastify.dev/docs/latest/Reference/Hooks/), [Expo SDK57](https://docs.expo.dev/versions/v57.0.0/), [Expo BackgroundTask](https://docs.expo.dev/versions/v57.0.0/sdk/background-task/), and [Expo Router](https://docs.expo.dev/versions/v57.0.0/sdk/router/). Installed adapters use Supabase JS2.x/Fastify5.x; no platform dependency upgrade.
+
+Consequences: phone background work is opportunistic and does not provide exact timed logging, so use a backend minute tick with lifecycle shutdown and no overlap. Definer RPCs use empty search_path, explicit grants and ownership checks; tables remain RLS-protected and RPC-only for writes. Date+local-time AT TIME ZONE keeps named-zone DST rules; nonexistent times shift forward and autumn folds choose the later standard-time instant. Atomic ledger materialization owns retry/concurrency; current-day-only recovery avoids silently inventing missed history. See [ADR-0038](adr/0038-recurring-meal-logging.md) and [plan](RECURRING_MEALS_PLAN_2026-10-03.md). These are implementation decisions, not proof of deployment or device acceptance.
+
 ## 2026-10-02 — Additional nutrients in AI meal drafts (#178)
 
 - [Gemini structured outputs](https://ai.google.dev/gemini-api/docs/structured-output) and [image understanding](https://ai.google.dev/gemini-api/docs/image-understanding), accessed 2026-10-02: structured schemas support numeric/null output and existing multimodal inline inputs. Consequence: preserve the current generateContent transport/schema dialect and model; extend only authorized responses, validate bounds/units and subset consistency in the application, and keep null distinct from zero. Schema conformance does not establish factual nutrition accuracy; synthetic adapters do not satisfy measured provider acceptance.

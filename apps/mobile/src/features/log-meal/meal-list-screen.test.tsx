@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FoodEntry } from "@mizyun/contracts";
 
 const mocks = vi.hoisted(() => ({
@@ -161,8 +161,7 @@ const history = () =>
       value && Array.isArray(value.entries) && Array.isArray(value.groups),
   );
 async function settle() {
-  await Promise.resolve();
-  await Promise.resolve();
+  for (let i = 0; i < 8; i++) await Promise.resolve();
 }
 
 beforeEach(() => {
@@ -250,4 +249,100 @@ describe("meal tab read lifecycle", () => {
     await settle();
     expect(history().entries).toEqual([]);
   });
+});
+
+afterEach(() => vi.useRealTimers());
+it("refreshes due meals each focused minute, retains older pages and stops polling on blur", async () => {
+  vi.useFakeTimers();
+  mocks.fetch.mockResolvedValueOnce(response([entry("first")], "older"));
+  render();
+  const cleanup = hooks.focus!() as unknown as () => void;
+  await settle();
+  const older = { ...entry("older"), consumedAt: "2026-10-01T10:00:00Z" };
+  mocks.fetch.mockResolvedValueOnce(response([older], "even-older"));
+  find(
+    render(),
+    (node) => node.props?.accessibilityLabel === "Load older meals",
+  ).props.onPress();
+  await settle();
+  let resolve!: (value: ReturnType<typeof response>) => void;
+  mocks.fetch.mockReturnValueOnce(
+    new Promise((done) => {
+      resolve = done;
+    }),
+  );
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(mocks.fetch).toHaveBeenCalledTimes(3);
+  expect(history().loading).toBe(false);
+  expect(history().entries).toHaveLength(2);
+  resolve(response([entry("automatic")]));
+  await settle();
+  expect(history().entries.map((value: FoodEntry) => value.id)).toEqual([
+    "automatic",
+    "older",
+  ]);
+  expect(history().nextCursor).toBe("even-older");
+  cleanup();
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(mocks.fetch).toHaveBeenCalledTimes(3);
+});
+
+it("retains older paginated rows tied on consumed-at time using cursor id ordering", async () => {
+  vi.useFakeTimers();
+  mocks.fetch.mockResolvedValueOnce(response([entry("z")], "older"));
+  render();
+  const cleanup = hooks.focus!() as unknown as () => void;
+  await settle();
+  mocks.fetch.mockResolvedValueOnce(response([entry("a")], "even-older"));
+  find(
+    render(),
+    (node) => node.props?.accessibilityLabel === "Load older meals",
+  ).props.onPress();
+  await settle();
+  mocks.fetch.mockResolvedValueOnce(
+    response([entry("z"), entry("y")], "first-page-cursor"),
+  );
+  await vi.advanceTimersByTimeAsync(60_000);
+  await settle();
+  expect(history().entries.map((value: FoodEntry) => value.id)).toEqual([
+    "z",
+    "y",
+    "a",
+  ]);
+  expect(history().nextCursor).toBe("even-older");
+  cleanup();
+});
+
+it("skips periodic refresh while a pagination read is pending and blocks a second page request", async () => {
+  vi.useFakeTimers();
+  mocks.fetch.mockResolvedValueOnce(response([entry("first")], "older"));
+  render();
+  const cleanup = hooks.focus!() as unknown as () => void;
+  await settle();
+  let resolve!: (value: ReturnType<typeof response>) => void;
+  mocks.fetch.mockReturnValueOnce(
+    new Promise((done) => {
+      resolve = done;
+    }),
+  );
+  const button = find(
+    render(),
+    (node) => node.props?.accessibilityLabel === "Load older meals",
+  );
+  button.props.onPress();
+  await settle();
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(mocks.fetch).toHaveBeenCalledTimes(2);
+  expect(history().loadingMore).toBe(true);
+  button.props.onPress();
+  expect(mocks.fetch).toHaveBeenCalledTimes(2);
+  resolve(
+    response(
+      [{ ...entry("older"), consumedAt: "2026-10-01T10:00:00Z" }],
+      "even-older",
+    ),
+  );
+  await settle();
+  expect(history().nextCursor).toBe("even-older");
+  cleanup();
 });

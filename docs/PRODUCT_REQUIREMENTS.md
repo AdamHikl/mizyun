@@ -191,3 +191,7 @@ The selected design is [COMM-01 revision 2026-09-30](COMMUNITY_PRODUCT_CONTRACT.
 ## MVP acceptance
 
 The MVP is ready for external beta only when all MVP-scoped requirements have linked tests or explicit manual acceptance evidence, every P0/P1 gate in `docs/QUALITY_GATES.md` passes, and no item in the AI release gate remains incomplete for any enabled AI capability.
+
+## NUTR-REC-001 — Recurring saved meals
+
+Users may explicitly authorize automatic logging from an owned confirmed saved meal at a chosen local time on selected weekdays. Schedules display their timezone and support time/day edits, pause/resume, skip today and stop. Backend generation works with the phone app closed, labels generated entries, preserves editable history and nullable nutrients, and never duplicates or recreates a deleted occurrence. User export/erasure covers snapshots and occurrence ledger. See [implementation plan and acceptance](RECURRING_MEALS_PLAN_2026-10-03.md).

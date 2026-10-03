@@ -262,9 +262,26 @@ export class SupabaseAccountRepository implements AccountRepository {
     let memoryCount = 0;
     let hasMediaSigningFailures = false;
     let community: AccountExport["community"];
+    let recurringMeals: AccountExport["recurringMeals"];
 
     if (this.#clientFor !== null) {
       const client = this.#clientFor(token);
+      recurringMeals = {
+        schedules: await fetchAllPaged(
+          client,
+          "recurring_meal_schedules",
+          "user_id",
+          userId,
+          "id",
+        ),
+        occurrences: await fetchAllPaged(
+          client,
+          "recurring_meal_occurrences",
+          "user_id",
+          userId,
+          "id",
+        ),
+      };
       if (this.#communityLifecycleEnabled)
         community = await exportCommunityAccount(client);
 
@@ -629,6 +646,7 @@ export class SupabaseAccountRepository implements AccountRepository {
     return {
       manifest,
       ...(community ? { community } : {}),
+      ...(recurringMeals ? { recurringMeals } : {}),
       userId,
       generatedAt: now,
       profile,
