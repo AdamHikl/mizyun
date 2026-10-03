@@ -2,6 +2,14 @@
 
 > Updated 2026-10-03. Earlier work and exact acceptance evidence are preserved in [the pre-expansions archive](docs/archive/status/STATUS_COMMUNITY_PRE_EXPANSIONS_2026-10-01.md). Historical next actions are not current instructions.
 
+## Main integration — 2026-10-03
+
+Adam authorized pushing the verified combined branch to `main`. Fetched `origin/main` and local `main` are both `1797fedbf3818b2f228b88decde6f2a91bfa2405`; candidate `4a921e47f77cf1d41fd603c0c6573a71692e7039` is four commits ahead with zero divergence. Fast-forward preserves the exact tested runtime source418ad64 and adds only the recorded delivery evidence. Same-session combined and committed-candidate `pnpm check` runs passed; no runtime changes occurred afterward. Coordinator inspected the comparison and main-push workflows; no Supabase paths changed, so the path-filtered hosted migration workflow is not triggered by this integration. Independent helper review found no integration blocker. Scoped final formatting/navigation/diff checks cover this continuity addition.
+
+**Integration:** approved clean fast-forward to the combined candidate plus this continuity record; coordinator pushes without force and verifies the resulting remote SHA in the handoff.
+
+**Next exact action:** complete the installed-device acceptance cases listed below. Existing Dev deployment/install evidence and #168/#178/#182 device acceptance dependencies below remain unchanged; a main push is not Production promotion.
+
 ## Combined Dev delivery — 2026-10-03
 
 All 49 pending files committed and pushed on `codex/ai-advanced-nutrients` at `418ad64b61b26ed8c12a39732737cc477796195a`, including personal startup/retained reads (#182), Community retained feed (#168), and focused agent navigation (#180); advanced AI nutrients (#178) are included through ancestor `86214068ae5bf92e38c11a668410d1315f481e62`. Independent read-only non-author review found no blocking source defect in cache identity/invalidation, Community authority retention or deployment/installation safeguards. Coordinator performed all Git/remote operations.
