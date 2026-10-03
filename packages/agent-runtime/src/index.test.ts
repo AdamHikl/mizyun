@@ -672,6 +672,39 @@ describe("extractAssistantText", () => {
     ).toBe("Fenced workout answer.");
   });
 
+  it.each([
+    '{answer: "Keep logging your meals."}',
+    "{answer: Keep logging your meals.}",
+    '{"answer":"Keep logging your meals.',
+    '```json\n{"answer":"Keep logging your meals.',
+    '{"answer":"Keep logging your meals."} trailing data',
+    '[{"answer":"Keep logging your meals."}',
+    JSON.stringify({ answer: '{answer: "Keep logging your meals."}' }),
+    '{"answer":"Keep logging\nyour meals."}',
+    '{"answer":"Keep logging your meals.",}',
+  ])("rejects malformed or incomplete structured output: %s", (raw) => {
+    expect(extractAssistantText(raw)).toBeNull();
+  });
+
+  it("preserves conversational markdown and code fences", () => {
+    for (const text of [
+      "[Meal logging](https://example.com) can help.",
+      "[1](https://example.com) meal logging tip.",
+      "[1]: https://example.com\n\nSee [1] for details.",
+      "[1][source] can help with meal logging.",
+      "[ ] Log a meal.",
+      "**Next step**\n\n- Log lunch.\n- Take a walk.",
+      "```text\nLog lunch.\n```",
+    ]) {
+      expect(extractAssistantText(text)).toBe(text);
+    }
+  });
+
+  it("preserves escaped quotes, newlines and braces in valid answer text", () => {
+    const answer = 'Try the "Log Meal" button.\n\nUse {small steps}.';
+    expect(extractAssistantText(JSON.stringify({ answer }))).toBe(answer);
+  });
+
   it("extracts text from nested { response: { message: '...' } }", () => {
     expect(
       extractAssistantText(

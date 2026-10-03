@@ -124,6 +124,50 @@ describe("GeminiAgentProvider", () => {
     expect(response.message.text).toBe("Keep logging your meals consistently.");
   });
 
+  it.each([
+    '{answer: "Keep logging your meals."}',
+    '{"answer":"Keep logging your meals.',
+    '```json\n{"answer":"Keep logging your meals.',
+  ])("rejects malformed final text after tool use: %s", async (text) => {
+    const generateContent = vi.fn<GeminiChatClient["generateContent"]>(
+      async () => ({
+        ...validGeminiResponse,
+        candidates: [
+          {
+            content: { role: "model", parts: [{ text }] },
+            finishReason: "STOP",
+          },
+        ],
+      }),
+    );
+    const provider = new GeminiAgentProvider({
+      apiKey: "test-gemini-key-12345",
+      model: "gemini-2.5-flash",
+      timeoutMs: 5_000,
+      maxOutputTokens: 1_000,
+      externalAccess: true,
+      client: { generateContent },
+    });
+    await expect(
+      provider.respond({
+        ...request,
+        requestedToolCalls: [
+          { id: "history", name: "get_meal_history", args: {} },
+        ],
+        toolResults: [
+          {
+            id: "history",
+            name: "get_meal_history",
+            evidence: request.grounding[0]!,
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({ kind: "malformed_response" });
+    expect(
+      generateContent.mock.calls[0]?.[0].generationConfig,
+    ).not.toHaveProperty("responseMimeType");
+  });
+
   it("handles tool calling functionCall parts", async () => {
     const generateContent = vi.fn<GeminiChatClient["generateContent"]>(
       async () => ({

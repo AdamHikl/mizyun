@@ -75,22 +75,30 @@ export const COACH_SYSTEM_POLICY = [
  */
 export const extractAssistantText = (candidate: unknown): string | null => {
   if (typeof candidate === "string") {
-    const trimmed = candidate
-      .replace(/^```(?:json)?\s*/i, "")
+    const original = candidate.trim();
+    // Unwrap only JSON envelopes, leaving conversational Markdown intact.
+    const unfenced = original
+      .replace(/^```(?:json\b)?\s*/i, "")
       .replace(/\s*```$/, "")
       .trim();
+    const markdownPrefix =
+      /^\[[^\]\n]*\](?:\(|\[|:)/.test(unfenced) ||
+      /^\[[ xX]\]\s+\S/.test(unfenced);
+    const structured =
+      unfenced.startsWith("{") ||
+      (!markdownPrefix &&
+        /^\[\s*(?:[\[\{"\]\d-]|true\b|false\b|null\b)/.test(unfenced));
+    const trimmed = structured ? unfenced : original;
     if (trimmed.length === 0) return null;
-    if (
-      (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
-      (trimmed.startsWith("[") && trimmed.endsWith("]"))
-    ) {
+    if (structured) {
       try {
         const parsed = JSON.parse(trimmed);
         const fromParsed = extractAssistantText(parsed);
         if (fromParsed !== null) return fromParsed;
         return null;
       } catch {
-        return trimmed;
+        // Malformed/truncated provider envelopes are not conversational text.
+        return null;
       }
     }
     return trimmed;

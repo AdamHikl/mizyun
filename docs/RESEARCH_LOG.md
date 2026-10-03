@@ -1,5 +1,10 @@
 # Research log
 
+## Coach response envelopes (#184) — 2026-10-03
+
+- [Gemini structured outputs](https://ai.google.dev/gemini-api/docs/structured-output) and [function calling](https://ai.google.dev/gemini-api/docs/function-calling), accessed today: application validation remains required; schema/tool combinations have model-specific support. Consequence: keep the existing generateContent configuration/model and tool-history compatibility, reject malformed or truncated JSON envelopes instead of returning their raw text, and preserve valid conversational Markdown. Synthetic provider fixtures exercise the existing unconstrained tool-history path; no live model calls or provider acceptance are inferred.
+- [Fastify5 reply serialization](https://fastify.dev/docs/latest/Reference/Reply/), accessed today: HTTP serialization preserves string field values; it does not extract model envelopes. Consequence: normalize assistant text in the existing message-to-wire boundary for historical conversation reads and idempotent replies, preserving user text and stored rows. No schema, access, budget, native dependency or architectural change; no ADR required.
+
 ## Recurring meal logging — 2026-10-03
 
 Primary sources reviewed before implementation: [PostgreSQL 17 named-zone conversion](https://www.postgresql.org/docs/17/functions-datetime.html), [DST gap/fold handling](https://www.postgresql.org/docs/17/datetime-invalid-input.html), [Supabase SQL functions](https://supabase.com/docs/guides/database/functions), [RLS](https://supabase.com/docs/guides/database/postgres/row-level-security), [Fastify lifecycle hooks](https://fastify.dev/docs/latest/Reference/Hooks/), [Expo SDK57](https://docs.expo.dev/versions/v57.0.0/), [Expo BackgroundTask](https://docs.expo.dev/versions/v57.0.0/sdk/background-task/), and [Expo Router](https://docs.expo.dev/versions/v57.0.0/sdk/router/). Installed adapters use Supabase JS2.x/Fastify5.x; no platform dependency upgrade.

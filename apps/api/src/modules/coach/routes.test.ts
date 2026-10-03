@@ -12,6 +12,7 @@ import {
 import {
   DEFAULT_TIMEZONE,
   DEFAULT_UNIT_SYSTEM,
+  type ConversationId,
   type PlanTier,
   type ProfileRepository,
   type UserId,
@@ -424,6 +425,103 @@ describe("coach routes", () => {
     expect(assistantMessage.text).not.toContain('{"response":');
     expect(assistantMessage.text).not.toContain('"workout_plan":');
     expect(assistantMessage.text).toContain("V-shape");
+  });
+
+  it.each([
+    '{answer: "Keep logging your meals."}',
+    '{"answer":"Keep logging your meals.',
+    JSON.stringify({ answer: "Keep logging your meals." }),
+  ])(
+    "normalizes historical assistant text on read and replay: %s",
+    async (rawText) => {
+      const repository = new InMemoryConversationRepository();
+      const { app, respond } = makeApp(undefined, repository);
+      const id = await createConversation(app);
+      const conversationId = id as ConversationId;
+      const options = { accessToken: "test-access-token", now: new Date() };
+      const userText = '{answer: "How do I log a meal?"}';
+      const userMessage = await repository.addMessage(
+        userId,
+        {
+          id: crypto.randomUUID(),
+          conversationId,
+          role: "user",
+          text: userText,
+          status: "complete",
+          idempotencyKey: "historical-response-key",
+        },
+        options,
+      );
+      const assistant = await repository.addMessage(
+        userId,
+        {
+          id: crypto.randomUUID(),
+          conversationId,
+          role: "assistant",
+          text: rawText,
+          status: "complete",
+          idempotencyKey: null,
+          providerMetadata: { provider: "gemini", replyTo: userMessage.id },
+        },
+        options,
+      );
+      const expected =
+        rawText.startsWith('{"answer":') && rawText.endsWith("}")
+          ? "Keep logging your meals."
+          : "I couldn't read that Coach response. Please send your message again.";
+      const thread = await app.inject({
+        method: "GET",
+        url: `/v1/coach/conversations/${id}`,
+        headers: auth,
+      });
+      expect(thread.statusCode).toBe(200);
+      expect(thread.json().messages).toMatchObject([
+        { id: userMessage.id, text: userText },
+        { id: assistant.id, text: expected },
+      ]);
+      const replay = await sendMessage(
+        app,
+        id,
+        "historical-response-key",
+        userText,
+      );
+      expect(replay.statusCode).toBe(200);
+      expect(replay.json().assistantMessage.text).toBe(expected);
+      expect(replay.json().userMessage.text).toBe(userText);
+      expect(respond).not.toHaveBeenCalled();
+      const stored = await repository.listMessages(userId, conversationId, {
+        ...options,
+        limit: 10,
+      });
+      expect(stored[1]?.text).toBe(rawText);
+    },
+  );
+
+  it("never persists malformed structured assistant text from a provider", async () => {
+    const { app } = makeApp(
+      vi.fn<AgentProvider["respond"]>().mockImplementation(async (request) => ({
+        message: {
+          role: "assistant",
+          text: '{answer: "Keep logging your meals."}',
+        },
+        provider: "fake",
+        evidence: request.grounding,
+      })),
+    );
+    const id = await createConversation(app);
+    const response = await sendMessage(app, id, "malformed-response-key");
+    expect(response.statusCode).toBe(200);
+    expect(response.json().assistantMessage.text).toBe(
+      "I couldn't read that Coach response. Please send your message again.",
+    );
+    const thread = await app.inject({
+      method: "GET",
+      url: `/v1/coach/conversations/${id}`,
+      headers: auth,
+    });
+    expect(thread.json().messages[1].text).toBe(
+      response.json().assistantMessage.text,
+    );
   });
 
   it("handles custom workout plan proposed directly by LLM via propose_workout_plan tool", async () => {
