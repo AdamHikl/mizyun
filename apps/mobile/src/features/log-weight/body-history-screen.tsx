@@ -1,6 +1,7 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   Alert,
   Pressable,
   ScrollView,
@@ -34,7 +35,7 @@ const EMPTY_TREND: WeightTrendSummary = {
 };
 
 export function BodyHistoryScreen() {
-  const { profile } = useAuth();
+  const { profile, session } = useAuth();
   const unitSystem = profile?.unitSystem ?? "metric";
   const [measurements, setMeasurements] = useState<
     ReadonlyArray<BodyMeasurement>
@@ -43,14 +44,41 @@ export function BodyHistoryScreen() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
+  const ownerKey = `${session?.user.id ?? ""}:${session?.accessToken ?? ""}`;
+  const currentOwner = useRef(ownerKey);
+  currentOwner.current = ownerKey;
+  const requestVersion = useRef(0);
+  const loaded = useRef(false);
+  useEffect(() => {
+    requestVersion.current += 1;
+    loaded.current = false;
+    setMeasurements([]);
+    setTrend(EMPTY_TREND);
+    setMessage(null);
     setLoading(true);
+  }, [ownerKey]);
+
+  const refresh = useCallback(async () => {
+    const version = ++requestVersion.current;
+    const requestOwner = ownerKey;
+    setLoading(!loaded.current);
     const result = await fetchBodyHistory();
+    if (
+      version !== requestVersion.current ||
+      requestOwner !== currentOwner.current
+    )
+      return;
+    if (result.message !== null) {
+      setMessage(result.message);
+      setLoading(false);
+      return;
+    }
+    loaded.current = true;
     setMeasurements(result.measurements);
     setTrend(result.trend);
     setMessage(result.message);
     setLoading(false);
-  }, []);
+  }, [ownerKey]);
 
   useFocusEffect(
     useCallback(() => {
@@ -59,6 +87,10 @@ export function BodyHistoryScreen() {
         properties: { feature: "body_history" },
       });
       void refresh();
+      const subscription = AppState.addEventListener("change", (state) => {
+        if (state === "active") void refresh();
+      });
+      return () => subscription.remove();
     }, [refresh]),
   );
 

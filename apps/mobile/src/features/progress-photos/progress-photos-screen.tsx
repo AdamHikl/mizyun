@@ -3,9 +3,10 @@ import { File } from "expo-file-system";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   Alert,
   Pressable,
   ScrollView,
@@ -91,18 +92,43 @@ export function ProgressPhotosScreen() {
     ? { userId: session.user.id, accessToken: session.accessToken }
     : null;
 
+  const ownerKey = `${principal?.userId ?? ""}:${principal?.accessToken ?? ""}`;
+  const currentOwner = useRef(ownerKey);
+  currentOwner.current = ownerKey;
+  const requestVersion = useRef(0);
+  const loaded = useRef(false);
+  useEffect(() => {
+    requestVersion.current += 1;
+    loaded.current = false;
+    setTimeline(null);
+    setSelectedPhoto(null);
+    setSelectedIds([]);
+    setComparison(null);
+    setConsented(false);
+    setError(null);
+    setLoading(principal !== null);
+  }, [ownerKey]);
+
   const refresh = useCallback(async (): Promise<void> => {
     if (principal === null) return;
-    setLoading(true);
+    const version = ++requestVersion.current;
+    const requestOwner = ownerKey;
+    setLoading(!loaded.current);
     const result = await fetchProgressTimeline(apiClient, principal);
+    if (
+      version !== requestVersion.current ||
+      requestOwner !== currentOwner.current
+    )
+      return;
     if (result.ok) {
+      loaded.current = true;
       setTimeline(result.value);
       setError(null);
     } else {
       setError(progressPhotoErrorMessage(result.error));
     }
     setLoading(false);
-  }, [principal?.accessToken, principal?.userId]);
+  }, [principal?.accessToken, principal?.userId, ownerKey]);
 
   useFocusEffect(
     useCallback(() => {
@@ -111,6 +137,10 @@ export function ProgressPhotosScreen() {
         properties: { feature: "progress_photos" },
       });
       void refresh();
+      const subscription = AppState.addEventListener("change", (state) => {
+        if (state === "active") void refresh();
+      });
+      return () => subscription.remove();
     }, [refresh]),
   );
 

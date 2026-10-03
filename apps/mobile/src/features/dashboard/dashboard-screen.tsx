@@ -1,5 +1,6 @@
 import {
   ActivityIndicator,
+  AppState,
   Platform,
   Pressable,
   RefreshControl,
@@ -18,7 +19,7 @@ import { ThemedView } from "@/components/themed-view";
 import { BrandWordmark } from "@/components/brand-wordmark";
 import { AccountHeaderActions } from "@/components/account-header-button";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
-import { apiClient } from "@/composition/api-client";
+import { apiClient, invalidateSessionReads } from "@/composition/api-client";
 import { analyticsClient } from "@/composition/analytics-client";
 import { isProgressPhotosEnabled } from "@/composition/app-variant";
 import { useAuth } from "@/features/auth/auth-context";
@@ -260,6 +261,19 @@ export function DashboardScreen() {
   const userId = session?.user.id ?? null;
   const accessToken = session?.accessToken ?? null;
   const unitSystem = profile?.unitSystem ?? "metric";
+  const ownerKey = `${userId ?? ""}:${accessToken ?? ""}`;
+  const currentOwner = useRef(ownerKey);
+  currentOwner.current = ownerKey;
+  const loadedMetrics = useRef(false);
+  useEffect(() => {
+    activeRequestId.current += 1;
+    stepsRequestId.current += 1;
+    loadedMetrics.current = false;
+    setMetrics(EMPTY_METRICS);
+    setSteps({ kind: "off" });
+    setRecentMeal(null);
+    setFirstMealReminders(null);
+  }, [ownerKey]);
 
   const principal =
     userId === null || accessToken === null
@@ -277,6 +291,10 @@ export function DashboardScreen() {
       return;
     }
     const requestId = ++activeRequestId.current;
+    const requestOwner = ownerKey;
+    const isCurrentRequest = () =>
+      requestId === activeRequestId.current &&
+      requestOwner === currentOwner.current;
     const now = new Date();
     const todayDate = isoLocalDate(now);
     const utcOffsetMinutes = -now.getTimezoneOffset();
@@ -287,13 +305,13 @@ export function DashboardScreen() {
 
     setMetrics((current) => ({
       ...current,
-      loading: true,
+      loading: !loadedMetrics.current,
       hasError: false,
       sectionStatus: {
-        nutritionToday: { loading: true, hasError: false },
-        weight: { loading: true, hasError: false },
-        energy: { loading: true, hasError: false },
-        review: { loading: true, hasError: false },
+        nutritionToday: { loading: !loadedMetrics.current, hasError: false },
+        weight: { loading: !loadedMetrics.current, hasError: false },
+        energy: { loading: !loadedMetrics.current, hasError: false },
+        review: { loading: !loadedMetrics.current, hasError: false },
       },
     }));
 
@@ -301,17 +319,18 @@ export function DashboardScreen() {
     let cachedSnapshot: CachedDashboardSnapshot | null = null;
     if (userId) {
       void loadFirstMealReminders(userId).then((stored) => {
-        setFirstMealReminders(stored);
+        if (isCurrentRequest()) setFirstMealReminders(stored);
       });
       void fetchFoodHistory({ limit: 5 }).then((res) => {
-        setRecentMeal(extractMostRecentEligibleMeal(res.entries));
+        if (isCurrentRequest())
+          setRecentMeal(extractMostRecentEligibleMeal(res.entries));
       });
       cachedSnapshot = await loadCachedDashboard(
         userId,
         todayDate,
         reviewPeriod,
       );
-      if (requestId !== activeRequestId.current) return;
+      if (!isCurrentRequest()) return;
       if (cachedSnapshot !== null) {
         setMetrics((current) => {
           if (
@@ -370,7 +389,7 @@ export function DashboardScreen() {
       weightPromise,
       energyPromise,
     ]).then(([summary, weight, energy]) => {
-      if (requestId !== activeRequestId.current) return;
+      if (!isCurrentRequest()) return;
 
       setMetrics((current) => {
         const hasNutritionError = summary.error !== null;
@@ -446,7 +465,7 @@ export function DashboardScreen() {
       historicalReviewPromise,
       todaySummaryPromise,
     ]).then(([count, historicalResult, summaryResult]) => {
-      if (requestId !== activeRequestId.current) return;
+      if (!isCurrentRequest()) return;
 
       const hasHistoricalError = historicalResult.error !== null;
       const hasWorkoutsError = count.error !== null;
@@ -489,7 +508,8 @@ export function DashboardScreen() {
 
     // Wait for all to settle before saving cache and clearing overall loading
     await Promise.allSettled([dailySignalsPromise, reviewSignalsPromise]);
-    if (requestId !== activeRequestId.current) return;
+    if (!isCurrentRequest()) return;
+    loadedMetrics.current = true;
 
     setMetrics((current) => {
       const overallHasError =
@@ -534,11 +554,13 @@ export function DashboardScreen() {
         cachedAt: dailyOffline ? current.cachedAt : null,
       };
     });
-  }, [accessToken, reviewPeriod, userId]);
+  }, [accessToken, reviewPeriod, userId, ownerKey]);
 
   const loadSteps = useCallback(async (): Promise<void> => {
     const requestId = ++stepsRequestId.current;
-    setSteps({ kind: "loading" });
+    setSteps((current) =>
+      current.kind === "off" ? { kind: "loading" } : current,
+    );
     if (userId === null) {
       setSteps({ kind: "off" });
       return;
@@ -548,6 +570,7 @@ export function DashboardScreen() {
   }, [userId]);
 
   const handleRefresh = useCallback(async () => {
+    invalidateSessionReads();
     setRefreshing(true);
     await Promise.all([loadMetrics(), loadSteps()]);
     setRefreshing(false);
@@ -561,7 +584,14 @@ export function DashboardScreen() {
       });
       void loadMetrics();
       void loadSteps();
+      const subscription = AppState.addEventListener("change", (state) => {
+        if (state === "active") {
+          void loadMetrics();
+          void loadSteps();
+        }
+      });
       return () => {
+        subscription.remove();
         stepsRequestId.current += 1;
       };
     }, [loadMetrics, loadSteps]),

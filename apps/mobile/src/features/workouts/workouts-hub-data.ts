@@ -440,7 +440,12 @@ export const fetchWorkoutsHubData = async (
     activeAndPlanned,
     completed,
     exercises,
-    message: null,
+    message:
+      !routineResult.ok ||
+      !exerciseResult.ok ||
+      setsResults.some((result) => !result.ok)
+        ? "Some workout details could not be loaded. Pull to refresh to try again."
+        : null,
   };
 };
 

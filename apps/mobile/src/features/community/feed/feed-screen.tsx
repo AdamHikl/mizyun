@@ -33,7 +33,12 @@ import { scopeCommunityClient } from "../scoped-client";
 import { useCommunityPalette } from "../community-presentation";
 import { FeedController } from "./controller";
 import { ActivityCard } from "./activity-card";
-import { invalidateCommunityReads } from "../state/read-cache";
+import {
+  getCommunityReadDeadline,
+  getCommunityReadEpoch,
+  getCommunityResponseEpoch,
+  invalidateCommunityReads,
+} from "../state/read-cache";
 
 export function FeedScreen() {
   const { session, profile } = useAuth();
@@ -45,6 +50,7 @@ export function FeedScreen() {
       key={principalKey ?? "signed-out"}
       principalKey={principalKey}
       birthYear={birthYear}
+      accessToken={session?.accessToken ?? null}
     />
   );
 }
@@ -52,9 +58,11 @@ export function FeedScreen() {
 function FeedScreenContent({
   principalKey,
   birthYear,
+  accessToken,
 }: {
   readonly principalKey: string | null;
   readonly birthYear?: number | null;
+  readonly accessToken: string | null;
 }) {
   const colors = useTheme();
   const accents = useCommunityPalette();
@@ -66,6 +74,15 @@ function FeedScreenContent({
   });
   const [membershipVerified, setMembershipVerified] = useState(false);
   const membershipRevision = useRef(0);
+  const membershipIdentity = useRef({ accessToken, birthYear });
+  const [, setNavigationRevision] = useState(0);
+  const retainedMembership = useRef<{
+    deadline: number;
+    epoch: number;
+    token: string | null;
+    birthYear: number | null | undefined;
+    generation: number | undefined;
+  } | null>(null);
   // Remembers presentation only, never permission or protected feed content.
   const hasShownHub = useRef(false);
   const prefetchedFeed = useRef<{ generation: number | undefined } | null>(
@@ -104,6 +121,58 @@ function FeedScreenContent({
     controller.getSnapshot,
   );
 
+  const canRetain = useCallback(() => {
+    const retained = retainedMembership.current;
+    return (
+      retained !== null &&
+      retained.deadline > Date.now() &&
+      retained.epoch === getCommunityReadEpoch() &&
+      retained.token === accessToken &&
+      retained.birthYear === birthYear &&
+      retained.generation === community.profile?.generation &&
+      community.status === "ready" &&
+      community.isEnrolled &&
+      controller.canRetainForNavigation()
+    );
+  }, [
+    accessToken,
+    birthYear,
+    community.status,
+    community.isEnrolled,
+    community.profile?.generation,
+    controller,
+  ]);
+  // Record original read deadlines; navigation never extends them.
+  useEffect(() => {
+    const deadline = getCommunityReadDeadline(community.profile);
+    if (
+      membershipVerified &&
+      community.isEnrolled &&
+      deadline !== undefined &&
+      getCommunityResponseEpoch(community.profile) ===
+        getCommunityReadEpoch() &&
+      membershipIdentity.current.accessToken === accessToken &&
+      membershipIdentity.current.birthYear === birthYear &&
+      controller.canRetainForNavigation()
+    ) {
+      retainedMembership.current = {
+        deadline,
+        epoch: getCommunityReadEpoch(),
+        token: accessToken,
+        birthYear,
+        generation: community.profile?.generation,
+      };
+    }
+  }, [
+    membershipVerified,
+    community.profile,
+    community.isEnrolled,
+    accessToken,
+    birthYear,
+    controller,
+    state,
+  ]);
+
   const focused = useRef(false);
   const foreground = useRef(AppState.currentState === "active");
   const enrolled = useRef(community.isEnrolled);
@@ -115,6 +184,8 @@ function FeedScreenContent({
     if (enrolled.current) void controller.refresh();
   }, [controller, membershipVerified]);
   const revalidateMembership = useCallback(async () => {
+    retainedMembership.current = null;
+    membershipIdentity.current = { accessToken, birthYear };
     const revision = ++membershipRevision.current;
     setMembershipVerified(false);
     setManualRefreshing(false);
@@ -141,18 +212,35 @@ function FeedScreenContent({
     )
       return;
     setMembershipVerified(true);
-  }, [controller, community.actions.load, principalKey]);
+  }, [
+    controller,
+    community.actions.load,
+    principalKey,
+    accessToken,
+    birthYear,
+  ]);
+  const retainNavigation = useRef(canRetain);
+  retainNavigation.current = canRetain;
   useFocusEffect(
     useCallback(() => {
       focused.current = true;
-      void revalidateMembership();
+      setNavigationRevision(membershipRevision.current);
+      if (retainNavigation.current()) {
+        alive.current = true;
+        controller.resume();
+      } else void revalidateMembership();
       return () => {
         membershipRevision.current += 1;
         focused.current = false;
-        setMembershipVerified(false);
+        const retain = retainNavigation.current();
+        if (!retain) {
+          retainedMembership.current = null;
+          setMembershipVerified(false);
+        }
         setManualRefreshing(false);
         alive.current = false;
-        controller.pause();
+        if (retain) controller.suspend();
+        else controller.pause();
       };
     }, [controller, revalidateMembership]),
   );
@@ -161,6 +249,7 @@ function FeedScreenContent({
       if (foreground.current === (next === "active")) return;
       foreground.current = next === "active";
       if (next !== "active") {
+        retainedMembership.current = null;
         membershipRevision.current += 1;
         setMembershipVerified(false);
         setManualRefreshing(false);
@@ -268,6 +357,9 @@ function FeedScreenContent({
   // Opening Community never enrolls or shares on the user's behalf.
   const checkingMembership =
     !membershipVerified ||
+    membershipIdentity.current.accessToken !== accessToken ||
+    membershipIdentity.current.birthYear !== birthYear ||
+    (!focused.current && !canRetain()) ||
     community.status === "loading" ||
     community.status === "idle";
   const showPublicHub = checkingMembership && hasShownHub.current;
@@ -654,7 +746,7 @@ function FeedScreenContent({
       </View>
       <FlatList
         data={
-          (membershipVerified && feedGenerationMatches && community.isEnrolled
+          (!checkingMembership && feedGenerationMatches && community.isEnrolled
             ? state.items
             : []) as SharedActivityFeedItemDto[]
         }

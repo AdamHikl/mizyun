@@ -1,6 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  realController: false,
+  navigationValid: false,
+  deadline: undefined as number | undefined,
+  epoch: 0,
+  responseEpoch: undefined as number | undefined,
+  token: "token-a",
   enrolled: false,
   generation: 1,
   feedError: null as string | null,
@@ -9,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   status: "ready",
   refresh: vi.fn(),
   pause: vi.fn(),
+  suspend: vi.fn(),
   request: vi.fn(),
   load: vi.fn(),
   focus: null as null | (() => () => void),
@@ -111,7 +118,10 @@ vi.mock("expo-router", async () => {
 });
 vi.mock("@/hooks/use-theme", () => ({ useTheme: () => ({}) }));
 vi.mock("@/features/auth/auth-context", () => ({
-  useAuth: () => ({ session: { user: { id: "account-a" } }, profile: {} }),
+  useAuth: () => ({
+    session: { user: { id: "account-a" }, accessToken: mocks.token },
+    profile: {},
+  }),
 }));
 vi.mock("@/composition/api-client", () => ({
   apiClient: { request: mocks.request },
@@ -125,22 +135,40 @@ vi.mock("../use-community-profile", () => ({
   }),
 }));
 vi.mock("./activity-card", () => ({ ActivityCard: "ActivityCard" }));
-vi.mock("./controller", () => ({
-  FeedController: class {
-    subscribe = vi.fn();
-    getSnapshot = () => ({
-      status: mocks.feedStatus,
-      items: mocks.feedItems,
-      hasMore: false,
-      error: mocks.feedError,
-    });
-    pause = mocks.pause;
-    resume = vi.fn();
-    refresh = mocks.refresh;
-  },
-}));
+vi.mock("./controller", async (original) => {
+  const actual = await original<typeof import("./controller")>();
+  return {
+    FeedController: function (
+      ...args: ConstructorParameters<typeof actual.FeedController>
+    ) {
+      if (mocks.realController) return new actual.FeedController(...args);
+      return {
+        subscribe: vi.fn(),
+        getSnapshot: () => ({
+          status: mocks.feedStatus,
+          items: mocks.feedItems,
+          hasMore: false,
+          error: mocks.feedError,
+        }),
+        canRetainForNavigation: () => mocks.navigationValid,
+        suspend: mocks.suspend,
+        pause: mocks.pause,
+        resume: vi.fn(),
+        refresh: mocks.refresh,
+      };
+    },
+  };
+});
 vi.mock("../community-settings-screen", () => ({
   CommunitySettingsScreen: "CommunitySettingsScreen",
+}));
+vi.mock("../state/read-cache", () => ({
+  getCommunityReadDeadline: () => mocks.deadline,
+  getCommunityReadEpoch: () => mocks.epoch,
+  getCommunityResponseEpoch: () => mocks.responseEpoch,
+  invalidateCommunityReads: () => {
+    mocks.epoch++;
+  },
 }));
 import { FeedScreen } from "./feed-screen";
 
@@ -167,7 +195,15 @@ function linkFor(node: any, label: string): any {
   return linkFor(node.props?.children, label);
 }
 
+afterEach(() => vi.restoreAllMocks());
+
 beforeEach(() => {
+  mocks.realController = false;
+  mocks.navigationValid = false;
+  mocks.deadline = undefined;
+  mocks.epoch = 0;
+  mocks.responseEpoch = undefined;
+  mocks.token = "token-a";
   mocks.enrolled = false;
   mocks.generation = 1;
   mocks.feedError = null;
@@ -658,4 +694,93 @@ describe("Community foreground verification", () => {
     expect(render().props.children[1].type).toBe("ScrollView");
     expect(mocks.refresh).not.toHaveBeenCalled();
   });
+});
+
+describe("Community completed navigation snapshot", () => {
+  it("keeps the actual FeedController snapshot across return without placeholder frames or another request", async () => {
+    mocks.realController = true;
+    mocks.enrolled = true;
+    mocks.deadline = Date.now() + 10_000;
+    mocks.responseEpoch = mocks.epoch;
+    const items = [{ id: "actual-controller-card" }];
+    mocks.request.mockResolvedValue({
+      ok: true,
+      value: { items, nextCursor: null },
+    });
+    for (let i = 0; i < 4; i++) {
+      render();
+      await flushAsync();
+    }
+    expect(render().props.children[1].props.data).toEqual(items);
+    const requests = mocks.request.mock.calls.length;
+    mocks.load.mockClear();
+    mocks.cleanup?.();
+    expect(render().props.children[1].props.data).toEqual(items);
+    mocks.cleanup = mocks.focus!();
+    expect(render().props.children[1].props.data).toEqual(items);
+    await flushAsync();
+    expect(render().props.children[1].props.data).toEqual(items);
+    expect(mocks.request).toHaveBeenCalledTimes(requests);
+    expect(mocks.load).not.toHaveBeenCalled();
+  });
+  async function populated() {
+    mocks.enrolled = true;
+    mocks.navigationValid = true;
+    mocks.deadline = Date.now() + 10_000;
+    mocks.responseEpoch = mocks.epoch;
+    mocks.feedItems = [{ id: "retained-card" }];
+    await settledRender();
+    render();
+    mocks.load.mockClear();
+    mocks.refresh.mockClear();
+    mocks.pause.mockClear();
+  }
+  it("preserves the already loaded feed across blur and the very first return frame without loading", async () => {
+    await populated();
+    mocks.request.mockResolvedValue({ ok: true, value: "current" });
+    const before = render().props.children[1].props.renderItem({
+      item: mocks.feedItems[0],
+    }).props.scopedClient;
+    mocks.cleanup?.();
+    const hidden = render().props.children[1];
+    expect(hidden.props.data).toEqual([{ id: "retained-card" }]);
+    expect(mocks.suspend).toHaveBeenCalledOnce();
+    expect(mocks.pause).not.toHaveBeenCalled();
+    mocks.cleanup = mocks.focus!();
+    const returned = render().props.children[1];
+    expect(returned.props.data).toEqual([{ id: "retained-card" }]);
+    expect(mocks.load).not.toHaveBeenCalled();
+    expect(mocks.refresh).not.toHaveBeenCalled();
+    const after = returned.props.renderItem({ item: mocks.feedItems[0] }).props
+      .scopedClient;
+    expect(after).not.toBe(before);
+    expect(await before.request({ method: "GET", path: "/unused" })).toEqual({
+      ok: false,
+      error: { kind: "no_session" },
+    });
+    expect(await after.request({ method: "GET", path: "/unused" })).toEqual({
+      ok: true,
+      value: "current",
+    });
+  });
+  it.each(["expiry", "write", "token", "background"])(
+    "rechecks after %s instead of reusing retired content",
+    async (cause) => {
+      await populated();
+      mocks.cleanup?.();
+      if (cause === "expiry")
+        vi.spyOn(Date, "now").mockReturnValue(Date.now() + 10_001);
+      if (cause === "write") mocks.epoch++;
+      if (cause === "token") mocks.token = "token-b";
+      if (cause === "background") {
+        mocks.appState?.("background");
+        mocks.appState?.("active");
+      }
+      const retired = render().props.children[1];
+      expect(retired.props.data).toEqual([]);
+      mocks.cleanup = mocks.focus!();
+      await flushAsync();
+      expect(mocks.load).toHaveBeenCalled();
+    },
+  );
 });

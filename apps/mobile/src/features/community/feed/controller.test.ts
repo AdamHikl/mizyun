@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ApiClient } from "@mizyun/api-client";
+import type { AuthSession } from "@mizyun/identity";
+import { CommunityReadCache, getCommunityReadEpoch } from "../state/read-cache";
 import type { SharedActivityFeedItemDto } from "@mizyun/contracts";
 import { FeedController, INITIAL_FEED_STATE } from "./controller";
 import { ReactionBarController } from "../reactions/reaction-bar-controller";
@@ -666,5 +668,132 @@ describe("FeedController", () => {
         path: "/v1/community/feed?limit=20&cursor=new",
       }),
     );
+  });
+});
+
+describe("FeedController retained navigation with real read cache", () => {
+  function retainedFixture() {
+    const request = vi.fn().mockResolvedValue({
+      ok: true,
+      value: { items: [mockItem1], nextCursor: null },
+    });
+    const raw = { request, status: vi.fn() } as unknown as ApiClient;
+    const session = {
+      user: { id: "user-123" },
+      accessToken: "token",
+    } as AuthSession;
+    const cache = new CommunityReadCache(raw, async () => session);
+    cache.setPrincipal("user-123");
+    cache.setForeground(true);
+    const controller = new FeedController(cache, "user-123");
+    return { request, cache, controller };
+  }
+  it("keeps identical completed snapshots when suspended/resumed and does not issue a second request", async () => {
+    const { request, cache, controller } = retainedFixture();
+    try {
+      await controller.load();
+      const loaded = controller.getSnapshot();
+      expect(controller.canRetainForNavigation()).toBe(true);
+      controller.suspend();
+      expect(controller.getSnapshot()).toBe(loaded);
+      controller.resume();
+      expect(controller.getSnapshot()).toBe(loaded);
+      expect(request).toHaveBeenCalledOnce();
+    } finally {
+      cache.dispose();
+    }
+  });
+  it.each(["expiry", "write", "background", "principal"])(
+    "cannot retain a snapshot after %s",
+    async (cause) => {
+      const { cache, controller } = retainedFixture();
+      try {
+        await controller.load();
+        if (cause === "expiry")
+          vi.spyOn(Date, "now").mockReturnValue(Date.now() + 10_001);
+        if (cause === "write") cache.clear();
+        if (cause === "background") cache.setForeground(false);
+        if (cause === "principal") cache.setPrincipal("other");
+        expect(controller.canRetainForNavigation()).toBe(false);
+        controller.suspend();
+        expect(controller.getSnapshot()).toEqual(INITIAL_FEED_STATE);
+      } finally {
+        vi.restoreAllMocks();
+        cache.dispose();
+      }
+    },
+  );
+  it("retains all pages only until the earliest original deadline and never extends it on return", async () => {
+    let clock = 1_000;
+    vi.spyOn(Date, "now").mockImplementation(() => clock);
+    const { request, cache, controller } = retainedFixture();
+    try {
+      request.mockResolvedValueOnce({
+        ok: true,
+        value: { items: [mockItem1], nextCursor: "page2" },
+      });
+      await controller.load();
+      clock = 6_000;
+      request.mockResolvedValueOnce({
+        ok: true,
+        value: { items: [mockItem2], nextCursor: null },
+      });
+      await controller.loadMore();
+      expect(controller.getSnapshot().items).toEqual([mockItem1, mockItem2]);
+      controller.suspend();
+      controller.resume();
+      clock = 10_999;
+      expect(controller.canRetainForNavigation()).toBe(true);
+      controller.suspend();
+      controller.resume();
+      clock = 11_000;
+      expect(controller.canRetainForNavigation()).toBe(false);
+      expect(request).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.restoreAllMocks();
+      cache.dispose();
+    }
+  });
+  it("retires a pending read on blur and cannot retain its late result", async () => {
+    let finish!: (value: unknown) => void;
+    const { request, cache, controller } = retainedFixture();
+    try {
+      request.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
+      const loading = controller.load();
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+      controller.suspend();
+      finish({ ok: true, value: { items: [mockItem1], nextCursor: null } });
+      await loading;
+      expect(controller.getSnapshot()).toEqual(INITIAL_FEED_STATE);
+      expect(controller.canRetainForNavigation()).toBe(false);
+    } finally {
+      cache.dispose();
+    }
+  });
+  it("invalidation retires navigation without canceling the mutation transport that triggered it", async () => {
+    const { request, cache, controller } = retainedFixture();
+    try {
+      await controller.load();
+      const epoch = getCommunityReadEpoch();
+      request.mockResolvedValueOnce({ ok: true, value: {} });
+      const result = await cache.request({
+        method: "POST",
+        path: "/v1/community/activities/id/reactions",
+        expectedUserId: "user-123",
+        isCurrent: () => true,
+        body: { reaction: "fire" },
+      });
+      expect(result.ok).toBe(true);
+      expect(request).toHaveBeenCalledTimes(2);
+      expect(getCommunityReadEpoch()).toBeGreaterThan(epoch);
+      expect(controller.canRetainForNavigation()).toBe(false);
+    } finally {
+      cache.dispose();
+    }
   });
 });

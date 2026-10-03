@@ -45,6 +45,8 @@ Follow the verification progression from focused to repository-wide:
    pnpm navigation:check --since origin/main
    ```
 
+   Use `pnpm impact --path <owned-file>` for focused review, and `--include-working-tree` only when the full combined scope is intended. Do not treat unrelated concurrent edits as part of this task.
+
    The comparison rejects new/renamed source ownership gaps; existing unmapped paths remain visible warnings. Inspect advisory `pnpm impact --since origin/main` reason chains, unresolved imports and candidate tests. Current source discovery and cached parse reuse are not acceptance evidence.
 
 3. **Format Verification**:
@@ -56,11 +58,15 @@ Follow the verification progression from focused to repository-wide:
 
 4. **Serialized Full Repository Gate**:
    After all subagents finish writing and files are stable, execute the comprehensive quality gate:
+
    ```bash
    pnpm check
    ```
+
    > [!IMPORTANT]
    > Never substitute an advisory impact report or a cached/prior session result for a fresh passing `pnpm check`.
+
+   Keep check output in a log and read failures or a compact result; rerun after a material fix or unresolved failure, not merely to repeat already current evidence. Capture `pnpm navigation:bench --json` when measuring tooling efficiency. Its bytes/lines and local timings are proxies, not model tokens, cost or accepted-task speed.
 
 ## 3. Mandatory Non-Author Review
 

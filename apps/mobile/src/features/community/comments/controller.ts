@@ -93,7 +93,8 @@ export class CommentsController {
       Math.max(0, expiresAt - Date.now()),
     );
     // Node-only test/runtime timer housekeeping; native timers are numeric.
-    if (typeof this.expiryTimer === "object") this.expiryTimer.unref?.();
+    if (typeof this.expiryTimer === "object")
+      (this.expiryTimer as { unref?: () => void }).unref?.();
   }
   private consumeDeadline(value: unknown): boolean {
     const deadline = Math.min(

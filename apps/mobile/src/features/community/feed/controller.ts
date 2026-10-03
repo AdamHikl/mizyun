@@ -1,5 +1,9 @@
 import type { ApiClient } from "@mizyun/api-client";
 import type { SharedActivityFeedItemDto } from "@mizyun/contracts";
+import {
+  getCommunityReadDeadline,
+  getCommunityReadEpoch,
+} from "../state/read-cache";
 import { scopeCommunityClient } from "../scoped-client";
 import {
   fetchCommunityFeed,
@@ -30,6 +34,24 @@ export class FeedController {
   #state: FeedState = INITIAL_FEED_STATE;
   #listeners = new Set<() => void>();
   #revision = 0;
+  #readDeadline: number | undefined;
+  #readEpoch = -1;
+
+  canRetainForNavigation(): boolean {
+    return (
+      this.#state.status === "idle" &&
+      this.#readDeadline !== undefined &&
+      this.#readDeadline > Date.now() &&
+      this.#readEpoch === getCommunityReadEpoch()
+    );
+  }
+
+  /** Retire requests and action authority, but keep a completed valid snapshot. */
+  suspend(): void {
+    this.#active = false;
+    this.#revision++;
+    if (!this.canRetainForNavigation()) this.reset();
+  }
 
   constructor(
     client: ApiClient,
@@ -59,6 +81,7 @@ export class FeedController {
 
   reset(): void {
     this.#revision++;
+    this.#readDeadline = undefined;
     this.#state = INITIAL_FEED_STATE;
     this.#pages = 0;
     if (this.#isAlive()) {
@@ -104,6 +127,8 @@ export class FeedController {
   async #readPages(pages: number, status: FeedState["status"]): Promise<void> {
     if (!this.#active || !this.#isAlive()) return;
     const revision = ++this.#revision;
+    const readEpoch = getCommunityReadEpoch();
+    let readDeadline: number | undefined;
     const isCurrent = () =>
       this.#active && this.#isAlive() && this.#revision === revision;
     const scoped = scopeCommunityClient(
@@ -133,6 +158,13 @@ export class FeedController {
         this.#notify();
         return;
       }
+      const pageDeadline = getCommunityReadDeadline(result.value);
+      readDeadline =
+        page === 0
+          ? pageDeadline
+          : readDeadline !== undefined && pageDeadline !== undefined
+            ? Math.min(readDeadline, pageDeadline)
+            : undefined;
       loadedPages++;
       for (const item of result.value.items) {
         if (!ids.has(item.id)) {
@@ -143,6 +175,8 @@ export class FeedController {
       cursor = result.value.nextCursor ?? null;
       if (!cursor) break;
     }
+    this.#readDeadline = readDeadline;
+    this.#readEpoch = readEpoch;
     this.#pages = loadedPages;
     this.#state = {
       items,

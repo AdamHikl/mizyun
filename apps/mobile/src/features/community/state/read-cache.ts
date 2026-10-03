@@ -6,7 +6,20 @@ export const COMMUNITY_READ_LIFETIME_MS = 10_000;
 const MAX_ENTRIES = 32;
 const MAX_ENTRY_BYTES = 128_000;
 const deadlines = new WeakMap<object, number>();
+const responseEpochs = new WeakMap<object, number>();
+
+export function getCommunityResponseEpoch(value: unknown): number | undefined {
+  return typeof value === "object" && value !== null
+    ? responseEpochs.get(value)
+    : undefined;
+}
 const stores = new Set<CommunityReadCache>();
+let navigationEpoch = 0;
+
+/** Completed screen snapshots are retired by the same events as read records. */
+export function getCommunityReadEpoch(): number {
+  return navigationEpoch;
+}
 
 /** A restored response never starts a new authorization lifetime. */
 export function getCommunityReadDeadline(value: unknown): number | undefined {
@@ -131,6 +144,7 @@ export class CommunityReadCache implements ApiClient {
   status = () => this.raw.status();
 
   clear(): void {
+    navigationEpoch++;
     this.revision++;
     for (const entry of this.entries.values()) clearTimeout(entry.timer);
     this.entries.clear();
@@ -218,8 +232,10 @@ export class CommunityReadCache implements ApiClient {
     ) {
       const parsed = options.schema!.safeParse(cached.value);
       if (parsed.success && valid()) {
-        if (typeof parsed.data === "object" && parsed.data !== null)
+        if (typeof parsed.data === "object" && parsed.data !== null) {
           deadlines.set(parsed.data, cached.expiresAt);
+          responseEpochs.set(parsed.data, navigationEpoch);
+        }
         return { ok: true, value: parsed.data as T };
       }
       this.clear();
@@ -270,8 +286,10 @@ export class CommunityReadCache implements ApiClient {
               ok: false as const,
               error: { kind: "no_session" as const },
             };
-          if (typeof result.value === "object" && result.value !== null)
+          if (typeof result.value === "object" && result.value !== null) {
             deadlines.set(result.value, expiresAt);
+            responseEpochs.set(result.value, navigationEpoch);
+          }
           const parsed = options.schema!.safeParse(result.value);
           const bytes =
             JSON.stringify(result.value)?.length ?? MAX_ENTRY_BYTES + 1;
@@ -285,7 +303,8 @@ export class CommunityReadCache implements ApiClient {
               () => this.entries.delete(key),
               Math.max(0, expiresAt - Date.now()),
             );
-            if (typeof timer === "object") timer.unref?.();
+            if (typeof timer === "object")
+              (timer as { unref?: () => void }).unref?.();
             const previous = this.entries.get(key);
             if (previous) clearTimeout(previous.timer);
             this.entries.set(key, {

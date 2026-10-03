@@ -9,6 +9,7 @@ import type { AuthClient } from "@mizyun/identity";
 import { authClient } from "./auth-client";
 import { mobileConfigResult } from "./mobile-config";
 import { CommunityReadCache } from "@/features/community/state/read-cache";
+import { SessionReadCache } from "./session-read-cache";
 
 /**
  * Pure factory: pick the right `ApiClient` from the validated mobile
@@ -47,12 +48,17 @@ const apiConfiguration: ApiConfigurationStatus =
  * the runtime flow remains uniform — when the auth client is
  * `DisabledAuthClient`, requests surface as `kind: "no_session"`.
  */
-export const communityReadCache = new CommunityReadCache(
+export const sessionReadCache = new SessionReadCache(
   selectApiClient(
     configResult.ok ? configResult.value.apiUrl : null,
     authClient,
   ),
   () => authClient.getSession(),
+);
+export const invalidateSessionReads = (): void => sessionReadCache.clear();
+export const getSessionReadVersion = (): string => sessionReadCache.version();
+export const communityReadCache = new CommunityReadCache(sessionReadCache, () =>
+  authClient.getSession(),
 );
 export const apiClient: ApiClient = communityReadCache;
 

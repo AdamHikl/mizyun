@@ -1,8 +1,16 @@
-import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import {
+  Alert,
+  AppState,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  View,
+} from "react-native";
 import { router, Stack, useFocusEffect, type Href } from "expo-router";
 import * as Crypto from "expo-crypto";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Workout } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
@@ -11,6 +19,10 @@ import { BrandWordmark } from "@/components/brand-wordmark";
 import { AccountHeaderActions } from "@/components/account-header-button";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { analyticsClient } from "@/composition/analytics-client";
+import {
+  getSessionReadVersion,
+  invalidateSessionReads,
+} from "@/composition/api-client";
 import { ShareWorkoutModal, useCommunityProfile } from "@/features/community";
 import { useAuth } from "@/features/auth/auth-context";
 
@@ -47,6 +59,18 @@ export function WorkoutsHubScreen() {
   const unitSystem = profile?.unitSystem ?? "metric";
   const [data, setData] = useState<WorkoutsHubResult>(INITIAL_DATA);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const owner = `${session?.user.id ?? ""}:${session?.accessToken ?? ""}`;
+  const currentOwner = useRef(owner);
+  currentOwner.current = owner;
+  const requestId = useRef(0);
+  const loaded = useRef<{ version: string; at: number } | null>(null);
+  useEffect(() => {
+    requestId.current++;
+    loaded.current = null;
+    setData(INITIAL_DATA);
+    setLoading(true);
+  }, [owner]);
   const [activeTab, setActiveTab] = useState<WorkoutsTab>("all");
   const [busyWorkoutId, setBusyWorkoutId] = useState<string | null>(null);
   const startingRoutineIds = useRef(new Set<string>());
@@ -62,11 +86,21 @@ export function WorkoutsHubScreen() {
   >(null);
 
   const loadData = useCallback(async (): Promise<void> => {
-    setLoading(true);
+    const id = ++requestId.current;
+    const version = getSessionReadVersion();
+    if (!loaded.current) setLoading(true);
     const result = await fetchWorkoutsHubData();
-    setData(result);
+    if (owner !== currentOwner.current || id !== requestId.current) return;
+    setData((current) =>
+      result.message !== null &&
+      (current.activeAndPlanned.length > 0 || current.completed.length > 0)
+        ? { ...current, message: result.message }
+        : result,
+    );
     setLoading(false);
-  }, []);
+    loaded.current =
+      result.message === null ? { version, at: Date.now() } : null;
+  }, [owner]);
 
   useFocusEffect(
     useCallback(() => {
@@ -74,7 +108,17 @@ export function WorkoutsHubScreen() {
         name: "feature_viewed",
         properties: { feature: "workout_history" },
       });
-      void loadData();
+      const previous = loaded.current;
+      if (
+        !previous ||
+        previous.version !== getSessionReadVersion() ||
+        Date.now() - previous.at >= 5 * 60_000
+      )
+        void loadData();
+      const subscription = AppState.addEventListener("change", (state) => {
+        if (state === "active") void loadData();
+      });
+      return () => subscription.remove();
     }, [loadData]),
   );
 
@@ -214,6 +258,16 @@ export function WorkoutsHubScreen() {
       <Stack.Screen options={{ title: "Workouts" }} />
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
         <ScrollView
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => {
+                invalidateSessionReads();
+                setRefreshing(true);
+                void loadData().finally(() => setRefreshing(false));
+              }}
+            />
+          }
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
@@ -362,7 +416,7 @@ export function WorkoutsHubScreen() {
                 </ThemedText>
               </View>
 
-              {data.activeAndPlanned.length === 0 ? (
+              {data.activeAndPlanned.length === 0 && !loading ? (
                 <ThemedView
                   type="backgroundElement"
                   style={styles.emptyStateCard}
@@ -433,7 +487,7 @@ export function WorkoutsHubScreen() {
                 </ThemedText>
               </View>
 
-              {data.completed.length === 0 ? (
+              {data.completed.length === 0 && !loading ? (
                 <ThemedView
                   type="backgroundElement"
                   style={styles.emptyStateCard}

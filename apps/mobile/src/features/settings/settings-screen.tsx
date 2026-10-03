@@ -47,12 +47,15 @@ export function SettingsScreen() {
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
-    void refreshProfile();
     void analyticsClient.track({
       name: "feature_viewed",
       properties: { feature: "settings" },
     });
-  }, [refreshProfile]);
+  }, []);
+
+  useEffect(() => {
+    if (!profile && session) void refreshProfile();
+  }, [profile, refreshProfile, session]);
 
   // Clear search on sign-out / account switch
   useEffect(() => {

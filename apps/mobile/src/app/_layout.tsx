@@ -23,7 +23,13 @@ import {
   parseCommunityInvitationLink,
 } from "@/features/community";
 import { analyticsClient } from "@/composition/analytics-client";
-import { apiClient, apiConfiguration } from "@/composition/api-client";
+import {
+  apiClient,
+  apiConfiguration,
+  sessionReadCache,
+} from "@/composition/api-client";
+import { authClient } from "@/composition/auth-client";
+import { preloadAppData } from "@/composition/startup-data";
 import {
   AuthProvider,
   SessionGate,
@@ -35,6 +41,56 @@ import { ActiveWorkoutProvider } from "@/features/workouts";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 
 SplashScreen.preventAutoHideAsync();
+
+function StartupDataBridge() {
+  const { session, profile } = useAuth();
+  useEffect(() => {
+    let active = true;
+    let generation = 0;
+    sessionReadCache.clear();
+    const warm = () => {
+      const run = ++generation;
+      if (
+        session &&
+        apiConfiguration.configured &&
+        AppState.currentState === "active"
+      ) {
+        void preloadAppData(
+          apiClient,
+          session,
+          () =>
+            active && generation === run && AppState.currentState === "active",
+          new Date(),
+          profile?.birthYear,
+        );
+      }
+    };
+    sessionReadCache.setForeground(AppState.currentState === "active");
+    warm();
+    const unsubscribe = authClient.subscribe((next) => {
+      if (
+        next?.user.id === session?.user.id &&
+        next?.accessToken === session?.accessToken
+      )
+        return;
+      generation++;
+      sessionReadCache.clear();
+    });
+    const subscription = AppState.addEventListener("change", (state) => {
+      generation++;
+      sessionReadCache.setForeground(state === "active");
+      if (state === "active") warm();
+    });
+    return () => {
+      active = false;
+      generation++;
+      unsubscribe();
+      subscription.remove();
+      sessionReadCache.clear();
+    };
+  }, [session?.user.id, session?.accessToken, profile?.birthYear]);
+  return null;
+}
 
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
@@ -292,6 +348,7 @@ function TabLayoutContent() {
         <CommunityReadLifecycle />
         <DeepLinkBridge />
         <SessionGate>
+          <StartupDataBridge />
           <PushRegistrationBridge />
           <CommunityNotificationBridge />
           <CoachNotificationBridge />

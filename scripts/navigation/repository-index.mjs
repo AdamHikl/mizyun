@@ -6,6 +6,7 @@ import ts from "typescript";
 
 export const INDEX_SCHEMA_VERSION = 1;
 const PARSER_VERSION = `declarations-3:typescript-${ts.version}`;
+const RESOLVER_VERSION = "imports-2-config-witnesses";
 const SOURCE = /\.(?:[cm]?[jt]sx?|sh)$/i;
 const BLOCKED_DIR =
   /^(?:\.git|\.cache|\.codex|\.agents|\.aws|node_modules|dist|build|coverage|generated|__snapshots__|\.expo|\.next|archive|archives|private|exports|photos|logs|artifacts|backups)$/i;
@@ -20,7 +21,12 @@ const inside = (root, target) =>
   target === root || target.startsWith(root + path.sep);
 
 function kindFor(relative) {
-  if (relative.split("/").some((part) => BLOCKED_DIR.test(part))) return null;
+  if (
+    relative
+      .split("/")
+      .some((part) => BLOCKED_DIR.test(part) || BLOCKED_FILE.test(part))
+  )
+    return null;
   const name = path.posix.basename(relative);
   if (BLOCKED_FILE.test(name)) return null;
   if (CONFIG.test(name)) return "config";
@@ -402,39 +408,119 @@ function discoverPackages(contents, warnings) {
   return packages.sort((a, b) => a.path.localeCompare(b.path));
 }
 
+function safeRelative(relative) {
+  return Boolean(
+    relative &&
+    !path.isAbsolute(relative) &&
+    !relative.includes("\\") &&
+    relative.split("/").every((part) => part && part !== "." && part !== ".."),
+  );
+}
+
+function configurationPolicyPath(relative, kind) {
+  if (relative === "" && kind === "directory") return true;
+  if (!safeRelative(relative)) return false;
+  if (
+    relative
+      .split("/")
+      .some(
+        (part) =>
+          (BLOCKED_DIR.test(part) && part !== "node_modules") ||
+          BLOCKED_FILE.test(part),
+      )
+  )
+    return false;
+  return (
+    kind === "directory" ||
+    (/\.json$/i.test(relative) &&
+      !BLOCKED_FILE.test(path.basename(relative)) &&
+      !/(?:credential|secret|token|service[-_]account)/i.test(
+        path.basename(relative),
+      ))
+  );
+}
+
+function configurationLookup(root, absolute, kind, contents) {
+  const resolved = path.resolve(absolute);
+  // Parent node_modules/config paths are always denied, including symlinks that
+  // point back inside. Resolution never depends on files outside this worktree.
+  if (!inside(root, resolved)) return {};
+  const relative = posix(path.relative(root, resolved));
+  if (!configurationPolicyPath(relative, kind)) return {};
+  const item = kind === "file" && contents.get(relative);
+  if (item)
+    return {
+      content: item.content,
+      witness: {
+        kind,
+        path: relative,
+        state: "present",
+        canonical: relative,
+        hash: item.hash,
+        inventory: true,
+      },
+    };
+  const witness = { kind, path: relative, state: "missing" };
+  try {
+    const real = fs.realpathSync(resolved);
+    const canonical = posix(path.relative(root, real));
+    if (!inside(root, real) || !configurationPolicyPath(canonical, kind))
+      return { witness: { ...witness, state: "denied" } };
+    const stat = fs.statSync(real);
+    if (kind === "directory")
+      return {
+        witness: stat.isDirectory()
+          ? { ...witness, state: "present", canonical }
+          : witness,
+      };
+    if (!stat.isFile()) return { witness };
+    const content = safeRead(root, canonical);
+    return {
+      content,
+      witness: { ...witness, state: "present", canonical, hash: hash(content) },
+    };
+  } catch (error) {
+    return {
+      witness: ["ENOENT", "ENOTDIR"].includes(error.code)
+        ? witness
+        : { ...witness, state: "unavailable" },
+    };
+  }
+}
+
+function validateLookups(root, lookups, contents, allowUnavailable = false) {
+  return lookups.every((expected) => {
+    if (expected.state === "unavailable" && !allowUnavailable) return false;
+    const current = configurationLookup(
+      root,
+      path.join(root, expected.path),
+      expected.kind,
+      contents,
+    ).witness;
+    return current && JSON.stringify(current) === JSON.stringify(expected);
+  });
+}
+
 function resolver(root, contents, packages, warnings) {
   const configs = [...contents.keys()].filter(
     (relative) => path.posix.basename(relative) === "tsconfig.json",
   );
   const configOptions = new Map();
-  const auxiliary = new Map();
-  function configurationRead(absolute) {
-    const relative = posix(path.relative(root, absolute));
-    if (contents.has(relative)) return contents.get(relative).content;
-    // TypeScript reads data only. Installed package config links may resolve inside
-    // this worktree; external links and sensitive paths are rejected before reads.
-    try {
-      const real = fs.realpathSync(absolute);
-      const canonical = posix(path.relative(root, real));
-      if (
-        !inside(root, real) ||
-        !/\.json$/i.test(real) ||
-        BLOCKED_FILE.test(path.basename(real)) ||
-        /(?:credential|secret|token|service[-_]account)/i.test(
-          path.basename(real),
-        ) ||
-        canonical
-          .split("/")
-          .some((part) => BLOCKED_DIR.test(part) && part !== "node_modules")
-      )
-        return undefined;
-      const content = safeRead(root, canonical);
-      auxiliary.set(canonical, hash(content));
-      return content;
-    } catch {
-      return undefined;
-    }
-  }
+  const lookups = new Map();
+  let consistent = true;
+  const recordLookup = (witness) => {
+    if (!witness) return;
+    const key = `${witness.kind}:${witness.path}`;
+    const previous = lookups.get(key);
+    if (previous && JSON.stringify(previous) !== JSON.stringify(witness))
+      consistent = false;
+    lookups.set(key, witness);
+  };
+  const configurationRead = (absolute) => {
+    const lookup = configurationLookup(root, absolute, "file", contents);
+    recordLookup(lookup.witness);
+    return lookup.content;
+  };
   const directories = new Set([root]);
   for (const relative of contents.keys()) {
     let directory = path.dirname(path.join(root, relative));
@@ -460,14 +546,9 @@ function resolver(root, contents, packages, warnings) {
     fileExists: (absolute) => configurationRead(absolute) !== undefined,
     readFile: configurationRead,
     directoryExists: (absolute) => {
-      try {
-        return (
-          inside(root, fs.realpathSync(absolute)) &&
-          fs.statSync(absolute).isDirectory()
-        );
-      } catch {
-        return false;
-      }
+      const lookup = configurationLookup(root, absolute, "directory", contents);
+      recordLookup(lookup.witness);
+      return lookup.witness?.state === "present";
     },
   };
   for (const relative of configs) {
@@ -688,10 +769,10 @@ function resolver(root, contents, packages, warnings) {
     }
     return result(fromTs());
   };
-  return { resolve, auxiliary };
+  return { resolve, lookups: [...lookups.values()], consistent };
 }
 
-function cachePath(root) {
+function cachePath(root, filename = "parse-cache.json") {
   const directory = ".cache/mizyun-navigation";
   let current = root;
   for (const component of directory.split("/")) {
@@ -703,20 +784,34 @@ function cachePath(root) {
     )
       throw new Error("Unsafe navigation cache directory");
   }
-  return path.join(root, directory, "parse-cache.json");
+  return path.join(root, directory, filename);
+}
+
+function readCacheData(root, filename) {
+  const absolute = cachePath(root, filename);
+  if (!fs.existsSync(absolute)) return undefined;
+  if (fs.lstatSync(absolute).isSymbolicLink())
+    throw new Error("Unsafe navigation cache file");
+  const fd = fs.openSync(
+    absolute,
+    fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
+  );
+  try {
+    const stat = fs.fstatSync(fd);
+    if (!stat.isFile() || stat.size > 64 * MAX_FILE_BYTES)
+      throw new Error("Navigation cache exceeds bounded size");
+    return JSON.parse(fs.readFileSync(fd, "utf8"));
+  } finally {
+    fs.closeSync(fd);
+  }
 }
 
 function readCache(root, enabled, warnings) {
   if (!enabled) return {};
   try {
-    const absolute = cachePath(root);
-    if (!fs.existsSync(absolute)) return {};
-    if (fs.lstatSync(absolute).isSymbolicLink())
-      throw new Error("Unsafe navigation cache file");
-    if (fs.statSync(absolute).size > 64 * MAX_FILE_BYTES)
-      throw new Error("Navigation cache exceeds bounded size");
-    const cache = JSON.parse(fs.readFileSync(absolute, "utf8"));
+    const cache = readCacheData(root, "parse-cache.json");
     if (
+      !cache ||
       cache.root !== root ||
       cache.parser !== PARSER_VERSION ||
       cache.schemaVersion !== INDEX_SCHEMA_VERSION
@@ -734,6 +829,101 @@ function readCache(root, enabled, warnings) {
       "Navigation parse cache unavailable or corrupt; reparsing current files.",
     );
     return {};
+  }
+}
+
+function readGraphCache(root, captured, files, packages, warnings) {
+  try {
+    const cache = readCacheData(root, "graph-cache.json");
+    if (
+      !cache ||
+      cache.root !== root ||
+      cache.parser !== PARSER_VERSION ||
+      cache.resolver !== RESOLVER_VERSION ||
+      cache.schemaVersion !== INDEX_SCHEMA_VERSION ||
+      cache.captureId !== captured.id
+    )
+      return undefined;
+    const payload = {
+      resolutions: cache.resolutions,
+      packages: cache.packages,
+      warnings: cache.warnings,
+      lookups: cache.lookups,
+    };
+    if (cache.checksum !== hash(JSON.stringify(payload)))
+      throw new Error("Corrupt graph payload");
+    if (
+      !Array.isArray(cache.lookups) ||
+      !cache.lookups.every(
+        (entry) =>
+          entry &&
+          ["file", "directory"].includes(entry.kind) &&
+          ((entry.path === "" && entry.kind === "directory") ||
+            configurationPolicyPath(entry.path, entry.kind)) &&
+          ["present", "missing", "denied"].includes(entry.state) &&
+          (entry.state !== "present" ||
+            (((entry.canonical === "" && entry.kind === "directory") ||
+              configurationPolicyPath(entry.canonical, entry.kind)) &&
+              (entry.kind !== "file" || /^[a-f0-9]{64}$/.test(entry.hash)))),
+      )
+    )
+      throw new Error("Invalid graph dependency witnesses");
+    if (!validateLookups(root, cache.lookups, captured.contents))
+      return undefined;
+    const summaries = packages.map(({ manifest: _manifest, ...pkg }) => pkg);
+    if (JSON.stringify(cache.packages) !== JSON.stringify(summaries))
+      throw new Error("Invalid graph packages");
+    if (
+      !Array.isArray(cache.warnings) ||
+      !cache.warnings.every((entry) => typeof entry === "string")
+    )
+      throw new Error("Invalid graph warnings");
+    if (!Array.isArray(cache.resolutions))
+      throw new Error("Invalid graph resolutions");
+    const importFiles = files.filter((file) => file.imports.length > 0);
+    if (cache.resolutions.length !== importFiles.length)
+      throw new Error("Incomplete graph resolutions");
+    const knownFiles = new Map(files.map((file) => [file.path, file.kind]));
+    for (let index = 0; index < importFiles.length; index++) {
+      const file = importFiles[index];
+      const record = cache.resolutions[index];
+      if (
+        !record ||
+        record.path !== file.path ||
+        !Array.isArray(record.imports) ||
+        record.imports.length !== file.imports.length
+      )
+        throw new Error("Invalid graph import file");
+      for (let position = 0; position < file.imports.length; position++) {
+        const authored = file.imports[position];
+        const resolved = record.imports[position];
+        if (
+          !resolved ||
+          ["specifier", "line", "typeOnly", "mode", "dynamic"].some(
+            (key) => resolved[key] !== authored[key],
+          ) ||
+          !Array.isArray(resolved.candidates) ||
+          !resolved.candidates.every(
+            (candidate) =>
+              safeRelative(candidate) && kindFor(candidate) === "source",
+          ) ||
+          (resolved.target !== undefined &&
+            (knownFiles.get(resolved.target) !== "source" ||
+              !resolved.candidates.includes(resolved.target))) ||
+          (resolved.edgeTypeOnly !== undefined &&
+            typeof resolved.edgeTypeOnly !== "boolean") ||
+          (resolved.uncertain !== undefined &&
+            typeof resolved.uncertain !== "boolean")
+        )
+          throw new Error("Invalid graph import metadata");
+      }
+    }
+    return cache;
+  } catch {
+    warnings.push(
+      "Navigation graph cache unavailable or corrupt; resolving current imports.",
+    );
+    return undefined;
   }
 }
 
@@ -765,26 +955,22 @@ function reusable(record) {
   );
 }
 
-function writeCache(root, records, warnings) {
+function writeCacheData(root, filename, payload, warnings) {
   let temporary;
   try {
-    const absolute = cachePath(root);
+    const absolute = cachePath(root, filename);
     fs.mkdirSync(path.dirname(absolute), { recursive: true });
+    // Recheck after creation, so an existing unsafe directory fails closed.
+    cachePath(root, filename);
     temporary = `${absolute}.${process.pid}.${crypto.randomUUID()}.tmp`;
-    fs.writeFileSync(
-      temporary,
-      JSON.stringify({
-        schemaVersion: INDEX_SCHEMA_VERSION,
-        parser: PARSER_VERSION,
-        root,
-        records,
-      }),
-      { flag: "wx", mode: 0o600 },
-    );
+    fs.writeFileSync(temporary, JSON.stringify(payload), {
+      flag: "wx",
+      mode: 0o600,
+    });
     fs.renameSync(temporary, absolute);
   } catch {
     warnings.push(
-      "Navigation parse cache could not be saved; current index remains usable.",
+      `Navigation ${filename === "parse-cache.json" ? "parse" : "graph"} cache could not be saved; current index remains usable.`,
     );
   } finally {
     if (temporary)
@@ -794,6 +980,54 @@ function writeCache(root, records, warnings) {
         /* atomic rename already removed it */
       }
   }
+}
+
+function writeCache(root, records, warnings) {
+  writeCacheData(
+    root,
+    "parse-cache.json",
+    {
+      schemaVersion: INDEX_SCHEMA_VERSION,
+      parser: PARSER_VERSION,
+      root,
+      records,
+    },
+    warnings,
+  );
+}
+
+function writeGraphCache(
+  root,
+  captureId,
+  files,
+  packages,
+  graphWarnings,
+  lookups,
+  warnings,
+) {
+  const resolutions = files
+    .filter((file) => file.imports.length > 0)
+    .map((file) => ({ path: file.path, imports: file.imports }));
+  const payload = {
+    resolutions,
+    packages: packages.map(({ manifest: _manifest, ...pkg }) => pkg),
+    warnings: graphWarnings,
+    lookups,
+  };
+  writeCacheData(
+    root,
+    "graph-cache.json",
+    {
+      schemaVersion: INDEX_SCHEMA_VERSION,
+      parser: PARSER_VERSION,
+      resolver: RESOLVER_VERSION,
+      root,
+      captureId,
+      ...payload,
+      checksum: hash(JSON.stringify(payload)),
+    },
+    warnings,
+  );
 }
 
 /** Local declarations and file edges only; this is not a symbol call graph. */
@@ -808,7 +1042,13 @@ export function getRepositoryIndex(repoRoot, options = {}) {
     const warnings = [...captured.warnings];
     const cached = readCache(root, options.cache !== false, warnings);
     const records = {};
-    const stats = { parsed: 0, reused: 0, files: captured.contents.size };
+    const stats = {
+      parsed: 0,
+      reused: 0,
+      files: captured.contents.size,
+      graphCache: options.cache === false ? "disabled" : "miss",
+      graphResolved: 0,
+    };
     const files = [...captured.contents].map(([relative, item]) => {
       const key = `${PARSER_VERSION}:${item.kind}:${path.extname(relative)}:${item.hash}`;
       const metadata = reusable(cached[key])
@@ -844,35 +1084,86 @@ export function getRepositoryIndex(repoRoot, options = {}) {
         imports: metadata.imports.map((entry) => ({ ...entry })),
       };
     });
-    const packages = discoverPackages(captured.contents, warnings);
-    const { resolve, auxiliary } = resolver(
-      root,
-      captured.contents,
-      packages,
-      warnings,
-    );
+    const graphWarnings = [];
+    const packages = discoverPackages(captured.contents, graphWarnings);
+    const graphCache =
+      options.cache === false
+        ? undefined
+        : readGraphCache(root, captured, files, packages, warnings);
+    let lookups;
+    if (graphCache) {
+      stats.graphCache = "hit";
+      lookups = graphCache.lookups;
+      graphWarnings.push(...graphCache.warnings);
+      const byPath = new Map(
+        graphCache.resolutions.map((record) => [record.path, record.imports]),
+      );
+      for (const file of files)
+        if (byPath.has(file.path)) {
+          file.imports = byPath
+            .get(file.path)
+            .map(
+              ({
+                specifier,
+                line,
+                typeOnly,
+                mode,
+                dynamic,
+                candidates,
+                target,
+                uncertain,
+                edgeTypeOnly,
+              }) => ({
+                specifier,
+                line,
+                typeOnly,
+                mode,
+                ...(dynamic === true ? { dynamic: true } : {}),
+                candidates: [...candidates],
+                ...(target ? { target } : {}),
+                ...(uncertain ? { uncertain: true } : {}),
+                ...(edgeTypeOnly !== undefined ? { edgeTypeOnly } : {}),
+              }),
+            );
+        }
+    } else {
+      const current = resolver(
+        root,
+        captured.contents,
+        packages,
+        graphWarnings,
+      );
+      lookups = current.lookups;
+      if (!current.consistent) continue;
+      for (const file of files)
+        for (const entry of file.imports) {
+          const resolution =
+            entry.specifier === "<nonliteral>"
+              ? { candidates: [] }
+              : (stats.graphResolved++,
+                current.resolve(file.path, entry.specifier, entry));
+          entry.candidates = resolution.candidates;
+          if (resolution.uncertain) entry.uncertain = true;
+          if (resolution.typeOnly !== undefined)
+            entry.edgeTypeOnly = resolution.typeOnly;
+          if (resolution.target) entry.target = resolution.target;
+        }
+    }
+    warnings.push(...graphWarnings);
     const edges = [];
     const unresolved = [];
     for (const file of files)
       for (const entry of file.imports) {
-        const resolution =
-          entry.specifier === "<nonliteral>"
-            ? { candidates: [] }
-            : resolve(file.path, entry.specifier, entry);
-        const { target } = resolution;
-        entry.candidates = resolution.candidates;
-        if (resolution.uncertain) entry.uncertain = true;
-        if (target) {
-          entry.target = target;
+        if (entry.target)
           edges.push({
             from: file.path,
-            to: target,
+            to: entry.target,
             specifier: entry.specifier,
             line: entry.line,
-            typeOnly: resolution.typeOnly ?? entry.typeOnly,
-            ...(resolution.uncertain ? { uncertain: true } : {}),
+            typeOnly: entry.edgeTypeOnly ?? entry.typeOnly,
+            ...(entry.uncertain ? { uncertain: true } : {}),
           });
-        } else
+        else
           unresolved.push({
             file: file.path,
             specifier: entry.specifier,
@@ -892,23 +1183,38 @@ export function getRepositoryIndex(repoRoot, options = {}) {
           });
       }
     if (capture(root).id !== captured.id) continue;
-    if (
-      [...auxiliary].some(([relative, expected]) => {
-        try {
-          return hash(safeRead(root, relative)) !== expected;
-        } catch {
-          return true;
-        }
-      })
-    )
-      continue;
+    const cacheable = lookups.every((lookup) => lookup.state !== "unavailable");
+    if (!validateLookups(root, lookups, captured.contents, true)) continue;
+    if (!cacheable)
+      warnings.push(
+        "Navigation graph cache bypassed: a configuration dependency could not be validated.",
+      );
     const snapshotId = hash(
       JSON.stringify([
         captured.id,
-        [...auxiliary].sort(([a], [b]) => a.localeCompare(b)),
+        PARSER_VERSION,
+        RESOLVER_VERSION,
+        [...lookups].sort((a, b) =>
+          `${a.kind}:${a.path}`.localeCompare(`${b.kind}:${b.path}`),
+        ),
       ]),
     );
-    if (options.cache !== false) writeCache(root, records, warnings);
+    if (
+      options.cache !== false &&
+      (stats.graphCache !== "hit" || stats.parsed > 0)
+    ) {
+      writeCache(root, records, warnings);
+      if (cacheable && stats.graphCache !== "hit")
+        writeGraphCache(
+          root,
+          captured.id,
+          files,
+          packages,
+          graphWarnings,
+          lookups,
+          warnings,
+        );
+    }
     return {
       schemaVersion: INDEX_SCHEMA_VERSION,
       snapshot: { id: snapshotId, headSha: captured.headSha, root },

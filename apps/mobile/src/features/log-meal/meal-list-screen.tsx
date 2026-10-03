@@ -1,5 +1,6 @@
 import {
   ActivityIndicator,
+  AppState,
   Alert,
   KeyboardAvoidingView,
   Modal,
@@ -27,6 +28,7 @@ import { BrandWordmark } from "@/components/brand-wordmark";
 import { AccountHeaderActions } from "@/components/account-header-button";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { analyticsClient } from "@/composition/analytics-client";
+import { getSessionReadVersion } from "@/composition/api-client";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
 import { getIsoLocalDate } from "./food-day-completion";
@@ -158,6 +160,14 @@ export function MealListScreen() {
   const [weeklySummaries, setWeeklySummaries] =
     useState<ReadonlyArray<DailyFoodSummary> | null>(null);
   const userId = session?.user?.id ?? null;
+  const ownerKey = `${userId ?? ""}:${session?.accessToken ?? ""}`;
+  const currentOwner = useRef(ownerKey);
+  currentOwner.current = ownerKey;
+  const requestVersion = useRef(0);
+  const loaded = useRef(false);
+  const lastLoad = useRef<{ version: string; completedAt: number } | null>(
+    null,
+  );
   useEffect(() => setWeeklySummaries(null), [userId]);
   const params = useLocalSearchParams<{ source?: string }>();
   const [state, setState] = useState<MealListState>(INITIAL_STATE);
@@ -188,9 +198,48 @@ export function MealListScreen() {
     null,
   );
 
+  useEffect(() => {
+    requestVersion.current += 1;
+    loaded.current = false;
+    lastLoad.current = null;
+    setState(INITIAL_STATE);
+    setServerSearch(null);
+    setSearchQuery("");
+    setBusyEntryId(null);
+    setSelectedEntryIds(new Set());
+    setGroupingDate(null);
+    setShowGroupModal(false);
+    setGroupModalName("Breakfast");
+    setRenameNewName("");
+    setPortionTarget(null);
+    setRenameTarget(null);
+  }, [ownerKey]);
+
   const load = useCallback(async (): Promise<void> => {
-    setState((current) => ({ ...current, loading: true, message: null }));
+    const version = ++requestVersion.current;
+    const requestOwner = ownerKey;
+    const readVersion = getSessionReadVersion();
+    setState((current) => ({
+      ...current,
+      loading: !loaded.current,
+      message: null,
+    }));
     const result = await fetchFoodHistory();
+    if (
+      version !== requestVersion.current ||
+      requestOwner !== currentOwner.current
+    )
+      return;
+    if (result.message !== null) {
+      setState((current) => ({
+        ...current,
+        loading: false,
+        message: result.message,
+      }));
+      return;
+    }
+    loaded.current = true;
+    lastLoad.current = { version: readVersion, completedAt: Date.now() };
     if (userId && result.entries) {
       const today = getIsoLocalDate();
       const todayEntries = result.entries.filter((e) =>
@@ -212,12 +261,14 @@ export function MealListScreen() {
       cutoffDateIsPartial: result.cutoffDateIsPartial ?? false,
       message: result.message,
     });
-  }, [userId]);
+  }, [userId, ownerKey]);
 
   const loadMore = useCallback(async (): Promise<void> => {
     if (state.loadingMore || !state.nextCursor) return;
     setState((current) => ({ ...current, loadingMore: true }));
+    const requestOwner = ownerKey;
     const result = await fetchFoodHistory({ cursor: state.nextCursor });
+    if (requestOwner !== currentOwner.current) return;
     if (result.message !== null) {
       setState((current) => ({
         ...current,
@@ -242,7 +293,7 @@ export function MealListScreen() {
         loadingMore: false,
       };
     });
-  }, [state.loadingMore, state.nextCursor]);
+  }, [state.loadingMore, state.nextCursor, ownerKey]);
 
   useEffect(() => {
     const trimmed = searchQuery.trim();
@@ -253,6 +304,7 @@ export function MealListScreen() {
     }
 
     let active = true;
+    const requestOwner = ownerKey;
     setServerSearch((current) => ({
       loading: true,
       loadingMore: false,
@@ -266,7 +318,7 @@ export function MealListScreen() {
 
     const timer = setTimeout(async () => {
       const result = await fetchFoodHistory({ search: trimmed });
-      if (!active) return;
+      if (!active || requestOwner !== currentOwner.current) return;
       setServerSearch((current) =>
         completeInitialMealSearch(current, trimmed, sessionId, result),
       );
@@ -276,7 +328,7 @@ export function MealListScreen() {
       active = false;
       clearTimeout(timer);
     };
-  }, [searchAttempt, searchQuery]);
+  }, [searchAttempt, searchQuery, ownerKey]);
 
   const loadMoreSearch = useCallback(async (): Promise<void> => {
     if (!serverSearch || serverSearch.loadingMore || !serverSearch.nextCursor) {
@@ -292,10 +344,12 @@ export function MealListScreen() {
         ? { ...current, loadingMore: true, error: null }
         : current,
     );
+    const requestOwner = ownerKey;
     const result = await fetchFoodHistory({
       search: currentQuery,
       cursor: currentCursor,
     });
+    if (requestOwner !== currentOwner.current) return;
     if (result.message !== null) {
       setServerSearch((current) =>
         failMealSearchLoadMore(
@@ -327,7 +381,7 @@ export function MealListScreen() {
         error: null,
       };
     });
-  }, [serverSearch]);
+  }, [serverSearch, ownerKey]);
 
   useFocusEffect(
     useCallback(() => {
@@ -335,8 +389,22 @@ export function MealListScreen() {
         name: "feature_viewed",
         properties: { feature: "nutrition_history" },
       });
-      void load();
+      const previous = lastLoad.current;
+      if (
+        !previous ||
+        previous.version !== getSessionReadVersion() ||
+        Date.now() - previous.completedAt >= 5 * 60 * 1000
+      ) {
+        void load();
+      }
       void advancedCapability.refresh();
+      const subscription = AppState.addEventListener("change", (state) => {
+        if (state === "active") {
+          void load();
+          void advancedCapability.refresh();
+        }
+      });
+      return () => subscription.remove();
     }, [load, advancedCapability.refresh]),
   );
 
@@ -346,17 +414,20 @@ export function MealListScreen() {
       return;
     }
     let active = true;
+    const requestOwner = ownerKey;
     void fetchCurrentWeekSummaries()
       .then((summaries) => {
-        if (active) setWeeklySummaries(summaries);
+        if (active && requestOwner === currentOwner.current)
+          setWeeklySummaries(summaries);
       })
       .catch(() => {
-        if (active) setWeeklySummaries(null);
+        if (active && requestOwner === currentOwner.current)
+          setWeeklySummaries(null);
       });
     return () => {
       active = false;
     };
-  }, [advancedCapability.enabled, state.entries, userId]);
+  }, [advancedCapability.enabled, state.entries, userId, ownerKey]);
 
   const copy = useCallback(
     async (entry: FoodEntry): Promise<void> => {

@@ -181,6 +181,33 @@ describe("workouts-hub-data", () => {
     expect(processedCompleted.exerciseSummaries[0]?.topLoadKg).toBe(85);
   });
 
+  it.each(["routine", "exercises", "sets"])(
+    "marks partial %s reads incomplete so navigation can retry",
+    async (failure) => {
+      const client = {
+        request: vi.fn(async ({ path }: { path: string }) => {
+          if (
+            (failure === "routine" && path.includes("kind=routine")) ||
+            (failure === "exercises" && path.includes("/exercises")) ||
+            (failure === "sets" && path.includes("/sets"))
+          )
+            return {
+              ok: false,
+              error: { kind: "network_error", cause: "fixture" },
+            };
+          if (path.includes("/exercises"))
+            return { ok: true, value: { exercises: [mockExercise] } };
+          if (path.includes("/sets"))
+            return { ok: true, value: { workoutSets: mockSets } };
+          return { ok: true, value: { workouts: [mockCompletedWorkout] } };
+        }),
+      } as unknown as ApiClient;
+      const result = await fetchWorkoutsHubData(client);
+      expect(result.completed).toHaveLength(1);
+      expect(result.message).toContain("could not be loaded");
+    },
+  );
+
   it("fetches workouts and separates active/planned and completed", async () => {
     const client: ApiClient = {
       request: vi
