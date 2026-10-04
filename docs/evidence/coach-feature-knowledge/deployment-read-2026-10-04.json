@@ -1,0 +1,14 @@
+{
+  "environment": "Dev",
+  "readDate": "2026-10-04",
+  "checkoutSha": "b28a31fa55ced8e324afd08910b826187d570adc",
+  "pristine": true,
+  "appCapabilityFilePresent": false,
+  "promptVersion": "coach-system-v1",
+  "hasDeterministicGuidePath": false,
+  "service": "mizyun-api-dev.service",
+  "serviceState": "active",
+  "processCwd": "/var/lib/mizyun/dev/repo",
+  "pid": 2290207,
+  "method": "read-only SSH via mizyun-hetzner-ops; no environment/credentials read or server mutation"
+}

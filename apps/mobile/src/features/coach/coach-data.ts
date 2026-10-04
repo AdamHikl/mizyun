@@ -169,8 +169,9 @@ export const createCoachConversation = async (
 
 export const loadCoachThread = async (
   conversationId: string,
+  client: ApiClient = apiClient,
 ): Promise<CoachThreadResult> => {
-  const result = await apiClient.request<{
+  const result = await client.request<{
     conversation: CoachConversation;
     messages: CoachMessage[];
   }>({

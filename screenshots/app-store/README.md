@@ -1,5 +1,7 @@
 # Mizyun App Store screenshots
 
+> **2026-10-04 / #136: replacement required before resubmission.** This retained set contains BETA badges in captures 1, 4, 5 and 6 and no longer matches the updated app. Capture the verified Production candidate again and regenerate the artwork. The historical export checks below do not make this set ready to upload.
+
 Created 2026-09-14 from the seven original iPhone captures in `screenshots/`. `IMG_3716.PNG` is a style reference only and is not included in the upload set.
 
 ## Upload

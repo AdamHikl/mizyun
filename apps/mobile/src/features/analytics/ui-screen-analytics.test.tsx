@@ -49,8 +49,13 @@ vi.mock("expo-router", () => ({
   router: { push: state.push },
   useFocusEffect: vi.fn(),
 }));
+vi.mock("expo-network", () => ({}));
 vi.mock("@/components/themed-text", () => ({ ThemedText: "ThemedText" }));
 vi.mock("@/components/themed-view", () => ({ ThemedView: "ThemedView" }));
+vi.mock("@/components/tab-header", () => ({
+  TabHeader: "TabHeader",
+  useTabHeaderLayout: () => ({ headerHeight: 96, onHeaderLayout: () => {} }),
+}));
 vi.mock("@/components/brand-wordmark", () => ({
   BrandWordmark: "BrandWordmark",
 }));
@@ -160,6 +165,20 @@ beforeEach(() => {
 });
 
 describe("dashboard and settings usage telemetry", () => {
+  it("opens Health steps settings directly from the disabled steps card", () => {
+    const tree = render(DashboardScreen);
+    const steps = find(tree, (node) => node.props?.label === "Steps today");
+    expect(steps.props.detail).toBe("Enable in Settings →");
+
+    steps.props.onPress();
+
+    expect(state.push.mock.calls).toEqual([["/account-settings/health-steps"]]);
+    expect(state.track).toHaveBeenCalledWith({
+      name: "dashboard_control_clicked",
+      properties: { control: "steps_card" },
+    });
+  });
+
   it("tracks dashboard card/quick-log controls without health data or navigation parameters", () => {
     const tree = render(DashboardScreen);
     find(

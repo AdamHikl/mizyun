@@ -45,6 +45,7 @@ import {
   saveLoggingDraft,
 } from "@/features/logging-draft-storage";
 import { useTheme } from "@/hooks/use-theme";
+import { useColorScheme } from "@/hooks/use-color-scheme";
 import {
   displayWeightToKilograms,
   kilogramsToDisplayWeight,
@@ -1322,6 +1323,8 @@ export function LogWorkoutScreen() {
 
   // Confirm abandon
   const confirmAbandon = useCallback(() => {
+    if (busy || exerciseMutationInFlight.current || setSaveInFlight.current)
+      return;
     const attempt = measurement.current;
     if (workspace.workout === null) return;
     if (isRoutineDetails(workspace.workout.details)) {
@@ -1339,31 +1342,60 @@ export function LogWorkoutScreen() {
         text: "Discard",
         style: "destructive",
         onPress: () => {
+          setBusy(true);
           void (async () => {
-            restNotificationGeneration.current += 1;
-            if (restTimer?.notificationId) {
-              await cancelRestNotification(restTimer.notificationId);
+            try {
+              restNotificationGeneration.current += 1;
+              if (restTimer?.notificationId) {
+                await cancelRestNotification(restTimer.notificationId);
+              }
+              setRestTimer(null);
+              clearContextRestTimer?.();
+              setContextActiveWorkout?.(null);
+              const result = await abandonWorkout(workspace.workout!.id);
+              if (!result.ok) return setMessage(result.message);
+              attempt?.exit("cancel");
+              void dismissActiveWorkoutNotification();
+              if (userId !== null) await clearLoggingDraft(userId, "workout");
+              router.back();
+            } catch {
+              setMessage("Unable to discard this session. Please try again.");
+            } finally {
+              setBusy(false);
             }
-            setRestTimer(null);
-            clearContextRestTimer?.();
-            setContextActiveWorkout?.(null);
-            const result = await abandonWorkout(workspace.workout!.id);
-            if (!result.ok) return setMessage(result.message);
-            attempt?.exit("cancel");
-            void dismissActiveWorkoutNotification();
-            if (userId !== null) await clearLoggingDraft(userId, "workout");
-            router.back();
           })();
         },
       },
     ]);
   }, [
+    busy,
     clearContextRestTimer,
     restTimer?.notificationId,
     setContextActiveWorkout,
     userId,
     workspace.workout,
   ]);
+
+  const finishHeaderButton =
+    workspace.workout !== null ? (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Finish Workout"
+        accessibilityHint="Review and save this workout."
+        accessibilityState={{ disabled: busy, busy }}
+        disabled={busy}
+        onPress={handleFinish}
+        style={({ pressed }) => [
+          styles.headerFinishButton,
+          pressed && styles.headerFinishButtonPressed,
+          busy && styles.actionDisabled,
+        ]}
+      >
+        <ThemedText type="smallBold" style={styles.headerFinishText}>
+          Finish
+        </ThemedText>
+      </Pressable>
+    ) : null;
 
   return (
     <ThemedView style={styles.page}>
@@ -1382,19 +1414,21 @@ export function LogWorkoutScreen() {
               </ThemedText>
             </Pressable>
           ),
-          headerRight: () =>
-            workspace.workout !== null ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Finish Workout"
-                onPress={handleFinish}
-                style={styles.headerFinishButton}
-              >
-                <ThemedText type="smallBold" style={styles.headerFinishText}>
-                  Finish
-                </ThemedText>
-              </Pressable>
-            ) : null,
+          headerRight: () => finishHeaderButton,
+          // iOS otherwise adds a second glass capsule around the green button.
+          unstable_headerRightItems:
+            Platform.OS === "ios"
+              ? () =>
+                  finishHeaderButton
+                    ? [
+                        {
+                          type: "custom",
+                          element: finishHeaderButton,
+                          hidesSharedBackground: true,
+                        },
+                      ]
+                    : []
+              : undefined,
         }}
       />
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
@@ -1448,7 +1482,6 @@ export function LogWorkoutScreen() {
                 onOpenLibrary={() => setLibraryVisible(true)}
                 onMoveExercise={handleMoveExercise}
                 onOpenReorderModal={() => setReorderModalVisible(true)}
-                onFinish={handleFinish}
                 onAbandon={confirmAbandon}
                 onInteraction={() => measurement.current?.tap()}
               />
@@ -1703,10 +1736,13 @@ function ActiveWorkoutFeed(props: {
   readonly onOpenLibrary: () => void;
   readonly onMoveExercise: (fromIndex: number, toIndex: number) => void;
   readonly onOpenReorderModal: () => void;
-  readonly onFinish: () => void;
   readonly onAbandon: () => void;
   readonly onInteraction: () => void;
 }) {
+  const theme = useTheme();
+  const scheme = useColorScheme();
+  const actionColor = scheme === "light" ? "#047857" : "#34D399";
+  const discardColor = scheme === "light" ? "#B91C1C" : "#F87171";
   const unit = weightUnitLabel(props.unitSystem);
   const totalSets = props.savedSets.length;
   const totalVolumeKg = useMemo(() => {
@@ -1742,22 +1778,6 @@ function ActiveWorkoutFeed(props: {
             <ThemedText type="small" themeColor="textSecondary">
               {totalSets} sets · {displayVolume} {unit} volume
             </ThemedText>
-            {props.exercises.length > 1 ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Reorder exercises"
-                onPress={() => {
-                  props.onInteraction();
-                  props.onOpenReorderModal();
-                }}
-                style={styles.reorderFeedButton}
-                hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
-              >
-                <ThemedText style={styles.reorderFeedButtonText}>
-                  ⇅ Reorder
-                </ThemedText>
-              </Pressable>
-            ) : null}
           </View>
         </View>
       </View>
@@ -1765,10 +1785,14 @@ function ActiveWorkoutFeed(props: {
       {/* Exercise Cards */}
       {props.exercises.length === 0 ? (
         <View style={styles.emptyExercisesCard}>
-          <ThemedText type="smallBold">
+          <ThemedText type="smallBold" style={styles.emptyExercisesText}>
             No exercises in this workout yet.
           </ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
+          <ThemedText
+            type="small"
+            themeColor="textSecondary"
+            style={styles.emptyExercisesText}
+          >
             Add an exercise, then log each set as you go.
           </ThemedText>
         </View>
@@ -1825,53 +1849,80 @@ function ActiveWorkoutFeed(props: {
         })
       )}
 
-      {/* Add Exercise & Workout Controls */}
+      {/* Session editing is separate from the destructive action. */}
       <View style={styles.bottomControls}>
-        <View style={styles.addExerciseControlsRow}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Add Exercise to Workout"
+          accessibilityHint="Open the exercise library."
+          accessibilityState={{ disabled: props.busy }}
+          disabled={props.busy}
+          onPress={() => {
+            if (props.busy) return;
+            props.onInteraction();
+            props.onOpenLibrary();
+          }}
+          style={({ pressed }) => [
+            styles.addExerciseButton,
+            { backgroundColor: theme.primaryLight, borderColor: actionColor },
+            pressed && styles.actionPressed,
+            props.busy && styles.actionDisabled,
+          ]}
+        >
+          <ThemedText
+            type="smallBold"
+            style={[styles.actionText, { color: actionColor }]}
+          >
+            + Add Exercise
+          </ThemedText>
+        </Pressable>
+        {props.exercises.length > 1 ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Add Exercise to Workout"
+            accessibilityLabel="Reorder exercises"
+            accessibilityState={{ disabled: props.busy }}
+            disabled={props.busy}
             onPress={() => {
+              if (props.busy) return;
               props.onInteraction();
-              props.onOpenLibrary();
+              props.onOpenReorderModal();
             }}
-            style={[
-              styles.addExerciseButton,
-              props.exercises.length > 1 ? { flex: 1 } : null,
+            style={({ pressed }) => [
+              styles.reorderAllButton,
+              {
+                backgroundColor: theme.backgroundElement,
+                borderColor: theme.border,
+              },
+              pressed && styles.actionPressed,
+              props.busy && styles.actionDisabled,
             ]}
           >
-            <ThemedText type="smallBold" style={styles.addExerciseText}>
-              + Add Exercise
+            <ThemedText type="smallBold" style={styles.actionText}>
+              ⇅ Reorder
             </ThemedText>
           </Pressable>
-          {props.exercises.length > 1 ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Reorder exercises"
-              onPress={() => {
-                props.onInteraction();
-                props.onOpenReorderModal();
-              }}
-              style={styles.reorderAllButton}
-            >
-              <ThemedText type="smallBold" style={styles.reorderAllText}>
-                ⇅ Reorder
-              </ThemedText>
-            </Pressable>
-          ) : null}
-        </View>
-
-        <View style={styles.finishActions}>
-          <Button
-            label={props.busy ? "Finishing…" : "Finish Workout"}
+        ) : null}
+        <View style={[styles.discardSection, { borderColor: theme.border }]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Discard Session"
+            accessibilityHint="Confirm deletion of this session and its logged sets."
+            accessibilityState={{ disabled: props.busy }}
             disabled={props.busy}
-            onPress={props.onFinish}
-          />
-          <Button
-            label="Discard Session"
-            destructive
             onPress={props.onAbandon}
-          />
+            style={({ pressed }) => [
+              styles.discardButton,
+              pressed && styles.actionPressed,
+              props.busy && styles.actionDisabled,
+            ]}
+          >
+            <ThemedText
+              type="smallBold"
+              style={[styles.actionText, { color: discardColor }]}
+            >
+              Discard Session
+            </ThemedText>
+          </Pressable>
         </View>
       </View>
     </View>
@@ -2396,11 +2447,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   headerFinishButton: {
-    backgroundColor: "#10B981",
+    backgroundColor: "#047857",
+    minHeight: 44,
+    minWidth: 80,
     paddingHorizontal: Spacing.three,
-    paddingVertical: 6,
-    borderRadius: Spacing.two,
-    marginRight: Spacing.two,
+    paddingVertical: 10,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  headerFinishButtonPressed: {
+    backgroundColor: "#065F46",
   },
   headerFinishText: {
     color: "#FFFFFF",
@@ -2414,8 +2471,10 @@ const styles = StyleSheet.create({
   },
   liveHeaderTop: {
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "space-between",
     alignItems: "center",
+    gap: Spacing.two,
   },
   liveStopwatchRow: {
     flexDirection: "row",
@@ -2429,31 +2488,17 @@ const styles = StyleSheet.create({
     backgroundColor: "#10B981",
   },
   liveHeaderRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.two,
-  },
-  reorderFeedButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.25)",
-  },
-  reorderFeedButtonText: {
-    fontSize: 12,
-    color: "#10B981",
-    fontWeight: "600",
+    maxWidth: "100%",
   },
   emptyExercisesCard: {
-    padding: Spacing.six,
+    padding: Spacing.four,
     borderRadius: Spacing.three,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "rgba(255, 255, 255, 0.1)",
     alignItems: "center",
     gap: Spacing.two,
   },
+  emptyExercisesText: { textAlign: "center" },
   exerciseCard: {
     backgroundColor: "rgba(255, 255, 255, 0.03)",
     borderRadius: Spacing.three,
@@ -2691,37 +2736,46 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
     marginTop: Spacing.two,
   },
-  addExerciseControlsRow: {
-    flexDirection: "row",
-    gap: Spacing.two,
-  },
   addExerciseButton: {
+    width: "100%",
+    minHeight: 52,
+    paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.three,
     borderRadius: Spacing.three,
     borderWidth: 1,
-    borderStyle: "dashed",
-    borderColor: "#10B981",
     alignItems: "center",
     justifyContent: "center",
   },
-  addExerciseText: {
-    color: "#10B981",
+  actionText: {
+    fontSize: 16,
+    lineHeight: 22,
+    textAlign: "center",
+    flexShrink: 1,
   },
+  actionPressed: { opacity: 0.75 },
+  actionDisabled: { opacity: 0.5 },
   reorderAllButton: {
-    paddingHorizontal: Spacing.four,
-    backgroundColor: "rgba(148, 163, 184, 0.12)",
+    alignSelf: "center",
+    maxWidth: "100%",
+    minHeight: 48,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
     borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.2)",
     borderRadius: Spacing.three,
     alignItems: "center",
     justifyContent: "center",
   },
-  reorderAllText: {
-    fontSize: 14,
-    fontWeight: "600",
+  discardSection: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: Spacing.two,
   },
-  finishActions: {
-    gap: Spacing.two,
+  discardButton: {
+    minHeight: 48,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: Spacing.two,
   },
   planCard: {
     gap: Spacing.two,

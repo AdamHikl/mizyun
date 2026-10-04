@@ -17,6 +17,12 @@ const mocks = vi.hoisted(() => ({
   pendingAction: null as any,
   execute: null as any,
   params: {} as { prompt?: string; autoSend?: string },
+  owner: "synthetic-user",
+  token: "synthetic-token",
+  appState: "active",
+  fontScale: 1,
+  headerHeight: 128,
+  appListeners: new Set<(state: string) => void>(),
 }));
 const hooks = vi.hoisted(() => ({
   slots: [] as any[],
@@ -52,14 +58,21 @@ vi.mock("react", async (original) => {
     useEffect: (callback: () => void, deps: any[]) => {
       const i = hooks.index++;
       const previous = hooks.slots[i];
-      if (!previous || deps.some((v, j) => !Object.is(v, previous[j]))) {
-        hooks.slots[i] = deps;
-        hooks.effects.push(callback);
+      if (!previous || deps.some((v, j) => !Object.is(v, previous.deps[j]))) {
+        hooks.effects.push(() => {
+          previous?.cleanup?.();
+          hooks.slots[i] = { deps, cleanup: callback() };
+        });
       }
     },
   };
 });
 vi.mock("react-native", () => ({
+  useWindowDimensions: () => ({
+    width: 393,
+    height: 852,
+    fontScale: mocks.fontScale,
+  }),
   ActivityIndicator: "ActivityIndicator",
   KeyboardAvoidingView: "KeyboardAvoidingView",
   Pressable: "Pressable",
@@ -69,6 +82,15 @@ vi.mock("react-native", () => ({
   Platform: { OS: "ios", select: (values: any) => values.ios },
   StyleSheet: { create: (s: unknown) => s },
   Keyboard: { addListener: () => ({ remove: vi.fn() }) },
+  AppState: {
+    get currentState() {
+      return mocks.appState;
+    },
+    addEventListener: (_: string, callback: (state: string) => void) => {
+      mocks.appListeners.add(callback);
+      return { remove: () => mocks.appListeners.delete(callback) };
+    },
+  },
   Alert: { alert: mocks.alert },
 }));
 vi.mock("react-native-safe-area-context", () => ({
@@ -84,6 +106,13 @@ vi.mock("expo-image-picker", () => ({
 }));
 vi.mock("@/components/themed-text", () => ({ ThemedText: "ThemedText" }));
 vi.mock("@/components/themed-view", () => ({ ThemedView: "ThemedView" }));
+vi.mock("@/components/tab-header", () => ({
+  TabHeader: "TabHeader",
+  useTabHeaderLayout: () => ({
+    headerHeight: mocks.headerHeight,
+    onHeaderLayout: () => {},
+  }),
+}));
 vi.mock("@/components/brand-wordmark", () => ({
   BrandWordmark: "BrandWordmark",
 }));
@@ -93,7 +122,7 @@ vi.mock("@/components/account-header-button", () => ({
 vi.mock("@/hooks/use-theme", () => ({ useTheme: () => ({ text: "#fff" }) }));
 vi.mock("@/features/auth/auth-context", () => ({
   useAuth: () => ({
-    session: { user: { id: "synthetic-user" } },
+    session: { user: { id: mocks.owner }, accessToken: mocks.token },
     profile: null,
     refreshProfile: vi.fn(),
   }),
@@ -140,6 +169,7 @@ vi.mock("@/features/workouts/workouts-hub-data", () => ({
 vi.mock("./coach-data", async (original) => ({
   ...(await original<typeof import("./coach-data")>()),
   loadCoach: mocks.load,
+  loadCoachWith: mocks.load,
   createCoachConversation: mocks.create,
   loadCoachThread: mocks.thread,
   sendCoachMessage: mocks.send,
@@ -201,6 +231,12 @@ beforeEach(() => {
   mocks.consent = true;
   mocks.pendingAction = null;
   mocks.params = {};
+  mocks.owner = "synthetic-user";
+  mocks.token = "synthetic-token";
+  mocks.appState = "active";
+  mocks.fontScale = 1;
+  mocks.headerHeight = 128;
+  mocks.appListeners.clear();
   mocks.load.mockResolvedValue({ ok: true, status: ready, conversations: [] });
   mocks.create.mockResolvedValue({ ok: true, conversation, messages: [] });
   mocks.thread.mockResolvedValue({ ok: true, conversation, messages: [] });
@@ -212,11 +248,356 @@ beforeEach(() => {
   mocks.normalize.mockResolvedValue(new Blob());
 });
 afterEach(() => {
+  hooks.slots.forEach((slot) => slot?.cleanup?.());
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
+describe("Coach translucent header", () => {
+  const flatten = (style: any) => Object.assign({}, ...[style].flat(Infinity));
+
+  it("lets messages scroll behind the full header and reserves its remeasured height", async () => {
+    let tree = await open();
+    const chrome = () => nodes(tree).find((node) => node.type === "TabHeader");
+    const keyboard = () =>
+      nodes(tree).find((node) => node.type === "KeyboardAvoidingView");
+    const transcript = () =>
+      nodes(tree).find((node) => node.type === "ScrollView");
+    expect(
+      labelled(chrome(), "Toggle training plan & advisory info"),
+    ).toBeDefined();
+    expect(nodes(chrome()).some((node) => node.type === "ScrollView")).toBe(
+      false,
+    );
+    expect(flatten(keyboard().props.style).marginTop).toBe(-128);
+    expect(flatten(transcript().props.contentContainerStyle).paddingTop).toBe(
+      152,
+    );
+    expect(keyboard().props.behavior).toBe("padding");
+    expect(keyboard().props.keyboardVerticalOffset).toBe(8);
+
+    labelled(chrome(), "Toggle training plan & advisory info").props.onPress();
+    mocks.headerHeight = 248;
+    tree = render();
+    expect(text(chrome(), "Advisory & Privacy Notice")).toBe(true);
+    expect(flatten(keyboard().props.style).marginTop).toBe(-248);
+    expect(flatten(transcript().props.contentContainerStyle).paddingTop).toBe(
+      272,
+    );
+  });
+});
+
+describe("Coach conversation hierarchy", () => {
+  const introduction =
+    "Private fitness & nutrition guidance grounded in your confirmed data.";
+  const hasIntroduction = (tree: any) =>
+    nodes(tree).some(
+      (node) =>
+        node.type === "ThemedText" &&
+        [node.props?.children].flat().join("").replace(/\s+/g, " ").trim() ===
+          introduction,
+    );
+
+  it("keeps the introduction in the scrollable empty state", async () => {
+    const tree = await open();
+    const transcript = nodes(tree).find((node) => node.type === "ScrollView");
+    expect(hasIntroduction(transcript)).toBe(true);
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+
+  it("prioritizes populated history while retaining conversation and advisory controls", async () => {
+    const titled = {
+      ...conversation,
+      title: "A long training and nutrition check-in",
+    };
+    mocks.load.mockResolvedValue({
+      ok: true,
+      status: ready,
+      conversations: [titled],
+    });
+    mocks.thread.mockResolvedValue({
+      ok: true,
+      conversation: titled,
+      messages: [
+        { id: "assistant-1", role: "assistant", text: "Confirmed guidance" },
+      ],
+    });
+    const tree = await open();
+    expect(hasIntroduction(tree)).toBe(false);
+    expect(
+      labelled(tree, "Open thread list").props.accessibilityValue.text,
+    ).toContain(titled.title);
+    labelled(tree, "Open thread list").props.onPress();
+    expect(
+      nodes(render()).find((node) => node.type === "ThreadListSheet").props
+        .visible,
+    ).toBe(true);
+    expect(labelled(tree, "New conversation").props.disabled).toBe(false);
+    expect(labelled(tree, "Delete conversation")).toBeDefined();
+    nodes(render())
+      .find((node) => node.type === "ThreadListSheet")
+      .props.onClose();
+    const advisory = labelled(render(), "Toggle training plan & advisory info");
+    expect(advisory.props.accessibilityState.expanded).toBe(false);
+    advisory.props.onPress();
+    expect(text(render(), "Advisory & Privacy Notice")).toBe(true);
+    expect(
+      labelled(render(), "Toggle training plan & advisory info").props
+        .accessibilityState.expanded,
+    ).toBe(true);
+  });
+});
+
+describe("Coach reply text selection", () => {
+  it.each(["history", "new reply"])(
+    "enables native copying of formatted text in %s",
+    async (source) => {
+      const reply = {
+        id: "selectable-reply",
+        role: "assistant",
+        text: "# Today's plan\nPlain guidance\nKeep **steady** progress\n- Bullet advice\n1. Numbered advice\n\n---\n`Example text`",
+        evidenceKinds: [],
+      };
+      mocks.load.mockResolvedValue({
+        ok: true,
+        status: ready,
+        conversations: [conversation],
+      });
+      mocks.thread.mockResolvedValue({
+        ok: true,
+        conversation,
+        messages: source === "history" ? [reply] : [],
+      });
+      let tree = await open();
+      if (source === "new reply") {
+        mocks.send.mockResolvedValue({
+          ok: true,
+          conversation,
+          messages: [reply],
+        });
+        const pending = typeMessage().props.onPress();
+        await settle();
+        await vi.advanceTimersByTimeAsync(500);
+        await pending;
+        tree = render();
+      }
+      const bubble = nodes(tree).find(
+        (node) => node.props?.message?.id === reply.id,
+      );
+      expect(bubble).toBeDefined();
+      const formatted = nodes(bubble.type(bubble.props)).find(
+        (node) => node.props?.text === reply.text,
+      );
+      expect(formatted).toBeDefined();
+      const rendered = formatted.type(formatted.props);
+      const roots = (node: any): any[] => {
+        if (!node || typeof node !== "object") return [];
+        if (Array.isArray(node)) return node.flatMap(roots);
+        if (node.type === "ThemedText") return [node];
+        return roots(node.props?.children);
+      };
+      const content = (node: any): string => {
+        if (typeof node === "string") return node;
+        if (Array.isArray(node)) return node.map(content).join("");
+        return node ? content(node.props?.children) : "";
+      };
+      const textRoots = roots(rendered);
+      expect(textRoots.map(content)).toEqual([
+        "Today's plan",
+        "Plain guidance",
+        "Keep steady progress",
+        "•",
+        "Bullet advice",
+        "1.",
+        "Numbered advice",
+        "`Example text`",
+      ]);
+      for (const root of textRoots) expect(root.props.selectable).toBe(true);
+      const bold = nodes(textRoots[2]).find(
+        (node) => node.props?.type === "smallBold",
+      );
+      expect(bold.props.children).toBe("steady");
+    },
+  );
+});
+
 describe("direct Coach entry", () => {
+  it("keeps an intended older conversation when token refresh interrupts its opening", async () => {
+    const older = {
+      ...conversation,
+      id: "thread-older",
+      title: "Older check-in",
+    };
+    mocks.load.mockResolvedValue({
+      ok: true,
+      status: ready,
+      conversations: [conversation, older],
+    });
+    await open();
+    let resolve!: (result: any) => void;
+    mocks.thread.mockReturnValueOnce(
+      new Promise((r) => {
+        resolve = r;
+      }),
+    );
+    const sheet = nodes(render()).find(
+      (node) => node.type === "ThreadListSheet",
+    );
+    sheet.props.onSelect(older.id);
+    render();
+    mocks.token = "synthetic-rotated";
+    render();
+    await settle();
+    expect(mocks.load).toHaveBeenCalledTimes(1);
+    mocks.thread.mockResolvedValue({
+      ok: true,
+      conversation: older,
+      messages: [],
+    });
+    resolve({ ok: false, message: "Retired thread" });
+    await settle();
+    render();
+    await settle();
+    expect(mocks.load).toHaveBeenCalledTimes(2);
+    expect(mocks.thread.mock.calls.at(-1)?.[0]).toBe(older.id);
+    expect(text(render(), "Retired thread")).toBe(false);
+  });
+  it.each(["token", "foreground"])(
+    "waits for a pending send before %s recovery reload",
+    async (trigger) => {
+      mocks.load.mockResolvedValue({
+        ok: true,
+        status: ready,
+        conversations: [conversation],
+      });
+      const canonical = {
+        id: "canonical-assistant",
+        conversationId: conversation.id,
+        role: "assistant",
+        text: "New reply",
+        status: "complete",
+        provider: "gemini",
+        evidenceKinds: [],
+        actionProposal: null,
+        createdAt: conversation.createdAt,
+      };
+      let resolve!: (result: any) => void;
+      mocks.send.mockReturnValueOnce(
+        new Promise((r) => {
+          resolve = r;
+        }),
+      );
+      await open();
+      const pending = typeMessage().props.onPress();
+      await settle();
+      render();
+      expect(mocks.send).toHaveBeenCalledTimes(1);
+      if (trigger === "token") {
+        mocks.token = "synthetic-rotated";
+        render();
+      } else {
+        mocks.appState = "background";
+        for (const listener of mocks.appListeners) listener("background");
+        mocks.appState = "active";
+        for (const listener of mocks.appListeners) listener("active");
+      }
+      await settle();
+      expect(mocks.load).toHaveBeenCalledTimes(1);
+      mocks.thread.mockResolvedValue({
+        ok: true,
+        conversation,
+        messages: [canonical],
+      });
+      resolve({ ok: true, conversation, messages: [canonical] });
+      await settle();
+      await vi.advanceTimersByTimeAsync(500);
+      await pending;
+      render();
+      await settle();
+      const tree = render();
+      expect(mocks.load).toHaveBeenCalledTimes(2);
+      expect(text(tree, "Couldn't load Coach")).toBe(false);
+      expect(
+        nodes(tree).some((node) => node.props?.message?.text === "New reply"),
+      ).toBe(true);
+    },
+  );
+  it("ignores a late thread response after the app backgrounds", async () => {
+    mocks.load.mockResolvedValue({
+      ok: true,
+      status: ready,
+      conversations: [conversation],
+    });
+    let resolve!: (result: any) => void;
+    mocks.thread.mockReturnValueOnce(
+      new Promise((r) => {
+        resolve = r;
+      }),
+    );
+    render();
+    await settle();
+    const client = mocks.thread.mock.calls[0][1];
+    mocks.appState = "background";
+    for (const listener of mocks.appListeners) listener("background");
+    resolve({ ok: false, message: "Retired thread" });
+    await settle();
+    expect(text(render(), "Retired thread")).toBe(false);
+    const request = vi.fn().mockResolvedValue({ ok: true, value: {} });
+    const composition = await import("@/composition/api-client");
+    composition.apiClient.request = request;
+    await client.request({ method: "GET", path: "/v1/coach/conversations" });
+    expect(request.mock.calls[0][0].expectedUserId).toBe("synthetic-user");
+    expect(request.mock.calls[0][0].isCurrent()).toBe(false);
+  });
+  it("automatically retries a failed opening read on foreground return", async () => {
+    mocks.load.mockResolvedValueOnce({
+      ok: false,
+      message: "Your session expired. Sign in again.",
+    });
+    expect(text(await open(), "Couldn't load Coach")).toBe(true);
+    mocks.appState = "background";
+    for (const listener of mocks.appListeners) listener("background");
+    mocks.appState = "active";
+    for (const listener of mocks.appListeners) listener("active");
+    await settle();
+    expect(text(render(), "Couldn't load Coach")).toBe(false);
+    expect(mocks.load).toHaveBeenCalledTimes(2);
+  });
+  it("retries after token refresh and ignores a late error from the old token", async () => {
+    let resolve!: (result: any) => void;
+    mocks.load.mockReturnValueOnce(
+      new Promise((r) => {
+        resolve = r;
+      }),
+    );
+    render();
+    mocks.token = "synthetic-rotated";
+    render();
+    await settle();
+    resolve({ ok: false, message: "Old token expired" });
+    await settle();
+    expect(text(render(), "Couldn't load Coach")).toBe(false);
+    expect(text(render(), "Old token expired")).toBe(false);
+    expect(mocks.load).toHaveBeenCalledTimes(2);
+  });
+  it("drops an old account's delayed conversation and loads the new account", async () => {
+    let resolve!: (result: any) => void;
+    mocks.load.mockReturnValueOnce(
+      new Promise((r) => {
+        resolve = r;
+      }),
+    );
+    render();
+    mocks.owner = "synthetic-bob";
+    mocks.token = "synthetic-bob-token";
+    render();
+    await settle();
+    resolve({ ok: true, status: ready, conversations: [conversation] });
+    await settle();
+    render();
+    expect(mocks.thread).not.toHaveBeenCalled();
+    expect(mocks.load).toHaveBeenCalledTimes(2);
+  });
   it("shows a recoverable read error rather than treating failed history as empty", async () => {
     mocks.load.mockResolvedValueOnce({
       ok: false,
@@ -394,7 +775,10 @@ describe("direct Coach entry", () => {
     typeMessage().props.onPress();
     await settle();
     await vi.advanceTimersByTimeAsync(500);
-    expect(mocks.thread).toHaveBeenCalledWith(conversation.id);
+    expect(mocks.thread).toHaveBeenCalledWith(
+      conversation.id,
+      expect.objectContaining({ request: expect.any(Function) }),
+    );
     expect(mocks.create).not.toHaveBeenCalled();
     expect(mocks.send).toHaveBeenCalledTimes(1);
   });

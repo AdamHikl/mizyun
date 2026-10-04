@@ -49,9 +49,6 @@ vi.mock("@/components/themed-view", () => ({ ThemedView: "ThemedView" }));
 vi.mock("@/components/brand-wordmark", () => ({
   BrandWordmark: "BrandWordmark",
 }));
-vi.mock("@/components/beta-notice", () => ({
-  BetaNoticeCard: "BetaNoticeCard",
-}));
 vi.mock("@/constants/theme", () => ({ MaxContentWidth: 600, Spacing: {} }));
 vi.mock("@/composition/api-client", () => ({ apiClient: {} }));
 vi.mock("@/features/auth/auth-context", () => ({

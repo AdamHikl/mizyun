@@ -1,5 +1,7 @@
 # Architecture Decision Records (ADR) Index
 
+- [ADR-0042 — Compact agent continuity and serialized stable checks](0042-compact-agent-continuity-and-serialized-checks.md): accepted for local implementation 2026-10-04; bounded live status, preserved handoffs, unchanged full gates with local coordination/input stability, and portable device-discovery cleanup.
+
 - [ADR-0030 — Explicit community publication boundary and isolated social authorization](0030-explicit-community-publication.md): accepted 2026-09-29; isolated social tables, field-limited snapshot publication, and bilateral blocking.
 - [ADR-0029 — Pro advanced food nutrients](0029-pro-advanced-food-nutrients.md): accepted 2026-09-29; typed nutrient storage and server-side Pro authorization.
 - [ADR-0028 — Optional device-only step reading](0028-optional-device-only-steps.md): accepted 2026-09-28; opt-in HealthKit/Health Connect steps on device.
@@ -61,3 +63,5 @@
 - [ADR-0039 — Private aggregate developer dashboard](0039-private-aggregate-developer-dashboard.md): accepted for local implementation 2026-10-03; first-party analytics, Metabase over aggregate-only storage, closed widget/settings telemetry and private operator access.
 
 - [ADR-0040 — Free exercise catalog and legacy identity](0040-free-exercise-catalog-and-legacy-identity.md): accepted for local implementation 2026-10-04; adapted RepDB Free content, preserved historical IDs, in-app attribution and pending variant-specific media; professional content/device acceptance remains open.
+
+- [ADR-0041 — Release-owned Coach app capability knowledge](0041-coach-app-capability-knowledge.md): accepted for local implementation 2026-10-04; trusted product catalog, deterministic recurring setup help and required feature/route coverage.

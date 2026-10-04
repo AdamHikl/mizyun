@@ -424,8 +424,8 @@ export function validateStartupSize(repoRoot) {
   const totalBytes = measurements.reduce((sum, item) => sum + item.bytes, 0);
   const status = measurements.find((item) => item.path === "status.md");
   if (status && status.lines > 120) {
-    warnings.push(
-      `Startup size advisory: status.md has ${status.lines} lines (target <= 120).`,
+    errors.push(
+      `Startup size limit: status.md has ${status.lines} lines (maximum 120). Move detailed evidence to linked documents or a dated archive; preserve current authorities and open gates.`,
     );
   }
   if (totalLines > 350) {
@@ -434,8 +434,8 @@ export function validateStartupSize(repoRoot) {
     );
   }
   if (status && status.bytes > 12288)
-    warnings.push(
-      `Startup size advisory: status.md has ${status.bytes} bytes (target <= 12288).`,
+    errors.push(
+      `Startup size limit: status.md has ${status.bytes} bytes (maximum 12288). Move detailed evidence to linked documents or a dated archive; preserve current authorities and open gates.`,
     );
   if (totalBytes > 32768)
     warnings.push(

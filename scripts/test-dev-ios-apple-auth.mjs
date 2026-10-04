@@ -1,4 +1,4 @@
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import {
   mkdtempSync,
   mkdirSync,
@@ -7,6 +7,8 @@ import {
   cpSync,
   chmodSync,
   rmSync,
+  existsSync,
+  readdirSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -16,8 +18,11 @@ const root = mkdtempSync(join(tmpdir(), "mizyun-dev-apple-"));
 try {
   const repo = join(root, "repo");
   const bin = join(root, "bin");
+  const temp = join(root, "device temp");
+  const deviceLog = join(root, "device-paths.jsonl");
   for (const dir of [
     bin,
+    temp,
     join(repo, "scripts"),
     join(repo, "apps/mobile/ios/MizyunDev.xcodeproj"),
     join(repo, "apps/mobile/ios/MizyunDev.xcworkspace"),
@@ -41,7 +46,12 @@ try {
   };
   executable(
     "xcrun",
-    `const fs=require('node:fs');const args=process.argv.slice(2);const i=args.indexOf('--json-output');if(i>=0)fs.writeFileSync(args[i+1],JSON.stringify({result:{devices:[{identifier:'fixture',hardwareProperties:{udid:'fixture'},deviceProperties:{name:'Fixture iPhone'}}]}}));`,
+    `const fs=require('node:fs');const args=process.argv.slice(2);const i=args.indexOf('--json-output');
+if(args.join(' ')!=='devicectl list devices --json-output '+args[i+1]||i<0)throw new Error('Only device discovery is permitted in this fixture');
+const file=args[i+1];fs.appendFileSync(process.env.TEST_DEVICE_LOG,JSON.stringify(file)+'\\n');
+fs.writeFileSync(file,JSON.stringify({result:{devices:[{identifier:'fixture',hardwareProperties:{udid:'fixture'},deviceProperties:{name:'Fixture iPhone'}}]}}));
+if(process.env.TEST_INSTALLER_SIGNAL)process.kill(process.ppid,process.env.TEST_INSTALLER_SIGNAL);
+if(process.env.TEST_DEVICE_BARRIER){const timer=setInterval(()=>{if(fs.existsSync(process.env.TEST_DEVICE_BARRIER)){clearInterval(timer);}},10);setTimeout(()=>{clearInterval(timer);process.exit(1);},5000).unref();}`,
   );
   executable(
     "plutil",
@@ -55,30 +65,103 @@ try {
     ...process.env,
     PATH: `${bin}:${process.env.PATH}`,
     MIZYUN_ENABLE_APPLE_AUTH: "1",
+    TMPDIR: temp,
+    TEST_DEVICE_LOG: deviceLog,
   };
   const plist = join(repo, "apps/mobile/ios/MizyunDev/MizyunDev.entitlements");
+  const installerArgs = (device = "fixture") => [
+    join(repo, "scripts/mobile-device-install.sh"),
+    "ios",
+    "dev",
+    "--device",
+    device,
+    "--dry-run",
+  ];
   const runInstaller = () =>
-    execFileSync(
-      "bash",
-      [
-        join(repo, "scripts/mobile-device-install.sh"),
-        "ios",
-        "dev",
-        "--device",
-        "fixture",
-        "--dry-run",
-      ],
-      { env, encoding: "utf8" },
-    );
+    execFileSync("bash", installerArgs(), { env, encoding: "utf8" });
+  const devicePaths = () =>
+    readFileSync(deviceLog, "utf8").trim().split("\n").map(JSON.parse);
+  const assertCleaned = () => {
+    for (const path of devicePaths()) assert.equal(existsSync(path), false);
+    assert.deepEqual(readdirSync(temp), []);
+  };
   writeFileSync(plist, "{}");
   assert.match(runInstaller(), /Dev native Apple sign-in capability missing/);
+  assertCleaned();
   writeFileSync(
     plist,
     JSON.stringify({ "com.apple.developer.applesignin": ["Default"] }),
   );
   assert.doesNotMatch(runInstaller(), /expo prebuild --clean/);
+  assertCleaned();
   writeFileSync(plist, "malformed");
   assert.match(runInstaller(), /Dev native Apple sign-in capability missing/);
+  assertCleaned();
+
+  const denied = spawnSync("bash", installerArgs("unlisted-device"), {
+    env,
+    encoding: "utf8",
+  });
+  assert.equal(denied.status, 1);
+  assert.match(denied.stderr, /not found or not connected/);
+  assertCleaned();
+
+  for (const [signal, status] of [
+    ["SIGHUP", 129],
+    ["SIGINT", 130],
+    ["SIGTERM", 143],
+  ]) {
+    const interrupted = spawnSync("bash", installerArgs(), {
+      env: { ...env, TEST_INSTALLER_SIGNAL: signal },
+      encoding: "utf8",
+      timeout: 10000,
+    });
+    assert.equal(interrupted.status, status, interrupted.stderr);
+    assertCleaned();
+  }
+
+  writeFileSync(
+    plist,
+    JSON.stringify({ "com.apple.developer.applesignin": ["Default"] }),
+  );
+  const barrier = join(root, "release-device-discovery");
+  const beforeConcurrent = devicePaths().length;
+  const concurrentInstaller = () =>
+    new Promise((resolveResult, reject) => {
+      const child = spawn("bash", installerArgs(), {
+        env: { ...env, TEST_DEVICE_BARRIER: barrier },
+        timeout: 10000,
+      });
+      let output = "";
+      child.stdout.on("data", (data) => (output += data));
+      child.stderr.on("data", (data) => (output += data));
+      child.once("error", reject);
+      child.once("close", (status) => resolveResult({ status, output }));
+    });
+  const concurrent = Promise.all([
+    concurrentInstaller(),
+    concurrentInstaller(),
+  ]);
+  try {
+    const deadline = Date.now() + 4000;
+    while (devicePaths().length < beforeConcurrent + 2 && Date.now() < deadline)
+      await new Promise((resolveWait) => setTimeout(resolveWait, 10));
+    const livePaths = devicePaths().slice(beforeConcurrent);
+    assert.equal(livePaths.length, 2, "Both discovery processes must overlap");
+    assert.equal(new Set(livePaths).size, 2, "Concurrent paths must be unique");
+    for (const path of livePaths) {
+      assert.equal(existsSync(path), true);
+      assert.equal(path.startsWith(`${temp}/mizyun-devicectl.`), true);
+    }
+  } finally {
+    writeFileSync(barrier, "release");
+    for (const result of await concurrent) {
+      assert.equal(result.status, 0, result.output);
+      assert.match(result.output, /Preflight completed successfully/);
+    }
+  }
+  assertCleaned();
+  assert.equal(new Set(devicePaths()).size, devicePaths().length);
   const guard = join(repo, "scripts/verify-ios-apple-auth.mjs");
   const signed = (signature) =>
     spawnSync(process.execPath, [guard, "--signed", "fixture.app"], {
@@ -91,7 +174,7 @@ try {
   assert.equal(signed(valid.replace("[Array]", "[String]")).status, 1);
   assert.equal(signed(valid.replace("Default", "Other")).status, 1);
   console.log(
-    "PASS: same-bundle missing/present/malformed capability and signed capability boundaries (7 checks)",
+    "PASS: Apple capability boundaries (7 checks); concurrent unique discovery paths; success, denied-device and HUP/INT/TERM cleanup",
   );
 } finally {
   rmSync(root, { recursive: true, force: true });

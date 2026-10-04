@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-// Manage Beta Pro Pass Requests & Approvals.
+// Manage Launch Pro Pass Requests & Approvals.
 // Connects directly to Supabase via Service Role Key.
 // On approval, it sets status = 'approved' (which fires the DB trigger to upgrade profiles.plan_tier = 'paid'),
 // and dispatches a push notification via Expo Push Notification API if a push_token is stored.
@@ -96,11 +96,11 @@ async function listRequests() {
     "/beta_pro_requests?select=*&order=created_at.desc",
   );
   if (requests.length === 0) {
-    console.log("No Beta Pro Pass requests found.");
+    console.log("No Launch Pro Pass requests found.");
     return;
   }
 
-  console.log(`\nFound ${requests.length} Beta Pro request(s):\n`);
+  console.log(`\nFound ${requests.length} Launch Pro Pass request(s):\n`);
   for (const req of requests) {
     console.log(`- ID:       ${req.id}`);
     console.log(`  User ID:  ${req.user_id}`);
@@ -159,8 +159,8 @@ async function updateRequestStatus(identifier, status) {
     console.log("Sending push notification to user...");
     await sendExpoPushNotification(
       req.push_token,
-      "✨ Beta Pro Pass Activated!",
-      "Your request was approved! Enjoy 100 daily meal photo scans and expanded AI capabilities.",
+      "✨ Launch Pro Pass Activated!",
+      "Your Launch Pro Pass request was approved. View your AI usage limits in Account.",
     );
   }
 }

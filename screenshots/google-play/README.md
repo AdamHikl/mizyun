@@ -1,5 +1,7 @@
 # Mizyun Google Play screenshots
 
+> **2026-10-04 / #136: replacement required before submission.** This retained set contains BETA badges and no longer matches the updated app. Capture the verified Production candidate again and regenerate the artwork. The historical export checks below do not make this set ready to upload.
+
 Created 2026-09-21 from the seven physical Huawei Android captures in `captured/`.
 
 ## Upload

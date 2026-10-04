@@ -11,7 +11,6 @@ import {
   AppState,
   FlatList,
   Pressable,
-  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -21,8 +20,7 @@ import {
 import { Link, type Href, useFocusEffect, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BottomTabInset, MaxContentWidth } from "@/constants/theme";
-import { BrandWordmark } from "@/components/brand-wordmark";
-import { AccountHeaderActions } from "@/components/account-header-button";
+import { TabHeader, useTabHeaderLayout } from "@/components/tab-header";
 import type { SharedActivityFeedItemDto } from "@mizyun/contracts";
 import { apiClient } from "@/composition/api-client";
 import { useAuth } from "@/features/auth/auth-context";
@@ -64,6 +62,7 @@ function FeedScreenContent({
   readonly birthYear?: number | null;
   readonly accessToken: string | null;
 }) {
+  const { headerHeight, onHeaderLayout } = useTabHeaderLayout();
   const colors = useTheme();
   const accents = useCommunityPalette();
   const router = useRouter();
@@ -371,12 +370,15 @@ function FeedScreenContent({
         edges={["top", "left", "right"]}
         style={[styles.container, { backgroundColor: colors.background }]}
       >
-        <View style={styles.accountHeader}>
-          <BrandWordmark />
-          <AccountHeaderActions />
-        </View>
+        <TabHeader onLayout={onHeaderLayout} />
         {checking ? (
-          <ScrollView contentContainerStyle={styles.centered}>
+          <ScrollView
+            style={{ marginTop: -headerHeight }}
+            contentContainerStyle={[
+              styles.centered,
+              { paddingTop: headerHeight + 24 },
+            ]}
+          >
             <Text
               accessibilityRole="header"
               style={[styles.notEnrolledTitle, { color: colors.text }]}
@@ -740,10 +742,7 @@ function FeedScreenContent({
       edges={["top", "left", "right"]}
       style={[styles.container, { backgroundColor: colors.background }]}
     >
-      <View style={styles.accountHeader}>
-        <BrandWordmark />
-        <AccountHeaderActions />
-      </View>
+      <TabHeader onLayout={onHeaderLayout} />
       <FlatList
         data={
           (!checkingMembership && feedGenerationMatches && community.isEnrolled
@@ -759,12 +758,17 @@ function FeedScreenContent({
         onEndReachedThreshold={0.4}
         refreshControl={
           <RefreshControl
+            progressViewOffset={headerHeight}
             refreshing={manualRefreshing && state.status === "refreshing"}
             onRefresh={handleRefresh}
             tintColor={colors.primary}
           />
         }
-        contentContainerStyle={styles.listContent}
+        style={{ marginTop: -headerHeight }}
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingTop: headerHeight },
+        ]}
       />
     </SafeAreaView>
   );
@@ -783,7 +787,6 @@ const styles = StyleSheet.create({
   placeholderLine: { height: 16, borderRadius: 8 },
   container: {
     flex: 1,
-    paddingTop: Platform.OS === "web" ? 80 : 0,
   },
   listContent: {
     flexGrow: 1,
@@ -791,14 +794,6 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
-  },
-  accountHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    flexWrap: "wrap",
-    gap: 8,
-    paddingHorizontal: 16,
   },
   heading: {
     fontSize: 32,

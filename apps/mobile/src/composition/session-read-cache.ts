@@ -94,8 +94,11 @@ export class SessionReadCache implements ApiClient {
     return `${this.revision}:${now.toDateString()}:${now.getTimezoneOffset()}`;
   }
   setForeground(active: boolean): void {
+    if (active === this.foreground) return;
     this.foreground = active;
-    this.clear();
+    // Backgrounding already retired all records. Returning active must not
+    // cancel a tab read started by an earlier AppState listener.
+    if (!active) this.clear();
   }
   clear(): void {
     this.revision++;
@@ -110,6 +113,17 @@ export class SessionReadCache implements ApiClient {
     return session ? `${session.user.id}:${session.accessToken}` : null;
   }
   async request<T>(options: RequestOptions): Promise<Result<T, ApiError>> {
+    // These writes only update push delivery or the separate analytics store;
+    // they cannot change any personal display data. Startup runs them alongside
+    // tab reads, so invalidating those reads would fabricate a missing session.
+    const path = options.path.split("?")[0];
+    if (
+      (options.method === "PUT" && path === "/v1/beta-pro/push-token") ||
+      (options.method === "PUT" && path === "/v1/analytics/consent") ||
+      (["POST", "DELETE"].includes(options.method) &&
+        path === "/v1/analytics/events")
+    )
+      return this.raw.request<T>(options);
     // Social read commands and writes own their separate authorization store.
     // Importing a shared routine is the one social command that creates a
     // personal workout and therefore invalidates these screen reads.
@@ -129,10 +143,9 @@ export class SessionReadCache implements ApiClient {
       }
     }
     if (!cacheable(options)) return this.raw.request<T>(options);
-    if (!this.foreground) return retired();
     const beforeLookup = this.revision;
     const session = await this.session().catch(() => null);
-    if (beforeLookup !== this.revision) return retired();
+    if (!this.foreground || beforeLookup !== this.revision) return retired();
     const identity = this.key(session);
     const day = new Date(this.now()).toDateString();
     if (identity !== this.identity || day !== this.day) {

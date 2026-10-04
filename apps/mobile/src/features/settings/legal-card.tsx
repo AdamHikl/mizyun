@@ -95,7 +95,7 @@ export function LegalCard({
           <View style={styles.legalLinkTextBlock}>
             <ThemedText type="smallBold">Terms of Service</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              Service conditions and beta access terms
+              Service conditions and membership terms
             </ThemedText>
           </View>
           <ThemedText style={styles.legalLinkArrow}>↗</ThemedText>

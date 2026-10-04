@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -10,10 +11,12 @@ import {
   StyleSheet,
   TextInput,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, type Href, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
+import type { ApiClient } from "@mizyun/api-client";
 import {
   cleanAssistantProposalText,
   type CoachConversation,
@@ -30,8 +33,7 @@ import {
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { BrandWordmark } from "@/components/brand-wordmark";
-import { AccountHeaderActions } from "@/components/account-header-button";
+import { TabHeader, useTabHeaderLayout } from "@/components/tab-header";
 import {
   BottomTabInset,
   Colors,
@@ -61,7 +63,7 @@ import {
   createCoachConversation,
   deleteCoachConversation,
   isCoachPendingDraft,
-  loadCoach,
+  loadCoachWith,
   loadCoachThread,
   mergeCoachSendResult,
   newCoachMessageIdempotencyKey,
@@ -118,12 +120,21 @@ export function CoachSetupScreen() {
   }>();
   const { session, profile, refreshProfile } = useAuth();
   const theme = useTheme();
+  const { headerHeight, onHeaderLayout } = useTabHeaderLayout();
+  const { width, fontScale } = useWindowDimensions();
+  const stackHeader = width < 360 || fontScale > 1.3;
   const userId = session?.user.id ?? null;
+  const ownerKey = `${userId ?? ""}:${session?.accessToken ?? ""}`;
+  const currentOwner = useRef(ownerKey);
+  currentOwner.current = ownerKey;
+  const readGeneration = useRef(0);
   const [status, setStatus] = useState<CoachProviderStatus | null>(null);
   const [conversations, setConversations] = useState<
     readonly CoachConversation[]
   >([]);
   const [active, setActive] = useState<CoachConversation | null>(null);
+  const activeConversationId = useRef<string | null>(null);
+  if (active) activeConversationId.current = active.id;
   const [messages, setMessages] = useState<readonly CoachMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -146,6 +157,8 @@ export function CoachSetupScreen() {
   const inputRef = useRef<TextInput>(null);
   const sendLock = useRef(false);
   const deleteLock = useRef(false);
+  const switchLock = useRef(false);
+  const refreshPending = useRef(false);
   const draftLoadGeneration = useRef(0);
   // AI-MOB-002 — flag that toggles when a new assistant message
   // arrives so the screen-reader live region announces it.
@@ -170,9 +183,26 @@ export function CoachSetupScreen() {
   }, []);
 
   const refresh = useCallback(async () => {
+    if (!userId || currentOwner.current !== ownerKey) return;
+    if (sendLock.current || deleteLock.current || switchLock.current) {
+      refreshPending.current = true;
+      return;
+    }
+    refreshPending.current = false;
+    const generation = ++readGeneration.current;
+    const isCurrent = () =>
+      generation === readGeneration.current &&
+      currentOwner.current === ownerKey &&
+      AppState.currentState === "active";
+    const scoped: ApiClient = {
+      status: () => apiClient.status(),
+      request: (options) =>
+        apiClient.request({ ...options, expectedUserId: userId, isCurrent }),
+    };
     setLoading(true);
     setLoadFailed(false);
-    const result = await loadCoach();
+    const result = await loadCoachWith(scoped);
+    if (!isCurrent()) return;
     if (!result.ok) {
       setMessage(result.message);
       setLoadFailed(true);
@@ -183,8 +213,13 @@ export function CoachSetupScreen() {
     setConversations(result.conversations);
     setMessage(null);
     if (result.status.ready) {
-      if (result.conversations[0]) {
-        const thread = await loadCoachThread(result.conversations[0].id);
+      const selected =
+        result.conversations.find(
+          (conversation) => conversation.id === activeConversationId.current,
+        ) ?? result.conversations[0];
+      if (selected) {
+        const thread = await loadCoachThread(selected.id, scoped);
+        if (!isCurrent()) return;
         if (thread.ok) {
           setActive(thread.conversation);
           setMessages(thread.messages);
@@ -198,16 +233,52 @@ export function CoachSetupScreen() {
           setLoadFailed(true);
         }
       } else {
+        activeConversationId.current = null;
         setActive(null);
         setMessages([]);
       }
     }
     setLoading(false);
-  }, []);
+  }, [ownerKey, userId]);
 
   useEffect(() => {
-    void refresh();
+    let foreground = AppState.currentState === "active";
+    if (foreground) void refresh();
+    const subscription = AppState.addEventListener("change", (state) => {
+      const next = state === "active";
+      if (next === foreground) return;
+      foreground = next;
+      readGeneration.current++;
+      if (foreground) void refresh();
+    });
+    return () => {
+      readGeneration.current++;
+      subscription.remove();
+    };
   }, [refresh]);
+
+  useEffect(() => {
+    if (
+      refreshPending.current &&
+      !sendLock.current &&
+      !deleteLock.current &&
+      !switchLock.current &&
+      AppState.currentState === "active"
+    )
+      void refresh();
+  }, [sending, deleting, loading, refresh]);
+
+  useEffect(() => {
+    activeConversationId.current = null;
+    setStatus(null);
+    setConversations([]);
+    setActive(null);
+    setMessages([]);
+    setMessagesByConversation(new Map());
+    setDraft("");
+    setMessage(null);
+    setLoadFailed(false);
+  }, [userId]);
 
   useEffect(() => {
     const generation = draftLoadGeneration.current + 1;
@@ -277,28 +348,55 @@ export function CoachSetupScreen() {
 
   const switchToConversation = useCallback(
     async (conversationId: string) => {
-      if (active?.id === conversationId) return;
+      if (
+        active?.id === conversationId ||
+        sendLock.current ||
+        deleteLock.current ||
+        switchLock.current
+      )
+        return;
+      switchLock.current = true;
+      const generation = ++readGeneration.current;
+      const isCurrent = () =>
+        generation === readGeneration.current &&
+        currentOwner.current === ownerKey &&
+        AppState.currentState === "active";
+      const scoped: ApiClient = {
+        status: () => apiClient.status(),
+        request: (options) =>
+          apiClient.request({
+            ...options,
+            expectedUserId: userId ?? undefined,
+            isCurrent,
+          }),
+      };
+      activeConversationId.current = conversationId;
       setLoading(true);
       setLoadFailed(false);
       setActive(null);
       setMessages([]);
       setMessage(null);
-      const thread = await loadCoachThread(conversationId);
-      if (thread.ok) {
-        setActive(thread.conversation);
-        setMessages(thread.messages);
-        setMessagesByConversation((current) => {
-          const next = new Map(current);
-          next.set(thread.conversation.id, thread.messages);
-          return next;
-        });
-      } else {
-        setMessage(thread.message);
-        setLoadFailed(true);
+      try {
+        const thread = await loadCoachThread(conversationId, scoped);
+        if (!isCurrent()) return;
+        if (thread.ok) {
+          setActive(thread.conversation);
+          setMessages(thread.messages);
+          setMessagesByConversation((current) => {
+            const next = new Map(current);
+            next.set(thread.conversation.id, thread.messages);
+            return next;
+          });
+        } else {
+          setMessage(thread.message);
+          setLoadFailed(true);
+        }
+      } finally {
+        switchLock.current = false;
+        setLoading(false);
       }
-      setLoading(false);
     },
-    [active?.id],
+    [active?.id, ownerKey, userId],
   );
 
   const sendInternal = useCallback(
@@ -579,6 +677,7 @@ export function CoachSetupScreen() {
                   }
                 }
                 setActive(null);
+                activeConversationId.current = null;
                 setMessages([]);
                 setConversations((current) =>
                   current.filter((item) => item.id !== active.id),
@@ -669,33 +768,60 @@ export function CoachSetupScreen() {
   return (
     <ThemedView style={styles.page}>
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-        <KeyboardAvoidingView
-          style={styles.safeArea}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
-        >
-          {/* AI-MOB-002 — screen-reader live region */}
-          <View
-            accessibilityLiveRegion="polite"
-            accessibilityRole="text"
-            style={styles.srOnly}
-          >
-            {liveRegionTick > 0 && messages.length > 0
-              ? `New Coach message: ${
-                  messages[messages.length - 1]?.text?.slice(0, 200) ?? ""
-                }`
-              : ""}
-          </View>
-
+        <TabHeader onLayout={onHeaderLayout}>
           {/* Top Header */}
           <View style={styles.header}>
-            <View style={styles.headerTopRow}>
-              <BrandWordmark />
+            <View
+              style={[
+                styles.headerTopRow,
+                stackHeader && styles.headerTopRowLargeText,
+              ]}
+            >
+              {status?.ready ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Open thread list"
+                  accessibilityValue={{
+                    text: `Current conversation: ${active?.title ?? "Coach check-in"}`,
+                  }}
+                  onPress={() => {
+                    setNow(new Date());
+                    setThreadListVisible(true);
+                  }}
+                  style={({ pressed }) => [
+                    styles.conversationIdentity,
+                    stackHeader && styles.conversationIdentityLargeText,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <ThemedText type="subtitle">Coach</ThemedText>
+                  <View style={styles.threadTitleRow}>
+                    <ThemedText style={styles.navChatIcon}>💬</ThemedText>
+                    <ThemedText
+                      type="smallBold"
+                      themeColor="textSecondary"
+                      numberOfLines={stackHeader ? 2 : 1}
+                      style={styles.navThreadTitle}
+                    >
+                      {active?.title ?? "Coach check-in"}
+                    </ThemedText>
+                    <ThemedText
+                      type="small"
+                      themeColor="textSecondary"
+                      style={styles.navChevron}
+                    >
+                      ▾
+                    </ThemedText>
+                  </View>
+                </Pressable>
+              ) : (
+                <ThemedText type="subtitle">Coach</ThemedText>
+              )}
               <View style={styles.headerActions}>
-                <AccountHeaderActions />
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Toggle training plan & advisory info"
+                  accessibilityState={{ expanded: planExpanded }}
                   onPress={() => setPlanExpanded((expanded) => !expanded)}
                   style={({ pressed }) => [
                     styles.navIconButton,
@@ -756,45 +882,6 @@ export function CoachSetupScreen() {
                 ) : null}
               </View>
             </View>
-
-            <View style={styles.headerTitleRow}>
-              <ThemedText type="subtitle">Coach</ThemedText>
-              {status?.ready ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Open thread list"
-                  onPress={() => {
-                    setNow(new Date());
-                    setThreadListVisible(true);
-                  }}
-                  style={({ pressed }) => [
-                    styles.topBarThreadPill,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <ThemedText style={styles.navChatIcon}>💬</ThemedText>
-                  <ThemedText
-                    type="smallBold"
-                    numberOfLines={1}
-                    style={styles.navThreadTitle}
-                  >
-                    {active?.title ?? "Coach check-in"}
-                  </ThemedText>
-                  <ThemedText
-                    type="small"
-                    themeColor="textSecondary"
-                    style={styles.navChevron}
-                  >
-                    ▾
-                  </ThemedText>
-                </Pressable>
-              ) : null}
-            </View>
-
-            <ThemedText type="small" themeColor="textSecondary">
-              Private fitness &amp; nutrition guidance grounded in your
-              confirmed data.
-            </ThemedText>
           </View>
 
           {/* Expandable Plan & Advisory Info Drawer */}
@@ -830,16 +917,37 @@ export function CoachSetupScreen() {
               </ThemedView>
             </View>
           ) : null}
+        </TabHeader>
+        <KeyboardAvoidingView
+          style={[styles.safeArea, { marginTop: -headerHeight }]}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
+        >
+          {/* AI-MOB-002 — screen-reader live region */}
+          <View
+            accessibilityLiveRegion="polite"
+            accessibilityRole="text"
+            style={styles.srOnly}
+          >
+            {liveRegionTick > 0 && messages.length > 0
+              ? `New Coach message: ${
+                  messages[messages.length - 1]?.text?.slice(0, 200) ?? ""
+                }`
+              : ""}
+          </View>
 
           {loading ? (
-            <View style={styles.center}>
+            <View style={[styles.center, { paddingTop: headerHeight }]}>
               <ActivityIndicator color="#10B981" />
               <ThemedText type="small" themeColor="textSecondary">
                 Loading Coach…
               </ThemedText>
             </View>
           ) : status !== null && !status.ready ? (
-            <ThemedView type="backgroundElement" style={styles.card}>
+            <ThemedView
+              type="backgroundElement"
+              style={[styles.card, { marginTop: headerHeight + Spacing.four }]}
+            >
               <ThemedText type="smallBold">Coach is safely off</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
                 {status.reason}
@@ -853,7 +961,10 @@ export function CoachSetupScreen() {
               </Pressable>
             </ThemedView>
           ) : loadFailed ? (
-            <ThemedView type="backgroundElement" style={styles.card}>
+            <ThemedView
+              type="backgroundElement"
+              style={[styles.card, { marginTop: headerHeight + Spacing.four }]}
+            >
               <ThemedText type="smallBold">Couldn't load Coach</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
                 {message}
@@ -871,12 +982,19 @@ export function CoachSetupScreen() {
               <ScrollView
                 ref={scrollRef}
                 style={styles.thread}
-                contentContainerStyle={styles.threadContent}
+                contentContainerStyle={[
+                  styles.threadContent,
+                  { paddingTop: headerHeight + Spacing.four },
+                ]}
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="on-drag"
               >
                 {messages.length === 0 ? (
                   <View style={styles.emptyStateContainer}>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      Private fitness &amp; nutrition guidance grounded in your
+                      confirmed data.
+                    </ThemedText>
                     {/* Primary Action Card: Ask AI Coach */}
                     <Pressable
                       accessibilityRole="button"
@@ -1226,7 +1344,11 @@ function FormattedCoachMessage({ text }: { readonly text: string }) {
               key={`header-${lineIndex}`}
               style={styles.messageHeaderContainer}
             >
-              <ThemedText type="smallBold" style={styles.messageHeaderText}>
+              <ThemedText
+                selectable
+                type="smallBold"
+                style={styles.messageHeaderText}
+              >
                 {headerText}
               </ThemedText>
             </View>
@@ -1239,7 +1361,9 @@ function FormattedCoachMessage({ text }: { readonly text: string }) {
           const bulletContent = bulletMatch[1] ?? "";
           return (
             <View key={`bullet-${lineIndex}`} style={styles.messageBulletRow}>
-              <ThemedText style={styles.messageBulletDot}>•</ThemedText>
+              <ThemedText selectable style={styles.messageBulletDot}>
+                •
+              </ThemedText>
               <View style={styles.messageBulletContent}>
                 {renderInlineMarkdown(bulletContent, `bullet-${lineIndex}`)}
               </View>
@@ -1254,7 +1378,11 @@ function FormattedCoachMessage({ text }: { readonly text: string }) {
           const content = numberedMatch[2] ?? "";
           return (
             <View key={`num-${lineIndex}`} style={styles.messageBulletRow}>
-              <ThemedText type="smallBold" style={styles.messageNumberDot}>
+              <ThemedText
+                selectable
+                type="smallBold"
+                style={styles.messageNumberDot}
+              >
                 {num}
               </ThemedText>
               <View style={styles.messageBulletContent}>
@@ -1278,22 +1406,28 @@ function FormattedCoachMessage({ text }: { readonly text: string }) {
 function renderInlineMarkdown(text: string, keyPrefix: string) {
   const parts = text.split(/\*\*/g);
   if (parts.length === 1) {
-    return <ThemedText style={styles.messageText}>{text}</ThemedText>;
+    return (
+      <ThemedText selectable style={styles.messageText}>
+        {text}
+      </ThemedText>
+    );
   }
 
   return (
-    <ThemedText style={styles.messageText}>
+    <ThemedText selectable style={styles.messageText}>
       {parts.map((part, i) =>
         i % 2 === 1 ? (
           <ThemedText
             key={`${keyPrefix}-bold-${i}`}
             type="smallBold"
-            style={styles.messageBoldText}
+            style={[styles.messageText, styles.messageBoldText]}
           >
             {part}
           </ThemedText>
         ) : (
-          <ThemedText key={`${keyPrefix}-text-${i}`}>{part}</ThemedText>
+          <ThemedText key={`${keyPrefix}-text-${i}`} style={styles.messageText}>
+            {part}
+          </ThemedText>
         ),
       )}
     </ThemedText>
@@ -2235,49 +2369,49 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.two,
-    paddingBottom: Spacing.two,
-    gap: Spacing.one,
+    paddingBottom: Spacing.one,
   },
   headerTopRow: {
+    flexWrap: "wrap",
+    gap: Spacing.two,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  headerTitleRow: {
+  headerTopRowLargeText: {
+    flexDirection: "column",
+    alignItems: "stretch",
+  },
+  conversationIdentity: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 120,
+    minWidth: 120,
+    minHeight: 44,
+  },
+  conversationIdentityLargeText: {
+    flexBasis: "auto",
+  },
+  threadTitleRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: Spacing.two,
+    gap: 6,
+    minWidth: 0,
   },
   headerActions: {
     flexDirection: "row",
+    alignSelf: "center",
     alignItems: "center",
     gap: 6,
+    flexShrink: 0,
   },
-  topBarThreadPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "rgba(148, 163, 184, 0.08)",
-    paddingHorizontal: Spacing.three,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.18)",
-    maxWidth: "60%",
-  },
-  navChatIcon: { fontSize: 13 },
-  navThreadTitle: { fontSize: 13 },
+  navChatIcon: { fontSize: 13, lineHeight: 20 },
+  navThreadTitle: { fontSize: 13, lineHeight: 20, flexShrink: 1 },
   navChevron: { fontSize: 11, marginLeft: 2 },
-  navActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
   navIconButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    minWidth: 44,
+    minHeight: 44,
+    borderRadius: 22,
     backgroundColor: "rgba(148, 163, 184, 0.08)",
     borderWidth: 1,
     borderColor: "rgba(148, 163, 184, 0.15)",
@@ -2291,6 +2425,8 @@ const styles = StyleSheet.create({
   navIconText: { fontSize: 14 },
   navIconTextActive: { color: "#10B981" },
   advisoryCloseButton: {
+    minWidth: 44,
+    minHeight: 44,
     padding: 4,
     borderRadius: 8,
     alignItems: "center",
@@ -2369,10 +2505,10 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
-    paddingHorizontal: Spacing.four,
+    paddingHorizontal: Spacing.three,
     paddingTop: Spacing.two,
-    gap: Spacing.three,
-    paddingBottom: 16,
+    gap: Spacing.two,
+    paddingBottom: Spacing.two,
   },
   emptyStateContainer: {
     flex: 1,
@@ -2452,8 +2588,8 @@ const styles = StyleSheet.create({
   },
   bubble: {
     maxWidth: "96%",
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.three,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
     borderRadius: 18,
     gap: Spacing.two,
   },
@@ -2492,7 +2628,7 @@ const styles = StyleSheet.create({
   userNameText: {},
   bubbleMessageText: { lineHeight: 22 },
   formattedMessageContainer: {
-    gap: 6,
+    gap: Spacing.one,
   },
   messageParagraph: {},
   messageText: {
@@ -2501,7 +2637,6 @@ const styles = StyleSheet.create({
   },
   messageBoldText: {
     fontWeight: "700",
-    color: "#FFFFFF",
   },
   messageHeaderContainer: {
     marginTop: 8,
@@ -2516,7 +2651,7 @@ const styles = StyleSheet.create({
   messageBulletRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 8,
+    gap: 6,
   },
   messageBulletDot: {
     fontSize: 14,
@@ -2665,13 +2800,13 @@ const styles = StyleSheet.create({
     borderColor: "rgba(148, 163, 184, 0.2)",
     paddingLeft: 8,
     paddingRight: 8,
-    paddingVertical: 6,
+    paddingVertical: Spacing.one,
     gap: 6,
   },
   photoIconButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    minWidth: 44,
+    minHeight: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(16, 185, 129, 0.12)",
@@ -2679,7 +2814,7 @@ const styles = StyleSheet.create({
   composerIconEmoji: { fontSize: 18 },
   capsuleInput: {
     flex: 1,
-    minHeight: 38,
+    minHeight: 44,
     maxHeight: 120,
     paddingHorizontal: Spacing.two,
     paddingTop: 8,
@@ -2688,9 +2823,9 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   circleSendButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    minWidth: 44,
+    minHeight: 44,
+    borderRadius: 22,
     backgroundColor: "#10B981",
     alignItems: "center",
     justifyContent: "center",

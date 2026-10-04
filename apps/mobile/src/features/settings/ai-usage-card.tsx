@@ -63,7 +63,7 @@ export function AiUsageCard() {
     if (!betaResult.ok) {
       setState({
         kind: "error",
-        message: "Could not load Beta Pro status.",
+        message: "Could not load Launch Pro Pass status.",
       });
       return;
     }
@@ -92,19 +92,19 @@ export function AiUsageCard() {
         await refresh();
         Alert.alert(
           "Request Sent",
-          "Your Beta Pro Pass request has been submitted. You'll be notified when it's reviewed.",
+          "Your Launch Pro Pass request has been submitted. You'll be notified when it's reviewed.",
         );
       } else {
         Alert.alert(
           "Request Failed",
-          "Could not submit Beta Pro request. Try again later.",
+          "Could not submit Launch Pro Pass request. Try again later.",
         );
       }
     } catch {
       if (mountedRef.current) {
         Alert.alert(
           "Request Failed",
-          "Could not submit Beta Pro request. Try again later.",
+          "Could not submit Launch Pro Pass request. Try again later.",
         );
       }
     } finally {
@@ -194,7 +194,7 @@ export function AiUsageCard() {
         {isPaid || betaPro.status === "approved" ? (
           <View style={[styles.tierBadge, styles.tierBadgePro]}>
             <ThemedText type="smallBold" style={styles.tierBadgeProText}>
-              ✨ Beta Pro Pass
+              ✨ Launch Pro Pass
             </ThemedText>
           </View>
         ) : (
@@ -268,7 +268,7 @@ export function AiUsageCard() {
       {!isPaid && betaPro.status === "none" ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Request Beta Pro Pass"
+          accessibilityLabel="Request free Pro access with Launch Pro Pass"
           accessibilityState={{ disabled: requesting, busy: requesting }}
           disabled={requesting}
           onPress={() => void requestBetaPro()}
@@ -282,7 +282,7 @@ export function AiUsageCard() {
             <ActivityIndicator size="small" color="#ffffff" />
           ) : (
             <ThemedText type="smallBold" style={styles.requestButtonText}>
-              Request Beta Pro Pass
+              Request Free Pro Access
             </ThemedText>
           )}
         </Pressable>
@@ -299,7 +299,7 @@ export function AiUsageCard() {
       {betaPro.status === "approved" && !isPaid ? (
         <View style={styles.approvedBadge}>
           <ThemedText type="smallBold" style={styles.approvedBadgeText}>
-            ✨ Beta Pro Pass Active
+            ✨ Launch Pro Pass Active
           </ThemedText>
         </View>
       ) : null}

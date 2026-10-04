@@ -11,13 +11,13 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect, type Href } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import * as Network from "expo-network";
 import type { FoodEntry } from "@mizyun/contracts";
 import { formatStopwatch, useOptionalActiveWorkout } from "@/features/workouts";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { BrandWordmark } from "@/components/brand-wordmark";
-import { AccountHeaderActions } from "@/components/account-header-button";
+import { TabHeader, useTabHeaderLayout } from "@/components/tab-header";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { apiClient, invalidateSessionReads } from "@/composition/api-client";
 import { analyticsClient } from "@/composition/analytics-client";
@@ -66,6 +66,8 @@ import {
 export interface SectionStatus {
   readonly loading: boolean;
   readonly hasError: boolean;
+  /** Time this display value was saved locally, not a backend freshness lease. */
+  readonly savedAt: string | null;
 }
 
 interface MetricsState {
@@ -77,8 +79,8 @@ interface MetricsState {
   readonly nutritionReview: NutritionReview | null;
   readonly loading: boolean;
   readonly hasError: boolean;
-  readonly isOfflineSnapshot: boolean;
-  readonly cachedAt: string | null;
+  readonly scope: string;
+  readonly reviewPeriod: ReviewPeriod;
   readonly sectionStatus: {
     readonly nutritionToday: SectionStatus;
     readonly weight: SectionStatus;
@@ -90,6 +92,7 @@ interface MetricsState {
 const DEFAULT_SECTION_STATUS: SectionStatus = {
   loading: true,
   hasError: false,
+  savedAt: null,
 };
 
 const EMPTY_METRICS: MetricsState = {
@@ -101,8 +104,8 @@ const EMPTY_METRICS: MetricsState = {
   nutritionReview: null,
   loading: true,
   hasError: false,
-  isOfflineSnapshot: false,
-  cachedAt: null,
+  scope: "",
+  reviewPeriod: "week",
   sectionStatus: {
     nutritionToday: DEFAULT_SECTION_STATUS,
     weight: DEFAULT_SECTION_STATUS,
@@ -164,6 +167,14 @@ const formatCachedTime = (isoString: string | null): string => {
     return "earlier";
   }
 };
+
+// UNKNOWN is not proof of disconnection. A reachable network is also not proof
+// that Mizyun's backend is available; API errors keep neutral wording.
+const disconnected = (state: Network.NetworkState): boolean =>
+  state.type === Network.NetworkStateType.NONE ||
+  (state.isConnected === false &&
+    state.type !== undefined &&
+    state.type !== Network.NetworkStateType.UNKNOWN);
 
 const caloriesDetail = (
   summary: DailySummary | null,
@@ -254,8 +265,9 @@ const actions = [
 ] as const;
 
 export function DashboardScreen() {
+  const { headerHeight, onHeaderLayout } = useTabHeaderLayout();
   const { profile, session, openOnboarding } = useAuth();
-  const [metrics, setMetrics] = useState<MetricsState>(EMPTY_METRICS);
+  const [storedMetrics, setMetrics] = useState<MetricsState>(EMPTY_METRICS);
   const [steps, setSteps] = useState<DailyStepsResult>({ kind: "off" });
   const stepsRequestId = useRef(0);
   const [recentMeal, setRecentMeal] = useState<FoodEntry | null>(null);
@@ -270,14 +282,24 @@ export function DashboardScreen() {
   const currentOwner = useRef(ownerKey);
   currentOwner.current = ownerKey;
   const loadedMetrics = useRef(false);
+  const displayScope = useRef("");
+  const [offline, setOffline] = useState(false);
+  const refreshPending = useRef<{
+    owner: string;
+    promise: Promise<void>;
+  } | null>(null);
+  const manualRefreshPending = useRef(false);
   useEffect(() => {
     activeRequestId.current += 1;
     stepsRequestId.current += 1;
     loadedMetrics.current = false;
+    displayScope.current = "";
     setMetrics(EMPTY_METRICS);
     setSteps({ kind: "off" });
     setRecentMeal(null);
     setFirstMealReminders(null);
+    setRefreshing(false);
+    manualRefreshPending.current = false;
   }, [ownerKey]);
 
   const principal =
@@ -307,18 +329,35 @@ export function DashboardScreen() {
       reviewPeriod === "week" ? startOfLocalWeek(now) : startOfLocalMonth(now);
     const yesterdayDate = localYesterday(now);
     const hasHistoricalDays = periodStartDate <= yesterdayDate;
-
-    setMetrics((current) => ({
-      ...current,
-      loading: !loadedMetrics.current,
-      hasError: false,
-      sectionStatus: {
-        nutritionToday: { loading: !loadedMetrics.current, hasError: false },
-        weight: { loading: !loadedMetrics.current, hasError: false },
-        energy: { loading: !loadedMetrics.current, hasError: false },
-        review: { loading: !loadedMetrics.current, hasError: false },
-      },
-    }));
+    const scope = `${ownerKey}:${todayDate}:${utcOffsetMinutes}`;
+    if (displayScope.current !== scope) {
+      loadedMetrics.current = false;
+      displayScope.current = scope;
+    }
+    setMetrics((previous) => {
+      const current = previous.scope === scope ? previous : EMPTY_METRICS;
+      const sameReview = current.reviewPeriod === reviewPeriod;
+      const updating = (status: SectionStatus): SectionStatus => ({
+        ...status,
+        loading: true,
+      });
+      return {
+        ...current,
+        scope,
+        reviewPeriod,
+        nutritionReview: sameReview ? current.nutritionReview : null,
+        workoutsInReview: sameReview ? current.workoutsInReview : null,
+        loading: !loadedMetrics.current,
+        sectionStatus: {
+          nutritionToday: updating(current.sectionStatus.nutritionToday),
+          weight: updating(current.sectionStatus.weight),
+          energy: updating(current.sectionStatus.energy),
+          review: updating(
+            sameReview ? current.sectionStatus.review : DEFAULT_SECTION_STATUS,
+          ),
+        },
+      };
+    });
 
     // Pre-populate with cached snapshot immediately on cold start
     let cachedSnapshot: CachedDashboardSnapshot | null = null;
@@ -330,32 +369,51 @@ export function DashboardScreen() {
         if (isCurrentRequest())
           setRecentMeal(extractMostRecentEligibleMeal(res.entries));
       });
-      cachedSnapshot = await loadCachedDashboard(
-        userId,
-        todayDate,
+      cachedSnapshot = await loadCachedDashboard(userId, todayDate, {
         reviewPeriod,
-      );
+        utcOffsetMinutes,
+      });
       if (!isCurrentRequest()) return;
       if (cachedSnapshot !== null) {
         setMetrics((current) => {
-          if (
-            current.loading &&
-            current.caloriesToday === null &&
-            current.latestWeightKg === null
-          ) {
-            return {
-              ...current,
-              caloriesToday: cachedSnapshot!.data.caloriesToday,
-              macros: cachedSnapshot!.data.macros,
-              latestWeightKg: cachedSnapshot!.data.latestWeightKg,
-              workoutsInReview: cachedSnapshot!.data.workoutsInReview,
-              energy: cachedSnapshot!.data.energy,
-              nutritionReview: cachedSnapshot!.data.nutritionReview,
-              isOfflineSnapshot: true,
-              cachedAt: cachedSnapshot!.cachedAt,
-            };
-          }
-          return current;
+          const snapshot = cachedSnapshot!;
+          const restore = (status: SectionStatus): SectionStatus =>
+            status.savedAt === null
+              ? { ...status, savedAt: snapshot.cachedAt }
+              : status;
+          return {
+            ...current,
+            caloriesToday:
+              current.sectionStatus.nutritionToday.savedAt === null
+                ? snapshot.data.caloriesToday
+                : current.caloriesToday,
+            macros:
+              current.sectionStatus.nutritionToday.savedAt === null
+                ? snapshot.data.macros
+                : current.macros,
+            latestWeightKg:
+              current.sectionStatus.weight.savedAt === null
+                ? snapshot.data.latestWeightKg
+                : current.latestWeightKg,
+            workoutsInReview:
+              current.sectionStatus.review.savedAt === null
+                ? snapshot.data.workoutsInReview
+                : current.workoutsInReview,
+            energy:
+              current.sectionStatus.energy.savedAt === null
+                ? snapshot.data.energy
+                : current.energy,
+            nutritionReview:
+              current.sectionStatus.review.savedAt === null
+                ? snapshot.data.nutritionReview
+                : current.nutritionReview,
+            sectionStatus: {
+              nutritionToday: restore(current.sectionStatus.nutritionToday),
+              weight: restore(current.sectionStatus.weight),
+              energy: restore(current.sectionStatus.energy),
+              review: restore(current.sectionStatus.review),
+            },
+          };
         });
       }
     }
@@ -400,29 +458,20 @@ export function DashboardScreen() {
         const hasNutritionError = summary.error !== null;
         const freshCalories = !hasNutritionError
           ? (summary.value?.caloriesKcal ?? null)
-          : (current.caloriesToday ??
-            cachedSnapshot?.data.caloriesToday ??
-            null);
+          : current.caloriesToday;
         const freshMacros = !hasNutritionError
           ? (summary.value ?? null)
-          : (current.macros ?? cachedSnapshot?.data.macros ?? null);
+          : current.macros;
 
         const hasWeightError = weight.error !== null;
         const freshWeight = !hasWeightError
           ? (weight.value?.weightKg ?? null)
-          : (current.latestWeightKg ??
-            cachedSnapshot?.data.latestWeightKg ??
-            null);
+          : current.latestWeightKg;
 
         const hasEnergyError = energy.error !== null;
         const freshEnergy = !hasEnergyError
           ? (energy.value ?? null)
-          : (current.energy ?? cachedSnapshot?.data.energy ?? null);
-
-        const isPartialOffline =
-          (hasNutritionError && cachedSnapshot !== null) ||
-          (hasWeightError && cachedSnapshot !== null) ||
-          (hasEnergyError && cachedSnapshot !== null);
+          : current.energy;
 
         if (userId && !hasNutritionError && summary.value) {
           const entryCount = summary.value.entryCount ?? 0;
@@ -450,15 +499,29 @@ export function DashboardScreen() {
           macros: freshMacros,
           latestWeightKg: freshWeight,
           energy: freshEnergy,
-          isOfflineSnapshot: isPartialOffline,
-          cachedAt: isPartialOffline
-            ? (cachedSnapshot?.cachedAt ?? current.cachedAt)
-            : null,
           sectionStatus: {
             ...current.sectionStatus,
-            nutritionToday: { loading: false, hasError: hasNutritionError },
-            weight: { loading: false, hasError: hasWeightError },
-            energy: { loading: false, hasError: hasEnergyError },
+            nutritionToday: {
+              loading: false,
+              hasError: hasNutritionError,
+              savedAt: hasNutritionError
+                ? current.sectionStatus.nutritionToday.savedAt
+                : new Date().toISOString(),
+            },
+            weight: {
+              loading: false,
+              hasError: hasWeightError,
+              savedAt: hasWeightError
+                ? current.sectionStatus.weight.savedAt
+                : new Date().toISOString(),
+            },
+            energy: {
+              loading: false,
+              hasError: hasEnergyError,
+              savedAt: hasEnergyError
+                ? current.sectionStatus.energy.savedAt
+                : new Date().toISOString(),
+            },
           },
         };
       });
@@ -472,7 +535,8 @@ export function DashboardScreen() {
     ]).then(([count, historicalResult, summaryResult]) => {
       if (!isCurrentRequest()) return;
 
-      const hasHistoricalError = historicalResult.error !== null;
+      const hasHistoricalError =
+        historicalResult.error !== null || summaryResult.error !== null;
       const hasWorkoutsError = count.error !== null;
       const hasReviewError = hasHistoricalError || hasWorkoutsError;
 
@@ -488,15 +552,11 @@ export function DashboardScreen() {
         const effectiveNutritionReview =
           !hasHistoricalError && combinedReview !== null
             ? combinedReview
-            : (current.nutritionReview ??
-              cachedSnapshot?.data.nutritionReview ??
-              null);
+            : current.nutritionReview;
 
         const effectiveWorkouts = !hasWorkoutsError
           ? count.value
-          : (current.workoutsInReview ??
-            cachedSnapshot?.data.workoutsInReview ??
-            null);
+          : current.workoutsInReview;
 
         // Under NO circumstances does a review failure overwrite fresh caloriesToday or latestWeightKg!
         return {
@@ -505,7 +565,13 @@ export function DashboardScreen() {
           workoutsInReview: effectiveWorkouts,
           sectionStatus: {
             ...current.sectionStatus,
-            review: { loading: false, hasError: hasReviewError },
+            review: {
+              loading: false,
+              hasError: hasReviewError,
+              savedAt: hasReviewError
+                ? current.sectionStatus.review.savedAt
+                : new Date().toISOString(),
+            },
           },
         };
       });
@@ -534,6 +600,7 @@ export function DashboardScreen() {
         void saveCachedDashboard(userId, {
           localDate: todayDate,
           reviewPeriod,
+          utcOffsetMinutes,
           data: {
             caloriesToday: current.caloriesToday,
             macros: current.macros,
@@ -545,18 +612,10 @@ export function DashboardScreen() {
         });
       }
 
-      const dailyOffline =
-        (current.sectionStatus.nutritionToday.hasError ||
-          current.sectionStatus.weight.hasError ||
-          current.sectionStatus.energy.hasError) &&
-        cachedSnapshot !== null;
-
       return {
         ...current,
         loading: overallLoading,
         hasError: overallHasError,
-        isOfflineSnapshot: dailyOffline,
-        cachedAt: dailyOffline ? current.cachedAt : null,
       };
     });
   }, [accessToken, reviewPeriod, userId, ownerKey]);
@@ -574,12 +633,36 @@ export function DashboardScreen() {
     if (requestId === stepsRequestId.current) setSteps(result);
   }, [userId]);
 
+  const refreshMetrics = useCallback(
+    (force = false): Promise<void> => {
+      const owner = `${ownerKey}:${reviewPeriod}:${isoLocalDate(new Date())}:${new Date().getTimezoneOffset()}`;
+      if (!force && refreshPending.current?.owner === owner)
+        return refreshPending.current.promise;
+      if (force) invalidateSessionReads();
+      const record = { owner, promise: Promise.resolve() };
+      record.promise = loadMetrics().finally(() => {
+        if (refreshPending.current === record) refreshPending.current = null;
+      });
+      refreshPending.current = record;
+      return record.promise;
+    },
+    [loadMetrics, ownerKey, reviewPeriod],
+  );
+
   const handleRefresh = useCallback(async () => {
-    invalidateSessionReads();
+    if (manualRefreshPending.current) return;
+    manualRefreshPending.current = true;
+    const requestOwner = ownerKey;
     setRefreshing(true);
-    await Promise.all([loadMetrics(), loadSteps()]);
-    setRefreshing(false);
-  }, [loadMetrics, loadSteps]);
+    try {
+      await Promise.all([refreshMetrics(true), loadSteps()]);
+    } finally {
+      if (currentOwner.current === requestOwner) {
+        manualRefreshPending.current = false;
+        setRefreshing(false);
+      }
+    }
+  }, [refreshMetrics, loadSteps, ownerKey]);
 
   useFocusEffect(
     useCallback(() => {
@@ -587,35 +670,67 @@ export function DashboardScreen() {
         name: "feature_viewed",
         properties: { feature: "dashboard" },
       });
-      let pending: Promise<void> | null = null;
-      const refreshMetrics = () => {
-        if (pending !== null) return;
-        pending = loadMetrics().finally(() => {
-          pending = null;
-        });
-      };
+      let active = true;
       let foreground =
         AppState.currentState !== "background" &&
         AppState.currentState !== "inactive";
-      refreshMetrics();
+      void refreshMetrics();
       void loadSteps();
+      let networkOffline = false;
+      let networkUnavailable = false;
+      let networkRevision = 0;
+      const onNetworkState = (state: Network.NetworkState) => {
+        if (!active) return;
+        const wasUnavailable = networkUnavailable;
+        networkOffline = disconnected(state);
+        networkUnavailable =
+          networkOffline ||
+          (state.isInternetReachable === false &&
+            state.type !== undefined &&
+            state.type !== Network.NetworkStateType.UNKNOWN);
+        setOffline(networkOffline);
+        if (
+          wasUnavailable &&
+          !networkUnavailable &&
+          state.isConnected === true &&
+          foreground
+        ) {
+          // Retire failed/pending personal reads and retry immediately.
+          void refreshMetrics(true);
+        }
+      };
+      const networkSubscription = Network.addNetworkStateListener((state) => {
+        networkRevision++;
+        onNetworkState(state);
+      });
+      const initialNetworkRevision = networkRevision;
+      void Network.getNetworkStateAsync()
+        .then((state) => {
+          if (networkRevision === initialNetworkRevision) onNetworkState(state);
+        })
+        .catch(() => {});
       // Recurring meals can change nutrition while Home stays open.
       const timer = setInterval(() => {
-        if (foreground) refreshMetrics();
+        if (foreground && !networkUnavailable) void refreshMetrics();
       }, 60_000);
       const subscription = AppState.addEventListener("change", (state) => {
+        const wasForeground = foreground;
         foreground = state === "active";
-        if (foreground) {
-          refreshMetrics();
+        if (foreground && !wasForeground) {
+          void refreshMetrics(true);
           void loadSteps();
         }
       });
       return () => {
+        active = false;
         clearInterval(timer);
         subscription.remove();
+        networkSubscription.remove();
+        activeRequestId.current += 1;
+        refreshPending.current = null;
         stepsRequestId.current += 1;
       };
-    }, [loadMetrics, loadSteps]),
+    }, [refreshMetrics, loadSteps]),
   );
 
   const workoutContext = useOptionalActiveWorkout();
@@ -642,14 +757,38 @@ export function DashboardScreen() {
       });
   }, [activeWorkout, elapsedSeconds]);
 
+  // Hide an old account/day immediately, including the frame before focus
+  // effects execute. Review-period changes retain today's independent values.
+  const renderScope = `${ownerKey}:${isoLocalDate(new Date())}:${-new Date().getTimezoneOffset()}`;
+  const scopedMetrics =
+    storedMetrics.scope === renderScope ? storedMetrics : EMPTY_METRICS;
+  const metrics =
+    scopedMetrics.reviewPeriod === reviewPeriod
+      ? scopedMetrics
+      : {
+          ...scopedMetrics,
+          nutritionReview: null,
+          workoutsInReview: null,
+          sectionStatus: {
+            ...scopedMetrics.sectionStatus,
+            review: DEFAULT_SECTION_STATUS,
+          },
+        };
+
   return (
     <ThemedView style={styles.page}>
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
+        <TabHeader onLayout={onHeaderLayout} />
         <ScrollView
-          contentContainerStyle={styles.content}
+          style={{ marginTop: -headerHeight }}
+          contentContainerStyle={[
+            styles.content,
+            { paddingTop: headerHeight + Spacing.four },
+          ]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
+              progressViewOffset={headerHeight}
               refreshing={refreshing}
               onRefresh={() => void handleRefresh()}
               tintColor="#22C55E"
@@ -658,10 +797,6 @@ export function DashboardScreen() {
         >
           {/* Top Header */}
           <View style={styles.header}>
-            <View style={styles.headerTopRow}>
-              <BrandWordmark />
-              <AccountHeaderActions />
-            </View>
             <ThemedText type="subtitle">
               {profile?.displayName
                 ? `Welcome back, ${profile.displayName}`
@@ -671,51 +806,6 @@ export function DashboardScreen() {
               Confirmed food, training, and body metrics for your goal.
             </ThemedText>
           </View>
-
-          {metrics.isOfflineSnapshot ? (
-            <View
-              style={styles.offlineBanner}
-              accessibilityRole="alert"
-              accessibilityLiveRegion="polite"
-              accessibilityLabel={`Offline snapshot cached ${formatCachedTime(metrics.cachedAt)}`}
-            >
-              <View style={styles.offlineBannerContent}>
-                <ThemedText style={styles.offlineBannerIcon}>⚡️</ThemedText>
-                <View style={styles.offlineBannerTextGroup}>
-                  <ThemedText
-                    type="smallBold"
-                    style={styles.offlineBannerTitle}
-                  >
-                    Offline Snapshot
-                  </ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {metrics.cachedAt
-                      ? `Viewing cached data from ${formatCachedTime(metrics.cachedAt)}`
-                      : "Showing locally cached health data"}
-                  </ThemedText>
-                </View>
-              </View>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Refresh dashboard"
-                onPress={() => {
-                  trackDashboardControl("refresh_retry");
-                  void loadMetrics();
-                }}
-                style={({ pressed }) => [
-                  styles.offlineRefreshButton,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <ThemedText
-                  type="smallBold"
-                  style={styles.offlineRefreshButtonText}
-                >
-                  Refresh
-                </ThemedText>
-              </Pressable>
-            </View>
-          ) : null}
 
           {!profile?.displayName ? (
             <Pressable
@@ -769,18 +859,36 @@ export function DashboardScreen() {
               void router.push("/meals" as Href);
             }}
           />
+          <RefreshNotice
+            label="Today’s nutrition"
+            status={metrics.sectionStatus.nutritionToday}
+            hasData={metrics.macros !== null || metrics.caloriesToday !== null}
+            offline={offline}
+            retrying={refreshing}
+            onRetry={handleRefresh}
+          />
 
           {/* 2. Key Signals Grid (Weight & Training) */}
           <View style={styles.signalsGrid}>
-            <MetricCard
-              label="Current weight"
-              value={formatWeight(metrics.latestWeightKg, unitSystem)}
-              detail="Raw scale reading →"
-              onPress={() => {
-                trackDashboardControl("weight_card");
-                void router.push("/body" as Href);
-              }}
-            />
+            <View style={styles.signalColumn}>
+              <MetricCard
+                label="Current weight"
+                value={formatWeight(metrics.latestWeightKg, unitSystem)}
+                detail="Raw scale reading →"
+                onPress={() => {
+                  trackDashboardControl("weight_card");
+                  void router.push("/body" as Href);
+                }}
+              />
+              <RefreshNotice
+                label="Current weight"
+                status={metrics.sectionStatus.weight}
+                hasData={metrics.latestWeightKg !== null}
+                offline={offline}
+                retrying={refreshing}
+                onRetry={handleRefresh}
+              />
+            </View>
             <MetricCard
               label="Training"
               value={formatCount(metrics.workoutsInReview)}
@@ -796,8 +904,8 @@ export function DashboardScreen() {
             label="Steps today"
             accessibilityLabel={
               steps.kind === "ready"
-                ? `Steps today: ${steps.count.toLocaleString()}. Open Settings.`
-                : "Steps today unavailable. Open Settings."
+                ? `Steps today: ${steps.count.toLocaleString()}. Open Health steps settings.`
+                : "Steps today unavailable. Open Health steps settings."
             }
             value={steps.kind === "ready" ? steps.count.toLocaleString() : "—"}
             detail={
@@ -815,7 +923,7 @@ export function DashboardScreen() {
             }
             onPress={() => {
               trackDashboardControl("steps_card");
-              void router.push("/settings" as Href);
+              void router.push("/account-settings/health-steps" as Href);
             }}
           />
 
@@ -861,6 +969,14 @@ export function DashboardScreen() {
             summary={metrics.energy}
             caloriesToday={metrics.caloriesToday}
           />
+          <RefreshNotice
+            label="Energy balance"
+            status={metrics.sectionStatus.energy}
+            hasData={metrics.energy !== null}
+            offline={offline}
+            retrying={refreshing}
+            onRetry={handleRefresh}
+          />
 
           {/* 5. Weekly/Monthly Progress Review */}
           <ProgressReviewCard
@@ -876,36 +992,78 @@ export function DashboardScreen() {
               setReviewPeriod(period);
             }}
           />
+          <RefreshNotice
+            label="Period review"
+            status={metrics.sectionStatus.review}
+            hasData={
+              metrics.nutritionReview !== null ||
+              metrics.workoutsInReview !== null
+            }
+            offline={offline}
+            retrying={refreshing}
+            onRetry={handleRefresh}
+          />
 
-          {metrics.loading ? (
+          {metrics.loading &&
+          metrics.sectionStatus.nutritionToday.savedAt === null &&
+          metrics.sectionStatus.weight.savedAt === null ? (
             <ThemedText type="small" themeColor="textSecondary">
               Refreshing your dashboard…
             </ThemedText>
           ) : null}
-          {metrics.hasError && !metrics.isOfflineSnapshot ? (
-            <View style={styles.refreshError}>
-              <ThemedText
-                type="small"
-                themeColor="textSecondary"
-                accessibilityRole="alert"
-              >
-                Some dashboard values could not be refreshed.
-              </ThemedText>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Retry dashboard refresh"
-                onPress={() => {
-                  trackDashboardControl("refresh_retry");
-                  void loadMetrics();
-                }}
-              >
-                <ThemedText type="smallBold">Retry</ThemedText>
-              </Pressable>
-            </View>
-          ) : null}
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
+  );
+}
+
+function RefreshNotice(props: {
+  readonly label: string;
+  readonly status: SectionStatus;
+  readonly hasData: boolean;
+  readonly offline: boolean;
+  readonly retrying: boolean;
+  readonly onRetry: () => Promise<void>;
+}) {
+  if (!props.status.hasError) return null;
+  const title = props.offline ? "You’re offline" : "Couldn’t update";
+  return (
+    <View style={styles.refreshNotice}>
+      <View style={styles.actionBody}>
+        <ThemedText
+          type="small"
+          themeColor="textSecondary"
+          accessibilityRole="alert"
+          accessibilityLiveRegion="polite"
+          accessibilityLabel={
+            props.offline
+              ? `${props.label}: ${title}`
+              : `${title} ${props.label}`
+          }
+        >
+          {title}
+          {props.status.loading ? " · Retrying…" : ""}
+        </ThemedText>
+        <ThemedText type="small" themeColor="textSecondary">
+          {props.hasData
+            ? `Showing saved data${props.status.savedAt ? ` · Saved ${formatCachedTime(props.status.savedAt)}` : ""}`
+            : "Data unavailable"}
+        </ThemedText>
+      </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Retry dashboard refresh"
+        accessibilityState={{ disabled: props.retrying, busy: props.retrying }}
+        disabled={props.retrying}
+        onPress={() => {
+          trackDashboardControl("refresh_retry");
+          void props.onRetry();
+        }}
+        style={styles.retryButton}
+      >
+        <ThemedText type="smallBold">Retry</ThemedText>
+      </Pressable>
+    </View>
   );
 }
 
@@ -1448,13 +1606,6 @@ function ProgressReviewCard(props: {
           incomplete nutrition values.
         </ThemedText>
       ) : null}
-      {props.hasError ? (
-        <View style={styles.reviewErrorNotice}>
-          <ThemedText type="small" style={styles.reviewErrorText}>
-            Period review could not be refreshed.
-          </ThemedText>
-        </View>
-      ) : null}
     </ThemedView>
   );
 }
@@ -1520,11 +1671,6 @@ const styles = StyleSheet.create({
     gap: Spacing.four,
   },
   header: { gap: Spacing.one },
-  headerTopRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
   setupBanner: {
     borderRadius: 16,
     padding: Spacing.four,
@@ -1678,6 +1824,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: Spacing.two,
   },
+  signalColumn: { flex: 1, gap: Spacing.one },
   metricCard: {
     borderRadius: 18,
     paddingHorizontal: Spacing.three,
@@ -1735,11 +1882,19 @@ const styles = StyleSheet.create({
     borderColor: "rgba(148, 163, 184, 0.2)",
   },
   actionBody: { flex: 1, gap: Spacing.half },
-  refreshError: {
+  refreshNotice: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: Spacing.three,
+    gap: Spacing.two,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.one,
+  },
+  retryButton: {
+    minHeight: 44,
+    minWidth: 44,
+    alignItems: "center",
+    justifyContent: "center",
   },
   detailCard: {
     borderRadius: 18,
@@ -1792,44 +1947,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#D97706",
     fontWeight: "600",
-  },
-  offlineBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "rgba(234, 179, 8, 0.08)",
-    borderColor: "rgba(234, 179, 8, 0.25)",
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-    gap: Spacing.two,
-  },
-  offlineBannerContent: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.two,
-  },
-  offlineBannerIcon: {
-    fontSize: 18,
-  },
-  offlineBannerTextGroup: {
-    flex: 1,
-    gap: 1,
-  },
-  offlineBannerTitle: {
-    color: "#EAB308",
-  },
-  offlineRefreshButton: {
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.half,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#EAB308",
-  },
-  offlineRefreshButtonText: {
-    color: "#EAB308",
   },
   firstMealCard: {
     borderRadius: 16,

@@ -145,6 +145,24 @@ const sendMessage = (
   });
 
 describe("coach routes", () => {
+  it("returns recurring-meal setup help through the send/replay boundary without a meal draft", async () => {
+    const { app, respond } = makeApp();
+    const id = await createConversation(app);
+    const text = "Log my breakfast automatically every day";
+    const response = await sendMessage(app, id, "recurring-help", text);
+    expect(response.statusCode).toBe(200);
+    expect(response.json().assistantMessage.text).toContain("Recurring meals");
+    expect(response.json().assistantMessage.text).toContain("Save schedule");
+    expect(response.json().assistantMessage.actionProposal).toBeNull();
+    expect(response.json().assistantMessage.evidenceKinds).toEqual([]);
+    expect(respond).not.toHaveBeenCalled();
+    const replay = await sendMessage(app, id, "recurring-help", text);
+    expect(replay.statusCode).toBe(200);
+    expect(replay.json().assistantMessage).toEqual(
+      response.json().assistantMessage,
+    );
+    expect(respond).not.toHaveBeenCalled();
+  });
   it("requires authentication for private conversations", async () => {
     const { app } = makeApp();
     const response = await app.inject({

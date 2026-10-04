@@ -219,7 +219,7 @@ export function SettingsScreen() {
             {profile?.planTier === "paid" ? (
               <View style={[styles.heroPill, styles.betaPill]}>
                 <ThemedText type="smallBold" style={styles.betaPillText}>
-                  ✨ Beta Pro Pass
+                  ✨ Launch Pro Pass
                 </ThemedText>
               </View>
             ) : (

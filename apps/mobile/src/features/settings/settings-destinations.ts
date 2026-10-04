@@ -76,7 +76,7 @@ export const SETTINGS_DETAIL_CONFIGS: Record<
     validAnchors: [],
   },
   "ai-usage": {
-    title: "AI Usage & Beta Pro Pass",
+    title: "AI Usage & Launch Pro Pass",
     categoryId: "ai-coach",
     validAnchors: [],
   },

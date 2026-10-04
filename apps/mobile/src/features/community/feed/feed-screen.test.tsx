@@ -96,6 +96,10 @@ vi.mock("react-native", () => ({
 vi.mock("react-native-safe-area-context", () => ({
   SafeAreaView: "SafeAreaView",
 }));
+vi.mock("@/components/tab-header", () => ({
+  TabHeader: "TabHeader",
+  useTabHeaderLayout: () => ({ headerHeight: 96, onHeaderLayout: () => {} }),
+}));
 vi.mock("@/components/brand-wordmark", () => ({
   BrandWordmark: "BrandWordmark",
 }));

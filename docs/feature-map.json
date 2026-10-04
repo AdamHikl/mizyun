@@ -606,7 +606,9 @@
         "packages/memory",
         "packages/providers/gemini",
         "scripts/check-beta-pro-requests.mjs",
-        "scripts/manage-beta-pro.mjs"
+        "scripts/manage-beta-pro.mjs",
+        "scripts/check-coach-feature-knowledge.mjs",
+        "scripts/check-coach-feature-knowledge.test.mjs"
       ],
       "contracts": [
         "packages/contracts/src/coach.ts",
@@ -679,18 +681,21 @@
         "docs/ARCHITECTURE.md",
         "docs/adr/0024-self-service-ai-consent-access.md",
         "docs/patterns/README.md#pat-002",
-        "docs/BEFORE_TESTING.md"
+        "docs/BEFORE_TESTING.md",
+        "docs/adr/0041-coach-app-capability-knowledge.md",
+        "docs/COACH_FEATURE_KNOWLEDGE_EVIDENCE_2026-10-04.md"
       ],
       "verificationCommands": [
         "pnpm test:ai-eval",
         "pnpm --filter @mizyun/agent-runtime test",
         "pnpm --filter @mizyun/provider-gemini test",
-        "pnpm --filter @mizyun/api test src/modules/coach"
+        "pnpm --filter @mizyun/api test src/modules/coach",
+        "pnpm test:coach-feature-knowledge"
       ],
       "lastReviewedSha": "ed70df727fdb38940b686b1dd2647d519f8478cd",
       "lastReviewedDate": "2026-09-22",
       "limitations": "Reviewed against HEAD plus disclosed local changes. Gemini is the only active model provider; live evaluation remains gated by BEFORE_TESTING.md and the offline screener covers 56 heuristic cases",
-      "requirements": ["REL-AUD-005", "REL-AUD-006"],
+      "requirements": ["REL-AUD-005", "REL-AUD-006", "COACH-12"],
       "openAcceptance": [
         "REL-AUD-005/Q8: Live model benchmarking & reservation leases",
         "REL-AUD-005/Q7: Consent UI context preservation across app restarts"
@@ -982,7 +987,8 @@
         "apps/mobile/src/components/account-header-button.tsx",
         "apps/mobile/src/components/account-header-button.test.ts",
         "apps/mobile/src/components/app-tabs.tsx",
-        "apps/mobile/src/components/app-tabs.web.tsx"
+        "apps/mobile/src/components/app-tabs.web.tsx",
+        "apps/mobile/src/components/tab-header.tsx"
       ],
       "contracts": [],
       "domainPort": [],
@@ -1720,14 +1726,17 @@
         "scripts/navigation/impact.mjs",
         "scripts/navigation/check.mjs",
         "scripts/navigation/read.mjs",
-        "scripts/navigation/bench.mjs"
+        "scripts/navigation/bench.mjs",
+        "scripts/run-check.mjs"
       ],
       "ownedPaths": [
         "scripts/navigation",
         ".agents/skills/mizyun-session-context",
         ".agents/skills/mizyun-verify-handoff",
         ".github/workflows/navigation-check.yml",
-        ".github/workflows/quality-gate.yml"
+        ".github/workflows/quality-gate.yml",
+        "scripts/run-check.mjs",
+        "scripts/run-check.test.mjs"
       ],
       "contracts": [],
       "domainPort": [],
@@ -1736,26 +1745,30 @@
       "adapters": [],
       "dataTables": [],
       "migrationPaths": [],
-      "tests": ["scripts/navigation/test"],
+      "tests": ["scripts/navigation/test", "scripts/run-check.test.mjs"],
       "relations": [],
       "docs": [
         "docs/AGENT_NAVIGATION_GUIDE.md",
         "docs/AGENT_NAVIGATION_ACCEPTANCE.md",
         "docs/adr/0034-derived-agent-navigation.md",
         "docs/AGENT_EFFICIENCY_PLAN_2026-10-02.md",
-        "docs/adr/0036-focused-agent-retrieval-and-graph-cache.md"
+        "docs/adr/0036-focused-agent-retrieval-and-graph-cache.md",
+        "docs/AGENT_WORKFLOW_EVIDENCE_2026-10-04.md",
+        "docs/adr/0042-compact-agent-continuity-and-serialized-checks.md"
       ],
       "verificationCommands": [
         "pnpm navigation:check",
         "pnpm test:navigation",
-        "pnpm navigation:check --since origin/main"
+        "pnpm navigation:check --since origin/main",
+        "pnpm test:check-runner"
       ],
       "lastReviewedSha": "3eb8735767db371e61738a64d5003b958ee938a0",
       "lastReviewedDate": "2026-10-02",
       "limitations": "Reviewed HEAD plus disclosed local tooling changes. Static relationships are advisory; automatic refresh is not semantic review or release acceptance.",
       "requirements": [
         "AGENT-NAV-005 / GitHub #177",
-        "AGENT-NAV-006 / GitHub #180"
+        "AGENT-NAV-006 / GitHub #180",
+        "AGENT-NAV-007 / GitHub #207"
       ],
       "openAcceptance": [
         "GitHub #54: fresh Codex and Antigravity sessions must demonstrate shared skill discovery and behavior; no installed-client or token-saving measurement is inferred from CLI fixtures."

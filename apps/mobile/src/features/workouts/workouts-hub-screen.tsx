@@ -15,8 +15,7 @@ import type { Workout } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { BrandWordmark } from "@/components/brand-wordmark";
-import { AccountHeaderActions } from "@/components/account-header-button";
+import { TabHeader, useTabHeaderLayout } from "@/components/tab-header";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { analyticsClient } from "@/composition/analytics-client";
 import {
@@ -50,6 +49,7 @@ const INITIAL_DATA: WorkoutsHubResult = {
 };
 
 export function WorkoutsHubScreen() {
+  const { headerHeight, onHeaderLayout } = useTabHeaderLayout();
   const { profile, session } = useAuth();
   const community = useCommunityProfile({
     principalKey: session?.user.id ?? null,
@@ -270,9 +270,11 @@ export function WorkoutsHubScreen() {
     <ThemedView style={styles.page}>
       <Stack.Screen options={{ title: "Workouts" }} />
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
+        <TabHeader onLayout={onHeaderLayout} />
         <ScrollView
           refreshControl={
             <RefreshControl
+              progressViewOffset={headerHeight}
               refreshing={refreshing}
               onRefresh={() => {
                 invalidateSessionReads();
@@ -281,15 +283,15 @@ export function WorkoutsHubScreen() {
               }}
             />
           }
-          contentContainerStyle={styles.content}
+          style={{ marginTop: -headerHeight }}
+          contentContainerStyle={[
+            styles.content,
+            { paddingTop: headerHeight + Spacing.four },
+          ]}
           showsVerticalScrollIndicator={false}
         >
           {/* Top Header */}
           <View style={styles.header}>
-            <View style={styles.headerTopRow}>
-              <BrandWordmark />
-              <AccountHeaderActions />
-            </View>
             <ThemedText type="subtitle">Workouts</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
               Manage your routines, on-demand sessions, and history.
@@ -888,11 +890,6 @@ const styles = StyleSheet.create({
   },
   header: {
     gap: Spacing.one,
-  },
-  headerTopRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
   },
   createRoutineHeroCard: {
     width: "100%",

@@ -92,6 +92,7 @@
 - **COACH-09:** An explicit daily-plan request produces a persistent, versioned summary of confirmed calorie/protein progress, training state, missing inputs, and one deterministic next action; missing meal logs are not treated as zero intake, and generating the plan never mutates authoritative records.
 - **COACH-10:** An explicit weekly-review request produces a persistent, versioned adaptation proposal from complete nutrition days, deterministic weight trend, active goal, and recent training load. Insufficient or poorly adherent data forces a hold; an applicable goal-pace change requires explicit authenticated acceptance and stale proposals cannot overwrite a changed goal.
 - **COACH-11:** Proactive Coach reminders are off by default, device-local, permission-aware, individually configurable for daily and weekly check-ins, and fully removable. Opening one automatically submits the corresponding Coach request upon entering the chat; no provider call, health analysis, logging, or authoritative mutation happens in the background.
+- **COACH-12:** Coach app guidance uses a release-owned capability catalog, distinguishes implemented features from account/build access and available Coach actions, and states uncertainty for unknown capabilities. Feature/route additions require catalog coverage; semantic behavior changes update guidance and regression queries. Recurring-meal setup help never becomes a one-off draft or creates a schedule implicitly.
 
 ### Durable memory
 

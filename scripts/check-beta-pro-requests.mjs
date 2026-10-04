@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * CLI utility to check and triage Beta Pro Pass requests across Dev and Production.
+ * CLI utility to check and triage Launch Pro Pass requests across Dev and Production.
  *
  * Checks public.beta_pro_requests in PostgreSQL on the Hetzner primary host
  * via SSH and Docker exec with safe stdin piping.
@@ -111,9 +111,9 @@ function parseArgs(argv) {
 
 function printUsage() {
   console.log(`
-Check & Manage Beta Pro Pass Requests
+Check & Manage Launch Pro Pass Requests
 
-Inspects pending requests for the "Beta Pro Pass" across Production and Dev
+Inspects pending requests for the "Launch Pro Pass" across Production and Dev
 databases hosted on the Hetzner primary host.
 
 USAGE:
@@ -556,8 +556,8 @@ SELECT coalesce(json_agg(row_to_json(updated)), '[]'::json) FROM updated;
       console.log(`\nDispatching push notification...`);
       await sendPushNotification(
         row.push_token,
-        "✨ Beta Pro Pass Activated!",
-        "Your request was approved! Enjoy 100 daily meal photo scans and expanded AI capabilities.",
+        "✨ Launch Pro Pass Activated!",
+        "Your Launch Pro Pass request was approved. View your AI usage limits in Account.",
         envToUse,
       );
     } else {
@@ -691,7 +691,7 @@ async function main() {
 
   // Print Human-Readable Summary
   console.log("\n========================================================");
-  console.log(` Mizyun Beta Pro Pass Requests`);
+  console.log(` Mizyun Launch Pro Pass Requests`);
   console.log("========================================================");
   for (const env of envsToQuery) {
     const label = env.toUpperCase().padEnd(10);

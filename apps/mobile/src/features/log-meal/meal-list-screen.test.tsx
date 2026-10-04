@@ -77,6 +77,10 @@ vi.mock("react-native-safe-area-context", () => ({
 }));
 vi.mock("@/components/themed-text", () => ({ ThemedText: "ThemedText" }));
 vi.mock("@/components/themed-view", () => ({ ThemedView: "ThemedView" }));
+vi.mock("@/components/tab-header", () => ({
+  TabHeader: "TabHeader",
+  useTabHeaderLayout: () => ({ headerHeight: 96, onHeaderLayout: () => {} }),
+}));
 vi.mock("@/components/brand-wordmark", () => ({
   BrandWordmark: "BrandWordmark",
 }));
@@ -411,4 +415,98 @@ it("retains the selected day when an earlier history request completes after the
   await settle();
   expect(mocks.day).toHaveBeenCalledWith(date);
   expect(history().entries.map((e: FoodEntry) => e.id)).toContain("added");
+});
+
+it("keeps the common account bar outside scrolling tab content", () => {
+  const tree = render();
+  const safeArea = find(tree, (node) => node.type === "SafeAreaView");
+  const scroll = find(safeArea, (node) => node.type === "ScrollView");
+  expect(safeArea.props.children[0].type).toBe("TabHeader");
+  expect(scroll).toBeTruthy();
+  expect(find(scroll, (node) => node.type === "TabHeader")).toBeFalsy();
+});
+
+function textContent(node: any): string {
+  if (node == null || typeof node === "boolean") return "";
+  if (typeof node !== "object") return String(node);
+  if (Array.isArray(node)) return node.map(textContent).join("");
+  return textContent(node.props?.children);
+}
+
+it("keeps grouping selection and cancellation usable from the day actions", async () => {
+  mocks.fetch.mockResolvedValueOnce(response([entry("a"), entry("b")]));
+  render();
+  hooks.focus!();
+  await settle();
+  const groupButton = find(render(), (node) =>
+    node.props?.accessibilityLabel?.startsWith("Group meals on "),
+  );
+  expect(textContent(groupButton)).toBe("Group meals");
+  groupButton.props.onPress();
+  let tree = render();
+  const confirm = () =>
+    find(
+      tree,
+      (node) =>
+        node.props?.accessibilityLabel === "Confirm grouping selected meals",
+    );
+  expect(confirm().props.disabled).toBe(true);
+  const selection = find(
+    tree,
+    (node) =>
+      node.props?.isGrouping &&
+      typeof node.props?.onToggleSelect === "function",
+  );
+  selection.props.onToggleSelect();
+  tree = render();
+  expect(confirm().props.disabled).toBe(true);
+  find(
+    tree,
+    (node) =>
+      node.props?.isGrouping &&
+      typeof node.props?.onToggleSelect === "function" &&
+      !node.props?.isSelected,
+  ).props.onToggleSelect();
+  tree = render();
+  expect(confirm().props.disabled).toBe(false);
+  find(
+    tree,
+    (node) => node.props?.accessibilityLabel === "Cancel grouping meals",
+  ).props.onPress();
+  tree = render();
+  expect(
+    find(tree, (node) =>
+      node.props?.accessibilityLabel?.startsWith("Group meals on "),
+    ),
+  ).toBeTruthy();
+  expect(
+    find(tree, (node) => node.props?.testID === "add-meal-2026-10-02"),
+  ).toBeTruthy();
+});
+
+it("qualifies partial totals and does not invent missing nutrients", async () => {
+  const missing = {
+    ...entry("unknown"),
+    caloriesKcal: null,
+    proteinG: null,
+    carbohydrateG: null,
+    fatG: null,
+  };
+  const result = response([missing]);
+  mocks.fetch.mockResolvedValueOnce({
+    ...result,
+    groups: result.groups.map((group) => ({ ...group, isPartial: true })),
+  });
+  render();
+  hooks.focus!();
+  await settle();
+  const tree = render();
+  expect(textContent(tree)).toContain("Partial totals");
+  expect(textContent(tree)).toContain("No nutrition totals");
+  expect(textContent(tree)).not.toContain("0g protein");
+  expect(
+    find(tree, (node) =>
+      node.props?.accessibilityLabel?.startsWith("Group meals on "),
+    ),
+  ).toBeFalsy();
 });

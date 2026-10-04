@@ -5,6 +5,7 @@ import {
   AgentToolBudgetExceededError,
   COACH_SAFETY_DATASET_VERSION,
   COACH_SYSTEM_POLICY,
+  COACH_APP_CAPABILITIES,
   DisabledAgentProvider,
   StubVisionProvider,
   coachSafetyEvaluationCases,
@@ -23,6 +24,49 @@ describe("DisabledAgentProvider", () => {
     const status = await new DisabledAgentProvider().status();
     expect(status.ready).toBe(false);
     expect(status.provider).toBe("disabled");
+  });
+});
+
+describe("Coach app feature help", () => {
+  it("answers the reported daily breakfast question without a model inventing feature absence", async () => {
+    let calls = 0;
+    const provider: AgentProvider = {
+      status: async () => ({
+        ready: true,
+        provider: "fake",
+        externalAccess: true,
+      }),
+      respond: async () => {
+        calls++;
+        return {
+          message: {
+            role: "assistant",
+            text: "Mizyun does not have recurring meals.",
+          },
+          provider: "fake",
+          evidence: [],
+        };
+      },
+    };
+    const runtime = new AgentOrchestrator({
+      provider,
+      memories: new InMemoryMemoryStore(),
+    });
+    const reply = await runtime.respond({
+      userId: "00000000-0000-4000-8000-000000000001" as UserId,
+      conversationId: "00000000-0000-4000-8000-000000000002" as ConversationId,
+      messages: [
+        { role: "assistant", text: "Mizyun does not have recurring meals." },
+        {
+          role: "user",
+          text: "How can I make an automated logging of meals so that when I eat something every breakfast, it is just there instead of me having to log it each day.",
+        },
+      ],
+    });
+    expect(reply.message.text).toContain("Recurring meals");
+    expect(reply.message.text).toContain("Repeat");
+    expect(reply.message.text).toContain("Save schedule");
+    expect(calls).toBe(0);
   });
 });
 
@@ -206,6 +250,13 @@ describe("AgentOrchestrator — read-only tool loop (AI-002)", () => {
       }),
       respond: async (request): Promise<AgentResponse> => {
         providerCalls += 1;
+        // Catalog facts must survive the real initial AND tool continuation boundary.
+        for (const capability of COACH_APP_CAPABILITIES) {
+          expect(request.systemPolicy).toContain(capability.guidance);
+        }
+        expect(request.systemPolicy).toContain(
+          "cannot confirm current availability",
+        );
         if (providerCalls === 1) {
           // First call: ask for the active goal.
           return {
@@ -755,7 +806,8 @@ describe("COACH_SYSTEM_POLICY — in-app navigation and remaining nutrition guid
     expect(COACH_SYSTEM_POLICY).toContain("'Workouts' tab");
     expect(COACH_SYSTEM_POLICY).toContain("'Meals' tab");
     expect(COACH_SYSTEM_POLICY).toContain("'Coach' tab");
-    expect(COACH_SYSTEM_POLICY).toContain("'Account' tab");
+    expect(COACH_SYSTEM_POLICY).toContain("'Community' tab");
+    expect(COACH_SYSTEM_POLICY).toContain("Open settings");
   });
 
   it("guides in-app feature discovery and prohibits hallucinated UI elements", () => {

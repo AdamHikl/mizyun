@@ -22,6 +22,8 @@
  * into a meal draft costs a draft slot and user trust.
  */
 
+import { isRecurringMealRequest } from "@mizyun/agent-runtime";
+
 const workoutSignal =
   /(?:^|\P{L})(?:workouts?|train(?:ing|ed|s?)|exercises?|sessions?|walk(?:ed|ing|s?)?|jog(?:ged|ging|s?)?|ran|running|runs?|rode|rides?|swam|swimming|swims?|cycl(?:ed|ing|es?)|hik(?:ed|ing|es?)|sprint(?:ed|ing|s?)|lift(?:ed|ing|s?)|cardio|gym|hiit|fitness|reps?|sets?|squats?|deadlifts?|bench(?:press)?|presses?|curls?|lunges?|planks?|push[- ]?ups?|pull[- ]?ups?|sit[- ]?ups?|burpees?|fitk\p{L}*|(?:za|od)?cvič\p{L}*|tréning\p{L}*|trénov\p{L}*|(?:za|od)?beh\p{L}*|bežal\p{L}*|behal\p{L}*|kráč\p{L}*|chôdz\p{L}*|prechádzk\p{L}*|drep\p{L}*|klik\p{L}*|zhyb\p{L}*|výpad\p{L}*|posilň\p{L}*|posilk\p{L}*|kardio|séri\p{L}*)(?:\P{L}|$)/iu;
 
@@ -47,6 +49,7 @@ export const isExplicitMealLoggingIntent = (text: string): boolean => {
   const normalized = text.trim();
   return (
     normalized.length >= 2 &&
+    !isRecurringMealRequest(normalized) &&
     !workoutSignal.test(normalized) &&
     hasFoodContext(normalized) &&
     mealLoggingPhrases.some((pattern) => pattern.test(normalized))

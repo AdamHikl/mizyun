@@ -14,6 +14,11 @@ const mocks = vi.hoisted(() => ({
   slots: [] as any[],
   index: 0,
   effects: [] as (() => void)[],
+  variant: "production" as "dev" | "production",
+  configured: false,
+}));
+vi.mock("@/composition/app-variant", () => ({
+  getAppVariant: () => mocks.variant,
 }));
 vi.mock("react", async (original) => ({
   ...(await original<typeof import("react")>()),
@@ -37,8 +42,8 @@ vi.mock("react", async (original) => ({
 }));
 vi.mock("@/composition/analytics-client", () => ({
   analyticsClient: {
-    resetLocalSession: () => mocks.analytics!.resetLocalSession(),
-    syncConsent: () => mocks.analytics!.syncConsent(),
+    resetLocalSession: async () => mocks.analytics?.resetLocalSession(),
+    syncConsent: async () => mocks.analytics?.syncConsent(),
   },
 }));
 vi.mock("@/composition/auth-client", () => ({
@@ -52,7 +57,11 @@ vi.mock("@/composition/auth-client", () => ({
   },
 }));
 vi.mock("@/composition/api-client", () => ({
-  apiConfiguration: { configured: false },
+  apiConfiguration: {
+    get configured() {
+      return mocks.configured;
+    },
+  },
   apiClient: {},
 }));
 vi.mock("@/features/community/push", () => ({
@@ -114,6 +123,34 @@ beforeEach(() => {
   mocks.index = 0;
   mocks.effects = [];
   mocks.subscribe = null;
+  mocks.variant = "production";
+  mocks.configured = false;
+  mocks.analytics = null;
+});
+
+function renderReadyProvider() {
+  mocks.configured = true;
+  AuthProvider({ children: null });
+  mocks.slots[2] = false; // Bootstrap has completed.
+  mocks.index = 0;
+  return AuthProvider({ children: null });
+}
+
+it("rejects preview session entry in Production, including calls from deep links", () => {
+  const tree = renderReadyProvider();
+  tree.props.value.explorePreview();
+  mocks.index = 0;
+  expect(AuthProvider({ children: null }).props.value.session).toBeNull();
+});
+
+it("retains explicit preview session entry in Dev", () => {
+  mocks.variant = "dev";
+  const tree = renderReadyProvider();
+  tree.props.value.explorePreview();
+  mocks.index = 0;
+  expect(
+    AuthProvider({ children: null }).props.value.session?.accessToken,
+  ).toBe("preview-token");
 });
 
 it("resets an offline A queue before synchronizing a directly replacing B account", async () => {

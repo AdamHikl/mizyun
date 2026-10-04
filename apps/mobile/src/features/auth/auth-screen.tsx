@@ -17,6 +17,7 @@ import {
 
 import { GoogleIcon } from "@/components/google-icon";
 import { authClient } from "@/composition/auth-client";
+import { getAppVariant } from "@/composition/app-variant";
 import { mobileConfigResult } from "@/composition/mobile-config";
 
 import { authErrorMessage } from "./auth-error-message";
@@ -401,14 +402,16 @@ export function AuthScreen() {
         </Text>
       </Pressable>
 
-      <Pressable
-        accessibilityLabel="Explore app in preview mode"
-        accessibilityRole="button"
-        onPress={explorePreview}
-        style={styles.previewButton}
-      >
-        <Text style={styles.previewText}>✨ Explore App Preview →</Text>
-      </Pressable>
+      {getAppVariant() === "dev" ? (
+        <Pressable
+          accessibilityLabel="Explore app in preview mode"
+          accessibilityRole="button"
+          onPress={explorePreview}
+          style={styles.previewButton}
+        >
+          <Text style={styles.previewText}>✨ Explore App Preview →</Text>
+        </Pressable>
+      ) : null}
     </ScrollView>
   );
 }

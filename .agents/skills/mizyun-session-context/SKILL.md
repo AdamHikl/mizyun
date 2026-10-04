@@ -23,8 +23,8 @@ Use this skill at the beginning of a substantive task, when resuming after a con
 
 2. **Operational State & Routing**:
    Read root [`AGENTS.md`](../../../AGENTS.md), [`status.md`](../../../status.md), and [`docs/START_HERE.md`](../../../docs/START_HERE.md).
-   - Identify the active work package, current deployed SHAs, and open gates. Read these mandatory startup documents in full once; an outline is only a locator, not a substitute for policy or gate contents.
-   - Reuse already loaded context until it changes. For later status lookups, use `pnpm nav:read status.md --outline` and read the newest applicable section completely with `--heading`; use the full document if authority or continuity is uncertain.
+   - Identify the active work package, current deployed SHAs, and open gates. Read these mandatory startup documents in full once in separate calls; an outline is only a locator, not a substitute for policy or gate contents.
+   - Reuse already loaded context until it changes. The live status is enforced at 120 lines/12,288 bytes; chronological evidence belongs in linked documents or archives, while current authorities/open gates remain explicit. For later status lookups, use `pnpm nav:read status.md --outline` and read the newest applicable section completely with `--heading`; use the full document if authority or continuity is uncertain.
    - For product intent or pricing questions, consult [`goals.md`](../../../goals.md) and [`docs/BUSINESS_ALIGNMENT.md`](../../../docs/BUSINESS_ALIGNMENT.md).
    - For roadmap sequencing changes, consult [`plan.md`](../../../plan.md).
 
@@ -66,7 +66,7 @@ From the `pnpm context <feature-id>` output, read only the specific files releva
 
 Use `pnpm nav:read <file> --symbol <exact-name>`, `--lines <start:end>`, or `--heading "Exact heading"` to request a complete selection with current hash/line provenance. `--outline` locates document headings. The default is 8,192 bytes and 120 lines; oversized selections fail explicitly. Narrow the selection or raise the explicit bounds. Read every applicable instruction file in full; bounded instruction-file excerpts are rejected.
 
-Keep bounded navigation output in separate calls from large file reads so aggregate output limits do not erase the packet. Expand to the surrounding code and caller/test bodies when needed to understand a change; a symbol excerpt is not complete semantic impact or acceptance evidence.
+Use bounded selections first for ordinary source/doc reading; expand only the required surrounding code, callers and tests. Keep each bounded navigation output separate from large file reads so aggregate output limits do not erase the packet. If output truncates, select a smaller complete range instead of repeatedly reading the whole file. Expand to the surrounding code and caller/test bodies when needed to understand a change; a symbol excerpt is not complete semantic impact or acceptance evidence.
 
 ## 4. Assemble the Context Packet
 
