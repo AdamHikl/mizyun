@@ -10,7 +10,11 @@ import {
 } from "@mizyun/adapter-supabase-server";
 import type { AccessTokenVerifier } from "@mizyun/identity";
 import { InMemoryMemoryStore } from "@mizyun/memory";
-import { CURRENT_ANALYTICS_CONSENT_VERSION } from "@mizyun/contracts";
+import {
+  CURRENT_ANALYTICS_CONSENT_VERSION,
+  legacyAnalyticsEventsListResponseSchema,
+  analyticsEventsListResponseSchema,
+} from "@mizyun/contracts";
 
 import { buildApp } from "../../app.js";
 import { InMemoryProductAnalyticsRepository } from "../../product-analytics-repository.js";
@@ -384,6 +388,122 @@ describe("Product Analytics Routes (OBS-002)", () => {
   });
 
   describe("GET /v1/analytics/events", () => {
+    it("keeps the unversioned list parseable by pre-dashboard clients", async () => {
+      const { app } = build();
+      const headers = { authorization: "Bearer token-user-a" };
+      const consent = await app.inject({
+        method: "PUT",
+        url: "/v1/analytics/consent",
+        headers,
+        payload: {
+          version: CURRENT_ANALYTICS_CONSENT_VERSION,
+          granted: true,
+          expectedRevision: 0,
+          operationId: "11111111-1111-4111-8111-111111111111",
+        },
+      });
+      const base = {
+        schemaVersion: 2,
+        recordedAt: new Date().toISOString(),
+        sessionId: "22222222-2222-4222-8222-222222222222",
+        sequence: 0,
+        platform: "ios",
+        appVersion: "1.0.6",
+      };
+      const ingest = await app.inject({
+        method: "POST",
+        url: "/v1/analytics/events",
+        headers,
+        payload: {
+          consentVersion: CURRENT_ANALYTICS_CONSENT_VERSION,
+          epoch: consent.json().epoch,
+          events: [
+            {
+              ...base,
+              id: "33333333-3333-4333-8333-333333333333",
+              name: "onboarding_step_completed",
+              properties: { step: "welcome" },
+            },
+            {
+              ...base,
+              id: "44444444-4444-4444-8444-444444444444",
+              sequence: 1,
+              name: "dashboard_control_clicked",
+              properties: { control: "nutrition_card" },
+            },
+            {
+              ...base,
+              id: "55555555-5555-4555-8555-555555555555",
+              sequence: 2,
+              name: "onboarding_step_completed",
+              properties: { step: "baseline_weight" },
+            },
+            {
+              ...base,
+              id: "66666666-6666-4666-8666-666666666666",
+              sequence: 3,
+              name: "onboarding_failed",
+              properties: { step: "energy_profile", reason: "network" },
+            },
+            {
+              ...base,
+              id: "77777777-7777-4777-8777-777777777777",
+              sequence: 4,
+              name: "onboarding_exited",
+              properties: {
+                step: "units",
+                duration: "under_30_seconds",
+                exit: "cancel",
+              },
+            },
+          ],
+        },
+      });
+      expect(ingest.statusCode).toBe(200);
+      const legacy = await app.inject({
+        method: "GET",
+        url: "/v1/analytics/events",
+        headers,
+      });
+      expect(legacy.statusCode).toBe(200);
+      expect(
+        legacy.json().events.map((event: { name: string }) => event.name),
+      ).toEqual(["onboarding_step_completed"]);
+      expect(
+        legacyAnalyticsEventsListResponseSchema.safeParse(legacy.json())
+          .success,
+      ).toBe(true);
+      const upgraded = await app.inject({
+        method: "GET",
+        url: "/v1/analytics/events?catalog=dashboard-v1",
+        headers,
+      });
+      expect(upgraded.statusCode).toBe(200);
+      expect(
+        analyticsEventsListResponseSchema.safeParse(upgraded.json()).success,
+      ).toBe(true);
+      expect(upgraded.json().events).toHaveLength(5);
+      expect(
+        legacyAnalyticsEventsListResponseSchema.safeParse(upgraded.json())
+          .success,
+      ).toBe(false);
+    });
+
+    it.each([
+      "catalog=unknown",
+      "private=search",
+      "catalog=dashboard-v1&catalog=dashboard-v1",
+    ])("rejects unsupported or malformed query %s", async (query) => {
+      const { app } = build();
+      const result = await app.inject({
+        method: "GET",
+        url: `/v1/analytics/events?${query}`,
+        headers: { authorization: "Bearer token-user-a" },
+      });
+      expect(result.statusCode).toBe(422);
+      expect(result.json().error.code).toBe("VALIDATION_ERROR");
+    });
+
     it("lists retained events for the user", async () => {
       const { app } = build(tokenVerifierFor({ userId: userA }));
       // Grant consent

@@ -128,6 +128,7 @@ export function CoachSetupScreen() {
   const [draft, setDraft] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [sending, setSending] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [pendingDraft, setPendingDraft] = useState<CoachPendingDraft | null>(
@@ -170,9 +171,11 @@ export function CoachSetupScreen() {
 
   const refresh = useCallback(async () => {
     setLoading(true);
+    setLoadFailed(false);
     const result = await loadCoach();
     if (!result.ok) {
       setMessage(result.message);
+      setLoadFailed(true);
       setLoading(false);
       return;
     }
@@ -192,18 +195,15 @@ export function CoachSetupScreen() {
           });
         } else {
           setMessage(thread.message);
+          setLoadFailed(true);
         }
-      } else if (params.autoSend === "true") {
-        const created = await createCoachConversation();
-        if (created.ok) {
-          setActive(created.conversation);
-          setMessages([]);
-          setConversations([created.conversation]);
-        }
+      } else {
+        setActive(null);
+        setMessages([]);
       }
     }
     setLoading(false);
-  }, [params.autoSend]);
+  }, []);
 
   useEffect(() => {
     void refresh();
@@ -241,12 +241,9 @@ export function CoachSetupScreen() {
     }
   }, [messages]);
 
-  const create = useCallback(async () => {
-    setLoading(true);
-    const statusResult = await loadCoach();
-    if (statusResult.ok) {
-      setStatus(statusResult.status);
-    }
+  // Opening an empty Coach page is read-only. Persist a thread only for an
+  // explicit new-conversation action or the first consent-approved send.
+  const beginConversation = useCallback(async () => {
     const result = await createCoachConversation();
     if (result.ok) {
       setActive(result.conversation);
@@ -256,13 +253,33 @@ export function CoachSetupScreen() {
     } else {
       setMessage(result.message);
     }
-    setLoading(false);
+    return result.ok ? result.conversation : null;
   }, []);
+
+  const create = useCallback(async () => {
+    if (
+      loading ||
+      loadFailed ||
+      !status?.ready ||
+      sendLock.current ||
+      deleteLock.current
+    )
+      return;
+    sendLock.current = true;
+    setLoading(true);
+    try {
+      await beginConversation();
+    } finally {
+      sendLock.current = false;
+      setLoading(false);
+    }
+  }, [beginConversation, loadFailed, loading, status?.ready]);
 
   const switchToConversation = useCallback(
     async (conversationId: string) => {
       if (active?.id === conversationId) return;
       setLoading(true);
+      setLoadFailed(false);
       setActive(null);
       setMessages([]);
       setMessage(null);
@@ -277,6 +294,7 @@ export function CoachSetupScreen() {
         });
       } else {
         setMessage(thread.message);
+        setLoadFailed(true);
       }
       setLoading(false);
     },
@@ -287,7 +305,8 @@ export function CoachSetupScreen() {
     async (retryIdempotencyKey?: string, textOverride?: string) => {
       const text = (textOverride ?? draft).trim();
       if (
-        !active ||
+        loading ||
+        loadFailed ||
         text.length === 0 ||
         sending ||
         sendLock.current ||
@@ -299,18 +318,23 @@ export function CoachSetupScreen() {
       draftLoadGeneration.current += 1;
       setSending(true);
       const sentAt = Date.now();
-      const retryBubbleId =
-        retryIdempotencyKey !== undefined
-          ? optimisticCoachMessageId(retryIdempotencyKey)
-          : undefined;
-      const idempotencyKey =
-        retryIdempotencyKey ?? newCoachMessageIdempotencyKey();
-      const nextPending: CoachPendingDraft = {
-        conversationId: active.id,
-        text,
-        idempotencyKey,
-      };
       try {
+        const conversation = active ?? (await beginConversation());
+        if (conversation === null) {
+          setDraft(text);
+          return;
+        }
+        const retryBubbleId =
+          retryIdempotencyKey !== undefined
+            ? optimisticCoachMessageId(retryIdempotencyKey)
+            : undefined;
+        const idempotencyKey =
+          retryIdempotencyKey ?? newCoachMessageIdempotencyKey();
+        const nextPending: CoachPendingDraft = {
+          conversationId: conversation.id,
+          text,
+          idempotencyKey,
+        };
         setPendingDraft(nextPending);
         if (userId !== null) {
           await saveLoggingDraft(userId, "coach", nextPending);
@@ -323,7 +347,7 @@ export function CoachSetupScreen() {
         setMessage(null);
         const userBubble: CoachMessage = {
           id: optimisticCoachMessageId(idempotencyKey),
-          conversationId: active.id,
+          conversationId: conversation.id,
           role: "user",
           text,
           status: "complete",
@@ -340,7 +364,11 @@ export function CoachSetupScreen() {
             ? base
             : [...base, userBubble];
         });
-        const result = await sendCoachMessage(active.id, text, idempotencyKey);
+        const result = await sendCoachMessage(
+          conversation.id,
+          text,
+          idempotencyKey,
+        );
         if (result.ok) {
           setActive(result.conversation);
           // Replace the optimistic bubble and de-duplicate the canonical user
@@ -377,12 +405,13 @@ export function CoachSetupScreen() {
         inputRef.current?.focus();
       }
     },
-    [active, draft, pendingDraft, sending, userId],
+    [active, beginConversation, draft, loadFailed, loading, sending, userId],
   );
 
   const pickAndSendMealPhoto = useCallback(async () => {
     if (
-      active === null ||
+      loading ||
+      loadFailed ||
       sending ||
       deleting ||
       sendLock.current ||
@@ -390,24 +419,27 @@ export function CoachSetupScreen() {
     ) {
       return;
     }
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      setMessage("Photo library access is required to choose a meal photo.");
-      return;
-    }
-    const selection = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      quality: 0.85,
-      allowsEditing: false,
-    });
-    if (selection.canceled || selection.assets?.[0] === undefined) return;
     sendLock.current = true;
     setSending(true);
     setMessage(null);
     try {
+      const permission =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        setMessage("Photo library access is required to choose a meal photo.");
+        return;
+      }
+      const selection = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.85,
+        allowsEditing: false,
+      });
+      if (selection.canceled || selection.assets?.[0] === undefined) return;
       const photo = await normalizeMealPhoto(selection.assets[0]);
+      const conversation = active ?? (await beginConversation());
+      if (conversation === null) return;
       const result = await sendCoachMealPhoto(
-        active.id,
+        conversation.id,
         photo,
         newCoachMessageIdempotencyKey(),
       );
@@ -428,7 +460,7 @@ export function CoachSetupScreen() {
       sendLock.current = false;
       setSending(false);
     }
-  }, [active, deleting, sending]);
+  }, [active, beginConversation, deleting, loadFailed, loading, sending]);
 
   const executeAiAction = useCallback(
     async (action: PendingAiAction) => {
@@ -480,7 +512,13 @@ export function CoachSetupScreen() {
       lastHandledPrompt.current !== params.prompt
     ) {
       if (params.autoSend === "true") {
-        if (!loading && active !== null && !sending && !sendLock.current) {
+        if (
+          !loading &&
+          !loadFailed &&
+          status?.ready &&
+          !sending &&
+          !sendLock.current
+        ) {
           lastHandledPrompt.current = params.prompt;
           void send(undefined, params.prompt.trim());
         }
@@ -492,7 +530,15 @@ export function CoachSetupScreen() {
         });
       }
     }
-  }, [active, loading, params.autoSend, params.prompt, send, sending]);
+  }, [
+    loadFailed,
+    loading,
+    params.autoSend,
+    params.prompt,
+    send,
+    sending,
+    status?.ready,
+  ]);
 
   const activeRetry =
     active !== null && pendingDraft?.conversationId === active.id
@@ -670,6 +716,21 @@ export function CoachSetupScreen() {
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="New conversation"
+                  disabled={
+                    loading ||
+                    loadFailed ||
+                    !status?.ready ||
+                    sending ||
+                    deleting
+                  }
+                  accessibilityState={{
+                    disabled:
+                      loading ||
+                      loadFailed ||
+                      !status?.ready ||
+                      sending ||
+                      deleting,
+                  }}
                   onPress={() => void create()}
                   style={({ pressed }) => [
                     styles.navIconButton,
@@ -698,7 +759,7 @@ export function CoachSetupScreen() {
 
             <View style={styles.headerTitleRow}>
               <ThemedText type="subtitle">Coach</ThemedText>
-              {active !== null ? (
+              {status?.ready ? (
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Open thread list"
@@ -717,7 +778,7 @@ export function CoachSetupScreen() {
                     numberOfLines={1}
                     style={styles.navThreadTitle}
                   >
-                    {active.title ?? "Coach check-in"}
+                    {active?.title ?? "Coach check-in"}
                   </ThemedText>
                   <ThemedText
                     type="small"
@@ -791,21 +852,18 @@ export function CoachSetupScreen() {
                 <ThemedText type="smallBold">Check again</ThemedText>
               </Pressable>
             </ThemedView>
-          ) : active === null ? (
+          ) : loadFailed ? (
             <ThemedView type="backgroundElement" style={styles.card}>
-              <ThemedText type="smallBold">Start a private check-in</ThemedText>
+              <ThemedText type="smallBold">Couldn't load Coach</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                Coach can explain your confirmed goal, meals, training, and
-                weight trend. It cannot change those records.
+                {message}
               </ThemedText>
               <Pressable
                 accessibilityRole="button"
-                onPress={() => void create()}
-                style={styles.primaryButton}
+                onPress={() => void refresh()}
+                style={styles.secondaryButton}
               >
-                <ThemedText type="smallBold" style={{ color: "#FFFFFF" }}>
-                  New conversation
-                </ThemedText>
+                <ThemedText type="smallBold">Check again</ThemedText>
               </Pressable>
             </ThemedView>
           ) : (

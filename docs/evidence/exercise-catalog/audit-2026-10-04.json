@@ -1,0 +1,55 @@
+{
+  "date": "2026-10-04",
+  "sourceHead": "55338240639e44e0c609477db0cfa09a3abe8655",
+  "catalogPath": "packages/core/src/exercise-catalog.ts",
+  "catalogSha256": "638771d9ae3c1741b2ae4c8ced6350843fd10d1ad7175715b83cf1c53f8eecb1",
+  "method": "Node evaluates only the local static EXERCISE_CATALOG array initializer; compare case-insensitive names and exact ordered instruction arrays against public downloaded JSON. No user custom exercise query.",
+  "current": {
+    "builtInEntries": 888,
+    "uniqueIds": 888,
+    "emptyInstructionNames": [
+      "Iron Cross",
+      "One-Arm Kettlebell Swings",
+      "Push Press",
+      "Side Bridge",
+      "Side Jackknife"
+    ]
+  },
+  "freeExerciseDb": {
+    "url": "https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/dist/exercises.json",
+    "entries": 876,
+    "sha256": "5bb747e3fc658f095a60dcbf6d53c96627acdcc6ffb6fffde86f7e26995d40bf",
+    "currentNameMatches": 873,
+    "currentInstructionMatches": 867
+  },
+  "repdbFree": {
+    "url": "https://exercise-dataset.com/exercises.json",
+    "entries": 609,
+    "uniqueIds": 609,
+    "emptyEnglishInstructions": 0,
+    "sha256": "b651511287cd7e9261158598bf0263c56c19d2403ad8b57f68426c9c99d17421",
+    "coverageAudit": {
+      "categories": {
+        "strength": 494,
+        "cardio": 18,
+        "stretching": 79,
+        "plyometrics": 4,
+        "olympic": 14
+      },
+      "emptyEnglishDescriptions": 0,
+      "emptyEnglishTips": 0,
+      "omittedEquipmentFields": 184,
+      "currentNormalizedNameMatches": 107,
+      "nameComparisonIsNotMovementEquivalence": true
+    }
+  },
+  "exerciseDbIo": {
+    "entries": 1394,
+    "countEvidence": "Supplier FAQ/pricing only; purchased full content not inspected",
+    "url": "https://exercisedb.io/faq"
+  },
+  "appMigrationPerformed": false,
+  "selectedBudget": "zero-cost source now",
+  "currentRecommendation": "RepDB Free, subject to form and coverage review",
+  "futureUpgrade": "ExerciseDB.io deferred"
+}

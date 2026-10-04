@@ -1,0 +1,55 @@
+name: mizyun-analytics-live
+services:
+  postgres:
+    image: postgres:17.6
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: metabase
+      POSTGRES_USER: metabase
+      POSTGRES_PASSWORD: ${METABASE_DB_PASSWORD:?Set METABASE_DB_PASSWORD}
+      REPORTING_READER_PASSWORD: ${REPORTING_READER_PASSWORD:?Set REPORTING_READER_PASSWORD}
+      REPORTING_WRITER_PASSWORD: ${REPORTING_WRITER_PASSWORD:?Set REPORTING_WRITER_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/10-reporting.sql:ro
+      - ./warehouse.sql:/opt/analytics/warehouse.sql:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          test "$$(psql -U metabase -d mizyun_reporting -Atc "SELECT to_regclass('reporting.metrics') IS NOT NULL")" = t
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 384m
+    networks: [analytics]
+  metabase:
+    image: metabase/metabase:v0.63.18.2
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports: ["127.0.0.1:3034:3000"]
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_HOST: postgres
+      MB_DB_PORT: 5432
+      MB_DB_DBNAME: metabase
+      MB_DB_USER: metabase
+      MB_DB_PASS: ${METABASE_DB_PASSWORD:?Set METABASE_DB_PASSWORD}
+      MB_ENCRYPTION_SECRET_KEY: ${METABASE_ENCRYPTION_KEY:?Set METABASE_ENCRYPTION_KEY}
+      MB_SITE_URL: http://127.0.0.1:3034
+      MB_ANON_TRACKING_ENABLED: "false"
+      MB_ENABLE_PUBLIC_SHARING: "false"
+      MB_ENABLE_EMBEDDING: "false"
+      MB_QUERY_CACHING_ENABLED: "false"
+      MB_METABOT_ENABLED: "false"
+      MB_EMBEDDED_METABOT_ENABLED: "false"
+      JAVA_TIMEZONE: UTC
+      JAVA_OPTS: -Xms256m -Xmx1024m
+    mem_limit: 1536m
+    networks: [analytics]
+networks:
+  analytics: {}
+volumes:
+  postgres-data: {}

@@ -50,6 +50,7 @@ import {
   copyFoodEntry,
   deleteFoodEntry,
   fetchFoodHistory,
+  fetchFoodDateHistory,
   formFromEntry,
   groupFoodEntries,
   groupFoodEntriesByDay,
@@ -168,6 +169,7 @@ export function MealListScreen() {
   const loaded = useRef(false);
   const paginationPending = useRef(false);
   const historyReadPending = useRef(false);
+  const addMealDate = useRef<string | null>(null);
   const lastLoad = useRef<{ version: string; completedAt: number } | null>(
     null,
   );
@@ -207,6 +209,7 @@ export function MealListScreen() {
     paginationPending.current = false;
     historyReadPending.current = false;
     lastLoad.current = null;
+    addMealDate.current = null;
     setState(INITIAL_STATE);
     setServerSearch(null);
     setSearchQuery("");
@@ -231,7 +234,11 @@ export function MealListScreen() {
         loading: !loaded.current,
         message: null,
       }));
-      const result = await fetchFoodHistory();
+      const targetDate = addMealDate.current;
+      const [result, addedDay] = await Promise.all([
+        fetchFoodHistory(),
+        targetDate ? fetchFoodDateHistory(targetDate) : Promise.resolve(null),
+      ]);
       if (
         version !== requestVersion.current ||
         requestOwner !== currentOwner.current
@@ -246,6 +253,16 @@ export function MealListScreen() {
         }));
         return;
       }
+      if (addedDay?.message) {
+        setState((current) => ({
+          ...current,
+          loading: false,
+          message: addedDay.message,
+        }));
+        return;
+      }
+      if (targetDate && addMealDate.current === targetDate)
+        addMealDate.current = null;
       loaded.current = true;
       lastLoad.current = { version: readVersion, completedAt: Date.now() };
       if (userId && result.entries) {
@@ -261,6 +278,19 @@ export function MealListScreen() {
         }
       }
       setState((current) => {
+        if (addedDay && result.entries.length === 0) {
+          const entries = mergeFoodEntries(current.entries, addedDay.entries);
+          return {
+            ...current,
+            entries,
+            groups: groupFoodEntriesByDay(entries, new Date(), {
+              cutoffDateIsPartial: current.cutoffDateIsPartial,
+            }),
+            loading: false,
+            loadingMore: false,
+            message: null,
+          };
+        }
         if (
           !preserveOlder ||
           current.entries.length === 0 ||
@@ -293,7 +323,10 @@ export function MealListScreen() {
               entry.id.localeCompare(oldestIncoming.id) < 0)
           );
         });
-        const entries = mergeFoodEntries(older, result.entries);
+        const entries = mergeFoodEntries(
+          mergeFoodEntries(older, result.entries),
+          addedDay?.entries ?? [],
+        );
         const retainedOlderPages = older.length > 0;
         const nextCursor = retainedOlderPages
           ? current.nextCursor
@@ -462,11 +495,14 @@ export function MealListScreen() {
       });
       const previous = lastLoad.current;
       if (
+        addMealDate.current !== null ||
         !previous ||
         previous.version !== getSessionReadVersion() ||
         Date.now() - previous.completedAt >= 60 * 1000
       ) {
-        void load();
+        void load(addMealDate.current !== null);
+        if (addMealDate.current !== null)
+          setSearchAttempt((value) => value + 1);
       }
       void advancedCapability.refresh();
       let foreground =
@@ -1161,6 +1197,26 @@ export function MealListScreen() {
                           {group.displayDate}
                         </ThemedText>
 
+                        <Pressable
+                          testID={`add-meal-${group.date}`}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Add meal on ${group.displayDate}`}
+                          accessibilityHint="Opens a new meal entry for this day"
+                          onPress={() => {
+                            addMealDate.current = group.date;
+                            router.push({
+                              pathname: "/log-meal",
+                              params: { date: group.date },
+                            });
+                          }}
+                          style={({ pressed }) => [
+                            styles.dayAddButton,
+                            { borderColor: theme.border },
+                            pressed && { opacity: 0.6 },
+                          ]}
+                        >
+                          <ThemedText type="smallBold">＋</ThemedText>
+                        </Pressable>
                         <View style={styles.dayHeaderRight}>
                           <View style={styles.dayCountBadge}>
                             <ThemedText type="small" themeColor="textSecondary">
@@ -2171,6 +2227,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     flex: 1,
     minWidth: 0,
+  },
+  dayAddButton: {
+    minWidth: 44,
+    minHeight: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
   dayHeaderRight: {
     flexDirection: "row",

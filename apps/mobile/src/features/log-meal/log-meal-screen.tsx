@@ -7,11 +7,11 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, Stack } from "expo-router";
+import { router, Stack, useLocalSearchParams } from "expo-router";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LoggingFlowMeasurement } from "@mizyun/observability";
+import { useLoggingFlowMeasurement } from "@/features/analytics/flow-measurement";
 import {
   aiUsageResponseSchema,
   type AiUsageResponse,
@@ -23,7 +23,6 @@ import { ThemedView } from "@/components/themed-view";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
-import { analyticsClient } from "@/composition/analytics-client";
 import {
   classifyAnalyticsFailure,
   isRetryableAnalyticsFailure,
@@ -43,6 +42,9 @@ import {
 } from "./log-meal-data";
 import {
   createOperationId,
+  parseMealDate,
+  mealTimestampForDate,
+  mealTimestampMatchesDate,
   isRecoverableMealDraft,
   isStaleMealTimestamp,
   mealFormStringsFromDraft,
@@ -50,13 +52,13 @@ import {
   mealDraftFromCurrentForm,
   mealDraftForAdvancedAccess,
   mergeMealDraftIntoForm,
-  parseOptionalNutritionNumber,
+  mealNutritionForSubmission,
   portionGramsStringFromDraft,
   upgradeLegacyMealDraft,
-  advancedNutrientsFromForm,
   sameAdvancedNutrients,
   needsFreshAdvancedGrant,
   type MealFormStrings,
+  type NutritionEntryBasis,
 } from "./meal-form";
 import {
   AdvancedNutrientFields,
@@ -111,8 +113,26 @@ const draftEvidenceLines = (
 export function LogMealScreen() {
   const { session, profile, refreshProfile } = useAuth();
   const theme = useTheme();
+  const params = useLocalSearchParams<{ date?: string | string[] }>();
+  const requestedDate = parseMealDate(params.date);
+  const invalidRequestedDate =
+    params.date !== undefined &&
+    (!requestedDate ||
+      (new Date(mealTimestampForDate(requestedDate)).toDateString() !==
+        new Date().toDateString() &&
+        new Date(mealTimestampForDate(requestedDate)).getTime() > Date.now()));
+  const [mealDate, setMealDate] = useState<string | null>(requestedDate);
+  const [recoveredDifferentDay, setRecoveredDifferentDay] = useState(false);
+  const invalidMealDate =
+    invalidRequestedDate ||
+    Boolean(
+      mealDate &&
+      new Date(mealTimestampForDate(mealDate)).getTime() > Date.now(),
+    );
   const [name, setName] = useState("");
   const [portionGrams, setPortionGrams] = useState("");
+  const [nutritionBasis, setNutritionBasis] =
+    useState<NutritionEntryBasis>("total");
   const [calories, setCalories] = useState("");
   const [protein, setProtein] = useState("");
   const [carbs, setCarbs] = useState("");
@@ -153,9 +173,9 @@ export function LogMealScreen() {
   const [aiUsage, setAiUsage] = useState<AiUsageResponse | null>(null);
   const [recentMeals, setRecentMeals] = useState<ReadonlyArray<FoodEntry>>([]);
   const [showRoutineModal, setShowRoutineModal] = useState(false);
-  const measurement = useRef<LoggingFlowMeasurement | null>(null);
   const hadFailure = useRef(false);
   const userId = session?.user.id ?? null;
+  const measurement = useLoggingFlowMeasurement("meal", userId);
   const advancedCapability = useAdvancedNutritionCapability(userId);
 
   useEffect(() => {
@@ -188,6 +208,10 @@ export function LogMealScreen() {
   const onSelectRecentMeal = useCallback(
     (meal: FoodEntry) => {
       measurement.current?.tap();
+      setNutritionBasis("total");
+      setAiDraft(null);
+      setDraftWarnings([]);
+      setSourceProposalId(null);
       setName(meal.name);
       setCalories(meal.caloriesKcal != null ? String(meal.caloriesKcal) : "");
       setProtein(meal.proteinG != null ? String(meal.proteinG) : "");
@@ -199,9 +223,7 @@ export function LogMealScreen() {
           : { name: "", calories: "", protein: "", carbs: "", fat: "" },
       );
       const grams = getEntryGrams(meal);
-      if (grams != null) {
-        setPortionGrams(String(grams));
-      }
+      setPortionGrams(grams == null ? "" : String(grams));
     },
     [advancedCapability.enabled],
   );
@@ -225,13 +247,6 @@ export function LogMealScreen() {
     void loadAiUsage();
   }, [loadAiUsage]);
 
-  useEffect(() => {
-    measurement.current = new LoggingFlowMeasurement("meal", analyticsClient);
-    return () => {
-      measurement.current = null;
-    };
-  }, []);
-
   const [clientOperationId, setClientOperationId] = useState<string | null>(
     null,
   );
@@ -250,6 +265,16 @@ export function LogMealScreen() {
           const upgraded = upgradeLegacyMealDraft(draft);
           setClientOperationId(upgraded.clientOperationId);
           setConsumedAt(upgraded.consumedAt);
+          // Recovery keeps its original operation/day; Clear explicitly starts
+          // a new meal on the requested date without moving a pending draft.
+          setMealDate(upgraded.mealDate ?? null);
+          setRecoveredDifferentDay(
+            Boolean(
+              requestedDate &&
+              !mealTimestampMatchesDate(upgraded.consumedAt, requestedDate),
+            ),
+          );
+          setNutritionBasis(upgraded.nutritionBasis ?? "total");
           setName(upgraded.name);
           setPortionGrams(
             upgraded.portionGrams ??
@@ -274,7 +299,11 @@ export function LogMealScreen() {
           );
         } else {
           setClientOperationId(createOperationId());
-          setConsumedAt(new Date().toISOString());
+          setConsumedAt(
+            requestedDate
+              ? mealTimestampForDate(requestedDate)
+              : new Date().toISOString(),
+          );
         }
         setDraftLoaded(true);
       },
@@ -282,11 +311,12 @@ export function LogMealScreen() {
     return () => {
       active = false;
     };
-  }, [userId]);
+  }, [userId, requestedDate]);
 
   useEffect(() => {
     if (
       !draftLoaded ||
+      invalidMealDate ||
       userId === null ||
       isCompletedRef.current ||
       isSubmittingRef.current
@@ -295,6 +325,7 @@ export function LogMealScreen() {
     void saveLoggingDraft(userId, "meal", {
       name,
       portionGrams,
+      nutritionBasis,
       calories,
       protein,
       carbs,
@@ -306,6 +337,7 @@ export function LogMealScreen() {
       cholesterol: advanced.cholesterol,
       clientOperationId: clientOperationId ?? undefined,
       consumedAt: consumedAt ?? undefined,
+      mealDate: mealDate ?? undefined,
       submissionVersion: 1,
       description: mealDescription,
       ...(aiDraft === null ? {} : { aiDraft }),
@@ -322,12 +354,15 @@ export function LogMealScreen() {
     carbs,
     clientOperationId,
     consumedAt,
+    mealDate,
     draftLoaded,
+    invalidMealDate,
     fat,
     advanced,
     mealDescription,
     name,
     portionGrams,
+    nutritionBasis,
     protein,
     refineInstruction,
     sourceProposalId,
@@ -335,20 +370,34 @@ export function LogMealScreen() {
   ]);
 
   const onSubmit = useCallback(async () => {
+    const attempt = measurement.current;
     if (!draftLoaded || isSubmittingRef.current || isCompletedRef.current)
       return;
     isSubmittingRef.current = true;
     setSubmitting(true);
 
-    measurement.current?.tap();
-    if (hadFailure.current) measurement.current?.retry();
+    attempt?.tap();
+    if (hadFailure.current) attempt?.retry();
     setError(null);
-    const parsedCalories = parseOptionalNutritionNumber(calories);
-    const parsedPortionGrams = parseOptionalNutritionNumber(portionGrams);
-    const parsedProtein = parseOptionalNutritionNumber(protein);
-    const parsedCarbs = parseOptionalNutritionNumber(carbs);
-    const parsedFat = parseOptionalNutritionNumber(fat);
-    const parsedAdvanced = advancedNutrientsFromForm(advanced);
+    if (recoveredDifferentDay) {
+      isSubmittingRef.current = false;
+      setSubmitting(false);
+      setError(
+        "Your recovered draft belongs to another day. Use Clear to start on the selected day, or return and finish the original draft first.",
+      );
+      return;
+    }
+    if (invalidMealDate) {
+      isSubmittingRef.current = false;
+      setSubmitting(false);
+      setError("Choose a valid day up to today from Meals.");
+      return;
+    }
+    const resolved = mealNutritionForSubmission(
+      { ...advanced, name, calories, protein, carbs, fat },
+      nutritionBasis,
+      portionGrams,
+    );
     const hasAdvancedInput = [
       advanced.fibre,
       advanced.saturatedFat,
@@ -356,34 +405,34 @@ export function LogMealScreen() {
       advanced.sodium,
       advanced.cholesterol,
     ].some((value) => (value ?? "").trim().length > 0);
-    if (
-      !parsedCalories.ok ||
-      !parsedPortionGrams.ok ||
-      (parsedPortionGrams.ok &&
-        parsedPortionGrams.value !== null &&
-        parsedPortionGrams.value <= 0) ||
-      !parsedProtein.ok ||
-      !parsedCarbs.ok ||
-      !parsedFat.ok ||
-      (hasAdvancedInput && parsedAdvanced === null)
-    ) {
+    if (!resolved.ok) {
       isSubmittingRef.current = false;
       setSubmitting(false);
       hadFailure.current = true;
-      measurement.current?.fail("validation", "invalid_input", false);
-      setError(
-        "Portion weight, calories, and macros must be positive numbers or blank.",
-      );
+      attempt?.fail("validation", "invalid_input", false);
+      setError(resolved.message);
       return;
     }
+    const nutrition = resolved.nutrition;
+    const parsedAdvanced = {
+      fibreG: nutrition.fibreG,
+      saturatedFatG: nutrition.saturatedFatG,
+      totalSugarsG: nutrition.totalSugarsG,
+      sodiumMg: nutrition.sodiumMg,
+      cholesterolMg: nutrition.cholesterolMg,
+    };
     const prev = submittedOperationRef.current;
     const isRetryCandidate = prev !== null && hadFailure.current;
 
     const fixedConsumedAt = isRetryCandidate
       ? prev.consumedAt
-      : consumedAt && !isStaleMealTimestamp(consumedAt)
-        ? consumedAt
-        : new Date().toISOString();
+      : mealDate
+        ? mealTimestampMatchesDate(consumedAt, mealDate)
+          ? consumedAt!
+          : mealTimestampForDate(mealDate)
+        : consumedAt && !isStaleMealTimestamp(consumedAt)
+          ? consumedAt
+          : new Date().toISOString();
     if (consumedAt !== fixedConsumedAt) setConsumedAt(fixedConsumedAt);
 
     // Check if current form is an exact retry of the previously submitted operation
@@ -391,11 +440,11 @@ export function LogMealScreen() {
       prev !== null &&
       prev.name.trim() === name.trim() &&
       (typeof prev.details?.grams === "number" ? prev.details.grams : null) ===
-        parsedPortionGrams.value &&
-      prev.caloriesKcal === parsedCalories.value &&
-      prev.proteinG === parsedProtein.value &&
-      prev.carbohydrateG === parsedCarbs.value &&
-      prev.fatG === parsedFat.value &&
+        resolved.grams &&
+      prev.caloriesKcal === nutrition.caloriesKcal &&
+      prev.proteinG === nutrition.proteinG &&
+      prev.carbohydrateG === nutrition.carbohydrateG &&
+      prev.fatG === nutrition.fatG &&
       parsedAdvanced !== null &&
       sameAdvancedNutrients(prev, parsedAdvanced) &&
       prev.consumedAt === fixedConsumedAt;
@@ -406,7 +455,7 @@ export function LogMealScreen() {
     if (prev !== null && !isRetryOfPrev && hadFailure.current) {
       isSubmittingRef.current = false;
       setSubmitting(false);
-      measurement.current?.fail("submit", "unexpected", true);
+      attempt?.fail("submit", "unexpected", true);
       setError(
         "This meal may already have been saved. Retry the submitted values first, or start a new meal entry after confirming the original result.",
       );
@@ -445,6 +494,7 @@ export function LogMealScreen() {
       const persisted = await saveLoggingDraft(userId, "meal", {
         name,
         portionGrams,
+        nutritionBasis,
         calories,
         protein,
         carbs,
@@ -456,6 +506,7 @@ export function LogMealScreen() {
         cholesterol: advanced.cholesterol,
         clientOperationId: opId,
         consumedAt: fixedConsumedAt,
+        mealDate: mealDate ?? undefined,
         submissionVersion: 1,
         description: mealDescription,
         ...(aiDraft === null ? {} : { aiDraft }),
@@ -469,7 +520,7 @@ export function LogMealScreen() {
         isSubmittingRef.current = false;
         setSubmitting(false);
         hadFailure.current = true;
-        measurement.current?.fail("submit", "unexpected", true);
+        attempt?.fail("submit", "unexpected", true);
         setError(
           "Could not save meal draft to device storage before sending. Please check device storage and try again.",
         );
@@ -484,9 +535,7 @@ export function LogMealScreen() {
         : null);
 
     const details: Record<string, unknown> = {
-      ...(parsedPortionGrams.value === null
-        ? {}
-        : { grams: parsedPortionGrams.value }),
+      ...(resolved.grams === null ? {} : { grams: resolved.grams }),
       ...(aiDraft === null
         ? {}
         : {
@@ -509,10 +558,10 @@ export function LogMealScreen() {
         : {
             clientOperationId: opId,
             name,
-            caloriesKcal: parsedCalories.value,
-            proteinG: parsedProtein.value,
-            carbohydrateG: parsedCarbs.value,
-            fatG: parsedFat.value,
+            caloriesKcal: nutrition.caloriesKcal,
+            proteinG: nutrition.proteinG,
+            carbohydrateG: nutrition.carbohydrateG,
+            fatG: nutrition.fatG,
             ...(hasAdvancedInput && parsedAdvanced !== null
               ? parsedAdvanced
               : {}),
@@ -525,20 +574,26 @@ export function LogMealScreen() {
     if (result.ok) {
       isCompletedRef.current = true;
       submittedOperationRef.current = null;
-      measurement.current?.complete();
+      attempt?.complete();
       if (userId !== null) {
         await clearLoggingDraft(userId, "meal");
-        await reconcileFirstMealReminders(userId, { todayLogged: true });
         const mealDate = fixedConsumedAt
           ? new Date(fixedConsumedAt)
           : new Date();
         const isToday = mealDate.toDateString() === new Date().toDateString();
+        if (isToday) {
+          await reconcileFirstMealReminders(userId, { todayLogged: true });
+        }
         const hasMealAfter6Pm = isToday && mealDate.getHours() >= 18;
         if (hasMealAfter6Pm) {
           void reconcileEveningReminders(userId, { hasMealAfter6Pm: true });
         }
         const reminderSettings = await loadFirstMealReminders(userId);
-        if (!reminderSettings.enabled && !reminderSettings.promptDismissed) {
+        if (
+          isToday &&
+          !reminderSettings.enabled &&
+          !reminderSettings.promptDismissed
+        ) {
           setShowRoutineModal(true);
           return;
         }
@@ -550,7 +605,7 @@ export function LogMealScreen() {
     setSubmitting(false);
     hadFailure.current = true;
     const reason = classifyAnalyticsFailure(result.message);
-    measurement.current?.fail(
+    attempt?.fail(
       reason === "invalid_input" ? "validation" : "submit",
       reason,
       isRetryableAnalyticsFailure(reason),
@@ -562,12 +617,16 @@ export function LogMealScreen() {
     carbs,
     clientOperationId,
     consumedAt,
+    mealDate,
+    invalidMealDate,
+    recoveredDifferentDay,
     fat,
     advanced,
     advancedCapability,
     mealDescription,
     name,
     portionGrams,
+    nutritionBasis,
     protein,
     refineInstruction,
     sourceProposalId,
@@ -627,11 +686,12 @@ export function LogMealScreen() {
 
   const executeProcessPhoto = useCallback(
     async (photoUri?: string) => {
+      const attempt = measurement.current;
       const photoSource =
         attachedPhoto ?? (photoUri ? { uri: photoUri } : null);
       if (photoSource === null) return;
-      measurement.current?.tap();
-      if (hadFailure.current) measurement.current?.retry();
+      attempt?.tap();
+      if (hadFailure.current) attempt?.retry();
       setSnapping(true);
       setError(null);
       setDraftWarnings([]);
@@ -645,12 +705,13 @@ export function LogMealScreen() {
         );
         if (!draft.ok) {
           hadFailure.current = true;
-          measurement.current?.fail("upload", "unexpected", true);
+          attempt?.fail("upload", "unexpected", true);
           setError(draft.message);
           return;
         }
         const advancedEnabled = await advancedCapability.refresh();
         const strings = mealFormStringsFromDraft(draft.draft);
+        setNutritionBasis("total");
         setName(strings.name);
         setPortionGrams(portionGramsStringFromDraft(draft.draft));
         setCalories(strings.calories);
@@ -668,12 +729,11 @@ export function LogMealScreen() {
         setDraftWarnings(draftEvidenceLines(draft.draft));
         setAiDraft(mealDraftForAdvancedAccess(draft.draft, advancedEnabled));
         setSourceProposalId(null);
-        setConsumedAt(new Date().toISOString());
+
         void loadAiUsage();
-        measurement.current?.complete();
       } catch (cause) {
         hadFailure.current = true;
-        measurement.current?.fail("upload", "unexpected", true);
+        attempt?.fail("upload", "unexpected", true);
         setError(
           cause instanceof Error
             ? `Couldn't read the photo: ${cause.message}`
@@ -688,9 +748,10 @@ export function LogMealScreen() {
 
   const executeTextDraft = useCallback(
     async (description: string) => {
+      const attempt = measurement.current;
       if (description.trim().length < 2) return;
-      measurement.current?.tap();
-      if (hadFailure.current) measurement.current?.retry();
+      attempt?.tap();
+      if (hadFailure.current) attempt?.retry();
       setSnapping(true);
       setError(null);
       setDraftWarnings([]);
@@ -701,12 +762,13 @@ export function LogMealScreen() {
         );
         if (!result.ok) {
           hadFailure.current = true;
-          measurement.current?.fail("submit", "unexpected", true);
+          attempt?.fail("submit", "unexpected", true);
           setError(result.message);
           return;
         }
         const advancedEnabled = await advancedCapability.refresh();
         const strings = mealFormStringsFromDraft(result.draft);
+        setNutritionBasis("total");
         setName(strings.name);
         setPortionGrams(portionGramsStringFromDraft(result.draft));
         setCalories(strings.calories);
@@ -724,12 +786,11 @@ export function LogMealScreen() {
         setDraftWarnings(draftEvidenceLines(result.draft));
         setAiDraft(mealDraftForAdvancedAccess(result.draft, advancedEnabled));
         setSourceProposalId(null);
-        setConsumedAt(new Date().toISOString());
+
         void loadAiUsage();
-        measurement.current?.complete();
       } catch {
         hadFailure.current = true;
-        measurement.current?.fail("submit", "unexpected", true);
+        attempt?.fail("submit", "unexpected", true);
         setError("Couldn't generate a draft from the description.");
       } finally {
         setSnapping(false);
@@ -744,6 +805,7 @@ export function LogMealScreen() {
 
   const executeRefineDraft = useCallback(
     async (instruction: string) => {
+      const attempt = measurement.current;
       if (
         instruction.trim().length < 2 ||
         aiDraft === null ||
@@ -775,6 +837,7 @@ export function LogMealScreen() {
         }
         const advancedEnabled = await advancedCapability.refresh();
         const strings = mealFormStringsFromDraft(result.draft);
+        setNutritionBasis("total");
         setName(strings.name);
         setPortionGrams(portionGramsStringFromDraft(result.draft));
         setCalories(strings.calories);
@@ -787,7 +850,6 @@ export function LogMealScreen() {
         setDraftWarnings(draftEvidenceLines(result.draft));
         setAiDraft(mealDraftForAdvancedAccess(result.draft, advancedEnabled));
         void loadAiUsage();
-        measurement.current?.complete();
       } finally {
         setRefining(false);
       }
@@ -863,6 +925,7 @@ export function LogMealScreen() {
   }, [aiDraft, refining, submitting, refineInstruction, requestAction]);
 
   const hasContent =
+    recoveredDifferentDay ||
     name.trim().length > 0 ||
     portionGrams.trim().length > 0 ||
     calories.trim().length > 0 ||
@@ -877,6 +940,7 @@ export function LogMealScreen() {
   const onClear = useCallback(async () => {
     setName("");
     setPortionGrams("");
+    setNutritionBasis("total");
     setCalories("");
     setProtein("");
     setCarbs("");
@@ -891,11 +955,27 @@ export function LogMealScreen() {
     setError(null);
     submittedOperationRef.current = null;
     setClientOperationId(createOperationId());
-    setConsumedAt(new Date().toISOString());
+    setMealDate(requestedDate);
+    setRecoveredDifferentDay(false);
+    hadFailure.current = false;
+    setConsumedAt(
+      requestedDate
+        ? mealTimestampForDate(requestedDate)
+        : new Date().toISOString(),
+    );
     if (userId !== null) {
       await clearLoggingDraft(userId, "meal");
     }
-  }, [userId]);
+  }, [userId, requestedDate]);
+
+  const per100g = nutritionBasis === "per100g";
+  const servingPreview = per100g
+    ? mealNutritionForSubmission(
+        { ...advanced, name, calories, protein, carbs, fat },
+        nutritionBasis,
+        portionGrams,
+      )
+    : null;
 
   const calorieHint =
     calories.trim().length > 0 ? "calories recorded" : "calories optional";
@@ -935,6 +1015,20 @@ export function LogMealScreen() {
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
         >
+          {params.date !== undefined || mealDate !== null ? (
+            <ThemedText testID="meal-selected-date" type="smallBold">
+              {invalidMealDate
+                ? "Invalid meal date. Return to Meals and choose a day."
+                : `Logging for ${new Date(consumedAt ?? mealTimestampForDate(mealDate ?? requestedDate!)).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}`}
+            </ThemedText>
+          ) : null}
+          {recoveredDifferentDay ? (
+            <ThemedText type="small" themeColor="textSecondary">
+              Recovered your existing draft on its original day. Use Clear to
+              start a meal on the selected day, or go back and finish this draft
+              first.
+            </ThemedText>
+          ) : null}
           <ThemedText type="subtitle">What did you eat?</ThemedText>
           <ThemedText themeColor="textSecondary" type="small">
             Name your meal first; portion weight, calories, and macros are
@@ -1023,6 +1117,7 @@ export function LogMealScreen() {
               {mealDescription.trim().length >= 2 ? (
                 <Pressable
                   accessibilityRole="button"
+                  accessibilityLabel="Draft from description"
                   disabled={snapping || submitting || refining}
                   accessibilityState={{
                     busy: snapping,
@@ -1177,18 +1272,74 @@ export function LogMealScreen() {
             editable={!snapping && !refining && !submitting}
           />
 
+          {aiDraft === null ? (
+            <View style={styles.field}>
+              <ThemedText type="small" themeColor="textSecondary">
+                Nutrition values
+              </ThemedText>
+              <View style={styles.basisRow}>
+                {(
+                  [
+                    ["total", "For this portion"],
+                    ["per100g", "Per 100 g"],
+                  ] as const
+                ).map(([basis, label]) => (
+                  <Pressable
+                    key={basis}
+                    testID={`meal-basis-${basis}`}
+                    accessibilityRole="button"
+                    accessibilityLabel={label}
+                    accessibilityHint={
+                      basis === "per100g"
+                        ? "Enter food label values per 100 grams and a food weight to calculate totals."
+                        : "Enter the totals for the portion you ate."
+                    }
+                    accessibilityState={{
+                      selected: nutritionBasis === basis,
+                      disabled:
+                        submitting || snapping || refining || !draftLoaded,
+                    }}
+                    disabled={
+                      submitting || snapping || refining || !draftLoaded
+                    }
+                    onPress={() => {
+                      measurement.current?.tap();
+                      setNutritionBasis(basis);
+                    }}
+                    style={[
+                      styles.basisButton,
+                      {
+                        borderColor:
+                          nutritionBasis === basis ? theme.text : theme.border,
+                      },
+                    ]}
+                  >
+                    <ThemedText type="smallBold">{label}</ThemedText>
+                  </Pressable>
+                ))}
+              </View>
+              <ThemedText type="small" themeColor="textSecondary">
+                {per100g
+                  ? "Enter all nutrient values per 100 g from the food label. Totals = label values × food weight ÷ 100."
+                  : "Enter the nutrition totals for the portion you ate."}
+              </ThemedText>
+            </View>
+          ) : null}
+
           <Field
             testID="meal-portion-weight-input"
-            label="Portion weight (g)"
+            label={per100g ? "Food weight (g)" : "Portion weight (g)"}
             value={portionGrams}
             onChangeText={setPortionGrams}
             onFocus={() => measurement.current?.tap()}
             placeholder="e.g. 320"
-            keyboardType="numeric"
+            keyboardType="decimal-pad"
             helperText={
-              aiDraft?.portionWeightG != null
-                ? "AI estimate — review before saving"
-                : "optional"
+              per100g
+                ? "required for values per 100 g"
+                : aiDraft?.portionWeightG != null
+                  ? "AI estimate — review before saving"
+                  : "optional"
             }
             inputColor={theme.text}
             editable={!snapping && !refining && !submitting}
@@ -1196,12 +1347,12 @@ export function LogMealScreen() {
 
           <Field
             testID="meal-calories-input"
-            label="Calories (kcal)"
+            label={per100g ? "Calories (kcal / 100 g)" : "Calories (kcal)"}
             value={calories}
             onChangeText={setCalories}
             onFocus={() => measurement.current?.tap()}
             placeholder="0"
-            keyboardType="numeric"
+            keyboardType="decimal-pad"
             helperText={calorieHint}
             inputColor={theme.text}
             editable={!snapping && !refining && !submitting}
@@ -1211,12 +1362,12 @@ export function LogMealScreen() {
             <View style={styles.macroField}>
               <Field
                 testID="meal-protein-input"
-                label="Protein (g)"
+                label={per100g ? "Protein (g / 100 g)" : "Protein (g)"}
                 value={protein}
                 onChangeText={setProtein}
                 onFocus={() => measurement.current?.tap()}
                 placeholder="0"
-                keyboardType="numeric"
+                keyboardType="decimal-pad"
                 inputColor={theme.text}
                 editable={!snapping && !refining && !submitting}
               />
@@ -1224,12 +1375,12 @@ export function LogMealScreen() {
             <View style={styles.macroField}>
               <Field
                 testID="meal-carbs-input"
-                label="Carbs (g)"
+                label={per100g ? "Carbs (g / 100 g)" : "Carbs (g)"}
                 value={carbs}
                 onChangeText={setCarbs}
                 onFocus={() => measurement.current?.tap()}
                 placeholder="0"
-                keyboardType="numeric"
+                keyboardType="decimal-pad"
                 inputColor={theme.text}
                 editable={!snapping && !refining && !submitting}
               />
@@ -1237,12 +1388,12 @@ export function LogMealScreen() {
             <View style={styles.macroField}>
               <Field
                 testID="meal-fat-input"
-                label="Fat (g)"
+                label={per100g ? "Fat (g / 100 g)" : "Fat (g)"}
                 value={fat}
                 onChangeText={setFat}
                 onFocus={() => measurement.current?.tap()}
                 placeholder="0"
-                keyboardType="numeric"
+                keyboardType="decimal-pad"
                 inputColor={theme.text}
                 editable={!snapping && !refining && !submitting}
               />
@@ -1251,12 +1402,55 @@ export function LogMealScreen() {
 
           <AdvancedNutrientFields
             form={advanced}
+            per100g={per100g}
             enabled={advancedCapability.enabled}
             editable={!snapping && !refining && !submitting}
             onChange={(field, value) =>
               setAdvanced((current) => ({ ...current, [field]: value }))
             }
           />
+
+          {servingPreview !== null ? (
+            <View testID="meal-serving-preview" style={styles.field}>
+              <ThemedText type="smallBold">Totals for this portion</ThemedText>
+              {servingPreview.ok ? (
+                <ThemedText type="small" themeColor="textSecondary">
+                  {[
+                    ["Calories", servingPreview.nutrition.caloriesKcal, "kcal"],
+                    ["Protein", servingPreview.nutrition.proteinG, "g"],
+                    ["Carbs", servingPreview.nutrition.carbohydrateG, "g"],
+                    ["Fat", servingPreview.nutrition.fatG, "g"],
+                    ["Fibre", servingPreview.nutrition.fibreG, "g"],
+                    [
+                      "Saturated fat",
+                      servingPreview.nutrition.saturatedFatG,
+                      "g",
+                    ],
+                    [
+                      "Total sugars",
+                      servingPreview.nutrition.totalSugarsG,
+                      "g",
+                    ],
+                    ["Sodium", servingPreview.nutrition.sodiumMg, "mg"],
+                    [
+                      "Cholesterol",
+                      servingPreview.nutrition.cholesterolMg,
+                      "mg",
+                    ],
+                  ]
+                    .map(
+                      ([label, value, unit]) =>
+                        `${label}: ${value == null ? "unknown" : `${value} ${unit}`}`,
+                    )
+                    .join(" · ")}
+                </ThemedText>
+              ) : (
+                <ThemedText type="small" themeColor="textSecondary">
+                  {servingPreview.message}
+                </ThemedText>
+              )}
+            </View>
+          ) : null}
 
           {aiDraft !== null ? (
             <View style={styles.refineBlock}>
@@ -1421,7 +1615,7 @@ function Field(props: {
   readonly placeholder?: string;
   readonly helperText?: string;
   readonly autoFocus?: boolean;
-  readonly keyboardType?: "default" | "numeric";
+  readonly keyboardType?: "default" | "decimal-pad";
   readonly inputColor: string;
   readonly editable?: boolean;
 }) {
@@ -1463,6 +1657,15 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.four,
     paddingBottom: BottomTabInset + Spacing.six,
     gap: Spacing.three,
+  },
+  basisRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  basisButton: {
+    minHeight: 48,
+    justifyContent: "center",
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
   field: { gap: Spacing.one },
   input: {

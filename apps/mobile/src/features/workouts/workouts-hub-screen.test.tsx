@@ -3,8 +3,11 @@ import type { ProcessedWorkout, WorkoutsHubResult } from "./workouts-hub-data";
 
 const mocks = vi.hoisted(() => ({
   fetch: vi.fn(),
+  createBlank: vi.fn(),
+  push: vi.fn(),
   refresh: vi.fn(),
   owner: "user-a",
+  tokenVersion: 0,
   version: "0:today:0",
   appState: null as ((state: string) => void) | null,
 }));
@@ -65,7 +68,7 @@ vi.mock("react-native", () => ({
   StyleSheet: { create: (styles: unknown) => styles },
 }));
 vi.mock("expo-router", () => ({
-  router: { push: vi.fn() },
+  router: { push: mocks.push },
   Stack: { Screen: "StackScreen" },
   useLocalSearchParams: () => ({}),
   useFocusEffect: (callback: () => void) => {
@@ -98,7 +101,10 @@ vi.mock("@/composition/api-client", () => ({
 }));
 vi.mock("@/features/auth/auth-context", () => ({
   useAuth: () => ({
-    session: { user: { id: mocks.owner }, accessToken: `token-${mocks.owner}` },
+    session: {
+      user: { id: mocks.owner },
+      accessToken: `token-${mocks.owner}-${mocks.tokenVersion}`,
+    },
   }),
 }));
 vi.mock("@/features/community", () => ({
@@ -119,7 +125,7 @@ vi.mock("./active-workout-context", () => ({
 }));
 vi.mock("./workouts-hub-data", () => ({
   fetchWorkoutsHubData: mocks.fetch,
-  createBlankWorkout: vi.fn(),
+  createBlankWorkout: mocks.createBlank,
   deleteWorkout: vi.fn(),
   startRoutineSession: vi.fn(),
 }));
@@ -181,8 +187,11 @@ beforeEach(() => {
   hooks.index = 0;
   hooks.focus = null;
   mocks.fetch.mockReset();
+  mocks.createBlank.mockReset();
+  mocks.push.mockReset();
   mocks.refresh.mockReset();
   mocks.owner = "user-a";
+  mocks.tokenVersion = 0;
   mocks.version = "0:today:0";
   mocks.appState = null;
 });
@@ -257,4 +266,78 @@ describe("workouts tab read lifecycle", () => {
     expect(mocks.fetch).toHaveBeenCalledTimes(2);
     expect(hasWorkout(render(), "after")).toBe(true);
   });
+});
+
+const oneTimeAction = (tree: any) =>
+  find(
+    tree,
+    (node) => node.props?.accessibilityLabel === "Start one-time workout",
+  );
+
+describe("one-time workout start", () => {
+  it("starts a blank session once despite concurrent taps and opens the existing logger", async () => {
+    let resolve!: (value: unknown) => void;
+    mocks.createBlank.mockReturnValue(
+      new Promise((r) => {
+        resolve = r;
+      }),
+    );
+    const action = oneTimeAction(render());
+    expect(action).toBeTruthy();
+    const first = action.props.onPress();
+    const second = action.props.onPress();
+    expect(mocks.createBlank).toHaveBeenCalledTimes(1);
+    resolve({ ok: true, workout: workout("session").workout });
+    await Promise.all([first, second]);
+    expect(mocks.createBlank.mock.calls[0][0]).toBe("One-time Workout");
+    expect(mocks.push).toHaveBeenCalledWith({
+      pathname: "/log-workout",
+      params: { workoutId: "session" },
+    });
+  });
+
+  it("keeps the operation ID after an uncertain response so retry cannot create another session", async () => {
+    mocks.createBlank
+      .mockResolvedValueOnce({ ok: false, message: "Network unavailable" })
+      .mockResolvedValueOnce({
+        ok: true,
+        workout: workout("replayed").workout,
+      });
+    await oneTimeAction(render()).props.onPress();
+    await oneTimeAction(render()).props.onPress();
+    expect(mocks.createBlank.mock.calls[0][1]).toBe(
+      mocks.createBlank.mock.calls[1][1],
+    );
+    expect(mocks.push).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not navigate with a late result after the account changes", async () => {
+    let resolve!: (value: unknown) => void;
+    mocks.createBlank.mockReturnValue(
+      new Promise((r) => {
+        resolve = r;
+      }),
+    );
+    const pending = oneTimeAction(render()).props.onPress();
+    mocks.owner = "user-b";
+    render();
+    resolve({ ok: true, workout: workout("old-session").workout });
+    await pending;
+    expect(mocks.push).not.toHaveBeenCalled();
+  });
+});
+
+it("retains the uncertain start operation across a token refresh for the same account", async () => {
+  mocks.createBlank
+    .mockResolvedValueOnce({ ok: false, message: "Response lost" })
+    .mockResolvedValueOnce({
+      ok: true,
+      workout: workout("same-session").workout,
+    });
+  await oneTimeAction(render()).props.onPress();
+  mocks.tokenVersion++;
+  await oneTimeAction(render()).props.onPress();
+  expect(mocks.createBlank.mock.calls[0][1]).toBe(
+    mocks.createBlank.mock.calls[1][1],
+  );
 });

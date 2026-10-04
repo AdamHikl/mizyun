@@ -1,5 +1,6 @@
 export { WorkoutsHubScreen } from "./workouts-hub-screen";
 export { ExerciseLibraryModal } from "./exercise-library-modal";
+export { findCatalogExerciseRecord } from "./catalog-exercise-record";
 export * from "./workouts-hub-data";
 export * from "./workout-preferences";
 export * from "./rest-timer-notifications";

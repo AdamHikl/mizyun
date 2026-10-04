@@ -53,6 +53,11 @@ describe("account-data-management", () => {
     } as unknown as ApiClient;
 
     const result = await fetchAccountExport(client);
+    expect(client.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: "/v1/account/export?catalog=dashboard-v1",
+      }),
+    );
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.data.export.userId).toBe(

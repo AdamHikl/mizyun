@@ -25,6 +25,8 @@
         "apps/mobile/src/app/recurring-meals.tsx",
         "packages/core/src/recurring-meal.ts",
         "packages/core/src/recurring-meal.test.ts",
+        "packages/core/src/nutrition-per100g.ts",
+        "packages/core/src/nutrition-per100g.test.ts",
         "packages/adapters/supabase-server/src/recurring-meal-repository.ts",
         "packages/adapters/supabase-server/src/recurring-meal-repository.test.ts",
         "scripts/test-recurring-meals-db.py"
@@ -35,6 +37,7 @@
       ],
       "domainPort": [
         "packages/core/src/food-entry.ts",
+        "packages/core/src/nutrition-per100g.ts",
         "packages/core/src/energy.ts",
         "packages/core/src/recurring-meal.ts"
       ],
@@ -71,6 +74,8 @@
         "apps/api/src/modules/food-entries/draft-route.test.ts",
         "apps/mobile/src/features/log-meal/edit-meal-screen.test.tsx",
         "apps/mobile/src/features/log-meal/log-meal-data.test.ts",
+        "apps/mobile/src/features/log-meal/log-meal-screen.test.tsx",
+        "packages/core/src/nutrition-per100g.test.ts",
         "apps/mobile/src/features/log-meal/meal-form.test.ts",
         "apps/mobile/src/features/log-meal/meal-lifecycle-data.test.ts",
         "apps/mobile/src/features/log-meal/meal-retry-durability.test.ts"
@@ -117,6 +122,7 @@
         "NUTR-01",
         "NUTR-02",
         "NUT-08",
+        "NUT-09",
         "REL-AUD-007",
         "NUTR-REC-001"
       ],
@@ -140,7 +146,12 @@
         "apps/api/src/modules/workout-sets",
         "apps/api/src/modules/exercises",
         "apps/mobile/src/features/workouts",
-        "apps/mobile/src/features/log-workout"
+        "apps/mobile/src/features/log-workout",
+        "packages/core/src/exercise-catalog.ts",
+        "packages/core/src/exercise-catalog-data.ts",
+        "packages/core/src/exercise-catalog-legacy.ts",
+        "scripts/import-exercise-catalog.mjs",
+        "scripts/import-exercise-catalog.test.mjs"
       ],
       "contracts": [
         "packages/contracts/src/workout.ts",
@@ -151,7 +162,8 @@
         "packages/core/src/workout.ts",
         "packages/core/src/workout-lifecycle.ts",
         "packages/core/src/workout-set.ts",
-        "packages/core/src/training-prescription.ts"
+        "packages/core/src/training-prescription.ts",
+        "packages/core/src/exercise-catalog.ts"
       ],
       "api": [
         "apps/api/src/modules/workouts/routes.ts",
@@ -181,8 +193,11 @@
         "apps/api/src/modules/exercises/routes.test.ts",
         "apps/mobile/src/features/workouts/exercise-progression-data.test.ts",
         "apps/mobile/src/features/log-workout/log-workout-data.test.ts",
+        "apps/mobile/src/features/log-workout/one-time-workout-screen.test.tsx",
         "packages/core/src/workout-lifecycle.test.ts",
-        "packages/core/src/training-prescription.test.ts"
+        "packages/core/src/training-prescription.test.ts",
+        "packages/core/src/exercise-catalog.test.ts",
+        "apps/mobile/src/features/workouts/exercise-library-modal.test.tsx"
       ],
       "relations": [
         {
@@ -203,7 +218,9 @@
       ],
       "docs": [
         "docs/adr/0009-active-workout-authority-and-recovery.md",
-        "docs/patterns/README.md#pat-003"
+        "docs/patterns/README.md#pat-003",
+        "docs/adr/0040-free-exercise-catalog-and-legacy-identity.md",
+        "docs/EXERCISE_CATALOG_RESEARCH_2026-10-04.md"
       ],
       "verificationCommands": [
         "pnpm --filter @mizyun/api test src/modules/workouts src/modules/workout-sets src/modules/exercises",
@@ -212,8 +229,10 @@
       "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
       "lastReviewedDate": "2026-09-09",
       "limitations": "Active workout recovery is local-first in mobile state; cloud sync occurs on set/workout completion",
-      "requirements": ["TRAIN-01", "TRAIN-02", "TRAIN-03"],
-      "openAcceptance": []
+      "requirements": ["TRAIN-01", "TRAIN-02", "TRAIN-03", "WO-07"],
+      "openAcceptance": [
+        "WO-07 exact-candidate standalone Dev start/add-before-first-set/restart/log/finish/history and appearance/accessibility acceptance (#187)"
+      ]
     },
     {
       "id": "profile-goals-energy",
@@ -1023,7 +1042,7 @@
     {
       "id": "analytics-observability",
       "title": "Privacy-First Analytics & Observability",
-      "summary": "Local event telemetry, coarse activation/retention metrics, crash/error classification, and diagnostic logging without user PII.",
+      "summary": "Optional first-party telemetry, fixed aggregate reporting and a private self-hosted developer dashboard without health content.",
       "aliases": [
         "analytics",
         "observability",
@@ -1038,7 +1057,9 @@
       "ownedPaths": [
         "packages/observability",
         "apps/mobile/src/features/analytics",
-        "apps/api/src/modules/analytics"
+        "apps/api/src/modules/analytics",
+        "ops/analytics",
+        "scripts/analytics-dashboard"
       ],
       "contracts": ["packages/contracts/src/analytics.ts"],
       "domainPort": ["packages/core/src/product-analytics.ts"],
@@ -1067,7 +1088,20 @@
         "packages/contracts/src/analytics.test.ts",
         "packages/adapters/supabase-server/src/product-analytics-repository.test.ts",
         "apps/mobile/src/features/analytics/network-analytics-client.test.ts",
-        "scripts/product-analytics.test.mjs"
+        "scripts/product-analytics.test.mjs",
+        "apps/api/src/modules/analytics/maintenance.test.ts",
+        "apps/mobile/src/features/analytics/ui-screen-analytics.test.tsx",
+        "apps/mobile/src/features/auth/auth-analytics-lifecycle.test.tsx",
+        "apps/mobile/src/composition/analytics-client.test.ts",
+        "scripts/analytics-dashboard/snapshot.test.mjs",
+        "scripts/analytics-dashboard/metabase.test.mjs",
+        "scripts/analytics-dashboard/local.test.mjs",
+        "scripts/analytics-dashboard/demo.test.mjs",
+        "apps/mobile/src/features/analytics/flow-measurement.test.ts",
+        "apps/mobile/src/features/onboarding/onboarding-analytics.test.tsx",
+        "apps/mobile/src/features/log-meal/log-meal-analytics.test.tsx",
+        "apps/mobile/src/features/log-workout/log-workout-analytics.test.tsx",
+        "apps/mobile/src/features/log-weight/log-weight-analytics.test.tsx"
       ],
       "relations": [
         {
@@ -1090,7 +1124,10 @@
         "docs/adr/0014-local-consent-first-product-analytics.md",
         "docs/adr/0026-first-party-product-analytics-backend.md",
         "docs/PRODUCT_ANALYTICS_IMPLEMENTATION_PLAN_2026-09-13.md",
-        "docs/LOGGING_POLICY.md"
+        "docs/LOGGING_POLICY.md",
+        "docs/OBSERVABILITY.md",
+        "docs/adr/0039-private-aggregate-developer-dashboard.md",
+        "docs/DEVELOPER_ANALYTICS_DASHBOARD_2026-10-03.md"
       ],
       "verificationCommands": [
         "pnpm --filter @mizyun/observability test",
@@ -1098,11 +1135,14 @@
         "pnpm --filter @mizyun/adapter-supabase-server test",
         "pnpm --filter @mizyun/api test src/modules/analytics",
         "pnpm --filter @mizyun/mobile test src/features/analytics",
-        "node --test scripts/product-analytics.test.mjs"
+        "node --test scripts/product-analytics.test.mjs",
+        "pnpm test:analytics-dashboard",
+        "pnpm analytics:dashboard:verify-db",
+        "pnpm analytics:dashboard:verify-metabase"
       ],
       "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
       "lastReviewedDate": "2026-09-09",
-      "limitations": "Server-side first-party analytics with 30-day retention and explicit opt-in consent",
+      "limitations": "Optional current-consent telemetry; aggregate-only dashboard; hosted access, store reports and native capture acceptance remain open under #186.",
       "requirements": ["OBS-01", "OBS-002", "PRIV-01"],
       "openAcceptance": []
     },
@@ -1193,7 +1233,7 @@
       "openAcceptance": [
         "Physical iPhone and Android granted/denied/revoked checks",
         "Public privacy policy and Google Play Health declarations before release",
-        "ACT-02\u201304 source provenance and idempotent persisted sync remain future scope"
+        "ACT-02–04 source provenance and idempotent persisted sync remain future scope"
       ]
     },
     {
@@ -1666,8 +1706,8 @@
         "COMM-04 physical relationship/graph/block/mute/account-switch acceptance and reporting/delivery/retention dependencies",
         "COMM-05 installed cold/warm/login/QR/environment/account-switch and not-installed fallback acceptance",
         "COMM-06 physical preview/publish/edit/unpublish/source-delete acceptance and feed/delivery dependencies",
-        "COMM-07\u201316 feed, moderation, inbox/delivery, lifecycle/export/restore, rollout and exact-candidate pilot gates",
-        "COMM-17\u201323 expansion real Auth/Storage, device, moderation, lifecycle, restore and Dev acceptance on the exact final candidate"
+        "COMM-07–16 feed, moderation, inbox/delivery, lifecycle/export/restore, rollout and exact-candidate pilot gates",
+        "COMM-17–23 expansion real Auth/Storage, device, moderation, lifecycle, restore and Dev acceptance on the exact final candidate"
       ]
     },
     {

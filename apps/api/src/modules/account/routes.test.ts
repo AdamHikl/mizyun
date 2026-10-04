@@ -20,6 +20,12 @@ import { InMemoryProfileRepository } from "../../profile-repository.js";
 import { InMemoryWorkoutRepository } from "../../workout-repository.js";
 import { InMemoryWorkoutSetRepository } from "../../workout-set-repository.js";
 import { InMemoryAccountRepository } from "../../account-repository.js";
+import { InMemoryProductAnalyticsRepository } from "../../product-analytics-repository.js";
+import {
+  CURRENT_ANALYTICS_CONSENT_VERSION,
+  accountExportResponseSchema,
+  legacyAccountExportResponseSchema,
+} from "@mizyun/contracts";
 
 const userA: UserId = "00000000-0000-4000-8000-000000000001" as UserId;
 
@@ -60,6 +66,7 @@ const build = (
   const workoutSetRepository = new InMemoryWorkoutSetRepository();
   const bodyMeasurementRepository = new InMemoryBodyMeasurementRepository();
   const memoryStore = new InMemoryMemoryStore();
+  const productAnalyticsRepository = new InMemoryProductAnalyticsRepository();
   const accountRepository = new InMemoryAccountRepository({
     profileRepository,
     goalRepository,
@@ -69,6 +76,7 @@ const build = (
     workoutSetRepository,
     bodyMeasurementRepository,
     memoryStore,
+    productAnalyticsRepository,
   });
   const app = buildApp({
     tokenVerifier: verifier,
@@ -84,6 +92,7 @@ const build = (
     workoutSetRepository,
     bodyMeasurementRepository,
     accountRepository,
+    productAnalyticsRepository,
     memories: memoryStore,
     appleAuthConfig: options?.appleAuthConfig,
     appleAuthClient: options?.appleAuthClient,
@@ -99,6 +108,143 @@ const build = (
 };
 
 describe("GET /v1/account/export", () => {
+  it("negotiates analytics events without dropping health records or claiming a filtered export is complete", async () => {
+    const { app, exerciseRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    exerciseRepository.__seedForTest({
+      id: "00000000-0000-4000-8000-00000000c001",
+      userId: userA,
+      name: "Private exercise",
+      instructions: null,
+      metadata: {},
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    const headers = { authorization: "Bearer valid" };
+    const consent = await app.inject({
+      method: "PUT",
+      url: "/v1/analytics/consent",
+      headers,
+      payload: {
+        version: CURRENT_ANALYTICS_CONSENT_VERSION,
+        granted: true,
+        expectedRevision: 0,
+        operationId: "11111111-1111-4111-8111-111111111111",
+      },
+    });
+    expect(consent.statusCode).toBe(200);
+    const base = {
+      schemaVersion: 2,
+      recordedAt: new Date().toISOString(),
+      sessionId: "22222222-2222-4222-8222-222222222222",
+      sequence: 0,
+      platform: "ios",
+      appVersion: "1.0.6",
+    };
+    const ingest = await app.inject({
+      method: "POST",
+      url: "/v1/analytics/events",
+      headers,
+      payload: {
+        consentVersion: CURRENT_ANALYTICS_CONSENT_VERSION,
+        epoch: consent.json().epoch,
+        events: [
+          {
+            ...base,
+            id: "33333333-3333-4333-8333-333333333333",
+            name: "onboarding_step_completed",
+            properties: { step: "welcome" },
+          },
+          {
+            ...base,
+            id: "44444444-4444-4444-8444-444444444444",
+            sequence: 1,
+            name: "dashboard_control_clicked",
+            properties: { control: "nutrition_card" },
+          },
+          {
+            ...base,
+            id: "55555555-5555-4555-8555-555555555555",
+            sequence: 2,
+            name: "onboarding_step_completed",
+            properties: { step: "baseline_weight" },
+          },
+          {
+            ...base,
+            id: "66666666-6666-4666-8666-666666666666",
+            sequence: 3,
+            name: "onboarding_exited",
+            properties: {
+              step: "primary_goal",
+              duration: "under_30_seconds",
+              exit: "cancel",
+            },
+          },
+        ],
+      },
+    });
+    expect(ingest.statusCode).toBe(200);
+    const legacy = await app.inject({
+      method: "GET",
+      url: "/v1/account/export",
+      headers,
+    });
+    const upgraded = await app.inject({
+      method: "GET",
+      url: "/v1/account/export?catalog=dashboard-v1",
+      headers,
+    });
+    expect(legacy.statusCode).toBe(200);
+    expect(upgraded.statusCode).toBe(200);
+    expect(
+      legacyAccountExportResponseSchema.safeParse(legacy.json()).success,
+    ).toBe(true);
+    expect(legacy.json().export.productAnalytics).toMatchObject({
+      catalog: "legacy-v2",
+      omittedEventCount: 3,
+      events: [
+        { name: "onboarding_step_completed", properties: { step: "welcome" } },
+      ],
+    });
+    expect(legacy.json().export.manifest).toMatchObject({
+      completeness: "partial",
+      counts: { productAnalyticsEvents: 1 },
+    });
+    expect(accountExportResponseSchema.safeParse(upgraded.json()).success).toBe(
+      true,
+    );
+    expect(upgraded.json().export.productAnalytics).toMatchObject({
+      catalog: "dashboard-v1",
+      omittedEventCount: 0,
+    });
+    expect(upgraded.json().export.productAnalytics.events).toHaveLength(4);
+    expect(upgraded.json().export.manifest).toMatchObject({
+      completeness: "complete",
+      counts: { productAnalyticsEvents: 4 },
+    });
+    expect(upgraded.json().export.exercises).toEqual(
+      legacy.json().export.exercises,
+    );
+    expect(upgraded.json().export.exercises[0].name).toBe("Private exercise");
+    expect(
+      legacyAccountExportResponseSchema.safeParse(upgraded.json()).success,
+    ).toBe(false);
+  });
+  it.each([
+    "catalog=unknown",
+    "private=search",
+    "catalog=dashboard-v1&catalog=dashboard-v1",
+  ])("rejects invalid export query %s", async (query) => {
+    const { app } = build(tokenVerifierFor({ userId: userA }));
+    const result = await app.inject({
+      method: "GET",
+      url: `/v1/account/export?${query}`,
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(result.statusCode).toBe(422);
+    expect(result.json().error.code).toBe("VALIDATION_ERROR");
+  });
   it("returns a fresh-user envelope with empty arrays", async () => {
     const { app } = build(tokenVerifierFor({ userId: userA }));
     const response = await app.inject({

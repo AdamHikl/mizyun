@@ -741,6 +741,15 @@ describe("extractPlannedExercises", () => {
         request: <T>(options: RequestOptions): Promise<Result<T, ApiError>> => {
           requests.push(options);
           if (
+            options.method === "GET" &&
+            options.path === `/v1/exercises/${encodeURIComponent(EXERCISE_ID)}`
+          ) {
+            return Promise.resolve({
+              ok: true,
+              value: { exercise: EXERCISE },
+            } as Result<T, ApiError>);
+          }
+          if (
             options.method === "PUT" &&
             options.path.includes("/v1/exercises")
           ) {
@@ -864,4 +873,76 @@ describe("extractPlannedExercises", () => {
       expect(result.routineUpdated).toBe(false);
     });
   });
+});
+
+it("never lets a stale Coach draft populate a persisted blank session", () => {
+  const draft = {
+    session: {
+      exercises: [
+        {
+          catalogId: "squat",
+          name: "Old Coach squat",
+          sets: 3,
+          repsMin: 8,
+          repsMax: 12,
+          durationMinutes: null,
+          restSeconds: 90,
+        },
+      ],
+    },
+  } as any;
+  expect(
+    extractPlannedExercises(
+      { ...WORKOUT, details: { sessionMode: "one_time" } },
+      draft,
+    ),
+  ).toEqual([]);
+  expect(extractPlannedExercises(null, draft)).toHaveLength(1);
+});
+
+it("saves one-time selections without inventing targets and reloads them before any set", async () => {
+  const requests: RequestOptions[] = [];
+  const initial: Workout = {
+    ...WORKOUT,
+    details: {
+      sessionMode: "one_time",
+      sessionExercises: [],
+      workoutLifecycle: { kind: "session" },
+    },
+  };
+  const persisted: Workout = {
+    ...initial,
+    details: {
+      ...initial.details,
+      sessionExercises: [
+        { name: EXERCISE.name, catalogId: "squat", restSeconds: 75 },
+      ],
+    },
+  };
+  const client = queuedClient(
+    [
+      { ok: true, value: { workout: persisted } },
+      { ok: true, value: { exercises: [EXERCISE] } },
+      { ok: true, value: { workouts: [persisted] } },
+      { ok: true, value: { workoutSets: [] } },
+    ],
+    requests,
+  );
+  const selected = await reorderWorkoutExercisesWith(client, initial, [
+    {
+      name: EXERCISE.name,
+      catalogId: "squat",
+      targetSets: 3,
+      repsMin: null,
+      repsMax: null,
+      restSeconds: 75,
+    },
+  ]);
+  expect(selected).toEqual({ ok: true, workout: persisted });
+  expect((requests[0].body as any).details).toEqual(persisted.details);
+  const recovered = await loadWorkoutWorkspaceWith(client, WORKOUT_ID);
+  expect(recovered.sets).toEqual([]);
+  expect(
+    extractPlannedExercises(recovered.workout).map((exercise) => exercise.name),
+  ).toEqual([EXERCISE.name]);
 });

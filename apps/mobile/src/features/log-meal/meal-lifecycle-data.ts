@@ -16,7 +16,7 @@ import type { ApiClient, ApiError } from "@mizyun/api-client";
 import { apiClient } from "@/composition/api-client";
 
 import type { LogMealForm, LogMealResult } from "./log-meal-data";
-import { createOperationId } from "./meal-form";
+import { createOperationId, parseMealDate } from "./meal-form";
 import { getEntryMealGroup, withMealGroup } from "./meal-scale";
 
 export interface FoodDayResult {
@@ -279,6 +279,8 @@ const humanizeApiError = (error: ApiError, action: string): string => {
 };
 
 export interface FetchFoodHistoryOptions {
+  readonly from?: string;
+  readonly to?: string;
   readonly cursor?: string | null;
   readonly search?: string | null;
   readonly limit?: number;
@@ -303,6 +305,8 @@ export const fetchFoodHistoryWith = async (
   const queryParts: string[] = [
     `limit=${encodeURIComponent(options.limit ?? 200)}`,
   ];
+  if (options.from) queryParts.push(`from=${encodeURIComponent(options.from)}`);
+  if (options.to) queryParts.push(`to=${encodeURIComponent(options.to)}`);
   if (utcOffsetMinutes !== 0) {
     queryParts.push(`utcOffsetMinutes=${encodeURIComponent(utcOffsetMinutes)}`);
   }
@@ -340,6 +344,62 @@ export const fetchFoodHistoryWith = async (
     entries,
     nextCursor,
     cutoffDateIsPartial,
+    message: null,
+  };
+};
+
+/** Refresh one selected historical day, including pages beyond 200 rows. */
+export const fetchFoodDateHistory = (
+  date: string,
+): Promise<FoodHistoryResult> => fetchFoodDateHistoryWith(apiClient, date);
+
+export const fetchFoodDateHistoryWith = async (
+  client: ApiClient,
+  date: string,
+  now: Date = new Date(),
+): Promise<FoodHistoryResult> => {
+  const failed = (message: string): FoodHistoryResult => ({
+    groups: [],
+    entries: [],
+    nextCursor: null,
+    cutoffDateIsPartial: false,
+    message,
+  });
+  if (!parseMealDate(date)) return failed("Choose a valid meal day.");
+  const [year, month, day] = date.split("-").map(Number);
+  const start = new Date(year, month - 1, day);
+  const end = new Date(year, month - 1, day + 1);
+  // Query a UTC-day superset then filter exact local midnight bounds. This
+  // handles 23/25-hour DST days without assuming one fixed offset all day.
+  const from = start.toISOString().slice(0, 10);
+  const to = new Date(end.getTime() - 1).toISOString().slice(0, 10);
+  let entries: ReadonlyArray<FoodEntry> = [];
+  let cursor: string | null = null;
+  const seen = new Set<string>();
+  do {
+    const page = await fetchFoodHistoryWith(client, 0, now, {
+      from,
+      to,
+      cursor,
+    });
+    if (page.message) return failed(page.message);
+    entries = mergeFoodEntries(
+      entries,
+      page.entries.filter((entry) => {
+        const instant = Date.parse(entry.consumedAt);
+        return instant >= start.getTime() && instant < end.getTime();
+      }),
+    );
+    cursor = page.nextCursor ?? null;
+    if (cursor && seen.has(cursor))
+      return failed("Could not refresh that day. Try again.");
+    if (cursor) seen.add(cursor);
+  } while (cursor);
+  return {
+    groups: groupFoodEntriesByDay(entries, now),
+    entries,
+    nextCursor: null,
+    cutoffDateIsPartial: false,
     message: null,
   };
 };

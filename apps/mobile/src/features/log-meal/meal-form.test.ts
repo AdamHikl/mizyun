@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   advancedNutrientsFromForm,
+  parseMealDate,
+  mealTimestampForDate,
+  mealTimestampMatchesDate,
+  mealNutritionForSubmission,
   sameAdvancedNutrients,
   needsFreshAdvancedGrant,
   isRecoverableMealDraft,
@@ -14,6 +18,48 @@ import {
   portionGramsStringFromDraft,
   upgradeLegacyMealDraft,
 } from "./meal-form";
+
+describe("per-100-g form recovery", () => {
+  const form = {
+    name: "Synthetic food",
+    calories: "200",
+    protein: "10",
+    carbs: "20",
+    fat: "5",
+  };
+  it("accepts old drafts and the explicit new basis, rejects unknown bases", () => {
+    expect(isRecoverableMealDraft(form)).toBe(true);
+    expect(
+      isRecoverableMealDraft({
+        ...form,
+        nutritionBasis: "per100g",
+        portionGrams: "150",
+      }),
+    ).toBe(true);
+    expect(isRecoverableMealDraft({ ...form, nutritionBasis: "per kg" })).toBe(
+      false,
+    );
+    expect(
+      upgradeLegacyMealDraft({
+        ...form,
+        nutritionBasis: "per100g",
+        portionGrams: "150",
+      }).nutritionBasis,
+    ).toBe("per100g");
+  });
+  it("preserves total-mode values and optional weight without scaling", () => {
+    expect(mealNutritionForSubmission(form, "total", "150")).toMatchObject({
+      ok: true,
+      grams: 150,
+      nutrition: { caloriesKcal: 200, proteinG: 10 },
+    });
+    expect(mealNutritionForSubmission(form, "total", "")).toMatchObject({
+      ok: true,
+      grams: null,
+      nutrition: { caloriesKcal: 200 },
+    });
+  });
+});
 
 describe("parseOptionalNutritionNumber", () => {
   it("distinguishes blank optional values from invalid input", () => {
@@ -497,5 +543,51 @@ describe("recoverable AI meal drafts", () => {
     ).toBe(false);
     // In future by 10 minutes
     expect(isStaleMealTimestamp("2026-09-12T12:10:00.000Z", now)).toBe(true);
+  });
+});
+
+describe("intentional meal calendar dates", () => {
+  it.each([
+    undefined,
+    ["2026-09-12"],
+    "2026-02-30",
+    "2025-02-29",
+    "2026-13-01",
+    "bad",
+    "2026-9-12",
+    "0000-01-01",
+  ])("rejects malformed day %s", (value) => {
+    expect(parseMealDate(value)).toBeNull();
+  });
+  it("uses the local calendar date and noon for backdates", () => {
+    expect(parseMealDate("2024-02-29")).toBe("2024-02-29");
+    const stamp = mealTimestampForDate("2026-03-29", new Date(2026, 9, 4));
+    const local = new Date(stamp);
+    expect([
+      local.getFullYear(),
+      local.getMonth(),
+      local.getDate(),
+      local.getHours(),
+    ]).toEqual([2026, 2, 29, 12]);
+    expect(mealTimestampMatchesDate(stamp, "2026-03-29")).toBe(true);
+  });
+  it("preserves a backdated draft and operation identity after restart", () => {
+    const draft = {
+      name: "Synthetic past food",
+      calories: "",
+      protein: "",
+      carbs: "",
+      fat: "",
+      mealDate: "2026-03-29",
+      consumedAt: mealTimestampForDate("2026-03-29"),
+      clientOperationId: "11111111-1111-4111-8111-111111111111",
+    };
+    expect(isRecoverableMealDraft(draft)).toBe(true);
+    expect(
+      upgradeLegacyMealDraft(draft, () => new Date(2026, 9, 4)),
+    ).toMatchObject(draft);
+    expect(isRecoverableMealDraft({ ...draft, mealDate: "2026-02-30" })).toBe(
+      false,
+    );
   });
 });

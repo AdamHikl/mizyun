@@ -5,6 +5,9 @@ import {
   analyticsBatchIngestRequestSchema,
   analyticsClearRequestSchema,
   analyticsConsentRequestSchema,
+  analyticsEventsListQuerySchema,
+  projectAnalyticsEventsForCatalog,
+  type AnalyticsEventsListQuery,
   type AnalyticsBatchIngestRequest,
   type AnalyticsBatchIngestResponse,
   type AnalyticsClearRequest,
@@ -242,17 +245,33 @@ export const analyticsRoutes: FastifyPluginAsync<
   );
 
   // GET /v1/analytics/events
-  app.get(
+  app.get<{ Querystring: AnalyticsEventsListQuery }>(
     "/events",
     { preHandler: app.authenticate },
-    async (request): Promise<{ events: ReadonlyArray<AnalyticsEventV2> }> => {
+    async (
+      request,
+      reply,
+    ): Promise<{ events: ReadonlyArray<AnalyticsEventV2> } | void> => {
+      const query = analyticsEventsListQuerySchema.safeParse(request.query);
+      if (!query.success) {
+        sendApiError(
+          reply,
+          request,
+          422,
+          "VALIDATION_ERROR",
+          "Invalid analytics event catalog query",
+        );
+        return;
+      }
       const principal = request.principal!;
       const stored =
         await options.productAnalyticsRepository.listRetainedEvents(
           principal.userId,
         );
 
-      const events: AnalyticsEventV2[] = stored.map((e) => ({
+      // A new or malformed stored event must not invalidate an older client's
+      // complete analytics-list parser. The full account export stays complete.
+      const candidates = stored.map((e) => ({
         id: e.id,
         schemaVersion: 2,
         recordedAt: e.recordedAt.toISOString(),
@@ -262,9 +281,13 @@ export const analyticsRoutes: FastifyPluginAsync<
         platform: e.platform,
         appVersion: e.appVersion,
         build: e.build ?? undefined,
-        name: e.name as any,
-        properties: e.properties as any,
+        name: e.name,
+        properties: e.properties,
       }));
+      const { events } = projectAnalyticsEventsForCatalog(
+        candidates,
+        query.data.catalog,
+      );
 
       return { events };
     },

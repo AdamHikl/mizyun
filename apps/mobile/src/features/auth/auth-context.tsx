@@ -163,16 +163,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       )
         void deregisterCommunityPush(previousPushSession);
       const requestVersion = ++profileRequestVersion.current;
+      // Queue the identity boundary before any new consent sync or UI capture.
+      // Analytics serializes these operations; authentication never waits on it.
+      if (
+        nextSession === null ||
+        nextSession.accessToken === "preview-token" ||
+        (previousPushSession !== null &&
+          previousPushSession.user.id !== nextSession.user.id)
+      ) {
+        void analyticsClient.resetLocalSession().catch(() => {});
+      }
       setSession(nextSession);
       if (nextSession === null) {
-        void analyticsClient.resetLocalSession();
         setProfile(null);
         setIsOnboardingActive(false);
         setProfileLoading(false);
         return;
       }
       if (nextSession.accessToken === "preview-token") {
-        void analyticsClient.resetLocalSession();
         setProfile(PREVIEW_PROFILE);
         setIsOnboardingActive(false);
         setProfileLoading(false);
@@ -180,7 +188,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const userId = nextSession.user.id;
-      void analyticsClient.syncConsent();
+      void analyticsClient.syncConsent().catch(() => {});
       setProfileLoading(true);
 
       // Pre-populate with cached profile immediately to avoid layout flash / false onboarding redirect

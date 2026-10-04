@@ -32,7 +32,7 @@
 
 ### Nutrition
 
-- **NUT-01:** A user can create, edit, copy, and delete a food entry with time, name, calories, macros, serving context, and notes.
+- **NUT-01:** A user can create, edit, copy, and delete a food entry with time, name, calories, macros, serving context, and notes. Each existing Meals day heading offers an accessible add action that opens a meal for that local day, displays the selected date, preserves it through manual/AI/recent-meal entry and recovery, and refreshes that historical day on return. Historical saves do not suppress today’s reminders; a recovered draft for another day must be explicitly cleared before starting on the selected day.
 - **NUT-02:** Daily and weekly totals use only confirmed entries and respect the user's local day boundaries.
 - **NUT-03:** A user can submit text or a private food photo to produce an editable estimate after AI is enabled.
 - **NUT-04:** Estimated calories/macros include range, confidence/provenance, and assumptions when available.
@@ -40,6 +40,7 @@
 - **NUT-06:** The app can retain reusable foods/meals without silently changing historical entries.
 - **NUT-07:** Pro users can optionally record and review fibre, saturated fat, total sugars, sodium, and dietary cholesterol on confirmed meals. Missing values remain unknown, partial totals disclose coverage, and free or downgraded users retain access, correction, export, and deletion of previously recorded values.
 - **NUT-08:** With existing AI consent/adult eligibility and a server-authoritative Pro grant, photo/text meal drafts and deliberate refinements can suggest those five additional nutrients. Estimates remain editable and uncertain until explicit confirmation; unknown values remain blank and client settings or quota overrides cannot grant access. Refinement must use current edits and must not overwrite changes made during a request. No historical backfill is automatic.
+- **NUT-09:** Manual meal creation offers portion totals (default) or label values per 100 g with a required positive food weight in grams. Preview and confirmed Save use `label value × weight ÷ 100`, rounded once to two decimals in kcal/g/mg; blank remains unknown. Draft recovery preserves the chosen basis and raw values. Clear, recent-meal copies and replacement AI estimates restore portion-total mode; existing Pro and retry safeguards apply.
 
 ### Energy model
 
@@ -60,6 +61,7 @@
 - **WO-04:** The app displays relevant previous performance while logging an exercise.
 - **WO-05:** Progress summaries can show personal records, volume, frequency, and consistency without comparing incompatible measurement types.
 - **WO-06:** Suggestions reflect stated goals, experience, equipment, limitations, and recent volume; unsafe volume/intensity is avoided.
+- **WO-07:** A user can start an empty one-time workout directly from Workouts, add exercises and log actual sets while exercising using the existing workout controls. Exercise selections are saved before their first set and recover with the active session. One-time workouts have no prescribed set/repetition targets, never modify a reusable routine, and finish into private workout history. Start retries reuse the same operation identity.
 
 ### Body progress and media
 
@@ -79,7 +81,7 @@
 
 ### Coach and conversations
 
-- **COACH-01:** A user can create, continue, rename/archive, and delete private conversations.
+- **COACH-01:** A user can create, continue, rename/archive, and delete private conversations. The Coach tab opens the full page with suggested check-ins and composer when no conversation exists, without a separate start screen. The first consent-approved message/photo creates a conversation; opening the tab alone does not.
 - **COACH-02:** The coach can access only normalized tools returning the current user's authorized, confirmed data.
 - **COACH-03:** Responses distinguish stored facts, deterministic calculations, interpretations, and suggestions.
 - **COACH-04:** When inputs are insufficient or uncertain, the coach asks for confirmation or states the limitation.

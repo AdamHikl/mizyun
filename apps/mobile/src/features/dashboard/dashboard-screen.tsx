@@ -21,6 +21,7 @@ import { AccountHeaderActions } from "@/components/account-header-button";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { apiClient, invalidateSessionReads } from "@/composition/api-client";
 import { analyticsClient } from "@/composition/analytics-client";
+import { trackDashboardControl } from "@/features/analytics/ui-analytics";
 import { isProgressPhotosEnabled } from "@/composition/app-variant";
 import { useAuth } from "@/features/auth/auth-context";
 import {
@@ -224,24 +225,28 @@ const titleCaseToken = (value: string | null): string =>
 const actions = [
   {
     label: "Log a meal",
+    control: "quick_log_meal",
     path: "/log-meal" as Href,
     hint: "Photo or manual entry",
     icon: "🥗",
   },
   {
     label: "Start workout",
+    control: "quick_log_workout",
     path: "/log-workout" as Href,
     hint: "Active training session",
     icon: "🏋️",
   },
   {
     label: "Log weight",
+    control: "quick_log_weight",
     path: "/log-weight" as Href,
     hint: "Today's scale reading",
     icon: "⚖️",
   },
   {
     label: "Progress photo",
+    control: "quick_log_photo",
     path: "/progress-photos" as Href,
     hint: "Private photo & compare",
     icon: "📷",
@@ -627,6 +632,7 @@ export function DashboardScreen() {
         if (action.path === "/log-workout" && activeWorkout) {
           return {
             label: "Resume workout",
+            control: action.control,
             path: `/log-workout?workoutId=${activeWorkout.id}` as Href,
             hint: `⏱️ ${formatStopwatch(elapsedSeconds)} in progress`,
             icon: "🏋️",
@@ -692,7 +698,10 @@ export function DashboardScreen() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Refresh dashboard"
-                onPress={() => void loadMetrics()}
+                onPress={() => {
+                  trackDashboardControl("refresh_retry");
+                  void loadMetrics();
+                }}
                 style={({ pressed }) => [
                   styles.offlineRefreshButton,
                   pressed && styles.pressed,
@@ -712,7 +721,10 @@ export function DashboardScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Set up Mizyun"
-              onPress={openOnboarding}
+              onPress={() => {
+                trackDashboardControl("complete_setup");
+                openOnboarding();
+              }}
               style={styles.setupBanner}
             >
               <View style={styles.setupBannerText}>
@@ -752,7 +764,10 @@ export function DashboardScreen() {
             caloriesToday={metrics.caloriesToday}
             loading={metrics.sectionStatus.nutritionToday.loading}
             hasError={metrics.sectionStatus.nutritionToday.hasError}
-            onPress={() => void router.push("/meals" as Href)}
+            onPress={() => {
+              trackDashboardControl("nutrition_card");
+              void router.push("/meals" as Href);
+            }}
           />
 
           {/* 2. Key Signals Grid (Weight & Training) */}
@@ -761,13 +776,19 @@ export function DashboardScreen() {
               label="Current weight"
               value={formatWeight(metrics.latestWeightKg, unitSystem)}
               detail="Raw scale reading →"
-              onPress={() => void router.push("/body" as Href)}
+              onPress={() => {
+                trackDashboardControl("weight_card");
+                void router.push("/body" as Href);
+              }}
             />
             <MetricCard
               label="Training"
               value={formatCount(metrics.workoutsInReview)}
               detail={`this ${reviewPeriod} →`}
-              onPress={() => void router.push("/workouts" as Href)}
+              onPress={() => {
+                trackDashboardControl("training_card");
+                void router.push("/workouts" as Href);
+              }}
             />
           </View>
 
@@ -792,7 +813,10 @@ export function DashboardScreen() {
                         ? "No readable step data today; check permissions →"
                         : "Steps unavailable; check Settings →"
             }
-            onPress={() => void router.push("/settings" as Href)}
+            onPress={() => {
+              trackDashboardControl("steps_card");
+              void router.push("/settings" as Href);
+            }}
           />
 
           {/* 3. Quick Log Action Dock */}
@@ -807,6 +831,7 @@ export function DashboardScreen() {
                   accessibilityRole="button"
                   accessibilityLabel={action.label}
                   onPress={() => {
+                    trackDashboardControl(action.control);
                     void router.push(action.path);
                   }}
                   style={({ pressed }) => [
@@ -844,7 +869,12 @@ export function DashboardScreen() {
             period={reviewPeriod}
             loading={metrics.sectionStatus.review.loading}
             hasError={metrics.sectionStatus.review.hasError}
-            onChangePeriod={setReviewPeriod}
+            onChangePeriod={(period) => {
+              trackDashboardControl(
+                period === "week" ? "review_week" : "review_month",
+              );
+              setReviewPeriod(period);
+            }}
           />
 
           {metrics.loading ? (
@@ -865,6 +895,7 @@ export function DashboardScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Retry dashboard refresh"
                 onPress={() => {
+                  trackDashboardControl("refresh_retry");
                   void loadMetrics();
                 }}
               >
@@ -956,7 +987,10 @@ function FirstMealDashboardCard(props: {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Log another meal"
-            onPress={() => router.push("/log-meal" as Href)}
+            onPress={() => {
+              trackDashboardControl("first_meal_log");
+              router.push("/log-meal" as Href);
+            }}
             style={({ pressed }) => [
               styles.firstMealAddButton,
               pressed && styles.pressed,
@@ -1016,7 +1050,10 @@ function FirstMealDashboardCard(props: {
             accessibilityLabel={`Copy ${recentMeal.name} to today`}
             accessibilityState={{ busy, disabled: busy }}
             disabled={busy}
-            onPress={() => void handleCopy()}
+            onPress={() => {
+              trackDashboardControl("first_meal_copy");
+              void handleCopy();
+            }}
             style={({ pressed }) => [
               styles.copyToTodayButton,
               (pressed || busy) && styles.pressed,
@@ -1037,7 +1074,10 @@ function FirstMealDashboardCard(props: {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Log a new meal"
-          onPress={() => router.push("/log-meal" as Href)}
+          onPress={() => {
+            trackDashboardControl("first_meal_log");
+            router.push("/log-meal" as Href);
+          }}
           style={({ pressed }) => [
             styles.firstMealLogLink,
             pressed && styles.pressed,
@@ -1057,7 +1097,10 @@ function FirstMealDashboardCard(props: {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Set reminder in settings"
-            onPress={() => router.push("/settings" as Href)}
+            onPress={() => {
+              trackDashboardControl("first_meal_reminder");
+              router.push("/settings" as Href);
+            }}
             style={({ pressed }) => pressed && styles.pressed}
           >
             <ThemedText type="small" themeColor="textSecondary">
@@ -1275,7 +1318,10 @@ function EnergyCard(props: {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Review energy inputs"
-          onPress={() => void router.push("/energy-setup" as Href)}
+          onPress={() => {
+            trackDashboardControl("energy_setup");
+            void router.push("/energy-setup" as Href);
+          }}
           style={styles.compactButton}
         >
           <ThemedText type="smallBold">Review inputs</ThemedText>

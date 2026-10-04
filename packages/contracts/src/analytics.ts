@@ -22,6 +22,55 @@ export const screenNameSchema = z.enum([
 
 export type ScreenName = z.infer<typeof screenNameSchema>;
 
+export const dashboardControlSchema = z.enum([
+  "nutrition_card",
+  "weight_card",
+  "training_card",
+  "steps_card",
+  "quick_log_meal",
+  "quick_log_workout",
+  "quick_log_weight",
+  "quick_log_photo",
+  "first_meal_log",
+  "first_meal_copy",
+  "first_meal_reminder",
+  "energy_setup",
+  "review_week",
+  "review_month",
+  "refresh_retry",
+  "complete_setup",
+]);
+export type DashboardControl = z.infer<typeof dashboardControlSchema>;
+
+/** Static settings destinations only. Never accept typed search text. */
+export const analyticsSettingsDestinationSchema = z.enum([
+  "profile",
+  "goal",
+  "energy-setup",
+  "food-standards",
+  "body",
+  "progress-photos",
+  "workout",
+  "reminders",
+  "appearance",
+  "health-steps",
+  "coach-preferences",
+  "ai-usage",
+  "memory",
+  "account-data",
+  "community-settings",
+  "analytics",
+  "legal",
+  "security",
+  "identity",
+  "setup-wizard",
+  "feedback",
+  "sign-out",
+]);
+export type AnalyticsSettingsDestination = z.infer<
+  typeof analyticsSettingsDestinationSchema
+>;
+
 export const loggingFlowSchema = z.enum([
   "meal",
   "workout",
@@ -87,13 +136,22 @@ export const featureActionSchema = z.enum([
 ]);
 export type FeatureAction = z.infer<typeof featureActionSchema>;
 
-export const onboardingStepSchema = z.enum([
+/** Frozen pre-dashboard values. Do not expand the legacy list projection. */
+export const legacyOnboardingStepSchema = z.enum([
   "welcome",
   "profile",
   "goals",
   "preferences",
   "notifications",
   "complete",
+]);
+export const onboardingStepSchema = z.enum([
+  ...legacyOnboardingStepSchema.options,
+  "display_name",
+  "units",
+  "baseline_weight",
+  "energy_profile",
+  "primary_goal",
 ]);
 export type OnboardingStep = z.infer<typeof onboardingStepSchema>;
 
@@ -190,6 +248,32 @@ export const onboardingCompletedEventSchema = z
 export type OnboardingCompletedEvent = z.infer<
   typeof onboardingCompletedEventSchema
 >;
+
+export const onboardingFailedEventSchema = z
+  .object({
+    ...baseEventEnvelopeShape,
+    name: z.literal("onboarding_failed"),
+    properties: z
+      .object({ step: onboardingStepSchema, reason: failureReasonSchema })
+      .strict(),
+  })
+  .strict();
+export type OnboardingFailedEvent = z.infer<typeof onboardingFailedEventSchema>;
+
+export const onboardingExitedEventSchema = z
+  .object({
+    ...baseEventEnvelopeShape,
+    name: z.literal("onboarding_exited"),
+    properties: z
+      .object({
+        step: onboardingStepSchema,
+        duration: durationBucketSchema,
+        exit: z.literal("cancel"),
+      })
+      .strict(),
+  })
+  .strict();
+export type OnboardingExitedEvent = z.infer<typeof onboardingExitedEventSchema>;
 
 export const loggingFlowStartedEventSchema = z
   .object({
@@ -294,11 +378,63 @@ export type FeatureActionResultEvent = z.infer<
   typeof featureActionResultEventSchema
 >;
 
+export const dashboardControlClickedEventSchema = z
+  .object({
+    ...baseEventEnvelopeShape,
+    name: z.literal("dashboard_control_clicked"),
+    properties: z.object({ control: dashboardControlSchema }).strict(),
+  })
+  .strict();
+
+export const settingsSearchUsedEventSchema = z
+  .object({
+    ...baseEventEnvelopeShape,
+    name: z.literal("settings_search_used"),
+    properties: z
+      .object({ resultCount: z.enum(["none", "1_to_5", "6_plus"]) })
+      .strict(),
+  })
+  .strict();
+
+export const settingsSearchSelectedEventSchema = z
+  .object({
+    ...baseEventEnvelopeShape,
+    name: z.literal("settings_search_selected"),
+    properties: z
+      .object({ destination: analyticsSettingsDestinationSchema })
+      .strict(),
+  })
+  .strict();
+
 export const analyticsEventV2Schema = z.discriminatedUnion("name", [
   appSessionStartedEventSchema,
   screenViewedEventSchema,
   onboardingStartedEventSchema,
   onboardingStepCompletedEventSchema,
+  onboardingCompletedEventSchema,
+  onboardingFailedEventSchema,
+  onboardingExitedEventSchema,
+  loggingFlowStartedEventSchema,
+  loggingFlowCompletedEventSchema,
+  loggingFlowFailedEventSchema,
+  loggingFlowExitedEventSchema,
+  coreRecordCreatedEventSchema,
+  featureActionResultEventSchema,
+  dashboardControlClickedEventSchema,
+  settingsSearchUsedEventSchema,
+  settingsSearchSelectedEventSchema,
+]);
+
+export type AnalyticsEventV2 = z.infer<typeof analyticsEventV2Schema>;
+
+/** Exactly the original eleven event kinds and original onboarding steps. */
+export const legacyAnalyticsEventV2Schema = z.discriminatedUnion("name", [
+  appSessionStartedEventSchema,
+  screenViewedEventSchema,
+  onboardingStartedEventSchema,
+  onboardingStepCompletedEventSchema.extend({
+    properties: z.object({ step: legacyOnboardingStepSchema }).strict(),
+  }),
   onboardingCompletedEventSchema,
   loggingFlowStartedEventSchema,
   loggingFlowCompletedEventSchema,
@@ -307,13 +443,41 @@ export const analyticsEventV2Schema = z.discriminatedUnion("name", [
   coreRecordCreatedEventSchema,
   featureActionResultEventSchema,
 ]);
-
-export type AnalyticsEventV2 = z.infer<typeof analyticsEventV2Schema>;
+export type LegacyAnalyticsEventV2 = z.infer<
+  typeof legacyAnalyticsEventV2Schema
+>;
 
 /**
  * Transport / API schemas
  */
 export const CURRENT_ANALYTICS_CONSENT_VERSION = "product-analytics-v2";
+export const ANALYTICS_DASHBOARD_CATALOG = "dashboard-v1";
+export const analyticsEventsListQuerySchema = z
+  .object({
+    catalog: z.literal(ANALYTICS_DASHBOARD_CATALOG).optional(),
+  })
+  .strict();
+export type AnalyticsEventsListQuery = z.infer<
+  typeof analyticsEventsListQuerySchema
+>;
+
+/** Shared wire projection; never relabel a new event as a legacy event. */
+export function projectAnalyticsEventsForCatalog(
+  events: readonly unknown[],
+  catalog?: AnalyticsEventsListQuery["catalog"],
+): { events: AnalyticsEventV2[]; omittedEventCount: number } {
+  const schema = catalog
+    ? analyticsEventV2Schema
+    : legacyAnalyticsEventV2Schema;
+  const projected = events.flatMap((event) => {
+    const parsed = schema.safeParse(event);
+    return parsed.success ? [parsed.data] : [];
+  });
+  return {
+    events: projected,
+    omittedEventCount: events.length - projected.length,
+  };
+}
 
 export const analyticsConsentRequestSchema = z
   .object({
@@ -384,6 +548,9 @@ export type AnalyticsClearResponse = z.infer<
 
 export const analyticsEventsListResponseSchema = z.object({
   events: z.array(analyticsEventV2Schema),
+});
+export const legacyAnalyticsEventsListResponseSchema = z.object({
+  events: z.array(legacyAnalyticsEventV2Schema),
 });
 
 export type AnalyticsEventsListResponse = z.infer<

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { bucketDuration, bucketTaps } from "@mizyun/observability";
+import { classifyAnalyticsFailure } from "@/features/analytics/classify-failure";
+import { OnboardingMeasurement } from "./onboarding-measurement";
 import {
   ActivityIndicator,
   Alert,
@@ -63,14 +64,55 @@ export function OnboardingScreen({
   );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const startedAt = useRef(Date.now());
-  const taps = useRef(0);
+  const auth = useOptionalAuth();
+  const owner = auth?.session?.user.id ?? null;
+  const measurement = useRef<OnboardingMeasurement | null>(null);
+  const measurementOwner = useRef(owner);
+  if (measurementOwner.current !== owner) {
+    measurement.current = null;
+    measurementOwner.current = owner;
+  }
+  const beginMeasurement = useCallback(() => {
+    let cancelled = false;
+    let scope;
+    try {
+      scope = analyticsClient.createFlowScope();
+    } catch {
+      return () => undefined;
+    }
+    void analyticsClient
+      .getConsent()
+      .then((consent) => {
+        if (
+          !cancelled &&
+          owner !== null &&
+          measurementOwner.current === owner &&
+          consent === "granted" &&
+          measurement.current === null
+        ) {
+          measurement.current = new OnboardingMeasurement(
+            analyticsClient,
+            scope,
+          );
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [owner]);
+  useEffect(beginMeasurement, [beginMeasurement]);
+  const exitSetup = useCallback(() => {
+    measurement.current?.exit(step);
+    onExit?.();
+  }, [step, onExit]);
 
   const validationError = useMemo(() => validateStep(step, form), [step, form]);
   const canContinue = validationError === null && !busy;
 
   const onAdvance = useCallback(async () => {
-    taps.current += 1;
+    const attempt = measurement.current;
+    attempt?.tap();
     const next = nextStep(step);
     if (next === null) {
       // Final step — submit to the API.
@@ -79,27 +121,27 @@ export function OnboardingScreen({
       try {
         const result = await submitOnboarding(form, apiClient);
         if (result.ok) {
-          void analyticsClient.track({
-            name: "onboarding_completed",
-            properties: {
-              duration: bucketDuration(Date.now() - startedAt.current),
-              taps: bucketTaps(taps.current),
-            },
-          });
+          attempt?.stepCompleted(step);
+          attempt?.complete();
           onComplete();
         } else {
+          attempt?.fail(step, classifyAnalyticsFailure(result.message));
           setError(result.message);
         }
+      } catch {
+        attempt?.fail(step, "unexpected");
+        setError("Could not finish setup. Please try again.");
       } finally {
         setBusy(false);
       }
       return;
     }
+    attempt?.stepCompleted(step);
     setStep(next);
   }, [step, form, onComplete]);
 
   const onBack = useCallback(() => {
-    taps.current += 1;
+    measurement.current?.tap();
     const prev = previousStep(step);
     if (prev !== null) setStep(prev);
   }, [step]);
@@ -124,7 +166,7 @@ export function OnboardingScreen({
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Exit setup"
-                  onPress={onExit}
+                  onPress={exitSetup}
                   style={styles.exitButton}
                 >
                   <ThemedText type="smallBold" style={styles.exitButtonText}>
@@ -146,7 +188,9 @@ export function OnboardingScreen({
             error={validationError}
           />
 
-          {step === "welcome" ? <AnalyticsConsentPrompt /> : null}
+          {step === "welcome" ? (
+            <AnalyticsConsentPrompt onConsentSaved={beginMeasurement} />
+          ) : null}
 
           {error ? (
             <ThemedText style={styles.apiError}>{error}</ThemedText>
@@ -165,7 +209,7 @@ export function OnboardingScreen({
             ) : onExit ? (
               <Pressable
                 accessibilityRole="button"
-                onPress={onExit}
+                onPress={exitSetup}
                 disabled={busy}
                 style={styles.secondaryButton}
               >
@@ -200,7 +244,11 @@ export function OnboardingScreen({
   );
 }
 
-function AnalyticsConsentPrompt() {
+function AnalyticsConsentPrompt({
+  onConsentSaved,
+}: {
+  readonly onConsentSaved: () => void;
+}) {
   const [consent, setConsent] = useState<
     "loading" | "unknown" | "granted" | "denied"
   >("loading");
@@ -210,17 +258,21 @@ function AnalyticsConsentPrompt() {
     void analyticsClient.getConsent().then(setConsent);
   }, []);
 
-  const choose = useCallback(async (next: "granted" | "denied") => {
-    const saved = await analyticsClient.setConsent(next);
-    setConsent(saved ? next : "unknown");
-    setMessage(
-      saved
-        ? next === "granted"
-          ? "Optional analytics enabled. You can disable and clear it in Account."
-          : "Optional analytics is off. Mizyun works the same way."
-        : "The preference could not be saved, so analytics remains off.",
-    );
-  }, []);
+  const choose = useCallback(
+    async (next: "granted" | "denied") => {
+      const saved = await analyticsClient.setConsent(next);
+      setConsent(saved ? next : "unknown");
+      if (saved && next === "granted") onConsentSaved();
+      setMessage(
+        saved
+          ? next === "granted"
+            ? "Optional analytics enabled. You can disable and clear it in Account."
+            : "Optional analytics is off. Mizyun works the same way."
+          : "The preference could not be saved, so analytics remains off.",
+      );
+    },
+    [onConsentSaved],
+  );
 
   return (
     <ThemedView type="backgroundElement" style={styles.analyticsPrompt}>

@@ -5,6 +5,10 @@ import { FeedbackHeaderButton } from "@/components/feedback-header-button";
 import { MaxContentWidth, Spacing } from "@/constants/theme";
 import { isProgressPhotosEnabled } from "@/composition/app-variant";
 import { analyticsClient } from "@/composition/analytics-client";
+import {
+  trackSettingsSearchSelected,
+  trackSettingsSearchUsed,
+} from "@/features/analytics/ui-analytics";
 import { useAuth } from "@/features/auth/auth-context";
 import { useThemePreference } from "@/features/theme/theme-context";
 import { useTheme } from "@/hooks/use-theme";
@@ -114,6 +118,7 @@ export function SettingsScreen() {
 
   const handleSelectResult = useCallback(
     (result: SettingsSearchResult) => {
+      trackSettingsSearchSelected(result.item.destinationId);
       navigateToSetting(result.item, {
         onSignOutRequest: onSignOut,
         onOpenOnboarding: openOnboarding,
@@ -256,6 +261,10 @@ export function SettingsScreen() {
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
+              onSubmitEditing={() => {
+                if (searchQuery.trim())
+                  trackSettingsSearchUsed(searchResults.length);
+              }}
               placeholder="Search settings (e.g. dark mode, units, reminders)..."
               placeholderTextColor={theme.textSecondary}
               style={[styles.searchInput, { color: theme.text }]}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LoggingFlowMeasurement } from "@mizyun/observability";
+import { useLoggingFlowMeasurement } from "@/features/analytics/flow-measurement";
 import {
   ActivityIndicator,
   Alert,
@@ -26,6 +26,7 @@ import {
 } from "@mizyun/contracts";
 import {
   computeWorkoutProgressions,
+  getCatalogExerciseNames,
   isRoutineDetails,
   readWorkoutLifecycle,
   type CatalogExercise,
@@ -33,7 +34,6 @@ import {
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { analyticsClient } from "@/composition/analytics-client";
 import { getAppVariant } from "@/composition/app-variant";
 import { classifyAnalyticsFailure } from "@/features/analytics/classify-failure";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
@@ -66,6 +66,7 @@ import {
 } from "@/features/workouts/rest-timer-notifications";
 import {
   restTimerNextAction,
+  findCatalogExerciseRecord,
   useOptionalActiveWorkout,
   type CurrentWorkoutNextAction,
   type RestTimerState,
@@ -162,6 +163,7 @@ export function LogWorkoutScreen() {
   const startContextRestTimer = workoutContext?.startRestTimer;
   const clearContextRestTimer = workoutContext?.clearRestTimer;
   const userId = session?.user.id ?? null;
+  const measurement = useLoggingFlowMeasurement("workout", userId);
   const unitSystem = profile?.unitSystem ?? "metric";
   const [workspace, setWorkspace] = useState<WorkoutWorkspace>(EMPTY_WORKSPACE);
   const [draft, setDraft] = useState<WorkoutDraft>(EMPTY_DRAFT);
@@ -171,9 +173,6 @@ export function LogWorkoutScreen() {
   const [message, setMessage] = useState<string | null>(null);
 
   // Live session state
-  const [extraExercises, setExtraExercises] = useState<
-    ReadonlyArray<ExerciseEntry>
-  >([]);
   const [pendingInputs, setPendingInputs] = useState<
     Record<string, PendingSetInput>
   >({});
@@ -206,20 +205,14 @@ export function LogWorkoutScreen() {
     useState<boolean>(true);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
-  const measurement = useRef<LoggingFlowMeasurement | null>(null);
   const hadFailure = useRef(false);
   const setSaveInFlight = useRef(false);
+  const exerciseMutationInFlight = useRef(false);
+  const currentWorkoutOwner = useRef("");
+  currentWorkoutOwner.current = `${userId}:${workspace.workout?.id ?? ""}`;
+  const isOneTimeWorkout =
+    workspace.workout?.details?.sessionMode === "one_time";
   const restNotificationGeneration = useRef(0);
-
-  useEffect(() => {
-    measurement.current = new LoggingFlowMeasurement(
-      "workout",
-      analyticsClient,
-    );
-    return () => {
-      measurement.current = null;
-    };
-  }, []);
 
   const plannedExercises = useMemo(
     () => extractPlannedExercises(workspace.workout, draft.workoutProposal),
@@ -231,6 +224,7 @@ export function LogWorkoutScreen() {
 
   const refresh = useCallback(
     async (options?: { showLoading?: boolean }) => {
+      const attempt = measurement.current;
       const requestId = ++refreshCounter.current;
       if (options?.showLoading) {
         setLoading(true);
@@ -251,11 +245,7 @@ export function LogWorkoutScreen() {
       setMessage(next.message);
       if (next.message !== null) {
         hadFailure.current = true;
-        measurement.current?.fail(
-          "load",
-          classifyAnalyticsFailure(next.message),
-          true,
-        );
+        attempt?.fail("load", classifyAnalyticsFailure(next.message), true);
       }
       setLoading(false);
     },
@@ -458,7 +448,9 @@ export function LogWorkoutScreen() {
         (e) => e.name.trim().toLowerCase() === p.name.trim().toLowerCase(),
       );
       const id = matched?.id ?? `planned-${p.catalogId || p.name}`;
-      const targetLoad = p.targetLoad || resolveTargetLoadFromMetadata(matched);
+      const targetLoad = isOneTimeWorkout
+        ? undefined
+        : p.targetLoad || resolveTargetLoadFromMetadata(matched);
       map.set(p.name.trim().toLowerCase(), {
         id,
         name: p.name,
@@ -469,7 +461,7 @@ export function LogWorkoutScreen() {
         durationMinutes: p.durationMinutes,
         restSeconds: p.restSeconds || globalRestSeconds,
         targetLoad,
-        isPlanned: true,
+        isPlanned: !isOneTimeWorkout,
       });
     });
 
@@ -488,26 +480,12 @@ export function LogWorkoutScreen() {
             repsMax: null,
             durationMinutes: null,
             restSeconds: globalRestSeconds,
-            targetLoad: resolveTargetLoadFromMetadata(matched),
+            targetLoad: isOneTimeWorkout
+              ? undefined
+              : resolveTargetLoadFromMetadata(matched),
             isPlanned: false,
           });
         }
-      }
-    });
-
-    // 3. Add any dynamically added exercises
-    extraExercises.forEach((extra) => {
-      const key = extra.name.trim().toLowerCase();
-      if (!map.has(key)) {
-        const matched = workspace.exercises.find(
-          (e) => e.name.trim().toLowerCase() === key,
-        );
-        const targetLoad =
-          extra.targetLoad || resolveTargetLoadFromMetadata(matched);
-        map.set(key, {
-          ...extra,
-          targetLoad,
-        });
       }
     });
 
@@ -526,7 +504,7 @@ export function LogWorkoutScreen() {
       return 0;
     });
   }, [
-    extraExercises,
+    isOneTimeWorkout,
     globalRestSeconds,
     orderedExerciseKeys,
     plannedExercises,
@@ -541,33 +519,52 @@ export function LogWorkoutScreen() {
   const handleMoveExercise = useCallback(
     (fromIndex: number, toIndex: number) => {
       if (
+        busy ||
+        exerciseMutationInFlight.current ||
+        setSaveInFlight.current ||
+        !workspace.workout ||
+        workspace.workout.completedAt !== null ||
+        isRoutineDetails(workspace.workout.details) ||
         fromIndex < 0 ||
         fromIndex >= exerciseEntries.length ||
         toIndex < 0 ||
         toIndex >= exerciseEntries.length ||
         fromIndex === toIndex
-      ) {
+      )
         return;
-      }
       const next = [...exerciseEntries];
       const [moved] = next.splice(fromIndex, 1);
       if (!moved) return;
       next.splice(toIndex, 0, moved);
-
-      const nextKeys = next.map((e) => e.name.trim().toLowerCase());
-      setOrderedExerciseKeys(nextKeys);
-
-      if (workspace.workout && !isRoutineDetails(workspace.workout.details)) {
-        void reorderWorkoutExercises(workspace.workout, next).then((result) => {
-          if (result.ok) {
-            setWorkspace((curr) =>
-              curr.workout ? { ...curr, workout: result.workout } : curr,
-            );
+      exerciseMutationInFlight.current = true;
+      const owner = currentWorkoutOwner.current;
+      setBusy(true);
+      void (async () => {
+        try {
+          const result = await reorderWorkoutExercises(
+            workspace.workout!,
+            next,
+          );
+          if (currentWorkoutOwner.current !== owner) return;
+          if (!result.ok) {
+            setMessage(result.message);
+            return;
           }
-        });
-      }
+          refreshCounter.current++;
+          setOrderedExerciseKeys(
+            next.map((entry) => entry.name.trim().toLowerCase()),
+          );
+          setWorkspace((current) => ({ ...current, workout: result.workout }));
+        } catch {
+          if (currentWorkoutOwner.current === owner)
+            setMessage("Could not reorder exercises. Try again.");
+        } finally {
+          exerciseMutationInFlight.current = false;
+          setBusy(false);
+        }
+      })();
     },
-    [exerciseEntries, workspace.workout],
+    [busy, exerciseEntries, workspace.workout],
   );
 
   // Pre-load recent performance for all active exercises
@@ -600,7 +597,7 @@ export function LogWorkoutScreen() {
     const completedSetsCount = workspace.sets.length;
     let totalPlannedSetsCount = 0;
     for (const ex of exerciseEntries) {
-      totalPlannedSetsCount += ex.targetSets || 3;
+      if (!isOneTimeWorkout) totalPlannedSetsCount += ex.targetSets || 3;
     }
 
     const exerciseProgress = exerciseEntries.map((entry) => ({
@@ -613,16 +610,27 @@ export function LogWorkoutScreen() {
       ).length,
     }));
 
-    const nextExerciseIndex = selectNextExerciseIndexForNotification(
-      exerciseProgress,
-      restTimer?.exerciseName,
+    const restingIndex = exerciseEntries.findIndex(
+      (entry) => entry.name === restTimer?.exerciseName,
     );
+    const nextExerciseIndex = isOneTimeWorkout
+      ? exerciseEntries.length === 0
+        ? null
+        : restingIndex >= 0
+          ? restingIndex
+          : exerciseEntries.length - 1
+      : selectNextExerciseIndexForNotification(
+          exerciseProgress,
+          restTimer?.exerciseName,
+        );
     const currentEntry =
       nextExerciseIndex === null
         ? undefined
         : exerciseEntries[nextExerciseIndex];
     const allPlannedSetsCompleted =
-      exerciseEntries.length > 0 && nextExerciseIndex === null;
+      !isOneTimeWorkout &&
+      exerciseEntries.length > 0 &&
+      nextExerciseIndex === null;
 
     if (!currentEntry) {
       return {
@@ -668,6 +676,7 @@ export function LogWorkoutScreen() {
     };
   }, [
     exerciseEntries,
+    isOneTimeWorkout,
     restTimer,
     unitSystem,
     workspace.exercises,
@@ -721,9 +730,10 @@ export function LogWorkoutScreen() {
 
   // Start workout action
   const onStart = useCallback(async () => {
-    measurement.current?.tap();
+    const attempt = measurement.current;
+    attempt?.tap();
     if (hadFailure.current) {
-      measurement.current?.retry();
+      attempt?.retry();
       hadFailure.current = false;
     }
     setBusy(true);
@@ -743,11 +753,7 @@ export function LogWorkoutScreen() {
     setBusy(false);
     if (!result.ok) {
       hadFailure.current = true;
-      measurement.current?.fail(
-        "submit",
-        classifyAnalyticsFailure(result.message),
-        true,
-      );
+      attempt?.fail("submit", classifyAnalyticsFailure(result.message), true);
       return setMessage(result.message);
     }
     setWorkspace((current) => ({
@@ -758,53 +764,118 @@ export function LogWorkoutScreen() {
     }));
   }, [draft.name, draft.notes, draft.workoutProposal]);
 
-  // Add exercise from library or catalog
+  // Save selections before the first set so reopening the session keeps them.
   const handleSelectCatalogExercise = useCallback(
     async (catalogEx: CatalogExercise) => {
-      setLibraryVisible(false);
-      measurement.current?.tap();
-
-      let targetExercise = workspace.exercises.find(
-        (e) =>
-          e.name.trim().toLowerCase() === catalogEx.name.trim().toLowerCase(),
+      if (
+        busy ||
+        exerciseMutationInFlight.current ||
+        setSaveInFlight.current ||
+        !workspace.workout ||
+        workspace.workout.completedAt !== null ||
+        isRoutineDetails(workspace.workout.details)
+      )
+        return;
+      const knownNames = new Set(
+        getCatalogExerciseNames(catalogEx).map((name) =>
+          name.trim().toLowerCase(),
+        ),
       );
-
-      if (!targetExercise) {
-        setBusy(true);
-        const created = await createExercise(
-          catalogEx.name,
-          catalogEx.instructions.join(" "),
+      if (
+        exerciseEntries.some((entry) =>
+          knownNames.has(entry.name.trim().toLowerCase()),
+        )
+      ) {
+        setLibraryVisible(false);
+        return;
+      }
+      exerciseMutationInFlight.current = true;
+      const owner = currentWorkoutOwner.current;
+      setBusy(true);
+      setMessage(null);
+      measurement.current?.tap();
+      try {
+        let targetExercise = findCatalogExerciseRecord(
+          workspace.exercises,
+          catalogEx,
         );
-        setBusy(false);
-        if (created.ok) {
+        if (
+          !targetExercise &&
+          workspace.exercises.some((exercise) =>
+            knownNames.has(exercise.name.trim().toLowerCase()),
+          )
+        ) {
+          setMessage(
+            "Multiple saved exercises match this movement. Select the existing exercise to keep its history.",
+          );
+          return;
+        }
+        if (!targetExercise) {
+          if (workspace.exercises.length >= 200) {
+            setMessage(
+              "Your saved exercise list may be incomplete. Open the existing exercise before adding this movement.",
+            );
+            return;
+          }
+          const created = await createExercise(
+            catalogEx.name,
+            catalogEx.instructions
+              .map((step, index) => `${index + 1}. ${step}`)
+              .join("\n"),
+          );
+          if (currentWorkoutOwner.current !== owner) return;
+          if (!created.ok) {
+            setMessage(created.message);
+            return;
+          }
           targetExercise = created.exercise;
-          setWorkspace((curr) => ({
-            ...curr,
-            exercises: [...curr.exercises, created.exercise].sort((a, b) =>
+          setWorkspace((current) => ({
+            ...current,
+            exercises: [...current.exercises, created.exercise].sort((a, b) =>
               a.name.localeCompare(b.name),
             ),
           }));
-        } else {
-          setMessage(created.message);
+        }
+        const newEntry: ExerciseEntry = {
+          id: targetExercise.id,
+          name: targetExercise.name,
+          catalogId: catalogEx.id,
+          targetSets: 3,
+          repsMin: isOneTimeWorkout ? null : 8,
+          repsMax: isOneTimeWorkout ? null : 12,
+          durationMinutes: null,
+          restSeconds: globalRestSeconds,
+          isPlanned: false,
+        };
+        const result = await reorderWorkoutExercises(workspace.workout, [
+          ...exerciseEntries,
+          newEntry,
+        ]);
+        if (currentWorkoutOwner.current !== owner) return;
+        if (!result.ok) {
+          setMessage(result.message);
           return;
         }
+        // A previous background read must not replace this confirmed list.
+        refreshCounter.current++;
+        setWorkspace((current) => ({ ...current, workout: result.workout }));
+        setLibraryVisible(false);
+      } catch {
+        if (currentWorkoutOwner.current === owner)
+          setMessage("Could not add this exercise. Select it again to retry.");
+      } finally {
+        exerciseMutationInFlight.current = false;
+        setBusy(false);
       }
-
-      const newEntry: ExerciseEntry = {
-        id: targetExercise.id,
-        name: targetExercise.name,
-        catalogId: catalogEx.id,
-        targetSets: 3,
-        repsMin: 8,
-        repsMax: 12,
-        durationMinutes: null,
-        restSeconds: 90,
-        isPlanned: false,
-      };
-
-      setExtraExercises((curr) => [...curr, newEntry]);
     },
-    [workspace.exercises],
+    [
+      busy,
+      exerciseEntries,
+      globalRestSeconds,
+      isOneTimeWorkout,
+      workspace.exercises,
+      workspace.workout,
+    ],
   );
 
   // Update pending set input for an exercise
@@ -830,9 +901,16 @@ export function LogWorkoutScreen() {
   // Complete / log an inline set for an exercise
   const handleLogSet = useCallback(
     async (entry: ExerciseEntry) => {
-      if (workspace.workout === null || setSaveInFlight.current) return;
+      const attempt = measurement.current;
+      if (
+        workspace.workout === null ||
+        busy ||
+        exerciseMutationInFlight.current ||
+        setSaveInFlight.current
+      )
+        return;
       setSaveInFlight.current = true;
-      measurement.current?.tap();
+      attempt?.tap();
 
       try {
         // Ensure the exercise exists in the database
@@ -948,7 +1026,7 @@ export function LogWorkoutScreen() {
 
         if (!result.ok) {
           hadFailure.current = true;
-          measurement.current?.fail(
+          attempt?.fail(
             "submit",
             classifyAnalyticsFailure(result.message),
             true,
@@ -976,10 +1054,14 @@ export function LogWorkoutScreen() {
             ).length,
           }),
         );
-        const nextExerciseIndex = selectNextExerciseIndexForNotification(
-          exerciseProgressAfterSave,
-          entry.name,
-        );
+        const nextExerciseIndex = isOneTimeWorkout
+          ? exerciseEntries.findIndex(
+              (exercise) => exercise.name === entry.name,
+            )
+          : selectNextExerciseIndexForNotification(
+              exerciseProgressAfterSave,
+              entry.name,
+            );
         const nextExercise =
           nextExerciseIndex === null
             ? undefined
@@ -1004,7 +1086,9 @@ export function LogWorkoutScreen() {
             )
           : undefined;
         const allPlannedSetsCompleted =
-          exerciseEntries.length > 0 && nextExerciseIndex === null;
+          !isOneTimeWorkout &&
+          exerciseEntries.length > 0 &&
+          nextExerciseIndex === null;
         const notificationGeneration = ++restNotificationGeneration.current;
         void (async () => {
           if (restTimer?.notificationId) {
@@ -1065,6 +1149,8 @@ export function LogWorkoutScreen() {
       }
     },
     [
+      busy,
+      isOneTimeWorkout,
       globalRestSeconds,
       exerciseEntries,
       pendingInputs,
@@ -1109,25 +1195,30 @@ export function LogWorkoutScreen() {
 
   // Complete workout
   const handleFinish = useCallback(async () => {
+    if (busy || exerciseMutationInFlight.current || setSaveInFlight.current)
+      return;
+    const attempt = measurement.current;
     if (workspace.workout === null) return;
     if (isRoutineDetails(workspace.workout.details)) {
       setMessage("Wait for the workout session to start before finishing it.");
       return;
     }
-    measurement.current?.tap();
+    attempt?.tap();
 
     const totalSets = workspace.sets.length;
     const formattedDuration = formatStopwatch(elapsedSeconds);
 
-    const progressions = computeWorkoutProgressions({
-      plannedExercises,
-      completedSets: workspace.sets,
-      exercises: workspace.exercises.map((e) => ({
-        id: e.id,
-        name: e.name,
-        metadata: e.metadata,
-      })),
-    });
+    const progressions = isOneTimeWorkout
+      ? []
+      : computeWorkoutProgressions({
+          plannedExercises,
+          completedSets: workspace.sets,
+          exercises: workspace.exercises.map((e) => ({
+            id: e.id,
+            name: e.name,
+            metadata: e.metadata,
+          })),
+        });
     const progressedItems = progressions.filter(
       (p) => p.progressed && p.nextTargetKg !== null && p.nextTargetKg > 0,
     );
@@ -1180,7 +1271,7 @@ export function LogWorkoutScreen() {
               setBusy(false);
               if (!result.ok) {
                 hadFailure.current = true;
-                measurement.current?.fail(
+                attempt?.fail(
                   "submit",
                   classifyAnalyticsFailure(result.message),
                   true,
@@ -1188,7 +1279,7 @@ export function LogWorkoutScreen() {
                 return setMessage(result.message);
               }
               void dismissActiveWorkoutNotification();
-              measurement.current?.complete();
+              attempt?.complete();
               if (userId !== null) await clearLoggingDraft(userId, "workout");
               if (community.isEnrolled) {
                 Alert.alert(
@@ -1214,6 +1305,8 @@ export function LogWorkoutScreen() {
     );
   }, [
     community.isEnrolled,
+    busy,
+    isOneTimeWorkout,
     autoAdvanceTargetWeights,
     clearContextRestTimer,
     elapsedSeconds,
@@ -1229,6 +1322,7 @@ export function LogWorkoutScreen() {
 
   // Confirm abandon
   const confirmAbandon = useCallback(() => {
+    const attempt = measurement.current;
     if (workspace.workout === null) return;
     if (isRoutineDetails(workspace.workout.details)) {
       setMessage("Wait for the workout session to start before discarding it.");
@@ -1255,6 +1349,7 @@ export function LogWorkoutScreen() {
             setContextActiveWorkout?.(null);
             const result = await abandonWorkout(workspace.workout!.id);
             if (!result.ok) return setMessage(result.message);
+            attempt?.exit("cancel");
             void dismissActiveWorkoutNotification();
             if (userId !== null) await clearLoggingDraft(userId, "workout");
             router.back();
@@ -1334,6 +1429,7 @@ export function LogWorkoutScreen() {
               />
             ) : (
               <ActiveWorkoutFeed
+                oneTime={isOneTimeWorkout}
                 workout={workspace.workout}
                 exercises={exerciseEntries}
                 allExercises={workspace.exercises}
@@ -1582,6 +1678,7 @@ function StartSection(props: {
 // Active Workout Feed (Hevy/Strong Card Design)
 // ==========================================
 function ActiveWorkoutFeed(props: {
+  readonly oneTime: boolean;
   readonly workout: Workout;
   readonly exercises: ReadonlyArray<ExerciseEntry>;
   readonly allExercises: ReadonlyArray<Exercise>;
@@ -1672,7 +1769,7 @@ function ActiveWorkoutFeed(props: {
             No exercises in this workout yet.
           </ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
-            Tap "+ Add Exercise" below to pick from 870+ exercises.
+            Add an exercise, then log each set as you go.
           </ThemedText>
         </View>
       ) : (
@@ -1693,6 +1790,7 @@ function ActiveWorkoutFeed(props: {
           return (
             <LiveExerciseCard
               key={`${entry.name}-${index}`}
+              oneTime={props.oneTime}
               entry={entry}
               index={index}
               totalExercises={props.exercises.length}
@@ -1813,6 +1911,7 @@ function renderSetBadge(setType: WorkoutSetType | undefined, sequence: number) {
 // Individual Exercise Card with Inline Set Table
 // ==========================================
 function LiveExerciseCard(props: {
+  readonly oneTime: boolean;
   readonly entry: ExerciseEntry;
   readonly index: number;
   readonly totalExercises: number;
@@ -1862,7 +1961,9 @@ function LiveExerciseCard(props: {
         ? String(props.entry.repsMax)
         : props.entry.repsMin !== null
           ? String(props.entry.repsMin)
-          : "10";
+          : props.oneTime
+            ? "—"
+            : "10";
 
   return (
     <View style={styles.exerciseCard}>
@@ -1873,16 +1974,22 @@ function LiveExerciseCard(props: {
             {props.entry.name}
           </ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
-            Target: {props.entry.targetSets} sets ·{" "}
-            {props.entry.repsMin === null
-              ? props.entry.durationMinutes
-                ? `${props.entry.durationMinutes} min`
-                : "reps"
-              : `${props.entry.repsMin}–${props.entry.repsMax} reps`}
-            {targetLoadDisplay !== null
-              ? ` · ${targetLoadDisplay} ${unit}`
-              : ""}{" "}
-            · {props.entry.restSeconds}s rest
+            {props.oneTime ? (
+              `${props.completedSets.length} sets logged · ${props.entry.restSeconds}s rest`
+            ) : (
+              <>
+                Target: {props.entry.targetSets} sets ·{" "}
+                {props.entry.repsMin === null
+                  ? props.entry.durationMinutes
+                    ? `${props.entry.durationMinutes} min`
+                    : "reps"
+                  : `${props.entry.repsMin}–${props.entry.repsMax} reps`}
+                {targetLoadDisplay !== null
+                  ? ` · ${targetLoadDisplay} ${unit}`
+                  : ""}{" "}
+                · {props.entry.restSeconds}s rest
+              </>
+            )}
           </ThemedText>
         </View>
 

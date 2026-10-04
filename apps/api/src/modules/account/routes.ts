@@ -19,6 +19,9 @@ import {
   accountDeleteStatusResponseSchema,
   accountDeleteStatusSchema,
   accountExportResponseSchema,
+  analyticsEventsListQuerySchema,
+  projectAnalyticsEventsForCatalog,
+  type AnalyticsEventsListQuery,
   accountDeleteChallengeResponseSchema,
   aiConsentResponseSchema,
   updateAiConsentSchema,
@@ -65,22 +68,64 @@ const memoryToWire = (memory: MemoryRecord) => ({
 const accountExportToWire = (
   exportDoc: AccountExport,
   memories: readonly MemoryRecord[],
-): AccountExportResponse =>
-  accountExportResponseSchema.parse({
+  catalog?: AnalyticsEventsListQuery["catalog"],
+): AccountExportResponse => {
+  const analytics = exportDoc.productAnalytics;
+  const projected = projectAnalyticsEventsForCatalog(
+    (analytics?.events ?? []).map((event) => ({
+      id: event.id,
+      schemaVersion: 2,
+      recordedAt: event.recordedAt.toISOString(),
+      sessionId: event.sessionId,
+      sequence: event.sequence,
+      flowId: event.flowId ?? undefined,
+      platform: event.platform,
+      appVersion: event.appVersion,
+      build: event.build ?? undefined,
+      name: event.name,
+      properties: event.properties,
+    })),
+    catalog,
+  );
+  return accountExportResponseSchema.parse({
     export: {
       manifest: exportDoc.manifest
         ? {
             schemaVersion: exportDoc.manifest.schemaVersion,
             generatedAt: exportDoc.manifest.generatedAt.toISOString(),
-            completeness: exportDoc.manifest.completeness,
+            completeness: projected.omittedEventCount
+              ? "partial"
+              : exportDoc.manifest.completeness,
             counts: {
               ...exportDoc.manifest.counts,
               memories: memories.length,
+              ...(analytics
+                ? { productAnalyticsEvents: projected.events.length }
+                : {}),
             },
           }
         : undefined,
       community: exportDoc.community,
       recurringMeals: exportDoc.recurringMeals,
+      productAnalytics: analytics
+        ? {
+            catalog: catalog ?? "legacy-v2",
+            omittedEventCount: projected.omittedEventCount,
+            events: projected.events,
+            consent: analytics.consent
+              ? {
+                  version: analytics.consent.version,
+                  granted: analytics.consent.granted,
+                  revision: analytics.consent.revision,
+                  epoch: analytics.consent.epoch,
+                  consentedAt:
+                    analytics.consent.consentedAt?.toISOString() ?? null,
+                  revokedAt: analytics.consent.revokedAt?.toISOString() ?? null,
+                  updatedAt: analytics.consent.updatedAt.toISOString(),
+                }
+              : null,
+          }
+        : undefined,
       userId: exportDoc.userId,
       generatedAt: exportDoc.generatedAt.toISOString(),
       // `z.unknown()` carries the stored shape; we hand back the
@@ -239,6 +284,7 @@ const accountExportToWire = (
         : null,
     },
   });
+};
 
 export const accountRoutes: FastifyPluginAsync<AccountRoutesOptions> = async (
   app,
@@ -247,10 +293,21 @@ export const accountRoutes: FastifyPluginAsync<AccountRoutesOptions> = async (
   // GET /v1/account/export — return the verified user's full
   // export envelope. Pure read; no side effects. The client
   // is expected to download this before initiating deletion.
-  app.get(
+  app.get<{ Querystring: AnalyticsEventsListQuery }>(
     "/account/export",
     { preHandler: app.authenticate },
-    async (request): Promise<AccountExportResponse> => {
+    async (request, reply): Promise<AccountExportResponse | void> => {
+      const query = analyticsEventsListQuerySchema.safeParse(request.query);
+      if (!query.success) {
+        sendApiError(
+          reply,
+          request,
+          422,
+          "VALIDATION_ERROR",
+          "Invalid analytics event catalog query",
+        );
+        return;
+      }
       const principal = request.principal;
       if (!principal) {
         throw new Error("principal missing after authentication");
@@ -264,7 +321,7 @@ export const accountRoutes: FastifyPluginAsync<AccountRoutesOptions> = async (
         includeSuperseded: true,
         limit: 10_000,
       });
-      return accountExportToWire(exportDoc, memories);
+      return accountExportToWire(exportDoc, memories, query.data.catalog);
     },
   );
 

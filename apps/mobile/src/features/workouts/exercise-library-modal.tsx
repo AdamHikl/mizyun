@@ -9,6 +9,7 @@ import {
 import { useMemo, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
+  EXERCISE_CATALOG,
   searchExerciseCatalog,
   type CatalogExercise,
   type MovementPattern,
@@ -25,6 +26,8 @@ interface ExerciseLibraryModalProps {
   readonly onClose: () => void;
   readonly onSelectExercise?: (exercise: CatalogExercise) => void;
 }
+
+const PAGE_SIZE = 60;
 
 const MOVEMENT_PATTERNS: ReadonlyArray<{
   readonly label: string;
@@ -49,6 +52,7 @@ export function ExerciseLibraryModal({
 }: ExerciseLibraryModalProps) {
   const theme = useTheme();
   const [searchQuery, setSearchQuery] = useState("");
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [selectedPattern, setSelectedPattern] = useState<
     MovementPattern | "all"
   >("all");
@@ -62,9 +66,10 @@ export function ExerciseLibraryModal({
     return searchExerciseCatalog({
       query: searchQuery.trim() || undefined,
       movementPattern: selectedPattern === "all" ? undefined : selectedPattern,
-      limit: 60,
+      limit: EXERCISE_CATALOG.length,
     });
   }, [searchQuery, selectedPattern]);
+  const visibleExercises = filteredExercises.slice(0, visibleCount);
 
   return (
     <Modal
@@ -91,16 +96,21 @@ export function ExerciseLibraryModal({
               </Pressable>
             </View>
             <ThemedText type="small" themeColor="textSecondary">
-              Browse 880+ science-backed exercises with movement patterns &
-              cueing.
+              Browse {EXERCISE_CATALOG.length} exercises with step-by-step
+              instructions and form tips.
             </ThemedText>
 
             <TextInput
               style={[styles.searchInput, { color: theme.text }]}
               placeholder="Search exercises by name, muscle, equipment…"
+              accessibilityLabel="Search exercise library"
               placeholderTextColor="#8A8D91"
               value={searchQuery}
-              onChangeText={setSearchQuery}
+              onChangeText={(query) => {
+                setSearchQuery(query);
+                setVisibleCount(PAGE_SIZE);
+                setExpandedExerciseId(null);
+              }}
               autoCorrect={false}
               clearButtonMode="while-editing"
             />
@@ -117,7 +127,12 @@ export function ExerciseLibraryModal({
                     key={pattern.value}
                     accessibilityRole="button"
                     accessibilityLabel={`Filter ${pattern.label}`}
-                    onPress={() => setSelectedPattern(pattern.value)}
+                    accessibilityState={{ selected: isSelected }}
+                    onPress={() => {
+                      setSelectedPattern(pattern.value);
+                      setVisibleCount(PAGE_SIZE);
+                      setExpandedExerciseId(null);
+                    }}
                     style={[
                       styles.patternChip,
                       isSelected && styles.patternChipSelected,
@@ -143,10 +158,18 @@ export function ExerciseLibraryModal({
             keyboardDismissMode="on-drag"
           >
             <ThemedText type="small" themeColor="textSecondary">
-              Showing {filteredExercises.length} exercises
+              Showing {visibleExercises.length} of {filteredExercises.length}{" "}
+              exercises
             </ThemedText>
 
-            {filteredExercises.map((exercise) => {
+            {filteredExercises.length === 0 ? (
+              <ThemedText type="small" themeColor="textSecondary">
+                No exercises match. Try another name, muscle or equipment, or
+                select All movement patterns.
+              </ThemedText>
+            ) : null}
+
+            {visibleExercises.map((exercise) => {
               const isExpanded = expandedExerciseId === exercise.id;
               return (
                 <ThemedView
@@ -157,6 +180,7 @@ export function ExerciseLibraryModal({
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`Toggle ${exercise.name}`}
+                    accessibilityState={{ expanded: isExpanded }}
                     onPress={() =>
                       setExpandedExerciseId(isExpanded ? null : exercise.id)
                     }
@@ -167,7 +191,7 @@ export function ExerciseLibraryModal({
                       <View style={styles.badgesRow}>
                         <View style={styles.badge}>
                           <ThemedText type="small" style={styles.badgeText}>
-                            {exercise.movementPattern.replace("_", " ")}
+                            {exercise.movementPattern.replaceAll("_", " ")}
                           </ThemedText>
                         </View>
                         {exercise.category ? (
@@ -209,6 +233,11 @@ export function ExerciseLibraryModal({
 
                   {isExpanded ? (
                     <View style={styles.expandedContent}>
+                      {exercise.description ? (
+                        <ThemedText type="small" themeColor="textSecondary">
+                          {exercise.description}
+                        </ThemedText>
+                      ) : null}
                       {exercise.primaryMuscles.length > 0 ? (
                         <ThemedText type="small">
                           <ThemedText type="smallBold">Muscles: </ThemedText>
@@ -219,27 +248,66 @@ export function ExerciseLibraryModal({
                         </ThemedText>
                       ) : null}
 
-                      {exercise.equipment.length > 0 ? (
+                      {(exercise.requiredEquipment ?? exercise.equipment)
+                        .length > 0 ? (
                         <ThemedText type="small">
                           <ThemedText type="smallBold">Equipment: </ThemedText>
-                          {exercise.equipment
-                            .map((e) => e.replace("_", " "))
+                          {(exercise.requiredEquipment ?? exercise.equipment)
+                            .map((e) => e.replaceAll("_", " "))
                             .join(", ")}
                         </ThemedText>
                       ) : null}
 
-                      {exercise.instructions ? (
+                      {exercise.instructions.length > 0 ? (
                         <View style={styles.instructionsBox}>
                           <ThemedText type="smallBold">
-                            Instructions:
+                            How to perform
                           </ThemedText>
-                          <ThemedText
-                            type="small"
-                            themeColor="textSecondary"
-                            style={styles.instructionsText}
-                          >
-                            {exercise.instructions}
+                          {exercise.instructions.map((step, index) => (
+                            <ThemedText
+                              key={`${exercise.id}-step-${index}`}
+                              type="small"
+                              themeColor="textSecondary"
+                              style={styles.instructionsText}
+                            >
+                              {`${index + 1}. ${step}`}
+                            </ThemedText>
+                          ))}
+                        </View>
+                      ) : null}
+
+                      {exercise.tips && exercise.tips.length > 0 ? (
+                        <View style={styles.instructionsBox}>
+                          <ThemedText type="smallBold">Form tips</ThemedText>
+                          {exercise.tips.map((tip, index) => (
+                            <ThemedText
+                              key={`${exercise.id}-tip-${index}`}
+                              type="small"
+                              themeColor="textSecondary"
+                              style={styles.instructionsText}
+                            >
+                              {`• ${tip}`}
+                            </ThemedText>
+                          ))}
+                        </View>
+                      ) : null}
+
+                      {exercise.commonMistakes &&
+                      exercise.commonMistakes.length > 0 ? (
+                        <View style={styles.instructionsBox}>
+                          <ThemedText type="smallBold">
+                            Common mistakes
                           </ThemedText>
+                          {exercise.commonMistakes.map((mistake, index) => (
+                            <ThemedText
+                              key={`${exercise.id}-mistake-${index}`}
+                              type="small"
+                              themeColor="textSecondary"
+                              style={styles.instructionsText}
+                            >
+                              {`• ${mistake}`}
+                            </ThemedText>
+                          ))}
                         </View>
                       ) : null}
 
@@ -281,6 +349,19 @@ export function ExerciseLibraryModal({
                 </ThemedView>
               );
             })}
+
+            {visibleExercises.length < filteredExercises.length ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Load more exercises"
+                onPress={() => setVisibleCount((count) => count + PAGE_SIZE)}
+                style={styles.selectExerciseButton}
+              >
+                <ThemedText type="smallBold" style={styles.selectExerciseText}>
+                  Load more exercises
+                </ThemedText>
+              </Pressable>
+            ) : null}
           </ScrollView>
         </SafeAreaView>
       </ThemedView>

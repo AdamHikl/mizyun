@@ -73,7 +73,7 @@ describe("buildGetExerciseHistoryTool", () => {
 
     const exercise = data.exercise as Record<string, unknown>;
     expect(exercise.id).toBe("barbell-bench-press");
-    expect(exercise.name).toBe("Barbell bench press");
+    expect(exercise.name).toBe("Barbell Bench Press");
 
     const summary = data.summary as Record<string, unknown>;
     expect(summary.bestLoadKg).toBe(100);

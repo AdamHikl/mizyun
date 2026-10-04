@@ -698,7 +698,10 @@ export const createBlankWorkoutWith = async (
     clientOperationId: operationId,
     name: name.trim() || "Custom Workout",
     ...(startedAtDate ? { startedAt: startedAtDate.toISOString() } : {}),
-    details: withWorkoutLifecycle({}, { kind: "session" }),
+    details: withWorkoutLifecycle(
+      { sessionMode: "one_time", sessionExercises: [] },
+      { kind: "session" },
+    ),
   });
   if (!parsed.success) {
     return { ok: false, message: "Invalid workout details." };

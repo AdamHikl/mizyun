@@ -364,6 +364,10 @@ describe("workouts-hub-data", () => {
     ).toEqual({
       kind: "session",
     });
+    expect(body.details).toMatchObject({
+      sessionMode: "one_time",
+      sessionExercises: [],
+    });
   });
 
   it("creates native-safe operation IDs without a browser crypto global", async () => {

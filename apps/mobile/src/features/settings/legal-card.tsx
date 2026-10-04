@@ -28,6 +28,16 @@ export function LegalCard({
     }
   };
 
+  const openExerciseSource = async () => {
+    try {
+      await openBrowserAsync("https://repdb.co", {
+        presentationStyle: WebBrowserPresentationStyle.AUTOMATIC,
+      });
+    } catch {
+      // Keep the source credit visible even if the browser is unavailable.
+    }
+  };
+
   return (
     <View style={styles.container}>
       <ThemedView
@@ -130,6 +140,25 @@ export function LegalCard({
           <ThemedText style={styles.legalLinkArrow}>↗</ThemedText>
         </Pressable>
       </View>
+
+      <ThemedView type="backgroundElement" style={styles.creditsContainer}>
+        <ThemedText type="smallBold">Credits</ThemedText>
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel="Exercise data by RepDB (repdb.co)"
+          accessibilityHint="Opens the exercise data source website"
+          onPress={openExerciseSource}
+          style={({ pressed }) => [
+            styles.legalLinkRow,
+            pressed && styles.pressed,
+          ]}
+        >
+          <ThemedText type="small" themeColor="primary">
+            Exercise data by RepDB (repdb.co)
+          </ThemedText>
+          <ThemedText style={styles.legalLinkArrow}>↗</ThemedText>
+        </Pressable>
+      </ThemedView>
     </View>
   );
 }
@@ -137,6 +166,11 @@ export function LegalCard({
 const styles = StyleSheet.create({
   container: {
     gap: Spacing.three,
+  },
+  creditsContainer: {
+    padding: Spacing.three,
+    borderRadius: 14,
+    gap: Spacing.one,
   },
   disclaimerContainer: {
     flexDirection: "row",

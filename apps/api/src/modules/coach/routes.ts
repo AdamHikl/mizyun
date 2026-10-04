@@ -158,11 +158,17 @@ const evidenceKinds = (
   );
 };
 
+const unreadableAssistantText =
+  "I couldn't read that Coach response. Please send your message again.";
+
 const toMessageWire = (stored: StoredConversationMessage): CoachMessage => ({
   id: stored.id,
   conversationId: stored.conversationId,
   role: stored.role,
-  text: stored.text,
+  text:
+    stored.role === "assistant"
+      ? (extractAssistantText(stored.text) ?? unreadableAssistantText)
+      : stored.text,
   status: stored.status,
   provider:
     typeof stored.providerMetadata.provider === "string"
@@ -1083,7 +1089,7 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
             ? cleanAssistantProposalText(rawAssistantText, actionProposal)
             : rawAssistantText && rawAssistantText.trim().length > 0
               ? rawAssistantText
-              : "I can only help with fitness and nutrition questions. Ask me something gym-related!";
+              : unreadableAssistantText;
         const assistantMessage =
           await options.conversationRepository.addMessage(
             principal.userId,

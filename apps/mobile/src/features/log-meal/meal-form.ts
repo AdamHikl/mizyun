@@ -3,6 +3,9 @@ import {
   type FoodDraftCandidate,
   type FoodEntry,
 } from "@mizyun/contracts";
+import { nutritionForWeightFromPer100g } from "@mizyun/core";
+
+export type NutritionEntryBasis = "total" | "per100g";
 
 export type OptionalNumberResult =
   { readonly ok: true; readonly value: number | null } | { readonly ok: false };
@@ -77,6 +80,58 @@ export const advancedNutrientsFromForm = (form: MealFormStrings) => {
   };
 };
 
+/** Convert raw label inputs only at preview/submission, never cumulatively. */
+export const mealNutritionForSubmission = (
+  form: MealFormStrings,
+  basis: NutritionEntryBasis,
+  portionGrams: string,
+) => {
+  const calories = parseOptionalNutritionNumber(form.calories);
+  const protein = parseOptionalNutritionNumber(form.protein);
+  const carbs = parseOptionalNutritionNumber(form.carbs);
+  const fat = parseOptionalNutritionNumber(form.fat);
+  const weight = parseOptionalNutritionNumber(portionGrams);
+  const advanced = advancedNutrientsFromForm(form);
+  if (
+    !weight.ok ||
+    (weight.value !== null && weight.value <= 0) ||
+    (basis === "per100g" && (weight.value === null || weight.value > 20_000))
+  )
+    return {
+      ok: false as const,
+      message:
+        basis === "per100g"
+          ? "Enter a food weight greater than 0 and no more than 20,000 g for values per 100 g."
+          : "Portion weight must be greater than zero or blank.",
+    };
+  if (!calories.ok || !protein.ok || !carbs.ok || !fat.ok || advanced === null)
+    return {
+      ok: false as const,
+      message: "Nutrient values must be non-negative numbers or blank.",
+    };
+  const nutrition = {
+    caloriesKcal: calories.value,
+    proteinG: protein.value,
+    carbohydrateG: carbs.value,
+    fatG: fat.value,
+    ...advanced,
+  };
+  if (basis === "total")
+    return { ok: true as const, nutrition, grams: weight.value };
+  const scaled = nutritionForWeightFromPer100g(nutrition, weight.value!);
+  if (!scaled.ok)
+    return {
+      ok: false as const,
+      message:
+        "The label values or calculated totals exceed the supported nutrient limits. Check the values and food weight.",
+    };
+  return {
+    ok: true as const,
+    nutrition: { ...nutrition, ...scaled.value },
+    grams: weight.value,
+  };
+};
+
 export const sameAdvancedNutrients = (
   previous: {
     readonly fibreG?: number | null;
@@ -99,7 +154,45 @@ export const needsFreshAdvancedGrant = (
   isExactRetry: boolean,
 ): boolean => hasAdvancedInput && !isExactRetry;
 
+/** Validate a route/draft calendar day without UTC parsing or rollover. */
+export const parseMealDate = (value: unknown): string | null => {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value))
+    return null;
+  const [year, month, day] = value.split("-").map(Number);
+  if (year < 1000) return null;
+  const date = new Date(year, month - 1, day, 12);
+  return date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+    ? value
+    : null;
+};
+
+export const mealTimestampForDate = (
+  date: string,
+  now: Date = new Date(),
+): string => {
+  const [year, month, day] = date.split("-").map(Number);
+  const local = new Date(year, month - 1, day, 12);
+  return local.toDateString() === now.toDateString()
+    ? now.toISOString()
+    : local.toISOString();
+};
+
+export const mealTimestampMatchesDate = (
+  timestamp: string | null | undefined,
+  date: string,
+): boolean => {
+  if (!timestamp || !parseMealDate(date)) return false;
+  return (
+    new Date(timestamp).toDateString() ===
+    new Date(mealTimestampForDate(date)).toDateString()
+  );
+};
+
 export interface RecoverableMealDraft extends MealFormStrings {
+  readonly mealDate?: string;
+  readonly nutritionBasis?: NutritionEntryBasis;
   readonly portionGrams?: string;
   readonly clientOperationId?: string;
   readonly consumedAt?: string;
@@ -125,10 +218,16 @@ export const isRecoverableMealDraft = (
   const portionGramsValid =
     record.portionGrams === undefined ||
     typeof record.portionGrams === "string";
+  const basisValid =
+    record.nutritionBasis === undefined ||
+    record.nutritionBasis === "total" ||
+    record.nutritionBasis === "per100g";
   const consumedAtValid =
     record.consumedAt === undefined ||
     (typeof record.consumedAt === "string" &&
       !Number.isNaN(Date.parse(record.consumedAt)));
+  const mealDateValid =
+    record.mealDate === undefined || parseMealDate(record.mealDate) !== null;
   const versionValid =
     record.submissionVersion === undefined ||
     typeof record.submissionVersion === "number";
@@ -152,8 +251,10 @@ export const isRecoverableMealDraft = (
   return (
     stringsValid &&
     portionGramsValid &&
+    basisValid &&
     clientOpIdValid &&
     consumedAtValid &&
+    mealDateValid &&
     versionValid &&
     descriptionValid &&
     aiDraftValid &&
@@ -188,7 +289,10 @@ export const upgradeLegacyMealDraft = (
   now: () => Date = () => new Date(),
 ): UpgradedMealDraft => {
   const currentDate = now();
-  const isStale = isStaleMealTimestamp(draft.consumedAt, currentDate);
+  const isStale =
+    draft.mealDate && mealTimestampMatchesDate(draft.consumedAt, draft.mealDate)
+      ? false
+      : isStaleMealTimestamp(draft.consumedAt, currentDate);
   const clientOperationId =
     !isStale && isValidOperationId(draft.clientOperationId)
       ? draft.clientOperationId

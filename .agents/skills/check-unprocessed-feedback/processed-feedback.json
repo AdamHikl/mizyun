@@ -34,6 +34,31 @@
       "id": "cda27b78-b913-4b2a-9319-5826f24b8cea",
       "processedAt": "2026-09-29T15:30:00.579Z",
       "note": "Logged as issue #139"
+    },
+    {
+      "id": "64f30be0-8382-4f9d-bc69-60c56aa7b5e4",
+      "processedAt": "2026-10-03T11:24:41.809Z",
+      "note": "Resolved per user instruction on 2026-10-03"
+    },
+    {
+      "id": "0296e598-4fc9-43d9-a62d-30c7a947a65d",
+      "processedAt": "2026-10-03T11:24:41.887Z",
+      "note": "Resolved per user instruction on 2026-10-03"
+    },
+    {
+      "id": "7c6e35bd-eae6-453b-8879-5bb0ea5dc01b",
+      "processedAt": "2026-10-03T11:24:41.963Z",
+      "note": "Resolved per user instruction on 2026-10-03"
+    },
+    {
+      "id": "6f0f8df0-b1a1-4d54-b804-db9b1b76d247",
+      "processedAt": "2026-10-03T11:24:42.034Z",
+      "note": "Logged as issue #184: https://github.com/AdamHikl/mizyun/issues/184"
+    },
+    {
+      "id": "5b1be555-43d7-4471-bd52-393989b6914c",
+      "processedAt": "2026-10-03T11:24:42.105Z",
+      "note": "Logged as issue #185: https://github.com/AdamHikl/mizyun/issues/185"
     }
   ]
 }

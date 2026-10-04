@@ -8,14 +8,13 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, Stack } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { LoggingFlowMeasurement } from "@mizyun/observability";
+import { useLoggingFlowMeasurement } from "@/features/analytics/flow-measurement";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
-import { analyticsClient } from "@/composition/analytics-client";
 import {
   classifyAnalyticsFailure,
   isRetryableAnalyticsFailure,
@@ -38,21 +37,11 @@ export function LogWeightScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draftLoaded, setDraftLoaded] = useState(false);
-  const measurement = useRef<LoggingFlowMeasurement | null>(null);
   const hadFailure = useRef(false);
   const userId = session?.user.id ?? null;
+  const measurement = useLoggingFlowMeasurement("body_measurement", userId);
   const unitSystem = profile?.unitSystem ?? "metric";
   const unitLabel = unitSystem === "imperial" ? "lb" : "kg";
-
-  useEffect(() => {
-    measurement.current = new LoggingFlowMeasurement(
-      "body_measurement",
-      analyticsClient,
-    );
-    return () => {
-      measurement.current = null;
-    };
-  }, []);
 
   useEffect(() => {
     if (userId === null) return;
@@ -82,8 +71,9 @@ export function LogWeightScreen() {
   }, [chest, draftLoaded, unitSystem, userId, waist, weight]);
 
   const onSubmit = useCallback(async () => {
-    measurement.current?.tap();
-    if (hadFailure.current) measurement.current?.retry();
+    const attempt = measurement.current;
+    attempt?.tap();
+    if (hadFailure.current) attempt?.retry();
     setSubmitting(true);
     setError(null);
     const result = await submitLogWeight({
@@ -94,14 +84,14 @@ export function LogWeightScreen() {
     });
     setSubmitting(false);
     if (result.ok) {
-      measurement.current?.complete();
+      attempt?.complete();
       if (userId !== null) await clearLoggingDraft(userId, "weight");
       router.back();
       return;
     }
     hadFailure.current = true;
     const reason = classifyAnalyticsFailure(result.message);
-    measurement.current?.fail(
+    attempt?.fail(
       reason === "invalid_input" ? "validation" : "submit",
       reason,
       isRetryableAnalyticsFailure(reason),

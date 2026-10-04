@@ -1,0 +1,65 @@
+{
+  "date": "2026-10-04",
+  "baseSha": "55338240639e44e0c609477db0cfa09a3abe8655",
+  "scope": "local uncommitted implementation; concurrent unrelated changes preserved",
+  "source": {
+    "provider": "RepDB Free",
+    "url": "https://exercise-dataset.com/exercises.json",
+    "sha256": "b651511287cd7e9261158598bf0263c56c19d2403ad8b57f68426c9c99d17421",
+    "schemaVersion": 3
+  },
+  "counts": {
+    "previous": 888,
+    "active": 609,
+    "archived": 888,
+    "change": -279,
+    "deliberateReusedIds": 62,
+    "lookupAliases": 2,
+    "professionalAccepted": 0,
+    "mediaAssets": 0
+  },
+  "archivedDefinitionsUnchanged": true,
+  "knownCandidateDuplicatePairs": [
+    ["bodyweight-overhead-press", "pike-push-ups"],
+    ["rear-delt-fly", "dumbbell-reverse-fly"],
+    ["lying-tricep-extension", "db-skull-crusher"]
+  ],
+  "releaseAcceptance": {
+    "professionalPerEntryReview": "pending",
+    "dev": "not deployed",
+    "device": "not run",
+    "production": "not released"
+  },
+  "verification": "See status.md for final fresh commands/results; this artifact records source and identity evidence.",
+  "candidateFiles": {
+    "packages/core/src/exercise-catalog.ts": "b3cb758cffd871e582f52a3dffe8e96e316872f96fd3f82a776ead8dc1f0cc62",
+    "packages/core/src/exercise-catalog-data.ts": "76a0873b160f92b37ed9d2e592675fb80781f69dbae4fd60fe1ba3d12973d397",
+    "packages/core/src/exercise-catalog-legacy.ts": "630082f09158e5f3635f839a8a3c0e0215f01bb884d4964280de1f9db9c635ee",
+    "packages/core/src/training-prescription.ts": "cb00a0f1ecd4074fbc7a60cf383597038d3c1cc289b4be74e5c3b0d40a3c3b17",
+    "packages/core/src/index.ts": "a1647b1ed4acabd681bf560b33de6c7c2419e66d739211548c8fe302ab506541",
+    "packages/contracts/src/exercise.ts": "fb5a62639b47ba200c57cf7fccd7b52de604f133b0e98d33fe605d34822acd61",
+    "apps/api/src/modules/exercises/routes.ts": "d6a6c1365726cd1ffc98b2a581c8d91adaa7b2ed90c84fdaf3040a569be50db6",
+    "apps/mobile/src/features/workouts/exercise-library-modal.tsx": "a61aad3bb84b6333c43b69b084df8edb162d957311b5c3692d4bb1933d885087",
+    "apps/mobile/src/features/workouts/catalog-exercise-record.ts": "7c7dd48e6a9aae2919b03db1e7b37d044cc5519f06a1382b3302f2215710e06e",
+    "apps/mobile/src/features/workouts/exercise-progression-data.ts": "c2855bf5785a01c132630311f939c0becf5ea06674e0d6ce88bbad9a998375dd",
+    "apps/mobile/src/features/workouts/index.ts": "72e5eb268097a57b0bbcc1695a157a9b07f23c39552f4067fd7b79ddb7a680e0",
+    "apps/mobile/src/features/log-workout/log-workout-screen.tsx": "810477006a747757ad8141456f9235e43a07481d608d06c7986b990db4e7963b",
+    "apps/mobile/src/features/settings/legal-card.tsx": "ea3cd01ec81e326e143ee952e17b2a7eae90c6e24abf9195e15396eee2afd707",
+    "scripts/import-exercise-catalog.mjs": "09e12b40dc044b4bc771cd23404aa8bb4fc93af683c0e2a418b1d7a907d3825f",
+    "package.json": "ebf363d541ecf8854f973942ed5127f72b03d5f252f8ec4941400e12a56407b6"
+  },
+  "review": {
+    "status": "scoped implementation approved",
+    "professionalContentAcceptance": "not certified",
+    "findingsResolved": [
+      "fresh archived lookup",
+      "exact alias variants",
+      "equipment support mismatch",
+      "depth cue corruption",
+      "overhead/knee limitations",
+      "saved UUID rename and metadata preservation",
+      "first-200 page loss and uncertain duplicate creation"
+    ],
+    "followUp": "https://github.com/AdamHikl/mizyun/issues/191"
+  }
+}

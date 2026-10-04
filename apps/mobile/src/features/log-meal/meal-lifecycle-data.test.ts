@@ -11,6 +11,7 @@ import {
   fetchFoodDayWith,
   fetchFoodEntryWith,
   fetchFoodHistoryWith,
+  fetchFoodDateHistoryWith,
   groupFoodEntriesByDay,
   groupFoodEntriesWith,
   mergeFoodEntries,
@@ -688,4 +689,87 @@ it("manual copies do not inherit the automatic occurrence marker", async () => {
   expect(
     (requests[0]?.body as { details: Record<string, unknown> }).details,
   ).toEqual({ calculationText: "Saved calculation" });
+});
+
+describe("refreshing a selected historical day", () => {
+  it("uses exact local day bounds and follows pagination", async () => {
+    const requests: RequestOptions[] = [];
+    const date = "2026-03-29";
+    const past = {
+      ...ENTRY,
+      consumedAt: new Date(2026, 2, 29, 12).toISOString(),
+    };
+    const result = await fetchFoodDateHistoryWith(
+      queuedClient(
+        [
+          {
+            ok: true,
+            value: {
+              foodEntries: [
+                past,
+                {
+                  ...past,
+                  id: "before",
+                  consumedAt: new Date(
+                    new Date(2026, 2, 29).getTime() - 1,
+                  ).toISOString(),
+                },
+                {
+                  ...past,
+                  id: "after",
+                  consumedAt: new Date(2026, 2, 30).toISOString(),
+                },
+              ],
+              nextCursor: "second",
+            },
+          },
+          {
+            ok: true,
+            value: {
+              foodEntries: [{ ...past, id: "added" }],
+              nextCursor: null,
+            },
+          },
+        ],
+        requests,
+      ),
+      date,
+      new Date(2026, 9, 4),
+    );
+    expect(result.entries).toHaveLength(2);
+    const query = new URL(requests[0].path, "https://example.test")
+      .searchParams;
+    expect(query.get("from")).toBe(
+      new Date(2026, 2, 29).toISOString().slice(0, 10),
+    );
+    expect(query.get("to")).toBe(
+      new Date(new Date(2026, 2, 30).getTime() - 1).toISOString().slice(0, 10),
+    );
+    expect(Number(query.get("utcOffsetMinutes") ?? 0)).toBe(0);
+    expect(requests[1].path).toContain("cursor=second");
+  });
+  it("surfaces a later page failure rather than replacing history with partial results", async () => {
+    const result = await fetchFoodDateHistoryWith(
+      queuedClient([
+        { ok: true, value: { foodEntries: [ENTRY], nextCursor: "second" } },
+        {
+          ok: false,
+          error: { kind: "network_error", cause: new Error("offline") },
+        },
+      ]),
+      "2026-07-19",
+    );
+    expect(result.message).toBeTruthy();
+    expect(result.entries).toEqual([]);
+  });
+  it("stops repeated cursors", async () => {
+    const result = await fetchFoodDateHistoryWith(
+      queuedClient([
+        { ok: true, value: { foodEntries: [ENTRY], nextCursor: "same" } },
+        { ok: true, value: { foodEntries: [ENTRY], nextCursor: "same" } },
+      ]),
+      "2026-07-19",
+    );
+    expect(result.message).toBeTruthy();
+  });
 });

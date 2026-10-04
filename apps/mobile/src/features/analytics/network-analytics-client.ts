@@ -70,7 +70,27 @@ export interface StoredLocalConsentState {
   readonly pendingDenial?: boolean;
 }
 
+/** Opaque, client-owned attempt context. Only its random ID is transmitted. */
+export interface AnalyticsFlowScope {
+  readonly flowId: string;
+}
+
+type UiAnalyticsEventName =
+  | "dashboard_control_clicked"
+  | "settings_search_used"
+  | "settings_search_selected"
+  | "onboarding_step_completed"
+  | "onboarding_failed"
+  | "onboarding_exited";
+type UiAnalyticsEventInput = {
+  [Name in UiAnalyticsEventName]: Pick<
+    Extract<AnalyticsEventV2, { name: Name }>,
+    "name" | "properties"
+  >;
+}[UiAnalyticsEventName];
+
 export type AnalyticsEventInput =
+  | UiAnalyticsEventInput
   | {
       readonly name: "app_session_started";
       readonly properties: { readonly entryPoint: "cold_start" | "foreground" };
@@ -82,18 +102,6 @@ export type AnalyticsEventInput =
   | {
       readonly name: "onboarding_started";
       readonly properties?: Record<string, never>;
-    }
-  | {
-      readonly name: "onboarding_step_completed";
-      readonly properties: {
-        readonly step:
-          | "welcome"
-          | "profile"
-          | "goals"
-          | "preferences"
-          | "notifications"
-          | "complete";
-      };
     }
   | {
       readonly name: "onboarding_completed";
@@ -164,7 +172,11 @@ export class NetworkAnalyticsClient {
   private sessionId = Crypto.randomUUID();
   private sequence = 0;
   private lastActivityAt = Date.now();
-  private activeFlowId: string | null = null;
+  private lifecycleGeneration = 0;
+  private readonly flowScopes = new WeakMap<
+    AnalyticsFlowScope,
+    { generation: number; epoch: string | null | undefined }
+  >();
   private cachedConsent: StoredLocalConsentState | null = null;
   private activeFlush: Promise<void> | null = null;
 
@@ -179,17 +191,21 @@ export class NetworkAnalyticsClient {
       QUEUE_FILE_NAME,
     ),
     private readonly now: () => number = Date.now,
-    private readonly appVersion = "0.1.0",
+    private readonly appVersion = "unknown",
+    private readonly build?: string,
   ) {}
 
-  startFlow(): string {
-    const id = Crypto.randomUUID();
-    this.activeFlowId = id;
-    return id;
-  }
-
-  endFlow(): void {
-    this.activeFlowId = null;
+  createFlowScope(): AnalyticsFlowScope {
+    const scope = Object.freeze({ flowId: Crypto.randomUUID() });
+    this.flowScopes.set(scope, {
+      generation: this.lifecycleGeneration,
+      epoch: this.cachedConsent
+        ? this.cachedConsent.granted
+          ? this.cachedConsent.epoch
+          : null
+        : undefined,
+    });
+    return scope;
   }
 
   async getConsent(): Promise<AnalyticsConsent> {
@@ -256,11 +272,11 @@ export class NetworkAnalyticsClient {
   }
 
   async resetLocalSession(): Promise<void> {
+    this.lifecycleGeneration += 1;
     return this.exclusive(async () => {
       this.sessionId = Crypto.randomUUID();
       this.sequence = 0;
       this.lastActivityAt = 0;
-      this.activeFlowId = null;
       this.cachedConsent = null;
       await this.clearQueue();
       if (this.consentFile.exists) {
@@ -271,10 +287,22 @@ export class NetworkAnalyticsClient {
     });
   }
 
-  async track(input: AnalyticsEventInput): Promise<TrackResult> {
+  async track(
+    input: AnalyticsEventInput,
+    scope?: AnalyticsFlowScope,
+  ): Promise<TrackResult> {
     return this.exclusive(async () => {
       const consent = await this.readLocalConsent();
-      if (!consent.granted) {
+      const context = scope ? this.flowScopes.get(scope) : undefined;
+      if (context && context.epoch === undefined)
+        context.epoch = consent.granted ? consent.epoch : null;
+      if (
+        !consent.granted ||
+        (scope &&
+          (!context ||
+            context.generation !== this.lifecycleGeneration ||
+            context.epoch !== consent.epoch))
+      ) {
         return { recorded: false, reason: "consent_not_granted" };
       }
 
@@ -298,15 +326,16 @@ export class NetworkAnalyticsClient {
         recordedAt: new Date(currentTime).toISOString(),
         sessionId: this.sessionId,
         sequence: this.sequence++,
-        flowId: this.activeFlowId ?? undefined,
+        ...(scope ? { flowId: scope.flowId } : {}),
         platform: Platform.OS === "android" ? "android" : "ios",
         appVersion: this.appVersion,
+        ...(this.build ? { build: this.build } : {}),
         name: eventName as any,
         properties: properties as any,
       };
 
       await this.appendToQueue(event);
-      void this.flush();
+      void this.flush().catch(() => {});
 
       return { recorded: true };
     });
@@ -324,15 +353,25 @@ export class NetworkAnalyticsClient {
   }
 
   private async flushOnce(): Promise<void> {
-    const consent = await this.readLocalConsent();
+    const { consent, queue, generation } = await this.exclusive(async () => {
+      const generation = this.lifecycleGeneration;
+      return {
+        consent: await this.readLocalConsent(),
+        queue: await this.readQueue(),
+        generation,
+      };
+    });
     if (!consent.granted) {
       if (consent.pendingDenial) {
-        await this.exclusive(() => this.retryPendingDenial());
+        await this.exclusive(() =>
+          generation === this.lifecycleGeneration
+            ? this.retryPendingDenial()
+            : Promise.resolve(),
+        );
       }
       return;
     }
 
-    const queue = await this.readQueue();
     if (queue.length === 0) return;
 
     const batch = queue.slice(0, 50);
@@ -346,7 +385,18 @@ export class NetworkAnalyticsClient {
       // Serialize the local discard and refresh with consent mutations so an
       // in-flight upload cannot restore events after a denial.
       await this.exclusive(async () => {
-        await this.clearQueue();
+        const currentConsent = await this.readLocalConsent();
+        if (
+          generation !== this.lifecycleGeneration ||
+          !currentConsent.granted ||
+          currentConsent.epoch !== consent.epoch
+        )
+          return;
+        const staleIds = new Set(batch.map((event) => event.id));
+        const currentQueue = await this.readQueue();
+        await this.writeQueue(
+          currentQueue.filter((event) => !staleIds.has(event.id)),
+        );
         await this.syncConsentInternal();
       });
       return;
@@ -356,8 +406,11 @@ export class NetworkAnalyticsClient {
       const acceptedSet = new Set(res.data.acceptedIds);
       await this.exclusive(async () => {
         const currentConsent = await this.readLocalConsent();
-        if (!currentConsent.granted || currentConsent.epoch !== consent.epoch) {
-          await this.clearQueue();
+        if (
+          generation !== this.lifecycleGeneration ||
+          !currentConsent.granted ||
+          currentConsent.epoch !== consent.epoch
+        ) {
           return;
         }
         const currentQueue = await this.readQueue();
@@ -448,6 +501,9 @@ export class NetworkAnalyticsClient {
     }
     const res = await this.apiTransport.getConsent();
     if (res.ok && res.data) {
+      // Never relabel queued events under a different consent epoch.
+      if (!res.data.granted || res.data.epoch !== current.epoch)
+        await this.clearQueue();
       await this.writeLocalConsent({
         version: CURRENT_ANALYTICS_CONSENT_VERSION,
         granted: res.data.granted,

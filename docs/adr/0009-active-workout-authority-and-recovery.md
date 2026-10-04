@@ -2,7 +2,7 @@
 
 - Status: accepted
 - Date: 2026-07-19
-- Amended: 2026-09-14
+- Amended: 2026-10-04
 
 ## Context
 
@@ -14,6 +14,7 @@ A workout can span app backgrounding, process termination, and temporary network
 - Reusable routines and performed sessions remain in the same storage table for backward compatibility, but `details.workoutLifecycle.kind` explicitly distinguishes `routine` from `session`. A session copied from a routine records the source routine ID.
 - Saving a routine never starts or completes that row. Starting from it creates a fresh session snapshot with `startedAt` set at the start action; the routine remains unchanged.
 - On entry, mobile lists workouts and recovers the newest incomplete session plus its persisted sets. Routine rows are excluded from recovery and from live timers.
+- One-time workouts use `details.sessionMode = "one_time"` on ordinary session rows, with no source routine. Exercise selections are saved immediately in `details.sessionExercises`, even before their first set. They use the same logger and history with no prescribed targets or automatic routine progression.
 - Every saved set is immediately authoritative through the set API.
 - Expo SecureStore holds only small user-scoped unsaved field strings and the selected exercise.
 - Completion updates only the session's `completedAt`; abandonment deletes only the session after confirmation. Neither action clones, completes, or deletes its source routine.

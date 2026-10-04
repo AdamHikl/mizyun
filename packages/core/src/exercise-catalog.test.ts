@@ -4,12 +4,15 @@ import {
   getExerciseFromCatalog,
   searchExerciseCatalog,
   findCatalogExercise,
+  getCatalogExerciseNames,
+  TRAINING_EXERCISE_CATALOG,
 } from "./exercise-catalog";
 import { EQUIPMENT_OPTIONS, TRAINING_LIMITATION_OPTIONS } from "./profile";
+import { LEGACY_EXERCISE_CATALOG } from "./exercise-catalog-legacy";
 
 describe("exercise-catalog", () => {
   it("contains all catalog exercises with non-empty fields", () => {
-    expect(EXERCISE_CATALOG.length).toBeGreaterThanOrEqual(870);
+    expect(EXERCISE_CATALOG.length).toBe(609);
 
     const validEquipment = new Set(EQUIPMENT_OPTIONS);
     const validLimitations = new Set(TRAINING_LIMITATION_OPTIONS);
@@ -55,6 +58,18 @@ describe("exercise-catalog", () => {
       }
 
       expect(Array.isArray(ex.instructions)).toBe(true);
+      expect(ex.instructions.length).toBeGreaterThan(0);
+      expect(ex.instructions.every((step) => step.trim().length > 0)).toBe(
+        true,
+      );
+      expect(ex.description?.trim().length).toBeGreaterThan(0);
+      expect(ex.source?.provider).toBe("repdb");
+      expect(ex.contentReview).toEqual({
+        status: "pending_professional",
+        reviewedAt: null,
+      });
+      expect(ex.demonstration).toBeNull();
+      expect(ex.requiredEquipment?.length).toBeGreaterThan(0);
       expect(Array.isArray(ex.primaryMuscles)).toBe(true);
     }
   });
@@ -62,19 +77,88 @@ describe("exercise-catalog", () => {
   it("retrieves an exercise by id via getExerciseFromCatalog", () => {
     const squat = getExerciseFromCatalog("barbell-squat");
     expect(squat).not.toBeNull();
-    expect(squat?.name).toBe("Barbell squat");
+    expect(squat?.name.toLowerCase()).toContain("squat");
     expect(squat?.movementPattern).toBe("knee_dominant");
 
     const nonExistent = getExerciseFromCatalog("non-existent-exercise-xyz");
     expect(nonExistent).toBeNull();
   });
 
+  it("keeps every saved legacy ID resolvable without surfacing archived entries in browse", () => {
+    expect(LEGACY_EXERCISE_CATALOG).toHaveLength(888);
+    for (const old of LEGACY_EXERCISE_CATALOG) {
+      expect(getExerciseFromCatalog(old.id)?.id).toBe(old.id);
+    }
+    const activeIds = new Set(EXERCISE_CATALOG.map((exercise) => exercise.id));
+    const archived = LEGACY_EXERCISE_CATALOG.find(
+      (exercise) => !activeIds.has(exercise.id),
+    )!;
+    expect(getExerciseFromCatalog(archived.id)).toEqual(archived);
+    expect(
+      searchExerciseCatalog({ limit: 1000 }).some(
+        (exercise) => exercise.id === archived.id,
+      ),
+    ).toBe(false);
+  });
+
+  it("makes every active exercise reachable across disjoint pages", () => {
+    const ids: string[] = [];
+    for (let offset = 0; offset < 609; offset += 60) {
+      ids.push(
+        ...searchExerciseCatalog({ offset, limit: 60 }).map(
+          (exercise) => exercise.id,
+        ),
+      );
+    }
+    expect(ids).toHaveLength(609);
+    expect(new Set(ids).size).toBe(609);
+    expect(searchExerciseCatalog({ offset: 609, limit: 60 })).toEqual([]);
+  });
+
+  it("ranks exact names and shorthand aliases first and normalizes punctuation", () => {
+    const bench = findCatalogExercise("db bench")!;
+    expect(searchExerciseCatalog({ query: "DB bench" })[0]?.id).toBe(bench.id);
+    const active = EXERCISE_CATALOG.find((exercise) =>
+      exercise.name.includes("-"),
+    )!;
+    expect(
+      searchExerciseCatalog({ query: active.name.replaceAll("-", " ") })[0]?.id,
+    ).toBe(active.id);
+  });
+
   it("searches exercises by text query", () => {
     const benchPresses = searchExerciseCatalog({ query: "bench press" });
     expect(benchPresses.length).toBeGreaterThan(0);
-    expect(
-      benchPresses.every((ex) => ex.name.toLowerCase().includes("bench")),
-    ).toBe(true);
+    expect(benchPresses.some((ex) => ex.id === "barbell-bench-press")).toBe(
+      true,
+    );
+    expect(benchPresses.some((ex) => ex.id === "dumbbell-bench-press")).toBe(
+      true,
+    );
+  });
+
+  it("fresh name lookup uses the new plank while saved legacy ID keeps its original definition", () => {
+    expect(findCatalogExercise("plank")?.source?.provider).toBe("repdb");
+    expect(findCatalogExercise("plank")?.id).toBe("front-plank");
+    expect(searchExerciseCatalog({ query: "Front plank" })[0]?.id).toBe(
+      "front-plank",
+    );
+    expect(getExerciseFromCatalog("plank")).toEqual(
+      LEGACY_EXERCISE_CATALOG.find((exercise) => exercise.id === "plank"),
+    );
+  });
+
+  it("keeps previous exact labels for reused UUID lookup and limits automatic plans to known variants", () => {
+    const rdl = findCatalogExercise("rdl")!;
+    expect(getCatalogExerciseNames(rdl)).toContain("Romanian Deadlift");
+    // Automatic plans retain the known-variant order and exclude new specialty rows.
+    const legacyIds = LEGACY_EXERCISE_CATALOG.map((exercise) => exercise.id);
+    expect(TRAINING_EXERCISE_CATALOG.length).toBeGreaterThan(0);
+    const indices = TRAINING_EXERCISE_CATALOG.map((exercise) =>
+      legacyIds.indexOf(exercise.id),
+    );
+    expect(indices.every((index) => index >= 0)).toBe(true);
+    expect(indices).toEqual([...indices].sort((a, b) => a - b));
   });
 
   it("filters exercises by movement pattern", () => {
@@ -84,6 +168,18 @@ describe("exercise-catalog", () => {
   });
 
   it("filters exercises by equipment", () => {
+    expect(
+      searchExerciseCatalog({
+        query: "dumbbells",
+        limit: EXERCISE_CATALOG.length,
+      }).some((exercise) => exercise.id === "dumbbell-rdl"),
+    ).toBe(true);
+    expect(
+      searchExerciseCatalog({
+        query: "bodyweight",
+        limit: EXERCISE_CATALOG.length,
+      }).some((exercise) => exercise.id === "front-plank"),
+    ).toBe(true);
     const dumbbellsOnly = searchExerciseCatalog({
       equipment: ["dumbbells"],
       limit: 100,

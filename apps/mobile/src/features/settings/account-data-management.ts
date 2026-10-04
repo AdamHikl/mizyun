@@ -5,6 +5,7 @@ import {
   accountDeleteChallengeResponseSchema,
   accountDeleteResponseSchema,
   accountExportResponseSchema,
+  ANALYTICS_DASHBOARD_CATALOG,
   type AccountDeleteChallengeResponse,
   type AccountDeleteResponse,
   type AccountExportResponse,
@@ -293,7 +294,7 @@ export const fetchAccountExport = async (
 ): Promise<ExportAccountDataResult> => {
   const result = await client.request<AccountExportResponse>({
     method: "GET",
-    path: "/v1/account/export",
+    path: `/v1/account/export?catalog=${ANALYTICS_DASHBOARD_CATALOG}`,
     schema: accountExportResponseSchema,
   });
 

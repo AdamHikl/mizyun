@@ -108,6 +108,172 @@ const createMockTransport = (): NetworkAnalyticsApiTransport & {
 };
 
 describe("NetworkAnalyticsClient", () => {
+  it.each(["success", "conflict"])(
+    "preserves B's queued events after a delayed A upload %s",
+    async (outcome) => {
+      const transport = createMockTransport();
+      const queue = createMemoryFile();
+      const client = new NetworkAnalyticsClient(
+        transport,
+        createMemoryFile(),
+        queue,
+      );
+      await client.setConsent("granted");
+      let release!: (
+        value: Awaited<ReturnType<NetworkAnalyticsApiTransport["ingestBatch"]>>,
+      ) => void;
+      let started!: () => void;
+      const uploading = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+      const pending = new Promise<
+        Awaited<ReturnType<NetworkAnalyticsApiTransport["ingestBatch"]>>
+      >((resolve) => {
+        release = resolve;
+      });
+      transport.ingestBatch = vi.fn(async (input) => {
+        transport.batchCalls.push(input);
+        started();
+        return pending;
+      });
+      await client.track({
+        name: "dashboard_control_clicked",
+        properties: { control: "nutrition_card" },
+      });
+      await uploading;
+      const flushing = client.flush();
+      const capturedA = transport.batchCalls[0].events;
+      await client.resetLocalSession();
+      transport.serverConsent = {
+        ...transport.serverConsent,
+        epoch: "epoch-b",
+        granted: true,
+      };
+      await client.syncConsent();
+      await client.track({
+        name: "settings_search_selected",
+        properties: { destination: "appearance" },
+      });
+      const queuedB = await client.list();
+      expect(queuedB).toHaveLength(1);
+      release(
+        outcome === "success"
+          ? {
+              ok: true,
+              data: {
+                acceptedIds: capturedA.map(
+                  (event: AnalyticsEventV2) => event.id,
+                ),
+                rejectedCount: 0,
+              },
+            }
+          : { ok: false, conflict: true },
+      );
+      await flushing;
+      expect(await client.list()).toEqual(queuedB);
+      transport.ingestBatch = vi.fn(async (input) => {
+        transport.batchCalls.push(input);
+        return {
+          ok: true,
+          data: {
+            acceptedIds: input.events.map(
+              (event: AnalyticsEventV2) => event.id,
+            ),
+            rejectedCount: 0,
+          },
+        };
+      });
+      await client.flush();
+      expect(transport.batchCalls[1]).toMatchObject({
+        epoch: "epoch-b",
+        events: queuedB,
+      });
+    },
+  );
+
+  it("keeps a queued UI event when its automatic upload rejects without disrupting the caller", async () => {
+    const transport = createMockTransport();
+    transport.ingestBatch = vi.fn().mockRejectedValue(new Error("offline"));
+    const queue = createMemoryFile();
+    const client = new NetworkAnalyticsClient(
+      transport,
+      createMemoryFile(),
+      queue,
+    );
+    await client.setConsent("granted");
+    expect(
+      await client.track({
+        name: "dashboard_control_clicked",
+        properties: { control: "nutrition_card" },
+      }),
+    ).toEqual({ recorded: true });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(transport.ingestBatch).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(await queue.text())).toHaveLength(1);
+  });
+
+  it("does not queue or upload dashboard and settings usage without consent", async () => {
+    const transport = createMockTransport();
+    const queue = createMemoryFile();
+    const client = new NetworkAnalyticsClient(
+      transport,
+      createMemoryFile(),
+      queue,
+    );
+    for (const input of [
+      {
+        name: "dashboard_control_clicked",
+        properties: { control: "nutrition_card" },
+      },
+      { name: "settings_search_used", properties: { resultCount: "none" } },
+      {
+        name: "settings_search_selected",
+        properties: { destination: "appearance" },
+      },
+    ] as const) {
+      expect(await client.track(input)).toEqual({
+        recorded: false,
+        reason: "consent_not_granted",
+      });
+    }
+    await client.flush();
+    expect(queue.exists).toBe(false);
+    expect(transport.batchCalls).toEqual([]);
+  });
+
+  it("includes configured release version and build for consenting UI events", async () => {
+    const transport = createMockTransport();
+    const client = new NetworkAnalyticsClient(
+      transport,
+      createMemoryFile(),
+      createMemoryFile(),
+      () => Date.now(),
+      "1.0.6",
+      "6",
+    );
+    await client.setConsent("granted");
+    await client.track({
+      name: "dashboard_control_clicked",
+      properties: { control: "steps_card" },
+    });
+    await client.flush();
+    expect(transport.serverEvents).toHaveLength(1);
+    expect(transport.serverEvents[0]).toMatchObject({
+      appVersion: "1.0.6",
+      build: "6",
+      name: "dashboard_control_clicked",
+      properties: { control: "steps_card" },
+    });
+    await client.setConsent("denied");
+    expect(
+      await client.track({
+        name: "settings_search_used",
+        properties: { resultCount: "6_plus" },
+      }),
+    ).toEqual({ recorded: false, reason: "consent_not_granted" });
+    expect(transport.serverEvents).toHaveLength(1);
+  });
+
   it("recovers an explicit retry after a committed grant response was lost", async () => {
     const transport = createMockTransport();
     const update = transport.updateConsent;

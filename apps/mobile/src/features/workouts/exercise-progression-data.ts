@@ -1,4 +1,5 @@
 import type { ApiClient, ApiError } from "@mizyun/api-client";
+import { findCatalogExercise, getCatalogExerciseNames } from "@mizyun/core";
 import {
   exerciseListResponseSchema,
   exercisePatchSchema,
@@ -16,6 +17,7 @@ import {
 } from "@mizyun/contracts";
 
 import { apiClient } from "@/composition/api-client";
+import { findCatalogExerciseRecord } from "./catalog-exercise-record";
 import {
   displayWeightToKilograms,
   kilogramsToDisplayWeight,
@@ -72,6 +74,40 @@ export interface TargetLoadMutationResult {
   readonly exercise?: Exercise;
   readonly message?: string;
 }
+
+const normalizeName = (name: string): string => name.trim().toLowerCase();
+
+const knownRecordNames = (exerciseName: string): readonly string[] => {
+  const catalogExercise = findCatalogExercise(exerciseName);
+  if (
+    catalogExercise &&
+    getCatalogExerciseNames(catalogExercise).some(
+      (name) => normalizeName(name) === normalizeName(exerciseName),
+    )
+  ) {
+    return getCatalogExerciseNames(catalogExercise);
+  }
+  return [exerciseName];
+};
+
+const findRecordByName = (
+  records: readonly Exercise[],
+  exerciseName: string,
+): Exercise | null => {
+  const catalogExercise = findCatalogExercise(exerciseName);
+  if (
+    catalogExercise &&
+    getCatalogExerciseNames(catalogExercise).some(
+      (name) => normalizeName(name) === normalizeName(exerciseName),
+    )
+  ) {
+    return findCatalogExerciseRecord(records, catalogExercise);
+  }
+  const matches = records.filter(
+    (record) => normalizeName(record.name) === normalizeName(exerciseName),
+  );
+  return matches.length === 1 ? (matches[0] ?? null) : null;
+};
 
 const humanize = (error: ApiError, action: string): string => {
   switch (error.kind) {
@@ -397,13 +433,29 @@ export const fetchExerciseProgression = async (
   client: ApiClient = apiClient,
 ): Promise<ExerciseProgressionResult> => {
   try {
+    const exercisesRequest = identifier.exerciseId
+      ? client
+          .request<ExerciseResponse>({
+            method: "GET",
+            path: `/v1/exercises/${encodeURIComponent(identifier.exerciseId)}`,
+            schema: exerciseResponseSchema,
+          })
+          .then((result) =>
+            result.ok
+              ? {
+                  ok: true as const,
+                  value: { exercises: [result.value.exercise] },
+                }
+              : result,
+          )
+      : client.request<ExerciseListResponse>({
+          method: "GET",
+          path: "/v1/exercises?limit=200",
+          schema: exerciseListResponseSchema,
+        });
     // 1. Fetch user exercises and workouts in parallel
     const [exercisesRes, workoutsRes] = await Promise.all([
-      client.request<ExerciseListResponse>({
-        method: "GET",
-        path: "/v1/exercises?limit=200",
-        schema: exerciseListResponseSchema,
-      }),
+      exercisesRequest,
       client.request<WorkoutListResponse>({
         method: "GET",
         path: "/v1/workouts?limit=200",
@@ -433,11 +485,15 @@ export const fetchExerciseProgression = async (
       exercise =
         allExercises.find((e) => e.id === identifier.exerciseId) ?? null;
     }
-    if (!exercise) {
-      const normalized = identifier.exerciseName.trim().toLowerCase();
-      exercise =
-        allExercises.find((e) => e.name.trim().toLowerCase() === normalized) ??
-        null;
+    if (!identifier.exerciseId) {
+      exercise = findRecordByName(allExercises, identifier.exerciseName);
+      if (!exercise && allExercises.length >= 200) {
+        return {
+          progression: null,
+          message:
+            "Could not load your complete exercise list. Open the existing exercise to view its history.",
+        };
+      }
     }
 
     let sets: ReadonlyArray<WorkoutSet> = [];
@@ -491,6 +547,22 @@ export const updateExerciseTargetLoad = async (
 ): Promise<TargetLoadMutationResult> => {
   try {
     let targetId = exerciseId;
+    let existingExercise: Exercise | null = null;
+
+    if (targetId) {
+      const readRes = await client.request<ExerciseResponse>({
+        method: "GET",
+        path: `/v1/exercises/${encodeURIComponent(targetId)}`,
+        schema: exerciseResponseSchema,
+      });
+      if (!readRes.ok) {
+        return {
+          ok: false,
+          message: humanize(readRes.error, "Fetch exercise"),
+        };
+      }
+      existingExercise = readRes.value.exercise;
+    }
 
     // If ID not provided, check if exercise already exists
     if (!targetId) {
@@ -499,12 +571,40 @@ export const updateExerciseTargetLoad = async (
         path: "/v1/exercises?limit=200",
         schema: exerciseListResponseSchema,
       });
-      if (listRes.ok) {
-        const match = listRes.value.exercises.find(
-          (e) =>
-            e.name.trim().toLowerCase() === exerciseName.trim().toLowerCase(),
+      if (!listRes.ok) {
+        return {
+          ok: false,
+          message: humanize(listRes.error, "Fetch exercises"),
+        };
+      }
+      existingExercise = findRecordByName(
+        listRes.value.exercises,
+        exerciseName,
+      );
+      if (existingExercise) {
+        targetId = existingExercise.id;
+      } else {
+        const knownNames = new Set(
+          knownRecordNames(exerciseName).map(normalizeName),
         );
-        if (match) targetId = match.id;
+        if (
+          listRes.value.exercises.some((record) =>
+            knownNames.has(normalizeName(record.name)),
+          )
+        ) {
+          return {
+            ok: false,
+            message:
+              "More than one exercise record matches. Open the original exercise to set its target.",
+          };
+        }
+        if (listRes.value.exercises.length >= 200) {
+          return {
+            ok: false,
+            message:
+              "Could not load your complete exercise list. Open the existing exercise before setting its target.",
+          };
+        }
       }
     }
 
@@ -515,6 +615,7 @@ export const updateExerciseTargetLoad = async (
         path: `/v1/exercises/${encodeURIComponent(targetId)}`,
         body: {
           metadata: {
+            ...existingExercise?.metadata,
             targetLoadKg,
             ...(targetReps ? { targetReps: targetReps.trim() } : {}),
             targetUpdatedAt: new Date().toISOString(),

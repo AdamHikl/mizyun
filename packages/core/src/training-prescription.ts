@@ -76,7 +76,7 @@ export type TrainingPrescriptionMissingInput =
   "active_goal" | "experience_level" | "training_days" | "session_duration";
 
 import {
-  EXERCISE_CATALOG as CATALOG,
+  TRAINING_EXERCISE_CATALOG as CATALOG,
   type CatalogExercise,
 } from "./exercise-catalog";
 

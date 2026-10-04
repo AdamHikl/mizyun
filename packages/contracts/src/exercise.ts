@@ -92,35 +92,90 @@ export const exerciseListQuerySchema = z
 
 export type ExerciseListQuery = z.infer<typeof exerciseListQuerySchema>;
 
-export const exerciseCatalogItemSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  movementPattern: z.enum([
-    "knee_dominant",
-    "hip_hinge",
-    "horizontal_push",
-    "horizontal_pull",
-    "vertical_push",
-    "vertical_pull",
-    "core",
-    "aerobic",
-    "mobility",
-  ]),
-  equipment: z.array(z.string()),
-  blockedBy: z.array(z.string()),
-  focusFit: z.array(z.string()),
-  primaryMuscles: z.array(z.string()),
-  secondaryMuscles: z.array(z.string()),
-  instructions: z.array(z.string()),
-  category: z.string(),
-  level: z.enum(["beginner", "intermediate", "expert"]),
-  mechanic: z.enum(["compound", "isolation"]).nullable(),
+const exerciseDemonstrationSchema = z.object({
+  variantId: z.string().min(1),
+  assets: z.array(
+    z.object({
+      id: z.string().min(1),
+      kind: z.enum(["video", "animation", "image"]),
+      uri: z.string().url(),
+      provider: z.string().min(1),
+      licenseUrl: z.string().url(),
+      attribution: z.string().min(1),
+      reviewStatus: z.enum(["pending", "accepted"]),
+    }),
+  ),
 });
+
+export const exerciseCatalogItemSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    movementPattern: z.enum([
+      "knee_dominant",
+      "hip_hinge",
+      "horizontal_push",
+      "horizontal_pull",
+      "vertical_push",
+      "vertical_pull",
+      "core",
+      "aerobic",
+      "mobility",
+    ]),
+    equipment: z.array(z.string()),
+    blockedBy: z.array(z.string()),
+    focusFit: z.array(z.string()),
+    primaryMuscles: z.array(z.string()),
+    secondaryMuscles: z.array(z.string()),
+    instructions: z.array(z.string()),
+    category: z.string(),
+    level: z.enum(["beginner", "intermediate", "expert"]),
+    mechanic: z.enum(["compound", "isolation"]).nullable(),
+    description: z.string().optional(),
+    aliases: z.array(z.string()).optional(),
+    tips: z.array(z.string()).optional(),
+    commonMistakes: z.array(z.string()).optional(),
+    requiredEquipment: z.array(z.string()).optional(),
+    source: z
+      .object({
+        provider: z.literal("repdb"),
+        exerciseId: z.string().min(1),
+        version: z.string().min(1),
+        licenseUrl: z.string().url(),
+      })
+      .optional(),
+    contentReview: z
+      .object({
+        status: z.enum(["pending_professional", "accepted"]),
+        reviewedAt: z.string().datetime().nullable(),
+      })
+      .optional(),
+    demonstration: exerciseDemonstrationSchema.nullable().optional(),
+  })
+  .refine(
+    (exercise) =>
+      !exercise.demonstration ||
+      exercise.demonstration.variantId === exercise.id,
+    {
+      path: ["demonstration", "variantId"],
+      message: "Demonstration must match this exact exercise variant.",
+    },
+  )
+  .refine(
+    (exercise) =>
+      exercise.contentReview?.status !== "accepted" ||
+      exercise.contentReview.reviewedAt !== null,
+    {
+      path: ["contentReview", "reviewedAt"],
+      message: "Accepted content needs a professional review date.",
+    },
+  );
 
 export type ExerciseCatalogItem = z.infer<typeof exerciseCatalogItemSchema>;
 
 export const exerciseCatalogResponseSchema = z.object({
   exercises: z.array(exerciseCatalogItemSchema),
+  total: z.number().int().nonnegative().optional(),
 });
 
 export type ExerciseCatalogResponse = z.infer<
@@ -145,6 +200,7 @@ export const exerciseCatalogQuerySchema = z
       .optional(),
     category: z.string().optional(),
     limit: z.coerce.number().int().gte(1).lte(200).optional(),
+    offset: z.coerce.number().int().gte(0).optional(),
   })
   .strict();
 

@@ -8,6 +8,11 @@ import {
   analyticsConsentRequestSchema,
   analyticsConsentResponseSchema,
   analyticsEventV2Schema,
+  analyticsEventsListQuerySchema,
+  legacyAnalyticsEventV2Schema,
+  legacyAnalyticsEventsListResponseSchema,
+  legacyOnboardingStepSchema,
+  projectAnalyticsEventsForCatalog,
   coreRecordKindSchema,
   durationBucketSchema,
   failureReasonSchema,
@@ -33,6 +38,165 @@ const validBaseEnvelope = {
   platform: "ios" as const,
   appVersion: "1.0.0",
 };
+
+describe("closed developer-dashboard telemetry", () => {
+  it("keeps a frozen eleven-event legacy catalog with the original six onboarding steps", () => {
+    expect(
+      legacyAnalyticsEventV2Schema.options.map((s) => s.shape.name.value),
+    ).toEqual([
+      "app_session_started",
+      "screen_viewed",
+      "onboarding_started",
+      "onboarding_step_completed",
+      "onboarding_completed",
+      "logging_flow_started",
+      "logging_flow_completed",
+      "logging_flow_failed",
+      "logging_flow_exited",
+      "core_record_created",
+      "feature_action_result",
+    ]);
+    expect(legacyOnboardingStepSchema.options).toEqual([
+      "welcome",
+      "profile",
+      "goals",
+      "preferences",
+      "notifications",
+      "complete",
+    ]);
+    const events = [
+      {
+        ...validBaseEnvelope,
+        name: "onboarding_step_completed",
+        properties: { step: "welcome" },
+      },
+      {
+        ...validBaseEnvelope,
+        name: "onboarding_step_completed",
+        properties: { step: "baseline_weight" },
+      },
+      {
+        ...validBaseEnvelope,
+        name: "dashboard_control_clicked",
+        properties: { control: "nutrition_card" },
+      },
+    ];
+    expect(
+      legacyAnalyticsEventsListResponseSchema.safeParse({ events }).success,
+    ).toBe(false);
+    const legacy = projectAnalyticsEventsForCatalog(events);
+    expect(legacy.omittedEventCount).toBe(2);
+    expect(
+      legacyAnalyticsEventsListResponseSchema.safeParse({
+        events: legacy.events,
+      }).success,
+    ).toBe(true);
+    expect(
+      projectAnalyticsEventsForCatalog(events, "dashboard-v1").events,
+    ).toHaveLength(3);
+  });
+  it("accepts only the explicit supported list catalog", () => {
+    expect(analyticsEventsListQuerySchema.safeParse({}).success).toBe(true);
+    expect(
+      analyticsEventsListQuerySchema.safeParse({ catalog: "dashboard-v1" })
+        .success,
+    ).toBe(true);
+    for (const query of [
+      { catalog: "unknown" },
+      { catalog: ["dashboard-v1"] },
+      { query: "private" },
+    ])
+      expect(analyticsEventsListQuerySchema.safeParse(query).success).toBe(
+        false,
+      );
+  });
+  it.each([
+    "display_name",
+    "units",
+    "baseline_weight",
+    "energy_profile",
+    "primary_goal",
+  ])(
+    "accepts coarse onboarding progress/failure/exit at %s but excludes it from the legacy projection",
+    (step) => {
+      const events = [
+        {
+          ...validBaseEnvelope,
+          name: "onboarding_step_completed",
+          properties: { step },
+        },
+        {
+          ...validBaseEnvelope,
+          name: "onboarding_failed",
+          properties: { step, reason: "network" },
+        },
+        {
+          ...validBaseEnvelope,
+          name: "onboarding_exited",
+          properties: { step, duration: "under_30_seconds", exit: "cancel" },
+        },
+      ];
+      for (const event of events) {
+        expect(analyticsEventV2Schema.safeParse(event).success).toBe(true);
+        expect(legacyAnalyticsEventV2Schema.safeParse(event).success).toBe(
+          false,
+        );
+        expect(
+          analyticsEventV2Schema.safeParse({
+            ...event,
+            properties: { ...event.properties, weightKg: 70 },
+          }).success,
+        ).toBe(false);
+      }
+      expect(
+        analyticsEventV2Schema.safeParse({
+          ...events[2],
+          properties: { ...events[2]!.properties, exit: "navigate_away" },
+        }).success,
+      ).toBe(false);
+    },
+  );
+  it.each([
+    {
+      name: "dashboard_control_clicked",
+      properties: { control: "weight_card" },
+    },
+    { name: "settings_search_used", properties: { resultCount: "none" } },
+    {
+      name: "settings_search_selected",
+      properties: { destination: "appearance" },
+    },
+  ])("accepts only static usage properties for $name", (event) => {
+    expect(
+      analyticsEventV2Schema.safeParse({ ...validBaseEnvelope, ...event })
+        .success,
+    ).toBe(true);
+    expect(
+      analyticsEventV2Schema.safeParse({
+        ...validBaseEnvelope,
+        ...event,
+        properties: { ...event.properties, query: "private input" },
+      }).success,
+    ).toBe(false);
+  });
+
+  it.each([
+    {
+      name: "dashboard_control_clicked",
+      properties: { control: "private-record-id" },
+    },
+    {
+      name: "settings_search_selected",
+      properties: { destination: "/settings?query=private" },
+    },
+    { name: "settings_search_used", properties: { resultCount: 10 } },
+  ])("rejects free text and exact counts", (event) => {
+    expect(
+      analyticsEventV2Schema.safeParse({ ...validBaseEnvelope, ...event })
+        .success,
+    ).toBe(false);
+  });
+});
 
 describe("Product Analytics Enums", () => {
   it("validates screenNameSchema", () => {

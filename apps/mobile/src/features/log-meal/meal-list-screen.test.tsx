@@ -4,6 +4,7 @@ import type { FoodEntry } from "@mizyun/contracts";
 const mocks = vi.hoisted(() => ({
   fetch: vi.fn(),
   refresh: vi.fn(),
+  day: vi.fn(),
   owner: "user-a",
   version: "0:today:0",
   appState: null as ((state: string) => void) | null,
@@ -112,7 +113,11 @@ vi.mock("./evening-catch-up-reminders", () => ({
 vi.mock("./meal-lifecycle-data", async (original) => ({
   ...(await original<typeof import("./meal-lifecycle-data")>()),
   fetchFoodHistory: mocks.fetch,
+  fetchFoodDateHistory: mocks.day,
 }));
+
+import { router } from "expo-router";
+import { groupFoodEntriesByDay } from "./meal-lifecycle-data";
 
 import { MealListScreen } from "./meal-list-screen";
 
@@ -138,7 +143,7 @@ const entry = (id: string): FoodEntry => ({
   details: {},
 });
 const response = (entries: FoodEntry[], nextCursor: string | null = null) => ({
-  groups: [],
+  groups: groupFoodEntriesByDay(entries),
   entries,
   nextCursor,
   message: null,
@@ -171,6 +176,7 @@ beforeEach(() => {
   hooks.focus = null;
   mocks.fetch.mockReset();
   mocks.refresh.mockReset();
+  mocks.day.mockReset();
   mocks.owner = "user-a";
   mocks.version = "0:today:0";
 });
@@ -345,4 +351,64 @@ it("skips periodic refresh while a pagination read is pending and blocks a secon
   await settle();
   expect(history().nextCursor).toBe("even-older");
   cleanup();
+});
+
+it("adds on the heading date and refreshes the older day while retaining paginated history", async () => {
+  mocks.fetch.mockResolvedValueOnce(response([entry("newest")], "older"));
+  render();
+  hooks.focus!();
+  await settle();
+  const old = { ...entry("older"), consumedAt: "2026-03-29T10:00:00Z" };
+  mocks.fetch.mockResolvedValueOnce(response([old], "remaining"));
+  find(
+    render(),
+    (n) => n.props?.accessibilityLabel === "Load older meals",
+  ).props.onPress();
+  await settle();
+  const date = groupFoodEntriesByDay([old])[0].date;
+  find(render(), (n) => n.props?.testID === `add-meal-${date}`).props.onPress();
+  expect(router.push).toHaveBeenLastCalledWith({
+    pathname: "/log-meal",
+    params: { date },
+  });
+  const added = { ...old, id: "added", caloriesKcal: 200 };
+  mocks.fetch.mockResolvedValueOnce(response([entry("newest")], "older"));
+  mocks.day.mockResolvedValueOnce(response([old, added]));
+  mocks.version = "1:today:0";
+  render();
+  hooks.focus!();
+  await settle();
+  expect(mocks.day).toHaveBeenCalledWith(date);
+  expect(history().entries.map((e: FoodEntry) => e.id)).toContain("added");
+  expect(history().nextCursor).toBe("remaining");
+  expect(
+    history().groups.find((g: any) => g.date === date).summary.caloriesKcal,
+  ).toBe(500);
+});
+
+it("retains the selected day when an earlier history request completes after the add button", async () => {
+  mocks.fetch.mockResolvedValueOnce(response([entry("first")]));
+  render();
+  hooks.focus!();
+  await settle();
+  let resolve!: (v: ReturnType<typeof response>) => void;
+  mocks.version = "1:today:0";
+  mocks.fetch.mockReturnValueOnce(
+    new Promise((done) => {
+      resolve = done;
+    }),
+  );
+  render();
+  hooks.focus!();
+  const date = groupFoodEntriesByDay([entry("first")])[0].date;
+  find(render(), (n) => n.props?.testID === `add-meal-${date}`).props.onPress();
+  resolve(response([entry("first")]));
+  await settle();
+  mocks.fetch.mockResolvedValueOnce(response([entry("first")]));
+  mocks.day.mockResolvedValueOnce(response([entry("first"), entry("added")]));
+  render();
+  hooks.focus!();
+  await settle();
+  expect(mocks.day).toHaveBeenCalledWith(date);
+  expect(history().entries.map((e: FoodEntry) => e.id)).toContain("added");
 });

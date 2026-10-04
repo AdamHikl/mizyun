@@ -1,4 +1,6 @@
 import { apiClient } from "@/composition/api-client";
+import Constants from "expo-constants";
+import { Platform } from "react-native";
 import {
   NetworkAnalyticsClient,
   type NetworkAnalyticsApiTransport,
@@ -9,6 +11,7 @@ import {
   analyticsClearResponseSchema,
   analyticsEventsListResponseSchema,
   CURRENT_ANALYTICS_CONSENT_VERSION,
+  ANALYTICS_DASHBOARD_CATALOG,
   type AnalyticsBatchIngestResponse,
   type AnalyticsClearResponse,
   type AnalyticsConsentResponse,
@@ -111,7 +114,7 @@ export const createApiTransport = (): NetworkAnalyticsApiTransport => ({
       readonly events: readonly AnalyticsEventV2[];
     }>({
       method: "GET",
-      path: "/v1/analytics/events",
+      path: `/v1/analytics/events?catalog=${ANALYTICS_DASHBOARD_CATALOG}`,
       schema: analyticsEventsListResponseSchema,
     });
     if (res.ok) {
@@ -126,4 +129,19 @@ export const createApiTransport = (): NetworkAnalyticsApiTransport => ({
  * Wires the NetworkAnalyticsClient to the ApiClient with offline queuing
  * and server synchronization.
  */
-export const analyticsClient = new NetworkAnalyticsClient(createApiTransport());
+// This app uses embedded Expo configuration with a synchronized release tuple.
+// No device identifiers or other Constants fields cross the analytics boundary.
+const appVersion = Constants.expoConfig?.version ?? "unknown";
+const build =
+  Platform.OS === "ios"
+    ? Constants.expoConfig?.ios?.buildNumber
+    : Constants.expoConfig?.android?.versionCode?.toString();
+
+export const analyticsClient = new NetworkAnalyticsClient(
+  createApiTransport(),
+  undefined,
+  undefined,
+  undefined,
+  appVersion,
+  build,
+);

@@ -60,7 +60,8 @@ export function WorkoutsHubScreen() {
   const [data, setData] = useState<WorkoutsHubResult>(INITIAL_DATA);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const owner = `${session?.user.id ?? ""}:${session?.accessToken ?? ""}`;
+  const principal = session?.user.id ?? "";
+  const owner = `${principal}:${session?.accessToken ?? ""}`;
   const currentOwner = useRef(owner);
   currentOwner.current = owner;
   const requestId = useRef(0);
@@ -75,7 +76,9 @@ export function WorkoutsHubScreen() {
   const [busyWorkoutId, setBusyWorkoutId] = useState<string | null>(null);
   const startingRoutineIds = useRef(new Set<string>());
   const routineOperationIds = useRef(new Map<string, string>());
-  const blankOperationId = useRef<string | null>(null);
+  const blankOperationId = useRef<{ owner: string; id: string } | null>(null);
+  const startingBlank = useRef(false);
+  const [startingOneTime, setStartingOneTime] = useState(false);
   const [libraryVisible, setLibraryVisible] = useState(false);
   const [editorVisible, setEditorVisible] = useState(false);
   const [editingWorkout, setEditingWorkout] = useState<ProcessedWorkout | null>(
@@ -174,15 +177,24 @@ export function WorkoutsHubScreen() {
   );
 
   const handleStartBlank = useCallback(async () => {
-    setLoading(true);
+    if (startingBlank.current) return;
+    startingBlank.current = true;
+    setStartingOneTime(true);
     try {
-      if (!blankOperationId.current) {
-        blankOperationId.current = Crypto.randomUUID();
+      if (
+        !blankOperationId.current ||
+        blankOperationId.current.owner !== principal
+      ) {
+        blankOperationId.current = {
+          owner: principal,
+          id: Crypto.randomUUID(),
+        };
       }
       const result = await createBlankWorkout(
-        "Custom Workout",
-        blankOperationId.current,
+        "One-time Workout",
+        blankOperationId.current.id,
       );
+      if (currentOwner.current !== owner) return;
       if (result.ok && result.workout) {
         blankOperationId.current = null;
         router.push({
@@ -190,19 +202,20 @@ export function WorkoutsHubScreen() {
           params: { workoutId: result.workout.id },
         });
       } else if (!result.ok) {
-        blankOperationId.current = null;
         Alert.alert("Could not start workout", result.message);
       }
     } catch {
-      blankOperationId.current = null;
-      Alert.alert(
-        "Could not start workout",
-        "The workout could not be started. Please try again.",
-      );
+      if (currentOwner.current === owner) {
+        Alert.alert(
+          "Could not start workout",
+          "The workout could not be started. Please try again.",
+        );
+      }
     } finally {
-      setLoading(false);
+      startingBlank.current = false;
+      setStartingOneTime(false);
     }
-  }, []);
+  }, [owner, principal]);
 
   const handleOpenWorkout = useCallback((workoutId: string) => {
     router.push({
@@ -282,6 +295,35 @@ export function WorkoutsHubScreen() {
               Manage your routines, on-demand sessions, and history.
             </ThemedText>
           </View>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Start one-time workout"
+            accessibilityState={{
+              disabled: startingOneTime,
+              busy: startingOneTime,
+            }}
+            disabled={startingOneTime}
+            onPress={handleStartBlank}
+            style={({ pressed }) => [
+              styles.createRoutineHeroCard,
+              pressed && styles.pressed,
+              startingOneTime && styles.disabled,
+            ]}
+          >
+            <View style={styles.createRoutineIconContainer}>
+              <ThemedText style={styles.createRoutineIcon}>🏋️</ThemedText>
+            </View>
+            <View style={styles.createRoutineBody}>
+              <ThemedText type="smallBold">
+                {startingOneTime ? "Starting…" : "Start One-time Workout"}
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                Add exercises, weights and sets as you go.
+              </ThemedText>
+            </View>
+            <ThemedText style={styles.libraryArrow}>→</ThemedText>
+          </Pressable>
 
           {/* Primary Action Card: Create Workout Routine */}
           <Pressable
@@ -408,11 +450,11 @@ export function WorkoutsHubScreen() {
             <View style={styles.section}>
               <View style={styles.sectionHeaderRow}>
                 <ThemedText type="smallBold" style={styles.sectionTitle}>
-                  AVAILABLE ROUTINES
+                  ROUTINES & ACTIVE WORKOUTS
                 </ThemedText>
                 <ThemedText type="small" themeColor="textSecondary">
                   {data.activeAndPlanned.length}{" "}
-                  {data.activeAndPlanned.length === 1 ? "routine" : "routines"}
+                  {data.activeAndPlanned.length === 1 ? "workout" : "workouts"}
                 </ThemedText>
               </View>
 
@@ -620,7 +662,9 @@ function PlannedWorkoutCard(props: {
       {item.plannedExercises.length > 0 ? (
         <View style={styles.plannedExercisesList}>
           <ThemedText type="smallBold" themeColor="textSecondary">
-            Suggested exercises (tap to track progress):
+            {item.workout.details.sessionMode === "one_time"
+              ? "Exercises added in this workout:"
+              : "Suggested exercises (tap to track progress):"}
           </ThemedText>
           <View style={styles.exerciseChipsGrid}>
             {item.plannedExercises.map((ex, index) => (
@@ -633,11 +677,13 @@ function PlannedWorkoutCard(props: {
               >
                 <ThemedText type="small" style={styles.exerciseChipText}>
                   {ex.name}
-                  {ex.targetSets
-                    ? ` (${ex.targetSets} sets${ex.targetLoad ? ` · ${ex.targetLoad}` : ""})`
-                    : ex.targetLoad
-                      ? ` (${ex.targetLoad})`
-                      : ""}{" "}
+                  {item.workout.details.sessionMode === "one_time"
+                    ? ""
+                    : ex.targetSets
+                      ? ` (${ex.targetSets} sets${ex.targetLoad ? ` · ${ex.targetLoad}` : ""})`
+                      : ex.targetLoad
+                        ? ` (${ex.targetLoad})`
+                        : ""}{" "}
                   📈
                 </ThemedText>
               </Pressable>

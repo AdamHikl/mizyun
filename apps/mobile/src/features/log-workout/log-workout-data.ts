@@ -87,6 +87,7 @@ export const extractPlannedExercises = (
   draftProposal?: CoachWorkoutProposal,
 ): ReadonlyArray<PlannedExercise> => {
   if (
+    workout === null &&
     draftProposal?.session?.exercises &&
     draftProposal.session.exercises.length > 0
   ) {
@@ -675,7 +676,9 @@ export const reorderWorkoutExercisesWith = async (
     ...(e.catalogId !== undefined && e.catalogId.length > 0
       ? { catalogId: e.catalogId }
       : {}),
-    targetSets: e.targetSets ?? e.sets ?? 3,
+    ...(workout.details.sessionMode === "one_time"
+      ? {}
+      : { targetSets: e.targetSets ?? e.sets ?? 3 }),
     ...(e.repsMin !== undefined && e.repsMin !== null
       ? { repsMin: e.repsMin }
       : {}),
@@ -712,5 +715,5 @@ export const reorderWorkoutExercisesWith = async (
 
   return result.ok
     ? { ok: true, workout: result.value.workout }
-    : { ok: false, message: humanize(result.error, "Reorder exercises") };
+    : { ok: false, message: humanize(result.error, "Save exercises") };
 };

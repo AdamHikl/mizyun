@@ -57,3 +57,7 @@
 - [ADR-0037 — Personal screen reads at authenticated startup](0037-personal-screen-startup-reads.md): accepted for local implementation 2026-10-03; bounded memory reads, startup prefetch, write/lifecycle invalidation and retained screen content (#182).
 
 - [ADR-0038 — Durable recurring meal logging](0038-recurring-meal-logging.md): accepted 2026-10-03; server-side snapshots, timezone schedules and occurrence ledger.
+
+- [ADR-0039 — Private aggregate developer dashboard](0039-private-aggregate-developer-dashboard.md): accepted for local implementation 2026-10-03; first-party analytics, Metabase over aggregate-only storage, closed widget/settings telemetry and private operator access.
+
+- [ADR-0040 — Free exercise catalog and legacy identity](0040-free-exercise-catalog-and-legacy-identity.md): accepted for local implementation 2026-10-04; adapted RepDB Free content, preserved historical IDs, in-app attribution and pending variant-specific media; professional content/device acceptance remains open.

@@ -233,8 +233,15 @@ export const exercisesRoutes: FastifyPluginAsync<
         movementPattern: parsed.data.movementPattern,
         category: parsed.data.category,
         limit: parsed.data.limit ?? DEFAULT_LIMIT,
+        offset: parsed.data.offset,
       });
       return exerciseCatalogResponseSchema.parse({
+        total: searchExerciseCatalog({
+          query: parsed.data.query,
+          movementPattern: parsed.data.movementPattern,
+          category: parsed.data.category,
+          limit: Number.MAX_SAFE_INTEGER,
+        }).length,
         exercises: results.map((ex) => ({
           id: ex.id,
           name: ex.name,
@@ -248,6 +255,14 @@ export const exercisesRoutes: FastifyPluginAsync<
           category: ex.category,
           level: ex.level,
           mechanic: ex.mechanic,
+          description: ex.description,
+          aliases: ex.aliases,
+          tips: ex.tips,
+          commonMistakes: ex.commonMistakes,
+          requiredEquipment: ex.requiredEquipment,
+          source: ex.source,
+          contentReview: ex.contentReview,
+          demonstration: ex.demonstration,
         })),
       });
     },

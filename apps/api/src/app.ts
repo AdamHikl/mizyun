@@ -102,7 +102,10 @@ import { loggerConfig } from "./logging.js";
 import { InMemoryMediaStorage, type MediaStorage } from "./media-storage.js";
 import { SupabaseMemoryStore } from "@mizyun/adapter-supabase-server";
 import { accountRoutes } from "./modules/account/routes.js";
-import { analyticsRoutes } from "./modules/analytics/routes.js";
+import {
+  analyticsRoutes,
+  createAnalyticsRetentionWorker,
+} from "./modules/analytics/index.js";
 import { betaProRoutes } from "./modules/account/beta-pro-routes.js";
 import { InMemoryProductAnalyticsRepository } from "./product-analytics-repository.js";
 import { bodyMeasurementsRoutes } from "./modules/body-measurements/routes.js";
@@ -683,6 +686,20 @@ export const buildApp = (
           ...(sp.serviceRoleClient ? { client: sp.serviceRoleClient } : {}),
         })
       : new InMemoryProductAnalyticsRepository());
+
+  if (sp?.serviceRoleClient) {
+    const analyticsRetention = createAnalyticsRetentionWorker(
+      productAnalyticsRepository,
+      () =>
+        app.log.error("Analytics retention cleanup failed; retrying next hour"),
+    );
+    app.addHook("onListen", async () => {
+      analyticsRetention.start();
+    });
+    app.addHook("onClose", async () => {
+      await analyticsRetention.close();
+    });
+  }
 
   const accountRepository =
     dependencies.accountRepository ??

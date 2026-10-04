@@ -18,6 +18,8 @@ import { z } from "zod";
 import {
   analyticsConsentResponseSchema,
   analyticsEventV2Schema,
+  ANALYTICS_DASHBOARD_CATALOG,
+  legacyAnalyticsEventV2Schema,
 } from "./analytics";
 
 /** A `YYYY-MM-DD` date for the day-filter query params. */
@@ -132,6 +134,8 @@ export const accountExportSchema = z.object({
     .object({
       consent: analyticsConsentResponseSchema.nullable(),
       events: z.array(analyticsEventV2Schema),
+      catalog: z.enum(["legacy-v2", ANALYTICS_DASHBOARD_CATALOG]).optional(),
+      omittedEventCount: z.number().int().nonnegative().optional(),
     })
     .optional(),
 });
@@ -140,6 +144,17 @@ export type AccountExport = z.infer<typeof accountExportSchema>;
 
 export const accountExportResponseSchema = z.object({
   export: accountExportSchema,
+});
+/** Mirrors the pre-dashboard client's strict embedded analytics parser. */
+export const legacyAccountExportResponseSchema = z.object({
+  export: accountExportSchema.extend({
+    productAnalytics: z
+      .object({
+        consent: analyticsConsentResponseSchema.nullable(),
+        events: z.array(legacyAnalyticsEventV2Schema),
+      })
+      .optional(),
+  }),
 });
 
 export type AccountExportResponse = z.infer<typeof accountExportResponseSchema>;
