@@ -4,18 +4,17 @@
 
 ## Current authority and delivery
 
-- **Build7:**1.0.7/7/7 prepared; compatibility/promotion fixes, final gates pending. [Evidence](docs/BUILD_7_RELEASE_EVIDENCE_2026-10-04.md).
-- **Working source:** verified/pushed main merge `a435a7660d85a4586224d5ac48827db651833826`; runtime reviewed independently, fresh precommit/merged/deployment full gatesPASS. [Delivery evidence](docs/DEV_DELIVERY_EVIDENCE_2026-10-04.md).
-- **Dev backend 2026-10-04:** exact `a435a766...`, pristine Hetzner `/var/lib/mizyun/dev/repo`; active API PID3516861, API4100/DB5433. Canonical promotionPASS, migration ledger up to date, public health200/Coach unauthenticated401. New `coach-system-v2-app-v1` catalog present; signed-in acceptance pending.
-- **Latest iPhone Dev install:** 2026-10-04T18:05:59Z, Adam's iPhone16Pro, clean source `a435a766...`; standalone `com.mizyun.development`1.0.6(6), team `LQJNDVBL43`. Build/install/signature/capabilityPASS; launch denied by phone lock. JSsha/artifact/logs in [evidence](docs/DEV_DELIVERY_EVIDENCE_2026-10-04.md); feature acceptance open.
-- **Production, last recorded checkout:** `0aadf95b5ff85d9cfc8bf5485e68a72525080e84`. Production/Store release is separate; refresh live state and accept device journeys before release.
+- **Build7:**1.0.7/7/7; exact main/Dev/Production `d610382568ac39a0317b7edefbb272bf67fb4067`. Compatibility/promotion fixes independently reviewed, full and861SQL gatesPASS. Signed Android intermediate exists; final iOS/Android packages pending release-tool follow-up. [Evidence](docs/BUILD_7_RELEASE_EVIDENCE_2026-10-04.md).
+- **Dev backend:** pristine Hetzner `/var/lib/mizyun/dev/repo`, API4100/DB5433, PID3908725; canonical d610382 promotionPASS. Public health200, protected Coach conversations401. Prompt `coach-system-v3-app-v2`.
+- **Latest iPhone Dev install:** 2026-10-04T18:05:59Z, iPhone16Pro, `a435a766...`, standalone com.mizyun.development1.0.6(6), teamLQJNDVBL43. Adam confirmed signed-in meal/workout/Coach/background journeys passed. [Delivery](docs/DEV_DELIVERY_EVIDENCE_2026-10-04.md).
+- **Production:** pristine d610382; API4000/DB5432 PID3943654, tunnel3943657 active,57migrations through20261004110000. Encrypted backup20261004T194230Z/checksumsPASS; public health200. Adam confirmed existing Production build6 meal Save/reopen, workout Finish/history and Coach reply still work. Exact new build7/native/Store acceptance remains separate.
 - **Environment and AI:** Hetzner CX23 owns Dev/Production; Pi remains encrypted recovery storage. Gemini-or-disabled, consent-based adult admission, current usage/kill switches; no email allowlist. Retain the explicit founder/partner shared-Gemini Dev exception. Local Qwen remains paused. `docs/BEFORE_TESTING.md` and live-provider gates remain in force.
 
 ## Active agent workflow fixes — 2026-10-04
 
 AGENT-NAV-007 / [#207](https://github.com/AdamHikl/mizyun/issues/207): compact startup, serialized stable full checks, device-test collision repair and bounded-read/wait guidance. Implemented and verified locally: fresh serialized `pnpm check`PASS, runner16/navigation117, non-author review clear; inputs stable. [Evidence](docs/AGENT_WORKFLOW_EVIDENCE_2026-10-04.md). Existing navigation/index acceptance remains advisory; actual client/token/speed comparisons remain [#54](https://github.com/AdamHikl/mizyun/issues/54).
 
-**Next exact action:** finish build7 independent review/full and disposable database gates, merge exact candidate, promote Dev/Production with coherent backup, then produce signed packages. Adam confirmed core signed-in Dev journeys passed on a435a766; broader issue exits below remain. Workflow measurement remains #54.
+**Next exact action:** review/verify package configuration guard, CI ripgrep and stable50ms search benchmark fixes; freeze updated candidate and generate signed build7 IPA/AAB for manual upload. Xcode account refreshed; archive signing retry follows fresh gate. Existing broader exits and #54 measurement remain.
 
 ## Local follow-ups awaiting exact-candidate acceptance
 
@@ -48,7 +47,7 @@ These packages have recorded source/check evidence; their device/provider/releas
 - **#178 AI nutrients / #179 bundles** — Editable estimates/entitlement/race source delivered to Dev; installed Save/reopen/free-downgrade/refinement acceptance and broader live evaluation #29 remain. #179 tracks historical bundle-path skip defect; actual artifact scans are separately recorded. [Evidence](docs/AI_ADVANCED_NUTRIENTS_EVIDENCE_2026-10-02.md)
 - **#170 proactive Coach / #171–176** — Documentation-only plan; implementation requires its selected bounded package and sparse-day regression. No proactive rollout accepted. [Plan](docs/PROACTIVE_COACH_PLAN_2026-10-02.md)
 - **#198 integrations / #39/#40** — Documentation-only INT-00–09 plan; local/account/Coach/sharing gates remain distinct. Begin compatibility/lifecycle evidence only after scope selection; no new integration connected. [Plan](docs/INTEGRATIONS_IMPLEMENTATION_PLAN_2026-10-04.md)
-- **#195/#199 CI** — Forward Community lint repair delivered; Linux temporary-origin deployment-fixture failures remain tracked independently. Refresh exact CI/remote SHAs before integration; old integration next actions are historical. [Delivery][handoffs]
+- **#195/#199 CI** — Forward Community lint repair delivered; Linux43deployment fixtures now pass on d610382; whole quality CI failed missing rg in iOS tooling. Explicit dependency fix pending whole-CI acceptance; old integration next actions are historical. [Delivery][handoffs]
 
 ## Community and release gates retained
 
@@ -56,6 +55,6 @@ Community original #140/#142–155/#166–167 and expansions #156–162 retain t
 
 Remaining Community exits: exact-candidate two-account iPhone/Android/offline/accessibility journeys; trained named MFA moderation/contact, alerts/absence drills; real provider/device push; legal/public/Store disclosures; adult research and four-week pilot. [Expansion evidence](docs/COMMUNITY_EXPANSIONS_DEV_EVIDENCE_2026-10-01.md) preserves SQL/Auth/Storage assertions, host marker/configuration and prior artifacts. Historical shared-cloudflared freeze dependency and mixed-network observations require effective isolation verification before recovery operations; names alone do not prove isolation.
 
-Q1–Q9 retain the [remediation plan](docs/REMEDIATION_IMPLEMENTATION_PLAN_2026-09-08.md) and [evidence checklist](docs/REMEDIATION_EVIDENCE_CHECKLIST.md) closure requirements. Build7 has no accepted artifact/release here: exact source/version/signing, Dev/device, Android, operational/restore, provider/lifecycle and Store gates remain separate. Production release needs an explicit accepted 40-character SHA and canonical backup/migration/compatibility checks. Never reuse a historical gate as current acceptance.
+Q1–Q9 retain the [remediation plan](docs/REMEDIATION_IMPLEMENTATION_PLAN_2026-09-08.md) and [evidence checklist](docs/REMEDIATION_EVIDENCE_CHECKLIST.md) closure requirements. Build7 backend promotion and build6 core device compatibility are accepted as recorded above. Final signed packages, exact build7/native, operational/restore, provider/lifecycle and Store exits remain separate. Canonical exact-SHA backup/migration checks remain mandatory for future promotion; never reuse historical gates.
 
 [handoffs]: docs/archive/status/STATUS_PRE_AGENT_WORKFLOW_2026-10-04.md

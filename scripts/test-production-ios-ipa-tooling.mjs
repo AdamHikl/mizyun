@@ -67,7 +67,19 @@ try {
     join(repositoryRoot, "scripts/ios-export-options-production.plist"),
     join(testRepository, "scripts/ios-export-options-production.plist"),
   );
-  writeFileSync(join(testRepository, "apps/mobile/app.json"), "{}\n");
+  for (const configFile of ["app.json", "app.config.js"]) {
+    cpSync(
+      join(repositoryRoot, "apps/mobile", configFile),
+      join(testRepository, "apps/mobile", configFile),
+    );
+  }
+  // Freeze synthetic artifact identity independently of future store increments.
+  const fixtureConfigPath = join(testRepository, "apps/mobile/app.json");
+  const fixtureConfig = JSON.parse(readFileSync(fixtureConfigPath, "utf8"));
+  fixtureConfig.expo.version = "1.0.7";
+  fixtureConfig.expo.ios.buildNumber = "7";
+  fixtureConfig.expo.android.versionCode = 7;
+  writeFileSync(fixtureConfigPath, JSON.stringify(fixtureConfig));
 
   writeExecutable(
     "pnpm",
@@ -129,7 +141,7 @@ case "$key" in
   signingStyle) printf automatic ;;
   manageAppVersionAndBuildNumber) printf false ;;
   CFBundleIdentifier) printf com.mizyun.app ;;
-  CFBundleShortVersionString) printf 1.0.0 ;;
+  CFBundleShortVersionString) printf '1.0.%s' "$EXPECTED_BUILD_NUMBER" ;;
   CFBundleVersion) printf '%s' "$EXPECTED_BUILD_NUMBER" ;;
   *) exit 1 ;;
 esac
@@ -147,7 +159,38 @@ for argument in "$@"; do
 done
 mkdir -p "$destination/Payload/Mizyun.app"
 printf 'fake plist' > "$destination/Payload/Mizyun.app/Info.plist"
-printf '%s\n' 'https://mizyun-api.phiskel.com' 'https://mizyun-supabase.phiskel.com' > "$destination/Payload/Mizyun.app/main.jsbundle"
+printf '%s\n' 'https://mizyun-api.phiskel.com' 'https://mizyun-supabase.phiskel.com' 'https://mizyun-api-dev.phiskel.com' 'https://mizyun-supabase-dev.phiskel.com' > "$destination/Payload/Mizyun.app/main.jsbundle"
+node - "$destination" <<'NODE'
+const fs = require("node:fs");
+const path = require("node:path");
+const appPath = path.join(process.argv[2], "Payload/Mizyun.app");
+const config = require(path.join(process.cwd(), "apps/mobile/app.config.js")).expo;
+const configDir = path.join(appPath, "EXConstants.bundle");
+fs.mkdirSync(configDir);
+const configPath = path.join(configDir, "app.config");
+if (process.env.MOCK_CONFIG_FAILURE === "missing") process.exit(0);
+if (process.env.MOCK_CONFIG_FAILURE === "malformed") {
+  fs.writeFileSync(configPath, "{truncated");
+  process.exit(0);
+}
+if (process.env.MOCK_CONFIG_FIELD) {
+  const segments = process.env.MOCK_CONFIG_FIELD.split(".");
+  const field = segments.pop();
+  const parent = segments.reduce((object, segment) => object[segment], config);
+  parent[field] = process.env.MOCK_CONFIG_VALUE || "incorrect-exported-value";
+}
+if (process.env.MOCK_CONFIG_FAILURE === "missing-endpoints") {
+  delete config.extra.mizyunReleaseEndpoints;
+}
+if (JSON.stringify(config.extra.mizyunReleaseEndpoints ?? {}).includes("test-publishable-key")) {
+  throw new Error("Release endpoint metadata contains a credential");
+}
+fs.writeFileSync(configPath, JSON.stringify(config));
+if (process.env.MOCK_MISSING_RUNTIME_ENDPOINT) {
+  const contents = fs.readFileSync(path.join(appPath, "main.jsbundle"), "utf8");
+  fs.writeFileSync(path.join(appPath, "main.jsbundle"), contents.replace(process.env.MOCK_MISSING_RUNTIME_ENDPOINT, ""));
+}
+NODE
 `,
   );
   writeExecutable(
@@ -187,7 +230,12 @@ printf '%s\n' 20260914T150000Z
   run("git", ["init", "-b", "main"]);
   run("git", ["config", "user.email", "test@example.invalid"]);
   run("git", ["config", "user.name", "IPA Tool Test"]);
-  run("git", ["add", "scripts", "apps/mobile/app.json"]);
+  run("git", [
+    "add",
+    "scripts",
+    "apps/mobile/app.json",
+    "apps/mobile/app.config.js",
+  ]);
   run("git", ["commit", "-m", "add ipa tooling"]);
   const candidateSha = run("git", ["rev-parse", "HEAD"]).trim();
   run("git", ["update-ref", "refs/remotes/origin/main", candidateSha]);
@@ -291,6 +339,62 @@ printf '%s\n' 20260914T150000Z
     "Refusing to overwrite existing artifact directory",
     testEnvironment,
   );
+
+  const releaseArgs = ["--sha", candidateSha, "--build-number", "7"];
+  for (const field of [
+    "name",
+    "slug",
+    "scheme",
+    "ios.bundleIdentifier",
+    "android.package",
+    "version",
+    "ios.buildNumber",
+    "android.versionCode",
+    "extra.mizyunVariant",
+    "extra.mizyunProfile",
+    "extra.mizyunReleaseEndpoints.apiUrl",
+    "extra.mizyunReleaseEndpoints.supabaseUrl",
+    "extra.mizyunReleaseEndpoints.authRedirectUri",
+  ]) {
+    expectFailure(releaseArgs, `unexpected Expo config ${field}`, {
+      ...testEnvironment,
+      MOCK_CONFIG_FIELD: field,
+      MOCK_CONFIG_VALUE:
+        {
+          "extra.mizyunVariant": "dev",
+          "extra.mizyunProfile": "preview",
+          "extra.mizyunReleaseEndpoints.apiUrl":
+            "https://mizyun-api-dev.phiskel.com",
+          "extra.mizyunReleaseEndpoints.supabaseUrl":
+            "https://mizyun-supabase-dev.phiskel.com",
+          "extra.mizyunReleaseEndpoints.authRedirectUri":
+            "mizyun-dev://auth/callback",
+        }[field] || "incorrect-exported-value",
+    });
+  }
+  for (const failure of ["missing", "malformed"]) {
+    expectFailure(releaseArgs, "missing a readable Expo public app.config", {
+      ...testEnvironment,
+      MOCK_CONFIG_FAILURE: failure,
+    });
+  }
+  expectFailure(
+    releaseArgs,
+    "unexpected Expo config extra.mizyunReleaseEndpoints.apiUrl",
+    {
+      ...testEnvironment,
+      MOCK_CONFIG_FAILURE: "missing-endpoints",
+    },
+  );
+  for (const [endpoint, label] of [
+    ["https://mizyun-api.phiskel.com", "API"],
+    ["https://mizyun-supabase.phiskel.com", "Supabase"],
+  ]) {
+    expectFailure(releaseArgs, `Production ${label} URL was not found`, {
+      ...testEnvironment,
+      MOCK_MISSING_RUNTIME_ENDPOINT: endpoint,
+    });
+  }
 
   const badSummaryEnvironment = {
     ...testEnvironment,

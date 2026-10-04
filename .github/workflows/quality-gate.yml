@@ -30,6 +30,12 @@ jobs:
           node-version: 22.13.0
           cache: pnpm
 
+      - name: Install quality gate system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends ripgrep
+          rg --version
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 

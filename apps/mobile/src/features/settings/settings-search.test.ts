@@ -543,7 +543,7 @@ describe("settings-search", () => {
   });
 
   describe("speed and performance", () => {
-    it("executes search across full catalog in under 50ms", () => {
+    it("keeps the median warmed eight-query batch across the full catalog under 50ms", () => {
       const testQueries = [
         "dark mode",
         "pounds instead of kilos",
@@ -555,14 +555,28 @@ describe("settings-search", () => {
         "change bank account",
       ];
 
-      const start = performance.now();
-      for (const query of testQueries) {
-        searchSettings(query, SETTINGS_CATALOG);
-      }
-      const elapsed = performance.now() - start;
+      const runBatch = () => {
+        for (const query of testQueries) {
+          searchSettings(query, SETTINGS_CATALOG);
+        }
+      };
 
-      // 8 searches across full catalog
-      expect(elapsed).toBeLessThan(50);
+      // Warm the matcher before measuring its steady-state cost. A median of
+      // complete batches tolerates isolated scheduler/GC pauses when Vitest runs
+      // other files in parallel, while retaining the 50ms budget for all 8 searches.
+      for (let warmup = 0; warmup < 2; warmup++) runBatch();
+      const samples: number[] = [];
+      for (let sample = 0; sample < 7; sample++) {
+        const start = performance.now();
+        runBatch();
+        samples.push(performance.now() - start);
+      }
+      const median = [...samples].sort((a, b) => a - b)[3]!;
+
+      expect(
+        median,
+        `Eight-query batch samples (ms): ${samples.map((sample) => sample.toFixed(2)).join(", ")}`,
+      ).toBeLessThan(50);
     });
   });
 });

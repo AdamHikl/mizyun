@@ -297,6 +297,16 @@ module.exports = {
       ...baseExpo.extra,
       mizyunVariant: variantName,
       mizyunProfile: effectiveProfile,
+      // Public endpoints only; release tooling verifies the exported native config.
+      ...(effectiveProfile === "production"
+        ? {
+            mizyunReleaseEndpoints: {
+              apiUrl,
+              supabaseUrl,
+              authRedirectUri,
+            },
+          }
+        : {}),
       enableProgressPhotos: variantName === "dev",
     },
     ios: {

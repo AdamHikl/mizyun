@@ -348,6 +348,52 @@ if ! grep -A3 '\[Key\] com.apple.developer.applesignin' <<<"$entitlements" | gre
   exit 1
 fi
 
+# expo-constants embeds the resolved public Expo config in this native resource.
+# Validate configured endpoints, rather than rejecting dormant Dev guard literals.
+node - "$app_path/EXConstants.bundle/app.config" "$version_number" "$build_number" <<'NODE'
+const fs = require("node:fs");
+const [configPath, version, build] = process.argv.slice(2);
+let config;
+try {
+  config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+} catch {
+  throw new Error("Exported IPA is missing a readable Expo public app.config");
+}
+const expected = {
+  "name": [config?.name, "Mizyun"],
+  "slug": [config?.slug, "mizyun"],
+  "scheme": [config?.scheme, "mizyun"],
+  "ios.bundleIdentifier": [config?.ios?.bundleIdentifier, "com.mizyun.app"],
+  "android.package": [config?.android?.package, "com.mizyun.app"],
+  "version": [config?.version, version],
+  "ios.buildNumber": [config?.ios?.buildNumber, build],
+  "android.versionCode": [config?.android?.versionCode, Number(build)],
+  "extra.mizyunVariant": [config?.extra?.mizyunVariant, "production"],
+  "extra.mizyunProfile": [config?.extra?.mizyunProfile, "production"],
+  "extra.mizyunReleaseEndpoints.apiUrl": [
+    config?.extra?.mizyunReleaseEndpoints?.apiUrl,
+    "https://mizyun-api.phiskel.com",
+  ],
+  "extra.mizyunReleaseEndpoints.supabaseUrl": [
+    config?.extra?.mizyunReleaseEndpoints?.supabaseUrl,
+    "https://mizyun-supabase.phiskel.com",
+  ],
+  "extra.mizyunReleaseEndpoints.authRedirectUri": [
+    config?.extra?.mizyunReleaseEndpoints?.authRedirectUri,
+    "mizyun://auth/callback",
+  ],
+};
+if (version !== `1.0.${build}`) {
+  throw new Error("Exported IPA has an inconsistent release version tuple");
+}
+for (const [field, [actual, required]] of Object.entries(expected)) {
+  if (actual !== required) {
+    // Never print arbitrary exported config values (which could contain secrets).
+    throw new Error(`Exported IPA has unexpected Expo config ${field}`);
+  }
+}
+NODE
+
 bundle_path="$app_path/main.jsbundle"
 if [[ ! -f "$bundle_path" ]]; then
   echo "Exported IPA is missing main.jsbundle." >&2
@@ -360,10 +406,6 @@ if ! grep -q 'https://mizyun-api\.phiskel\.com' <<<"$bundle_strings"; then
 fi
 if ! grep -q 'https://mizyun-supabase\.phiskel\.com' <<<"$bundle_strings"; then
   echo "Production Supabase URL was not found in the exported runtime bundle." >&2
-  exit 1
-fi
-if grep -q 'https://mizyun-api-dev\.phiskel\.com' <<<"$bundle_strings"; then
-  echo "Dev API URL was found in the exported runtime bundle." >&2
   exit 1
 fi
 
