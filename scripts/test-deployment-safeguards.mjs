@@ -225,6 +225,16 @@ writeFileSync(
   mockSystemctl,
   `#!/bin/sh
 echo "mock systemctl called with: $@" >> "${path.join(tempBase, "systemctl.log")}"
+if [ "$1" = "start" ] && [ "$2" = "mizyun-backup-for-deploy.service" ]; then
+  echo "backup-resume $(git rev-parse HEAD)" >> "${path.join(tempBase, "promotion-events.log")}"
+  if [ "$MIZYUN_FIXTURE_BACKUP_FAIL" = "true" ]; then exit 1; fi
+fi
+if [ "$1" = "stop" ] && [ "$2" = "mizyun-api.service" ]; then
+  echo "api-stop $(git rev-parse HEAD)" >> "${path.join(tempBase, "promotion-events.log")}"
+fi
+if [ "$1" = "start" ] && [ "$2" = "cloudflared.service" ]; then
+  echo "tunnel-start $(git rev-parse HEAD)" >> "${path.join(tempBase, "promotion-events.log")}"
+fi
 exit 0
 `,
 );
@@ -248,6 +258,10 @@ writeFileSync(
   `#!/bin/sh
 if [ "$1" = "exec" ] && [ "$2" = "supabase" ] && [ "$3" = "db" ] && [ "$4" = "push" ]; then
   echo "mock supabase db push called: $@" >> "${path.join(tempBase, "supabase.log")}"
+  echo "migration $(git rev-parse HEAD) $*" >> "${path.join(tempBase, "promotion-events.log")}"
+  if [ "$MIZYUN_FIXTURE_PARTIAL_MIGRATION" = "true" ]; then
+    case " $* " in *" --dry-run "*) ;; *) echo "one migration committed" >&2; exit 1;; esac
+  fi
   exit 0
 fi
 if [ "$1" = "install" ]; then
@@ -293,6 +307,23 @@ chmodSync(mockBackupScript, 0o755);
 // Create disposable git repository for dev checkout
 const devRepoDir = path.join(tempBase, "dev-repo");
 mkdirSync(devRepoDir, { recursive: true });
+const actualGit = execFileSync("which", ["git"], { encoding: "utf8" }).trim();
+const fixtureGit = path.join(mockBinDir, "git");
+writeFileSync(
+  fixtureGit,
+  `#!/bin/sh
+if [ "$1" = "remote" ] && [ "$2" = "get-url" ] && [ "$3" = "origin" ]; then
+  origin=$("${actualGit}" "$@") || exit $?
+  case "$origin" in
+    "${devRepoDir}"|"${path.join(tempBase, "does-not-exist")}") echo 'https://example.invalid/mizyun-fixture.git';;
+    *) printf '%s\\n' "$origin";;
+  esac
+else
+  exec "${actualGit}" "$@"
+fi
+`,
+);
+chmodSync(fixtureGit, 0o755);
 
 const git = (args, cwd = devRepoDir) => {
   const res = spawnSync("git", args, {
@@ -918,6 +949,113 @@ time.sleep(5)
   } finally {
     locker.kill("SIGKILL");
   }
+});
+
+await test("promote-production.sh: invalid database container fails before backup or API stop", () => {
+  const events = path.join(tempBase, "promotion-events.log");
+  if (existsSync(events)) rmSync(events);
+  git(["checkout", "--detach", prodCommit1], prodRepoDir);
+  const invalidEnv = path.join(tempBase, "invalid-container.env");
+  writeFileSync(
+    invalidEnv,
+    readFileSync(prodEnvFile, "utf8").replace(
+      'MIZYUN_PRODUCTION_DB_DIRECT_CONTAINER="false"',
+      'MIZYUN_PRODUCTION_DB_DIRECT_CONTAINER="true"',
+    ),
+  );
+  const res = runPromoteProd({
+    envFile: invalidEnv,
+    extraEnv: { MIZYUN_DB_CONTAINER: "wrong-db" },
+  });
+  assert(res.status === 2, "invalid container must fail preflight");
+  assert(
+    !existsSync(events),
+    "invalid database target must not reach backup or API stop",
+  );
+  assert(
+    git(["rev-parse", "HEAD"], prodRepoDir) === prodCommit1,
+    "invalid target must retain prior code",
+  );
+});
+
+await test("promote-production.sh: backup recovery restarts only previous code before migration", () => {
+  const events = path.join(tempBase, "promotion-events.log");
+  if (existsSync(events)) rmSync(events);
+  git(["checkout", "--detach", prodCommit1], prodRepoDir);
+  const res = runPromoteProd({});
+  assert(res.status === 0, `promotion failed: ${res.stderr}`);
+  const lines = readFileSync(events, "utf8").trim().split("\n");
+  assert(
+    lines[0] === `backup-resume ${prodCommit1}`,
+    `backup exposed candidate code: ${lines[0]}`,
+  );
+  assert(
+    lines[1] === `api-stop ${prodCommit1}`,
+    "API must stop before candidate checkout",
+  );
+  assert(
+    lines
+      .slice(2, -1)
+      .every((line) => line.startsWith(`migration ${prodCommit2} `)),
+    "migrations must use the candidate after backup",
+  );
+  assert(
+    lines.at(-1) === `tunnel-start ${prodCommit2}`,
+    "public tunnel must resume on candidate",
+  );
+});
+
+await test("promote-production.sh: backup failure never reaches candidate migrations", () => {
+  const events = path.join(tempBase, "promotion-events.log");
+  if (existsSync(events)) rmSync(events);
+  git(["checkout", "--detach", prodCommit1], prodRepoDir);
+  const res = runPromoteProd({
+    extraEnv: { MIZYUN_FIXTURE_BACKUP_FAIL: "true" },
+  });
+  assert(res.status !== 0, "failed backup must stop promotion");
+  assert(
+    git(["rev-parse", "HEAD"], prodRepoDir) === prodCommit1,
+    "backup failure must retain previous code",
+  );
+  assert(
+    readFileSync(events, "utf8").trim() ===
+      `backup-resume ${prodCommit1}\ntunnel-start ${prodCommit1}`,
+    "backup must run before checkout and no migration may run",
+  );
+});
+
+await test("promote-production.sh: a partially failed migration is journaled conservatively", () => {
+  git(["checkout", "--detach", prodCommit1], prodRepoDir);
+  const res = runPromoteProd({
+    extraEnv: { MIZYUN_FIXTURE_PARTIAL_MIGRATION: "true" },
+  });
+  assert(res.status !== 0, "partial migration must fail promotion");
+  const journal = readFileSync(
+    path.join(prodRepoDir, ".git/mizyun-production-release-journal.jsonl"),
+    "utf8",
+  )
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
+  assert(
+    journal.at(-1).migrationState === "attempted",
+    "partial migration cannot be reported as unstarted or complete",
+  );
+  assert(
+    journal.at(-1).migrationsApplied === true,
+    "partial application must be treated as possible",
+  );
+  assert(
+    res.stderr.includes("may have committed"),
+    "forward-only partial-migration warning required",
+  );
+  assert(
+    readFileSync(path.join(tempBase, "promotion-events.log"), "utf8")
+      .trim()
+      .split("\n")
+      .at(-1) === `tunnel-start ${prodCommit1}`,
+    "rollback must restore previous public tunnel",
+  );
 });
 
 // --- Remote Promotion Command & Stdin Isolation Tests (Issue #101) ---

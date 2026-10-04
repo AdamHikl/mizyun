@@ -784,7 +784,9 @@
         ".agents/guides",
         ".agents/rules",
         "scripts/worker",
-        "opencode.json"
+        "opencode.json",
+        "apps/api/src/release-compatibility.test.ts",
+        "apps/api/src/test-fixtures/build6-contracts"
       ],
       "contracts": [],
       "domainPort": [],
@@ -799,7 +801,8 @@
         "packages/config/src/build-matrix.test.ts",
         "packages/config/src/server.test.ts",
         "packages/config/src/mobile.test.ts",
-        "scripts/test-backup-dev-encrypted.py"
+        "scripts/test-backup-dev-encrypted.py",
+        "apps/api/src/release-compatibility.test.ts"
       ],
       "relations": [
         {
@@ -1239,7 +1242,7 @@
       "openAcceptance": [
         "Physical iPhone and Android granted/denied/revoked checks",
         "Public privacy policy and Google Play Health declarations before release",
-        "ACT-02–04 source provenance and idempotent persisted sync remain future scope"
+        "ACT-02\u201304 source provenance and idempotent persisted sync remain future scope"
       ]
     },
     {
@@ -1712,8 +1715,8 @@
         "COMM-04 physical relationship/graph/block/mute/account-switch acceptance and reporting/delivery/retention dependencies",
         "COMM-05 installed cold/warm/login/QR/environment/account-switch and not-installed fallback acceptance",
         "COMM-06 physical preview/publish/edit/unpublish/source-delete acceptance and feed/delivery dependencies",
-        "COMM-07–16 feed, moderation, inbox/delivery, lifecycle/export/restore, rollout and exact-candidate pilot gates",
-        "COMM-17–23 expansion real Auth/Storage, device, moderation, lifecycle, restore and Dev acceptance on the exact final candidate"
+        "COMM-07\u201316 feed, moderation, inbox/delivery, lifecycle/export/restore, rollout and exact-candidate pilot gates",
+        "COMM-17\u201323 expansion real Auth/Storage, device, moderation, lifecycle, restore and Dev acceptance on the exact final candidate"
       ]
     },
     {

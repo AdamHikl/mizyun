@@ -1,5 +1,7 @@
 # Architecture Decision Records (ADR) Index
 
+- [ADR-0043 — Build 6 compatibility during build 7 promotion](0043-build6-forward-backend-compatibility.md): pinned legacy contracts, nullable invalidated nutrient estimates, qualified Coach controls and coherent backup/migration failure handling.
+
 - [ADR-0042 — Compact agent continuity and serialized stable checks](0042-compact-agent-continuity-and-serialized-checks.md): accepted for local implementation 2026-10-04; bounded live status, preserved handoffs, unchanged full gates with local coordination/input stability, and portable device-discovery cleanup.
 
 - [ADR-0030 — Explicit community publication boundary and isolated social authorization](0030-explicit-community-publication.md): accepted 2026-09-29; isolated social tables, field-limited snapshot publication, and bilateral blocking.

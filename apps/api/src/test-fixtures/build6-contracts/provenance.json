@@ -1,0 +1,670 @@
+{
+  "androidSourceCommit": "3c20835953737604bdb03567e519b13c0823df5b",
+  "iosSourceCommit": "9d50538471447880b6088be03f64db90db7a07fb",
+  "transform": "TypeScript transpileModule ES2022 ESNext; local imports use .mjs; Zod loaded from installed contracts dependency; Prettier formatting",
+  "modules": {
+    "food-entry": {
+      "sourcePath": "packages/contracts/src/food-entry.ts",
+      "sourceSha256": "a1b4e96634e28297b56917e87515415c386b481240f26d0845b5e14de9b468c9",
+      "snapshotSha256": "1296098cbefa89a4cd50f280a9956be70a1c172b8787ba6176d58d152fafa4fd",
+      "declarations": [
+        {
+          "names": ["foodSourceSchema"],
+          "sourceSha256": "bb3f14a06073b09a360740e10f7c236ead95c06d10ba6849a389f4a29cda5d8e",
+          "startLine": 27,
+          "endLine": 27
+        },
+        {
+          "names": ["isoInstantSchema"],
+          "sourceSha256": "2f9cf2e13db2c9a5000e2996274fd341c4ef2130dbafb7014aace36f83ed3928",
+          "startLine": 31,
+          "endLine": 31
+        },
+        {
+          "names": ["isoDateSchema"],
+          "sourceSha256": "afbf82e4038c53fcc24bf9afff0c8163f854aaafd4a8655adc1414334f2b6d08",
+          "startLine": 34,
+          "endLine": 36
+        },
+        {
+          "names": ["macroSchema"],
+          "sourceSha256": "6d2177357aedb523715e11d923930f3ea03eabd9224b25cb76752c1e0b37fe64",
+          "startLine": 47,
+          "endLine": 47
+        },
+        {
+          "names": ["foodEntrySchema"],
+          "sourceSha256": "051e4bbfd6d865d286a69467c91a806c79bb98080650bfae842857afeb06616c",
+          "startLine": 49,
+          "endLine": 65
+        },
+        {
+          "names": ["foodEntryResponseSchema"],
+          "sourceSha256": "9967ee272ae27b29c8e1e673cab196afd915cc4e289107ed5df932591e924927",
+          "startLine": 69,
+          "endLine": 71
+        },
+        {
+          "names": ["foodEntryListResponseSchema"],
+          "sourceSha256": "c1698aec9cc54008b525eb51ec3c31f6f99d1288edcf5b236d9bcbf152872e6a",
+          "startLine": 75,
+          "endLine": 79
+        },
+        {
+          "names": ["foodEntryCreateSchema"],
+          "sourceSha256": "9d883897dc86a6ea608ac5c54d3ef94bb0f00464afffae820cbce0c21ecf2341",
+          "startLine": 93,
+          "endLine": 104
+        },
+        {
+          "names": ["foodEntryPatchSchema"],
+          "sourceSha256": "65c78445a54d09d2b179b184f858822c91e1924a0e3b0571c069cea18a4b2403",
+          "startLine": 117,
+          "endLine": 138
+        },
+        {
+          "names": ["dailyFoodSummarySchema"],
+          "sourceSha256": "96fbdd182ab2445104b817968ff87315da3bdc9295998c15072dcf8122079736",
+          "startLine": 185,
+          "endLine": 192
+        },
+        {
+          "names": ["dailyFoodSummaryResponseSchema"],
+          "sourceSha256": "33728d4cf8b74fe58741dbc60574e290990825be943ea8199425811749ae3016",
+          "startLine": 196,
+          "endLine": 198
+        },
+        {
+          "names": ["dailyFoodSummaryListResponseSchema"],
+          "sourceSha256": "48a51cc9bbd24a1bd160ad165408f67e4f479dab77f21b16fa4c85ea1ca4d6e8",
+          "startLine": 204,
+          "endLine": 206
+        },
+        {
+          "names": ["nutritionEstimateRangeSchema"],
+          "sourceSha256": "41e11ec0f6df71c1460afcbf390f424612736d85225b75b5652fed9c21343b7d",
+          "startLine": 278,
+          "endLine": 286
+        },
+        {
+          "names": ["foodDraftCandidateSchema"],
+          "sourceSha256": "8a98d0b40c7bb8c192803fe22244e2c94f78fa4aa354fe1d377ea9edb6e92ac2",
+          "startLine": 288,
+          "endLine": 318
+        }
+      ]
+    },
+    "workout": {
+      "sourcePath": "packages/contracts/src/workout.ts",
+      "sourceSha256": "0c8d27e877a2bcec84e282fcff402cca03739fee21b8350d15d9b55ac7cba76d",
+      "snapshotSha256": "790ef4606f8e1b54e880238c5a33fdfff7a9e1cfe174aedad1effa7b3f42d985",
+      "declarations": [
+        {
+          "names": ["workoutSourceSchema"],
+          "sourceSha256": "336c6d5b1cb18a742d7e230740f660dcd2a797b58d27e1611222a2bf2ec2d0b8",
+          "startLine": 29,
+          "endLine": 29
+        },
+        {
+          "names": ["isoInstantSchema"],
+          "sourceSha256": "4ac8eeb24797fdc7295b083d48ffcd06001043bbfdfe1e632d2b3515b0fee4b6",
+          "startLine": 33,
+          "endLine": 33
+        },
+        {
+          "names": ["workoutSchemaBase"],
+          "sourceSha256": "befcbae86b4a0b84c9cac64bef61f09472918797d3a5dc545b3ce5e6a7a8b89a",
+          "startLine": 46,
+          "endLine": 58
+        },
+        {
+          "names": ["workoutSchema"],
+          "sourceSha256": "836fc37b818fe7f852be165167f77b4add21a3ab1dfe1aa4144587cb8c7466f0",
+          "startLine": 60,
+          "endLine": 67
+        },
+        {
+          "names": ["workoutResponseSchema"],
+          "sourceSha256": "9e211869d3b0570847eb79badcbd845630b5cf4f097dab88df741ff6948908d0",
+          "startLine": 71,
+          "endLine": 73
+        },
+        {
+          "names": ["workoutListResponseSchema"],
+          "sourceSha256": "cbc6e2824c0aaa96aab1bb625bc8ce8b78a0ae11a32685f940daf49d7a2ef010",
+          "startLine": 77,
+          "endLine": 79
+        },
+        {
+          "names": ["workoutCreateSchema"],
+          "sourceSha256": "c9b2b48ff59f79a33d2cf13f2e86b940ab7e62f641763810acf00b5c6af3988f",
+          "startLine": 89,
+          "endLine": 109
+        },
+        {
+          "names": ["workoutPatchSchema"],
+          "sourceSha256": "8bda8d44cf6b58f3dfea2ddc3597c48b8ae2cdf71cba4ec26642509d02172269",
+          "startLine": 122,
+          "endLine": 150
+        }
+      ]
+    },
+    "workout-set": {
+      "sourcePath": "packages/contracts/src/workout-set.ts",
+      "sourceSha256": "7d9be73800d13ac697ad580a0e9a94d53fad4b696ae13ad719d3d271404f0475",
+      "snapshotSha256": "36276cc88f108bc848b8144e13b1603e8c1cec92988aaed6cdbf8626940c78e3",
+      "declarations": [
+        {
+          "names": ["isoInstantSchema"],
+          "sourceSha256": "f7aeb92d7a4f02417283934d267a77398dd5df2fcc09c2dfd6782b2901b5245d",
+          "startLine": 32,
+          "endLine": 32
+        },
+        {
+          "names": ["MAX_SEQUENCE"],
+          "sourceSha256": "b5cc8ca812d60436525e267108b30d51da92bc38f656b86771fee4356346c1c1",
+          "startLine": 35,
+          "endLine": 35
+        },
+        {
+          "names": ["repetitionsSchema"],
+          "sourceSha256": "e1684b4d06f779ff0f240286f09abef3134152a5d50d641cf5c02ebf954c6cc7",
+          "startLine": 38,
+          "endLine": 38
+        },
+        {
+          "names": ["loadKgSchema"],
+          "sourceSha256": "9c6bed1c65da7ef6a0cdcc0e80a9d1763c767b38565936de4e997c124a047b56",
+          "startLine": 41,
+          "endLine": 41
+        },
+        {
+          "names": ["durationSecondsSchema"],
+          "sourceSha256": "b6f35350549654eacbf346b7b98ce1d251e08aaa16a6cc47a2f4270207e1b6c9",
+          "startLine": 44,
+          "endLine": 44
+        },
+        {
+          "names": ["distanceMetersSchema"],
+          "sourceSha256": "811c66b757f3d6e981009fa05bea86aa606a07638fb4939a55720b5d756544e8",
+          "startLine": 47,
+          "endLine": 47
+        },
+        {
+          "names": ["perceivedExertionSchema"],
+          "sourceSha256": "82abc3512b0d16e81c9a0734c2b8f1aeb95d05c80a4c1898800a42d08f6d9174",
+          "startLine": 50,
+          "endLine": 50
+        },
+        {
+          "names": ["workoutSetSchema"],
+          "sourceSha256": "f1024e1b877ca51afa5ff3a8762ac32d47b4597056559d8ef2fa0ea5b75197f1",
+          "startLine": 52,
+          "endLine": 65
+        },
+        {
+          "names": ["workoutSetResponseSchema"],
+          "sourceSha256": "ecd9ba31f082f2256ae35c916224ba805e645b07cee0e56ca1a88acaf5eca2fe",
+          "startLine": 69,
+          "endLine": 71
+        },
+        {
+          "names": ["workoutSetListResponseSchema"],
+          "sourceSha256": "ddb0a2d1a74e65e5efd62a2234ceb3922da0c45673972f238722ffb4f076e7c7",
+          "startLine": 75,
+          "endLine": 77
+        },
+        {
+          "names": ["workoutSetCreateSchema"],
+          "sourceSha256": "5d8c2d9efa5238d79b2658f989a272024b06f6aa0e134aa812f0d328c54b5bb2",
+          "startLine": 98,
+          "endLine": 120
+        },
+        {
+          "names": ["exerciseRecentSetsResponseSchema"],
+          "sourceSha256": "0b0c6812113bd7353c9515fde0d55f10d7399c7bca467aaaa334c5fb0a6cb616",
+          "startLine": 143,
+          "endLine": 150
+        }
+      ]
+    },
+    "exercise": {
+      "sourcePath": "packages/contracts/src/exercise.ts",
+      "sourceSha256": "ca8223c6dc428ec5ac691b12a33ac5e4f36cc13c1c6bb069e671bc73c5f6ce6b",
+      "snapshotSha256": "cc475184fffebb70f5eb07afcf9f268512b0e9e51c12c55074a21ed8221e7684",
+      "declarations": [
+        {
+          "names": ["exerciseSchema"],
+          "sourceSha256": "d15584bf2b16684c3c947d241b5bff06e075f65a91801b727dd8d36b2a0a8fa2",
+          "startLine": 20,
+          "endLine": 28
+        },
+        {
+          "names": ["exerciseResponseSchema"],
+          "sourceSha256": "7cede7e41cc9481d82f45fdc6d2f2479258e2e9c22245ceb2d256ab0f98aa00b",
+          "startLine": 32,
+          "endLine": 34
+        },
+        {
+          "names": ["exerciseListResponseSchema"],
+          "sourceSha256": "dce2692cd4d91c524e14d6547a21033e6b9c412567296e3efb57915e6b5792f4",
+          "startLine": 38,
+          "endLine": 40
+        },
+        {
+          "names": ["exerciseCreateSchema"],
+          "sourceSha256": "74f174ea9d6fe424810d8c1a0b126f92df6b46b47bd8aebc7927ac801cc7c6a9",
+          "startLine": 49,
+          "endLine": 55
+        },
+        {
+          "names": ["exerciseCatalogItemSchema"],
+          "sourceSha256": "a767f802fdf237190ca3f497f3a91f895aaae8b4acd81cd4c70bd4b4267d2016",
+          "startLine": 95,
+          "endLine": 118
+        },
+        {
+          "names": ["exerciseCatalogResponseSchema"],
+          "sourceSha256": "f36af1e0ea8b009ebd0f851020d6ec7637e8cadf10e8eaa3120cfb809325ab96",
+          "startLine": 122,
+          "endLine": 124
+        }
+      ]
+    },
+    "analytics": {
+      "sourcePath": "packages/contracts/src/analytics.ts",
+      "sourceSha256": "b72e298882dd7b498dff1a35419c8db6d7979f15c584f7bd43f8a3d6000efa59",
+      "snapshotSha256": "b3fc1801c525b147ebabba3af22837c2d9ccebeaa9fbb5841797a5a99b19e5d1",
+      "declarations": [
+        {
+          "names": ["screenNameSchema"],
+          "sourceSha256": "cafaee4bffa6f70f52f483bcc8c069b14d9bbfb101b406eb7306abaeb5d25a03",
+          "startLine": 6,
+          "endLine": 21
+        },
+        {
+          "names": ["loggingFlowSchema"],
+          "sourceSha256": "cad008cf932798dd5526a7727708f6486a0150b1e6c007134750884e92f839dc",
+          "startLine": 25,
+          "endLine": 29
+        },
+        {
+          "names": ["coreRecordKindSchema"],
+          "sourceSha256": "d52a72b88050c0a65b3898ac26394a7a49fe6a268a06b7ae82df5243ebafc6c2",
+          "startLine": 32,
+          "endLine": 36
+        },
+        {
+          "names": ["durationBucketSchema"],
+          "sourceSha256": "858ecaa9eaba7d5e5a0d211eb1a81074db85c0a3655f3b8028b2e504ef584f72",
+          "startLine": 39,
+          "endLine": 45
+        },
+        {
+          "names": ["tapCountBucketSchema"],
+          "sourceSha256": "25f0867b9131daaf38df76427e810a4a7573b545f4904d96b9d874f73bfec51a",
+          "startLine": 48,
+          "endLine": 53
+        },
+        {
+          "names": ["retryCountBucketSchema"],
+          "sourceSha256": "fa618583ba483a103cce5053a1bca05c764d5ab169c5b1ebd4481ad002c95731",
+          "startLine": 56,
+          "endLine": 56
+        },
+        {
+          "names": ["failureStageSchema"],
+          "sourceSha256": "78b4a97c3838784adb8ed07603ffd37b6e7877f6e4776bf2cc511aed525218eb",
+          "startLine": 59,
+          "endLine": 64
+        },
+        {
+          "names": ["failureReasonSchema"],
+          "sourceSha256": "3ebe5b351a2a44caf17b3f4185f20311818a37c63f92ce22204123a69e866db8",
+          "startLine": 67,
+          "endLine": 74
+        },
+        {
+          "names": ["featureActionSchema"],
+          "sourceSha256": "3d338fe7acbc2a7ccc0de347a11f6b7193094cf8eae903758564b37ccce489b1",
+          "startLine": 77,
+          "endLine": 87
+        },
+        {
+          "names": ["onboardingStepSchema"],
+          "sourceSha256": "fefe8213c5daf699217a90f791d6311e3a9f413906e37c943132f055d88e9f81",
+          "startLine": 90,
+          "endLine": 97
+        },
+        {
+          "names": ["loggingModeSchema"],
+          "sourceSha256": "77a2e428f00efba9e5f85af1d44367b33302215b1e9112bbe8bd33943b6b85e5",
+          "startLine": 100,
+          "endLine": 106
+        },
+        {
+          "names": ["loggingExitReasonSchema"],
+          "sourceSha256": "856332e625f2b552053bf8812c13a10ea08796049d9c10887038ede94c014b05",
+          "startLine": 109,
+          "endLine": 109
+        },
+        {
+          "names": ["baseEventEnvelopeShape"],
+          "sourceSha256": "2ed54d1e0a68c10e6c99e012024f48532746dd04f829ea1eb047242023a018c7",
+          "startLine": 112,
+          "endLine": 122
+        },
+        {
+          "names": ["appSessionStartedEventSchema"],
+          "sourceSha256": "525ee54ded3d73803783e4ee249c429b5e423340b914e2d4a5000ed4d981c5cf",
+          "startLine": 124,
+          "endLine": 134
+        },
+        {
+          "names": ["screenViewedEventSchema"],
+          "sourceSha256": "fd4bada8d4fdbbe7f64eb0e1b6fc9a0dd64d2d21c8ee3b95becc641b2fced532",
+          "startLine": 139,
+          "endLine": 149
+        },
+        {
+          "names": ["onboardingStartedEventSchema"],
+          "sourceSha256": "0b36250cc40faf0815181ec714bc556e8206619f70596cefdb27386920a9db5d",
+          "startLine": 152,
+          "endLine": 158
+        },
+        {
+          "names": ["onboardingStepCompletedEventSchema"],
+          "sourceSha256": "9792312d71c21d16afc955ba9d6cba823284b8027455e250ccd004752873a4d5",
+          "startLine": 163,
+          "endLine": 173
+        },
+        {
+          "names": ["onboardingCompletedEventSchema"],
+          "sourceSha256": "14be0e615bd0ba706eecaa480788924ee63159677b0c53a1e8f0dad0ea6489e8",
+          "startLine": 178,
+          "endLine": 189
+        },
+        {
+          "names": ["loggingFlowStartedEventSchema"],
+          "sourceSha256": "ace49f1e302be10294b5ad5f60b9dcebff3cc859028dfaff5ab4a7207b2dcae2",
+          "startLine": 194,
+          "endLine": 205
+        },
+        {
+          "names": ["loggingFlowCompletedEventSchema"],
+          "sourceSha256": "eb89ef0a07a9b78562ec62187c251dc32cc9194a54ceb273c36b8ce0aaf132b2",
+          "startLine": 210,
+          "endLine": 223
+        },
+        {
+          "names": ["loggingFlowFailedEventSchema"],
+          "sourceSha256": "83f9312d122ab8022740d1d5b47d05f854e39a5502b2dad9d42e5214942439a9",
+          "startLine": 228,
+          "endLine": 242
+        },
+        {
+          "names": ["loggingFlowExitedEventSchema"],
+          "sourceSha256": "4d2eee69e027930b3d08d42774c49576d8727d0f5b1e397a1b0d2ec5191c2bad",
+          "startLine": 247,
+          "endLine": 259
+        },
+        {
+          "names": ["coreRecordCreatedEventSchema"],
+          "sourceSha256": "9e416aebed13040648504c728afe0dd4722e593e57220665672ac7dbc8c14105",
+          "startLine": 264,
+          "endLine": 274
+        },
+        {
+          "names": ["featureActionResultEventSchema"],
+          "sourceSha256": "b57cd601d849da79b76a7a040e971cca43722a9deede105885677b9ada79a48a",
+          "startLine": 279,
+          "endLine": 292
+        },
+        {
+          "names": ["analyticsEventV2Schema"],
+          "sourceSha256": "4671c34625e1fbc837640ad9134e9d54158b3d80e5cfe1c1c7b1d7e3eecf62b7",
+          "startLine": 297,
+          "endLine": 309
+        },
+        {
+          "names": ["CURRENT_ANALYTICS_CONSENT_VERSION"],
+          "sourceSha256": "0d849eb070c5e3a24c3ebfa144d9e0cd9fa8acda51b11b5470871b324871ad29",
+          "startLine": 316,
+          "endLine": 316
+        },
+        {
+          "names": ["analyticsConsentRequestSchema"],
+          "sourceSha256": "3ff736a02be818104a6b21602858ae967e9112288965ffd6b19575859e21b4e6",
+          "startLine": 318,
+          "endLine": 325
+        },
+        {
+          "names": ["analyticsConsentResponseSchema"],
+          "sourceSha256": "ff15e63d3ed688a009ef95e9419fc6b75ee359d2b7d86d5c65a7257a6ff6d87c",
+          "startLine": 331,
+          "endLine": 339
+        },
+        {
+          "names": ["analyticsBatchIngestRequestSchema"],
+          "sourceSha256": "5c952bcab0bc65133a91b7b668bd040412d9689ce5fffede03e3fc256e0f6e2a",
+          "startLine": 345,
+          "endLine": 351
+        },
+        {
+          "names": ["analyticsBatchIngestResponseSchema"],
+          "sourceSha256": "0f4867ac076711cf61dc48fc938626333e12c4da0b239f72c664371db26b4871",
+          "startLine": 357,
+          "endLine": 360
+        },
+        {
+          "names": ["analyticsEventsListResponseSchema"],
+          "sourceSha256": "ff5a226cdf231e4002ce1cbd5d8bd741e3c9914940232ebcc1e2dade3bed4a1e",
+          "startLine": 385,
+          "endLine": 387
+        }
+      ]
+    },
+    "account": {
+      "sourcePath": "packages/contracts/src/account.ts",
+      "sourceSha256": "2321156fe27228168a174531e0141ef15f41125832160b8cd4eb079a096af75a",
+      "snapshotSha256": "e5b69e8ea543190f937433876d2de308aa76ee95552448c0d42d3a89e3b197bf",
+      "declarations": [
+        {
+          "names": ["conversationStubSchema"],
+          "sourceSha256": "03c187fda94d463c698383b26795ac7d256d9ddbed5114b115a6edd32c56eb05",
+          "startLine": 34,
+          "endLine": 49
+        },
+        {
+          "names": ["exportManifestSchema"],
+          "sourceSha256": "db462dd9da1b52fb09ea8e81296c5eed58c5f12f4d3dffdbfeebb29636840f0e",
+          "startLine": 52,
+          "endLine": 72
+        },
+        {
+          "names": ["exportedMediaAssetSchema"],
+          "sourceSha256": "fafb6aa24b6c2e4062ee9bdc60c4518fe4bee05e4eaeb23a6d7b8615cabb63bb",
+          "startLine": 77,
+          "endLine": 85
+        },
+        {
+          "names": ["accountExportSchema"],
+          "sourceSha256": "9f47f1d6bc9593e54f3291978d9b85980c8b9ea9d3af4848af99de414d01c649",
+          "startLine": 97,
+          "endLine": 119
+        },
+        {
+          "names": ["accountExportResponseSchema"],
+          "sourceSha256": "0e5822b0eb859a3c498c73a5b4f76baaf10efce0844dcf17576c132defb31b0e",
+          "startLine": 123,
+          "endLine": 125
+        },
+        {
+          "names": ["CURRENT_AI_CONSENT_VERSION"],
+          "sourceSha256": "9b00c615d01be47131f94d830c57e5493cc3b466a2e6ebb6d81d83f592771391",
+          "startLine": 181,
+          "endLine": 181
+        },
+        {
+          "names": ["aiConsentSchema"],
+          "sourceSha256": "d77148293de1ddf2117c98910bd95e538a64bd6c800b448d66bd9478845d5eb3",
+          "startLine": 183,
+          "endLine": 189
+        },
+        {
+          "names": ["updateAiConsentSchema"],
+          "sourceSha256": "0640fef4e3539c8fef72a18ca11f140b793f5dccdb06280224554218644181ec",
+          "startLine": 193,
+          "endLine": 197
+        },
+        {
+          "names": ["aiConsentResponseSchema"],
+          "sourceSha256": "9f8c49be2398555ac166569b28b8756b87e1ff1154b0998c4a099b2cd241d467",
+          "startLine": 201,
+          "endLine": 203
+        }
+      ]
+    },
+    "coach": {
+      "sourcePath": "packages/contracts/src/coach.ts",
+      "sourceSha256": "bc86df5a50844557f082beb79c92e56026d4b1b0e15d938dc0c1607df5477b51",
+      "snapshotSha256": "d679904b082e993728e9e748dc03a8e0340faadad5f498b9a2b2e4a77833bf06",
+      "declarations": [
+        {
+          "names": ["coachProviderStatusSchema"],
+          "sourceSha256": "829ac71054938e782c38ef16f1e5c297f1e6541dd411f18648a3a5d011ff2c12",
+          "startLine": 5,
+          "endLine": 19
+        },
+        {
+          "names": ["coachConversationStatusSchema"],
+          "sourceSha256": "839295359867d2ed3ad8ba9835509c86d6f94160d992f5f36d3d35021dc4c195",
+          "startLine": 21,
+          "endLine": 21
+        },
+        {
+          "names": ["coachNutritionProposalSchema"],
+          "sourceSha256": "63c875cfdf733727ca504d33dc5c8e65a21a1125164b3fd62fc8c2b05b4dd964",
+          "startLine": 23,
+          "endLine": 29
+        },
+        {
+          "names": ["coachWorkoutProposalSchema"],
+          "sourceSha256": "4838e5d3593b6960d93efcb983f13076c960702d4fd9cc62be025353af48d623",
+          "startLine": 31,
+          "endLine": 39
+        },
+        {
+          "names": ["coachDailyPlanProposalSchema"],
+          "sourceSha256": "911a60b3605e561a350d681fdde0e6fe79f4c0b83a7295f7b7aa4cda5b13388b",
+          "startLine": 41,
+          "endLine": 77
+        },
+        {
+          "names": ["coachWeeklyAdaptationProposalSchema"],
+          "sourceSha256": "65d9d28ebe6cec504940f47b0500b00e4200681c4190159ce8eab0e0aafb2db1",
+          "startLine": 79,
+          "endLine": 107
+        },
+        {
+          "names": ["coachMultiWorkoutPlanProposalSessionSchema"],
+          "sourceSha256": "c82860f39fcf67a36999fdceac979414df86ff47dac0d22a8ac75ab3de13a301",
+          "startLine": 125,
+          "endLine": 160
+        },
+        {
+          "names": ["coachMultiWorkoutPlanProposalSchema"],
+          "sourceSha256": "b178a48f97f848516de6e53ab50e1ac4eba9d5a427c549b07877ecd8a6b70138",
+          "startLine": 162,
+          "endLine": 176
+        },
+        {
+          "names": ["coachWorkoutEditProposalSchema"],
+          "sourceSha256": "d9b690455a1a2882ccf42efaa5e6aeeb60b7d3685e348d34fbffcce457b19fba",
+          "startLine": 178,
+          "endLine": 216
+        },
+        {
+          "names": ["coachActionProposalSchema"],
+          "sourceSha256": "4a08b12659f7a550a34ca1f8b2f06dbe85a9f9d946d23628b7a21ca4bbe85bf1",
+          "startLine": 218,
+          "endLine": 225
+        },
+        {
+          "names": ["coachConversationSchema"],
+          "sourceSha256": "f4c40e1d30180e189403d57413d74af02634bc7bbc66f148efb99cdeec43582d",
+          "startLine": 227,
+          "endLine": 233
+        },
+        {
+          "names": ["coachMessageSchema"],
+          "sourceSha256": "df24579e879ac6d9911f00c9013c81ab428d6b48198be5ce6471280f270abf5b",
+          "startLine": 235,
+          "endLine": 256
+        },
+        {
+          "names": ["coachConversationCreateSchema"],
+          "sourceSha256": "b67c165d459369c01b924db4e4a1efb57ec9d216808a88a0901009c18238e037",
+          "startLine": 258,
+          "endLine": 262
+        },
+        {
+          "names": ["coachMessageCreateSchema"],
+          "sourceSha256": "9543a9d7cf7e7aae34dc9026dd71b251176d6b8943113a3f161cb8d855835635",
+          "startLine": 275,
+          "endLine": 279
+        },
+        {
+          "names": ["coachConversationResponseSchema"],
+          "sourceSha256": "e3315a2c464cfc8dbd7b1b89f0a04d67dfcb25bbe94c276a2e4bb5174352296a",
+          "startLine": 281,
+          "endLine": 283
+        },
+        {
+          "names": ["coachConversationListResponseSchema"],
+          "sourceSha256": "69ee9b1b8f6a74ec49aff3afac59c1a826f24b808f89f2fa68f46cfe76556e7a",
+          "startLine": 285,
+          "endLine": 287
+        },
+        {
+          "names": ["coachThreadResponseSchema"],
+          "sourceSha256": "53de514149d97dd43a1a9b2f877c3eea445b9f05c854f9ce550dd6c189a2eb80",
+          "startLine": 289,
+          "endLine": 292
+        },
+        {
+          "names": ["coachMessageResponseSchema"],
+          "sourceSha256": "4f7e42dd4bb303a7a278e9f7b0930cb98b8b19ccc92be7cc27efb6497b9711fc",
+          "startLine": 294,
+          "endLine": 298
+        }
+      ]
+    },
+    "training-prescription": {
+      "sourcePath": "packages/contracts/src/training-prescription.ts",
+      "sourceSha256": "61cd7e1341788c25ca3571b49d668c08d42e06bd840bb3fcd1b5832e705c85c6",
+      "snapshotSha256": "3c50b9b927765060f4554f3452c66c02fa61fd371c2992ec03aaa79985b2f6e4",
+      "declarations": [
+        {
+          "names": ["equipmentSchema"],
+          "sourceSha256": "243d6dbc182ca2bceb53285cec43ee3421c853ee374dac6673606aef18bc25fc",
+          "startLine": 3,
+          "endLine": 14
+        },
+        {
+          "names": ["movementPatternSchema"],
+          "sourceSha256": "e2309ea0acfc9efffeb7edc6807d2518a9a0fa2df4f3f6e1103ae64918125cbe",
+          "startLine": 16,
+          "endLine": 26
+        },
+        {
+          "names": ["trainingPrescriptionSchema"],
+          "sourceSha256": "009666fb9222db67f22b6a761babf1457fefd55e721e0776e0f8c3e245297813",
+          "startLine": 28,
+          "endLine": 73
+        }
+      ]
+    }
+  },
+  "zodRuntimeSha256": "c432f1324be75ee73ed88d34865a761b59c8b9e6b42729427d5ce57a36d55a28"
+}

@@ -214,6 +214,30 @@ describe("validateFoodEntryPatch", () => {
 });
 
 describe("applyFoodEntryPatch", () => {
+  it("invalidates omitted hidden nutrients only when a base-macro edit contradicts them", () => {
+    const stored = baseStored({
+      fatG: 4,
+      saturatedFatG: 3,
+      carbohydrateG: 30,
+      totalSugarsG: 20,
+      sodiumMg: 100,
+    });
+    const now = new Date("2026-10-04T12:00:00Z");
+    expect(
+      applyFoodEntryPatch(stored, { fatG: 2, carbohydrateG: 10 }, now),
+    ).toMatchObject({ saturatedFatG: null, totalSugarsG: null, sodiumMg: 100 });
+    expect(applyFoodEntryPatch(stored, { name: "Renamed" }, now)).toMatchObject(
+      { saturatedFatG: 3, totalSugarsG: 20 },
+    );
+    expect(
+      applyFoodEntryPatch(stored, { fatG: 5, carbohydrateG: 40 }, now),
+    ).toMatchObject({ saturatedFatG: 3, totalSugarsG: 20 });
+    expect(
+      applyFoodEntryPatch(stored, { fatG: 2, saturatedFatG: 3 }, now)
+        .saturatedFatG,
+    ).toBe(3);
+    expect(stored.saturatedFatG).toBe(3);
+  });
   it("returns the stored entry unchanged when the patch is empty (caller's responsibility)", () => {
     // The route layer must reject an empty patch before this is
     // called. The function still returns a structurally-correct

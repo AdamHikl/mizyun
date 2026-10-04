@@ -4,6 +4,7 @@
 
 ## Current authority and delivery
 
+- **Build7:**1.0.7/7/7 prepared; compatibility/promotion fixes, final gates pending. [Evidence](docs/BUILD_7_RELEASE_EVIDENCE_2026-10-04.md).
 - **Working source:** verified/pushed main merge `a435a7660d85a4586224d5ac48827db651833826`; runtime reviewed independently, fresh precommit/merged/deployment full gatesPASS. [Delivery evidence](docs/DEV_DELIVERY_EVIDENCE_2026-10-04.md).
 - **Dev backend 2026-10-04:** exact `a435a766...`, pristine Hetzner `/var/lib/mizyun/dev/repo`; active API PID3516861, API4100/DB5433. Canonical promotionPASS, migration ledger up to date, public health200/Coach unauthenticated401. New `coach-system-v2-app-v1` catalog present; signed-in acceptance pending.
 - **Latest iPhone Dev install:** 2026-10-04T18:05:59Z, Adam's iPhone16Pro, clean source `a435a766...`; standalone `com.mizyun.development`1.0.6(6), team `LQJNDVBL43`. Build/install/signature/capabilityPASS; launch denied by phone lock. JSsha/artifact/logs in [evidence](docs/DEV_DELIVERY_EVIDENCE_2026-10-04.md); feature acceptance open.
@@ -14,7 +15,7 @@
 
 AGENT-NAV-007 / [#207](https://github.com/AdamHikl/mizyun/issues/207): compact startup, serialized stable full checks, device-test collision repair and bounded-read/wait guidance. Implemented and verified locally: fresh serialized `pnpm check`PASS, runner16/navigation117, non-author review clear; inputs stable. [Evidence](docs/AGENT_WORKFLOW_EVIDENCE_2026-10-04.md). Existing navigation/index acceptance remains advisory; actual client/token/speed comparisons remain [#54](https://github.com/AdamHikl/mizyun/issues/54).
 
-**Next exact action:** unlock installed iPhone and launch Dev; accept new/old-thread recurring guidance, reopen recovery and mobile journeys below. Record exact candidate outcomes; workflow measurement remains #54.
+**Next exact action:** finish build7 independent review/full and disposable database gates, merge exact candidate, promote Dev/Production with coherent backup, then produce signed packages. Adam confirmed core signed-in Dev journeys passed on a435a766; broader issue exits below remain. Workflow measurement remains #54.
 
 ## Local follow-ups awaiting exact-candidate acceptance
 

@@ -100,6 +100,8 @@ Allowed implementation state: `not started`, `in progress`, `implemented`, `bloc
 
 ### Q9
 
+Build7 preparation adds coherent backup-before-checkout/API stop and conservative partial-apply regression coverage; exact commands and Production outcomes belong in [dated evidence](BUILD_7_RELEASE_EVIDENCE_2026-10-04.md). Remaining Q9 exits below are not closed by synthetic tests.
+
 - [ ] HEAD A / requested B verifies and deploys B; older accepted main SHA requires no branch rewind.
 - [ ] Missing/invalid/conflicting target arguments fail before mutation.
 - [ ] Per-environment lock, fixed target mappings and cross-environment denials tested.

@@ -105,6 +105,7 @@ fi
 
 previous_sha="$(git rev-parse HEAD)"
 migrations_applied=false
+migration_state=not_started
 
 record_journal() {
   local status="$1"
@@ -114,8 +115,8 @@ record_journal() {
   local ts
   ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
   local entry
-  entry="$(printf '{"timestamp":"%s","status":"%s","targetSha":"%s","previousSha":"%s","service":"%s","migrationsApplied":%s,"message":"%s"}' \
-    "$ts" "$status" "$target" "$prev" "$MIZYUN_API_SERVICE" "$migrations_applied" "$message")"
+  entry="$(printf '{"timestamp":"%s","status":"%s","targetSha":"%s","previousSha":"%s","service":"%s","migrationsApplied":%s,"migrationState":"%s","message":"%s"}' \
+    "$ts" "$status" "$target" "$prev" "$MIZYUN_API_SERVICE" "$migrations_applied" "$migration_state" "$message")"
   echo "$entry" >> "$journal_file" 2>/dev/null || true
 }
 
@@ -126,6 +127,7 @@ rollback_code() {
   git checkout --detach "$previous_sha" >/dev/null 2>&1 || rollback_ok=false
   pnpm install --frozen-lockfile >/dev/null 2>&1 || rollback_ok=false
   sudo -n systemctl restart "$service_unit" >/dev/null 2>&1 || rollback_ok=false
+  sudo -n systemctl start cloudflared.service >/dev/null 2>&1 || rollback_ok=false
 
   local rollback_healthy=false
   local rollback_attempts="${MIZYUN_HEALTH_RETRIES:-40}"
@@ -146,7 +148,7 @@ rollback_code() {
     record_journal "rollback_failed" "$previous_sha" "$target_sha" "Failure near line $failure_line; rollback health check failed"
   fi
   if [[ "$migrations_applied" == true ]]; then
-    echo "Database migrations are forward-only and were not reverted; inspect compatibility." >&2
+    echo "Database migrations may have committed; they are forward-only and were not reverted. Inspect the migration ledger and code compatibility." >&2
   fi
 }
 
@@ -157,15 +159,6 @@ trap 'rollback_code "$LINENO"; exit 143' TERM
 git fetch --prune origin main
 git cat-file -e "${target_sha}^{commit}"
 git merge-base --is-ancestor "$target_sha" origin/main
-git checkout --detach "$target_sha"
-pnpm install --frozen-lockfile
-
-# 5. Mandatory encrypted off-host-ready backup before schema mutation.
-# The root-owned unit performs the bounded write freeze and creates an atomic
-# encrypted export without granting the deploy user Docker/root access.
-sudo -n systemctl start mizyun-backup-for-deploy.service
-
-# 6. Reconcile database migration ledger unconditionally
 production_db_url="$MIZYUN_PRODUCTION_DB_URL"
 if [[ "${MIZYUN_PRODUCTION_DB_DIRECT_CONTAINER:-true}" == "true" ]]; then
   if [[ "$MIZYUN_DB_CONTAINER" != "supabase-db" ]]; then
@@ -181,12 +174,32 @@ if [[ "${MIZYUN_PRODUCTION_DB_DIRECT_CONTAINER:-true}" == "true" ]]; then
 fi
 export PGSSLMODE="$MIZYUN_PRODUCTION_DB_SSLMODE"
 
+# 5. Mandatory encrypted off-host-ready backup before schema mutation.
+# The root-owned unit performs the bounded write freeze and creates an atomic
+# encrypted export without granting the deploy user Docker/root access.
+sudo -n systemctl start mizyun-backup-for-deploy.service
+
+# Backup recovery resumes the previous code against the previous schema. Stop
+# API workers before replacing their in-place code/dependencies or migrating.
+sudo -n systemctl stop "$service_unit"
+git checkout --detach "$target_sha"
+pnpm install --frozen-lockfile
+
+# 6. Reconcile database migration ledger unconditionally
+
 echo "Reconciling migration ledger with Production database..."
 pnpm exec supabase db push --db-url "$production_db_url" --dry-run --yes
-pnpm exec supabase db push --db-url "$production_db_url" --yes
+# A failed db push can have committed earlier migrations. Mark the attempt
+# before invoking it so rollback never falsely claims an untouched database.
+migration_state=attempted
 migrations_applied=true
+pnpm exec supabase db push --db-url "$production_db_url" --yes
+migration_state=complete
 
 sudo -n systemctl restart "$service_unit"
+# The shared tunnel Requires this API unit and stops with it. Restore public
+# routing explicitly after restarting the API (also required during rollback).
+sudo -n systemctl start cloudflared.service
 api_ready=false
 max_attempts="${MIZYUN_HEALTH_RETRIES:-40}"
 sleep_duration="${MIZYUN_HEALTH_SLEEP:-1}"

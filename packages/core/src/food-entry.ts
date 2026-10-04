@@ -361,6 +361,23 @@ export const applyFoodEntryPatch = (
   ...Object.fromEntries(
     ADVANCED_NUTRIENT_FIELDS.flatMap((field) => {
       const value = patch[field] === undefined ? stored[field] : patch[field];
+      const changedBase =
+        field === "saturatedFatG"
+          ? patch.fatG
+          : field === "totalSugarsG"
+            ? patch.carbohydrateG
+            : undefined;
+      // Older clients cannot edit these dependent nutrients. A changed base
+      // invalidates only an omitted, now-contradictory estimate; explicit
+      // advanced edits still pass through normal combined validation.
+      if (
+        patch[field] === undefined &&
+        changedBase != null &&
+        value != null &&
+        value > changedBase
+      ) {
+        return [[field, null]];
+      }
       return value === undefined ? [] : [[field, value]];
     }),
   ),

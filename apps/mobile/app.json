@@ -2,7 +2,7 @@
   "expo": {
     "name": "Mizyun",
     "slug": "mizyun",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "orientation": "portrait",
     "icon": "./assets/images/mizyun-icon.png",
     "scheme": "mizyun",
@@ -13,7 +13,7 @@
       "config": {
         "usesNonExemptEncryption": false
       },
-      "buildNumber": "6",
+      "buildNumber": "7",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Mizyun accesses a photo only when you choose it for a meal draft or your private progress timeline.",
         "NSPhotoLibraryAddUsageDescription": "Mizyun saves photos to your photo library only when you explicitly export a progress photo.",
@@ -23,7 +23,7 @@
     },
     "android": {
       "package": "com.mizyun.app",
-      "versionCode": 6,
+      "versionCode": 7,
       "predictiveBackGestureEnabled": false,
       "icon": "./assets/images/mizyun-icon.png",
       "adaptiveIcon": {

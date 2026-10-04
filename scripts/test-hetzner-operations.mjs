@@ -50,6 +50,10 @@ const productionPromote = readFileSync("scripts/promote-production.sh", "utf8");
 assert.match(productionPromote, /mizyun-backup-for-deploy\.service/);
 assert.match(productionPromote, /mizyun-production-maintenance\.lock/);
 assert.match(productionPromote, /deployment authority/);
+const sudoers = readFileSync("deploy/hetzner/mizyun-deployers.sudoers", "utf8");
+assert.match(sudoers, /\/usr\/bin\/systemctl stop mizyun-api\.service,/);
+assert.doesNotMatch(sudoers, /systemctl stop \*/);
+assert.match(sudoers, /\/usr\/bin\/systemctl start cloudflared\.service,/);
 
 const backupService = readFileSync(
   "deploy/hetzner/mizyun-backup.service",

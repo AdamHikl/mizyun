@@ -2,9 +2,17 @@ import { describe, expect, it } from "vitest";
 import {
   isRecurringMealHelp,
   isRecurringMealRequest,
+  COACH_APP_GUIDE,
+  recurringMealHelp,
 } from "./app-capabilities.js";
 
 describe("recurring-meal setup intent", () => {
+  it("qualifies new controls and preserves older Account navigation", () => {
+    expect(COACH_APP_GUIDE).toContain("build 7");
+    expect(COACH_APP_GUIDE).toContain("Account bottom tab");
+    expect(recurringMealHelp()).toContain("If Repeat is missing");
+    expect(recurringMealHelp()).toContain("manually");
+  });
   it.each([
     "Log a recurring breakfast with 30 g protein",
     "Log two eggs every morning and create a full body workout",

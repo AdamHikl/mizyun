@@ -1,4 +1,4 @@
 # Narrow privileges for deployment orchestration. Infrastructure installation
 # and arbitrary service management remain root-only.
-mizyun ALL=(root) NOPASSWD: /usr/bin/systemctl start mizyun-backup-for-deploy.service, /usr/bin/systemctl restart mizyun-api.service, /usr/local/sbin/mizyun-production-db-ip
+mizyun ALL=(root) NOPASSWD: /usr/bin/systemctl start mizyun-backup-for-deploy.service, /usr/bin/systemctl stop mizyun-api.service, /usr/bin/systemctl start cloudflared.service, /usr/bin/systemctl restart mizyun-api.service, /usr/local/sbin/mizyun-production-db-ip
 mizyun-dev-deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart mizyun-api-dev.service

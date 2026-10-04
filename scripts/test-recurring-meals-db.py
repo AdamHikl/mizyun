@@ -57,6 +57,9 @@ try:
     sql('create database '+DATABASE, 'postgres'); created=True
     sql(schema)
     sql("grant usage on schema public,auth,extensions to authenticated,anon,service_role;grant execute on function auth.uid(),auth.role() to authenticated,anon,service_role;grant select,insert,update,delete on public.food_entries to authenticated;alter default privileges in schema public grant execute on functions to anon,authenticated,service_role;")
+    # Only this fresh schema-only scratch is stripped before replay; the
+    # source database may already contain the non-idempotent migration.
+    sql("drop table if exists public.recurring_meal_occurrences, public.recurring_meal_schedules cascade;do $$declare f record;begin for f in select p.oid::regprocedure as signature from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname like 'recurring_meal_%' loop execute format('drop function if exists %s cascade',f.signature);end loop;end $$;")
     sql('begin;'+(ROOT/'supabase/migrations/20261003100000_recurring_meals.sql').read_text()+'commit;')
     print('PASS: forward migration with permissive Supabase function defaults',flush=True)
     sql(f"insert into auth.users(id,email) values('{U}','recurring-a@synthetic.invalid'),('{V}','recurring-b@synthetic.invalid');insert into public.food_entries(id,user_id,name,consumed_at,calories_kcal,protein_g,confirmed_by_user,details) values('{F}','{U}','Synthetic breakfast',now(),400,null,true,'{{\"portionWeightG\":100}}');")
