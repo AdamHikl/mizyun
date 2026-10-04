@@ -27,12 +27,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Start local Supabase stack
-        run: supabase start
+      - name: Start disposable local Supabase database
+        run: pnpm exec supabase db start
 
       - name: Lint schema
         run: pnpm db:lint
 
       - name: Stop local Supabase stack
         if: always()
-        run: supabase stop --no-backup
+        run: pnpm exec supabase stop --no-backup
