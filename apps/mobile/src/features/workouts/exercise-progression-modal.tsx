@@ -202,8 +202,8 @@ export function ExerciseProgressionModal({
 
                 {/* 1. Target Load Card */}
                 <ThemedView type="backgroundElement" style={styles.targetCard}>
-                  <View style={styles.cardHeaderRow}>
-                    <View>
+                  <View style={styles.targetHeaderRow}>
+                    <View style={styles.targetHeaderCopy}>
                       <ThemedText type="smallBold" style={styles.cardLabel}>
                         TARGET LOAD TRACKER
                       </ThemedText>
@@ -697,7 +697,26 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
+  targetHeaderRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "flex-start",
+    gap: Spacing.two,
+  },
+  targetHeaderCopy: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 160,
+    minWidth: 0,
+  },
   editTargetButton: {
+    flexShrink: 0,
+    maxWidth: "100%",
+    minWidth: 44,
+    minHeight: 44,
+    marginLeft: "auto",
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: "rgba(16, 185, 129, 0.15)",
     paddingHorizontal: Spacing.two,
     paddingVertical: 6,

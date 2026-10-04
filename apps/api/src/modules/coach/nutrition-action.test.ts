@@ -26,6 +26,11 @@ describe("isExplicitMealLoggingIntent", () => {
   });
 
   it.each([
+    "Log my breakfast automatically every day",
+    "Add a recurring meal for breakfast",
+    "Log two eggs each morning",
+    "Log a recurring breakfast with 30 g protein",
+    "Log two eggs every morning and create a full body workout",
     "How much protein is in tuna?",
     "Should I eat more at dinner?",
     "I had a great workout",

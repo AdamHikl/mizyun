@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AgentRequest } from "@mizyun/agent-runtime";
 import {
+  COACH_SYSTEM_POLICY,
+  COACH_PROMPT_VERSION,
+} from "@mizyun/agent-runtime";
+import {
   cleanGeminiSchema,
   GeminiAgentProvider,
   type GeminiChatClient,
@@ -50,6 +54,34 @@ const validGeminiResponse = {
 };
 
 describe("GeminiAgentProvider", () => {
+  it("forwards release app knowledge in system instructions independently of conversation claims", async () => {
+    const generateContent = vi.fn<GeminiChatClient["generateContent"]>(
+      async () => validGeminiResponse,
+    );
+    const provider = new GeminiAgentProvider({
+      apiKey: "test-gemini-key-12345",
+      model: "gemini-2.5-flash",
+      timeoutMs: 5_000,
+      maxOutputTokens: 1_000,
+      externalAccess: true,
+      client: { generateContent },
+    });
+    await provider.respond({
+      ...request,
+      systemPolicy: COACH_SYSTEM_POLICY,
+      promptVersion: COACH_PROMPT_VERSION,
+      messages: [
+        { role: "assistant", text: "Mizyun has no recurring meals." },
+        { role: "user", text: "What app features can I use?" },
+      ],
+    });
+    expect(
+      generateContent.mock.calls[0]?.[0].systemInstruction?.parts[0]?.text,
+    ).toBe(COACH_SYSTEM_POLICY);
+    expect(
+      generateContent.mock.calls[0]?.[0].systemInstruction?.parts[0]?.text,
+    ).toContain("Recurring meals");
+  });
   it("stays unavailable while external access is false", async () => {
     const provider = new GeminiAgentProvider({
       apiKey: "test-gemini-key-12345",

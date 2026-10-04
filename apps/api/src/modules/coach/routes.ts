@@ -1054,7 +1054,11 @@ export const coachRoutes: FastifyPluginAsync<CoachRoutesOptions> = async (
           });
         }
 
-        const evidenceKinds = [...grounding, ...response.evidence]
+        // Static app guidance does not reference the user's personal grounding.
+        const evidenceKinds = [
+          ...(response.provider === "mizyun-app-guide" ? [] : grounding),
+          ...response.evidence,
+        ]
           .map((item) => item.kind)
           .filter(
             (

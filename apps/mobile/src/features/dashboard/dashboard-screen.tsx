@@ -17,7 +17,7 @@ import { formatStopwatch, useOptionalActiveWorkout } from "@/features/workouts";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { TabHeader } from "@/components/tab-header";
+import { TabHeader, useTabHeaderLayout } from "@/components/tab-header";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { apiClient, invalidateSessionReads } from "@/composition/api-client";
 import { analyticsClient } from "@/composition/analytics-client";
@@ -265,6 +265,7 @@ const actions = [
 ] as const;
 
 export function DashboardScreen() {
+  const { headerHeight, onHeaderLayout } = useTabHeaderLayout();
   const { profile, session, openOnboarding } = useAuth();
   const [storedMetrics, setMetrics] = useState<MetricsState>(EMPTY_METRICS);
   const [steps, setSteps] = useState<DailyStepsResult>({ kind: "off" });
@@ -777,12 +778,17 @@ export function DashboardScreen() {
   return (
     <ThemedView style={styles.page}>
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-        <TabHeader />
+        <TabHeader onLayout={onHeaderLayout} />
         <ScrollView
-          contentContainerStyle={styles.content}
+          style={{ marginTop: -headerHeight }}
+          contentContainerStyle={[
+            styles.content,
+            { paddingTop: headerHeight + Spacing.four },
+          ]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
+              progressViewOffset={headerHeight}
               refreshing={refreshing}
               onRefresh={() => void handleRefresh()}
               tintColor="#22C55E"

@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   createExercise: vi.fn(),
   addSet: vi.fn(),
   complete: vi.fn(),
+  abandon: vi.fn(),
   progression: vi.fn(),
   alert: vi.fn(),
   back: vi.fn(),
@@ -73,6 +74,7 @@ vi.mock("@/constants/theme", () => ({
   MaxContentWidth: 600,
   Spacing: {},
 }));
+vi.mock("@/hooks/use-color-scheme", () => ({ useColorScheme: () => "dark" }));
 vi.mock("@/hooks/use-theme", () => ({ useTheme: () => ({}) }));
 vi.mock("@/features/auth/auth-context", () => ({
   useAuth: () => ({
@@ -82,7 +84,13 @@ vi.mock("@/features/auth/auth-context", () => ({
 }));
 vi.mock("@/features/analytics/flow-measurement", () => ({
   useLoggingFlowMeasurement: () => ({
-    current: { tap: vi.fn(), fail: vi.fn(), retry: vi.fn(), complete: vi.fn() },
+    current: {
+      tap: vi.fn(),
+      fail: vi.fn(),
+      retry: vi.fn(),
+      complete: vi.fn(),
+      exit: vi.fn(),
+    },
   }),
 }));
 vi.mock("@/composition/app-variant", () => ({ getAppVariant: () => "dev" }));
@@ -142,7 +150,7 @@ vi.mock("@/features/workouts/workout-notification", () => ({
 }));
 vi.mock("./log-workout-data", async (original) => ({
   ...(await original<typeof import("./log-workout-data")>()),
-  abandonWorkout: vi.fn(),
+  abandonWorkout: mocks.abandon,
   completeWorkout: mocks.complete,
   loadWorkoutWorkspace: mocks.load,
   startWorkout: vi.fn(),
@@ -248,6 +256,7 @@ beforeEach(() => {
   mocks.load.mockReset().mockImplementation(async () => mocks.workspace);
   mocks.complete.mockReset().mockResolvedValue({ ok: true });
   mocks.addSet.mockReset();
+  mocks.abandon.mockReset().mockResolvedValue({ ok: true });
 });
 
 it("reuses the saved UUID and original name when the catalog label is clearer", async () => {
@@ -456,7 +465,7 @@ it("logs entered load and reps through the existing set API and finishes without
   active = feed();
   expect(active.props.exercises[0].isPlanned).toBe(false);
   expect(active.props.savedSets).toHaveLength(1);
-  active.props.onFinish();
+  headerFinish().props.onPress();
   expect(mocks.alert.mock.calls.at(-1)![1]).not.toContain("targets updated");
   mocks.alert.mock.calls
     .at(-1)![2]
@@ -501,3 +510,128 @@ it("keeps one-time exercise cards consistent while showing actual sets instead o
   );
   expect(repsInput.props.placeholder).toBe("—");
 });
+
+function headerFinish(tree = render()): any {
+  return find(
+    tree,
+    (node) => node.type === "StackScreen",
+  ).props.options.headerRight();
+}
+function renderedAction(label: string, tree = render()): any {
+  const active = feed(tree);
+  return find(
+    active.type(active.props),
+    (node) =>
+      node.props?.accessibilityLabel === label || node.props?.label === label,
+  );
+}
+
+it.each(["one_time", "routine"])(
+  "keeps %s finish and discard unavailable during exercise persistence",
+  async (mode) => {
+    if (mode === "routine")
+      mocks.workspace.workout = {
+        ...workout,
+        details: {
+          workoutLifecycle: { kind: "session", routineId: "saved-routine" },
+        },
+      };
+    const pending = deferred<any>();
+    mocks.persist.mockReturnValueOnce(pending.promise);
+    openLibrary().props.onSelectExercise(catalogExercise);
+    await settle();
+    const tree = render();
+    const finish = headerFinish(tree);
+    const discard = renderedAction("Discard Session", tree);
+    // Exercise the handler boundary too: stale queued taps must not open dialogs.
+    finish.props.onPress();
+    feed(tree).props.onAbandon();
+    expect(mocks.alert).not.toHaveBeenCalled();
+    expect(finish.props.disabled).toBe(true);
+    expect(finish.props.accessibilityState).toEqual({
+      disabled: true,
+      busy: true,
+    });
+    expect(discard.props.disabled).toBe(true);
+    pending.resolve({ ok: false, message: "Exercise could not be saved" });
+    await settle();
+    expect(headerFinish().props.disabled).toBe(false);
+    expect(renderedAction("Discard Session").props.disabled).toBe(false);
+  },
+);
+
+it.each(["one_time", "routine"])(
+  "keeps %s discard confirmed and targets the session rather than its routine",
+  async (mode) => {
+    if (mode === "routine")
+      mocks.workspace.workout = {
+        ...workout,
+        details: {
+          workoutLifecycle: { kind: "session", routineId: "saved-routine" },
+        },
+      };
+    renderedAction("Discard Session").props.onPress();
+    expect(mocks.abandon).not.toHaveBeenCalled();
+    const dialog = mocks.alert.mock.calls.at(-1)!;
+    expect(dialog[0]).toBe("Discard Session?");
+    expect(dialog[1]).toContain(
+      mode === "routine"
+        ? "Your saved routine will remain available"
+        : "permanently deleted",
+    );
+    expect(
+      dialog[2].find((button: any) => button.style === "cancel").text,
+    ).toBe("Keep Logging");
+    const pending = deferred<any>();
+    mocks.abandon.mockReturnValueOnce(pending.promise);
+    dialog[2].find((button: any) => button.text === "Discard").onPress();
+    await settle();
+    expect(headerFinish().props.disabled).toBe(true);
+    expect(mocks.back).not.toHaveBeenCalled();
+    pending.resolve({ ok: true });
+    await settle();
+    expect(mocks.abandon).toHaveBeenCalledWith(workout.id);
+    expect(mocks.back).toHaveBeenCalledTimes(1);
+  },
+);
+
+it("restores action availability when discarding unexpectedly rejects", async () => {
+  mocks.abandon.mockRejectedValueOnce(new Error("session lookup failed"));
+  renderedAction("Discard Session").props.onPress();
+  mocks.alert.mock.calls
+    .at(-1)![2]
+    .find((button: any) => button.text === "Discard")
+    .onPress();
+  await settle();
+  expect(headerFinish().props.disabled).toBe(false);
+  expect(renderedAction("Discard Session").props.disabled).toBe(false);
+  expect(mocks.back).not.toHaveBeenCalled();
+  expect(
+    find(render(), (node) => node.props?.accessibilityRole === "alert"),
+  ).not.toBeNull();
+});
+
+it.each(["one_time", "routine"])(
+  "opens the existing exercise library from the visible %s Add action",
+  (mode) => {
+    if (mode === "routine") {
+      mocks.workspace.workout = {
+        ...workout,
+        details: {
+          workoutLifecycle: { kind: "session", routineId: "saved-routine" },
+        },
+      };
+    }
+    const tree = render();
+    expect(
+      find(tree, (node) => node.type === "ExerciseLibraryModal"),
+    ).toBeFalsy();
+    renderedAction("Add Exercise to Workout", tree).props.onPress();
+    expect(
+      find(render(), (node) => node.type === "ExerciseLibraryModal").props
+        .visible,
+    ).toBe(true);
+    expect(mocks.complete).not.toHaveBeenCalled();
+    expect(mocks.abandon).not.toHaveBeenCalled();
+  },
+);

@@ -41,7 +41,7 @@ If evidence is insufficient, label a claim unverified with a source link. Never 
 
 Run mandatory startup reads once in full and reuse them while current. For subsequent status lookups, `pnpm nav:read status.md --outline` locates sections; `--heading "Exact heading"` reads a complete relevant section. Read full status when current authority, applicable gates or conflicting handoffs are uncertain. An outline does not establish gate contents.
 
-Normal startup reading (`AGENTS.md` + `status.md` + `docs/START_HERE.md`) should remain at or below 350 lines, with `status.md` at or below 120 lines. Record lines and bytes when compacting; `SIMPLIFY-02` will add an advisory validator warning. Never truncate safety rules or active gates merely to satisfy the budget.
+Read each mandatory file separately so an aggregate tool-output limit does not truncate it. Normal startup reading (`AGENTS.md` + `status.md` + `docs/START_HERE.md`) should remain at or below 350 lines / 32,768 bytes. `navigation:check` enforces `status.md` at or below 120 lines / 12,288 UTF-8 bytes; combined startup size remains advisory so safety instructions cannot be silently shortened. Record sizes and preserve every old section in a linked dated archive when compacting. Never truncate safety rules or active gates merely to satisfy the budget.
 
 ## During a session
 
@@ -53,7 +53,10 @@ Normal startup reading (`AGENTS.md` + `status.md` + `docs/START_HERE.md`) should
 - Use `pnpm navigation:bench --json` for repeatable cache/timing/output-size proxies. Parent-context isolation does not imply lower aggregate helper cost; actual model-token and accepted-task comparisons require client evidence under #54.
 - Do not bypass an interface merely because only one provider exists today.
 - Update tests with behavior, not afterward as cleanup.
-- Run focused tests frequently; run the full gate before committing.
+- Run focused tests after every behavior or test edit, including late review additions. Finish review/preview/format/source writes before the final focused pass and full gate. An earlier full run is superseded when its inputs change.
+- Use `pnpm check` once on the settled candidate; its local host/user lock serializes full gates across chats, worktrees and snapshots. Never run the internal `check:steps` command directly. The runner rejects changing inputs and unsafe/stale locks; read the owner information and follow the runner's recovery instructions rather than removing a live lock. Native builds/database/deploy operations still require coordinator scheduling.
+- Wait on the command session for 30–60 seconds at a time and give meaningful progress updates between waits. Read a compact completion result or the failure excerpt; do not poll `tail`/`ps` every few seconds. Do useful independent read-only work while a check runs; keep its inputs unchanged.
+- If concurrent sessions are still writing, use a stable isolated candidate with an exact baseline and owned overlays. Verify the actual source correspondence and report excluded concurrent scope; do not first run a doomed broad gate on known-changing inputs. Preserve shared work and never count another candidate's result as acceptance of it.
 - When a discovered task is outside scope, add it as a GitHub issue (`gh issue create`) with priority/status/area labels and continue the active item.
 - When blocked, record the exact condition and evidence in `status.md`; do not mark an incomplete item done.
 - Never use real user health information, body photos, credentials, or model secrets in fixtures or documentation.
@@ -141,7 +144,7 @@ For each affected technology:
 
 - Link instead of copying detail across files.
 - Put facts in the narrowest appropriate document.
-- Move completed handoffs into dated `docs/archive/status/` files and keep only current authorities, active packages, unresolved gates, and one next action in `status.md`.
+- Replace a package's current summary instead of appending every retry. Put logs, counts, candidate hashes and chronological handoffs in linked evidence documents or dated `docs/archive/status/` files; keep only current authorities, active packages, unresolved gates, and one next action in `status.md`. Rebase relative archive links and preserve historical evidence; a recorded pass remains dated, never fresh by compaction.
 - Use requirement/issue IDs (e.g. `[PLAY-001]`) when referring to behavior or work.
 - Never mark a milestone complete based only on code presence; cite reproducible exit evidence.
 - If a session changes no project state, do not churn timestamps or status prose unnecessarily.

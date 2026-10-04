@@ -57,7 +57,7 @@ Follow the verification progression from focused to repository-wide:
    ```
 
 4. **Serialized Full Repository Gate**:
-   After all subagents finish writing and files are stable, execute the comprehensive quality gate:
+   After all helper/review/preview/source writes settle, run the focused suite for every new or edited test (including late additions) and format owned files. Then execute one comprehensive quality gate:
 
    ```bash
    pnpm check
@@ -66,7 +66,7 @@ Follow the verification progression from focused to repository-wide:
    > [!IMPORTANT]
    > Never substitute an advisory impact report or a cached/prior session result for a fresh passing `pnpm check`.
 
-   Keep check output in a log and read failures or a compact result; rerun after a material fix or unresolved failure, not merely to repeat already current evidence. Capture `pnpm navigation:bench --json` when measuring tooling efficiency. Its bytes/lines and local timings are proxies, not model tokens, cost or accepted-task speed.
+   `pnpm check` serializes same-user full gates across local chats, worktrees and snapshots and rejects changing inputs. Do not invoke internal `check:steps` directly. If the shared source is known to be changing, use a stable isolated candidate with exact baseline/overlays and report excluded concurrent scope before launching the gate. Keep check output in a log and wait on the command session for 30–60 seconds at a time; read failures or a compact completion result instead of repeatedly tailing logs. Rerun after a material fix or unresolved failure, not merely to repeat already current evidence. The lock does not coordinate arbitrary native/database/deployment commands. Capture `pnpm navigation:bench --json` when measuring tooling efficiency. Its bytes/lines and local timings are proxies, not model tokens, cost or accepted-task speed.
 
 ## 3. Mandatory Non-Author Review
 
@@ -97,7 +97,7 @@ Update shared continuity documents (coordinator only):
 
 1. **`status.md`**:
    - Record completed work package outcome with commit SHA.
-   - List pass/fail counts and exact verification commands.
+   - Keep the current summary within 120 lines/12,288 bytes; link detailed counts, logs, hashes and historical retries from evidence documents or a dated archive. Replace the existing package summary rather than appending another full handoff.
    - Separate verified from remaining gates.
    - Set the next exact action.
 2. **GitHub Issues**:

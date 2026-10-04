@@ -44,7 +44,7 @@ test("validateImportBoundaries passes on canonical source codebase", () => {
   );
 });
 
-test("startup size budget is advisory and counts trailing newlines consistently", () => {
+test("status line limit is enforced while total startup size remains advisory", () => {
   const tmpDir = fs.mkdtempSync(path.join("/tmp", "mizyun-startup-size-"));
   try {
     fs.mkdirSync(path.join(tmpDir, "docs"), { recursive: true });
@@ -65,15 +65,35 @@ test("startup size budget is advisory and counts trailing newlines consistently"
     );
     const result = validateStartupSize(tmpDir);
     assert.equal(result.totalLines, 351);
-    assert.equal(result.errors.length, 0);
+    assert.equal(result.errors.length, 1);
     assert.ok(
-      result.warnings.some((warning) =>
-        warning.includes("status.md has 121 lines"),
-      ),
+      result.errors.some((error) => error.includes("status.md has 121 lines")),
     );
     assert.ok(
       result.warnings.some((warning) => warning.includes("has 351 lines")),
     );
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("status byte limit rejects long UTF-8 lines at the actual byte boundary", () => {
+  const tmpDir = fs.mkdtempSync(path.join("/tmp", "mizyun-startup-bytes-"));
+  try {
+    fs.mkdirSync(path.join(tmpDir, "docs"));
+    fs.writeFileSync(path.join(tmpDir, "AGENTS.md"), "policy\n");
+    fs.writeFileSync(path.join(tmpDir, "docs/START_HERE.md"), "index\n");
+    const statusPath = path.join(tmpDir, "status.md");
+    fs.writeFileSync(statusPath, "界".repeat(4096));
+    assert.deepEqual(validateStartupSize(tmpDir).errors, []);
+    fs.appendFileSync(statusPath, "界");
+    const result = validateStartupSize(tmpDir);
+    assert.equal(
+      result.measurements.find((item) => item.path === "status.md").lines,
+      1,
+    );
+    assert.match(result.errors.join("\n"), /status.md has 12291 bytes/);
+    assert.match(result.errors.join("\n"), /evidence|archive/);
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }

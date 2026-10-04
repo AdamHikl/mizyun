@@ -4,6 +4,8 @@
 
 Before starting implementation, inspect the working tree, read root `AGENTS.md`, the compact `status.md`, and `docs/START_HERE.md`. Use `docs/feature-map.json` or `pnpm context <feature-id>` to focus on relevant requirements, ADRs, runbooks, and code. Review full `goals.md` / `docs/BUSINESS_ALIGNMENT.md` when addressing product direction, pricing, or uncertain intent, and full `plan.md` when changing roadmap sequencing. Follow `docs/SESSION_GUIDE.md` for startup, research, verification, and handoff procedures. Use `pnpm context --query "<task>"`, `--path <file>` or `--symbol <name>` for current bounded source discovery and `pnpm impact --path <file>` before changing shared code; automatic index freshness does not accept feature reviews or waive gates.
 
+Read mandatory startup and instruction files once in full, in separate bounded-output calls; reuse them while current. Use `pnpm nav:read` for subsequent source symbols, line ranges and complete document sections. Keep `status.md` within the enforced 120-line/12,288-byte limit: replace current package summaries and link detailed handoffs/evidence in dated documents or archives. Preserve every active authority and open gate when compacting; do not truncate them to pass the limit.
+
 At the end of every development session, update `status.md` with evidence, the next exact action, and any blocker. Manage tasks and executable inventory using GitHub Issues (`gh issue`); update issue status labels (`status:active`, `status:ready`, `status:blocked`, `status:done`) or create new issues with appropriate priority, status, and area labels when work is discovered, started, blocked, or completed. Change `plan.md` only when sequencing or phase status changes, and change `goals.md` only when product direction changes.
 
 Inspect the current working tree before editing and preserve pre-existing work, including work from another active session. Read the newest applicable status entry; older next-action paragraphs are historical, not additional instructions to execute. Resolve conflicting completion claims against current code and reproducible evidence rather than copying them forward.
@@ -127,5 +129,7 @@ Consequences and expectations:
 ## Verification
 
 Run `pnpm check` before committing. Provider integration tests remain disabled until every item in `docs/BEFORE_TESTING.md` is complete.
+
+Finish all owned edits and helper writes, run the final focused tests (including every new or modified test), and format owned files before starting the full gate. `pnpm check` serializes runs across local chats/copies and rejects changed inputs. Do not invoke its internal `check:steps` pipeline directly. If the shared tree is changing, verify a stable isolated candidate and report its exact scope; preserve concurrent edits. Wait on the running command for up to 60 seconds per tool wait, then report meaningful progress; read logs on completion or failure instead of repeatedly tailing them. The check lock does not serialize arbitrary native builds, deployments or database operations.
 
 Use `docs/QUALITY_GATES.md` as the definition of done for implementation, data, mobile, calculation, media, and AI changes.

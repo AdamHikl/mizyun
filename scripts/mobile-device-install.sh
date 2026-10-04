@@ -174,8 +174,20 @@ install_ios() {
   device_id="$target_device"
   device_name="Selected Device"
 
-  local tmp_json
-  tmp_json="$(mktemp /tmp/mizyun-devicectl-XXXXXX.json)"
+  # A trailing-X template works with both BSD and GNU mktemp.
+  # Keep this variable in script scope so EXIT can clean up after a return too.
+  tmp_json=""
+  cleanup_ios_device_json() {
+    if [[ -n "$tmp_json" ]]; then
+      rm -f -- "$tmp_json"
+      tmp_json=""
+    fi
+  }
+  trap cleanup_ios_device_json EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  tmp_json="$(mktemp "${TMPDIR:-/tmp}/mizyun-devicectl.XXXXXX")"
   # devicectl output
   xcrun devicectl list devices --json-output "$tmp_json" >/dev/null 2>&1 || true
 
@@ -202,7 +214,6 @@ install_ios() {
     ' "$tmp_json" "$device_id")"
     if [[ -z "$device_info" ]]; then
       echo "ERROR: Specified iOS device '$device_id' not found or not connected." >&2
-      rm -f "$tmp_json"
       exit 1
     fi
     device_id="$(echo "$device_info" | cut -f1)"
@@ -232,7 +243,7 @@ install_ios() {
       device_name="$(echo "$device_info" | cut -f2)"
     fi
   fi
-  rm -f "$tmp_json"
+  cleanup_ios_device_json
 
   if [[ -z "$device_id" ]]; then
     echo "ERROR: No physical iOS device found paired and available." >&2

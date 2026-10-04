@@ -1,23 +1,17 @@
-import { generateAvatarSymbol } from "@mizyun/core";
 import { router, type Href } from "expo-router";
+import { SymbolView } from "expo-symbols";
 import { Pressable, StyleSheet, View } from "react-native";
 
-import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
 import { FeedbackHeaderButton } from "./feedback-header-button";
-import { ThemedText } from "./themed-text";
 
 export function AccountHeaderButton() {
-  const { profile } = useAuth();
   const colors = useTheme();
-  const symbol = profile?.displayName
-    ? generateAvatarSymbol(profile.displayName)
-    : "👤";
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel="Open Account"
+      accessibilityLabel="Open settings"
       accessibilityHint="Manage your profile, settings and account"
       onPress={() => router.push("/settings" as Href)}
       style={({ pressed }) => [styles.button, pressed && styles.pressed]}
@@ -25,16 +19,19 @@ export function AccountHeaderButton() {
       <View
         accessible={false}
         style={[
-          styles.avatar,
+          styles.iconContainer,
           {
             backgroundColor: colors.backgroundElement,
             borderColor: colors.border,
           },
         ]}
       >
-        <ThemedText accessible={false} type="smallBold">
-          {symbol}
-        </ThemedText>
+        <SymbolView
+          accessible={false}
+          name={{ ios: "gearshape", android: "settings", web: "settings" }}
+          size={22}
+          tintColor={colors.text}
+        />
       </View>
     </Pressable>
   );
@@ -57,7 +54,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  avatar: {
+  iconContainer: {
     width: 36,
     height: 36,
     borderRadius: 18,

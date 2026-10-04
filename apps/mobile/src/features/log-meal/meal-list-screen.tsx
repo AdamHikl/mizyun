@@ -24,7 +24,7 @@ import type { DailyFoodSummary, FoodEntry } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { TabHeader } from "@/components/tab-header";
+import { TabHeader, useTabHeaderLayout } from "@/components/tab-header";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { analyticsClient } from "@/composition/analytics-client";
 import { isAutomaticallyLogged } from "@/features/recurring-meals/public-data";
@@ -149,6 +149,7 @@ interface PortionModalState {
 }
 
 export function MealListScreen() {
+  const { headerHeight, onHeaderLayout } = useTabHeaderLayout();
   const theme = useTheme();
   const { session } = useAuth();
   const advancedCapability = useAdvancedNutritionCapability(
@@ -809,9 +810,13 @@ export function MealListScreen() {
     <ThemedView style={styles.page}>
       <Stack.Screen options={{ title: "Meals" }} />
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-        <TabHeader />
+        <TabHeader onLayout={onHeaderLayout} />
         <ScrollView
-          contentContainerStyle={styles.content}
+          style={{ marginTop: -headerHeight }}
+          contentContainerStyle={[
+            styles.content,
+            { paddingTop: headerHeight + Spacing.four },
+          ]}
           showsVerticalScrollIndicator={false}
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
@@ -1186,43 +1191,21 @@ export function MealListScreen() {
                     type="backgroundElement"
                     style={styles.dayGroupCard}
                   >
-                    {/* Day Header */}
+                    {/* Day identity and totals stay separate from actions. */}
                     <View style={styles.dayHeader}>
                       <View style={styles.dayTitleRow}>
-                        <ThemedText type="smallBold" style={styles.dayTitle}>
+                        <ThemedText
+                          type="smallBold"
+                          accessibilityRole="header"
+                          style={styles.dayTitle}
+                        >
                           {group.displayDate}
                         </ThemedText>
-
-                        <Pressable
-                          testID={`add-meal-${group.date}`}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Add meal on ${group.displayDate}`}
-                          accessibilityHint="Opens a new meal entry for this day"
-                          onPress={() => {
-                            addMealDate.current = group.date;
-                            router.push({
-                              pathname: "/log-meal",
-                              params: { date: group.date },
-                            });
-                          }}
-                          style={({ pressed }) => [
-                            styles.dayAddButton,
-                            { borderColor: theme.border },
-                            pressed && { opacity: 0.6 },
-                          ]}
-                        >
-                          <ThemedText type="smallBold">＋</ThemedText>
-                        </Pressable>
-                        <View style={styles.dayHeaderRight}>
-                          <View style={styles.dayCountBadge}>
-                            <ThemedText type="small" themeColor="textSecondary">
-                              {group.summary.entryCount}{" "}
-                              {group.summary.entryCount === 1
-                                ? "meal"
-                                : "meals"}
-                            </ThemedText>
-                          </View>
-
+                        <View style={styles.dayMetadata}>
+                          <ThemedText type="small" themeColor="textSecondary">
+                            {group.summary.entryCount}{" "}
+                            {group.summary.entryCount === 1 ? "meal" : "meals"}
+                          </ThemedText>
                           {group.isPartial ? (
                             <View style={styles.partialBadge}>
                               <ThemedText
@@ -1233,22 +1216,6 @@ export function MealListScreen() {
                               </ThemedText>
                             </View>
                           ) : null}
-
-                          {!isGroupingThisDay && group.entries.length >= 2 ? (
-                            <Pressable
-                              accessibilityRole="button"
-                              accessibilityLabel={`Group meals on ${group.displayDate}`}
-                              onPress={() => startGrouping(group.date)}
-                              style={styles.groupActionTrigger}
-                            >
-                              <ThemedText
-                                type="smallBold"
-                                style={styles.groupActionTriggerText}
-                              >
-                                ＋ Group meals
-                              </ThemedText>
-                            </Pressable>
-                          ) : null}
                         </View>
                       </View>
 
@@ -1256,6 +1223,7 @@ export function MealListScreen() {
                         <View style={styles.groupingToolbar}>
                           <ThemedText
                             type="smallBold"
+                            themeColor="textSecondary"
                             style={styles.groupingCountText}
                           >
                             {selectedEntryIds.size} selected
@@ -1294,15 +1262,87 @@ export function MealListScreen() {
                           </View>
                         </View>
                       ) : (
-                        <ThemedText
-                          type="small"
-                          themeColor="textSecondary"
-                          style={styles.dayTotals}
-                        >
-                          {group.isPartial ? "Partial totals · " : ""}
-                          {formatGroupNutrition(group.summary)}
-                        </ThemedText>
+                        <View style={styles.dayNutrition}>
+                          {group.isPartial ? (
+                            <ThemedText type="small" themeColor="textSecondary">
+                              Partial totals
+                            </ThemedText>
+                          ) : null}
+                          {(
+                            [
+                              [group.summary.caloriesKcal, "kcal"],
+                              [group.summary.proteinG, "g protein"],
+                              [group.summary.carbohydrateG, "g carbs"],
+                              [group.summary.fatG, "g fat"],
+                            ] as const
+                          ).map(([value, unit], index) =>
+                            value === null ? null : (
+                              <ThemedText
+                                key={unit}
+                                type={index === 0 ? "smallBold" : "small"}
+                                themeColor={
+                                  index === 0 ? "text" : "textSecondary"
+                                }
+                                style={[
+                                  styles.dayNutrient,
+                                  index === 0 && styles.dayCalories,
+                                ]}
+                              >
+                                {value}
+                                {unit === "kcal" ? " " : ""}
+                                {unit}
+                              </ThemedText>
+                            ),
+                          )}
+                          {group.summary.caloriesKcal === null &&
+                          group.summary.proteinG === null &&
+                          group.summary.carbohydrateG === null &&
+                          group.summary.fatG === null ? (
+                            <ThemedText type="small" themeColor="textSecondary">
+                              No nutrition totals
+                            </ThemedText>
+                          ) : null}
+                        </View>
                       )}
+
+                      <View style={styles.dayActions}>
+                        <Pressable
+                          testID={`add-meal-${group.date}`}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Add meal on ${group.displayDate}`}
+                          accessibilityHint="Opens a new meal entry for this day"
+                          onPress={() => {
+                            addMealDate.current = group.date;
+                            router.push({
+                              pathname: "/log-meal",
+                              params: { date: group.date },
+                            });
+                          }}
+                          style={({ pressed }) => [
+                            styles.dayAddButton,
+                            { backgroundColor: theme.backgroundSelected },
+                            pressed && { opacity: 0.6 },
+                          ]}
+                        >
+                          <ThemedText type="smallBold">＋ Add meal</ThemedText>
+                        </Pressable>
+                        {!isGroupingThisDay && group.entries.length >= 2 ? (
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={`Group meals on ${group.displayDate}`}
+                            accessibilityHint="Select at least two entries to combine into a meal group"
+                            onPress={() => startGrouping(group.date)}
+                            style={({ pressed }) => [
+                              styles.groupActionTrigger,
+                              pressed && { opacity: 0.6 },
+                            ]}
+                          >
+                            <ThemedText type="small" themeColor="textSecondary">
+                              Group meals
+                            </ThemedText>
+                          </Pressable>
+                        ) : null}
+                      </View>
                     </View>
 
                     {advancedCapability.enabled && showAdvanced
@@ -2202,39 +2242,57 @@ const styles = StyleSheet.create({
     borderColor: "rgba(148, 163, 184, 0.15)",
   },
   dayHeader: {
-    gap: 4,
+    gap: Spacing.two,
     paddingBottom: Spacing.two,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(148, 163, 184, 0.12)",
   },
   dayTitleRow: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    alignItems: "baseline",
     flexWrap: "wrap",
-    gap: 8,
+    gap: Spacing.two,
   },
   dayTitle: {
     fontSize: 16,
-    flex: 1,
-    minWidth: 0,
+    lineHeight: 22,
+    flexGrow: 1,
+    flexBasis: 180,
+    maxWidth: "100%",
   },
-  dayAddButton: {
-    minWidth: 44,
-    minHeight: 44,
-    borderRadius: 12,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  dayHeaderRight: {
+  dayMetadata: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-end",
-    flexShrink: 1,
     flexWrap: "wrap",
+    gap: Spacing.two,
+  },
+  dayNutrition: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "baseline",
+    columnGap: Spacing.three,
+    rowGap: Spacing.one,
+  },
+  dayNutrient: {
+    fontSize: 13,
     maxWidth: "100%",
-    gap: 8,
+  },
+  dayCalories: {
+    width: "100%",
+  },
+  dayActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: Spacing.two,
+  },
+  dayAddButton: {
+    minHeight: 48,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    borderRadius: 12,
+    justifyContent: "center",
+    maxWidth: "100%",
   },
   eveningCatchUpBanner: {
     borderRadius: 16,
@@ -2264,12 +2322,6 @@ const styles = StyleSheet.create({
   eveningBannerDismiss: {
     padding: Spacing.half,
   },
-  dayCountBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-    backgroundColor: "rgba(148, 163, 184, 0.1)",
-  },
   partialBadge: {
     paddingHorizontal: 8,
     paddingVertical: 2,
@@ -2282,22 +2334,18 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   groupActionTrigger: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
-    flexShrink: 1,
+    minHeight: 48,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.two,
+    justifyContent: "center",
     maxWidth: "100%",
-  },
-  groupActionTriggerText: {
-    fontSize: 12,
-    color: "#10B981",
-    flexShrink: 1,
   },
   groupingToolbar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: Spacing.two,
     backgroundColor: "rgba(16, 185, 129, 0.08)",
     paddingHorizontal: Spacing.two,
     paddingVertical: 6,
@@ -2306,15 +2354,17 @@ const styles = StyleSheet.create({
   },
   groupingCountText: {
     fontSize: 12,
-    color: "#10B981",
   },
   groupingToolbarActions: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: 8,
   },
   groupConfirmBtn: {
-    backgroundColor: "#10B981",
+    minHeight: 48,
+    justifyContent: "center",
+    backgroundColor: "#047857",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 6,
@@ -2324,14 +2374,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   groupCancelBtn: {
+    minHeight: 48,
+    justifyContent: "center",
     paddingHorizontal: 6,
     paddingVertical: 4,
   },
   disabledBtn: {
     opacity: 0.4,
-  },
-  dayTotals: {
-    fontSize: 13,
   },
   paginationFooter: {
     paddingVertical: Spacing.four,

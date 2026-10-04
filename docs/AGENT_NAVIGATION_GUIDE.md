@@ -31,6 +31,14 @@ Read only the requested current file. Successful output contains the complete se
 
 Keep each bounded packet/excerpt separate from a large file-read batch, whose aggregate output cap could erase useful context. Full mandatory startup policies and acceptance gates remain required; avoid rereading already loaded, unchanged context. Helpers receive a focused baseline, ownership and relevant gates and report concise evidence.
 
+For ordinary discovery use bounded reads first, expanding only the required surrounding source/callers/tests. A truncation warning requires a smaller complete selection; raising output budgets for repeated whole-file batches does not recover the workflow's efficiency. Mandatory instruction files remain full reads. The live status is enforced at 120 lines/12,288 bytes; detailed handoffs belong in linked evidence or dated archives, while live authorities/open exits stay explicit.
+
+## Run one settled full check
+
+Finish helper/review/preview/source writes, run every new or edited focused test, and format owned files before `pnpm check`. The full command serializes same-user runs on this host across repository copies and rejects inputs that change during the run. Every existing gate remains required. `check:steps` is internal; calling it directly bypasses coordination and cannot establish compliant acceptance.
+
+Use a command session and wait 30–60 seconds at a time, with meaningful updates between waits. Read the result or failure excerpt when available; repeated log-tail polling adds context without advancing a running check. Known concurrent edits call for a stable isolated candidate with exact source correspondence and explicit excluded scope. The lock covers full checks only; schedule native/device/database/deployment resources separately. See [session workflow](SESSION_GUIDE.md) and [verification gates](QUALITY_GATES.md).
+
 ## Check the impact
 
 ```bash

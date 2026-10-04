@@ -1,19 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const state = vi.hoisted(() => ({
-  profile: null as null | { displayName: string },
-}));
 vi.mock("react-native", () => ({
   Pressable: "Pressable",
   View: "View",
   StyleSheet: { create: (s: unknown) => s },
 }));
 vi.mock("expo-router", () => ({ router: { push: vi.fn() } }));
-vi.mock("@/features/auth/auth-context", () => ({ useAuth: () => state }));
+vi.mock("expo-symbols", () => ({ SymbolView: "SymbolView" }));
 vi.mock("@/hooks/use-theme", () => ({
-  useTheme: () => ({ backgroundElement: "#fff", border: "#000" }),
+  useTheme: () => ({ backgroundElement: "#fff", border: "#000", text: "#123" }),
 }));
-vi.mock("./themed-text", () => ({ ThemedText: "Text" }));
 vi.mock("./feedback-header-button", () => ({
   FeedbackHeaderButton: "Feedback",
 }));
@@ -21,13 +17,12 @@ import { router } from "expo-router";
 import { AccountHeaderButton } from "./account-header-button";
 
 beforeEach(() => {
-  state.profile = null;
   vi.clearAllMocks();
 });
 describe("Account navigation after leaving the tab bar", () => {
   it("keeps Account reachable without a loaded profile and with an accessible touch target", () => {
     const button = AccountHeaderButton();
-    expect(button.props.accessibilityLabel).toBe("Open Account");
+    expect(button.props.accessibilityLabel).toBe("Open settings");
     const styles = button.props.style({ pressed: false }).flat();
     expect(styles).toContainEqual(
       expect.objectContaining({ minWidth: 48, minHeight: 48 }),
@@ -35,14 +30,16 @@ describe("Account navigation after leaving the tab bar", () => {
     button.props.onPress();
     expect(router.push).toHaveBeenCalledWith("/settings");
   });
-  it("updates local initials with the current private profile without navigating on render", () => {
-    state.profile = { displayName: "Adam Hikl" };
-    const first = AccountHeaderButton();
-    expect(first.props.children.props.children.props.children).toBe("AH");
-    state.profile = { displayName: "Jane Doe" };
-    expect(
-      AccountHeaderButton().props.children.props.children.props.children,
-    ).toBe("JD");
+  it("renders a themed settings symbol on every supported platform without navigating on render", () => {
+    const icon = AccountHeaderButton().props.children.props.children;
+    expect(icon.type).toBe("SymbolView");
+    expect(icon.props.name).toEqual({
+      ios: "gearshape",
+      android: "settings",
+      web: "settings",
+    });
+    expect(icon.props.tintColor).toBe("#123");
+    expect(icon.props.accessible).toBe(false);
     expect(router.push).not.toHaveBeenCalled();
   });
 });

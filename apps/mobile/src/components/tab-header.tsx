@@ -1,29 +1,54 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { Platform, StyleSheet, View } from "react-native";
+import { useCallback, useState, type ReactNode } from "react";
+import {
+  Platform,
+  StyleSheet,
+  View,
+  type LayoutChangeEvent,
+} from "react-native";
 
 import { MaxContentWidth, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { AccountHeaderActions } from "./account-header-button";
 import { BrandWordmark } from "./brand-wordmark";
 
+export function useTabHeaderLayout() {
+  const [headerHeight, setHeaderHeight] = useState(64);
+  const onHeaderLayout = useCallback((event: LayoutChangeEvent) => {
+    const height = event.nativeEvent.layout.height;
+    if (Number.isFinite(height) && height > 0) setHeaderHeight(height);
+  }, []);
+  return { headerHeight, onHeaderLayout };
+}
+
 /** Mount before the tab's scroller so account actions stay available. */
-export function TabHeader() {
+export function TabHeader({
+  onLayout,
+  children,
+}: {
+  onLayout?: (event: LayoutChangeEvent) => void;
+  children?: ReactNode;
+}) {
   const colors = useTheme();
 
   return (
-    <View style={[styles.header, { backgroundColor: colors.background }]}>
+    <View
+      onLayout={onLayout}
+      style={[styles.header, { backgroundColor: `${colors.background}E6` }]}
+    >
       <View style={styles.row}>
         <BrandWordmark />
         <AccountHeaderActions />
       </View>
+      {children}
       <LinearGradient
         pointerEvents="none"
         accessible={false}
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
         colors={[
-          colors.background,
           `${colors.background}E6`,
+          `${colors.background}C0`,
           `${colors.background}70`,
           `${colors.background}00`,
         ]}

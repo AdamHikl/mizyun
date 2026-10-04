@@ -52,7 +52,10 @@ vi.mock("expo-router", () => ({
 vi.mock("expo-network", () => ({}));
 vi.mock("@/components/themed-text", () => ({ ThemedText: "ThemedText" }));
 vi.mock("@/components/themed-view", () => ({ ThemedView: "ThemedView" }));
-vi.mock("@/components/tab-header", () => ({ TabHeader: "TabHeader" }));
+vi.mock("@/components/tab-header", () => ({
+  TabHeader: "TabHeader",
+  useTabHeaderLayout: () => ({ headerHeight: 96, onHeaderLayout: () => {} }),
+}));
 vi.mock("@/components/brand-wordmark", () => ({
   BrandWordmark: "BrandWordmark",
 }));

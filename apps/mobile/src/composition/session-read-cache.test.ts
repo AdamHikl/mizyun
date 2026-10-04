@@ -49,6 +49,36 @@ function deferred() {
 afterEach(() => vi.useRealTimers());
 
 describe("personal screen navigation reads", () => {
+  it.each([
+    ["PUT", "/v1/beta-pro/push-token"],
+    ["POST", "/v1/analytics/events"],
+    ["DELETE", "/v1/analytics/events"],
+    ["PUT", "/v1/analytics/consent"],
+  ] as const)(
+    "keeps startup reads alive during %s %s",
+    async (method, path) => {
+      const f = fixture();
+      const pending = deferred();
+      f.request.mockReturnValueOnce(pending.promise);
+      const read = f.cache.request(options);
+      await vi.waitFor(() => expect(f.request).toHaveBeenCalledTimes(1));
+      await f.cache.request({ method, path });
+      pending.resolve(success);
+      expect(await read).toEqual(success);
+      expect(await f.cache.request(options)).toEqual(success);
+      expect(f.request).toHaveBeenCalledTimes(2);
+    },
+  );
+  it("does not cancel startup reads for a repeated active event", async () => {
+    const f = fixture();
+    const pending = deferred();
+    f.request.mockReturnValueOnce(pending.promise);
+    const read = f.cache.request(options);
+    await vi.waitFor(() => expect(f.request).toHaveBeenCalledTimes(1));
+    f.cache.setForeground(true);
+    pending.resolve(success);
+    expect(await read).toEqual(success);
+  });
   it("times out a stalled startup read and permits a fresh retry", async () => {
     vi.useFakeTimers();
     const f = fixture();

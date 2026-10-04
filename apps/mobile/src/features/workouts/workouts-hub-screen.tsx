@@ -15,7 +15,7 @@ import type { Workout } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { TabHeader } from "@/components/tab-header";
+import { TabHeader, useTabHeaderLayout } from "@/components/tab-header";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { analyticsClient } from "@/composition/analytics-client";
 import {
@@ -49,6 +49,7 @@ const INITIAL_DATA: WorkoutsHubResult = {
 };
 
 export function WorkoutsHubScreen() {
+  const { headerHeight, onHeaderLayout } = useTabHeaderLayout();
   const { profile, session } = useAuth();
   const community = useCommunityProfile({
     principalKey: session?.user.id ?? null,
@@ -269,10 +270,11 @@ export function WorkoutsHubScreen() {
     <ThemedView style={styles.page}>
       <Stack.Screen options={{ title: "Workouts" }} />
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-        <TabHeader />
+        <TabHeader onLayout={onHeaderLayout} />
         <ScrollView
           refreshControl={
             <RefreshControl
+              progressViewOffset={headerHeight}
               refreshing={refreshing}
               onRefresh={() => {
                 invalidateSessionReads();
@@ -281,7 +283,11 @@ export function WorkoutsHubScreen() {
               }}
             />
           }
-          contentContainerStyle={styles.content}
+          style={{ marginTop: -headerHeight }}
+          contentContainerStyle={[
+            styles.content,
+            { paddingTop: headerHeight + Spacing.four },
+          ]}
           showsVerticalScrollIndicator={false}
         >
           {/* Top Header */}

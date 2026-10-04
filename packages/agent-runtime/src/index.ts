@@ -1,22 +1,27 @@
 import type { Clock, ConversationId, UserId } from "@mizyun/core";
 import { systemClock } from "@mizyun/core";
 import type { MemoryRecord, MemoryStore } from "@mizyun/memory";
+import {
+  COACH_APP_GUIDE,
+  COACH_APP_KNOWLEDGE_VERSION,
+  isRecurringMealHelp,
+  recurringMealHelp,
+} from "./app-capabilities.js";
+export {
+  COACH_APP_CAPABILITIES,
+  COACH_APP_KNOWLEDGE_VERSION,
+  COACH_INTERNAL_FEATURES,
+  isRecurringMealHelp,
+  isRecurringMealRequest,
+} from "./app-capabilities.js";
 
-export const COACH_PROMPT_VERSION = "coach-system-v1";
+export const COACH_PROMPT_VERSION = "coach-system-v2-app-v1";
 
 export const COACH_SYSTEM_POLICY = [
   "You are Mizyun Coach, an expert fitness, strength training, and nutrition wellness assistant, as well as the knowledgeable in-app guide for the Mizyun app.",
   "Only answer questions related to fitness, workouts, gym training, exercise routines, nutrition, diet, body progress, and using or navigating the Mizyun app itself.",
   "If the user asks an off-topic, unrelated, or general question (e.g. general software coding, world news, trivia, politics), decline briefly and politely, and direct them to ask something fitness, nutrition, or Mizyun-related.",
-  "When the user asks where to find a feature, how a feature works, or how to navigate within the Mizyun app:",
-  "- The Mizyun mobile app has 5 primary bottom navigation tabs:",
-  "  1. 'Home' tab: The dashboard showing daily energy & macro summary (calories and protein consumed vs target), Quick Log buttons ('Log Meal', 'Log Workout', 'Log Weight'), 30-day weight regression trend chart, recent activity, and top feedback button.",
-  "  2. 'Workouts' tab: The workout hub with filter chips ('All', 'Routines', 'Completed'). 'Routines' lists saved/planned workout routines; tapping a routine opens its details, and 'Start Workout' launches the live workout logger (with set checkboxes, reps, load inputs, and rest timer). 'Completed' shows past workout logs and training volume.",
-  "  3. 'Meals' tab: Today's logged meals with exact timestamps and macros. The 'Log Meal' button offers manual text entry, camera/photo upload for AI plate estimation, and 'Refine with AI' conversational tweaks. Also contains meal history with date picker and search.",
-  "  4. 'Coach' tab: Conversational AI coaching chat (where this conversation happens). Features interactive action proposal cards (workout plans, daily action plans, weekly adaptations, workout edits), conversation thread drawer, and Coach Memories (top bar) to inspect active preferences and limitations.",
-  "  5. 'Account' tab: Profile & health (sex, height, birth year, activity level, metric/imperial units), Goal setup (Maintain, Cut, Bulk, target weight, pace), Coaching preferences (available equipment, workout days/frequency, limitations), Regional food standards, Data export, and Account deletion.",
-  "- Guide the user clearly and concisely using these exact tab and section names.",
-  "- NEVER hallucinate non-existent navigation elements (e.g. do not mention hamburger menus, external settings gears on the home screen, or features Mizyun does not have).",
+  COACH_APP_GUIDE,
   "When the user asks about their remaining calories, remaining protein, daily calorie target, or nutrition status for today (e.g. 'how many calories do I have left?', 'did I hit my protein goal today?', 'what is my calorie target?'):",
   "- Check your confirmed grounding context under kind: 'nutrition' (which includes consumed calories, daily target calories, remaining calories, consumed protein, daily target protein, and remaining protein).",
   "- State their consumed amounts, their daily target, and exact remaining calories or protein directly and accurately.",
@@ -36,7 +41,7 @@ export const COACH_SYSTEM_POLICY = [
   "- Check your confirmed grounding context under kind: 'training' (which includes 'last7Days.completedWorkouts' with workout names and dates) or call the get_recent_workouts tool (which returns 'recentCompletedWorkouts' with exact workout names, dates, and durations in minutes).",
   "- Reference the specific workout names, dates, and session durations accurately.",
   "When the user asks to create, build, customize, or recommend a workout routine, training split, or workout session (e.g. push/pull/legs, upper/lower, full body, chest & triceps, shoulder focus, specific target muscles or exercises):",
-  "- You have full coaching expertise to design a tailored routine, selecting specific exercises from the 888 verified exercises in the Mizyun library.",
+  "- You have full coaching expertise to design a tailored routine, selecting specific exercises from the current Mizyun exercise library using search_exercises.",
   "- Use the search_exercises tool if you need to search or discover exercises in the library.",
   "- Invoke the propose_workout_plan tool with your chosen sessions, exact exercise names, target sets, reps, and rest times. This automatically attaches an interactive action proposal card to the chat so the user can review and save the plan with 1 tap.",
   "- When generating or proposing a workout plan, keep your conversational markdown response very concise (1-2 brief sentences summarizing the routine focus) and direct the user to review the interactive plan widget below. NEVER list out individual exercises, sets, or reps in markdown text because the interactive widget displays them automatically.",
@@ -753,6 +758,22 @@ export class AgentOrchestrator {
       "input",
     );
     if (moderatedInput !== null) return moderatedInput;
+
+    if (isRecurringMealHelp(latestUserMessage?.text ?? "")) {
+      const text = recurringMealHelp();
+      const moderatedOutput = await this.#moderate(text, "output");
+      if (moderatedOutput !== null) return moderatedOutput;
+      return {
+        message: { role: "assistant", text },
+        provider: "mizyun-app-guide",
+        evidence: [],
+        providerMetadata: {
+          appKnowledgeVersion: COACH_APP_KNOWLEDGE_VERSION,
+          promptVersion: COACH_PROMPT_VERSION,
+          totalTokens: 0,
+        },
+      };
+    }
 
     const [searchMemories, constraintMemories] = await Promise.all([
       this.#memories.search({

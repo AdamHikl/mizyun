@@ -1,0 +1,38 @@
+{
+  "testedAt": "2026-10-04T17:29:01.784Z",
+  "mode": "local actual Fastify routes; synthetic in-memory identity/storage, model call guard; no live Supabase/Gemini",
+  "promptVersion": "coach-system-v2-app-v1",
+  "input": "How can I make an automated logging of meals so that when I eat something every breakfast, it is just there instead of me having to log it each day.",
+  "modelCalls": 0,
+  "networkCalls": 0,
+  "unauthenticatedStatus": 401,
+  "revokedConsentStatus": 403,
+  "reports": [
+    {
+      "case": "new thread",
+      "status": 200,
+      "provider": "mizyun-app-guide",
+      "actionProposal": null,
+      "replaySameReply": true,
+      "reopenedReplyMatches": true,
+      "text": "Yes—Mizyun has **Recurring meals** for automatic daily or selected-weekday meal logging. In **Meals**, choose **Repeat** on a saved meal, select **Every day** or weekdays, set **Morning · 08:00**, **Evening · 19:00** or a custom time, check the displayed time zone, then tap **Save schedule**. The server adds the saved foods and portions at the scheduled time even while the app is closed. Today's entry is added only if its time is still ahead; missed past days are not backfilled. Open **Meals → Recurring meals** to edit days/time, pause/resume, **Skip today** or stop. To change future foods/portions, stop the schedule, edit a logged meal and choose Repeat again. Automatic entries do not prove what you ate—review, edit or skip them when your day changes. Coach can explain setup; it cannot create or change a schedule for you."
+    },
+    {
+      "case": "existing thread with false denial",
+      "status": 200,
+      "provider": "mizyun-app-guide",
+      "actionProposal": null,
+      "replaySameReply": true,
+      "reopenedReplyMatches": true,
+      "text": "Yes—Mizyun has **Recurring meals** for automatic daily or selected-weekday meal logging. In **Meals**, choose **Repeat** on a saved meal, select **Every day** or weekdays, set **Morning · 08:00**, **Evening · 19:00** or a custom time, check the displayed time zone, then tap **Save schedule**. The server adds the saved foods and portions at the scheduled time even while the app is closed. Today's entry is added only if its time is still ahead; missed past days are not backfilled. Open **Meals → Recurring meals** to edit days/time, pause/resume, **Skip today** or stop. To change future foods/portions, stop the schedule, edit a logged meal and choose Repeat again. Automatic entries do not prove what you ate—review, edit or skip them when your day changes. Coach can explain setup; it cannot create or change a schedule for you."
+    }
+  ],
+  "sourceHashes": {
+    "apps/api/src/app.ts": "0a62656efa2ea2695d71ff49f1489f93dd41b813f2d33f07dd4209ce8901cc4a",
+    "apps/api/src/modules/coach/routes.ts": "f5737cbdd9ea30307a72f9a96501cfa8f6d85ec6b96fee9ae6d812df148b08da",
+    "apps/api/src/modules/coach/nutrition-action.ts": "af5b3708cfdcc4f66644188d1ad3968cffd3e6907239e4222897da78e61dcde5",
+    "packages/agent-runtime/src/index.ts": "590a45b19eacdc061512925c456566ad8665b78a76f231fd4beb43310ca84d2e",
+    "packages/agent-runtime/src/app-capabilities.ts": "e42af87468651f537b906239264ec0a1e9870bcbdb27f9c92eeaff00d8aa4791"
+  },
+  "networkCountScope": "Intercepted globalThis.fetch calls; not a socket-level audit"
+}

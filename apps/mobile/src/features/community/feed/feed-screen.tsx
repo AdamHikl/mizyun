@@ -20,7 +20,7 @@ import {
 import { Link, type Href, useFocusEffect, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BottomTabInset, MaxContentWidth } from "@/constants/theme";
-import { TabHeader } from "@/components/tab-header";
+import { TabHeader, useTabHeaderLayout } from "@/components/tab-header";
 import type { SharedActivityFeedItemDto } from "@mizyun/contracts";
 import { apiClient } from "@/composition/api-client";
 import { useAuth } from "@/features/auth/auth-context";
@@ -62,6 +62,7 @@ function FeedScreenContent({
   readonly birthYear?: number | null;
   readonly accessToken: string | null;
 }) {
+  const { headerHeight, onHeaderLayout } = useTabHeaderLayout();
   const colors = useTheme();
   const accents = useCommunityPalette();
   const router = useRouter();
@@ -369,9 +370,15 @@ function FeedScreenContent({
         edges={["top", "left", "right"]}
         style={[styles.container, { backgroundColor: colors.background }]}
       >
-        <TabHeader />
+        <TabHeader onLayout={onHeaderLayout} />
         {checking ? (
-          <ScrollView contentContainerStyle={styles.centered}>
+          <ScrollView
+            style={{ marginTop: -headerHeight }}
+            contentContainerStyle={[
+              styles.centered,
+              { paddingTop: headerHeight + 24 },
+            ]}
+          >
             <Text
               accessibilityRole="header"
               style={[styles.notEnrolledTitle, { color: colors.text }]}
@@ -735,7 +742,7 @@ function FeedScreenContent({
       edges={["top", "left", "right"]}
       style={[styles.container, { backgroundColor: colors.background }]}
     >
-      <TabHeader />
+      <TabHeader onLayout={onHeaderLayout} />
       <FlatList
         data={
           (!checkingMembership && feedGenerationMatches && community.isEnrolled
@@ -751,12 +758,17 @@ function FeedScreenContent({
         onEndReachedThreshold={0.4}
         refreshControl={
           <RefreshControl
+            progressViewOffset={headerHeight}
             refreshing={manualRefreshing && state.status === "refreshing"}
             onRefresh={handleRefresh}
             tintColor={colors.primary}
           />
         }
-        contentContainerStyle={styles.listContent}
+        style={{ marginTop: -headerHeight }}
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingTop: headerHeight },
+        ]}
       />
     </SafeAreaView>
   );
