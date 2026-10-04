@@ -165,8 +165,8 @@ function DeepLinkBridge() {
     const handle = (rawUrl: string | null) => {
       if (!rawUrl) return;
       if (
-        rawUrl.includes("mizyun://preview") ||
-        rawUrl.includes("mizyun://dev")
+        getAppVariant() === "dev" &&
+        (rawUrl.includes("mizyun://preview") || rawUrl.includes("mizyun://dev"))
       ) {
         explorePreview();
         return;

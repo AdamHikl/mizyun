@@ -80,6 +80,7 @@ vi.mock("react-native-safe-area-context", () => ({
 }));
 vi.mock("@/components/themed-text", () => ({ ThemedText: "ThemedText" }));
 vi.mock("@/components/themed-view", () => ({ ThemedView: "ThemedView" }));
+vi.mock("@/components/tab-header", () => ({ TabHeader: "TabHeader" }));
 vi.mock("@/components/brand-wordmark", () => ({
   BrandWordmark: "BrandWordmark",
 }));
@@ -340,4 +341,13 @@ it("retains the uncertain start operation across a token refresh for the same ac
   expect(mocks.createBlank.mock.calls[0][1]).toBe(
     mocks.createBlank.mock.calls[1][1],
   );
+});
+
+it("keeps the common account bar outside scrolling tab content", () => {
+  const tree = render();
+  const safeArea = find(tree, (node) => node.type === "SafeAreaView");
+  const scroll = find(safeArea, (node) => node.type === "ScrollView");
+  expect(safeArea.props.children[0].type).toBe("TabHeader");
+  expect(scroll).toBeTruthy();
+  expect(find(scroll, (node) => node.type === "TabHeader")).toBeFalsy();
 });

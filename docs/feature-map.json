@@ -982,7 +982,8 @@
         "apps/mobile/src/components/account-header-button.tsx",
         "apps/mobile/src/components/account-header-button.test.ts",
         "apps/mobile/src/components/app-tabs.tsx",
-        "apps/mobile/src/components/app-tabs.web.tsx"
+        "apps/mobile/src/components/app-tabs.web.tsx",
+        "apps/mobile/src/components/tab-header.tsx"
       ],
       "contracts": [],
       "domainPort": [],

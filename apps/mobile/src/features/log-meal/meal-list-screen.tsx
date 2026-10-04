@@ -24,8 +24,7 @@ import type { DailyFoodSummary, FoodEntry } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { BrandWordmark } from "@/components/brand-wordmark";
-import { AccountHeaderActions } from "@/components/account-header-button";
+import { TabHeader } from "@/components/tab-header";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { analyticsClient } from "@/composition/analytics-client";
 import { isAutomaticallyLogged } from "@/features/recurring-meals/public-data";
@@ -810,6 +809,7 @@ export function MealListScreen() {
     <ThemedView style={styles.page}>
       <Stack.Screen options={{ title: "Meals" }} />
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
+        <TabHeader />
         <ScrollView
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
@@ -818,10 +818,6 @@ export function MealListScreen() {
         >
           {/* Top Header */}
           <View style={styles.header}>
-            <View style={styles.headerTopRow}>
-              <BrandWordmark />
-              <AccountHeaderActions />
-            </View>
             <ThemedText type="subtitle">Meals</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
               Manage daily nutrition, logged foods, and history.
@@ -2091,11 +2087,6 @@ const styles = StyleSheet.create({
     gap: Spacing.four,
   },
   header: { gap: Spacing.one },
-  headerTopRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
   logMealHeroCard: {
     width: "100%",
     flexDirection: "row",

@@ -96,6 +96,7 @@ vi.mock("react-native", () => ({
 vi.mock("react-native-safe-area-context", () => ({
   SafeAreaView: "SafeAreaView",
 }));
+vi.mock("@/components/tab-header", () => ({ TabHeader: "TabHeader" }));
 vi.mock("@/components/brand-wordmark", () => ({
   BrandWordmark: "BrandWordmark",
 }));

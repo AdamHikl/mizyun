@@ -13,6 +13,74 @@ import {
   type DashboardMetricsData,
 } from "./offline-cache-storage";
 
+describe("dashboard snapshot timezone scope", () => {
+  it("does not restore a same-date snapshot calculated with a different UTC offset", async () => {
+    const store = new MemoryStorage();
+    const now = () => new Date("2026-10-04T10:18:00Z");
+    await saveCachedDashboard(
+      "synthetic-owner",
+      {
+        localDate: "2026-10-04",
+        reviewPeriod: "week",
+        utcOffsetMinutes: 120,
+        data: mockDashboardData,
+      },
+      store,
+      now,
+    );
+    const matching = await loadCachedDashboard(
+      "synthetic-owner",
+      "2026-10-04",
+      store,
+      {
+        reviewPeriod: "week",
+        utcOffsetMinutes: 120,
+      },
+      now,
+    );
+    expect(matching?.data.caloriesToday).toBe(mockDashboardData.caloriesToday);
+    expect(
+      await loadCachedDashboard(
+        "synthetic-owner",
+        "2026-10-04",
+        store,
+        {
+          reviewPeriod: "week",
+          utcOffsetMinutes: 180,
+        },
+        now,
+      ),
+    ).toBeNull();
+  });
+
+  it("rejects a legacy unscoped snapshot when the caller requires a verified UTC offset", async () => {
+    const store = new MemoryStorage();
+    const now = () => new Date("2026-10-04T10:18:00Z");
+    await saveCachedDashboard(
+      "synthetic-owner",
+      {
+        localDate: "2026-10-04",
+        reviewPeriod: "week",
+        data: mockDashboardData,
+      },
+      store,
+      now,
+    );
+    expect(
+      await loadCachedDashboard(
+        "synthetic-owner",
+        "2026-10-04",
+        store,
+        {
+          reviewPeriod: "week",
+          utcOffsetMinutes: 120,
+        },
+        now,
+      ),
+    ).toBeNull();
+  });
+});
+
 class MemoryStorage implements StringStorage {
   public map = new Map<string, string>();
 

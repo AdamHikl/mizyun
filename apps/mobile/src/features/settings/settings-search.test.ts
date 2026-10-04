@@ -199,8 +199,14 @@ describe("settings-search", () => {
       expect(results[0].item.destinationId).toBe("security");
     });
 
-    it("Case 14: matches ai usage for 'more AI messages' and 'beta pro'", () => {
-      const queries = ["more AI messages", "beta pro"];
+    it("Case 14: matches ai usage for 'more AI messages' and 'pro pass'", () => {
+      const queries = [
+        "more AI messages",
+        "pro pass",
+        "launch pro pass",
+        "complimentary pro",
+        "beta pro",
+      ];
       for (const query of queries) {
         const results = searchSettings(query, SETTINGS_CATALOG);
         expect(
@@ -421,7 +427,7 @@ describe("settings-search", () => {
         query: "how many messages do i have left",
         expectedDestinationId: "ai-usage",
       },
-      { query: "request beta pro pass", expectedDestinationId: "ai-usage" },
+      { query: "request launch pro pass", expectedDestinationId: "ai-usage" },
       { query: "delete coach memories", expectedDestinationId: "memory" },
       { query: "clear remembered facts", expectedDestinationId: "memory" },
       {

@@ -11,7 +11,6 @@ import {
   AppState,
   FlatList,
   Pressable,
-  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -21,8 +20,7 @@ import {
 import { Link, type Href, useFocusEffect, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BottomTabInset, MaxContentWidth } from "@/constants/theme";
-import { BrandWordmark } from "@/components/brand-wordmark";
-import { AccountHeaderActions } from "@/components/account-header-button";
+import { TabHeader } from "@/components/tab-header";
 import type { SharedActivityFeedItemDto } from "@mizyun/contracts";
 import { apiClient } from "@/composition/api-client";
 import { useAuth } from "@/features/auth/auth-context";
@@ -371,10 +369,7 @@ function FeedScreenContent({
         edges={["top", "left", "right"]}
         style={[styles.container, { backgroundColor: colors.background }]}
       >
-        <View style={styles.accountHeader}>
-          <BrandWordmark />
-          <AccountHeaderActions />
-        </View>
+        <TabHeader />
         {checking ? (
           <ScrollView contentContainerStyle={styles.centered}>
             <Text
@@ -740,10 +735,7 @@ function FeedScreenContent({
       edges={["top", "left", "right"]}
       style={[styles.container, { backgroundColor: colors.background }]}
     >
-      <View style={styles.accountHeader}>
-        <BrandWordmark />
-        <AccountHeaderActions />
-      </View>
+      <TabHeader />
       <FlatList
         data={
           (!checkingMembership && feedGenerationMatches && community.isEnrolled
@@ -783,7 +775,6 @@ const styles = StyleSheet.create({
   placeholderLine: { height: 16, borderRadius: 8 },
   container: {
     flex: 1,
-    paddingTop: Platform.OS === "web" ? 80 : 0,
   },
   listContent: {
     flexGrow: 1,
@@ -791,14 +782,6 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
-  },
-  accountHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    flexWrap: "wrap",
-    gap: 8,
-    paddingHorizontal: 16,
   },
   heading: {
     fontSize: 32,

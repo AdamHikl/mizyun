@@ -77,6 +77,7 @@ vi.mock("react-native-safe-area-context", () => ({
 }));
 vi.mock("@/components/themed-text", () => ({ ThemedText: "ThemedText" }));
 vi.mock("@/components/themed-view", () => ({ ThemedView: "ThemedView" }));
+vi.mock("@/components/tab-header", () => ({ TabHeader: "TabHeader" }));
 vi.mock("@/components/brand-wordmark", () => ({
   BrandWordmark: "BrandWordmark",
 }));
@@ -411,4 +412,13 @@ it("retains the selected day when an earlier history request completes after the
   await settle();
   expect(mocks.day).toHaveBeenCalledWith(date);
   expect(history().entries.map((e: FoodEntry) => e.id)).toContain("added");
+});
+
+it("keeps the common account bar outside scrolling tab content", () => {
+  const tree = render();
+  const safeArea = find(tree, (node) => node.type === "SafeAreaView");
+  const scroll = find(safeArea, (node) => node.type === "ScrollView");
+  expect(safeArea.props.children[0].type).toBe("TabHeader");
+  expect(scroll).toBeTruthy();
+  expect(find(scroll, (node) => node.type === "TabHeader")).toBeFalsy();
 });

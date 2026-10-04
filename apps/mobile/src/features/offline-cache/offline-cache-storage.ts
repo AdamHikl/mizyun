@@ -33,16 +33,21 @@ export interface CachedDashboardSnapshot {
   readonly cachedAt: string;
   readonly localDate: string;
   readonly reviewPeriod: "week" | "month";
+  /** Older snapshots omit this and cannot satisfy an offset-scoped read. */
+  readonly utcOffsetMinutes?: number;
   readonly data: DashboardMetricsData;
 }
 
 export interface SaveDashboardInput {
   readonly localDate: string;
   readonly reviewPeriod: "week" | "month";
+  readonly utcOffsetMinutes?: number;
   readonly data: DashboardMetricsData;
 }
 
 export interface LoadDashboardOptions {
+  /** Require the exact offset used to calculate local-day totals. */
+  readonly utcOffsetMinutes?: number;
   /**
    * Maximum allowed age in milliseconds for a cached dashboard snapshot.
    * Defaults to 48 hours (172,800,000 ms).
@@ -212,6 +217,9 @@ export const saveCachedDashboard = async (
       cachedAt: now().toISOString(),
       localDate: input.localDate,
       reviewPeriod: input.reviewPeriod,
+      ...(input.utcOffsetMinutes !== undefined
+        ? { utcOffsetMinutes: input.utcOffsetMinutes }
+        : {}),
       data: input.data,
     };
     const serialized = JSON.stringify(snapshot);
@@ -371,6 +379,15 @@ export async function loadCachedDashboard(
 
   const candidate = parsed as CachedDashboardSnapshot;
   if (candidate.version !== 1 || candidate.userId !== userId) {
+    return null;
+  }
+
+  if (
+    effectiveOptions.utcOffsetMinutes !== undefined &&
+    (!Number.isInteger(effectiveOptions.utcOffsetMinutes) ||
+      Math.abs(effectiveOptions.utcOffsetMinutes) > 14 * 60 ||
+      candidate.utcOffsetMinutes !== effectiveOptions.utcOffsetMinutes)
+  ) {
     return null;
   }
 

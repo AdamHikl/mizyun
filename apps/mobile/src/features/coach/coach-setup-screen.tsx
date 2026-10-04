@@ -30,8 +30,7 @@ import {
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { BrandWordmark } from "@/components/brand-wordmark";
-import { AccountHeaderActions } from "@/components/account-header-button";
+import { TabHeader } from "@/components/tab-header";
 import {
   BottomTabInset,
   Colors,
@@ -669,6 +668,7 @@ export function CoachSetupScreen() {
   return (
     <ThemedView style={styles.page}>
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
+        <TabHeader />
         <KeyboardAvoidingView
           style={styles.safeArea}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -690,9 +690,8 @@ export function CoachSetupScreen() {
           {/* Top Header */}
           <View style={styles.header}>
             <View style={styles.headerTopRow}>
-              <BrandWordmark />
+              <ThemedText type="subtitle">Coach</ThemedText>
               <View style={styles.headerActions}>
-                <AccountHeaderActions />
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Toggle training plan & advisory info"
@@ -758,7 +757,6 @@ export function CoachSetupScreen() {
             </View>
 
             <View style={styles.headerTitleRow}>
-              <ThemedText type="subtitle">Coach</ThemedText>
               {status?.ready ? (
                 <Pressable
                   accessibilityRole="button"
@@ -2234,11 +2232,13 @@ const styles = StyleSheet.create({
     maxWidth: MaxContentWidth,
     alignSelf: "center",
     paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.two,
+    paddingTop: Spacing.four,
     paddingBottom: Spacing.two,
     gap: Spacing.one,
   },
   headerTopRow: {
+    flexWrap: "wrap",
+    gap: Spacing.two,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",

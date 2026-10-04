@@ -17,7 +17,6 @@ import type { BetaProStatus } from "@mizyun/contracts";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { BrandWordmark } from "@/components/brand-wordmark";
-import { BetaNoticeCard } from "@/components/beta-notice";
 import { apiClient } from "@/composition/api-client";
 import { analyticsClient } from "@/composition/analytics-client";
 import { MaxContentWidth, Spacing } from "@/constants/theme";
@@ -401,19 +400,19 @@ function WelcomeBody() {
         setBetaStatus("pending");
         Alert.alert(
           "Request Sent",
-          "Your Beta Pro Pass request has been submitted. You'll be notified when it's reviewed.",
+          "Your Launch Pro Pass request has been submitted. You'll be notified when it's reviewed.",
         );
       } else {
         Alert.alert(
           "Request Failed",
-          "Could not submit Beta Pro request. Try again later.",
+          "Could not submit Launch Pro Pass request. Try again later.",
         );
       }
     } catch {
       if (mountedRef.current) {
         Alert.alert(
           "Request Failed",
-          "Could not submit Beta Pro request. Try again later.",
+          "Could not submit Launch Pro Pass request. Try again later.",
         );
       }
     } finally {
@@ -431,25 +430,24 @@ function WelcomeBody() {
         five short steps.
       </ThemedText>
 
-      <BetaNoticeCard />
-
       <ThemedView type="backgroundElement" style={styles.betaCard}>
         <View style={styles.betaHeaderRow}>
-          <ThemedText style={styles.betaBadge}>✨ BETA PRO PASS</ThemedText>
+          <ThemedText style={styles.betaBadge}>✨ LAUNCH PRO PASS</ThemedText>
         </View>
         <ThemedText type="smallBold">
-          Full complimentary Pro access included during the testing period.
+          Request free Pro access as an early Mizyun user.
         </ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
-          Enjoy AI meal photo drafts, full 880+ workout routines, and
-          memory-aware coaching.
+          Pro includes higher AI usage limits for meal photo drafts and
+          coaching. Requests are reviewed before access is granted. We’d love
+          your feedback.
         </ThemedText>
 
         <View style={styles.betaActionRow}>
           {isPaid || betaStatus === "approved" ? (
             <View style={styles.approvedBadge}>
               <ThemedText type="smallBold" style={styles.approvedBadgeText}>
-                ✨ Beta Pro Pass Active
+                ✨ Launch Pro Pass Active
               </ThemedText>
             </View>
           ) : betaStatus === "pending" ? (
@@ -461,7 +459,7 @@ function WelcomeBody() {
           ) : (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Request Beta Pro Pass"
+              accessibilityLabel="Request free Pro access with Launch Pro Pass"
               accessibilityState={{
                 disabled: requesting || betaStatus === null,
                 busy: requesting,
@@ -484,7 +482,7 @@ function WelcomeBody() {
                 >
                   {betaStatus === null
                     ? "Checking Pass…"
-                    : "Request Beta Pro Pass"}
+                    : "Request Free Pro Access"}
                 </ThemedText>
               )}
             </Pressable>

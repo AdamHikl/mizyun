@@ -22,6 +22,7 @@ import {
   invalidateCommunityReads,
   setCommunityReadPrincipal,
 } from "@/features/community/state/read-cache";
+import { getAppVariant } from "@/composition/app-variant";
 import { authClient } from "@/composition/auth-client";
 import { analyticsClient } from "@/composition/analytics-client";
 import { profileResponseSchema } from "@mizyun/contracts";
@@ -298,6 +299,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const clearRecoveryState = useCallback(() => setRecoveryState(false), []);
 
   const explorePreview = useCallback(() => {
+    if (getAppVariant() !== "dev") return;
     applySession(PREVIEW_SESSION);
   }, [applySession]);
 
