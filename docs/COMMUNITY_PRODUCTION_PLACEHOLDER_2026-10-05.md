@@ -2,6 +2,8 @@
 
 Issue: [#212](https://github.com/AdamHikl/mizyun/issues/212). User explicitly requested fixing the Production Community screen while retaining1.0.8 / iOS build8 / Android code8.
 
+Version8 package records below are historical; the current requested release is [version9](BUILD_9_RELEASE_EVIDENCE_2026-10-05.md).
+
 ## Cause and implementation
 
 The previous enrollment gate disabled Join but did not gate the tab. Failed membership/session reads mounted the settings recovery screen; coming-soon existed only inside the successful, adult-eligible form. Help was unconditional and Leave appeared on errors without confirming enrollment.
@@ -22,7 +24,7 @@ Current [Expo57](https://docs.expo.dev/versions/v57.0.0/), [Router57](https://do
 
 ## Next action
 
-Manually upload the corrected1.0.8/build8 IPA and AAB below, then accept the Community placeholder on physical devices in light/dark and large text, including offline/signed-in startup. Keep native workout/16KB runtime/Store exits under#27/#32 open. No Store upload or backend deployment is part of this session.
+Use the superseding [version9 packages](BUILD_9_RELEASE_EVIDENCE_2026-10-05.md) for the next manual release. Accept the Community placeholder on physical devices in light/dark and large text, including offline/signed-in startup. Keep native workout/16KB runtime/Store exits under#27/#32 open. No Store upload or backend deployment is part of this session.
 
 ## Corrected iOS package
 
