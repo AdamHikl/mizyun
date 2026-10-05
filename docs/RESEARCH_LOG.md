@@ -1,5 +1,9 @@
 # Research log
 
+## Production build 9 numbering — 2026-10-05
+
+Checked [Expo57 app configuration](https://docs.expo.dev/versions/v57.0.0/config/app/), [Android versioning](https://developer.android.com/studio/publish/versioning) and [Apple build uploads](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds/). User requests synchronized1.0.9/iOS9/Android9. Change only the three release values, regenerate native projects and verify actual main/widget/AAB metadata, Production config and signatures. Preserve corrected Community source630e764 and exclude unrelated working-copy UI edits. Build/package evidence remains separate from native acceptance and manual Store upload. No dependency or architecture change.
+
 ## Production build 7 and build 6 compatibility — 2026-10-04
 
 Rechecked [Expo SDK57](https://docs.expo.dev/versions/v57.0.0/), [Android versioning](https://developer.android.com/studio/publish/versioning), [Apple upcoming requirements](https://developer.apple.com/news/upcoming-requirements/) and [Supabase db push](https://supabase.com/docs/reference/cli/supabase-db-push). Synchronize1.0.7/iOS7/Android7, regenerate native projects and verify embedded production identity/endpoints and signing. Pin original build6 parsers for synthetic current-handler compatibility. Supabase forward migrations may commit individually: journal an attempted apply conservatively and inspect the actual ledger after failure. Back up coherent old code/schema before checkout; stop the API during in-place dependency/schema replacement using an exact-unit sudo permission. Preserve explicit validation for new nutrient edits; omitted dependent estimates become unknown only when a base-macro edit contradicts them. Coach guidance must qualify newer controls by installed build and visible UI. Store upload/approval and real Production device journeys remain separate.

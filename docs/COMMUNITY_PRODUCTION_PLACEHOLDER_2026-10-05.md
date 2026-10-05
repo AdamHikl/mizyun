@@ -43,3 +43,11 @@ Bundletool1.18.3 validation and manifest dump PASS: actual `com.mizyun.app`,1.0.
 No backend deployment, Store upload or physical installation occurred. Prior3384b3f packages remain unchanged historical artifacts; use only corrected630e764 packages for this handoff.
 
 Independent GPT-6.1 Sol High AAB review PASS with no findings: actual signature/certificate/manifest/config/copy verified; all2,441non-signature ZIP entries byte-match the generated build input. Actual inputSHA256`cda9f928b6c0543113fba9608b6b8cdd2993b9d4632a06293bce3d249f085197` matches its source630e764 build provenance. Exported iOS and signed Android checks are package evidence only. Final continuity updates passed formatting/navigation and `git diff --check`; unchanged runtime source remains qualified by both full gates above.
+
+## Production iPhone test installation — 2026-10-05
+
+At Adam’s explicit request, installed the existing standalone Release app from the retained630e764 archive on iPhone16Pro `00008140-001114501A86801C`. Reused exact compiled source rather than rebuilding concurrent UI work. Both main/widget profiles contain this device; independent High strict/deep signatures and Production-config/tuple/runtime/UUID checks PASS. Runtime bundle SHA256`1d587ac11a52a4aa291252102acbd6370c1299df9d179a41244efbfa3530714d` and main/widget UUIDs exactly match the exported Store IPA.
+
+Fresh `xcrun devicectl device install app` PASS; installed app inventory confirms `com.mizyun.app`1.0.8/build8. Explicit process launch PASS and separate process inventory confirms PID6786. Uses Production API/Supabase/callback with bundled JS and no Metro. The archive is Apple Development signed (development APNs/get-task-allow true); this installation tests the Production runtime and does not accept Store signing or Production-push behavior. Store-export IPA remains unchanged.
+
+Redacted durable evidence: adjacent package `device-install-verification.json`; raw local install/launch/apps/process evidence under `/private/tmp/mizyun-production-build8-*.json`. Other paired devices were excluded. Next: Adam opens Community and confirms the coming-soon screen, then exercises signed-in/core/native workout journeys before manual upload. Installation and process evidence do not close those feature/device/Store gates. No upload or backend deployment occurred.

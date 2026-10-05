@@ -4,7 +4,7 @@
 
 ## Current authority and delivery
 
-- **Build8 / #212 (#27/#32):** corrected1.0.8/8/8 source`630e764d83e78a0496c063f3de7485b2dc09e219`; signedIPA/widget/HealthKit/Production config/dSYMs and AAB/cert/16KB LOADPASS; full gatesPASS. [Corrected artifacts/evidence](docs/COMMUNITY_PRODUCTION_PLACEHOLDER_2026-10-05.md). Prior3384b3f packages history; native/16KB runtime/Store exits open.
+- **Build9 / #212 (#27/#32):** user requests1.0.9/9/9, numbering-only on corrected Community630e764 (basec88f734); unrelated UI work excluded. Signed packages pending. [Evidence](docs/BUILD_9_RELEASE_EVIDENCE_2026-10-05.md). Build8 installed/launched iPhone16Pro PID6786; native/16KB runtime/Store exits open.
 - **Dev backend:** pristine9b0c41a, Hetzner `/var/lib/mizyun/dev/repo`, API4100/DB5433 PID2372619; canonical promotionPASS, public health200, protected Coach conversations401. Prompt `coach-system-v3-app-v2`.
 - **Latest iPhone Dev install:** 2026-10-04T18:05:59Z, iPhone16Pro, `a435a766...`, standalone com.mizyun.development1.0.6(6), teamLQJNDVBL43. Adam confirmed signed-in meal/workout/Coach/background journeys passed. [Delivery](docs/DEV_DELIVERY_EVIDENCE_2026-10-04.md).
 - **Production:** pristine9b0c41a; API4000/DB5432 PID2401543, tunnel2401546 active,57migrations through20261004110000. Fresh backup20261005T060157Z/checksumsPASS; public health200/protected Coach401. Adam confirmed build6 meal/workout/Coach journeys on d610382; API/packages/schema unchanged in9b0c41a. New build7 device/Store exits remain separate.
@@ -14,7 +14,7 @@
 
 AGENT-NAV-007 / [#207](https://github.com/AdamHikl/mizyun/issues/207): compact startup, serialized stable full checks, device-test collision repair and bounded-read/wait guidance. Implemented and verified locally: fresh serialized `pnpm check`PASS, runner20/navigation117, non-author review clear; inputs stable. [Evidence](docs/AGENT_WORKFLOW_EVIDENCE_2026-10-04.md). Existing navigation/index acceptance remains advisory; actual client/token/speed comparisons remain [#54](https://github.com/AdamHikl/mizyun/issues/54).
 
-**Next exact action:** Adam manually uploads corrected630e764 build8 IPA/AAB; accept native workout status on iPhone/Android and16KB runtime. Native/Store exits #27/#32 remain. Backend9b0c41a unchanged. Community enrollment closed; progress photos/App Preview remain Dev-only. No agent upload; #54/broader gates remain.
+**Next exact action:** build/verify corrected1.0.9/9/9 IPA/AAB before Adam manually uploads; accept native workout status on iPhone/Android and16KB runtime. Native/Store exits #27/#32 remain. Backend9b0c41a unchanged. Community enrollment closed; progress photos/App Preview remain Dev-only. No agent upload; #54/broader gates remain.
 
 ## Local follow-ups awaiting exact-candidate acceptance
 
