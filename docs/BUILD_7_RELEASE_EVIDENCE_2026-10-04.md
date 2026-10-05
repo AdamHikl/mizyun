@@ -2,7 +2,7 @@
 
 ## Scope and source
 
-Adam explicitly requested Production backend promotion and signed iOS/Android packages for1.0.7/build7. No Store upload was requested. Preparation branch:codex/production-build-7. First integrated release candidate: `d610382568ac39a0317b7edefbb272bf67fb4067`. Package-verification follow-up changes require a fresh candidate before final artifacts.
+Adam explicitly requested Production backend promotion and signed iOS/Android packages for1.0.7/build7. No Store upload was requested. Preparation branch:codex/production-build-7. First integrated release candidate: `d610382568ac39a0317b7edefbb272bf67fb4067`. Final frozen package/backend source: `9b0c41acbb7e4ee70592cab40b6148fc76a393ed`. Later documentation commits do not change the package source.
 
 Live Production baseline:0aadf95b5ff85d9cfc8bf5485e68a72525080e84, pristine Hetzner/var/lib/mizyun/repo, activeAPI4000/PID3659946. Migration ledger contained28 versions through20260924140000; source has29 additional forward migrations. Dev source:a435a7660d85a4586224d5ac48827db651833826. On2026-10-04 Adam confirmed signed-in meal Save/reopen, workout Finish/history, Coach replies and background/reopen passed on that installed Dev app. This is user-observed Dev evidence, not exact build7 Production acceptance.
 
@@ -14,7 +14,7 @@ Fault harness first reproduced backup-after-checkout and incomplete migration jo
 
 ## Deployment, artifacts and remaining gates
 
-Production and Dev now run d610382, described below. Final packages are being rebuilt after correcting exported configuration verification and CI dependencies; package paths/hashes will be recorded after completion. Store uploads/approval, broader Android/native accessibility/provider/Community/lifecycle/restore exits retain their existing issue gates. Extreme legacy summary bounds are unchanged from build6 and do not establish unlimited aggregate compatibility.
+Initial Production/Dev promotion was d610382. Final canonical promotions and signed packages use9b0c41a, recorded below; package configuration, CI dependencies and the reproduced runner issue are resolved. Store uploads/approval, broader Android/native accessibility/provider/Community/lifecycle/restore exits retain their existing issue gates. Extreme legacy summary bounds are unchanged from build6 and do not establish unlimited aggregate compatibility.
 
 ## Disposable forward-upgrade rehearsal
 
@@ -46,4 +46,32 @@ Production JS contains legitimate dormant Dev endpoint literals in Community adm
 
 Corrected package-tool source `5ededf293da5a1a66dda6283edc333de9c3c61b4` passed fresh Mac full gate (input6310bdae5e2d1c69017fb79da59729631342300dc67015cf6178d8864015f9b2), [quality CI37231137566](https://github.com/AdamHikl/mizyun/actions/runs/37231137566) and [navigation CI37231137580](https://github.com/AdamHikl/mizyun/actions/runs/37231137580). Existing hosted db-push-dev workflow failure remains #23 and does not represent canonical Hetzner promotion.
 
-Its isolated iOS attempt again failed the check-runner descendant fixture before signing (`/tmp/mizyun-build7-ios-package-corrected.log`). Added diagnostics reproduced `kill EPERM`, first exit143 retaining the lock, waiter exit1 stale-owner; immediate successful ps showed no members after descendant-end. Transcript `/tmp/mizyun-check-runner-group-probe.log`. Minimal correction requires successful existing member inspection on EPERM, accepts only no-live-member groups, and retains lock on live/unknown inspection. Four deterministic regressions and20consecutive real descendant fixtures passed; complete focused runner20/20. `/tmp/mizyun-check-runner-fixed-repeat.log`. Independent review/full gate follow before final source freeze. The package has not yet reached signing with the refreshed account.
+Its isolated iOS attempt again failed the check-runner descendant fixture before signing (`/tmp/mizyun-build7-ios-package-corrected.log`). Added diagnostics reproduced `kill EPERM`, first exit143 retaining the lock, waiter exit1 stale-owner; immediate successful ps showed no members after descendant-end. Transcript `/tmp/mizyun-check-runner-group-probe.log`. Minimal correction requires successful existing member inspection on EPERM, accepts only no-live-member groups, and retains lock on live/unknown inspection. Four deterministic regressions and20consecutive real descendant fixtures passed; complete focused runner20/20. `/tmp/mizyun-check-runner-fixed-repeat.log`. Independent non-author High review approved; fresh full gate passed(input458053607a2e1fce1b8cd3a3edd3e8f693765faa44832c55f8b25ff084baf362). Commit9b0c41a froze the correction. Its subsequent canonical iOS full gate, archive and export succeeded with the refreshed account.
+
+## Final release delivery — 2026-10-05
+
+Frozen source: `9b0c41acbb7e4ee70592cab40b6148fc76a393ed`, clean accepted ancestor of origin/main. [Quality CI37268921317](https://github.com/AdamHikl/mizyun/actions/runs/37268921317) and [navigation CI37268921203](https://github.com/AdamHikl/mizyun/actions/runs/37268921203) passed. Fresh canonical Dev and Production full gates passed; Production inputc0dfefc9eb0a8a9f0271793e5a115b943767689e6e837fe3865190d2e7e28e38 and disposable database32files/861assertionsPASS. #199 is closed after exact Linux/Mac acceptance; #207 includes the independently reviewed runner correction. Existing hosted DB workflow #23 remains separate.
+
+Dev journal05:58:03Z and Production journal06:03:18Z record success from previousd610382 to target9b0c41a; Production migrationState=complete. Both repositories are pristine. Dev API PID2372619/WorkingDirectory `/var/lib/mizyun/dev/repo`; Production PID2401543/WorkingDirectory `/var/lib/mizyun/repo`; cloudflaredPID2401546 active. Both actual DB ledgers remain57/max20261004110000; no additional migration was needed. Final public health200 for both hosts and protected Production Coach conversations401. Fresh encrypted backup `/srv/mizyun/backup-export/outgoing/20261005T060157Z/mizyun-production-20261005T060157Z.tar.gz.age`,5129987bytes, backup unit success/exit0, SHA256SUMS verified. No private data/archive were downloaded or decrypted.
+
+`git diff d610382568ac39a0317b7edefbb272bf67fb4067 9b0c41acbb7e4ee70592cab40b6148fc76a393ed -- apps/api packages supabase/migrations` is empty. The final backend therefore preserves the exact API/packages/schema source accepted with the user-observed build6 core journeys. Those observations remain scoped to meal Save/reopen, workout Finish/history and a Coach reply; they are not new build7 physical-device or broader compatibility proof.
+
+Fresh final logs: `/tmp/mizyun-build7-ios-package-final-candidate.log`, `/tmp/mizyun-build7-final-android-prebuild.log`, `/tmp/mizyun-build7-final-android-bundle.log`, `/tmp/mizyun-build7-final-android-sign.log`, `/tmp/mizyun-build7-final-dev-deploy.log`, `/tmp/mizyun-build7-final-production-deploy.log`.
+
+### iOS Production IPA
+
+- Version1.0.7/build7, com.mizyun.app, teamLQJNDVBL43; Xcode27.0/build27A266a. Canonical fresh isolated prebuild/full gate/archive/AppStoreConnect export and final verification passed.
+- IPA `apps/mobile/dist/releases/ios/app-store/packages/1.0.7-7-9b0c41acbb7e4ee70592cab40b6148fc76a393ed-20261005T054945Z/Mizyun-1.0.7-7-9b0c41acbb7e4ee70592cab40b6148fc76a393ed-20261005T054945Z.ipa`: SHA256 `330eaf5037be96d8ba0476d5187719454d969431c177a385363769661f5fbf36`.
+- Immutable manifest `apps/mobile/dist/releases/ios/app-store/packages/1.0.7-7-9b0c41acbb7e4ee70592cab40b6148fc76a393ed-20261005T054945Z/manifest.json`, supplementalverification.json and matching archive/dSYMs retained under `apps/mobile/dist/releases/ios/app-store/archives/Mizyun-1.0.7-7-9b0c41acbb7e4ee70592cab40b6148fc76a393ed-20261005T054945Z.xcarchive`.
+- Cloud Managed Apple Distribution certificateSHA1E429BA7A349C5A8EDBD11536025213A196A4E1F9, expiry2027-09-14. Actual signed application identifierLQJNDVBL43.com.mizyun.app, HealthKit=true, APNsproduction, AppleSignInDefault, getTaskAllow=false. Actual exported Expo profile/variant/version/API/Supabase/callback validated. App and dSYM UUID83D4AB60-EEF1-3092-AFB5-9402B8AF8A9F match.
+- Ready for Adam's manual Transporter upload. No AppStoreConnect/TestFlight upload or submission occurred.
+
+### Android Production AAB
+
+- Version1.0.7/code7, com.mizyun.app, targetSDK36/debugfalse; canonical fresh Production prebuild and bundleRelease3m51s/681tasks succeeded, then signer/jarsigner/enrolled certificate validation passed.
+- AAB `apps/mobile/dist/releases/android/google-play/Mizyun-1.0.7-code7-9b0c41acbb7e4ee70592cab40b6148fc76a393ed.aab`:79815393bytes, SHA256 `e2b3db2f443e8544a67205360377318ee9ff59bc387eced46015c11b52d1efa1`.
+- Immutable artifact/provenance manifest `apps/mobile/dist/releases/android/google-play/Mizyun-1.0.7-code7-9b0c41acbb7e4ee70592cab40b6148fc76a393ed.manifest.json`. Upload aliasmizyun-upload, enrolledSHA1A3:37:60:CF:83:BB:54:87:FC:71:F0:38:D4:6B:97:21:CA:A0:70:4D.
+- Independent Google bundletool1.18.3 validation passed; dumped manifest and actual `base/assets/app.config` verify Production identity/profile/tuple/API/Supabase/callback. All50arm64/x86_64shared libraries have PT_LOAD alignment>=16384 and bundle config is PAGE_ALIGNMENT_16K. Intermediate d610382 artifact is superseded; preserved final output was not overwritten.
+- Ready for manual GooglePlayConsole upload. No Play upload or rollout occurred.
+
+Store-delivered build7 device acceptance, accessibility/network/provider/Community/lifecycle and operational/restore exits retain #27/#32 and their owning issue gates. The package handoff does not close those broader exits or claim Store approval.
