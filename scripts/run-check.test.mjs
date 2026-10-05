@@ -17,7 +17,7 @@ import { checkLockStatus, defaultLockDirectory } from "./run-check.mjs";
 
 const runnerUrl = new URL("./run-check.mjs", import.meta.url).href;
 
-function fixture(t, gateSource) {
+function fixture(t, gateSource, { groupProbe } = {}) {
   const root = mkdtempSync(join(tmpdir(), "mizyun-check-runner-test-"));
   const cwd = join(root, "repo");
   const lockDirectory = join(root, "lock");
@@ -39,6 +39,33 @@ ${gateSource}`,
   writeFileSync(
     helper,
     `import { runCheck } from ${JSON.stringify(runnerUrl)};
+${
+  groupProbe
+    ? `
+import childProcess from 'node:child_process';
+import { syncBuiltinESMExports } from 'node:module';
+const kill = process.kill.bind(process);
+const spawnSync = childProcess.spawnSync;
+let probedGroup;
+process.kill = (pid, signal) => {
+  if (pid < 0 && signal === 0) {
+    probedGroup = -pid;
+    throw Object.assign(new Error('simulated group probe EPERM'), { code: 'EPERM' });
+  }
+  return kill(pid, signal);
+};
+childProcess.spawnSync = (command, args, options) => {
+  if (command === 'ps' && args[0] === '-axo') {
+    const probe = ${JSON.stringify(groupProbe)};
+    return { status: probe === 'unavailable' ? 1 : 0,
+      stdout: probe === 'empty' || probe === 'unavailable' ? '' : probedGroup + ' ' + (probe === 'zombie' ? 'Z' : 'R') + '\\n' };
+  }
+  return spawnSync(command, args, options);
+};
+syncBuiltinESMExports();
+`
+    : ""
+}
 process.exitCode = await runCheck({ cwd: process.argv[2] || ${JSON.stringify(cwd)}, lockDirectory: ${JSON.stringify(lockDirectory)}, pollMs: 20, shutdownMs: 2000 });`,
   );
   const children = [];
@@ -58,7 +85,10 @@ process.exitCode = await runCheck({ cwd: process.argv[2] || ${JSON.stringify(cwd
     child.stdout.on("data", (chunk) => (child.output += chunk));
     child.stderr.on("data", (chunk) => (child.output += chunk));
     child.done = new Promise((resolve) => {
-      child.on("close", (code, signal) => resolve({ code, signal }));
+      child.on("close", (code, signal) => {
+        child.result = { code, signal };
+        resolve(child.result);
+      });
     });
     children.push(child);
     return child;
@@ -69,6 +99,57 @@ process.exitCode = await runCheck({ cwd: process.argv[2] || ${JSON.stringify(cwd
     lockDirectory,
     lock: join(lockDirectory, "owner.json"),
     start,
+    diagnostics: async () => {
+      const pids = [
+        ...children.map(({ pid }) => pid),
+        ...(existsSync(audit)
+          ? readFileSync(audit, "utf8")
+              .trim()
+              .split("\n")
+              .map(JSON.parse)
+              .map(({ pid }) => pid)
+          : []),
+      ].filter(Number.isSafeInteger);
+      const processes = spawnSync(
+        "ps",
+        [
+          "-p",
+          [...new Set(pids)].join(","),
+          "-o",
+          "pid=,ppid=,pgid=,stat=,lstart=,command=",
+        ],
+        { encoding: "utf8", timeout: 2000 },
+      );
+      return JSON.stringify(
+        {
+          root,
+          children: children.map(
+            ({ pid, exitCode, signalCode, result, output }) => ({
+              pid,
+              exitCode,
+              signalCode,
+              result,
+              output: output.slice(-8000),
+            }),
+          ),
+          lock: existsSync(join(lockDirectory, "owner.json"))
+            ? readFileSync(join(lockDirectory, "owner.json"), "utf8")
+            : null,
+          lockStatus: await checkLockStatus(lockDirectory),
+          audit: existsSync(audit)
+            ? readFileSync(audit, "utf8").slice(-8000)
+            : null,
+          processes: {
+            status: processes.status,
+            error: processes.error?.message,
+            stdout: processes.stdout?.slice(-8000),
+            stderr: processes.stderr?.slice(-2000),
+          },
+        },
+        null,
+        2,
+      );
+    },
     events: () =>
       existsSync(audit)
         ? readFileSync(audit, "utf8").trim().split("\n").map(JSON.parse)
@@ -76,10 +157,17 @@ process.exitCode = await runCheck({ cwd: process.argv[2] || ${JSON.stringify(cwd
   };
 }
 
-async function waitFor(predicate, label) {
+async function waitFor(predicate, label, { stopped, diagnostics } = {}) {
   const deadline = Date.now() + 10_000;
   while (!predicate()) {
-    if (Date.now() > deadline) assert.fail(`Timed out waiting for ${label}`);
+    if (stopped?.() || Date.now() > deadline) {
+      const reason = stopped?.()
+        ? "Process exited before"
+        : "Timed out waiting for";
+      assert.fail(
+        `${reason} ${label}${diagnostics ? `\n${await diagnostics()}` : ""}`,
+      );
+    }
     await delay(20);
   }
 }
@@ -87,6 +175,23 @@ async function waitFor(predicate, label) {
 test("default lock is stable across cwd and TMPDIR", () => {
   assert.equal(defaultLockDirectory(), `/tmp/mizyun-check-${process.getuid()}`);
 });
+
+for (const groupProbe of ["empty", "zombie", "live", "unavailable"]) {
+  test(`EPERM group probe with ${groupProbe} member inspection`, async (t) => {
+    const f = fixture(t, "record('start');", { groupProbe });
+    const run = f.start();
+    const drained = groupProbe === "empty" || groupProbe === "zombie";
+    assert.equal((await run.done).code, drained ? 0 : 1, run.output);
+    assert.equal(existsSync(f.lock), !drained);
+    if (!drained) assert.match(run.output, /Lock retained/);
+    if (groupProbe === "live") assert.match(run.output, /EPERM/);
+    if (groupProbe === "unavailable")
+      assert.match(
+        run.output,
+        /Cannot verify that the check process group has stopped/,
+      );
+  });
+}
 
 test("real competing processes serialize all gates and release their lock", async (t) => {
   const f = fixture(
@@ -293,11 +398,19 @@ record('start'); setInterval(() => {}, 1000);`,
   await waitFor(
     () => /Waiting for check runner/.test(second.output),
     "signal lock wait",
+    {
+      stopped: () => second.exitCode !== null || second.signalCode !== null,
+      diagnostics: f.diagnostics,
+    },
   );
   assert.equal((await first.done).code, 143);
   await waitFor(
     () => f.events().filter(({ event }) => event === "start").length === 2,
     "second gate",
+    {
+      stopped: () => second.exitCode !== null || second.signalCode !== null,
+      diagnostics: f.diagnostics,
+    },
   );
   const events = f.events();
   assert.ok(

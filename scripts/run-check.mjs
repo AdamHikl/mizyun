@@ -165,15 +165,25 @@ function processStart(pid) {
 }
 
 function groupAlive(group) {
-  if (!processExists(-group)) return false;
+  let probeError;
+  try {
+    if (!processExists(-group)) return false;
+  } catch (error) {
+    if (error.code !== "EPERM") throw error;
+    // Darwin can return EPERM while an empty/zombie-only group is being reaped.
+    // Only a successful member inspection may establish that no gate can run.
+    probeError = error;
+  }
   // Zombies cannot run gates or hold resources, but signal 0 may find them.
   const result = spawnSync("ps", ["-axo", "pgid=,stat="], { encoding: "utf8" });
   if (result.error || result.status !== 0)
     throw new Error("Cannot verify that the check process group has stopped.");
-  return result.stdout.split("\n").some((line) => {
+  const alive = result.stdout.split("\n").some((line) => {
     const [pidGroup, state] = line.trim().split(/\s+/);
     return Number(pidGroup) === group && state && !state.startsWith("Z");
   });
+  if (probeError && alive) throw probeError;
+  return alive;
 }
 
 async function acquireLock(directory, state, log, pollMs) {

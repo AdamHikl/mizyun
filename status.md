@@ -1,6 +1,6 @@
 # Mizyun current status
 
-> Updated 2026-10-04. [Detailed handoffs through this compaction][handoffs] preserve every previous section; historical next actions are not current instructions. Limit:120 lines /12,288 UTF-8 bytes. Replace summaries; link detailed evidence.
+> Updated 2026-10-05. [Detailed handoffs through this compaction][handoffs] preserve every previous section; historical next actions are not current instructions. Limit:120 lines /12,288 UTF-8 bytes. Replace summaries; link detailed evidence.
 
 ## Current authority and delivery
 
@@ -14,7 +14,7 @@
 
 AGENT-NAV-007 / [#207](https://github.com/AdamHikl/mizyun/issues/207): compact startup, serialized stable full checks, device-test collision repair and bounded-read/wait guidance. Implemented and verified locally: fresh serialized `pnpm check`PASS, runner16/navigation117, non-author review clear; inputs stable. [Evidence](docs/AGENT_WORKFLOW_EVIDENCE_2026-10-04.md). Existing navigation/index acceptance remains advisory; actual client/token/speed comparisons remain [#54](https://github.com/AdamHikl/mizyun/issues/54).
 
-**Next exact action:** review/verify package configuration guard, CI ripgrep and stable50ms search benchmark fixes; freeze updated candidate and generate signed build7 IPA/AAB for manual upload. Xcode account refreshed; archive signing retry follows fresh gate. Existing broader exits and #54 measurement remain.
+**Next exact action:** review/gate macOS completed-group EPERM fix (#207), freeze source, rebuild signed build7 IPA/AAB, then align backend SHA. Package guard/CI/search fixes at5ededf2 passed Mac/quality/navigation CI; iOS retry stopped before signing. Existing broader exits and #54 remain.
 
 ## Local follow-ups awaiting exact-candidate acceptance
 
@@ -47,7 +47,7 @@ These packages have recorded source/check evidence; their device/provider/releas
 - **#178 AI nutrients / #179 bundles** — Editable estimates/entitlement/race source delivered to Dev; installed Save/reopen/free-downgrade/refinement acceptance and broader live evaluation #29 remain. #179 tracks historical bundle-path skip defect; actual artifact scans are separately recorded. [Evidence](docs/AI_ADVANCED_NUTRIENTS_EVIDENCE_2026-10-02.md)
 - **#170 proactive Coach / #171–176** — Documentation-only plan; implementation requires its selected bounded package and sparse-day regression. No proactive rollout accepted. [Plan](docs/PROACTIVE_COACH_PLAN_2026-10-02.md)
 - **#198 integrations / #39/#40** — Documentation-only INT-00–09 plan; local/account/Coach/sharing gates remain distinct. Begin compatibility/lifecycle evidence only after scope selection; no new integration connected. [Plan](docs/INTEGRATIONS_IMPLEMENTATION_PLAN_2026-10-04.md)
-- **#195/#199 CI** — Forward Community lint repair delivered; Linux43deployment fixtures now pass on d610382; whole quality CI failed missing rg in iOS tooling. Explicit dependency fix pending whole-CI acceptance; old integration next actions are historical. [Delivery][handoffs]
+- **#195/#199 CI** — Forward Community lint repair delivered; Linux43deployment fixtures and whole quality/navigation CI pass at5ededf2 after explicit rg dependency. #199 acceptance now evidenced; hosted DB workflow #23 remains separate. [Delivery][handoffs]
 
 ## Community and release gates retained
 
