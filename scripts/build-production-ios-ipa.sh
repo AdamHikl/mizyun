@@ -336,6 +336,48 @@ for purpose_key in NSHealthShareUsageDescription NSHealthUpdateUsageDescription;
   fi
 done
 
+verify_widget_plist_string() {
+  local plist_path="$1" plist_key="$2" expected_value="$3" failure_message="$4"
+  local actual_value
+  actual_value="$(plutil -extract "$plist_key" raw -expect string "$plist_path" 2>/dev/null)" || {
+    echo "Exported IPA $failure_message." >&2
+    exit 1
+  }
+  if [[ "$actual_value" != "$expected_value" ]]; then
+    echo "Exported IPA $failure_message." >&2
+    exit 1
+  fi
+}
+
+live_activity_support="$(plutil -extract NSSupportsLiveActivities raw -expect bool "$info_plist" 2>/dev/null)" || live_activity_support=""
+if [[ "$live_activity_support" != "true" ]]; then
+  echo "Exported IPA requires boolean NSSupportsLiveActivities=true." >&2
+  exit 1
+fi
+production_app_group="group.com.mizyun.app"
+verify_widget_plist_string "$info_plist" ExpoWidgetsAppGroupIdentifier "$production_app_group" "has an unexpected main app group identifier"
+
+widget_path="$app_path/PlugIns/ExpoWidgetsTarget.appex"
+widget_info_plist="$widget_path/Info.plist"
+if [[ ! -d "$widget_path" ]]; then
+  echo "Exported IPA is missing ExpoWidgetsTarget.appex." >&2
+  exit 1
+fi
+if [[ ! -f "$widget_info_plist" ]]; then
+  echo "Exported IPA Live Activity extension is missing its Info.plist." >&2
+  exit 1
+fi
+verify_widget_plist_string "$widget_info_plist" CFBundleIdentifier "com.mizyun.app.ExpoWidgetsTarget" "has an unexpected Live Activity extension bundle identifier"
+verify_widget_plist_string "$widget_info_plist" CFBundleShortVersionString "$version_number" "Live Activity extension version does not match the main app"
+verify_widget_plist_string "$widget_info_plist" CFBundleVersion "$build_number" "Live Activity extension build does not match the main app"
+verify_widget_plist_string "$widget_info_plist" NSExtension.NSExtensionPointIdentifier "com.apple.widgetkit-extension" "has an unexpected Live Activity extension point"
+verify_widget_plist_string "$widget_info_plist" ExpoWidgetsAppGroupIdentifier "$production_app_group" "has an unexpected Live Activity extension app group identifier"
+widget_executable="$(plutil -extract CFBundleExecutable raw -expect string "$widget_info_plist" 2>/dev/null)" || widget_executable=""
+if [[ "$widget_executable" != "ExpoWidgetsTarget" || ! -f "$widget_path/$widget_executable" || ! -s "$widget_path/$widget_executable" || ! -x "$widget_path/$widget_executable" ]]; then
+  echo "Exported IPA Live Activity extension is missing its expected executable." >&2
+  exit 1
+fi
+
 codesign --verify --deep --strict "$app_path"
 signing_details="$(codesign -dv --verbose=4 "$app_path" 2>&1)"
 if ! grep -q "^TeamIdentifier=${apple_team_id}$" <<<"$signing_details"; then
@@ -360,6 +402,58 @@ if ! grep -A3 '\[Key\] com.apple.developer.applesignin' <<<"$entitlements" | gre
   echo "Exported IPA is missing the expected Sign in with Apple entitlement." >&2
   exit 1
 fi
+
+# Check complete typed entitlement values; modern signatures may be DER-only.
+verify_widget_signed_entitlements() {
+  local signed_path="$1" signed_identifier="$2" signed_kind="$3" signed_label="$4"
+  local signed_entitlements_path="$build_root/$signed_kind-entitlements.txt"
+  codesign -d --entitlements "$signed_entitlements_path" "$signed_path" 2>/dev/null
+  node - "$signed_entitlements_path" "$signed_identifier" "$apple_team_id" "$production_app_group" "$signed_label" <<'NODE'
+const fs = require("node:fs");
+const [path, identifier, team, group, label] = process.argv.slice(2);
+const lines = fs.readFileSync(path, "utf8").split(/\r?\n/).filter((line) => line.trim());
+if (lines.shift() !== "[Dict]") {
+  throw new Error(`Exported IPA ${label} has unreadable signed entitlements`);
+}
+const entries = new Map();
+let keyIndent;
+let current;
+for (const line of lines) {
+  const key = /^(\s+)\[Key\] (.+)$/.exec(line);
+  if (key && (keyIndent === undefined || key[1] === keyIndent)) {
+    keyIndent ??= key[1];
+    if (entries.has(key[2])) throw new Error(`Exported IPA ${label} has duplicate signed entitlement keys`);
+    current = [];
+    entries.set(key[2], current);
+  } else if (current) {
+    current.push(line.trim());
+  } else {
+    throw new Error(`Exported IPA ${label} has unreadable signed entitlements`);
+  }
+}
+for (const [key, value, description] of [
+  ["com.apple.security.application-groups", ["[Value]", "[Array]", `[String] ${group}`], "Production app group"],
+  ["application-identifier", ["[Value]", `[String] ${team}.${identifier}`], "application-identifier"],
+  ["get-task-allow", ["[Value]", "[Bool] false"], "get-task-allow"],
+]) {
+  if (JSON.stringify(entries.get(key)) !== JSON.stringify(value)) {
+    throw new Error(`Exported IPA ${label} has unexpected signed ${description}`);
+  }
+}
+NODE
+}
+verify_widget_signed_entitlements "$app_path" "com.mizyun.app" main "main app"
+
+if ! codesign --verify --strict "$widget_path"; then
+  echo "Exported IPA Live Activity extension signature verification failed." >&2
+  exit 1
+fi
+widget_signing_details="$(codesign -dv --verbose=4 "$widget_path" 2>&1)"
+if ! grep -q "^TeamIdentifier=${apple_team_id}$" <<<"$widget_signing_details"; then
+  echo "Exported IPA Live Activity extension is not signed by expected team $apple_team_id." >&2
+  exit 1
+fi
+verify_widget_signed_entitlements "$widget_path" "com.mizyun.app.ExpoWidgetsTarget" widget "Live Activity extension"
 
 # expo-constants embeds the resolved public Expo config in this native resource.
 # Validate configured endpoints, rather than rejecting dormant Dev guard literals.

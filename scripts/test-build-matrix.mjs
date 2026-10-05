@@ -221,6 +221,7 @@ const hasPlugin = (config, pluginName) =>
 for (const [profileName, config] of [
   ["development", devConfig],
   ["preview", previewConfig],
+  ["production", prodConfig],
 ]) {
   if (!hasPlugin(config, "expo-widgets")) {
     throw new Error(
@@ -232,16 +233,20 @@ for (const [profileName, config] of [
       `${profileName} profile is missing the Android workout Live Update permission plugin`,
     );
   }
-}
-if (hasPlugin(prodConfig, "expo-widgets")) {
-  throw new Error(
-    "Production profile must not include the Dev-only expo-widgets Live Activity plugin",
+  const widgets = config.expo.plugins.find(
+    (plugin) => Array.isArray(plugin) && plugin[0] === "expo-widgets",
   );
-}
-if (hasPlugin(prodConfig, "./plugins/with-android-workout-live-update")) {
-  throw new Error(
-    "Production profile must not include the Dev-only Android Live Update permission plugin",
-  );
+  if (
+    widgets?.[1]?.bundleIdentifier !==
+      `${config.expo.ios.bundleIdentifier}.ExpoWidgetsTarget` ||
+    widgets?.[1]?.groupIdentifier !==
+      `group.${config.expo.ios.bundleIdentifier}` ||
+    widgets?.[1]?.enablePushNotifications !== false
+  ) {
+    throw new Error(
+      `${profileName} profile has incorrect widget extension identity or local-update configuration`,
+    );
+  }
 }
 const mobilePackagePath = resolve(repoRoot, "apps/mobile/package.json");
 if (existsSync(mobilePackagePath)) {
@@ -253,7 +258,7 @@ if (existsSync(mobilePackagePath)) {
   }
 }
 console.log(
-  "✓ Expo SDK 57 Live Activity extension plugin is enabled for Dev/Preview and absent from Production config",
+  "✓ All profiles enable workout Live Activity/Live Update plugins with isolated widget identities",
 );
 
 // Metro checks .ts before .tsx, so a generic .ts adapter can shadow .ios.tsx.

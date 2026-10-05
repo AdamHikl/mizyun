@@ -34,7 +34,6 @@ import {
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { getAppVariant } from "@/composition/app-variant";
 import { classifyAnalyticsFailure } from "@/features/analytics/classify-failure";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { ShareWorkoutModal, useCommunityProfile } from "@/features/community";
@@ -693,12 +692,14 @@ export function LogWorkoutScreen() {
         liveNotificationEnabled,
         activeSessionSummary !== null,
       ) ||
-      !activeSessionSummary
+      !activeSessionSummary ||
+      userId === null
     ) {
       return;
     }
 
     void updateActiveWorkoutNotification({
+      userId,
       workoutId: activeSessionSummary.workoutId,
       workoutName: activeSessionSummary.workoutName,
       currentExerciseName: activeSessionSummary.currentExerciseName,
@@ -720,6 +721,7 @@ export function LogWorkoutScreen() {
     liveNotificationEnabled,
     restTimer,
     workoutPreferencesLoaded,
+    userId,
   ]);
 
   // Clean up notification if user disabled the setting
@@ -2247,7 +2249,7 @@ function FloatingRestTimer(props: {
   readonly onAdjust: (delta: number) => void;
   readonly onSkip: () => void;
 }) {
-  const showNextAction = Platform.OS === "ios" && getAppVariant() === "dev";
+  const showNextAction = Platform.OS === "ios";
   const nextAction = showNextAction
     ? restTimerNextAction(props.rest, props.current)
     : null;

@@ -1,7 +1,7 @@
 import * as Notifications from "expo-notifications";
 import * as Linking from "expo-linking";
 import { Platform } from "react-native";
-import { getAppVariant } from "@/composition/app-variant";
+import { loadWorkoutPreferences } from "./workout-preferences";
 import type { WorkoutLiveActivityProps } from "./workout-live-activity";
 import {
   kilogramsToDisplayWeight,
@@ -13,12 +13,11 @@ import {
 export const ACTIVE_WORKOUT_NOTIFICATION_ID = "active-workout-session";
 export const ACTIVE_WORKOUT_CHANNEL_ID = "active-workout-session";
 
-const usesDevAndroidLiveUpdate = (): boolean =>
-  Platform.OS === "android" &&
-  Number(Platform.Version) >= 36 &&
-  getAppVariant() === "dev";
+const usesAndroidLiveUpdate = (): boolean =>
+  Platform.OS === "android" && Number(Platform.Version) >= 36;
 
 export interface ActiveWorkoutNotificationParams {
+  userId: string;
   workoutId: string;
   workoutName: string;
   currentExerciseName: string;
@@ -184,14 +183,63 @@ export const formatNextSetSummary = (
   return `Set ${nextSequence > 0 ? nextSequence : 1}`;
 };
 
+// Invalidate preparation immediately on dismissal; serialize native mutations so
+// cleanup also follows a post that was already in flight.
+let workoutStatusGeneration = 0;
+let workoutStatusMutations: Promise<unknown> = Promise.resolve();
+const mutateWorkoutStatus = <T>(operation: () => Promise<T>): Promise<T> => {
+  const result = workoutStatusMutations.then(operation, operation);
+  workoutStatusMutations = result.catch(() => undefined);
+  return result;
+};
+
 export const updateActiveWorkoutNotification = async (
   params: ActiveWorkoutNotificationParams,
+): Promise<string | null> => {
+  const generation = ++workoutStatusGeneration;
+  try {
+    // Account Settings may have changed while the logging screen remains mounted.
+    const prefs = await loadWorkoutPreferences(
+      params.userId,
+      undefined,
+      "disable-live-notification",
+    );
+    if (
+      !prefs.liveNotificationEnabled ||
+      generation !== workoutStatusGeneration
+    )
+      return null;
+    // Permission prompts must not block logout/opt-out cleanup.
+    if (Platform.OS !== "ios") {
+      const existing = await Notifications.getPermissionsAsync();
+      if (generation !== workoutStatusGeneration) return null;
+      let status = existing.status;
+      if (status !== "granted") {
+        const requested = await Notifications.requestPermissionsAsync();
+        status = requested.status;
+      }
+      if (status !== "granted" || generation !== workoutStatusGeneration)
+        return null;
+    }
+    return await mutateWorkoutStatus(() =>
+      generation === workoutStatusGeneration
+        ? performActiveWorkoutNotificationUpdate(params, generation)
+        : Promise.resolve(null),
+    );
+  } catch {
+    return null;
+  }
+};
+
+const performActiveWorkoutNotificationUpdate = async (
+  params: ActiveWorkoutNotificationParams,
+  generation: number,
 ): Promise<string | null> => {
   try {
     const isResting =
       params.restTimer != null && Date.now() < params.restTimer.endsAt;
 
-    if (Platform.OS === "ios" && getAppVariant() === "dev") {
+    if (Platform.OS === "ios") {
       await dismissLegacyActiveWorkoutNotification();
       const liveActivityProps: WorkoutLiveActivityProps = {
         workoutId: params.workoutId,
@@ -212,23 +260,15 @@ export const updateActiveWorkoutNotification = async (
       };
       const { updateWorkoutLiveActivity } =
         await import("./workout-live-activity");
+      if (generation !== workoutStatusGeneration) return null;
       return await updateWorkoutLiveActivity(liveActivityProps);
     }
 
-    const existing = await Notifications.getPermissionsAsync();
-    let status = existing.status;
-    if (status !== "granted") {
-      const requested = await Notifications.requestPermissionsAsync();
-      status = requested.status;
-    }
-    if (status !== "granted") {
-      return null;
-    }
-
-    if (usesDevAndroidLiveUpdate()) {
+    if (usesAndroidLiveUpdate()) {
       try {
         const { updateWorkoutLiveUpdate } =
           await import("../../../modules/workout-live-update");
+        if (generation !== workoutStatusGeneration) return null;
         const result = await updateWorkoutLiveUpdate({
           workoutId: params.workoutId,
           workoutName: params.workoutName || "Live Workout",
@@ -288,6 +328,7 @@ export const updateActiveWorkoutNotification = async (
           ? `Current: ${params.currentExerciseName} (${params.nextSetSummary})`
           : `Current: ${params.currentExerciseName}`;
 
+    if (generation !== workoutStatusGeneration) return null;
     const notificationId = await Notifications.scheduleNotificationAsync({
       identifier: ACTIVE_WORKOUT_NOTIFICATION_ID,
       content: {
@@ -334,20 +375,15 @@ const dismissLegacyActiveWorkoutNotification = async (): Promise<void> => {
 };
 
 export const dismissActiveWorkoutNotification = async (): Promise<void> => {
-  if (
-    getAppVariant() === "dev" &&
-    (Platform.OS === "ios" || Platform.OS === "android")
-  ) {
-    await dismissOrphanedDevWorkoutStatus();
-    return;
-  }
-
-  await dismissLegacyActiveWorkoutNotification();
+  await dismissOrphanedWorkoutStatus();
 };
 
-export const dismissOrphanedDevWorkoutStatus = async (): Promise<void> => {
-  if (getAppVariant() !== "dev") return;
+export const dismissOrphanedWorkoutStatus = async (): Promise<void> => {
+  ++workoutStatusGeneration;
+  await mutateWorkoutStatus(removeWorkoutStatus);
+};
 
+const removeWorkoutStatus = async (): Promise<void> => {
   if (Platform.OS === "ios") {
     try {
       const { endWorkoutLiveActivity } =
@@ -364,13 +400,7 @@ export const dismissOrphanedDevWorkoutStatus = async (): Promise<void> => {
     } catch {
       // Best-effort cleanup for builds without the native module.
     }
-  } else {
-    return;
   }
 
   await dismissLegacyActiveWorkoutNotification();
 };
-
-// Retain the prior export for callers built against the iOS-only helper.
-export const dismissOrphanedDevWorkoutLiveActivity =
-  dismissOrphanedDevWorkoutStatus;

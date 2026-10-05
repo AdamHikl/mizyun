@@ -24,6 +24,7 @@ export const keyFor = (userId?: string): string =>
 export const loadWorkoutPreferences = async (
   userId?: string,
   store: PreferencesStore = SecureStore,
+  readFailurePolicy: "defaults" | "disable-live-notification" = "defaults",
 ): Promise<WorkoutPreferences> => {
   try {
     const raw = await store.getItemAsync(keyFor(userId));
@@ -71,7 +72,10 @@ export const loadWorkoutPreferences = async (
   } catch {
     return {
       defaultRestSeconds: DEFAULT_REST_SECONDS,
-      liveNotificationEnabled: DEFAULT_LIVE_NOTIFICATION_ENABLED,
+      liveNotificationEnabled:
+        readFailurePolicy === "disable-live-notification"
+          ? false
+          : DEFAULT_LIVE_NOTIFICATION_ENABLED,
       autoAdvanceTargetWeights: DEFAULT_AUTO_ADVANCE_TARGET_WEIGHTS,
     };
   }

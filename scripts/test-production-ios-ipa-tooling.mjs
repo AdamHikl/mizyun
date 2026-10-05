@@ -134,6 +134,25 @@ if [[ "\${1:-}" == "-convert" ]]; then
   exit 0
 fi
 key="\${2:-}"
+plist_path="\${@: -1}"
+if [[ "$plist_path" == *"ExpoWidgetsTarget.appex/Info.plist" ]]; then
+  case "$key" in
+    CFBundleIdentifier)
+      if [[ "\${MOCK_WIDGET_FAILURE:-}" == "extension-identifier" ]]; then printf com.mizyun.development.ExpoWidgetsTarget; else printf com.mizyun.app.ExpoWidgetsTarget; fi ;;
+    CFBundleShortVersionString)
+      if [[ "\${MOCK_WIDGET_FAILURE:-}" == "extension-version" ]]; then printf 1.0.6; else printf '1.0.%s' "$EXPECTED_BUILD_NUMBER"; fi ;;
+    CFBundleVersion)
+      if [[ "\${MOCK_WIDGET_FAILURE:-}" == "extension-build" ]]; then printf 6; else printf '%s' "$EXPECTED_BUILD_NUMBER"; fi ;;
+    CFBundleExecutable)
+      if [[ "\${MOCK_WIDGET_FAILURE:-}" == "extension-executable-name" ]]; then printf ../Mizyun; else printf ExpoWidgetsTarget; fi ;;
+    NSExtension.NSExtensionPointIdentifier)
+      if [[ "\${MOCK_WIDGET_FAILURE:-}" == "extension-point" ]]; then printf com.apple.widgetkit-extension.invalid; else printf com.apple.widgetkit-extension; fi ;;
+    ExpoWidgetsAppGroupIdentifier)
+      if [[ "\${MOCK_WIDGET_FAILURE:-}" == "extension-plist-group" ]]; then printf group.com.mizyun.development; else printf group.com.mizyun.app; fi ;;
+    *) exit 1 ;;
+  esac
+  exit 0
+fi
 case "$key" in
   method) printf app-store-connect ;;
   destination) printf export ;;
@@ -143,6 +162,17 @@ case "$key" in
   CFBundleIdentifier) printf com.mizyun.app ;;
   CFBundleShortVersionString) printf '1.0.%s' "$EXPECTED_BUILD_NUMBER" ;;
   CFBundleVersion) printf '%s' "$EXPECTED_BUILD_NUMBER" ;;
+  NSSupportsLiveActivities)
+    case "\${MOCK_WIDGET_FAILURE:-}" in
+      missing-support) exit 1 ;;
+      string-support)
+        if [[ "$*" == *"-expect bool"* ]]; then exit 1; fi
+        printf true ;;
+      false-support) printf false ;;
+      *) printf true ;;
+    esac ;;
+  ExpoWidgetsAppGroupIdentifier)
+    if [[ "\${MOCK_WIDGET_FAILURE:-}" == "main-plist-group" ]]; then printf group.com.mizyun.development; else printf group.com.mizyun.app; fi ;;
   NSHealthShareUsageDescription|NSHealthUpdateUsageDescription)
     if [[ "\${MOCK_PURPOSE_KEY:-}" == "$key" ]]; then
       case "\${MOCK_PURPOSE_FAILURE:-}" in
@@ -172,6 +202,17 @@ for argument in "$@"; do
 done
 mkdir -p "$destination/Payload/Mizyun.app"
 printf 'fake plist' > "$destination/Payload/Mizyun.app/Info.plist"
+if [[ "\${MOCK_WIDGET_FAILURE:-}" != "missing-extension" ]]; then
+  extension_path="$destination/Payload/Mizyun.app/PlugIns/ExpoWidgetsTarget.appex"
+  mkdir -p "$extension_path"
+  if [[ "\${MOCK_WIDGET_FAILURE:-}" != "missing-extension-plist" ]]; then printf 'fake extension plist' > "$extension_path/Info.plist"; fi
+  if [[ "\${MOCK_WIDGET_FAILURE:-}" != "missing-extension-executable" ]]; then
+    printf 'fake extension executable' > "$extension_path/ExpoWidgetsTarget"
+    chmod +x "$extension_path/ExpoWidgetsTarget"
+    if [[ "\${MOCK_WIDGET_FAILURE:-}" == "empty-extension-executable" ]]; then : > "$extension_path/ExpoWidgetsTarget"; fi
+    if [[ "\${MOCK_WIDGET_FAILURE:-}" == "non-executable-extension" ]]; then chmod -x "$extension_path/ExpoWidgetsTarget"; fi
+  fi
+fi
 printf '%s\n' 'https://mizyun-api.phiskel.com' 'https://mizyun-supabase.phiskel.com' 'https://mizyun-api-dev.phiskel.com' 'https://mizyun-supabase-dev.phiskel.com' > "$destination/Payload/Mizyun.app/main.jsbundle"
 node - "$destination" <<'NODE'
 const fs = require("node:fs");
@@ -210,9 +251,53 @@ NODE
     "codesign",
     `#!/usr/bin/env bash
 set -eu
-if [[ "\${1:-}" == "--verify" ]]; then exit 0; fi
+bundle_path="\${@: -1}"
+if [[ "\${1:-}" == "--verify" ]]; then
+  if [[ "$bundle_path" == *".appex" && "\${MOCK_WIDGET_FAILURE:-}" == "extension-signature" ]]; then exit 1; fi
+  exit 0
+fi
 if [[ "\${1:-}" == "-dv" ]]; then
-  printf '%s\n' 'Identifier=com.mizyun.app' 'TeamIdentifier=LQJNDVBL43' >&2
+  if [[ "$bundle_path" == *".appex" && "\${MOCK_WIDGET_FAILURE:-}" == "extension-team" ]]; then
+    printf '%s\n' 'TeamIdentifier=WRONG' >&2
+  else
+    printf '%s\n' 'Identifier=com.mizyun.app' 'TeamIdentifier=LQJNDVBL43' >&2
+  fi
+  exit 0
+fi
+if [[ "\${3:-}" != "-" ]]; then
+  entitlements_path=""
+  previous=""
+  for argument in "$@"; do
+    if [[ "$previous" == "--entitlements" ]]; then entitlements_path="$argument"; fi
+    previous="$argument"
+  done
+  node - "$bundle_path" "$entitlements_path" <<'NODE'
+const fs = require("node:fs");
+const extension = process.argv[2].endsWith(".appex");
+const kind = extension ? "extension" : "main";
+const failure = process.env.MOCK_WIDGET_FAILURE;
+const entitlements = {
+  "application-identifier": "LQJNDVBL43.com.mizyun.app" + (extension ? ".ExpoWidgetsTarget" : ""),
+  "get-task-allow": false,
+  "com.apple.security.application-groups": ["group.com.mizyun.app"],
+};
+if (failure === kind + "-signed-group-missing") delete entitlements["com.apple.security.application-groups"];
+if (failure === kind + "-signed-group") entitlements["com.apple.security.application-groups"] = ["group.com.mizyun.app.invalid"];
+if (failure === kind + "-signed-group-type") entitlements["com.apple.security.application-groups"] = "group.com.mizyun.app";
+if (extension && failure === "extension-debuggable") entitlements["get-task-allow"] = true;
+if (extension && failure === "extension-debuggable-missing") delete entitlements["get-task-allow"];
+if (extension && failure === "extension-signed-identifier") entitlements["application-identifier"] += ".invalid";
+const newline = String.fromCharCode(10);
+const tab = String.fromCharCode(9);
+const render = (value, indent) => Array.isArray(value)
+  ? indent + "[Array]" + newline + value.map((item) => render(item, indent + tab)).join("")
+  : indent + (typeof value === "boolean" ? "[Bool] " : "[String] ") + String(value) + newline;
+let output = "[Dict]" + newline;
+for (const [key, value] of Object.entries(entitlements)) {
+  output += tab + "[Key] " + key + newline + tab + "[Value]" + newline + render(value, tab + tab);
+}
+fs.writeFileSync(process.argv[3], output);
+NODE
   exit 0
 fi
 cat >&2 <<'EOF'
@@ -354,6 +439,78 @@ printf '%s\n' 20260914T150000Z
   );
 
   const releaseArgs = ["--sha", candidateSha, "--build-number", "7"];
+  for (const [failure, message] of [
+    ["missing-extension", "missing ExpoWidgetsTarget.appex"],
+    ["missing-extension-plist", "missing its Info.plist"],
+    ["missing-support", "requires boolean NSSupportsLiveActivities=true"],
+    ["string-support", "requires boolean NSSupportsLiveActivities=true"],
+    ["false-support", "requires boolean NSSupportsLiveActivities=true"],
+    ["main-plist-group", "unexpected main app group identifier"],
+    [
+      "extension-plist-group",
+      "unexpected Live Activity extension app group identifier",
+    ],
+    [
+      "extension-identifier",
+      "unexpected Live Activity extension bundle identifier",
+    ],
+    ["extension-version", "Live Activity extension version does not match"],
+    ["extension-build", "Live Activity extension build does not match"],
+    ["extension-point", "unexpected Live Activity extension point"],
+    ["extension-executable-name", "missing its expected executable"],
+    ["missing-extension-executable", "missing its expected executable"],
+    ["empty-extension-executable", "missing its expected executable"],
+    ["non-executable-extension", "missing its expected executable"],
+    [
+      "extension-signature",
+      "Live Activity extension signature verification failed",
+    ],
+    [
+      "extension-team",
+      "Live Activity extension is not signed by expected team",
+    ],
+    [
+      "main-signed-group-missing",
+      "main app has unexpected signed Production app group",
+    ],
+    [
+      "main-signed-group",
+      "main app has unexpected signed Production app group",
+    ],
+    [
+      "main-signed-group-type",
+      "main app has unexpected signed Production app group",
+    ],
+    [
+      "extension-signed-group-missing",
+      "Live Activity extension has unexpected signed Production app group",
+    ],
+    [
+      "extension-signed-group",
+      "Live Activity extension has unexpected signed Production app group",
+    ],
+    [
+      "extension-signed-group-type",
+      "Live Activity extension has unexpected signed Production app group",
+    ],
+    [
+      "extension-debuggable",
+      "Live Activity extension has unexpected signed get-task-allow",
+    ],
+    [
+      "extension-debuggable-missing",
+      "Live Activity extension has unexpected signed get-task-allow",
+    ],
+    [
+      "extension-signed-identifier",
+      "Live Activity extension has unexpected signed application-identifier",
+    ],
+  ]) {
+    expectFailure(releaseArgs, message, {
+      ...testEnvironment,
+      MOCK_WIDGET_FAILURE: failure,
+    });
+  }
   for (const key of [
     "NSHealthShareUsageDescription",
     "NSHealthUpdateUsageDescription",

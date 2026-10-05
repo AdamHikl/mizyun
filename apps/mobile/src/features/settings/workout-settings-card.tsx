@@ -3,9 +3,9 @@ import { Platform, Pressable, StyleSheet, Switch, View } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { getAppVariant } from "@/composition/app-variant";
 import { Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
+import { dismissActiveWorkoutNotification } from "@/features/workouts/workout-notification";
 import {
   DEFAULT_REST_SECONDS,
   formatRestDuration,
@@ -27,8 +27,7 @@ export function WorkoutSettingsCard({
   userId,
   onSaved,
 }: WorkoutSettingsCardProps) {
-  const usesWorkoutLiveActivity =
-    Platform.OS === "ios" && getAppVariant() === "dev";
+  const usesWorkoutLiveActivity = Platform.OS === "ios";
   const theme = useTheme();
   const [restSeconds, setRestSeconds] = useState<number>(DEFAULT_REST_SECONDS);
   const [liveNotificationEnabled, setLiveNotificationEnabled] =
@@ -87,7 +86,15 @@ export function WorkoutSettingsCard({
         autoAdvanceTargetWeights,
       };
       const saved = await saveWorkoutPreferences(prefs, userId);
+      if (!saved) {
+        setLiveNotificationEnabled(!nextVal);
+        setFeedback(
+          "Couldn't save workout notification preference. Try again.",
+        );
+        return;
+      }
       if (saved) {
+        if (!nextVal) await dismissActiveWorkoutNotification();
         setFeedback(
           nextVal
             ? `Saved: ${usesWorkoutLiveActivity ? "Workout Live Activity" : "Live workout notification"} enabled`

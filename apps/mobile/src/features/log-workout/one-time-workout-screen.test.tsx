@@ -6,6 +6,7 @@ import { getExerciseFromCatalog } from "@mizyun/core";
 // while isolating native effects. Persistence and user callbacks stay observable.
 const mocks = vi.hoisted(() => ({
   cells: [] as any[],
+  context: null as any,
   index: 0,
   workspace: null as any,
   load: vi.fn(),
@@ -93,7 +94,9 @@ vi.mock("@/features/analytics/flow-measurement", () => ({
     },
   }),
 }));
-vi.mock("@/composition/app-variant", () => ({ getAppVariant: () => "dev" }));
+vi.mock("@/composition/app-variant", () => ({
+  getAppVariant: () => "production",
+}));
 vi.mock("@/composition/api-client", () => ({
   apiClient: { request: vi.fn() },
 }));
@@ -110,8 +113,9 @@ vi.mock("@/features/workouts", async () => ({
   findCatalogExerciseRecord: (
     await import("../workouts/catalog-exercise-record")
   ).findCatalogExerciseRecord,
-  useOptionalActiveWorkout: () => null,
-  restTimerNextAction: vi.fn(),
+  useOptionalActiveWorkout: () => mocks.context,
+  restTimerNextAction: (await import("../workouts/rest-timer-presentation"))
+    .restTimerNextAction,
 }));
 vi.mock("@/features/workouts/exercise-library-modal", () => ({
   ExerciseLibraryModal: "ExerciseLibraryModal",
@@ -240,6 +244,7 @@ function persistedWorkout(entries: any[]): Workout {
 
 beforeEach(() => {
   mocks.cells = [];
+  mocks.context = null;
   mocks.workspace = {
     workout,
     sets: [],
@@ -347,6 +352,7 @@ it("persists a selected exercise before its first set and restores it on reopeni
   // Simulate termination: drop every local state/ref and reload only saved data.
   mocks.workspace = { ...mocks.workspace, workout: saved };
   mocks.cells = [];
+  mocks.context = null;
   const reopened = feed();
   expect(reopened.props.savedSets).toEqual([]);
   expect(reopened.props.exercises).toEqual([
@@ -406,6 +412,7 @@ it("preserves the full existing exercise list when adding another exercise", asy
     workout: persistedWorkout(entries),
   };
   mocks.cells = [];
+  mocks.context = null;
   expect(feed().props.exercises.map((entry: any) => entry.name)).toEqual([
     exercise.name,
     secondExercise.name,
@@ -635,3 +642,30 @@ it.each(["one_time", "routine"])(
     expect(mocks.abandon).not.toHaveBeenCalled();
   },
 );
+
+it("shows the next exercise and set in the Production iOS rest timer", () => {
+  mocks.context = {
+    restTimer: {
+      endsAt: Date.now() + 60_000,
+      total: 60,
+      exerciseName: "Squat",
+      nextExerciseName: "Barbell Row",
+      nextSetSummary: "40 kg × 8 reps",
+      allPlannedSetsCompleted: false,
+    },
+  };
+  const timer = find(
+    render(),
+    (node) => node.props?.rest?.exerciseName === "Squat",
+  );
+  const tree = timer.type(timer.props);
+  expect(
+    find(tree, (node) => node.props?.children === "40 kg × 8 reps"),
+  ).not.toBeNull();
+  expect(
+    find(tree, (node) => String(node.props?.children).includes("Barbell Row")),
+  ).not.toBeNull();
+  expect(
+    find(tree, (node) => node.props?.accessibilityLabel === "Skip rest timer"),
+  ).not.toBeNull();
+});

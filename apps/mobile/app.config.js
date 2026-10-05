@@ -275,10 +275,15 @@ const plugins = [
         "./plugins/without-ios-push-notifications",
       ]
     : baseExpo.plugins),
-  ...(variantName === "dev" ? ["expo-widgets"] : []),
-  ...(variantName === "dev"
-    ? ["./plugins/with-android-workout-live-update"]
-    : []),
+  [
+    "expo-widgets",
+    {
+      bundleIdentifier: `${variant.iosBundleIdentifier}.ExpoWidgetsTarget`,
+      groupIdentifier: `group.${variant.iosBundleIdentifier}`,
+      enablePushNotifications: false,
+    },
+  ],
+  "./plugins/with-android-workout-live-update",
   ...(enableIosAppleAuth
     ? ["expo-apple-authentication"]
     : ["./plugins/without-ios-apple-auth"]),

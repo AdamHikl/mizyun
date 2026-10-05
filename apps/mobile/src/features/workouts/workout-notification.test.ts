@@ -1,5 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const preferenceStore = vi.hoisted(() => ({
+  values: new Map<string, string>(),
+}));
+vi.mock("expo-secure-store", () => ({
+  getItemAsync: async (key: string) => preferenceStore.values.get(key) ?? null,
+  setItemAsync: async (key: string, value: string) => {
+    preferenceStore.values.set(key, value);
+  },
+}));
+
 const mockGetPermissionsAsync = vi.fn();
 const mockRequestPermissionsAsync = vi.fn();
 const mockSetNotificationChannelAsync = vi.fn();
@@ -66,12 +76,13 @@ vi.mock("./workout-live-activity", () => ({
 }));
 
 import { Platform } from "react-native";
+import { saveWorkoutPreferences } from "./workout-preferences";
 import {
   ACTIVE_WORKOUT_CHANNEL_ID,
   ACTIVE_WORKOUT_NOTIFICATION_ID,
   completedSetsForNotificationEntry,
   dismissActiveWorkoutNotification,
-  dismissOrphanedDevWorkoutLiveActivity,
+  dismissOrphanedWorkoutStatus,
   formatNextSetSummary,
   formatRestEndTime,
   selectNextExerciseIndexForNotification,
@@ -82,14 +93,15 @@ import {
 describe("workout-notification", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    preferenceStore.values.clear();
     Platform.OS = "ios";
     Platform.Version = 27;
-    mockGetAppVariant.mockReturnValue("dev");
+    mockGetAppVariant.mockReturnValue("production");
     mockUpdateWorkoutLiveActivity.mockResolvedValue("live-activity-123");
     mockEndWorkoutLiveActivity.mockResolvedValue(undefined);
     mockUpdateWorkoutLiveUpdate.mockResolvedValue("posted");
     mockDismissWorkoutLiveUpdate.mockResolvedValue(true);
-    mockCreateURL.mockReturnValue("mizyun-dev:///log-workout?workoutId=w-123");
+    mockCreateURL.mockReturnValue("mizyun://log-workout?workoutId=w-123");
   });
 
   describe("shouldSyncActiveWorkoutNotification", () => {
@@ -305,13 +317,14 @@ describe("workout-notification", () => {
   });
 
   describe("updateActiveWorkoutNotification", () => {
-    it("posts one Dev Android 16 Live Update with the exact workout link and rest deadline", async () => {
+    it("posts one Production Android 16 Live Update with the exact workout link and rest deadline", async () => {
       Platform.OS = "android";
       Platform.Version = 36;
       mockGetPermissionsAsync.mockResolvedValueOnce({ status: "granted" });
       const restEndsAt = Date.now() + 90000;
 
       const result = await updateActiveWorkoutNotification({
+        userId: "user-123",
         workoutId: "w-123",
         workoutName: "Full Body",
         currentExerciseName: "Deadlift",
@@ -326,6 +339,7 @@ describe("workout-notification", () => {
       });
 
       expect(result).toBe(ACTIVE_WORKOUT_NOTIFICATION_ID);
+      expect(mockUpdateWorkoutLiveUpdate).toHaveBeenCalledTimes(1);
       expect(mockCreateURL).toHaveBeenCalledWith("/log-workout", {
         queryParams: { workoutId: "w-123" },
       });
@@ -338,7 +352,7 @@ describe("workout-notification", () => {
         totalPlannedSetsCount: 12,
         allPlannedSetsCompleted: undefined,
         restEndsAt,
-        deepLinkUrl: "mizyun-dev:///log-workout?workoutId=w-123",
+        deepLinkUrl: "mizyun://log-workout?workoutId=w-123",
       });
       expect(mockScheduleNotificationAsync).not.toHaveBeenCalled();
       expect(mockDismissNotificationAsync).toHaveBeenCalledWith(
@@ -354,6 +368,7 @@ describe("workout-notification", () => {
       mockScheduleNotificationAsync.mockResolvedValueOnce("fallback-id");
 
       const result = await updateActiveWorkoutNotification({
+        userId: "user-123",
         workoutId: "w-123",
         workoutName: "Push",
         currentExerciseName: "Bench Press",
@@ -361,6 +376,7 @@ describe("workout-notification", () => {
       });
 
       expect(result).toBe("fallback-id");
+      expect(mockUpdateWorkoutLiveUpdate).toHaveBeenCalledTimes(1);
       expect(mockScheduleNotificationAsync).toHaveBeenCalledTimes(1);
     });
 
@@ -372,6 +388,7 @@ describe("workout-notification", () => {
 
       expect(
         await updateActiveWorkoutNotification({
+          userId: "user-123",
           workoutId: "w-123",
           workoutName: "Push",
           currentExerciseName: "Bench Press",
@@ -384,15 +401,16 @@ describe("workout-notification", () => {
       );
     });
 
-    it("keeps Production Android on the ordinary notification path at API 36", async () => {
+    it("keeps Production Android below API 36 on the ordinary notification path", async () => {
       Platform.OS = "android";
-      Platform.Version = 36;
+      Platform.Version = 35;
       mockGetAppVariant.mockReturnValue("production");
       mockGetPermissionsAsync.mockResolvedValueOnce({ status: "granted" });
       mockScheduleNotificationAsync.mockResolvedValueOnce("production-id");
 
       expect(
         await updateActiveWorkoutNotification({
+          userId: "user-123",
           workoutId: "w-123",
           workoutName: "Push",
           currentExerciseName: "Bench Press",
@@ -401,8 +419,9 @@ describe("workout-notification", () => {
       ).toBe("production-id");
       expect(mockUpdateWorkoutLiveUpdate).not.toHaveBeenCalled();
     });
-    it("updates one iOS Live Activity without scheduling an ordinary status notification", async () => {
+    it("updates one Production iOS Live Activity without scheduling an ordinary status notification", async () => {
       const result = await updateActiveWorkoutNotification({
+        userId: "user-123",
         workoutId: "w-123",
         workoutName: "Upper Body Power",
         currentExerciseName: "Barbell Bench Press",
@@ -437,10 +456,12 @@ describe("workout-notification", () => {
 
     it("keeps Android permission handling and returns null if denied", async () => {
       Platform.OS = "android";
+      Platform.Version = 36;
       mockGetPermissionsAsync.mockResolvedValueOnce({ status: "undetermined" });
       mockRequestPermissionsAsync.mockResolvedValueOnce({ status: "denied" });
 
       const result = await updateActiveWorkoutNotification({
+        userId: "user-123",
         workoutId: "w-123",
         workoutName: "Push",
         currentExerciseName: "Bench Press",
@@ -451,30 +472,7 @@ describe("workout-notification", () => {
       expect(mockRequestPermissionsAsync).toHaveBeenCalledTimes(1);
       expect(mockScheduleNotificationAsync).not.toHaveBeenCalled();
       expect(mockUpdateWorkoutLiveActivity).not.toHaveBeenCalled();
-    });
-
-    it("keeps the existing ordinary notification in the Production iOS variant", async () => {
-      mockGetAppVariant.mockReturnValue("production");
-      mockGetPermissionsAsync.mockResolvedValueOnce({ status: "granted" });
-      mockScheduleNotificationAsync.mockResolvedValueOnce(
-        "production-notification-id",
-      );
-
-      const result = await updateActiveWorkoutNotification({
-        workoutId: "w-prod",
-        workoutName: "Production Workout",
-        currentExerciseName: "Squat",
-        completedSetsCount: 1,
-      });
-
-      expect(result).toBe("production-notification-id");
-      expect(mockUpdateWorkoutLiveActivity).not.toHaveBeenCalled();
-      expect(mockScheduleNotificationAsync).toHaveBeenCalledWith(
-        expect.objectContaining({
-          identifier: ACTIVE_WORKOUT_NOTIFICATION_ID,
-          trigger: null,
-        }),
-      );
+      expect(mockUpdateWorkoutLiveUpdate).not.toHaveBeenCalled();
     });
 
     it("configures notification channel with LOW importance on Android", async () => {
@@ -483,6 +481,7 @@ describe("workout-notification", () => {
       mockScheduleNotificationAsync.mockResolvedValueOnce("android-notif-1");
 
       const result = await updateActiveWorkoutNotification({
+        userId: "user-123",
         workoutId: "w-456",
         workoutName: "Leg Day",
         currentExerciseName: "Squat",
@@ -515,6 +514,7 @@ describe("workout-notification", () => {
 
       const restEndsAt = Date.now() + 90000;
       const result = await updateActiveWorkoutNotification({
+        userId: "user-123",
         workoutId: "w-123",
         workoutName: "Full Body",
         currentExerciseName: "Deadlift",
@@ -548,6 +548,7 @@ describe("workout-notification", () => {
 
       const restEndsAt = Date.now() + 60000;
       const result = await updateActiveWorkoutNotification({
+        userId: "user-123",
         workoutId: "w-123",
         workoutName: "Full Body",
         currentExerciseName: "Overhead Press",
@@ -576,6 +577,7 @@ describe("workout-notification", () => {
 
       const restEndsAt = Date.now() + 60000;
       await updateActiveWorkoutNotification({
+        userId: "user-123",
         workoutId: "w-123",
         workoutName: "Full Body",
         currentExerciseName: "Workout",
@@ -606,6 +608,7 @@ describe("workout-notification", () => {
       );
 
       await updateActiveWorkoutNotification({
+        userId: "user-123",
         workoutId: "w-123",
         workoutName: "Full Body",
         currentExerciseName: "Workout",
@@ -632,6 +635,7 @@ describe("workout-notification", () => {
       mockScheduleNotificationAsync.mockResolvedValueOnce("lift-notif-id");
 
       const result = await updateActiveWorkoutNotification({
+        userId: "user-123",
         workoutId: "w-123",
         workoutName: "",
         currentExerciseName: "Pull Up",
@@ -658,6 +662,7 @@ describe("workout-notification", () => {
       );
 
       const result = await updateActiveWorkoutNotification({
+        userId: "user-123",
         workoutId: "w-123",
         workoutName: "Push",
         currentExerciseName: "Bench Press",
@@ -673,6 +678,7 @@ describe("workout-notification", () => {
       const restEndsAt = now + 90000;
 
       await updateActiveWorkoutNotification({
+        userId: "user-123",
         workoutId: "w-123",
         workoutName: "Full Body",
         currentExerciseName: "Deadlift",
@@ -698,6 +704,7 @@ describe("workout-notification", () => {
 
     it("maps completed planned sets into the iOS completion state", async () => {
       await updateActiveWorkoutNotification({
+        userId: "user-123",
         workoutId: "w-123",
         workoutName: "Full Body",
         currentExerciseName: "Workout",
@@ -721,6 +728,7 @@ describe("workout-notification", () => {
       );
 
       const result = await updateActiveWorkoutNotification({
+        userId: "user-123",
         workoutId: "w-123",
         workoutName: "Push",
         currentExerciseName: "Bench Press",
@@ -760,12 +768,12 @@ describe("workout-notification", () => {
       );
     });
 
-    it("keeps Production iOS dismissal on the existing notification path", async () => {
+    it("ends Production iOS Live Activity on dismissal", async () => {
       mockGetAppVariant.mockReturnValue("production");
 
       await dismissActiveWorkoutNotification();
 
-      expect(mockEndWorkoutLiveActivity).not.toHaveBeenCalled();
+      expect(mockEndWorkoutLiveActivity).toHaveBeenCalledTimes(1);
       expect(mockDismissNotificationAsync).toHaveBeenCalledWith(
         ACTIVE_WORKOUT_NOTIFICATION_ID,
       );
@@ -786,9 +794,10 @@ describe("workout-notification", () => {
     });
   });
 
-  describe("dismissOrphanedDevWorkoutLiveActivity", () => {
+  describe("dismissOrphanedWorkoutStatus", () => {
     it("ends a recovered Dev iOS activity after authoritative no-workout recovery", async () => {
-      await dismissOrphanedDevWorkoutLiveActivity();
+      mockGetAppVariant.mockReturnValue("dev");
+      await dismissOrphanedWorkoutStatus();
 
       expect(mockEndWorkoutLiveActivity).toHaveBeenCalledTimes(1);
       expect(mockDismissNotificationAsync).toHaveBeenCalledWith(
@@ -796,14 +805,116 @@ describe("workout-notification", () => {
       );
     });
 
-    it("does not alter Production iOS notification state", async () => {
+    it("cleans up a recovered Production iOS activity", async () => {
       mockGetAppVariant.mockReturnValue("production");
 
-      await dismissOrphanedDevWorkoutLiveActivity();
+      await dismissOrphanedWorkoutStatus();
 
-      expect(mockEndWorkoutLiveActivity).not.toHaveBeenCalled();
-      expect(mockDismissNotificationAsync).not.toHaveBeenCalled();
-      expect(mockCancelScheduledNotificationAsync).not.toHaveBeenCalled();
+      expect(mockEndWorkoutLiveActivity).toHaveBeenCalledTimes(1);
+      expect(mockDismissNotificationAsync).toHaveBeenCalledWith(
+        ACTIVE_WORKOUT_NOTIFICATION_ID,
+      );
+      expect(mockCancelScheduledNotificationAsync).toHaveBeenCalledWith(
+        ACTIVE_WORKOUT_NOTIFICATION_ID,
+      );
     });
   });
+});
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  preferenceStore.values.clear();
+  mockUpdateWorkoutLiveActivity.mockResolvedValue("live-activity-123");
+  mockEndWorkoutLiveActivity.mockResolvedValue(undefined);
+  mockUpdateWorkoutLiveUpdate.mockResolvedValue("posted");
+  mockDismissWorkoutLiveUpdate.mockResolvedValue(true);
+  mockCreateURL.mockReturnValue("mizyun://log-workout?workoutId=w-123");
+});
+
+const raceParams = {
+  userId: "user-123",
+  workoutId: "w-123",
+  workoutName: "Private Workout",
+  currentExerciseName: "Squat",
+  completedSetsCount: 1,
+};
+
+it("does not repost after logout while Android permission lookup is pending", async () => {
+  Platform.OS = "android";
+  Platform.Version = 36;
+  let resolvePermission!: (value: { status: string }) => void;
+  mockGetPermissionsAsync.mockReturnValueOnce(
+    new Promise((resolve) => {
+      resolvePermission = resolve;
+    }),
+  );
+  const pending = updateActiveWorkoutNotification(raceParams);
+  await vi.waitFor(() => expect(resolvePermission).toBeTypeOf("function"));
+  await dismissOrphanedWorkoutStatus();
+  resolvePermission({ status: "granted" });
+  await expect(pending).resolves.toBeNull();
+  expect(mockUpdateWorkoutLiveUpdate).not.toHaveBeenCalled();
+  expect(mockScheduleNotificationAsync).not.toHaveBeenCalled();
+});
+
+it("does not create an iOS activity after opt-out during legacy cleanup", async () => {
+  Platform.OS = "ios";
+  let resolveCleanup!: () => void;
+  mockDismissNotificationAsync.mockReturnValueOnce(
+    new Promise<void>((resolve) => {
+      resolveCleanup = resolve;
+    }),
+  );
+  const pending = updateActiveWorkoutNotification(raceParams);
+  await vi.waitFor(() => expect(resolveCleanup).toBeTypeOf("function"));
+  const dismissed = dismissActiveWorkoutNotification();
+  resolveCleanup();
+  await dismissed;
+  await expect(pending).resolves.toBeNull();
+  expect(mockUpdateWorkoutLiveActivity).not.toHaveBeenCalled();
+});
+
+it("finishes an in-flight Android post before final status removal", async () => {
+  Platform.OS = "android";
+  Platform.Version = 36;
+  mockGetPermissionsAsync.mockResolvedValueOnce({ status: "granted" });
+  let resolvePost!: (value: string) => void;
+  const order: string[] = [];
+  mockUpdateWorkoutLiveUpdate.mockImplementationOnce(
+    () =>
+      new Promise<string>((resolve) => {
+        resolvePost = (value) => {
+          order.push("posted");
+          resolve(value);
+        };
+      }),
+  );
+  mockDismissWorkoutLiveUpdate.mockImplementationOnce(async () => {
+    order.push("removed");
+    return true;
+  });
+  const pending = updateActiveWorkoutNotification(raceParams);
+  await vi.waitFor(() => expect(resolvePost).toBeTypeOf("function"));
+  const dismissed = dismissActiveWorkoutNotification();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  resolvePost("posted");
+  await Promise.all([pending, dismissed]);
+  expect(order).toEqual(["posted", "removed"]);
+});
+
+it("honors Account opt-out for a mounted workout screen with stale enabled state", async () => {
+  Platform.OS = "ios";
+  await updateActiveWorkoutNotification(raceParams);
+  expect(mockUpdateWorkoutLiveActivity).toHaveBeenCalledTimes(1);
+  await saveWorkoutPreferences({ liveNotificationEnabled: false }, "user-123");
+  await dismissActiveWorkoutNotification();
+  await expect(updateActiveWorkoutNotification(raceParams)).resolves.toBeNull();
+  expect(mockUpdateWorkoutLiveActivity).toHaveBeenCalledTimes(1);
+  expect(mockEndWorkoutLiveActivity).toHaveBeenCalledTimes(1);
+  // Preferences stay isolated to the account that changed them.
+  await updateActiveWorkoutNotification({
+    ...raceParams,
+    userId: "other-user",
+  });
+  expect(mockUpdateWorkoutLiveActivity).toHaveBeenCalledTimes(2);
 });

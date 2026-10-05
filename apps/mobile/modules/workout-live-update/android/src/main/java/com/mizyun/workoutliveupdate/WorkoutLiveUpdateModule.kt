@@ -45,15 +45,20 @@ class WorkoutLiveUpdateModule : Module() {
   }
 
   private fun postWorkoutNotification(context: Context, input: Map<String, Any?>): String {
-    // This native capability is deliberately limited to the founder Dev app.
-    if (context.packageName != "com.mizyun.dev") return "fallback"
+    if (Build.VERSION.SDK_INT < 36) return "fallback"
+    // Each installed app can open only its own workout link scheme.
+    val expectedScheme = when (context.packageName) {
+      "com.mizyun.dev" -> "mizyun-dev"
+      "com.mizyun.app" -> "mizyun"
+      else -> return "fallback"
+    }
 
     val workoutId = (input["workoutId"] as? String)?.takeIf { it.isNotBlank() } ?: return "fallback"
     val workoutName = (input["workoutName"] as? String)?.takeIf { it.isNotBlank() } ?: return "fallback"
     val deepLink = (input["deepLinkUrl"] as? String)?.let(Uri::parse) ?: return "fallback"
     val route = deepLink.path?.trim('/') ?: ""
     if (
-      deepLink.scheme != "mizyun-dev" ||
+      deepLink.scheme != expectedScheme ||
       (route != "log-workout" && deepLink.host != "log-workout") ||
       deepLink.getQueryParameter("workoutId") != workoutId
     ) return "fallback"
@@ -78,9 +83,11 @@ class WorkoutLiveUpdateModule : Module() {
           setShowBadge(false)
         }
       )
-      if (manager.getNotificationChannel(CHANNEL_ID)?.importance == NotificationManager.IMPORTANCE_NONE) {
-        return "fallback"
-      }
+      // Respect channel opt-outs, including the ordinary status channel used
+      // by older app builds. A fallback on another channel would bypass them.
+      if (manager.getNotificationChannel(CHANNEL_ID)?.importance == NotificationManager.IMPORTANCE_NONE ||
+        manager.getNotificationChannel("active-workout-session")?.importance == NotificationManager.IMPORTANCE_NONE
+      ) return "suppressed"
     }
 
     val contentIntent = PendingIntent.getActivity(

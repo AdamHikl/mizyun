@@ -436,11 +436,7 @@ function SettingsContent({
                     </ThemedText>
                   )}
                   {!editing && !COMMUNITY_ENROLLMENT_OPEN && (
-                    <ThemedText>
-                      Community enrollment is not open yet. A verified safety
-                      contact, legal review and pilot acceptance are still
-                      pending.
-                    </ThemedText>
+                    <ThemedText>Community is coming soon</ThemedText>
                   )}
                   <Action
                     label={

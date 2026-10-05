@@ -259,3 +259,19 @@ describe("workout-preferences", () => {
     });
   });
 });
+
+it("fails closed for native status when the persisted preference cannot be read", async () => {
+  const store: PreferencesStore = {
+    getItemAsync: async () => {
+      throw new Error("locked");
+    },
+    setItemAsync: async () => {},
+  };
+  expect(
+    (await loadWorkoutPreferences("user-1", store, "disable-live-notification"))
+      .liveNotificationEnabled,
+  ).toBe(false);
+  expect(
+    (await loadWorkoutPreferences("user-1", store)).liveNotificationEnabled,
+  ).toBe(true);
+});
