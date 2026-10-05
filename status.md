@@ -4,7 +4,7 @@
 
 ## Current authority and delivery
 
-- **Build7:** frozen `9b0c41acbb7e4ee70592cab40b6148fc76a393ed`,1.0.7/7/7. AAB verified; original IPA rejected by Transporter90683 (missing HealthKit update purpose). Correction/rebuild active; preserved artifacts remain. Fresh Mac/quality/navigation/861SQL gatesPASS. [Release evidence](docs/BUILD_7_RELEASE_EVIDENCE_2026-10-04.md).
+- **Build7:**1.0.7/7/7; corrected iOS `b07513367be204e40474566697cd884d7a00e341`, Android/backend9b0c41a. Replacement signed IPA verifies both HealthKit purpose strings; original90683 IPA superseded. Manual Transporter retry pending. Full gates/reviewPASS. [Release evidence](docs/BUILD_7_RELEASE_EVIDENCE_2026-10-04.md).
 - **Dev backend:** pristine9b0c41a, Hetzner `/var/lib/mizyun/dev/repo`, API4100/DB5433 PID2372619; canonical promotionPASS, public health200, protected Coach conversations401. Prompt `coach-system-v3-app-v2`.
 - **Latest iPhone Dev install:** 2026-10-04T18:05:59Z, iPhone16Pro, `a435a766...`, standalone com.mizyun.development1.0.6(6), teamLQJNDVBL43. Adam confirmed signed-in meal/workout/Coach/background journeys passed. [Delivery](docs/DEV_DELIVERY_EVIDENCE_2026-10-04.md).
 - **Production:** pristine9b0c41a; API4000/DB5432 PID2401543, tunnel2401546 active,57migrations through20261004110000. Fresh backup20261005T060157Z/checksumsPASS; public health200/protected Coach401. Adam confirmed build6 meal/workout/Coach journeys on d610382; API/packages/schema unchanged in9b0c41a. New build7 device/Store exits remain separate.
@@ -14,7 +14,7 @@
 
 AGENT-NAV-007 / [#207](https://github.com/AdamHikl/mizyun/issues/207): compact startup, serialized stable full checks, device-test collision repair and bounded-read/wait guidance. Implemented and verified locally: fresh serialized `pnpm check`PASS, runner20/navigation117, non-author review clear; inputs stable. [Evidence](docs/AGENT_WORKFLOW_EVIDENCE_2026-10-04.md). Existing navigation/index acceptance remains advisory; actual client/token/speed comparisons remain [#54](https://github.com/AdamHikl/mizyun/issues/54).
 
-**Next exact action:** fix native HealthKit purpose text/IPA validation, pass checks/review, then hand Adam a replacement1.0.7(7) IPA for manual Transporter retry (#27). Android/backend remain9b0c41a; no upload by agent. Store/device exits and #54 remain.
+**Next exact action:** Adam manually retries Transporter with corrected b0751331.0.7(7) IPA, then accepts Store-delivered build7 under #27/#32. Backend/Android remain9b0c41a; no upload by agent. Broader exits and #54 measurement remain.
 
 ## Local follow-ups awaiting exact-candidate acceptance
 
