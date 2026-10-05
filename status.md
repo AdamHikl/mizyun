@@ -4,7 +4,7 @@
 
 ## Current authority and delivery
 
-- **Build7 rebuild (#209):**1.0.7/7/7; Production workout Live Activity, Android16+ Live Updates, iOS rest next-set hint and “Community is coming soon” implemented; final review/gate/packages pending. Prior b075133 IPA/9b0c41a AAB superseded after rebuild. Both HealthKit purpose guards retained. [Evidence](docs/PRODUCTION_WORKOUT_STATUS_EVIDENCE_2026-10-05.md).
+- **Build7 rebuild (#209):**1.0.7/7/7 at`c09ee7a1229e455a7899b9d2a5662020af63582a`; workout live status/rest hint/Community coming-soon copy verified. Signed AAB/native permission/cert/16KB checksPASS. IPA blocked: Xcode account invalid, App Group profiles missing. Review/full gatesPASS; prior packages lack changes. [Evidence](docs/PRODUCTION_WORKOUT_STATUS_EVIDENCE_2026-10-05.md).
 - **Dev backend:** pristine9b0c41a, Hetzner `/var/lib/mizyun/dev/repo`, API4100/DB5433 PID2372619; canonical promotionPASS, public health200, protected Coach conversations401. Prompt `coach-system-v3-app-v2`.
 - **Latest iPhone Dev install:** 2026-10-04T18:05:59Z, iPhone16Pro, `a435a766...`, standalone com.mizyun.development1.0.6(6), teamLQJNDVBL43. Adam confirmed signed-in meal/workout/Coach/background journeys passed. [Delivery](docs/DEV_DELIVERY_EVIDENCE_2026-10-04.md).
 - **Production:** pristine9b0c41a; API4000/DB5432 PID2401543, tunnel2401546 active,57migrations through20261004110000. Fresh backup20261005T060157Z/checksumsPASS; public health200/protected Coach401. Adam confirmed build6 meal/workout/Coach journeys on d610382; API/packages/schema unchanged in9b0c41a. New build7 device/Store exits remain separate.
@@ -14,7 +14,7 @@
 
 AGENT-NAV-007 / [#207](https://github.com/AdamHikl/mizyun/issues/207): compact startup, serialized stable full checks, device-test collision repair and bounded-read/wait guidance. Implemented and verified locally: fresh serialized `pnpm check`PASS, runner20/navigation117, non-author review clear; inputs stable. [Evidence](docs/AGENT_WORKFLOW_EVIDENCE_2026-10-04.md). Existing navigation/index acceptance remains advisory; actual client/token/speed comparisons remain [#54](https://github.com/AdamHikl/mizyun/issues/54).
 
-**Next exact action:** finish #209 review/full gate, commit/push exact candidate, rebuild signed1.0.7(7) IPA/AAB, verify native identities/signing and hand off for manual upload and device acceptance. Backend remains9b0c41a; no redeploy. Community enrollment remains closed, launch targeted build8. No upload by agent; #27/#32/#54 and broader gates remain.
+**Next exact action:** Adam refreshes Xcode Accounts forLQJNDVBL43; rerun canonical IPA build atc09ee7a withbuild7, verify main/widget signing and hand off. AAB ready; native/Store exits #209/#27/#32 remain. Backend9b0c41a unchanged. Community enrollment closed/build8 launch; progress photos/App Preview still Dev-only. No upload by agent; #54/broader gates remain.
 
 ## Local follow-ups awaiting exact-candidate acceptance
 
