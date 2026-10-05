@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  enrollmentOpen: true,
+  signedOut: false,
+  authRead: vi.fn(),
+  profileRead: vi.fn(),
+  controllerCreated: vi.fn(),
   realController: false,
   navigationValid: false,
   deadline: undefined as number | undefined,
@@ -121,22 +126,35 @@ vi.mock("expo-router", async () => {
   };
 });
 vi.mock("@/hooks/use-theme", () => ({ useTheme: () => ({}) }));
+vi.mock("@/composition/community-admission", () => ({
+  get COMMUNITY_ENROLLMENT_OPEN() {
+    return mocks.enrollmentOpen;
+  },
+}));
 vi.mock("@/features/auth/auth-context", () => ({
-  useAuth: () => ({
-    session: { user: { id: "account-a" }, accessToken: mocks.token },
-    profile: {},
-  }),
+  useAuth: () => {
+    mocks.authRead();
+    return {
+      session: mocks.signedOut
+        ? null
+        : { user: { id: "account-a" }, accessToken: mocks.token },
+      profile: {},
+    };
+  },
 }));
 vi.mock("@/composition/api-client", () => ({
   apiClient: { request: mocks.request },
 }));
 vi.mock("../use-community-profile", () => ({
-  useCommunityProfile: () => ({
-    profile: { generation: mocks.generation },
-    status: mocks.status,
-    isEnrolled: mocks.enrolled,
-    actions: { load: mocks.load },
-  }),
+  useCommunityProfile: () => {
+    mocks.profileRead();
+    return {
+      profile: { generation: mocks.generation },
+      status: mocks.status,
+      isEnrolled: mocks.enrolled,
+      actions: { load: mocks.load },
+    };
+  },
 }));
 vi.mock("./activity-card", () => ({ ActivityCard: "ActivityCard" }));
 vi.mock("./controller", async (original) => {
@@ -145,6 +163,7 @@ vi.mock("./controller", async (original) => {
     FeedController: function (
       ...args: ConstructorParameters<typeof actual.FeedController>
     ) {
+      mocks.controllerCreated();
       if (mocks.realController) return new actual.FeedController(...args);
       return {
         subscribe: vi.fn(),
@@ -179,8 +198,8 @@ import { FeedScreen } from "./feed-screen";
 // Inspect the actual render output; native layout/device acceptance is separate.
 function render(): any {
   hooks.index = 0;
-  const outer = FeedScreen();
-  const tree = (outer.type as any)(outer.props);
+  let tree = FeedScreen();
+  while (typeof tree.type === "function") tree = (tree.type as any)(tree.props);
   hooks.effects.splice(0).forEach((effect) => effect());
   return tree;
 }
@@ -202,6 +221,8 @@ function linkFor(node: any, label: string): any {
 afterEach(() => vi.restoreAllMocks());
 
 beforeEach(() => {
+  mocks.enrollmentOpen = true;
+  mocks.signedOut = false;
   mocks.realController = false;
   mocks.navigationValid = false;
   mocks.deadline = undefined;
@@ -234,6 +255,57 @@ async function settledRender() {
   return render();
 }
 describe("Community home participation and navigation", () => {
+  it.each([
+    {
+      scenario: "signed out",
+      signedOut: true,
+      status: "ready",
+      enrolled: false,
+    },
+    {
+      scenario: "status error",
+      signedOut: false,
+      status: "error",
+      enrolled: false,
+    },
+    {
+      scenario: "loading",
+      signedOut: false,
+      status: "loading",
+      enrolled: false,
+    },
+    {
+      scenario: "stale enrollment",
+      signedOut: false,
+      status: "ready",
+      enrolled: true,
+    },
+  ])(
+    "shows coming soon without Community reads when closed and $scenario",
+    async ({ signedOut, status, enrolled }) => {
+      mocks.enrollmentOpen = false;
+      mocks.signedOut = signedOut;
+      mocks.status = status;
+      mocks.enrolled = enrolled;
+      const tree = await settledRender();
+      expect(find(tree, "Community is coming soon").props.children).toBe(
+        "Community is coming soon",
+      );
+      expect(tree.props.children[0].type).toBe("TabHeader");
+      expect(linkFor(tree, "Keep tracking privately").props.href).toBe("/");
+      expect(find(tree, "Check Community status")).toBeFalsy();
+      expect(find(tree, "Join Community")).toBeFalsy();
+      expect(find(tree, "Leave Community")).toBeFalsy();
+      expect(mocks.authRead).not.toHaveBeenCalled();
+      expect(mocks.profileRead).not.toHaveBeenCalled();
+      expect(mocks.controllerCreated).not.toHaveBeenCalled();
+      expect(mocks.load).not.toHaveBeenCalled();
+      expect(mocks.refresh).not.toHaveBeenCalled();
+      expect(mocks.request).not.toHaveBeenCalled();
+      expect(mocks.focus).toBeNull();
+      expect(mocks.appState).toBeNull();
+    },
+  );
   it("hosts deliberate joining inside the tab without enrollment or feed loading", async () => {
     const tree = await settledRender();
     const form = tree.props.children[1];

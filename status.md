@@ -4,7 +4,8 @@
 
 ## Current authority and delivery
 
-- **Build8 rebuild (#27/#32):**1.0.8/8/8 at`3384b3fc70fbb7fc55456ee3b7b6c1b67d93f313`, numbering only from lockedc09ee7a. Signed IPA+widget/HealthKit/Production config/dSYMs and AAB/cert/16KB LOAD checksPASS; fresh full gatesPASS. [Artifacts/evidence](docs/BUILD_8_RELEASE_EVIDENCE_2026-10-05.md). Native/16KB runtime/Store acceptance open.
+- **#212:** Production coming-soon;1.0.8/8/8. Gate/packages pending; prior build8 upload on hold. [Evidence](docs/COMMUNITY_PRODUCTION_PLACEHOLDER_2026-10-05.md).
+- **Prior Build8 packages (#27/#32):**1.0.8/8/8 at`3384b3fc70fbb7fc55456ee3b7b6c1b67d93f313`, numbering only from lockedc09ee7a. Signed IPA+widget/HealthKit/Production config/dSYMs and AAB/cert/16KB LOAD checksPASS; fresh full gatesPASS. [Artifacts/evidence](docs/BUILD_8_RELEASE_EVIDENCE_2026-10-05.md). Native/16KB runtime/Store acceptance open.
 - **Dev backend:** pristine9b0c41a, Hetzner `/var/lib/mizyun/dev/repo`, API4100/DB5433 PID2372619; canonical promotionPASS, public health200, protected Coach conversations401. Prompt `coach-system-v3-app-v2`.
 - **Latest iPhone Dev install:** 2026-10-04T18:05:59Z, iPhone16Pro, `a435a766...`, standalone com.mizyun.development1.0.6(6), teamLQJNDVBL43. Adam confirmed signed-in meal/workout/Coach/background journeys passed. [Delivery](docs/DEV_DELIVERY_EVIDENCE_2026-10-04.md).
 - **Production:** pristine9b0c41a; API4000/DB5432 PID2401543, tunnel2401546 active,57migrations through20261004110000. Fresh backup20261005T060157Z/checksumsPASS; public health200/protected Coach401. Adam confirmed build6 meal/workout/Coach journeys on d610382; API/packages/schema unchanged in9b0c41a. New build7 device/Store exits remain separate.

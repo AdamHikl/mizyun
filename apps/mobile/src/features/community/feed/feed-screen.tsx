@@ -23,6 +23,7 @@ import { BottomTabInset, MaxContentWidth } from "@/constants/theme";
 import { TabHeader, useTabHeaderLayout } from "@/components/tab-header";
 import type { SharedActivityFeedItemDto } from "@mizyun/contracts";
 import { apiClient } from "@/composition/api-client";
+import { COMMUNITY_ENROLLMENT_OPEN } from "@/composition/community-admission";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
 import { useCommunityProfile } from "../use-community-profile";
@@ -39,6 +40,62 @@ import {
 } from "../state/read-cache";
 
 export function FeedScreen() {
+  return COMMUNITY_ENROLLMENT_OPEN ? (
+    <OpenCommunityFeedScreen />
+  ) : (
+    <CommunityComingSoonScreen />
+  );
+}
+
+function CommunityComingSoonScreen() {
+  const { headerHeight, onHeaderLayout } = useTabHeaderLayout();
+  const colors = useTheme();
+  return (
+    <SafeAreaView
+      edges={["top", "left", "right"]}
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
+      <TabHeader onLayout={onHeaderLayout} />
+      <ScrollView
+        style={{ marginTop: -headerHeight }}
+        contentContainerStyle={[
+          styles.centered,
+          {
+            paddingTop: headerHeight + 24,
+            paddingBottom: BottomTabInset + 24,
+          },
+        ]}
+      >
+        <Text
+          accessibilityRole="header"
+          accessibilityLabel="Community is coming soon"
+          style={[
+            styles.notEnrolledTitle,
+            { color: colors.text, textAlign: "center" },
+          ]}
+        >
+          Community is coming soon
+        </Text>
+        <Text style={[styles.notEnrolledBody, { color: colors.textSecondary }]}>
+          Keep tracking privately while we prepare Community.
+        </Text>
+        <Link href="/" asChild>
+          <Pressable
+            style={styles.primaryButton}
+            accessibilityRole="button"
+            accessibilityLabel="Keep tracking privately"
+          >
+            <Text style={[styles.primaryButtonText, { color: colors.primary }]}>
+              Keep tracking privately
+            </Text>
+          </Pressable>
+        </Link>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+function OpenCommunityFeedScreen() {
   const { session, profile } = useAuth();
   const principalKey = session?.user.id ?? null;
   const birthYear = profile?.birthYear;

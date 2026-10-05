@@ -1,5 +1,7 @@
 # Build8 release evidence — 2026-10-05
 
+> Superseded for the current upload handoff by the Community placeholder correction [#212](https://github.com/AdamHikl/mizyun/issues/212). These immutable3384b3f packages do not contain the corrected Production placeholder. The “Community keeps coming soon” statement below described nested copy, not the actual error path; see [correction evidence](COMMUNITY_PRODUCTION_PLACEHOLDER_2026-10-05.md). Keep these packages as history.
+
 Adam requested both shipping packages as version1.0.8/build8/versionCode8. This renumbers the previously locked release; it does not include concurrent Dev usability work or open Community enrollment. Tracking: [#27](https://github.com/AdamHikl/mizyun/issues/27)/[#32](https://github.com/AdamHikl/mizyun/issues/32). The workout promotion’s implementation and build7 history remain in [Production workout status evidence](PRODUCTION_WORKOUT_STATUS_EVIDENCE_2026-10-05.md).
 
 ## Exact source and scope
