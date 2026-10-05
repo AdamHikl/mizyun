@@ -192,6 +192,28 @@ console.log(
   `✓ Production profile evaluated correctly: com.mizyun.app / Mizyun ${prodConfig.expo.version} (${releaseVersionMatch[1]})`,
 );
 
+// HealthKit-linked binaries require both purpose strings even for read-only steps.
+for (const [profileName, config] of [
+  ["development", devConfig],
+  ["preview", previewConfig],
+  ["production", prodConfig],
+]) {
+  for (const key of [
+    "NSHealthShareUsageDescription",
+    "NSHealthUpdateUsageDescription",
+  ]) {
+    const description = config.expo.ios.infoPlist?.[key];
+    if (typeof description !== "string" || description.trim().length === 0) {
+      throw new Error(
+        `${profileName} profile is missing HealthKit purpose string ${key}`,
+      );
+    }
+  }
+}
+console.log(
+  "✓ All iOS profiles include HealthKit read and update purpose strings",
+);
+
 const hasPlugin = (config, pluginName) =>
   config.expo.plugins.some((plugin) =>
     Array.isArray(plugin) ? plugin[0] === pluginName : plugin === pluginName,

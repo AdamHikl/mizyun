@@ -64,7 +64,7 @@ Fresh final logs: `/tmp/mizyun-build7-ios-package-final-candidate.log`, `/tmp/mi
 - IPA `apps/mobile/dist/releases/ios/app-store/packages/1.0.7-7-9b0c41acbb7e4ee70592cab40b6148fc76a393ed-20261005T054945Z/Mizyun-1.0.7-7-9b0c41acbb7e4ee70592cab40b6148fc76a393ed-20261005T054945Z.ipa`: SHA256 `330eaf5037be96d8ba0476d5187719454d969431c177a385363769661f5fbf36`.
 - Immutable manifest `apps/mobile/dist/releases/ios/app-store/packages/1.0.7-7-9b0c41acbb7e4ee70592cab40b6148fc76a393ed-20261005T054945Z/manifest.json`, supplementalverification.json and matching archive/dSYMs retained under `apps/mobile/dist/releases/ios/app-store/archives/Mizyun-1.0.7-7-9b0c41acbb7e4ee70592cab40b6148fc76a393ed-20261005T054945Z.xcarchive`.
 - Cloud Managed Apple Distribution certificateSHA1E429BA7A349C5A8EDBD11536025213A196A4E1F9, expiry2027-09-14. Actual signed application identifierLQJNDVBL43.com.mizyun.app, HealthKit=true, APNsproduction, AppleSignInDefault, getTaskAllow=false. Actual exported Expo profile/variant/version/API/Supabase/callback validated. App and dSYM UUID83D4AB60-EEF1-3092-AFB5-9402B8AF8A9F match.
-- Ready for Adam's manual Transporter upload. No AppStoreConnect/TestFlight upload or submission occurred.
+- Local signing/config checks passed at handoff, but Adam's subsequent manual Transporter upload was rejected90683 for missing NSHealthUpdateUsageDescription. This IPA is superseded; no Store acceptance is claimed. No upload by the agent occurred.
 
 ### Android Production AAB
 
@@ -75,3 +75,7 @@ Fresh final logs: `/tmp/mizyun-build7-ios-package-final-candidate.log`, `/tmp/mi
 - Ready for manual GooglePlayConsole upload. No Play upload or rollout occurred.
 
 Store-delivered build7 device acceptance, accessibility/network/provider/Community/lifecycle and operational/restore exits retain #27/#32 and their owning issue gates. The package handoff does not close those broader exits or claim Store approval.
+
+## Transporter90683 correction — 2026-10-05
+
+Adam reported Transporter rejection IDROHBOA2Z2KXYEZ7UARKGQTMYCU for missing NSHealthUpdateUsageDescription. Fresh inspection of the preserved IPA above reproduces the missing key; the read description is present. Current native HealthKit module requests read-only stepCount with an empty share set. Fix the generated Info.plist source with truthful optional-step/no-write text and validate both descriptions in the exported IPA before publication. Preserve1.0.7/7/7. Replacement signing/export and manual Transporter retry are pending; original signing success did not prove Store privacy validation. Backend/API/schema and Android output require no change for this iOS metadata correction.

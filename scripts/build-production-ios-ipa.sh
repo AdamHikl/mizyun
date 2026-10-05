@@ -323,6 +323,19 @@ if [[ "$build_number" != "$requested_build_number" ]]; then
   exit 1
 fi
 
+# HealthKit API references require both purpose strings at Store validation,
+# including our read-only authorization call. Check the exported native plist.
+for purpose_key in NSHealthShareUsageDescription NSHealthUpdateUsageDescription; do
+  purpose_text="$(plutil -extract "$purpose_key" raw -expect string "$info_plist" 2>/dev/null)" || {
+    echo "Exported IPA is missing a string $purpose_key purpose description." >&2
+    exit 1
+  }
+  if [[ -z "${purpose_text//[[:space:]]/}" ]]; then
+    echo "Exported IPA has a blank $purpose_key purpose description." >&2
+    exit 1
+  fi
+done
+
 codesign --verify --deep --strict "$app_path"
 signing_details="$(codesign -dv --verbose=4 "$app_path" 2>&1)"
 if ! grep -q "^TeamIdentifier=${apple_team_id}$" <<<"$signing_details"; then

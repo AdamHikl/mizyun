@@ -143,6 +143,19 @@ case "$key" in
   CFBundleIdentifier) printf com.mizyun.app ;;
   CFBundleShortVersionString) printf '1.0.%s' "$EXPECTED_BUILD_NUMBER" ;;
   CFBundleVersion) printf '%s' "$EXPECTED_BUILD_NUMBER" ;;
+  NSHealthShareUsageDescription|NSHealthUpdateUsageDescription)
+    if [[ "\${MOCK_PURPOSE_KEY:-}" == "$key" ]]; then
+      case "\${MOCK_PURPOSE_FAILURE:-}" in
+        missing) exit 1 ;;
+        wrong-type)
+          if [[ "$*" == *"-expect string"* ]]; then exit 1; fi
+          printf true; exit 0
+          ;;
+        blank) printf ' \\n\\t'; exit 0 ;;
+      esac
+    fi
+    printf 'Mizyun reads steps only when enabled and does not save Apple Health data.'
+    ;;
   *) exit 1 ;;
 esac
 `,
@@ -341,6 +354,24 @@ printf '%s\n' 20260914T150000Z
   );
 
   const releaseArgs = ["--sha", candidateSha, "--build-number", "7"];
+  for (const key of [
+    "NSHealthShareUsageDescription",
+    "NSHealthUpdateUsageDescription",
+  ]) {
+    for (const failure of ["missing", "wrong-type", "blank"]) {
+      expectFailure(
+        releaseArgs,
+        failure === "blank"
+          ? `blank ${key} purpose description`
+          : `missing a string ${key} purpose description`,
+        {
+          ...testEnvironment,
+          MOCK_PURPOSE_KEY: key,
+          MOCK_PURPOSE_FAILURE: failure,
+        },
+      );
+    }
+  }
   for (const field of [
     "name",
     "slug",
