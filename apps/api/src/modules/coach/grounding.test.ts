@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { UserId } from "@mizyun/core";
+import { createRunSummary, type UserId } from "@mizyun/core";
 
 import { InMemoryBodyMeasurementRepository } from "../../body-measurement-repository.js";
 import { InMemoryFoodEntryRepository } from "../../food-entry-repository.js";
@@ -7,6 +7,7 @@ import { InMemoryGoalRepository } from "../../goal-repository.js";
 import { InMemoryProfileRepository } from "../../profile-repository.js";
 import { InMemoryWorkoutRepository } from "../../workout-repository.js";
 import { InMemoryWorkoutSetRepository } from "../../workout-set-repository.js";
+import { InMemoryRunRepository } from "../../run-repository.js";
 import { buildCoachGrounding } from "./grounding.js";
 
 const USER_ID = "00000000-0000-4000-8000-000000000001" as UserId;
@@ -27,6 +28,7 @@ const buildDeps = () => {
     profileRepository,
     goalRepository,
     workoutRepository,
+    runRepository: new InMemoryRunRepository(workoutRepository),
     workoutSetRepository,
     foodEntryRepository,
     bodyMeasurementRepository,
@@ -465,5 +467,48 @@ describe("buildCoachGrounding — remaining calories and macro targets", () => {
         startedAt: workoutTime.toISOString(),
       },
     ]);
+  });
+});
+
+describe("running grounding boundaries", () => {
+  it("uses the entered local date and duration while keeping resistance and calorie observations separate", async () => {
+    const deps = buildDeps();
+    await deps.runRepository.create(
+      USER_ID,
+      {
+        clientOperationId: "f2160000-0000-4000-8000-000000000003",
+        name: "Run",
+        notes: "private notes",
+        summary: createRunSummary({
+          activityDate: "2026-09-10",
+          recordingTimezone: "Pacific/Kiritimati",
+          startedAt: null,
+          durationSeconds: 5400,
+          distanceMeters: null,
+          environment: "outdoor",
+          perceivedExertion: 5,
+        }),
+      },
+      { accessToken: "token" },
+    );
+    const items = await buildCoachGrounding(deps, USER_ID, "token", NOW);
+    const training = items.find((item) => item.kind === "training")!
+      .data as any;
+    expect(training.completedWorkoutCount).toBe(0);
+    expect(training.totalSets).toBe(0);
+    expect(training.running.last7Days).toEqual({
+      count: 1,
+      durationSeconds: 5400,
+      distanceMeters: 0,
+      missingDistanceCount: 1,
+    });
+    expect(training.running.recentRuns[0]).toMatchObject({
+      activityDate: "2026-09-10",
+      timePrecision: "day",
+      durationSeconds: 5400,
+      distanceMeters: null,
+    });
+    expect(JSON.stringify(training.running)).not.toContain("private notes");
+    expect(training.running.calorieCredit).toBe("none");
   });
 });

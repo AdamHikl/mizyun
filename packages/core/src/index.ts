@@ -85,6 +85,9 @@ export {
 } from "./goal";
 
 export {
+  MealPhotoError,
+  type MealPhoto,
+  type MealPhotoService,
   CALORIES_MAX,
   ADVANCED_NUTRIENT_FIELDS,
   CALORIES_MIN,
@@ -339,3 +342,7 @@ export * from "./community-challenges";
 export * from "./community-media";
 
 export * from "./recurring-meal";
+
+export * from "./running";
+
+export * from "./run-repository";

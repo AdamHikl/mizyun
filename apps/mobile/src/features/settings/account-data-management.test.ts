@@ -15,6 +15,10 @@ vi.mock("expo-secure-store", () => ({
   deleteItemAsync: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock("react-native", () => ({ Platform: { OS: "ios" } }));
+vi.mock("../log-meal/public-data", () => ({
+  clearAllMealPhotoRetries: vi.fn().mockResolvedValue(true),
+}));
+import { clearAllMealPhotoRetries } from "../log-meal/public-data";
 
 import type { ApiClient } from "@mizyun/api-client";
 import {
@@ -267,6 +271,7 @@ describe("account-data-management", () => {
     const draftMap = new Map<string, string>([
       [`mizyun.logging-draft.${userId}.meal`, '{"food":"Apple"}'],
       [`mizyun.logging-draft.${userId}.workout`, '{"name":"Chest Day"}'],
+      [`mizyun.logging-draft.${userId}.run`, '{"pending":{"kind":"create"}}'],
       [`mizyun.logging-draft.${userId}.weight`, '{"weight":80}'],
       [`mizyun.logging-draft.${userId}.coach`, '{"message":"Hi"}'],
     ]);
@@ -684,4 +689,20 @@ describe("account-data-management", () => {
       message: "Could not check deletion status. Please try again.",
     });
   });
+});
+
+it("account deletion purges private meal photos for the exact user", async () => {
+  const draftStore = {
+    getItemAsync: vi.fn().mockResolvedValue(null),
+    setItemAsync: vi.fn(),
+    deleteItemAsync: vi.fn(),
+  };
+  await clearLocalUserData("deleted-photo-owner", {
+    draftStore,
+    listExportFiles: () => [],
+  });
+  expect(clearAllMealPhotoRetries).toHaveBeenCalledWith(
+    "deleted-photo-owner",
+    draftStore,
+  );
 });

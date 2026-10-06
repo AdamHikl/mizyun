@@ -356,3 +356,7 @@ describe("AI advanced nutrients in saved meal editing", () => {
     expect(mocks.update).not.toHaveBeenCalled();
   });
 });
+
+vi.mock("./private-meal-photo", () => ({
+  PrivateMealPhoto: "PrivateMealPhoto",
+}));

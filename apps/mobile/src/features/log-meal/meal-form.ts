@@ -201,6 +201,8 @@ export interface RecoverableMealDraft extends MealFormStrings {
   readonly aiDraft?: FoodDraftCandidate;
   readonly sourceProposalId?: string;
   readonly refineInstruction?: string;
+  readonly keepPhoto?: boolean;
+  readonly selectedPhotoUri?: string | null;
   readonly attachedPhotoUri?: string;
   readonly attachedPhotoUris?: readonly string[];
   readonly pendingPhotoDrafts?: readonly FoodDraftCandidate[];
@@ -277,7 +279,11 @@ export const isRecoverableMealDraft = (
     photoUriValid &&
     photosValid &&
     pendingValid &&
-    advancedValid
+    advancedValid &&
+    (record.keepPhoto === undefined || typeof record.keepPhoto === "boolean") &&
+    (record.selectedPhotoUri === undefined ||
+      record.selectedPhotoUri === null ||
+      typeof record.selectedPhotoUri === "string")
   );
 };
 

@@ -35,6 +35,7 @@ import {
 import { purgeOfflineCache } from "../offline-cache/offline-cache-storage";
 import { keyFor as workoutPreferencesKeyFor } from "../workouts/workout-preferences";
 import { healthStepsPreferenceKey } from "../health-steps/health-steps-key";
+import { clearAllMealPhotoRetries } from "../log-meal/public-data";
 
 export interface SecureKeyValueStore {
   getItemAsync(key: string): Promise<string | null>;
@@ -215,7 +216,7 @@ export interface ClearLocalUserDataOptions {
  * coach reminder notifications, scheduled first-meal notifications,
  * scheduled evening catch-up notifications, confirmed day completions,
  * deletion challenges, workout preferences, offline profile/dashboard
- * caches, and local exported JSON files.
+ * caches, private meal-photo files/retries, and local exported JSON files.
  */
 export const clearLocalUserData = async (
   userId: string,
@@ -224,6 +225,7 @@ export const clearLocalUserData = async (
   const standardDraftKinds: readonly LoggingDraftKind[] = [
     "meal",
     "workout",
+    "run",
     "weight",
     "coach",
   ];
@@ -252,6 +254,7 @@ export const clearLocalUserData = async (
   const workoutStore = options.workoutPreferencesStore ?? SecureStore;
 
   await Promise.allSettled([
+    clearAllMealPhotoRetries(userId, options.draftStore),
     ...draftKinds.map((kind) =>
       clearLoggingDraft(userId, kind, options.draftStore),
     ),

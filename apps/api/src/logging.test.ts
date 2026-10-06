@@ -34,6 +34,7 @@ describe("loggerConfig", () => {
     expect(redactPaths).toContain("req.headers.authorization");
     expect(redactPaths).toContain("req.headers.cookie");
     expect(redactPaths).toContain("req.body.password");
+    expect(redactPaths).toContain("req.body.imageBase64");
     expect(redactPaths).toContain("req.body.email");
     expect(redactPaths).toContain("req.body.token");
     expect(redactPaths).toContain("req.body.access_token");

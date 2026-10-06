@@ -71,3 +71,6 @@
 - [ADR-0041 — Release-owned Coach app capability knowledge](0041-coach-app-capability-knowledge.md): accepted for local implementation 2026-10-04; trusted product catalog, deterministic recurring setup help and required feature/route coverage.
 
 - [ADR-0046: Pro multi-photo drafts and Coach context](0046-pro-multi-photo-drafts.md) — accepted implementation; native/provider acceptance pending.
+- [ADR-0046 — Manual running authority and retry-safe mutations](0046-manual-running-authority.md): accepted for Dev implementation 2026-10-06; authoritative local dates, dedicated run UI, atomic owner receipts and separate resistance context.
+
+- [ADR-0048 — Private meal thumbnails on Dev](0048-private-meal-thumbnails.md): accepted2026-10-06; optional reduced owner-only meal photos, recovery/deletion and explicit Dev activation.

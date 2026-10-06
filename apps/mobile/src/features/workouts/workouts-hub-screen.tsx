@@ -7,10 +7,18 @@ import {
   StyleSheet,
   View,
 } from "react-native";
-import { router, Stack, useFocusEffect, type Href } from "expo-router";
+import {
+  router,
+  Stack,
+  useFocusEffect,
+  type Href,
+  useLocalSearchParams,
+} from "expo-router";
 import * as Crypto from "expo-crypto";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { RunCard, RunningWeek, listRuns } from "@/features/running";
+import { apiClient } from "@/composition/api-client";
 import type { Workout } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
@@ -49,6 +57,11 @@ const INITIAL_DATA: WorkoutsHubResult = {
 };
 
 export function WorkoutsHubScreen() {
+  const params = useLocalSearchParams<{ runSaved?: string }>();
+  const [historyFilter, setHistoryFilter] = useState<
+    "all" | "strength" | "running"
+  >("all");
+  const [loadingMoreRuns, setLoadingMoreRuns] = useState(false);
   const workoutContext = useOptionalActiveWorkout();
   const { headerHeight, onHeaderLayout } = useTabHeaderLayout();
   const { profile, session } = useAuth();
@@ -58,11 +71,26 @@ export function WorkoutsHubScreen() {
   });
   const [sharingWorkoutId, setSharingWorkoutId] = useState<string | null>(null);
   const unitSystem = profile?.unitSystem ?? "metric";
-  const [data, setData] = useState<WorkoutsHubResult>(INITIAL_DATA);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const principal = session?.user.id ?? "";
   const owner = `${principal}:${session?.accessToken ?? ""}`;
+  const [ownedData, setOwnedData] = useState<{
+    owner: string;
+    value: WorkoutsHubResult;
+  }>({ owner, value: INITIAL_DATA });
+  const data = ownedData.owner === owner ? ownedData.value : INITIAL_DATA;
+  const setData = (
+    next:
+      WorkoutsHubResult | ((current: WorkoutsHubResult) => WorkoutsHubResult),
+  ) =>
+    setOwnedData((state) => ({
+      owner,
+      value:
+        typeof next === "function"
+          ? next(state.owner === owner ? state.value : INITIAL_DATA)
+          : next,
+    }));
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const currentOwner = useRef(owner);
   currentOwner.current = owner;
   const requestId = useRef(0);
@@ -72,8 +100,15 @@ export function WorkoutsHubScreen() {
     loaded.current = null;
     setData(INITIAL_DATA);
     setLoading(true);
+    setLoadingMoreRuns(false);
   }, [owner]);
   const [activeTab, setActiveTab] = useState<WorkoutsTab>("all");
+  useEffect(() => {
+    if (params.runSaved) {
+      setActiveTab("history");
+      setHistoryFilter("all");
+    }
+  }, [params.runSaved]);
   const [busyWorkoutId, setBusyWorkoutId] = useState<string | null>(null);
   const startingRoutineIds = useRef(new Set<string>());
   const routineOperationIds = useRef(new Map<string, string>());
@@ -93,11 +128,22 @@ export function WorkoutsHubScreen() {
     const id = ++requestId.current;
     const version = getSessionReadVersion();
     if (!loaded.current) setLoading(true);
-    const result = await fetchWorkoutsHubData();
+    const result = await fetchWorkoutsHubData({
+      status: () => apiClient.status(),
+      request: (options) =>
+        apiClient.request({
+          ...options,
+          expectedUserId: principal,
+          isCurrent: () =>
+            owner === currentOwner.current && id === requestId.current,
+        }),
+    });
     if (owner !== currentOwner.current || id !== requestId.current) return;
     setData((current) =>
       result.message !== null &&
-      (current.activeAndPlanned.length > 0 || current.completed.length > 0)
+      (current.activeAndPlanned.length > 0 ||
+        current.completed.length > 0 ||
+        (current.runs?.length ?? 0) > 0)
         ? { ...current, message: result.message }
         : result,
     );
@@ -271,6 +317,60 @@ export function WorkoutsHubScreen() {
     [loadData],
   );
 
+  const loadMoreRuns = async () => {
+    if (loadingMoreRuns || !data.runsNextCursor) return;
+    setLoadingMoreRuns(true);
+    const result = await listRuns(
+      {
+        status: () => apiClient.status(),
+        request: (options) =>
+          apiClient.request({
+            ...options,
+            expectedUserId: principal,
+            isCurrent: () => owner === currentOwner.current,
+          }),
+      },
+      { cursor: data.runsNextCursor },
+    );
+    if (owner === currentOwner.current) {
+      if (result.ok)
+        setData((d) => ({
+          ...d,
+          runs: [
+            ...new Map(
+              [...(d.runs ?? []), ...result.value.runs].map((run) => [
+                run.id,
+                run,
+              ]),
+            ).values(),
+          ],
+          runsNextCursor: result.value.nextCursor,
+        }));
+      else setData((d) => ({ ...d, message: result.message }));
+      setLoadingMoreRuns(false);
+    }
+  };
+  const history = [
+    ...(historyFilter !== "running"
+      ? data.completed.map((item) => ({
+          kind: "strength" as const,
+          item,
+          date: (item.workout.completedAt ?? item.workout.startedAt).slice(
+            0,
+            10,
+          ),
+          id: item.workout.id,
+        }))
+      : []),
+    ...(historyFilter !== "strength"
+      ? (data.runs ?? []).map((run) => ({
+          kind: "run" as const,
+          run,
+          date: run.summary.activityDate,
+          id: run.id,
+        }))
+      : []),
+  ].sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
   const showPlanned = activeTab === "all" || activeTab === "planned";
   const showHistory = activeTab === "all" || activeTab === "history";
 
@@ -345,6 +445,20 @@ export function WorkoutsHubScreen() {
             <ThemedText style={styles.libraryArrow}>→</ThemedText>
           </Pressable>
 
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Log run"
+            onPress={() => router.push("/log-run" as Href)}
+            style={styles.secondaryAction}
+          >
+            <View style={styles.createRoutineBody}>
+              <ThemedText type="smallBold">Log run</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                Add a completed run. Distance is optional.
+              </ThemedText>
+            </View>
+            <ThemedText style={styles.libraryArrow}>→</ThemedText>
+          </Pressable>
           {/* Secondary actions */}
           <Pressable
             accessibilityRole="button"
@@ -402,7 +516,11 @@ export function WorkoutsHubScreen() {
                   activeTab === "all" && styles.tabChipTextActive,
                 ]}
               >
-                All ({data.activeAndPlanned.length + data.completed.length})
+                All (
+                {data.activeAndPlanned.length +
+                  data.completed.length +
+                  (data.runs?.length ?? 0)}
+                )
               </ThemedText>
             </Pressable>
 
@@ -444,7 +562,7 @@ export function WorkoutsHubScreen() {
                   activeTab === "history" && styles.tabChipTextActive,
                 ]}
               >
-                History ({data.completed.length})
+                History ({data.completed.length + (data.runs?.length ?? 0)})
               </ThemedText>
             </Pressable>
           </View>
@@ -455,6 +573,20 @@ export function WorkoutsHubScreen() {
             </ThemedText>
           ) : null}
 
+          {data.message ? (
+            <>
+              <ThemedText accessibilityRole="alert" type="small">
+                {data.message}
+              </ThemedText>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => void loadData()}
+                style={styles.secondaryAction}
+              >
+                <ThemedText>Check again</ThemedText>
+              </Pressable>
+            </>
+          ) : null}
           {/* Section 1: Available Routines & Sessions */}
           {showPlanned ? (
             <View style={styles.section}>
@@ -532,49 +664,120 @@ export function WorkoutsHubScreen() {
                   COMPLETED HISTORY
                 </ThemedText>
                 <ThemedText type="small" themeColor="textSecondary">
-                  {data.completed.length}{" "}
+                  {history.length}{" "}
                   {data.completed.length === 1
-                    ? "logged workout"
-                    : "logged workouts"}
+                    ? "logged activity"
+                    : "logged activities"}
                 </ThemedText>
               </View>
 
-              {data.completed.length === 0 && !loading ? (
+              <View style={styles.tabsRow}>
+                {(["all", "strength", "running"] as const).map((filter) => (
+                  <Pressable
+                    key={filter}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      filter === "all"
+                        ? "All activities"
+                        : filter === "strength"
+                          ? "Strength"
+                          : "Running"
+                    }
+                    accessibilityState={{ selected: historyFilter === filter }}
+                    onPress={() => setHistoryFilter(filter)}
+                    style={[
+                      styles.tabChip,
+                      historyFilter === filter && styles.tabChipActive,
+                    ]}
+                  >
+                    <ThemedText type="smallBold">
+                      {filter === "all"
+                        ? "All activities"
+                        : filter === "strength"
+                          ? "Strength"
+                          : "Running"}
+                    </ThemedText>
+                  </Pressable>
+                ))}
+              </View>
+              {params.runSaved ? (
+                <ThemedText type="small">Run saved</ThemedText>
+              ) : null}
+              {historyFilter !== "strength" && data.runWeek ? (
+                <RunningWeek
+                  runs={data.weeklyRuns ?? []}
+                  unit={unitSystem === "imperial" ? "mi" : "km"}
+                  from={data.runWeek.from}
+                  to={data.runWeek.to}
+                  incomplete={data.runWeek.incomplete}
+                />
+              ) : null}
+              {history.length === 0 && !loading ? (
                 <ThemedView
                   type="backgroundElement"
                   style={styles.emptyStateCard}
                 >
                   <ThemedText type="smallBold">
-                    No completed workouts yet
+                    {historyFilter === "running"
+                      ? "Your runs will appear here"
+                      : "No completed workouts yet"}
                   </ThemedText>
                   <ThemedText
                     type="small"
                     themeColor="textSecondary"
                     style={styles.emptyStateDesc}
                   >
-                    Completed training sessions with logged sets, volume, and
-                    duration will be archived here.
+                    {historyFilter === "running"
+                      ? "Use Log run to add a completed run. Duration is enough when distance is unknown."
+                      : "Completed training sessions will appear here."}
                   </ThemedText>
                 </ThemedView>
               ) : (
-                data.completed.map((item) => (
-                  <CompletedWorkoutCard
-                    key={item.workout.id}
-                    item={item}
-                    unitSystem={unitSystem}
-                    isBusy={busyWorkoutId === item.workout.id}
-                    onOpen={() => handleOpenWorkout(item.workout.id)}
-                    onShare={
-                      community.isEnrolled
-                        ? () => setSharingWorkoutId(item.workout.id)
-                        : undefined
-                    }
-                    onEdit={() => handleEditWorkout(item)}
-                    onDelete={() => handleConfirmDelete(item)}
-                    onPressExercise={(name) => setProgressionExerciseName(name)}
-                  />
-                ))
+                history.map((entry) =>
+                  entry.kind === "run" ? (
+                    <RunCard
+                      key={entry.run.id}
+                      run={entry.run}
+                      unit={unitSystem === "imperial" ? "mi" : "km"}
+                    />
+                  ) : (
+                    (() => {
+                      const item = entry.item;
+                      return (
+                        <CompletedWorkoutCard
+                          key={item.workout.id}
+                          item={item}
+                          unitSystem={unitSystem}
+                          isBusy={busyWorkoutId === item.workout.id}
+                          onOpen={() => handleOpenWorkout(item.workout.id)}
+                          onShare={
+                            community.isEnrolled
+                              ? () => setSharingWorkoutId(item.workout.id)
+                              : undefined
+                          }
+                          onEdit={() => handleEditWorkout(item)}
+                          onDelete={() => handleConfirmDelete(item)}
+                          onPressExercise={(name) =>
+                            setProgressionExerciseName(name)
+                          }
+                        />
+                      );
+                    })()
+                  ),
+                )
               )}
+              {historyFilter !== "strength" && data.runsNextCursor ? (
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={loadingMoreRuns}
+                  onPress={() => void loadMoreRuns()}
+                  style={styles.secondaryAction}
+                >
+                  <ThemedText>
+                    {loadingMoreRuns ? "Loading runs…" : "Load more runs"}
+                  </ThemedText>
+                </Pressable>
+              ) : null}
             </View>
           ) : null}
         </ScrollView>

@@ -63,6 +63,7 @@ export interface FoodEntryCore {
 export interface StoredFoodEntry extends FoodEntryCore {
   readonly id: string;
   readonly userId: UserId;
+  readonly photoAssetId?: string | null | undefined;
   readonly clientOperationId?: string | null | undefined;
   readonly source: FoodSource;
   readonly confidence: number | null;
@@ -343,6 +344,7 @@ export const applyFoodEntryPatch = (
   now: Date,
 ): StoredFoodEntry => ({
   id: stored.id,
+  photoAssetId: stored.photoAssetId,
   userId: stored.userId,
   source: stored.source,
   confidence: stored.confidence,
@@ -635,3 +637,39 @@ export const summariseFoodEntries = (
       ) as Record<AdvancedNutrientField, number>,
     }));
 };
+
+export interface MealPhoto {
+  readonly assetId: string;
+  readonly width: number;
+  readonly height: number;
+}
+export interface MealPhotoService {
+  save(input: {
+    readonly mealId: string;
+    readonly userId: UserId;
+    readonly accessToken: string;
+    readonly clientOperationId: string;
+    readonly bytes: Uint8Array;
+    readonly width: number;
+    readonly height: number;
+  }): Promise<MealPhoto>;
+  get(
+    mealId: string,
+    options: { readonly userId: UserId; readonly accessToken: string },
+  ): Promise<
+    | (MealPhoto & { readonly signedUrl: string; readonly expiresAt: string })
+    | null
+  >;
+  remove(
+    mealId: string,
+    options: { readonly userId: UserId; readonly accessToken: string },
+  ): Promise<void>;
+  cleanup(userId?: UserId): Promise<void>;
+}
+export class MealPhotoError extends Error {
+  constructor(
+    readonly kind: "invalid_input" | "not_found" | "conflict" | "unavailable",
+  ) {
+    super(kind);
+  }
+}

@@ -1,3 +1,4 @@
+import type { MealPhotoService } from "@mizyun/core";
 import type { FastifyPluginAsync } from "fastify";
 import {
   applyFoodEntryPatch,
@@ -34,6 +35,7 @@ import type { BetaProRepository } from "../../beta-pro-repository.js";
 import { resolveAdvancedNutritionSource as advancedNutritionSource } from "./advanced-nutrition.js";
 
 interface FoodEntriesRoutesOptions {
+  readonly mealPhotoService?: MealPhotoService;
   readonly foodEntryRepository: FoodEntryRepository;
   readonly betaProRepository?: BetaProRepository;
   readonly profileRepository?: ProfileRepository;
@@ -150,6 +152,7 @@ const toWire = (entry: StoredFoodEntry): FoodEntryResponse =>
   foodEntryResponseSchema.parse({
     foodEntry: {
       id: entry.id,
+      photoAssetId: entry.photoAssetId ?? null,
       userId: entry.userId,
       name: entry.name,
       consumedAt: entry.consumedAt.toISOString(),
@@ -817,6 +820,13 @@ export const foodEntriesRoutes: FastifyPluginAsync<
       await options.foodEntryRepository.delete(id, {
         accessToken: principal.accessToken,
       });
+      if (options.mealPhotoService) {
+        try {
+          await options.mealPhotoService.cleanup(principal.userId);
+        } catch {
+          request.log.warn("Meal photo bytes remain queued for cleanup retry.");
+        }
+      }
       void reply.status(204).send();
     },
   );

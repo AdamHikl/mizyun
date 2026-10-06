@@ -63,6 +63,7 @@ import type { UserId } from "./index";
 import type { StoredBodyMeasurement } from "./body-measurement";
 import type { StoredGoal } from "./goal";
 import type { StoredProfile } from "./profile";
+import { hasRunningActivity } from "./running";
 import type { StoredWorkout } from "./workout";
 
 /**
@@ -262,6 +263,7 @@ export const estimateExerciseKcal = (
 ): number => {
   let totalSets = 0;
   for (const w of workouts) {
+    if (hasRunningActivity(w.details)) continue;
     totalSets += setCountForWorkout(w.id);
   }
   return Math.round(totalSets * KCAL_PER_SET_HINT);

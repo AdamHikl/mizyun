@@ -12,6 +12,8 @@ const session = {
 } as AuthSession;
 function client(membership = "withdrawn") {
   const request = vi.fn(async (options: RequestOptions) => {
+    if (options.path.startsWith("/v1/runs"))
+      return { ok: true, value: { runs: [], nextCursor: null } };
     if (options.path.startsWith("/v1/workouts"))
       return { ok: true, value: { workouts: [] } };
     if (options.path.startsWith("/v1/exercises"))
@@ -39,6 +41,10 @@ describe("authenticated startup display preloading", () => {
     await preloadAppData(raw, session, () => true, new Date(2026, 9, 3, 12));
     const paths = raw.request.mock.calls.map(([options]) => options.path);
     expect(paths).toContain("/v1/workouts?limit=200");
+    expect(paths).toContain("/v1/runs?limit=50");
+    expect(
+      paths.some((path) => path.startsWith("/v1/runs?limit=50&from=")),
+    ).toBe(true);
     expect(paths).toContain("/v1/workouts?kind=routine&limit=200");
     expect(paths).toContain("/v1/exercises?limit=200");
     expect(

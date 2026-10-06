@@ -320,6 +320,7 @@ module.exports = {
           }
         : {}),
       enableProgressPhotos: variantName === "dev",
+      enableMealPhotos: variantName === "dev",
     },
     ios: {
       ...baseIos,

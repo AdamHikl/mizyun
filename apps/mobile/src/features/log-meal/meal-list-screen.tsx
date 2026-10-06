@@ -1,4 +1,9 @@
 import {
+  removeMealPhotoRetry,
+  mealPhotoRetentionEnabled,
+} from "./meal-photo-retention";
+import { PrivateMealPhoto } from "./private-meal-photo";
+import {
   ActivityIndicator,
   AppState,
   Alert,
@@ -573,15 +578,18 @@ export function MealListScreen() {
     async (entryId: string): Promise<void> => {
       setBusyEntryId(entryId);
       setState((current) => ({ ...current, message: null }));
+      const owner = session?.user.id;
       const result = await deleteFoodEntry(entryId);
       setBusyEntryId(null);
       if (!result.ok) {
         setState((current) => ({ ...current, message: result.message }));
         return;
       }
+      if (owner && mealPhotoRetentionEnabled())
+        await removeMealPhotoRetry(owner, entryId);
       await load();
     },
-    [load],
+    [load, session?.user.id],
   );
 
   const confirmDelete = useCallback(
@@ -1813,6 +1821,11 @@ function MealEntryRow(props: {
           Automatically logged · review if your meal changed
         </ThemedText>
       ) : null}
+      <PrivateMealPhoto
+        entryId={entry.id}
+        hasPhoto={Boolean(entry.photoAssetId)}
+        editable
+      />
       {/* Semantic Macro Badges */}
       <View style={styles.macroBadgesRow}>
         {entry.caloriesKcal !== null ? (

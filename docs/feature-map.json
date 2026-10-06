@@ -6,7 +6,7 @@
     {
       "id": "meal-logging",
       "title": "Meal & Nutrition Logging",
-      "summary": "Manual food CRUD, keyset-paginated history/search, macro/calorie calculations, local-day offsets, offline drafts, and photo/text/refine generation with Pro nutrient estimates. Explicit opt-in recurring saved meals with server-side schedules and durable occurrence ledger.",
+      "summary": "Manual food CRUD, keyset-paginated history/search, macro/calorie calculations, local-day offsets, offline drafts, and photo/text/refine generation with Pro nutrient estimates. Explicit opt-in recurring saved meals with server-side schedules and durable occurrence ledger. Dev-only optional compressed private meal thumbnails with explicit source choice and durable cleanup/retry.",
       "aliases": ["food", "nutrition", "calories", "macros", "diet", "meal"],
       "entryPoints": [
         "apps/api/src/modules/food-entries/routes.ts",
@@ -29,7 +29,12 @@
         "packages/core/src/nutrition-per100g.test.ts",
         "packages/adapters/supabase-server/src/recurring-meal-repository.ts",
         "packages/adapters/supabase-server/src/recurring-meal-repository.test.ts",
-        "scripts/test-recurring-meals-db.py"
+        "scripts/test-recurring-meals-db.py",
+        "packages/adapters/supabase-server/src/meal-photos.ts",
+        "packages/adapters/supabase-server/src/meal-photos.test.ts",
+        "packages/config/src/meal-photos.ts",
+        "packages/config/src/meal-photos.test.ts",
+        "scripts/verify-meal-photos.mjs"
       ],
       "contracts": [
         "packages/contracts/src/food-entry.ts",
@@ -44,7 +49,8 @@
       "api": [
         "apps/api/src/modules/food-entries/routes.ts",
         "apps/api/src/modules/food-entries/draft-route.ts",
-        "apps/api/src/modules/recurring-meals/routes.ts"
+        "apps/api/src/modules/recurring-meals/routes.ts",
+        "apps/api/src/modules/food-entries/photo-routes.ts"
       ],
       "ui": [
         "apps/mobile/src/app/(tabs)/meals.tsx",
@@ -52,22 +58,27 @@
         "apps/mobile/src/features/log-meal/meal-list-screen.tsx",
         "apps/mobile/src/features/log-meal/meal-form.ts",
         "apps/mobile/src/features/log-meal/log-meal-data.ts",
-        "apps/mobile/src/app/recurring-meals.tsx"
+        "apps/mobile/src/app/recurring-meals.tsx",
+        "apps/mobile/src/features/log-meal/private-meal-photo.tsx"
       ],
       "adapters": [
         "packages/adapters/supabase-server/src/food-entry-repository.ts",
-        "packages/adapters/supabase-server/src/recurring-meal-repository.ts"
+        "packages/adapters/supabase-server/src/recurring-meal-repository.ts",
+        "packages/adapters/supabase-server/src/meal-photos.ts"
       ],
       "dataTables": [
         "food_entries",
         "recurring_meal_schedules",
-        "recurring_meal_occurrences"
+        "recurring_meal_occurrences",
+        "meal_photos",
+        "meal_photo_cleanup_jobs"
       ],
       "migrationPaths": [
         "supabase/migrations/20260714101000_user_data.sql",
         "supabase/migrations/20260718100000_persist_001_columns.sql",
         "supabase/migrations/20260908120000_security_and_retry_integrity.sql",
-        "supabase/migrations/20261003100000_recurring_meals.sql"
+        "supabase/migrations/20261003100000_recurring_meals.sql",
+        "supabase/migrations/20261006200000_retained_meal_photos.sql"
       ],
       "tests": [
         "apps/api/src/modules/food-entries/routes.test.ts",
@@ -78,7 +89,13 @@
         "packages/core/src/nutrition-per100g.test.ts",
         "apps/mobile/src/features/log-meal/meal-form.test.ts",
         "apps/mobile/src/features/log-meal/meal-lifecycle-data.test.ts",
-        "apps/mobile/src/features/log-meal/meal-retry-durability.test.ts"
+        "apps/mobile/src/features/log-meal/meal-retry-durability.test.ts",
+        "apps/api/src/modules/food-entries/photo-routes.test.ts",
+        "apps/mobile/src/features/log-meal/meal-photo-retention.test.ts",
+        "apps/mobile/src/features/log-meal/private-meal-photo.test.tsx",
+        "packages/adapters/supabase-server/src/meal-photos.test.ts",
+        "packages/config/src/meal-photos.test.ts",
+        "supabase/tests/database/0034_retained_meal_photos.test.sql"
       ],
       "relations": [
         {
@@ -109,7 +126,9 @@
         "docs/patterns/README.md#pat-001",
         "docs/MUTATION_IDEMPOTENCY_AUDIT.md",
         "docs/adr/0038-recurring-meal-logging.md",
-        "docs/RECURRING_MEALS_PLAN_2026-10-03.md"
+        "docs/RECURRING_MEALS_PLAN_2026-10-03.md",
+        "docs/adr/0048-private-meal-thumbnails.md",
+        "docs/MEAL_PHOTOS_DEV_EVIDENCE_2026-10-06.md"
       ],
       "verificationCommands": [
         "pnpm --filter @mizyun/api test src/modules/food-entries",
@@ -117,7 +136,7 @@
       ],
       "lastReviewedSha": "ed70df727fdb38940b686b1dd2647d519f8478cd",
       "lastReviewedDate": "2026-09-22",
-      "limitations": "Reviewed against HEAD plus disclosed local pagination and meal-workflow changes. Live vision model photo drafting requires external provider evaluation per BEFORE_TESTING.md",
+      "limitations": "Reviewed against HEAD plus disclosed local pagination and meal-workflow changes. Live vision model photo drafting requires external provider evaluation per BEFORE_TESTING.md Retained meal photos require exact Dev/native/storage acceptance; Production disabled.",
       "requirements": [
         "NUTR-01",
         "NUTR-02",
@@ -127,19 +146,30 @@
         "NUTR-REC-001"
       ],
       "openAcceptance": [
-        "REL-AUD-007/Q2: Durable unknown-outcome persistence for ambiguous retries across network drops"
+        "REL-AUD-007/Q2: Durable unknown-outcome persistence for ambiguous retries across network drops",
+        "MEAL-PHOTO-001/#218: exact Dev/native thumbnail, retry, deletion and accessibility acceptance"
       ]
     },
     {
       "id": "workouts-sets",
       "title": "Workouts & Sets Tracking",
       "summary": "Custom exercises, workout templates, active workout session recovery, and progressive overload calculations.",
-      "aliases": ["workout", "exercise", "training", "sets", "gym", "routine"],
+      "aliases": [
+        "workout",
+        "exercise",
+        "training",
+        "sets",
+        "gym",
+        "routine",
+        "running"
+      ],
       "entryPoints": [
         "apps/api/src/modules/workouts/routes.ts",
         "apps/api/src/modules/workout-sets/routes.ts",
         "apps/api/src/modules/exercises/routes.ts",
-        "apps/mobile/src/features/workouts/index.ts"
+        "apps/mobile/src/features/workouts/index.ts",
+        "apps/api/src/modules/runs/routes.ts",
+        "apps/mobile/src/features/log-run/index.ts"
       ],
       "ownedPaths": [
         "apps/api/src/modules/workouts",
@@ -151,19 +181,28 @@
         "packages/core/src/exercise-catalog-data.ts",
         "packages/core/src/exercise-catalog-legacy.ts",
         "scripts/import-exercise-catalog.mjs",
-        "scripts/import-exercise-catalog.test.mjs"
+        "scripts/import-exercise-catalog.test.mjs",
+        "apps/api/src/modules/runs",
+        "apps/api/src/run-repository.ts",
+        "apps/mobile/src/features/log-run",
+        "apps/mobile/src/features/running",
+        "packages/core/src/running.ts",
+        "packages/core/src/run-repository.ts"
       ],
       "contracts": [
         "packages/contracts/src/workout.ts",
         "packages/contracts/src/workout-set.ts",
-        "packages/contracts/src/exercise.ts"
+        "packages/contracts/src/exercise.ts",
+        "packages/contracts/src/run.ts"
       ],
       "domainPort": [
         "packages/core/src/workout.ts",
         "packages/core/src/workout-lifecycle.ts",
         "packages/core/src/workout-set.ts",
         "packages/core/src/training-prescription.ts",
-        "packages/core/src/exercise-catalog.ts"
+        "packages/core/src/exercise-catalog.ts",
+        "packages/core/src/running.ts",
+        "packages/core/src/run-repository.ts"
       ],
       "api": [
         "apps/api/src/modules/workouts/routes.ts",
@@ -174,18 +213,27 @@
         "apps/mobile/src/app/(tabs)/workouts.tsx",
         "apps/mobile/src/app/log-workout.tsx",
         "apps/mobile/src/features/log-workout/log-workout-data.ts",
-        "apps/mobile/src/features/workouts/exercise-progression-data.ts"
+        "apps/mobile/src/features/workouts/exercise-progression-data.ts",
+        "apps/mobile/src/app/log-run.tsx",
+        "apps/mobile/src/app/run/[id].tsx"
       ],
       "adapters": [
         "packages/adapters/supabase-server/src/workout-repository.ts",
         "packages/adapters/supabase-server/src/workout-set-repository.ts",
-        "packages/adapters/supabase-server/src/exercise-repository.ts"
+        "packages/adapters/supabase-server/src/exercise-repository.ts",
+        "packages/adapters/supabase-server/src/run-repository.ts"
       ],
-      "dataTables": ["exercises", "workouts", "workout_sets"],
+      "dataTables": [
+        "exercises",
+        "workouts",
+        "workout_sets",
+        "run_operation_receipts"
+      ],
       "migrationPaths": [
         "supabase/migrations/20260714101000_user_data.sql",
         "supabase/migrations/20260721100000_persist_002_workout_columns.sql",
-        "supabase/migrations/20260914134000_backfill_workout_routine_lifecycle.sql"
+        "supabase/migrations/20260914134000_backfill_workout_routine_lifecycle.sql",
+        "supabase/migrations/20261006120000_manual_running.sql"
       ],
       "tests": [
         "apps/api/src/modules/workouts/routes.test.ts",
@@ -197,7 +245,11 @@
         "packages/core/src/workout-lifecycle.test.ts",
         "packages/core/src/training-prescription.test.ts",
         "packages/core/src/exercise-catalog.test.ts",
-        "apps/mobile/src/features/workouts/exercise-library-modal.test.tsx"
+        "apps/mobile/src/features/workouts/exercise-library-modal.test.tsx",
+        "packages/core/src/running.test.ts",
+        "packages/contracts/src/run.test.ts",
+        "packages/adapters/supabase-server/src/run-repository.test.ts",
+        "apps/api/src/modules/runs/routes.test.ts"
       ],
       "relations": [
         {
@@ -220,7 +272,8 @@
         "docs/adr/0009-active-workout-authority-and-recovery.md",
         "docs/patterns/README.md#pat-003",
         "docs/adr/0040-free-exercise-catalog-and-legacy-identity.md",
-        "docs/EXERCISE_CATALOG_RESEARCH_2026-10-04.md"
+        "docs/EXERCISE_CATALOG_RESEARCH_2026-10-04.md",
+        "docs/RUNNING_IMPLEMENTATION_PLAN_2026-10-06.md"
       ],
       "verificationCommands": [
         "pnpm --filter @mizyun/api test src/modules/workouts src/modules/workout-sets src/modules/exercises",

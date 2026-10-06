@@ -140,7 +140,12 @@ export const communityPublicationRoutes: FastifyPluginAsync<
         );
       }
 
-      if (workout.completedAt === null || !isSessionDetails(workout.details)) {
+      if (
+        workout.details.activityType === "running" ||
+        "runSummary" in workout.details ||
+        workout.completedAt === null ||
+        !isSessionDetails(workout.details)
+      ) {
         return sendApiError(
           reply,
           request,
@@ -299,7 +304,12 @@ export const communityPublicationRoutes: FastifyPluginAsync<
         );
       }
 
-      if (workout.completedAt === null || !isSessionDetails(workout.details)) {
+      if (
+        workout.details.activityType === "running" ||
+        "runSummary" in workout.details ||
+        workout.completedAt === null ||
+        !isSessionDetails(workout.details)
+      ) {
         return sendApiError(
           reply,
           request,

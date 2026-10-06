@@ -70,6 +70,7 @@ export type AdvancedNutritionCapability = z.infer<
 export const foodEntrySchema = z.object({
   id: z.string().uuid(),
   userId: z.string().uuid(),
+  photoAssetId: z.string().uuid().nullable().optional(),
   name: z.string().trim().min(1).max(200),
   consumedAt: isoInstantSchema,
   caloriesKcal: z.number().gte(0).lte(20_000).multipleOf(0.01).nullable(),
@@ -423,3 +424,31 @@ export const foodDraftResponseSchema = z.object({
 });
 
 export type FoodDraftResponse = z.infer<typeof foodDraftResponseSchema>;
+
+export const mealPhotoUploadSchema = z
+  .object({
+    clientOperationId: z.string().uuid(),
+    imageBase64: z
+      .string()
+      .min(4)
+      .max(349_528)
+      .regex(/^[A-Za-z0-9+/]+={0,2}$/),
+    mimeType: z.literal("image/jpeg"),
+    width: z.number().int().min(1).max(640),
+    height: z.number().int().min(1).max(640),
+  })
+  .strict();
+export const mealPhotoSchema = z.object({
+  assetId: z.string().uuid(),
+  width: z.number().int().min(1).max(640),
+  height: z.number().int().min(1).max(640),
+});
+export const mealPhotoResponseSchema = z.object({ photo: mealPhotoSchema });
+export const mealPhotoReadResponseSchema = z.object({
+  photo: mealPhotoSchema
+    .extend({ signedUrl: z.string(), expiresAt: z.string().datetime() })
+    .nullable(),
+});
+export type MealPhotoUpload = z.infer<typeof mealPhotoUploadSchema>;
+export type MealPhotoResponse = z.infer<typeof mealPhotoResponseSchema>;
+export type MealPhotoReadResponse = z.infer<typeof mealPhotoReadResponseSchema>;

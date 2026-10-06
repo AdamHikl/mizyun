@@ -17,11 +17,15 @@ import {
   type Exercise,
   type ExerciseListResponse,
   type Workout,
+  type RunRecord,
   type WorkoutListResponse,
   type WorkoutSet,
   type WorkoutSetListResponse,
   type WorkoutResponse,
 } from "@mizyun/contracts";
+
+import { listRuns } from "@/features/running/client";
+import { runningDate, hasRunningActivity } from "@mizyun/core";
 
 import { apiClient } from "@/composition/api-client";
 
@@ -62,6 +66,10 @@ export interface WorkoutsHubResult {
   readonly completed: ReadonlyArray<ProcessedWorkout>;
   readonly exercises: ReadonlyArray<Exercise>;
   readonly message: string | null;
+  readonly runs?: readonly RunRecord[];
+  readonly runsNextCursor?: string | null;
+  readonly weeklyRuns?: readonly RunRecord[];
+  readonly runWeek?: { from: string; to: string; incomplete: boolean };
 }
 
 export interface CreateWorkoutPayload {
@@ -357,23 +365,26 @@ export const processWorkout = (
 export const fetchWorkoutsHubData = async (
   client: ApiClient = apiClient,
 ): Promise<WorkoutsHubResult> => {
-  const [workoutResult, routineResult, exerciseResult] = await Promise.all([
-    client.request<WorkoutListResponse>({
-      method: "GET",
-      path: "/v1/workouts?limit=200",
-      schema: workoutListResponseSchema,
-    }),
-    client.request<WorkoutListResponse>({
-      method: "GET",
-      path: "/v1/workouts?kind=routine&limit=200",
-      schema: workoutListResponseSchema,
-    }),
-    client.request<ExerciseListResponse>({
-      method: "GET",
-      path: "/v1/exercises?limit=200",
-      schema: exerciseListResponseSchema,
-    }),
-  ]);
+  const [workoutResult, routineResult, exerciseResult, runResult, weekResult] =
+    await Promise.all([
+      client.request<WorkoutListResponse>({
+        method: "GET",
+        path: "/v1/workouts?limit=200",
+        schema: workoutListResponseSchema,
+      }),
+      client.request<WorkoutListResponse>({
+        method: "GET",
+        path: "/v1/workouts?kind=routine&limit=200",
+        schema: workoutListResponseSchema,
+      }),
+      client.request<ExerciseListResponse>({
+        method: "GET",
+        path: "/v1/exercises?limit=200",
+        schema: exerciseListResponseSchema,
+      }),
+      listRuns(client),
+      fetchRunningWeek(client),
+    ]);
 
   if (!workoutResult.ok) {
     return {
@@ -397,7 +408,9 @@ export const fetchWorkoutsHubData = async (
   const workouts = Array.from(workoutMap.values());
 
   // Fetch sets only for non-routine workouts in parallel
-  const sessionWorkouts = workouts.filter((w) => !isRoutineDetails(w.details));
+  const sessionWorkouts = workouts.filter(
+    (w) => !isRoutineDetails(w.details) && !hasRunningActivity(w.details),
+  );
   const setsResults = await Promise.all(
     sessionWorkouts.map((w) =>
       client.request<WorkoutSetListResponse>({
@@ -416,9 +429,9 @@ export const fetchWorkoutsHubData = async (
   }
 
   const today = new Date();
-  const processed = workouts.map((w) =>
-    processWorkout(w, allSets, exercises, today),
-  );
+  const processed = workouts
+    .filter((w) => !hasRunningActivity(w.details))
+    .map((w) => processWorkout(w, allSets, exercises, today));
 
   const activeAndPlanned = processed
     .filter((p) => p.status !== "completed")
@@ -440,7 +453,13 @@ export const fetchWorkoutsHubData = async (
     activeAndPlanned,
     completed,
     exercises,
+    runs: runResult.ok ? runResult.value.runs : [],
+    runsNextCursor: runResult.ok ? runResult.value.nextCursor : null,
+    weeklyRuns: weekResult.runs,
+    runWeek: weekResult.week,
     message:
+      !runResult.ok ||
+      weekResult.week.incomplete ||
       !routineResult.ok ||
       !exerciseResult.ok ||
       setsResults.some((result) => !result.ok)
@@ -769,3 +788,39 @@ export const isReusableRoutine = (workout: Workout): boolean =>
   (!isSessionDetails(workout.details) &&
     workout.completedAt === null &&
     extractPlannedExercisesFromWorkout(workout).length > 0);
+
+export async function fetchRunningWeek(
+  client: ApiClient,
+  now = new Date(),
+  zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+) {
+  const today = runningDate(now, zone);
+  const day = new Date(`${today}T12:00:00Z`);
+  day.setUTCDate(day.getUTCDate() - ((day.getUTCDay() + 6) % 7));
+  const from = day.toISOString().slice(0, 10);
+  day.setUTCDate(day.getUTCDate() + 6);
+  const to = day.toISOString().slice(0, 10);
+  const runs: RunRecord[] = [];
+  const seen = new Set<string>();
+  let cursor: string | undefined;
+  let incomplete = false;
+  for (let page = 0; page < 10; page++) {
+    const result = await listRuns(client, { from, to, cursor });
+    if (!result.ok) {
+      incomplete = true;
+      break;
+    }
+    for (const run of result.value.runs)
+      if (!seen.has(run.id)) {
+        seen.add(run.id);
+        runs.push(run);
+      }
+    if (!result.value.nextCursor) break;
+    if (result.value.nextCursor === cursor || page === 9) {
+      incomplete = true;
+      break;
+    }
+    cursor = result.value.nextCursor;
+  }
+  return { runs, week: { from, to, incomplete } };
+}
