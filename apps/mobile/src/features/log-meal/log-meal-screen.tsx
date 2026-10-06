@@ -155,18 +155,23 @@ export function LogMealScreen() {
     }
   }, [error]);
   const [draftLoaded, setDraftLoaded] = useState(false);
-  // VISION-001 — photo-to-draft state. `attachedPhoto` holds the
+  // VISION-001 — photo-to-draft state. `attachedPhotos` holds the
   // user's selected or captured image before submission. `snapping` is true
   // while the photo is uploading and the configured vision provider is being
   // consulted. The form pre-fills with the candidate's name, portion weight,
   // calories, and macros;
   // the user can edit before saving, while `draftWarnings` keeps provider
   // uncertainty visible.
-  const [attachedPhoto, setAttachedPhoto] = useState<{
-    uri: string;
-    width?: number;
-    height?: number;
-  } | null>(null);
+  const [attachedPhotos, setAttachedPhotos] = useState<
+    readonly {
+      uri: string;
+      width?: number;
+      height?: number;
+    }[]
+  >([]);
+  const [pendingPhotoDrafts, setPendingPhotoDrafts] = useState<
+    readonly FoodDraftCandidate[]
+  >([]);
   const [snapping, setSnapping] = useState(false);
   const [mealDescription, setMealDescription] = useState("");
   const [draftWarnings, setDraftWarnings] = useState<readonly string[]>([]);
@@ -183,6 +188,10 @@ export function LogMealScreen() {
   const [showRoutineModal, setShowRoutineModal] = useState(false);
   const hadFailure = useRef(false);
   const userId = session?.user.id ?? null;
+  const mealOwner = useRef(userId);
+  mealOwner.current = userId;
+  const photoOwner = useRef("");
+  photoOwner.current = `${userId ?? ""}:${session?.accessToken ?? ""}`;
   const measurement = useLoggingFlowMeasurement("meal", userId);
   const advancedCapability = useAdvancedNutritionCapability(userId);
 
@@ -218,6 +227,8 @@ export function LogMealScreen() {
       measurement.current?.tap();
       setNutritionBasis("total");
       setAiDraft(null);
+      setAttachedPhotos([]);
+      setPendingPhotoDrafts([]);
       setDraftWarnings([]);
       setSourceProposalId(null);
       setName(meal.name);
@@ -266,6 +277,8 @@ export function LogMealScreen() {
   useEffect(() => {
     if (userId === null) return;
     let active = true;
+    setAttachedPhotos([]);
+    setPendingPhotoDrafts([]);
     void loadLoggingDraft(userId, "meal", isRecoverableMealDraft).then(
       (draft) => {
         if (!active) return;
@@ -297,9 +310,13 @@ export function LogMealScreen() {
           setAiDraft(upgraded.aiDraft ?? null);
           setSourceProposalId(upgraded.sourceProposalId ?? null);
           setRefineInstruction(upgraded.refineInstruction ?? "");
-          if (upgraded.attachedPhotoUri) {
-            setAttachedPhoto({ uri: upgraded.attachedPhotoUri });
-          }
+          setAttachedPhotos(
+            (
+              upgraded.attachedPhotoUris ??
+              (upgraded.attachedPhotoUri ? [upgraded.attachedPhotoUri] : [])
+            ).map((uri) => ({ uri })),
+          );
+          setPendingPhotoDrafts(upgraded.pendingPhotoDrafts ?? []);
           setDraftWarnings(
             upgraded.aiDraft === undefined
               ? []
@@ -351,13 +368,13 @@ export function LogMealScreen() {
       ...(aiDraft === null ? {} : { aiDraft }),
       ...(sourceProposalId === null ? {} : { sourceProposalId }),
       ...(refineInstruction.trim().length > 0 ? { refineInstruction } : {}),
-      ...(attachedPhoto !== null
-        ? { attachedPhotoUri: attachedPhoto.uri }
-        : {}),
+      attachedPhotoUris: attachedPhotos.map((photo) => photo.uri),
+      pendingPhotoDrafts,
     });
   }, [
     aiDraft,
-    attachedPhoto,
+    attachedPhotos,
+    pendingPhotoDrafts,
     calories,
     carbs,
     clientOperationId,
@@ -378,6 +395,13 @@ export function LogMealScreen() {
   ]);
 
   const onSubmit = useCallback(async () => {
+    const owner = mealOwner.current;
+    const abandonIfOwnerChanged = () => {
+      if (owner === mealOwner.current) return false;
+      isSubmittingRef.current = false;
+      setSubmitting(false);
+      return true;
+    };
     const attempt = measurement.current;
     if (!draftLoaded || isSubmittingRef.current || isCompletedRef.current)
       return;
@@ -522,10 +546,10 @@ export function LogMealScreen() {
         ...(aiDraft === null ? {} : { aiDraft }),
         ...(sourceProposalId === null ? {} : { sourceProposalId }),
         ...(refineInstruction.trim().length > 0 ? { refineInstruction } : {}),
-        ...(attachedPhoto !== null
-          ? { attachedPhotoUri: attachedPhoto.uri }
-          : {}),
+        attachedPhotoUris: attachedPhotos.map((photo) => photo.uri),
+        pendingPhotoDrafts,
       });
+      if (abandonIfOwnerChanged()) return;
       if (!persisted) {
         isSubmittingRef.current = false;
         setSubmitting(false);
@@ -578,10 +602,69 @@ export function LogMealScreen() {
             consumedAt: fixedConsumedAt,
             ...(Object.keys(details).length === 0 ? {} : { details }),
           };
+    if (abandonIfOwnerChanged()) return;
     submittedOperationRef.current = form;
 
     const result = await submitLogMeal(form);
+    if (abandonIfOwnerChanged()) return;
     if (result.ok) {
+      const queued = pendingPhotoDrafts[0];
+      if (queued) {
+        const advancedEnabled = await advancedCapability.refresh();
+        if (abandonIfOwnerChanged()) return;
+        const next = mealDraftForAdvancedAccess(queued, advancedEnabled);
+        const strings = mealFormStringsFromDraft(next);
+        const nextId = createOperationId();
+        const remaining = pendingPhotoDrafts.slice(1);
+        const nextDraft = {
+          ...strings,
+          portionGrams: portionGramsStringFromDraft(next),
+          nutritionBasis: "total" as const,
+          clientOperationId: nextId,
+          consumedAt: fixedConsumedAt,
+          mealDate: mealDate ?? undefined,
+          submissionVersion: 1,
+          description: mealDescription,
+          aiDraft: next,
+          pendingPhotoDrafts: remaining,
+          attachedPhotoUris: [],
+        };
+        const persisted =
+          userId !== null &&
+          (await saveLoggingDraft(userId, "meal", nextDraft));
+        if (abandonIfOwnerChanged()) return;
+        if (!persisted) {
+          isSubmittingRef.current = false;
+          setSubmitting(false);
+          hadFailure.current = true;
+          setError(
+            "Meal saved, but the next draft could not be saved on this device. Retry Save to recover the remaining drafts.",
+          );
+          return;
+        }
+        submittedOperationRef.current = null;
+        hadFailure.current = false;
+        setClientOperationId(nextId);
+        setName(strings.name);
+        setCalories(strings.calories);
+        setProtein(strings.protein);
+        setCarbs(strings.carbs);
+        setFat(strings.fat);
+        setPortionGrams(nextDraft.portionGrams);
+        setNutritionBasis("total");
+        setAdvanced(strings);
+        setAiDraft(next);
+        setDraftWarnings(draftEvidenceLines(next));
+        setPendingPhotoDrafts(remaining);
+        setAttachedPhotos([]);
+        setRefineInstruction("");
+        setSourceProposalId(null);
+        isSubmittingRef.current = false;
+        setSubmitting(false);
+        setError(null);
+        formScrollRef.current?.scrollTo({ y: 0, animated: true });
+        return;
+      }
       isCompletedRef.current = true;
       submittedOperationRef.current = null;
       attempt?.complete();
@@ -641,36 +724,80 @@ export function LogMealScreen() {
     refineInstruction,
     sourceProposalId,
     userId,
-    attachedPhoto,
+    attachedPhotos,
+    pendingPhotoDrafts,
   ]);
 
+  const addPhotos = useCallback(
+    (
+      assets: readonly { uri: string; width?: number; height?: number }[],
+      limit: number,
+    ) => {
+      const photos = [
+        ...attachedPhotos,
+        ...assets.filter(
+          (asset) => !attachedPhotos.some((photo) => photo.uri === asset.uri),
+        ),
+      ];
+      if (photos.length > limit) {
+        setError(
+          limit === 3
+            ? "Choose up to three photos per request."
+            : "Multiple photos require Pro. Remove photos to continue with one.",
+        );
+        return;
+      }
+      setAttachedPhotos(photos);
+    },
+    [attachedPhotos],
+  );
+
   const onChoosePhoto = useCallback(async () => {
-    measurement.current?.tap();
-    if (hadFailure.current) measurement.current?.retry();
+    const owner = photoOwner.current;
     setError(null);
+    const pro = await advancedCapability.refresh();
+    if (owner !== photoOwner.current) return;
+    const limit = pro ? 3 : 1;
+    if (attachedPhotos.length >= limit) {
+      setError(
+        pro
+          ? "Remove a photo before adding another."
+          : "Multiple photos require Pro.",
+      );
+      return;
+    }
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      setError("Photo library access is required to choose a meal photo.");
+      setError("Photo library access is required to choose meal photos.");
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
       quality: 0.85,
       allowsEditing: false,
+      allowsMultipleSelection: pro,
+      selectionLimit: limit - attachedPhotos.length,
+      orderedSelection: pro,
     });
-    if (result.canceled || !result.assets?.[0]) return;
-    const asset = result.assets[0];
-    setAttachedPhoto({
-      uri: asset.uri,
-      width: asset.width,
-      height: asset.height,
-    });
-  }, []);
+    if (owner !== photoOwner.current) return;
+    if (!result.canceled && result.assets?.length)
+      addPhotos(result.assets, limit);
+  }, [advancedCapability.refresh, attachedPhotos, addPhotos]);
 
   const onTakePhoto = useCallback(async () => {
-    measurement.current?.tap();
-    if (hadFailure.current) measurement.current?.retry();
+    const owner = photoOwner.current;
     setError(null);
+    const pro = await advancedCapability.refresh();
+    if (owner !== photoOwner.current) return;
+    const limit = pro ? 3 : 1;
+    if (attachedPhotos.length >= limit) {
+      setError(
+        pro
+          ? "Remove a photo before adding another."
+          : "Multiple photos require Pro.",
+      );
+      return;
+    }
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
       setError("Camera permission is required to take a meal photo.");
@@ -681,25 +808,26 @@ export function LogMealScreen() {
       quality: 0.85,
       allowsEditing: false,
     });
-    if (result.canceled || !result.assets?.[0]) return;
-    const asset = result.assets[0];
-    setAttachedPhoto({
-      uri: asset.uri,
-      width: asset.width,
-      height: asset.height,
-    });
-  }, []);
+    if (owner !== photoOwner.current) return;
+    if (!result.canceled && result.assets?.length)
+      addPhotos(result.assets, limit);
+  }, [advancedCapability.refresh, attachedPhotos, addPhotos]);
 
-  const onRemovePhoto = useCallback(() => {
-    setAttachedPhoto(null);
+  const onRemovePhoto = useCallback((index: number) => {
+    setAttachedPhotos((photos) => photos.filter((_, i) => i !== index));
   }, []);
 
   const executeProcessPhoto = useCallback(
     async (photoUri?: string) => {
+      const owner = photoOwner.current;
       const attempt = measurement.current;
-      const photoSource =
-        attachedPhoto ?? (photoUri ? { uri: photoUri } : null);
-      if (photoSource === null) return;
+      const photoSources =
+        attachedPhotos.length > 0
+          ? attachedPhotos
+          : photoUri
+            ? [{ uri: photoUri }]
+            : [];
+      if (photoSources.length === 0) return;
       attempt?.tap();
       if (hadFailure.current) attempt?.retry();
       setSnapping(true);
@@ -707,12 +835,27 @@ export function LogMealScreen() {
       setDraftWarnings([]);
       try {
         const hint = mealDescription.trim();
-        const photo = await normalizeMealPhoto(photoSource);
+        const pro = await advancedCapability.refresh();
+        if (owner !== photoOwner.current) return;
+        if (photoSources.length > (pro ? 3 : 1)) {
+          setError(
+            "Multiple photos require Pro. Remove photos to continue with one.",
+          );
+          return;
+        }
+        const photos: Blob[] = [];
+        for (const source of photoSources)
+          photos.push(await normalizeMealPhoto(source));
+        if (owner !== photoOwner.current) return;
         const draft = await snapMealPhoto(
-          photo,
+          photos[0]!,
           "image/jpeg",
           hint.length > 0 ? hint : undefined,
+          photos
+            .slice(1)
+            .map((photo) => ({ photo, mimeType: "image/jpeg" as const })),
         );
+        if (owner !== photoOwner.current) return;
         if (!draft.ok) {
           hadFailure.current = true;
           attempt?.fail("upload", "unexpected", true);
@@ -720,6 +863,14 @@ export function LogMealScreen() {
           return;
         }
         const advancedEnabled = await advancedCapability.refresh();
+        if (owner !== photoOwner.current) return;
+        setPendingPhotoDrafts(
+          (draft.drafts ?? [draft.draft])
+            .slice(1)
+            .map((candidate) =>
+              mealDraftForAdvancedAccess(candidate, advancedEnabled),
+            ),
+        );
         const strings = mealFormStringsFromDraft(draft.draft);
         setNutritionBasis("total");
         setName(strings.name);
@@ -753,7 +904,7 @@ export function LogMealScreen() {
         setSnapping(false);
       }
     },
-    [advancedCapability.refresh, attachedPhoto, loadAiUsage, mealDescription],
+    [advancedCapability.refresh, attachedPhotos, loadAiUsage, mealDescription],
   );
 
   const executeTextDraft = useCallback(
@@ -778,6 +929,8 @@ export function LogMealScreen() {
         }
         const advancedEnabled = await advancedCapability.refresh();
         const strings = mealFormStringsFromDraft(result.draft);
+        setPendingPhotoDrafts([]);
+        setAttachedPhotos([]);
         setNutritionBasis("total");
         setName(strings.name);
         setPortionGrams(portionGramsStringFromDraft(result.draft));
@@ -907,12 +1060,12 @@ export function LogMealScreen() {
   });
 
   const onProcessPhoto = useCallback(async () => {
-    if (attachedPhoto === null) return;
+    if (attachedPhotos.length === 0) return;
     await requestAction({
       kind: "meal_photo_draft",
-      photoUri: attachedPhoto.uri,
+      photoUri: attachedPhotos[0]!.uri,
     });
-  }, [attachedPhoto, requestAction]);
+  }, [attachedPhotos, requestAction]);
 
   const onTextDraft = useCallback(async () => {
     const text = mealDescription.trim();
@@ -943,7 +1096,7 @@ export function LogMealScreen() {
     carbs.trim().length > 0 ||
     fat.trim().length > 0 ||
     mealDescription.trim().length > 0 ||
-    attachedPhoto !== null ||
+    attachedPhotos.length > 0 ||
     aiDraft !== null ||
     refineInstruction.trim().length > 0;
 
@@ -957,7 +1110,8 @@ export function LogMealScreen() {
     setFat("");
     setAdvanced({ name: "", calories: "", protein: "", carbs: "", fat: "" });
     setMealDescription("");
-    setAttachedPhoto(null);
+    setAttachedPhotos([]);
+    setPendingPhotoDrafts([]);
     setDraftWarnings([]);
     setAiDraft(null);
     setSourceProposalId(null);
@@ -1151,8 +1305,8 @@ export function LogMealScreen() {
             style={[styles.input, styles.description, { color: theme.text }]}
           />
 
-          {attachedPhoto !== null ? (
-            <View style={styles.attachedPhotoCard}>
+          {attachedPhotos.map((attachedPhoto, index) => (
+            <View key={attachedPhoto.uri} style={styles.attachedPhotoCard}>
               <Image
                 source={attachedPhoto.uri}
                 style={styles.attachedPhotoImage}
@@ -1160,16 +1314,18 @@ export function LogMealScreen() {
                 accessibilityLabel="Attached meal photo"
               />
               <View style={styles.attachedPhotoInfo}>
-                <ThemedText type="smallBold">📷 Photo attached</ThemedText>
+                <ThemedText type="smallBold">
+                  📷 Photo {index + 1} of {attachedPhotos.length}
+                </ThemedText>
                 <ThemedText themeColor="textSecondary" type="small">
                   Ready to process with your description
                 </ThemedText>
               </View>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Remove attached photo"
+                accessibilityLabel={`Remove attached photo ${index + 1}`}
                 disabled={snapping || submitting || refining}
-                onPress={onRemovePhoto}
+                onPress={() => onRemovePhoto(index)}
                 style={({ pressed }) => [
                   styles.removePhotoButton,
                   pressed && styles.snapPressed,
@@ -1180,9 +1336,43 @@ export function LogMealScreen() {
                 </ThemedText>
               </Pressable>
             </View>
+          ))}
+          <ThemedText type="small" themeColor="textSecondary">
+            {advancedCapability.enabled
+              ? "Up to 3 photos · multiple angles or separate meals. Describe which photos belong together."
+              : "1 photo per request · Pro supports up to 3."}
+          </ThemedText>
+          {pendingPhotoDrafts.length > 0 ? (
+            <ThemedText type="smallBold">
+              Review this meal, then {pendingPhotoDrafts.length} more. Each meal
+              needs its own Save.
+            </ThemedText>
+          ) : null}
+          {attachedPhotos.length > 0 &&
+          attachedPhotos.length < (advancedCapability.enabled ? 3 : 1) ? (
+            <View style={styles.photoRow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Add meal photos"
+                disabled={snapping || submitting || refining}
+                onPress={() => void onChoosePhoto()}
+                style={styles.snapButton}
+              >
+                <ThemedText type="smallBold">Add photos</ThemedText>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Take another meal photo"
+                disabled={snapping || submitting || refining}
+                onPress={() => void onTakePhoto()}
+                style={styles.snapButton}
+              >
+                <ThemedText type="smallBold">Take photo</ThemedText>
+              </Pressable>
+            </View>
           ) : null}
 
-          {attachedPhoto !== null ? (
+          {attachedPhotos.length > 0 ? (
             <Pressable
               accessibilityRole="button"
               testID="process-meal-photo-button"
@@ -1209,7 +1399,8 @@ export function LogMealScreen() {
                 />
               ) : (
                 <ThemedText type="smallBold" style={styles.processButtonText}>
-                  ✨ Process photo with AI
+                  ✨ Process {attachedPhotos.length > 1 ? "photos" : "photo"}{" "}
+                  with AI
                 </ThemedText>
               )}
             </Pressable>

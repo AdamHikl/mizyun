@@ -202,6 +202,8 @@ export interface RecoverableMealDraft extends MealFormStrings {
   readonly sourceProposalId?: string;
   readonly refineInstruction?: string;
   readonly attachedPhotoUri?: string;
+  readonly attachedPhotoUris?: readonly string[];
+  readonly pendingPhotoDrafts?: readonly FoodDraftCandidate[];
 }
 
 export const isRecoverableMealDraft = (
@@ -245,6 +247,18 @@ export const isRecoverableMealDraft = (
   const photoUriValid =
     record.attachedPhotoUri === undefined ||
     typeof record.attachedPhotoUri === "string";
+  const photosValid =
+    record.attachedPhotoUris === undefined ||
+    (Array.isArray(record.attachedPhotoUris) &&
+      record.attachedPhotoUris.length <= 3 &&
+      record.attachedPhotoUris.every((uri) => typeof uri === "string"));
+  const pendingValid =
+    record.pendingPhotoDrafts === undefined ||
+    (Array.isArray(record.pendingPhotoDrafts) &&
+      record.pendingPhotoDrafts.length <= 2 &&
+      record.pendingPhotoDrafts.every(
+        (draft) => foodDraftCandidateSchema.safeParse(draft).success,
+      ));
   const advancedValid = ADVANCED_NUTRIENT_FIELDS.every(
     (field) => record[field] === undefined || typeof record[field] === "string",
   );
@@ -261,6 +275,8 @@ export const isRecoverableMealDraft = (
     proposalIdValid &&
     refineValid &&
     photoUriValid &&
+    photosValid &&
+    pendingValid &&
     advancedValid
   );
 };

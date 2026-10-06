@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { cleanAssistantProposalText, coachMessageSchema } from "./coach";
+import {
+  cleanAssistantProposalText,
+  coachMessageSchema,
+  coachNutritionProposalSchema,
+} from "./coach";
 
 describe("Coach action proposal contracts", () => {
   it("accepts a schema-validated editable meal proposal", () => {
@@ -440,5 +444,54 @@ describe("cleanAssistantProposalText", () => {
     expect(cleanAssistantProposalText("", weeklyProposal)).toBe(
       "Here is your weekly progress review and adaptation proposal.",
     );
+  });
+});
+
+describe("Coach multi-photo meal candidates", () => {
+  const candidate = {
+    name: "Synthetic meal",
+    caloriesKcal: 100,
+    proteinG: 5,
+    carbohydrateG: 10,
+    fatG: 3,
+    calorieRangeKcal: null,
+    proteinRangeG: null,
+    carbohydrateRangeG: null,
+    fatRangeG: null,
+    confidence: 0.5,
+    warnings: [],
+    assumptions: [],
+    provenance: {
+      inputKind: "photo",
+      provider: "synthetic",
+      model: "fixture",
+      promptVersion: "fixture",
+    },
+  };
+  const proposal = {
+    id: "00000000-0000-4000-8000-000000000003",
+    kind: "meal_log",
+    candidate,
+  };
+  it("preserves the primary and up to two separately editable candidates", () => {
+    expect(coachNutritionProposalSchema.safeParse(proposal).success).toBe(true);
+    expect(
+      coachNutritionProposalSchema.parse({
+        ...proposal,
+        additionalCandidates: [candidate, candidate],
+      }).additionalCandidates,
+    ).toHaveLength(2);
+    expect(
+      coachNutritionProposalSchema.safeParse({
+        ...proposal,
+        additionalCandidates: [candidate, candidate, candidate],
+      }).success,
+    ).toBe(false);
+    expect(
+      coachNutritionProposalSchema.safeParse({
+        ...proposal,
+        additionalCandidates: [{ ...candidate, confidence: 2 }],
+      }).success,
+    ).toBe(false);
   });
 });

@@ -25,6 +25,7 @@ export const coachNutritionProposalSchema = z
     id: z.string().uuid(),
     kind: z.literal("meal_log"),
     candidate: foodDraftCandidateSchema,
+    additionalCandidates: z.array(foodDraftCandidateSchema).max(2).optional(),
   })
   .strict();
 

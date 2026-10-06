@@ -20,19 +20,21 @@
 
 ## Local follow-ups awaiting exact-candidate acceptance
 
-These packages have recorded source/check evidence; their device/provider/release exits remain open. These checks do not accept today's combined tree.
+- **#217 Pro multi-photo** — Meals/Coach up to3, separate confirmed drafts and advisory photo questions; focused477/High review/isolated full gatePASS. [Evidence](docs/PRO_MULTI_PHOTO_EVIDENCE_2026-10-06.md). Next: exact Dev/native/live-provider acceptance; no deployment/release.
+
+Historical checks below do not accept today's combined tree; device/provider/release exits stay open.
 
 - **#206 Set Target** — Header wraps inside card with 44-point action. Focused15/typecheck passed; isolated full command failed only at Apple fixture collision, serial fixture retry passed. Verify narrow/large text, light/dark, Save/Cancel on installed iOS/Android. [Handoff][handoffs]
-- **#202 workout actions** — Shared one-time/routine Add/Finish/Discard hierarchy and save/discard recovery; final 200 focused and combined full gate passed historically. Included in current installation. Accept both modes, confirmations/history, failure recovery and accessibility on device. [Handoff][handoffs]
+- **#202 workout actions** — Shared Add/Finish/Discard and recovery in both modes; historical focused200/full gatePASS, installed. Accept both modes, confirmations/history, failure recovery and accessibility on device. [Handoff][handoffs]
 - **#203 Meals day hierarchy** — Day controls/macros and grouping interactions implemented; isolated full gate passed. Accept current/historical/partial/search days, Add/save/return, grouping, themes and accessibility on iOS/Android. [Handoff][handoffs]
 - **#208 Coach select/Copy** — Implemented; Coach106 passed/review clear. Full checkPASS; next accept old/new Copy/paste on iOS/Android. [Evidence](docs/COACH_TEXT_SELECTION_EVIDENCE_2026-10-04.md)
 - **#204 Coach reading space** — Wider, consistent responses and compact controls; focused 103 and isolated full gate passed. Accept long responses/titles, narrow/large text, keyboard, themes and recovery on devices. [Evidence](docs/COACH_LAYOUT_EVIDENCE_2026-10-04.md)
-- **#205 Coach feature knowledge** — Exact-message local API simulation passed(new/old-denial threads,replay/reopen; zero model calls). Exact main/Dev `a435a766` now has `coach-system-v2-app-v1`; repeat the message on installed candidate. Broader provider/device gates remain. [Evidence](docs/COACH_FEATURE_KNOWLEDGE_EVIDENCE_2026-10-04.md)
+- **#205 Coach feature knowledge** — Historical local API simulation passed (zero model calls); exact Dev `a435a766` had `coach-system-v2-app-v1`. Repeat on installed candidate; provider/device gates remain. [Evidence](docs/COACH_FEATURE_KNOWLEDGE_EVIDENCE_2026-10-04.md)
 - **#200 reopen recovery / #182 startup reads** — Identity/generation-safe retained personal reads and Coach foreground retry; isolated full gates passed. Accept cold start, background/reopen, token/account changes, delayed writes, pending Coach operations and offline/reconnect on both devices. [Evidence](docs/MOBILE_STARTUP_READS_EVIDENCE_2026-10-03.md)
 - **#201 settings gear** — Shared gear across 5 tabs; isolated gate passed. Accept coverage, Settings/Back, themes and screen readers on installed candidate. [Handoff][handoffs]
-- **#197 persistent header** — Feathered 90%-opaque scroll-under header; Coach follow-up has isolated full-gate evidence is in current installation. Accept all tabs, enrollment/feed, scroll/taps/refresh, large text and Coach keyboard on both platforms. [Handoff][handoffs]
+- **#197 persistent header** — 90%-opaque scroll-under header/Coach follow-up locally verified and installed. Accept all tabs, enrollment/feed, scroll/taps/refresh, large text and Coach keyboard on both platforms. [Handoff][handoffs]
 - **#194 quiet Home refresh** — Retained numbers, exact-scope fallback, reconnect/Retry/polling; Dev delivered. Signed-in startup/offline/server-failure/date/timezone/account/accessibility acceptance remains open. [Evidence](docs/HOME_REFRESH_EVIDENCE_2026-10-04.md)
-- **#196 Steps shortcut** — Direct Home → Steps from Health route delivered to Dev. Verify existing Enable control, explicit permission timing and Back on device. [Handoff][handoffs]
+- **#196 Steps shortcut** — Home → Steps from Health delivered to Dev. Accept Enable, explicit permission timing and Back on device. [Handoff][handoffs]
 - **#136 Launch Pro branding** — Beta disclosures removed, indefinite approved Launch Pro copy and Production preview denial verified/delivered to Dev. Accept auth/onboarding/Pro states; reconcile hosted terms/Store metadata and replace BETA screenshots on matching Production candidate before resubmission. [Handoff][handoffs]
 
 ## Earlier implemented packages with open exits

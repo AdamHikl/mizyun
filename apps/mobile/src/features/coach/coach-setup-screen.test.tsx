@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   thread: vi.fn(),
   send: vi.fn(),
   photo: vi.fn(),
+  capability: vi.fn(),
   remove: vi.fn(),
   saveDraft: vi.fn(),
   clearDraft: vi.fn(),
@@ -133,6 +134,9 @@ vi.mock("@/features/logging-draft-storage", () => ({
   saveLoggingDraft: mocks.saveDraft,
   clearLoggingDraft: mocks.clearDraft,
 }));
+vi.mock("@/features/log-meal/advanced-nutrition", () => ({
+  fetchAdvancedNutritionCapability: mocks.capability,
+}));
 vi.mock("@/features/log-meal/meal-photo", () => ({
   normalizeMealPhoto: mocks.normalize,
 }));
@@ -241,6 +245,7 @@ beforeEach(() => {
   mocks.create.mockResolvedValue({ ok: true, conversation, messages: [] });
   mocks.thread.mockResolvedValue({ ok: true, conversation, messages: [] });
   mocks.send.mockResolvedValue({ ok: true, conversation, messages: [] });
+  mocks.capability.mockResolvedValue(true);
   mocks.photo.mockResolvedValue({ ok: true, conversation, messages: [] });
   mocks.remove.mockResolvedValue({ ok: true });
   mocks.permission.mockResolvedValue({ granted: true });
@@ -644,7 +649,7 @@ describe("direct Coach entry", () => {
     await open();
     const tree = render();
     typeMessage().props.onPress();
-    labelled(tree, "Attach a meal photo").props.onPress();
+    labelled(tree, "Attach photos").props.onPress();
     labelled(tree, "New conversation").props.onPress();
     await settle();
     expect(mocks.create).toHaveBeenCalledTimes(1);
@@ -753,16 +758,18 @@ describe("direct Coach entry", () => {
   it("creates on photo submission, while cancellation creates nothing", async () => {
     await open();
     mocks.picker.mockResolvedValueOnce({ canceled: true });
-    await labelled(render(), "Attach a meal photo").props.onPress();
+    await labelled(render(), "Attach photos").props.onPress();
     await settle();
     expect(mocks.create).not.toHaveBeenCalled();
-    await labelled(render(), "Attach a meal photo").props.onPress();
+    await labelled(render(), "Attach photos").props.onPress();
     await settle();
     expect(mocks.create).toHaveBeenCalledTimes(1);
     expect(mocks.photo).toHaveBeenCalledWith(
       conversation.id,
       expect.any(Blob),
       expect.any(String),
+      [],
+      undefined,
     );
   });
   it("reopens an existing conversation without creating another", async () => {
@@ -824,4 +831,54 @@ describe("direct Coach entry", () => {
       expect.any(String),
     );
   });
+});
+
+it("sends three Pro photos with the typed question in one Coach request", async () => {
+  await open();
+  labelled(render(), "Message Coach").props.onChangeText("Compare these menus");
+  mocks.picker.mockResolvedValue({
+    canceled: false,
+    assets: [
+      { uri: "synthetic-1" },
+      { uri: "synthetic-2" },
+      { uri: "synthetic-3" },
+    ],
+  });
+  await labelled(render(), "Attach photos").props.onPress();
+  await settle();
+  expect(mocks.picker).toHaveBeenCalledWith(
+    expect.objectContaining({
+      allowsMultipleSelection: true,
+      selectionLimit: 3,
+    }),
+  );
+  expect(mocks.normalize).toHaveBeenCalledTimes(3);
+  expect(mocks.photo).toHaveBeenCalledWith(
+    conversation.id,
+    expect.any(Blob),
+    expect.any(String),
+    [
+      expect.objectContaining({ photo: expect.any(Blob) }),
+      expect.objectContaining({ photo: expect.any(Blob) }),
+    ],
+    "Compare these menus",
+  );
+});
+it("restricts a free Coach picker to one photo and rejects bypassed multi selection", async () => {
+  await open();
+  mocks.capability.mockResolvedValue(false);
+  mocks.picker.mockResolvedValue({
+    canceled: false,
+    assets: [{ uri: "synthetic-1" }, { uri: "synthetic-2" }],
+  });
+  await labelled(render(), "Attach photos").props.onPress();
+  await settle();
+  expect(mocks.picker).toHaveBeenCalledWith(
+    expect.objectContaining({
+      allowsMultipleSelection: false,
+      selectionLimit: 1,
+    }),
+  );
+  expect(mocks.photo).not.toHaveBeenCalled();
+  expect(mocks.create).not.toHaveBeenCalled();
 });

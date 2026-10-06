@@ -587,23 +587,27 @@ export const foodDraftRoutes: FastifyPluginAsync<
         });
       }
 
-      // Read the multipart body. The route accepts exactly one
-      // `image` file + an optional `textHint` field.
-      let photo: Buffer | null = null;
-      let mimeType: VisionMimeType | null = null;
+      // All photos remain transient and share one aggregate byte budget.
+      const photos: { photo: Uint8Array; mimeType: VisionMimeType }[] = [];
+      const maxPhotos = auth.includeAdvancedNutrition ? 3 : 1;
+      let aggregateBytes = 0;
       let textHint: string | undefined;
       let committed = false;
       try {
         try {
-          for await (const part of request.parts()) {
+          for await (const part of request.parts({
+            limits: { files: 3, fields: 4, parts: 7, fieldSize: 2000 },
+          })) {
             if (part.type === "file" && part.fieldname === "image") {
-              if (photo !== null) {
+              if (photos.length >= maxPhotos) {
                 return sendApiError(
                   reply,
                   request,
                   422,
                   "VALIDATION_ERROR",
-                  "Only one `image` field is allowed.",
+                  maxPhotos === 1
+                    ? "Multiple meal photos require Pro. Only one `image` field is allowed."
+                    : "At most three meal photos are allowed.",
                 );
               }
               const candidate = part.mimetype.toLowerCase();
@@ -616,23 +620,44 @@ export const foodDraftRoutes: FastifyPluginAsync<
                   `Image mime type "${part.mimetype}" is not allowed. Use image/jpeg, image/png, or image/webp.`,
                 );
               }
-              mimeType = candidate as VisionMimeType;
+              const mimeType = candidate as VisionMimeType;
               const chunks: Buffer[] = [];
               let total = 0;
               for await (const chunk of part.file) {
                 total += chunk.length;
-                if (total > MAX_PHOTO_BYTES) {
+                aggregateBytes += chunk.length;
+                if (aggregateBytes > MAX_PHOTO_BYTES) {
                   return sendApiError(
                     reply,
                     request,
                     422,
                     "VALIDATION_ERROR",
-                    `Image exceeds the 15 MiB limit (got ${total} bytes).`,
+                    "Meal photos exceed the combined 15 MiB limit.",
                   );
                 }
                 chunks.push(chunk as Buffer);
               }
-              photo = Buffer.concat(chunks, total);
+              if (part.file.truncated || total === 0) {
+                return sendApiError(
+                  reply,
+                  request,
+                  422,
+                  "VALIDATION_ERROR",
+                  "The meal photo is empty or exceeds the 15 MiB limit.",
+                );
+              }
+              photos.push({
+                photo: new Uint8Array(Buffer.concat(chunks, total)),
+                mimeType,
+              });
+            } else if (part.type === "file") {
+              return sendApiError(
+                reply,
+                request,
+                422,
+                "VALIDATION_ERROR",
+                "Only `image` file fields are accepted.",
+              );
             } else if (part.type === "field" && part.fieldname === "textHint") {
               const value = (part.value as { toString(): string }).toString();
               textHint = value.slice(0, 500);
@@ -650,7 +675,8 @@ export const foodDraftRoutes: FastifyPluginAsync<
           );
         }
 
-        if (photo === null || mimeType === null) {
+        const primary = photos[0];
+        if (primary === undefined) {
           return sendApiError(
             reply,
             request,
@@ -662,8 +688,8 @@ export const foodDraftRoutes: FastifyPluginAsync<
 
         const visionRequest: VisionDraftRequest = {
           userId: principal.userId as UserId,
-          photo: new Uint8Array(photo),
-          mimeType,
+          ...primary,
+          ...(photos.length > 1 ? { additionalPhotos: photos.slice(1) } : {}),
           ...(textHint !== undefined ? { textHint } : {}),
           requestId,
           countryCode: auth.countryCode ?? null,
@@ -684,6 +710,16 @@ export const foodDraftRoutes: FastifyPluginAsync<
         return reply.status(200).send(
           foodDraftResponseSchema.parse({
             draft: draftForCapability(candidate, auth.includeAdvancedNutrition),
+            ...(photos.length > 1 &&
+            auth.includeAdvancedNutrition &&
+            candidate.additionalDrafts?.length
+              ? {
+                  drafts: [candidate, ...candidate.additionalDrafts].map(
+                    (draft) =>
+                      draftForCapability(draft, auth.includeAdvancedNutrition),
+                  ),
+                }
+              : {}),
             requestId,
           }),
         );

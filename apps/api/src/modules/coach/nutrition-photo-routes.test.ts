@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   StubVisionProvider,
   VisionProviderError,
@@ -53,17 +53,26 @@ const postPhoto = (
   conversationId: string,
   idempotencyKey: string,
   authorization = "Bearer valid",
+  photos: readonly Buffer[] = [Buffer.from([0xff, 0xd8, 0xff, 0xe0])],
+  textHint?: string,
 ) => {
   const boundary = `----MizyunCoach${randomUUID()}`;
-  const photo = Buffer.from([0xff, 0xd8, 0xff, 0xe0]);
   const body = Buffer.concat([
-    Buffer.from(
-      `--${boundary}\r\n` +
-        `Content-Disposition: form-data; name="image"; filename="meal.jpg"\r\n` +
-        `Content-Type: image/jpeg\r\n\r\n`,
-    ),
-    photo,
-    Buffer.from(`\r\n--${boundary}--\r\n`),
+    ...(textHint === undefined
+      ? []
+      : [
+          Buffer.from(
+            `--${boundary}\r\nContent-Disposition: form-data; name="textHint"\r\n\r\n${textHint}\r\n`,
+          ),
+        ]),
+    ...photos.flatMap((photo) => [
+      Buffer.from(
+        `--${boundary}\r\nContent-Disposition: form-data; name="image"; filename="meal.jpg"\r\nContent-Type: image/jpeg\r\n\r\n`,
+      ),
+      photo,
+      Buffer.from("\r\n"),
+    ]),
+    Buffer.from(`--${boundary}--\r\n`),
   ]);
   return app.inject({
     method: "POST",
@@ -222,4 +231,203 @@ describe("Coach nutrition photo proposals", () => {
     });
     expect(ownerThread.json().messages).toEqual([]);
   });
+});
+
+describe("Coach multiple photo requests", () => {
+  const photo = Buffer.from([0xff, 0xd8, 0xff, 0xe0]);
+  it("persists separate Pro candidates in one replayable message and one inference", async () => {
+    const stub = new StubVisionProvider();
+    const generateDraft = vi.fn(
+      async (request: Parameters<VisionDraftProvider["generateDraft"]>[0]) => {
+        const candidate = await stub.generateDraft(request);
+        return {
+          ...candidate,
+          additionalDrafts: [{ ...candidate, name: "Second meal" }],
+        };
+      },
+    );
+    const app = buildApp({
+      tokenVerifier,
+      profileRepository: new InMemoryProfileRepository({
+        defaultPlanTier: "paid",
+        defaultBirthYear: 1990,
+        defaultTimezone: "UTC",
+        defaultUnitSystem: "metric",
+      }),
+      coachControls: {
+        visionProvider: { status: () => stub.status(), generateDraft },
+      },
+    });
+    apps.push(app);
+    const id = await createConversation(app);
+    const first = await postPhoto(
+      app,
+      id,
+      "multi-photo-request-001",
+      "Bearer valid",
+      [photo, photo, photo],
+      "Two meals",
+    );
+    expect(first.statusCode).toBe(200);
+    expect(first.json().userMessage.text).toBe(
+      "Two meals\n\n[3 photos attached]",
+    );
+    expect(
+      first.json().assistantMessage.actionProposal.additionalCandidates,
+    ).toHaveLength(1);
+    expect(generateDraft.mock.calls[0]?.[0]).toMatchObject({
+      purpose: "coach",
+      textHint: "Two meals",
+      additionalPhotos: [
+        { mimeType: "image/jpeg" },
+        { mimeType: "image/jpeg" },
+      ],
+    });
+    const replay = await postPhoto(
+      app,
+      id,
+      "multi-photo-request-001",
+      "Bearer valid",
+      [photo],
+    );
+    expect(replay.json()).toEqual(first.json());
+    expect(generateDraft).toHaveBeenCalledTimes(1);
+  });
+  it("rejects multiple photos for free accounts regardless of paid quota override", async () => {
+    const stub = new StubVisionProvider();
+    const generateDraft = vi.fn(stub.generateDraft.bind(stub));
+    const app = buildApp({
+      tokenVerifier,
+      coachControls: {
+        planTierOverride: "paid",
+        visionProvider: { status: () => stub.status(), generateDraft },
+      },
+    });
+    apps.push(app);
+    const id = await createConversation(app);
+    const response = await postPhoto(
+      app,
+      id,
+      "free-photo-request-001",
+      "Bearer valid",
+      [photo, photo],
+    );
+    expect(response.statusCode).toBe(422);
+    expect(generateDraft).not.toHaveBeenCalled();
+    const retry = await postPhoto(app, id, "free-photo-request-002");
+    expect(retry.statusCode).toBe(200);
+  });
+  it("returns nonmeal visual advice without a save proposal", async () => {
+    const stub = new StubVisionProvider();
+    const app = makeApp({
+      status: () => stub.status(),
+      generateDraft: async (request) => ({
+        ...(await stub.generateDraft(request)),
+        name: null,
+        photoAdvice:
+          "The nutrition label gives values per serving. Check the serving size.",
+      }),
+    });
+    const id = await createConversation(app);
+    const response = await postPhoto(
+      app,
+      id,
+      "label-photo-request-001",
+      "Bearer valid",
+      [photo],
+      "Explain this label",
+    );
+    expect(response.statusCode).toBe(200);
+    expect(response.json().assistantMessage.text).toContain("per serving");
+    expect(response.json().assistantMessage.actionProposal).toBeNull();
+  });
+  it("screens unsafe photo questions without calling the model", async () => {
+    const stub = new StubVisionProvider();
+    const generateDraft = vi.fn(stub.generateDraft.bind(stub));
+    const app = makeApp({ status: () => stub.status(), generateDraft });
+    const id = await createConversation(app);
+    const response = await postPhoto(
+      app,
+      id,
+      "unsafe-photo-request-001",
+      "Bearer valid",
+      [photo],
+      "I have chest pain, diagnose this",
+    );
+    expect(response.statusCode).toBe(200);
+    expect(response.json().assistantMessage.text).toContain(
+      "urgent medical help",
+    );
+    expect(response.json().assistantMessage.actionProposal).toBeNull();
+    expect(generateDraft).not.toHaveBeenCalled();
+  });
+  it("rejects diagnostic and medication assertions from arbitrary photo providers", async () => {
+    const stub = new StubVisionProvider();
+    const app = makeApp({
+      status: () => stub.status(),
+      generateDraft: async (request) => ({
+        ...(await stub.generateDraft(request)),
+        name: null,
+        photoAdvice:
+          "The lesion is melanoma. Take ibuprofen 800 mg twice daily.",
+      }),
+    });
+    const id = await createConversation(app);
+    const response = await postPhoto(
+      app,
+      id,
+      "medical-output-photo-001",
+      "Bearer valid",
+      [photo],
+      "Explain this photo",
+    );
+    expect(response.statusCode).toBe(200);
+    expect(response.json().assistantMessage.text).toContain(
+      "qualified medical professional",
+    );
+    expect(response.json().assistantMessage.text).not.toContain("800 mg");
+    expect(response.json().assistantMessage.actionProposal).toBeNull();
+  });
+  it.each(["four", "aggregate", "empty"])(
+    "rejects Pro %s input and releases the in-flight reservation",
+    async (kind) => {
+      const stub = new StubVisionProvider();
+      const generateDraft = vi.fn(stub.generateDraft.bind(stub));
+      const app = buildApp({
+        tokenVerifier,
+        profileRepository: new InMemoryProfileRepository({
+          defaultPlanTier: "paid",
+          defaultBirthYear: 1990,
+          defaultTimezone: "UTC",
+          defaultUnitSystem: "metric",
+        }),
+        coachControls: {
+          visionProvider: { status: () => stub.status(), generateDraft },
+        },
+      });
+      apps.push(app);
+      const id = await createConversation(app);
+      const photos =
+        kind === "four"
+          ? [photo, photo, photo, photo]
+          : kind === "aggregate"
+            ? [Buffer.alloc(8 * 1024 * 1024), Buffer.alloc(8 * 1024 * 1024)]
+            : [Buffer.alloc(0)];
+      expect(
+        (
+          await postPhoto(
+            app,
+            id,
+            `invalid-${kind}-photos-001`,
+            "Bearer valid",
+            photos,
+          )
+        ).statusCode,
+      ).toBe(422);
+      expect(generateDraft).not.toHaveBeenCalled();
+      expect(
+        (await postPhoto(app, id, `retry-${kind}-photo-001`)).statusCode,
+      ).toBe(200);
+    },
+  );
 });

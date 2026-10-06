@@ -49,6 +49,7 @@ import {
 } from "@/features/logging-draft-storage";
 import { useAuth } from "@/features/auth/auth-context";
 import { mealFormStringsFromDraft } from "@/features/log-meal/meal-form";
+import { fetchAdvancedNutritionCapability } from "@/features/log-meal/advanced-nutrition";
 import { normalizeMealPhoto } from "@/features/log-meal/meal-photo";
 
 import { apiClient } from "@/composition/api-client";
@@ -520,7 +521,11 @@ export function CoachSetupScreen() {
     sendLock.current = true;
     setSending(true);
     setMessage(null);
+    const photoOwner = currentOwner.current;
+    const hint = draft.trim();
     try {
+      const pro = await fetchAdvancedNutritionCapability();
+      if (photoOwner !== currentOwner.current) return;
       const permission =
         await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
@@ -531,20 +536,41 @@ export function CoachSetupScreen() {
         mediaTypes: ["images"],
         quality: 0.85,
         allowsEditing: false,
+        allowsMultipleSelection: pro,
+        selectionLimit: pro ? 3 : 1,
+        orderedSelection: pro,
       });
-      if (selection.canceled || selection.assets?.[0] === undefined) return;
-      const photo = await normalizeMealPhoto(selection.assets[0]);
+      if (
+        photoOwner !== currentOwner.current ||
+        selection.canceled ||
+        !selection.assets?.length
+      )
+        return;
+      if (selection.assets.length > (pro ? 3 : 1)) {
+        setMessage("Choose up to three photos with Pro, or one with Free.");
+        return;
+      }
+      const photos: Blob[] = [];
+      for (const asset of selection.assets)
+        photos.push(await normalizeMealPhoto(asset));
+      if (photoOwner !== currentOwner.current) return;
       const conversation = active ?? (await beginConversation());
-      if (conversation === null) return;
+      if (conversation === null || photoOwner !== currentOwner.current) return;
       const result = await sendCoachMealPhoto(
         conversation.id,
-        photo,
+        photos[0]!,
         newCoachMessageIdempotencyKey(),
+        photos
+          .slice(1)
+          .map((photo) => ({ photo, mimeType: "image/jpeg" as const })),
+        hint || undefined,
       );
+      if (photoOwner !== currentOwner.current) return;
       if (!result.ok) {
         setMessage(result.message);
         return;
       }
+      if (hint === draft.trim()) setDraft("");
       setActive(result.conversation);
       setMessages((current) => [...current, ...result.messages]);
       setLiveRegionTick((tick) => tick + 1);
@@ -558,7 +584,15 @@ export function CoachSetupScreen() {
       sendLock.current = false;
       setSending(false);
     }
-  }, [active, beginConversation, deleting, loadFailed, loading, sending]);
+  }, [
+    active,
+    beginConversation,
+    deleting,
+    draft,
+    loadFailed,
+    loading,
+    sending,
+  ]);
 
   const executeAiAction = useCallback(
     async (action: PendingAiAction) => {
@@ -1232,8 +1266,8 @@ export function CoachSetupScreen() {
                 <View style={styles.composerCapsule}>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel="Attach a meal photo"
-                    accessibilityHint="Choose a meal photo and create an editable nutrition proposal."
+                    accessibilityLabel="Attach photos"
+                    accessibilityHint="Choose up to three photos with Pro, or one with Free. Type a question first for meals, menus, labels or training context."
                     accessibilityState={{ disabled: sending || deleting }}
                     disabled={sending || deleting}
                     onPress={() => void attachMealPhoto()}
@@ -1510,10 +1544,22 @@ function MessageBubble({
         </View>
       ) : null}
       {message.actionProposal?.kind === "meal_log" ? (
-        <NutritionProposalCard
-          proposal={message.actionProposal}
-          onReview={onReviewNutritionProposal}
-        />
+        <View>
+          {[
+            message.actionProposal.candidate,
+            ...(message.actionProposal.additionalCandidates ?? []),
+          ].map((candidate, index) => (
+            <NutritionProposalCard
+              key={`${message.actionProposal!.id}-${index}`}
+              proposal={{
+                id: message.actionProposal!.id,
+                kind: "meal_log",
+                candidate,
+              }}
+              onReview={onReviewNutritionProposal}
+            />
+          ))}
+        </View>
       ) : null}
       {message.actionProposal?.kind === "workout_start" ? (
         <WorkoutProposalCard

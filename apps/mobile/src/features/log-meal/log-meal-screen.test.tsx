@@ -2,6 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   submit: vi.fn(),
+  picker: vi.fn(),
+  photoDraft: vi.fn(),
+  normalize: vi.fn(),
+  pro: true,
+  owner: "synthetic-user",
+  token: "synthetic-token",
   load: vi.fn(),
   persist: vi.fn(),
   clear: vi.fn(),
@@ -67,7 +73,12 @@ vi.mock("expo-router", () => ({
   useNavigation: () => ({ addListener: () => () => {} }),
 }));
 vi.mock("expo-image", () => ({ Image: "Image" }));
-vi.mock("expo-image-picker", () => ({}));
+vi.mock("expo-image-picker", () => ({
+  requestMediaLibraryPermissionsAsync: async () => ({ granted: true }),
+  requestCameraPermissionsAsync: async () => ({ granted: true }),
+  launchImageLibraryAsync: mocks.picker,
+  launchCameraAsync: mocks.picker,
+}));
 vi.mock("@mizyun/observability", async (original) => ({
   ...(await original<typeof import("@mizyun/observability")>()),
   LoggingFlowMeasurement: class {
@@ -89,7 +100,7 @@ vi.mock("@/hooks/use-theme", () => ({
 }));
 vi.mock("@/features/auth/auth-context", () => ({
   useAuth: () => ({
-    session: { user: { id: "synthetic-user" } },
+    session: { user: { id: mocks.owner }, accessToken: mocks.token },
     profile: null,
   }),
 }));
@@ -118,15 +129,16 @@ vi.mock("@/features/coach/ai-consent-controller", () => ({
 vi.mock("./advanced-nutrition", () => ({
   AdvancedNutrientFields: "AdvancedNutrientFields",
   useAdvancedNutritionCapability: () => ({
-    enabled: true,
+    enabled: mocks.pro,
     refresh: mocks.refresh,
   }),
 }));
 vi.mock("./log-meal-data", () => ({
   submitLogMeal: mocks.submit,
+  snapMealPhoto: mocks.photoDraft,
   draftMealFromText: mocks.textDraft,
 }));
-vi.mock("./meal-photo", () => ({ normalizeMealPhoto: vi.fn() }));
+vi.mock("./meal-photo", () => ({ normalizeMealPhoto: mocks.normalize }));
 vi.mock("./meal-lifecycle-data", () => ({ fetchFoodHistory: mocks.history }));
 vi.mock("./first-meal-reminders", () => ({
   loadFirstMealReminders: async () => ({ enabled: true }),
@@ -182,6 +194,18 @@ beforeEach(async () => {
   hooks.effects = [];
   vi.clearAllMocks();
   mocks.params = {};
+  mocks.pro = true;
+  mocks.owner = "synthetic-user";
+  mocks.token = "synthetic-token";
+  mocks.picker.mockResolvedValue({
+    canceled: false,
+    assets: [
+      { uri: "synthetic-one" },
+      { uri: "synthetic-two" },
+      { uri: "synthetic-three" },
+    ],
+  });
+  mocks.normalize.mockResolvedValue(new Blob());
   mocks.load.mockResolvedValue({ ...draft });
   mocks.persist.mockResolvedValue(true);
   mocks.history.mockResolvedValue({ entries: [] });
@@ -623,4 +647,243 @@ it("offers Clear even when the recovered draft from another day is empty", async
   await flush();
   render();
   expect(byId("clear-meal-button")).toBeTruthy();
+});
+
+const syntheticPhotoDraft = {
+  name: "Synthetic meal",
+  caloriesKcal: 250,
+  proteinG: 10,
+  carbohydrateG: 30,
+  fatG: 8,
+  calorieRangeKcal: null,
+  proteinRangeG: null,
+  carbohydrateRangeG: null,
+  fatRangeG: null,
+  confidence: 0.5,
+  warnings: [],
+  assumptions: [],
+  provenance: {
+    inputKind: "photo" as const,
+    provider: "synthetic",
+    model: "synthetic",
+    promptVersion: "test",
+  },
+};
+it("selects three photos for Pro and submits them together after explicit Process", async () => {
+  mocks.photoDraft.mockResolvedValue({ ok: true, draft: syntheticPhotoDraft });
+  await byId("snap-meal-button").props.onPress();
+  await flush();
+  expect(mocks.picker).toHaveBeenCalledWith(
+    expect.objectContaining({
+      allowsMultipleSelection: true,
+      selectionLimit: 3,
+    }),
+  );
+  expect(mocks.photoDraft).not.toHaveBeenCalled();
+  byId("process-meal-photo-button").props.onPress();
+  await flush();
+  expect(mocks.normalize).toHaveBeenCalledTimes(3);
+  expect(mocks.photoDraft).toHaveBeenCalledWith(
+    expect.any(Blob),
+    "image/jpeg",
+    undefined,
+    [
+      expect.objectContaining({ photo: expect.any(Blob) }),
+      expect.objectContaining({ photo: expect.any(Blob) }),
+    ],
+  );
+  expect(mocks.submit).not.toHaveBeenCalled();
+});
+it("rejects picker results over three without silently dropping photos", async () => {
+  mocks.picker.mockResolvedValue({
+    canceled: false,
+    assets: [1, 2, 3, 4].map((n) => ({ uri: `synthetic-${n}` })),
+  });
+  await byId("snap-meal-button").props.onPress();
+  await flush();
+  expect(byId("process-meal-photo-button")).toBeFalsy();
+  expect(mocks.photoDraft).not.toHaveBeenCalled();
+});
+it("rechecks downgraded access before sending retained multiple photos", async () => {
+  await byId("snap-meal-button").props.onPress();
+  await flush();
+  render();
+  mocks.refresh.mockResolvedValue(false);
+  byId("process-meal-photo-button").props.onPress();
+  await flush();
+  expect(mocks.photoDraft).not.toHaveBeenCalled();
+  expect(mocks.normalize).not.toHaveBeenCalled();
+});
+it("saves each separate photo meal only after its own confirmation and persists the next draft", async () => {
+  mocks.photoDraft.mockResolvedValue({
+    ok: true,
+    draft: syntheticPhotoDraft,
+    drafts: [
+      syntheticPhotoDraft,
+      { ...syntheticPhotoDraft, name: "Second meal" },
+      { ...syntheticPhotoDraft, name: "Third meal" },
+    ],
+  });
+  await byId("snap-meal-button").props.onPress();
+  await flush();
+  byId("process-meal-photo-button").props.onPress();
+  await flush();
+  render();
+  await submit();
+  expect(mocks.submit).toHaveBeenCalledTimes(1);
+  expect(router.back).not.toHaveBeenCalled();
+  expect(byId("meal-name-input").props.value).toBe("Second meal");
+  expect(mocks.persist).toHaveBeenCalledWith(
+    "synthetic-user",
+    "meal",
+    expect.objectContaining({
+      name: "Second meal",
+      pendingPhotoDrafts: [expect.objectContaining({ name: "Third meal" })],
+    }),
+  );
+  await submit();
+  expect(byId("meal-name-input").props.value).toBe("Third meal");
+  await submit();
+  expect(mocks.submit).toHaveBeenCalledTimes(3);
+  const ids = mocks.submit.mock.calls.map(([form]) => form.clientOperationId);
+  expect(new Set(ids).size).toBe(3);
+  expect(router.back).toHaveBeenCalledOnce();
+});
+it("retains batch and idempotency values after a lost save response", async () => {
+  mocks.photoDraft.mockResolvedValue({
+    ok: true,
+    draft: syntheticPhotoDraft,
+    drafts: [
+      syntheticPhotoDraft,
+      { ...syntheticPhotoDraft, name: "Second meal" },
+    ],
+  });
+  await byId("snap-meal-button").props.onPress();
+  await flush();
+  byId("process-meal-photo-button").props.onPress();
+  await flush();
+  render();
+  mocks.submit.mockResolvedValueOnce({
+    ok: false,
+    message: "Network unavailable",
+  });
+  await submit();
+  expect(byId("meal-name-input").props.value).toBe("Synthetic meal");
+  const first = mocks.submit.mock.calls[0][0];
+  await submit();
+  expect(mocks.submit.mock.calls[1][0]).toEqual(first);
+  expect(byId("meal-name-input").props.value).toBe("Second meal");
+});
+
+it("does not duplicate a saved meal when persisting the next batch draft fails", async () => {
+  mocks.photoDraft.mockResolvedValue({
+    ok: true,
+    draft: syntheticPhotoDraft,
+    drafts: [
+      syntheticPhotoDraft,
+      { ...syntheticPhotoDraft, name: "Second meal" },
+    ],
+  });
+  await byId("snap-meal-button").props.onPress();
+  await flush();
+  byId("process-meal-photo-button").props.onPress();
+  await flush();
+  render();
+  mocks.persist.mockImplementation(
+    async (_user, _kind, value) => value.name !== "Second meal",
+  );
+  await submit();
+  const saved = mocks.submit.mock.calls[0][0];
+  byId("meal-name-input").props.onChangeText("Edited after save");
+  await submit();
+  expect(mocks.submit).toHaveBeenCalledTimes(1);
+  byId("meal-name-input").props.onChangeText(saved.name);
+  mocks.persist.mockResolvedValue(true);
+  await submit();
+  expect(mocks.submit.mock.calls[1][0]).toEqual(saved);
+  expect(byId("meal-name-input").props.value).toBe("Second meal");
+});
+it("recovers the remaining photo meals without selecting photos again", async () => {
+  hooks.slots = [];
+  hooks.effects = [];
+  mocks.load.mockResolvedValue({
+    ...draft,
+    nutritionBasis: "total",
+    aiDraft: syntheticPhotoDraft,
+    pendingPhotoDrafts: [{ ...syntheticPhotoDraft, name: "Remaining meal" }],
+    attachedPhotoUris: ["synthetic-1", "synthetic-2"],
+  });
+  render();
+  await flush();
+  render();
+  await submit();
+  expect(byId("meal-name-input").props.value).toBe("Remaining meal");
+  expect(router.back).not.toHaveBeenCalled();
+});
+
+it("masks queued advanced nutrients if Pro is revoked between confirmed meals", async () => {
+  mocks.photoDraft.mockResolvedValue({
+    ok: true,
+    draft: syntheticPhotoDraft,
+    drafts: [
+      syntheticPhotoDraft,
+      { ...syntheticPhotoDraft, name: "Second meal", fibreG: 4 },
+    ],
+  });
+  await byId("snap-meal-button").props.onPress();
+  await flush();
+  byId("process-meal-photo-button").props.onPress();
+  await flush();
+  render();
+  mocks.pro = false;
+  mocks.refresh.mockResolvedValue(false);
+  await submit();
+  expect(byId("meal-name-input").props.value).toBe("Second meal");
+  const nextStored = mocks.persist.mock.calls.find(
+    ([, , value]) => value.name === "Second meal",
+  )![2];
+  expect(nextStored.aiDraft.fibreG).toBeUndefined();
+  await submit();
+  expect(mocks.submit).toHaveBeenCalledTimes(2);
+  expect(mocks.submit.mock.calls[1][0].fibreG).toBeUndefined();
+});
+
+it("allows a token refresh during Save without locking the meal form", async () => {
+  let resolveSave!: (value: unknown) => void;
+  mocks.submit.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        resolveSave = resolve;
+      }),
+  );
+  byId("submit-meal-button").props.onPress();
+  await flush();
+  mocks.token = "refreshed-synthetic-token";
+  render();
+  resolveSave({ ok: false, message: "Network unavailable" });
+  await flush();
+  render();
+  expect(byId("submit-meal-button").props.disabled).toBe(false);
+  await submit();
+  expect(mocks.submit).toHaveBeenCalledTimes(2);
+});
+it("does not send the previous account's form if ownership changes during draft persistence", async () => {
+  let resolveStore!: (value: boolean) => void;
+  mocks.persist.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        resolveStore = resolve;
+      }),
+  );
+  byId("submit-meal-button").props.onPress();
+  await flush();
+  mocks.owner = "another-synthetic-user";
+  mocks.load.mockResolvedValue(null);
+  render();
+  await flush();
+  resolveStore(true);
+  await flush();
+  render();
+  expect(mocks.submit).not.toHaveBeenCalled();
+  expect(byId("submit-meal-button").props.disabled).toBe(false);
 });

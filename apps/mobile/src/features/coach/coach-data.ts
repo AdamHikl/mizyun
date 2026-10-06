@@ -263,14 +263,31 @@ export const sendCoachMealPhoto = async (
   conversationId: string,
   photo: Blob,
   idempotencyKey = newCoachMessageIdempotencyKey(),
+  additionalPhotos?: readonly {
+    readonly photo: Blob;
+    readonly mimeType: "image/jpeg" | "image/png" | "image/webp";
+  }[],
+  textHint?: string,
 ): Promise<CoachThreadResult> =>
-  sendCoachMealPhotoWith(apiClient, conversationId, photo, idempotencyKey);
+  sendCoachMealPhotoWith(
+    apiClient,
+    conversationId,
+    photo,
+    idempotencyKey,
+    additionalPhotos,
+    textHint,
+  );
 
 export const sendCoachMealPhotoWith = async (
   client: ApiClient,
   conversationId: string,
   photo: Blob,
   idempotencyKey: string,
+  additionalPhotos?: readonly {
+    readonly photo: Blob;
+    readonly mimeType: "image/jpeg" | "image/png" | "image/webp";
+  }[],
+  textHint?: string,
 ): Promise<CoachThreadResult> => {
   if (client.draftCoachMealPhoto === undefined) {
     return {
@@ -283,6 +300,10 @@ export const sendCoachMealPhotoWith = async (
     idempotencyKey,
     photo,
     mimeType: "image/jpeg",
+    ...(additionalPhotos !== undefined ? { additionalPhotos } : {}),
+    ...(textHint !== undefined && textHint.trim().length > 0
+      ? { textHint }
+      : {}),
   });
   return result.ok
     ? {

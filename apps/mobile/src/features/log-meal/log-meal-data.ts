@@ -147,7 +147,11 @@ import {
 } from "@mizyun/contracts";
 
 export type SnapMealPhotoResult =
-  | { readonly ok: true; readonly draft: FoodDraftCandidate }
+  | {
+      readonly ok: true;
+      readonly draft: FoodDraftCandidate;
+      readonly drafts?: readonly FoodDraftCandidate[];
+    }
   | { readonly ok: false; readonly message: string };
 
 const humanizeDraftError = (result: Result<unknown, ApiError>): string => {
@@ -245,14 +249,22 @@ export const snapMealPhoto = async (
   photo: Blob,
   mimeType: "image/jpeg" | "image/png" | "image/webp",
   textHint?: string,
+  additionalPhotos?: readonly {
+    readonly photo: Blob;
+    readonly mimeType: "image/jpeg" | "image/png" | "image/webp";
+  }[],
 ): Promise<SnapMealPhotoResult> =>
-  snapMealPhotoWith(apiClient, photo, mimeType, textHint);
+  snapMealPhotoWith(apiClient, photo, mimeType, textHint, additionalPhotos);
 
 export const snapMealPhotoWith = async (
   client: ApiClient,
   photo: Blob,
   mimeType: "image/jpeg" | "image/png" | "image/webp",
   textHint?: string,
+  additionalPhotos?: readonly {
+    readonly photo: Blob;
+    readonly mimeType: "image/jpeg" | "image/png" | "image/webp";
+  }[],
 ): Promise<SnapMealPhotoResult> => {
   if (client.draftFoodEntry === undefined) {
     return {
@@ -263,6 +275,7 @@ export const snapMealPhotoWith = async (
   const result = await client.draftFoodEntry({
     photo,
     mimeType,
+    ...(additionalPhotos !== undefined ? { additionalPhotos } : {}),
     ...(textHint !== undefined && textHint.trim().length > 0
       ? { textHint }
       : {}),
@@ -270,14 +283,18 @@ export const snapMealPhotoWith = async (
   if (!result.ok) {
     return { ok: false, message: humanizeDraftError(result) };
   }
-  const parsed = foodDraftCandidateSchema.safeParse(result.value.draft);
+  const parsed = foodDraftResponseSchema.safeParse(result.value);
   if (!parsed.success) {
     return {
       ok: false,
       message: "Couldn't read the photo — type the meal by hand.",
     };
   }
-  return { ok: true, draft: parsed.data };
+  return {
+    ok: true,
+    draft: parsed.data.draft,
+    ...(parsed.data.drafts !== undefined ? { drafts: parsed.data.drafts } : {}),
+  };
 };
 
 export const draftMealFromText = async (

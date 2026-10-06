@@ -618,6 +618,96 @@ describe("HttpApiClient — food photo drafts", () => {
     requestId: "vision-request",
   };
 
+  it("sends all three images in order and validates every returned draft", async () => {
+    const drafts = [
+      draftResponse.draft,
+      { ...draftResponse.draft, name: "Soup" },
+      { ...draftResponse.draft, name: "Salad" },
+    ];
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(200, { ...draftResponse, drafts }));
+    const client = new HttpApiClient({
+      baseUrl: "https://api.test",
+      authClient: buildAuthClient({
+        getSession: () => Promise.resolve(buildSession()),
+      }),
+      fetch: fetchMock as unknown as typeof fetch,
+    });
+    const result = await client.draftFoodEntry({
+      photo: mealPhoto(),
+      mimeType: "image/jpeg",
+      additionalPhotos: [
+        {
+          photo: new Blob(["second"], { type: "image/png" }),
+          mimeType: "image/png",
+        },
+        {
+          photo: new Blob(["third"], { type: "image/webp" }),
+          mimeType: "image/webp",
+        },
+      ],
+    });
+    expect(result).toEqual({ ok: true, value: { ...draftResponse, drafts } });
+    const body = fetchMock.mock.calls[0]?.[1].body as FormData;
+    const images = body.getAll("image") as File[];
+    expect(images.map((image) => image.name)).toEqual([
+      "meal.jpg",
+      "meal-2.png",
+      "meal-3.webp",
+    ]);
+    expect(await images[1]?.text()).toBe("second");
+    expect(await images[2]?.text()).toBe("third");
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, {
+        ...draftResponse,
+        drafts: [
+          draftResponse.draft,
+          { ...draftResponse.draft, confidence: 2 },
+        ],
+      }),
+    );
+    const invalid = await client.draftFoodEntry({
+      photo: mealPhoto(),
+      mimeType: "image/jpeg",
+    });
+    expect(invalid).toMatchObject({
+      ok: false,
+      error: { kind: "validation_error" },
+    });
+  });
+
+  it("rejects four images before transport for Meals and Coach", async () => {
+    const fetchMock = vi.fn();
+    const client = new HttpApiClient({
+      baseUrl: "https://api.test",
+      authClient: buildAuthClient({
+        getSession: () => Promise.resolve(buildSession()),
+      }),
+      fetch: fetchMock as unknown as typeof fetch,
+    });
+    const input = {
+      photo: mealPhoto(),
+      mimeType: "image/jpeg" as const,
+      additionalPhotos: Array.from({ length: 3 }, () => ({
+        photo: mealPhoto(),
+        mimeType: "image/jpeg" as const,
+      })),
+    };
+    expect(await client.draftFoodEntry(input)).toMatchObject({
+      ok: false,
+      error: { kind: "validation_error" },
+    });
+    expect(
+      await client.draftCoachMealPhoto({
+        ...input,
+        conversationId: "thread",
+        idempotencyKey: "photo-key",
+      }),
+    ).toMatchObject({ ok: false, error: { kind: "validation_error" } });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("sends authenticated multipart data without setting a manual boundary", async () => {
     const fetchMock = vi
       .fn()
@@ -858,6 +948,13 @@ describe("HttpApiClient — Coach meal photo proposals", () => {
       idempotencyKey: "coach-photo-key-0001",
       photo,
       mimeType: "image/jpeg",
+      additionalPhotos: [
+        {
+          photo: new Blob(["second"], { type: "image/png" }),
+          mimeType: "image/png",
+        },
+      ],
+      textHint: "  dinner  ",
     });
 
     expect(result).toEqual({ ok: true, value: responseBody });
@@ -873,6 +970,11 @@ describe("HttpApiClient — Coach meal photo proposals", () => {
       (init.headers as Record<string, string>)["content-type"],
     ).toBeUndefined();
     expect(init.body).toBeInstanceOf(FormData);
+    const body = init.body as FormData;
+    expect((body.getAll("image") as File[]).map((image) => image.name)).toEqual(
+      ["meal.jpg", "meal-2.png"],
+    );
+    expect(body.get("textHint")).toBe("dinner");
   });
 });
 

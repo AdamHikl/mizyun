@@ -84,8 +84,24 @@ export class HttpApiClient implements ApiClient {
   async draftFoodEntry(input: {
     readonly photo: Blob;
     readonly mimeType: "image/jpeg" | "image/png" | "image/webp";
+    readonly additionalPhotos?: readonly {
+      readonly photo: Blob;
+      readonly mimeType: "image/jpeg" | "image/png" | "image/webp";
+    }[];
     readonly textHint?: string;
   }): Promise<Result<FoodDraftResponse, ApiError>> {
+    if ((input.additionalPhotos?.length ?? 0) > 2) {
+      return err({
+        kind: "validation_error",
+        issues: [
+          {
+            code: "custom",
+            path: ["additionalPhotos"],
+            message: "Choose up to 3 photos.",
+          },
+        ],
+      });
+    }
     const url = `${this.#baseUrl}/v1/food-entries/draft`;
     const session = await this.#authClient.getSession();
     if (!session) return err({ kind: "no_session" });
@@ -95,6 +111,13 @@ export class HttpApiClient implements ApiClient {
     };
     const body = new FormData();
     body.append("image", input.photo, `meal.${mimeExt(input.mimeType)}`);
+    for (const [index, extra] of (input.additionalPhotos ?? []).entries()) {
+      body.append(
+        "image",
+        extra.photo,
+        `meal-${index + 2}.${mimeExt(extra.mimeType)}`,
+      );
+    }
     if (input.textHint !== undefined && input.textHint.trim().length > 0) {
       body.append("textHint", input.textHint.trim());
     }
@@ -154,7 +177,24 @@ export class HttpApiClient implements ApiClient {
     readonly idempotencyKey: string;
     readonly photo: Blob;
     readonly mimeType: "image/jpeg" | "image/png" | "image/webp";
+    readonly textHint?: string;
+    readonly additionalPhotos?: readonly {
+      readonly photo: Blob;
+      readonly mimeType: "image/jpeg" | "image/png" | "image/webp";
+    }[];
   }): Promise<Result<CoachMessageResponse, ApiError>> {
+    if ((input.additionalPhotos?.length ?? 0) > 2) {
+      return err({
+        kind: "validation_error",
+        issues: [
+          {
+            code: "custom",
+            path: ["additionalPhotos"],
+            message: "Choose up to 3 photos.",
+          },
+        ],
+      });
+    }
     const path = `/v1/coach/conversations/${encodeURIComponent(
       input.conversationId,
     )}/nutrition-photo`;
@@ -162,6 +202,16 @@ export class HttpApiClient implements ApiClient {
     if (!session) return err({ kind: "no_session" });
     const body = new FormData();
     body.append("image", input.photo, `meal.${mimeExt(input.mimeType)}`);
+    for (const [index, extra] of (input.additionalPhotos ?? []).entries()) {
+      body.append(
+        "image",
+        extra.photo,
+        `meal-${index + 2}.${mimeExt(extra.mimeType)}`,
+      );
+    }
+    if (input.textHint !== undefined && input.textHint.trim().length > 0) {
+      body.append("textHint", input.textHint.trim());
+    }
     let response: Response;
     try {
       response = await this.#fetch(`${this.#baseUrl}${path}`, {

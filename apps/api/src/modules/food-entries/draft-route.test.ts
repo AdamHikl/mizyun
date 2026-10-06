@@ -72,6 +72,11 @@ const postDraft = (
     | {
         file: { name: string; content: Buffer; type: string };
         hint?: string;
+        additionalFiles?: readonly {
+          name: string;
+          content: Buffer;
+          type: string;
+        }[];
       }
     | string,
   headers: Record<string, string> = {},
@@ -95,15 +100,16 @@ const postDraft = (
       ),
     );
   }
-  parts.push(
-    Buffer.from(
-      `--${boundary}\r\n` +
-        `Content-Disposition: form-data; name="image"; filename="${payload.file.name}"\r\n` +
-        `Content-Type: ${payload.file.type}\r\n\r\n`,
-    ),
-  );
-  parts.push(payload.file.content);
-  parts.push(Buffer.from(`\r\n--${boundary}--\r\n`));
+  for (const file of [payload.file, ...(payload.additionalFiles ?? [])]) {
+    parts.push(
+      Buffer.from(
+        `--${boundary}\r\nContent-Disposition: form-data; name="image"; filename="${file.name}"\r\nContent-Type: ${file.type}\r\n\r\n`,
+      ),
+      file.content,
+      Buffer.from("\r\n"),
+    );
+  }
+  parts.push(Buffer.from(`--${boundary}--\r\n`));
   return app.inject({
     method: "POST",
     url: "/v1/food-entries/draft",
@@ -917,5 +923,122 @@ describe("Food draft route — rate limit", () => {
     expect(res.statusCode).toBe(422);
     expect(stubLimits.releaseDraftSlot).toHaveBeenCalledWith(userId, "photo");
     expect(releasedKind).toBe("photo");
+  });
+});
+
+describe("Food draft multiple photos", () => {
+  const image = { name: "meal.png", content: ONE_PIXEL_PNG, type: "image/png" };
+  it("sends three Pro photos to one inference and returns separately editable meal drafts", async () => {
+    const stub = new StubVisionProvider();
+    const generateDraft = vi.fn(
+      async (request: Parameters<VisionDraftProvider["generateDraft"]>[0]) => {
+        const candidate = await stub.generateDraft(request);
+        return {
+          ...candidate,
+          tokensUsed: 42,
+          additionalDrafts: [{ ...candidate, name: "Second meal" }],
+        };
+      },
+    );
+    const { app } = makeApps({
+      visionProvider: { status: () => stub.status(), generateDraft },
+      profileRepository: new InMemoryProfileRepository({
+        defaultPlanTier: "paid",
+        defaultBirthYear: 1990,
+        defaultTimezone: "UTC",
+        defaultUnitSystem: "metric",
+      }),
+    });
+    const response = await postDraft(app, {
+      file: image,
+      additionalFiles: [image, { ...image, type: "image/jpeg" }],
+      hint: "Two meals, lunch has two angles",
+    });
+    expect(response.statusCode).toBe(200);
+    expect(generateDraft).toHaveBeenCalledTimes(1);
+    expect(generateDraft.mock.calls[0]?.[0]).toMatchObject({
+      mimeType: "image/png",
+      additionalPhotos: [{ mimeType: "image/png" }, { mimeType: "image/jpeg" }],
+      textHint: "Two meals, lunch has two angles",
+    });
+    expect(response.json().drafts).toHaveLength(2);
+    expect(response.json().drafts[1].name).toBe("Second meal");
+    expect(response.json().drafts[0]).toEqual(response.json().draft);
+  });
+  it("rejects two free photos even with a paid rate-limit override before inference", async () => {
+    const stub = new StubVisionProvider();
+    const generateDraft = vi.fn(stub.generateDraft.bind(stub));
+    const { app } = makeApps({
+      visionProvider: { status: () => stub.status(), generateDraft },
+      resolvePlanTier: () => "paid",
+    });
+    const response = await postDraft(app, {
+      file: image,
+      additionalFiles: [image],
+    });
+    expect(response.statusCode).toBe(422);
+    expect(response.json().error.message).toContain("Pro");
+    expect(generateDraft).not.toHaveBeenCalled();
+  });
+  it.each(["four", "aggregate", "empty", "mime"])(
+    "rejects %s photo input before inference",
+    async (kind) => {
+      const stub = new StubVisionProvider();
+      const generateDraft = vi.fn(stub.generateDraft.bind(stub));
+      const { app } = makeApps({
+        visionProvider: { status: () => stub.status(), generateDraft },
+        profileRepository: new InMemoryProfileRepository({
+          defaultPlanTier: "paid",
+          defaultBirthYear: 1990,
+          defaultTimezone: "UTC",
+          defaultUnitSystem: "metric",
+        }),
+      });
+      const extra =
+        kind === "four"
+          ? [image, image, image]
+          : kind === "aggregate"
+            ? [{ ...image, content: Buffer.alloc(8 * 1024 * 1024) }]
+            : kind === "mime"
+              ? [{ ...image, type: "text/plain" }]
+              : [];
+      const primary =
+        kind === "aggregate"
+          ? { ...image, content: Buffer.alloc(8 * 1024 * 1024) }
+          : kind === "empty"
+            ? { ...image, content: Buffer.alloc(0) }
+            : image;
+      const response = await postDraft(app, {
+        file: primary,
+        additionalFiles: extra,
+      });
+      expect(response.statusCode).toBe(422);
+      expect(generateDraft).not.toHaveBeenCalled();
+    },
+  );
+  it("authorizes approved Launch Pro accounts for multiple photos", async () => {
+    const stub = new StubVisionProvider();
+    const generateDraft = vi.fn(stub.generateDraft.bind(stub));
+    const betaProRepository = new InMemoryBetaProRepository();
+    betaProRepository.__seedForTest({
+      id: randomUUID(),
+      userId: userId as never,
+      email: "synthetic@example.test",
+      pushToken: null,
+      status: "approved",
+      notes: null,
+      createdAt: new Date(),
+      reviewedAt: new Date(),
+    });
+    const { app } = makeApps({
+      visionProvider: { status: () => stub.status(), generateDraft },
+      betaProRepository,
+    });
+    const response = await postDraft(app, {
+      file: image,
+      additionalFiles: [image, image],
+    });
+    expect(response.statusCode).toBe(200);
+    expect(generateDraft).toHaveBeenCalledTimes(1);
   });
 });

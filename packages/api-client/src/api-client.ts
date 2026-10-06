@@ -39,6 +39,10 @@ export interface ApiClient {
   draftFoodEntry?(input: {
     readonly photo: Blob;
     readonly mimeType: "image/jpeg" | "image/png" | "image/webp";
+    readonly additionalPhotos?: readonly {
+      readonly photo: Blob;
+      readonly mimeType: "image/jpeg" | "image/png" | "image/webp";
+    }[];
     readonly textHint?: string;
   }): Promise<Result<FoodDraftResponse, ApiError>>;
 
@@ -47,6 +51,11 @@ export interface ApiClient {
     readonly idempotencyKey: string;
     readonly photo: Blob;
     readonly mimeType: "image/jpeg" | "image/png" | "image/webp";
+    readonly textHint?: string;
+    readonly additionalPhotos?: readonly {
+      readonly photo: Blob;
+      readonly mimeType: "image/jpeg" | "image/png" | "image/webp";
+    }[];
   }): Promise<Result<CoachMessageResponse, ApiError>>;
 
   /**

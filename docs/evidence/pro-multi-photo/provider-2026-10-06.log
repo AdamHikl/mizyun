@@ -1,0 +1,13 @@
+
+> @mizyun/provider-gemini@0.1.0 test /Users/adam/Documents/mizyun/packages/providers/gemini
+> vitest run src/vision.test.ts
+
+
+ RUN  v3.2.7 /Users/adam/Documents/mizyun/packages/providers/gemini
+
+ ✓ src/vision.test.ts (42 tests) 21ms
+
+ Test Files  1 passed (1)
+      Tests  42 passed (42)
+   Start at  19:33:08
+   Duration  1.80s (transform 970ms, setup 0ms, collect 1.41s, tests 21ms, environment 0ms, prepare 64ms)

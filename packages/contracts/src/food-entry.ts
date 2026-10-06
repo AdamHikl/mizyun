@@ -413,6 +413,7 @@ export type FoodRefineDraftRequest = z.infer<
 
 export const foodDraftResponseSchema = z.object({
   draft: foodDraftCandidateSchema,
+  drafts: z.array(foodDraftCandidateSchema).min(1).max(3).optional(),
   /**
    * Server-side correlation id for log tracing. NOT a client-side
    * field; the route stamps it so the user can quote it when

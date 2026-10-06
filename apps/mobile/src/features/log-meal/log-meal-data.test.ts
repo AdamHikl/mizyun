@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { ApiClient, ApiError, RequestOptions } from "@mizyun/api-client";
 import type { Result } from "@mizyun/core";
@@ -332,6 +332,55 @@ const photoBlob = new Blob(
 );
 
 describe("snapMealPhotoWith", () => {
+  it("forwards extra photos and returns every validated candidate", async () => {
+    const primary = stubFoodDraft({ name: "Chicken" });
+    const drafts = [primary.draft, stubFoodDraft({ name: "Soup" }).draft];
+    const request = vi.fn(async () => ({
+      ok: true as const,
+      value: { ...primary, drafts },
+    }));
+    const client: ApiClient = {
+      ...fakeClient({ ok: true, value: {} }),
+      draftFoodEntry: request,
+    };
+    const additionalPhotos = [
+      { photo: photoBlob, mimeType: "image/jpeg" as const },
+    ];
+    expect(
+      await snapMealPhotoWith(
+        client,
+        photoBlob,
+        "image/jpeg",
+        "dinner",
+        additionalPhotos,
+      ),
+    ).toEqual({ ok: true, draft: primary.draft, drafts });
+    expect(request).toHaveBeenCalledWith({
+      photo: photoBlob,
+      mimeType: "image/jpeg",
+      textHint: "dinner",
+      additionalPhotos,
+    });
+  });
+
+  it("rejects invalid extra candidates even through a custom client", async () => {
+    const primary = stubFoodDraft();
+    const client: ApiClient = {
+      ...fakeClient({ ok: true, value: {} }),
+      draftFoodEntry: async () => ({
+        ok: true as const,
+        value: {
+          ...primary,
+          drafts: [primary.draft, { ...primary.draft, confidence: 2 }],
+        },
+      }),
+    };
+    expect(await snapMealPhotoWith(client, photoBlob, "image/jpeg")).toEqual({
+      ok: false,
+      message: "Couldn't read the photo — type the meal by hand.",
+    });
+  });
+
   it("returns the parsed candidate on a 2xx response", async () => {
     const client: ApiClient = {
       ...fakeClient({ ok: true, value: {} }),

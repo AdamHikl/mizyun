@@ -294,6 +294,8 @@ describe("Coach meal photo data boundary", () => {
       conversation.id,
       new Blob(),
       "coach-photo-key-0001",
+      [{ photo: new Blob(), mimeType: "image/png" }],
+      "dinner",
     );
     expect(result).toEqual({
       ok: true,
@@ -305,6 +307,8 @@ describe("Coach meal photo data boundary", () => {
       idempotencyKey: "coach-photo-key-0001",
       photo: expect.any(Blob),
       mimeType: "image/jpeg",
+      additionalPhotos: [{ photo: expect.any(Blob), mimeType: "image/png" }],
+      textHint: "dinner",
     });
   });
 });

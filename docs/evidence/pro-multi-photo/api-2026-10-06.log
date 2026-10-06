@@ -1,0 +1,14 @@
+
+> @mizyun/api@0.1.0 test /Users/adam/Documents/mizyun/apps/api
+> vitest run src/modules/food-entries/draft-route.test.ts src/modules/coach/nutrition-photo-routes.test.ts
+
+
+ RUN  v3.2.7 /Users/adam/Documents/mizyun
+
+ ✓ apps/api/src/modules/coach/nutrition-photo-routes.test.ts (13 tests) 328ms
+ ✓ apps/api/src/modules/food-entries/draft-route.test.ts (41 tests) 557ms
+
+ Test Files  2 passed (2)
+      Tests  54 passed (54)
+   Start at  19:33:07
+   Duration  4.06s (transform 2.01s, setup 0ms, collect 6.33s, tests 885ms, environment 0ms, prepare 123ms)

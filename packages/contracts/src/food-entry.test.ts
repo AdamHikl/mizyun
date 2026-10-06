@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   foodDraftCandidateSchema,
+  foodDraftResponseSchema,
   foodEntryListQuerySchema,
   foodEntryListResponseSchema,
   foodEntrySummaryQuerySchema,
@@ -65,6 +66,31 @@ describe("nutrition draft contracts", () => {
       promptVersion: "fixture-v1",
     },
   };
+
+  it("accepts one to three drafts and validates every candidate", () => {
+    const response = { draft: nutrientCandidate, requestId: "synthetic-photo" };
+    expect(foodDraftResponseSchema.safeParse(response).success).toBe(true);
+    expect(
+      foodDraftResponseSchema.parse({
+        ...response,
+        drafts: [nutrientCandidate, nutrientCandidate, nutrientCandidate],
+      }).drafts,
+    ).toHaveLength(3);
+    for (const drafts of [
+      [],
+      [
+        nutrientCandidate,
+        nutrientCandidate,
+        nutrientCandidate,
+        nutrientCandidate,
+      ],
+      [nutrientCandidate, { ...nutrientCandidate, confidence: 2 }],
+    ]) {
+      expect(
+        foodDraftResponseSchema.safeParse({ ...response, drafts }).success,
+      ).toBe(false);
+    }
+  });
 
   it("retains extra nutrient estimates, explicit zero and unknown through refinement", () => {
     const candidate = {

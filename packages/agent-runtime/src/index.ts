@@ -627,6 +627,30 @@ export const screenCoachInput = (rawText: string): SafetyDecision => {
   return { allowed: true };
 };
 
+/** Conservative output boundary for advisory photo answers; never image diagnosis. */
+export const screenCoachPhotoAdvice = (text: string): SafetyDecision => {
+  const inputSafety = screenCoachInput(text);
+  if (!inputSafety.allowed) return inputSafety;
+  if (
+    [
+      /\byou (?:definitely|clearly|probably) have\b/i,
+      /\b(?:melanoma|cancer|fracture|ruptured|torn ligament|infection|tumou?r)\b/i,
+      /\b(?:lesion|rash|injury|swelling|skin condition)\b[^.!?]{0,80}\b(?:is|indicates|shows|means|caused by)\b/i,
+      /\b(?:take|apply|inject|start|stop|increase|reduce)\b[^.!?]{0,100}\b(?:medication|medicine|ibuprofen|aspirin|paracetamol|acetaminophen|antibiotic|insulin|steroid|tablet|pill)\b/i,
+      /\b(?:ibuprofen|aspirin|paracetamol|acetaminophen|insulin)\b[^.!?]{0,80}\b\d+\s*(?:mg|dose|units)\b/i,
+      /\b(?:body[ -]?fat|body composition)\b[^.!?]{0,50}\d+(?:\.\d+)?\s*%/i,
+    ].some((pattern) => pattern.test(text.normalize("NFKC")))
+  ) {
+    return {
+      allowed: false,
+      category: "medical",
+      response:
+        "I can explain general fitness and nutrition context, but I cannot diagnose, assess body composition, or recommend treatment from photos. Please consult a qualified medical professional for health concerns.",
+    };
+  }
+  return { allowed: true };
+};
+
 export interface AgentOrchestratorOptions {
   readonly provider: AgentProvider;
   readonly memories: MemoryStore;
@@ -934,11 +958,18 @@ export {
 export type VisionMimeType = "image/jpeg" | "image/png" | "image/webp";
 
 export interface VisionDraftRequest {
+  /** Coach may answer visual context without proposing a meal. */
+  readonly purpose?: "meal" | "coach";
   /** Set only by the server after checking advanced nutrition capability. */
   readonly includeAdvancedNutrition?: boolean;
   readonly userId: UserId;
   readonly photo: Readonly<Uint8Array>;
   readonly mimeType: VisionMimeType;
+  /** Additional transient photos in the same inference; maximum two. */
+  readonly additionalPhotos?: readonly {
+    readonly photo: Readonly<Uint8Array>;
+    readonly mimeType: VisionMimeType;
+  }[];
   /**
    * Optional text hint from the user (e.g. "this is my lunch"). The
    * hint is part of the request and is sent to the provider, never
@@ -994,6 +1025,10 @@ export interface NutritionEstimateRange {
 }
 
 export interface VisionDraftCandidate {
+  /** Other distinct meals found in the same inference, maximum two. */
+  readonly additionalDrafts?: readonly VisionDraftCandidate[];
+  /** Advisory visual context for Coach; never a saved meal. */
+  readonly photoAdvice?: string;
   /**
    * Suggested food name. `null` when the model cannot make a
    * confident guess; the route translates this to a fixed

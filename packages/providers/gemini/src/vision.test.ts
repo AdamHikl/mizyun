@@ -1167,3 +1167,165 @@ describe("Gemini advanced nutrient drafts", () => {
     expect(result.warnings[7]).toContain("rejected by the safety policy");
   });
 });
+
+describe("Gemini multi-photo inference", () => {
+  const makeProvider = (output: unknown) => {
+    const generateContent = vi.fn<GeminiVisionClient["generateContent"]>(
+      async () => ({
+        modelVersion: "gemini-2.5-flash",
+        usageMetadata: { totalTokenCount: 77 },
+        candidates: [
+          {
+            content: {
+              role: "model",
+              parts: [{ text: JSON.stringify(output) }],
+            },
+          },
+        ],
+      }),
+    );
+    const provider = new GeminiVisionProvider({
+      apiKey: "test-key",
+      model: "gemini-2.5-flash",
+      timeoutMs: 5000,
+      maxOutputTokens: 2000,
+      externalAccess: true,
+      client: { generateContent },
+    });
+    return { provider, generateContent };
+  };
+  const multiRequest: VisionDraftRequest = {
+    ...request,
+    additionalPhotos: [
+      { photo: new Uint8Array([1, 2, 3]), mimeType: "image/png" },
+      { photo: new Uint8Array([4, 5, 6]), mimeType: "image/webp" },
+    ],
+  };
+  it("sends all angles in one inference and prompts against duplicated portions", async () => {
+    const { provider, generateContent } = makeProvider(candidateOutput);
+    const result = await provider.generateDraft(multiRequest);
+    expect(generateContent).toHaveBeenCalledTimes(1);
+    expect(generateContent.mock.calls[0]?.[0].contents[0]?.parts).toHaveLength(
+      4,
+    );
+    expect(generateContent.mock.calls[0]?.[0].contents[0]?.parts[2]).toEqual({
+      inlineData: { mimeType: "image/png", data: "AQID" },
+    });
+    expect(
+      generateContent.mock.calls[0]?.[0].systemInstruction?.parts[0]?.text,
+    ).toContain("count each edible component once");
+    expect(result).not.toHaveProperty("additionalDrafts");
+    expect(result.tokensUsed).toBe(77);
+  });
+  it("normalizes distinct meals separately with shared provenance and one token count", async () => {
+    const { provider, generateContent } = makeProvider({
+      ...candidateOutput,
+      additionalDrafts: [
+        {
+          ...candidateOutput,
+          name: "Soup",
+          portionWeightG: 123.456,
+          proteinG: 6.789,
+        },
+      ],
+    });
+    const result = await provider.generateDraft(multiRequest);
+    expect(result.additionalDrafts?.[0]).toMatchObject({
+      name: "Soup",
+      portionWeightG: 123.5,
+      proteinG: 6.789,
+      provenance: result.provenance,
+    });
+    expect(result.additionalDrafts?.[0]).not.toHaveProperty("tokensUsed");
+    expect(
+      generateContent.mock.calls[0]?.[0].generationConfig?.responseSchema,
+    ).toMatchObject({ properties: { additionalDrafts: { maxItems: 2 } } });
+  });
+  it("rejects a malformed additional meal instead of silently dropping it", async () => {
+    const { provider } = makeProvider({
+      ...candidateOutput,
+      additionalDrafts: [{ ...candidateOutput, caloriesKcal: -1 }],
+    });
+    await expect(provider.generateDraft(multiRequest)).rejects.toMatchObject({
+      kind: "malformed_response",
+    });
+  });
+  it("screens every distinct meal candidate", async () => {
+    const { provider } = makeProvider({
+      ...candidateOutput,
+      additionalDrafts: [{ ...candidateOutput, name: "prescribe medication" }],
+    });
+    const result = await provider.generateDraft(multiRequest);
+    expect(result.additionalDrafts?.[0]).toMatchObject({
+      name: null,
+      caloriesKcal: null,
+    });
+    expect(result.additionalDrafts?.[0]?.warnings.join(" ")).toContain(
+      "safety policy",
+    );
+  });
+  it.each(["count", "bytes", "empty"])(
+    "rejects invalid %s before model dispatch",
+    async (kind) => {
+      const { provider, generateContent } = makeProvider(candidateOutput);
+      const invalid: VisionDraftRequest =
+        kind === "count"
+          ? {
+              ...multiRequest,
+              additionalPhotos: [
+                ...(multiRequest.additionalPhotos ?? []),
+                { photo: new Uint8Array([7]), mimeType: "image/jpeg" },
+              ],
+            }
+          : kind === "bytes"
+            ? { ...request, photo: new Uint8Array(15 * 1024 * 1024 + 1) }
+            : { ...request, photo: new Uint8Array() };
+      await expect(provider.generateDraft(invalid)).rejects.toMatchObject({
+        kind: "invalid_request",
+      });
+      expect(generateContent).not.toHaveBeenCalled();
+    },
+  );
+  it("allows Coach visual context advice and marks image instructions untrusted", async () => {
+    const { provider, generateContent } = makeProvider({
+      ...candidateOutput,
+      name: null,
+      photoAdvice:
+        "The menu shows several lunch choices. Check portions before comparing.",
+    });
+    const result = await provider.generateDraft({
+      ...request,
+      purpose: "coach",
+      textHint: "Compare this menu",
+    });
+    expect(result.photoAdvice).toContain("lunch choices");
+    expect(
+      generateContent.mock.calls[0]?.[0].systemInstruction?.parts[0]?.text,
+    ).toContain("Only propose meal estimates when");
+    expect(
+      generateContent.mock.calls[0]?.[0].systemInstruction?.parts[0]?.text,
+    ).toContain("untrusted content");
+  });
+  it("does not expose advice fields from meal-only inference", async () => {
+    const { provider } = makeProvider({
+      ...candidateOutput,
+      photoAdvice: "Unsupported output",
+    });
+    expect(await provider.generateDraft(request)).not.toHaveProperty(
+      "photoAdvice",
+    );
+  });
+  it("blocks diagnostic and treatment assertions in photo advice", async () => {
+    const { provider } = makeProvider({
+      ...candidateOutput,
+      name: null,
+      photoAdvice: "The lesion is melanoma. Take ibuprofen 800 mg twice daily.",
+    });
+    const result = await provider.generateDraft({
+      ...request,
+      purpose: "coach",
+    });
+    expect(result.photoAdvice).toContain("qualified medical professional");
+    expect(result.photoAdvice).not.toContain("800 mg");
+  });
+});
