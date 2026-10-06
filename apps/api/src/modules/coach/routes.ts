@@ -21,6 +21,7 @@ import type {
   StoredConversationMessage,
   UserId,
   WorkoutRepository,
+  RunRepository,
   WorkoutSetRepository,
   AiConsentRepository,
 } from "@mizyun/core";
@@ -96,6 +97,7 @@ interface CoachRoutesOptions {
   readonly goalRepository: GoalRepository;
   readonly foodEntryRepository: FoodEntryRepository;
   readonly workoutRepository: WorkoutRepository;
+  readonly runRepository?: RunRepository;
   readonly workoutSetRepository: WorkoutSetRepository;
   readonly bodyMeasurementRepository: BodyMeasurementRepository;
   readonly limits: CoachLimitService;

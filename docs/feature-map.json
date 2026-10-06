@@ -134,12 +134,22 @@
       "id": "workouts-sets",
       "title": "Workouts & Sets Tracking",
       "summary": "Custom exercises, workout templates, active workout session recovery, and progressive overload calculations.",
-      "aliases": ["workout", "exercise", "training", "sets", "gym", "routine"],
+      "aliases": [
+        "workout",
+        "exercise",
+        "training",
+        "sets",
+        "gym",
+        "routine",
+        "running"
+      ],
       "entryPoints": [
         "apps/api/src/modules/workouts/routes.ts",
         "apps/api/src/modules/workout-sets/routes.ts",
         "apps/api/src/modules/exercises/routes.ts",
-        "apps/mobile/src/features/workouts/index.ts"
+        "apps/mobile/src/features/workouts/index.ts",
+        "apps/api/src/modules/runs/routes.ts",
+        "apps/mobile/src/features/log-run/index.ts"
       ],
       "ownedPaths": [
         "apps/api/src/modules/workouts",
@@ -151,19 +161,28 @@
         "packages/core/src/exercise-catalog-data.ts",
         "packages/core/src/exercise-catalog-legacy.ts",
         "scripts/import-exercise-catalog.mjs",
-        "scripts/import-exercise-catalog.test.mjs"
+        "scripts/import-exercise-catalog.test.mjs",
+        "apps/api/src/modules/runs",
+        "apps/api/src/run-repository.ts",
+        "apps/mobile/src/features/log-run",
+        "apps/mobile/src/features/running",
+        "packages/core/src/running.ts",
+        "packages/core/src/run-repository.ts"
       ],
       "contracts": [
         "packages/contracts/src/workout.ts",
         "packages/contracts/src/workout-set.ts",
-        "packages/contracts/src/exercise.ts"
+        "packages/contracts/src/exercise.ts",
+        "packages/contracts/src/run.ts"
       ],
       "domainPort": [
         "packages/core/src/workout.ts",
         "packages/core/src/workout-lifecycle.ts",
         "packages/core/src/workout-set.ts",
         "packages/core/src/training-prescription.ts",
-        "packages/core/src/exercise-catalog.ts"
+        "packages/core/src/exercise-catalog.ts",
+        "packages/core/src/running.ts",
+        "packages/core/src/run-repository.ts"
       ],
       "api": [
         "apps/api/src/modules/workouts/routes.ts",
@@ -174,18 +193,27 @@
         "apps/mobile/src/app/(tabs)/workouts.tsx",
         "apps/mobile/src/app/log-workout.tsx",
         "apps/mobile/src/features/log-workout/log-workout-data.ts",
-        "apps/mobile/src/features/workouts/exercise-progression-data.ts"
+        "apps/mobile/src/features/workouts/exercise-progression-data.ts",
+        "apps/mobile/src/app/log-run.tsx",
+        "apps/mobile/src/app/run/[id].tsx"
       ],
       "adapters": [
         "packages/adapters/supabase-server/src/workout-repository.ts",
         "packages/adapters/supabase-server/src/workout-set-repository.ts",
-        "packages/adapters/supabase-server/src/exercise-repository.ts"
+        "packages/adapters/supabase-server/src/exercise-repository.ts",
+        "packages/adapters/supabase-server/src/run-repository.ts"
       ],
-      "dataTables": ["exercises", "workouts", "workout_sets"],
+      "dataTables": [
+        "exercises",
+        "workouts",
+        "workout_sets",
+        "run_operation_receipts"
+      ],
       "migrationPaths": [
         "supabase/migrations/20260714101000_user_data.sql",
         "supabase/migrations/20260721100000_persist_002_workout_columns.sql",
-        "supabase/migrations/20260914134000_backfill_workout_routine_lifecycle.sql"
+        "supabase/migrations/20260914134000_backfill_workout_routine_lifecycle.sql",
+        "supabase/migrations/20261006120000_manual_running.sql"
       ],
       "tests": [
         "apps/api/src/modules/workouts/routes.test.ts",
@@ -197,7 +225,11 @@
         "packages/core/src/workout-lifecycle.test.ts",
         "packages/core/src/training-prescription.test.ts",
         "packages/core/src/exercise-catalog.test.ts",
-        "apps/mobile/src/features/workouts/exercise-library-modal.test.tsx"
+        "apps/mobile/src/features/workouts/exercise-library-modal.test.tsx",
+        "packages/core/src/running.test.ts",
+        "packages/contracts/src/run.test.ts",
+        "packages/adapters/supabase-server/src/run-repository.test.ts",
+        "apps/api/src/modules/runs/routes.test.ts"
       ],
       "relations": [
         {
@@ -220,7 +252,8 @@
         "docs/adr/0009-active-workout-authority-and-recovery.md",
         "docs/patterns/README.md#pat-003",
         "docs/adr/0040-free-exercise-catalog-and-legacy-identity.md",
-        "docs/EXERCISE_CATALOG_RESEARCH_2026-10-04.md"
+        "docs/EXERCISE_CATALOG_RESEARCH_2026-10-04.md",
+        "docs/RUNNING_IMPLEMENTATION_PLAN_2026-10-06.md"
       ],
       "verificationCommands": [
         "pnpm --filter @mizyun/api test src/modules/workouts src/modules/workout-sets src/modules/exercises",

@@ -260,6 +260,7 @@ export interface WorkoutRepository {
       readonly to: Date | null;
       readonly limit: number;
       readonly kind?: "routine" | "session" | undefined;
+      readonly excludeRunning?: boolean;
       readonly accessToken: string;
     },
   ): Promise<ReadonlyArray<StoredWorkout>>;

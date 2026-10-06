@@ -30,6 +30,9 @@ interface WorkoutsRoutesOptions {
   readonly communityRepository?: CommunityRepository;
 }
 
+const isRun = (details: Readonly<Record<string, unknown>>) =>
+  details.activityType === "running" || "runSummary" in details;
+
 const GENERIC_UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -189,6 +192,7 @@ export const workoutsRoutes: FastifyPluginAsync<WorkoutsRoutesOptions> = async (
         from,
         to,
         limit: cappedLimit,
+        excludeRunning: true,
         ...(parsed.data.kind !== undefined ? { kind: parsed.data.kind } : {}),
         accessToken: principal.accessToken,
       });
@@ -222,6 +226,16 @@ export const workoutsRoutes: FastifyPluginAsync<WorkoutsRoutesOptions> = async (
         return;
       }
 
+      if (isRun(parsed.data.details ?? {})) {
+        await sendApiError(
+          reply,
+          request,
+          409,
+          "CONFLICT",
+          "Use run logging to save a run.",
+        );
+        return;
+      }
       const clientOpHeader = request.headers["idempotency-key"];
       const clientOperationId =
         parsed.data.clientOperationId ??
@@ -539,6 +553,16 @@ export const workoutsRoutes: FastifyPluginAsync<WorkoutsRoutesOptions> = async (
         );
         return;
       }
+      if (isRun(stored.details) || isRun(parsed.data.details ?? {})) {
+        await sendApiError(
+          reply,
+          request,
+          409,
+          "CONFLICT",
+          "Use run logging to edit a run.",
+        );
+        return;
+      }
       const patch: WorkoutPatch = {
         ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
         ...(parsed.data.startedAt !== undefined
@@ -622,6 +646,16 @@ export const workoutsRoutes: FastifyPluginAsync<WorkoutsRoutesOptions> = async (
           404,
           "NOT_FOUND",
           "No workout with that id exists for this user.",
+        );
+        return;
+      }
+      if (isRun(stored.details)) {
+        await sendApiError(
+          reply,
+          request,
+          409,
+          "CONFLICT",
+          "Use run logging to delete a run.",
         );
         return;
       }

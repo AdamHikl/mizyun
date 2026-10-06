@@ -31,8 +31,10 @@ function cacheable(options: RequestOptions): boolean {
       "/v1/food-entries",
       "/v1/food-entries/summary",
       "/v1/workouts",
+      "/v1/runs",
       "/v1/coach/conversations",
     ].includes(path) ||
+    /^\/v1\/runs\/[^/]+$/.test(path) ||
     /^\/v1\/workouts\/[^/]+\/sets$/.test(path) ||
     /^\/v1\/coach\/conversations\/[^/]+$/.test(path)
   );

@@ -186,7 +186,13 @@ const getOwnedWorkout = async (
   const workout = await workoutRepository.getById(workoutId, {
     accessToken,
   });
-  if (workout === null || workout.userId !== userId) return null;
+  if (
+    workout === null ||
+    workout.userId !== userId ||
+    workout.details.activityType === "running" ||
+    "runSummary" in workout.details
+  )
+    return null;
   return workout;
 };
 

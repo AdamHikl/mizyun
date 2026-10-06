@@ -19,6 +19,7 @@ import { InMemoryGoalRepository } from "../../goal-repository.js";
 import { InMemoryProfileRepository } from "../../profile-repository.js";
 import { InMemoryWorkoutRepository } from "../../workout-repository.js";
 import { InMemoryWorkoutSetRepository } from "../../workout-set-repository.js";
+import { InMemoryRunRepository } from "../../run-repository.js";
 import { InMemoryAccountRepository } from "../../account-repository.js";
 import { InMemoryProductAnalyticsRepository } from "../../product-analytics-repository.js";
 import {
@@ -63,6 +64,7 @@ const build = (
   const foodEntryRepository = new InMemoryFoodEntryRepository();
   const exerciseRepository = new InMemoryExerciseRepository();
   const workoutRepository = new InMemoryWorkoutRepository();
+  const runRepository = new InMemoryRunRepository(workoutRepository);
   const workoutSetRepository = new InMemoryWorkoutSetRepository();
   const bodyMeasurementRepository = new InMemoryBodyMeasurementRepository();
   const memoryStore = new InMemoryMemoryStore();
@@ -73,6 +75,7 @@ const build = (
     foodEntryRepository,
     exerciseRepository,
     workoutRepository,
+    runRepository,
     workoutSetRepository,
     bodyMeasurementRepository,
     memoryStore,
@@ -89,6 +92,7 @@ const build = (
     foodEntryRepository,
     exerciseRepository,
     workoutRepository,
+    runRepository,
     workoutSetRepository,
     bodyMeasurementRepository,
     accountRepository,
@@ -103,6 +107,7 @@ const build = (
     profileRepository,
     exerciseRepository,
     workoutRepository,
+    runRepository,
     memoryStore,
   };
 };
@@ -831,5 +836,52 @@ describe("DELETE /v1/account", () => {
       expect(res.statusCode).toBe(422);
       expect(res.json().error.code).toBe("VALIDATION_ERROR");
     });
+  });
+});
+
+describe("running account export", () => {
+  it("exports complete run details and deleted receipts without clearing replay protection", async () => {
+    const { app } = build(tokenVerifierFor({ userId: userA }));
+    const headers = { authorization: "Bearer valid" };
+    const body = {
+      clientOperationId: "f2160000-0000-4000-8000-000000000021",
+      activityDate: "2026-10-01",
+      recordingTimezone: "UTC",
+      durationSeconds: 5400,
+      distanceMeters: null,
+    };
+    const created = await app.inject({
+      method: "POST",
+      url: "/v1/runs",
+      headers,
+      payload: body,
+    });
+    expect(created.statusCode).toBe(200);
+    const id = created.json().run.id;
+    const live = await app.inject({
+      method: "GET",
+      url: "/v1/account/export",
+      headers,
+    });
+    expect(live.json().export.workouts[0].details.runSummary).toMatchObject({
+      durationSeconds: 5400,
+      distanceMeters: null,
+      timePrecision: "day",
+    });
+    expect(live.json().export.runOperationReceipts).toHaveLength(1);
+    await app.inject({ method: "DELETE", url: `/v1/runs/${id}`, headers });
+    const removed = await app.inject({
+      method: "GET",
+      url: "/v1/account/export",
+      headers,
+    });
+    expect(removed.json().export.runOperationReceipts[0].deleted).toBe(true);
+    const stale = await app.inject({
+      method: "POST",
+      url: "/v1/runs",
+      headers,
+      payload: body,
+    });
+    expect(stale.statusCode).toBe(409);
   });
 });

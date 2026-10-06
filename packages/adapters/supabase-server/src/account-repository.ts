@@ -107,6 +107,7 @@ async function fetchAllPaged<T extends Record<string, unknown>>(
   filterVal: string,
   orderCol: string,
   ascending = true,
+  tieBreaker = "id",
 ): Promise<ReadonlyArray<T>> {
   const all: T[] = [];
   let offset = 0;
@@ -120,7 +121,7 @@ async function fetchAllPaged<T extends Record<string, unknown>>(
     } else {
       query = query
         .order(orderCol, { ascending })
-        .order("id", { ascending: true });
+        .order(tieBreaker, { ascending: true });
     }
 
     const { data, error } = await query.range(
@@ -263,9 +264,19 @@ export class SupabaseAccountRepository implements AccountRepository {
     let hasMediaSigningFailures = false;
     let community: AccountExport["community"];
     let recurringMeals: AccountExport["recurringMeals"];
+    let runOperationReceipts: AccountExport["runOperationReceipts"];
 
     if (this.#clientFor !== null) {
       const client = this.#clientFor(token);
+      runOperationReceipts = await fetchAllPaged(
+        client,
+        "run_operation_receipts",
+        "user_id",
+        userId,
+        "created_at",
+        true,
+        "operation_id",
+      );
       recurringMeals = {
         schedules: await fetchAllPaged(
           client,
@@ -647,6 +658,7 @@ export class SupabaseAccountRepository implements AccountRepository {
       manifest,
       ...(community ? { community } : {}),
       ...(recurringMeals ? { recurringMeals } : {}),
+      ...(runOperationReceipts ? { runOperationReceipts } : {}),
       userId,
       generatedAt: now,
       profile,

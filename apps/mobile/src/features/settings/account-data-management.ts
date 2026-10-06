@@ -224,6 +224,7 @@ export const clearLocalUserData = async (
   const standardDraftKinds: readonly LoggingDraftKind[] = [
     "meal",
     "workout",
+    "run",
     "weight",
     "coach",
   ];

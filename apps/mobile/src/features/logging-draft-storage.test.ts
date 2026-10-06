@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   clearLoggingDraft,
   loadLoggingDraft,
+  loadRequiredLoggingDraft,
   saveLoggingDraft,
 } from "./logging-draft-storage";
 
@@ -116,5 +117,42 @@ describe("logging draft storage", () => {
       store,
     );
     expect(loaded).toBeNull();
+  });
+});
+
+describe("required running draft recovery", () => {
+  const valid = (value: unknown): value is { pending: string } =>
+    !!value && typeof value === "object" && "pending" in value;
+  it("keeps pending run slots account scoped and only treats confirmed absence as empty", async () => {
+    const store = memoryStore();
+    await saveLoggingDraft(
+      USER_ID,
+      "run",
+      { pending: "immutable-operation" },
+      store,
+    );
+    expect(
+      await loadRequiredLoggingDraft(USER_ID, "run", valid, store),
+    ).toEqual({ pending: "immutable-operation" });
+    expect(
+      await loadRequiredLoggingDraft("other-user", "run", valid, store),
+    ).toBeNull();
+  });
+  it("rejects unavailable reads and malformed drafts instead of starting another operation", async () => {
+    const store = memoryStore();
+    store.getItemAsync = async () => {
+      throw new Error("locked");
+    };
+    await expect(
+      loadRequiredLoggingDraft(USER_ID, "run", valid, store),
+    ).rejects.toThrow("locked");
+    store.getItemAsync = async () => "{broken";
+    await expect(
+      loadRequiredLoggingDraft(USER_ID, "run", valid, store),
+    ).rejects.toThrow();
+    store.getItemAsync = async () => JSON.stringify({ other: "value" });
+    await expect(
+      loadRequiredLoggingDraft(USER_ID, "run", valid, store),
+    ).rejects.toThrow("unavailable");
   });
 });
