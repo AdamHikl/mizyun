@@ -4,6 +4,8 @@ const hooks = vi.hoisted(() => ({ slots: [] as any[], index: 0 }));
 const mocks = vi.hoisted(() => ({ search: vi.fn() }));
 vi.mock("react", async (original) => ({
   ...(await original<typeof import("react")>()),
+  useEffect: () => {},
+  useRef: (current: unknown) => (hooks.slots[hooks.index++] ??= { current }),
   useMemo: (callback: () => unknown) => callback(),
   useState: (initial: unknown) => {
     const index = hooks.index++;
@@ -132,4 +134,136 @@ describe("exercise library browsing", () => {
     expect(strings).toContain("• Do not pull your neck.");
     expect(text(tree)).not.toContain("science-backed");
   });
+});
+
+it("selects across searches and submits multiple exercises together", async () => {
+  const add = vi.fn().mockResolvedValue(true);
+  const close = vi.fn();
+  const renderBatch = () => {
+    hooks.index = 0;
+    return ExerciseLibraryModal({
+      visible: true,
+      onClose: close,
+      onSelectExercises: add,
+    });
+  };
+  let tree = renderBatch();
+  action(tree, "Quick select Exercise 0").props.onPress();
+  tree = renderBatch();
+  action(tree, "Search exercise library").props.onChangeText("specific");
+  tree = renderBatch();
+  expect(
+    action(tree, "Quick select Exercise 0").props.accessibilityState.selected,
+  ).toBe(true);
+  action(tree, "Quick select Exercise 1").props.onPress();
+  tree = renderBatch();
+  await action(tree, "Add 2 exercises").props.onPress();
+  await Promise.resolve();
+  expect(add).toHaveBeenCalledWith([entries[0], entries[1]]);
+  expect(close).toHaveBeenCalledTimes(1);
+});
+
+it("keeps a failed batch selected for retry and permits deselection", async () => {
+  const add = vi.fn().mockResolvedValue(false);
+  const close = vi.fn();
+  const renderBatch = () => {
+    hooks.index = 0;
+    return ExerciseLibraryModal({
+      visible: true,
+      onClose: close,
+      onSelectExercises: add,
+    });
+  };
+  let tree = renderBatch();
+  action(tree, "Quick select Exercise 0").props.onPress();
+  tree = renderBatch();
+  action(tree, "Add 1 exercises").props.onPress();
+  await Promise.resolve();
+  await Promise.resolve();
+  tree = renderBatch();
+  expect(close).not.toHaveBeenCalled();
+  expect(text(tree)).toContain("Could not add all selected exercises");
+  expect(
+    action(tree, "Quick select Exercise 0").props.accessibilityState.selected,
+  ).toBe(true);
+  action(tree, "Quick select Exercise 0").props.onPress();
+  tree = renderBatch();
+  expect(action(tree, "Add 0 exercises").props.disabled).toBe(true);
+});
+
+it("guards repeated calls before rerender and releases the guard for retry", async () => {
+  let finish!: (success: boolean) => void;
+  const pending = new Promise<boolean>((resolve) => {
+    finish = resolve;
+  });
+  const add = vi.fn().mockReturnValueOnce(pending).mockResolvedValueOnce(true);
+  const close = vi.fn();
+  const renderBatch = () => {
+    hooks.index = 0;
+    return ExerciseLibraryModal({
+      visible: true,
+      onClose: close,
+      onSelectExercises: add,
+    });
+  };
+  let tree = renderBatch();
+  action(tree, "Quick select Exercise 0").props.onPress();
+  tree = renderBatch();
+  const submit = action(tree, "Add 1 exercises").props.onPress;
+  submit();
+  submit();
+  expect(add).toHaveBeenCalledTimes(1);
+  action(tree, "Close library").props.onPress();
+  expect(close).not.toHaveBeenCalled();
+  finish(false);
+  await Promise.resolve();
+  await Promise.resolve();
+  tree = renderBatch();
+  expect(
+    action(tree, "Quick select Exercise 0").props.accessibilityState.selected,
+  ).toBe(true);
+  action(tree, "Add 1 exercises").props.onPress();
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(add).toHaveBeenCalledTimes(2);
+  expect(close).toHaveBeenCalledTimes(1);
+});
+
+it("exposes independent details and selection controls to native accessibility", () => {
+  const renderBatch = () => {
+    hooks.index = 0;
+    return ExerciseLibraryModal({
+      visible: true,
+      onClose: vi.fn(),
+      onSelectExercises: vi.fn(),
+    });
+  };
+  let tree = renderBatch();
+  const details = action(tree, "Toggle Exercise 0");
+  const select = action(tree, "Quick select Exercise 0");
+  expect(select.props.style.minHeight).toBe(48);
+  expect(select.props.style.minWidth).toBe(48);
+  expect(all(details.props.children, (node) => node === select)).toHaveLength(
+    0,
+  );
+  expect(all(select.props.children, (node) => node === details)).toHaveLength(
+    0,
+  );
+  details.props.onPress();
+  tree = renderBatch();
+  expect(
+    action(tree, "Toggle Exercise 0").props.accessibilityState.expanded,
+  ).toBe(true);
+  expect(
+    action(tree, "Quick select Exercise 0").props.accessibilityState.selected,
+  ).toBe(false);
+  action(tree, "Quick select Exercise 0").props.onPress();
+  tree = renderBatch();
+  expect(
+    action(tree, "Toggle Exercise 0").props.accessibilityState.expanded,
+  ).toBe(true);
+  expect(
+    action(tree, "Quick select Exercise 0").props.accessibilityState.selected,
+  ).toBe(true);
+  expect(action(tree, "Add 1 exercises")).toBeDefined();
 });

@@ -103,16 +103,17 @@ export function WorkoutEditorModal({
   }, [visible, workoutToEdit]);
 
   const handleAddCatalogExercise = useCallback(
-    (exercise: CatalogExercise) => {
-      const newItem: PlannedExerciseItem = {
+    (exercises: readonly CatalogExercise[]) => {
+      const newItems: PlannedExerciseItem[] = exercises.map((exercise) => ({
         name: exercise.name,
         catalogId: exercise.id,
         movementPattern: exercise.movementPattern,
         targetSets: 3,
         targetReps: "8-12",
         restSeconds: defaultRestSeconds,
-      };
-      setPlannedExercises((current) => [...current, newItem]);
+      }));
+      setPlannedExercises((current) => [...current, ...newItems]);
+      return true;
     },
     [defaultRestSeconds],
   );
@@ -321,8 +322,8 @@ export function WorkoutEditorModal({
               {plannedExercises.length === 0 ? (
                 <View style={styles.emptyExercisesBlock}>
                   <ThemedText type="small" themeColor="textSecondary">
-                    No exercises added yet. Pick from the 880+ exercise library
-                    or type a custom exercise name below.
+                    No exercises added yet. Pick from the exercise library or
+                    type a custom exercise name below.
                   </ThemedText>
                 </View>
               ) : (
@@ -451,7 +452,7 @@ export function WorkoutEditorModal({
       <ExerciseLibraryModal
         visible={libraryVisible}
         onClose={() => setLibraryVisible(false)}
-        onSelectExercise={handleAddCatalogExercise}
+        onSelectExercises={handleAddCatalogExercise}
       />
     </Modal>
   );

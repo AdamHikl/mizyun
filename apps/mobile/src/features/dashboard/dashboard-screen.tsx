@@ -7,6 +7,7 @@ import {
   ScrollView,
   StyleSheet,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect, type Href } from "expo-router";
@@ -834,13 +835,47 @@ export function DashboardScreen() {
             </Pressable>
           ) : null}
 
+          {/* Quick logging stays ahead of review content. */}
+          <View style={styles.section}>
+            <ThemedText type="smallBold" style={styles.sectionTitle}>
+              QUICK LOG
+            </ThemedText>
+            <View style={styles.actionGrid}>
+              {quickLogActions.map((action) => (
+                <Pressable
+                  key={action.label}
+                  accessibilityRole="button"
+                  accessibilityLabel={action.label}
+                  onPress={() => {
+                    trackDashboardControl(action.control);
+                    void router.push(action.path);
+                  }}
+                  style={({ pressed }) => [
+                    styles.action,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <View style={styles.actionIconContainer}>
+                    <ThemedText style={styles.actionIcon}>
+                      {action.icon}
+                    </ThemedText>
+                  </View>
+                  <View style={styles.actionBody}>
+                    <ThemedText type="smallBold">{action.label}</ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      {action.hint}
+                    </ThemedText>
+                  </View>
+                  <ThemedText style={styles.actionPlus}>＋</ThemedText>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
           {/* First-Meal Routine & Quick Reuse Card */}
-          {userId !== null ? (
+          {userId !== null && (metrics.macros?.entryCount ?? 0) === 0 ? (
             <FirstMealDashboardCard
               userId={userId}
-              todayDate={isoLocalDate(new Date())}
-              todayEntryCount={metrics.macros?.entryCount ?? 0}
-              caloriesToday={metrics.caloriesToday}
               recentMeal={recentMeal}
               reminderSettings={firstMealReminders}
               onMealCopied={loadMetrics}
@@ -926,43 +961,6 @@ export function DashboardScreen() {
               void router.push("/account-settings/health-steps" as Href);
             }}
           />
-
-          {/* 3. Quick Log Action Dock */}
-          <View style={styles.section}>
-            <ThemedText type="smallBold" style={styles.sectionTitle}>
-              QUICK LOG
-            </ThemedText>
-            <View style={styles.actionGrid}>
-              {quickLogActions.map((action) => (
-                <Pressable
-                  key={action.label}
-                  accessibilityRole="button"
-                  accessibilityLabel={action.label}
-                  onPress={() => {
-                    trackDashboardControl(action.control);
-                    void router.push(action.path);
-                  }}
-                  style={({ pressed }) => [
-                    styles.action,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <View style={styles.actionIconContainer}>
-                    <ThemedText style={styles.actionIcon}>
-                      {action.icon}
-                    </ThemedText>
-                  </View>
-                  <View style={styles.actionBody}>
-                    <ThemedText type="smallBold">{action.label}</ThemedText>
-                    <ThemedText type="small" themeColor="textSecondary">
-                      {action.hint}
-                    </ThemedText>
-                  </View>
-                  <ThemedText style={styles.actionPlus}>＋</ThemedText>
-                </Pressable>
-              ))}
-            </View>
-          </View>
 
           {/* 4. Energy Balance & Formula Breakdown */}
           <EnergyCard
@@ -1069,22 +1067,11 @@ function RefreshNotice(props: {
 
 function FirstMealDashboardCard(props: {
   readonly userId: string;
-  readonly todayDate: string;
-  readonly todayEntryCount: number;
-  readonly caloriesToday: number | null;
   readonly recentMeal: FoodEntry | null;
   readonly reminderSettings: FirstMealReminderSettings | null;
   readonly onMealCopied: () => Promise<void>;
 }) {
-  const {
-    userId,
-    todayDate,
-    todayEntryCount,
-    caloriesToday,
-    recentMeal,
-    reminderSettings,
-    onMealCopied,
-  } = props;
+  const { userId, recentMeal, reminderSettings, onMealCopied } = props;
   const theme = useTheme();
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -1113,55 +1100,6 @@ function FirstMealDashboardCard(props: {
     }
     setBusy(false);
   };
-
-  if (todayEntryCount > 0) {
-    return (
-      <ThemedView
-        type="backgroundElement"
-        style={[
-          styles.firstMealCard,
-          {
-            borderColor: "rgba(16, 185, 129, 0.25)",
-            backgroundColor:
-              theme.background === "#F8FAF9"
-                ? "rgba(16, 185, 129, 0.05)"
-                : "rgba(16, 185, 129, 0.08)",
-          },
-        ]}
-      >
-        <View style={styles.firstMealHeaderRow}>
-          <ThemedText style={styles.firstMealIcon}>✨</ThemedText>
-          <View style={styles.firstMealHeaderContent}>
-            <ThemedText type="smallBold" style={{ color: "#10B981" }}>
-              {todayEntryCount === 1
-                ? "First meal logged today!"
-                : "Today's food log"}
-            </ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              {todayEntryCount} {todayEntryCount === 1 ? "meal" : "meals"}{" "}
-              logged · {formatCalories(caloriesToday)} so far
-            </ThemedText>
-          </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Log another meal"
-            onPress={() => {
-              trackDashboardControl("first_meal_log");
-              router.push("/log-meal" as Href);
-            }}
-            style={({ pressed }) => [
-              styles.firstMealAddButton,
-              pressed && styles.pressed,
-            ]}
-          >
-            <ThemedText type="smallBold" style={styles.firstMealAddButtonText}>
-              ＋ Next
-            </ThemedText>
-          </Pressable>
-        </View>
-      </ThemedView>
-    );
-  }
 
   return (
     <ThemedView
@@ -1192,9 +1130,7 @@ function FirstMealDashboardCard(props: {
           ]}
         >
           <View style={styles.firstMealRepeatInfo}>
-            <ThemedText type="smallBold" numberOfLines={1}>
-              {recentMeal.name}
-            </ThemedText>
+            <ThemedText type="smallBold">{recentMeal.name}</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
               {recentMeal.caloriesKcal != null
                 ? `${recentMeal.caloriesKcal} kcal`
@@ -1259,7 +1195,10 @@ function FirstMealDashboardCard(props: {
               trackDashboardControl("first_meal_reminder");
               router.push("/settings" as Href);
             }}
-            style={({ pressed }) => pressed && styles.pressed}
+            style={({ pressed }) => [
+              styles.firstMealLogLink,
+              pressed && styles.pressed,
+            ]}
           >
             <ThemedText type="small" themeColor="textSecondary">
               ⏰ Set reminder
@@ -1287,6 +1226,7 @@ function DailyNutritionCard(props: {
     hasError = false,
     onPress,
   } = props;
+  const { fontScale } = useWindowDimensions();
   const display = computeDailyNutritionDisplay({
     summary,
     energy,
@@ -1307,7 +1247,7 @@ function DailyNutritionCard(props: {
     >
       <ThemedView type="backgroundElement" style={styles.dailyNutritionCard}>
         <View style={styles.dailyNutritionHeader}>
-          <View style={styles.actionBody}>
+          <View style={styles.nutritionHeaderCopy}>
             <ThemedText type="smallBold" themeColor="textSecondary">
               TODAY'S NUTRITION
             </ThemedText>
@@ -1362,7 +1302,9 @@ function DailyNutritionCard(props: {
         ) : null}
 
         {/* Macro Columns */}
-        <View style={styles.macroBarsRow}>
+        <View
+          style={[styles.macroBarsRow, fontScale > 1.3 && styles.stackedRow]}
+        >
           <MacroBar
             label="Protein"
             current={display.proteinG}
@@ -1414,11 +1356,7 @@ function MacroBar(props: {
     <View style={styles.macroBarItem}>
       <View style={styles.macroHeaderRow}>
         <View style={[styles.macroColorDot, { backgroundColor: color }]} />
-        <ThemedText
-          type="smallBold"
-          numberOfLines={1}
-          style={[styles.macroLabelText, { color }]}
-        >
+        <ThemedText type="smallBold" style={[styles.macroLabelText, { color }]}>
           {label}
         </ThemedText>
       </View>
@@ -1434,12 +1372,7 @@ function MacroBar(props: {
         />
       </View>
       <View style={styles.macroValueRow}>
-        <ThemedText
-          type="small"
-          numberOfLines={1}
-          adjustsFontSizeToFit
-          style={styles.macroValueContainer}
-        >
+        <ThemedText type="small" style={styles.macroValueContainer}>
           <ThemedText type="smallBold" style={styles.macroCurrentNum}>
             {roundedCurrent !== null ? `${roundedCurrent}g` : "—"}
           </ThemedText>
@@ -1701,12 +1634,21 @@ const styles = StyleSheet.create({
   },
   dailyNutritionHeader: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "flex-start",
     justifyContent: "space-between",
     gap: Spacing.two,
   },
+  nutritionHeaderCopy: {
+    flexBasis: 160,
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 0,
+    gap: Spacing.half,
+  },
   calorieRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "baseline",
     gap: 4,
     marginTop: 2,
@@ -1721,6 +1663,8 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   remainingBadge: {
+    maxWidth: "100%",
+    flexShrink: 1,
     backgroundColor: "rgba(16, 185, 129, 0.12)",
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -1756,8 +1700,10 @@ const styles = StyleSheet.create({
   progressBarFillOver: {
     backgroundColor: "#EF4444",
   },
+  stackedRow: { flexDirection: "column" },
   macroBarsRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: Spacing.two,
     marginTop: Spacing.half,
   },
@@ -1774,7 +1720,9 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   macroBarItem: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 0,
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.two,
     borderRadius: 12,
@@ -1792,6 +1740,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   macroLabelText: {
+    flexShrink: 1,
     fontSize: 12,
     fontWeight: "700",
   },
@@ -1810,6 +1759,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   macroValueContainer: {
+    flexShrink: 1,
     fontSize: 11,
   },
   macroCurrentNum: {
@@ -1844,7 +1794,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     opacity: 0.75,
   },
-  actionGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.two },
+  actionGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.one },
   action: {
     minWidth: "47%",
     flexBasis: 240,
@@ -1852,7 +1802,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(148, 163, 184, 0.2)",
     borderRadius: 16,
-    padding: Spacing.three,
+    minHeight: 48,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.one + Spacing.half,
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.two,
@@ -1881,7 +1833,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(148, 163, 184, 0.2)",
   },
-  actionBody: { flex: 1, gap: Spacing.half },
+  actionBody: { flex: 1, minWidth: 0, gap: Spacing.half },
   refreshNotice: {
     flexDirection: "row",
     alignItems: "center",
@@ -1966,18 +1918,9 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
-  firstMealAddButton: {
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.one,
-    borderRadius: 8,
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-  },
-  firstMealAddButtonText: {
-    color: "#10B981",
-    fontSize: 13,
-  },
   firstMealRepeatBox: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "space-between",
     borderRadius: 12,
@@ -1987,15 +1930,20 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   firstMealRepeatInfo: {
-    flex: 1,
+    flexBasis: 140,
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 0,
     gap: 2,
   },
   copyToTodayButton: {
+    maxWidth: "100%",
+    flexShrink: 1,
     backgroundColor: "#10B981",
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.one,
     borderRadius: 10,
-    minHeight: 36,
+    minHeight: 44,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -2005,11 +1953,16 @@ const styles = StyleSheet.create({
   },
   firstMealFooterRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.two,
     alignItems: "center",
     justifyContent: "space-between",
     paddingTop: Spacing.half,
   },
   firstMealLogLink: {
+    minHeight: 44,
+    maxWidth: "100%",
+    justifyContent: "center",
     paddingVertical: Spacing.half,
   },
   firstMealLogLinkText: {

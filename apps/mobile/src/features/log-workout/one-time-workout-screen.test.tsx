@@ -273,7 +273,9 @@ it("reuses the saved UUID and original name when the catalog label is clearer", 
       metadata: { targetLoadKg: 80 },
     },
   ];
-  openLibrary().props.onSelectExercise(getExerciseFromCatalog("barbell-rdl"));
+  openLibrary().props.onSelectExercises([
+    getExerciseFromCatalog("barbell-rdl"),
+  ]);
   await settle();
   expect(mocks.createExercise).not.toHaveBeenCalled();
   expect(mocks.persist.mock.calls[0][1][0]).toEqual(
@@ -290,7 +292,9 @@ it("does not create a third UUID when previous labels are ambiguous", async () =
     { ...exercise, id: "first-rdl", name: "Romanian Deadlift" },
     { ...exercise, id: "second-rdl", name: "Romanian Deadlift" },
   ];
-  openLibrary().props.onSelectExercise(getExerciseFromCatalog("barbell-rdl"));
+  openLibrary().props.onSelectExercises([
+    getExerciseFromCatalog("barbell-rdl"),
+  ]);
   await settle();
   expect(mocks.createExercise).not.toHaveBeenCalled();
   expect(mocks.persist).not.toHaveBeenCalled();
@@ -302,7 +306,9 @@ it("does not create a duplicate after a truncated saved-exercise page", async ()
     id: `saved-${index}`,
     name: `Custom ${index}`,
   }));
-  openLibrary().props.onSelectExercise(getExerciseFromCatalog("barbell-rdl"));
+  openLibrary().props.onSelectExercises([
+    getExerciseFromCatalog("barbell-rdl"),
+  ]);
   await settle();
   expect(mocks.createExercise).not.toHaveBeenCalled();
   expect(mocks.persist).not.toHaveBeenCalled();
@@ -315,7 +321,7 @@ it("saves new form instructions as numbered separate lines", async () => {
     ok: true,
     exercise: { ...exercise, id: "new-rdl", name: selected.name },
   });
-  openLibrary().props.onSelectExercise(selected);
+  openLibrary().props.onSelectExercises([selected]);
   await settle();
   expect(mocks.createExercise.mock.calls[0][1]).toContain("1. ");
   expect(mocks.createExercise.mock.calls[0][1]).toContain("\n2. ");
@@ -325,7 +331,7 @@ it("saves new form instructions as numbered separate lines", async () => {
 it("persists a selected exercise before its first set and restores it on reopening", async () => {
   const pending = deferred<any>();
   mocks.persist.mockReturnValueOnce(pending.promise);
-  openLibrary().props.onSelectExercise(catalogExercise);
+  openLibrary().props.onSelectExercises([catalogExercise]);
   await settle();
   expect(mocks.persist).toHaveBeenCalledTimes(1);
   expect(feed().props.exercises).toEqual([]);
@@ -371,15 +377,15 @@ it("keeps failed selections out of the session, retries, and guards concurrent d
     ok: false,
     message: "Exercise could not be saved",
   });
-  openLibrary().props.onSelectExercise(catalogExercise);
+  openLibrary().props.onSelectExercises([catalogExercise]);
   await settle();
   expect(feed().props.exercises).toEqual([]);
 
   const pending = deferred<any>();
   mocks.persist.mockReturnValueOnce(pending.promise);
   const library = openLibrary();
-  library.props.onSelectExercise(catalogExercise);
-  library.props.onSelectExercise(catalogExercise);
+  library.props.onSelectExercises([catalogExercise]);
+  library.props.onSelectExercises([catalogExercise]);
   await settle();
   expect(mocks.persist).toHaveBeenCalledTimes(2);
   expect(feed().props.exercises).toEqual([]);
@@ -390,16 +396,16 @@ it("keeps failed selections out of the session, retries, and guards concurrent d
   await settle();
   expect(feed().props.exercises).toHaveLength(1);
 
-  openLibrary().props.onSelectExercise(catalogExercise);
+  openLibrary().props.onSelectExercises([catalogExercise]);
   await settle();
   expect(mocks.persist).toHaveBeenCalledTimes(2);
   expect(feed().props.exercises).toHaveLength(1);
 });
 
 it("preserves the full existing exercise list when adding another exercise", async () => {
-  openLibrary().props.onSelectExercise(catalogExercise);
+  openLibrary().props.onSelectExercises([catalogExercise]);
   await settle();
-  openLibrary().props.onSelectExercise(secondCatalogExercise);
+  openLibrary().props.onSelectExercises([secondCatalogExercise]);
   await settle();
   expect(mocks.persist).toHaveBeenCalledTimes(2);
   const entries = mocks.persist.mock.calls[1][1];
@@ -440,7 +446,7 @@ it("ignores a stale Coach proposal when an existing blank session is opened", ()
 });
 
 it("logs entered load and reps through the existing set API and finishes without advancing arbitrary targets", async () => {
-  openLibrary().props.onSelectExercise(catalogExercise);
+  openLibrary().props.onSelectExercises([catalogExercise]);
   await settle();
   let active = feed();
   const entry = active.props.exercises[0];
@@ -493,7 +499,7 @@ it("keeps one-time exercise cards consistent while showing actual sets instead o
       secondExercise,
     ],
   };
-  openLibrary().props.onSelectExercise(catalogExercise);
+  openLibrary().props.onSelectExercises([catalogExercise]);
   await settle();
   const active = feed();
   expect(active.props.exercises[0].targetLoad).toBeUndefined();
@@ -545,7 +551,7 @@ it.each(["one_time", "routine"])(
       };
     const pending = deferred<any>();
     mocks.persist.mockReturnValueOnce(pending.promise);
-    openLibrary().props.onSelectExercise(catalogExercise);
+    openLibrary().props.onSelectExercises([catalogExercise]);
     await settle();
     const tree = render();
     const finish = headerFinish(tree);
@@ -668,4 +674,75 @@ it("shows the next exercise and set in the Production iOS rest timer", () => {
   expect(
     find(tree, (node) => node.props?.accessibilityLabel === "Skip rest timer"),
   ).not.toBeNull();
+});
+
+it("persists a batch together before any set and avoids duplicates within the batch", async () => {
+  const result = await openLibrary().props.onSelectExercises([
+    catalogExercise,
+    secondCatalogExercise,
+    catalogExercise,
+  ]);
+  await settle();
+  expect(result).toBe(true);
+  expect(mocks.persist).toHaveBeenCalledTimes(1);
+  expect(
+    mocks.persist.mock.calls[0][1].map((entry: any) => entry.name),
+  ).toEqual([exercise.name, secondExercise.name]);
+  expect(feed().props.exercises).toHaveLength(2);
+  expect(mocks.addSet).not.toHaveBeenCalled();
+});
+
+it("retries a partially prepared batch without recreating a saved exercise", async () => {
+  mocks.workspace = { ...mocks.workspace, exercises: [] };
+  mocks.createExercise
+    .mockResolvedValueOnce({ ok: true, exercise })
+    .mockResolvedValueOnce({ ok: false, message: "Could not save row" });
+  expect(
+    await openLibrary().props.onSelectExercises([
+      catalogExercise,
+      secondCatalogExercise,
+    ]),
+  ).toBe(false);
+  await settle();
+  expect(mocks.persist).not.toHaveBeenCalled();
+  expect(feed().props.exercises).toEqual([]);
+  mocks.createExercise.mockResolvedValueOnce({
+    ok: true,
+    exercise: secondExercise,
+  });
+  expect(
+    await openLibrary().props.onSelectExercises([
+      catalogExercise,
+      secondCatalogExercise,
+    ]),
+  ).toBe(true);
+  await settle();
+  expect(mocks.createExercise.mock.calls.map((call) => call[0])).toEqual([
+    exercise.name,
+    secondExercise.name,
+    secondExercise.name,
+  ]);
+  expect(mocks.persist).toHaveBeenCalledTimes(1);
+  expect(feed().props.exercises).toHaveLength(2);
+});
+
+it("keeps an earlier set error on screen without showing it as an add failure", async () => {
+  await openLibrary().props.onSelectExercises([catalogExercise]);
+  let active = feed();
+  const entry = active.props.exercises[0];
+  active.props.onUpdatePendingInput(entry.id, { load: "42.5", reps: "7" });
+  mocks.addSet.mockResolvedValueOnce({
+    ok: false,
+    message: "Earlier set save failed",
+  });
+  await feed().props.onLogSet(entry);
+  await settle();
+  const library = openLibrary();
+  expect(library.props.errorMessage).toBeNull();
+  expect(
+    find(
+      render(),
+      (node) => node.props?.children === "Earlier set save failed",
+    ),
+  ).toBeTruthy();
 });

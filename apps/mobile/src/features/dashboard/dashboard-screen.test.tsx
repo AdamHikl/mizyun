@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   appRemove: vi.fn(),
   networkRemove: vi.fn(),
   owner: "synthetic-owner",
+  fontScale: 1,
   appState: null as ((state: string) => void) | null,
   network: null as ((state: any) => void) | null,
   networkState: {
@@ -77,6 +78,7 @@ vi.mock("react-native", () => ({
   ScrollView: "ScrollView",
   View: "View",
   StyleSheet: { create: (styles: unknown) => styles },
+  useWindowDimensions: () => ({ fontScale: mocks.fontScale }),
 }));
 vi.mock("expo-network", () => ({
   NetworkStateType: {
@@ -298,6 +300,7 @@ beforeEach(() => {
   mocks.appRemove.mockReset();
   mocks.networkRemove.mockReset();
   mocks.owner = "synthetic-owner";
+  mocks.fontScale = 1;
   cleanupFocus = undefined;
 });
 afterEach(() => {
@@ -307,6 +310,78 @@ afterEach(() => {
 });
 
 describe("dashboard cached display and refresh status", () => {
+  it("keeps one populated nutrition summary and the quick meal action", async () => {
+    render();
+    focus();
+    await settle();
+    const tree = render();
+    expect(
+      find(tree, (node) => node.type?.name === "FirstMealDashboardCard"),
+    ).toBeFalsy();
+    expect(nutrition(tree).props.caloriesToday).toBe(750);
+    expect(
+      find(tree, (node) => node.props?.accessibilityLabel === "Log a meal"),
+    ).not.toBeNull();
+  });
+
+  it("retains first-meal setup and reminders for an empty day", async () => {
+    mocks.cache.mockResolvedValue(null);
+    mocks.daily.mockResolvedValue(
+      success({ ...summary, entryCount: 0, caloriesKcal: 0 }),
+    );
+    render();
+    focus();
+    await settle();
+    const tree = render();
+    const firstMeal = find(
+      tree,
+      (node) => node.type?.name === "FirstMealDashboardCard",
+    );
+    expect(firstMeal).not.toBeNull();
+    const card = firstMeal.type(firstMeal.props);
+    expect(text(card)).toContain("Start with your first meal");
+    expect(
+      find(
+        card,
+        (node) => node.props?.accessibilityLabel === "Set reminder in settings",
+      ),
+    ).not.toBeNull();
+  });
+
+  it("adapts mounted nutrition to a font-scale increase and decrease while retaining totals", async () => {
+    render();
+    focus();
+    await settle();
+    const defaultCard = nutrition(render());
+    const normal = defaultCard.type(defaultCard.props);
+    const macroRow = (tree: any) =>
+      find(
+        tree,
+        (node) =>
+          Array.isArray(node.props?.children) &&
+          node.props.children.some(
+            (child: any) => child?.type?.name === "MacroBar",
+          ),
+      );
+    const layout = (node: any) =>
+      Object.assign({}, ...node.props.style.filter(Boolean));
+    expect(layout(macroRow(normal)).flexDirection).toBe("row");
+    mocks.fontScale = 3.571;
+    const enlargedCard = nutrition(render());
+    expect(enlargedCard.props.caloriesToday).toBe(
+      defaultCard.props.caloriesToday,
+    );
+    const enlarged = enlargedCard.type(enlargedCard.props);
+    expect(layout(macroRow(enlarged)).flexDirection).toBe("column");
+    expect(text(enlarged)).toContain("750");
+    mocks.fontScale = 1;
+    const restoredCard = nutrition(render());
+    expect(
+      layout(macroRow(restoredCard.type(restoredCard.props))).flexDirection,
+    ).toBe("row");
+    expect(mocks.daily).toHaveBeenCalledTimes(1);
+  });
+
   it("shows cached numbers immediately without claiming offline before the live read settles", async () => {
     const pending = deferred<any>();
     mocks.daily.mockReturnValueOnce(pending.promise);

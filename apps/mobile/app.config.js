@@ -302,6 +302,13 @@ module.exports = {
       ...baseExpo.extra,
       mizyunVariant: variantName,
       mizyunProfile: effectiveProfile,
+      // Compare the effective Debug virtual environment before constructing clients.
+      // This contains public routing values only, never the publishable key.
+      mizyunRuntimeEndpoints: {
+        apiUrl: apiUrl ?? null,
+        supabaseUrl: supabaseUrl ?? null,
+        authRedirectUri: authRedirectUri ?? null,
+      },
       // Public endpoints only; release tooling verifies the exported native config.
       ...(effectiveProfile === "production"
         ? {

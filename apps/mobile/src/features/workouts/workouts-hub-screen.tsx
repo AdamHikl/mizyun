@@ -49,6 +49,7 @@ const INITIAL_DATA: WorkoutsHubResult = {
 };
 
 export function WorkoutsHubScreen() {
+  const workoutContext = useOptionalActiveWorkout();
   const { headerHeight, onHeaderLayout } = useTabHeaderLayout();
   const { profile, session } = useAuth();
   const community = useCommunityProfile({
@@ -177,6 +178,13 @@ export function WorkoutsHubScreen() {
   );
 
   const handleStartBlank = useCallback(async () => {
+    if (workoutContext?.activeWorkout) {
+      router.push({
+        pathname: "/log-workout",
+        params: { workoutId: workoutContext.activeWorkout.id },
+      });
+      return;
+    }
     if (startingBlank.current) return;
     startingBlank.current = true;
     setStartingOneTime(true);
@@ -215,7 +223,7 @@ export function WorkoutsHubScreen() {
       startingBlank.current = false;
       setStartingOneTime(false);
     }
-  }, [owner, principal]);
+  }, [owner, principal, workoutContext?.activeWorkout]);
 
   const handleOpenWorkout = useCallback((workoutId: string) => {
     router.push({
@@ -294,13 +302,17 @@ export function WorkoutsHubScreen() {
           <View style={styles.header}>
             <ThemedText type="subtitle">Workouts</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              Manage your routines, on-demand sessions, and history.
+              Start a session or choose a saved routine.
             </ThemedText>
           </View>
 
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Start one-time workout"
+            accessibilityLabel={
+              workoutContext?.activeWorkout
+                ? "Resume workout"
+                : "Start one-time workout"
+            }
             accessibilityState={{
               disabled: startingOneTime,
               busy: startingOneTime,
@@ -318,42 +330,38 @@ export function WorkoutsHubScreen() {
             </View>
             <View style={styles.createRoutineBody}>
               <ThemedText type="smallBold">
-                {startingOneTime ? "Starting…" : "Start One-time Workout"}
+                {workoutContext?.activeWorkout
+                  ? "Resume Workout"
+                  : startingOneTime
+                    ? "Starting…"
+                    : "Start One-time Workout"}
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                Add exercises, weights and sets as you go.
+                {workoutContext?.activeWorkout
+                  ? "Continue your active workout."
+                  : "Add exercises, weights and sets as you go."}
               </ThemedText>
             </View>
             <ThemedText style={styles.libraryArrow}>→</ThemedText>
           </Pressable>
 
-          {/* Primary Action Card: Create Workout Routine */}
+          {/* Secondary actions */}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Create custom workout routine"
             onPress={handleCreateRoutine}
             style={({ pressed }) => [
-              styles.createRoutineHeroCard,
+              styles.secondaryAction,
               pressed && styles.pressed,
             ]}
           >
-            <View style={styles.createRoutineIconContainer}>
-              <ThemedText style={styles.createRoutineIcon}>🏋️</ThemedText>
-            </View>
             <View style={styles.createRoutineBody}>
               <ThemedText type="smallBold">Create Routine</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                Design custom routine with 880+ exercises & target sets
+                Plan exercises and target sets for later.
               </ThemedText>
             </View>
-            <View style={styles.createRoutineBadge}>
-              <ThemedText
-                type="smallBold"
-                style={styles.createRoutineBadgeText}
-              >
-                ＋ Create
-              </ThemedText>
-            </View>
+            <ThemedText style={styles.libraryArrow}>＋</ThemedText>
           </Pressable>
 
           {/* Exercise Library Shortcut */}
@@ -362,17 +370,14 @@ export function WorkoutsHubScreen() {
             accessibilityLabel="Browse exercise library"
             onPress={() => setLibraryVisible(true)}
             style={({ pressed }) => [
-              styles.libraryCard,
+              styles.secondaryAction,
               pressed && styles.pressed,
             ]}
           >
-            <View style={styles.libraryIconContainer}>
-              <ThemedText style={styles.libraryIcon}>📚</ThemedText>
-            </View>
-            <View style={styles.libraryBody}>
+            <View style={styles.createRoutineBody}>
               <ThemedText type="smallBold">Exercise Library</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                Search 880+ exercises with instructions & muscle targets
+                Browse exercises, instructions and muscle groups.
               </ThemedText>
             </View>
             <ThemedText style={styles.libraryArrow}>→</ThemedText>
@@ -383,6 +388,7 @@ export function WorkoutsHubScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Show all workouts"
+              accessibilityState={{ selected: activeTab === "all" }}
               onPress={() => setActiveTab("all")}
               style={[
                 styles.tabChip,
@@ -403,6 +409,7 @@ export function WorkoutsHubScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Show available routines"
+              accessibilityState={{ selected: activeTab === "planned" }}
               onPress={() => setActiveTab("planned")}
               style={[
                 styles.tabChip,
@@ -423,6 +430,7 @@ export function WorkoutsHubScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Show completed workout history"
+              accessibilityState={{ selected: activeTab === "history" }}
               onPress={() => setActiveTab("history")}
               style={[
                 styles.tabChip,
@@ -917,41 +925,18 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
-  createRoutineBadge: {
-    backgroundColor: "#10B981",
-    paddingHorizontal: Spacing.three,
-    paddingVertical: 7,
-    borderRadius: 10,
-  },
-  createRoutineBadgeText: {
-    color: "#ffffff",
-    fontSize: 12,
-  },
-  libraryCard: {
+  secondaryAction: {
     width: "100%",
+    minHeight: 48,
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.three,
-    padding: Spacing.three,
-    borderRadius: 16,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "rgba(148, 163, 184, 0.15)",
     backgroundColor: "rgba(148, 163, 184, 0.05)",
-  },
-  libraryIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: "rgba(148, 163, 184, 0.12)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  libraryIcon: {
-    fontSize: 20,
-  },
-  libraryBody: {
-    flex: 1,
-    gap: 2,
   },
   libraryArrow: {
     fontSize: 16,
@@ -973,9 +958,12 @@ const styles = StyleSheet.create({
   },
   tabsRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: Spacing.two,
   },
   tabChip: {
+    minHeight: 48,
+    justifyContent: "center",
     paddingVertical: 7,
     paddingHorizontal: Spacing.three,
     borderRadius: 12,
@@ -1137,6 +1125,8 @@ const styles = StyleSheet.create({
   },
   cardActionsRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.two,
     justifyContent: "space-between",
     alignItems: "center",
     marginTop: Spacing.half,
@@ -1145,12 +1135,19 @@ const styles = StyleSheet.create({
     borderTopColor: "rgba(148, 163, 184, 0.12)",
   },
   cardActionsLeft: {
+    flexBasis: 200,
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.two,
     flexWrap: "wrap",
   },
   startSessionButton: {
+    minHeight: 48,
+    maxWidth: "100%",
+    justifyContent: "center",
     backgroundColor: "#10B981",
     paddingVertical: 8,
     paddingHorizontal: Spacing.three,
@@ -1160,6 +1157,9 @@ const styles = StyleSheet.create({
     color: "#ffffff",
   },
   editRoutineButton: {
+    minHeight: 48,
+    maxWidth: "100%",
+    justifyContent: "center",
     borderWidth: 1,
     borderColor: "rgba(148, 163, 184, 0.25)",
     paddingVertical: 7,
@@ -1168,6 +1168,9 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(148, 163, 184, 0.06)",
   },
   reviewButton: {
+    minHeight: 48,
+    maxWidth: "100%",
+    justifyContent: "center",
     borderWidth: 1,
     borderColor: "rgba(148, 163, 184, 0.25)",
     paddingVertical: 7,
@@ -1175,6 +1178,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   editDetailsButton: {
+    minHeight: 48,
+    maxWidth: "100%",
+    justifyContent: "center",
     borderWidth: 1,
     borderColor: "rgba(148, 163, 184, 0.25)",
     paddingVertical: 7,
@@ -1183,6 +1189,9 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(148, 163, 184, 0.06)",
   },
   deleteButton: {
+    minHeight: 48,
+    maxWidth: "100%",
+    justifyContent: "center",
     padding: Spacing.one,
   },
   pressed: {

@@ -68,11 +68,7 @@ export function ActiveWorkoutMiniBar() {
 
         {/* Middle title and live timers */}
         <View style={styles.infoColumn}>
-          <ThemedText
-            type="smallBold"
-            numberOfLines={1}
-            style={styles.workoutTitle}
-          >
+          <ThemedText type="smallBold" style={styles.workoutTitle}>
             {activeWorkout.name || "Live Workout"}
           </ThemedText>
           <View style={styles.timersRow}>
@@ -117,6 +113,8 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: MaxContentWidth,
     flexDirection: "row",
+    flexWrap: "wrap",
+    rowGap: Spacing.two,
     alignItems: "center",
     paddingVertical: Spacing.two + Spacing.half,
     paddingHorizontal: Spacing.three,
@@ -158,7 +156,10 @@ const styles = StyleSheet.create({
     fontSize: 20,
   },
   infoColumn: {
-    flex: 1,
+    flexBasis: 160,
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 0,
     marginRight: Spacing.two,
   },
   workoutTitle: {
@@ -166,11 +167,13 @@ const styles = StyleSheet.create({
   },
   timersRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: Spacing.two,
     marginTop: 2,
   },
   restBadge: {
+    maxWidth: "100%",
     paddingHorizontal: Spacing.one + Spacing.half,
     paddingVertical: 1,
     borderRadius: Spacing.one,
@@ -179,6 +182,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   resumeButton: {
+    minHeight: 44,
+    maxWidth: "100%",
+    flexShrink: 1,
     paddingVertical: Spacing.one + Spacing.half,
     paddingHorizontal: Spacing.two + Spacing.half,
     borderRadius: Spacing.two,

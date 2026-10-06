@@ -786,7 +786,10 @@
         "scripts/worker",
         "opencode.json",
         "apps/api/src/release-compatibility.test.ts",
-        "apps/api/src/test-fixtures/build6-contracts"
+        "apps/api/src/test-fixtures/build6-contracts",
+        "apps/mobile/metro.config.js",
+        "apps/mobile/tooling",
+        "apps/mobile/vitest/expo-application-stub.ts"
       ],
       "contracts": [],
       "domainPort": [],
@@ -813,6 +816,7 @@
       ],
       "docs": [
         "docs/adr/0004-validated-environment-composition.md",
+        "docs/adr/0044-native-bound-mobile-environment.md",
         "docs/adr/0022-git-backed-navigation-and-advisory-impact.md",
         "docs/patterns/README.md#pat-004",
         "docs/tutorials/HETZNER_BACKEND_GUIDE.md",
@@ -991,7 +995,11 @@
         "apps/mobile/src/components/account-header-button.test.ts",
         "apps/mobile/src/components/app-tabs.tsx",
         "apps/mobile/src/components/app-tabs.web.tsx",
-        "apps/mobile/src/components/tab-header.tsx"
+        "apps/mobile/src/components/tab-header.tsx",
+        "apps/mobile/src/components/themed-text.tsx",
+        "apps/mobile/src/components/themed-text.test.tsx",
+        "apps/mobile/src/components/active-workout-mini-bar.tsx",
+        "apps/mobile/src/components/active-workout-mini-bar.test.ts"
       ],
       "contracts": [],
       "domainPort": [],

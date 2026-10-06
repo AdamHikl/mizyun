@@ -1,4 +1,10 @@
-import { Platform, StyleSheet, Text, type TextProps } from "react-native";
+import {
+  Platform,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  type TextProps,
+} from "react-native";
 
 import { Fonts, ThemeColor } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
@@ -23,9 +29,14 @@ export function ThemedText({
   ...rest
 }: ThemedTextProps) {
   const theme = useTheme();
+  const { fontScale } = useWindowDimensions();
 
   return (
     <Text
+      // A live Dynamic Type change can retain Fabric's previous paragraph
+      // measurement. Recreate only the native text, keeping parent state and
+      // native font scaling intact. Ordinary renders keep the same identity.
+      key={fontScale}
       style={[
         { color: theme[themeColor ?? "text"] },
         type === "default" && styles.default,

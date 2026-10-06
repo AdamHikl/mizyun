@@ -10,16 +10,11 @@ import {
   trackSettingsSearchUsed,
 } from "@/features/analytics/ui-analytics";
 import { useAuth } from "@/features/auth/auth-context";
-import { useThemePreference } from "@/features/theme/theme-context";
 import { useTheme } from "@/hooks/use-theme";
 import {
   applyCoachReminders,
   loadCoachReminders,
 } from "@/features/coach/coach-reminders";
-import {
-  centimetersToDisplayLength,
-  lengthUnitLabel,
-} from "@/lib/length-units";
 import { router, type Href } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -47,7 +42,6 @@ export function SettingsScreen() {
   const theme = useTheme();
   const { signOut, profile, refreshProfile, session, openOnboarding } =
     useAuth();
-  const { preference: themePreference } = useThemePreference();
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
@@ -142,20 +136,8 @@ export function SettingsScreen() {
   );
 
   const displayName = profile?.displayName ?? "Mizyun Member";
-  const userInitial = displayName.trim().charAt(0).toUpperCase() || "M";
   const emailOrId =
     session?.user?.email ?? session?.user?.id ?? "Active Member";
-  const unitSystemDisplay =
-    profile?.unitSystem === "imperial"
-      ? "Imperial (lb, in)"
-      : "Metric (kg, cm)";
-  const appearanceDisplay =
-    themePreference === "auto"
-      ? "Auto (System)"
-      : themePreference === "light"
-        ? "Light mode"
-        : "Dark mode";
-
   const topPadding = Spacing.two;
   const bottomPadding = insets.bottom + Spacing.six;
 
@@ -188,70 +170,23 @@ export function SettingsScreen() {
               </View>
             </View>
           </View>
-          <ThemedText type="subtitle">Account</ThemedText>
+          <ThemedText type="subtitle">Settings</ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
-            Manage your physical stats, AI coach, and preferences.
+            Manage your profile, goals, preferences, and account.
           </ThemedText>
         </View>
 
-        {/* Hero Profile Summary Card */}
+        {/* Compact identity; profile details live in their settings. */}
         <ThemedView type="backgroundElement" style={styles.heroCard}>
-          <View style={styles.heroTopRow}>
-            <View style={styles.avatarContainer}>
-              <ThemedText style={styles.avatarText}>{userInitial}</ThemedText>
-            </View>
-            <View style={styles.heroIdentity}>
-              <ThemedText type="subtitle" style={styles.heroName}>
-                {displayName}
-              </ThemedText>
-              <ThemedText
-                type="small"
-                themeColor="textSecondary"
-                numberOfLines={1}
-              >
-                {emailOrId}
-              </ThemedText>
-            </View>
+          <View style={styles.heroIdentity}>
+            <ThemedText type="smallBold">{displayName}</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              {emailOrId}
+            </ThemedText>
           </View>
-
-          {/* Quick Badges Row */}
-          <View style={styles.heroBadgesRow}>
-            {profile?.planTier === "paid" ? (
-              <View style={[styles.heroPill, styles.betaPill]}>
-                <ThemedText type="smallBold" style={styles.betaPillText}>
-                  ✨ Launch Pro Pass
-                </ThemedText>
-              </View>
-            ) : (
-              <View style={styles.heroPill}>
-                <ThemedText type="smallBold" style={styles.heroPillText}>
-                  🌱 Free Plan
-                </ThemedText>
-              </View>
-            )}
-            <View style={styles.heroPill}>
-              <ThemedText type="smallBold" style={styles.heroPillText}>
-                📏 {unitSystemDisplay}
-              </ThemedText>
-            </View>
-            <View style={styles.heroPill}>
-              <ThemedText type="smallBold" style={styles.heroPillText}>
-                🎨 {appearanceDisplay}
-              </ThemedText>
-            </View>
-            {profile?.heightCm ? (
-              <View style={styles.heroPill}>
-                <ThemedText type="smallBold" style={styles.heroPillText}>
-                  ⚡{" "}
-                  {centimetersToDisplayLength(
-                    profile.heightCm,
-                    profile.unitSystem,
-                  )}{" "}
-                  {lengthUnitLabel(profile.unitSystem)}
-                </ThemedText>
-              </View>
-            ) : null}
-          </View>
+          <ThemedText type="small" themeColor="textSecondary">
+            {profile?.planTier === "paid" ? "Launch Pro Pass" : "Free Plan"}
+          </ThemedText>
         </ThemedView>
 
         {/* Search settings input */}
@@ -265,7 +200,7 @@ export function SettingsScreen() {
                 if (searchQuery.trim())
                   trackSettingsSearchUsed(searchResults.length);
               }}
-              placeholder="Search settings (e.g. dark mode, units, reminders)..."
+              placeholder="Search settings"
               placeholderTextColor={theme.textSecondary}
               style={[styles.searchInput, { color: theme.text }]}
               accessibilityLabel="Search settings"
@@ -426,7 +361,7 @@ const styles = StyleSheet.create({
     maxWidth: MaxContentWidth,
     alignSelf: "center",
     padding: Spacing.four,
-    gap: Spacing.four,
+    gap: Spacing.three,
   },
   header: { gap: Spacing.one },
   headerTopRow: {
@@ -460,59 +395,12 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   heroCard: {
-    padding: Spacing.four,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.25)",
-    gap: Spacing.three,
-  },
-  heroTopRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.three,
-  },
-  avatarContainer: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-    borderWidth: 2,
-    borderColor: "#10B981",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#10B981",
+    padding: Spacing.three,
+    borderRadius: 12,
+    gap: Spacing.one,
   },
   heroIdentity: {
-    flex: 1,
     gap: 2,
-  },
-  heroName: {
-    fontSize: 18,
-  },
-  heroBadgesRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.two,
-  },
-  heroPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    backgroundColor: "rgba(128, 128, 128, 0.12)",
-  },
-  heroPillText: {
-    fontSize: 12,
-  },
-  betaPill: {
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-  },
-  betaPillText: {
-    fontSize: 12,
-    color: "#10B981",
   },
   searchSection: {
     gap: Spacing.one,

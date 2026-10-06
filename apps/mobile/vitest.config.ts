@@ -59,6 +59,13 @@ export default defineConfig({
           .pathname,
       },
       {
+        find: /^expo-application$/,
+        replacement: new URL(
+          "./vitest/expo-application-stub.ts",
+          import.meta.url,
+        ).pathname,
+      },
+      {
         find: /^expo-crypto$/,
         replacement: new URL("./vitest/expo-crypto-stub.ts", import.meta.url)
           .pathname,

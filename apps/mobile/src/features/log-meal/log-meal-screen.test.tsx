@@ -50,6 +50,7 @@ vi.mock("react", async (original) => {
 });
 vi.mock("react-native", () => ({
   ActivityIndicator: "ActivityIndicator",
+  Keyboard: { dismiss: vi.fn() },
   Pressable: "Pressable",
   ScrollView: "ScrollView",
   TextInput: "TextInput",
@@ -139,6 +140,8 @@ vi.mock("./first-meal-routine-modal", () => ({
 }));
 
 import { LogMealScreen } from "./log-meal-screen";
+import { Keyboard } from "react-native";
+import { router } from "expo-router";
 
 const draft = {
   name: "Synthetic label food",
@@ -187,6 +190,83 @@ beforeEach(async () => {
   render();
   await flush();
   render();
+});
+
+it("closes meal entry without submitting or clearing its retained draft", async () => {
+  byId("meal-name-input").props.onChangeText("Retained manual meal");
+  render();
+  await flush();
+  const close = find(
+    render(),
+    (node) => node.type === "StackScreen",
+  ).props.options.headerLeft();
+
+  expect(close.props.disabled).toBe(false);
+  expect(mocks.persist).toHaveBeenLastCalledWith(
+    "synthetic-user",
+    "meal",
+    expect.objectContaining({ name: "Retained manual meal" }),
+  );
+  close.props.onPress();
+  expect(router.back).toHaveBeenCalledOnce();
+  expect(mocks.submit).not.toHaveBeenCalled();
+  expect(mocks.clear).not.toHaveBeenCalled();
+});
+
+it("shares the save guard between the header and footer while a meal is saving", async () => {
+  let finishSave!: (value: { ok: true }) => void;
+  mocks.submit.mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        finishSave = resolve;
+      }),
+  );
+  const headerSave = () =>
+    find(
+      render(),
+      (node) => node.type === "StackScreen",
+    ).props.options.headerRight();
+
+  headerSave().props.onPress();
+  byId("submit-meal-button").props.onPress();
+  await flush();
+
+  expect(mocks.submit).toHaveBeenCalledTimes(1);
+  expect(headerSave().props.disabled).toBe(true);
+  expect(
+    find(
+      render(),
+      (node) => node.type === "StackScreen",
+    ).props.options.headerLeft().props.disabled,
+  ).toBe(true);
+  expect(byId("submit-meal-button").props.disabled).toBe(true);
+  finishSave({ ok: true });
+  await flush();
+});
+
+it("reveals repeated validation failures from the header Save action", async () => {
+  const scrollTo = vi.fn();
+  const scroll = find(render(), (node) => node.type === "ScrollView");
+  scroll.props.ref.current = { scrollTo };
+  byId("meal-portion-weight-input").props.onChangeText("");
+  const pressHeaderSave = () =>
+    find(render(), (node) => node.type === "StackScreen")
+      .props.options.headerRight()
+      .props.onPress();
+
+  pressHeaderSave();
+  await flush();
+  render();
+  expect(mocks.submit).not.toHaveBeenCalled();
+  scrollTo.mockClear();
+  vi.mocked(Keyboard.dismiss).mockClear();
+
+  pressHeaderSave();
+  await flush();
+  render();
+  expect(scrollTo).toHaveBeenCalledWith({ y: 0, animated: true });
+  expect(Keyboard.dismiss).toHaveBeenCalled();
+  expect(mocks.submit).not.toHaveBeenCalled();
 });
 
 describe("manual per-100-g meal entry", () => {

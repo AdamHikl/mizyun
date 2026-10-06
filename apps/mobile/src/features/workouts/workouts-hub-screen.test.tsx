@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   refresh: vi.fn(),
   owner: "user-a",
   tokenVersion: 0,
+  activeWorkout: null as { id: string } | null,
   version: "0:today:0",
   appState: null as ((state: string) => void) | null,
 }));
@@ -125,7 +126,7 @@ vi.mock("./exercise-progression-modal", () => ({
   ExerciseProgressionModal: "ExerciseProgressionModal",
 }));
 vi.mock("./active-workout-context", () => ({
-  useOptionalActiveWorkout: () => null,
+  useOptionalActiveWorkout: () => ({ activeWorkout: mocks.activeWorkout }),
 }));
 vi.mock("./workouts-hub-data", () => ({
   fetchWorkoutsHubData: mocks.fetch,
@@ -186,6 +187,7 @@ async function settle() {
 }
 
 beforeEach(() => {
+  mocks.activeWorkout = null;
   hooks.slots = [];
   hooks.effects = [];
   hooks.index = 0;
@@ -353,4 +355,41 @@ it("keeps the common account bar outside scrolling tab content", () => {
   expect(safeArea.props.children[0].type).toBe("TabHeader");
   expect(scroll).toBeTruthy();
   expect(find(scroll, (node) => node.type === "TabHeader")).toBeFalsy();
+});
+
+it("announces the selected workout filter after switching views", () => {
+  const filter = (tree: any, label: string) =>
+    find(tree, (node) => node.props?.accessibilityLabel === label);
+  let tree = render();
+  expect(
+    filter(tree, "Show all workouts").props.accessibilityState.selected,
+  ).toBe(true);
+  filter(tree, "Show completed workout history").props.onPress();
+  tree = render();
+  expect(
+    filter(tree, "Show all workouts").props.accessibilityState.selected,
+  ).toBe(false);
+  expect(
+    filter(tree, "Show completed workout history").props.accessibilityState
+      .selected,
+  ).toBe(true);
+  expect(
+    filter(tree, "Show available routines").props.accessibilityState.selected,
+  ).toBe(false);
+});
+
+it("resumes the active workout from the primary action without creating another", async () => {
+  mocks.activeWorkout = { id: "already-active" };
+  const tree = render();
+  const resume = find(
+    tree,
+    (node) => node.props?.accessibilityLabel === "Resume workout",
+  );
+  expect(resume).toBeDefined();
+  await resume.props.onPress();
+  expect(mocks.createBlank).not.toHaveBeenCalled();
+  expect(mocks.push).toHaveBeenCalledWith({
+    pathname: "/log-workout",
+    params: { workoutId: "already-active" },
+  });
 });

@@ -169,4 +169,39 @@ describe("ActiveWorkoutMiniBar", () => {
       "rest timer 00:45 remaining",
     );
   });
+
+  it("allows full workout and Resume labels to grow without losing the accessible target", () => {
+    mockActiveWorkoutContext = {
+      activeWorkout: {
+        id: "workout-long",
+        name: "A long full body workout with strength and conditioning",
+        startedAt: "2026-09-24T10:00:00.000Z",
+      },
+      elapsedSeconds: 600,
+      restTimer: null,
+      restRemainingSeconds: 0,
+    };
+    const element = ActiveWorkoutMiniBar();
+    const pressable = (element?.props as any).children;
+    const [, info, resume] = pressable.props.children;
+    expect(info.props.children[0].props.children).toBe(
+      mockActiveWorkoutContext.activeWorkout.name,
+    );
+    expect(info.props.children[0].props.numberOfLines).toBeUndefined();
+    const cardStyle = Object.assign(
+      {},
+      ...pressable.props.style({ pressed: false }).filter(Boolean),
+    );
+    expect(cardStyle.flexWrap).toBe("wrap");
+    const resumeStyle = Object.assign({}, ...resume.props.style);
+    expect(resumeStyle.minHeight).toBeGreaterThanOrEqual(44);
+    expect(resumeStyle.maxWidth).toBe("100%");
+    expect(resume.props.children.props.children).toBe("Resume →");
+    expect(resume.props.children.props.numberOfLines).toBeUndefined();
+    pressable.props.onPress();
+    expect(router.push).toHaveBeenCalledWith({
+      pathname: "/log-workout",
+      params: { workoutId: "workout-long" },
+    });
+  });
 });

@@ -183,6 +183,9 @@ export function LogWorkoutScreen() {
     string | null
   >(null);
   const [libraryVisible, setLibraryVisible] = useState(false);
+  const [exerciseSelectionMessage, setExerciseSelectionMessage] = useState<
+    string | null
+  >(null);
   const [selectedSetTypeEntry, setSelectedSetTypeEntry] =
     useState<ExerciseEntry | null>(null);
   const [reorderModalVisible, setReorderModalVisible] = useState(false);
@@ -769,7 +772,7 @@ export function LogWorkoutScreen() {
 
   // Save selections before the first set so reopening the session keeps them.
   const handleSelectCatalogExercise = useCallback(
-    async (catalogEx: CatalogExercise) => {
+    async (catalogExercises: readonly CatalogExercise[]) => {
       if (
         busy ||
         exerciseMutationInFlight.current ||
@@ -778,94 +781,107 @@ export function LogWorkoutScreen() {
         workspace.workout.completedAt !== null ||
         isRoutineDetails(workspace.workout.details)
       )
-        return;
-      const knownNames = new Set(
-        getCatalogExerciseNames(catalogEx).map((name) =>
-          name.trim().toLowerCase(),
-        ),
-      );
-      if (
-        exerciseEntries.some((entry) =>
-          knownNames.has(entry.name.trim().toLowerCase()),
-        )
-      ) {
-        setLibraryVisible(false);
-        return;
-      }
+        return false;
       exerciseMutationInFlight.current = true;
       const owner = currentWorkoutOwner.current;
       setBusy(true);
       setMessage(null);
+      setExerciseSelectionMessage(null);
+      const reportSelectionError = (text: string) => {
+        setMessage(text);
+        setExerciseSelectionMessage(text);
+      };
       measurement.current?.tap();
       try {
-        let targetExercise = findCatalogExerciseRecord(
-          workspace.exercises,
-          catalogEx,
-        );
-        if (
-          !targetExercise &&
-          workspace.exercises.some((exercise) =>
-            knownNames.has(exercise.name.trim().toLowerCase()),
-          )
-        ) {
-          setMessage(
-            "Multiple saved exercises match this movement. Select the existing exercise to keep its history.",
-          );
-          return;
-        }
-        if (!targetExercise) {
-          if (workspace.exercises.length >= 200) {
-            setMessage(
-              "Your saved exercise list may be incomplete. Open the existing exercise before adding this movement.",
-            );
-            return;
-          }
-          const created = await createExercise(
-            catalogEx.name,
-            catalogEx.instructions
-              .map((step, index) => `${index + 1}. ${step}`)
-              .join("\n"),
-          );
-          if (currentWorkoutOwner.current !== owner) return;
-          if (!created.ok) {
-            setMessage(created.message);
-            return;
-          }
-          targetExercise = created.exercise;
-          setWorkspace((current) => ({
-            ...current,
-            exercises: [...current.exercises, created.exercise].sort((a, b) =>
-              a.name.localeCompare(b.name),
+        const entries = [...exerciseEntries];
+        const savedExercises = [...workspace.exercises];
+        for (const catalogEx of catalogExercises) {
+          const knownNames = new Set(
+            getCatalogExerciseNames(catalogEx).map((name) =>
+              name.trim().toLowerCase(),
             ),
-          }));
+          );
+          if (
+            entries.some((entry) =>
+              knownNames.has(entry.name.trim().toLowerCase()),
+            )
+          )
+            continue;
+          let targetExercise = findCatalogExerciseRecord(
+            savedExercises,
+            catalogEx,
+          );
+          if (
+            !targetExercise &&
+            savedExercises.some((exercise) =>
+              knownNames.has(exercise.name.trim().toLowerCase()),
+            )
+          ) {
+            reportSelectionError(
+              "Multiple saved exercises match this movement. Select the existing exercise to keep its history.",
+            );
+            return false;
+          }
+          if (!targetExercise) {
+            if (savedExercises.length >= 200) {
+              reportSelectionError(
+                "Your saved exercise list may be incomplete. Open the existing exercise before adding this movement.",
+              );
+              return false;
+            }
+            const created = await createExercise(
+              catalogEx.name,
+              catalogEx.instructions
+                .map((step, index) => `${index + 1}. ${step}`)
+                .join("\n"),
+            );
+            if (currentWorkoutOwner.current !== owner) return false;
+            if (!created.ok) {
+              reportSelectionError(created.message);
+              return false;
+            }
+            targetExercise = created.exercise;
+            savedExercises.push(created.exercise);
+            setWorkspace((current) => ({
+              ...current,
+              exercises: [...current.exercises, created.exercise].sort((a, b) =>
+                a.name.localeCompare(b.name),
+              ),
+            }));
+          }
+          const newEntry: ExerciseEntry = {
+            id: targetExercise.id,
+            name: targetExercise.name,
+            catalogId: catalogEx.id,
+            targetSets: 3,
+            repsMin: isOneTimeWorkout ? null : 8,
+            repsMax: isOneTimeWorkout ? null : 12,
+            durationMinutes: null,
+            restSeconds: globalRestSeconds,
+            isPlanned: false,
+          };
+          entries.push(newEntry);
         }
-        const newEntry: ExerciseEntry = {
-          id: targetExercise.id,
-          name: targetExercise.name,
-          catalogId: catalogEx.id,
-          targetSets: 3,
-          repsMin: isOneTimeWorkout ? null : 8,
-          repsMax: isOneTimeWorkout ? null : 12,
-          durationMinutes: null,
-          restSeconds: globalRestSeconds,
-          isPlanned: false,
-        };
-        const result = await reorderWorkoutExercises(workspace.workout, [
-          ...exerciseEntries,
-          newEntry,
-        ]);
-        if (currentWorkoutOwner.current !== owner) return;
+        if (entries.length === exerciseEntries.length) return true;
+        const result = await reorderWorkoutExercises(
+          workspace.workout,
+          entries,
+        );
+        if (currentWorkoutOwner.current !== owner) return false;
         if (!result.ok) {
-          setMessage(result.message);
-          return;
+          reportSelectionError(result.message);
+          return false;
         }
         // A previous background read must not replace this confirmed list.
         refreshCounter.current++;
         setWorkspace((current) => ({ ...current, workout: result.workout }));
-        setLibraryVisible(false);
+        return true;
       } catch {
         if (currentWorkoutOwner.current === owner)
-          setMessage("Could not add this exercise. Select it again to retry.");
+          reportSelectionError(
+            "Could not add these exercises. Select them again to retry.",
+          );
+        return false;
       } finally {
         exerciseMutationInFlight.current = false;
         setBusy(false);
@@ -1481,7 +1497,10 @@ export function LogWorkoutScreen() {
                 onRemoveSet={handleRemoveSet}
                 onOpenProgression={(name) => setProgressionExerciseName(name)}
                 onOpenSetTypeModal={(entry) => setSelectedSetTypeEntry(entry)}
-                onOpenLibrary={() => setLibraryVisible(true)}
+                onOpenLibrary={() => {
+                  setExerciseSelectionMessage(null);
+                  setLibraryVisible(true);
+                }}
                 onMoveExercise={handleMoveExercise}
                 onOpenReorderModal={() => setReorderModalVisible(true)}
                 onAbandon={confirmAbandon}
@@ -1596,7 +1615,8 @@ export function LogWorkoutScreen() {
         <ExerciseLibraryModal
           visible={libraryVisible}
           onClose={() => setLibraryVisible(false)}
-          onSelectExercise={(ex) => void handleSelectCatalogExercise(ex)}
+          onSelectExercises={handleSelectCatalogExercise}
+          errorMessage={exerciseSelectionMessage}
         />
       ) : null}
 

@@ -1,0 +1,37 @@
+# Usability follow-up evidence — 2026-10-06
+
+Scope: remaining UI/IA findings from [first pass](USABILITY_REVIEW_EVIDENCE_2026-10-05.md), #210, #211 and #213. User authorized implementation, simulator testing, commit and push. Base `38fa0d6af2975acbd3d98e6148a5ecc0674d22ae`; task mobile candidate manifest [source hashes](evidence/usability-2026-10-06/source-hashes.json), SHA256 `5a83d0e1266b5d69109604578834b300eae6161b11fb6c6984f51b21793fee51`. Unrelated Build9 release installation evidence is excluded from this commit.
+
+## Implemented
+
+- Settings: compact wrapping identity summary brings search and categories higher; destinations and search behavior retained.
+- Home: Quick Log first; populated days omit duplicate first-meal summary, while empty-day reuse/reminders remain.
+- Workouts: primary action resumes the context's existing session. Shared catalog picker selects multiple exercises across search, deselects and retries; synchronous guard prevents duplicate submission. Routine editor preserves names/targets. Logger prepares records, then persists one complete exercise list; record preparation can create reusable exercise records before a later failure, but never partially saves the session list.
+- Workout card actions: native larger-text inspection exposed trailing Delete clipping; shared action groups now wrap and shrink inside the card, all primary/edit/review/delete actions retain48-point targets. Independent follow-up review clear; hub11/11 tests passed. Larger-text native confirmation remains open.
+- Accessibility: independent details and selection controls, selected/expanded states,48-point minimum targets; wrapping Home macros and active-workout mini-bar.
+- Font changes: native Text remounts only when font scale changes, preserving parent screen/draft state and scaling/selection props. Active text selection resets. The original cached-measurement cause remains an inference.
+- Dev environment: reviewed shell snapshot fixes SDK57 Debug virtual-env dotenv precedence. Effective routing and installed native application identity are checked before Auth/API construction. Configured mismatches, missing and unknown native IDs fail closed. Standard dotenv Debug, matching Production, Release transforms, explicit web/ExpoGo Dev and empty setup are covered. Existing Expo Application57.0.3 became a direct dependency; no native-module version upgrade. [ADR-0044](adr/0044-native-bound-mobile-environment.md).
+
+## Independent review and automated evidence
+
+- Separate Sol Medium workout implementation and UI review; Sol High font/runtime implementation and non-author High runtime review. Coordinator read actual diffs.
+- Review found and resolved native identity trust gap, duplicate batch submission, short Add targets, unrelated picker error state and nested accessible controls. Final reviews clear.
+- Fresh focused command: mobile test directories dashboard/settings/log-meal/workouts/log-workout plus mobile-environment, expo-debug-environment, themed-text, active-workout-mini-bar, UI analytics and account header tests: **51 files /697 tests passed** (`/private/tmp/mizyun-ui-pass2-final-focused.log`).
+- Mobile typecheck passed after frozen dependency installation. Build matrix passed. Six actual installed Expo worker/Babel/serializer regressions cover iOS/Android Debug conflicting dotenv and Release inlining; configured-client tests prove mismatches do not construct clients. Baseline source reproduces two font/mini-bar contract failures; these are source regressions, not native root-cause proof.
+- Fresh serialized `pnpm check` **passed**, input SHA256 `fae6cad1da54b9f05f4caa6442a5d702139189b70b6b5b94309fa2560bc66898` (`/private/tmp/mizyun-ui-pass2-check.log`). Mobile:136 files/1476 tests passed; API:852 passed/15 credential-gated Auth/persistence/account-deletion E2E tests skipped. Navigation117, build matrix, lint/typecheck/format and iOS/Android bundle exports passed. Live-provider integration remains unrun under `BEFORE_TESTING.md`. Subsequent edits only record evidence/status; the30-file mobile/lock manifest still matches the checked source.
+
+## Signed-in iOS Dev simulator evidence
+
+Exact iPhone17Pro `F4939E5D-BA85-4479-AA1E-92B21441FB8C`, iOS26.5. Existing `com.mizyun.development` Debug binary prepared in first pass (before Build9 version changes), current JavaScript via task Metro8085 with `.env.dev` exported, `EXPO_NO_DOTENV=1`; existing conflicting `.env.local` preserved and no higher-priority dotenv workaround. Launch PID23092. This is neither standalone nor signed Build9 acceptance.
+
+- Synthetic Dev test account session restored, then explicitly signed out and freshly signed in through the normal email/password screen; Home displayed UI Test,400kcal and the existing active workout. Native password-storage prompt dismissed without saving. [Fresh sign-in capture](evidence/usability-2026-10-06/fresh-dev-sign-in-home.png). Existing Dev profile/workout fixtures loaded and authenticated meal copy succeeded; today's400kcal/one meal and weekly1600kcal/four entries became visible. The runtime guard binds the real Dev binary and canonical Dev hosts before client creation. No credentials or tokens are saved in repository evidence; no AI/provider calls or new consent/permissions.
+- Empty-day first-meal action copied a synthetic meal; populated Home removed the duplicate card. Settings compact summary/search/categories visible: [capture](evidence/usability-2026-10-06/settings-compact.png).
+- Workouts primary Resume opened existing Test active workout rather than creating a session. A two-exercise batch saved Ab Wheel Rollout and Air Bike, remained after reopening; retrying the same selections retained two without duplicates. Routine editor saved synthetic UI batch test routine with the same two planned exercises and default targets. One-time mode is covered by focused regressions; its separate native batch journey is still open.
+- Native AX after the sibling fix exposed separate Toggle and Quick select controls. Native selection actions marked both selected and showed Add2: [capture](evidence/usability-2026-10-06/picker-accessible-selection.png). [Earlier batch capture](evidence/usability-2026-10-06/workout-batch-selected.png).
+- Live font changes while Home stayed mounted: four Increase Text Size actions, then four Decrease actions restored the initial setting. Observed nutrition title/badge reflow at two increments and stacked readable mini-bar at four: [large-text capture](evidence/usability-2026-10-06/home-live-large-text.png). These were live changes, not cold launches. Maximum category and complete macro/keyboard/selection/VoiceOver acceptance remain open because DeviceHub gesture/window/screen-capture control intermittently failed. Do not treat this as full font/accessibility acceptance.
+
+## Remaining acceptance and delivery boundaries
+
+#210 remains ready for physical iPhone/Android, narrow screens, VoiceOver and keyboard journeys. #213 has implementation and partial live simulator evidence; maximum font sizes and all nutrition values need exact native acceptance. #211 has source safeguards, fresh Dev Debug sign-in and authenticated synthetic request acceptance; physical standalone Dev/Production checks remain separate. No backend deployment, Production promotion, provider integration, signed build, Store upload or release occurred.
+
+Next: accept these native/accessibility journeys on the pushed candidate; retain existing Build9/manual-upload and broader release gates.

@@ -1,5 +1,6 @@
 import {
   ActivityIndicator,
+  Keyboard,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -146,6 +147,13 @@ export function LogMealScreen() {
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const formScrollRef = useRef<ScrollView>(null);
+  useEffect(() => {
+    if (error !== null) {
+      Keyboard.dismiss();
+      formScrollRef.current?.scrollTo({ y: 0, animated: true });
+    }
+  }, [error]);
   const [draftLoaded, setDraftLoaded] = useState(false);
   // VISION-001 — photo-to-draft state. `attachedPhoto` holds the
   // user's selected or captured image before submission. `snapping` is true
@@ -375,6 +383,8 @@ export function LogMealScreen() {
       return;
     isSubmittingRef.current = true;
     setSubmitting(true);
+    Keyboard.dismiss();
+    formScrollRef.current?.scrollTo({ y: 0, animated: true });
 
     attempt?.tap();
     if (hadFailure.current) attempt?.retry();
@@ -985,31 +995,53 @@ export function LogMealScreen() {
       <Stack.Screen
         options={{
           title: "Log a meal",
-          headerRight: () =>
-            hasContent ? (
-              <Pressable
-                testID="clear-meal-header-button"
-                accessibilityRole="button"
-                accessibilityLabel="Clear meal"
-                accessibilityHint="Clears all meal fields, photo, and draft"
-                disabled={submitting || snapping || refining}
-                onPress={() => {
-                  void onClear();
-                }}
-                style={({ pressed }) => [
-                  styles.headerClearButton,
-                  pressed && styles.snapPressed,
-                ]}
-              >
-                <ThemedText type="smallBold" themeColor="textSecondary">
-                  Clear
-                </ThemedText>
-              </Pressable>
-            ) : null,
+          headerLeft: () => (
+            <Pressable
+              testID="close-meal-header-button"
+              accessibilityRole="button"
+              accessibilityLabel="Close meal entry"
+              accessibilityHint="Keeps your meal draft for later."
+              disabled={!draftLoaded || submitting || snapping || refining}
+              accessibilityState={{
+                disabled: !draftLoaded || submitting || snapping || refining,
+              }}
+              onPress={() => router.back()}
+              style={({ pressed }) => [
+                styles.headerSaveButton,
+                pressed && styles.snapPressed,
+              ]}
+            >
+              <ThemedText type="smallBold">Close</ThemedText>
+            </Pressable>
+          ),
+          headerRight: () => (
+            <Pressable
+              testID="save-meal-header-button"
+              accessibilityRole="button"
+              accessibilityLabel="Save meal"
+              disabled={!draftLoaded || submitting || snapping || refining}
+              accessibilityState={{
+                disabled: !draftLoaded || submitting || snapping || refining,
+                busy: submitting,
+              }}
+              onPress={() => {
+                void onSubmit();
+              }}
+              style={({ pressed }) => [
+                styles.headerSaveButton,
+                pressed && styles.snapPressed,
+              ]}
+            >
+              <ThemedText type="smallBold">
+                {submitting ? "Saving…" : "Save"}
+              </ThemedText>
+            </Pressable>
+          ),
         }}
       />
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
         <ScrollView
+          ref={formScrollRef}
           automaticallyAdjustKeyboardInsets
           contentContainerStyle={styles.content}
           keyboardDismissMode="on-drag"
@@ -1029,13 +1061,82 @@ export function LogMealScreen() {
               first.
             </ThemedText>
           ) : null}
+          {error !== null ? (
+            <ThemedText
+              type="small"
+              themeColor="textSecondary"
+              style={styles.errorText}
+              accessibilityRole="alert"
+            >
+              {error}
+            </ThemedText>
+          ) : null}
+
           <ThemedText type="subtitle">What did you eat?</ThemedText>
           <ThemedText themeColor="textSecondary" type="small">
-            Name your meal first; portion weight, calories, and macros are
-            optional, and dashboard totals use the nutrition values when
-            present. You can describe the meal, attach a photo, or both —
-            anything you type is sent with the photo to help the AI estimate
-            portions and ingredients.
+            Choose a recent meal or enter a name. Nutrition values are optional.
+          </ThemedText>
+
+          {uniqueRecentMeals.length > 0 ? (
+            <View style={styles.recentMealsContainer}>
+              <ThemedText type="smallBold" themeColor="textSecondary">
+                Quick meal reuse
+              </ThemedText>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.recentMealsScroll}
+              >
+                {uniqueRecentMeals.map((meal: FoodEntry) => (
+                  <Pressable
+                    key={meal.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Reuse meal ${meal.name}`}
+                    disabled={snapping || refining || submitting}
+                    onPress={() => onSelectRecentMeal(meal)}
+                    style={({ pressed }) => [
+                      styles.recentMealChip,
+                      pressed && styles.snapPressed,
+                      {
+                        borderColor: theme.border,
+                        backgroundColor:
+                          theme.background === "#F8FAF9"
+                            ? "#FFFFFF"
+                            : "rgba(255, 255, 255, 0.05)",
+                      },
+                    ]}
+                  >
+                    <ThemedText type="smallBold" numberOfLines={1}>
+                      {meal.name}
+                    </ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      {meal.caloriesKcal != null
+                        ? `${meal.caloriesKcal} kcal`
+                        : "—"}
+                      {meal.proteinG != null ? ` · ${meal.proteinG}P` : ""}
+                    </ThemedText>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          ) : null}
+
+          <Field
+            testID="meal-name-input"
+            label="Meal name (required)"
+            value={name}
+            onChangeText={setName}
+            onFocus={() => measurement.current?.tap()}
+            placeholder="e.g. Toast with butter"
+            autoFocus
+            inputColor={theme.text}
+            editable={!snapping && !refining && !submitting}
+          />
+
+          <ThemedText type="smallBold">Estimate nutrition with AI</ThemedText>
+          <ThemedText themeColor="textSecondary" type="small">
+            Optional: describe your meal or attach a photo. Your description and
+            photo are sent together for an estimate. Review before saving.
           </ThemedText>
 
           <TextInput
@@ -1215,62 +1316,6 @@ export function LogMealScreen() {
               ))}
             </ThemedView>
           ) : null}
-
-          {uniqueRecentMeals.length > 0 ? (
-            <View style={styles.recentMealsContainer}>
-              <ThemedText type="smallBold" themeColor="textSecondary">
-                Quick meal reuse
-              </ThemedText>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.recentMealsScroll}
-              >
-                {uniqueRecentMeals.map((meal: FoodEntry) => (
-                  <Pressable
-                    key={meal.id}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Reuse meal ${meal.name}`}
-                    disabled={snapping || refining || submitting}
-                    onPress={() => onSelectRecentMeal(meal)}
-                    style={({ pressed }) => [
-                      styles.recentMealChip,
-                      pressed && styles.snapPressed,
-                      {
-                        borderColor: theme.border,
-                        backgroundColor:
-                          theme.background === "#F8FAF9"
-                            ? "#FFFFFF"
-                            : "rgba(255, 255, 255, 0.05)",
-                      },
-                    ]}
-                  >
-                    <ThemedText type="smallBold" numberOfLines={1}>
-                      {meal.name}
-                    </ThemedText>
-                    <ThemedText type="small" themeColor="textSecondary">
-                      {meal.caloriesKcal != null
-                        ? `${meal.caloriesKcal} kcal`
-                        : "—"}
-                      {meal.proteinG != null ? ` · ${meal.proteinG}P` : ""}
-                    </ThemedText>
-                  </Pressable>
-                ))}
-              </ScrollView>
-            </View>
-          ) : null}
-
-          <Field
-            testID="meal-name-input"
-            label="Name"
-            value={name}
-            onChangeText={setName}
-            onFocus={() => measurement.current?.tap()}
-            placeholder="e.g. Toast with butter"
-            autoFocus
-            inputColor={theme.text}
-            editable={!snapping && !refining && !submitting}
-          />
 
           {aiDraft === null ? (
             <View style={styles.field}>
@@ -1518,17 +1563,6 @@ export function LogMealScreen() {
             </View>
           ) : null}
 
-          {error !== null ? (
-            <ThemedText
-              type="small"
-              themeColor="textSecondary"
-              style={styles.errorText}
-              accessibilityRole="alert"
-            >
-              {error}
-            </ThemedText>
-          ) : null}
-
           <View style={styles.actionsRow}>
             {hasContent ? (
               <Pressable
@@ -1692,7 +1726,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  headerClearButton: {
+  headerSaveButton: {
+    minWidth: 48,
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: Spacing.two,
     paddingVertical: Spacing.one,
   },

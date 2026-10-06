@@ -6,7 +6,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   EXERCISE_CATALOG,
@@ -24,7 +24,11 @@ import { ExerciseProgressionModal } from "./exercise-progression-modal";
 interface ExerciseLibraryModalProps {
   readonly visible: boolean;
   readonly onClose: () => void;
+  readonly errorMessage?: string | null;
   readonly onSelectExercise?: (exercise: CatalogExercise) => void;
+  readonly onSelectExercises?: (
+    exercises: readonly CatalogExercise[],
+  ) => Promise<boolean> | boolean;
 }
 
 const PAGE_SIZE = 60;
@@ -49,6 +53,8 @@ export function ExerciseLibraryModal({
   visible,
   onClose,
   onSelectExercise,
+  onSelectExercises,
+  errorMessage,
 }: ExerciseLibraryModalProps) {
   const theme = useTheme();
   const [searchQuery, setSearchQuery] = useState("");
@@ -61,6 +67,54 @@ export function ExerciseLibraryModal({
   );
   const [progressionExercise, setProgressionExercise] =
     useState<CatalogExercise | null>(null);
+
+  const [selections, setSelections] = useState<CatalogExercise[]>([]);
+  const [adding, setAdding] = useState(false);
+  const additionInFlight = useRef(false);
+  const [selectionError, setSelectionError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!visible) {
+      setSelections([]);
+      setSelectionError(null);
+    }
+  }, [visible]);
+  const selectExercise = (exercise: CatalogExercise) => {
+    if (additionInFlight.current) return;
+    if (onSelectExercises) {
+      setSelections((current) =>
+        current.some((item) => item.id === exercise.id)
+          ? current.filter((item) => item.id !== exercise.id)
+          : [...current, exercise],
+      );
+    } else {
+      onSelectExercise?.(exercise);
+      onClose();
+    }
+  };
+  const addSelections = async () => {
+    if (
+      !onSelectExercises ||
+      additionInFlight.current ||
+      selections.length === 0
+    )
+      return;
+    additionInFlight.current = true;
+    setAdding(true);
+    setSelectionError(null);
+    try {
+      if (await onSelectExercises(selections)) {
+        setSelections([]);
+        onClose();
+      } else {
+        setSelectionError("Could not add all selected exercises. Try again.");
+      }
+    } catch {
+      setSelectionError("Could not add selected exercises. Try again.");
+    } finally {
+      additionInFlight.current = false;
+      setAdding(false);
+    }
+  };
 
   const filteredExercises = useMemo(() => {
     return searchExerciseCatalog({
@@ -77,7 +131,9 @@ export function ExerciseLibraryModal({
       animationType="slide"
       presentationStyle="pageSheet"
       statusBarTranslucent={true}
-      onRequestClose={onClose}
+      onRequestClose={() => {
+        if (!additionInFlight.current) onClose();
+      }}
     >
       <ThemedView style={styles.container}>
         <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
@@ -87,7 +143,11 @@ export function ExerciseLibraryModal({
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Close library"
-                onPress={onClose}
+                onPress={() => {
+                  if (!additionInFlight.current) onClose();
+                }}
+                disabled={adding}
+                accessibilityState={{ disabled: adding }}
                 style={styles.closeButton}
               >
                 <ThemedText type="smallBold" themeColor="primary">
@@ -156,6 +216,7 @@ export function ExerciseLibraryModal({
           <ScrollView
             contentContainerStyle={styles.listContent}
             keyboardDismissMode="on-drag"
+            keyboardShouldPersistTaps="handled"
           >
             <ThemedText type="small" themeColor="textSecondary">
               Showing {visibleExercises.length} of {filteredExercises.length}{" "}
@@ -177,43 +238,54 @@ export function ExerciseLibraryModal({
                   type="backgroundElement"
                   style={styles.exerciseCard}
                 >
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Toggle ${exercise.name}`}
-                    accessibilityState={{ expanded: isExpanded }}
-                    onPress={() =>
-                      setExpandedExerciseId(isExpanded ? null : exercise.id)
-                    }
-                    style={styles.exerciseCardHeader}
-                  >
-                    <View style={styles.exerciseMainInfo}>
-                      <ThemedText type="smallBold">{exercise.name}</ThemedText>
-                      <View style={styles.badgesRow}>
-                        <View style={styles.badge}>
-                          <ThemedText type="small" style={styles.badgeText}>
-                            {exercise.movementPattern.replaceAll("_", " ")}
-                          </ThemedText>
-                        </View>
-                        {exercise.category ? (
-                          <View style={styles.badgeSecondary}>
-                            <ThemedText
-                              type="small"
-                              style={styles.badgeSecondaryText}
-                            >
-                              {exercise.category}
+                  <View style={styles.exerciseCardHeader}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Toggle ${exercise.name}`}
+                      accessibilityState={{ expanded: isExpanded }}
+                      onPress={() =>
+                        setExpandedExerciseId(isExpanded ? null : exercise.id)
+                      }
+                      style={styles.exerciseDetailsButton}
+                    >
+                      <View style={styles.exerciseMainInfo}>
+                        <ThemedText type="smallBold">
+                          {exercise.name}
+                        </ThemedText>
+                        <View style={styles.badgesRow}>
+                          <View style={styles.badge}>
+                            <ThemedText type="small" style={styles.badgeText}>
+                              {exercise.movementPattern.replaceAll("_", " ")}
                             </ThemedText>
                           </View>
-                        ) : null}
+                          {exercise.category ? (
+                            <View style={styles.badgeSecondary}>
+                              <ThemedText
+                                type="small"
+                                style={styles.badgeSecondaryText}
+                              >
+                                {exercise.category}
+                              </ThemedText>
+                            </View>
+                          ) : null}
+                        </View>
                       </View>
-                    </View>
+                      <ThemedText themeColor="textSecondary">
+                        {isExpanded ? "▲" : "▼"}
+                      </ThemedText>
+                    </Pressable>
                     <View style={styles.headerRightActions}>
-                      {onSelectExercise ? (
+                      {onSelectExercise || onSelectExercises ? (
                         <Pressable
                           accessibilityRole="button"
                           accessibilityLabel={`Quick select ${exercise.name}`}
-                          onPress={() => {
-                            onSelectExercise(exercise);
-                            onClose();
+                          onPress={() => selectExercise(exercise)}
+                          disabled={adding}
+                          accessibilityState={{
+                            disabled: adding,
+                            selected: selections.some(
+                              (item) => item.id === exercise.id,
+                            ),
                           }}
                           style={styles.quickSelectButton}
                         >
@@ -221,15 +293,14 @@ export function ExerciseLibraryModal({
                             type="smallBold"
                             style={styles.quickSelectButtonText}
                           >
-                            ＋ Add
+                            {selections.some((item) => item.id === exercise.id)
+                              ? "✓ Selected"
+                              : "＋ Add"}
                           </ThemedText>
                         </Pressable>
                       ) : null}
-                      <ThemedText themeColor="textSecondary">
-                        {isExpanded ? "▲" : "▼"}
-                      </ThemedText>
                     </View>
-                  </Pressable>
+                  </View>
 
                   {isExpanded ? (
                     <View style={styles.expandedContent}>
@@ -326,13 +397,17 @@ export function ExerciseLibraryModal({
                         </ThemedText>
                       </Pressable>
 
-                      {onSelectExercise ? (
+                      {onSelectExercise || onSelectExercises ? (
                         <Pressable
                           accessibilityRole="button"
                           accessibilityLabel={`Select ${exercise.name}`}
-                          onPress={() => {
-                            onSelectExercise(exercise);
-                            onClose();
+                          onPress={() => selectExercise(exercise)}
+                          disabled={adding}
+                          accessibilityState={{
+                            disabled: adding,
+                            selected: selections.some(
+                              (item) => item.id === exercise.id,
+                            ),
                           }}
                           style={styles.selectExerciseButton}
                         >
@@ -340,7 +415,9 @@ export function ExerciseLibraryModal({
                             type="smallBold"
                             style={styles.selectExerciseText}
                           >
-                            Select Exercise
+                            {selections.some((item) => item.id === exercise.id)
+                              ? "Remove selection"
+                              : "Select Exercise"}
                           </ThemedText>
                         </Pressable>
                       ) : null}
@@ -363,6 +440,30 @@ export function ExerciseLibraryModal({
               </Pressable>
             ) : null}
           </ScrollView>
+          {onSelectExercises ? (
+            <View style={styles.header}>
+              {selectionError || errorMessage ? (
+                <ThemedText type="small" accessibilityRole="alert">
+                  {errorMessage ?? selectionError}
+                </ThemedText>
+              ) : null}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Add ${selections.length} exercises`}
+                accessibilityState={{
+                  disabled: adding || selections.length === 0,
+                  busy: adding,
+                }}
+                disabled={adding || selections.length === 0}
+                onPress={() => void addSelections()}
+                style={styles.selectExerciseButton}
+              >
+                <ThemedText type="smallBold" style={styles.selectExerciseText}>
+                  {adding ? "Adding…" : `Add ${selections.length} exercises`}
+                </ThemedText>
+              </Pressable>
+            </View>
+          ) : null}
         </SafeAreaView>
       </ThemedView>
 
@@ -447,6 +548,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: Spacing.three,
   },
+  exerciseDetailsButton: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.one,
+    paddingRight: Spacing.one,
+  },
   exerciseMainInfo: {
     flex: 1,
     gap: 4,
@@ -497,6 +607,9 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   selectExerciseButton: {
+    minHeight: 48,
+    justifyContent: "center",
+    maxWidth: "100%",
     backgroundColor: "#18633d",
     paddingVertical: Spacing.two,
     borderRadius: Spacing.two,
@@ -504,6 +617,8 @@ const styles = StyleSheet.create({
     marginTop: Spacing.one,
   },
   selectExerciseText: {
+    flexShrink: 1,
+    textAlign: "center",
     color: "#ffffff",
   },
   progressionButton: {
@@ -525,6 +640,10 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   quickSelectButton: {
+    minHeight: 48,
+    minWidth: 48,
+    justifyContent: "center",
+    alignItems: "center",
     backgroundColor: "rgba(16, 185, 129, 0.15)",
     paddingHorizontal: 8,
     paddingVertical: 4,

@@ -51,6 +51,7 @@ vi.mock("react", async (original) => {
 });
 vi.mock("react-native", () => ({
   ActivityIndicator: "ActivityIndicator",
+  Keyboard: { dismiss: vi.fn() },
   Pressable: "Pressable",
   ScrollView: "ScrollView",
   TextInput: "TextInput",
