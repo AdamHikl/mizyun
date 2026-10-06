@@ -20,7 +20,7 @@ select is((select count(*) from public.workouts where user_id=auth.uid()),1::big
 select is((select started_at=completed_at from public.run_get((select id from run_ids))),true,'Date-only envelope uses equal synthetic anchors');
 select is((select details->'runSummary'->>'activityDate' from public.run_get((select id from run_ids))),'2026-10-01','UTC+14 preserves entered date');
 select is((select count(*) from public.run_list('2026-10-01','2026-10-01',null,10)),1::bigint,'Date filter precedes limit using activity day');
-select throws_ok($$select * from public.run_create('a2160000-0000-4000-8000-000000000001','Changed',null,(select value from summary))$$,'40001','run_conflict','Changed create payload conflicts');
+select throws_ok($$select * from public.run_create('a2160000-0000-4000-8000-000000000001','Changed',null,(select value from summary))$$,'PT409','run_conflict','Changed create payload conflicts');
 select throws_ok($$insert into public.workout_sets(user_id,workout_id,exercise_id,sequence) values(auth.uid(),(select id from run_ids),'f2160000-0000-4000-8000-000000000099',1)$$,'22023','run_invalid','Direct set cannot attach to run before FK acceptance');
 select throws_ok($$update public.workouts set details='{}' where id=(select id from run_ids)$$,'42501','run_requires_rpc','Direct owned update cannot strip run metadata');
 select throws_ok($$delete from public.workouts where id=(select id from run_ids)$$,'42501','run_requires_rpc','Direct delete cannot bypass receipt tombstoning');
@@ -39,9 +39,9 @@ select throws_ok($$insert into public.community_challenge_contributions(user_id,
 set local role authenticated;
 select lives_ok($$select * from public.run_update((select id from run_ids),'a2160000-0000-4000-8000-000000000002',1,'Run',null,(select value || '{"revision":2,"durationSeconds":1900}'::jsonb from summary))$$,'CAS edit succeeds');
 select lives_ok($$select * from public.run_update((select id from run_ids),'a2160000-0000-4000-8000-000000000002',1,'Run',null,(select value || '{"revision":2,"durationSeconds":1900}'::jsonb from summary))$$,'Lost edit response replays acknowledged revision');
-select throws_ok($$select * from public.run_update((select id from run_ids),'a2160000-0000-4000-8000-000000000005',1,'Run',null,(select value || '{"revision":2,"durationSeconds":1901}'::jsonb from summary))$$,'40001','run_conflict','Two-device stale revision conflicts');
+select throws_ok($$select * from public.run_update((select id from run_ids),'a2160000-0000-4000-8000-000000000005',1,'Run',null,(select value || '{"revision":2,"durationSeconds":1901}'::jsonb from summary))$$,'PT409','run_conflict','Two-device stale revision conflicts');
 select lives_ok($$select * from public.run_update((select id from run_ids),'a2160000-0000-4000-8000-000000000006',2,'Run',null,(select value || '{"revision":3,"durationSeconds":2000}'::jsonb from summary))$$,'Newer edit succeeds');
-select throws_ok($$select * from public.run_update((select id from run_ids),'a2160000-0000-4000-8000-000000000002',1,'Run',null,(select value || '{"revision":2,"durationSeconds":1900}'::jsonb from summary))$$,'40001','run_conflict','Old acknowledged edit cannot replace newer content');
+select throws_ok($$select * from public.run_update((select id from run_ids),'a2160000-0000-4000-8000-000000000002',1,'Run',null,(select value || '{"revision":2,"durationSeconds":1900}'::jsonb from summary))$$,'PT409','run_conflict','Old acknowledged edit cannot replace newer content');
 set local request.jwt.claim.sub='f2160000-0000-4000-8000-000000000002';
 select is((select count(*) from public.run_get((select id from run_ids))),0::bigint,'Other account cannot read run');
 select is((select count(*) from public.run_operation_receipts),0::bigint,'Other account cannot read receipt');

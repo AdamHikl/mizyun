@@ -33,3 +33,7 @@ Coordinator final focused suites:238 tests passed (contracts13, core38, adapter2
 `pnpm check` PASS, input SHA-256 `5ea7f125a72a3977b27c68847d7e147af24faf72adc69d1103e9b34ec255e94d`: mobile1526, API860 plus15 existing integration-gated skips; both iOS/Android exports, typechecks, formatting, navigation117 tests, offline AI and all operational/build safeguards passed. Config81 tests has3 existing bundle-path skips (#179); bundle exports themselves completed. External-provider/Auth/Storage and native acceptance are not inferred from these skips.
 
 Commit/Dev delivery and installation are recorded in the delivery follow-up. The baseline source is isolated from root concurrent health-preview/simulator edits; no Production promotion is authorized by this record.
+
+## Live transport repair
+
+Initial Dev2ea23093 accepted create/replay/pagination/owner isolation, but a stale edit raised40001 and PostgREST retried until500. Forward migration20261006183000 changes only run_create/update/cancel domain conflicts toPT409; adapter recognizes that code. Initial harness also used PATCH instead of PUT and an empty JSON body; corrected without runtime changes. All four synthetic accounts from those probes were deleted through the account lifecycle API. Further exact-candidate gate and live acceptance are recorded in the delivery follow-up.

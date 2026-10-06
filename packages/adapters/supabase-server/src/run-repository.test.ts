@@ -36,6 +36,7 @@ describe("SupabaseRunRepository", () => {
   });
   it.each([
     ["P0003", "removed"],
+    ["PT409", "conflict"],
     ["40001", "conflict"],
     ["42501", "not_found"],
     ["22023", "invalid"],

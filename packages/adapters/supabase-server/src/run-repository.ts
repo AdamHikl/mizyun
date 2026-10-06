@@ -26,7 +26,7 @@ export class SupabaseRunRepository implements RunRepository {
       if (error.code === "P0002" || error.code === "42501")
         throw new RunRepositoryError("not_found");
       if (error.code === "P0003") throw new RunRepositoryError("removed");
-      if (error.code === "40001" || error.code === "23505")
+      if (["PT409", "40001", "23505"].includes(error.code ?? ""))
         throw new RunRepositoryError("conflict");
       if (
         ["22023", "22P02", "22007", "22008", "23514"].includes(error.code ?? "")

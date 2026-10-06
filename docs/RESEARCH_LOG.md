@@ -1,5 +1,9 @@
 # Research log
 
+## Running conflict transport — 2026-10-06
+
+- [Supabase RPC serialization retry guidance](https://supabase.com/docs/guides/troubleshooting/high-cpu-and-infinite-transaction-retries-when-using-custom-error-codes-in-rpc-functions-77326b) and [PostgREST custom errors](https://docs.postgrest.org/en/stable/references/errors.html), checked today: domain conflicts must use `PT409`, not `40001` serialization failure. Live Dev stale-edit probe reproduced repeated retries and eventual500 with40001; forward migration20261006183000 preserves existing functions/grants and changes their conflict code only. Adapter mapsPT409 to the existing409 response; replay/CAS/tombstones retain their transaction rules. Local SQL, concurrency and public Dev route proof are required after the repair.
+
 ## Remaining usability findings (#210/#211/#213) — 2026-10-06
 
 - Additional primary sources: [Expo Metro customization](https://docs.expo.dev/guides/customizing-metro/) and [Expo Application SDK57](https://docs.expo.dev/versions/v57.0.0/sdk/application/). The effective Debug virtual environment must follow the reviewed shell snapshot when CLI dotenv is disabled; installed native application identity must bind configuration before Auth/API construction. See ADR-0044 and real installed transform regressions.
