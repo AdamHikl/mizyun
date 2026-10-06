@@ -322,3 +322,5 @@ export * from "./community-features.js";
 export * from "./community-media.js";
 
 export { SupabaseRecurringMealRepository } from "./recurring-meal-repository.js";
+
+export { SupabaseRunRepository } from "./run-repository.js";

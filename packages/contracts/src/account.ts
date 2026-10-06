@@ -114,6 +114,7 @@ export const accountExportSchema = z.object({
   goals: z.array(z.unknown()),
   foodEntries: z.array(z.unknown()),
   exercises: z.array(z.unknown()),
+  runOperationReceipts: z.array(z.record(z.unknown())).optional(),
   workouts: z.array(z.unknown()),
   workoutSets: z.array(z.unknown()),
   bodyMeasurements: z.array(z.unknown()),

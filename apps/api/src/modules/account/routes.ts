@@ -107,6 +107,7 @@ const accountExportToWire = (
         : undefined,
       community: exportDoc.community,
       recurringMeals: exportDoc.recurringMeals,
+      runOperationReceipts: exportDoc.runOperationReceipts,
       productAnalytics: analytics
         ? {
             catalog: catalog ?? "legacy-v2",

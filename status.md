@@ -1,22 +1,20 @@
 # Mizyun current status
 
-> Updated 2026-10-06. [Detailed handoffs through this compaction][handoffs] preserve every previous section; historical next actions are not current instructions. Limit:120 lines /12,288 UTF-8 bytes. Replace summaries; link detailed evidence.
+> Updated 2026-10-06. Isolated running candidate baselinef40e894; concurrent root work excluded. [Prior status](docs/archive/status/STATUS_PRE_RUNNING_2026-10-06.md) preserves baseline authorities and open gates; historical next actions are not current instructions.
 
 ## Current authority and delivery
 
-- **Build9 / #212 (#27/#32):** source`dd5b435385b379d8c0df1b69813f8d8fdd3d985a`,1.0.9/9/9; signedIPA/widget/dSYMs and AAB/upload cert/16KB LOADPASS; fresh full gatesPASS. [Artifacts/evidence](docs/BUILD_9_RELEASE_EVIDENCE_2026-10-05.md). iPhone stillbuild8 PID6786; build9 device/native/16KB runtime/Store exits open.
-- **Dev backend:** pristine9b0c41a, Hetzner `/var/lib/mizyun/dev/repo`, API4100/DB5433 PID2372619; canonical promotionPASS, public health200, protected Coach conversations401. Prompt `coach-system-v3-app-v2`.
-- **Latest iPhone Dev install:** 2026-10-04T18:05:59Z, iPhone16Pro, `a435a766...`, standalone com.mizyun.development1.0.6(6), teamLQJNDVBL43. Adam confirmed signed-in meal/workout/Coach/background journeys passed. [Delivery](docs/DEV_DELIVERY_EVIDENCE_2026-10-04.md).
+- **Build9 / #212 (#27/#32):** source`dd5b435385b379d8c0df1b69813f8d8fdd3d985a`,1.0.9/9/9; signedIPA/widget/dSYMs and AAB/upload cert/16KB LOADPASS; fresh full gatesPASS. [Artifacts/evidence](docs/BUILD_9_RELEASE_EVIDENCE_2026-10-05.md). iPhone16Pro installed/launched1.0.9(9) PID6828; native/16KB runtime/Store exits open.
+- **Dev backend:** pristine938efc5, API4100/DB5433 PID3291091; running migrations/gate/promotion/API recovery+isolationPASS. Prompt `coach-system-v3-app-v3`. [Delivery](docs/RUNNING_DEV_DELIVERY_2026-10-06.md).
+- **Latest iPhone Dev install:** 2026-10-06T18:06:35Z, source2ea23093, iPhone16Pro/com.mizyun.development1.0.9(9) PID9578; signature/config/install/launchPASS. Compatible with938efc5; native exits open. Prior build6 acceptance retained in [evidence](docs/DEV_DELIVERY_EVIDENCE_2026-10-04.md).
 - **Production:** pristine9b0c41a; API4000/DB5432 PID2401543, tunnel2401546 active,57migrations through20261004110000. Fresh backup20261005T060157Z/checksumsPASS; public health200/protected Coach401. Adam confirmed build6 meal/workout/Coach journeys on d610382; API/packages/schema unchanged in9b0c41a. New build7 device/Store exits remain separate.
 - **Environment and AI:** Hetzner CX23 owns Dev/Production; Pi remains encrypted recovery storage. Gemini-or-disabled, consent-based adult admission, current usage/kill switches; no email allowlist. Retain the explicit founder/partner shared-Gemini Dev exception. Local Qwen remains paused. `docs/BEFORE_TESTING.md` and live-provider gates remain in force.
 
-## Usability review — 2026-10-06
+## Running — #216 / RUN-01–05
 
-**#210/#211/#213:** remaining Settings/Home/resume/batch/font and native-bound Dev config fixes implemented; independent UI/High reviews clear, focused697/full gatePASS (mobile1476). Fresh Dev simulator sign-in/meal/batch/resume/AX and live font changes verified; max-font/physical/VoiceOver exits open. [Evidence](docs/USABILITY_FOLLOWUP_EVIDENCE_2026-10-06.md).
+Manual logging/history/edit/delete/drafts delivered to Dev938efc5, iPhone source2ea23093 installed/launched PID9578; High review/full gate/public API recovery+isolationPASS. [Delivery](docs/RUNNING_DEV_DELIVERY_2026-10-06.md), [plan](docs/RUNNING_IMPLEMENTATION_PLAN_2026-10-06.md). Next: physical run/restart/account/accessibility acceptance. Imports/GPS staged; Production unchanged. Concurrent root health/export/Pro multi-photo work remains excluded.
 
-**#207 AGENT-NAV-007:** locally verified full gate/runner20/navigation117, non-author review clear. [Evidence](docs/AGENT_WORKFLOW_EVIDENCE_2026-10-04.md). Navigation acceptance advisory; client/token/speed measurements #54 remain.
-
-**Next:** accept #210/#213 physical/accessibility/max-font journeys on this candidate. Release: accept version9 native journeys, then manual IPA/AAB upload; test native workout status. #27/#32 native/Store exits open. Backend9b0c41a unchanged; Community closed; photos/App Preview Dev-only; no agent upload; broader gates remain.
+**Other active authority/gates:** #210/#211/#213 usability and #207 navigation source evidence and physical/max-font/VoiceOver/provider exits remain as recorded in [prior status](docs/archive/status/STATUS_PRE_RUNNING_2026-10-06.md). Build9 device/native/Store and #27/#32 remain open. Community remains closed; photos/App Preview Dev-only; no agent Store upload.
 
 ## Local follow-ups awaiting exact-candidate acceptance
 

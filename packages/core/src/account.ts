@@ -90,6 +90,7 @@ export interface AccountExport {
   readonly goals: ReadonlyArray<StoredGoal>;
   readonly foodEntries: ReadonlyArray<StoredFoodEntry>;
   readonly exercises: ReadonlyArray<StoredExercise>;
+  readonly runOperationReceipts?: readonly Record<string, unknown>[];
   readonly workouts: ReadonlyArray<StoredWorkout>;
   readonly workoutSets: ReadonlyArray<StoredWorkoutSet>;
   readonly bodyMeasurements: ReadonlyArray<StoredBodyMeasurement>;

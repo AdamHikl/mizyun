@@ -1,5 +1,9 @@
 # Research log
 
+## Running conflict transport — 2026-10-06
+
+- [Supabase RPC serialization retry guidance](https://supabase.com/docs/guides/troubleshooting/high-cpu-and-infinite-transaction-retries-when-using-custom-error-codes-in-rpc-functions-77326b) and [PostgREST custom errors](https://docs.postgrest.org/en/stable/references/errors.html), checked today: domain conflicts must use `PT409`, not `40001` serialization failure. Live Dev stale-edit probe reproduced repeated retries and eventual500 with40001; forward migration20261006183000 preserves existing functions/grants and changes their conflict code only. Adapter mapsPT409 to the existing409 response; replay/CAS/tombstones retain their transaction rules. Local SQL, concurrency and public Dev route proof are required after the repair.
+
 ## Remaining usability findings (#210/#211/#213) — 2026-10-06
 
 - Additional primary sources: [Expo Metro customization](https://docs.expo.dev/guides/customizing-metro/) and [Expo Application SDK57](https://docs.expo.dev/versions/v57.0.0/sdk/application/). The effective Debug virtual environment must follow the reviewed shell snapshot when CLI dotenv is disabled; installed native application identity must bind configuration before Auth/API construction. See ADR-0044 and real installed transform regressions.
@@ -2991,3 +2995,7 @@ Implementation consequence: replace obsolete app-navigation prose with a trusted
 ## Production Community placeholder — 2026-10-05
 
 Reviewed current primary sources: [Expo SDK57](https://docs.expo.dev/versions/v57.0.0/), [Expo Router57](https://docs.expo.dev/versions/v57.0.0/sdk/router/) and [React useEffect](https://react.dev/reference/react/useEffect). Implementation consequence: select a separate placeholder component before mounting Community auth/membership/feed effects; preserve existing Router links, shared tab header, scrollable large-text layout, safe-area/tab clearance and a48-point private-tracking action. Closed Production status/session errors must not replace coming-soon with enrollment recovery. This is client presentation only; server admission, standalone account controls and Dev authorization remain unchanged. Explicit user override keeps the synchronized1.0.8/8/8 tuple.
+
+## 2026-10-06 — Running implementation consequences
+
+The researched running plan is implemented first as manual completed-run logging in Workouts. [ADR-0046](adr/0046-manual-running-authority.md) records strict summary/date precision, canonical metres, encrypted account drafts and owner-scoped atomic receipt/CAS/tombstone decisions. [The plan](RUNNING_IMPLEMENTATION_PLAN_2026-10-06.md) contains dated primary-source links and staged import/GPS research. Current first-party Supabase guidance: [Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security), [database functions](https://supabase.com/docs/guides/database/functions). Mutation RPCs authenticate via auth.uid(), lock the account, enforce strict JSON types and retain minimal private receipts. Direct table mutations cannot bypass running invariants. The first client captures date-only runs; existing observed instants must survive edits. Imports, GPS and route collection remain separate acceptance-gated work.

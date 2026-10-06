@@ -3,6 +3,7 @@ import type { ProcessedWorkout, WorkoutsHubResult } from "./workouts-hub-data";
 
 const mocks = vi.hoisted(() => ({
   fetch: vi.fn(),
+  apiRequest: vi.fn(),
   createBlank: vi.fn(),
   push: vi.fn(),
   refresh: vi.fn(),
@@ -103,6 +104,10 @@ vi.mock("@/composition/analytics-client", () => ({
 vi.mock("@/composition/api-client", () => ({
   getSessionReadVersion: () => mocks.version,
   invalidateSessionReads: vi.fn(),
+  apiClient: {
+    status: () => ({ configured: false, reason: "fixture" }),
+    request: mocks.apiRequest,
+  },
 }));
 vi.mock("@/features/auth/auth-context", () => ({
   useAuth: () => ({
@@ -193,6 +198,11 @@ beforeEach(() => {
   hooks.index = 0;
   hooks.focus = null;
   mocks.fetch.mockReset();
+  mocks.apiRequest.mockReset();
+  mocks.apiRequest.mockResolvedValue({
+    ok: true,
+    value: { runs: [], nextCursor: null },
+  });
   mocks.createBlank.mockReset();
   mocks.push.mockReset();
   mocks.refresh.mockReset();
@@ -391,5 +401,119 @@ it("resumes the active workout from the primary action without creating another"
   expect(mocks.push).toHaveBeenCalledWith({
     pathname: "/log-workout",
     params: { workoutId: "already-active" },
+  });
+});
+
+describe("running inside Workouts", () => {
+  it("opens Log run directly while preserving the active strength workout", () => {
+    mocks.activeWorkout = { id: "active-strength" };
+    const tree = render();
+    const logRun = find(
+      tree,
+      (node) => node.props?.accessibilityLabel === "Log run",
+    );
+    expect(logRun).toBeTruthy();
+    logRun.props.onPress();
+    expect(mocks.push).toHaveBeenCalledWith("/log-run");
+    expect(mocks.activeWorkout.id).toBe("active-strength");
+  });
+  it("mixes run cards with strength cards and supports a Running history filter", async () => {
+    const run = {
+      id: "run-id",
+      name: "Run",
+      summary: {
+        activityDate: "2026-10-05",
+        durationSeconds: 1500,
+        distanceMeters: null,
+      },
+    };
+    mocks.fetch.mockResolvedValue({ ...response("strength"), runs: [run] });
+    render();
+    hooks.focus!();
+    await settle();
+    let tree = render();
+    expect(find(tree, (node) => node.props?.run?.id === "run-id")).toBeTruthy();
+    const filter = find(
+      tree,
+      (node) => node.props?.accessibilityLabel === "Running",
+    );
+    filter.props.onPress();
+    tree = render();
+    expect(find(tree, (node) => node.props?.run?.id === "run-id")).toBeTruthy();
+    expect(
+      find(
+        tree,
+        (node) =>
+          node.props?.item?.workout?.id === "strength" &&
+          node.props?.item?.status === "completed",
+      ),
+    ).toBeFalsy();
+  });
+});
+
+describe("running history ownership before effects settle", () => {
+  it("hides account A run and strength cards on the first B render", async () => {
+    const run = {
+      id: "private-run-a",
+      name: "Private run A",
+      summary: {
+        activityDate: "2026-10-05",
+        durationSeconds: 1500,
+        distanceMeters: null,
+      },
+    };
+    const strength = {
+      ...workout("private-strength-a"),
+      status: "completed" as const,
+    };
+    mocks.fetch.mockResolvedValue({
+      activeAndPlanned: [],
+      completed: [strength],
+      runs: [run],
+      exercises: [],
+      message: null,
+    });
+    render();
+    hooks.focus!();
+    await settle();
+    let tree = render();
+    expect(
+      find(tree, (node) => node.props?.run?.id === "private-run-a"),
+    ).toBeTruthy();
+    expect(hasWorkout(tree, "private-strength-a")).toBe(true);
+    mocks.owner = "user-b";
+    tree = render();
+    expect(
+      find(tree, (node) => node.props?.run?.id === "private-run-a"),
+    ).toBeFalsy();
+    expect(hasWorkout(tree, "private-strength-a")).toBe(false);
+  });
+  it("binds display reads to their originating principal and retires completion after switch", async () => {
+    let complete!: (value: WorkoutsHubResult) => void;
+    mocks.fetch.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    );
+    render();
+    hooks.focus!();
+    const client = mocks.fetch.mock.calls[0]?.[0];
+    expect(client).toBeTruthy();
+    await client.request({ method: "GET", path: "/v1/runs?limit=50" });
+    const scopedOptions = mocks.apiRequest.mock.calls[0]?.[0];
+    expect(scopedOptions.expectedUserId).toBe("user-a");
+    expect(scopedOptions.isCurrent()).toBe(true);
+    mocks.owner = "user-b";
+    render();
+    complete({
+      ...response("old-strength"),
+      runs: [{ id: "old-run", summary: { activityDate: "2026-10-05" } }] as any,
+    });
+    await settle();
+    const tree = render();
+    expect(hasWorkout(tree, "old-strength")).toBeFalsy();
+    expect(find(tree, (node) => node.props?.run?.id === "old-run")).toBeFalsy();
+    expect(scopedOptions.isCurrent()).toBe(false);
   });
 });

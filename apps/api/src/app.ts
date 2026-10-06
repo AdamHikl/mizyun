@@ -1,3 +1,7 @@
+import type { RunRepository } from "@mizyun/core";
+import { SupabaseRunRepository } from "@mizyun/adapter-supabase-server";
+import { InMemoryRunRepository } from "./run-repository.js";
+import { runsRoutes } from "./modules/runs/routes.js";
 import { SupabaseRecurringMealRepository } from "@mizyun/adapter-supabase-server";
 import type { RecurringMealRepository } from "@mizyun/core";
 import { InMemoryRecurringMealRepository } from "./recurring-meal-repository.js";
@@ -301,6 +305,7 @@ export interface AppDependencies {
   readonly recurringMealRepository?: RecurringMealRepository;
   readonly exerciseRepository?: ExerciseRepository;
   readonly workoutRepository?: WorkoutRepository;
+  readonly runRepository?: RunRepository;
   readonly workoutSetRepository?: WorkoutSetRepository;
   readonly bodyMeasurementRepository?: BodyMeasurementRepository;
   readonly conversationRepository?: ConversationRepository;
@@ -608,6 +613,11 @@ export const buildApp = (
     (sp
       ? new SupabaseWorkoutRepository({ clientFor: sp.clientFor })
       : new InMemoryWorkoutRepository());
+  const runRepository =
+    dependencies.runRepository ??
+    (sp
+      ? new SupabaseRunRepository(sp.clientFor)
+      : new InMemoryRunRepository(workoutRepository));
   const workoutSetRepository =
     dependencies.workoutSetRepository ??
     (sp
@@ -725,6 +735,7 @@ export const buildApp = (
         })
       : new InMemoryAccountRepository({
           recurringMealRepository,
+          runRepository,
           profileRepository,
           goalRepository,
           foodEntryRepository,
@@ -762,6 +773,7 @@ export const buildApp = (
   // freshly-constructed orchestrator that owns the default
   // provider + memory store.
   const defaultToolSet = buildCoachToolRegistry({
+    runRepository,
     profileRepository,
     goalRepository,
     workoutRepository,
@@ -987,6 +999,7 @@ export const buildApp = (
     prefix: "/v1/exercises",
     exerciseRepository,
   });
+  void app.register(runsRoutes, { prefix: "/v1/runs", runRepository });
   void app.register(workoutsRoutes, {
     prefix: "/v1/workouts",
     workoutRepository,
@@ -1235,6 +1248,7 @@ export const buildApp = (
   // `dependencies.memories` is the default; tests may inject a
   // custom store via `coachControls.memoryStore`.
   void app.register(coachRoutes, {
+    runRepository,
     prefix: "/v1/coach",
     agent,
     resolveAgent,

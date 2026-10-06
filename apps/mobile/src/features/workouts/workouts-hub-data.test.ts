@@ -186,6 +186,8 @@ describe("workouts-hub-data", () => {
     async (failure) => {
       const client = {
         request: vi.fn(async ({ path }: { path: string }) => {
+          if (path.startsWith("/v1/runs"))
+            return { ok: true, value: { runs: [], nextCursor: null } };
           if (
             (failure === "routine" && path.includes("kind=routine")) ||
             (failure === "exercises" && path.includes("/exercises")) ||
@@ -213,6 +215,8 @@ describe("workouts-hub-data", () => {
       request: vi
         .fn()
         .mockImplementation(async ({ path }: { path: string }) => {
+          if (path.startsWith("/v1/runs"))
+            return { ok: true, value: { runs: [], nextCursor: null } };
           if (path.startsWith("/v1/workouts?")) {
             return {
               ok: true,
@@ -443,6 +447,8 @@ describe("workouts-hub-data", () => {
       request: vi
         .fn()
         .mockImplementation(async ({ path }: { path: string }) => {
+          if (path.startsWith("/v1/runs"))
+            return { ok: true, value: { runs: [], nextCursor: null } };
           requestedPaths.push(path);
           if (path === "/v1/workouts?limit=200") {
             // Main list only has recent completed session
@@ -651,5 +657,62 @@ describe("workouts-hub-data", () => {
         expect(result.message).toBe("That workout record no longer exists.");
       }
     });
+  });
+});
+
+describe("complete running week", () => {
+  it("follows week-range cursors independently from the history page", async () => {
+    const { fetchRunningWeek } = await import("./workouts-hub-data");
+    const run = (id: string) => ({
+      id,
+      summary: {
+        activityDate: "2026-10-05",
+        durationSeconds: 1500,
+        distanceMeters: null,
+      },
+    });
+    const request = vi.fn(async ({ path }: { path: string }) => ({
+      ok: true,
+      value: path.includes("cursor=next")
+        ? { runs: [run("second")], nextCursor: null }
+        : { runs: [run("first")], nextCursor: "next" },
+    }));
+    const result = await fetchRunningWeek(
+      { request } as unknown as ApiClient,
+      new Date("2026-10-06T12:00:00Z"),
+      "Europe/Bratislava",
+    );
+    expect(result.runs.map((r) => r.id)).toEqual(["first", "second"]);
+    expect(result.week).toEqual({
+      from: "2026-10-05",
+      to: "2026-10-11",
+      incomplete: false,
+    });
+    expect(request.mock.calls[1]?.[0].path).toContain(
+      "cursor=next&from=2026-10-05&to=2026-10-11",
+    );
+  });
+  it("reports incomplete totals when a later page fails", async () => {
+    const { fetchRunningWeek } = await import("./workouts-hub-data");
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        value: {
+          runs: [{ id: "first", summary: { activityDate: "2026-10-05" } }],
+          nextCursor: "next",
+        },
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        error: { kind: "network_error", cause: "offline" },
+      });
+    const result = await fetchRunningWeek(
+      { request } as unknown as ApiClient,
+      new Date("2026-10-06T12:00:00Z"),
+      "UTC",
+    );
+    expect(result.runs).toHaveLength(1);
+    expect(result.week.incomplete).toBe(true);
   });
 });

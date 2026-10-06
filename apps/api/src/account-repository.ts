@@ -15,6 +15,7 @@ import {
   type FeedbackRepository,
   type FoodEntryRepository,
   type RecurringMealRepository,
+  type RunRepository,
   type GoalRepository,
   type MediaAssetRepository,
   type ProductAnalyticsRepository,
@@ -47,6 +48,7 @@ export interface InMemoryAccountRepositoryOptions {
   readonly recurringMealRepository?: RecurringMealRepository;
   readonly exerciseRepository: ExerciseRepository;
   readonly workoutRepository: WorkoutRepository;
+  readonly runRepository?: RunRepository;
   readonly workoutSetRepository: WorkoutSetRepository;
   readonly bodyMeasurementRepository: BodyMeasurementRepository;
   readonly conversationRepository?: ConversationRepository;
@@ -71,6 +73,7 @@ export class InMemoryAccountRepository implements AccountRepository {
   readonly #recurringMealRepository: RecurringMealRepository | null;
   readonly #exerciseRepository: ExerciseRepository;
   readonly #workoutRepository: WorkoutRepository;
+  readonly #runRepository: RunRepository | null;
   readonly #workoutSetRepository: WorkoutSetRepository;
   readonly #bodyMeasurementRepository: BodyMeasurementRepository;
   readonly #conversationRepository: ConversationRepository | null;
@@ -90,6 +93,7 @@ export class InMemoryAccountRepository implements AccountRepository {
     this.#recurringMealRepository = options.recurringMealRepository ?? null;
     this.#exerciseRepository = options.exerciseRepository;
     this.#workoutRepository = options.workoutRepository;
+    this.#runRepository = options.runRepository ?? null;
     this.#workoutSetRepository = options.workoutSetRepository;
     this.#bodyMeasurementRepository = options.bodyMeasurementRepository;
     this.#conversationRepository = options.conversationRepository ?? null;
@@ -263,6 +267,12 @@ export class InMemoryAccountRepository implements AccountRepository {
 
     return {
       manifest,
+      ...(this.#runRepository?.exportReceipts
+        ? {
+            runOperationReceipts:
+              await this.#runRepository.exportReceipts(userId),
+          }
+        : {}),
       ...(this.#recurringMealRepository?.exportForUser
         ? {
             recurringMeals: await this.#recurringMealRepository.exportForUser(
@@ -524,6 +534,7 @@ export class InMemoryAccountRepository implements AccountRepository {
     for (const w of workouts) {
       await this.#workoutRepository.delete(w.id, { accessToken: token });
     }
+    await this.#runRepository?.clearForUser?.(userId);
     const exercises = await this.#exerciseRepository.list(userId, {
       limit: 10_000,
       accessToken: token,

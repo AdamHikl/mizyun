@@ -69,3 +69,5 @@
 - [ADR-0040 — Free exercise catalog and legacy identity](0040-free-exercise-catalog-and-legacy-identity.md): accepted for local implementation 2026-10-04; adapted RepDB Free content, preserved historical IDs, in-app attribution and pending variant-specific media; professional content/device acceptance remains open.
 
 - [ADR-0041 — Release-owned Coach app capability knowledge](0041-coach-app-capability-knowledge.md): accepted for local implementation 2026-10-04; trusted product catalog, deterministic recurring setup help and required feature/route coverage.
+
+- [ADR-0046 — Manual running authority and retry-safe mutations](0046-manual-running-authority.md): accepted for Dev implementation 2026-10-06; authoritative local dates, dedicated run UI, atomic owner receipts and separate resistance context.
