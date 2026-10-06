@@ -18,7 +18,7 @@ Manual running source implemented in isolated candidate; encrypted drafts, typed
 
 ## Active follow-ups and retained exits
 
-- **#218 private meal photos:** Dev-only optional compressed thumbnail/preview/removal, durable owner retry and deletion cleanup. Mobile272/API140 and real local32-check journeyPASS; independent High review clear. [Evidence](docs/MEAL_PHOTOS_DEV_EVIDENCE_2026-10-06.md). Combined running/photo full gate, exactDev delivery and native acceptance pending.
+- **#218 private meal photos:** Dev-only optional compressed thumbnail/preview/removal, durable owner retry and deletion cleanup. Mobile272/API140 and real local32-check journeyPASS; independent High review clear. [Evidence](docs/MEAL_PHOTOS_DEV_EVIDENCE_2026-10-06.md). Combined gatePASS1563mobile/880API; initialDev303e2e5/iPhone9670 delivered. Live URL port repair, exact repairedDev proof and native acceptance pending.
 - **#217 Pro multi-photo:** Meals/Coach up to3 and separate confirmed drafts; focused477/High review/isolated full gatePASS. [Evidence](docs/PRO_MULTI_PHOTO_EVIDENCE_2026-10-06.md). Dev/native/live-provider acceptance pending.
 - **Other current work and open exits:** [Pre-photo status](docs/archive/status/STATUS_PRE_MEAL_PHOTOS_2026-10-06.md) preserves #206/#202/#203/#208/#204/#205/#200/#182/#201/#197/#194/#196/#136, recurring meals/nutrition/analytics/workouts/catalog/Coach/Community/integrations/CI evidence and exact device/provider/release checks. Historical tests do not accept this combined candidate; these exits remain open.
 

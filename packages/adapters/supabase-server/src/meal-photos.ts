@@ -116,7 +116,8 @@ export function createMealPhotoStorage(config: {
       if (config.publicUrl) {
         const origin = new URL(config.publicUrl);
         url.protocol = origin.protocol;
-        url.host = origin.host;
+        url.hostname = origin.hostname;
+        url.port = origin.port;
       }
       return {
         signedUrl: url.toString(),

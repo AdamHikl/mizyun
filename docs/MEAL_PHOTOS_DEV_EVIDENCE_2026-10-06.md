@@ -17,3 +17,11 @@ Known nonblocking limitation: simultaneous generic-media/meal deletion can cause
 ## Delivery and open acceptance
 
 Dev deployment and physical iPhone installation pending. Exact source/service/migration/route evidence will be recorded here. Native Save/reopen/photo choice/preview/remove, offline recovery, account switch, max-font/accessibility and Android acceptance remain required.
+
+## Initial delivery and live repair
+
+Combined source303e2e5bd567cec0023467a0bc6c41be72cf4399 preserves running938efc5 and Pro multi-photo3984c35. Final source full gatePASS input41706751990295762f982f500a7f071a0f130427f073a90d64810954d040fc66; canonical deployment gatePASS input33a9dd50b0386b0e8ef95fee3f3db7c3cccc1bc77db2d1f48e222f6ff9a0f59a. Mobile1563/API880PASS;15 existing API integration and3 config bundle-path skips remain unrun. Both platform exports and operational/build gates passed.
+
+Canonical initial Dev promotion succeeded2026-10-06T18:38:10Z, pristine source303e2e5, PID3376308; API4100/DB5433; ledger running12:00+18:30/photo20:00 verified. Real public upload succeeded but the signedURL kept internal8100; the probe rejected this before counting live acceptance. Synthetic accounts were removed in checked finally cleanup. Adapter repair explicitly assigns hostname and port; final repair gate/deployment/live journey remains pending here and is tracked in issue218.
+
+Standalone Dev Release built/installed/launched2026-10-06T18:32:40Z, source303e2e5 mobile tree, iPhone16Pro00008140-001114501A86801C, com.mizyun.development1.0.9(9), teamLQJNDVBL43, PID9670 independently verified. Embedded Dev endpoints and enableMealPhotos=true verified. CDHash5db7241fc8253c455a1ef10546d8e4f26391902e; executableSHA256740bd89b84a113232be104198308024783e5f231d9ac624c344b8134867b2894; HermesbundleSHA256e94e8f593b82e88fbd0c129185fc5b43381e9b4e08ba06c2e3c408c73e62eca8. URL repair changes only server code/tests/docs, so no replacement mobile build is required. Native interaction/accessibility/account-switch/offline exits remain open. Production unchanged.

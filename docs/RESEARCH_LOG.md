@@ -1,5 +1,9 @@
 # Research log
 
+## Public meal-image origin repair (#218) — 2026-10-06
+
+[Node WHATWG URL fields](https://nodejs.org/api/url.html#urlport), checked today: a public origin needs explicit protocol, hostname and port assignment; an empty port selects the scheme default. Real Dev verification reproduced an internal8100 port retained by host-only assignment. Match existing private-media URL rewriting, preserve the signed path/query, and cover default443/custom8443/no-rewrite behavior through the actual Supabase signing adapter. No mobile/schema change is needed.
+
 ## Running conflict transport — 2026-10-06
 
 - [Supabase RPC serialization retry guidance](https://supabase.com/docs/guides/troubleshooting/high-cpu-and-infinite-transaction-retries-when-using-custom-error-codes-in-rpc-functions-77326b) and [PostgREST custom errors](https://docs.postgrest.org/en/stable/references/errors.html), checked today: domain conflicts must use `PT409`, not `40001` serialization failure. Live Dev stale-edit probe reproduced repeated retries and eventual500 with40001; forward migration20261006183000 preserves existing functions/grants and changes their conflict code only. Adapter mapsPT409 to the existing409 response; replay/CAS/tombstones retain their transaction rules. Local SQL, concurrency and public Dev route proof are required after the repair.

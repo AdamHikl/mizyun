@@ -3,7 +3,11 @@ import sharp from "sharp";
 import type { RepositorySupabaseClient } from "./index";
 import type { UserId } from "@mizyun/core";
 import { MealPhotoError } from "@mizyun/core";
-import { processMealPhoto, SupabaseMealPhotoService } from "./meal-photos";
+import {
+  processMealPhoto,
+  SupabaseMealPhotoService,
+  createMealPhotoStorage,
+} from "./meal-photos";
 const userId = "00000000-0000-4000-8000-000000000001" as UserId;
 const jpeg = () =>
   sharp({ create: { width: 640, height: 320, channels: 3, background: "red" } })
@@ -181,5 +185,45 @@ describe("meal photo retry boundary", () => {
     });
     await expect(service.cleanup()).rejects.toThrow("cleanup incomplete");
     expect(deleted).not.toHaveBeenCalled();
+  });
+});
+
+describe("meal photo Storage transport", () => {
+  it("turns an internal8100 signing response into public HTTPS443 while preserving its path and query", async () => {
+    const objectPath = "synthetic-owner/meal-photos/synthetic-asset.jpg";
+    const signedPath = `/object/sign/private-media/${objectPath}?token=synthetic-ticket.opaque-signature&download=`;
+    const transport = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ signedURL: signedPath }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", transport);
+    try {
+      const storage = createMealPhotoStorage({
+        url: "http://127.0.0.1:8100",
+        publishableKey: "synthetic-publishable-key",
+        serviceRoleKey: "synthetic-service-key",
+        publicUrl: "https://mizyun-supabase-dev.phiskel.com",
+      });
+      const result = await storage.sign(objectPath, "synthetic-owner-token");
+      const [requestUrl, requestOptions] = transport.mock.calls[0]!;
+      expect(new URL(String(requestUrl)).origin).toBe("http://127.0.0.1:8100");
+      expect(new Headers(requestOptions.headers).get("authorization")).toBe(
+        "Bearer synthetic-owner-token",
+      );
+      expect(JSON.parse(requestOptions.body)).toMatchObject({ expiresIn: 300 });
+      const signed = new URL(result.signedUrl);
+      expect(signed.origin).toBe("https://mizyun-supabase-dev.phiskel.com");
+      expect(signed.port).toBe("");
+      expect(signed.pathname).toBe(
+        `/storage/v1/object/sign/private-media/${objectPath}`,
+      );
+      expect(
+        signed.search === new URL(signedPath, "http://synthetic.local").search,
+      ).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
