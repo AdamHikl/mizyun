@@ -1,5 +1,7 @@
 # Running Dev implementation evidence — 2026-10-06
 
+Current accepted Dev/source evidence and remaining native gates: [delivery follow-up](RUNNING_DEV_DELIVERY_2026-10-06.md). Earlier snapshots below are historical.
+
 ## Candidate and scope
 
 Isolated managed worktree: `/Users/adam/.codex/worktrees/running-dev/mizyun`, baseline `f40e8941afc5307efce6d5c5909c0146ed1f3dda`. Implements manual running RUN-01–05 from [the researched plan](RUNNING_IMPLEMENTATION_PLAN_2026-10-06.md); [ADR-0046](adr/0046-manual-running-authority.md). Concurrent root health-preview and simulator changes are excluded and preserved. Imports, GPS recording, routes and structured running programs retain separate stages.
@@ -22,7 +24,7 @@ The typed API stores one existing-workout session with a strict runSummary and a
 
 ## Open acceptance
 
-Full exact-candidate gate, commit/Dev deployment and route-specific synthetic recovery proof pending at this snapshot. Physical iPhone/Android forms, keyboard/date editing, narrow/large text, VoiceOver/TalkBack, themes, offline/restart/lost response and signed-in Coach/run history journeys require exact installed-candidate acceptance. Production and Store delivery remain separate. Issue #216 remains active until its selected stage exits are accepted; later import/GPS stages are not claimed complete.
+These gates were pending at the initial snapshot; they have now passed on Dev938efc5, as recorded in the delivery follow-up. Physical iPhone/Android forms, keyboard/date editing, narrow/large text, VoiceOver/TalkBack, themes, offline/restart/lost response and signed-in Coach/run history journeys require exact installed-candidate acceptance. Production and Store delivery remain separate. Issue #216 remains active until its selected stage exits are accepted; later import/GPS stages are not claimed complete.
 
 ## Final source verification
 

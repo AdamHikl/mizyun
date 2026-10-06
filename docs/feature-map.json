@@ -213,7 +213,8 @@
         "supabase/migrations/20260714101000_user_data.sql",
         "supabase/migrations/20260721100000_persist_002_workout_columns.sql",
         "supabase/migrations/20260914134000_backfill_workout_routine_lifecycle.sql",
-        "supabase/migrations/20261006120000_manual_running.sql"
+        "supabase/migrations/20261006120000_manual_running.sql",
+        "supabase/migrations/20261006183000_running_conflict_http.sql"
       ],
       "tests": [
         "apps/api/src/modules/workouts/routes.test.ts",

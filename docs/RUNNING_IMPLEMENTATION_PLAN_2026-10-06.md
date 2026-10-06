@@ -1,6 +1,6 @@
 # Running support implementation plan
 
-> Authored 2026-10-06. Planning artifact only: running is not implemented or accepted by this document. Baseline HEAD `f40e8941afc5307efce6d5c5909c0146ed1f3dda`; source observations include the disclosed working tree. Research informs design hypotheses; user testing and exact-candidate acceptance remain required. Package: **RUN-00–08**. Tracking issue: [#216](https://github.com/AdamHikl/mizyun/issues/216), ready for RUN-00 discovery.
+> Authored 2026-10-06; original planning baseline `f40e8941afc5307efce6d5c5909c0146ed1f3dda`. Manual running is now implemented and delivered to Dev938efc5; see [current delivery and open gates](RUNNING_DEV_DELIVERY_2026-10-06.md). Research/design targets remain hypotheses until user/native acceptance. Tracking [#216](https://github.com/AdamHikl/mizyun/issues/216) stays active.
 
 ## A. Context and scope
 
@@ -344,7 +344,7 @@ RUN-00 is small discovery/prototype work. RUN-01 is a bounded contract/calculati
 
 ## E. Next-session prompt
 
-> Work on RUN-00 in `docs/RUNNING_IMPLEMENTATION_PLAN_2026-10-06.md` and its linked tracking issue. First run `git -c core.fsmonitor=false status --short`, read the current root/mobile AGENTS instructions and current status, then use `pnpm context workouts-sets --query "running run summary history"`. Preserve concurrent health-connections, simulator, Settings and release work. Reconcile the final #198/INT-00–03 owner and current contract before planning imports. Read the plan fully, identify current gate/dependency changes, and prepare the completed-run task prototype and research script. Validate the requesting users' job and the date-precision/typed-summary decision; record results and an ADR for the durable design when accepted. Delegate a bounded independent UI/IA review at Medium; use High for privacy/data/migration/Coach design and a non-author High reviewer. Only the coordinator edits continuity/issues. RUN-00 authorizes discovery/prototype/planning within the selected session; feature implementation, migration application, builds, deployment, provider calls and Store actions require their separately selected package/scope. After RUN-00, implement RUN-01–05 only when that bounded implementation is explicitly authorized, following frozen mutation receipts, CAS/deletion, old-client guards and native acceptance in this plan. Do not use a fake strength set for a run or grant imports/GPS/Community authority from this document.
+> Accept the manual-running RUN-05 candidate using `docs/RUNNING_DEV_DELIVERY_2026-10-06.md` and current status. Start with the current working tree and root/mobile AGENTS; preserve the isolated running branch and concurrent health/export/Pro multi-photo work. Verify the exact Dev938efc5 backend and compatible installed2ea23093 iPhone binary before testing Log run, history/edit/delete, draft/retry/account switching and accessibility. Distinguish automated/API proof from native acceptance; issue216 stays active until selected stage exits pass. Run requester interviews/prototypes before choosing imports or GPS. Reconcile the health integration owner and shared workout/cache/account-cleanup/Coach-version changes before main integration. Delegate bounded independent review; only the coordinator changes continuity/issues or integrates/deploys. Later imports/GPS/Community and Production/Store authority are separate.
 
 ## F. Dated primary research and design consequences
 
@@ -367,9 +367,9 @@ Sources accessed **2026-10-06**. The consequences below are Mizyun design recomm
 | [Android — Workout experiences](https://developer.android.com/health-and-fitness/health-connect/experiences/workouts), [Exercise routes](https://developer.android.com/health-and-fitness/health-connect/features/exercise-routes)                                    | Sessions, distance and routes have distinct data/permission boundaries. Initial summary import requests the smallest required set and omits routes.                                                                  |
 | [Supabase — RLS](https://supabase.com/docs/guides/database/postgres/row-level-security)                                                                                                                                                                               | Grants and policies both matter. New receipts/child data require allow/deny tests and controlled authenticated execution. Existing private table ownership does not prove a new RPC is safe.                         |
 
-Known limits: no user interviews/prototype testing in this session, no UI/device/API/DB acceptance for running, no GPS/battery measurements, and unfinished concurrent health work. This is a researched execution guide; the current feature remains unimplemented.
+Original planning limits: requester interviews/prototype tasks and GPS/battery measurements were not performed. Current automated/Dev API proof and outstanding native acceptance are recorded in [the delivery follow-up](RUNNING_DEV_DELIVERY_2026-10-06.md); concurrent health work remains separately owned.
 
-## G. Planning-session handoff
+## G. Original planning-session handoff (historical; current delivery linked above)
 
 - Authored this plan, added the dated running entry to `docs/RESEARCH_LOG.md`, and linked it from `status.md` while retaining existing authorities and gates. `plan.md` and `goals.md` are unchanged; no roadmap reprioritization was accepted.
 - Created [#216](https://github.com/AdamHikl/mizyun/issues/216) with `enhancement`, `priority:P2`, `status:ready`, `area:workout`. Ready means RUN-00 discovery is specified; running runtime implementation is still absent.

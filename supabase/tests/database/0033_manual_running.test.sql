@@ -40,6 +40,7 @@ set local role authenticated;
 select lives_ok($$select * from public.run_update((select id from run_ids),'a2160000-0000-4000-8000-000000000002',1,'Run',null,(select value || '{"revision":2,"durationSeconds":1900}'::jsonb from summary))$$,'CAS edit succeeds');
 select lives_ok($$select * from public.run_update((select id from run_ids),'a2160000-0000-4000-8000-000000000002',1,'Run',null,(select value || '{"revision":2,"durationSeconds":1900}'::jsonb from summary))$$,'Lost edit response replays acknowledged revision');
 select throws_ok($$select * from public.run_update((select id from run_ids),'a2160000-0000-4000-8000-000000000005',1,'Run',null,(select value || '{"revision":2,"durationSeconds":1901}'::jsonb from summary))$$,'PT409','run_conflict','Two-device stale revision conflicts');
+select throws_ok($$select * from public.run_cancel('a2160000-0000-4000-8000-000000000002')$$,'PT409','run_conflict','Cannot cancel an acknowledged update operation');
 select lives_ok($$select * from public.run_update((select id from run_ids),'a2160000-0000-4000-8000-000000000006',2,'Run',null,(select value || '{"revision":3,"durationSeconds":2000}'::jsonb from summary))$$,'Newer edit succeeds');
 select throws_ok($$select * from public.run_update((select id from run_ids),'a2160000-0000-4000-8000-000000000002',1,'Run',null,(select value || '{"revision":2,"durationSeconds":1900}'::jsonb from summary))$$,'PT409','run_conflict','Old acknowledged edit cannot replace newer content');
 set local request.jwt.claim.sub='f2160000-0000-4000-8000-000000000002';
