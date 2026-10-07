@@ -70,4 +70,6 @@
 
 - [ADR-0041 — Release-owned Coach app capability knowledge](0041-coach-app-capability-knowledge.md): accepted for local implementation 2026-10-04; trusted product catalog, deterministic recurring setup help and required feature/route coverage.
 
+- [ADR-0045 — Ephemeral health previews](0045-ephemeral-health-previews.md): accepted for the first integration source package 2026-10-06; per-category read-only foreground weight/workout previews, memory-only session, no backend/Coach/sharing, and Production disabled pending native/device/privacy acceptance.
+
 - [ADR-0046: Pro multi-photo drafts and Coach context](0046-pro-multi-photo-drafts.md) — accepted implementation; native/provider acceptance pending.

@@ -258,7 +258,7 @@ Prove the business-plan launch wedge before adding AI: a busy intermediate gym-g
 - Logging efficiency, activation, and early retention can be measured without collecting sensitive payloads.
 - Known P0/P1 data-loss, privacy, and core-workflow failures are closed before external AI access or paid acquisition.
 
-## Phase 6 — Steps, movement, and health-platform adapters 🔬
+## Phase 6 — Steps, movement, and health-platform adapters ◐
 
 ### Objective
 

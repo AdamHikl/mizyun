@@ -1,7 +1,10 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
-import { isProgressPhotosEnabled } from "@/composition/app-variant";
+import {
+  getAppVariant,
+  isProgressPhotosEnabled,
+} from "@/composition/app-variant";
 import { useAuth } from "@/features/auth/auth-context";
 import { router } from "expo-router";
 import React, { useMemo } from "react";
@@ -33,6 +36,7 @@ export function SettingsCategoryScreen({
       isSignedIn: session !== null,
       hasProfile: profile !== null,
       isProgressPhotosEnabled: isProgressPhotosEnabled(),
+      isHealthPreviewEnabled: getAppVariant() === "dev",
       isSetupComplete: Boolean(profile?.displayName),
     }),
     [session, profile],

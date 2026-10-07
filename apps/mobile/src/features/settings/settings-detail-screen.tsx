@@ -4,6 +4,8 @@ import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { apiClient, apiConfiguration } from "@/composition/api-client";
 import { authConfiguration } from "@/composition/auth-client";
 import { useAuth } from "@/features/auth/auth-context";
+import { getAppVariant } from "@/composition/app-variant";
+import { HealthPreviewCard } from "@/features/health-connections";
 import { meResponseSchema, type AuthPrincipalWire } from "@mizyun/contracts";
 import { router, Stack } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -164,6 +166,19 @@ export function SettingsDetailScreen({
         ) : (
           <ThemedText type="small" themeColor="textSecondary">
             Please sign in to configure Health steps.
+          </ThemedText>
+        );
+
+      case "health-preview":
+        return session !== null && getAppVariant() === "dev" ? (
+          <HealthPreviewCard
+            key={session.user.id}
+            userId={session.user.id}
+            unitSystem={profile?.unitSystem ?? "metric"}
+          />
+        ) : (
+          <ThemedText type="small" themeColor="textSecondary">
+            Health previews are unavailable in this build or account.
           </ThemedText>
         );
 

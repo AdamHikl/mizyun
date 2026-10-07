@@ -16,6 +16,7 @@ export type SettingsDetailKey =
   | "reminders"
   | "appearance"
   | "health-steps"
+  | "health-preview"
   | "coach-preferences"
   | "ai-usage"
   | "memory"
@@ -67,6 +68,11 @@ export const SETTINGS_DETAIL_CONFIGS: Record<
   },
   "health-steps": {
     title: "Steps from Health",
+    categoryId: "health-connections",
+    validAnchors: [],
+  },
+  "health-preview": {
+    title: "Weight & Workout Health Preview",
     categoryId: "health-connections",
     validAnchors: [],
   },

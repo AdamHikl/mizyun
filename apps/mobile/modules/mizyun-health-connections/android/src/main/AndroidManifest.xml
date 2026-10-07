@@ -1,0 +1,11 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:tools="http://schemas.android.com/tools">
+  <!-- Every Health Connect call is guarded at API 28. Retain the app's API 24 floor. -->
+  <uses-sdk tools:overrideLibrary="androidx.health.connect.client" />
+  <uses-permission android:name="android.permission.health.READ_WEIGHT" />
+  <uses-permission android:name="android.permission.health.READ_EXERCISE" />
+  <queries>
+    <package android:name="com.google.android.apps.healthdata" />
+  </queries>
+  <!-- The existing health-steps module supplies the shared rationale activity/alias. -->
+</manifest>

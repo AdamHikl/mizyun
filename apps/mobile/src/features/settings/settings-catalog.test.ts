@@ -26,6 +26,31 @@ import {
 } from "./settings-destinations";
 
 describe("settings-catalog", () => {
+  it("keeps health previews out of Production/default and signed-out settings", () => {
+    const context: SettingsAvailabilityContext = {
+      isSignedIn: true,
+      hasProfile: true,
+      isProgressPhotosEnabled: false,
+      isSetupComplete: true,
+    };
+    expect(
+      getAvailableSettings(context).some(
+        (item) => item.id === "health-preview",
+      ),
+    ).toBe(false);
+    expect(
+      getAvailableSettings({ ...context, isHealthPreviewEnabled: true }).some(
+        (item) => item.id === "health-preview",
+      ),
+    ).toBe(true);
+    expect(
+      getAvailableSettings({
+        ...context,
+        isSignedIn: false,
+        isHealthPreviewEnabled: true,
+      }).some((item) => item.id === "health-preview"),
+    ).toBe(false);
+  });
   describe("catalog integrity and uniqueness", () => {
     it("ensures all items in SETTINGS_CATALOG have unique id values", () => {
       const ids = SETTINGS_CATALOG.map((item) => item.id);
@@ -300,6 +325,7 @@ describe("settings-catalog", () => {
       isSignedIn: true,
       hasProfile: true,
       isProgressPhotosEnabled: true,
+      isHealthPreviewEnabled: true,
       isSetupComplete: true,
     };
 

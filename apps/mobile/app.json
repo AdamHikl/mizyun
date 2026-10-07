@@ -18,7 +18,7 @@
         "NSPhotoLibraryUsageDescription": "Mizyun accesses a photo only when you choose it for a meal draft or your private progress timeline.",
         "NSPhotoLibraryAddUsageDescription": "Mizyun saves photos to your photo library only when you explicitly export a progress photo.",
         "NSCameraUsageDescription": "Mizyun uses the camera when you choose to take photos of your meals or private progress timeline.",
-        "NSHealthShareUsageDescription": "Mizyun reads your step count only when you enable Steps in Settings, to show today's steps on your dashboard. Step data stays on this device.",
+        "NSHealthShareUsageDescription": "Mizyun reads steps when you enable Steps, and reads weight or completed workouts only when you choose that Health preview. Records stay on this device and do not change your targets. Preview records are cleared when you leave the preview or background the app.",
         "NSHealthUpdateUsageDescription": "Mizyun uses Apple Health to display your daily steps. Mizyun does not save or change any data in Apple Health."
       }
     },

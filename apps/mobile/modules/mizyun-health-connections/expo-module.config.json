@@ -1,0 +1,7 @@
+{
+  "platforms": ["ios", "android"],
+  "ios": { "modules": ["MizyunHealthConnectionsModule"] },
+  "android": {
+    "modules": ["com.mizyun.healthconnections.HealthConnectionsModule"]
+  }
+}

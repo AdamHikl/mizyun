@@ -1,0 +1,141 @@
+2026-10-06 health preview #215. Isolated baseline f40e8941afc5307efce6d5c5909c0146ed1f3dda plus owned overlay.
+
+mobile (exit 0):
+ RUN  v3.2.7 /private/tmp/mizyun-health-preview-215/apps/mobile
+
+ ✓ modules/mizyun-health-connections/index.test.ts (3 tests) 38ms
+ ✓ src/features/health-steps/health-steps.test.ts (6 tests) 3ms
+ ✓ src/features/settings/settings-catalog.test.ts (18 tests) 8ms
+ ✓ src/features/settings/settings-search.test.ts (93 tests) 248ms
+ ✓ src/features/analytics/ui-screen-analytics.test.tsx (5 tests) 15ms
+ ✓ src/features/health-connections/health-preview-card.test.tsx (4 tests) 78ms
+ ✓ src/features/health-connections/health-preview-controller.test.ts (16 tests) 216ms
+
+ Test Files  7 passed (7)
+      Tests  145 passed (145)
+   Start at  19:30:09
+   Duration  1.27s (transform 1.08s, setup 0ms, collect 2.41s, tests 606ms, environment 1ms, prepare 424ms)
+
+
+contracts (exit 0):
+
+> @mizyun/contracts@0.1.0 test /private/tmp/mizyun-health-preview-215/packages/contracts
+> vitest run --passWithNoTests src/health-connection.test.ts
+
+
+ RUN  v3.2.7 /private/tmp/mizyun-health-preview-215/packages/contracts
+
+ ✓ src/health-connection.test.ts (29 tests) 19ms
+
+ Test Files  1 passed (1)
+      Tests  29 passed (29)
+   Start at  19:24:41
+   Duration  1.05s (transform 116ms, setup 0ms, collect 258ms, tests 19ms, environment 0ms, prepare 160ms)
+
+
+core (exit 0):
+
+> @mizyun/core@0.1.0 test /private/tmp/mizyun-health-preview-215/packages/core
+> vitest run src/health-observation.test.ts
+
+
+ RUN  v3.2.7 /private/tmp/mizyun-health-preview-215/packages/core
+
+ ✓ src/health-observation.test.ts (11 tests) 15ms
+
+ Test Files  1 passed (1)
+      Tests  11 passed (11)
+   Start at  19:24:41
+   Duration  1.53s (transform 436ms, setup 0ms, collect 767ms, tests 15ms, environment 0ms, prepare 187ms)
+
+
+capabilities (exit 0):
+
+> @mizyun/agent-runtime@0.1.0 test /private/tmp/mizyun-health-preview-215/packages/agent-runtime
+> vitest run src/app-capabilities.test.ts
+
+
+ RUN  v3.2.7 /private/tmp/mizyun-health-preview-215/packages/agent-runtime
+
+ ✓ src/app-capabilities.test.ts (29 tests) 4ms
+
+ Test Files  1 passed (1)
+      Tests  29 passed (29)
+   Start at  19:26:53
+   Duration  298ms (transform 37ms, setup 0ms, collect 34ms, tests 4ms, environment 0ms, prepare 55ms)
+
+
+knowledge (exit 0):
+✔ removing or renaming a route rejects stale catalog directions (0.102958ms)
+✔ rejects empty user guidance and internal classification explanations (0.096916ms)
+✔ rejects dangling feature references and internal entries (0.073792ms)
+✔ rejects duplicate ids, routes, and local feature references (0.115333ms)
+✔ rejects classifying a user-facing feature as internal as well (0.066875ms)
+✔ wildcard routes cannot silently cover future screens (0.091417ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 100.11775
+Coach feature knowledge covers 19 features and 35 mobile routes.
+
+typecheck (exit 0):
+
+> @mizyun/mobile@1.0.0 typecheck /private/tmp/mizyun-health-preview-215/apps/mobile
+> tsc --noEmit
+
+
+native API/Expo-boundary scaffold (exit 0; not a full app build):
+Complete Swift definition/escaping closures and real HealthKit/UIKit APIs, Expo boundary scaffolded: PASS
+Queued native read / clear regression: PASS
+Kotlin real HC1.1/Android36/coroutines APIs and queued-read test, Expo bridge scaffolded: PASS
+Pre-fix queued-generation mutation rejected by regression: PASS
+Artifacts: /private/tmp/mizyun-health-native-check
+
+full pnpm check (exit 0):
+[check] Running all check:steps gates; input SHA-256 89ed8e39e71648609e33a87f2ce04b44538c2423aa6811f72b34dc5ec4d579b4.
+Coach feature knowledge covers 19 features and 35 mobile routes.
+Exported: dist/bundle-check-ios
+Exported: dist/bundle-check-android
+packages/observability test:  Test Files  1 passed (1)
+packages/observability test:       Tests  10 passed (10)
+packages/contracts test:  Test Files  18 passed (18)
+packages/contracts test:       Tests  232 passed (232)
+packages/core test:  Test Files  28 passed (28)
+packages/core test:       Tests  385 passed (385)
+packages/identity test:  Test Files  1 passed (1)
+packages/identity test:       Tests  19 passed (19)
+packages/memory test:  Test Files  1 passed (1)
+packages/memory test:       Tests  3 passed (3)
+packages/adapters/ses test:  Test Files  1 passed (1)
+packages/adapters/ses test:       Tests  5 passed (5)
+packages/adapters/apple-auth test:  Test Files  2 passed (2)
+packages/adapters/apple-auth test:       Tests  21 passed (21)
+packages/adapters/supabase-mobile test:  Test Files  2 passed (2)
+packages/adapters/supabase-mobile test:       Tests  30 passed (30)
+packages/agent-runtime test:  Test Files  3 passed (3)
+packages/agent-runtime test:       Tests  91 passed (91)
+packages/api-client test:  Test Files  2 passed (2)
+packages/api-client test:       Tests  37 passed (37)
+packages/adapters/supabase-server test:  Test Files  21 passed (21)
+packages/adapters/supabase-server test:       Tests  154 passed (154)
+packages/config test: [config] bundle-purity tests skipped: /private/tmp/mizyun-health-preview-215/apps/mobile/dist/bundle-check/_expo/static/js/ios not found. Run `pnpm --filter @mizyun/mobile bundle:check` first.
+packages/config test:  Test Files  5 passed (5)
+packages/config test:       Tests  78 passed | 3 skipped (81)
+packages/providers/gemini test:  Test Files  3 passed (3)
+packages/providers/gemini test:       Tests  55 passed (55)
+apps/mobile test:  Test Files  139 passed (139)
+apps/mobile test:       Tests  1500 passed (1500)
+apps/api test:  Test Files  60 passed | 3 skipped (63)
+apps/api test:       Tests  852 passed | 15 skipped (867)
+[check] PASS: all gates completed for input SHA-256 89ed8e39e71648609e33a87f2ce04b44538c2423aa6811f72b34dc5ec4d579b4.
+
+API E2E skipped: 15 tests (Auth, account deletion and persistence) require their explicit local E2E environment/credentials. Provider live tests and destructive databases were not run.
+Config bundle-purity skipped: 3 assertions still point at the historical bundle-check path (#179). Actual exports exist at bundle-check-ios and bundle-check-android; skip is not a pass.
+Autolinking resolve --platform apple/android --json: exit 0; exactly one mizyun-health-connections entry each, correct native class/pod/project paths.
+Full gate log SHA-256: d24a367d87f48b7471e24ee03b3d92091e294e7b4ec67ef5d15d746eaf1f2575
+Separate actual-artifact scan: both current nonempty iOS/Android Hermes exports passed all three literal/JWT checks each. See actual-bundle-scan.json; no bundle contents printed.
+Final post-handoff shared-tree navigation: PASS (0 errors, 26 advisory warnings); owned handoff documents/JSON formatting: PASS. Current runtime/config/test hashes match the frozen candidate. Concurrent scope is preserved and was not part of the full gate.

@@ -1,5 +1,5 @@
 /** Trusted product facts, owned by this release. Never infer account access from this catalog. */
-export const COACH_APP_KNOWLEDGE_VERSION = "mizyun-app-v2";
+export const COACH_APP_KNOWLEDGE_VERSION = "mizyun-app-v3";
 
 export interface CoachAppCapability {
   readonly id: string;
@@ -77,6 +77,13 @@ export const COACH_APP_CAPABILITIES: readonly CoachAppCapability[] = [
     routes: [],
     guidance:
       "Account → Health connections can enable supported device step reads with permission. Imported steps stay on that device and do not change calorie targets, become Coach context, or sync to the server. Watch apps, general weight/workout health sync and developer API sharing are not established by this step feature; ask/check current availability instead of inventing integration instructions.",
+  },
+  {
+    id: "health-preview",
+    featureIds: ["health-preview"],
+    routes: [],
+    guidance:
+      "Weight and completed-workout Health previews are a Dev-only feature pending native/device acceptance. If visible, open Account → Health connections → Weight & Workout Health Preview and explicitly choose one category. The preview stays in memory and clears on leaving or backgrounding. Production availability, account sync, watches and developer sharing are not enabled by this preview. Coach cannot read its records or use them as personal evidence.",
   },
   {
     id: "community",

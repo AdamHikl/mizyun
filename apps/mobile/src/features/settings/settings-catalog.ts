@@ -113,6 +113,7 @@ export type SettingsAvailabilityRule =
   | "always"
   | "progress-photos"
   | "signed-in"
+  | "health-preview"
   | "has-profile"
   | "incomplete-setup";
 
@@ -121,6 +122,7 @@ export interface SettingsAvailabilityContext {
   readonly hasProfile: boolean;
   readonly isProgressPhotosEnabled: boolean;
   readonly isSetupComplete: boolean;
+  readonly isHealthPreviewEnabled?: boolean;
 }
 
 export type SettingsTargetType = "setting-detail" | "external-route" | "action";
@@ -621,6 +623,32 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
     settingDetailKey: "health-steps",
     availabilityRule: "signed-in",
     keywords: ["fitness sync", "google fit", "health app", "step tracking"],
+  },
+
+  {
+    id: "health-preview",
+    destinationId: "health-preview",
+    label: "Weight & Workout Health Preview",
+    description:
+      "Read selected weight or completed workout summaries on this screen",
+    categoryId: "health-connections",
+    categoryLabel: "Health connections",
+    breadcrumb: "Account → Health connections",
+    aliases: [
+      "weight from health",
+      "health workout preview",
+      "smart scale",
+      "import weight",
+    ],
+    intentPhrases: [
+      "preview my health weight",
+      "preview workouts from health",
+      "read scale measurements",
+    ],
+    targetType: "setting-detail",
+    settingDetailKey: "health-preview",
+    availabilityRule: "health-preview",
+    keywords: ["body mass", "completed exercise", "local preview"],
   },
 
   // ── AI coach ──
@@ -1148,6 +1176,8 @@ export function isSettingAvailable(
       return true;
     case "signed-in":
       return context.isSignedIn;
+    case "health-preview":
+      return context.isSignedIn && context.isHealthPreviewEnabled === true;
     case "has-profile":
       return context.hasProfile;
     case "progress-photos":

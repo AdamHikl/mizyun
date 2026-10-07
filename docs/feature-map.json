@@ -1788,6 +1788,75 @@
       "openAcceptance": [
         "GitHub #54: fresh Codex and Antigravity sessions must demonstrate shared skill discovery and behavior; no installed-client or token-saving measurement is inferred from CLI fixtures."
       ]
+    },
+    {
+      "id": "health-preview",
+      "title": "Device-only Weight and Workout Health Preview",
+      "summary": "Explicit per-category foreground health previews held only in memory, available in Dev pending native/device acceptance.",
+      "aliases": [
+        "health preview",
+        "weight import",
+        "smart scale",
+        "health workout"
+      ],
+      "entryPoints": [
+        "apps/mobile/src/features/health-connections/index.ts",
+        "apps/mobile/modules/mizyun-health-connections/index.ts"
+      ],
+      "ownedPaths": [
+        "apps/mobile/src/features/health-connections",
+        "apps/mobile/modules/mizyun-health-connections",
+        "packages/contracts/src/health-connection.ts",
+        "packages/contracts/src/health-connection.test.ts",
+        "packages/core/src/health-observation.ts",
+        "packages/core/src/health-observation.test.ts"
+      ],
+      "contracts": ["packages/contracts/src/health-connection.ts"],
+      "domainPort": ["packages/core/src/health-observation.ts"],
+      "api": [],
+      "ui": [
+        "apps/mobile/src/features/health-connections/health-preview-card.tsx"
+      ],
+      "adapters": ["apps/mobile/modules/mizyun-health-connections"],
+      "dataTables": [],
+      "migrationPaths": [],
+      "tests": [
+        "packages/contracts/src/health-connection.test.ts",
+        "packages/core/src/health-observation.test.ts",
+        "apps/mobile/src/features/health-connections/health-preview-controller.test.ts",
+        "apps/mobile/src/features/health-connections/health-preview-card.test.tsx"
+      ],
+      "relations": [
+        {
+          "type": "relatedTo",
+          "target": "health-steps",
+          "reason": "Separate read permissions; existing daily steps are unchanged"
+        },
+        {
+          "type": "dependsOn",
+          "target": "auth",
+          "reason": "Ephemeral screen identity retires previews on account changes"
+        }
+      ],
+      "docs": [
+        "docs/INTEGRATIONS_IMPLEMENTATION_PLAN_2026-10-04.md",
+        "docs/adr/0045-ephemeral-health-previews.md",
+        "docs/HEALTH_PREVIEW_EVIDENCE_2026-10-06.md"
+      ],
+      "verificationCommands": [
+        "pnpm --filter @mizyun/mobile test src/features/health-connections",
+        "pnpm --filter @mizyun/contracts test src/health-connection.test.ts",
+        "pnpm --filter @mizyun/core test src/health-observation.test.ts"
+      ],
+      "lastReviewedSha": "f40e8941afc5307efce6d5c5909c0146ed1f3dda",
+      "lastReviewedDate": "2026-10-06",
+      "limitations": "Local source implemented with no persistence/server/Coach/statistics; Production preview disabled; full native/device and declaration acceptance remains open under #215.",
+      "requirements": ["ACT-01", "ACT-02", "ACT-03", "ACT-04", "PRIV-01"],
+      "openAcceptance": [
+        "Full Expo native build and owned-sample physical iPhone/Android permission/paging/clear tests",
+        "Below-Health-Connect Android launch, source correction/deletion and no backend transport acceptance",
+        "Public privacy and platform health declarations before Production enablement"
+      ]
     }
   ]
 }

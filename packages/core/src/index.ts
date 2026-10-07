@@ -339,3 +339,5 @@ export * from "./community-challenges";
 export * from "./community-media";
 
 export * from "./recurring-meal";
+
+export * from "./health-observation";

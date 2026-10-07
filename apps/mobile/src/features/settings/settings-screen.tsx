@@ -3,7 +3,10 @@ import { ThemedView } from "@/components/themed-view";
 import { BrandWordmark } from "@/components/brand-wordmark";
 import { FeedbackHeaderButton } from "@/components/feedback-header-button";
 import { MaxContentWidth, Spacing } from "@/constants/theme";
-import { isProgressPhotosEnabled } from "@/composition/app-variant";
+import {
+  getAppVariant,
+  isProgressPhotosEnabled,
+} from "@/composition/app-variant";
 import { analyticsClient } from "@/composition/analytics-client";
 import {
   trackSettingsSearchSelected,
@@ -67,6 +70,7 @@ export function SettingsScreen() {
       isSignedIn: session !== null,
       hasProfile: profile !== null,
       isProgressPhotosEnabled: isProgressPhotosEnabled(),
+      isHealthPreviewEnabled: getAppVariant() === "dev",
       isSetupComplete: Boolean(profile?.displayName),
     }),
     [session, profile],

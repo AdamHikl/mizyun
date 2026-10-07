@@ -1,0 +1,14 @@
+[
+  {
+    "path": "apps/mobile/dist/bundle-check-ios/_expo/static/js/ios/entry-42a4e93ff61a1795b31d98c71f974f17.hbc",
+    "size": 8041801,
+    "sha256": "b69fec844820b357b16af66607f6b15b4af94d57806d9bd28ea069e3ff0fa527",
+    "literalAssertionsPassed": 3
+  },
+  {
+    "path": "apps/mobile/dist/bundle-check-android/_expo/static/js/android/entry-6e8f5c431159578d11fde55f11bcbe2a.hbc",
+    "size": 8110956,
+    "sha256": "fbafaed41a98d06530a84b48497ee154f5f1a40622bc0e27d78141015d870529",
+    "literalAssertionsPassed": 3
+  }
+]

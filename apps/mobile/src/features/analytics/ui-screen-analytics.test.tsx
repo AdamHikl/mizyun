@@ -82,6 +82,7 @@ vi.mock("@/composition/api-client", () => ({
   invalidateSessionReads: vi.fn(),
 }));
 vi.mock("@/composition/app-variant", () => ({
+  getAppVariant: () => "dev",
   isProgressPhotosEnabled: () => true,
 }));
 vi.mock("@/features/auth/auth-context", () => ({
