@@ -28,6 +28,11 @@ import {
   loadWorkoutPreferences,
 } from "./workout-preferences";
 import { ExerciseLibraryModal } from "./exercise-library-modal";
+import { SET_TYPE_OPTIONS, SetTypeModal } from "./set-type-modal";
+import {
+  readPlannedSetTypes,
+  resizePlannedSetTypes,
+} from "./planned-set-types";
 
 interface WorkoutEditorModalProps {
   readonly visible: boolean;
@@ -479,6 +484,18 @@ function PlannedExerciseRow(props: {
     onMoveDown,
   } = props;
   const currentSets = item.targetSets ?? 3;
+  const setTypes = resizePlannedSetTypes(
+    readPlannedSetTypes(item.setTypes),
+    currentSets,
+  );
+  const [selectedSetIndex, setSelectedSetIndex] = useState<number | null>(null);
+  const updateSetCount = (targetSets: number) =>
+    onUpdate({
+      targetSets,
+      ...(item.setTypes
+        ? { setTypes: resizePlannedSetTypes(setTypes, targetSets) }
+        : {}),
+    });
 
   return (
     <View style={styles.exerciseRowCard}>
@@ -542,9 +559,7 @@ function PlannedExerciseRow(props: {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Decrease sets"
-              onPress={() =>
-                onUpdate({ targetSets: Math.max(1, currentSets - 1) })
-              }
+              onPress={() => updateSetCount(Math.max(1, currentSets - 1))}
               style={styles.stepperBtn}
             >
               <ThemedText type="smallBold">−</ThemedText>
@@ -555,9 +570,7 @@ function PlannedExerciseRow(props: {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Increase sets"
-              onPress={() =>
-                onUpdate({ targetSets: Math.min(20, currentSets + 1) })
-              }
+              onPress={() => updateSetCount(Math.min(20, currentSets + 1))}
               style={styles.stepperBtn}
             >
               <ThemedText type="smallBold">＋</ThemedText>
@@ -607,11 +620,76 @@ function PlannedExerciseRow(props: {
           />
         </View>
       </View>
+      <View style={styles.plannedSetTypes}>
+        <ThemedText type="small" themeColor="textSecondary">
+          Set types
+        </ThemedText>
+        <View style={styles.plannedSetTypeControls}>
+          {setTypes.map((type, setIndex) => {
+            const option = SET_TYPE_OPTIONS.find(
+              (option) => option.type === type,
+            )!;
+            const label = option.label.replace(/ Set$/, "");
+            return (
+              <Pressable
+                key={setIndex}
+                accessibilityRole="button"
+                accessibilityLabel={`${item.name}, planned set ${setIndex + 1} type: ${label}`}
+                accessibilityHint="Choose the type for this set when starting the routine."
+                onPress={() => setSelectedSetIndex(setIndex)}
+                style={[
+                  styles.plannedSetTypeButton,
+                  { backgroundColor: option.badgeBg },
+                ]}
+              >
+                <ThemedText
+                  type="small"
+                  style={
+                    type === "normal" ? undefined : { color: option.badgeColor }
+                  }
+                >
+                  {setIndex + 1} · {label}
+                </ThemedText>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+      {selectedSetIndex !== null ? (
+        <SetTypeModal
+          visible
+          currentType={setTypes[selectedSetIndex] ?? "normal"}
+          exerciseName={`${item.name} · Set ${selectedSetIndex + 1}`}
+          onSelectType={(type) => {
+            const next = [...setTypes];
+            next[selectedSetIndex] = type;
+            onUpdate({ setTypes: next });
+            setSelectedSetIndex(null);
+          }}
+          onClose={() => setSelectedSetIndex(null)}
+        />
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  plannedSetTypes: { gap: Spacing.one },
+  plannedSetTypeControls: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.two,
+  },
+  plannedSetTypeButton: {
+    minHeight: 48,
+    minWidth: 48,
+    maxWidth: "100%",
+    flexShrink: 1,
+    justifyContent: "center",
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.one,
+    borderRadius: 8,
+  },
   modalContainer: {
     flex: 1,
   },

@@ -21,6 +21,63 @@ import {
   startWorkoutWith,
 } from "./log-workout-data";
 
+it("retains planned set ordinals through session reorder and reload without shifting malformed types", async () => {
+  const session: Workout = {
+    ...WORKOUT,
+    details: withWorkoutLifecycle(
+      {
+        coachPlan: {
+          exercises: [
+            {
+              name: "Squat",
+              catalogId: "squat",
+              targetSets: 3,
+              setTypes: ["warmup", "invalid", "failure"],
+            },
+            {
+              name: "Row",
+              catalogId: "row",
+              targetSets: 2,
+              setTypes: ["normal", "drop"],
+            },
+          ],
+        },
+      },
+      { kind: "session" },
+    ),
+  };
+  const planned = extractPlannedExercises(session);
+  expect(planned[0]?.setTypes).toEqual(["warmup", "normal", "failure"]);
+  const requests: RequestOptions[] = [];
+  let persisted = session;
+  const client: ApiClient = {
+    status: () => ({ configured: true, baseUrl: "https://example.test" }),
+    request: async <T>(options: RequestOptions) => {
+      requests.push(options);
+      persisted = { ...persisted, ...(options.body as Partial<Workout>) };
+      return { ok: true, value: { workout: persisted } as T };
+    },
+  };
+  const reordered = await reorderWorkoutExercisesWith(
+    client,
+    session,
+    [...planned].reverse(),
+  );
+  expect(reordered.ok).toBe(true);
+  expect(
+    extractPlannedExercises(persisted).map((item) => [
+      item.name,
+      item.setTypes,
+    ]),
+  ).toEqual([
+    ["Row", ["normal", "drop"]],
+    ["Squat", ["warmup", "normal", "failure"]],
+  ]);
+  expect(
+    (requests[0]?.body as any).details.sessionExercises[1].setTypes,
+  ).toEqual(["warmup", "normal", "failure"]);
+});
+
 const NOW = new Date("2026-07-19T10:15:00.000Z");
 const USER_ID = "00000000-0000-4000-8000-000000000001";
 const WORKOUT_ID = "00000000-0000-4000-8000-000000000002";

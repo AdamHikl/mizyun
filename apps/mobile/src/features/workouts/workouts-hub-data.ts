@@ -26,6 +26,7 @@ import {
   type RunRecord,
   type WorkoutListResponse,
   type WorkoutSet,
+  type WorkoutSetType,
   type WorkoutSetListResponse,
   type WorkoutResponse,
 } from "@mizyun/contracts";
@@ -34,12 +35,14 @@ import { listRuns } from "@/features/running/client";
 import { runningDate, hasRunningActivity } from "@mizyun/core";
 
 import { apiClient } from "@/composition/api-client";
+import { readPlannedSetTypes } from "./planned-set-types";
 
 export interface PlannedExerciseItem {
   readonly name: string;
   readonly catalogId?: string;
   readonly movementPattern?: string;
   readonly targetSets?: number;
+  readonly setTypes?: readonly WorkoutSetType[];
   readonly targetReps?: string;
   readonly targetLoad?: string;
   readonly restSeconds?: number;
@@ -127,6 +130,7 @@ export const extractPlannedExercisesFromWorkout = (
   if (!details || typeof details !== "object") return [];
 
   const mapExercise = (e: Record<string, unknown>): PlannedExerciseItem => {
+    const setTypes = readPlannedSetTypes(e.setTypes);
     let targetReps: string | undefined = undefined;
     if (typeof e.targetReps === "string" || typeof e.targetReps === "number") {
       targetReps = String(e.targetReps);
@@ -142,6 +146,7 @@ export const extractPlannedExercisesFromWorkout = (
 
     return {
       name: String(e.name ?? "Exercise"),
+      ...(setTypes ? { setTypes } : {}),
       ...(typeof e.catalogId === "string" ? { catalogId: e.catalogId } : {}),
       ...(typeof e.movementPattern === "string"
         ? { movementPattern: e.movementPattern }
@@ -532,6 +537,9 @@ export const createCustomWorkout = async (
             movementPattern: e.movementPattern ?? "general",
             sets: e.targetSets ?? 3,
             targetSets: e.targetSets ?? 3,
+            ...(e.setTypes
+              ? { setTypes: readPlannedSetTypes(e.setTypes) }
+              : {}),
             targetReps: e.targetReps ?? "8-12",
             repsMin:
               typeof e.targetReps === "string" && e.targetReps.includes("-")
@@ -605,6 +613,9 @@ export const updateWorkoutDetails = async (
                   movementPattern: e.movementPattern ?? "general",
                   sets: e.targetSets ?? 3,
                   targetSets: e.targetSets ?? 3,
+                  ...(e.setTypes
+                    ? { setTypes: readPlannedSetTypes(e.setTypes) }
+                    : {}),
                   targetReps: e.targetReps ?? "8-12",
                   repsMin:
                     typeof e.targetReps === "string" &&

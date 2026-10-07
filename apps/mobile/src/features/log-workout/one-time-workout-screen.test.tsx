@@ -264,6 +264,80 @@ beforeEach(() => {
   mocks.abandon.mockReset().mockResolvedValue({ ok: true });
 });
 
+function plannedRoutineWorkspace(types: string[]) {
+  mocks.workspace.workout = {
+    ...workout,
+    details: {
+      workoutLifecycle: { kind: "session", routineId: "routine-origin" },
+      coachPlan: {
+        exercises: [
+          {
+            name: exercise.name,
+            catalogId: "squat",
+            targetSets: types.length,
+            targetReps: "6",
+            setTypes: types,
+          },
+        ],
+      },
+    },
+  };
+}
+
+function plannedCard() {
+  const active = feed();
+  const card = find(
+    active.type(active.props),
+    (node) => node.type?.name === "LiveExerciseCard",
+  );
+  return { active, card };
+}
+
+it("prefills and submits each planned type, advancing from warmup to normal to failure", async () => {
+  plannedRoutineWorkspace(["warmup", "normal", "failure"]);
+  mocks.addSet.mockImplementation(async (_id, form) => {
+    const set = {
+      ...recordedSet,
+      id: `set-${mocks.workspace.sets.length + 1}`,
+      sequence: mocks.workspace.sets.length + 1,
+      setType: form.setType,
+    };
+    mocks.workspace = {
+      ...mocks.workspace,
+      sets: [...mocks.workspace.sets, set],
+    };
+    return { ok: true, workoutSet: set };
+  });
+  for (const type of ["warmup", "normal", "failure"]) {
+    let { active, card } = plannedCard();
+    expect(card.props.pendingInput.setType).toBe(type);
+    // Editing load/reps must not replace the planned type with an implicit normal.
+    active.props.onUpdatePendingInput(exercise.id, { load: "50", reps: "6" });
+    ({ active, card } = plannedCard());
+    await active.props.onLogSet(active.props.exercises[0]);
+    await settle();
+    expect(mocks.addSet.mock.lastCall?.[1].setType).toBe(type);
+  }
+  expect(plannedCard().card.props.pendingInput.setType).toBe("normal");
+});
+
+it("restores planned defaults after reload and allows a manual override for the pending ordinal", async () => {
+  plannedRoutineWorkspace(["warmup", "normal", "failure"]);
+  mocks.workspace.sets = [{ ...recordedSet, setType: "warmup" }];
+  let { active, card } = plannedCard();
+  expect(card.props.pendingInput.setType).toBe("normal");
+  active.props.onOpenSetTypeModal(active.props.exercises[0]);
+  const modal = find(render(), (node) => node.type === "SetTypeModal");
+  expect(modal.props.currentType).toBe("normal");
+  modal.props.onSelectType("drop");
+  mocks.addSet.mockResolvedValue({ ok: false, message: "retry" });
+  ({ active, card } = plannedCard());
+  expect(card.props.pendingInput.setType).toBe("drop");
+  await active.props.onLogSet(active.props.exercises[0]);
+  expect(mocks.addSet.mock.lastCall?.[1].setType).toBe("drop");
+  expect(plannedCard().card.props.pendingInput.setType).toBe("drop");
+});
+
 it("reuses the saved UUID and original name when the catalog label is clearer", async () => {
   mocks.workspace.exercises = [
     {

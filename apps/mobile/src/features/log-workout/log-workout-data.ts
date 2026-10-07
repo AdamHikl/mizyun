@@ -43,6 +43,7 @@ import { apiClient } from "@/composition/api-client";
 import { displayWeightToKilograms } from "@/lib/weight-units";
 import { updateExerciseTargetLoad } from "@/features/workouts/exercise-progression-data";
 import { syncRoutineExerciseTargets } from "@/features/workouts/workouts-hub-data";
+import { readPlannedSetTypes } from "@/features/workouts/planned-set-types";
 
 export interface WorkoutWorkspace {
   readonly exercises: ReadonlyArray<Exercise>;
@@ -81,6 +82,7 @@ export interface PlannedExercise {
   readonly catalogId: string;
   readonly name: string;
   readonly sets: number;
+  readonly setTypes?: readonly WorkoutSetType[];
   readonly repsMin: number | null;
   readonly repsMax: number | null;
   readonly durationMinutes: number | null;
@@ -193,6 +195,7 @@ export const extractPlannedExercises = (
       }
 
       let targetLoad: string | undefined = undefined;
+      const setTypes = readPlannedSetTypes(e.setTypes);
       if (typeof e.targetLoad === "string" && e.targetLoad.trim().length > 0) {
         targetLoad = e.targetLoad.trim();
       } else if (typeof e.targetLoad === "number" && e.targetLoad > 0) {
@@ -205,6 +208,7 @@ export const extractPlannedExercises = (
         catalogId,
         name,
         sets,
+        ...(setTypes ? { setTypes } : {}),
         repsMin,
         repsMax,
         durationMinutes,
@@ -683,6 +687,7 @@ export interface ReorderableExercise {
   readonly catalogId?: string;
   readonly targetSets?: number;
   readonly sets?: number;
+  readonly setTypes?: readonly WorkoutSetType[];
   readonly repsMin?: number | null;
   readonly repsMax?: number | null;
   readonly durationMinutes?: number | null;
@@ -714,6 +719,7 @@ export const reorderWorkoutExercisesWith = async (
     ...(workout.details.sessionMode === "one_time"
       ? {}
       : { targetSets: e.targetSets ?? e.sets ?? 3 }),
+    ...(e.setTypes ? { setTypes: readPlannedSetTypes(e.setTypes) } : {}),
     ...(e.repsMin !== undefined && e.repsMin !== null
       ? { repsMin: e.repsMin }
       : {}),

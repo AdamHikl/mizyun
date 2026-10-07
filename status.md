@@ -4,7 +4,7 @@
 
 ## Current authority and delivery
 
-- **#7/#23/#102:** source work; Q9/provider/device exits open; #138 phone accepted/closed. [Batches](docs/OLDEST_ISSUES_BATCH_2_2026-10-07.md).
+- **#7/#23/#102/#139:** source work; Q9/provider/device exits open; #138 phone accepted/closed. [Batches](docs/OLDEST_ISSUES_BATCH_2_2026-10-07.md).
 
 - **Git integration — 2026-10-07:** all local work grouped into separate package commits for `main`, runtime source`32d1d790cf072171da8fe38527256fef7b33c898`; fresh `pnpm check`PASS (mobile1589/API867+15credential skips), focused contracts51/core22/mobile762/simulator13PASS, independent High preview/export/tooling reviews clear after Android rationale scrolling fix. The pre-commit full gate and exact pushed HEAD are recorded in this Git-integration chat. Next: exact-candidate native/device acceptance below; all existing release/privacy exits remain open.
 - **Build9 / #212 (#27/#32):** source`dd5b435385b379d8c0df1b69813f8d8fdd3d985a`,1.0.9/9/9; signedIPA/widget/dSYMs and AAB/upload cert/16KB LOADPASS; fresh full gatesPASS. [Artifacts/evidence](docs/BUILD_9_RELEASE_EVIDENCE_2026-10-05.md). iPhone16Pro installed/launched1.0.9(9) PID6828; native/16KB runtime/Store exits open.

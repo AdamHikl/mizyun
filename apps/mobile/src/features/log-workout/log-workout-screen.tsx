@@ -95,6 +95,7 @@ import {
   type PlannedExercise,
   type WorkoutWorkspace,
 } from "./log-workout-data";
+import { plannedSetTypeForSequence } from "@/features/workouts/planned-set-types";
 
 interface WorkoutDraft {
   readonly name: string;
@@ -131,6 +132,7 @@ export interface ExerciseEntry {
   readonly name: string;
   readonly catalogId: string;
   readonly targetSets: number;
+  readonly setTypes?: readonly WorkoutSetType[];
   readonly repsMin: number | null;
   readonly repsMax: number | null;
   readonly durationMinutes: number | null;
@@ -146,6 +148,24 @@ interface PendingSetInput {
   distanceMeters: string;
   rpe: string;
   setType?: WorkoutSetType;
+  setTypeSequence?: number;
+}
+
+function pendingSetType(
+  input: PendingSetInput | undefined,
+  entry: ExerciseEntry,
+  completedSets: readonly WorkoutSet[],
+): WorkoutSetType {
+  const sequence = completedSets.length + 1;
+  if (
+    input?.setType &&
+    (input.setTypeSequence === undefined || input.setTypeSequence === sequence)
+  )
+    return input.setType;
+  const previous = [...completedSets]
+    .sort((a, b) => a.sequence - b.sequence)
+    .at(-1);
+  return plannedSetTypeForSequence(entry.setTypes, sequence, previous?.setType);
 }
 
 export function LogWorkoutScreen() {
@@ -459,6 +479,7 @@ export function LogWorkoutScreen() {
         name: p.name,
         catalogId: p.catalogId,
         targetSets: p.sets || 3,
+        ...(p.setTypes && !isOneTimeWorkout ? { setTypes: p.setTypes } : {}),
         repsMin: p.repsMin,
         repsMax: p.repsMax,
         durationMinutes: p.durationMinutes,
@@ -968,7 +989,6 @@ export function LogWorkoutScreen() {
             durationSeconds: "",
             distanceMeters: "",
             rpe: "",
-            setType: "normal",
           };
 
         const completedSets = workspace.sets.filter(
@@ -1030,7 +1050,7 @@ export function LogWorkoutScreen() {
 
         setBusy(true);
         setMessage(null);
-        const setTypeVal = currentInput.setType ?? "normal";
+        const setTypeVal = pendingSetType(currentInput, entry, completedSets);
         const result = await addWorkoutSet(workspace.workout.id, {
           exerciseId: resolvedExerciseId,
           repetitions: repsVal,
@@ -1143,18 +1163,23 @@ export function LogWorkoutScreen() {
         }));
 
         // Keep load and reps prefilled for next set so next tap is ready!
-        const nextSetType: WorkoutSetType =
-          setTypeVal === "warmup" ? "warmup" : "normal";
+        const nextSetType: WorkoutSetType = plannedSetTypeForSequence(
+          entry.setTypes,
+          completedSets.length + 2,
+          setTypeVal,
+        );
         updatePendingInput(entry.id, {
           load: loadVal,
           reps: repsVal,
           setType: nextSetType,
+          setTypeSequence: completedSets.length + 2,
         });
         if (resolvedExerciseId !== entry.id) {
           updatePendingInput(resolvedExerciseId, {
             load: loadVal,
             reps: repsVal,
             setType: nextSetType,
+            setTypeSequence: completedSets.length + 2,
           });
         }
 
@@ -1633,17 +1658,47 @@ export function LogWorkoutScreen() {
       {selectedSetTypeEntry !== null ? (
         <SetTypeModal
           visible={selectedSetTypeEntry !== null}
-          currentType={
-            pendingInputs[selectedSetTypeEntry.id]?.setType ??
-            pendingInputs[selectedSetTypeEntry.name]?.setType ??
-            "normal"
-          }
+          currentType={(() => {
+            const resolved = workspace.exercises.find(
+              (exercise) =>
+                exercise.id === selectedSetTypeEntry.id ||
+                exercise.name.trim().toLowerCase() ===
+                  selectedSetTypeEntry.name.trim().toLowerCase(),
+            );
+            const completed = workspace.sets
+              .filter(
+                (set) =>
+                  set.exerciseId === (resolved?.id ?? selectedSetTypeEntry.id),
+              )
+              .sort((a, b) => a.sequence - b.sequence);
+            return pendingSetType(
+              pendingInputs[selectedSetTypeEntry.id] ??
+                pendingInputs[selectedSetTypeEntry.name],
+              selectedSetTypeEntry,
+              completed,
+            );
+          })()}
           exerciseName={selectedSetTypeEntry.name}
           onSelectType={(newType) => {
-            updatePendingInput(selectedSetTypeEntry.id, { setType: newType });
+            const resolved = workspace.exercises.find(
+              (exercise) =>
+                exercise.id === selectedSetTypeEntry.id ||
+                exercise.name.trim().toLowerCase() ===
+                  selectedSetTypeEntry.name.trim().toLowerCase(),
+            );
+            const setTypeSequence =
+              workspace.sets.filter(
+                (set) =>
+                  set.exerciseId === (resolved?.id ?? selectedSetTypeEntry.id),
+              ).length + 1;
+            updatePendingInput(selectedSetTypeEntry.id, {
+              setType: newType,
+              setTypeSequence,
+            });
             if (selectedSetTypeEntry.id !== selectedSetTypeEntry.name) {
               updatePendingInput(selectedSetTypeEntry.name, {
                 setType: newType,
+                setTypeSequence,
               });
             }
             setSelectedSetTypeEntry(null);
@@ -1842,17 +1897,21 @@ function ActiveWorkoutFeed(props: {
               totalExercises={props.exercises.length}
               completedSets={completedSets}
               recentPerformance={recentPerf}
-              pendingInput={
-                props.pendingInputs[entry.id] ??
-                props.pendingInputs[entry.name] ?? {
-                  load: "",
-                  reps: "",
-                  durationSeconds: "",
-                  distanceMeters: "",
-                  rpe: "",
-                  setType: "normal",
-                }
-              }
+              pendingInput={{
+                load: "",
+                reps: "",
+                durationSeconds: "",
+                distanceMeters: "",
+                rpe: "",
+                ...(props.pendingInputs[entry.id] ??
+                  props.pendingInputs[entry.name]),
+                setType: pendingSetType(
+                  props.pendingInputs[entry.id] ??
+                    props.pendingInputs[entry.name],
+                  entry,
+                  completedSets,
+                ),
+              }}
               unitSystem={props.unitSystem}
               inputColor={props.inputColor}
               busy={props.busy}

@@ -19,6 +19,60 @@ import {
   updateWorkoutDetails,
 } from "./workouts-hub-data";
 
+it("round trips planned set types through routine create, edit, progression and fresh session start", async () => {
+  const types = ["warmup", "normal", "failure"] as const;
+  let stored: Workout = {
+    id: "00000000-0000-4000-8000-000000000002",
+    userId: "00000000-0000-4000-8000-000000000001",
+    name: "Routine",
+    startedAt: "2026-10-07T10:00:00.000Z",
+    completedAt: null,
+    source: "manual",
+    notes: null,
+    details: {},
+    createdAt: "2026-10-07T10:00:00.000Z",
+    updatedAt: "2026-10-07T10:00:00.000Z",
+  };
+  const request = vi.fn().mockImplementation(async ({ method, body }) => {
+    if (method !== "GET") stored = { ...stored, ...body };
+    return { ok: true, value: { workout: stored } };
+  });
+  const client = { request } as unknown as ApiClient;
+  const created = await createCustomWorkout(
+    {
+      name: "Routine",
+      plannedExercises: [
+        { name: "Squat", targetSets: 3, targetReps: "8-12", setTypes: types },
+      ],
+    },
+    client,
+  );
+  expect(created.ok).toBe(true);
+  let exercises = extractPlannedExercisesFromWorkout(stored);
+  expect(exercises[0]?.setTypes).toEqual(types);
+  await updateWorkoutDetails(
+    stored.id,
+    { plannedExercises: exercises },
+    client,
+  );
+  expect(extractPlannedExercisesFromWorkout(stored)[0]?.setTypes).toEqual(
+    types,
+  );
+  await syncRoutineExerciseTargets(stored.id, new Map([["squat", 55]]), client);
+  exercises = extractPlannedExercisesFromWorkout(stored);
+  expect(exercises[0]).toMatchObject({ setTypes: types, targetLoad: "55 kg" });
+  const started = await startRoutineSessionWith(
+    client,
+    stored,
+    () => new Date("2026-10-07T12:00:00.000Z"),
+  );
+  expect(started.ok).toBe(true);
+  expect(extractPlannedExercisesFromWorkout(stored)[0]?.setTypes).toEqual(
+    types,
+  );
+  expect(readWorkoutLifecycle(stored.details)?.kind).toBe("session");
+});
+
 describe("workouts-hub-data", () => {
   const mockExercise: Exercise = {
     id: "ex-1",

@@ -42,6 +42,10 @@ vi.mock("./exercise-progression-modal", () => ({
 vi.mock("./exercise-library-modal", () => ({
   ExerciseLibraryModal: "ExerciseLibraryModal",
 }));
+vi.mock("./set-type-modal", async (original) => ({
+  ...(await original<typeof import("./set-type-modal")>()),
+  SetTypeModal: "SetTypeModal",
+}));
 vi.mock("./workout-preferences", () => ({
   DEFAULT_REST_SECONDS: 75,
   loadWorkoutPreferences: async () => ({ defaultRestSeconds: 75 }),
@@ -109,5 +113,66 @@ it("appends a batch to a routine while retaining custom names and edited targets
       targetReps: "8-12",
       restSeconds: 75,
     }),
+  ]);
+});
+
+it("saves per-set routine types and preserves existing choices when the set count changes", async () => {
+  hooks.slots = [];
+  mocks.save
+    .mockReset()
+    .mockResolvedValue({ ok: true, workout: { id: "saved" } });
+  render();
+  hooks.slots[0] = "My routine";
+  hooks.slots[2] = [
+    {
+      name: "Squat",
+      targetSets: 3,
+      targetReps: "6-8",
+      setTypes: ["warmup", "normal", "failure"],
+    },
+  ];
+  const row = () => {
+    const element = find(
+      render(),
+      (node) => node.type?.name === "PlannedExerciseRow",
+    );
+    hooks.index = 100;
+    return element.type(element.props);
+  };
+  let tree = row();
+  find(
+    tree,
+    (node) =>
+      node.props?.accessibilityLabel === "Squat, planned set 2 type: Normal",
+  ).props.onPress();
+  tree = row();
+  const modal = find(tree, (node) => node.type === "SetTypeModal");
+  expect(modal.props.currentType).toBe("normal");
+  modal.props.onSelectType("drop");
+  tree = row();
+  find(
+    tree,
+    (node) => node.props?.accessibilityLabel === "Increase sets",
+  ).props.onPress();
+  expect(hooks.slots[2][0].setTypes).toEqual([
+    "warmup",
+    "drop",
+    "failure",
+    "normal",
+  ]);
+  tree = row();
+  find(
+    tree,
+    (node) => node.props?.accessibilityLabel === "Decrease sets",
+  ).props.onPress();
+  expect(hooks.slots[2][0].setTypes).toEqual(["warmup", "drop", "failure"]);
+  await find(
+    render(),
+    (node) => node.props?.accessibilityLabel === "Save workout routine",
+  ).props.onPress();
+  expect(mocks.save.mock.lastCall?.[0].plannedExercises[0].setTypes).toEqual([
+    "warmup",
+    "drop",
+    "failure",
   ]);
 });

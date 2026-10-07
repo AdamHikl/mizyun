@@ -1,0 +1,9 @@
+# Routine set types follow-up — 2026-10-07 / #139
+
+The founder's screenshot shows Create Workout Routine with aggregate set/reps/load fields and no set-type planning. Original WORKOUT-SET-001 implemented active logging and explicitly excluded routine templates; this follow-up adds the missing planning surface.
+
+Each planned set has a compact type control using the existing Normal/Warmup/Drop/Failure selector. Optional per-set types persist in existing workout details JSON through create/edit, progression target updates, session start, reorder and reload. Active logging uses the planned ordinal by default, with manual overrides still available; cached defaults/overrides are bound to their pending ordinal. Legacy plans retain existing normal/warmup behavior. Invalid stored types normalize in place rather than shifting later ordinals. No database migration or shared contract change.
+
+Coordinator inspected actual incremental source and integration diffs; independent non-author GPT-6.1 Sol High review found no concrete blocker. Owned formatting/diff checks pass. Persistence/editor/reorder/active-default regression cases were added but are unrun. The user explicitly requested implementation without another per-issue test cycle, with combined phone testing at the end; typecheck, test/bundle/device acceptance of this follow-up are deferred. The previous Apple/meal gate on83e14f3 excludes this source. No build/install/deploy/provider operation was performed.
+
+Only #139 additions are integrated; concurrent completed-workout source/tests and other dirty packages remain preserved. Keep #139 open. Next combined check: create a routine with Warmup/Normal/Failure, save/reopen/start it, confirm pending/logged types, override one, change count/reorder/restart and check volume exclusion. Source and Store/native/provider acceptance remain separate.
