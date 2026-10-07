@@ -66,6 +66,13 @@ import {
   useAdvancedNutritionCapability,
 } from "./advanced-nutrition";
 import { normalizeMealPhoto } from "./meal-photo";
+import {
+  mealPhotoRetentionEnabled,
+  persistMealPhotoSource,
+  persistMealPhotoRetry,
+  uploadMealPhotoRetry,
+  discardOwnedMealPhoto,
+} from "./meal-photo-retention";
 import { fetchFoodHistory } from "./meal-lifecycle-data";
 import { getEntryGrams } from "./meal-scale";
 import {
@@ -169,6 +176,9 @@ export function LogMealScreen() {
       height?: number;
     }[]
   >([]);
+  const retainPhotos = mealPhotoRetentionEnabled();
+  const [keepPhoto, setKeepPhoto] = useState(true);
+  const [selectedPhotoUri, setSelectedPhotoUri] = useState<string | null>(null);
   const [pendingPhotoDrafts, setPendingPhotoDrafts] = useState<
     readonly FoodDraftCandidate[]
   >([]);
@@ -191,6 +201,13 @@ export function LogMealScreen() {
   const userId = session?.user.id ?? null;
   const mealOwner = useRef(userId);
   mealOwner.current = userId;
+  const photoSelectionGeneration = useRef(0);
+  useEffect(
+    () => () => {
+      photoSelectionGeneration.current++;
+    },
+    [],
+  );
   const photoOwner = useRef("");
   photoOwner.current = `${userId ?? ""}:${session?.accessToken ?? ""}`;
   const measurement = useLoggingFlowMeasurement("meal", userId);
@@ -229,6 +246,11 @@ export function LogMealScreen() {
       healthExportFirstParty.current = false;
       setNutritionBasis("total");
       setAiDraft(null);
+      photoSelectionGeneration.current++;
+      if (userId && retainPhotos)
+        for (const photo of attachedPhotos)
+          discardOwnedMealPhoto(userId, photo.uri);
+      setSelectedPhotoUri(null);
       setAttachedPhotos([]);
       setPendingPhotoDrafts([]);
       setDraftWarnings([]);
@@ -246,7 +268,7 @@ export function LogMealScreen() {
       const grams = getEntryGrams(meal);
       setPortionGrams(grams == null ? "" : String(grams));
     },
-    [advancedCapability.enabled],
+    [advancedCapability.enabled, userId, retainPhotos, attachedPhotos],
   );
 
   const loadAiUsage = useCallback(async () => {
@@ -281,6 +303,9 @@ export function LogMealScreen() {
     let active = true;
     setAttachedPhotos([]);
     setPendingPhotoDrafts([]);
+    photoSelectionGeneration.current++;
+    setKeepPhoto(true);
+    setSelectedPhotoUri(null);
     void loadLoggingDraft(userId, "meal", isRecoverableMealDraft).then(
       (draft) => {
         if (!active) return;
@@ -320,6 +345,8 @@ export function LogMealScreen() {
             ).map((uri) => ({ uri })),
           );
           setPendingPhotoDrafts(upgraded.pendingPhotoDrafts ?? []);
+          setKeepPhoto(upgraded.keepPhoto ?? true);
+          setSelectedPhotoUri(upgraded.selectedPhotoUri ?? null);
           setDraftWarnings(
             upgraded.aiDraft === undefined
               ? []
@@ -373,8 +400,12 @@ export function LogMealScreen() {
       ...(refineInstruction.trim().length > 0 ? { refineInstruction } : {}),
       attachedPhotoUris: attachedPhotos.map((photo) => photo.uri),
       pendingPhotoDrafts,
+      keepPhoto,
+      selectedPhotoUri,
     });
   }, [
+    keepPhoto,
+    selectedPhotoUri,
     aiDraft,
     attachedPhotos,
     pendingPhotoDrafts,
@@ -399,6 +430,7 @@ export function LogMealScreen() {
 
   const onSubmit = useCallback(async () => {
     const owner = mealOwner.current;
+    const photoScope = photoOwner.current;
     const abandonIfOwnerChanged = () => {
       if (owner === mealOwner.current) return false;
       isSubmittingRef.current = false;
@@ -421,6 +453,19 @@ export function LogMealScreen() {
       setSubmitting(false);
       setError(
         "Your recovered draft belongs to another day. Use Clear to start on the selected day, or return and finish the original draft first.",
+      );
+      return;
+    }
+    if (
+      retainPhotos &&
+      keepPhoto &&
+      attachedPhotos.length > 1 &&
+      !attachedPhotos.some((photo) => photo.uri === selectedPhotoUri)
+    ) {
+      isSubmittingRef.current = false;
+      setSubmitting(false);
+      setError(
+        "Choose which photo to keep with this meal, or turn off Keep photo with meal.",
       );
       return;
     }
@@ -551,6 +596,8 @@ export function LogMealScreen() {
         ...(refineInstruction.trim().length > 0 ? { refineInstruction } : {}),
         attachedPhotoUris: attachedPhotos.map((photo) => photo.uri),
         pendingPhotoDrafts,
+        keepPhoto,
+        selectedPhotoUri,
       });
       if (abandonIfOwnerChanged()) return;
       if (!persisted) {
@@ -616,6 +663,34 @@ export function LogMealScreen() {
     const result = await submitLogMeal(form);
     if (abandonIfOwnerChanged()) return;
     if (result.ok) {
+      const chosen =
+        attachedPhotos.find((photo) => photo.uri === selectedPhotoUri) ??
+        (attachedPhotos.length === 1 ? attachedPhotos[0] : undefined);
+      if (retainPhotos && keepPhoto && chosen && owner) {
+        const pending = {
+          uri: chosen.uri,
+          width: 0,
+          height: 0,
+          clientOperationId: opId,
+        };
+        const durable = await persistMealPhotoRetry(owner, result.id, pending);
+        if (abandonIfOwnerChanged()) return;
+        if (!durable) {
+          isSubmittingRef.current = false;
+          setSubmitting(false);
+          setError(
+            "Meal saved. Photo retry could not be saved on this device. Retry Save to finish attaching the photo.",
+          );
+          return;
+        }
+        // Photos are independent of meal nutrition. Failed uploads stay available on the meal card after restart.
+        await uploadMealPhotoRetry(
+          owner,
+          result.id,
+          () => photoScope === photoOwner.current,
+        );
+        if (abandonIfOwnerChanged()) return;
+      }
       const queued = pendingPhotoDrafts[0];
       if (queued) {
         const advancedEnabled = await advancedCapability.refresh();
@@ -635,7 +710,11 @@ export function LogMealScreen() {
           description: mealDescription,
           aiDraft: next,
           pendingPhotoDrafts: remaining,
-          attachedPhotoUris: [],
+          attachedPhotoUris: retainPhotos
+            ? attachedPhotos.map((photo) => photo.uri)
+            : [],
+          keepPhoto,
+          selectedPhotoUri: null,
         };
         const persisted =
           userId !== null &&
@@ -665,7 +744,8 @@ export function LogMealScreen() {
         setAiDraft(next);
         setDraftWarnings(draftEvidenceLines(next));
         setPendingPhotoDrafts(remaining);
-        setAttachedPhotos([]);
+        if (!retainPhotos) setAttachedPhotos([]);
+        setSelectedPhotoUri(null);
         setRefineInstruction("");
         setSourceProposalId(null);
         isSubmittingRef.current = false;
@@ -678,7 +758,10 @@ export function LogMealScreen() {
       submittedOperationRef.current = null;
       attempt?.complete();
       if (userId !== null) {
-        await clearLoggingDraft(userId, "meal");
+        const cleared = await clearLoggingDraft(userId, "meal");
+        if (cleared && retainPhotos)
+          for (const photo of attachedPhotos)
+            discardOwnedMealPhoto(userId, photo.uri);
         const mealDate = fixedConsumedAt
           ? new Date(fixedConsumedAt)
           : new Date();
@@ -714,6 +797,9 @@ export function LogMealScreen() {
     );
     setError(result.message);
   }, [
+    keepPhoto,
+    selectedPhotoUri,
+    retainPhotos,
     aiDraft,
     calories,
     carbs,
@@ -756,16 +842,55 @@ export function LogMealScreen() {
         );
         return;
       }
-      setAttachedPhotos(photos);
+      const owner = photoOwner.current;
+      const generation = ++photoSelectionGeneration.current;
+      if (retainPhotos && userId) {
+        const copied: string[] = [];
+        void Promise.allSettled(
+          photos.map(async (photo) => {
+            if (attachedPhotos.some((existing) => existing.uri === photo.uri))
+              return photo;
+            const durable = await persistMealPhotoSource(userId, photo);
+            copied.push(durable.uri);
+            return durable;
+          }),
+        ).then((results) => {
+          if (
+            owner !== photoOwner.current ||
+            generation !== photoSelectionGeneration.current ||
+            results.some((result) => result.status === "rejected")
+          ) {
+            for (const uri of copied) discardOwnedMealPhoto(userId, uri);
+            if (
+              owner === photoOwner.current &&
+              generation === photoSelectionGeneration.current
+            )
+              setError(
+                "Could not save the photo on this device. You can still enter and save your meal.",
+              );
+            return;
+          }
+          const durable = results.flatMap((result) =>
+            result.status === "fulfilled" ? [result.value] : [],
+          );
+          setAttachedPhotos(durable);
+          setSelectedPhotoUri(durable.length === 1 ? durable[0]!.uri : null);
+        });
+      } else setAttachedPhotos(photos);
     },
-    [attachedPhotos],
+    [attachedPhotos, retainPhotos, userId],
   );
 
   const onChoosePhoto = useCallback(async () => {
     const owner = photoOwner.current;
+    const selectionGeneration = photoSelectionGeneration.current;
     setError(null);
     const pro = await advancedCapability.refresh();
-    if (owner !== photoOwner.current) return;
+    if (
+      owner !== photoOwner.current ||
+      selectionGeneration !== photoSelectionGeneration.current
+    )
+      return;
     const limit = pro ? 3 : 1;
     if (attachedPhotos.length >= limit) {
       setError(
@@ -788,16 +913,25 @@ export function LogMealScreen() {
       selectionLimit: limit - attachedPhotos.length,
       orderedSelection: pro,
     });
-    if (owner !== photoOwner.current) return;
+    if (
+      owner !== photoOwner.current ||
+      selectionGeneration !== photoSelectionGeneration.current
+    )
+      return;
     if (!result.canceled && result.assets?.length)
       addPhotos(result.assets, limit);
   }, [advancedCapability.refresh, attachedPhotos, addPhotos]);
 
   const onTakePhoto = useCallback(async () => {
     const owner = photoOwner.current;
+    const selectionGeneration = photoSelectionGeneration.current;
     setError(null);
     const pro = await advancedCapability.refresh();
-    if (owner !== photoOwner.current) return;
+    if (
+      owner !== photoOwner.current ||
+      selectionGeneration !== photoSelectionGeneration.current
+    )
+      return;
     const limit = pro ? 3 : 1;
     if (attachedPhotos.length >= limit) {
       setError(
@@ -817,14 +951,26 @@ export function LogMealScreen() {
       quality: 0.85,
       allowsEditing: false,
     });
-    if (owner !== photoOwner.current) return;
+    if (
+      owner !== photoOwner.current ||
+      selectionGeneration !== photoSelectionGeneration.current
+    )
+      return;
     if (!result.canceled && result.assets?.length)
       addPhotos(result.assets, limit);
   }, [advancedCapability.refresh, attachedPhotos, addPhotos]);
 
-  const onRemovePhoto = useCallback((index: number) => {
-    setAttachedPhotos((photos) => photos.filter((_, i) => i !== index));
-  }, []);
+  const onRemovePhoto = useCallback(
+    (index: number) => {
+      photoSelectionGeneration.current++;
+      const removed = attachedPhotos[index];
+      if (removed && userId && retainPhotos)
+        discardOwnedMealPhoto(userId, removed.uri);
+      if (removed?.uri === selectedPhotoUri) setSelectedPhotoUri(null);
+      setAttachedPhotos((photos) => photos.filter((_, i) => i !== index));
+    },
+    [attachedPhotos, userId, retainPhotos, selectedPhotoUri],
+  );
 
   const executeProcessPhoto = useCallback(
     async (photoUri?: string) => {
@@ -940,6 +1086,11 @@ export function LogMealScreen() {
         const advancedEnabled = await advancedCapability.refresh();
         const strings = mealFormStringsFromDraft(result.draft);
         setPendingPhotoDrafts([]);
+        photoSelectionGeneration.current++;
+        if (userId && retainPhotos)
+          for (const photo of attachedPhotos)
+            discardOwnedMealPhoto(userId, photo.uri);
+        setSelectedPhotoUri(null);
         setAttachedPhotos([]);
         setNutritionBasis("total");
         setName(strings.name);
@@ -974,6 +1125,9 @@ export function LogMealScreen() {
       advancedCapability.refresh,
       loadAiUsage,
       profile?.coachingPreferences?.countryCode,
+      userId,
+      retainPhotos,
+      attachedPhotos,
     ],
   );
 
@@ -1114,6 +1268,8 @@ export function LogMealScreen() {
 
   const onClear = useCallback(async () => {
     healthExportFirstParty.current = true;
+
+    photoSelectionGeneration.current++;
     setName("");
     setPortionGrams("");
     setNutritionBasis("total");
@@ -1123,6 +1279,11 @@ export function LogMealScreen() {
     setFat("");
     setAdvanced({ name: "", calories: "", protein: "", carbs: "", fat: "" });
     setMealDescription("");
+    if (userId && retainPhotos)
+      for (const photo of attachedPhotos)
+        discardOwnedMealPhoto(userId, photo.uri);
+    setSelectedPhotoUri(null);
+    setKeepPhoto(true);
     setAttachedPhotos([]);
     setPendingPhotoDrafts([]);
     setDraftWarnings([]);
@@ -1143,7 +1304,7 @@ export function LogMealScreen() {
     if (userId !== null) {
       await clearLoggingDraft(userId, "meal");
     }
-  }, [userId, requestedDate]);
+  }, [userId, requestedDate, retainPhotos, attachedPhotos]);
 
   const per100g = nutritionBasis === "per100g";
   const servingPreview = per100g
@@ -1172,7 +1333,10 @@ export function LogMealScreen() {
               accessibilityState={{
                 disabled: !draftLoaded || submitting || snapping || refining,
               }}
-              onPress={() => router.back()}
+              onPress={() => {
+                photoSelectionGeneration.current++;
+                router.back();
+              }}
               style={({ pressed }) => [
                 styles.headerSaveButton,
                 pressed && styles.snapPressed,
@@ -1324,6 +1488,7 @@ export function LogMealScreen() {
                 source={attachedPhoto.uri}
                 style={styles.attachedPhotoImage}
                 contentFit="cover"
+                cachePolicy="none"
                 accessibilityLabel="Attached meal photo"
               />
               <View style={styles.attachedPhotoInfo}>
@@ -1331,9 +1496,29 @@ export function LogMealScreen() {
                   📷 Photo {index + 1} of {attachedPhotos.length}
                 </ThemedText>
                 <ThemedText themeColor="textSecondary" type="small">
-                  Ready to process with your description
+                  {retainPhotos
+                    ? "Optional photo · AI processing is separate"
+                    : "Ready to process with your description"}
                 </ThemedText>
               </View>
+              {retainPhotos && keepPhoto && attachedPhotos.length > 1 ? (
+                <Pressable
+                  accessibilityRole="radio"
+                  accessibilityState={{
+                    checked: selectedPhotoUri === attachedPhoto.uri,
+                  }}
+                  accessibilityLabel={`Keep photo ${index + 1} with this meal`}
+                  disabled={snapping || submitting || refining}
+                  onPress={() => setSelectedPhotoUri(attachedPhoto.uri)}
+                  style={styles.removePhotoButton}
+                >
+                  <ThemedText type="smallBold">
+                    {selectedPhotoUri === attachedPhoto.uri
+                      ? "Selected"
+                      : "Keep this"}
+                  </ThemedText>
+                </Pressable>
+              ) : null}
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`Remove attached photo ${index + 1}`}
@@ -1350,6 +1535,24 @@ export function LogMealScreen() {
               </Pressable>
             </View>
           ))}
+          {retainPhotos && attachedPhotos.length > 0 ? (
+            <Pressable
+              testID="keep-meal-photo-toggle"
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: keepPhoto }}
+              disabled={submitting || snapping || refining}
+              onPress={() => setKeepPhoto((value) => !value)}
+              style={styles.keepPhotoChoice}
+            >
+              <ThemedText type="smallBold">
+                {keepPhoto ? "☑" : "☐"} Keep photo with meal
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                One compressed photo. You can remove it later. A failed upload
+                can be retried from Meals.
+              </ThemedText>
+            </Pressable>
+          ) : null}
           <ThemedText type="small" themeColor="textSecondary">
             {advancedCapability.enabled
               ? "Up to 3 photos · multiple angles or separate meals. Describe which photos belong together."
@@ -2012,8 +2215,17 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   refinePressed: { opacity: 0.65 },
+  keepPhotoChoice: {
+    minHeight: 44,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#8A8D91",
+    borderRadius: Spacing.three,
+    padding: Spacing.three,
+    gap: Spacing.one,
+  },
   attachedPhotoCard: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "#8A8D91",
@@ -2028,9 +2240,13 @@ const styles = StyleSheet.create({
   },
   attachedPhotoInfo: {
     flex: 1,
+    minWidth: 110,
     gap: 2,
   },
   removePhotoButton: {
+    minHeight: 44,
+    minWidth: 44,
+    justifyContent: "center",
     paddingHorizontal: Spacing.two,
     paddingVertical: Spacing.one,
     borderRadius: Spacing.two,

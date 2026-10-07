@@ -107,6 +107,7 @@ const accountExportToWire = (
         : undefined,
       community: exportDoc.community,
       recurringMeals: exportDoc.recurringMeals,
+      runOperationReceipts: exportDoc.runOperationReceipts,
       productAnalytics: analytics
         ? {
             catalog: catalog ?? "legacy-v2",
@@ -167,6 +168,7 @@ const accountExportToWire = (
       })),
       foodEntries: exportDoc.foodEntries.map((f) => ({
         id: f.id,
+        photoAssetId: f.photoAssetId ?? null,
         userId: f.userId,
         name: f.name,
         consumedAt: f.consumedAt.toISOString(),

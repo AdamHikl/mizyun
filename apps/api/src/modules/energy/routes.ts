@@ -129,6 +129,7 @@ const fetchRecentWorkouts = async (
   const lookbackMs = LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
   const from = new Date(now.getTime() - lookbackMs);
   return repo.list(userId, {
+    excludeRunning: true,
     from,
     to,
     limit: 100,

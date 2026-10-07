@@ -15,6 +15,10 @@ vi.mock("expo-secure-store", () => ({
   deleteItemAsync: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock("react-native", () => ({ Platform: { OS: "ios" } }));
+vi.mock("../log-meal/public-data", () => ({
+  clearAllMealPhotoRetries: vi.fn().mockResolvedValue(true),
+}));
+import { clearAllMealPhotoRetries } from "../log-meal/public-data";
 
 import type { ApiClient } from "@mizyun/api-client";
 import {
@@ -267,6 +271,7 @@ describe("account-data-management", () => {
     const draftMap = new Map<string, string>([
       [`mizyun.logging-draft.${userId}.meal`, '{"food":"Apple"}'],
       [`mizyun.logging-draft.${userId}.workout`, '{"name":"Chest Day"}'],
+      [`mizyun.logging-draft.${userId}.run`, '{"pending":{"kind":"create"}}'],
       [`mizyun.logging-draft.${userId}.weight`, '{"weight":80}'],
       [`mizyun.logging-draft.${userId}.coach`, '{"message":"Hi"}'],
     ]);
@@ -704,4 +709,47 @@ describe("local health export cleanup failure", () => {
       "00000000-0000-4000-8000-000000000001",
     );
   });
+});
+
+it("account deletion purges private meal photos for the exact user", async () => {
+  const draftStore = {
+    getItemAsync: vi.fn().mockResolvedValue(null),
+    setItemAsync: vi.fn(),
+    deleteItemAsync: vi.fn(),
+  };
+  await clearLocalUserData("deleted-photo-owner", {
+    clearHealthExports: async () => undefined,
+    draftStore,
+    listExportFiles: () => [],
+  });
+  expect(clearAllMealPhotoRetries).toHaveBeenCalledWith(
+    "deleted-photo-owner",
+    draftStore,
+  );
+});
+
+describe("local meal photo cleanup failure", () => {
+  it.each(["false", "rejection"] as const)(
+    "reports %s from photo cleanup after other local cleanup settles",
+    async (failure) => {
+      const photoCleanup = vi.mocked(clearAllMealPhotoRetries);
+      if (failure === "false") photoCleanup.mockResolvedValueOnce(false);
+      else
+        photoCleanup.mockRejectedValueOnce(
+          new Error("private storage failure"),
+        );
+      const deleteExport = vi.fn();
+      const healthCleanup = vi.fn(async () => undefined);
+      await expect(
+        clearLocalUserData("00000000-0000-4000-8000-000000000001", {
+          clearHealthExports: healthCleanup,
+          listExportFiles: () => [
+            { name: "mizyun-account-export-check.json", delete: deleteExport },
+          ],
+        }),
+      ).rejects.toThrow("Local meal photo cleanup is incomplete.");
+      expect(healthCleanup).toHaveBeenCalledOnce();
+      expect(deleteExport).toHaveBeenCalledOnce();
+    },
+  );
 });

@@ -75,3 +75,7 @@
 - [ADR-0046: Pro multi-photo drafts and Coach context](0046-pro-multi-photo-drafts.md) — accepted implementation; native/provider acceptance pending.
 
 - [ADR-0047 — Selected device health exports](0047-selected-device-health-exports.md): Dev-only selected first-party nutrition/standalone workout writes; encrypted local retry/mapping lifecycle, separate session permissions and qualified platform retention; native/device/privacy gates open.
+
+- [ADR-0046 — Manual running authority and retry-safe mutations](0046-manual-running-authority.md): accepted for Dev implementation 2026-10-06; authoritative local dates, dedicated run UI, atomic owner receipts and separate resistance context.
+
+- [ADR-0049 — Private meal thumbnails on Dev](0049-private-meal-thumbnails.md): accepted2026-10-06; optional reduced owner-only meal photos, recovery/deletion and explicit Dev activation.

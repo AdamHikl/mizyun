@@ -11,17 +11,19 @@
 - **Production:** pristine9b0c41a; API4000/DB5432 PID2401543, tunnel2401546 active,57migrations through20261004110000. Fresh backup20261005T060157Z/checksumsPASS; public health200/protected Coach401. Adam confirmed build6 meal/workout/Coach journeys on d610382; API/packages/schema unchanged in9b0c41a. New build7 device/Store exits remain separate.
 - **Environment and AI:** Hetzner CX23 owns Dev/Production; Pi remains encrypted recovery storage. Gemini-or-disabled, consent-based adult admission, current usage/kill switches; no email allowlist. Retain the explicit founder/partner shared-Gemini Dev exception. Local Qwen remains paused. `docs/BEFORE_TESTING.md` and live-provider gates remain in force.
 
-## Usability review — 2026-10-06
+## Running — #216 / RUN-01–05
 
 **#210/#211/#213:** usability fixes/reviews/full gatePASS (mobile1476); fresh Dev simulator sign-in/meal/batch/resume/AX and live fonts verified. Physical/max-font/VoiceOver exits open. [Evidence](docs/USABILITY_FOLLOWUP_EVIDENCE_2026-10-06.md).
 
 **#214 simulator workflow:** skill/helper13PASS, High review clear; live signed Dev sign-in/read and warm reuse/full gatePASS. [Evidence](docs/SIMULATOR_WORKFLOW_EVIDENCE_2026-10-06.md).
 
-**#207 AGENT-NAV-007:** locally verified full gate/runner20/navigation117, non-author review clear. [Evidence](docs/AGENT_WORKFLOW_EVIDENCE_2026-10-04.md). Navigation acceptance advisory; client/token/speed measurements #54 remain.
+**Other active authority/gates:** #210/#211/#213 usability and #207 navigation source evidence and physical/max-font/VoiceOver/provider exits remain as recorded in [prior status](docs/archive/status/STATUS_PRE_RUNNING_2026-10-06.md). Build9 device/native/Store and #27/#32 remain open. Community remains closed; photos/App Preview Dev-only; no agent Store upload.
 
 **Next:** accept #210/#213 physical/accessibility/max-font journeys on this candidate. Release: accept version9 native journeys, then manual IPA/AAB upload; test native workout status. #27/#32 native/Store exits open. Community closed; photos/App Preview Dev-only; no agent upload; broader gates remain.
 
 ## Local follow-ups awaiting exact-candidate acceptance
+
+- **#218 main integration — 2026-10-07:** isolated merge of photo brancha64a158 into main2c61518; both running/photo modules and Health/Home behavior retained. Private-photo cleanup false/rejection reproduced and corrected,21 focused testsPASS. Fresh full gatePASS mobile1664/API880+15credential skips; High review clear. Main integration/combined Community snapshot/iPhone reinstall pending. [Evidence](docs/MEAL_PHOTO_MAIN_INTEGRATION_2026-10-07.md). Native/Production gates remain open.
 
 - **#223 Home workout shortcut:** client correction on3984c35, versioned separately; Start creates/opens a one-time session directly, Resume preserved, duplicate/retry/account guards. Focused85/typecheck/helper review/full gatePASS (mobile1589). [Evidence](docs/HOME_ONE_TIME_WORKOUT_EVIDENCE_2026-10-07.md). Included in latest iPhone Dev install above. Next: accept Home start/add/finish/resume on device; backend unchanged.
 - **#222 first-meal shortcut:** client correction on3984c35, versioned separately; complete yesterday-local-day history selects earliest consumed meal, clears on rollover, no older fallback. Focused96/TZ45/full gatePASS (mobile1584); helper regression/review clear. [Evidence](docs/FIRST_MEAL_SHORTCUT_EVIDENCE_2026-10-07.md). Included in latest iPhone Dev install above. Next: accept earliest-meal Copy to Today/empty-yesterday on device; backend unchanged.

@@ -1,7 +1,13 @@
 import * as SecureStore from "expo-secure-store";
 
 export type LoggingDraftKind =
-  "meal" | "workout" | "weight" | "coach" | `meal-edit-${string}`;
+  | "meal"
+  | "workout"
+  | "weight"
+  | "coach"
+  | "run"
+  | `meal-edit-${string}`
+  | `meal-photo-${string}`;
 
 interface SecureKeyValueStore {
   getItemAsync(key: string): Promise<string | null>;
@@ -27,6 +33,20 @@ export const loadLoggingDraft = async <T>(
     // Draft recovery is best effort and must never block logging.
     return null;
   }
+};
+
+/** Pending mutations must distinguish empty storage from an unavailable/corrupt read. */
+export const loadRequiredLoggingDraft = async <T>(
+  userId: string,
+  kind: LoggingDraftKind,
+  isDraft: (value: unknown) => value is T,
+  store: SecureKeyValueStore = SecureStore,
+): Promise<T | null> => {
+  const raw = await store.getItemAsync(draftKey(userId, kind));
+  if (raw === null) return null;
+  const parsed: unknown = JSON.parse(raw);
+  if (!isDraft(parsed)) throw new Error("The saved draft is unavailable.");
+  return parsed;
 };
 
 const writeQueues = new Map<string, Promise<unknown>>();

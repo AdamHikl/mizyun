@@ -5,6 +5,11 @@ const mocks = vi.hoisted(() => ({
   picker: vi.fn(),
   photoDraft: vi.fn(),
   normalize: vi.fn(),
+  retention: false,
+  sourceCopy: vi.fn(),
+  photoPersist: vi.fn(),
+  photoUpload: vi.fn(),
+  photoDiscard: vi.fn(),
   pro: true,
   owner: "synthetic-user",
   token: "synthetic-token",
@@ -195,6 +200,12 @@ beforeEach(async () => {
   vi.clearAllMocks();
   mocks.params = {};
   mocks.pro = true;
+  mocks.retention = false;
+  mocks.sourceCopy.mockImplementation(async (assetOwner, asset) => ({
+    uri: `owned-${asset.uri}`,
+  }));
+  mocks.photoPersist.mockResolvedValue(true);
+  mocks.photoUpload.mockResolvedValue(false);
   mocks.owner = "synthetic-user";
   mocks.token = "synthetic-token";
   mocks.picker.mockResolvedValue({
@@ -890,4 +901,109 @@ it("does not send the previous account's form if ownership changes during draft 
   render();
   expect(mocks.submit).not.toHaveBeenCalled();
   expect(byId("submit-meal-button").props.disabled).toBe(false);
+});
+
+vi.mock("./meal-photo-retention", () => ({
+  mealPhotoRetentionEnabled: () => mocks.retention,
+  persistMealPhotoSource: mocks.sourceCopy,
+  persistMealPhotoRetry: mocks.photoPersist,
+  uploadMealPhotoRetry: mocks.photoUpload,
+  discardOwnedMealPhoto: mocks.photoDiscard,
+}));
+
+it("saves a manual meal independently of a failed photo upload and leaves a durable retry", async () => {
+  mocks.retention = true;
+  mocks.picker.mockResolvedValueOnce({
+    canceled: false,
+    assets: [{ uri: "manual-photo" }],
+  });
+  mocks.submit.mockResolvedValueOnce({ ok: true, id: "saved-meal" });
+  find(
+    render(),
+    (node) => node.props?.accessibilityLabel === "Choose a meal photo",
+  ).props.onPress();
+  await flush();
+  render();
+  await submit();
+  expect(mocks.photoDraft).not.toHaveBeenCalled();
+  expect(mocks.photoPersist).toHaveBeenCalledWith(
+    "synthetic-user",
+    "saved-meal",
+    expect.objectContaining({ uri: "owned-manual-photo" }),
+  );
+  expect(mocks.photoUpload).toHaveBeenCalled();
+  expect(router.back).toHaveBeenCalled();
+});
+it("requires an explicit photo for each queued meal and keeps choices after the first save", async () => {
+  mocks.retention = true;
+  mocks.photoDraft.mockResolvedValueOnce({
+    ok: true,
+    draft: syntheticPhotoDraft,
+    drafts: [
+      syntheticPhotoDraft,
+      { ...syntheticPhotoDraft, name: "Second meal" },
+    ],
+  });
+  mocks.submit.mockResolvedValue({ ok: true, id: "saved-meal" });
+  find(
+    render(),
+    (node) => node.props?.accessibilityLabel === "Choose a meal photo",
+  ).props.onPress();
+  await flush();
+  render();
+  byId("process-meal-photo-button").props.onPress();
+  await flush();
+  render();
+  await submit();
+  expect(mocks.submit).not.toHaveBeenCalled();
+  find(
+    render(),
+    (node) => node.props?.accessibilityLabel === "Keep photo 2 with this meal",
+  ).props.onPress();
+  render();
+  await submit();
+  expect(mocks.photoPersist.mock.calls[0][2].uri).toBe("owned-synthetic-two");
+  expect(byId("meal-name-input").props.value).toBe("Second meal");
+  await submit();
+  expect(mocks.submit).toHaveBeenCalledTimes(1);
+  find(
+    render(),
+    (node) => node.props?.accessibilityLabel === "Keep photo 3 with this meal",
+  ).props.onPress();
+  render();
+  await submit();
+  expect(mocks.photoPersist.mock.calls[1][2].uri).toBe("owned-synthetic-three");
+});
+it("drops late source-copy completion after Clear", async () => {
+  mocks.retention = true;
+  let resolve!: (value: { uri: string }) => void;
+  mocks.picker.mockResolvedValueOnce({
+    canceled: false,
+    assets: [{ uri: "late-photo" }],
+  });
+  mocks.sourceCopy.mockImplementationOnce(
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }),
+  );
+  find(
+    render(),
+    (node) => node.props?.accessibilityLabel === "Choose a meal photo",
+  ).props.onPress();
+  await flush();
+  render();
+  find(
+    render(),
+    (node) => node.props?.accessibilityLabel === "Clear meal",
+  ).props.onPress();
+  await flush();
+  resolve({ uri: "owned-late-photo" });
+  await flush();
+  render();
+  expect(byId("keep-meal-photo-toggle")).toBeFalsy();
+  expect(mocks.photoDiscard).toHaveBeenCalledWith(
+    "synthetic-user",
+    "owned-late-photo",
+  );
 });

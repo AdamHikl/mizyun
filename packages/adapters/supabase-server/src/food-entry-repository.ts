@@ -16,6 +16,7 @@ import { RepositoryError } from "./repository-error.js";
 interface FoodEntryRow extends Record<string, unknown> {
   readonly id: string;
   readonly user_id: string;
+  readonly photo_asset_id?: string | null;
   readonly client_operation_id?: string | null;
   readonly consumed_at: string;
   readonly name: string;
@@ -40,6 +41,7 @@ interface FoodEntryRow extends Record<string, unknown> {
 
 export const foodEntryFromRow = (row: FoodEntryRow): StoredFoodEntry => ({
   id: row.id,
+  photoAssetId: row.photo_asset_id ?? null,
   userId: row.user_id as UserId,
   clientOperationId: row.client_operation_id ?? null,
   consumedAt: new Date(row.consumed_at),

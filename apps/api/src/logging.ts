@@ -19,6 +19,9 @@
  * original request payload into the log line.
  */
 const REDACT_PATHS = [
+  "req.body.imageBase64",
+  "body.imageBase64",
+  "imageBase64",
   "req.headers.authorization",
   "req.headers.cookie",
   "req.body.password",

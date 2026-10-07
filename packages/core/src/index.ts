@@ -85,6 +85,9 @@ export {
 } from "./goal";
 
 export {
+  MealPhotoError,
+  type MealPhoto,
+  type MealPhotoService,
   CALORIES_MAX,
   ADVANCED_NUTRIENT_FIELDS,
   CALORIES_MIN,
@@ -343,3 +346,7 @@ export * from "./recurring-meal";
 export * from "./health-observation";
 
 export * from "./health-export";
+
+export * from "./running";
+
+export * from "./run-repository";

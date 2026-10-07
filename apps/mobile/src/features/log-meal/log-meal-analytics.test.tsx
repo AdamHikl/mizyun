@@ -253,3 +253,11 @@ describe("meal logging analytics lifecycle", () => {
     expect(mocks.track.mock.calls[1][0].properties.exit).toBe("navigate_away");
   });
 });
+
+vi.mock("./meal-photo-retention", () => ({
+  mealPhotoRetentionEnabled: () => false,
+  persistMealPhotoSource: vi.fn(),
+  persistMealPhotoRetry: vi.fn(),
+  uploadMealPhotoRetry: vi.fn(),
+  discardOwnedMealPhoto: vi.fn(),
+}));

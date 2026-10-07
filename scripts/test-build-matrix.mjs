@@ -119,7 +119,8 @@ if (
   devConfig.expo.ios.bundleIdentifier !== "com.mizyun.development" ||
   devConfig.expo.android.package !== "com.mizyun.dev" ||
   devConfig.expo.name !== "Mizyun Dev" ||
-  devConfig.expo.scheme !== "mizyun-dev"
+  devConfig.expo.scheme !== "mizyun-dev" ||
+  devConfig.expo.extra.enableMealPhotos !== true
 ) {
   throw new Error(
     `Development profile evaluated to unexpected identity: ${JSON.stringify(devConfig.expo)}`,
@@ -166,7 +167,8 @@ if (
   prodConfig.expo.android.package !== "com.mizyun.app" ||
   prodConfig.expo.name !== "Mizyun" ||
   prodConfig.expo.scheme !== "mizyun" ||
-  prodConfig.expo.extra.mizyunVariant !== "production"
+  prodConfig.expo.extra.mizyunVariant !== "production" ||
+  prodConfig.expo.extra.enableMealPhotos !== false
 ) {
   throw new Error(
     `Production profile evaluated to unexpected identity: ${JSON.stringify(prodConfig.expo)}`,

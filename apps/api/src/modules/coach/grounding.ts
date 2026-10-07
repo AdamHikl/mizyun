@@ -2,6 +2,10 @@ import type { AgentGroundingItem } from "@mizyun/agent-runtime";
 import {
   buildCoachingPlan,
   computeEnergy,
+  readRunSummary,
+  runningDate,
+  summarizeRuns,
+  type RunRepository,
   summariseFoodEntries,
   summariseWeightTrend,
   type BodyMeasurementRepository,
@@ -20,6 +24,7 @@ export interface CoachGroundingDependencies {
   readonly goalRepository: GoalRepository;
   readonly foodEntryRepository: FoodEntryRepository;
   readonly workoutRepository: WorkoutRepository;
+  readonly runRepository?: RunRepository;
   readonly workoutSetRepository: WorkoutSetRepository;
   readonly bodyMeasurementRepository: BodyMeasurementRepository;
   /**
@@ -51,6 +56,7 @@ export const buildCoachGrounding = async (
         accessToken,
       }),
       dependencies.workoutRepository.list(userId, {
+        excludeRunning: true,
         from: since,
         to: now,
         limit: 100,
@@ -63,6 +69,7 @@ export const buildCoachGrounding = async (
         accessToken,
       }),
       dependencies.workoutRepository.list(userId, {
+        excludeRunning: true,
         from: null,
         to: null,
         limit: 100,
@@ -70,6 +77,26 @@ export const buildCoachGrounding = async (
         accessToken,
       }),
     ]);
+  // Run dates are authoritative calendar days; transport noon is never an observation.
+  const runFrom = runningDate(since, profile.timezone);
+  const runTo = runningDate(now, profile.timezone);
+  const runRows = dependencies.runRepository
+    ? await dependencies.runRepository.list(userId, {
+        from: runFrom,
+        to: runTo,
+        limit: 101,
+        accessToken,
+      })
+    : [];
+  const runs = runRows.slice(0, 100).flatMap((row) => {
+    const summary = readRunSummary(row.details);
+    return summary ? [{ summary }] : [];
+  });
+  const runLast7Days = summarizeRuns(
+    runs,
+    runningDate(new Date(now.getTime() - 6 * 86_400_000), profile.timezone),
+    runTo,
+  );
   const todayEntries = foodEntries.filter(
     (entry) => dayIso(entry.consumedAt) === dayIso(now),
   );
@@ -296,6 +323,25 @@ export const buildCoachGrounding = async (
           })),
         },
         availableRoutines,
+        running: {
+          source: "user_logged_manual",
+          windowFrom: runFrom,
+          windowTo: runTo,
+          completeness: runRows.length > 100 ? "partial" : "complete",
+          last7Days: runLast7Days,
+          recentRuns: runs.slice(0, 20).map(({ summary }) => ({
+            activityDate: summary.activityDate,
+            recordingTimezone: summary.recordingTimezone,
+            timePrecision: summary.timePrecision,
+            durationSeconds: summary.durationSeconds,
+            distanceMeters: summary.distanceMeters,
+            environment: summary.environment,
+            perceivedExertion: summary.perceivedExertion,
+          })),
+          calorieCredit: "none",
+          adviceBoundary:
+            "Use running context separately from resistance progression. Do not infer start times, calories, race readiness, injury diagnosis, or medical clearance.",
+        },
       },
     },
     {

@@ -54,3 +54,5 @@ export {
 } from "./build-matrix";
 
 export * from "./community";
+
+export { loadMealPhotosEnabled } from "./meal-photos";

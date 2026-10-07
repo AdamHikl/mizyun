@@ -1,3 +1,4 @@
+import { PrivateMealPhoto } from "./private-meal-photo";
 import {
   Pressable,
   ScrollView,
@@ -647,6 +648,11 @@ export function EditMealScreen() {
 
           {entry !== null ? (
             <>
+              <PrivateMealPhoto
+                entryId={entry.id}
+                hasPhoto={Boolean(entry.photoAssetId)}
+                editable
+              />
               <Field
                 label="Name"
                 value={form.name}

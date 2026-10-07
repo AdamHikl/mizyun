@@ -1,3 +1,7 @@
+import {
+  mealPhotoUploadSchema,
+  mealPhotoReadResponseSchema,
+} from "./food-entry";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -294,5 +298,31 @@ describe("foodRefineDraftRequestSchema (AI-ACT-007)", () => {
         instruction: "Make the chicken 200g instead of 100g",
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("retained meal photo contract", () => {
+  it("rejects client ownership/path fields and oversized thumbnail claims", () => {
+    const input = {
+      clientOperationId: "00000000-0000-4000-8000-000000000001",
+      imageBase64: "/9j/2Q==",
+      mimeType: "image/jpeg",
+      width: 640,
+      height: 320,
+    };
+    expect(mealPhotoUploadSchema.safeParse(input).success).toBe(true);
+    for (const bad of [
+      { userId: input.clientOperationId },
+      { objectPath: "other/photo.jpg" },
+      { width: 641 },
+      { imageBase64: "x".repeat(349529) },
+      { mimeType: "image/png" },
+    ])
+      expect(
+        mealPhotoUploadSchema.safeParse({ ...input, ...bad }).success,
+      ).toBe(false);
+    expect(mealPhotoReadResponseSchema.safeParse({ photo: null }).success).toBe(
+      true,
+    );
   });
 });

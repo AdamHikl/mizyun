@@ -34,9 +34,14 @@ export const COACH_APP_CAPABILITIES: readonly CoachAppCapability[] = [
   {
     id: "workouts",
     featureIds: ["workouts-sets"],
-    routes: ["(tabs)/workouts.tsx", "log-workout.tsx"],
+    routes: [
+      "(tabs)/workouts.tsx",
+      "log-workout.tsx",
+      "log-run.tsx",
+      "run/[id].tsx",
+    ],
     guidance:
-      "The 'Workouts' tab contains routines, completed workouts, exercise search/library and exercise progression/history. Start a saved routine or a one-time workout, add exercises, record sets/reps/load, use the rest timer and Finish to review/save. Minimize and return to the current session. Local rest/workout notifications depend on permission and settings. Coach workout proposals are reviewed and explicitly saved/applied; suggestions never silently change a workout.",
+      "The 'Workouts' tab contains routines, completed workouts, exercise search/library and exercise progression/history. Start a saved routine or a one-time workout, add exercises, record sets/reps/load, use the rest timer and Finish to review/save. Minimize and return to the current session. Local rest/workout notifications depend on permission and settings. Coach workout proposals are reviewed and explicitly saved/applied; suggestions never silently change a workout. In the running Dev candidate, Workouts → Log run records a completed run: date and elapsed duration (including pauses), optional km/miles distance, environment, effort and notes. Average pace is calculated only when distance is recorded. History supports All, Strength and Running, with weekly running totals and View run → Edit/Delete. Coach can use supplied running summaries separately from resistance progression; it cannot save a run for the user, infer missing distance/start times, give calorie credit, diagnose injuries or certify race readiness. GPS/live recording, route maps, running plans and device run imports are not part of this manual-running release. If Log run is absent, qualify availability by the installed build.",
   },
   {
     id: "body-progress",

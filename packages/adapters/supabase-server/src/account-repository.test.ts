@@ -802,6 +802,7 @@ describe("SupabaseAccountRepository", () => {
     expect(queriedTables).toContain("user_feedback");
     expect(queriedTables).not.toContain("feedback");
     expect(queriedTables).toContain("memory_items");
+    expect(queriedTables).toContain("run_operation_receipts");
     expect(queriedTables).toContain("goals");
     expect(result.manifest?.completeness).toBe("complete");
   });

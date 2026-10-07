@@ -297,3 +297,37 @@ describe("server scheduled meal freshness", () => {
     expect(f.request).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("running retained reads", () => {
+  it.each([
+    "/v1/runs?limit=50",
+    "/v1/runs/11111111-1111-4111-8111-111111111111",
+  ])("reuses %s then invalidates after run mutations", async (path) => {
+    const f = fixture();
+    const read = { ...options, path };
+    await f.cache.request(read);
+    await f.cache.request(read);
+    expect(f.request).toHaveBeenCalledTimes(1);
+    await f.cache.request({
+      method: "PUT",
+      path: "/v1/runs/11111111-1111-4111-8111-111111111111",
+      body: { expectedRevision: 1 },
+    });
+    await f.cache.request(read);
+    expect(f.request).toHaveBeenCalledTimes(3);
+  });
+  it("retires previous-account run reads", async () => {
+    const f = fixture();
+    const pending = deferred();
+    f.request.mockReturnValueOnce(pending.promise);
+    const original = f.cache.request({ ...options, path: "/v1/runs?limit=50" });
+    await vi.waitFor(() => expect(f.request).toHaveBeenCalledTimes(1));
+    f.setSession({
+      ...alice,
+      user: { ...alice.user, id: "bob" },
+    } as AuthSession);
+    await f.cache.request({ ...options, path: "/v1/runs?limit=50" });
+    pending.resolve(success);
+    expect((await original).ok).toBe(false);
+  });
+});

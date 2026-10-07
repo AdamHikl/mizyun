@@ -158,6 +158,14 @@ describe("estimateExerciseKcal", () => {
   it("returns zero for an empty workout list", () => {
     expect(estimateExerciseKcal([], () => 0)).toBe(0);
   });
+  it("never gives running rows set-derived calorie credit", () => {
+    expect(
+      estimateExerciseKcal(
+        [baseWorkout({ details: { activityType: "running" } })],
+        () => 50,
+      ),
+    ).toBe(0);
+  });
   it("sums per-workout set counts times the kcal-per-set hint", () => {
     const workouts = [
       baseWorkout({ id: "00000000-0000-4000-8000-00000000c001" }),

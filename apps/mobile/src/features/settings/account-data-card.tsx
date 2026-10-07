@@ -52,7 +52,7 @@ export async function finishDeletedAccountLocally(
     "Your account data has been removed from active systems. Backup copies age out under the retention policy. Copies you exported to Apple Health or Health Connect remain in those apps." +
       (cleaned
         ? " You have been signed out."
-        : " Local health export cleanup is incomplete. Retry local cleanup on this phone."),
+        : " Local data cleanup is incomplete. Retry local cleanup on this phone."),
     cleaned
       ? undefined
       : [

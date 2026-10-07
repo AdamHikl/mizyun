@@ -1,3 +1,14 @@
+import type { RunRepository } from "@mizyun/core";
+import { SupabaseRunRepository } from "@mizyun/adapter-supabase-server";
+import { InMemoryRunRepository } from "./run-repository.js";
+import { runsRoutes } from "./modules/runs/routes.js";
+import { loadMealPhotosEnabled } from "@mizyun/config";
+import {
+  SupabaseMealPhotoService,
+  createMealPhotoStorage,
+} from "@mizyun/adapter-supabase-server";
+import type { MealPhotoService } from "@mizyun/core";
+import { mealPhotoRoutes } from "./modules/food-entries/photo-routes.js";
 import { SupabaseRecurringMealRepository } from "@mizyun/adapter-supabase-server";
 import type { RecurringMealRepository } from "@mizyun/core";
 import { InMemoryRecurringMealRepository } from "./recurring-meal-repository.js";
@@ -297,10 +308,13 @@ export interface AppDependencies {
    */
   readonly profileRepository?: ProfileRepository;
   readonly goalRepository?: GoalRepository;
+  readonly mealPhotoService?: MealPhotoService;
+  readonly mealPhotosEnabled?: boolean;
   readonly foodEntryRepository?: FoodEntryRepository;
   readonly recurringMealRepository?: RecurringMealRepository;
   readonly exerciseRepository?: ExerciseRepository;
   readonly workoutRepository?: WorkoutRepository;
+  readonly runRepository?: RunRepository;
   readonly workoutSetRepository?: WorkoutSetRepository;
   readonly bodyMeasurementRepository?: BodyMeasurementRepository;
   readonly conversationRepository?: ConversationRepository;
@@ -608,6 +622,11 @@ export const buildApp = (
     (sp
       ? new SupabaseWorkoutRepository({ clientFor: sp.clientFor })
       : new InMemoryWorkoutRepository());
+  const runRepository =
+    dependencies.runRepository ??
+    (sp
+      ? new SupabaseRunRepository(sp.clientFor)
+      : new InMemoryRunRepository(workoutRepository));
   const workoutSetRepository =
     dependencies.workoutSetRepository ??
     (sp
@@ -645,6 +664,59 @@ export const buildApp = (
         })
       : new InMemoryMediaStorage());
   const MEDIA_BUCKET_ID = "private-media";
+  const mealPhotosEnabled =
+    dependencies.mealPhotosEnabled ?? loadMealPhotosEnabled(process.env);
+  const photoConfig = configResult.ok
+    ? configResult.value.supabaseConfig
+    : null;
+  const mealPhotoService =
+    dependencies.mealPhotoService ??
+    (sp?.serviceRoleClient && photoConfig?.serviceRoleKey
+      ? new SupabaseMealPhotoService({
+          clientFor: sp.clientFor,
+          serviceClient: sp.serviceRoleClient,
+          storage: createMealPhotoStorage({
+            url: photoConfig.url,
+            publishableKey: photoConfig.publishableKey,
+            serviceRoleKey: photoConfig.serviceRoleKey,
+            ...(photoConfig.publicUrl
+              ? { publicUrl: photoConfig.publicUrl }
+              : {}),
+          }),
+        })
+      : null);
+  if (
+    mealPhotoService &&
+    (mealPhotosEnabled ||
+      (process.env.MIZYUN_ENVIRONMENT === "dev" &&
+        process.env.API_PORT === "4100"))
+  ) {
+    let running = false;
+    const cleanup = async () => {
+      if (running) return;
+      running = true;
+      try {
+        await mealPhotoService.cleanup();
+      } catch {
+        app.log.error(
+          "Meal photo cleanup failed; durable jobs retained for retry.",
+        );
+      } finally {
+        running = false;
+      }
+    };
+    let timer: ReturnType<typeof setInterval>;
+    app.addHook("onReady", async () => {
+      void cleanup();
+      timer = setInterval(() => {
+        void cleanup();
+      }, 60_000);
+      timer.unref();
+    });
+    app.addHook("onClose", async () => {
+      clearInterval(timer);
+    });
+  }
 
   const aiConsentRepository =
     dependencies.aiConsentRepository ??
@@ -725,6 +797,7 @@ export const buildApp = (
         })
       : new InMemoryAccountRepository({
           recurringMealRepository,
+          runRepository,
           profileRepository,
           goalRepository,
           foodEntryRepository,
@@ -762,6 +835,7 @@ export const buildApp = (
   // freshly-constructed orchestrator that owns the default
   // provider + memory store.
   const defaultToolSet = buildCoachToolRegistry({
+    runRepository,
     profileRepository,
     goalRepository,
     workoutRepository,
@@ -958,11 +1032,17 @@ export const buildApp = (
     prefix: "/v1/goals",
     goalRepository,
   });
+  void app.register(mealPhotoRoutes, {
+    prefix: "/v1/food-entries",
+    enabled: mealPhotosEnabled,
+    service: mealPhotoService,
+  });
   void app.register(foodEntriesRoutes, {
     prefix: "/v1/food-entries",
     foodEntryRepository,
     betaProRepository,
     profileRepository,
+    ...(mealPhotoService ? { mealPhotoService } : {}),
   });
   void app.register(recurringMealsRoutes, {
     prefix: "/v1/recurring-meals",
@@ -987,6 +1067,7 @@ export const buildApp = (
     prefix: "/v1/exercises",
     exerciseRepository,
   });
+  void app.register(runsRoutes, { prefix: "/v1/runs", runRepository });
   void app.register(workoutsRoutes, {
     prefix: "/v1/workouts",
     workoutRepository,
@@ -1235,6 +1316,7 @@ export const buildApp = (
   // `dependencies.memories` is the default; tests may inject a
   // custom store via `coachControls.memoryStore`.
   void app.register(coachRoutes, {
+    runRepository,
     prefix: "/v1/coach",
     agent,
     resolveAgent,

@@ -15,7 +15,7 @@ export {
   isRecurringMealRequest,
 } from "./app-capabilities.js";
 
-export const COACH_PROMPT_VERSION = "coach-system-v3-app-v2";
+export const COACH_PROMPT_VERSION = "coach-system-v3-app-v3";
 
 export const COACH_SYSTEM_POLICY = [
   "You are Mizyun Coach, an expert fitness, strength training, and nutrition wellness assistant, as well as the knowledgeable in-app guide for the Mizyun app.",

@@ -498,6 +498,13 @@ export const goalPatchSchema = z
 export type GoalPatch = z.infer<typeof goalPatchSchema>;
 
 export {
+  mealPhotoUploadSchema,
+  mealPhotoSchema,
+  mealPhotoResponseSchema,
+  mealPhotoReadResponseSchema,
+  type MealPhotoUpload,
+  type MealPhotoResponse,
+  type MealPhotoReadResponse,
   foodDraftCandidateSchema,
   advancedNutritionCapabilityResponseSchema,
   advancedNutritionCapabilitySchema,
@@ -832,3 +839,5 @@ export * from "./recurring-meal";
 export * from "./health-connection";
 
 export * from "./health-export";
+
+export * from "./run";

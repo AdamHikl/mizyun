@@ -40,7 +40,7 @@ describe("completed server deletion local cleanup", () => {
     const signOut = vi.fn(async () => undefined);
     await finishDeletedAccountLocally("captured-account", signOut);
     expect(mocks.alert.mock.calls[0][1]).toContain(
-      "Local health export cleanup is incomplete",
+      "Local data cleanup is incomplete",
     );
     const buttons = mocks.alert.mock.calls[0][2] as {
       text: string;
