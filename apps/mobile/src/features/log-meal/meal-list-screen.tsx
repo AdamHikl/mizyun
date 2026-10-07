@@ -1403,6 +1403,7 @@ export function MealListScreen() {
                                 <View style={styles.clusterHeaderActions}>
                                   <EntryAction
                                     label="Rename"
+                                    groupAction
                                     disabled={busyEntryId !== null}
                                     onPress={() => {
                                       setRenameTarget(clusterItem);
@@ -1411,6 +1412,7 @@ export function MealListScreen() {
                                   />
                                   <EntryAction
                                     label="Ungroup all"
+                                    groupAction
                                     disabled={busyEntryId !== null}
                                     onPress={() =>
                                       void handleUngroupAll(clusterItem)
@@ -2100,6 +2102,7 @@ function EntryAction(props: {
   readonly label: string;
   readonly disabled: boolean;
   readonly destructive?: boolean;
+  readonly groupAction?: boolean;
   readonly onPress: () => void;
 }) {
   return (
@@ -2111,6 +2114,7 @@ function EntryAction(props: {
       onPress={props.onPress}
       style={({ pressed }) => [
         styles.entryAction,
+        props.groupAction === true && styles.entryGroupAction,
         props.destructive === true && styles.entryActionDestructive,
         (pressed || props.disabled) && styles.pressed,
       ]}
@@ -2437,13 +2441,13 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(16, 185, 129, 0.04)",
   },
   clusterHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    gap: Spacing.two,
   },
   clusterHeaderLeft: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
+    minWidth: 0,
     gap: 6,
   },
   clusterIcon: {
@@ -2451,8 +2455,14 @@ const styles = StyleSheet.create({
   },
   clusterTitle: {
     fontSize: 15,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 120,
+    minWidth: 0,
   },
   clusterCountBadge: {
+    flexShrink: 0,
+    maxWidth: "100%",
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
@@ -2460,6 +2470,7 @@ const styles = StyleSheet.create({
   },
   clusterHeaderActions: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 6,
   },
   clusterTotalsText: {
@@ -2604,6 +2615,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.two,
     borderRadius: 8,
     backgroundColor: "rgba(148, 163, 184, 0.1)",
+  },
+  entryGroupAction: {
+    minHeight: 44,
+    maxWidth: "100%",
+    flexShrink: 1,
+    justifyContent: "center",
   },
   entryActionDestructive: {
     backgroundColor: "rgba(239, 68, 68, 0.1)",
