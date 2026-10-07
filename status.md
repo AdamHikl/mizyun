@@ -1,41 +1,33 @@
 # Mizyun current status
 
-> Updated 2026-10-06. [Detailed handoffs through this compaction][handoffs] preserve every previous section; historical next actions are not current instructions. Limit:120 lines /12,288 UTF-8 bytes. Replace summaries; link detailed evidence.
+> Updated 2026-10-07. [Prior handoffs][handoffs]; historical next actions are not instructions. Limit:120 lines/12,288 UTF-8 bytes.
 
 ## Current authority and delivery
 
-- **Build9 / #212 (#27/#32):** source`dd5b435385b379d8c0df1b69813f8d8fdd3d985a`,1.0.9/9/9; signedIPA/widget/dSYMs and AAB/upload cert/16KB LOADPASS; fresh full gatesPASS. [Artifacts/evidence](docs/BUILD_9_RELEASE_EVIDENCE_2026-10-05.md). iPhone stillbuild8 PID6786; build9 device/native/16KB runtime/Store exits open.
-- **Dev backend:** pristine9b0c41a, Hetzner `/var/lib/mizyun/dev/repo`, API4100/DB5433 PID2372619; canonical promotionPASS, public health200, protected Coach conversations401. Prompt `coach-system-v3-app-v2`.
-- **Latest iPhone Dev install:** 2026-10-04T18:05:59Z, iPhone16Pro, `a435a766...`, standalone com.mizyun.development1.0.6(6), teamLQJNDVBL43. Adam confirmed signed-in meal/workout/Coach/background journeys passed. [Delivery](docs/DEV_DELIVERY_EVIDENCE_2026-10-04.md).
+- **Git integration — 2026-10-07:** all local work grouped into separate package commits for `main`, runtime source`32d1d790cf072171da8fe38527256fef7b33c898`; fresh `pnpm check`PASS (mobile1589/API867+15credential skips), focused contracts51/core22/mobile762/simulator13PASS, independent High preview/export/tooling reviews clear after Android rationale scrolling fix. The pre-commit full gate and exact pushed HEAD are recorded in this Git-integration chat. Next: exact-candidate native/device acceptance below; all existing release/privacy exits remain open.
+- **Build9 / #212 (#27/#32):** source`dd5b435385b379d8c0df1b69813f8d8fdd3d985a`,1.0.9/9/9; signedIPA/widget/dSYMs and AAB/upload cert/16KB LOADPASS; fresh full gatesPASS. [Artifacts/evidence](docs/BUILD_9_RELEASE_EVIDENCE_2026-10-05.md). iPhone16Pro installed/launched1.0.9(9) PID6828; native/16KB runtime/Store exits open.
+- **Dev backend:** pristinea64a158, API4100/DB5433 PID3424542; canonical gate/promotion/photo32-check Auth/API/Storage proofPASS. Running938efc5/Pro3984c35 preserved. Prompt `coach-system-v3-app-v3`. [Delivery](docs/MEAL_PHOTOS_DEV_DELIVERY_2026-10-06.md).
+- **Latest iPhone Dev install:** 2026-10-07T08:06:02Z, dirty3984c35 working copy incl.Home/meal shortcuts and Health modules; iPhone16Pro/com.mizyun.development1.0.9(9) PID11222; clean build/signature/config/install/launchPASS, source stable during build. Native exits open. [Evidence](docs/DEV_IOS_INSTALL_EVIDENCE_2026-10-07.md).
 - **Production:** pristine9b0c41a; API4000/DB5432 PID2401543, tunnel2401546 active,57migrations through20261004110000. Fresh backup20261005T060157Z/checksumsPASS; public health200/protected Coach401. Adam confirmed build6 meal/workout/Coach journeys on d610382; API/packages/schema unchanged in9b0c41a. New build7 device/Store exits remain separate.
 - **Environment and AI:** Hetzner CX23 owns Dev/Production; Pi remains encrypted recovery storage. Gemini-or-disabled, consent-based adult admission, current usage/kill switches; no email allowlist. Retain the explicit founder/partner shared-Gemini Dev exception. Local Qwen remains paused. `docs/BEFORE_TESTING.md` and live-provider gates remain in force.
 
 ## Usability review — 2026-10-06
 
-**#210/#211/#213:** remaining Settings/Home/resume/batch/font and native-bound Dev config fixes implemented; independent UI/High reviews clear, focused697/full gatePASS (mobile1476). Fresh Dev simulator sign-in/meal/batch/resume/AX and live font changes verified; max-font/physical/VoiceOver exits open. [Evidence](docs/USABILITY_FOLLOWUP_EVIDENCE_2026-10-06.md).
+**#210/#211/#213:** usability fixes/reviews/full gatePASS (mobile1476); fresh Dev simulator sign-in/meal/batch/resume/AX and live fonts verified. Physical/max-font/VoiceOver exits open. [Evidence](docs/USABILITY_FOLLOWUP_EVIDENCE_2026-10-06.md).
+
+**#214 simulator workflow:** skill/helper13PASS, High review clear; live signed Dev sign-in/read and warm reuse/full gatePASS. [Evidence](docs/SIMULATOR_WORKFLOW_EVIDENCE_2026-10-06.md).
 
 **#207 AGENT-NAV-007:** locally verified full gate/runner20/navigation117, non-author review clear. [Evidence](docs/AGENT_WORKFLOW_EVIDENCE_2026-10-04.md). Navigation acceptance advisory; client/token/speed measurements #54 remain.
 
-**Next:** accept #210/#213 physical/accessibility/max-font journeys on this candidate. Release: accept version9 native journeys, then manual IPA/AAB upload; test native workout status. #27/#32 native/Store exits open. Backend9b0c41a unchanged; Community closed; photos/App Preview Dev-only; no agent upload; broader gates remain.
+**Next:** accept #210/#213 physical/accessibility/max-font journeys on this candidate. Release: accept version9 native journeys, then manual IPA/AAB upload; test native workout status. #27/#32 native/Store exits open. Community closed; photos/App Preview Dev-only; no agent upload; broader gates remain.
 
 ## Local follow-ups awaiting exact-candidate acceptance
 
-- **#217 Pro multi-photo** — Meals/Coach up to3, separate confirmed drafts and advisory photo questions; focused477/High review/isolated full gatePASS. [Evidence](docs/PRO_MULTI_PHOTO_EVIDENCE_2026-10-06.md). Next: exact Dev/native/live-provider acceptance; no deployment/release.
-
-Historical checks below do not accept today's combined tree; device/provider/release exits stay open.
-
-- **#206 Set Target** — Header wraps inside card with 44-point action. Focused15/typecheck passed; isolated full command failed only at Apple fixture collision, serial fixture retry passed. Verify narrow/large text, light/dark, Save/Cancel on installed iOS/Android. [Handoff][handoffs]
-- **#202 workout actions** — Shared Add/Finish/Discard and recovery in both modes; historical focused200/full gatePASS, installed. Accept both modes, confirmations/history, failure recovery and accessibility on device. [Handoff][handoffs]
-- **#203 Meals day hierarchy** — Day controls/macros and grouping interactions implemented; isolated full gate passed. Accept current/historical/partial/search days, Add/save/return, grouping, themes and accessibility on iOS/Android. [Handoff][handoffs]
-- **#208 Coach select/Copy** — Implemented; Coach106 passed/review clear. Full checkPASS; next accept old/new Copy/paste on iOS/Android. [Evidence](docs/COACH_TEXT_SELECTION_EVIDENCE_2026-10-04.md)
-- **#204 Coach reading space** — Wider, consistent responses and compact controls; focused 103 and isolated full gate passed. Accept long responses/titles, narrow/large text, keyboard, themes and recovery on devices. [Evidence](docs/COACH_LAYOUT_EVIDENCE_2026-10-04.md)
-- **#205 Coach feature knowledge** — Historical local API simulation passed (zero model calls); exact Dev `a435a766` had `coach-system-v2-app-v1`. Repeat on installed candidate; provider/device gates remain. [Evidence](docs/COACH_FEATURE_KNOWLEDGE_EVIDENCE_2026-10-04.md)
-- **#200 reopen recovery / #182 startup reads** — Identity/generation-safe retained personal reads and Coach foreground retry; isolated full gates passed. Accept cold start, background/reopen, token/account changes, delayed writes, pending Coach operations and offline/reconnect on both devices. [Evidence](docs/MOBILE_STARTUP_READS_EVIDENCE_2026-10-03.md)
-- **#201 settings gear** — Shared gear across 5 tabs; isolated gate passed. Accept coverage, Settings/Back, themes and screen readers on installed candidate. [Handoff][handoffs]
-- **#197 persistent header** — 90%-opaque scroll-under header/Coach follow-up locally verified and installed. Accept all tabs, enrollment/feed, scroll/taps/refresh, large text and Coach keyboard on both platforms. [Handoff][handoffs]
-- **#194 quiet Home refresh** — Retained numbers, exact-scope fallback, reconnect/Retry/polling; Dev delivered. Signed-in startup/offline/server-failure/date/timezone/account/accessibility acceptance remains open. [Evidence](docs/HOME_REFRESH_EVIDENCE_2026-10-04.md)
-- **#196 Steps shortcut** — Home → Steps from Health delivered to Dev. Accept Enable, explicit permission timing and Back on device. [Handoff][handoffs]
-- **#136 Launch Pro branding** — Beta disclosures removed, indefinite approved Launch Pro copy and Production preview denial verified/delivered to Dev. Accept auth/onboarding/Pro states; reconcile hosted terms/Store metadata and replace BETA screenshots on matching Production candidate before resubmission. [Handoff][handoffs]
+- **#223 Home workout shortcut:** client correction on3984c35, versioned separately; Start creates/opens a one-time session directly, Resume preserved, duplicate/retry/account guards. Focused85/typecheck/helper review/full gatePASS (mobile1589). [Evidence](docs/HOME_ONE_TIME_WORKOUT_EVIDENCE_2026-10-07.md). Included in latest iPhone Dev install above. Next: accept Home start/add/finish/resume on device; backend unchanged.
+- **#222 first-meal shortcut:** client correction on3984c35, versioned separately; complete yesterday-local-day history selects earliest consumed meal, clears on rollover, no older fallback. Focused96/TZ45/full gatePASS (mobile1584); helper regression/review clear. [Evidence](docs/FIRST_MEAL_SHORTCUT_EVIDENCE_2026-10-07.md). Included in latest iPhone Dev install above. Next: accept earliest-meal Copy to Today/empty-yesterday on device; backend unchanged.
+- **#218 private meal photos:** Deva64a158 and iPhone installed; compressed thumbnail/preview/removal and durable owner retry/cleanup. Full gate/localSQL924/live32checksPASS; independent High review clear. [Evidence](docs/MEAL_PHOTOS_DEV_DELIVERY_2026-10-06.md). Next: native Save/reopen/preview/remove, offline/account/multi-photo/accessibility/Android acceptance; Production disabled.
+- **#217 Pro multi-photo:**3984c35 preserved in this Dev/mobile candidate; Meals/Coach up to3 and separate drafts. Focused477/High review/full gatePASS; native/live-provider acceptance open. [Evidence](docs/PRO_MULTI_PHOTO_EVIDENCE_2026-10-06.md).
+- **Usability follow-ups #206/#202/#203/#208/#204/#205/#200/#182/#201/#197/#194/#196/#136:** implementation/evidence and all exact native/provider/release exits remain open as preserved in [pre-photo status](docs/archive/status/STATUS_PRE_MEAL_PHOTO_DELIVERY_2026-10-06.md). Historical tests do not accept this combined candidate; the archive preserves detailed next actions and prior device acceptance.
 
 ## Earlier implemented packages with open exits
 
@@ -50,7 +42,8 @@ Historical checks below do not accept today's combined tree; device/provider/rel
 - **#168/#169 Community navigation/UX** — Retained content preserves original 10s authority; cold/expired/background/account/write reads revalidate. Exact-candidate two-account, offline, lease/revocation, nested-screen and accessibility journeys remain open. [Navigation evidence](docs/COMMUNITY_NAVIGATION_READS_EVIDENCE_2026-10-02.md), [UX audit](docs/COMMUNITY_UX_AUDIT_2026-10-02.md), [Dev guide](docs/COMMUNITY_DEV_TEST_GUIDE_2026-10-02.md)
 - **#178 AI nutrients / #179 bundles** — Editable estimates/entitlement/race source delivered to Dev; installed Save/reopen/free-downgrade/refinement acceptance and broader live evaluation #29 remain. #179 tracks historical bundle-path skip defect; actual artifact scans are separately recorded. [Evidence](docs/AI_ADVANCED_NUTRIENTS_EVIDENCE_2026-10-02.md)
 - **#170 proactive Coach / #171–176** — Documentation-only plan; implementation requires its selected bounded package and sparse-day regression. No proactive rollout accepted. [Plan](docs/PROACTIVE_COACH_PLAN_2026-10-02.md)
-- **#198 integrations / #39/#40** — Documentation-only INT-00–09 plan; local/account/Coach/sharing gates remain distinct. Begin compatibility/lifecycle evidence only after scope selection; no new integration connected. [Plan](docs/INTEGRATIONS_IMPLEMENTATION_PLAN_2026-10-04.md)
+- **#216 Running** — Manual logging/history/edit/delete/drafts source938efc5 preserved in Deva64a158; full gate/API proofPASS, iPhone launched. Next: native acceptance; imports/GPS staged.
+- **#198/#215/#219 Health** — Dev preview/selected exports; isolated full gatePASS. [Evidence](docs/HEALTH_EXPORT_EVIDENCE_2026-10-06.md). Native/device/privacy gates open; Production disabled. Next: both-phone write/read-back; INT-03 separate.
 - **#195/#199 CI** — Forward Community lint repair delivered; Linux43deployment fixtures and quality/navigation CI pass at9b0c41a; #199 closed. Hosted DB workflow #23 remains separate. [Delivery][handoffs]
 
 ## Community and release gates retained
