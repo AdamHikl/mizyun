@@ -1,0 +1,12 @@
+{
+  "result": "PASS",
+  "assertions": 32,
+  "mode": "dev",
+  "syntheticOnly": true,
+  "providerCalls": 0,
+  "sourceSha": "a64a15898c43ece0c2e551086f040c645e2b5baa",
+  "apiOrigin": "https://mizyun-api-dev.phiskel.com",
+  "privateStorageOrigin": "https://mizyun-supabase-dev.phiskel.com",
+  "checkedFinallyCleanup": true,
+  "servicePid": 3424542
+}
