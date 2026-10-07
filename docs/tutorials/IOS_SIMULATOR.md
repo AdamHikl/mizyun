@@ -1,6 +1,8 @@
 # iOS Simulator workflow
 
-This page covers the fast Expo development loop and the standalone Release path used for native MOB acceptance.
+For **Hetzner Dev feature testing**, use [test-ios-simulator](../../.agents/skills/test-ios-simulator/SKILL.md) and `pnpm mobile:simulator:ios doctor`. That workflow pins Dev endpoints, a simulator UUID and a task-owned Metro port; it preserves existing dotenv files.
+
+The local-backend and Production examples below are separate workflows. They are not shortcuts for testing a synthetic Hetzner Dev account. This page also covers the standalone Release path used for native MOB acceptance.
 
 ## One-time host setup
 

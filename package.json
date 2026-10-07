@@ -99,8 +99,10 @@
     "analytics:dashboard:local": "node --import tsx scripts/analytics-dashboard/local.mjs",
     "analytics:dashboard:demo": "node --import tsx scripts/analytics-dashboard/demo.mjs",
     "test:coach-feature-knowledge": "node --test scripts/check-coach-feature-knowledge.test.mjs && node --import tsx scripts/check-coach-feature-knowledge.mjs",
-    "check:steps": "pnpm test:check-runner && pnpm navigation:check && pnpm test:navigation && pnpm test:exercise-catalog && pnpm test:coach-feature-knowledge && pnpm format:check && pnpm typecheck && pnpm --filter @mizyun/mobile bundle:check && pnpm test && pnpm test:analytics-dashboard && pnpm test:deployment-safeguards && pnpm test:hetzner-operations && pnpm test:backup-retention && pnpm test:google-oauth-config && pnpm test:build-matrix && pnpm test:production-android-signing-tooling && pnpm test:production-ios-ipa-tooling && pnpm test:ai-eval && pnpm test:community-operations && pnpm test:dev-ios-apple-auth",
-    "test:check-runner": "node --test scripts/run-check.test.mjs"
+    "check:steps": "pnpm test:check-runner && pnpm navigation:check && pnpm test:navigation && pnpm test:exercise-catalog && pnpm test:coach-feature-knowledge && pnpm format:check && pnpm typecheck && pnpm --filter @mizyun/mobile bundle:check && pnpm test && pnpm test:analytics-dashboard && pnpm test:deployment-safeguards && pnpm test:hetzner-operations && pnpm test:backup-retention && pnpm test:google-oauth-config && pnpm test:build-matrix && pnpm test:production-android-signing-tooling && pnpm test:production-ios-ipa-tooling && pnpm test:ai-eval && pnpm test:community-operations && pnpm test:dev-ios-apple-auth && pnpm test:ios-simulator",
+    "test:check-runner": "node --test scripts/run-check.test.mjs",
+    "mobile:simulator:ios": "node scripts/ios-simulator-dev.mjs",
+    "test:ios-simulator": "node --test scripts/ios-simulator-dev.test.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

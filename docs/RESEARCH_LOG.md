@@ -1,5 +1,11 @@
 # Research log
 
+## Repeatable Dev simulator testing (#214) — 2026-10-06
+
+Checked [Expo environment variables](https://docs.expo.dev/guides/environment-variables/), [Metro customization](https://docs.expo.dev/guides/customizing-metro/), [Expo CLI](https://docs.expo.dev/more/expo-cli/) and [Apple command-line tools](https://developer.apple.com/documentation/xcode/xcode-command-line-tool-reference). Installed `xcrun simctl help launch` supports app arguments; RN0.86.3 `RCTBundleURLProvider.mm:552-554` reads `RCT_jsLocation` from `NSUserDefaults`. Use process-scoped launch arguments, canonical Dev shell values/current runtime guard, pinned UUID and a task-owned foreground Metro. Status/PID alone cannot prove which JavaScript candidate an existing process uses; require fresh task bundle traffic and native feature observation. Cache native builds only with recorded configuration/dependency/plugin/module inputs; use unique build/log paths.
+
+The [simulator skill](../.agents/skills/test-ios-simulator/SKILL.md) and helper encode observed DeviceHub/offscreen/clipboard/unsafe-restart failures without extending Auth/provider/release authorization. General Expo dotenv guidance alone did not cover the installed SDK57 Debug virtual-env mismatch; ADR-0044 and its actual transform regressions remain authority.
+
 ## Remaining usability findings (#210/#211/#213) — 2026-10-06
 
 - Additional primary sources: [Expo Metro customization](https://docs.expo.dev/guides/customizing-metro/) and [Expo Application SDK57](https://docs.expo.dev/versions/v57.0.0/sdk/application/). The effective Debug virtual environment must follow the reviewed shell snapshot when CLI dotenv is disabled; installed native application identity must bind configuration before Auth/API construction. See ADR-0044 and real installed transform regressions.

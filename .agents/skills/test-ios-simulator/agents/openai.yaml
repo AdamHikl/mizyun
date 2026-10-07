@@ -1,0 +1,4 @@
+interface:
+  display_name: "Test Mizyun in iOS Simulator"
+  short_description: "Fast Dev simulator setup and native feature checks"
+  default_prompt: "Use $test-ios-simulator to test a Mizyun feature in the iOS simulator and record exact native evidence."

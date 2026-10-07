@@ -789,7 +789,9 @@
         "apps/api/src/test-fixtures/build6-contracts",
         "apps/mobile/metro.config.js",
         "apps/mobile/tooling",
-        "apps/mobile/vitest/expo-application-stub.ts"
+        "apps/mobile/vitest/expo-application-stub.ts",
+        "scripts/ios-simulator-dev.mjs",
+        "scripts/ios-simulator-dev.test.mjs"
       ],
       "contracts": [],
       "domainPort": [],
@@ -805,7 +807,8 @@
         "packages/config/src/server.test.ts",
         "packages/config/src/mobile.test.ts",
         "scripts/test-backup-dev-encrypted.py",
-        "apps/api/src/release-compatibility.test.ts"
+        "apps/api/src/release-compatibility.test.ts",
+        "scripts/ios-simulator-dev.test.mjs"
       ],
       "relations": [
         {
@@ -821,7 +824,8 @@
         "docs/patterns/README.md#pat-004",
         "docs/tutorials/HETZNER_BACKEND_GUIDE.md",
         ".agents/skills/deploy-dev/SKILL.md",
-        ".agents/skills/deploy-production/SKILL.md"
+        ".agents/skills/deploy-production/SKILL.md",
+        ".agents/skills/test-ios-simulator/SKILL.md"
       ],
       "verificationCommands": [
         "pnpm test:deployment-safeguards",
