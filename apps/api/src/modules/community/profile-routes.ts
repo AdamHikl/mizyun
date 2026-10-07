@@ -6,6 +6,7 @@ import {
   type CommunityRepository,
   type ProfileRepository,
   type StoredCommunityProfile,
+  type StoredFollowRelationship,
   type UserId,
 } from "@mizyun/core";
 import {
@@ -13,12 +14,14 @@ import {
   communityProfileDtoSchema,
   createCommunityProfileSchema,
   handleAvailabilityResponseSchema,
-  publicCommunityProfileDtoSchema,
+  communityProfileViewDtoSchema,
+  type CommunityProfileViewDto,
   updateCommunityProfileSchema,
   type CommunityProfileDto,
   type HandleAvailabilityResponse,
   type PublicCommunityProfileDto,
 } from "@mizyun/contracts";
+import { communityProfileActivityRoutes } from "./profile-activity-routes.js";
 import { sendApiError } from "../../errors.js";
 import { registerCommunityErrorHandler } from "./error-handler.js";
 
@@ -48,6 +51,9 @@ export const communityProfileRoutes: FastifyPluginAsync<
   CommunityProfileRoutesOptions
 > = async (app, options) => {
   registerCommunityErrorHandler(app);
+  await app.register(communityProfileActivityRoutes, {
+    communityRepository: options.communityRepository,
+  });
   // GET /v1/community/profile — get current user's profile
   app.get(
     "/profile",
@@ -336,7 +342,7 @@ export const communityProfileRoutes: FastifyPluginAsync<
   app.get(
     "/profiles/:targetUserId",
     { preHandler: app.authenticate },
-    async (request, reply): Promise<PublicCommunityProfileDto | void> => {
+    async (request, reply): Promise<CommunityProfileViewDto | void> => {
       const principal = request.principal;
       if (!principal) throw new Error("principal missing after authentication");
 
@@ -404,15 +410,17 @@ export const communityProfileRoutes: FastifyPluginAsync<
       let relationshipWithViewer: PublicCommunityProfileDto["relationshipWithViewer"] =
         "none";
 
+      let outgoing: StoredFollowRelationship | null = null;
+      let incoming: StoredFollowRelationship | null = null;
       if (principal.userId === targetUserId) {
         relationshipWithViewer = "self";
       } else {
-        const outgoing = await options.communityRepository.getRelationship(
+        outgoing = await options.communityRepository.getRelationship(
           principal.userId,
           targetUserId,
           { accessToken: principal.accessToken },
         );
-        const incoming = await options.communityRepository.getRelationship(
+        incoming = await options.communityRepository.getRelationship(
           targetUserId,
           principal.userId,
           { accessToken: principal.accessToken },
@@ -446,7 +454,13 @@ export const communityProfileRoutes: FastifyPluginAsync<
         relationshipWithViewer === "self" ||
         relationshipWithViewer === "following" ||
         relationshipWithViewer === "mutual";
-      return publicCommunityProfileDtoSchema.parse({
+      const edge = (relationship: StoredFollowRelationship | null) =>
+        relationship &&
+        (relationship.status === "approved" ||
+          relationship.status === "pending")
+          ? { id: relationship.id, status: relationship.status }
+          : null;
+      return communityProfileViewDtoSchema.parse({
         userId: publicTarget.userId,
         handle: publicTarget.handle,
         displayName: publicTarget.displayName,
@@ -454,6 +468,10 @@ export const communityProfileRoutes: FastifyPluginAsync<
         bio: canReadBio ? publicTarget.bio : null,
         createdAt: publicTarget.createdAt.toISOString(),
         relationshipWithViewer,
+        relationshipContext: {
+          outgoing: edge(outgoing),
+          incoming: edge(incoming),
+        },
       });
     },
   );

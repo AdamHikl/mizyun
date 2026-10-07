@@ -17,7 +17,14 @@ import {
   Text,
   View,
 } from "react-native";
-import { Link, type Href, useFocusEffect, useRouter } from "expo-router";
+import {
+  Link,
+  type Href,
+  useFocusEffect,
+  useRouter,
+  useLocalSearchParams,
+  Redirect,
+} from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BottomTabInset, MaxContentWidth } from "@/constants/theme";
 import { TabHeader, useTabHeaderLayout } from "@/components/tab-header";
@@ -29,7 +36,7 @@ import { useTheme } from "@/hooks/use-theme";
 import { useCommunityProfile } from "../use-community-profile";
 import { CommunitySettingsScreen } from "../community-settings-screen";
 import { scopeCommunityClient } from "../scoped-client";
-import { useCommunityPalette } from "../community-presentation";
+import { CommunityRootHeader, CommunityButton } from "../ui";
 import { FeedController } from "./controller";
 import { ActivityCard } from "./activity-card";
 import {
@@ -40,11 +47,20 @@ import {
 } from "../state/read-cache";
 
 export function FeedScreen() {
-  return COMMUNITY_ENROLLMENT_OPEN ? (
-    <OpenCommunityFeedScreen />
-  ) : (
-    <CommunityComingSoonScreen />
-  );
+  const { destination, list } = useLocalSearchParams<{
+    destination?: string;
+    list?: string;
+  }>();
+  if (!COMMUNITY_ENROLLMENT_OPEN) return <CommunityComingSoonScreen />;
+  if (destination && ["people", "messages", "me"].includes(destination))
+    return (
+      <Redirect
+        href={
+          `/(tabs)/community/${destination}${list ? `?list=${encodeURIComponent(list)}` : ""}` as Href
+        }
+      />
+    );
+  return <OpenCommunityFeedScreen />;
 }
 
 function CommunityComingSoonScreen() {
@@ -121,7 +137,6 @@ function FeedScreenContent({
 }) {
   const { headerHeight, onHeaderLayout } = useTabHeaderLayout();
   const colors = useTheme();
-  const accents = useCommunityPalette();
   const router = useRouter();
   const community = useCommunityProfile({
     principalKey,
@@ -464,167 +479,31 @@ function FeedScreenContent({
     );
   }
 
-  // Header quick links
   const headerComponent = (
     <View style={styles.headerBar}>
-      <Text
-        accessibilityRole="header"
-        style={[styles.heading, { color: colors.text }]}
-      >
-        Community
-      </Text>
-      <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-        A little encouragement, together.
-      </Text>
-      <View style={styles.quickLinks}>
-        {[
-          {
-            href: "/community/invite",
-            label: "Find friends",
-            description: "Search a handle or send an invite",
-            caption:
-              "A little support goes a long way. Search a handle or invite a friend.",
-            icon: "👋",
-            surface: accents.mint,
-            ink: accents.mintText,
-            primary: true,
-            accessibilityLabel: "Find Friends",
-          },
-          {
-            href: "/community/relationships",
-            label: "Friends",
-            description: "Approve requests and manage follows",
-            caption: "Following & requests",
-            icon: "👥",
-            surface: accents.purple,
-            ink: accents.purpleText,
-            primary: false,
-            accessibilityLabel: "Your friends and requests",
-          },
-          {
-            href: "/community/inbox",
-            label: "Inbox",
-            description: "Updates about your shared activity",
-            caption: "Community updates",
-            icon: "💬",
-            surface: accents.blue,
-            ink: accents.blueText,
-            primary: false,
-            accessibilityLabel: "Community inbox",
-          },
-          {
-            href: "/community/settings",
-            label: "Profile",
-            description: "Your social profile and Community choices",
-            caption: "Your Community choices",
-            icon: "🌿",
-            surface: accents.peach,
-            ink: accents.peachText,
-            primary: false,
-            accessibilityLabel: "My Community profile and settings",
-          },
-          {
-            href: "/community/more",
-            label: "Activities & sharing",
-            description: "Groups, messages, routines and sharing choices",
-            caption: "More ways to connect",
-            icon: "🌱",
-            surface: accents.mint,
-            ink: accents.mintText,
-            primary: false,
-            accessibilityLabel: "More Community features",
-          },
-        ].map((destination) => (
-          <Link key={destination.href} href={destination.href as Href} asChild>
-            <Pressable
-              style={StyleSheet.flatten([
-                styles.navigationCard,
-                destination.primary
-                  ? styles.findFriendsCard
-                  : styles.shortcutCard,
-                {
-                  borderColor: destination.surface,
-                  backgroundColor: destination.surface,
-                },
-              ])}
-              accessibilityRole="button"
-              accessibilityLabel={destination.accessibilityLabel}
-              accessibilityHint={destination.description}
-            >
-              <View
-                style={
-                  destination.primary
-                    ? styles.navigationTopRow
-                    : styles.shortcutTopRow
-                }
-              >
-                <Text
-                  accessible={false}
-                  importantForAccessibility="no"
-                  style={styles.navigationIcon}
-                >
-                  {destination.icon}
-                </Text>
-                <Text
-                  style={[
-                    styles.navigationTitle,
-                    !destination.primary && styles.shortcutTitle,
-                    { color: destination.ink },
-                  ]}
-                >
-                  {destination.label}
-                </Text>
-                {destination.primary && (
-                  <Text
-                    accessible={false}
-                    style={[styles.navigationArrow, { color: destination.ink }]}
-                  >
-                    ›
-                  </Text>
-                )}
-              </View>
-              {destination.primary && (
-                <Text
-                  style={[
-                    styles.navigationDescription,
-                    { color: destination.ink },
-                  ]}
-                >
-                  {destination.caption}
-                </Text>
-              )}
-            </Pressable>
-          </Link>
-        ))}
+      <CommunityRootHeader selected="feed" />
+      <View style={styles.feedActions}>
+        <CommunityButton
+          label="Share workout"
+          href={"/community/share" as Href}
+          tone="primary"
+        />
+        <CommunityButton label="Spaces" href="/community/more" />
       </View>
-      <Text
-        accessibilityRole="header"
-        style={[styles.feedHeading, { color: colors.text }]}
-      >
-        Friends’ activity
-      </Text>
-      <Text style={[styles.feedDescription, { color: colors.textSecondary }]}>
-        Shared workouts from friends you follow.
-      </Text>
-
       {state.error ? (
-        <View style={[styles.errorBanner, { backgroundColor: "#DC262615" }]}>
+        <View
+          style={[
+            styles.errorBanner,
+            { backgroundColor: colors.backgroundElement },
+          ]}
+        >
           <Text
             accessibilityRole="alert"
-            style={[styles.errorText, { color: "#DC2626" }]}
+            style={[styles.errorText, { color: colors.text }]}
           >
             {state.error}
           </Text>
-          <Pressable
-            onPress={handleRefresh}
-            style={styles.retryButton}
-            accessibilityRole="button"
-            accessibilityLabel="Retry loading feed"
-          >
-            <Text style={[styles.retryText, { color: colors.primary }]}>
-              Retry
-            </Text>
-          </Pressable>
+          <CommunityButton label="Retry loading feed" onPress={handleRefresh} />
         </View>
       ) : null}
     </View>
@@ -672,118 +551,29 @@ function FeedScreenContent({
         />
       </View>
     ) : (
-      <View
-        style={[
-          styles.emptyContainer,
-          {
-            backgroundColor: accents.mint,
-            borderColor: "transparent",
-          },
-        ]}
-      >
-        {state.error ? (
-          <>
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>
-              Activity is unavailable
-            </Text>
-            <Text style={[styles.emptyBody, { color: accents.mintText }]}>
-              Use Retry above to check again. Your private tracking stays
-              available.
-            </Text>
-          </>
-        ) : (
-          <>
-            <View
-              style={styles.encouragementArt}
-              accessible={false}
-              importantForAccessibility="no-hide-descendants"
-            >
-              <Text
-                style={[styles.artBubble, { backgroundColor: accents.purple }]}
-              >
-                👏
-              </Text>
-              <Text
-                style={[styles.artBubble, { backgroundColor: accents.peach }]}
-              >
-                🙌
-              </Text>
-              <Text
-                style={[styles.artBubble, { backgroundColor: accents.blue }]}
-              >
-                💪
-              </Text>
-            </View>
-            <Text style={[styles.emptyTitle, { color: accents.mintText }]}>
-              Cheer each other on
-            </Text>
-            <Text style={[styles.emptyBody, { color: accents.mintText }]}>
-              Follow a friend. After they approve, the workouts they choose to
-              share appear here.
-            </Text>
-            <Link href={"/community/invite" as Href} asChild>
-              <Pressable
-                style={StyleSheet.flatten([
-                  styles.inviteButton,
-                  { backgroundColor: "#047857" },
-                ])}
-                accessibilityRole="button"
-                accessibilityLabel="Find a friend"
-              >
-                <Text style={[styles.inviteButtonText, { color: "#FFFFFF" }]}>
-                  Find friends
-                </Text>
-              </Pressable>
-            </Link>
-          </>
-        )}
+      <View style={styles.emptyContainer}>
+        <Text
+          accessibilityRole="header"
+          style={[styles.emptyTitle, { color: colors.text }]}
+        >
+          {state.error ? "Activity is unavailable" : "No shared workouts yet"}
+        </Text>
+        <Text style={[styles.emptyBody, { color: colors.textSecondary }]}>
+          {state.error
+            ? "Retry to check again. Your private tracking stays available."
+            : "Workouts people choose to share appear here after they approve your follow request."}
+        </Text>
+        {!state.error ? (
+          <CommunityButton
+            label="Find people"
+            href={"/community/people" as Href}
+          />
+        ) : null}
       </View>
     );
 
-  // Footer component (pagination loading or caught up indicator)
   const footerComponent = (
     <View style={styles.footerContainer}>
-      <View
-        style={[
-          styles.sharingNote,
-          {
-            backgroundColor: accents.purple,
-            borderColor: accents.purple,
-          },
-        ]}
-      >
-        <Text style={[styles.noteTitle, { color: accents.purpleText }]}>
-          Your workout. Your choice.
-        </Text>
-        <Text style={[styles.noteBody, { color: accents.purpleText }]}>
-          Preview a saved workout before sharing. Choose a simple summary or
-          include exercises, sets and weights. Notes and health integrations
-          stay private.
-        </Text>
-        <Link href={"/workouts" as Href} asChild>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Open saved workouts"
-            style={styles.noteAction}
-          >
-            <Text
-              style={[
-                styles.noteTitle,
-                styles.noteActionLabel,
-                { color: colors.text },
-              ]}
-            >
-              Open saved workouts
-            </Text>
-            <Text
-              accessible={false}
-              style={[styles.navigationArrow, { color: colors.textSecondary }]}
-            >
-              ›
-            </Text>
-          </Pressable>
-        </Link>
-      </View>
       {state.status === "loading_more" ? (
         <ActivityIndicator size="small" color={colors.primary} />
       ) : membershipVerified && state.items.length > 0 && !state.hasMore ? (
@@ -865,8 +655,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     marginTop: 12,
   },
+  feedActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    paddingTop: 8,
+  },
   headerBar: {
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingBottom: 8,
   },
   subtitle: {
     fontSize: 14,

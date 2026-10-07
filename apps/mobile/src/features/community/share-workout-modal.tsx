@@ -14,6 +14,7 @@ import {
   View,
 } from "react-native";
 import { useTheme } from "@/hooks/use-theme";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { SharedWorkoutDetails } from "./shared-workout-details";
 import { randomUUID } from "expo-crypto";
 import type {
@@ -325,347 +326,375 @@ export function ShareWorkoutModal({
     <Modal
       visible={visible}
       animationType="slide"
-      transparent
+      presentationStyle="pageSheet"
       onRequestClose={onDismiss}
     >
-      <KeyboardAvoidingView
-        style={styles.overlay}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor: colors.background }}
+        edges={["top", "bottom", "left", "right"]}
       >
-        <ScrollView style={styles.card} keyboardShouldPersistTaps="handled">
-          {/* Header */}
-          <View style={styles.headerRow}>
-            <Text style={styles.title}>Share workout</Text>
-            <Pressable
-              onPress={onDismiss}
-              accessibilityRole="button"
-              accessibilityLabel="Close"
-              hitSlop={8}
-            >
-              <Text style={styles.closeBtn}>✕</Text>
-            </Pressable>
-          </View>
-
-          {!principalKey ? (
-            <View style={styles.centerBox}>
-              <Text style={styles.notEnrolledText}>
-                Sign in to share a workout.
-              </Text>
-            </View>
-          ) : !foreground.current ||
-            loading ||
-            profileStatus === "loading" ||
-            profileStatus === "idle" ? (
-            <View style={styles.centerBox}>
-              <ActivityIndicator size="large" color={colors.primary} />
-              <Text style={styles.loadingText}>
-                Preparing workout preview...
-              </Text>
-            </View>
-          ) : profileError ? (
-            <View style={styles.centerBox}>
-              <Text style={styles.errorText}>{profileError}</Text>
+        <KeyboardAvoidingView
+          style={styles.overlay}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <ScrollView
+            style={styles.card}
+            contentContainerStyle={{ paddingBottom: 32 }}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Header */}
+            <View style={styles.headerRow}>
+              <Text style={styles.title}>Share workout</Text>
               <Pressable
-                style={styles.primaryBtn}
-                onPress={() => void profileActions.load()}
-                accessibilityRole="button"
-              >
-                <Text style={styles.primaryBtnText}>
-                  Check Community status
-                </Text>
-              </Pressable>
-            </View>
-          ) : !isEnrolled ? (
-            <View style={styles.centerBox}>
-              <Text style={styles.notEnrolledText}>
-                Join Community to share workouts with your approved followers.
-              </Text>
-              <Pressable
-                style={styles.keepPrivateBtn}
                 onPress={onDismiss}
                 accessibilityRole="button"
+                accessibilityLabel="Close"
+                hitSlop={8}
               >
-                <Text style={styles.keepPrivateText}>Close</Text>
+                <Text style={styles.closeBtn}>✕</Text>
               </Pressable>
             </View>
-          ) : error ? (
-            <View style={styles.centerBox}>
-              <Text style={styles.errorText}>{error}</Text>
-              {preview && (
+
+            {!principalKey ? (
+              <View style={styles.centerBox}>
+                <Text style={styles.notEnrolledText}>
+                  Sign in to share a workout.
+                </Text>
+              </View>
+            ) : !foreground.current ||
+              loading ||
+              profileStatus === "loading" ||
+              profileStatus === "idle" ? (
+              <View style={styles.centerBox}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={styles.loadingText}>
+                  Preparing workout preview...
+                </Text>
+              </View>
+            ) : profileError ? (
+              <View style={styles.centerBox}>
+                <Text style={styles.errorText}>{profileError}</Text>
                 <Pressable
                   style={styles.primaryBtn}
-                  onPress={
-                    failedAction === "revoke" ? handleUnpublish : handlePublish
-                  }
-                  disabled={submitting}
+                  onPress={() => void profileActions.load()}
                   accessibilityRole="button"
                 >
                   <Text style={styles.primaryBtnText}>
-                    {failedAction === "revoke"
-                      ? "Retry unpublishing"
-                      : "Retry sharing"}
+                    Check Community status
                   </Text>
                 </Pressable>
-              )}
-              {!preview && (
-                <Pressable
-                  style={styles.primaryBtn}
-                  onPress={() =>
-                    setForegroundRevision((revision) => revision + 1)
-                  }
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.primaryBtnText}>
-                    Reload workout preview
-                  </Text>
-                </Pressable>
-              )}
-              <Pressable
-                style={styles.keepPrivateBtn}
-                onPress={onDismiss}
-                accessibilityRole="button"
-              >
-                <Text style={styles.keepPrivateText}>Dismiss</Text>
-              </Pressable>
-            </View>
-          ) : (
-            <>
-              <Text style={styles.subtitle}>Workout Completed! 🎉</Text>
-              <Text style={styles.previewHeading}>
-                What your friends will see:
-              </Text>
-
-              {/* Shared Card Preview Box */}
-              <View style={styles.previewBox}>
-                <View style={styles.authorRow}>
-                  <InitialsAvatar
-                    symbol={profile?.avatarSymbol ?? "ME"}
-                    seed={profile?.displayName ?? "You"}
-                    accessibilityLabel={profile?.displayName ?? "You"}
-                    size={38}
-                  />
-                  <View style={styles.authorTextCol}>
-                    <Text style={styles.authorName}>
-                      {profile?.displayName ?? "You"}
-                    </Text>
-                    <Text style={styles.authorHandle}>
-                      @{profile?.handle ?? "handle"}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.activityDetails}>
-                  <Text style={styles.categoryText}>
-                    {categoryMeta.icon} {categoryMeta.label}
-                  </Text>
-                  <Text style={styles.metaText}>
-                    {includeDuration && durationMin !== null
-                      ? `⏱️ ${durationMin} min · ${preview?.sharedDay}`
-                      : preview?.sharedDay}
-                  </Text>
-                </View>
               </View>
-
-              <Text style={styles.checkboxLabel}>Selected calendar day</Text>
-              <TextInput
-                value={preview?.sharedDay ?? ""}
-                accessibilityLabel="Shared calendar day YYYY-MM-DD"
-                style={styles.metaText}
-                placeholder="YYYY-MM-DD"
-                editable={!submitting}
-                onChangeText={(sharedDay) => {
-                  publicationOperation.current = null;
-                  setPreview((current) =>
-                    current ? { ...current, sharedDay } : current,
-                  );
-                }}
-              />
-              <Text style={styles.checkboxLabel}>Generic workout category</Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {(Object.keys(CATEGORY_LABELS) as WorkoutCategory[]).map(
-                  (category) => (
-                    <Pressable
-                      key={category}
-                      disabled={submitting}
-                      accessibilityRole="radio"
-                      accessibilityState={{
-                        selected: preview?.category === category,
-                      }}
-                      onPress={() => {
-                        publicationOperation.current = null;
-                        setPreview((current) =>
-                          current ? { ...current, category } : current,
-                        );
-                      }}
-                    >
-                      <Text style={styles.metaText}>
-                        {preview?.category === category ? "● " : "○ "}
-                        {CATEGORY_LABELS[category].label}
-                      </Text>
-                    </Pressable>
-                  ),
-                )}
-              </View>
-              {/* Duration toggle checkbox */}
-              {durationMin !== null && (
-                <Pressable
-                  style={styles.checkboxRow}
-                  disabled={submitting}
-                  onPress={() => {
-                    publicationOperation.current = null;
-                    setIncludeDuration((prev) => !prev);
-                  }}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: includeDuration }}
-                >
-                  <View
-                    style={[
-                      styles.checkbox,
-                      includeDuration && styles.checkboxActive,
-                    ]}
-                  >
-                    {includeDuration && <Text style={styles.checkmark}>✓</Text>}
-                  </View>
-                  <Text style={styles.checkboxLabel}>
-                    Include duration ({durationMin} min)
-                  </Text>
-                </Pressable>
-              )}
-
-              {preview?.workoutDetails ? (
-                <Pressable
-                  style={styles.checkboxRow}
-                  disabled={submitting}
-                  onPress={() => {
-                    publicationOperation.current = null;
-                    setIncludeWorkoutDetails((value) => !value);
-                  }}
-                  accessibilityRole="checkbox"
-                  accessibilityLabel="Include exercises, sets, reps and weights"
-                  accessibilityState={{
-                    checked: includeWorkoutDetails,
-                    disabled: submitting,
-                  }}
-                >
-                  <View
-                    style={[
-                      styles.checkbox,
-                      includeWorkoutDetails && styles.checkboxActive,
-                    ]}
-                  >
-                    {includeWorkoutDetails && (
-                      <Text style={styles.checkmark}>✓</Text>
-                    )}
-                  </View>
-                  <Text style={[styles.checkboxLabel, { flex: 1 }]}>
-                    Include exercises, sets, reps and weights
-                  </Text>
-                </Pressable>
-              ) : null}
-              {includeWorkoutDetails && preview?.workoutDetails ? (
-                <View style={styles.previewBox}>
-                  <Text style={styles.previewHeading}>
-                    These workout details will be shared
-                  </Text>
-                  <SharedWorkoutDetails details={preview.workoutDetails} />
-                </View>
-              ) : null}
-
-              {preview?.workoutDetails ? (
-                <Text style={styles.privacyBody}>
-                  Check every exercise name before sharing. Custom names can
-                  contain personal information.
+            ) : !isEnrolled ? (
+              <View style={styles.centerBox}>
+                <Text style={styles.notEnrolledText}>
+                  Join Community to share workouts with your approved followers.
                 </Text>
-              ) : preview?.existingActivity?.workoutDetails ? (
-                <Text style={styles.privacyBody}>
-                  Current workout details are unavailable. Confirming this
-                  update removes the previously shared exercise and set details.
-                </Text>
-              ) : null}
-              {/* Sharing disclosure */}
-              <View style={styles.privacyNoticeBox}>
-                <Text style={styles.privacyHeading}>
-                  🔒 You choose what to share
-                </Text>
-                <Text style={styles.privacyBody}>
-                  Your category and selected day are shared. Duration and
-                  workout details are shared only when selected above. Workout
-                  titles, notes, health integrations, Coach context and
-                  unselected fields stay private. Updating clears encouragement
-                  reactions.
-                </Text>
-              </View>
-
-              {/* Audience badge */}
-              <Text style={styles.audienceText}>
-                Audience: {preview?.followerCount ?? 0} approved followers.
-                Friends you approve later can also see this card until you
-                unpublish it.
-              </Text>
-
-              {/* Action buttons */}
-              <View style={styles.btnCol}>
-                <Pressable
-                  style={[styles.primaryBtn, submitting && styles.btnDisabled]}
-                  onPress={handlePublish}
-                  disabled={
-                    submitting || !preview || preview.workoutId !== workoutId
-                  }
-                  accessibilityRole="button"
-                >
-                  {submitting ? (
-                    <ActivityIndicator color={colors.text} />
-                  ) : (
-                    <Text style={styles.primaryBtnText}>
-                      {preview?.existingActivity?.revokedAt
-                        ? "Share again"
-                        : effectiveActivityId
-                          ? "Confirm Updated Card"
-                          : "Share to Feed"}
-                    </Text>
-                  )}
-                </Pressable>
-
-                {effectiveActivityId &&
-                  !preview?.existingActivity?.revokedAt && (
-                    <Pressable
-                      style={styles.unpublishBtn}
-                      onPress={() =>
-                        Alert.alert(
-                          "Unpublish this card?",
-                          "Friends lose access immediately. Copies they already made cannot be recalled. Your private workout stays intact.",
-                          [
-                            { text: "Cancel", style: "cancel" },
-                            {
-                              text: "Unpublish",
-                              style: "destructive",
-                              onPress: () => void handleUnpublish(),
-                            },
-                          ],
-                        )
-                      }
-                      disabled={submitting}
-                      accessibilityRole="button"
-                    >
-                      <Text style={styles.unpublishBtnText}>
-                        Unpublish Workout
-                      </Text>
-                    </Pressable>
-                  )}
-
                 <Pressable
                   style={styles.keepPrivateBtn}
                   onPress={onDismiss}
-                  disabled={submitting}
                   accessibilityRole="button"
                 >
-                  <Text style={styles.keepPrivateText}>Keep Private</Text>
+                  <Text style={styles.keepPrivateText}>Close</Text>
                 </Pressable>
               </View>
-            </>
-          )}
-        </ScrollView>
-      </KeyboardAvoidingView>
+            ) : error ? (
+              <View style={styles.centerBox}>
+                <Text style={styles.errorText}>{error}</Text>
+                {preview && (
+                  <Pressable
+                    style={styles.primaryBtn}
+                    onPress={
+                      failedAction === "revoke"
+                        ? handleUnpublish
+                        : handlePublish
+                    }
+                    disabled={submitting}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.primaryBtnText}>
+                      {failedAction === "revoke"
+                        ? "Retry unpublishing"
+                        : "Retry sharing"}
+                    </Text>
+                  </Pressable>
+                )}
+                {!preview && (
+                  <Pressable
+                    style={styles.primaryBtn}
+                    onPress={() =>
+                      setForegroundRevision((revision) => revision + 1)
+                    }
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.primaryBtnText}>
+                      Reload workout preview
+                    </Text>
+                  </Pressable>
+                )}
+                <Pressable
+                  style={styles.keepPrivateBtn}
+                  onPress={onDismiss}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.keepPrivateText}>Dismiss</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.subtitle}>Choose what to include</Text>
+                <Text style={styles.previewHeading}>
+                  Preview for your approved followers
+                </Text>
+
+                {/* Shared Card Preview Box */}
+                <View style={styles.previewBox}>
+                  <View style={styles.authorRow}>
+                    <InitialsAvatar
+                      symbol={profile?.avatarSymbol ?? "ME"}
+                      seed={profile?.displayName ?? "You"}
+                      accessibilityLabel={profile?.displayName ?? "You"}
+                      size={38}
+                    />
+                    <View style={styles.authorTextCol}>
+                      <Text style={styles.authorName}>
+                        {profile?.displayName ?? "You"}
+                      </Text>
+                      <Text style={styles.authorHandle}>
+                        @{profile?.handle ?? "handle"}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.activityDetails}>
+                    <Text style={styles.categoryText}>
+                      {categoryMeta.label}
+                    </Text>
+                    <Text style={styles.metaText}>
+                      {includeDuration && durationMin !== null
+                        ? `⏱️ ${durationMin} min · ${preview?.sharedDay}`
+                        : preview?.sharedDay}
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={styles.checkboxLabel}>Selected calendar day</Text>
+                <TextInput
+                  value={preview?.sharedDay ?? ""}
+                  accessibilityLabel="Shared calendar day YYYY-MM-DD"
+                  style={styles.metaText}
+                  placeholder="YYYY-MM-DD"
+                  editable={!submitting}
+                  onChangeText={(sharedDay) => {
+                    publicationOperation.current = null;
+                    setPreview((current) =>
+                      current ? { ...current, sharedDay } : current,
+                    );
+                  }}
+                />
+                <Text style={styles.checkboxLabel}>
+                  Generic workout category
+                </Text>
+                <View
+                  style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}
+                >
+                  {(Object.keys(CATEGORY_LABELS) as WorkoutCategory[]).map(
+                    (category) => (
+                      <Pressable
+                        key={category}
+                        disabled={submitting}
+                        accessibilityRole="radio"
+                        style={{
+                          minHeight: 48,
+                          justifyContent: "center",
+                          paddingHorizontal: 8,
+                        }}
+                        accessibilityState={{
+                          selected: preview?.category === category,
+                        }}
+                        onPress={() => {
+                          publicationOperation.current = null;
+                          setPreview((current) =>
+                            current ? { ...current, category } : current,
+                          );
+                        }}
+                      >
+                        <Text style={styles.metaText}>
+                          {preview?.category === category ? "● " : "○ "}
+                          {CATEGORY_LABELS[category].label}
+                        </Text>
+                      </Pressable>
+                    ),
+                  )}
+                </View>
+                {/* Duration toggle checkbox */}
+                {durationMin !== null && (
+                  <Pressable
+                    style={styles.checkboxRow}
+                    disabled={submitting}
+                    onPress={() => {
+                      publicationOperation.current = null;
+                      setIncludeDuration((prev) => !prev);
+                    }}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: includeDuration }}
+                  >
+                    <View
+                      style={[
+                        styles.checkbox,
+                        includeDuration && styles.checkboxActive,
+                      ]}
+                    >
+                      {includeDuration && (
+                        <Text style={styles.checkmark}>✓</Text>
+                      )}
+                    </View>
+                    <Text style={styles.checkboxLabel}>
+                      Include duration ({durationMin} min)
+                    </Text>
+                  </Pressable>
+                )}
+
+                {preview?.workoutDetails ? (
+                  <Pressable
+                    style={styles.checkboxRow}
+                    disabled={submitting}
+                    onPress={() => {
+                      publicationOperation.current = null;
+                      setIncludeWorkoutDetails((value) => !value);
+                    }}
+                    accessibilityRole="checkbox"
+                    accessibilityLabel="Include exercises, sets, reps and weights"
+                    accessibilityState={{
+                      checked: includeWorkoutDetails,
+                      disabled: submitting,
+                    }}
+                  >
+                    <View
+                      style={[
+                        styles.checkbox,
+                        includeWorkoutDetails && styles.checkboxActive,
+                      ]}
+                    >
+                      {includeWorkoutDetails && (
+                        <Text style={styles.checkmark}>✓</Text>
+                      )}
+                    </View>
+                    <Text style={[styles.checkboxLabel, { flex: 1 }]}>
+                      Include exercises, sets, reps and weights
+                    </Text>
+                  </Pressable>
+                ) : null}
+                {includeWorkoutDetails && preview?.workoutDetails ? (
+                  <View style={styles.previewBox}>
+                    <Text style={styles.previewHeading}>
+                      These workout details will be shared
+                    </Text>
+                    <SharedWorkoutDetails details={preview.workoutDetails} />
+                  </View>
+                ) : null}
+
+                {preview?.workoutDetails ? (
+                  <Text style={styles.privacyBody}>
+                    Check every exercise name before sharing. Custom names can
+                    contain personal information.
+                  </Text>
+                ) : preview?.existingActivity?.workoutDetails ? (
+                  <Text style={styles.privacyBody}>
+                    Current workout details are unavailable. Confirming this
+                    update removes the previously shared exercise and set
+                    details.
+                  </Text>
+                ) : null}
+                {/* Sharing disclosure */}
+                <View style={styles.privacyNoticeBox}>
+                  <Text style={styles.privacyHeading}>
+                    Your sharing choices
+                  </Text>
+                  <Text style={styles.privacyBody}>
+                    Your category and selected day are shared. Duration and
+                    workout details are shared only when selected above. Workout
+                    titles, notes, health integrations, Coach context and
+                    unselected fields stay private. Updating clears
+                    encouragement reactions.
+                  </Text>
+                </View>
+
+                {/* Audience badge */}
+                <Text style={styles.audienceText}>
+                  Audience: current and future approved followers.{" "}
+                  {preview?.followerCount ?? 0} currently approved. Already
+                  viewed or copied content cannot be recalled.
+                </Text>
+
+                {/* Action buttons */}
+                <View style={styles.btnCol}>
+                  <Pressable
+                    style={[
+                      styles.primaryBtn,
+                      submitting && styles.btnDisabled,
+                    ]}
+                    onPress={handlePublish}
+                    disabled={
+                      submitting || !preview || preview.workoutId !== workoutId
+                    }
+                    accessibilityRole="button"
+                  >
+                    {submitting ? (
+                      <ActivityIndicator color={colors.text} />
+                    ) : (
+                      <Text style={styles.primaryBtnText}>
+                        {preview?.existingActivity?.revokedAt
+                          ? "Share again"
+                          : effectiveActivityId
+                            ? "Update shared workout"
+                            : "Publish workout"}
+                      </Text>
+                    )}
+                  </Pressable>
+
+                  {effectiveActivityId &&
+                    !preview?.existingActivity?.revokedAt && (
+                      <Pressable
+                        style={styles.unpublishBtn}
+                        onPress={() =>
+                          Alert.alert(
+                            "Unpublish this card?",
+                            "Friends lose access immediately. Copies they already made cannot be recalled. Your private workout stays intact.",
+                            [
+                              { text: "Cancel", style: "cancel" },
+                              {
+                                text: "Unpublish",
+                                style: "destructive",
+                                onPress: () => void handleUnpublish(),
+                              },
+                            ],
+                          )
+                        }
+                        disabled={submitting}
+                        accessibilityRole="button"
+                      >
+                        <Text style={styles.unpublishBtnText}>
+                          Unpublish workout
+                        </Text>
+                      </Pressable>
+                    )}
+
+                  <Pressable
+                    style={styles.keepPrivateBtn}
+                    onPress={onDismiss}
+                    disabled={submitting}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.keepPrivateText}>
+                      {effectiveActivityId ? "Cancel" : "Keep private"}
+                    </Text>
+                  </Pressable>
+                </View>
+              </>
+            )}
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
     </Modal>
   );
 }
@@ -674,15 +703,14 @@ const createStyles = (colors: ReturnType<typeof useTheme>) =>
   StyleSheet.create({
     overlay: {
       flex: 1,
-      backgroundColor: "rgba(0,0,0,0.55)",
+      backgroundColor: colors.background,
       justifyContent: "flex-end",
     },
     card: {
       backgroundColor: colors.background,
-      borderTopLeftRadius: 20,
-      borderTopRightRadius: 20,
+
       padding: 24,
-      maxHeight: "90%",
+      flex: 1,
     },
     headerRow: {
       flexDirection: "row",
@@ -698,20 +726,20 @@ const createStyles = (colors: ReturnType<typeof useTheme>) =>
     closeBtn: {
       color: colors.textSecondary,
       fontSize: 20,
-      padding: 4,
+      padding: 12,
+      minWidth: 48,
+      minHeight: 48,
     },
     subtitle: {
-      color: "#34C759",
+      color: colors.textSecondary,
       fontSize: 16,
       fontWeight: "600",
       marginBottom: 16,
     },
     previewHeading: {
       color: colors.textSecondary,
-      fontSize: 13,
+      fontSize: 17,
       fontWeight: "600",
-      textTransform: "uppercase",
-      letterSpacing: 0.5,
       marginBottom: 8,
     },
     previewBox: {
@@ -753,6 +781,7 @@ const createStyles = (colors: ReturnType<typeof useTheme>) =>
       fontSize: 14,
     },
     checkboxRow: {
+      minHeight: 48,
       flexDirection: "row",
       alignItems: "center",
       marginBottom: 16,
@@ -781,11 +810,7 @@ const createStyles = (colors: ReturnType<typeof useTheme>) =>
       fontSize: 15,
     },
     privacyNoticeBox: {
-      backgroundColor: "rgba(0,122,255,0.1)",
-      borderLeftWidth: 3,
-      borderLeftColor: colors.primary,
-      borderRadius: 8,
-      padding: 12,
+      paddingVertical: 12,
       marginBottom: 14,
     },
     privacyHeading: {
@@ -796,19 +821,20 @@ const createStyles = (colors: ReturnType<typeof useTheme>) =>
     },
     privacyBody: {
       color: colors.textSecondary,
-      fontSize: 12,
-      lineHeight: 16,
+      fontSize: 14,
+      lineHeight: 21,
     },
     audienceText: {
       color: colors.textSecondary,
       fontSize: 13,
-      textAlign: "center",
+      lineHeight: 21,
       marginBottom: 16,
     },
     btnCol: {
       gap: 10,
     },
     primaryBtn: {
+      minHeight: 48,
       backgroundColor: colors.primary,
       borderRadius: 12,
       paddingVertical: 14,
@@ -832,6 +858,7 @@ const createStyles = (colors: ReturnType<typeof useTheme>) =>
       fontWeight: "600",
     },
     keepPrivateBtn: {
+      minHeight: 48,
       paddingVertical: 10,
       alignItems: "center",
     },
@@ -852,13 +879,13 @@ const createStyles = (colors: ReturnType<typeof useTheme>) =>
     notEnrolledText: {
       color: "#FF9F0A",
       fontSize: 15,
-      textAlign: "center",
+      lineHeight: 21,
       marginBottom: 16,
     },
     errorText: {
       color: "#FF453A",
       fontSize: 14,
-      textAlign: "center",
+      lineHeight: 21,
       marginBottom: 16,
     },
     btnDisabled: {

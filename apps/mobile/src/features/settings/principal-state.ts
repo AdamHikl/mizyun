@@ -49,6 +49,12 @@ export const reducePrincipalState = (input: {
     return { kind: "ready", principal: input.result.value };
   }
   switch (input.result.error.kind) {
+    case "context_changed":
+      return {
+        kind: "unexpected",
+        message:
+          "This request is no longer current. Refresh your account details.",
+      };
     case "no_session":
       return { kind: "no_session" };
     case "session_expired":

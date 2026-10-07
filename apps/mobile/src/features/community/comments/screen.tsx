@@ -35,7 +35,7 @@ import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
 import { MaxContentWidth } from "@/constants/theme";
 import { ThemedText } from "@/components/themed-text";
-import { CommunityIntro } from "../community-presentation";
+import { CommunityIdentityLink, CommunityPage } from "../ui";
 import { CommentsController } from "./controller";
 
 export function CommunityCommentsScreen() {
@@ -161,7 +161,7 @@ function CommentsContent({
       style={[
         styles.button,
         {
-          backgroundColor: theme.backgroundElement,
+          backgroundColor: theme.background,
           borderColor: theme.border,
           opacity: disabled ? 0.5 : 1,
         },
@@ -253,30 +253,14 @@ function CommentsContent({
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={{ flex: 1, backgroundColor: theme.background }}
     >
-      <ScrollView
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
+      <CommunityPage
+        title={activityId ? "Workout discussion" : "Mention updates"}
+        backHref={
+          activityId
+            ? (`/community/activity/${activityId}` as Href)
+            : "/community/settings"
+        }
       >
-        <Stack.Screen
-          options={{
-            title: activityId ? "Workout discussion" : "Comment updates",
-          }}
-        />
-        <CommunityIntro
-          icon="💬"
-          title={activityId ? "A little conversation" : "Your comment updates"}
-          description={
-            activityId
-              ? "Share supportive plain text with the people who can see this workout. Private workout notes stay private."
-              : "Find workouts where an approved friend mentioned you, and choose whether friends can mention you."
-          }
-          tone="blue"
-        />
-        {button(
-          "Back to Community",
-          () => router.replace("/(tabs)/community" as Href),
-          false,
-        )}
         {!principal ? (
           <ThemedText>
             Sign in to use Community comments. Your private tracking stays
@@ -298,15 +282,17 @@ function CommentsContent({
                 {state.notice}
               </ThemedText>
             )}
-            {toggle(
-              "Allow approved friends to mention me",
-              state.allowMentions,
-              () => void controller.preferences(!state.allowMentions),
-            )}
-            {button(
-              "Stop all comment mention updates",
-              () => void controller.preferences(false),
-            )}
+            {!activityId &&
+              toggle(
+                "Allow approved friends to mention me",
+                state.allowMentions,
+                () => void controller.preferences(!state.allowMentions),
+              )}
+            {!activityId &&
+              button(
+                "Stop all comment mention updates",
+                () => void controller.preferences(false),
+              )}
             {!activityId &&
               !state.busy &&
               !state.error &&
@@ -357,13 +343,16 @@ function CommentsContent({
                       styles.comment,
                       {
                         borderColor: theme.border,
-                        backgroundColor: theme.backgroundElement,
+                        backgroundColor: theme.background,
                       },
                     ]}
                   >
-                    <ThemedText accessibilityRole="header">
-                      {comment.author.displayName} · @{comment.author.handle}
-                    </ThemedText>
+                    <CommunityIdentityLink
+                      userId={comment.author.userId}
+                      displayName={comment.author.displayName}
+                      handle={comment.author.handle}
+                      avatarKey={comment.author.avatarSymbol}
+                    />
                     {comment.parentId && (
                       <ThemedText>Reply in this discussion</ThemedText>
                     )}
@@ -503,7 +492,7 @@ function CommentsContent({
             )}
           </>
         )}
-      </ScrollView>
+      </CommunityPage>
     </KeyboardAvoidingView>
   );
 }
@@ -524,7 +513,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginVertical: 3,
   },
-  comment: { padding: 16, gap: 8, borderWidth: 1, borderRadius: 16 },
+  comment: {
+    paddingVertical: 16,
+    gap: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
   composer: { gap: 12, paddingVertical: 14 },
   input: {
     minHeight: 110,

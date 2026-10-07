@@ -307,3 +307,9 @@ describe("comments composer authority expiry", () => {
     );
   });
 });
+
+vi.mock("../ui", () => ({
+  CommunityPage: "CommunityPage",
+  CommunityIdentityLink: "CommunityIdentityLink",
+  CommunityButton: "CommunityButton",
+}));

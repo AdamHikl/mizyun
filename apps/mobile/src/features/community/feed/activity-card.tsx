@@ -7,7 +7,7 @@ import type {
 import { useTheme } from "@/hooks/use-theme";
 import type { ScopedCommunityClient } from "../community-client";
 import { SharedWorkoutDetails } from "../shared-workout-details";
-import { InitialsAvatar } from "../initials-avatar";
+import { CommunityIdentityLink } from "../ui";
 import { ReactionBar } from "../reactions";
 import {
   formatCategory,
@@ -58,7 +58,7 @@ export function ActivityCard({
       style={[
         styles.card,
         {
-          backgroundColor: colors.backgroundElement,
+          backgroundColor: colors.background,
           borderColor: colors.border,
         },
       ]}
@@ -67,21 +67,13 @@ export function ActivityCard({
       {/* Author Header */}
       <View style={styles.header}>
         <View style={styles.authorRow}>
-          <InitialsAvatar
-            seed={item.authorDisplayName}
-            symbol={item.authorAvatarSymbol}
-            size={40}
-            accessibilityLabel={`${item.authorDisplayName}'s avatar`}
-          />
           <View style={styles.authorDetails}>
-            <View style={styles.nameRow}>
-              <Text style={[styles.displayName, { color: colors.text }]}>
-                {item.authorDisplayName}
-              </Text>
-              <Text style={[styles.handle, { color: colors.textSecondary }]}>
-                @{item.authorHandle}
-              </Text>
-            </View>
+            <CommunityIdentityLink
+              userId={item.authorUserId}
+              displayName={item.authorDisplayName}
+              handle={item.authorHandle}
+              avatarKey={item.authorAvatarSymbol}
+            />
             {publishedAtLabel ? (
               <Text style={[styles.timestamp, { color: colors.textSecondary }]}>
                 Shared {publishedAtLabel}
@@ -125,7 +117,7 @@ export function ActivityCard({
         </Text>
         <View style={styles.metaRow}>
           <Text style={[styles.metaText, { color: colors.textSecondary }]}>
-            Day: {sharedDayLabel}
+            {sharedDayLabel}
           </Text>
           {duration ? (
             <View
@@ -136,7 +128,7 @@ export function ActivityCard({
               accessibilityLabel={`Duration: ${duration.accessible}`}
             >
               <Text style={[styles.durationText, { color: colors.text }]}>
-                ⏱ {duration.text}
+                {duration.text}
               </Text>
             </View>
           ) : null}
@@ -149,6 +141,7 @@ export function ActivityCard({
       {/* Reactions Bar */}
       {viewerUserId && scopedClient ? (
         <ReactionBar
+          compact
           activityId={item.id}
           authorUserId={item.authorUserId}
           viewerUserId={viewerUserId}
@@ -200,11 +193,9 @@ export function ActivityCard({
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 16,
-    marginHorizontal: 16,
-    marginVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 20,
+    marginHorizontal: 20,
   },
   header: {
     flexDirection: "row",

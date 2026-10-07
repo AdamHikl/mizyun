@@ -354,27 +354,8 @@ function TabLayoutContent() {
                 name="account-settings/[settingId]"
                 options={{ title: "Settings" }}
               />
-              <Stack.Screen
-                name="community/inbox"
-                options={{ title: "Community inbox" }}
-              />
-              <Stack.Screen
-                name="community/notifications"
-                options={{ title: "Community notifications" }}
-              />
+              <Stack.Screen name="community" options={{ headerShown: false }} />
               <Stack.Screen name="settings" options={{ title: "Settings" }} />
-              <Stack.Screen
-                name="community/activity/[id]"
-                options={{ title: "Shared activity" }}
-              />
-              <Stack.Screen
-                name="community/relationships"
-                options={{ title: "Your friends" }}
-              />
-              <Stack.Screen
-                name="community/invite"
-                options={{ title: "Friend Invitation", presentation: "modal" }}
-              />
             </Stack>
 
             <ActiveWorkoutMiniBar />

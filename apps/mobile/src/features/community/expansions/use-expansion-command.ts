@@ -5,7 +5,15 @@ import type { CommunityResponseSchema } from "@mizyun/contracts";
 import { apiClient } from "@/composition/api-client";
 import { useAuth } from "@/features/auth/auth-context";
 import { scopeCommunityClient } from "../scoped-client";
-import { getCommunityReadDeadline } from "../state/read-cache";
+import {
+  communityErrorCause,
+  humanizeCommunityError,
+} from "../community-client";
+import {
+  getCommunityReadDeadline,
+  getCommunityReadEpoch,
+  getCommunityResponseEpoch,
+} from "../state/read-cache";
 const PROTECTED_RESULT_LIFETIME_MS = 10_000;
 /** Foreground results expire independently of pending requests; refresh is always deliberate. */
 export function useExpansionCommand<T>(
@@ -15,20 +23,26 @@ export function useExpansionCommand<T>(
 ) {
   const { session } = useAuth();
   const principal = session?.user.id ?? null;
+  const accessToken = session?.accessToken ?? null;
   const epoch = useRef(0);
   const active = useRef(false);
   const identity = useRef(principal);
   identity.current = principal;
+  const token = useRef(accessToken);
+  token.current = accessToken;
   const authority = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const deadline = useRef<number | null>(null);
   const [snapshot, setSnapshot] = useState<{
     value: T;
     principal: string;
+    accessToken: string | null;
+    readEpoch: number;
     expiresAt: number;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [authorityDenied, setAuthorityDenied] = useState(false);
   const discardResult = useCallback(() => {
     if (timer.current !== null) clearTimeout(timer.current);
     timer.current = null;
@@ -38,18 +52,25 @@ export function useExpansionCommand<T>(
   }, []);
   const run = useCallback(
     async (body: Record<string, unknown>) => {
-      if (!principal || identity.current !== principal || !active.current)
+      if (
+        !principal ||
+        identity.current !== principal ||
+        token.current !== accessToken ||
+        !active.current
+      )
         return null;
       const id = ++epoch.current;
       let expiresAt = Date.now() + PROTECTED_RESULT_LIFETIME_MS;
       setBusy(true);
       setError(null);
+      setAuthorityDenied(false);
       const client = scopeCommunityClient(
         apiClient,
         principal,
         () =>
           active.current &&
           identity.current === principal &&
+          token.current === accessToken &&
           id === epoch.current &&
           Date.now() < expiresAt,
       );
@@ -62,6 +83,7 @@ export function useExpansionCommand<T>(
       if (
         id !== epoch.current ||
         identity.current !== principal ||
+        token.current !== accessToken ||
         !active.current
       )
         return null;
@@ -78,14 +100,31 @@ export function useExpansionCommand<T>(
       }
       if (!result.ok) {
         discardResult();
+        const error = communityErrorCause(result.error);
+        setAuthorityDenied(
+          error.kind === "no_session" ||
+            error.kind === "session_expired" ||
+            (error.kind === "http_error" &&
+              [401, 403, 404].includes(error.status)),
+        );
         setError(
-          "This action is unavailable. Refresh or check your Community choices.",
+          humanizeCommunityError(
+            result.error,
+            "This action is unavailable. Try again.",
+          ),
         );
         return null;
       }
       discardResult();
       deadline.current = expiresAt;
-      setSnapshot({ value: result.value, principal, expiresAt });
+      setSnapshot({
+        value: result.value,
+        principal,
+        accessToken,
+        readEpoch:
+          getCommunityResponseEpoch(result.value) ?? getCommunityReadEpoch(),
+        expiresAt,
+      });
       setError(null);
       // This timer belongs to the delivered result, never to the request epoch.
       // Starting a slow refresh cannot extend the previous result's lifetime.
@@ -98,7 +137,7 @@ export function useExpansionCommand<T>(
       );
       return result.value;
     },
-    [principal, path, schema, method, discardResult],
+    [principal, accessToken, path, schema, method, discardResult],
   );
   useFocusEffect(
     useCallback(() => {
@@ -108,6 +147,7 @@ export function useExpansionCommand<T>(
         discardResult();
         setBusy(false);
         setError(null);
+        setAuthorityDenied(false);
       };
       active.current = AppState.currentState === "active";
       const sub = AppState.addEventListener("change", (state) => {
@@ -119,7 +159,7 @@ export function useExpansionCommand<T>(
         sub.remove();
         clear();
       };
-    }, [principal, discardResult]),
+    }, [principal, accessToken, discardResult]),
   );
   const capture = () => {
     const captured = epoch.current;
@@ -128,13 +168,17 @@ export function useExpansionCommand<T>(
     return () =>
       active.current &&
       identity.current === principal &&
+      token.current === accessToken &&
       captured === epoch.current &&
       capturedAuthority === authority.current &&
       (expiresAt === null || Date.now() < expiresAt);
   };
   const data =
-    snapshot?.principal === principal && Date.now() < snapshot.expiresAt
+    snapshot?.principal === principal &&
+    snapshot.accessToken === accessToken &&
+    snapshot.readEpoch === getCommunityReadEpoch() &&
+    Date.now() < snapshot.expiresAt
       ? snapshot.value
       : null;
-  return { data, error, busy, run, principal, capture };
+  return { data, error, busy, authorityDenied, run, principal, capture };
 }

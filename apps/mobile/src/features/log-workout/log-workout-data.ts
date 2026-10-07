@@ -217,6 +217,8 @@ export const extractPlannedExercises = (
 
 const humanize = (error: ApiError, action: string): string => {
   switch (error.kind) {
+    case "context_changed":
+      return "This request is no longer current. Refresh before continuing.";
     case "session_expired":
       return "Your session expired. Sign in again.";
     case "network_error":

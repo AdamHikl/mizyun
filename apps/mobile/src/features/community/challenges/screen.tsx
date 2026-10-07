@@ -5,12 +5,10 @@ import {
   AppState,
   KeyboardAvoidingView,
   Platform,
-  ScrollView,
   Text,
   View,
 } from "react-native";
 import {
-  Stack,
   router,
   type Href,
   useFocusEffect,
@@ -20,7 +18,7 @@ import * as Crypto from "expo-crypto";
 import { communityChallengeResponseSchema } from "@mizyun/contracts";
 import { challengeLocalDay } from "@mizyun/core";
 import { useTheme } from "@/hooks/use-theme";
-import { CommunityIntro } from "../community-presentation";
+import { CommunityPage } from "../ui";
 import {
   ExpansionButton,
   ExpansionInput,
@@ -37,6 +35,7 @@ function CommunityChallengesScreenContent() {
     communityChallengeResponseSchema,
   );
   const t = useTheme();
+  const [creating, setCreating] = useState(false);
   const [manage, setManage] = useState(false);
   const [report, setReport] = useState(false);
   const [title, setTitle] = useState("");
@@ -55,6 +54,7 @@ function CommunityChallengesScreenContent() {
     useCallback(() => {
       setReport(false);
       setManage(false);
+      setCreating(false);
       setTitle("");
       setId(null);
       setWorkouts([]);
@@ -133,21 +133,12 @@ function CommunityChallengesScreenContent() {
       style={{ flex: 1, backgroundColor: t.background }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <ScrollView
-        style={{ flex: 1, backgroundColor: t.background }}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{
-          padding: 20,
-          gap: 16,
-          backgroundColor: t.background,
-        }}
-      >
-        <Stack.Screen options={{ title: "Together, consistently" }} />
-        <CommunityIntro
-          icon="🌿"
-          title="A small shared goal"
-          description="Deliberately join a private group challenge. Workouts and rest both count as a day of consistency. Missing declarations stay unknown. Nothing is imported from your diary or health apps automatically."
-        />
+      <CommunityPage title="Cooperative challenges" backHref="/community/more">
+        <Text style={{ color: t.textSecondary }}>
+          Deliberately join a private group challenge. Workouts and rest both
+          count as a day of consistency. Missing declarations stay unknown.
+          Nothing is imported from your diary or health apps automatically.
+        </Text>
         {state.error && (
           <Text accessibilityRole="alert" style={{ color: t.text }}>
             {state.error}
@@ -158,6 +149,7 @@ function CommunityChallengesScreenContent() {
           label="Manage my challenges"
           onPress={() => {
             setManage(true);
+            setCreating(false);
             setId(null);
             void state.run({ operation: "listMine" });
           }}
@@ -187,18 +179,24 @@ function CommunityChallengesScreenContent() {
               }}
             />
             {state.data?.challenges?.map((c) => (
-              <ExpansionButton
-                disabled={state.busy || workoutsBusy}
-                key={c.id}
-                label={`${c.title}${c.canceled ? " · canceled" : ""}`}
-                onPress={() => {
-                  setId(c.id);
-                  void state.run({
-                    operation: manage ? "getMine" : "get",
-                    id: c.id,
-                  });
-                }}
-              />
+              <View key={c.id}>
+                <ExpansionButton
+                  disabled={state.busy || workoutsBusy}
+                  label={`${c.title}${c.canceled ? " · canceled" : ""}`}
+                  onPress={() => {
+                    setCreating(false);
+                    setId(c.id);
+                    void state.run({
+                      operation: manage ? "getMine" : "get",
+                      id: c.id,
+                    });
+                  }}
+                />
+                <Text style={{ color: t.textSecondary }}>
+                  {c.startDay}–{c.endDay} · {c.goalDays} days per person ·{" "}
+                  {c.timezone}
+                </Text>
+              </View>
             ))}
             {state.data?.challenges?.length === 0 && !state.busy && (
               <Text style={{ color: t.textSecondary }}>
@@ -219,8 +217,24 @@ function CommunityChallengesScreenContent() {
                 }
               />
             )}
-            {!manage && (
+            {!manage && !creating && (
+              <ExpansionButton
+                label="Create a cooperative challenge"
+                disabled={state.busy || workoutsBusy}
+                onPress={() => setCreating(true)}
+              />
+            )}
+            {!manage && creating && (
               <>
+                <ExpansionButton
+                  label="Cancel challenge creation"
+                  disabled={state.busy || workoutsBusy}
+                  onPress={() => {
+                    setCreating(false);
+                    setTitle("");
+                    setCreateId(Crypto.randomUUID());
+                  }}
+                />
                 <ExpansionInput
                   label="New challenge title"
                   value={title}
@@ -445,7 +459,7 @@ function CommunityChallengesScreenContent() {
             )}
           </>
         )}
-      </ScrollView>
+      </CommunityPage>
     </KeyboardAvoidingView>
   );
 }

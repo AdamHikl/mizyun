@@ -147,7 +147,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const applySession = useCallback(
     (nextSession: AuthSession | null): void => {
-      setCommunityReadPrincipal(nextSession?.user.id ?? null);
+      setCommunityReadPrincipal(
+        nextSession?.user.id ?? null,
+        nextSession?.accessToken ?? null,
+      );
       const previousPushSession = pushSession.current;
       pushSession.current = nextSession;
       if (

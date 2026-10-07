@@ -1,3 +1,4 @@
+import { CommunityIdentityLink } from "../ui";
 import {
   getCommunityReadDeadline,
   invalidateCommunityReads,
@@ -9,12 +10,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView,
   Text,
   TextInput,
   View,
 } from "react-native";
-import { Stack, useFocusEffect } from "expo-router";
+import { useFocusEffect } from "expo-router";
 import * as Crypto from "expo-crypto";
 import {
   workoutListResponseSchema,
@@ -26,6 +26,7 @@ import {
 import { apiClient } from "@/composition/api-client";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
+import { CommunityPage } from "../ui";
 import { ReportModal, scopeCommunityClient } from "@/features/community";
 import {
   listRoutineShares,
@@ -63,6 +64,8 @@ function RoutinesContent({ principal }: { principal: string | null }) {
   const [routines, setRoutines] = useState<Workout[]>([]);
   const [privateBusy, setPrivateBusy] = useState(false);
   const [privateError, setPrivateError] = useState<string | null>(null);
+  const [shareTask, setShareTask] = useState(false);
+  const [openedShare, setOpenedShare] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [preview, setPreview] = useState<CommunityRoutinePreview | null>(null);
@@ -82,6 +85,8 @@ function RoutinesContent({ principal }: { principal: string | null }) {
     active.current = false;
     actionLock.current = null;
     setShares([]);
+    setOpenedShare(null);
+    setShareTask(false);
     setRoutines([]);
     privateRead.current++;
     privateLoaded.current = false;
@@ -264,17 +269,16 @@ function RoutinesContent({ principal }: { principal: string | null }) {
       disabled={disabled}
       onPress={action}
       style={{
-        borderWidth: 1,
+        borderBottomWidth: 1,
         borderColor: theme.border,
-        borderRadius: 12,
-        padding: 12,
+        paddingVertical: 12,
         minHeight: 48,
         justifyContent: "center",
         marginVertical: 5,
         opacity: disabled ? 0.5 : 1,
       }}
     >
-      <Text style={{ color: theme.text }}>{label}</Text>
+      <Text style={{ color: theme.text, fontSize: 16 }}>{label}</Text>
     </Pressable>
   );
   const showPreview = async () => {
@@ -302,24 +306,10 @@ function RoutinesContent({ principal }: { principal: string | null }) {
       style={{ flex: 1, backgroundColor: theme.background }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <Stack.Screen options={{ title: "Shared routines" }} />
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ padding: 20, gap: 12 }}
-      >
-        <Text style={{ color: theme.text, fontSize: 24, fontWeight: "700" }}>
-          Exchange a workout plan
-        </Text>
-        <Text style={{ color: theme.text }}>
-          Share only the targets you preview with your approved followers.
-          Notes, injury information, Coach context and private exercise IDs stay
-          private. Names become independent custom exercises in a recipient's
-          copy.
-        </Text>
-        <Text style={{ color: theme.text }}>
-          Shared copies can remain with recipients after you unshare, edit or
-          delete your original. Plans are suggestions; adapt them to your
-          abilities.
+      <CommunityPage title="Shared routines" backHref="/community/more">
+        <Text style={{ color: theme.textSecondary }}>
+          Preview the exact targets before sharing or saving a private copy.
+          Imported copies stay independent of the author's original.
         </Text>
         {!principal && (
           <Text style={{ color: theme.text }}>
@@ -344,177 +334,236 @@ function RoutinesContent({ principal }: { principal: string | null }) {
           },
           busy || !principal,
         )}
-        <Text style={{ color: theme.text, fontSize: 18, fontWeight: "600" }}>
-          Choose your private routine
-        </Text>
-        {privateBusy && (
-          <Text style={{ color: theme.textSecondary }}>
-            Loading your private routines…
-          </Text>
-        )}
-        {privateError && (
-          <Text accessibilityRole="alert" style={{ color: theme.text }}>
-            {privateError}
-          </Text>
-        )}
-        {routines.map((r) => (
-          <View key={r.id}>
-            {button(`${selected === r.id ? "Selected: " : ""}${r.name}`, () => {
-              setSelected(r.id);
+        {!shareTask &&
+          button("Share a private routine", () => {
+            setShareTask(true);
+            setOpenedShare(null);
+          })}
+        {shareTask && (
+          <>
+            {button("Cancel routine sharing", () => {
+              setShareTask(false);
+              setSelected(null);
               setPreview(null);
               setOperation(null);
+              setTitle("");
             })}
-          </View>
-        ))}
-        {selected && (
-          <>
-            <TextInput
-              editable={!busy}
-              accessibilityLabel="Shared routine title"
-              placeholder="Choose a title to share"
-              placeholderTextColor={theme.textSecondary}
-              maxLength={80}
-              value={title}
-              onChangeText={(text) => {
-                setTitle(text);
-                setPreview(null);
-                setOperation(null);
-              }}
-              style={{
-                color: theme.text,
-                borderWidth: 1,
-                borderColor: theme.border,
-                padding: 12,
-                borderRadius: 10,
-              }}
-            />
-            {button(
-              "Preview exact shared targets",
-              () => void showPreview(),
-              busy || !title.trim(),
+            <Text style={{ color: theme.textSecondary }}>
+              Share only the targets you preview with current and future
+              approved followers. Notes, injury information, Coach context and
+              private exercise IDs stay private. Names become independent custom
+              exercises in a recipient's copy. Shared copies can remain after
+              you unshare, edit or delete the original. Adapt plans to your
+              abilities.
+            </Text>
+            <Text
+              style={{ color: theme.text, fontSize: 18, fontWeight: "600" }}
+            >
+              Choose your private routine
+            </Text>
+            {privateBusy && (
+              <Text style={{ color: theme.textSecondary }}>
+                Loading your private routines…
+              </Text>
+            )}
+            {privateError && (
+              <Text accessibilityRole="alert" style={{ color: theme.text }}>
+                {privateError}
+              </Text>
+            )}
+            {routines.map((r) => (
+              <View key={r.id}>
+                {button(
+                  `${selected === r.id ? "Selected: " : ""}${r.name}`,
+                  () => {
+                    setSelected(r.id);
+                    setPreview(null);
+                    setOperation(null);
+                  },
+                )}
+              </View>
+            ))}
+            {selected && (
+              <>
+                <TextInput
+                  editable={!busy}
+                  accessibilityLabel="Shared routine title"
+                  placeholder="Choose a title to share"
+                  placeholderTextColor={theme.textSecondary}
+                  maxLength={80}
+                  value={title}
+                  onChangeText={(text) => {
+                    setTitle(text);
+                    setPreview(null);
+                    setOperation(null);
+                  }}
+                  style={{
+                    color: theme.text,
+                    borderWidth: 1,
+                    borderColor: theme.border,
+                    padding: 12,
+                    borderRadius: 10,
+                  }}
+                />
+                {button(
+                  "Preview exact shared targets",
+                  () => void showPreview(),
+                  busy || !title.trim(),
+                )}
+              </>
+            )}
+            {preview && (
+              <View
+                style={{
+                  gap: 8,
+                  padding: 14,
+                  borderColor: theme.border,
+                  borderWidth: 1,
+                  borderRadius: 12,
+                }}
+              >
+                <Text style={{ color: theme.text, fontWeight: "700" }}>
+                  {preview.snapshot.title}
+                </Text>
+                {preview.snapshot.exercises.map((e, i) => (
+                  <Text key={i} style={{ color: theme.text }}>
+                    {e.name}: {e.sets} sets × {e.repsMin}–{e.repsMax} reps
+                    {e.loadKg === null ? "" : ` at ${e.loadKg} kg`}; rest{" "}
+                    {e.restSeconds}s
+                  </Text>
+                ))}
+                {button(
+                  "Confirm and share this preview with approved followers",
+                  () => {
+                    if (selected && operation)
+                      void perform(
+                        () =>
+                          publishRoutineShare(
+                            client,
+                            selected,
+                            preview,
+                            operation,
+                          ),
+                        "Routine shared.",
+                      );
+                  },
+                )}
+              </View>
             )}
           </>
         )}
-        {preview && (
-          <View
-            style={{
-              gap: 8,
-              padding: 14,
-              borderColor: theme.border,
-              borderWidth: 1,
-              borderRadius: 12,
-            }}
-          >
-            <Text style={{ color: theme.text, fontWeight: "700" }}>
-              {preview.snapshot.title}
+        {!shareTask && (
+          <>
+            <Text
+              style={{ color: theme.text, fontSize: 18, fontWeight: "600" }}
+            >
+              Currently available routines
             </Text>
-            {preview.snapshot.exercises.map((e, i) => (
-              <Text key={i} style={{ color: theme.text }}>
-                {e.name}: {e.sets} sets × {e.repsMin}–{e.repsMax} reps
-                {e.loadKg === null ? "" : ` at ${e.loadKg} kg`}; rest{" "}
-                {e.restSeconds}s
-              </Text>
-            ))}
             {button(
-              "Confirm and share this preview with approved followers",
+              mineOnly
+                ? "Show friends’ available routines"
+                : "Manage my shared routines",
               () => {
-                if (selected && operation)
-                  void perform(
-                    () =>
-                      publishRoutineShare(client, selected, preview, operation),
-                    "Routine shared.",
-                  );
+                setMineOnly(!mineOnly);
+                void load(false, !mineOnly);
               },
             )}
-          </View>
-        )}
-        <Text style={{ color: theme.text, fontSize: 18, fontWeight: "600" }}>
-          Currently available routines
-        </Text>
-        {button(
-          mineOnly
-            ? "Show friends’ available routines"
-            : "Manage my shared routines",
-          () => {
-            setMineOnly(!mineOnly);
-            void load(false, !mineOnly);
-          },
-        )}
-        {!busy && !shares.length && !error && (
-          <Text style={{ color: theme.text }}>
-            No currently available shared routines.
-          </Text>
-        )}
-        {shares.map((s) => (
-          <View
-            key={s.id}
-            style={{
-              borderColor: theme.border,
-              borderWidth: 1,
-              borderRadius: 14,
-              padding: 14,
-              gap: 6,
-            }}
-          >
-            <Text style={{ color: theme.text, fontWeight: "700" }}>
-              {s.snapshot.title} · @{s.authorHandle} · version {s.version}
-            </Text>
-            {!s.available && (
+            {!busy && !shares.length && !error && (
               <Text style={{ color: theme.text }}>
-                No longer available to followers. You can unshare this snapshot.
+                No currently available shared routines.
               </Text>
             )}
-            {s.snapshot.exercises.map((e, i) => (
-              <Text key={i} style={{ color: theme.text }}>
-                {e.name}: {e.sets} × {e.repsMin}–{e.repsMax}
-                {e.loadKg === null ? "" : ` · ${e.loadKg} kg`} · rest{" "}
-                {e.restSeconds}s
-              </Text>
-            ))}
-            {s.isOwner ? (
-              button(
-                "Unshare routine",
-                () =>
-                  void perform(
-                    () => unshareRoutine(client, s.id),
-                    "Routine no longer shared.",
-                  ),
-              )
-            ) : (
-              <>
-                {button("Import an independent private copy", () => {
-                  const intentEpoch = epoch.current;
-                  const intentRead = freshRead.current;
-                  Alert.alert(
-                    "Copy this routine?",
-                    "This creates an editable private workout routine with attribution. It will not update when the author changes or deletes the shared plan. Review the targets before training.",
-                    [
-                      { text: "Cancel", style: "cancel" },
-                      {
-                        text: "Confirm import",
-                        onPress: () => {
-                          if (
-                            !active.current ||
-                            epoch.current !== intentEpoch ||
-                            freshRead.current !== intentRead
-                          )
-                            return;
+            {shares.map((s) => (
+              <View
+                key={s.id}
+                style={{
+                  borderColor: theme.border,
+                  borderBottomWidth: 1,
+                  paddingVertical: 14,
+                  gap: 6,
+                }}
+              >
+                {s.authorUserId ? (
+                  <CommunityIdentityLink
+                    userId={s.authorUserId}
+                    displayName={`@${s.authorHandle}`}
+                  />
+                ) : null}
+                {button(`${s.snapshot.title} · @${s.authorHandle}`, () =>
+                  setOpenedShare(openedShare === s.id ? null : s.id),
+                )}
+                {openedShare === s.id && (
+                  <>
+                    <Text style={{ color: theme.textSecondary }}>
+                      Shared version {s.version}. Save creates an independent
+                      private copy.
+                    </Text>
+                    {!s.available && (
+                      <Text style={{ color: theme.text }}>
+                        No longer available to followers. You can unshare this
+                        snapshot.
+                      </Text>
+                    )}
+                    {s.snapshot.exercises.map((e, i) => (
+                      <Text key={i} style={{ color: theme.text }}>
+                        {e.name}: {e.sets} × {e.repsMin}–{e.repsMax}
+                        {e.loadKg === null ? "" : ` · ${e.loadKg} kg`} · rest{" "}
+                        {e.restSeconds}s
+                      </Text>
+                    ))}
+                    {s.isOwner ? (
+                      button(
+                        "Unshare routine",
+                        () =>
                           void perform(
-                            () => importRoutineShare(client, s.id, s.version),
-                            "Private routine imported. Find and edit it in Workouts.",
+                            () => unshareRoutine(client, s.id),
+                            "Routine no longer shared.",
+                          ),
+                      )
+                    ) : (
+                      <>
+                        {button("Import an independent private copy", () => {
+                          const intentEpoch = epoch.current;
+                          const intentRead = freshRead.current;
+                          Alert.alert(
+                            "Copy this routine?",
+                            "This creates an editable private workout routine with attribution. It will not update when the author changes or deletes the shared plan. Review the targets before training.",
+                            [
+                              { text: "Cancel", style: "cancel" },
+                              {
+                                text: "Confirm import",
+                                onPress: () => {
+                                  if (
+                                    !active.current ||
+                                    epoch.current !== intentEpoch ||
+                                    freshRead.current !== intentRead
+                                  )
+                                    return;
+                                  void perform(
+                                    () =>
+                                      importRoutineShare(
+                                        client,
+                                        s.id,
+                                        s.version,
+                                      ),
+                                    "Private routine imported. Find and edit it in Workouts.",
+                                  );
+                                },
+                              },
+                            ],
                           );
-                        },
-                      },
-                    ],
-                  );
-                })}
-                {button("Report unsafe routine", () => setReport(s))}
-              </>
-            )}
-          </View>
-        ))}
-        {cursor &&
-          button("Next page of shared routines", () => void load(true))}
+                        })}
+                        {button("Report unsafe routine", () => setReport(s))}
+                      </>
+                    )}
+                  </>
+                )}
+              </View>
+            ))}
+            {cursor &&
+              button("Next page of shared routines", () => void load(true))}
+          </>
+        )}
         <ReportModal
           visible={report !== null}
           targetType="routine"
@@ -523,7 +572,7 @@ function RoutinesContent({ principal }: { principal: string | null }) {
           principalKey={principal}
           onClose={() => setReport(null)}
         />
-      </ScrollView>
+      </CommunityPage>
     </KeyboardAvoidingView>
   );
 }

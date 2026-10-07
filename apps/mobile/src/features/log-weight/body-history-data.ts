@@ -19,6 +19,8 @@ export type BodyHistoryMutation =
 
 const humanize = (error: ApiError): string => {
   switch (error.kind) {
+    case "context_changed":
+      return "This request is no longer current. Refresh before continuing.";
     case "network_error":
       return "Network unavailable. Refresh when you're online.";
     case "session_expired":

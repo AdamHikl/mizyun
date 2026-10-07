@@ -26,6 +26,7 @@ export interface ReactionBarProps {
   ) => void;
   disabled?: boolean;
   onUnavailable?: () => void;
+  compact?: boolean;
 }
 
 export function buildReactionAccessibilityLabel(options: {
@@ -65,6 +66,7 @@ export function ReactionBar(props: ReactionBarProps) {
   const controller = controllerRef.current;
 
   const [state, setState] = useState(controller.state);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   useEffect(() => {
     controller.resume();
@@ -83,76 +85,120 @@ export function ReactionBar(props: ReactionBarProps) {
   return (
     <View style={styles.container} testID={`reaction-bar-${activityId}`}>
       <View style={styles.bar}>
-        {SUPPORTED_REACTIONS.map((def) => {
-          const kind = def.kind;
-          const count = reactionCounts[kind] ?? 0;
-          const isSelected = viewerReaction === kind;
-          const emoji = REACTION_EMOJIS[kind] ?? def.emoji;
-          const label = REACTION_LABELS[kind] ?? def.label;
-
-          const buttonAccessibilityLabel = buildReactionAccessibilityLabel({
-            kind,
-            label,
-            count,
-            isSelected,
-            isAuthor,
-            totalReactions,
-          });
-
-          const isButtonDisabled =
-            disabled || isPending || (isAuthor && totalReactions === 0);
-
-          return (
+        {props.compact ? (
+          <>
             <Pressable
-              key={kind}
-              testID={`reaction-btn-${kind}`}
-              onPress={() => void controller.toggleReaction(kind)}
-              disabled={isButtonDisabled}
+              testID="open-reaction-picker"
               accessibilityRole="button"
-              accessibilityLabel={buttonAccessibilityLabel}
+              accessibilityLabel={
+                isAuthor
+                  ? "View encouragement"
+                  : "Choose an encouragement reaction"
+              }
               accessibilityState={{
-                selected: isSelected,
-                disabled: isButtonDisabled,
-                busy: isPending && !isAuthor,
+                expanded: pickerOpen,
+                disabled:
+                  disabled || isPending || (isAuthor && totalReactions === 0),
               }}
-              style={({ pressed }) => [
-                styles.button,
-                {
-                  backgroundColor: isSelected
-                    ? (colors?.primaryLight ?? "#D1FAE5")
-                    : (colors?.backgroundSelected ?? "#222D35"),
-                  borderColor: isSelected
-                    ? (colors?.primary ?? "#059669")
-                    : "transparent",
-                  opacity: pressed
-                    ? 0.75
-                    : isButtonDisabled && isAuthor
-                      ? 0.6
-                      : 1,
-                },
-              ]}
-              hitSlop={4}
+              disabled={
+                disabled || isPending || (isAuthor && totalReactions === 0)
+              }
+              onPress={() =>
+                isAuthor
+                  ? controller.openReactorsModal()
+                  : setPickerOpen(!pickerOpen)
+              }
+              style={styles.viewReactorsBtn}
             >
-              <Text style={styles.emoji}>{emoji}</Text>
               <Text
-                style={[
-                  styles.count,
-                  {
-                    color: isSelected
-                      ? (colors?.primary ?? "#059669")
-                      : (colors?.textSecondary ?? "#8E8E93"),
-                    fontWeight: isSelected ? "700" : "500",
-                  },
-                ]}
+                style={[styles.viewReactorsText, { color: colors.primary }]}
               >
-                {count}
+                {isAuthor
+                  ? "👏 Encouragement"
+                  : viewerReaction
+                    ? `${REACTION_EMOJIS[viewerReaction]} ${REACTION_LABELS[viewerReaction]}`
+                    : "👏 Encourage"}
               </Text>
             </Pressable>
-          );
-        })}
+            <Text style={[styles.count, { color: colors.textSecondary }]}>
+              {totalReactions} {totalReactions === 1 ? "reaction" : "reactions"}
+            </Text>
+          </>
+        ) : null}
+        {(!props.compact || pickerOpen) &&
+          SUPPORTED_REACTIONS.map((def) => {
+            const kind = def.kind;
+            const count = reactionCounts[kind] ?? 0;
+            const isSelected = viewerReaction === kind;
+            const emoji = REACTION_EMOJIS[kind] ?? def.emoji;
+            const label = REACTION_LABELS[kind] ?? def.label;
+
+            const buttonAccessibilityLabel = buildReactionAccessibilityLabel({
+              kind,
+              label,
+              count,
+              isSelected,
+              isAuthor,
+              totalReactions,
+            });
+
+            const isButtonDisabled =
+              disabled || isPending || (isAuthor && totalReactions === 0);
+
+            return (
+              <Pressable
+                key={kind}
+                testID={`reaction-btn-${kind}`}
+                onPress={() => {
+                  setPickerOpen(false);
+                  void controller.toggleReaction(kind);
+                }}
+                disabled={isButtonDisabled}
+                accessibilityRole="button"
+                accessibilityLabel={buttonAccessibilityLabel}
+                accessibilityState={{
+                  selected: isSelected,
+                  disabled: isButtonDisabled,
+                  busy: isPending && !isAuthor,
+                }}
+                style={({ pressed }) => [
+                  styles.button,
+                  {
+                    backgroundColor: isSelected
+                      ? (colors?.primaryLight ?? "#D1FAE5")
+                      : (colors?.backgroundSelected ?? "#222D35"),
+                    borderColor: isSelected
+                      ? (colors?.primary ?? "#059669")
+                      : "transparent",
+                    opacity: pressed
+                      ? 0.75
+                      : isButtonDisabled && isAuthor
+                        ? 0.6
+                        : 1,
+                  },
+                ]}
+                hitSlop={4}
+              >
+                <Text style={styles.emoji}>{emoji}</Text>
+                <Text
+                  style={[
+                    styles.count,
+                    {
+                      color: isSelected
+                        ? (colors?.primary ?? "#059669")
+                        : (colors?.textSecondary ?? "#8E8E93"),
+                      fontWeight: isSelected ? "700" : "500",
+                    },
+                  ]}
+                >
+                  {count}
+                </Text>
+              </Pressable>
+            );
+          })}
 
         {/* If author has reactions, render view reactors badge button */}
-        {isAuthor && totalReactions > 0 ? (
+        {!props.compact && isAuthor && totalReactions > 0 ? (
           <Pressable
             testID="author-view-reactors-btn"
             onPress={() => controller.openReactorsModal()}

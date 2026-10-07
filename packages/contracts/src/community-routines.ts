@@ -29,6 +29,7 @@ export const communityRoutineShareSchema = z
   .object({
     id: z.string().uuid(),
     authorHandle: z.string(),
+    authorUserId: z.string().uuid().optional(),
     version: z.number().int().positive(),
     isOwner: z.boolean(),
     available: z.boolean(),

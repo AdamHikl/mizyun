@@ -2,6 +2,11 @@ import type { ApiClient, ApiError } from "@mizyun/api-client";
 import type { PublicCommunityProfileDto } from "@mizyun/contracts";
 import type { Result } from "@mizyun/core";
 import { randomUUID } from "expo-crypto";
+import {
+  getCommunityReadDeadline,
+  getCommunityReadEpoch,
+} from "../state/read-cache";
+import { captureSafetyReceipt } from "../safety/safety-api";
 import { scopeCommunityClient } from "../scoped-client";
 import {
   fetchFollowers,
@@ -63,6 +68,12 @@ export class RelationshipsController {
   private active = true;
   private revision = 0;
   private client: ApiClient;
+  private readDeadline = 0;
+  private readEpoch = -1;
+  private timer: ReturnType<typeof setTimeout> | undefined;
+  private isLifetimeCurrent: () => boolean;
+  private retiredState: RelationshipState;
+  private followOperations = new Map<string, string>();
   constructor(
     client: ApiClient,
     principalKey: string | null,
@@ -70,6 +81,8 @@ export class RelationshipsController {
     initialList: RelationshipList = "incoming",
   ) {
     this.state = { ...this.state, list: initialList };
+    this.retiredState = this.state;
+    this.isLifetimeCurrent = isCurrent;
     const scoped = scopeCommunityClient(
       client,
       principalKey,
@@ -89,7 +102,8 @@ export class RelationshipsController {
       },
     };
   }
-  getState = (): RelationshipState => this.state;
+  getState = (): RelationshipState =>
+    this.isLifetimeCurrent() ? this.state : this.retiredState;
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
     return () => {
@@ -98,13 +112,32 @@ export class RelationshipsController {
   };
   captureIntent(): () => boolean {
     const revision = this.revision;
-    return () => this.active && revision === this.revision;
+    return () =>
+      this.active &&
+      this.isLifetimeCurrent() &&
+      revision === this.revision &&
+      this.readDeadline > Date.now() &&
+      this.readEpoch === getCommunityReadEpoch();
+  }
+  /** Receipt capture is a deliberate server-checked interaction, and itself clears read cache. */
+  captureReceiptIntent(): () => boolean {
+    const authorized = this.captureIntent()();
+    const revision = this.revision;
+    const deadline = this.readDeadline;
+    return () =>
+      authorized &&
+      this.active &&
+      this.isLifetimeCurrent() &&
+      revision === this.revision &&
+      Date.now() < deadline;
   }
   resume(): void {
     this.active = true;
   }
   pause(): void {
     this.revision++;
+    clearTimeout(this.timer);
+    this.readDeadline = 0;
     this.update({
       rows: [],
       cursor: null,
@@ -116,6 +149,8 @@ export class RelationshipsController {
     this.active = false;
   }
   destroy(): void {
+    clearTimeout(this.timer);
+    this.followOperations.clear();
     this.active = false;
     this.revision++;
     this.listeners.clear();
@@ -137,6 +172,18 @@ export class RelationshipsController {
     )
       return;
     const revision = ++this.revision;
+    clearTimeout(this.timer);
+    let deadline = more
+      ? Math.min(this.readDeadline, Date.now() + 10_000)
+      : Date.now() + 10_000;
+    const epoch = getCommunityReadEpoch();
+    this.readDeadline = 0;
+    const bound = (value: unknown) => {
+      deadline = Math.min(
+        deadline,
+        getCommunityReadDeadline(value) ?? deadline,
+      );
+    };
     let oldRows = more ? this.state.rows : [];
     const page = {
       limit: 20,
@@ -144,8 +191,9 @@ export class RelationshipsController {
     };
     this.update({
       list,
-      rows: oldRows,
-      cursor: more ? this.state.cursor : null,
+      // Keep an earlier page only in local transport context while checking authority.
+      rows: [],
+      cursor: null,
       loading: true,
       error: null,
     });
@@ -155,6 +203,7 @@ export class RelationshipsController {
     >;
     if (list === "blocked") {
       const response = await fetchBlockedUsers(this.client, page);
+      if (response.ok) bound(response.value);
       result = response.ok
         ? {
             ok: true,
@@ -168,6 +217,7 @@ export class RelationshipsController {
         : response;
     } else if (list === "muted") {
       const response = await fetchMutedUsers(this.client, page);
+      if (response.ok) bound(response.value);
       result = response.ok
         ? {
             ok: true,
@@ -185,6 +235,7 @@ export class RelationshipsController {
         following: fetchFollowing,
       };
       result = await loaders[list](this.client, page);
+      if (result.ok) bound(result.value);
       if (list === "followers" && result.ok) {
         // Owner graph caps are 30 approved and 20 outgoing pending. Read both
         // completely before offering a new request; an unavailable state fails closed.
@@ -192,6 +243,8 @@ export class RelationshipsController {
           fetchFollowing(this.client, { limit: 50 }),
           fetchOutgoingFollowRequests(this.client, { limit: 50 }),
         ]);
+        if (following.ok) bound(following.value);
+        if (outgoing.ok) bound(outgoing.value);
         if (!following.ok) result = following;
         else if (!outgoing.ok) result = outgoing;
         else if (following.value.nextCursor || outgoing.value.nextCursor)
@@ -242,6 +295,28 @@ export class RelationshipsController {
       });
       return;
     }
+    if (Date.now() >= deadline || epoch !== getCommunityReadEpoch()) {
+      this.update({
+        loading: false,
+        rows: [],
+        cursor: null,
+        error: "Relationship access changed. Refresh and try again.",
+      });
+      return;
+    }
+    this.readDeadline = deadline;
+    this.readEpoch = epoch;
+    this.timer = setTimeout(
+      () => {
+        if (this.active && revision === this.revision) {
+          this.update({ rows: [], cursor: null });
+          void this.load(list);
+        }
+      },
+      Math.max(0, deadline - Date.now()),
+    );
+    if (typeof this.timer === "object")
+      (this.timer as { unref?: () => void }).unref?.();
     const rows = new Map(oldRows.map((row) => [row.user.userId, row]));
     for (const row of result.value.items) rows.set(row.user.userId, row);
     this.update({
@@ -255,6 +330,7 @@ export class RelationshipsController {
       !this.active ||
       this.state.pending ||
       this.state.loading ||
+      !this.captureIntent()() ||
       !this.state.rows.some(
         (item) =>
           item.user.userId === row.user.userId &&
@@ -273,15 +349,39 @@ export class RelationshipsController {
     )
       return;
     const revision = ++this.revision;
+    clearTimeout(this.timer);
+    this.readDeadline = 0;
     const list = this.state.list;
-    this.update({ pending: true, error: null, notice: null });
+    // The captured row retains the exact incarnation for transport; the screen
+    // retires all protected identities while receipt or mutation I/O is pending.
+    this.update({
+      pending: true,
+      rows: [],
+      cursor: null,
+      error: null,
+      notice: null,
+    });
+    if (["block", "remove", "unfollow", "cancel", "decline"].includes(action)) {
+      // Retain a report capability before reducing access. This request clears
+      // the global read cache; the already accepted mutation stays owner/revision bound.
+      await captureSafetyReceipt(this.client, "profile", row.user.userId);
+      if (
+        !this.active ||
+        !this.isLifetimeCurrent() ||
+        revision !== this.revision
+      )
+        return;
+    }
     let result: Result<unknown, ApiError>;
     if (action === "follow") {
+      const operationId =
+        this.followOperations.get(row.user.userId) ?? randomUUID();
+      this.followOperations.set(row.user.userId, operationId);
       result = await requestFollow(
         this.client,
         row.user.userId,
         undefined,
-        randomUUID(),
+        operationId,
       );
     } else if (
       action === "approve" ||
@@ -339,6 +439,7 @@ export class RelationshipsController {
       });
       return;
     }
+    if (action === "follow") this.followOperations.delete(row.user.userId);
     this.update({
       pending: false,
       notice:

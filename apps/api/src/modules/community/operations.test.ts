@@ -2,7 +2,10 @@ import { describe, it, expect, vi } from "vitest";
 import { buildApp } from "../../app.js";
 import { InMemoryCommunityRepository } from "../../community-repository.js";
 import type { UserId } from "@mizyun/core";
-import { communityOperationGate } from "./operations.js";
+import {
+  communityOperationGate,
+  communityExpansionOperationGate,
+} from "./operations.js";
 import { loadCommunityOperations } from "@mizyun/config";
 describe("Community operations", () => {
   it("unconfigured API denies growth and browsing but retains owner privacy reductions", async () => {
@@ -126,8 +129,19 @@ describe("Community operations", () => {
     ["GET", "/activities/id", "browsing"],
     ["GET", "/activities/id/reactions", "browsing"],
     ["GET", "/profiles/id", "browsing"],
+    ["GET", "/profiles/id/activities", "browsing"],
   ])("gates %s %s", (method, path, gate) =>
     expect(communityOperationGate(method!, `/v1/community${path}`)).toBe(gate),
+  );
+  it.each(["threads", "latest"])(
+    "gates messaging %s as browsing",
+    (operation) => {
+      expect(
+        communityExpansionOperationGate("POST", "/v1/community/messaging", {
+          operation,
+        }),
+      ).toBe("browsing");
+    },
   );
   it.each([
     ["POST", "/profile/withdraw"],

@@ -11,15 +11,23 @@ export function scopeCommunityClient(
   return {
     status: () => client.status(),
     async request<T>(options: RequestOptions): Promise<Result<T, ApiError>> {
-      if (expectedUserId === null || !isCurrent()) {
+      if (expectedUserId === null) {
         return { ok: false, error: { kind: "no_session" } };
       }
+      if (!isCurrent())
+        return { ok: false, error: { kind: "context_changed" } };
       const result = await client.request<T>({
         ...options,
         expectedUserId,
         isCurrent: () => isCurrent() && (options.isCurrent?.() ?? true),
       });
-      if (!isCurrent()) return { ok: false, error: { kind: "no_session" } };
+      if (!isCurrent())
+        return {
+          ok: false,
+          error: result.ok
+            ? { kind: "context_changed" }
+            : { kind: "context_changed", cause: result.error },
+        };
       return result;
     },
   };

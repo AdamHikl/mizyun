@@ -21,10 +21,11 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { MaxContentWidth } from "@/constants/theme";
-import { CommunityIntro, useCommunityPalette } from "../community-presentation";
+import { CommunityRootHeader } from "../ui";
 import { InitialsAvatar } from "../initials-avatar";
 import { apiClient } from "@/composition/api-client";
 import { useAuth } from "@/features/auth/auth-context";
@@ -33,6 +34,11 @@ import { useCommunityProfile } from "../use-community-profile";
 import { ReportModal } from "../safety";
 import { captureSafetyReceipt } from "../safety/safety-api";
 import { scopeCommunityClient } from "../scoped-client";
+import {
+  searchCommunityProfiles,
+  humanizeCommunityError,
+} from "../community-client";
+import type { PublicCommunityProfileDto } from "@mizyun/contracts";
 import { invalidateCommunityReads } from "../state/read-cache";
 import {
   RelationshipsController,
@@ -89,15 +95,31 @@ const listInfo: Record<
 };
 export function RelationshipsScreen() {
   const { session, profile } = useAuth();
+  const token = session?.accessToken ?? null;
+  const lifetime = useRef({ token, revision: 0 });
+  if (lifetime.current.token !== token)
+    lifetime.current = { token, revision: lifetime.current.revision + 1 };
+  const revision = lifetime.current.revision;
+  const isLifetimeCurrent = useCallback(
+    () => lifetime.current.revision === revision,
+    [revision],
+  );
   const { list } = useLocalSearchParams<{ list?: string }>();
   const initialList: RelationshipList =
-    list === "blocked" || list === "muted" ? list : "incoming";
+    list === "blocked" ||
+    list === "muted" ||
+    list === "following" ||
+    list === "followers" ||
+    list === "outgoing"
+      ? list
+      : "incoming";
   return (
     <OwnerRelationships
-      key={`${session?.user.id ?? "signed-out"}:${initialList}`}
+      key={`${session?.user.id ?? "signed-out"}:${initialList}:${revision}`}
       principalKey={session?.user.id ?? null}
       birthYear={profile?.birthYear}
       initialList={initialList}
+      isLifetimeCurrent={isLifetimeCurrent}
     />
   );
 }
@@ -105,15 +127,39 @@ function OwnerRelationships({
   principalKey,
   birthYear,
   initialList,
+  isLifetimeCurrent,
 }: {
   principalKey: string | null;
   birthYear?: number | null;
   initialList: RelationshipList;
+  isLifetimeCurrent: () => boolean;
 }) {
   const colors = useTheme();
-  const palette = useCommunityPalette();
-  const community = useCommunityProfile({ principalKey, birthYear });
+
+  const community = useCommunityProfile({
+    principalKey,
+    birthYear,
+    autoLoad: false,
+  });
+  const loadMembership = community.actions.load;
   const alive = useRef(true);
+  const [query, setQuery] = useState("");
+  const [searchResult, setSearchResult] =
+    useState<PublicCommunityProfileDto | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [searchBusy, setSearchBusy] = useState(false);
+  const searchRevision = useRef(0);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+  const clearSearch = useCallback(() => {
+    searchRevision.current++;
+    clearTimeout(searchTimer.current);
+    setSearchResult(null);
+    setSearchError(null);
+    setSearchBusy(false);
+  }, []);
+  useEffect(() => () => clearTimeout(searchTimer.current), []);
   const [optionsUser, setOptionsUser] = useState<string | null>(null);
   const [showSafety, setShowSafety] = useState(false);
   const [reportTarget, setReportTarget] = useState<{
@@ -121,7 +167,7 @@ function OwnerRelationships({
     receiptId?: string;
   } | null>(null);
   const openReport = async (row: RelationshipRow) => {
-    const intentCurrent = controller.captureIntent();
+    const intentCurrent = controller.captureReceiptIntent();
     if (!principalKey || !alive.current || !intentCurrent()) return;
     const receipt = await captureSafetyReceipt(
       scopeCommunityClient(
@@ -141,20 +187,6 @@ function OwnerRelationships({
   const perform = async (action: RelationshipAction, row: RelationshipRow) => {
     const intentCurrent = controller.captureIntent();
     if (!alive.current || !intentCurrent()) return;
-    if (
-      principalKey &&
-      ["block", "remove", "unfollow", "cancel", "decline"].includes(action)
-    ) {
-      await captureSafetyReceipt(
-        scopeCommunityClient(
-          apiClient,
-          principalKey,
-          () => alive.current && intentCurrent(),
-        ),
-        "profile",
-        row.user.userId,
-      );
-    }
     if (alive.current && intentCurrent()) await controller.act(action, row);
   };
   const controller = useMemo(
@@ -162,10 +194,10 @@ function OwnerRelationships({
       new RelationshipsController(
         apiClient,
         principalKey,
-        () => alive.current,
+        () => alive.current && isLifetimeCurrent(),
         initialList,
       ),
-    [principalKey, initialList],
+    [principalKey, initialList, isLifetimeCurrent],
   );
   const state = useSyncExternalStore(
     controller.subscribe,
@@ -174,24 +206,48 @@ function OwnerRelationships({
   );
   const focused = useRef(false);
   const foreground = useRef(AppState.currentState === "active");
-  const enrolled = useRef(community.isEnrolled);
-  enrolled.current = community.isEnrolled;
+  const membershipRevision = useRef(0);
+  const pendingGraph = useRef<number | null>(null);
+  const [membershipPending, setMembershipPending] = useState(false);
+  const [membershipComplete, setMembershipComplete] = useState(0);
   const reload = useCallback(() => {
-    if (!focused.current || !foreground.current) return;
+    const revision = ++membershipRevision.current;
+    pendingGraph.current = null;
+    controller.pause();
+    setReportTarget(null);
+    setOptionsUser(null);
+    if (!focused.current || !foreground.current || !isLifetimeCurrent()) return;
+    clearSearch();
     alive.current = true;
-    controller.resume();
     const list = controller.getState().list;
-    if (enrolled.current || list === "blocked" || list === "muted")
+    if (list === "blocked" || list === "muted") {
+      controller.resume();
       void controller.load(list);
-  }, [controller]);
+    } else pendingGraph.current = revision;
+    setMembershipPending(true);
+    void loadMembership().then(() => {
+      if (
+        revision !== membershipRevision.current ||
+        !focused.current ||
+        !foreground.current ||
+        !isLifetimeCurrent()
+      )
+        return;
+      setMembershipComplete(revision);
+      setMembershipPending(false);
+    });
+  }, [controller, clearSearch, isLifetimeCurrent, loadMembership]);
   useFocusEffect(
     useCallback(() => {
       focused.current = true;
       reload();
       return () => {
         focused.current = false;
+        membershipRevision.current++;
+        pendingGraph.current = null;
         alive.current = false;
         controller.pause();
+        clearSearch();
         setReportTarget(null);
         setOptionsUser(null);
       };
@@ -202,8 +258,11 @@ function OwnerRelationships({
       if (foreground.current === (next === "active")) return;
       foreground.current = next === "active";
       if (next !== "active") {
+        membershipRevision.current++;
+        pendingGraph.current = null;
         alive.current = false;
         controller.pause();
+        clearSearch();
         setReportTarget(null);
         setOptionsUser(null);
       } else reload();
@@ -211,12 +270,35 @@ function OwnerRelationships({
     return () => subscription.remove();
   }, [controller, reload]);
   useEffect(() => {
-    controller.pause();
-    reload();
-  }, [controller, reload, community.isEnrolled, community.profile?.generation]);
+    if (
+      membershipPending ||
+      membershipComplete === 0 ||
+      pendingGraph.current !== membershipComplete ||
+      community.status === "loading" ||
+      community.status === "idle"
+    )
+      return;
+    pendingGraph.current = null;
+    if (!focused.current || !foreground.current || !isLifetimeCurrent()) return;
+    if (community.status === "ready" && community.isEnrolled) {
+      controller.resume();
+      void controller.load();
+    } else controller.pause();
+  }, [
+    controller,
+    isLifetimeCurrent,
+    membershipPending,
+    membershipComplete,
+    community.status,
+    community.isEnrolled,
+  ]);
   const enabled =
-    community.isEnrolled || state.list === "blocked" || state.list === "muted";
-  const busy = state.loading || state.pending;
+    (!membershipPending && community.isEnrolled) ||
+    state.list === "blocked" ||
+    state.list === "muted";
+  const checkingMembership =
+    membershipPending && state.list !== "blocked" && state.list !== "muted";
+  const busy = state.loading || state.pending || checkingMembership;
   const button = (
     label: string,
     onPress: () => void,
@@ -287,35 +369,52 @@ function OwnerRelationships({
   const info = listInfo[state.list];
   const safetyList = state.list === "muted" || state.list === "blocked";
   const requestsList = state.list === "incoming" || state.list === "outgoing";
-  const select = (key: RelationshipList, label: string, selected: boolean) => (
+  const select = (
+    key: RelationshipList,
+    label: string,
+    selected: boolean,
+    filter = false,
+  ) => (
     <Pressable
       key={key}
-      accessibilityRole="tab"
+      accessibilityRole={filter ? "button" : "tab"}
       accessibilityState={{
         selected,
         disabled:
-          busy ||
-          (!community.isEnrolled && key !== "blocked" && key !== "muted"),
+          state.loading ||
+          state.pending ||
+          ((checkingMembership || !community.isEnrolled) &&
+            key !== "blocked" &&
+            key !== "muted"),
       }}
       disabled={
-        busy || (!community.isEnrolled && key !== "blocked" && key !== "muted")
+        state.loading ||
+        state.pending ||
+        ((checkingMembership || !community.isEnrolled) &&
+          key !== "blocked" &&
+          key !== "muted")
       }
       onPress={() => {
         setOptionsUser(null);
+        if (key === "blocked" || key === "muted") {
+          pendingGraph.current = null;
+          controller.resume();
+        }
         void controller.load(key);
       }}
       style={[
-        styles.tab,
+        filter ? styles.filter : styles.tab,
         {
           borderColor: selected ? colors.primary : colors.border,
-          backgroundColor: selected ? palette.purple : colors.background,
+          backgroundColor:
+            filter && selected ? colors.backgroundElement : colors.background,
           opacity: busy ? 0.5 : 1,
         },
       ]}
     >
       <Text
         style={[
-          styles.buttonText,
+          filter ? styles.filterText : styles.tabText,
           { color: selected ? colors.text : colors.textSecondary },
         ]}
       >
@@ -329,14 +428,14 @@ function OwnerRelationships({
       contentContainerStyle={styles.content}
       refreshControl={
         <RefreshControl
-          refreshing={state.loading}
+          refreshing={state.loading || checkingMembership}
           onRefresh={() => {
-            if (enabled && !busy) {
+            if (principalKey && !busy) {
               invalidateCommunityReads();
-              void controller.load();
+              reload();
             }
           }}
-          enabled={enabled && !busy}
+          enabled={!!principalKey && !busy}
           tintColor={colors.primary}
         />
       }
@@ -349,7 +448,7 @@ function OwnerRelationships({
           targetHandle={reportTarget.row.user.handle}
           principalKey={principalKey}
           interactionReceiptId={reportTarget.receiptId}
-          onClose={() => setReportTarget(null)}
+          onClose={reload}
           onSuccess={(_id, blocked) => {
             if (blocked) {
               setReportTarget(null);
@@ -359,70 +458,122 @@ function OwnerRelationships({
           }}
         />
       )}
-      <View style={styles.intro}>
-        <CommunityIntro
-          icon="👥"
-          title="Friends & requests"
-          description="Choose who you follow and who sees your shared workouts."
-          tone="purple"
-        />
-        {community.isEnrolled && (
-          <Link
-            href={"/community/invite" as Href}
-            style={[styles.findLink, { color: colors.primary }]}
-            accessibilityRole="link"
-          >
-            Find friends →
-          </Link>
-        )}
-      </View>
+      <CommunityRootHeader selected="people" />
+      {community.isEnrolled && (
+        <View style={styles.search}>
+          <View style={styles.wrap}>
+            <Text
+              accessibilityRole="header"
+              style={[styles.title, { color: colors.text }]}
+            >
+              Find a person
+            </Text>
+            <Link
+              href={"/community/invite" as Href}
+              style={[styles.findLink, { color: colors.primary }]}
+            >
+              Invite a friend
+            </Link>
+          </View>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+            Search their exact @handle. They choose whether to allow handle
+            search.
+          </Text>
+          <TextInput
+            accessibilityLabel="Exact friend handle"
+            placeholder="@handle"
+            placeholderTextColor={colors.textSecondary}
+            autoCapitalize="none"
+            autoCorrect={false}
+            maxLength={25}
+            value={query}
+            editable={!searchBusy}
+            onChangeText={(value) => {
+              setQuery(value);
+              clearSearch();
+            }}
+            style={[
+              styles.input,
+              { color: colors.text, borderColor: colors.border },
+            ]}
+          />
+          {button(
+            "Find exact handle",
+            () => {
+              void (async () => {
+                clearSearch();
+                const revision = searchRevision.current;
+                const intent = controller.captureIntent();
+                const deadline = Date.now() + 10_000;
+                const current = () =>
+                  alive.current &&
+                  intent() &&
+                  revision === searchRevision.current &&
+                  Date.now() < deadline;
+                if (!current() || !principalKey) return;
+                setSearchBusy(true);
+                const result = await searchCommunityProfiles(
+                  scopeCommunityClient(apiClient, principalKey, current),
+                  query,
+                  1,
+                );
+                if (!current()) {
+                  if (revision === searchRevision.current) {
+                    setSearchBusy(false);
+                    setSearchError("Profile access changed. Search again.");
+                  }
+                  return;
+                }
+                setSearchBusy(false);
+                if (!result.ok)
+                  setSearchError(humanizeCommunityError(result.error));
+                else {
+                  setSearchResult(result.value.profiles[0] ?? null);
+                  if (!result.value.profiles.length)
+                    setSearchError(
+                      "No discoverable profile is available for that handle.",
+                    );
+                }
+                searchTimer.current = setTimeout(
+                  clearSearch,
+                  Math.max(0, deadline - Date.now()),
+                );
+              })();
+            },
+            busy || searchBusy || !query.trim(),
+            true,
+          )}
+          {searchError && (
+            <Text
+              accessibilityLiveRegion="polite"
+              style={{ color: colors.textSecondary }}
+            >
+              {searchError}
+            </Text>
+          )}
+          {searchResult && (
+            <Link
+              href={`/community/profile/${searchResult.userId}` as Href}
+              accessibilityLabel={`View @${searchResult.handle} profile`}
+              style={[styles.findLink, { color: colors.primary }]}
+            >
+              {searchResult.displayName} · @{searchResult.handle} →
+            </Link>
+          )}
+        </View>
+      )}
       <View style={styles.tabs} accessibilityRole="tablist">
         {select("incoming", "Requests", requestsList)}
         {select("following", "Following", state.list === "following")}
         {select("followers", "Followers", state.list === "followers")}
       </View>
       {requestsList && (
-        <View style={styles.wrap} accessibilityRole="tablist">
-          {select("incoming", "Received", state.list === "incoming")}
-          {select("outgoing", "Sent", state.list === "outgoing")}
+        <View style={styles.wrap} accessibilityLabel="Request direction">
+          {select("incoming", "Received", state.list === "incoming", true)}
+          {select("outgoing", "Sent", state.list === "outgoing", true)}
         </View>
       )}
-      {safetyList ? (
-        <Text style={[styles.buttonText, { color: colors.textSecondary }]}>
-          Safety & preferences
-        </Text>
-      ) : (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ expanded: showSafety || safetyList }}
-          onPress={() => {
-            if (safetyList) {
-              setShowSafety(true);
-            } else setShowSafety(!showSafety);
-          }}
-          style={styles.safetyToggle}
-        >
-          <Text style={[styles.buttonText, { color: colors.textSecondary }]}>
-            Safety & preferences {showSafety || safetyList ? "−" : "+"}
-          </Text>
-        </Pressable>
-      )}
-      {(showSafety || safetyList) && (
-        <View style={[styles.safetyPanel, { borderColor: colors.border }]}>
-          <View style={styles.wrap} accessibilityRole="tablist">
-            {select("muted", "Muted", state.list === "muted")}
-            {select("blocked", "Blocked", state.list === "blocked")}
-          </View>
-          <Link
-            href={"/community/safety" as Href}
-            accessibilityRole="link"
-            style={[styles.findLink, { color: colors.primary }]}
-          >
-            Reports, appeals & safety contact →
-          </Link>
-        </View>
-      )}
-      {!community.isEnrolled && (
+      {!community.isEnrolled && !checkingMembership && (
         <Text
           accessibilityLiveRegion="polite"
           style={{ color: colors.textSecondary }}
@@ -432,12 +583,14 @@ function OwnerRelationships({
         </Text>
       )}
       <View style={styles.section}>
-        <Text
-          accessibilityRole="header"
-          style={[styles.title, { color: colors.text }]}
-        >
-          {info.title}
-        </Text>
+        {safetyList && (
+          <Text
+            accessibilityRole="header"
+            style={[styles.title, { color: colors.text }]}
+          >
+            {info.title}
+          </Text>
+        )}
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
           {info.description}
         </Text>
@@ -452,21 +605,24 @@ function OwnerRelationships({
           {state.error}
         </Text>
       )}
-      {state.loading && (
+      {(state.loading || checkingMembership) && (
         <ActivityIndicator
-          accessibilityLabel="Loading your friends"
+          accessibilityLabel={
+            checkingMembership
+              ? "Checking Community access"
+              : "Loading your friends"
+          }
           color={colors.primary}
         />
       )}
-      {enabled &&
-        state.error &&
-        button("Try again", () => void controller.load(), busy)}
+      {(state.error || community.status === "error") &&
+        button("Try again", reload, busy || !principalKey)}
       {enabled && !busy && !state.error && state.rows.length === 0 && (
-        <View style={[styles.empty, { backgroundColor: palette.purple }]}>
+        <View style={styles.empty}>
           <Text style={[styles.emptyTitle, { color: colors.text }]}>
             {info.empty}
           </Text>
-          <Text style={[styles.subtitle, { color: palette.purpleText }]}>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
             {info.hint}
           </Text>
           {community.isEnrolled &&
@@ -488,7 +644,7 @@ function OwnerRelationships({
             style={[
               styles.card,
               {
-                backgroundColor: colors.backgroundElement,
+                backgroundColor: colors.background,
                 borderColor: colors.border,
               },
             ]}
@@ -499,14 +655,25 @@ function OwnerRelationships({
                 seed={row.user.handle}
                 size={44}
               />
-              <View style={styles.name}>
-                <Text style={[styles.emptyTitle, { color: colors.text }]}>
-                  {row.user.displayName}
-                </Text>
-                <Text style={{ color: colors.textSecondary }}>
-                  @{row.user.handle}
-                </Text>
-              </View>
+              <Link
+                href={`/community/profile/${row.user.userId}` as Href}
+                asChild
+                disabled={busy || state.list === "blocked"}
+              >
+                <Pressable
+                  accessibilityRole="link"
+                  accessibilityLabel={`View @${row.user.handle} profile`}
+                  disabled={busy || state.list === "blocked"}
+                  style={styles.name}
+                >
+                  <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                    {row.user.displayName}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary }}>
+                    @{row.user.handle}
+                  </Text>
+                </Pressable>
+              </Link>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`Options for @${row.user.handle}`}
@@ -594,6 +761,41 @@ function OwnerRelationships({
         ))}
       {state.cursor &&
         button("Load more", () => void controller.load(state.list, true))}
+      {safetyList ? (
+        <Text style={[styles.buttonText, { color: colors.textSecondary }]}>
+          Safety & preferences
+        </Text>
+      ) : (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: showSafety || safetyList }}
+          onPress={() => {
+            if (safetyList) {
+              setShowSafety(true);
+            } else setShowSafety(!showSafety);
+          }}
+          style={styles.safetyToggle}
+        >
+          <Text style={[styles.buttonText, { color: colors.textSecondary }]}>
+            Safety & preferences {showSafety || safetyList ? "−" : "+"}
+          </Text>
+        </Pressable>
+      )}
+      {(showSafety || safetyList) && (
+        <View style={[styles.safetyPanel, { borderColor: colors.border }]}>
+          <View style={styles.wrap} accessibilityRole="tablist">
+            {select("muted", "Muted", state.list === "muted")}
+            {select("blocked", "Blocked", state.list === "blocked")}
+          </View>
+          <Link
+            href={"/community/safety" as Href}
+            accessibilityRole="link"
+            style={[styles.findLink, { color: colors.primary }]}
+          >
+            Reports, appeals & safety contact →
+          </Link>
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -606,20 +808,32 @@ const styles = StyleSheet.create({
     maxWidth: MaxContentWidth,
     alignSelf: "center",
   },
-  intro: { gap: 8 },
+  search: { gap: 10 },
+  input: { minHeight: 48, borderWidth: 1, borderRadius: 10, padding: 12 },
   subtitle: { fontSize: 15, lineHeight: 22 },
   title: { fontSize: 22, fontWeight: "700" },
   section: { gap: 6 },
-  tabs: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  tabs: { flexDirection: "row", gap: 4 },
   tab: {
     minHeight: 48,
     paddingVertical: 12,
-    paddingHorizontal: 14,
+    paddingHorizontal: 6,
     borderBottomWidth: 2,
-    borderRadius: 10,
     justifyContent: "center",
+    flexBasis: 0,
     flexGrow: 1,
+    minWidth: 0,
   },
+  tabText: { fontSize: 15, fontWeight: "600", textAlign: "center" },
+  filter: {
+    minHeight: 48,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderRadius: 24,
+    justifyContent: "center",
+  },
+  filterText: { fontSize: 13, fontWeight: "600" },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   buttonText: { fontSize: 15, fontWeight: "600" },
   button: {
@@ -637,12 +851,12 @@ const styles = StyleSheet.create({
   },
   safetyToggle: { minHeight: 48, justifyContent: "center" },
   safetyPanel: { borderWidth: 1, borderRadius: 14, padding: 12, gap: 8 },
-  empty: { padding: 24, borderRadius: 18, gap: 10 },
+  empty: { paddingVertical: 16, gap: 10 },
   emptyTitle: { fontSize: 17, fontWeight: "600" },
-  card: { padding: 16, borderRadius: 16, borderWidth: 1, gap: 14 },
+  card: { paddingVertical: 14, borderBottomWidth: 1, gap: 10 },
   rowOptions: { borderTopWidth: 1, paddingTop: 12 },
   identity: { flexDirection: "row", alignItems: "center", gap: 12 },
-  name: { flex: 1, gap: 4 },
+  name: { flex: 1, gap: 4, minHeight: 48, justifyContent: "center" },
   options: {
     minHeight: 48,
     minWidth: 48,
@@ -650,3 +864,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 });
+
+export const CommunityPeopleScreen = RelationshipsScreen;

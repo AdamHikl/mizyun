@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { Stack, router, useFocusEffect } from "expo-router";
 import { MaxContentWidth } from "@/constants/theme";
-import { CommunityIntro } from "../community-presentation";
+import { CommunityPage } from "../ui";
 import { apiClient } from "@/composition/api-client";
 import { ThemedText } from "@/components/themed-text";
 import { useAuth } from "@/features/auth/auth-context";
@@ -166,7 +166,7 @@ function PreferencesContent({ principal }: { principal: string | null }) {
     value: boolean,
     onChange: (value: boolean) => void,
   ) => (
-    <View style={[styles.toggle, { backgroundColor: theme.backgroundElement }]}>
+    <View style={[styles.toggle, { borderColor: theme.border }]}>
       <ThemedText style={{ flex: 1 }}>{label}</ThemedText>
       <Switch
         accessibilityLabel={label}
@@ -195,91 +195,93 @@ function PreferencesContent({ principal }: { principal: string | null }) {
     </View>
   );
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: theme.background }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    <CommunityPage
+      title="Update preferences"
+      backHref="/community/inbox"
+      scroll={false}
     >
-      <ScrollView
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAvoidingView
+        style={{ flex: 1, backgroundColor: theme.background }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <Stack.Screen options={{ title: "Community notifications" }} />
-        <CommunityIntro
-          icon="🔔"
-          title="Updates, your way"
-          description="Choose the little nudges you want, and take quiet time when you need it."
-          tone="blue"
-        />
-        <ThemedText>
-          Phone notifications are not enabled yet. Your inbox and private
-          tracking work without notification permission.
-        </ThemedText>
-        {action("Keep tracking privately", () => router.replace("/(tabs)"))}
-        {message && (
-          <ThemedText accessibilityLiveRegion="polite">{message}</ThemedText>
-        )}
-        <CommunityDeviceAlertsControl
-          isCurrent={() =>
-            lifetime.current.active && lifetime.current.foreground
-          }
-        />
-        {!principal ? (
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Stack.Screen
+            options={{ title: "Update preferences", headerShown: false }}
+          />
           <ThemedText>
-            Sign in to manage your Community notification preferences.
+            Phone notifications are not enabled yet. Your updates and private
+            tracking work without notification permission.
           </ThemedText>
-        ) : preferences ? (
-          <>
-            {(
-              [
-                ["requests", "Follow requests and approvals"],
-                ["reactions", "Encouragement reactions"],
-                ["moderation", "Community moderation outcomes"],
-                ["muted", "Mute Community notifications"],
-              ] as const
-            ).map(([key, label]) => (
-              <React.Fragment key={key}>
-                {toggle(label, preferences[key], (value) =>
-                  setPreferences({ ...preferences, [key]: value }),
-                )}
-              </React.Fragment>
-            ))}
-            {toggle("Quiet hours", !!preferences.quietHours, (value) =>
-              setPreferences({
-                ...preferences,
-                quietHours: value
-                  ? { startMinutes: 1320, endMinutes: 480 }
-                  : null,
-              }),
-            )}
-            {input(
-              "Your timezone (e.g. Europe/Bratislava)",
-              preferences.timezone,
-              (timezone) => setPreferences({ ...preferences, timezone }),
-            )}
-            {preferences.quietHours && (
-              <>
-                {input("Quiet hours start (HH:MM)", start, setStart)}
-                {input("Quiet hours end (HH:MM)", end, setEnd)}
-                <ThemedText>
-                  Times use your chosen timezone. Quiet hours can continue past
-                  midnight.
-                </ThemedText>
-              </>
-            )}
-            {action(
-              busy ? "Saving…" : "Save preferences",
-              () => void save(),
-              busy,
-            )}
-          </>
-        ) : (
-          <>
-            {busy && <ThemedText>Loading preferences…</ThemedText>}
-            {action("Retry loading preferences", () => void load(), busy)}
-          </>
-        )}
-      </ScrollView>
-    </KeyboardAvoidingView>
+          {action("Keep tracking privately", () => router.replace("/(tabs)"))}
+          {message && (
+            <ThemedText accessibilityLiveRegion="polite">{message}</ThemedText>
+          )}
+          <CommunityDeviceAlertsControl
+            isCurrent={() =>
+              lifetime.current.active && lifetime.current.foreground
+            }
+          />
+          {!principal ? (
+            <ThemedText>
+              Sign in to manage your Community notification preferences.
+            </ThemedText>
+          ) : preferences ? (
+            <>
+              {(
+                [
+                  ["requests", "Follow requests and approvals"],
+                  ["reactions", "Encouragement reactions"],
+                  ["moderation", "Community moderation outcomes"],
+                  ["muted", "Mute Community notifications"],
+                ] as const
+              ).map(([key, label]) => (
+                <React.Fragment key={key}>
+                  {toggle(label, preferences[key], (value) =>
+                    setPreferences({ ...preferences, [key]: value }),
+                  )}
+                </React.Fragment>
+              ))}
+              {toggle("Quiet hours", !!preferences.quietHours, (value) =>
+                setPreferences({
+                  ...preferences,
+                  quietHours: value
+                    ? { startMinutes: 1320, endMinutes: 480 }
+                    : null,
+                }),
+              )}
+              {input(
+                "Your timezone (e.g. Europe/Bratislava)",
+                preferences.timezone,
+                (timezone) => setPreferences({ ...preferences, timezone }),
+              )}
+              {preferences.quietHours && (
+                <>
+                  {input("Quiet hours start (HH:MM)", start, setStart)}
+                  {input("Quiet hours end (HH:MM)", end, setEnd)}
+                  <ThemedText>
+                    Times use your chosen timezone. Quiet hours can continue
+                    past midnight.
+                  </ThemedText>
+                </>
+              )}
+              {action(
+                busy ? "Saving…" : "Save preferences",
+                () => void save(),
+                busy,
+              )}
+            </>
+          ) : (
+            <>
+              {busy && <ThemedText>Loading preferences…</ThemedText>}
+              {action("Retry loading preferences", () => void load(), busy)}
+            </>
+          )}
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </CommunityPage>
   );
 }
 const styles = StyleSheet.create({
@@ -293,15 +295,14 @@ const styles = StyleSheet.create({
   },
   action: {
     minHeight: 48,
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 12,
     justifyContent: "center",
   },
   toggle: {
     minHeight: 56,
-    borderRadius: 16,
-    padding: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 12,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,

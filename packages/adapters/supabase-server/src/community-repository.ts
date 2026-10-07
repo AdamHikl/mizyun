@@ -1154,6 +1154,7 @@ export class SupabaseCommunityRepository implements CommunityRepository {
       readonly accessToken: string;
       readonly limit?: number | undefined;
       readonly beforeCursor?: string | null | undefined;
+      readonly authorUserId?: UserId;
     },
   ): Promise<{
     readonly items: readonly StoredSharedActivity[];
@@ -1179,18 +1180,24 @@ export class SupabaseCommunityRepository implements CommunityRepository {
       beforeId = parts[1];
     }
     const rows = await this.#rpcRows<SharedActivityRow>(
-      "community_feed",
+      options.authorUserId ? "community_author_activities" : "community_feed",
       {
-        p_limit: limit,
+        ...(options.authorUserId
+          ? { p_author_user_id: options.authorUserId }
+          : {}),
+        p_limit: options.authorUserId ? limit + 1 : limit,
         p_before_time: beforeTime,
         p_before_id: beforeId,
       },
       options,
     );
-    const items = rows.map(sharedActivityFromRow);
+    const items = (options.authorUserId ? rows.slice(0, limit) : rows).map(
+      sharedActivityFromRow,
+    );
     const last = items[items.length - 1];
     const nextCursor =
-      items.length === limit && last
+      (options.authorUserId ? rows.length > limit : items.length === limit) &&
+      last
         ? `${last.publishedAt.toISOString()}|${last.id}`
         : undefined;
     return { items, ...(nextCursor ? { nextCursor } : {}) };

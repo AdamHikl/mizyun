@@ -1066,7 +1066,7 @@
         "apps/mobile/src/app/(tabs)/_layout.tsx",
         "apps/mobile/src/components/account-header-button.tsx",
         "apps/mobile/src/app/settings.tsx",
-        "apps/mobile/src/app/(tabs)/community.tsx"
+        "apps/mobile/src/app/(tabs)/community/index.tsx"
       ],
       "adapters": [],
       "dataTables": [],
@@ -1373,7 +1373,10 @@
         "apps/api/src/modules/community/notification-routes.ts",
         "scripts/community-worker.mjs",
         "apps/mobile/src/features/community/notifications/index.ts",
-        "scripts/restore-dev-quarantined.py"
+        "scripts/restore-dev-quarantined.py",
+        "apps/mobile/src/features/community/profiles/index.ts",
+        "apps/mobile/src/app/(tabs)/community/index.tsx",
+        "apps/api/src/modules/community/profile-activity-routes.ts"
       ],
       "ownedPaths": [
         "packages/contracts/src/community.ts",
@@ -1415,7 +1418,10 @@
         "packages/adapters/supabase-server/src/community-routines-repository.ts",
         "scripts/community-media-cleanup.mjs",
         "scripts/sql/quarantine-community-restored-dev.sql",
-        "deploy/raspberry-pi/docker-compose.dev.yml"
+        "deploy/raspberry-pi/docker-compose.dev.yml",
+        "apps/mobile/src/app/(tabs)/community",
+        "packages/contracts/src/community-profile-view.ts",
+        "packages/adapters/supabase-server/src/community-profile-read.test.ts"
       ],
       "contracts": [
         "packages/contracts/src/community.ts",
@@ -1476,7 +1482,7 @@
         "apps/mobile/src/features/community/discovery/screen.tsx",
         "apps/mobile/src/features/community/feed/feed-screen.tsx",
         "apps/mobile/src/features/community/feed/activity-detail-screen.tsx",
-        "apps/mobile/src/app/(tabs)/community.tsx",
+        "apps/mobile/src/app/(tabs)/community/index.tsx",
         "apps/mobile/src/app/community/activity/[id].tsx",
         "apps/mobile/src/features/community/reactions/reaction-bar.tsx",
         "apps/mobile/src/features/community/reactions/reactors-modal.tsx",
@@ -1607,7 +1613,10 @@
         "supabase/migrations/20261001204000_community_broader_discovery.sql",
         "supabase/migrations/20261001205000_community_challenges.sql",
         "supabase/migrations/20261001206000_community_media.sql",
-        "supabase/migrations/20261001207000_community_expansion_lifecycle.sql"
+        "supabase/migrations/20261001207000_community_expansion_lifecycle.sql",
+        "supabase/migrations/20261007110000_community_author_activities.sql",
+        "supabase/migrations/20261007120000_community_messaging_reads.sql",
+        "supabase/migrations/20261007130000_community_artifact_authors.sql"
       ],
       "tests": [
         "packages/contracts/src/community.test.ts",

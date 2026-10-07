@@ -74,6 +74,9 @@ vi.mock("react-native", () => ({
     },
   },
 }));
+vi.mock("react-native-safe-area-context", () => ({
+  SafeAreaView: "SafeAreaView",
+}));
 vi.mock("@/hooks/use-theme", () => ({ useTheme: () => ({}) }));
 vi.mock("@/features/auth/auth-context", () => ({
   useAuth: () => ({
@@ -183,7 +186,7 @@ function publish(tree: any): any {
     tree,
     (node) =>
       node.type === "Pressable" &&
-      /^(Share to Feed|Confirm Updated Card)$/.test(text(node).trim()),
+      /^(Publish workout|Update shared workout)$/.test(text(node).trim()),
   );
 }
 beforeEach(() => {

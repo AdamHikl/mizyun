@@ -15,6 +15,7 @@ vi.mock("react", async (original) => ({
   },
   useCallback: (callback: unknown) => callback,
 }));
+vi.mock("../ui", () => ({ CommunityPage: "CommunityPage" }));
 vi.mock("react-native", () => ({
   KeyboardAvoidingView: "KeyboardAvoidingView",
   Platform: { OS: "ios" },

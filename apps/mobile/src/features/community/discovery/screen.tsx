@@ -29,7 +29,7 @@ import { MaxContentWidth } from "@/constants/theme";
 import { useCommunityProfile } from "../use-community-profile";
 import { buildCommunityInvitationLink } from "../invitation-links";
 import { InitialsAvatar } from "../initials-avatar";
-import { CommunityIntro, useCommunityPalette } from "../community-presentation";
+import { useCommunityPalette } from "../community-presentation";
 import { DiscoveryController } from "./controller";
 import { DiscoveryAccessGate } from "./access-gate";
 import { invitationQrMatrix } from "./qr-matrix";
@@ -219,19 +219,25 @@ export function DiscoveryScreen({
     fromInvitation: boolean,
   ) => (
     <View style={[styles.card, { backgroundColor: colors.backgroundElement }]}>
-      <View style={styles.identityRow}>
-        <InitialsAvatar
-          symbol={user.avatarSymbol}
-          seed={user.displayName}
-          accessibilityLabel={user.displayName}
-        />
-        <View style={styles.identityCopy}>
-          <Text style={[styles.subtitle, { color: colors.text }]}>
-            {user.displayName}
-          </Text>
-          <Text style={{ color: colors.textSecondary }}>@{user.handle}</Text>
-        </View>
-      </View>
+      <Link href={`/community/profile/${user.userId}` as Href} asChild>
+        <Pressable
+          style={styles.identityRow}
+          accessibilityRole="link"
+          accessibilityLabel={`View @${user.handle} profile`}
+        >
+          <InitialsAvatar
+            symbol={user.avatarSymbol}
+            seed={user.displayName}
+            accessibilityLabel={user.displayName}
+          />
+          <View style={styles.identityCopy}>
+            <Text style={[styles.subtitle, { color: colors.text }]}>
+              {user.displayName}
+            </Text>
+            <Text style={{ color: colors.textSecondary }}>@{user.handle}</Text>
+          </View>
+        </Pressable>
+      </Link>
       {user.userId === principalKey ? (
         <Text style={{ color: colors.text }}>This is your profile.</Text>
       ) : ["following", "mutual"].includes(
@@ -298,12 +304,16 @@ export function DiscoveryScreen({
             }}
           />
         )}
-        <CommunityIntro
-          icon="👋"
-          title="Find your people"
-          description="A friend, a little encouragement. Connect with a handle or an invitation."
-          tone="mint"
-        />
+        <Text
+          accessibilityRole="header"
+          style={[styles.heading, { color: colors.text }]}
+        >
+          {token ? "Friend invitation" : "Find and invite"}
+        </Text>
+        <Text style={{ color: colors.textSecondary }}>
+          Connect deliberately by exact handle or invitation. Follow approval is
+          separate in each direction.
+        </Text>
         {accessFresh && community.isEnrolled && community.status === "ready" ? (
           <>
             <View style={styles.contextRow}>
@@ -354,22 +364,9 @@ export function DiscoveryScreen({
               </>
             )}
             <View
-              style={[
-                styles.section,
-                { backgroundColor: colors.backgroundElement },
-              ]}
+              style={[styles.section, { backgroundColor: colors.background }]}
             >
               <View style={styles.sectionHeading}>
-                <View
-                  style={[
-                    styles.sectionIcon,
-                    { backgroundColor: palette.blue },
-                  ]}
-                >
-                  <Text accessible={false} style={styles.icon}>
-                    🔎
-                  </Text>
-                </View>
                 <Text
                   accessibilityRole="header"
                   style={[
@@ -423,22 +420,9 @@ export function DiscoveryScreen({
               </Text>
             </View>
             <View
-              style={[
-                styles.section,
-                { backgroundColor: colors.backgroundElement },
-              ]}
+              style={[styles.section, { backgroundColor: colors.background }]}
             >
               <View style={styles.sectionHeading}>
-                <View
-                  style={[
-                    styles.sectionIcon,
-                    { backgroundColor: palette.purple },
-                  ]}
-                >
-                  <Text accessible={false} style={styles.icon}>
-                    💌
-                  </Text>
-                </View>
                 <Text
                   accessibilityRole="header"
                   style={[
@@ -467,10 +451,7 @@ export function DiscoveryScreen({
               </Text>
               {link && matrix && (
                 <View
-                  style={[
-                    styles.card,
-                    { backgroundColor: colors.backgroundElement },
-                  ]}
+                  style={[styles.card, { backgroundColor: colors.background }]}
                 >
                   <Text style={{ color: colors.text }}>
                     Invitation QR — expires{" "}
@@ -529,7 +510,7 @@ export function DiscoveryScreen({
                     key={item.id}
                     style={[
                       styles.card,
-                      { backgroundColor: colors.backgroundElement },
+                      { backgroundColor: colors.background },
                     ]}
                   >
                     <Text style={{ color: colors.text }}>
@@ -645,7 +626,8 @@ const styles = StyleSheet.create({
   contextCopy: { flexShrink: 1, lineHeight: 22 },
   identityRow: { flexDirection: "row", gap: 12, alignItems: "center" },
   identityCopy: { flex: 1, gap: 4 },
-  section: { padding: 20, borderRadius: 24, gap: 16 },
+  heading: { fontSize: 25, fontWeight: "700" },
+  section: { paddingVertical: 12, gap: 14 },
   sectionHeading: { flexDirection: "row", alignItems: "center", gap: 12 },
   sectionIcon: {
     width: 44,
@@ -666,7 +648,7 @@ const styles = StyleSheet.create({
     padding: 12,
     justifyContent: "center",
   },
-  card: { padding: 16, borderRadius: 18, gap: 12 },
+  card: { paddingVertical: 14, gap: 10 },
   row: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   input: { minHeight: 48, borderWidth: 1, borderRadius: 10, padding: 12 },
 });

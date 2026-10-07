@@ -12,11 +12,14 @@ import type { z } from "zod";
  * swallowed. `validation_error` is the contract-violation case (200 OK
  * with a body that does not match the route's Zod schema) and is the
  * boundary the QUALITY_GATES "validated at trust boundaries" rule points to.
+ * `context_changed` is local request retirement, distinct from missing Auth;
+ * an optional cause retains the original transport denial or transient failure.
  */
 export type ApiError =
   | { readonly kind: "not_configured"; readonly reason: string }
   | { readonly kind: "no_session" }
   | { readonly kind: "session_expired" }
+  | { readonly kind: "context_changed"; readonly cause?: ApiError }
   | {
       readonly kind: "http_error";
       readonly status: number;

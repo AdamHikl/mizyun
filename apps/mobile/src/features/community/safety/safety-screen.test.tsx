@@ -49,6 +49,7 @@ vi.mock("react", async (original) => {
     useCallback: (callback: any) => callback,
   };
 });
+vi.mock("../ui", () => ({ CommunityPage: "CommunityPage" }));
 vi.mock("react-native", () => ({
   StyleSheet: { create: (styles: unknown) => styles, hairlineWidth: 1 },
   Text: "Text",

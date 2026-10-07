@@ -59,7 +59,7 @@ describe("community principal scopes", () => {
     );
     expect(
       await scoped.request({ method: "GET", path: "/v1/community/profile" }),
-    ).toEqual({ ok: false, error: { kind: "no_session" } });
+    ).toEqual({ ok: false, error: { kind: "context_changed" } });
   });
   it("the real transport does not use another account's session resolved asynchronously", async () => {
     const fetch = vi.fn();

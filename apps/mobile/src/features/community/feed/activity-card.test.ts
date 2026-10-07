@@ -101,3 +101,9 @@ describe("ActivityCard", () => {
     expect(element.props.testID).toBe("activity-card-act-123");
   });
 });
+
+vi.mock("../ui", () => ({
+  CommunityPage: "CommunityPage",
+  CommunityIdentityLink: "CommunityIdentityLink",
+  CommunityButton: "CommunityButton",
+}));

@@ -1,4 +1,10 @@
 import { z } from "zod";
+export const communityMessageCursorSchema = z
+  .object({
+    createdAt: z.string().datetime({ offset: true }),
+    id: z.string().uuid(),
+  })
+  .strict();
 export const communityMessagingCommandSchema = z.discriminatedUnion(
   "operation",
   [
@@ -10,6 +16,19 @@ export const communityMessagingCommandSchema = z.discriminatedUnion(
       })
       .strict(),
     z.object({ operation: z.literal("contacts") }).strict(),
+    z
+      .object({
+        operation: z.literal("threads"),
+        before: communityMessageCursorSchema.optional(),
+      })
+      .strict(),
+    z
+      .object({
+        operation: z.literal("latest"),
+        peerId: z.string().uuid(),
+        before: communityMessageCursorSchema.optional(),
+      })
+      .strict(),
     z
       .object({
         operation: z.literal("listMine"),
@@ -61,6 +80,23 @@ export const communityMessageSchema = z
   .strict();
 export const communityMessagingResponseSchema = z
   .object({
+    threads: z
+      .array(
+        z
+          .object({
+            userId: z.string().uuid(),
+            displayName: z.string(),
+            latestMessage: communityMessageSchema,
+          })
+          .strict(),
+      )
+      .max(30)
+      .optional(),
+    peer: z
+      .object({ userId: z.string().uuid(), displayName: z.string() })
+      .strict()
+      .optional(),
+    nextBefore: communityMessageCursorSchema.nullable().optional(),
     enabled: z.boolean().optional(),
     muted: z.boolean().optional(),
     contacts: z

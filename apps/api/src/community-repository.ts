@@ -1287,6 +1287,7 @@ export class InMemoryCommunityRepository implements CommunityRepository {
       readonly accessToken?: string | undefined;
       readonly limit?: number | undefined;
       readonly beforeCursor?: string | null | undefined;
+      readonly authorUserId?: UserId;
     },
   ): Promise<{
     readonly items: readonly StoredSharedActivity[];
@@ -1316,6 +1317,12 @@ export class InMemoryCommunityRepository implements CommunityRepository {
 
     for (const act of this.#activities.values()) {
       if (act.revokedAt) continue;
+      if (
+        options?.authorUserId &&
+        (act.userId !== options.authorUserId ||
+          act.publishedAt.getTime() <= Date.now() - 365 * 86400000)
+      )
+        continue;
       const authorProfile = this.#profiles.get(act.userId);
       if (!authorProfile || authorProfile.status !== "active") continue;
       if (await this.isBlockedBilateral(viewerUserId, act.userId)) continue;
@@ -1354,7 +1361,9 @@ export class InMemoryCommunityRepository implements CommunityRepository {
     const items = filtered.slice(0, limit);
     const last = items[items.length - 1];
     const nextCursor =
-      items.length === limit && last
+      (options?.authorUserId
+        ? filtered.length > limit
+        : items.length === limit) && last
         ? `${last.publishedAt.toISOString()}|${last.id}`
         : undefined;
 

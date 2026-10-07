@@ -79,6 +79,8 @@ export const relativeLabel = (iso: string, now: Date = new Date()): string => {
 
 const humanize = (error: ApiError): string => {
   switch (error.kind) {
+    case "context_changed":
+      return "This request is no longer current. Refresh before continuing.";
     case "network_error":
       return "Coach is offline. Your existing conversation is still safe.";
     case "session_expired":

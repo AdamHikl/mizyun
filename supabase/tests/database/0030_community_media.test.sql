@@ -47,6 +47,8 @@ set local request.jwt.claim.sub='c1600000-0000-4000-8000-000000000003';set local
 select throws_ok($$select public.community_media_access((select (value->>'id')::uuid from media_state where key='ticket'),'image')$$,'P0001','community_unavailable','Unrelated account denied byte path');
 set local request.jwt.claim.sub='c1600000-0000-4000-8000-000000000002';
 select is((public.community_media_access((select (value->>'id')::uuid from media_state where key='ticket'),'thumbnail')->>'path'),'quarantine/'||(select value->>'id' from media_state where key='ticket')||'/thumbnail.jpg','Approved follower gets only current authorized server path');
+select is((public.community_media('get',jsonb_build_object('id',(select value->>'id' from media_state where key='ticket')))->>'authorUserId'),'c1600000-0000-4000-8000-000000000001','Authorized image author uses stable profile identity');
+select ok(not has_function_privilege('authenticated','public.community_media_dto(uuid)','execute'),'Image DTO builder remains internal after adding identity');
 select is((select count(*) from storage.objects where bucket_id='community-media'),0::bigint,'Approved social audience still has no direct Storage read');
 insert into media_state values('receipt',jsonb_build_object('id',(select id from public.community_issue_report_receipt('media',(select value->>'id' from media_state where key='ticket')))));
 select is((select id from public.community_issue_report_receipt('media',(select value->>'id' from media_state where key='ticket'))),(select (value->>'id')::uuid from media_state where key='receipt'),'Repeated explicit media receipt returns the same unexpired evidence ID');

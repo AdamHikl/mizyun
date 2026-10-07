@@ -1,0 +1,134 @@
+{
+  "date": "2026-10-07",
+  "refinement_baseline_head": "9d8a20222a13639187d2470ad756d041ec952db4",
+  "original_baseline_head": "2c61518c29621ff3ca5c2ef8645afce01e95c740",
+  "command": "pnpm check under canonical Dev environment",
+  "exit_code": 0,
+  "stable_gate_input_sha256": "ca0ef0f205f95704ed2efca1fa510b9365fb892f2742f0bbf88cc2c6857ba7e5",
+  "source_manifest": "docs/evidence/community-ui-2026-10-07/refinement-source-sha256.txt",
+  "source_files_checked": 117,
+  "source_manifest_sha256": "6d8760b61bd399bc8c5169bc293099df697cf650643e912055b4ca35b52df6ab",
+  "unit_packages": {
+    "packages/observability": {
+      "files_passed": 1,
+      "files_skipped": 0,
+      "tests_passed": 10,
+      "tests_skipped": 0
+    },
+    "packages/contracts": {
+      "files_passed": 21,
+      "files_skipped": 0,
+      "tests_passed": 274,
+      "tests_skipped": 0
+    },
+    "packages/core": {
+      "files_passed": 30,
+      "files_skipped": 0,
+      "tests_passed": 410,
+      "tests_skipped": 0
+    },
+    "packages/memory": {
+      "files_passed": 1,
+      "files_skipped": 0,
+      "tests_passed": 3,
+      "tests_skipped": 0
+    },
+    "packages/identity": {
+      "files_passed": 1,
+      "files_skipped": 0,
+      "tests_passed": 19,
+      "tests_skipped": 0
+    },
+    "packages/adapters/ses": {
+      "files_passed": 1,
+      "files_skipped": 0,
+      "tests_passed": 5,
+      "tests_skipped": 0
+    },
+    "packages/adapters/apple-auth": {
+      "files_passed": 2,
+      "files_skipped": 0,
+      "tests_passed": 21,
+      "tests_skipped": 0
+    },
+    "packages/adapters/supabase-mobile": {
+      "files_passed": 2,
+      "files_skipped": 0,
+      "tests_passed": 30,
+      "tests_skipped": 0
+    },
+    "packages/agent-runtime": {
+      "files_passed": 3,
+      "files_skipped": 0,
+      "tests_passed": 91,
+      "tests_skipped": 0
+    },
+    "packages/api-client": {
+      "files_passed": 2,
+      "files_skipped": 0,
+      "tests_passed": 39,
+      "tests_skipped": 0
+    },
+    "packages/adapters/supabase-server": {
+      "files_passed": 24,
+      "files_skipped": 0,
+      "tests_passed": 173,
+      "tests_skipped": 0
+    },
+    "packages/config": {
+      "files_passed": 6,
+      "files_skipped": 0,
+      "tests_passed": 82,
+      "tests_skipped": 0
+    },
+    "packages/providers/gemini": {
+      "files_passed": 3,
+      "files_skipped": 0,
+      "tests_passed": 65,
+      "tests_skipped": 0
+    },
+    "apps/mobile": {
+      "files_passed": 158,
+      "files_skipped": 0,
+      "tests_passed": 1754,
+      "tests_skipped": 0
+    },
+    "apps/api": {
+      "files_passed": 64,
+      "files_skipped": 3,
+      "tests_passed": 892,
+      "tests_skipped": 15
+    }
+  },
+  "metro_exports": {
+    "ios": [
+      {
+        "path": "_expo/static/js/ios/entry-2942092a064fec72e89c8a49c37d1e3c.hbc",
+        "bytes": 8300232,
+        "sha256": "132cbd39e073ddecd9ac67995e829c0805ec58fdf91ac9c27ef1deaa100caedb"
+      },
+      {
+        "path": "metadata.json",
+        "bytes": 2598,
+        "sha256": "22d000b916ebdc4722d6b87d4408f13d6ad38bc4588ec3c34873cc81daa829d5"
+      }
+    ],
+    "android": [
+      {
+        "path": "_expo/static/js/android/entry-ce53995cb71d28d55ee4a6f738ff73a6.hbc",
+        "bytes": 8370111,
+        "sha256": "a18305edb4c0e89c012e4ae2b2946f5162e62b6b0bb8259758f2e40ec9857eee"
+      },
+      {
+        "path": "metadata.json",
+        "bytes": 2921,
+        "sha256": "cb56733db5bff404a465b975e0637be1d7a7d7bfb16439e578aed3abf88de902"
+      }
+    ]
+  },
+  "existing_api_e2e_skips": {
+    "tests": 15,
+    "reason": "existing credential/local-integration gates; no live acceptance claimed"
+  },
+  "acceptance_scope": "automated source and bundle verification only"
+}

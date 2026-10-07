@@ -16,7 +16,11 @@ import {
   View,
 } from "react-native";
 import { useFocusEffect, useRouter, type Href } from "expo-router";
-import type { SharedActivityFeedItemDto } from "@mizyun/contracts";
+import {
+  authorSharedActivityDtoSchema,
+  type AuthorSharedActivityDto,
+  type SharedActivityFeedItemDto,
+} from "@mizyun/contracts";
 import { apiClient } from "@/composition/api-client";
 import { useTheme } from "@/hooks/use-theme";
 import {
@@ -26,9 +30,14 @@ import {
   setUserMuted,
 } from "../community-client";
 import { scopeCommunityClient } from "../scoped-client";
+import {
+  COMMUNITY_READ_LIFETIME_MS,
+  getCommunityReadDeadline,
+} from "../state/read-cache";
 import { VisibilityEpoch } from "../state/visibility-epoch";
 import { SharedWorkoutDetails } from "../shared-workout-details";
-import { InitialsAvatar } from "../initials-avatar";
+import { CommunityIdentityLink, CommunityPage, CommunityButton } from "../ui";
+import { ShareWorkoutModal } from "../share-workout-modal";
 import { ReactionBar } from "../reactions";
 import { ReportModal } from "../safety";
 import { captureSafetyReceipt } from "../safety/safety-api";
@@ -42,6 +51,7 @@ import {
 export interface ActivityDetailScreenProps {
   readonly activityId: string;
   readonly principalKey: string | null;
+  readonly sessionToken?: string | null;
 }
 
 const REACTION_EMOJIS: Record<string, string> = {
@@ -55,21 +65,32 @@ const REACTION_EMOJIS: Record<string, string> = {
 export function ActivityDetailScreen({
   activityId,
   principalKey,
+  sessionToken,
 }: ActivityDetailScreenProps) {
   const colors = useTheme();
   const router = useRouter();
 
   const identity = `${principalKey}:${activityId}`;
-  const lifetime = useRef({ identity });
-  if (lifetime.current.identity !== identity) lifetime.current = { identity };
+  const lifetime = useRef({ identity, sessionToken });
+  if (
+    lifetime.current.identity !== identity ||
+    lifetime.current.sessionToken !== sessionToken
+  )
+    lifetime.current = { identity, sessionToken };
   const current = lifetime.current;
   const alive = useRef(true);
   const epoch = useRef(new VisibilityEpoch());
-  const isCurrent = () => alive.current && lifetime.current === current;
+  const readDeadline = useRef(0);
+  const expiryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isCurrent = () =>
+    alive.current &&
+    lifetime.current === current &&
+    Date.now() < readDeadline.current;
   useEffect(() => {
     alive.current = true;
     return () => {
       alive.current = false;
+      if (expiryTimer.current !== null) clearTimeout(expiryTimer.current);
     };
   }, []);
 
@@ -77,18 +98,35 @@ export function ActivityDetailScreen({
     null,
   );
   const [loading, setLoading] = useState(true);
+  const [managed, setManaged] = useState<AuthorSharedActivityDto | null>(null);
+  const [manageError, setManageError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [receiptId, setReceiptId] = useState<string | undefined>();
-  const [displayIdentity, setDisplayIdentity] = useState(identity);
-  if (displayIdentity !== identity) {
-    setDisplayIdentity(identity);
+  const [displayIdentity, setDisplayIdentity] = useState(current);
+  if (displayIdentity !== current) {
+    setDisplayIdentity(current);
     setActivity(null);
+    setManaged(null);
     setReceiptId(undefined);
     setReportModalVisible(false);
     setLoading(true);
     setError(null);
   }
+
+  const clear = useCallback(() => {
+    alive.current = false;
+    readDeadline.current = 0;
+    if (expiryTimer.current !== null) clearTimeout(expiryTimer.current);
+    expiryTimer.current = null;
+    epoch.current.invalidate();
+    setActivity(null);
+    setManaged(null);
+    setReceiptId(undefined);
+    setReportModalVisible(false);
+    setLoading(false);
+    setError("This activity is unavailable until access is checked again.");
+  }, []);
 
   const loadActivity = useCallback(async () => {
     if (!principalKey) {
@@ -97,9 +135,14 @@ export function ActivityDetailScreen({
       return;
     }
 
+    alive.current = true;
+    readDeadline.current = Date.now() + COMMUNITY_READ_LIFETIME_MS;
+    if (expiryTimer.current !== null) clearTimeout(expiryTimer.current);
+    expiryTimer.current = setTimeout(clear, COMMUNITY_READ_LIFETIME_MS);
     setLoading(true);
     setError(null);
     setActivity(null);
+    setManaged(null);
     setReceiptId(undefined);
     setReportModalVisible(false);
 
@@ -116,6 +159,19 @@ export function ActivityDetailScreen({
     if (!requestCurrent()) return;
 
     if (result.ok) {
+      readDeadline.current = Math.min(
+        readDeadline.current,
+        getCommunityReadDeadline(result.value) ?? readDeadline.current,
+      );
+      if (!requestCurrent()) {
+        clear();
+        return;
+      }
+      if (expiryTimer.current !== null) clearTimeout(expiryTimer.current);
+      expiryTimer.current = setTimeout(
+        clear,
+        Math.max(0, readDeadline.current - Date.now()),
+      );
       setActivity(result.value);
       void captureSafetyReceipt(scoped, "activity", activityId).then(
         (receipt) => {
@@ -134,28 +190,20 @@ export function ActivityDetailScreen({
       }
     }
     setLoading(false);
-  }, [activityId, principalKey]);
+  }, [activityId, principalKey, sessionToken, clear]);
 
   const reactionsClient = useMemo(() => {
     const requestEpoch = epoch.current.capture();
     return scopeCommunityClient(
       apiClient,
       principalKey,
-      () => alive.current && lifetime.current === current && requestEpoch(),
+      () => isCurrent() && requestEpoch(),
     );
   }, [principalKey, current, activity]);
 
   const focused = useRef(false);
   const foreground = useRef(AppState.currentState === "active");
-  const clear = useCallback(() => {
-    alive.current = false;
-    epoch.current.invalidate();
-    setActivity(null);
-    setReceiptId(undefined);
-    setReportModalVisible(false);
-    setLoading(false);
-    setError("This activity is unavailable until access is checked again.");
-  }, []);
+
   const resume = useCallback(() => {
     if (!focused.current || !foreground.current) return;
     alive.current = true;
@@ -246,6 +294,30 @@ export function ActivityDetailScreen({
     );
   };
 
+  const manageShare = async () => {
+    if (!activity || activity.authorUserId !== principalKey) return;
+    const requestEpoch = epoch.current.capture();
+    const currentRequest = () => isCurrent() && requestEpoch();
+    const scoped = scopeCommunityClient(
+      apiClient,
+      principalKey,
+      currentRequest,
+    );
+    const result = await scoped.request<AuthorSharedActivityDto>({
+      method: "GET",
+      path: `/v1/community/activities/${encodeURIComponent(activity.id)}/manage`,
+      schema: authorSharedActivityDtoSchema,
+    });
+    if (!currentRequest()) return;
+    if (result.ok && result.value.authorUserId === principalKey) {
+      setManageError(null);
+      setManaged(result.value);
+    } else
+      setManageError(
+        "The shared workout cannot be managed here right now. Check access again or open your private workout history.",
+      );
+  };
+
   const handleReport = () => {
     setReportModalVisible(true);
   };
@@ -280,7 +352,11 @@ export function ActivityDetailScreen({
         </Pressable>
         <Pressable
           style={[styles.backButton, { backgroundColor: colors.primary }]}
-          onPress={() => router.back()}
+          onPress={() =>
+            router.canGoBack()
+              ? router.back()
+              : router.replace("/(tabs)/community")
+          }
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
@@ -299,34 +375,25 @@ export function ActivityDetailScreen({
   const isSelf = activity.authorUserId === principalKey;
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={styles.contentContainer}
-    >
+    <CommunityPage title="Shared workout">
       {/* Author Card */}
       <View
         style={[
           styles.mainCard,
           {
-            backgroundColor: colors.backgroundElement,
+            backgroundColor: colors.background,
             borderColor: colors.border,
           },
         ]}
       >
         <View style={styles.authorHeader}>
-          <InitialsAvatar
-            seed={activity.authorDisplayName}
-            symbol={activity.authorAvatarSymbol}
-            size={52}
-            accessibilityLabel={`${activity.authorDisplayName}'s avatar`}
-          />
           <View style={styles.authorDetails}>
-            <Text style={[styles.displayName, { color: colors.text }]}>
-              {activity.authorDisplayName}
-            </Text>
-            <Text style={[styles.handle, { color: colors.textSecondary }]}>
-              @{activity.authorHandle}
-            </Text>
+            <CommunityIdentityLink
+              userId={activity.authorUserId}
+              displayName={activity.authorDisplayName}
+              handle={activity.authorHandle}
+              avatarKey={activity.authorAvatarSymbol}
+            />
             {publishedAtLabel ? (
               <Text style={[styles.timestamp, { color: colors.textSecondary }]}>
                 Shared {publishedAtLabel}
@@ -420,6 +487,36 @@ export function ActivityDetailScreen({
         </View>
       </View>
 
+      {isSelf ? (
+        <>
+          <CommunityButton
+            label="Edit or unpublish shared workout"
+            onPress={() => void manageShare()}
+          />
+          {manageError ? (
+            <Text accessibilityRole="alert" style={{ color: colors.text }}>
+              {manageError}
+            </Text>
+          ) : null}
+          {managed ? (
+            <ShareWorkoutModal
+              visible
+              workoutId={managed.sourceWorkoutId}
+              existingActivityId={managed.id}
+              onDismiss={() => setManaged(null)}
+              onPublished={() => {
+                setManaged(null);
+                void loadActivity();
+              }}
+              onRevoked={() => {
+                setManaged(null);
+                clear();
+              }}
+            />
+          ) : null}
+        </>
+      ) : null}
+
       {/* Action Options (only when viewing other authors) */}
       {!isSelf ? (
         <View style={styles.actionsContainer}>
@@ -474,7 +571,7 @@ export function ActivityDetailScreen({
           }}
         />
       )}
-    </ScrollView>
+    </CommunityPage>
   );
 }
 
@@ -514,9 +611,9 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   mainCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 20,
+    borderRadius: 0,
+    borderWidth: 0,
+    paddingVertical: 12,
     marginBottom: 20,
   },
   authorHeader: {

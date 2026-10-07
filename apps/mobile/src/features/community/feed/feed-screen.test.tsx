@@ -82,6 +82,7 @@ vi.mock("react-native", () => ({
     flatten: (styles: any) =>
       Array.isArray(styles) ? Object.assign({}, ...styles) : styles,
   },
+  useWindowDimensions: () => ({ fontScale: 1, width: 390 }),
   Text: "Text",
   View: "View",
   Pressable: "Pressable",
@@ -98,6 +99,7 @@ vi.mock("react-native", () => ({
     },
   },
 }));
+vi.mock("expo-symbols", () => ({ SymbolView: "SymbolView" }));
 vi.mock("react-native-safe-area-context", () => ({
   SafeAreaView: "SafeAreaView",
 }));
@@ -115,6 +117,7 @@ vi.mock("expo-router", async () => {
   const React = await import("react");
   return {
     Link: "Link",
+    useLocalSearchParams: () => ({}),
     useRouter: () => ({ push: vi.fn() }),
     useFocusEffect: (callback: () => () => void) => {
       mocks.focus = callback;
@@ -205,6 +208,8 @@ function render(): any {
 }
 function find(node: any, label: string): any {
   if (!node) return null;
+  if (typeof node.type === "function")
+    return find(node.type(node.props), label);
   if (node.props?.accessibilityLabel === label) return node;
   if (Array.isArray(node))
     return node.map((child) => find(child, label)).find(Boolean);
@@ -212,6 +217,8 @@ function find(node: any, label: string): any {
 }
 function linkFor(node: any, label: string): any {
   if (!node) return null;
+  if (typeof node.type === "function")
+    return linkFor(node.type(node.props), label);
   if (node.type === "Link" && find(node.props.children, label)) return node;
   if (Array.isArray(node))
     return node.map((child) => linkFor(child, label)).find(Boolean);
@@ -341,69 +348,52 @@ describe("Community home participation and navigation", () => {
     expect(tree.props.children[1].type).toBe("CommunitySettingsScreen");
     expect(mocks.refresh).not.toHaveBeenCalled();
   });
-  it("makes inbox directly reachable from the enrolled Community home", async () => {
+  it("separates the updates bell from messaging and connects the four root destinations", async () => {
     mocks.enrolled = true;
-    const tree = await settledRender();
-    const header = tree.props.children[1].props.ListHeaderComponent;
-    expect(linkFor(header, "Community inbox").props.href).toBe(
+    const header = (await settledRender()).props.children[1].props
+      .ListHeaderComponent;
+    expect(linkFor(header, "Community updates").props.href).toBe(
       "/community/inbox",
     );
-    expect(
-      linkFor(header, "My Community profile and settings").props.href,
-    ).toBe("/community/settings");
+    for (const [label, destination] of [
+      ["People", "people"],
+      ["Messages", "messages"],
+      ["Me", "me"],
+    ])
+      expect(linkFor(header, label).props.href).toBe(
+        `/(tabs)/community/${destination}`,
+      );
     expect(mocks.request).not.toHaveBeenCalled();
   });
-  it("explains navigation destinations and keeps sharing a separate explicit workout action", async () => {
+  it("keeps sharing deliberate and Spaces reachable without navigation cards", async () => {
     mocks.enrolled = true;
-    const tree = await settledRender();
-    const header = tree.props.children[1].props.ListHeaderComponent;
-    expect(linkFor(header, "Your friends and requests").props.href).toBe(
-      "/community/relationships",
+    const header = (await settledRender()).props.children[1].props
+      .ListHeaderComponent;
+    expect(linkFor(header, "Share workout").props.href).toBe(
+      "/community/share",
     );
-    expect(
-      find(header, "Your friends and requests").props.accessibilityHint,
-    ).toBe("Approve requests and manage follows");
-    expect(
-      linkFor(
-        tree.props.children[1].props.ListFooterComponent,
-        "Open saved workouts",
-      ).props.href,
-    ).toBe("/workouts");
-    expect(linkFor(header, "Open saved workouts")).toBeFalsy();
-    expect(mocks.request).not.toHaveBeenCalled();
+    expect(linkFor(header, "Spaces").props.href).toBe("/community/more");
+    expect(find(header, "Feed").props.accessibilityState.selected).toBe(true);
   });
-  it("passes flat native styles through router links so navigation cards retain their layout", async () => {
+  it("passes flat native styles through router links with accessible targets", async () => {
     mocks.enrolled = true;
     const list = (await settledRender()).props.children[1];
     for (const label of [
-      "Find Friends",
-      "Your friends and requests",
-      "Community inbox",
-      "My Community profile and settings",
+      "Feed",
+      "People",
+      "Messages",
+      "Me",
+      "Community updates",
+      "Share workout",
+      "Spaces",
     ]) {
       const action = find(list.props.ListHeaderComponent, label);
       expect(Array.isArray(action.props.style)).toBe(false);
-      expect(action.props.style.borderRadius).toBe(16);
       expect(action.props.style.minHeight).toBeGreaterThanOrEqual(48);
     }
-    const invite = find(list.props.ListEmptyComponent, "Find a friend");
-    expect(Array.isArray(invite.props.style)).toBe(false);
-    expect(invite.props.style.minHeight).toBeGreaterThanOrEqual(48);
-  });
-  it("makes discovery primary and keeps management shortcuts compact, without inventing social counts", async () => {
-    mocks.enrolled = true;
-    const list = (await settledRender()).props.children[1];
-    const primary = find(list.props.ListHeaderComponent, "Find Friends");
-    const friends = find(
-      list.props.ListHeaderComponent,
-      "Your friends and requests",
-    );
-    expect(primary.props.style.flexBasis).toBe("100%");
-    expect(friends.props.style.flexBasis).toBe("28%");
-    expect(primary.props.style.backgroundColor).not.toBe(
-      friends.props.style.backgroundColor,
-    );
-    expect(primary.props.accessibilityHint).toContain("handle");
+    expect(
+      find(list.props.ListEmptyComponent, "Find people").props.style.minHeight,
+    ).toBeGreaterThanOrEqual(48);
   });
   it("keeps navigation stable and shows the checking placeholder during automatic feed refresh", async () => {
     mocks.enrolled = true;
@@ -418,7 +408,7 @@ describe("Community home participation and navigation", () => {
       "Checking shared workouts",
     );
     expect(JSON.stringify(list.props.ListEmptyComponent)).not.toContain(
-      "Cheer each other on",
+      "No shared workouts yet",
     );
     expect(list.props.refreshControl.props.refreshing).toBe(false);
     expect(list.props.data).toEqual([]);
@@ -430,7 +420,7 @@ describe("Community home participation and navigation", () => {
     const empty = tree.props.children[1].props.ListEmptyComponent;
     expect(JSON.stringify(empty)).toContain("Activity is unavailable");
     expect(JSON.stringify(empty)).not.toContain("No shared workouts yet");
-    expect(linkFor(empty, "Find a friend")).toBeFalsy();
+    expect(linkFor(empty, "Find people")).toBeFalsy();
   });
 });
 
@@ -450,7 +440,7 @@ describe("Community retained tab membership freshness", () => {
     const reset = render().props.children[1];
     expect(reset.props.data).toEqual([]);
     expect(JSON.stringify(reset.props.ListEmptyComponent)).not.toContain(
-      "Cheer each other on",
+      "No shared workouts yet",
     );
     expect(JSON.stringify(reset.props.ListEmptyComponent)).toContain(
       "Checking shared workouts",
@@ -477,7 +467,7 @@ describe("Community retained tab membership freshness", () => {
     const pending = render().props.children[1];
     expect(pending.props.data).toEqual([]);
     expect(JSON.stringify(pending.props.ListEmptyComponent)).not.toContain(
-      "Cheer each other on",
+      "No shared workouts yet",
     );
     finishMembership();
     finishFeed();
@@ -493,7 +483,7 @@ describe("Community retained tab membership freshness", () => {
     const list = (await settledRender()).props.children[1];
     expect(list.props.data).toEqual([]);
     expect(JSON.stringify(list.props.ListEmptyComponent)).not.toContain(
-      "Cheer each other on",
+      "No shared workouts yet",
     );
     expect(JSON.stringify(list.props.ListEmptyComponent)).toContain(
       "Checking shared workouts",
@@ -505,7 +495,7 @@ describe("Community retained tab membership freshness", () => {
     const list = (await settledRender()).props.children[1];
     expect(list.props.data).toEqual([]);
     expect(JSON.stringify(list.props.ListEmptyComponent)).toContain(
-      "Cheer each other on",
+      "No shared workouts yet",
     );
   });
   it("rebinds visible card intents after a fast refocus without an intermediate render", async () => {
@@ -524,7 +514,7 @@ describe("Community retained tab membership freshness", () => {
     expect(after).not.toBe(before);
     expect(await before.request({ method: "GET", path: "/unused" })).toEqual({
       ok: false,
-      error: { kind: "no_session" },
+      error: { kind: "context_changed" },
     });
     expect(await after.request({ method: "GET", path: "/unused" })).toEqual({
       ok: true,
@@ -571,7 +561,7 @@ describe("Community retained tab membership freshness", () => {
       "Checking shared workouts",
     );
     expect(JSON.stringify(list.props.ListEmptyComponent)).not.toContain(
-      "Cheer each other on",
+      "No shared workouts yet",
     );
     finish();
     await flushAsync();
@@ -618,7 +608,7 @@ describe("Community retained tab membership freshness", () => {
       "Checking shared workouts",
     );
     expect(JSON.stringify(list.props.ListEmptyComponent)).not.toContain(
-      "Cheer each other on",
+      "No shared workouts yet",
     );
     expect(list.props.refreshControl.props.refreshing).toBe(false);
     expect(JSON.stringify(list.props.ListEmptyComponent)).not.toContain(
@@ -832,7 +822,7 @@ describe("Community completed navigation snapshot", () => {
     expect(after).not.toBe(before);
     expect(await before.request({ method: "GET", path: "/unused" })).toEqual({
       ok: false,
-      error: { kind: "no_session" },
+      error: { kind: "context_changed" },
     });
     expect(await after.request({ method: "GET", path: "/unused" })).toEqual({
       ok: true,
@@ -860,3 +850,13 @@ describe("Community completed navigation snapshot", () => {
     },
   );
 });
+
+vi.mock("../profiles", () => ({
+  CommunityMyProfileScreen: "CommunityMyProfileScreen",
+}));
+vi.mock("../relationships/screen", () => ({
+  CommunityPeopleScreen: "CommunityPeopleScreen",
+}));
+vi.mock("../messaging", () => ({
+  CommunityMessagingScreen: "CommunityMessagingScreen",
+}));

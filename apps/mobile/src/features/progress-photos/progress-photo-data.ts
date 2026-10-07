@@ -165,6 +165,8 @@ export const progressPhotoErrorMessage = (
   error: ProgressPhotoError,
 ): string => {
   switch (error.kind) {
+    case "context_changed":
+      return "This request is no longer current. Refresh before continuing.";
     case "invalid_photo":
     case "upload_error":
       return error.message;

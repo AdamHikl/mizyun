@@ -11,6 +11,7 @@ export default function ActivityScreen() {
     <ActivityDetailScreen
       activityId={id ?? ""}
       principalKey={session?.user.id ?? null}
+      sessionToken={session?.accessToken ?? null}
     />
   );
 }

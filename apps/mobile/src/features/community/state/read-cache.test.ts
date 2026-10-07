@@ -3,9 +3,12 @@ import { unpublishActivityResponseSchema } from "@mizyun/contracts";
 import type { ApiClient } from "@mizyun/api-client";
 import type { AuthSession } from "@mizyun/identity";
 import { scopeCommunityClient } from "../scoped-client";
+import { humanizeCommunityError } from "../community-client";
 import {
   CommunityReadCache,
   getCommunityReadDeadline,
+  getCommunityReadEpoch,
+  setCommunityReadPrincipal,
   invalidateCommunityReads,
 } from "./read-cache";
 
@@ -61,6 +64,121 @@ afterEach(() => {
 });
 
 describe("Community navigation reads", () => {
+  it("preserves a failed endpoint's error while retiring overlapping reads without claiming sign-out", async () => {
+    const { cache, request } = fixture();
+    const legacy = deferred();
+    const failure = {
+      kind: "http_error" as const,
+      status: 404,
+      code: "NOT_FOUND",
+      message: "Not found",
+    };
+    request
+      .mockReturnValueOnce(legacy.promise)
+      .mockResolvedValueOnce({ ok: false, error: failure });
+    const client = scopeCommunityClient(cache, "alice", () => true);
+    const pending = client.request(options);
+    await Promise.resolve();
+    await Promise.resolve();
+    const missing = await client.request({
+      ...options,
+      path: "/v1/community/profiles/alice",
+    });
+    expect(missing).toEqual({
+      ok: false,
+      error: { kind: "context_changed", cause: failure },
+    });
+    legacy.resolve({ ok: true, value: { revoked: false } });
+    const retired = await pending;
+    expect(retired).toEqual({ ok: false, error: { kind: "context_changed" } });
+    if (!retired.ok)
+      expect(humanizeCommunityError(retired.error)).not.toContain("sign in");
+    expect((await client.request(options)).ok).toBe(true);
+    expect(request).toHaveBeenCalledTimes(3);
+  });
+
+  it("keeps real absent authentication distinct from a retired read", async () => {
+    const { cache, setSession } = fixture();
+    setSession(null);
+    expect(
+      await scopeCommunityClient(cache, "alice", () => true).request(options),
+    ).toEqual({
+      ok: false,
+      error: { kind: "no_session" },
+    });
+  });
+
+  it("retires a read interrupted by an unrelated API write without exposing its value or claiming sign-out", async () => {
+    const { cache, request } = fixture();
+    const legacy = deferred();
+    request.mockReturnValueOnce(legacy.promise);
+    const client = scopeCommunityClient(cache, "alice", () => true);
+    const pending = client.request(options);
+    await Promise.resolve();
+    await Promise.resolve();
+    await cache.request({
+      method: "POST",
+      path: "/v1/notifications/token",
+      body: {},
+    });
+    legacy.resolve({ ok: true, value: { revoked: false } });
+    expect(await pending).toEqual({
+      ok: false,
+      error: { kind: "context_changed" },
+    });
+    expect((await client.request(options)).ok).toBe(true);
+    expect(request).toHaveBeenCalledTimes(3);
+  });
+
+  it("retires same-account reads eagerly when Auth rotates the token before a new destination loads", async () => {
+    const { cache, request, setSession } = fixture();
+    const client = scopeCommunityClient(cache, "alice", () => true);
+    await client.request(options);
+    const previousEpoch = getCommunityReadEpoch();
+    setSession({
+      user: { id: "alice" },
+      accessToken: "renewed-token",
+    } as AuthSession);
+    setCommunityReadPrincipal("alice", "renewed-token");
+    expect(getCommunityReadEpoch()).toBeGreaterThan(previousEpoch);
+    const newDestinationEpoch = getCommunityReadEpoch();
+    expect((await client.request(options)).ok).toBe(true);
+    expect(getCommunityReadEpoch()).toBe(newDestinationEpoch);
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+  it("keeps nested conversation cursors distinct without invalidating other authorized reads", async () => {
+    const { cache, request } = fixture();
+    const client = scopeCommunityClient(cache, "alice", () => true);
+    await client.request(options);
+    for (const id of ["first", "second", "first"])
+      await client.request({
+        method: "POST",
+        path: "/v1/community/messaging",
+        schema,
+        body: {
+          operation: "latest",
+          peerId: "peer",
+          before: { createdAt: "2026-10-07T00:00:00Z", id },
+        },
+      });
+    await client.request(options);
+    expect(request).toHaveBeenCalledTimes(3);
+    vi.advanceTimersByTime(10_001);
+    await client.request(options);
+    expect(request).toHaveBeenCalledTimes(4);
+  });
+  it("keys complete profile timeline pages by author and cursor", async () => {
+    const { cache, request } = fixture();
+    const client = scopeCommunityClient(cache, "alice", () => true);
+    for (const path of [
+      "/v1/community/profiles/bob/activities",
+      "/v1/community/profiles/bob/activities?cursor=older",
+      "/v1/community/profiles/carol/activities",
+      "/v1/community/profiles/bob/activities",
+    ])
+      await client.request({ method: "GET", path, schema });
+    expect(request).toHaveBeenCalledTimes(3);
+  });
   it("preserves multipart meal and Coach uploads and optional disabled capabilities", async () => {
     const { raw, cache } = fixture();
     expect(cache.draftFoodEntry).toBeUndefined();

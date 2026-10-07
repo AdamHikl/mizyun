@@ -1,56 +1,64 @@
 import { invalidateCommunityReads } from "../state/read-cache";
 import React, { useCallback } from "react";
-import { ScrollView, Text, View } from "react-native";
-import { Stack, router, type Href, useFocusEffect } from "expo-router";
+import { Text } from "react-native";
+import { type Href, useFocusEffect } from "expo-router";
 import { communityFeatureStatusSchema } from "@mizyun/contracts";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
-import { CommunityIntro } from "../community-presentation";
 import { useExpansionCommand } from "./use-expansion-command";
 import { ExpansionButton } from "./form";
-const destinations = [
+import { CommunityPage, CommunityRow, CommunitySection } from "../ui";
+const sections = [
   {
-    feature: "challenges",
-    title: "Shared challenges",
-    description:
-      "Manage goals and declarations, or join through a private group",
-    path: "/community/challenges",
+    title: "Your circles",
+    destinations: [
+      {
+        feature: "groups",
+        title: "Private groups",
+        description: "Posts, members and rules for a small circle",
+        path: "/community/groups",
+      },
+      {
+        feature: "challenges",
+        title: "Cooperative challenges",
+        description: "Choose workout or rest declarations in a private group",
+        path: "/community/challenges",
+      },
+    ],
   },
   {
-    feature: "groups",
-    title: "Private groups",
-    description: "A small circle, your rules, deliberate sharing",
-    path: "/community/groups",
+    title: "Shared with followers",
+    destinations: [
+      {
+        feature: "routines",
+        title: "Shared routines",
+        description: "Preview a plan and save an independent private copy",
+        path: "/community/routines",
+      },
+      {
+        feature: "media",
+        title: "Community photos",
+        description: "Separate device-selected photos, reviewed before sharing",
+        path: "/community/media",
+      },
+    ],
   },
   {
-    feature: "messaging",
-    title: "Messages",
-    description: "Text conversations after mutual approval and opt-in",
-    path: "/community/messages",
-  },
-  {
-    feature: "routines",
-    title: "Shared routines",
-    description: "Preview a plan, or import your own independent copy",
-    path: "/community/routines",
-  },
-  {
-    feature: "comments",
-    title: "Conversation and mentions",
-    description: "Control who can mention you and find mention updates",
-    path: "/community/comments",
-  },
-  {
-    feature: "media",
-    title: "Community photos",
-    description: "Separate uploads, rights confirmation and safety review",
-    path: "/community/media",
-  },
-  {
-    feature: "discovery",
-    title: "Discover friends",
-    description: "Choose whether others can search a handle prefix",
-    path: "/community/discover",
+    title: "Your choices",
+    destinations: [
+      {
+        feature: "comments",
+        title: "Discussion and mentions",
+        description: "Manage mentions and discussion preferences",
+        path: "/community/comments",
+      },
+      {
+        feature: "discovery",
+        title: "Handle prefix discovery",
+        description: "An optional wider search for consenting members",
+        path: "/community/discover",
+      },
+    ],
   },
 ];
 function Content() {
@@ -66,20 +74,11 @@ function Content() {
     }, [state.run]),
   );
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: t.background }}
-      contentContainerStyle={{
-        padding: 20,
-        gap: 16,
-        backgroundColor: t.background,
-      }}
-    >
-      <Stack.Screen options={{ title: "Activities & sharing" }} />
-      <CommunityIntro
-        icon="🌱"
-        title="Connect at your pace"
-        description="Every new feature has its own choice. Your workouts, notes and health records stay private until you deliberately share an allowed snapshot. You can always manage your existing choices. Find cooperative challenges inside a private group."
-      />
+    <CommunityPage title="Spaces" backHref="/community">
+      <Text style={{ color: t.textSecondary }}>
+        Small circles, cooperative goals and deliberate sharing. Each feature
+        has its own choice.
+      </Text>
       {state.error && (
         <Text accessibilityRole="alert" style={{ color: t.text }}>
           {state.error}
@@ -93,19 +92,24 @@ function Content() {
           void state.run({});
         }}
       />
-      {destinations.map((d) => {
-        const feature = state.data?.find((f) => f.feature === d.feature);
-        return (
-          <View key={d.feature} style={{ gap: 6 }}>
-            <ExpansionButton
-              label={`${d.title}${feature && !feature.enabled ? " · sharing paused" : ""}`}
-              onPress={() => router.push(d.path as Href)}
-            />
-            <Text style={{ color: t.textSecondary }}>{d.description}</Text>
-          </View>
-        );
-      })}
-    </ScrollView>
+      {sections.map((section) => (
+        <CommunitySection key={section.title} title={section.title}>
+          {section.destinations.map((destination) => {
+            const feature = state.data?.find(
+              (item) => item.feature === destination.feature,
+            );
+            return (
+              <CommunityRow
+                key={destination.feature}
+                title={destination.title}
+                description={`${destination.description}${feature ? (feature.enabled ? "" : " · Sharing paused") : " · Availability unconfirmed"}`}
+                href={destination.path as Href}
+              />
+            );
+          })}
+        </CommunitySection>
+      ))}
+    </CommunityPage>
   );
 }
 export function CommunityExpansionsScreen() {

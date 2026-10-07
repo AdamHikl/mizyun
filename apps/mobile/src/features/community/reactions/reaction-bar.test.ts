@@ -61,6 +61,7 @@ vi.mock("../initials-avatar", () => ({
     props,
   }),
 }));
+vi.mock("../ui", () => ({ CommunityIdentityLink: "CommunityIdentityLink" }));
 
 describe("COMM-08 Reversible encouragement reactions", () => {
   describe("constants and definitions", () => {
@@ -650,7 +651,7 @@ describe("COMM-08 Reversible encouragement reactions", () => {
       expect(element.props.testID).toBe("reaction-bar-act-1");
 
       const barView = element.props.children[0];
-      const buttons = barView.props.children[0];
+      const buttons = barView.props.children[1];
       expect(buttons).toHaveLength(5);
 
       // Check each button
@@ -688,7 +689,7 @@ describe("COMM-08 Reversible encouragement reactions", () => {
       });
 
       const barView = element.props.children[0];
-      const authorViewReactorsBtn = barView.props.children[1];
+      const authorViewReactorsBtn = barView.props.children[2];
       expect(authorViewReactorsBtn).toBeDefined();
       expect(authorViewReactorsBtn.props.testID).toBe(
         "author-view-reactors-btn",
@@ -708,7 +709,7 @@ describe("COMM-08 Reversible encouragement reactions", () => {
       });
 
       const barView = element.props.children[0];
-      const buttons = barView.props.children[0];
+      const buttons = barView.props.children[1];
       const clapBtn = buttons.find(
         (b: any) => b.props.testID === "reaction-btn-clap",
       );
@@ -793,6 +794,9 @@ describe("COMM-08 Reversible encouragement reactions", () => {
       expect(firstReactor.props.accessibilityLabel).toContain(
         "reacted with Fire",
       );
+      const identity = firstReactor.props.children[0].props.children;
+      expect(identity.props.userId).toBe("u-1");
+      expect(identity.props.onPress).toBe(onClose);
     });
 
     it("renders null when visible is false", () => {

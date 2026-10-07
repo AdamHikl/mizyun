@@ -38,8 +38,16 @@ export function SharedWorkoutDetails({
           numberOfLines={2}
           style={[styles.values, { color: colors.textSecondary }]}
         >
-          {details.exercises.map((exercise) => exercise.name).join(" · ")}
+          {details.exercises
+            .slice(0, 2)
+            .map((exercise) => exercise.name)
+            .join(" · ")}
         </Text>
+        {details.exercises.length > 2 ? (
+          <Text style={[styles.values, { color: colors.textSecondary }]}>
+            {`+${details.exercises.length - 2} more`}
+          </Text>
+        ) : null}
         <Text style={[styles.values, { color: colors.primary }]}>
           View workout details →
         </Text>

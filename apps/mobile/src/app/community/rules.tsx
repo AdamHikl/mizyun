@@ -1,25 +1,15 @@
-import { Stack } from "expo-router";
-import { ScrollView, StyleSheet } from "react-native";
+import { StyleSheet } from "react-native";
 import { ThemedText } from "@/components/themed-text";
-import { CommunityIntro } from "@/features/community";
-import { MaxContentWidth } from "@/constants/theme";
-import { useTheme } from "@/hooks/use-theme";
+import { CommunityPage } from "@/features/community";
 import { COMMUNITY_ENROLLMENT_OPEN } from "@/composition/community-admission";
 
 export default function CommunityRulesScreen() {
-  const theme = useTheme();
   return (
-    <ScrollView
-      style={{ backgroundColor: theme.background }}
-      contentContainerStyle={styles.content}
+    <CommunityPage
+      title="Community rules & privacy"
+      backHref="/community/settings"
+      description="Clear choices and respect for each other."
     >
-      <Stack.Screen options={{ title: "Community rules & privacy" }} />
-      <CommunityIntro
-        icon="📖"
-        title="Community rules & privacy"
-        description="A welcoming space starts with clear choices and respect for each other."
-        tone="peach"
-      />
       <ThemedText>
         Rules version: 2026-09-30.{" "}
         {COMMUNITY_ENROLLMENT_OPEN
@@ -131,18 +121,10 @@ export default function CommunityRulesScreen() {
         not verified yet. The existing Account help route is general support.
         For imminent danger, contact your local emergency services.
       </ThemedText>
-    </ScrollView>
+    </CommunityPage>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
-    padding: 20,
-    gap: 18,
-    paddingBottom: 40,
-    width: "100%",
-    maxWidth: MaxContentWidth,
-    alignSelf: "center",
-  },
   sectionTitle: { fontSize: 20, fontWeight: "700", marginTop: 12 },
 });

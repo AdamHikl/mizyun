@@ -2,11 +2,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   current: true,
+  error: null as string | null,
+  busy: false,
+  authorityDenied: false,
+  accessToken: "first-token",
+  focusCallbacks: [] as (() => () => void)[],
   data: {} as any,
   run: vi.fn(),
   request: vi.fn(),
   alert: vi.fn(),
   uuid: vi.fn(),
+  push: vi.fn(),
+  replace: vi.fn(),
+  peer: "41000000-0000-4000-8000-000000000002",
 }));
 const hooks = vi.hoisted(() => ({ slots: [] as any[], index: 0 }));
 vi.mock("react", async (original) => ({
@@ -29,16 +37,38 @@ vi.mock("react-native", () => ({
   Text: "Text",
   View: "View",
   ScrollView: "ScrollView",
+  Pressable: "Pressable",
+  RefreshControl: "RefreshControl",
   Alert: { alert: mocks.alert },
   AppState: { addEventListener: () => ({ remove: vi.fn() }) },
 }));
 vi.mock("expo-router", () => ({
   Stack: { Screen: "Screen" },
-  useFocusEffect: () => {},
+  useFocusEffect: (callback: () => () => void) => {
+    mocks.focusCallbacks.push(callback);
+  },
+  router: { push: mocks.push, replace: mocks.replace },
+  useLocalSearchParams: () => ({ userId: mocks.peer }),
+}));
+vi.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => ({ bottom: 20 }),
+}));
+vi.mock("../ui", () => ({
+  CommunityPage: "Page",
+  CommunityButton: "Button",
+  CommunityRow: "Row",
+  CommunityIdentityLink: "Identity",
+  CommunityState: "State",
+}));
+vi.mock("@/constants/theme", () => ({
+  MaxContentWidth: 800,
+  BottomTabInset: 90,
 }));
 vi.mock("expo-crypto", () => ({ randomUUID: mocks.uuid }));
 vi.mock("@/features/auth/auth-context", () => ({
-  useAuth: () => ({ session: { user: { id: "owner" } } }),
+  useAuth: () => ({
+    session: { user: { id: "owner" }, accessToken: mocks.accessToken },
+  }),
 }));
 vi.mock("@/hooks/use-theme", () => ({ useTheme: () => ({ text: "black" }) }));
 vi.mock("@/composition/api-client", () => ({
@@ -51,14 +81,18 @@ vi.mock("../expansions", () => ({
   ExpansionInput: "Input",
   useExpansionCommand: () => ({
     data: mocks.data,
-    busy: false,
-    error: null,
+    busy: mocks.busy,
+    authorityDenied: mocks.authorityDenied,
+    error: mocks.error,
     principal: "owner",
     run: mocks.run,
     capture: () => () => mocks.current,
   }),
 }));
-import { CommunityMessagingScreen } from "./screen";
+import {
+  CommunityMessagingScreen,
+  CommunityConversationScreen,
+} from "./screen";
 import { CommunityBroaderDiscoveryScreen } from "../broader-discovery/screen";
 
 function render(screen: () => any): any {
@@ -69,11 +103,16 @@ function render(screen: () => any): any {
 function nodes(node: any): any[] {
   if (!node) return [];
   if (Array.isArray(node)) return node.flatMap(nodes);
-  return typeof node === "object" ? [node, ...nodes(node.props?.children)] : [];
+  return typeof node === "object"
+    ? [node, ...nodes(node.props?.children), ...nodes(node.props?.action)]
+    : [];
 }
 function button(tree: any, label: string): any {
   return nodes(tree).find(
-    (node) => node.type === "Button" && node.props.label === label,
+    (node) =>
+      (node.type === "Button" && node.props.label === label) ||
+      (node.type === "Row" && node.props.title === label) ||
+      (node.type === "Pressable" && node.props.accessibilityLabel === label),
   );
 }
 function confirm() {
@@ -85,6 +124,12 @@ async function settle() {
 beforeEach(() => {
   hooks.slots = [];
   mocks.current = true;
+  mocks.error = null;
+  mocks.busy = false;
+  mocks.authorityDenied = false;
+  mocks.accessToken = "first-token";
+  mocks.focusCallbacks = [];
+  mocks.peer = "41000000-0000-4000-8000-000000000002";
   mocks.data = {};
   vi.clearAllMocks();
   mocks.run.mockResolvedValue(null);
@@ -111,20 +156,18 @@ describe("private Community actions", () => {
     ).props.onPress();
     confirm();
     expect(
-      button(
-        render(CommunityBroaderDiscoveryScreen),
-        "Search consenting members",
-      ).props.disabled,
-    ).toBe(true);
+      nodes(render(CommunityBroaderDiscoveryScreen)).find(
+        (node) => node.type === "Input",
+      ).props.editable,
+    ).toBe(false);
     mocks.current = false;
     resolve({ ok: true, value: { status: "pending" } });
     await settle();
     expect(
-      button(
-        render(CommunityBroaderDiscoveryScreen),
-        "Let members find my handle prefix",
-      ).props.disabled,
-    ).toBe(false);
+      nodes(render(CommunityBroaderDiscoveryScreen)).find(
+        (node) => node.type === "Input",
+      ).props.editable,
+    ).toBe(true);
   });
   it("keeps own-message deletion and pagination accessible with messaging unavailable", async () => {
     let tree = render(CommunityMessagingScreen);
@@ -138,7 +181,12 @@ describe("private Community actions", () => {
       nextCursor: "older",
     };
     tree = render(CommunityMessagingScreen);
-    expect(nodes(tree).filter((n) => n.type === "View")).toHaveLength(1);
+    expect(nodes(tree).some((n) => n.props?.children === "own body")).toBe(
+      true,
+    );
+    expect(nodes(tree).some((n) => n.props?.children === "peer body")).toBe(
+      false,
+    );
     button(tree, "Delete my message for both people").props.onPress();
     await settle();
     expect(mocks.run).toHaveBeenCalledWith({ operation: "delete", id: "mine" });
@@ -170,8 +218,7 @@ describe("private Community actions", () => {
     ]);
   });
   it("retires a message-derived editing draft when protected messages expire", () => {
-    mocks.data = { contacts: [{ userId: "peer", displayName: "Friend" }] };
-    button(render(CommunityMessagingScreen), "Friend").props.onPress();
+    mocks.data = { messages: [] };
     mocks.data = {
       messages: [
         {
@@ -183,20 +230,20 @@ describe("private Community actions", () => {
         },
       ],
     };
-    button(render(CommunityMessagingScreen), "Edit message").props.onPress();
+    button(render(CommunityConversationScreen), "Edit message").props.onPress();
     expect(
-      nodes(render(CommunityMessagingScreen)).find(
+      nodes(render(CommunityConversationScreen)).find(
         (node) => node.type === "Input",
       ).props.value,
     ).toBe("Private message to edit");
     mocks.data = null;
     expect(
-      nodes(render(CommunityMessagingScreen)).find(
+      nodes(render(CommunityConversationScreen)).find(
         (node) => node.type === "Input",
       ).props.value,
     ).toBe("");
     expect(
-      button(render(CommunityMessagingScreen), "Save message changes"),
+      button(render(CommunityConversationScreen), "Save message changes"),
     ).toBeUndefined();
   });
   it("confirms a scoped follow request and reuses its UUID after a lost response", async () => {
@@ -239,11 +286,10 @@ describe("private Community actions", () => {
     expect(mocks.request).not.toHaveBeenCalled();
     hooks.slots = [];
     mocks.current = true;
-    mocks.data = { contacts: [{ userId: "peer", displayName: "Friend" }] };
-    button(render(CommunityMessagingScreen), "Friend").props.onPress();
+    mocks.data = { messages: [] };
     button(
-      render(CommunityMessagingScreen),
-      "Block this friend",
+      render(CommunityConversationScreen),
+      "Block this person",
     ).props.onPress();
     mocks.current = false;
     confirm();
@@ -251,11 +297,10 @@ describe("private Community actions", () => {
     expect(mocks.request).not.toHaveBeenCalled();
   });
   it("blocks only the confirmed peer under the displayed account", async () => {
-    mocks.data = { contacts: [{ userId: "peer", displayName: "Friend" }] };
-    button(render(CommunityMessagingScreen), "Friend").props.onPress();
+    mocks.data = { messages: [] };
     button(
-      render(CommunityMessagingScreen),
-      "Block this friend",
+      render(CommunityConversationScreen),
+      "Block this person",
     ).props.onPress();
     expect(mocks.request).not.toHaveBeenCalled();
     confirm();
@@ -264,8 +309,318 @@ describe("private Community actions", () => {
       expect.objectContaining({
         path: "/v1/community/blocks",
         expectedUserId: "owner",
-        body: { blockedUserId: "peer" },
+        body: { blockedUserId: mocks.peer },
       }),
     );
+  });
+});
+
+describe("Messages routes and composer", () => {
+  it("routes eligible contacts to a dedicated conversation without inventing recent history", () => {
+    mocks.data = {
+      enabled: true,
+      contacts: [{ userId: mocks.peer, displayName: "Friend" }],
+      threads: [],
+    };
+    let tree = render(CommunityMessagingScreen);
+    expect(
+      nodes(tree).filter(
+        (node) =>
+          node.type === "Row" &&
+          node.props.title.startsWith("Conversation with"),
+      ),
+    ).toEqual([]);
+    button(tree, "New message").props.onPress();
+    tree = render(CommunityMessagingScreen);
+    button(tree, "Message Friend").props.onPress();
+    expect(mocks.push).toHaveBeenCalledWith(
+      `/community/conversation/${mocks.peer}`,
+    );
+    expect(
+      nodes(tree).find((node) => node.type === "Identity").props,
+    ).toMatchObject({ userId: mocks.peer, displayName: "Friend" });
+  });
+  it("shows a recent conversation only from the authorized summary response", () => {
+    mocks.data = {
+      threads: [
+        {
+          userId: mocks.peer,
+          displayName: "Friend",
+          latestMessage: {
+            text: "Accepted message",
+            createdAt: "2026-10-07T10:00:00Z",
+            deleted: false,
+          },
+        },
+      ],
+    };
+    const row = nodes(render(CommunityMessagingScreen)).find(
+      (node) => node.type === "Row",
+    );
+    expect(row.props.href).toBe(`/community/conversation/${mocks.peer}`);
+    expect(row.props.description).toContain("Accepted message");
+  });
+  it("keeps the composer outside message scrolling and uses server-projected peer identity", () => {
+    mocks.data = {
+      messages: [],
+      peer: { userId: mocks.peer, displayName: "Friend" },
+    };
+    const tree = render(CommunityConversationScreen);
+    const scroll = nodes(tree).find((node) => node.type === "ScrollView");
+    expect(nodes(scroll).some((node) => node.type === "Input")).toBe(false);
+    expect(
+      nodes(tree).find((node) => node.type === "Input").props.maxLength,
+    ).toBe(1000);
+    expect(
+      nodes(tree).find((node) => node.type === "Identity").props.displayName,
+    ).toBe("Friend");
+  });
+  it("retries an uncertain send with exactly the original operation and text", async () => {
+    mocks.data = { messages: [] };
+    let tree = render(CommunityConversationScreen);
+    nodes(tree)
+      .find((node) => node.type === "Input")
+      .props.onChange("Hello connection");
+    tree = render(CommunityConversationScreen);
+    button(tree, "Send message").props.onPress();
+    await settle();
+    tree = render(CommunityConversationScreen);
+    expect(
+      nodes(tree).find((node) => node.type === "Input").props.editable,
+    ).toBe(false);
+    button(tree, "Retry the same message").props.onPress();
+    await settle();
+    expect(mocks.uuid).toHaveBeenCalledOnce();
+    expect(mocks.run.mock.calls).toEqual([
+      [
+        {
+          operation: "send",
+          peerId: mocks.peer,
+          id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          text: "Hello connection",
+        },
+      ],
+      [
+        {
+          operation: "send",
+          peerId: mocks.peer,
+          id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          text: "Hello connection",
+        },
+      ],
+    ]);
+  });
+  it("uses the bounded older cursor and recent refresh without traversing all history", () => {
+    const before = {
+      createdAt: "2026-10-07T10:00:00Z",
+      id: "42000000-0000-4000-8000-000000000004",
+    };
+    mocks.data = { messages: [], nextBefore: before };
+    let tree = render(CommunityConversationScreen);
+    button(tree, "Load older messages").props.onPress();
+    expect(mocks.run).toHaveBeenCalledWith({
+      operation: "latest",
+      peerId: mocks.peer,
+      before,
+    });
+    tree = render(CommunityConversationScreen);
+    button(tree, "Refresh recent messages").props.onPress();
+    expect(mocks.run).toHaveBeenLastCalledWith({
+      operation: "latest",
+      peerId: mocks.peer,
+    });
+  });
+  it("retires a caller draft when the protected ten-second result expires", () => {
+    mocks.data = { messages: [] };
+    nodes(render(CommunityConversationScreen))
+      .find((node) => node.type === "Input")
+      .props.onChange("Private draft");
+    mocks.data = null;
+    mocks.error = "Refresh to check your current Community access.";
+    const tree = render(CommunityConversationScreen);
+    expect(nodes(tree).find((node) => node.type === "Input").props.value).toBe(
+      "",
+    );
+    expect(button(tree, "Send message").props.disabled).toBe(true);
+  });
+  it("returns an unavailable view for a malformed conversation deep link", () => {
+    mocks.peer = "not-a-user-id";
+    const tree = CommunityConversationScreen();
+    expect(nodes(tree).find((node) => node.type === "State").props.title).toBe(
+      "Conversation unavailable",
+    );
+    expect(mocks.run).not.toHaveBeenCalled();
+  });
+});
+
+describe("messaging authority transitions", () => {
+  it("keys root and conversation lifetimes to refreshed authentication", () => {
+    const root = CommunityMessagingScreen().key;
+    const conversation = CommunityConversationScreen().key;
+    mocks.accessToken = "refreshed-token";
+    expect(CommunityMessagingScreen().key).not.toBe(root);
+    expect(CommunityConversationScreen().key).not.toBe(conversation);
+  });
+  it("preserves the harmless New message selection across conversation navigation", async () => {
+    mocks.data = {
+      contacts: [{ userId: mocks.peer, displayName: "Friend" }],
+      threads: [],
+    };
+    let tree = render(CommunityMessagingScreen);
+    const cleanup = mocks.focusCallbacks.at(-1)!();
+    button(tree, "New message").props.onPress();
+    tree = render(CommunityMessagingScreen);
+    button(tree, "Message Friend").props.onPress();
+    cleanup();
+    mocks.data = null;
+    render(CommunityMessagingScreen);
+    mocks.focusCallbacks.at(-1)!();
+    await settle();
+    mocks.data = {
+      contacts: [{ userId: mocks.peer, displayName: "Friend" }],
+      threads: [],
+    };
+    tree = render(CommunityMessagingScreen);
+    expect(button(tree, "Back to conversations")).toBeDefined();
+    expect(button(tree, "Message Friend")).toBeDefined();
+  });
+  it("retires a pending send and peer intent after definitive denial", async () => {
+    mocks.data = { messages: [] };
+    nodes(render(CommunityConversationScreen))
+      .find((node) => node.type === "Input")
+      .props.onChange("Denied draft");
+    button(render(CommunityConversationScreen), "Send message").props.onPress();
+    await settle();
+    mocks.data = null;
+    mocks.authorityDenied = true;
+    mocks.error = "This action is unavailable.";
+    const firstFrame = render(CommunityConversationScreen);
+    expect(
+      nodes(firstFrame).find((node) => node.type === "Input").props.value,
+    ).toBe("");
+    expect(button(firstFrame, "Retry the same message").props.disabled).toBe(
+      true,
+    );
+    const tree = render(CommunityConversationScreen);
+    expect(button(tree, "Retry the same message")).toBeUndefined();
+    expect(nodes(tree).find((node) => node.type === "Input")).toBeUndefined();
+    expect(nodes(tree).find((node) => node.type === "State").props.title).toBe(
+      "Conversation unavailable",
+    );
+  });
+  it("reloads current conversation authority after report closure", () => {
+    mocks.data = {
+      messages: [
+        {
+          id: "received",
+          userId: "other",
+          text: "Received message",
+          createdAt: "2026-10-07T10:00:00Z",
+          deleted: false,
+        },
+      ],
+    };
+    button(
+      render(CommunityConversationScreen),
+      "Report message",
+    ).props.onPress();
+    const report = nodes(render(CommunityConversationScreen)).find(
+      (node) => node.type === "Report",
+    );
+    report.props.onClose();
+    expect(mocks.run).toHaveBeenCalledWith({
+      operation: "latest",
+      peerId: mocks.peer,
+    });
+  });
+});
+
+describe("Messages list hierarchy and read states", () => {
+  it("keeps New message beside the title and management in quiet secondary rows", () => {
+    mocks.data = { enabled: true, threads: [], contacts: [] };
+    const tree = render(CommunityMessagingScreen);
+    const action = button(tree, "New message");
+    expect(action.type).toBe("Pressable");
+    expect(action.props.style.minHeight).toBe(48);
+    const toolbar = nodes(tree).find(
+      (node) =>
+        node.type === "View" &&
+        nodes(node).includes(action) &&
+        node.props.style?.flexDirection === "row",
+    );
+    expect(
+      nodes(toolbar).some(
+        (node) => node.type === "Text" && node.props.children === "Messages",
+      ),
+    ).toBe(true);
+    expect(button(tree, "Messaging settings").type).toBe("Row");
+    expect(button(tree, "Manage my sent messages").type).toBe("Row");
+    expect(button(tree, "Refresh message choices")).toBeUndefined();
+    expect(button(tree, "Retry messages")).toBeUndefined();
+  });
+  it("uses pull to refresh current choices without an unconditional refresh button", async () => {
+    mocks.data = { enabled: true, threads: [], contacts: [] };
+    mocks.run
+      .mockResolvedValueOnce({ enabled: true })
+      .mockResolvedValueOnce({ threads: [], contacts: [] });
+    const scroll = nodes(render(CommunityMessagingScreen)).find(
+      (node) => node.type === "ScrollView",
+    );
+    expect(scroll.props.refreshControl.type).toBe("RefreshControl");
+    expect(scroll.props.refreshControl.props.refreshing).toBe(false);
+    scroll.props.refreshControl.props.onRefresh();
+    await settle();
+    expect(mocks.run.mock.calls).toEqual([
+      [{ operation: "preferences" }],
+      [{ operation: "threads" }],
+    ]);
+  });
+  it("shows one failed-read state and a contextual retry without claiming a successful list", () => {
+    mocks.error =
+      "This action is unavailable. Refresh or check your Community choices.";
+    mocks.data = { threads: [], contacts: [], enabled: false };
+    const tree = render(CommunityMessagingScreen);
+    const states = nodes(tree).filter((node) => node.type === "State");
+    expect(states).toHaveLength(1);
+    expect(states[0].props.title).toBe("Messages unavailable");
+    expect(states[0].props.description).toBe(mocks.error);
+    expect(button(tree, "Retry messages")).toBeDefined();
+    expect(button(tree, "New message").props.disabled).toBe(true);
+    expect(
+      nodes(tree).some(
+        (node) =>
+          node.props?.children ===
+          "Your currently available conversations. Messages expire after 90 days.",
+      ),
+    ).toBe(false);
+    button(tree, "Manage my sent messages").props.onPress();
+    expect(mocks.run).toHaveBeenCalledWith({ operation: "listMine" });
+  });
+  it("distinguishes checking, opt-out and an authorized empty conversation list", () => {
+    mocks.busy = true;
+    mocks.error = "Old error";
+    let tree = render(CommunityMessagingScreen);
+    expect(nodes(tree).find((node) => node.type === "State").props.title).toBe(
+      "Checking messages…",
+    );
+    expect(button(tree, "Retry messages")).toBeUndefined();
+    expect(button(tree, "Manage my sent messages").props.disabled).toBe(false);
+    mocks.busy = false;
+    mocks.error = null;
+    mocks.data = { enabled: false, threads: [], contacts: [] };
+    tree = render(CommunityMessagingScreen);
+    expect(nodes(tree).find((node) => node.type === "State").props.title).toBe(
+      "Messages are off",
+    );
+    expect(button(tree, "New message").props.disabled).toBe(true);
+    button(tree, "Messaging settings").props.onPress();
+    expect(mocks.run).toHaveBeenCalledWith({ operation: "preferences" });
+    hooks.slots = [];
+    mocks.data = { enabled: true, threads: [], contacts: [] };
+    tree = render(CommunityMessagingScreen);
+    expect(nodes(tree).find((node) => node.type === "State").props.title).toBe(
+      "No conversations available",
+    );
+    expect(button(tree, "New message").props.disabled).toBe(false);
   });
 });

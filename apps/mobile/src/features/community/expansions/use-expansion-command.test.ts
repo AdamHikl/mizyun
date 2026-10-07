@@ -2,6 +2,9 @@ import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { communityMessagingResponseSchema } from "@mizyun/contracts";
 const mocks = vi.hoisted(() => ({
   principal: "owner" as string | null,
+  accessToken: "first-token",
+  readEpoch: 0,
+  responseEpoch: undefined as number | undefined,
   request: vi.fn(),
   deadline: vi.fn(),
   invalidate: vi.fn(),
@@ -54,7 +57,9 @@ vi.mock("react-native", () => ({
 }));
 vi.mock("@/features/auth/auth-context", () => ({
   useAuth: () => ({
-    session: mocks.principal ? { user: { id: mocks.principal } } : null,
+    session: mocks.principal
+      ? { user: { id: mocks.principal }, accessToken: mocks.accessToken }
+      : null,
   }),
 }));
 vi.mock("@/composition/api-client", () => ({
@@ -62,6 +67,8 @@ vi.mock("@/composition/api-client", () => ({
 }));
 vi.mock("../state/read-cache", () => ({
   getCommunityReadDeadline: mocks.deadline,
+  getCommunityReadEpoch: () => mocks.readEpoch,
+  getCommunityResponseEpoch: () => mocks.responseEpoch,
   invalidateCommunityReads: mocks.invalidate,
 }));
 import { useExpansionCommand } from "./use-expansion-command";
@@ -83,6 +90,9 @@ beforeEach(() => {
   mocks.cleanup = null;
   mocks.listener = null;
   mocks.principal = "owner";
+  mocks.accessToken = "first-token";
+  mocks.readEpoch = 0;
+  mocks.responseEpoch = undefined;
   vi.clearAllMocks();
   mocks.deadline.mockReturnValue(undefined);
   mocks.request.mockResolvedValue({ ok: true, value: { body: "protected" } });
@@ -204,5 +214,90 @@ describe("expansion protected-result lifetime", () => {
     await render().run({ operation: "list" });
     mocks.cleanup();
     expect(render().data).toBeNull();
+  });
+});
+
+describe("expansion caller authority", () => {
+  it("retires data and captured actions on a same-account token change", async () => {
+    await render().run({ operation: "latest" });
+    const current = render().capture();
+    const pending = deferred();
+    mocks.request.mockReturnValueOnce(pending.promise);
+    const request = render().run({ operation: "send" });
+    mocks.accessToken = "refreshed-token";
+    expect(render().data).toBeNull();
+    expect(current()).toBe(false);
+    pending.resolve({ ok: true, value: { body: "old token response" } });
+    expect(await request).toBeNull();
+    expect(render().data).toBeNull();
+  });
+  it("retires a completed result immediately when a report write invalidates reads", async () => {
+    await render().run({ operation: "latest" });
+    expect(render().data).not.toBeNull();
+    mocks.readEpoch++;
+    expect(render().data).toBeNull();
+  });
+  it("distinguishes definitive denied authority from uncertain send failures", async () => {
+    for (const status of [401, 403, 404]) {
+      mocks.request.mockResolvedValueOnce({
+        ok: false,
+        error: {
+          kind: "http_error",
+          status,
+          code: "NOT_FOUND",
+          message: "Unavailable",
+        },
+      });
+      await render().run({ operation: "send" });
+      expect(render().authorityDenied).toBe(true);
+      expect(render().data).toBeNull();
+    }
+    for (const error of [
+      { kind: "network_error" },
+      {
+        kind: "http_error",
+        status: 503,
+        code: "SERVICE_UNAVAILABLE",
+        message: "Retry",
+      },
+    ]) {
+      mocks.request.mockResolvedValueOnce({ ok: false, error });
+      await render().run({ operation: "send" });
+      expect(render().authorityDenied).toBe(false);
+    }
+  });
+  it("keeps wrapped transport denials definitive and local or transient retirement uncertain", async () => {
+    for (const status of [401, 403, 404, 503]) {
+      mocks.request.mockResolvedValueOnce({
+        ok: false,
+        error: {
+          kind: "context_changed",
+          cause: {
+            kind: "context_changed",
+            cause: {
+              kind: "http_error",
+              status,
+              code: "UNAVAILABLE",
+              message: "Unavailable",
+            },
+          },
+        },
+      });
+      await render().run({ operation: "send" });
+      expect(render().authorityDenied).toBe(status !== 503);
+      expect(render().data).toBeNull();
+    }
+    for (const error of [
+      { kind: "context_changed" },
+      {
+        kind: "context_changed",
+        cause: { kind: "network_error", cause: "offline" },
+      },
+    ]) {
+      mocks.request.mockResolvedValueOnce({ ok: false, error });
+      await render().run({ operation: "send" });
+      expect(render().authorityDenied).toBe(false);
+      expect(render().error).not.toMatch(/sign in/i);
+    }
   });
 });

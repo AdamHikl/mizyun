@@ -205,6 +205,7 @@ describe("owner relationship controller", () => {
     const request = vi
       .fn()
       .mockResolvedValueOnce({ ok: true, value: { items: [row] } })
+      .mockResolvedValueOnce({ ok: true, value: { id: "receipt" } })
       .mockImplementationOnce(
         () =>
           new Promise((r) => {
@@ -216,7 +217,7 @@ describe("owner relationship controller", () => {
     await controller.load("following");
     const first = controller.act("unfollow", row);
     await controller.act("unfollow", row);
-    expect(request).toHaveBeenCalledTimes(2);
+    await vi.waitFor(() => expect(request).toHaveBeenCalledTimes(3));
     expect(request).toHaveBeenLastCalledWith(
       expect.objectContaining({
         method: "DELETE",
@@ -253,6 +254,7 @@ describe("owner relationship controller", () => {
       vi
         .fn()
         .mockResolvedValueOnce({ ok: true, value: { items: [row] } })
+        .mockResolvedValueOnce({ ok: true, value: { id: "receipt" } })
         .mockResolvedValueOnce({
           ok: false,
           error: { kind: "network_error", cause: null },
@@ -309,12 +311,278 @@ describe("owner relationship controller", () => {
     expect(request).toHaveBeenCalledTimes(3);
   });
   it("does not revive pre-background confirmation intents after foreground", async () => {
-    const { controller } = setup();
+    const { controller } = setup(
+      vi.fn().mockResolvedValue({ ok: true, value: { items: [] } }),
+    );
+    await controller.load();
     const confirm = controller.captureIntent();
     expect(confirm()).toBe(true);
     controller.pause();
     controller.resume();
     expect(confirm()).toBe(false);
+    expect(controller.captureIntent()()).toBe(false);
+    await controller.load();
     expect(controller.captureIntent()()).toBe(true);
+    controller.pause();
+  });
+  it("expires relationship action authority at ten seconds before accepting a stale confirmation", async () => {
+    vi.useFakeTimers();
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, value: { items: [row] } })
+      .mockResolvedValue({
+        ok: false,
+        error: { kind: "network_error", cause: null },
+      });
+    const { controller } = setup(request);
+    await controller.load();
+    const current = controller.captureIntent();
+    expect(current()).toBe(true);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(current()).toBe(false);
+    expect(controller.getState().rows).toEqual([]);
+    await controller.act("approve", row);
+    expect(request).toHaveBeenCalledTimes(2);
+    controller.pause();
+    vi.useRealTimers();
+  });
+  it("reuses the follow-back operation after a lost response", async () => {
+    const request = vi.fn().mockImplementation(async ({ method, path }) =>
+      method === "POST"
+        ? { ok: false, error: { kind: "network_error", cause: null } }
+        : {
+            ok: true,
+            value: { items: path.includes("followers?") ? [row] : [] },
+          },
+    );
+    const { controller } = setup(request);
+    await controller.load("followers");
+    await controller.act("follow", controller.getState().rows[0]);
+    await controller.load("followers");
+    await controller.act("follow", controller.getState().rows[0]);
+    const writes = request.mock.calls.filter(
+      ([options]) => options.method === "POST",
+    );
+    expect(writes).toHaveLength(2);
+    expect(writes[0][0].body.operationId).toBe(writes[1][0].body.operationId);
+    controller.pause();
+  });
+  it("hides an owner list and rejects captured actions when the same principal's session lifetime changes", async () => {
+    let token = "session-one";
+    const capturedToken = token;
+    const request = vi
+      .fn()
+      .mockResolvedValue({ ok: true, value: { items: [row] } });
+    const controller = new RelationshipsController(
+      { request } as unknown as ApiClient,
+      "owner",
+      () => token === capturedToken,
+    );
+    await controller.load();
+    const intent = controller.captureIntent();
+    const receipt = controller.captureReceiptIntent();
+    expect(controller.getState().rows).toHaveLength(1);
+    token = "session-two";
+    expect(controller.getState().rows).toEqual([]);
+    expect(intent()).toBe(false);
+    expect(receipt()).toBe(false);
+    await controller.act("approve", row);
+    expect(request).toHaveBeenCalledOnce();
+    controller.pause();
+  });
+  it("continues an already authorized ID-bound reduction after its receipt clears read cache", async () => {
+    const { CommunityReadCache } = await import("../state/read-cache");
+    let removed = false;
+    const request = vi.fn().mockImplementation(async ({ method, path }) => {
+      if (path.includes("safety/receipts"))
+        return { ok: true, value: { id: "receipt" } };
+      if (method === "DELETE") {
+        removed = true;
+        return { ok: true, value: { unfollowed: true } };
+      }
+      return { ok: true, value: { items: removed ? [] : [row] } };
+    });
+    const cache = new CommunityReadCache(
+      { request } as unknown as ApiClient,
+      async () => ({ user: { id: "owner" }, accessToken: "token" }) as any,
+    );
+    cache.setForeground(true);
+    cache.setPrincipal("owner");
+    const controller = new RelationshipsController(cache, "owner");
+    await controller.load("following");
+    await controller.act("unfollow", controller.getState().rows[0]);
+    expect(request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: "DELETE",
+        path: "/v1/community/relationships/following/friend?relationshipId=edge-1",
+      }),
+    );
+    expect(controller.getState().rows).toEqual([]);
+    controller.pause();
+    cache.dispose();
+  });
+  it("restores usable current actions after a report receipt is closed and reauthorization completes", async () => {
+    const { CommunityReadCache } = await import("../state/read-cache");
+    const { captureSafetyReceipt } = await import("../safety/safety-api");
+    const { scopeCommunityClient } = await import("../scoped-client");
+    const request = vi
+      .fn()
+      .mockImplementation(async ({ path, method }) =>
+        path.includes("safety/receipts")
+          ? { ok: true, value: { id: "receipt" } }
+          : method === "PUT"
+            ? { ok: true, value: {} }
+            : { ok: true, value: { items: [row] } },
+      );
+    const cache = new CommunityReadCache(
+      { request } as unknown as ApiClient,
+      async () => ({ user: { id: "owner" }, accessToken: "token" }) as any,
+    );
+    cache.setForeground(true);
+    cache.setPrincipal("owner");
+    const controller = new RelationshipsController(cache, "owner");
+    await controller.load();
+    const receipt = controller.captureReceiptIntent();
+    await captureSafetyReceipt(
+      scopeCommunityClient(cache, "owner", receipt),
+      "profile",
+      row.user.userId,
+    );
+    expect(controller.captureIntent()()).toBe(false);
+    controller.pause();
+    expect(controller.getState().rows).toEqual([]);
+    controller.resume();
+    await controller.load();
+    expect(controller.captureIntent()()).toBe(true);
+    await controller.act("approve", controller.getState().rows[0]);
+    expect(request).toHaveBeenCalledWith(
+      expect.objectContaining({ method: "PUT", body: { action: "approve" } }),
+    );
+    controller.pause();
+    cache.dispose();
+  });
+  it("retires visible identities immediately while a pre-reduction receipt stalls beyond their deadline", async () => {
+    vi.useFakeTimers();
+    let finish!: (value: unknown) => void;
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        value: { items: [row], nextCursor: "next" },
+      })
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      )
+      .mockResolvedValue({
+        ok: false,
+        error: { kind: "network_error", cause: null },
+      });
+    const { controller } = setup(request);
+    await controller.load("following");
+    const displayed = controller.getState().rows[0];
+    const work = controller.act("unfollow", displayed);
+    expect(controller.getState()).toMatchObject({
+      rows: [],
+      cursor: null,
+      pending: true,
+    });
+    await vi.advanceTimersByTimeAsync(11_000);
+    expect(controller.getState().rows).toEqual([]);
+    expect(controller.captureIntent()()).toBe(false);
+    finish({ ok: true, value: { id: "receipt" } });
+    await work;
+    expect(request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: "DELETE",
+        path: "/v1/community/relationships/following/friend?relationshipId=edge-1",
+      }),
+    );
+    expect(controller.getState().rows).toEqual([]);
+    controller.pause();
+    vi.useRealTimers();
+  });
+  it("retires visible identities immediately while an accepted mutation stalls beyond their deadline", async () => {
+    vi.useFakeTimers();
+    let finish!: (value: unknown) => void;
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        value: { items: [row], nextCursor: "next" },
+      })
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
+    const { controller } = setup(request);
+    await controller.load();
+    const work = controller.act("approve", controller.getState().rows[0]);
+    expect(controller.getState()).toMatchObject({
+      rows: [],
+      cursor: null,
+      pending: true,
+    });
+    await vi.advanceTimersByTimeAsync(11_000);
+    expect(controller.getState().rows).toEqual([]);
+    expect(controller.captureIntent()()).toBe(false);
+    finish({ ok: false, error: { kind: "network_error", cause: null } });
+    await work;
+    expect(controller.getState().rows).toEqual([]);
+    expect(controller.getState().notice).toBeNull();
+    controller.pause();
+    vi.useRealTimers();
+  });
+  it("hides an earlier page while paging and never restores either page after the inherited deadline", async () => {
+    vi.useFakeTimers();
+    let finish!: (value: unknown) => void;
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        value: { items: [row], nextCursor: "next" },
+      })
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
+    const { controller } = setup(request);
+    await controller.load();
+    await vi.advanceTimersByTimeAsync(9_000);
+    const work = controller.load("incoming", true);
+    expect(controller.getState()).toMatchObject({
+      rows: [],
+      cursor: null,
+      loading: true,
+    });
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(controller.getState().rows).toEqual([]);
+    finish({
+      ok: true,
+      value: {
+        items: [
+          {
+            ...row,
+            relationshipId: "new-edge",
+            user: { ...row.user, userId: "another" },
+          },
+        ],
+      },
+    });
+    await work;
+    expect(controller.getState()).toMatchObject({
+      rows: [],
+      cursor: null,
+      loading: false,
+    });
+    expect(controller.getState().error).toContain("access changed");
+    controller.pause();
+    vi.useRealTimers();
   });
 });

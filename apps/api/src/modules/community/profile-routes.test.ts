@@ -747,3 +747,86 @@ describe("community profile privacy regressions", () => {
     expect(scamRes.json().error.message).toContain("spam, scam");
   });
 });
+
+describe("addressable profile directional context", () => {
+  it.each([false, true])(
+    "keeps pending reverse context beside approved outgoing, searchable=%s",
+    async (searchable) => {
+      const { app, communityRepository: repository } = await setupTestApp();
+      await repository.saveProfile(userAdult, {
+        handle: "viewer",
+        displayName: "Viewer",
+        isSearchable: true,
+      });
+      await repository.saveProfile(userOther, {
+        handle: "friend",
+        displayName: "Friend",
+        isSearchable: true,
+        bio: "Approved audience bio",
+      });
+      const outgoing = await repository.sendFollowRequest(userAdult, userOther);
+      await repository.updateRelationshipStatus(
+        outgoing.id,
+        userOther,
+        "approved",
+      );
+      if (!searchable)
+        await repository.saveProfile(userOther, {
+          handle: "friend",
+          displayName: "Friend",
+          isSearchable: false,
+          bio: "Approved audience bio",
+        });
+      const incoming = await repository.sendFollowRequest(userOther, userAdult);
+      const response = await app.inject({
+        method: "GET",
+        url: `/v1/community/profiles/${userOther}`,
+        headers: { authorization: "Bearer token-adult" },
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({
+        bio: "Approved audience bio",
+        relationshipWithViewer: "following",
+        relationshipContext: {
+          outgoing: { id: outgoing.id, status: "approved" },
+          incoming: { id: incoming.id, status: "pending" },
+        },
+      });
+      expect(response.json()).not.toHaveProperty("isSearchable");
+      expect(response.json()).not.toHaveProperty("generation");
+    },
+  );
+  it("keeps bio private with approved incoming and pending outgoing", async () => {
+    const { app, communityRepository: repository } = await setupTestApp();
+    await repository.saveProfile(userAdult, {
+      handle: "viewer",
+      displayName: "Viewer",
+      isSearchable: true,
+    });
+    await repository.saveProfile(userOther, {
+      handle: "friend",
+      displayName: "Friend",
+      bio: "Follower-only bio",
+    });
+    const incoming = await repository.sendFollowRequest(userOther, userAdult);
+    await repository.updateRelationshipStatus(
+      incoming.id,
+      userAdult,
+      "approved",
+    );
+    const outgoing = await repository.sendFollowRequest(userAdult, userOther);
+    const response = await app.inject({
+      method: "GET",
+      url: `/v1/community/profiles/${userOther}`,
+      headers: { authorization: "Bearer token-adult" },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      bio: null,
+      relationshipContext: {
+        outgoing: { id: outgoing.id, status: "pending" },
+        incoming: { id: incoming.id, status: "approved" },
+      },
+    });
+  });
+});

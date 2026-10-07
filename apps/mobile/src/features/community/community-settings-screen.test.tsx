@@ -8,17 +8,31 @@ const mocks = vi.hoisted(() => ({
   replace: vi.fn(),
   state: {} as any,
   form: {} as any,
+  task: undefined as string | undefined,
 }));
+const hooks = vi.hoisted(() => ({ slots: [] as any[], index: 0 }));
 vi.mock("react", async (original) => ({
   ...(await original<typeof import("react")>()),
-  useState: (initial: any) => [
-    typeof initial === "function" ? mocks.form : initial,
-    vi.fn(),
-  ],
-  useRef: (current: unknown) => ({ current }),
+  useState: (initial: any) => {
+    const index = hooks.index++;
+    if (!(index in hooks.slots))
+      hooks.slots[index] = typeof initial === "function" ? mocks.form : initial;
+    return [
+      hooks.slots[index],
+      (next: any) => {
+        hooks.slots[index] =
+          typeof next === "function" ? next(hooks.slots[index]) : next;
+      },
+    ];
+  },
+  useRef: (current: unknown) => {
+    const index = hooks.index++;
+    return (hooks.slots[index] ??= { current });
+  },
   useCallback: (callback: unknown) => callback,
   useEffect: (effect: () => void) => effect(),
 }));
+vi.mock("./ui", () => ({ CommunityPage: "CommunityPage" }));
 vi.mock("react-native", () => ({
   ActivityIndicator: "ActivityIndicator",
   Alert: { alert: vi.fn() },
@@ -34,7 +48,7 @@ vi.mock("react-native", () => ({
 }));
 vi.mock("expo-router", () => ({
   router: { replace: mocks.replace, push: vi.fn() },
-  Stack: { Screen: "StackScreen" },
+  useLocalSearchParams: () => ({ task: mocks.task }),
   useFocusEffect: (callback: () => void) => callback(),
 }));
 vi.mock("@/components/themed-text", () => ({ ThemedText: "Text" }));
@@ -75,6 +89,7 @@ function render(
       props: { ...node.props, children: expand(node.props.children) },
     };
   }
+  hooks.index = 0;
   return expand(CommunitySettingsScreen(props));
 }
 function find(node: any, predicate: (node: any) => boolean): any {
@@ -100,6 +115,8 @@ function button(tree: any, label: string): any {
 }
 beforeEach(() => {
   vi.clearAllMocks();
+  hooks.slots = [];
+  mocks.task = undefined;
   mocks.state = {
     status: "ready",
     profile: null,
@@ -123,7 +140,7 @@ beforeEach(() => {
 describe("embedded Community joining", () => {
   it("owns no Stack header and omits member/account utility links without enrolling on render", () => {
     const tree = render({ embedded: true });
-    expect(find(tree, (node) => node.type === "StackScreen")).toBeFalsy();
+    expect(find(tree, (node) => node.type === "CommunityPage")).toBeFalsy();
     expect(button(tree, "Requests, followers and safety lists")).toBeFalsy();
     expect(button(tree, "Community inbox")).toBeFalsy();
     expect(button(tree, "Account export and deletion")).toBeFalsy();
@@ -165,7 +182,9 @@ describe("embedded Community joining", () => {
     expect(join.props.disabled).toBe(true);
     join.props.onPress();
     expect(mocks.enroll).not.toHaveBeenCalled();
-    expect(find(render(), (node) => node.type === "StackScreen")).toBeTruthy();
+    expect(
+      find(render(), (node) => node.type === "CommunityPage"),
+    ).toBeTruthy();
     expect(button(render(), "Account export and deletion")).toBeTruthy();
   });
   it("keeps audience, history and separate unchecked declarations visible before joining", () => {
@@ -242,6 +261,54 @@ describe("embedded Community joining", () => {
     expect(button(tree, "Leave Community")).toBeFalsy();
     expect(mocks.enroll).not.toHaveBeenCalled();
   });
+  it("opens enrolled settings as choices and keeps identity fields in the explicit editor", () => {
+    mocks.state.isEnrolled = true;
+    mocks.state.profile = {
+      userId: "account-a",
+      generation: 2,
+      status: "active",
+      handle: "friend_a",
+      displayName: "Friend",
+      avatarSymbol: "FR",
+      bio: null,
+      isSearchable: false,
+    };
+    const tree = render();
+    expect(button(tree, "Edit social identity")).toBeTruthy();
+    expect(find(tree, (node) => node.type === "TextInput")).toBeFalsy();
+    expect(button(tree, "Save discovery choice")).toBeTruthy();
+    expect(button(tree, "Account export and deletion")).toBeTruthy();
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+  it("discards cancelled identity edits before saving an independent discovery choice", async () => {
+    mocks.state.isEnrolled = true;
+    mocks.state.profile = {
+      userId: "account-a",
+      generation: 2,
+      status: "active",
+      handle: "friend_a",
+      displayName: "Saved name",
+      avatarSymbol: "SN",
+      bio: null,
+      isSearchable: false,
+    };
+    render();
+    button(render(), "Edit social identity").props.onPress();
+    const field = find(
+      render(),
+      (node) =>
+        node.type === "TextInput" &&
+        node.props.accessibilityLabel === "Social display name",
+    );
+    field.props.onChangeText("Cancelled name");
+    button(render(), "Cancel identity editing").props.onPress();
+    expect(find(render(), (node) => node.type === "TextInput")).toBeFalsy();
+    mocks.update.mockResolvedValue({ ok: true });
+    button(render(), "Save discovery choice").props.onPress();
+    await Promise.resolve();
+    expect(mocks.update.mock.calls[0][0].displayName).toBe("Saved name");
+    expect(mocks.update.mock.calls[0][0].isSearchable).toBe(false);
+  });
   it("saves an enrolled profile independently of join-only declarations", async () => {
     mocks.state.isEnrolled = true;
     mocks.state.profile = {
@@ -249,10 +316,15 @@ describe("embedded Community joining", () => {
       generation: 2,
       status: "active",
       handle: "friend_a",
+      displayName: "Friend",
+      avatarSymbol: "FR",
+      bio: null,
+      isSearchable: false,
     };
     mocks.form.acceptedTerms = false;
     mocks.form.adultDeclaration = false;
     mocks.update.mockResolvedValue({ ok: true });
+    mocks.task = "identity";
     const tree = render();
     expect(button(tree, "Join Community")).toBeFalsy();
     expect(

@@ -74,4 +74,26 @@ describe("shared workout projection presentation", () => {
     expect(text).toContain("View workout details");
     expect(text).not.toContain("20.5 kg");
   });
+  it("bounds the exercise-name preview while keeping the full approved detail projection", () => {
+    const many = {
+      exercises: [
+        "Squat",
+        "Bench press",
+        "Deadlift",
+        "Row",
+        "Dips",
+        "Curl",
+      ].map((name) => ({ ...details.exercises[0]!, name })),
+    };
+    const compact = labels(
+      SharedWorkoutDetails({ details: many, compact: true }),
+    ).replace(/\s+/g, " ");
+    expect(compact).toContain("6 exercises · 18 sets");
+    expect(compact).toContain("Squat · Bench press");
+    expect(compact).toContain("+4 more");
+    expect(compact).not.toContain("Deadlift");
+    expect(labels(SharedWorkoutDetails({ details: many }))).toContain(
+      "Deadlift",
+    );
+  });
 });

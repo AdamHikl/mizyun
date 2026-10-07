@@ -32,6 +32,8 @@ set local request.jwt.claim.sub='c1610000-0000-4000-8000-000000000003';
 select throws_ok($$select public.community_routines('get',jsonb_build_object('id',(select value->>'id' from routine_state where key='share')))$$,'P0001','community_unavailable','Unrelated viewer denied guessed share');
 set local request.jwt.claim.sub='c1610000-0000-4000-8000-000000000002';
 select is((public.community_routines('get',jsonb_build_object('id',(select value->>'id' from routine_state where key='share')))->>'authorHandle'),'comm161_000000000001','Only approved follower gets safe authorship');
+select is((public.community_routines('get',jsonb_build_object('id',(select value->>'id' from routine_state where key='share')))->>'authorUserId'),'c1610000-0000-4000-8000-000000000001','Authorized routine authorship uses stable profile identity');
+select ok(not has_function_privilege('authenticated','public.community_routine_dto(uuid)','execute'),'Routine DTO builder remains internal after adding identity');
 select throws_ok($$select public.community_routines('import',jsonb_build_object('id',(select value->>'id' from routine_state where key='share'),'version',1,'confirmed',false))$$,'P0001','community_invalid_input','Recipient import requires confirmation');
 insert into routine_state values('copy',public.community_routines('import',jsonb_build_object('id',(select value->>'id' from routine_state where key='share'),'version',1,'confirmed',true)));
 select is((public.community_routines('import',jsonb_build_object('id',(select value->>'id' from routine_state where key='share'),'version',1,'confirmed',true))->>'alreadyImported'),'true','Lost import response returns existing copy');

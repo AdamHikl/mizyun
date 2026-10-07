@@ -127,6 +127,82 @@ const createCompletedWorkout = async (
 };
 
 describe("Community Workout Publication Routes", () => {
+  it("returns private management context only to the current owner of a live completed source", async () => {
+    const { app, communityRepository, workoutRepository } =
+      await setupTestApp();
+    for (const [user, handle] of [
+      [userAlice, "manage_alice"],
+      [userBob, "manage_bob"],
+      [userEve, "manage_eve"],
+    ] as const)
+      await communityRepository.saveProfile(user, {
+        handle,
+        displayName: handle,
+        isSearchable: true,
+      });
+    const workout = await createCompletedWorkout(workoutRepository, userAlice);
+    const card = await communityRepository.publishActivity(userAlice, {
+      sourceWorkoutId: workout.id,
+      enrollmentGeneration: 1,
+      operationId: "30000000-0000-4000-8000-000000000099",
+      category: "strength",
+      sharedDay: "2026-09-29",
+      durationSeconds: null,
+    });
+    const follow = await communityRepository.sendFollowRequest(
+      userBob,
+      userAlice,
+    );
+    await communityRepository.updateRelationshipStatus(
+      follow.id,
+      userAlice,
+      "approved",
+    );
+    const read = (
+      token: string,
+      path = `/v1/community/activities/${card.id}/manage`,
+    ) =>
+      app.inject({
+        method: "GET",
+        url: path,
+        headers: { authorization: `Bearer ${token}` },
+      });
+    const owner = await read("token-alice");
+    expect(owner.statusCode).toBe(200);
+    expect(owner.json().sourceWorkoutId).toBe(workout.id);
+    expect(owner.json().version).toBe(1);
+    const follower = await read(
+      "token-bob",
+      `/v1/community/activities/${card.id}`,
+    );
+    expect(follower.statusCode).toBe(200);
+    expect(follower.json()).not.toHaveProperty("sourceWorkoutId");
+    for (const token of ["token-bob", "token-eve"]) {
+      const denied = await read(token);
+      expect(denied.statusCode).toBe(404);
+      expect(denied.body).not.toContain(workout.id);
+    }
+    expect(
+      (
+        await app.inject({
+          method: "GET",
+          url: `/v1/community/activities/${card.id}/manage`,
+        })
+      ).statusCode,
+    ).toBe(401);
+    await workoutRepository.update(
+      { ...workout, completedAt: null },
+      { accessToken: "token-alice" },
+    );
+    expect((await read("token-alice")).statusCode).toBe(404);
+    await workoutRepository.update(workout, { accessToken: "token-alice" });
+    await workoutRepository.delete(workout.id, { accessToken: "token-alice" });
+    expect((await read("token-alice")).statusCode).toBe(404);
+    await createCompletedWorkout(workoutRepository, userAlice);
+    expect((await read("token-alice")).statusCode).toBe(200);
+    await communityRepository.revokeActivity(card.id, userAlice);
+    expect((await read("token-alice")).statusCode).toBe(404);
+  });
   it("previews and explicitly shares completed sets without private metadata; stale and forged snapshots fail", async () => {
     const {
       app,

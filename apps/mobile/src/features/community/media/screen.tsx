@@ -1,3 +1,4 @@
+import { CommunityIdentityLink } from "../ui";
 import {
   getCommunityReadDeadline,
   invalidateCommunityReads,
@@ -10,12 +11,11 @@ import {
   Platform,
   Image,
   Pressable,
-  ScrollView,
   Text,
   TextInput,
   View,
 } from "react-native";
-import { Stack, useFocusEffect } from "expo-router";
+import { useFocusEffect } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import * as Crypto from "expo-crypto";
@@ -23,13 +23,13 @@ import type { CommunityMediaItem } from "@mizyun/contracts";
 import { apiClient } from "@/composition/api-client";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
+import { CommunityPage } from "../ui";
 import { ReportModal, scopeCommunityClient } from "@/features/community";
 import {
   fetchCommunityMedia,
   fetchCommunityMediaContent,
   uploadCommunityMedia,
   removeCommunityMedia,
-  reviewCommunityMedia,
 } from "./client";
 export function CommunityMediaScreen() {
   const { session } = useAuth();
@@ -54,7 +54,7 @@ function MediaContent({ principal }: { principal: string | null }) {
     () => scopeCommunityClient(apiClient, principal, () => active.current),
     [principal],
   );
-  const [mode, setMode] = useState<"feed" | "mine" | "review">("feed");
+  const [mode, setMode] = useState<"feed" | "mine">("feed");
   const [items, setItems] = useState<CommunityMediaItem[]>([]);
   const [images, setImages] = useState<Record<string, string>>({});
   const [prepared, setPrepared] = useState<{
@@ -69,7 +69,6 @@ function MediaContent({ principal }: { principal: string | null }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [report, setReport] = useState<CommunityMediaItem | null>(null);
-  const [reviewReason, setReviewReason] = useState("");
   const reset = useCallback(() => {
     freshRead.current++;
     if (expiry.current !== null) clearTimeout(expiry.current);
@@ -86,7 +85,6 @@ function MediaContent({ principal }: { principal: string | null }) {
     setReport(null);
     setBusy(false);
     setCursor(null);
-    setReviewReason("");
     setNotice(null);
     setError(null);
   }, []);
@@ -145,11 +143,7 @@ function MediaContent({ principal }: { principal: string | null }) {
         freshLoading.current = false;
         setBusy(false);
         setItems([]);
-        setError(
-          nextMode === "review"
-            ? "Review requires a named moderator with a current MFA session."
-            : "Images unavailable. Refresh to check current access.",
-        );
+        setError("Images unavailable. Refresh to check current access.");
         return;
       }
       setItems(result.value.items);
@@ -254,7 +248,6 @@ function MediaContent({ principal }: { principal: string | null }) {
       setPrepared(null);
       setRights(false);
       setAltText("");
-      setReviewReason("");
       setNotice(message);
       await load();
     } catch {
@@ -330,17 +323,16 @@ function MediaContent({ principal }: { principal: string | null }) {
       disabled={disabled}
       onPress={action}
       style={{
-        borderWidth: 1,
+        borderBottomWidth: 1,
         borderColor: theme.border,
         padding: 12,
         minHeight: 48,
         justifyContent: "center",
-        borderRadius: 12,
         marginVertical: 4,
         opacity: disabled ? 0.5 : 1,
       }}
     >
-      <Text style={{ color: theme.text }}>{label}</Text>
+      <Text style={{ color: theme.text, fontSize: 16 }}>{label}</Text>
     </Pressable>
   );
   return (
@@ -348,25 +340,10 @@ function MediaContent({ principal }: { principal: string | null }) {
       style={{ flex: 1, backgroundColor: theme.background }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <Stack.Screen options={{ title: "Community images" }} />
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ padding: 20, gap: 12 }}
-      >
-        <Text style={{ color: theme.text, fontSize: 24, fontWeight: "700" }}>
-          Choose an image to share
-        </Text>
-        <Text style={{ color: theme.text }}>
-          Select an image deliberately from your device. Nothing from your
-          private progress photos is shared automatically. Metadata is removed
-          on the server. A named moderator must review each image before your
-          approved followers can view it.
-        </Text>
-        <Text style={{ color: theme.text }}>
-          Use only images you have permission to share, with everyone pictured
-          consenting. Do not upload nudity, sensitive documents or unsafe
-          advice. Recipients may retain a screenshot of an image they already
-          viewed.
+      <CommunityPage title="Community photos" backHref="/community/more">
+        <Text style={{ color: theme.textSecondary }}>
+          Separate photos deliberately selected from your device. Approved
+          photos are visible to current and future approved followers.
         </Text>
         {error && (
           <Text accessibilityRole="alert" style={{ color: theme.text }}>
@@ -381,6 +358,20 @@ function MediaContent({ principal }: { principal: string | null }) {
         {button("Choose a new image", () => void choose(), busy || !principal)}
         {prepared && (
           <>
+            <Text
+              accessibilityRole="header"
+              style={{ color: theme.text, fontSize: 18, fontWeight: "600" }}
+            >
+              Review your selected photo
+            </Text>
+            <Text style={{ color: theme.text }}>
+              Nothing from your private progress photos is shared automatically.
+              Metadata is removed on the server. A named moderator must review
+              each photo before sharing. Use only photos you have permission to
+              share, with everyone pictured consenting. Do not upload nudity,
+              sensitive documents or unsafe advice. Recipients may retain
+              screenshots.
+            </Text>
             <Image
               source={{ uri: prepared.uri }}
               accessibilityLabel="Your selected image preview"
@@ -445,19 +436,15 @@ function MediaContent({ principal }: { principal: string | null }) {
           </>
         )}
         <Text style={{ color: theme.text, fontSize: 18, fontWeight: "600" }}>
-          Browse community images
+          Browse photos
         </Text>
-        {button("Approved images", () => {
+        {button("Approved photos", () => {
           setMode("feed");
           void load("feed");
         })}
-        {button("Manage my images", () => {
+        {button("My photos and review status", () => {
           setMode("mine");
           void load("mine");
-        })}
-        {button("Moderator review", () => {
-          setMode("review");
-          void load("review");
         })}
         {button(
           busy ? "Loading…" : "Refresh",
@@ -467,37 +454,25 @@ function MediaContent({ principal }: { principal: string | null }) {
           },
           busy || !principal,
         )}
-        {mode === "review" && (
-          <TextInput
-            editable={!busy}
-            accessibilityLabel="Moderation decision reason"
-            maxLength={500}
-            placeholder="Record your review reason"
-            placeholderTextColor={theme.textSecondary}
-            value={reviewReason}
-            onChangeText={setReviewReason}
-            style={{
-              color: theme.text,
-              borderWidth: 1,
-              borderColor: theme.border,
-              padding: 12,
-            }}
-          />
-        )}
         {items.map((item) => (
           <View
             key={item.id}
             style={{
-              borderWidth: 1,
+              borderBottomWidth: 1,
               borderColor: theme.border,
-              borderRadius: 12,
-              padding: 12,
+              paddingVertical: 16,
               gap: 6,
             }}
           >
-            <Text style={{ color: theme.text }}>
-              @{item.authorHandle} · {item.state}
-            </Text>
+            {item.authorUserId ? (
+              <CommunityIdentityLink
+                userId={item.authorUserId}
+                displayName={`@${item.authorHandle}`}
+              />
+            ) : (
+              <Text style={{ color: theme.text }}>@{item.authorHandle}</Text>
+            )}
+            <Text style={{ color: theme.textSecondary }}>{item.state}</Text>
             {images[item.id] ? (
               <Image
                 source={{ uri: images[item.id] }}
@@ -540,40 +515,6 @@ function MediaContent({ principal }: { principal: string | null }) {
                   );
                 })
               : button("Report image", () => setReport(item))}
-            {mode === "review" && item.state === "pending" && !item.isOwner && (
-              <>
-                {button(
-                  "Approve for existing approved followers",
-                  () =>
-                    void perform(
-                      () =>
-                        reviewCommunityMedia(
-                          client,
-                          item.id,
-                          "approve",
-                          reviewReason,
-                        ),
-                      "Image approved.",
-                    ),
-                  busy || !reviewReason.trim(),
-                )}
-                {button(
-                  "Reject image",
-                  () =>
-                    void perform(
-                      () =>
-                        reviewCommunityMedia(
-                          client,
-                          item.id,
-                          "reject",
-                          reviewReason,
-                        ),
-                      "Image rejected.",
-                    ),
-                  busy || !reviewReason.trim(),
-                )}
-              </>
-            )}
           </View>
         ))}
         {!busy && !items.length && !error && (
@@ -590,7 +531,7 @@ function MediaContent({ principal }: { principal: string | null }) {
           principalKey={principal}
           onClose={() => setReport(null)}
         />
-      </ScrollView>
+      </CommunityPage>
     </KeyboardAvoidingView>
   );
 }

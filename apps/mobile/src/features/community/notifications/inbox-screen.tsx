@@ -5,14 +5,7 @@ import React, {
   useRef,
   useSyncExternalStore,
 } from "react";
-import {
-  AppState,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { AppState, Pressable, StyleSheet, View } from "react-native";
 import {
   Stack,
   router,
@@ -20,8 +13,7 @@ import {
   useLocalSearchParams,
   type Href,
 } from "expo-router";
-import { MaxContentWidth } from "@/constants/theme";
-import { CommunityIntro, useCommunityPalette } from "../community-presentation";
+import { CommunityPage, CommunityState } from "../ui";
 import { apiClient } from "@/composition/api-client";
 import { ThemedText } from "@/components/themed-text";
 import { useAuth } from "@/features/auth/auth-context";
@@ -46,7 +38,6 @@ export function CommunityInboxScreen() {
 }
 function InboxContent({ principal }: { principal: string | null }) {
   const theme = useTheme();
-  const palette = useCommunityPalette();
   const { notice } = useLocalSearchParams<{ notice?: string }>();
   const alive = useRef(true);
   const controller = useMemo(
@@ -111,26 +102,17 @@ function InboxContent({ principal }: { principal: string | null }) {
     if (path) router.push(path as Href);
   };
   return (
-    <ScrollView
-      style={{ backgroundColor: theme.background }}
-      contentContainerStyle={styles.content}
-    >
-      <Stack.Screen options={{ title: "Community inbox" }} />
-      <CommunityIntro
-        icon="💬"
-        title="Your Community inbox"
-        description="Follow requests, little cheers and important updates, all in one place."
-        tone="blue"
-      />
+    <CommunityPage title="Updates">
+      <Stack.Screen options={{ title: "Updates", headerShown: false }} />
       {notice === "read_unconfirmed" && (
         <ThemedText accessibilityLiveRegion="polite">
           The update was checked, but read status could not be saved. Refresh
-          your inbox and try again.
+          your updates and try again.
         </ThemedText>
       )}
       {notice === "unavailable" && (
         <ThemedText accessibilityLiveRegion="polite">
-          That Community update is unavailable. Your inbox shows currently
+          That Community update is unavailable. This list shows currently
           accessible updates.
         </ThemedText>
       )}
@@ -144,7 +126,7 @@ function InboxContent({ principal }: { principal: string | null }) {
       {principal ? (
         <>
           {action(
-            state.busy ? "Checking updates…" : "Refresh inbox",
+            state.busy ? "Checking updates…" : "Refresh updates",
             () => {
               invalidateCommunityReads();
               void controller.load();
@@ -157,20 +139,10 @@ function InboxContent({ principal }: { principal: string | null }) {
             </ThemedText>
           )}
           {!state.busy && !state.error && state.items.length === 0 && (
-            <View style={[styles.empty, { backgroundColor: palette.blue }]}>
-              <Text accessible={false} style={styles.emptyIcon}>
-                🙌
-              </Text>
-              <ThemedText
-                style={[styles.emptyTitle, { color: palette.blueText }]}
-              >
-                A little encouragement goes a long way
-              </ThemedText>
-              <ThemedText style={{ color: palette.blueText }}>
-                Requests and reactions will appear here when friends connect
-                with you.
-              </ThemedText>
-            </View>
+            <CommunityState
+              title="No Community updates"
+              description="Follow requests, approvals, encouragement and safety updates will appear here."
+            />
           )}
           {state.items.map((item) => (
             <View
@@ -178,21 +150,10 @@ function InboxContent({ principal }: { principal: string | null }) {
               style={[
                 styles.record,
                 {
-                  backgroundColor: theme.backgroundElement,
                   borderColor: theme.border,
                 },
               ]}
             >
-              <Text accessible={false} style={styles.emptyIcon}>
-                {
-                  {
-                    request: "👋",
-                    approval: "🤝",
-                    reaction: "🙌",
-                    moderation: "🛡️",
-                  }[item.kind]
-                }
-              </Text>
               <ThemedText>
                 {item.readAt ? "Read" : "Unread"} ·{" "}
                 {new Date(item.createdAt).toLocaleString()}
@@ -208,29 +169,21 @@ function InboxContent({ principal }: { principal: string | null }) {
             )}
         </>
       ) : (
-        <ThemedText>Sign in to view your Community inbox.</ThemedText>
+        <ThemedText>Sign in to view your Community updates.</ThemedText>
       )}
-    </ScrollView>
+    </CommunityPage>
   );
 }
 const styles = StyleSheet.create({
-  content: {
-    padding: 20,
-    gap: 16,
-    paddingBottom: 40,
-    width: "100%",
-    maxWidth: MaxContentWidth,
-    alignSelf: "center",
-  },
-  empty: { padding: 24, gap: 10, borderRadius: 20 },
-  emptyIcon: { fontSize: 28 },
-  emptyTitle: { fontSize: 18, fontWeight: "600" },
   action: {
     minHeight: 48,
-    borderWidth: 1,
-    borderRadius: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     padding: 12,
     justifyContent: "center",
   },
-  record: { gap: 8, borderWidth: 1, borderRadius: 18, padding: 16 },
+  record: {
+    gap: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 12,
+  },
 });

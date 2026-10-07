@@ -14,7 +14,7 @@ import {
   getActivityReactions,
   humanizeCommunityError,
 } from "../community-client";
-import { InitialsAvatar } from "../initials-avatar";
+import { CommunityIdentityLink } from "../ui";
 import { useTheme } from "@/hooks/use-theme";
 import { MaxContentWidth } from "@/constants/theme";
 import { REACTION_EMOJIS, REACTION_LABELS } from "./constants";
@@ -173,31 +173,25 @@ export function ReactorsModal({
                     key={`${reactor.userId}-${reactor.reaction}`}
                     style={styles.reactorRow}
                     testID={`reactor-item-${reactor.userId}`}
-                    accessible
-                    accessibilityRole="text"
+                    accessible={false}
                     accessibilityLabel={`${reactor.displayName}, @${reactor.handle}, reacted with ${label}${timeStr ? `, ${timeStr}` : ""}`}
                   >
-                    <View style={styles.avatarWrapper}>
-                      <InitialsAvatar
-                        symbol={reactor.avatarSymbol}
-                        seed={reactor.displayName}
-                        size={36}
-                      />
-                      <View style={styles.reactionBadge}>
-                        <Text style={styles.reactionBadgeEmoji}>{emoji}</Text>
-                      </View>
-                    </View>
-
                     <View style={styles.infoCol}>
-                      <Text style={styles.displayName}>
-                        {reactor.displayName}
-                      </Text>
-                      <Text style={styles.handle}>@{reactor.handle}</Text>
+                      <CommunityIdentityLink
+                        userId={reactor.userId}
+                        displayName={reactor.displayName}
+                        handle={reactor.handle}
+                        avatarKey={reactor.avatarSymbol}
+                        onPress={onClose}
+                      />
                     </View>
-
-                    {timeStr ? (
-                      <Text style={styles.timeText}>{timeStr}</Text>
-                    ) : null}
+                    <Text
+                      style={styles.timeText}
+                      accessibilityLabel={`Reacted with ${label}${timeStr ? `, ${timeStr}` : ""}`}
+                    >
+                      {emoji}
+                      {timeStr ? ` · ${timeStr}` : ""}
+                    </Text>
                   </View>
                 );
               })}

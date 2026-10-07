@@ -16,6 +16,8 @@ import {
   handleAvailabilityResponseSchema,
   moderationAppealDtoSchema,
   publicCommunityProfileDtoSchema,
+  communityProfileViewDtoSchema,
+  type CommunityProfileViewDto,
   publishWorkoutActivitySchema,
   relationshipListResponseSchema,
   removeFollowerResponseSchema,
@@ -155,6 +157,30 @@ export async function fetchPublicCommunityProfile(
     method: "GET",
     path: `/v1/community/profiles/${encodeURIComponent(targetUserId)}`,
     schema: publicCommunityProfileDtoSchema,
+  });
+}
+
+/** Full caller-owned directional context is required before profile actions. */
+export async function fetchCommunityProfileView(
+  client: ApiClient,
+  targetUserId: string,
+): Promise<Result<CommunityProfileViewDto, ApiError>> {
+  return client.request<CommunityProfileViewDto>({
+    method: "GET",
+    path: `/v1/community/profiles/${encodeURIComponent(targetUserId)}`,
+    schema: communityProfileViewDtoSchema,
+  });
+}
+
+export async function fetchCommunityProfileActivities(
+  client: ApiClient,
+  targetUserId: string,
+  page?: { limit?: number; cursor?: string },
+): Promise<Result<CommunityFeedResponse, ApiError>> {
+  return client.request<CommunityFeedResponse>({
+    method: "GET",
+    path: `/v1/community/profiles/${encodeURIComponent(targetUserId)}/activities${communityPageQuery(page)}`,
+    schema: communityFeedResponseSchema,
   });
 }
 
@@ -539,11 +565,28 @@ export async function submitModerationAppeal(
 // Error Humanization
 // ==========================================
 
+/** Cache retirement carries transport failures without changing their authority meaning. */
+export function communityErrorCause(error: ApiError): ApiError {
+  const visited = new Set<ApiError>();
+  while (
+    error.kind === "context_changed" &&
+    error.cause &&
+    !visited.has(error)
+  ) {
+    visited.add(error);
+    error = error.cause;
+  }
+  return error;
+}
+
 export function humanizeCommunityError(
   error: ApiError,
   fallback = "An unexpected error occurred.",
 ): string {
+  error = communityErrorCause(error);
   switch (error.kind) {
+    case "context_changed":
+      return "Community information changed. Try again.";
     case "not_configured":
       return "Community features are currently unavailable.";
     case "no_session":

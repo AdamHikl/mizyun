@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   enrolled: true,
+  membershipStatus: "ready",
+  membershipError: null as string | null,
+  membershipLoad: vi.fn(),
+  membershipOptions: null as any,
   list: "incoming",
   rows: [] as any[],
   error: null as string | null,
@@ -10,6 +14,10 @@ const mocks = vi.hoisted(() => ({
   act: vi.fn(),
   alert: vi.fn(),
   appState: null as null | ((s: string) => void),
+  token: "token-one",
+  focus: null as null | (() => void),
+  pause: vi.fn(),
+  receipt: vi.fn(),
 }));
 const hooks = vi.hoisted(() => ({
   slots: [] as any[],
@@ -67,6 +75,7 @@ vi.mock("react-native", () => ({
       Array.isArray(styles) ? Object.assign({}, ...styles) : styles,
   },
   Text: "Text",
+  TextInput: "TextInput",
   View: "View",
   Pressable: "Pressable",
   FlatList: "FlatList",
@@ -86,21 +95,37 @@ vi.mock("react-native", () => ({
 
 vi.mock("expo-router", () => ({
   Link: "Link",
-  useFocusEffect: () => {},
+  useFocusEffect: (callback: () => void) => {
+    mocks.focus = callback;
+  },
   useLocalSearchParams: () => ({}),
 }));
 vi.mock("@/hooks/use-theme", () => ({
   useTheme: () => ({ primary: "#10B981", text: "#fff" }),
 }));
 vi.mock("@/features/auth/auth-context", () => ({
-  useAuth: () => ({ session: { user: { id: "a" } }, profile: {} }),
+  useAuth: () => ({
+    session: { user: { id: "a" }, accessToken: mocks.token },
+    profile: {},
+  }),
 }));
 vi.mock("@/composition/api-client", () => ({ apiClient: {} }));
 vi.mock("../use-community-profile", () => ({
-  useCommunityProfile: () => ({ isEnrolled: mocks.enrolled }),
+  useCommunityProfile: (options: any) => {
+    mocks.membershipOptions = options;
+    return {
+      isEnrolled: mocks.enrolled,
+      status: mocks.membershipStatus,
+      error: mocks.membershipError,
+      actions: { load: mocks.membershipLoad },
+    };
+  },
 }));
 vi.mock("../safety", () => ({ ReportModal: "ReportModal" }));
-vi.mock("../safety/safety-api", () => ({ captureSafetyReceipt: vi.fn() }));
+vi.mock("../safety/safety-api", () => ({
+  captureSafetyReceipt: mocks.receipt,
+}));
+vi.mock("../ui", () => ({ CommunityRootHeader: "CommunityRootHeader" }));
 vi.mock("../initials-avatar", () => ({ InitialsAvatar: "InitialsAvatar" }));
 vi.mock("./controller", () => ({
   RelationshipsController: class {
@@ -114,10 +139,11 @@ vi.mock("./controller", () => ({
       error: mocks.error,
     });
     resume = vi.fn();
-    pause = vi.fn();
+    pause = mocks.pause;
     load = mocks.load;
     act = mocks.act;
     captureIntent = () => () => true;
+    captureReceiptIntent = () => () => true;
   },
 }));
 import { RelationshipsScreen } from "./screen";
@@ -125,6 +151,16 @@ function render(): any {
   hooks.index = 0;
   const outer = RelationshipsScreen();
   return (outer.type as any)(outer.props);
+}
+function flushEffects() {
+  for (const effect of hooks.effects.splice(0)) effect();
+}
+async function settleMembership() {
+  await Promise.resolve();
+  await Promise.resolve();
+  const tree = render();
+  flushEffects();
+  return tree;
 }
 function nodes(node: any): any[] {
   if (!node) return [];
@@ -146,7 +182,14 @@ function control(tree: any, label: string): any {
 beforeEach(() => {
   hooks.slots = [];
   hooks.effects = [];
+  mocks.token = "token-one";
+  mocks.focus = null;
+  mocks.receipt.mockResolvedValue({ ok: true, value: { id: "receipt" } });
   mocks.enrolled = true;
+  mocks.membershipStatus = "ready";
+  mocks.membershipError = null;
+  mocks.membershipLoad.mockReset();
+  mocks.membershipLoad.mockImplementation(async () => {});
   mocks.list = "incoming";
   mocks.rows = [];
   mocks.error = null;
@@ -168,6 +211,65 @@ describe("friends navigation and actions", () => {
     control(tree, "Following").props.onPress();
     expect(mocks.load).toHaveBeenCalledWith("following");
   });
+  it("uses one compact main navigation row and a smaller Requests-only direction filter with 48-point controls", () => {
+    let tree = render();
+    const tablists = nodes(tree).filter(
+      (node) => node.props?.accessibilityRole === "tablist",
+    );
+    expect(tablists).toHaveLength(1);
+    expect(
+      nodes(tablists[0])
+        .filter((node) => node.props?.accessibilityRole === "tab")
+        .map(text),
+    ).toEqual(["Requests", "Following", "Followers"]);
+    expect(tablists[0].props.style.flexWrap).toBeUndefined();
+    expect(control(tree, "Requests").props.style[0]).toMatchObject({
+      minHeight: 48,
+      flexBasis: 0,
+      flexGrow: 1,
+    });
+    const received = control(tree, "Received");
+    expect(received.props.accessibilityRole).toBe("button");
+    expect(received.props.style[0]).toMatchObject({
+      minHeight: 48,
+      borderRadius: 24,
+    });
+    control(tree, "Sent").props.onPress();
+    expect(mocks.load).toHaveBeenCalledWith("outgoing");
+    mocks.list = "outgoing";
+    expect(control(render(), "Sent").props.accessibilityState.selected).toBe(
+      true,
+    );
+    mocks.list = "following";
+    tree = render();
+    expect(control(tree, "Received")).toBeUndefined();
+    expect(control(tree, "Sent")).toBeUndefined();
+  });
+  it("keeps finding a person prominent and safety navigation reachable when the relationship list fails", () => {
+    mocks.error = "Unable to load requests.";
+    let tree = render();
+    const all = nodes(tree);
+    const field = all.find((node) => node.type === "TextInput");
+    expect(field.props.accessibilityLabel).toBe("Exact friend handle");
+    expect(all.indexOf(field)).toBeLessThan(
+      all.indexOf(control(tree, "Requests")),
+    );
+    expect(control(tree, "Find exact handle")).toBeTruthy();
+    expect(control(tree, "Invite a friend").props.href).toBe(
+      "/community/invite",
+    );
+    expect(
+      all.indexOf(control(tree, "Safety & preferences +")),
+    ).toBeGreaterThan(all.indexOf(control(tree, "Try again")));
+    control(tree, "Safety & preferences +").props.onPress();
+    tree = render();
+    expect(control(tree, "Blocked").props.disabled).toBe(false);
+    expect(control(tree, "Muted").props.disabled).toBe(false);
+    expect(
+      control(tree, "Reports, appeals & safety contact →").props.href,
+    ).toBe("/community/safety");
+    expect(text(tree)).not.toContain("No follow requests");
+  });
   it("keeps blocked/muted and safety contact available after leaving", () => {
     mocks.enrolled = false;
     let tree = render();
@@ -180,14 +282,162 @@ describe("friends navigation and actions", () => {
       control(tree, "Reports, appeals & safety contact →").props.href,
     ).toBe("/community/safety");
   });
-  it("shows Retry rather than a misleading empty list on errors, and refresh is explicit", () => {
+  it("shows Retry rather than a misleading empty list on errors, and refresh rechecks membership", async () => {
     mocks.error = "Offline";
     const tree = render();
     expect(text(tree)).not.toContain("No follow requests");
-    control(tree, "Try again").props.onPress();
+    mocks.focus!();
+    await settleMembership();
+    vi.clearAllMocks();
+    control(render(), "Try again").props.onPress();
+    expect(mocks.membershipLoad).toHaveBeenCalledOnce();
+    expect(mocks.load).not.toHaveBeenCalled();
+    await settleMembership();
     expect(mocks.load).toHaveBeenCalledOnce();
-    tree.props.refreshControl.props.onRefresh();
+    render().props.refreshControl.props.onRefresh();
+    expect(mocks.membershipLoad).toHaveBeenCalledTimes(2);
+    await settleMembership();
     expect(mocks.load).toHaveBeenCalledTimes(2);
+  });
+  it.each(["retry", "refocus"])(
+    "recovers from a failed first membership read through %s, then loads the graph once without revalidation loops",
+    async (recovery) => {
+      mocks.enrolled = false;
+      mocks.membershipStatus = "idle";
+      mocks.membershipLoad
+        .mockImplementationOnce(async () => {
+          mocks.membershipStatus = "error";
+          mocks.membershipError = "Community access could not be checked.";
+        })
+        .mockImplementationOnce(async () => {
+          mocks.membershipStatus = "ready";
+          mocks.membershipError = null;
+          mocks.enrolled = true;
+        });
+      render();
+      flushEffects();
+      const leave = mocks.focus!() as unknown as () => void;
+      let tree = await settleMembership();
+      expect(mocks.membershipOptions.autoLoad).toBe(false);
+      expect(mocks.membershipLoad).toHaveBeenCalledOnce();
+      expect(mocks.load).not.toHaveBeenCalled();
+      expect(control(tree, "Requests").props.disabled).toBe(true);
+      expect(text(tree)).not.toContain("No follow requests");
+      expect(tree.props.refreshControl.props.enabled).toBe(true);
+      if (recovery === "retry") control(tree, "Try again").props.onPress();
+      else {
+        leave();
+        mocks.focus!();
+      }
+      tree = await settleMembership();
+      expect(mocks.membershipLoad).toHaveBeenCalledTimes(2);
+      expect(mocks.load).toHaveBeenCalledOnce();
+      expect(control(tree, "Requests").props.disabled).toBe(false);
+      for (let i = 0; i < 3; i++) {
+        render();
+        flushEffects();
+        await Promise.resolve();
+      }
+      expect(mocks.membershipLoad).toHaveBeenCalledTimes(2);
+      expect(mocks.load).toHaveBeenCalledOnce();
+    },
+  );
+  it("rejects a late membership completion after blur, and loads only from the new focus read", async () => {
+    let finishOld!: () => void;
+    let finishNew!: () => void;
+    mocks.enrolled = false;
+    mocks.membershipStatus = "loading";
+    mocks.membershipLoad
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            finishOld = resolve;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            finishNew = resolve;
+          }),
+      );
+    render();
+    flushEffects();
+    const leave = mocks.focus!() as unknown as () => void;
+    leave();
+    mocks.focus!();
+    finishOld();
+    await settleMembership();
+    expect(mocks.load).not.toHaveBeenCalled();
+    mocks.enrolled = true;
+    mocks.membershipStatus = "ready";
+    finishNew();
+    await settleMembership();
+    expect(mocks.load).toHaveBeenCalledOnce();
+  });
+  it.each(["background", "token"])(
+    "rejects late membership success after the %s boundary",
+    async (boundary) => {
+      let finish!: () => void;
+      mocks.enrolled = false;
+      mocks.membershipStatus = "loading";
+      mocks.membershipLoad.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            finish = resolve;
+          }),
+      );
+      render();
+      flushEffects();
+      mocks.focus!();
+      if (boundary === "background") mocks.appState!("background");
+      else {
+        mocks.token = "replacement-token";
+        render();
+      }
+      mocks.enrolled = true;
+      mocks.membershipStatus = "ready";
+      finish();
+      await settleMembership();
+      expect(mocks.load).not.toHaveBeenCalled();
+      expect(mocks.membershipLoad).toHaveBeenCalledOnce();
+    },
+  );
+  it("keeps safety reads independent of a stalled membership revalidation", async () => {
+    mocks.enrolled = false;
+    mocks.membershipStatus = "loading";
+    mocks.membershipLoad.mockImplementationOnce(
+      () => new Promise<void>(() => {}),
+    );
+    render();
+    flushEffects();
+    mocks.focus!();
+    let tree = render();
+    expect(control(tree, "Requests").props.disabled).toBe(true);
+    control(tree, "Safety & preferences +").props.onPress();
+    tree = render();
+    expect(control(tree, "Blocked").props.disabled).toBe(false);
+    control(tree, "Blocked").props.onPress();
+    expect(mocks.load).toHaveBeenCalledWith("blocked");
+    expect(mocks.membershipLoad).toHaveBeenCalledOnce();
+  });
+  it("opens the actual profile from a relationship identity, without granting blocked-profile navigation", () => {
+    mocks.rows = [
+      {
+        user: { userId: "peer-id", handle: "partner", displayName: "Partner" },
+      },
+    ];
+    const identity = control(render(), "View @partner profile");
+    expect(identity.props.disabled).toBe(false);
+    const link = nodes(render()).find(
+      (node) =>
+        node.type === "Link" &&
+        node.props.href === "/community/profile/peer-id",
+    );
+    expect(link).toBeTruthy();
+    mocks.list = "blocked";
+    expect(control(render(), "View @partner profile").props.disabled).toBe(
+      true,
+    );
   });
   it("keeps approval confirmation and past-card/directional warning", () => {
     mocks.rows = [
@@ -281,5 +531,44 @@ describe("friends navigation and actions", () => {
     expect(
       control(tree, "Options for @partner").props.accessibilityState.expanded,
     ).toBe(true);
+  });
+  it("retires the old root lifetime without putting session tokens into the React key", () => {
+    hooks.index = 0;
+    const before = RelationshipsScreen();
+    expect(before.props.isLifetimeCurrent()).toBe(true);
+    mocks.token = "token-two";
+    hooks.index = 0;
+    const after = RelationshipsScreen();
+    expect(after.key).not.toBe(before.key);
+    expect(before.props.isLifetimeCurrent()).toBe(false);
+    expect(after.props.isLifetimeCurrent()).toBe(true);
+    expect(after.key).not.toContain("token-two");
+  });
+  it("clears protected relationship state and checks access again when a report modal closes", async () => {
+    mocks.list = "following";
+    mocks.rows = [
+      {
+        user: { userId: "peer", handle: "friend", displayName: "Friend" },
+        relationshipId: "edge",
+      },
+    ];
+    render();
+    mocks.focus!();
+    await settleMembership();
+    vi.clearAllMocks();
+    control(render(), "Options for @friend").props.onPress();
+    control(render(), "Report profile or handle").props.onPress();
+    await Promise.resolve();
+    await Promise.resolve();
+    const modal = nodes(render()).find((node) => node.type === "ReportModal");
+    expect(modal).toBeTruthy();
+    modal.props.onClose();
+    expect(mocks.pause).toHaveBeenCalled();
+    expect(mocks.membershipLoad).toHaveBeenCalled();
+    await settleMembership();
+    expect(mocks.load).toHaveBeenCalled();
+    expect(nodes(render()).some((node) => node.type === "ReportModal")).toBe(
+      false,
+    );
   });
 });

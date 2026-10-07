@@ -76,6 +76,8 @@
 
 - [ADR-0047 — Selected device health exports](0047-selected-device-health-exports.md): Dev-only selected first-party nutrition/standalone workout writes; encrypted local retry/mapping lifecycle, separate session permissions and qualified platform retention; native/device/privacy gates open.
 
+- [ADR-0048 — Connected Community UI reads](0048-community-connected-ui-reads.md): local implementation 2026-10-07; persistent destinations, bounded authorized profiles/conversations, stable artifact authors and original foreground authority. Dev/native acceptance pending.
+
 - [ADR-0046 — Manual running authority and retry-safe mutations](0046-manual-running-authority.md): accepted for Dev implementation 2026-10-06; authoritative local dates, dedicated run UI, atomic owner receipts and separate resistance context.
 
 - [ADR-0049 — Private meal thumbnails on Dev](0049-private-meal-thumbnails.md): accepted2026-10-06; optional reduced owner-only meal photos, recovery/deletion and explicit Dev activation.

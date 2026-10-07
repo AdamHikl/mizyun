@@ -57,6 +57,10 @@ vi.mock("react", async (original) => {
     },
   };
 });
+vi.mock("../ui", () => ({
+  CommunityPage: "CommunityPage",
+  CommunityIdentityLink: "CommunityIdentityLink",
+}));
 vi.mock("react-native", () => ({
   KeyboardAvoidingView: "KeyboardAvoidingView",
   Platform: { OS: "ios" },
@@ -129,6 +133,7 @@ import { CommunityRoutinesScreen } from "./screen";
 const item = {
   id: "a1610000-0000-4000-8000-000000000001",
   authorHandle: "friend",
+  authorUserId: "00000000-0000-4000-8000-000000000002",
   version: 1,
   isOwner: false,
   available: true,
@@ -201,6 +206,14 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe("protected routine snapshot freshness", () => {
+  it("opens an authorized artifact author's stable profile identity", async () => {
+    render();
+    await flush();
+    const identity = nodes(render(), "CommunityIdentityLink")[0];
+    expect(identity.props.userId).toBe(item.authorUserId);
+    expect(identity.props.displayName).toBe(`@${item.authorHandle}`);
+  });
+
   it("renders shared routines without waiting for a slow private routine chooser", async () => {
     let release!: (value: any) => void;
     mocks.request.mockImplementation((options) =>
@@ -239,11 +252,16 @@ describe("protected routine snapshot freshness", () => {
     render();
     await flush();
     expect(text()).toContain(item.snapshot.title);
+    expect(
+      button(render(), "Import an independent private copy"),
+    ).toBeUndefined();
+    button(render(), `${item.snapshot.title} · @friend`).props.onPress();
     expect(text()).toContain("Bounded exercise");
-    expect(text()).toContain("Private source routine");
+    expect(text()).not.toContain("Private source routine");
     vi.advanceTimersByTime(10_000);
     expect(text()).not.toContain(item.snapshot.title);
     expect(text()).not.toContain("Bounded exercise");
+    button(render(), "Share a private routine").props.onPress();
     expect(text()).toContain("Private source routine");
   });
   it("clears old snapshots before refresh and refuses stalled responses after expiry", async () => {
@@ -284,6 +302,7 @@ describe("protected routine snapshot freshness", () => {
   it("preserves the owner's deliberate private preview after shared cards expire", async () => {
     render();
     await flush();
+    button(render(), "Share a private routine").props.onPress();
     button(render(), "Private source routine").props.onPress();
     nodes(render(), "TextInput")[0].props.onChangeText("Owner preview targets");
     mocks.request.mockResolvedValueOnce({
@@ -332,6 +351,7 @@ describe("protected routine snapshot freshness", () => {
     async (transition) => {
       render();
       await flush();
+      button(render(), `${item.snapshot.title} · @friend`).props.onPress();
       button(render(), "Import an independent private copy").props.onPress();
       const confirm = mocks.alert.mock.calls.at(-1)![2][1].onPress;
       if (transition === "background") {
@@ -360,6 +380,7 @@ describe("protected routine snapshot freshness", () => {
     );
     render();
     await flush();
+    button(render(), `${item.snapshot.title} · @friend`).props.onPress();
     expect(button(render(), "Unshare routine")).toBeDefined();
   });
 });

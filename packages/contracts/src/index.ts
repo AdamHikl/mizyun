@@ -815,6 +815,7 @@ export {
 } from "./analytics";
 
 export * from "./community";
+export * from "./community-profile-view";
 
 export * from "./community-notifications";
 

@@ -10,7 +10,7 @@ export function communityOperationGate(
     method === "GET" &&
     (path === "/v1/community/feed" ||
       /^\/v1\/community\/activities\/[^/]+(?:\/reactions)?$/.test(path) ||
-      /^\/v1\/community\/profiles\/[^/]+$/.test(path))
+      /^\/v1\/community\/profiles\/[^/]+(?:\/activities)?$/.test(path))
   )
     return "browsing";
   if (method === "POST" && path === "/v1/community/profile")
@@ -63,7 +63,9 @@ export function communityExpansionOperationGate(
       (args.operation === "preferences" && args.enabled !== true)
     )
       return null;
-    return ["list", "contacts", "search"].includes(String(args.operation))
+    return ["list", "contacts", "search", "threads", "latest"].includes(
+      String(args.operation),
+    )
       ? "browsing"
       : "engagement";
   }

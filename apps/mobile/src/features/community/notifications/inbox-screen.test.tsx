@@ -103,6 +103,10 @@ vi.mock("@/features/auth/auth-context", () => ({
 }));
 vi.mock("@/composition/api-client", () => ({ apiClient: {} }));
 vi.mock("@/components/themed-text", () => ({ ThemedText: "Text" }));
+vi.mock("../ui", () => ({
+  CommunityPage: "Page",
+  CommunityState: ({ title, description }: any) => [title, description],
+}));
 vi.mock("./controller", () => ({
   InboxController: class {
     subscribe = vi.fn();
@@ -175,12 +179,12 @@ describe("Community inbox presentation and destinations", () => {
     let tree = render();
     expect(action(tree, "Checking updates…").props.disabled).toBe(true);
     expect(text(tree)).not.toContain("No Community updates");
-    expect(text(tree)).not.toContain("A little encouragement goes a long way");
+    expect(text(tree)).not.toContain("No Community updates");
     mocks.busy = false;
     mocks.error = "Could not load updates";
     tree = render();
     expect(text(tree)).toContain(mocks.error);
-    expect(text(tree)).not.toContain("A little encouragement goes a long way");
+    expect(text(tree)).not.toContain("No Community updates");
   });
   it("retains preferences, private exit and unavailable update recovery", () => {
     mocks.notice = "unavailable";

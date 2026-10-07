@@ -32,8 +32,11 @@ export function getCommunityReadDeadline(value: unknown): number | undefined {
 export function invalidateCommunityReads(): void {
   for (const store of stores) store.clear();
 }
-export function setCommunityReadPrincipal(principal: string | null): void {
-  for (const store of stores) store.setPrincipal(principal);
+export function setCommunityReadPrincipal(
+  principal: string | null,
+  token?: string | null,
+): void {
+  for (const store of stores) store.setPrincipal(principal, token);
 }
 
 function readKey(options: RequestOptions): string | null {
@@ -59,6 +62,7 @@ function readKey(options: RequestOptions): string | null {
       /^\/v1\/community\/relationships\/(incoming|outgoing|following|followers)$/.test(
         path,
       ) ||
+      /^\/v1\/community\/profiles\/[^/]+(?:\/activities)?$/.test(path) ||
       /^\/v1\/community\/activities\/[^/]+(?:\/(reactions|comments|comments\/candidates))?$/.test(
         path,
       );
@@ -76,7 +80,9 @@ function readKey(options: RequestOptions): string | null {
     (path === "/v1/community/groups/operations" &&
       ["list", "inbox", "read"].includes(String(operation))) ||
     (path === "/v1/community/messaging" &&
-      (["contacts", "list", "listMine"].includes(String(operation)) ||
+      (["contacts", "list", "listMine", "threads", "latest"].includes(
+        String(operation),
+      ) ||
         (operation === "preferences" && Object.keys(body).length === 1))) ||
     (path === "/v1/community/challenges" &&
       ["list", "get", "listMine", "getMine"].includes(String(operation))) ||
@@ -84,6 +90,13 @@ function readKey(options: RequestOptions): string | null {
       operation === "preferences" &&
       Object.keys(body).length === 1);
   if (!allowed) return null;
+  // Nested timestamp/UUID cursors must retain both fields in the read identity.
+  // A top-level JSON replacer would erase them and reuse a different page.
+  if (
+    path === "/v1/community/messaging" &&
+    ["threads", "latest"].includes(String(operation))
+  )
+    return `POST ${options.path} ${JSON.stringify(body)}`;
   return `POST ${options.path} ${JSON.stringify(body, Object.keys(body).sort())}`;
 }
 
@@ -154,12 +167,17 @@ export class CommunityReadCache implements ApiClient {
     if (value !== this.foreground || !value) this.clear();
     this.foreground = value;
   }
-  setPrincipal(value: string | null): void {
-    if (value !== this.principal || value === null) {
+  setPrincipal(value: string | null, token?: string | null): void {
+    if (
+      value !== this.principal ||
+      value === null ||
+      (token !== undefined && token !== this.token)
+    ) {
       this.clear();
       this.token = null;
     }
     this.principal = value;
+    if (token !== undefined) this.token = token;
   }
   dispose(): void {
     this.clear();
@@ -169,7 +187,7 @@ export class CommunityReadCache implements ApiClient {
   async request<T>(options: RequestOptions): Promise<Result<T, ApiError>> {
     const current = () =>
       options.isCurrent?.() !== false && !options.signal?.aborted;
-    if (!current()) return { ok: false, error: { kind: "no_session" } };
+    if (!current()) return { ok: false, error: { kind: "context_changed" } };
     const key = readKey(options);
     if (!isRead(options)) {
       this.clear();
@@ -204,7 +222,7 @@ export class CommunityReadCache implements ApiClient {
       return null;
     });
     if (!current() || startedRevision !== this.revision || !this.foreground) {
-      return { ok: false, error: { kind: "no_session" } };
+      return { ok: false, error: { kind: "context_changed" } };
     }
     if (
       session?.user.id !== options.expectedUserId ||
@@ -275,7 +293,7 @@ export class CommunityReadCache implements ApiClient {
           )
             return {
               ok: false as const,
-              error: { kind: "no_session" as const },
+              error: { kind: "context_changed" as const },
             };
           if (!result.ok) {
             this.clear();
@@ -284,7 +302,7 @@ export class CommunityReadCache implements ApiClient {
           if (expiresAt <= Date.now())
             return {
               ok: false as const,
-              error: { kind: "no_session" as const },
+              error: { kind: "context_changed" as const },
             };
           if (typeof result.value === "object" && result.value !== null) {
             deadlines.set(result.value, expiresAt);
@@ -323,7 +341,14 @@ export class CommunityReadCache implements ApiClient {
       pending = work;
     } else pending.scopes.add(valid);
     const result = await pending.promise;
-    if (!valid()) return { ok: false, error: { kind: "no_session" } };
+    if (!valid())
+      return {
+        ok: false,
+        error:
+          result.ok || result.error.kind === "context_changed"
+            ? { kind: "context_changed" }
+            : { kind: "context_changed", cause: result.error },
+      };
     return result as Result<T, ApiError>;
   }
 }

@@ -5,7 +5,6 @@ import {
   Platform,
   Linking,
   Pressable,
-  ScrollView,
   StyleSheet,
   TextInput,
   View,
@@ -16,7 +15,7 @@ import {
   type CommunityReportSummaryDto,
 } from "@mizyun/contracts";
 import { MaxContentWidth } from "@/constants/theme";
-import { CommunityIntro } from "../community-presentation";
+import { CommunityPage } from "../ui";
 import { apiClient } from "@/composition/api-client";
 import { ThemedText } from "@/components/themed-text";
 import { useAuth } from "@/features/auth/auth-context";
@@ -245,10 +244,7 @@ export function SafetyContent({
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={[
-        styles.action,
-        { borderColor: theme.border, backgroundColor: theme.backgroundElement },
-      ]}
+      style={[styles.action, { borderColor: theme.border }]}
     >
       <ThemedText>{label}</ThemedText>
     </Pressable>
@@ -258,18 +254,7 @@ export function SafetyContent({
       style={{ flex: 1, backgroundColor: theme.background }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <ScrollView
-        style={{ backgroundColor: theme.background }}
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-      >
-        <Stack.Screen options={{ title: "Community safety" }} />
-        <CommunityIntro
-          icon="🛡️"
-          title="Help & safety"
-          description="Manage your boundaries, report a concern or check an appeal."
-          tone="peach"
-        />
+      <CommunityPage title="Help & safety" backHref="/community/me">
         <ThemedText>
           For immediate danger, contact local emergency services. Mizyun reports
           are not an emergency response service.
@@ -439,7 +424,7 @@ export function SafetyContent({
         {action("Account export and deletion", () =>
           router.push("/account-settings/account-data?anchor=export" as Href),
         )}
-      </ScrollView>
+      </CommunityPage>
     </KeyboardAvoidingView>
   );
 }
@@ -454,11 +439,10 @@ const styles = StyleSheet.create({
   },
   action: {
     minHeight: 48,
-    borderWidth: 1,
-    borderRadius: 14,
+    borderBottomWidth: 1,
     padding: 12,
     justifyContent: "center",
   },
-  record: { gap: 8 },
+  record: { gap: 8, paddingVertical: 12 },
   input: { borderWidth: 1, minHeight: 96, padding: 12, borderRadius: 10 },
 });

@@ -18,6 +18,7 @@ export const communityMediaItemSchema = z
   .object({
     id: z.string().uuid(),
     authorHandle: z.string(),
+    authorUserId: z.string().uuid().optional(),
     altText: z.string().min(1).max(240),
     state: z.enum(["uploading", "pending", "approved", "rejected", "revoked"]),
     width: z.number().int().min(1).max(1600).nullable(),

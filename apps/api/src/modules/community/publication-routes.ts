@@ -642,6 +642,71 @@ export const communityPublicationRoutes: FastifyPluginAsync<
     unpublishHandler,
   );
 
+  // Owner-only context remains separate from the recipient card projection.
+  app.get(
+    "/activities/:id/manage",
+    { preHandler: app.authenticate },
+    async (request, reply): Promise<AuthorSharedActivityDto | void> => {
+      const principal = request.principal;
+      if (!principal) throw new Error("principal missing after authentication");
+      const { id } = request.params as { id?: string };
+      const unavailable = () =>
+        sendApiError(
+          reply,
+          request,
+          404,
+          "NOT_FOUND",
+          "Activity not found or unavailable.",
+        );
+      if (!id || !GENERIC_UUID.test(id)) return unavailable();
+      const access = { accessToken: principal.accessToken };
+      const profile = await options.communityRepository.getProfile(
+        principal.userId,
+        access,
+      );
+      const activity = await options.communityRepository.getActivityById(
+        id,
+        access,
+      );
+      if (
+        !profile ||
+        profile.status !== "active" ||
+        !activity ||
+        activity.userId !== principal.userId ||
+        activity.revokedAt !== null
+      )
+        return unavailable();
+      const source = await options.workoutRepository.getById(
+        activity.sourceWorkoutId,
+        access,
+      );
+      if (
+        !source ||
+        source.userId !== principal.userId ||
+        !source.completedAt ||
+        !isSessionDetails(source.details)
+      )
+        return unavailable();
+      return authorSharedActivityDtoSchema.parse({
+        id: activity.id,
+        authorUserId: principal.userId,
+        authorHandle: profile.handle,
+        authorDisplayName: profile.displayName,
+        authorAvatarSymbol: profile.avatarSymbol,
+        category: activity.category,
+        sharedDay: activity.sharedDay,
+        durationSeconds: activity.durationSeconds,
+        workoutDetails: activity.workoutDetails ?? null,
+        publishedAt: activity.publishedAt.toISOString(),
+        sourceWorkoutId: activity.sourceWorkoutId,
+        version: activity.version,
+        revokedAt: null,
+        reactionCounts: defaultReactionCounts,
+        viewerReaction: null,
+      });
+    },
+  );
+
   // GET /v1/community/activities/:id — view a shared activity card
   app.get(
     "/activities/:id",

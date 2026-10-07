@@ -57,6 +57,10 @@ vi.mock("react", async (original) => {
     },
   };
 });
+vi.mock("../ui", () => ({
+  CommunityPage: "CommunityPage",
+  CommunityIdentityLink: "CommunityIdentityLink",
+}));
 vi.mock("react-native", () => ({
   KeyboardAvoidingView: "KeyboardAvoidingView",
   Platform: { OS: "ios" },
@@ -129,6 +133,7 @@ import { CommunityMediaScreen } from "./screen";
 const item = {
   id: "a1600000-0000-4000-8000-000000000001",
   authorHandle: "owner",
+  authorUserId: "00000000-0000-4000-8000-000000000002",
   altText: "Approved room photo",
   state: "approved",
   width: 200,
@@ -187,6 +192,23 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe("protected media screen lifecycle", () => {
+  it("opens an authorized artifact author's stable profile identity", async () => {
+    render();
+    await flush();
+    const identity = nodes(render(), "CommunityIdentityLink")[0];
+    expect(identity.props.userId).toBe(item.authorUserId);
+    expect(identity.props.displayName).toBe(`@${item.authorHandle}`);
+  });
+  it("offers no staff review controls without an authoritative named-role grant", async () => {
+    render();
+    await flush();
+    expect(button(render(), "Moderator review")).toBeUndefined();
+    expect(
+      mocks.request.mock.calls.some(([options]) =>
+        options.path.includes("mode=review"),
+      ),
+    ).toBe(false);
+  });
   it("bounds fresh image bytes by the reused metadata page's original deadline", async () => {
     mocks.deadline.mockReturnValue(Date.now() + 1_000);
     render();

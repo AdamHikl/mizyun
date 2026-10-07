@@ -31,6 +31,10 @@ vi.mock("react", async (original) => ({
     return hooks.slots[i].value;
   },
 }));
+vi.mock("../ui", () => ({
+  CommunityPage: "CommunityPage",
+  CommunityIdentityLink: "IdentityLink",
+}));
 vi.mock("react-native", () => ({
   View: "View",
   KeyboardAvoidingView: "KeyboardAvoidingView",
@@ -143,6 +147,22 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe("bounded private-group rendering", () => {
+  it("keeps creation and joining as explicit tasks on the group list", async () => {
+    render();
+    await settle();
+    expect(nodes(render()).some((node) => node.type === "Input")).toBe(false);
+    control(render(), "Join with a private code").props.onPress();
+    expect(
+      nodes(render()).some(
+        (node) =>
+          node.type === "Input" &&
+          node.props.accessibilityLabel === "Private invitation code",
+      ),
+    ).toBe(true);
+    expect(control(render(), "Create a private group")).toBeUndefined();
+    control(render(), "Cancel group task").props.onPress();
+    expect(nodes(render()).some((node) => node.type === "Input")).toBe(false);
+  });
   it("expires group and post data without replaying commands", async () => {
     render();
     await settle();
@@ -172,6 +192,7 @@ describe("bounded private-group rendering", () => {
     control(render(), "Private title · member").props.onPress();
     render();
     await settle();
+    control(render(), "Manage this group").props.onPress();
     const tree = render();
     expect(
       nodes(tree).find(
@@ -193,6 +214,7 @@ describe("bounded private-group rendering", () => {
           finish = resolve;
         }),
     );
+    control(render(), "Create a group").props.onPress();
     nodes(render())
       .find(
         (node) =>
@@ -239,6 +261,7 @@ describe("bounded private-group rendering", () => {
         ? { ok: true, value: { group } }
         : original(client, request),
     );
+    control(render(), "Create a group").props.onPress();
     nodes(render())
       .find(
         (node) =>

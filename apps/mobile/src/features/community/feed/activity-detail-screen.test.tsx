@@ -1,7 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   fetch: vi.fn(),
   receipt: vi.fn(),
+  deadline: undefined as number | undefined,
+  request: vi.fn(),
   appState: null as null | ((state: string) => void),
   cleanup: null as null | (() => void),
   focus: null as null | (() => () => void),
@@ -85,7 +87,11 @@ vi.mock("expo-router", async () => {
 });
 vi.mock("@/hooks/use-theme", () => ({ useTheme: () => ({}) }));
 vi.mock("@/composition/api-client", () => ({
-  apiClient: { request: vi.fn() },
+  apiClient: { request: mocks.request },
+}));
+vi.mock("../state/read-cache", () => ({
+  COMMUNITY_READ_LIFETIME_MS: 10000,
+  getCommunityReadDeadline: () => mocks.deadline,
 }));
 vi.mock("../community-client", () => ({
   fetchSharedActivity: mocks.fetch,
@@ -116,9 +122,16 @@ const activity = {
   reactionCounts: {},
   viewerReaction: null,
 };
-function render(principalKey = "account-a"): any {
+function render(
+  principalKey = "account-a",
+  sessionToken = "initial-token",
+): any {
   hooks.index = 0;
-  const tree = ActivityDetailScreen({ activityId: "activity-a", principalKey });
+  const tree = ActivityDetailScreen({
+    activityId: "activity-a",
+    principalKey,
+    sessionToken,
+  });
   hooks.effects.splice(0).forEach((effect) => effect());
   return tree;
 }
@@ -130,6 +143,9 @@ function find(node: any, type: string): any {
   return find(node.props?.children, type);
 }
 beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(0);
+  mocks.deadline = undefined;
   hooks.slots = [];
   hooks.effects = [];
   hooks.index = 0;
@@ -137,7 +153,63 @@ beforeEach(() => {
   mocks.fetch.mockResolvedValue({ ok: true, value: activity });
   mocks.receipt.mockResolvedValue({ ok: true, value: { id: "receipt-a" } });
 });
+afterEach(() => {
+  vi.clearAllTimers();
+  vi.useRealTimers();
+});
 describe("shared workout detail loading lifetime", () => {
+  it("retires protected details and a captured reaction intent at original foreground expiry", async () => {
+    render();
+    await Promise.resolve();
+    await Promise.resolve();
+    const client = find(render(), "ReactionBar").props.scopedClient;
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(find(render(), "ReactionBar")).toBeFalsy();
+    expect(await client.request({ method: "POST", path: "/unused" })).toEqual({
+      ok: false,
+      error: { kind: "context_changed" },
+    });
+    expect(mocks.request).not.toHaveBeenCalled();
+  });
+  it("does not extend a restored detail's original authorization deadline", async () => {
+    mocks.deadline = 2500;
+    render();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(find(render(), "ReactionBar")).toBeTruthy();
+    await vi.advanceTimersByTimeAsync(2500);
+    expect(find(render(), "ReactionBar")).toBeFalsy();
+  });
+  it("finishes loading neutrally when the original request exceeds its lifetime", async () => {
+    let finish!: (value: any) => void;
+    mocks.fetch.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    render();
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(find(render(), "ActivityIndicator")).toBeFalsy();
+    finish({ ok: true, value: activity });
+    await Promise.resolve();
+    expect(find(render(), "ReactionBar")).toBeFalsy();
+  });
+  it("rejects a captured same-account action immediately when the session token rotates", async () => {
+    render();
+    await Promise.resolve();
+    await Promise.resolve();
+    const client = find(render(), "ReactionBar").props.scopedClient;
+    render("account-a", "renewed-token");
+    expect(
+      find(render("account-a", "renewed-token"), "ReactionBar"),
+    ).toBeFalsy();
+    expect(mocks.fetch).toHaveBeenCalledTimes(2);
+    expect(await client.request({ method: "POST", path: "/unused" })).toEqual({
+      ok: false,
+      error: { kind: "context_changed" },
+    });
+    expect(mocks.request).not.toHaveBeenCalled();
+  });
   it("keeps the reactions client stable across unrelated receipt rerenders", async () => {
     let finish!: (value: any) => void;
     mocks.receipt.mockImplementationOnce(
@@ -173,7 +245,7 @@ describe("shared workout detail loading lifetime", () => {
     expect(find(render(), "ReactionBar")).toBeFalsy();
     expect(await before.request({ method: "GET", path: "/unused" })).toEqual({
       ok: false,
-      error: { kind: "no_session" },
+      error: { kind: "context_changed" },
     });
     mocks.appState!("active");
     await Promise.resolve();
@@ -181,7 +253,16 @@ describe("shared workout detail loading lifetime", () => {
     render("account-b");
     expect(await before.request({ method: "GET", path: "/unused" })).toEqual({
       ok: false,
-      error: { kind: "no_session" },
+      error: { kind: "context_changed" },
     });
   });
 });
+
+vi.mock("../ui", () => ({
+  CommunityPage: "CommunityPage",
+  CommunityIdentityLink: "CommunityIdentityLink",
+  CommunityButton: "CommunityButton",
+}));
+vi.mock("../share-workout-modal", () => ({
+  ShareWorkoutModal: "ShareWorkoutModal",
+}));

@@ -616,6 +616,7 @@ export interface CommunityRepository {
       readonly accessToken: string;
       readonly limit?: number | undefined;
       readonly beforeCursor?: string | null | undefined;
+      readonly authorUserId?: UserId;
     },
   ): Promise<{
     readonly items: readonly StoredSharedActivity[];

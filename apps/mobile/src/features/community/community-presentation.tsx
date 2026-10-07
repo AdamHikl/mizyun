@@ -28,46 +28,41 @@ export function useCommunityPalette() {
       };
 }
 export function CommunityIntro({
-  icon,
+  icon: _icon,
   title,
   description,
-  tone = "mint",
+  tone: _tone = "mint",
 }: {
-  icon: string;
+  icon?: string;
   title: string;
   description: string;
   tone?: "mint" | "purple" | "blue" | "peach";
 }) {
-  const palette = useCommunityPalette();
-  const ink = palette[`${tone}Text`];
+  const colors = useTheme();
   return (
-    <View style={[styles.intro, { backgroundColor: palette[tone] }]}>
-      <Text
-        accessible={false}
-        importantForAccessibility="no"
-        style={styles.icon}
-      >
-        {icon}
-      </Text>
+    <View style={styles.intro}>
       <View style={styles.copy}>
-        <Text accessibilityRole="header" style={[styles.title, { color: ink }]}>
+        <Text
+          accessibilityRole="header"
+          style={[styles.title, { color: colors.text }]}
+        >
           {title}
         </Text>
-        <Text style={[styles.body, { color: ink }]}>{description}</Text>
+        <Text style={[styles.body, { color: colors.textSecondary }]}>
+          {description}
+        </Text>
       </View>
     </View>
   );
 }
 const styles = StyleSheet.create({
   intro: {
-    padding: 18,
-    borderRadius: 20,
+    paddingVertical: 8,
     flexDirection: "row",
     flexWrap: "wrap",
     alignItems: "center",
     gap: 12,
   },
-  icon: { fontSize: 28 },
   copy: { flex: 1, minWidth: 160, gap: 6 },
   title: { fontSize: 22, lineHeight: 30, fontWeight: "700" },
   body: { fontSize: 15, lineHeight: 22 },

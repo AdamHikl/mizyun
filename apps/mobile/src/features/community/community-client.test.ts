@@ -9,6 +9,8 @@ import {
   fetchCommunityFeed,
   fetchCommunityInvitations,
   fetchCommunityProfile,
+  fetchCommunityProfileView,
+  fetchCommunityProfileActivities,
   fetchFollowers,
   fetchFollowing,
   fetchIncomingFollowRequests,
@@ -40,6 +42,31 @@ import {
 
 describe("community-client", () => {
   describe("profile operations", () => {
+    it("uses a distinct strict directional profile contract and target activity paging", async () => {
+      const request = vi.fn().mockResolvedValue({ ok: true, value: {} });
+      const client = { request } as unknown as ApiClient;
+      await fetchCommunityProfileView(client, "target/id");
+      expect(request.mock.calls[0][0].path).toBe(
+        "/v1/community/profiles/target%2Fid",
+      );
+      expect(
+        request.mock.calls[0][0].schema.safeParse({
+          userId: "00000000-0000-4000-8000-000000000001",
+          handle: "person",
+          displayName: "Person",
+          avatarSymbol: "P",
+          createdAt: "2026-10-07T00:00:00.000Z",
+        }).success,
+      ).toBe(false);
+      await fetchCommunityProfileActivities(client, "target/id", {
+        limit: 20,
+        cursor: "time|id",
+      });
+      expect(request.mock.calls[1][0].path).toBe(
+        "/v1/community/profiles/target%2Fid/activities?limit=20&cursor=time%7Cid",
+      );
+    });
+
     it("fetches community profile via GET /v1/community/profile", async () => {
       const mockProfile = {
         userId: "u-1",

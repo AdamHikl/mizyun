@@ -24,16 +24,18 @@ export function ExpansionButton({
       disabled={disabled}
       onPress={onPress}
       style={{
-        padding: 14,
+        paddingVertical: 12,
+        paddingHorizontal: 4,
         minHeight: 48,
-        borderRadius: 12,
-        backgroundColor: t.backgroundElement,
-        borderWidth: 1,
+        backgroundColor: "transparent",
+        borderBottomWidth: 1,
         borderColor: t.border,
         opacity: disabled ? 0.5 : 1,
       }}
     >
-      <Text style={{ color: t.text, fontWeight: "600" }}>{label}</Text>
+      <Text style={{ color: t.text, fontWeight: "600", fontSize: 16 }}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -82,6 +84,8 @@ export function ExpansionInput({
           borderColor: t.border,
           borderRadius: 12,
           color: t.text,
+          fontSize: 16,
+          textAlignVertical: "top",
           opacity: editable ? 1 : 0.5,
         }}
       />
