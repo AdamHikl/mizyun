@@ -100,6 +100,8 @@ Allowed implementation state: `not started`, `in progress`, `implemented`, `bloc
 
 ### Q9
 
+2026-10-07 #23 source retirement removes the automatic/manual hosted Supabase writer; other current Actions workflows have no hosted link/push/credential references. Independent High review approved this narrow diff. [Oldest-issue batch](OLDEST_ISSUES_BATCH_2026-10-07.md) preserves the current source/metadata evidence and remaining running-release, migration drift/schema-compatible rollback, failure-injection and fail-closed journal exits. No full-Q9 closure, backend deployment or hosted write is claimed.
+
 Build7 coherent backup-before-checkout/API stop and conservative partial-apply safeguards passed43fault tests and independent High review. Exact9b0c41acbb7e4ee70592cab40b6148fc76a393ed Dev/Production promotions, fresh backup/861SQL gate, signed IPA/AAB and user-observed build6 core compatibility are in [dated evidence](BUILD_7_RELEASE_EVIDENCE_2026-10-04.md). Remaining full Q9/device/Store exits below are not blanket-closed.
 
 - [ ] HEAD A / requested B verifies and deploys B; older accepted main SHA requires no branch rewind.

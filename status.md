@@ -4,6 +4,8 @@
 
 ## Current authority and delivery
 
+- **#23:** hosted writer retired; Q9/#7 exits open. [Batch/next](docs/OLDEST_ISSUES_BATCH_2026-10-07.md).
+
 - **Git integration — 2026-10-07:** all local work grouped into separate package commits for `main`, runtime source`32d1d790cf072171da8fe38527256fef7b33c898`; fresh `pnpm check`PASS (mobile1589/API867+15credential skips), focused contracts51/core22/mobile762/simulator13PASS, independent High preview/export/tooling reviews clear after Android rationale scrolling fix. The pre-commit full gate and exact pushed HEAD are recorded in this Git-integration chat. Next: exact-candidate native/device acceptance below; all existing release/privacy exits remain open.
 - **Build9 / #212 (#27/#32):** source`dd5b435385b379d8c0df1b69813f8d8fdd3d985a`,1.0.9/9/9; signedIPA/widget/dSYMs and AAB/upload cert/16KB LOADPASS; fresh full gatesPASS. [Artifacts/evidence](docs/BUILD_9_RELEASE_EVIDENCE_2026-10-05.md). iPhone16Pro installed/launched1.0.9(9) PID6828; native/16KB runtime/Store exits open.
 - **Dev backend:** pristinea64a158, API4100/DB5433 PID3424542; canonical gate/promotion/photo32-check Auth/API/Storage proofPASS. Running938efc5/Pro3984c35 preserved. Prompt `coach-system-v3-app-v3`. [Delivery](docs/MEAL_PHOTOS_DEV_DELIVERY_2026-10-06.md).
