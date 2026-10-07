@@ -4,6 +4,10 @@
 
 Reviewed the official [Android ScrollView reference](https://developer.android.com/reference/android/widget/ScrollView) after independent integration review found the expanded Health disclosure could clip at large text sizes. Put the disclosure and privacy-policy action inside one vertical content container with wrap-content height in a full-screen ScrollView. Android small-screen and enlarged-font native acceptance remains open.
 
+## Home one-time workout shortcut (#223/WO-07) — 2026-10-07
+
+Checked installed Expo57 [versioned reference](https://docs.expo.dev/versions/v57.0.0/), [Crypto UUID API](https://docs.expo.dev/versions/v57.0.0/sdk/crypto/) and [Router navigation/query parameters](https://docs.expo.dev/router/basics/navigation/). Implementation consequence: reuse the public `createBlankWorkout` function already used by Workouts, retain a user-scoped operation UUID for uncertain-response retries, and push `/log-workout` with the returned session ID. Home must not open the bare logger for a new start. Preserve direct active-session Resume and show busy/disabled state during creation. This changes only client entry behavior; existing server idempotency and native/device gates remain authoritative.
+
 ## First-meal shortcut selection (#222/#118) — 2026-10-07
 
 Checked the installed Expo57 [versioned reference](https://docs.expo.dev/versions/v57.0.0/) and ECMAScript [local calendar date operations](https://tc39.es/ecma262/multipage/numbers-and-dates.html#sec-date.prototype.setdate). Implementation consequence: reuse the existing `fetchFoodDateHistory` complete local-day loader (UTC superset, exact local-midnight filtering, all pages), select the earliest valid `consumedAt` from yesterday, and offer only the generic meal-log action when yesterday is empty or cannot be read. Do not subtract a fixed 24 hours or select the first result from descending recent history. Clear the suggestion when the dashboard's local-day scope changes. This is a client-only selection correction; native interaction acceptance remains separate.

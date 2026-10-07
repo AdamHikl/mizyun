@@ -1,5 +1,6 @@
 import {
   ActivityIndicator,
+  Alert,
   AppState,
   Platform,
   Pressable,
@@ -13,8 +14,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect, type Href } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Network from "expo-network";
+import * as Crypto from "expo-crypto";
 import type { FoodEntry } from "@mizyun/contracts";
-import { formatStopwatch, useOptionalActiveWorkout } from "@/features/workouts";
+import {
+  createBlankWorkout,
+  formatStopwatch,
+  useOptionalActiveWorkout,
+} from "@/features/workouts";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -246,7 +252,7 @@ const actions = [
     label: "Start workout",
     control: "quick_log_workout",
     path: "/log-workout" as Href,
-    hint: "Active training session",
+    hint: "One-time training session",
     icon: "🏋️",
   },
   {
@@ -739,6 +745,54 @@ export function DashboardScreen() {
   const workoutContext = useOptionalActiveWorkout();
   const activeWorkout = workoutContext?.activeWorkout;
   const elapsedSeconds = workoutContext?.elapsedSeconds ?? 0;
+  const startingWorkout = useRef(false);
+  const workoutOperation = useRef<{ owner: string; id: string } | null>(null);
+  const [startingOneTime, setStartingOneTime] = useState(false);
+
+  const handleStartWorkout = useCallback(async () => {
+    if (activeWorkout) {
+      router.push(`/log-workout?workoutId=${activeWorkout.id}` as Href);
+      return;
+    }
+    if (userId === null || startingWorkout.current) return;
+    startingWorkout.current = true;
+    setStartingOneTime(true);
+    try {
+      if (
+        !workoutOperation.current ||
+        workoutOperation.current.owner !== userId
+      ) {
+        workoutOperation.current = {
+          owner: userId,
+          id: Crypto.randomUUID(),
+        };
+      }
+      const result = await createBlankWorkout(
+        "One-time Workout",
+        workoutOperation.current.id,
+      );
+      if (currentOwner.current !== ownerKey) return;
+      if (result.ok && result.workout) {
+        workoutOperation.current = null;
+        router.push({
+          pathname: "/log-workout",
+          params: { workoutId: result.workout.id },
+        });
+      } else if (!result.ok) {
+        Alert.alert("Could not start workout", result.message);
+      }
+    } catch {
+      if (currentOwner.current === ownerKey) {
+        Alert.alert(
+          "Could not start workout",
+          "The workout could not be started. Please try again.",
+        );
+      }
+    } finally {
+      startingWorkout.current = false;
+      setStartingOneTime(false);
+    }
+  }, [activeWorkout, ownerKey, userId]);
 
   const quickLogActions = useMemo(() => {
     return actions
@@ -848,9 +902,21 @@ export function DashboardScreen() {
                   key={action.label}
                   accessibilityRole="button"
                   accessibilityLabel={action.label}
+                  accessibilityState={
+                    action.control === "quick_log_workout"
+                      ? { busy: startingOneTime, disabled: startingOneTime }
+                      : undefined
+                  }
+                  disabled={
+                    action.control === "quick_log_workout" && startingOneTime
+                  }
                   onPress={() => {
                     trackDashboardControl(action.control);
-                    void router.push(action.path);
+                    if (action.control === "quick_log_workout") {
+                      void handleStartWorkout();
+                    } else {
+                      void router.push(action.path);
+                    }
                   }}
                   style={({ pressed }) => [
                     styles.action,
@@ -865,7 +931,9 @@ export function DashboardScreen() {
                   <View style={styles.actionBody}>
                     <ThemedText type="smallBold">{action.label}</ThemedText>
                     <ThemedText type="small" themeColor="textSecondary">
-                      {action.hint}
+                      {action.control === "quick_log_workout" && startingOneTime
+                        ? "Starting…"
+                        : action.hint}
                     </ThemedText>
                   </View>
                   <ThemedText style={styles.actionPlus}>＋</ThemedText>

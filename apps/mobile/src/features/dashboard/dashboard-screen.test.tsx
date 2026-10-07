@@ -17,6 +17,12 @@ const mocks = vi.hoisted(() => ({
   networkRemove: vi.fn(),
   owner: "synthetic-owner",
   fontScale: 1,
+  tokenRevision: 0,
+  activeWorkout: null as { id: string } | null,
+  createBlank: vi.fn(),
+  push: vi.fn(),
+  alert: vi.fn(),
+  uuid: vi.fn(),
   appState: null as ((state: string) => void) | null,
   network: null as ((state: any) => void) | null,
   networkState: {
@@ -63,6 +69,7 @@ vi.mock("react", async (original) => ({
   },
 }));
 vi.mock("react-native", () => ({
+  Alert: { alert: mocks.alert },
   ActivityIndicator: "ActivityIndicator",
   AppState: {
     currentState: "active",
@@ -96,11 +103,12 @@ vi.mock("expo-network", () => ({
   },
 }));
 vi.mock("expo-router", () => ({
-  router: { push: vi.fn() },
+  router: { push: mocks.push },
   useFocusEffect: (callback: typeof hooks.focus) => {
     hooks.focus = callback;
   },
 }));
+vi.mock("expo-crypto", () => ({ randomUUID: mocks.uuid }));
 vi.mock("react-native-safe-area-context", () => ({
   SafeAreaView: "SafeAreaView",
 }));
@@ -140,14 +148,18 @@ vi.mock("@/features/auth/auth-context", () => ({
     profile: { displayName: "Synthetic person", unitSystem: "metric" },
     session: {
       user: { id: mocks.owner },
-      accessToken: `synthetic-token-${mocks.owner}`,
+      accessToken: `synthetic-token-${mocks.owner}-${mocks.tokenRevision}`,
     },
     openOnboarding: vi.fn(),
   }),
 }));
 vi.mock("@/features/workouts", () => ({
-  useOptionalActiveWorkout: () => null,
+  useOptionalActiveWorkout: () => ({
+    activeWorkout: mocks.activeWorkout,
+    elapsedSeconds: 0,
+  }),
   formatStopwatch: () => "00:00",
+  createBlankWorkout: mocks.createBlank,
 }));
 vi.mock("@/features/health-steps/health-steps", () => ({
   readTodaySteps: vi.fn().mockResolvedValue({ kind: "off" }),
@@ -307,12 +319,108 @@ beforeEach(() => {
   mocks.networkRemove.mockReset();
   mocks.owner = "synthetic-owner";
   mocks.fontScale = 1;
+  mocks.tokenRevision = 0;
+  mocks.activeWorkout = null;
+  mocks.createBlank
+    .mockReset()
+    .mockResolvedValue({ ok: true, workout: { id: "one-time-session" } });
+  mocks.push.mockReset();
+  mocks.alert.mockReset();
+  let operation = 0;
+  mocks.uuid.mockReset().mockImplementation(() => `operation-${++operation}`);
   cleanupFocus = undefined;
 });
 afterEach(() => {
   cleanupFocus?.();
   vi.clearAllTimers();
   vi.useRealTimers();
+});
+
+const workoutAction = (tree: any) =>
+  find(tree, (node) =>
+    /^(Start workout|Resume workout)$/.test(
+      node.props?.accessibilityLabel ?? "",
+    ),
+  );
+
+describe("Home one-time workout shortcut", () => {
+  it("creates one one-time session despite concurrent taps and opens its exact ID", async () => {
+    const pending = deferred<any>();
+    mocks.createBlank.mockReturnValue(pending.promise);
+    const action = workoutAction(render());
+    action.props.onPress();
+    action.props.onPress();
+    expect(mocks.createBlank).toHaveBeenCalledTimes(1);
+    expect(mocks.createBlank).toHaveBeenCalledWith(
+      "One-time Workout",
+      "operation-1",
+    );
+    expect(workoutAction(render()).props.accessibilityState).toEqual({
+      busy: true,
+      disabled: true,
+    });
+    expect(mocks.push).not.toHaveBeenCalled();
+    pending.resolve({ ok: true, workout: { id: "created-session" } });
+    await settle();
+    expect(mocks.push).toHaveBeenCalledWith({
+      pathname: "/log-workout",
+      params: { workoutId: "created-session" },
+    });
+  });
+
+  it.each(["failure", "throw"])(
+    "retains the operation on %s for a safe retry even after a token refresh",
+    async (kind) => {
+      if (kind === "throw")
+        mocks.createBlank.mockRejectedValueOnce(new Error("lost response"));
+      else
+        mocks.createBlank.mockResolvedValueOnce({
+          ok: false,
+          message: "Network unavailable",
+        });
+      workoutAction(render()).props.onPress();
+      await settle();
+      expect(mocks.push).not.toHaveBeenCalled();
+      expect(mocks.alert).toHaveBeenCalled();
+      expect(workoutAction(render()).props.disabled).toBe(false);
+      mocks.tokenRevision += 1;
+      workoutAction(render()).props.onPress();
+      await settle();
+      expect(mocks.createBlank.mock.calls[0][1]).toBe(
+        mocks.createBlank.mock.calls[1][1],
+      );
+      expect(mocks.push).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("ignores a late result after account switch and uses a new operation for the new account", async () => {
+    const pending = deferred<any>();
+    mocks.createBlank.mockReturnValueOnce(pending.promise);
+    workoutAction(render()).props.onPress();
+    mocks.owner = "second-owner";
+    render();
+    pending.resolve({ ok: true, workout: { id: "old-owner-session" } });
+    await settle();
+    expect(mocks.push).not.toHaveBeenCalled();
+    workoutAction(render()).props.onPress();
+    await settle();
+    expect(mocks.createBlank.mock.calls[1][1]).not.toBe(
+      mocks.createBlank.mock.calls[0][1],
+    );
+    expect(mocks.push).toHaveBeenCalledTimes(1);
+  });
+
+  it("resumes the active session without creating another workout", async () => {
+    mocks.activeWorkout = { id: "active-session" };
+    const action = workoutAction(render());
+    expect(action.props.accessibilityLabel).toBe("Resume workout");
+    action.props.onPress();
+    await settle();
+    expect(mocks.createBlank).not.toHaveBeenCalled();
+    expect(mocks.push).toHaveBeenCalledWith(
+      "/log-workout?workoutId=active-session",
+    );
+  });
 });
 
 describe("dashboard cached display and refresh status", () => {
