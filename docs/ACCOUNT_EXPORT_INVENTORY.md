@@ -4,11 +4,11 @@
 
 ## 1. Export Overview & Consistency Model
 
-The Mizyun account export delivers an exhaustive, portable, and versioned JSON archive of all personal records and media metadata owned by the authenticated user (`user_id = auth.uid()`).
+The Mizyun account export delivers a versioned JSON document of the implemented user-owned categories under the authenticated session (`user_id = auth.uid()`). The category inventory and offline-media acceptance remain open in #25; JSON containing expiring links is not a portable photo archive.
 
 - **Version**: `2026-09-08` (Manifest Schema Version 1)
-- **Consistency Guarantee**: Snapshot-consistent read per repository category under active user RLS session. Operations across independent tables are sequenced deterministically without blocking live writes.
-- **Resource Protection**: Deterministic batch pagination (500 records per chunk) ensures the export engine never exhausts Node.js or PostgreSQL memory on the Raspberry Pi 5 host, regardless of account lifetime volume.
+- **Consistency Model**: Live ordered reads under the user RLS session. Separate pages/tables are not a transactional snapshot; concurrent inserts, edits or deletion can affect the resulting document.
+- **Resource Bound**: Supabase reads request at most500 records/page and continue by the actual returned count until an empty page. Each category permits at most1000 page reads; exhaustion of this guard, a missing result or any page failure aborts the export. Results still accumulate in API memory on Hetzner; streaming, byte/concurrency bounds and large-account resource acceptance remain open.
 - **Exclusion Policy**: Strict exclusion of administrative secrets, authentication hashes, refresh tokens, and internal state machine challenges.
 
 ---
@@ -154,16 +154,17 @@ The Mizyun account export delivers an exhaustive, portable, and versioned JSON a
   - `evidence` (json array: cited facts and sources)
   - `createdAt` (ISO 8601 string)
 
-### 2.8 Durable Learned Memories (`public.agent_memories` / MemoryStore)
+### 2.8 Durable Learned Memories (`public.memory_items` / MemoryStore)
 
-- **Store**: Vector/PostgreSQL Memory Store
+- **Store**: PostgreSQL MemoryStore
+- **Pagination**: Export-specific port; owner-scoped `created_at ASC, id ASC` pages, including every retained state without the UI10,000-record cap. Counts reflect the delivered records; failures abort the success envelope.
 - **Ownership**: `userId = auth.uid()`
 - **Included Fields**:
   - `id` (string)
   - `kind` (string)
   - `content` (string)
   - `source` (string)
-  - `status` ("active" | "superseded" | "expired")
+  - `status` ("active" | "candidate" | "superseded" | "deleted"); expired records retain their status and expiry timestamp
   - `confidence` (number)
   - `importance` (number)
   - `createdAt` (ISO 8601 string)
@@ -175,7 +176,7 @@ The Mizyun account export delivers an exhaustive, portable, and versioned JSON a
 
 - **Table**: `public.user_feedback`
 - **Ownership**: `user_id = auth.uid()`
-- **Pagination**: Batch size 500 ordered by `created_at DESC, id DESC`.
+- **Pagination**: Batch size500 ordered by `created_at DESC, id ASC`; exhaustion/failure behavior follows the overview.
 - **Included Fields**:
   - `id` (uuid)
   - `category` ("like" | "dislike" | "change" | "bug" | "general")
@@ -184,19 +185,19 @@ The Mizyun account export delivers an exhaustive, portable, and versioned JSON a
   - `context` (json: app version, platform)
   - `createdAt` (ISO 8601 string)
 
-### 2.10 Private Media Assets & Offline Download URLs (`public.media_assets`)
+### 2.10 Private Media Metadata & Temporary Download URLs (`public.media_assets`)
 
 - **Table**: `public.media_assets`
 - **Storage Bucket**: `private-media`
 - **Ownership**: `user_id = auth.uid()` and object path prefix `${user_id}/`
-- **Pagination**: Batch size 500 ordered by `created_at DESC, id DESC`.
+- **Pagination**: Batch size500 ordered by `created_at DESC, id ASC`; exhaustion/failure behavior follows the overview.
 - **Included Fields**:
   - `id` (uuid)
   - `objectPath` (string)
   - `purpose` ("progress" | "meal")
   - `mimeType` (string)
   - `byteSize` (number)
-  - `downloadUrl` (string | null) — 24-hour pre-signed authenticated URL for offline photo retrieval
+  - `downloadUrl` (string | null) — 24-hour signed download link; no offline media bytes are embedded. Any export with listed private media is marked `partial`, including when signing succeeds
   - `createdAt` (ISO 8601 string)
   - `updatedAt` (ISO 8601 string)
 

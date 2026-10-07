@@ -1,0 +1,64 @@
+{
+  "date": "2026-10-07",
+  "baselineSha": "d54ca07e7e93af0f19603a22ed2b9c7dd63a0fd3",
+  "sourceSha": "63da6069e08e159daf33bd40be0efdca842bb2e7",
+  "sourceCommits": {
+    "export": "9858f2a4caf1994e2379988254e9f4600dcab47a",
+    "journal": "4cc97f8a3c614aaf4a8fe7dc8532e7443fbae9a7",
+    "routineRepair": "63da6069e08e159daf33bd40be0efdca842bb2e7"
+  },
+  "check": {
+    "command": "pnpm check",
+    "result": "PASS",
+    "inputSha256": "c22dc3cdc9b72d4bda67113f5c85edcdfe43d744282e662ad9d5bad50e32f541",
+    "mobilePassed": 1759,
+    "apiPassed": 921,
+    "supabaseAdapterPassed": 185,
+    "deploymentSafeguardsPassed": 49,
+    "skips": {
+      "apiCredentialGatedE2E": 15,
+      "configLegacyBundlePath": 3
+    }
+  },
+  "focused": {
+    "exportMemory": 3,
+    "exportAdapter": 35,
+    "apiAccount": 28,
+    "routineLogger": 76,
+    "deployment": 49,
+    "mobileTypecheck": "PASS",
+    "shellSyntax": "PASS"
+  },
+  "review": {
+    "export": "non-author High scoped source review clear",
+    "deployment": "non-author High scoped source review clear",
+    "routineRepair": "independent scoped source review clear"
+  },
+  "closedByExplicitFounderAcceptance": [11, 13],
+  "issuesRemainOpen": [7, 23, 25, 26, 102, 139],
+  "nativeDeviceProviderDeploymentAcceptance": "not performed in this package",
+  "excludedConcurrentWork": [
+    "completed-workout review (#226)",
+    "meal-photo copy/retention (#225)",
+    "Community UI/Dev/native evidence",
+    "analytics/health-export edits",
+    "foreign status/research changes"
+  ],
+  "sourceSha256": {
+    "packages/memory/src/index.ts": "38a0e9c9197f3f8a4376a1ba121d131bddc49e662342c51ad4ad4173b0cdc451",
+    "packages/adapters/supabase-server/src/export-pagination.ts": "ad7a808bb87933bf66b9c688033ebcf0cb7db1337cb46ae9e482d55efb85b76c",
+    "packages/adapters/supabase-server/src/export-pagination.test.ts": "190bb2b7dd5d44fbf36df657516f7db379141a7b7ec33c77a4929e73548677d9",
+    "packages/adapters/supabase-server/src/memory-store.ts": "91fdc3a0781fd7b6e28229d5b8281342d6d83d72dc76dbf13b3246204103ed4f",
+    "packages/adapters/supabase-server/src/memory-store.test.ts": "37df807fd362dd91d1d3e914e0d786b5899d47a201688969276ea4bff9772d51",
+    "packages/adapters/supabase-server/src/account-repository.ts": "57bb922d7a69460736fa445943e833640f7bf9b06923ee18e3b6683dff072404",
+    "packages/adapters/supabase-server/src/account-repository.test.ts": "0f17665d5657826c45c8e97ab0dc4522517adee7b0edce0d79413886edca14cc",
+    "apps/api/src/modules/account/routes.ts": "7e366f1a565ea8c2ae3c517651e155b323a571979d6fd28c6560866f4a22e0d8",
+    "apps/api/src/modules/account/routes.test.ts": "f92033ad5a4365e9218f2b08276d8c6d19a2f03a1f7d4321ae5016c7f29c1ccd",
+    "apps/mobile/src/features/settings/account-data-card.tsx": "028b281bc68f2cb80fafa6d0dff8727320526e6f6618a1a04fcc9c7a1edf0fec",
+    "scripts/promote-dev.sh": "21fb530219b962e3c08876d4d999d2eb4be449d512a17a4550401bdcf53fafad",
+    "scripts/promote-production.sh": "6d4a6606363a36d62518eb23b0f5acc19887fb9f05e3f2000b1d33ed88bfff63",
+    "scripts/test-deployment-safeguards.mjs": "fe93f831549f48076366bab236ec9a759b83ddb173c777980b9994d04dc07afd",
+    "apps/mobile/src/features/log-workout/log-workout-screen.tsx": "b92912dadb8b4c975811bf261a4493923bcefd82e168a808b85cca2a43eb4db3",
+    "apps/mobile/src/features/log-workout/one-time-workout-screen.test.tsx": "e3d004bc5aea6fecb030768be4be9ea2a128e8c2bf82ceaaab907e2adc1c747d"
+  }
+}

@@ -68,6 +68,8 @@ APPLE-003 source/review progress is recorded in [oldest batch2](OLDEST_ISSUES_BA
 
 ### Q5
 
+2026-10-07 #25 export paging/source progress is recorded in [batch3](OLDEST_ISSUES_BATCH_3_2026-10-07.md): delivered memories use an owner-scoped export port, page exhaustion is explicit and legacy/link-only media exports are partial. This does not close the inventory, offline-media, live isolation, resource or native acceptance exits below.
+
 - [ ] Export inventory covers all durable categories and documents justified exclusions (`docs/ACCOUNT_EXPORT_INVENTORY.md`).
 - [ ] Dataset exceeds effective page cap and old 10,000 bound; counts match independent fixtures (`fetchAllPaged` 500 items/page).
 - [ ] Snapshot/consistency policy and interruption/partial failure behavior verified.
@@ -101,6 +103,8 @@ APPLE-003 source/review progress is recorded in [oldest batch2](OLDEST_ISSUES_BA
 - [ ] Evaluation corpus, predetermined thresholds, measured results and BEFORE_TESTING gate completed for external AI (`packages/agent-runtime/src/evaluation-corpus.ts`, `scripts/run-ai-evaluation.mjs`, `docs/BEFORE_TESTING.md`).
 
 ### Q9
+
+2026-10-07 #23 required journal receipts and nonrecursive lock-held recovery are in [batch3](OLDEST_ISSUES_BATCH_3_2026-10-07.md). Requested/checked-out SHAs and local health are qualified separately from running-release identity; unknown backup/migration references remain explicit. Full Q9 exits below remain open.
 
 2026-10-07 #23 source retirement removes the automatic/manual hosted Supabase writer; other current Actions workflows have no hosted link/push/credential references. Independent High review approved this narrow diff. [Oldest-issue batch](OLDEST_ISSUES_BATCH_2026-10-07.md) preserves the current source/metadata evidence and remaining running-release, migration drift/schema-compatible rollback, failure-injection and fail-closed journal exits. No full-Q9 closure, backend deployment or hosted write is claimed.
 
