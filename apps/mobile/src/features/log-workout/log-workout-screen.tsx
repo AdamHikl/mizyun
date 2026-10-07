@@ -1898,13 +1898,14 @@ function ActiveWorkoutFeed(props: {
               completedSets={completedSets}
               recentPerformance={recentPerf}
               pendingInput={{
-                load: "",
-                reps: "",
-                durationSeconds: "",
-                distanceMeters: "",
-                rpe: "",
                 ...(props.pendingInputs[entry.id] ??
-                  props.pendingInputs[entry.name]),
+                  props.pendingInputs[entry.name] ?? {
+                    load: "",
+                    reps: "",
+                    durationSeconds: "",
+                    distanceMeters: "",
+                    rpe: "",
+                  }),
                 setType: pendingSetType(
                   props.pendingInputs[entry.id] ??
                     props.pendingInputs[entry.name],

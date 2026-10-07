@@ -1,5 +1,9 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import type { CoachWorkoutProposal, Workout } from "@mizyun/contracts";
+import type {
+  CoachWorkoutProposal,
+  Workout,
+  WorkoutSet,
+} from "@mizyun/contracts";
 import { getExerciseFromCatalog } from "@mizyun/core";
 
 // Follow the existing logger hook harness: retain state between explicit renders,
@@ -264,6 +268,22 @@ beforeEach(() => {
   mocks.abandon.mockReset().mockResolvedValue({ ok: true });
 });
 
+const plannedTypeSet: WorkoutSet = {
+  id: "planned-type-set",
+  userId: workout.userId,
+  workoutId: workout.id,
+  exerciseId: exercise.id,
+  sequence: 1,
+  setType: "normal",
+  loadKg: 50,
+  repetitions: 6,
+  durationSeconds: null,
+  distanceMeters: null,
+  perceivedExertion: null,
+  completedAt: "2026-10-04T10:10:00.000Z",
+  createdAt: "2026-10-04T10:10:00.000Z",
+};
+
 function plannedRoutineWorkspace(types: string[]) {
   mocks.workspace.workout = {
     ...workout,
@@ -297,7 +317,7 @@ it("prefills and submits each planned type, advancing from warmup to normal to f
   plannedRoutineWorkspace(["warmup", "normal", "failure"]);
   mocks.addSet.mockImplementation(async (_id, form) => {
     const set = {
-      ...recordedSet,
+      ...plannedTypeSet,
       id: `set-${mocks.workspace.sets.length + 1}`,
       sequence: mocks.workspace.sets.length + 1,
       setType: form.setType,
@@ -323,7 +343,7 @@ it("prefills and submits each planned type, advancing from warmup to normal to f
 
 it("restores planned defaults after reload and allows a manual override for the pending ordinal", async () => {
   plannedRoutineWorkspace(["warmup", "normal", "failure"]);
-  mocks.workspace.sets = [{ ...recordedSet, setType: "warmup" }];
+  mocks.workspace.sets = [{ ...plannedTypeSet, setType: "warmup" }];
   let { active, card } = plannedCard();
   expect(card.props.pendingInput.setType).toBe("normal");
   active.props.onOpenSetTypeModal(active.props.exercises[0]);
