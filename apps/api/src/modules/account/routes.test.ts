@@ -1,5 +1,5 @@
 import { generateKeyPairSync } from "node:crypto";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AppleAuthClient } from "@mizyun/adapter-apple-auth";
 import {
@@ -7,7 +7,12 @@ import {
   DisabledAgentProvider,
 } from "@mizyun/agent-runtime";
 import type { ServerAppleAuthConfiguration } from "@mizyun/config";
-import type { MemoryId, UserId } from "@mizyun/core";
+import type {
+  AccountProviderRevocation,
+  AccountProviderRevocationRepository,
+  MemoryId,
+  UserId,
+} from "@mizyun/core";
 import type { AccessTokenVerifier } from "@mizyun/identity";
 import { InMemoryMemoryStore } from "@mizyun/memory";
 
@@ -54,6 +59,11 @@ const build = (
   options?: {
     appleAuthConfig?: ServerAppleAuthConfiguration;
     appleAuthClient?: AppleAuthClient;
+    linkedAuthIdentities?: readonly {
+      readonly provider: string;
+      readonly subject: string;
+    }[];
+    appleIdentityTokenVerifier?: typeof import("@mizyun/adapter-apple-auth").verifyAppleIdentityToken;
   },
 ) => {
   const profileRepository = new InMemoryProfileRepository({
@@ -81,6 +91,20 @@ const build = (
     memoryStore,
     productAnalyticsRepository,
   });
+  Object.assign(accountRepository, {
+    getLinkedAuthIdentities: async () =>
+      options?.linkedAuthIdentities ??
+      (options?.appleAuthConfig
+        ? [{ provider: "apple", subject: "synthetic-apple-subject" }]
+        : []),
+  });
+  const providerStates = new Map<string, AccountProviderRevocation>();
+  const revocationRepository: AccountProviderRevocationRepository = {
+    load: async ({ jobId }) => providerStates.get(jobId) ?? null,
+    save: async (record) => {
+      providerStates.set(record.jobId, { ...record });
+    },
+  };
   const app = buildApp({
     tokenVerifier: verifier,
     agent: new AgentOrchestrator({
@@ -100,10 +124,16 @@ const build = (
     memories: memoryStore,
     appleAuthConfig: options?.appleAuthConfig,
     appleAuthClient: options?.appleAuthClient,
+    appleRevocationEncryptionKey: Buffer.alloc(32, 7).toString("base64"),
+    accountProviderRevocationRepository: revocationRepository,
+    appleIdentityTokenVerifier:
+      options?.appleIdentityTokenVerifier ?? (async () => undefined),
   });
   apps.push(app);
   return {
     app,
+    accountRepository,
+    providerStates,
     profileRepository,
     exerciseRepository,
     foodEntryRepository,
@@ -635,7 +665,7 @@ describe("DELETE /v1/account", () => {
     expect(revokedTokens).toEqual(["apple-refresh-token"]);
   });
 
-  it("completes account deletion gracefully even if Apple revocation fails", async () => {
+  it("preserves the accepted account operation when Apple exchange fails", async () => {
     const { privateKey } = generateKeyPairSync("ec", {
       namedCurve: "prime256v1",
       publicKeyEncoding: { type: "spki", format: "pem" },
@@ -661,10 +691,13 @@ describe("DELETE /v1/account", () => {
       privateKey,
     };
 
-    const { app } = build(tokenVerifierFor({ userId: userA }), {
-      appleAuthConfig,
-      appleAuthClient: mockAppleClient,
-    });
+    const { app, accountRepository } = build(
+      tokenVerifierFor({ userId: userA }),
+      {
+        appleAuthConfig,
+        appleAuthClient: mockAppleClient,
+      },
+    );
 
     const challenge = await app.inject({
       method: "POST",
@@ -686,8 +719,110 @@ describe("DELETE /v1/account", () => {
       },
     });
 
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ deleted: true });
+    expect(response.statusCode).toBe(503);
+    expect(response.body).not.toContain("Code expired");
+    expect(response.body).not.toContain("expired-auth-code");
+    expect(await accountRepository.getDeletionJob(userA)).toMatchObject({
+      status: "failed",
+      stage: "none",
+      errorMessage: "External authorization cleanup requires retry",
+    });
+  });
+
+  it.each(["missing", "mismatch", "expired"])(
+    "makes zero Apple calls for a %s deletion challenge",
+    async (kind) => {
+      const exchangeAuthorizationCode = vi.fn();
+      const revokeToken = vi.fn();
+      const { app, accountRepository } = build(
+        tokenVerifierFor({ userId: userA }),
+        {
+          appleAuthClient: { exchangeAuthorizationCode, revokeToken },
+          appleAuthConfig: {
+            teamId: "TEST_TEAM",
+            keyId: "TEST_KEY",
+            clientId: "com.mizyun.development",
+            privateKey: "unused",
+          },
+        },
+      );
+      const issued =
+        kind === "missing"
+          ? null
+          : await accountRepository.issueDeletionChallenge(userA, {
+              ttlSeconds: kind === "expired" ? -1 : 300,
+              now: new Date(),
+            });
+      const response = await app.inject({
+        method: "DELETE",
+        url: "/v1/account",
+        headers: { authorization: "Bearer valid" },
+        payload: {
+          confirmationToken:
+            kind === "mismatch" || issued === null ? "invalid-token" : issued,
+          appleAuthorizationCode: "synthetic-code",
+        },
+      });
+      expect(response.statusCode).toBe(kind === "expired" ? 410 : 409);
+      expect(exchangeAuthorizationCode).not.toHaveBeenCalled();
+      expect(revokeToken).not.toHaveBeenCalled();
+    },
+  );
+
+  it("keeps cleanup pending when the exchanged Apple identity is rejected", async () => {
+    const { privateKey } = generateKeyPairSync("ec", {
+      namedCurve: "prime256v1",
+      privateKeyEncoding: { type: "pkcs8", format: "pem" },
+      publicKeyEncoding: { type: "spki", format: "pem" },
+    });
+    const revokeToken = vi.fn();
+    const { app, accountRepository, providerStates } = build(
+      tokenVerifierFor({ userId: userA }),
+      {
+        appleAuthConfig: {
+          teamId: "TEST_TEAM",
+          keyId: "TEST_KEY",
+          clientId: "com.mizyun.development",
+          privateKey,
+        },
+        appleAuthClient: {
+          exchangeAuthorizationCode: async () => ({
+            ok: true,
+            value: {
+              accessToken: "access",
+              refreshToken: "must-not-revoke",
+              idToken: "foreign-identity",
+              expiresIn: 3600,
+            },
+          }),
+          revokeToken,
+        },
+        appleIdentityTokenVerifier: async () => {
+          throw new Error("wrong subject");
+        },
+      },
+    );
+    const token = await accountRepository.issueDeletionChallenge(userA, {
+      ttlSeconds: 300,
+      now: new Date(),
+    });
+    const response = await app.inject({
+      method: "DELETE",
+      url: "/v1/account",
+      headers: { authorization: "Bearer valid" },
+      payload: {
+        confirmationToken: token,
+        appleAuthorizationCode: "synthetic-code",
+      },
+    });
+    expect(response.statusCode).toBe(503);
+    expect(response.body).not.toContain("wrong subject");
+    expect(revokeToken).not.toHaveBeenCalled();
+    expect(providerStates.size).toBe(0);
+    expect(await accountRepository.getDeletionJob(userA)).toMatchObject({
+      status: "failed",
+      stage: "none",
+    });
   });
 
   it("allows idempotent retry with confirmation token and rejects unknown token", async () => {

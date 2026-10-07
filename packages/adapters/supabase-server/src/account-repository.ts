@@ -3,6 +3,7 @@ import { exportCommunityAccount } from "./community-account-export.js";
 
 import {
   type AccountDeletionError,
+  type AccountDeletionCleanupContext,
   type AccountExport,
   type AccountRepository,
   type BodyMeasurementRepository,
@@ -730,24 +731,29 @@ export class SupabaseAccountRepository implements AccountRepository {
       options.now.getTime() + options.ttlSeconds * 1000,
     );
 
-    const { data: existingJobs } = await this.#serviceRoleClient
-      .from<AccountDeletionJobRow>("account_deletion_jobs")
-      .select("*")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(1);
+    const { data: existingJobs, error: lookupError } =
+      await this.#serviceRoleClient
+        .from<AccountDeletionJobRow>("account_deletion_jobs")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+    if (lookupError) {
+      throw new RepositoryError("Failed to read the active deletion operation");
+    }
 
     const latest = existingJobs?.[0];
     if (latest && latest.status === "completed") {
       throw new RepositoryError("Account is already deleted");
     }
-    if (latest && latest.status === "in_progress") {
-      const isLeaseActive =
-        latest.lease_expires_at &&
-        new Date(latest.lease_expires_at).getTime() > options.now.getTime();
-      if (isLeaseActive) {
-        throw new RepositoryError("Account deletion is already in progress");
-      }
+    if (
+      latest &&
+      (latest.status === "in_progress" || latest.status === "failed")
+    ) {
+      throw new RepositoryError(
+        "Resume the accepted account deletion operation",
+      );
     }
 
     const { error } = await this.#serviceRoleClient
@@ -775,12 +781,70 @@ export class SupabaseAccountRepository implements AccountRepository {
     return token;
   }
 
+  async getLinkedAuthIdentities(
+    userId: UserId,
+  ): Promise<
+    readonly { readonly provider: string; readonly subject: string }[]
+  > {
+    const admin = (
+      this.#serviceRoleClient?.auth as unknown as
+        | {
+            admin?: {
+              getUserById?: (id: string) => Promise<{
+                data: {
+                  user: {
+                    id: string;
+                    identities?: readonly {
+                      provider: string;
+                      identity_id?: string;
+                      identity_data?: Record<string, unknown>;
+                    }[];
+                  } | null;
+                };
+                error: unknown;
+              }>;
+            };
+          }
+        | undefined
+    )?.admin;
+    if (!admin?.getUserById) {
+      throw new RepositoryError(
+        "Trusted account identity lookup is unavailable",
+      );
+    }
+    const { data, error } = await admin.getUserById(userId);
+    if (
+      error ||
+      data.user?.id !== userId ||
+      !Array.isArray(data.user.identities)
+    ) {
+      throw new RepositoryError("Trusted account identity lookup failed");
+    }
+    return data.user.identities.map((identity) => {
+      const subject =
+        identity.provider === "apple"
+          ? identity.identity_data?.sub
+          : (identity.identity_data?.sub ?? identity.identity_id);
+      if (
+        typeof identity.provider !== "string" ||
+        typeof subject !== "string" ||
+        !subject
+      ) {
+        throw new RepositoryError("Trusted account identity is incomplete");
+      }
+      return { provider: identity.provider, subject };
+    });
+  }
+
   async deleteUser(
     userId: UserId,
     options: {
       readonly confirmationToken: string;
       readonly now: Date;
       readonly accessToken?: string;
+      readonly beforeCleanup?: (
+        context: AccountDeletionCleanupContext,
+      ) => Promise<void>;
     },
   ): Promise<
     | { readonly deleted: true }
@@ -810,16 +874,31 @@ export class SupabaseAccountRepository implements AccountRepository {
       );
     }
 
-    const job = jobs?.[0];
+    let job = jobs?.[0];
     if (!job) {
       return { deleted: false, reason: { kind: "confirmation_token_missing" } };
     }
 
     if (job.challenge_hash !== tokenHash) {
-      return {
-        deleted: false,
-        reason: { kind: "confirmation_token_mismatch" },
-      };
+      // A newer unaccepted challenge must not hide an already accepted receipt.
+      const { data: accepted, error } = await this.#serviceRoleClient
+        .from<AccountDeletionJobRow>("account_deletion_jobs")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("challenge_hash", tokenHash)
+        .in("status", ["in_progress", "failed", "completed"])
+        .limit(1);
+      if (error)
+        throw new RepositoryError(
+          "Failed to read the accepted deletion operation",
+        );
+      if (!accepted?.[0]) {
+        return {
+          deleted: false,
+          reason: { kind: "confirmation_token_mismatch" },
+        };
+      }
+      job = accepted[0];
     }
 
     // 1. Lost final response recovery: return deleted: true if already completed
@@ -887,7 +966,7 @@ export class SupabaseAccountRepository implements AccountRepository {
       activeStage = resumedRows[0]!.stage;
     } else if (job.status === "challenge_issued") {
       const expiresAt = new Date(job.expires_at).getTime();
-      if (expiresAt < options.now.getTime()) {
+      if (expiresAt <= options.now.getTime()) {
         return {
           deleted: false,
           reason: { kind: "confirmation_token_expired" },
@@ -910,6 +989,12 @@ export class SupabaseAccountRepository implements AccountRepository {
           .select();
 
       if (transitionError) {
+        if (transitionError.code === "PT410") {
+          return {
+            deleted: false,
+            reason: { kind: "confirmation_token_expired" },
+          };
+        }
         throw new RepositoryError(
           `Failed to transition account deletion job: ${transitionError.message}`,
         );
@@ -935,15 +1020,7 @@ export class SupabaseAccountRepository implements AccountRepository {
       }
       activeStage = updatedRows[0]!.stage;
     } else if (job.status === "failed") {
-      // Allow retrying a failed deletion job if challenge has not expired
-      const expiresAt = new Date(job.expires_at).getTime();
-      if (expiresAt < options.now.getTime()) {
-        return {
-          deleted: false,
-          reason: { kind: "confirmation_token_expired" },
-        };
-      }
-
+      // Confirmation has already been accepted; its original TTL no longer applies.
       const { data: retriedRows, error: retryError } =
         await this.#serviceRoleClient
           .from<AccountDeletionJobRow>("account_deletion_jobs")
@@ -977,6 +1054,56 @@ export class SupabaseAccountRepository implements AccountRepository {
         throw new RepositoryError("Account deletion is already in progress");
       }
       activeStage = retriedRows[0]!.stage;
+    }
+
+    if (options.beforeCleanup) {
+      const acceptedJobId = job.id;
+      try {
+        const cleanupContext: AccountDeletionCleanupContext = {
+          jobId: job.id,
+          userId,
+          workerId,
+          stage: activeStage,
+          assertLease: async () => {
+            const now = this.#clock.now();
+            const { data, error } =
+              await this.#serviceRoleClient!.from<AccountDeletionJobRow>(
+                "account_deletion_jobs",
+              )
+                .update({
+                  lease_expires_at: new Date(
+                    now.getTime() + DELETION_WORKER_LEASE_MS,
+                  ).toISOString(),
+                  updated_at: now.toISOString(),
+                })
+                .eq("id", acceptedJobId)
+                .eq("user_id", userId)
+                .eq("worker_id", workerId)
+                .eq("status", "in_progress")
+                .gt("lease_expires_at", now.toISOString())
+                .select();
+            if (error || !data?.[0])
+              throw new RepositoryError("Deletion worker lease is unavailable");
+          },
+        };
+        await cleanupContext.assertLease();
+        await options.beforeCleanup(cleanupContext);
+        await cleanupContext.assertLease();
+      } catch {
+        await this.#serviceRoleClient
+          .from<AccountDeletionJobRow>("account_deletion_jobs")
+          .update({
+            status: "failed",
+            error_message: "External authorization cleanup requires retry",
+            lease_expires_at: null,
+            updated_at: this.#clock.now().toISOString(),
+          })
+          .eq("id", job.id)
+          .eq("worker_id", workerId);
+        throw new RepositoryError(
+          "External authorization cleanup requires retry",
+        );
+      }
     }
 
     const token = options.accessToken ?? "";
@@ -1219,22 +1346,26 @@ export class SupabaseAccountRepository implements AccountRepository {
     }
 
     // Stage 4: Mark job completed (tombstone)
-    const { error: completeError } = await this.#serviceRoleClient
-      .from<AccountDeletionJobRow>("account_deletion_jobs")
-      .update({
-        status: "completed",
-        stage: "done",
-        worker_id: null,
-        lease_expires_at: null,
-        completed_at: options.now.toISOString(),
-        updated_at: options.now.toISOString(),
-        error_message: null,
-      })
-      .eq("id", job.id);
+    const { data: completedRows, error: completeError } =
+      await this.#serviceRoleClient
+        .from<AccountDeletionJobRow>("account_deletion_jobs")
+        .update({
+          status: "completed",
+          stage: "done",
+          worker_id: null,
+          lease_expires_at: null,
+          completed_at: options.now.toISOString(),
+          updated_at: options.now.toISOString(),
+          error_message: null,
+        })
+        .eq("id", job.id)
+        .eq("worker_id", workerId)
+        .eq("status", "in_progress")
+        .select();
 
-    if (completeError) {
+    if (completeError || !completedRows?.[0]) {
       throw new RepositoryError(
-        `Account deleted in auth, but failed to record completion tombstone: ${completeError.message}`,
+        "Account deleted in auth, but completion tombstone requires recovery",
       );
     }
 

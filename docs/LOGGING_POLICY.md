@@ -37,6 +37,8 @@ The redact list in `apps/api/src/logging.ts` is the single source of truth. Toda
 | `req.body.email`            | PII; we route identity by user ID, not email.           |
 | `res.headers['set-cookie']` | Response cookie; reverse-direction leakage vector.      |
 
+Apple authorization codes, deletion confirmation receipts, encrypted revocation tokens, refresh tokens and server signing/encryption keys are covered by the central redaction list. Provider cleanup uses fixed errors; provider response bodies and causes never enter deletion jobs or public errors.
+
 Community request URLs are reduced to `/v1/community/[redacted]`. Confidential report and appeal notes/reasons, staff/reviewer notes, target IDs and interaction receipt IDs are also covered by body redaction paths; normal request serialization omits bodies entirely. Staff case evidence lives in the restricted database audit, never generic API logs.
 
 The list is enforced by `apps/api/src/logging.test.ts` so removing a path is a deliberate code change, not a refactor side-effect.

@@ -1,5 +1,7 @@
 import { err, ok, type Result } from "@mizyun/core";
 
+import { readBoundedAppleResponse } from "./token-verification.js";
+
 export type AppleAuthErrorKind =
   | "validation_error"
   | "http_error"
@@ -55,6 +57,12 @@ export interface AppleAuthClient {
 
 const DEFAULT_BASE_URL = "https://appleid.apple.com";
 const DEFAULT_TIMEOUT_MS = 10000;
+
+interface AppleResponse {
+  readonly ok: boolean;
+  readonly status: number;
+  readonly body: string;
+}
 
 export class DefaultAppleAuthClient implements AppleAuthClient {
   private readonly baseUrl: string;
@@ -123,25 +131,15 @@ export class DefaultAppleAuthClient implements AppleAuthClient {
       return this.handleHttpError(response);
     }
 
-    let bodyText: string;
-    try {
-      bodyText = await response.text();
-    } catch (cause) {
-      return err({
-        kind: "invalid_response",
-        message: "Failed to read token response body",
-        cause,
-      });
-    }
+    const bodyText = response.body;
 
     let parsed: unknown;
     try {
       parsed = JSON.parse(bodyText);
-    } catch (cause) {
+    } catch {
       return err({
         kind: "invalid_response",
         message: "Failed to parse token response as JSON",
-        cause,
       });
     }
 
@@ -160,9 +158,14 @@ export class DefaultAppleAuthClient implements AppleAuthClient {
 
     if (
       typeof accessToken !== "string" ||
+      !accessToken.trim() ||
       typeof refreshToken !== "string" ||
+      !refreshToken.trim() ||
       typeof idToken !== "string" ||
-      typeof expiresIn !== "number"
+      !idToken.trim() ||
+      typeof expiresIn !== "number" ||
+      !Number.isFinite(expiresIn) ||
+      expiresIn <= 0
     ) {
       return err({
         kind: "invalid_response",
@@ -250,89 +253,49 @@ export class DefaultAppleAuthClient implements AppleAuthClient {
   private async postForm(
     endpoint: string,
     params: URLSearchParams,
-  ): Promise<Result<Response, AppleAuthError>> {
-    const controller = new AbortController();
-    let isTimeout = false;
-    const timeoutId = setTimeout(() => {
-      isTimeout = true;
-      controller.abort();
-    }, this.timeoutMs);
-
+  ): Promise<Result<AppleResponse, AppleAuthError>> {
     try {
-      const response = await this.fetchImpl(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          Accept: "application/json",
-        },
-        body: params.toString(),
-        signal: controller.signal,
-      });
-      return ok(response);
+      return ok(
+        await readBoundedAppleResponse(
+          this.fetchImpl,
+          endpoint,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+              Accept: "application/json",
+            },
+            body: params.toString(),
+          },
+          this.timeoutMs,
+        ),
+      );
     } catch (cause: unknown) {
       if (
-        isTimeout ||
-        (cause instanceof Error &&
-          (cause.name === "TimeoutError" || cause.name === "AbortError"))
+        cause instanceof Error &&
+        (cause.message === "Apple request timed out" ||
+          cause.name === "TimeoutError" ||
+          cause.name === "AbortError")
       ) {
         return err({
           kind: "timeout",
-          message: `Request timed out after ${this.timeoutMs}ms`,
-          cause,
+          message: "Apple auth request timed out",
         });
       }
       return err({
         kind: "network_error",
-        message:
-          cause instanceof Error ? cause.message : "Network request failed",
-        cause,
+        message: "Apple auth request failed",
       });
-    } finally {
-      clearTimeout(timeoutId);
     }
   }
 
   private async handleHttpError(
-    response: Response,
+    response: AppleResponse,
   ): Promise<Result<never, AppleAuthError>> {
-    let errorField: string | undefined;
-    let errorDescriptionField: string | undefined;
-
-    try {
-      const text = await response.text();
-      try {
-        const json = JSON.parse(text);
-        if (typeof json === "object" && json !== null) {
-          const record = json as Record<string, unknown>;
-          if (typeof record["error"] === "string") {
-            errorField = record["error"];
-          }
-          if (typeof record["error_description"] === "string") {
-            errorDescriptionField = record["error_description"];
-          }
-        }
-      } catch {
-        if (text.trim().length > 0) {
-          errorDescriptionField = text.trim();
-        }
-      }
-    } catch {
-      // Body could not be read
-    }
-
-    const message =
-      errorDescriptionField ??
-      errorField ??
-      `Apple auth request failed with HTTP ${response.status}`;
-
     return err({
       kind: "http_error",
       status: response.status,
-      message,
-      ...(errorField !== undefined ? { error: errorField } : {}),
-      ...(errorDescriptionField !== undefined
-        ? { errorDescription: errorDescriptionField }
-        : {}),
+      message: "Apple auth request failed",
     });
   }
 }

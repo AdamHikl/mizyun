@@ -70,6 +70,7 @@ import {
   DEFAULT_UNIT_SYSTEM,
   InMemoryEmailSender,
   type AccountRepository,
+  type AccountProviderRevocationRepository,
   type AiConsentRepository,
   type BodyMeasurementRepository,
   type CommunityRepository,
@@ -113,6 +114,7 @@ import { loggerConfig } from "./logging.js";
 import { InMemoryMediaStorage, type MediaStorage } from "./media-storage.js";
 import { SupabaseMemoryStore } from "@mizyun/adapter-supabase-server";
 import { accountRoutes } from "./modules/account/routes.js";
+import { createAppleDeletionCleanup } from "./modules/account/apple-deletion.js";
 import {
   analyticsRoutes,
   createAnalyticsRetentionWorker,
@@ -192,6 +194,7 @@ import {
   SupabaseConversationRepository,
   SupabaseMediaAssetRepository,
   SupabaseAccountRepository,
+  SupabaseAccountProviderRevocationRepository,
   SupabaseAiConsentRepository,
   SupabaseCommunityRepository,
   SupabaseMediaStorage,
@@ -330,6 +333,9 @@ export interface AppDependencies {
   readonly emailSender?: EmailSender;
   readonly appleAuthConfig?: ServerAppleAuthConfiguration | undefined;
   readonly appleAuthClient?: AppleAuthClient | undefined;
+  readonly appleRevocationEncryptionKey?: string | undefined;
+  readonly accountProviderRevocationRepository?: AccountProviderRevocationRepository;
+  readonly appleIdentityTokenVerifier?: typeof import("@mizyun/adapter-apple-auth").verifyAppleIdentityToken;
   readonly coachControls?: CoachControlOptions;
   readonly aiAllowedEmails?: readonly string[];
   /**
@@ -773,7 +779,7 @@ export const buildApp = (
     });
   }
 
-  const accountRepository =
+  const accountRepository: AccountRepository =
     dependencies.accountRepository ??
     (sp
       ? new SupabaseAccountRepository({
@@ -1119,13 +1125,24 @@ export const buildApp = (
     return null;
   };
   const effectiveAppleAuthConfig = resolveAppleConfig(rawAppleConfig);
-  const appleAuth =
-    effectiveAppleAuthConfig !== null
-      ? {
-          config: effectiveAppleAuthConfig,
-          client: dependencies.appleAuthClient ?? createAppleAuthClient(),
-        }
-      : undefined;
+  const appleDeletionCleanup = createAppleDeletionCleanup({
+    repository: accountRepository,
+    config: effectiveAppleAuthConfig ?? undefined,
+    client: effectiveAppleAuthConfig
+      ? (dependencies.appleAuthClient ?? createAppleAuthClient())
+      : undefined,
+    encryptionKey:
+      dependencies.appleRevocationEncryptionKey ??
+      (configResult.ok
+        ? configResult.value.appleRevocationEncryptionKey
+        : undefined),
+    revocationRepository:
+      dependencies.accountProviderRevocationRepository ??
+      (sp?.serviceRoleClient
+        ? new SupabaseAccountProviderRevocationRepository(sp.serviceRoleClient)
+        : undefined),
+    verifyIdentityToken: dependencies.appleIdentityTokenVerifier,
+  });
 
   void app.register(accountRoutes, {
     prefix: "/v1",
@@ -1133,7 +1150,7 @@ export const buildApp = (
     memoryStore,
     aiConsentRepository,
     profileRepository,
-    appleAuth,
+    appleDeletionCleanup,
   });
   void app.register(energyRoutes, {
     prefix: "/v1",

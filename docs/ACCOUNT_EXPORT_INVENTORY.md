@@ -204,13 +204,14 @@ The Mizyun account export delivers an exhaustive, portable, and versioned JSON a
 
 ## 3. Deliberate & Justified Exclusions
 
-| Excluded Resource                              | Justification                                                                                   |
-| :--------------------------------------------- | :---------------------------------------------------------------------------------------------- |
-| `auth.users` Password Hashes & Salts           | Cryptographic credentials must never be exported to prevent offline brute-force attacks.        |
-| Supabase Auth Session Refresh Tokens           | Ephemeral session tokens are revoked on export or signout to prevent session hijacking.         |
-| `public.account_deletion_jobs` Tokens & Hashes | Internal challenge tokens are security controls for verification, not personal health records.  |
-| Server Secrets & API Keys                      | Infrastructure configuration is excluded by design.                                             |
-| Shared System Exercise Templates               | Universal exercise library definitions are public system records, not user-owned personal data. |
+| Excluded Resource                              | Justification                                                                                                                                                                                        |
+| :--------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `auth.users` Password Hashes & Salts           | Cryptographic credentials must never be exported to prevent offline brute-force attacks.                                                                                                             |
+| Supabase Auth Session Refresh Tokens           | Ephemeral session tokens are revoked on export or signout to prevent session hijacking.                                                                                                              |
+| `public.account_deletion_jobs` Tokens & Hashes | Internal challenge tokens are security controls for verification, not personal health records.                                                                                                       |
+| `public.account_provider_revocations`          | Encrypted Apple refresh tokens and private recovery bindings are authentication cleanup secrets. They are never included in account exports; successful revocation clears the ciphertext (ADR-0050). |
+| Server Secrets & API Keys                      | Infrastructure configuration is excluded by design.                                                                                                                                                  |
+| Shared System Exercise Templates               | Universal exercise library definitions are public system records, not user-owned personal data.                                                                                                      |
 
 ---
 

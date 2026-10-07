@@ -4,6 +4,7 @@ import {
   type AccountDeletionError,
   type AccountExport,
   type AccountRepository,
+  type AccountDeletionCleanupContext,
   type AiConsentRepository,
   type BodyMeasurementRepository,
   type ConversationRepository,
@@ -317,13 +318,11 @@ export class InMemoryAccountRepository implements AccountRepository {
     if (latest && latest.status === "completed") {
       throw new Error("Account is already deleted");
     }
-    if (latest && latest.status === "in_progress") {
-      const isLeaseActive =
-        latest.leaseExpiresAt &&
-        latest.leaseExpiresAt.getTime() > options.now.getTime();
-      if (isLeaseActive) {
-        throw new Error("Account deletion is already in progress");
-      }
+    if (
+      latest &&
+      (latest.status === "in_progress" || latest.status === "failed")
+    ) {
+      throw new Error("Resume the accepted account deletion operation");
     }
 
     const token = crypto.randomUUID();
@@ -356,6 +355,9 @@ export class InMemoryAccountRepository implements AccountRepository {
       readonly confirmationToken: string;
       readonly now: Date;
       readonly accessToken?: string;
+      readonly beforeCleanup?: (
+        context: AccountDeletionCleanupContext,
+      ) => Promise<void>;
     },
   ): Promise<
     | { readonly deleted: true }
@@ -365,17 +367,26 @@ export class InMemoryAccountRepository implements AccountRepository {
       return { deleted: false, reason: { kind: "confirmation_token_missing" } };
     }
 
-    const latest = await this.getDeletionJob(userId);
+    let latest = await this.getDeletionJob(userId);
     if (!latest) {
       return { deleted: false, reason: { kind: "confirmation_token_missing" } };
     }
 
     const tokenHash = hashToken(options.confirmationToken);
     if (latest.challengeHash !== tokenHash) {
-      return {
-        deleted: false,
-        reason: { kind: "confirmation_token_mismatch" },
-      };
+      const accepted = this.#jobs.find(
+        (job) =>
+          job.userId === userId &&
+          job.challengeHash === tokenHash &&
+          job.status !== "challenge_issued",
+      );
+      if (!accepted) {
+        return {
+          deleted: false,
+          reason: { kind: "confirmation_token_mismatch" },
+        };
+      }
+      latest = accepted;
     }
 
     // 1. Idempotent recovery for lost final response
@@ -405,7 +416,7 @@ export class InMemoryAccountRepository implements AccountRepository {
       };
       activeStage = latest.stage;
     } else if (latest.status === "challenge_issued") {
-      if (latest.expiresAt.getTime() < options.now.getTime()) {
+      if (latest.expiresAt.getTime() <= options.now.getTime()) {
         return {
           deleted: false,
           reason: { kind: "confirmation_token_expired" },
@@ -421,12 +432,6 @@ export class InMemoryAccountRepository implements AccountRepository {
       };
       activeStage = "none";
     } else if (latest.status === "failed") {
-      if (latest.expiresAt.getTime() < options.now.getTime()) {
-        return {
-          deleted: false,
-          reason: { kind: "confirmation_token_expired" },
-        };
-      }
       this.#jobs[jobIndex] = {
         ...latest,
         status: "in_progress",
@@ -436,6 +441,51 @@ export class InMemoryAccountRepository implements AccountRepository {
         updatedAt: options.now,
       };
       activeStage = latest.stage;
+    }
+
+    if (options.beforeCleanup) {
+      try {
+        const cleanupContext: AccountDeletionCleanupContext = {
+          jobId: latest.id,
+          userId,
+          workerId,
+          stage: activeStage,
+          assertLease: async () => {
+            const now = this.#clock.now();
+            const current = this.#jobs[jobIndex];
+            if (
+              current?.workerId !== workerId ||
+              current.status !== "in_progress" ||
+              !current.leaseExpiresAt ||
+              current.leaseExpiresAt <= now
+            ) {
+              throw new Error("Deletion worker lease is unavailable");
+            }
+            this.#jobs[jobIndex] = {
+              ...current,
+              leaseExpiresAt: new Date(now.getTime() + 120_000),
+            };
+          },
+        };
+        await cleanupContext.assertLease();
+        await options.beforeCleanup(cleanupContext);
+        await cleanupContext.assertLease();
+      } catch {
+        const current = this.#jobs[jobIndex];
+        if (
+          current?.workerId === workerId &&
+          current.status === "in_progress"
+        ) {
+          this.#jobs[jobIndex] = {
+            ...current,
+            status: "failed",
+            errorMessage: "External authorization cleanup requires retry",
+            leaseExpiresAt: null,
+            updatedAt: options.now,
+          };
+        }
+        throw new Error("External authorization cleanup requires retry");
+      }
     }
 
     const token = options.accessToken ?? "";

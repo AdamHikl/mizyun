@@ -39,6 +39,10 @@ describe("loggerConfig", () => {
     expect(redactPaths).toContain("req.body.token");
     expect(redactPaths).toContain("req.body.access_token");
     expect(redactPaths).toContain("req.body.refresh_token");
+    expect(redactPaths).toContain("req.body.appleAuthorizationCode");
+    expect(redactPaths).toContain("req.body.confirmationToken");
+    expect(redactPaths).toContain("encryptedToken");
+    expect(redactPaths).toContain("encryptionKey");
   });
 
   it("forwards the `req`, `res`, `err`, and `error` serializers", () => {

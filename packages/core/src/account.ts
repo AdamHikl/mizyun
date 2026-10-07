@@ -149,6 +149,38 @@ export interface StoredDeletionJob {
   readonly updatedAt: Date;
 }
 
+export interface AccountDeletionCleanupContext {
+  readonly jobId: string;
+  readonly userId: UserId;
+  readonly workerId: string;
+  readonly stage: DeletionJobStage;
+  /** Renew/check the current worker fence immediately before external effects. */
+  readonly assertLease: () => Promise<void>;
+}
+
+export interface AccountProviderRevocation {
+  readonly jobId: string;
+  readonly userId: UserId;
+  readonly provider: string;
+  readonly status: "not_required" | "pending" | "revoked";
+  readonly subject: string | null;
+  readonly clientId: string | null;
+  readonly encryptedToken: string | null;
+}
+
+/** Server-only, durable provider cleanup state; never part of account exports. */
+export interface AccountProviderRevocationRepository {
+  load(input: {
+    readonly jobId: string;
+    readonly userId: UserId;
+    readonly provider: string;
+  }): Promise<AccountProviderRevocation | null>;
+  save(
+    record: AccountProviderRevocation,
+    options: { readonly workerId: string },
+  ): Promise<void>;
+}
+
 /**
  * Repository port. The in-memory implementation orchestrates the
  * per-feature repositories; the Supabase implementation
@@ -187,10 +219,20 @@ export interface AccountRepository {
       readonly confirmationToken: string;
       readonly now: Date;
       readonly accessToken?: string;
+      /** Runs only under an accepted deletion job's worker lease. */
+      readonly beforeCleanup?: (
+        context: AccountDeletionCleanupContext,
+      ) => Promise<void>;
     },
   ): Promise<
     | { readonly deleted: true }
     | { readonly deleted: false; readonly reason: AccountDeletionError }
+  >;
+  /** Trusted server identity lookup; client email/metadata is not authority. */
+  getLinkedAuthIdentities?(
+    userId: UserId,
+  ): Promise<
+    readonly { readonly provider: string; readonly subject: string }[]
   >;
   /**
    * Look up the current or latest deletion job for the user,

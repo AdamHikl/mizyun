@@ -665,6 +665,30 @@ describe("loadServerConfig — SES email configuration", () => {
   });
 
   describe("appleAuthConfig", () => {
+    it("accepts a separate 32-byte base64 revocation key", () => {
+      const key = Buffer.alloc(32, 7).toString("base64");
+      const result = loadServerConfig({
+        env: {
+          ...baseSnapshot,
+          [SERVER_ENV_KEYS.appleRevocationEncryptionKey]: key,
+        },
+      });
+      expect(result.ok).toBe(true);
+      if (result.ok)
+        expect(result.value.appleRevocationEncryptionKey).toBe(key);
+    });
+
+    it("rejects malformed revocation keys without returning their value", () => {
+      const key = "synthetic-invalid-key";
+      const result = loadServerConfig({
+        env: {
+          ...baseSnapshot,
+          [SERVER_ENV_KEYS.appleRevocationEncryptionKey]: key,
+        },
+      });
+      expect(result.ok).toBe(false);
+      expect(JSON.stringify(result)).not.toContain(key);
+    });
     it("returns null when Apple auth credentials are not provided", () => {
       const result = loadServerConfig({ env: baseSnapshot });
       expect(result.ok).toBe(true);

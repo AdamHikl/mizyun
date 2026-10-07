@@ -98,13 +98,9 @@ describe("AppleAuthClient", () => {
       if (!result.ok) {
         expect(result.error.kind).toBe("http_error");
         expect(result.error.status).toBe(400);
-        expect(result.error.error).toBe("invalid_grant");
-        expect(result.error.errorDescription).toBe(
-          "The code has expired or has already been used.",
-        );
-        expect(result.error.message).toBe(
-          "The code has expired or has already been used.",
-        );
+        expect(result.error.error).toBeUndefined();
+        expect(result.error.errorDescription).toBeUndefined();
+        expect(result.error.message).toBe("Apple auth request failed");
       }
     });
 
@@ -123,7 +119,7 @@ describe("AppleAuthClient", () => {
       if (!result.ok) {
         expect(result.error.kind).toBe("http_error");
         expect(result.error.status).toBe(502);
-        expect(result.error.message).toBe("Bad Gateway");
+        expect(result.error.message).toBe("Apple auth request failed");
       }
     });
 
@@ -163,7 +159,8 @@ describe("AppleAuthClient", () => {
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.error.kind).toBe("network_error");
-        expect(result.error.message).toBe("fetch failed: ECONNREFUSED");
+        expect(result.error.message).toBe("Apple auth request failed");
+        expect(result.error.cause).toBeUndefined();
       }
     });
 
@@ -299,7 +296,8 @@ describe("AppleAuthClient", () => {
       if (!result.ok) {
         expect(result.error.kind).toBe("http_error");
         expect(result.error.status).toBe(400);
-        expect(result.error.error).toBe("invalid_client");
+        expect(result.error.error).toBeUndefined();
+        expect(result.error.message).toBe("Apple auth request failed");
       }
     });
 
@@ -405,5 +403,67 @@ describe("AppleAuthClient", () => {
         "https://custom-apple-proxy.internal/auth/revoke",
       );
     });
+  });
+});
+
+describe("Apple transport recovery boundaries", () => {
+  const input = {
+    code: "secret-code",
+    clientId: "client",
+    clientSecret: "secret-client",
+  };
+
+  it("bounds the entire streamed exchange response including a stalled body", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValue(
+        new Response(new ReadableStream<Uint8Array>({ start() {} })),
+      );
+    const result = await createAppleAuthClient({
+      fetch,
+      timeoutMs: 5,
+    }).exchangeAuthorizationCode(input);
+    expect(result).toEqual({
+      ok: false,
+      error: { kind: "timeout", message: "Apple auth request timed out" },
+    });
+  });
+
+  it("rejects oversized bodies without retaining provider content", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValue(new Response("secret-token".repeat(10000)));
+    const result = await createAppleAuthClient({
+      fetch,
+    }).exchangeAuthorizationCode(input);
+    expect(result).toEqual({
+      ok: false,
+      error: { kind: "network_error", message: "Apple auth request failed" },
+    });
+  });
+
+  it("rejects empty tokens and invalid expiry in a successful exchange response", async () => {
+    for (const override of [
+      { refresh_token: " " },
+      { id_token: "" },
+      { expires_in: -1 },
+    ]) {
+      const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            access_token: "access",
+            refresh_token: "refresh",
+            id_token: "identity",
+            expires_in: 3600,
+            ...override,
+          }),
+        ),
+      );
+      const result = await createAppleAuthClient({
+        fetch,
+      }).exchangeAuthorizationCode(input);
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.kind).toBe("invalid_response");
+    }
   });
 });

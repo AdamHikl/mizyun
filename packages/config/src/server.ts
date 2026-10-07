@@ -76,6 +76,7 @@ export interface ServerConfig {
   readonly geminiVisionConfig: ServerGeminiVisionConfiguration | null;
   readonly sesConfig: ServerSesConfiguration | null;
   readonly appleAuthConfig: ServerAppleAuthConfiguration | null;
+  readonly appleRevocationEncryptionKey?: string | undefined;
   readonly aiExternalAccess: boolean;
   /** @deprecated Parsed only for configuration compatibility; never gates AI access. */
   readonly aiAllowedEmails: readonly string[];
@@ -120,6 +121,7 @@ export const SERVER_ENV_KEYS = {
   applePrivateKey: "APPLE_PRIVATE_KEY",
   applePrivateKeyPath: "APPLE_PRIVATE_KEY_PATH",
   appleClientId: "APPLE_CLIENT_ID",
+  appleRevocationEncryptionKey: "APPLE_REVOCATION_ENCRYPTION_KEY",
 } as const;
 
 const DISABLED_REASON = "Supabase server configuration has not been provided.";
@@ -274,6 +276,10 @@ const baseServerSchema = z.object({
   applePrivateKey: z.string().optional(),
   applePrivateKeyPath: z.string().optional(),
   appleClientId: z.string().optional(),
+  appleRevocationEncryptionKey: z
+    .string()
+    .regex(/^[A-Za-z0-9+/]{43}=$/)
+    .optional(),
 });
 
 type BaseServerShape = Record<keyof typeof SERVER_ENV_KEYS, string | undefined>;
@@ -509,6 +515,9 @@ export const loadServerConfig = (
     geminiVisionConfig,
     sesConfig,
     appleAuthConfig,
+    ...(value.appleRevocationEncryptionKey !== undefined
+      ? { appleRevocationEncryptionKey: value.appleRevocationEncryptionKey }
+      : {}),
     aiExternalAccess: value.aiExternalAccess,
     aiAllowedEmails: value.aiAllowedEmails ?? [],
   });

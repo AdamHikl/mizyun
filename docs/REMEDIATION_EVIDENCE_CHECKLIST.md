@@ -56,6 +56,8 @@ Allowed implementation state: `not started`, `in progress`, `implemented`, `bloc
 
 ### Q4
 
+APPLE-003 source/review progress is recorded in [oldest batch2](OLDEST_ISSUES_BATCH_2_2026-10-07.md) and ADR-0050. This closes no whole Q4 exit; post-Auth HTTP recovery, data barriers, native/provider and restore evidence remain open.
+
 - [ ] Persistent lifecycle resumes after restart, expired original challenge and duplicate confirmation.
 - [ ] Every cleanup-stage failure tested; missing object distinguished from real error.
 - [ ] Lost final response after Auth deletion has a safe completion/recovery path.

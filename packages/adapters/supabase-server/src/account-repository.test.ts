@@ -52,6 +52,10 @@ const createMockJobsTable = (initialRows: JobRow[] = []) => {
         filtered = filtered.filter((r) => (r as any)[col] === val);
         return builder;
       }),
+      in: vi.fn((col: string, values: readonly unknown[]) => {
+        filtered = filtered.filter((row) => values.includes((row as any)[col]));
+        return builder;
+      }),
       order: vi.fn((col: string, options?: { ascending?: boolean }) => {
         const asc = options?.ascending ?? true;
         filtered.sort((a, b) => {
@@ -124,10 +128,14 @@ const createMockJobsTable = (initialRows: JobRow[] = []) => {
       }),
       update: vi.fn((patch: Partial<JobRow>) => {
         const filters: Array<{ col: string; val: unknown }> = [];
+        const greaterFilters: Array<{ col: string; val: string }> = [];
         const execute = () => {
           let matched = [...rows];
           for (const f of filters) {
             matched = matched.filter((r) => (r as any)[f.col] === f.val);
+          }
+          for (const f of greaterFilters) {
+            matched = matched.filter((row) => (row as any)[f.col] > f.val);
           }
           for (const r of matched) {
             Object.assign(r, patch);
@@ -138,6 +146,10 @@ const createMockJobsTable = (initialRows: JobRow[] = []) => {
         const updateBuilder: any = {
           eq: vi.fn((col: string, val: unknown) => {
             filters.push({ col, val });
+            return updateBuilder;
+          }),
+          gt: vi.fn((col: string, val: string) => {
+            greaterFilters.push({ col, val });
             return updateBuilder;
           }),
           select: vi.fn(() => {
@@ -273,6 +285,142 @@ describe("SupabaseAccountRepository", () => {
       ...overrides,
     };
   };
+
+  it("rejects a challenge before invoking external cleanup", async () => {
+    const options = createMockOptions();
+    const repo = new SupabaseAccountRepository(options);
+    const beforeCleanup = vi.fn();
+    expect(
+      await repo.deleteUser(testUserId, {
+        confirmationToken: "unissued",
+        now: new Date(),
+        beforeCleanup,
+      }),
+    ).toEqual({
+      deleted: false,
+      reason: { kind: "confirmation_token_missing" },
+    });
+    expect(beforeCleanup).not.toHaveBeenCalled();
+    expect(options.deleteUserMock).not.toHaveBeenCalled();
+  });
+
+  it("reads the Apple subject from trusted Auth identity data rather than email or identity-row UUID", async () => {
+    const options = createMockOptions();
+    const getUserById = vi.fn().mockResolvedValue({
+      data: {
+        user: {
+          id: testUserId,
+          email: "untrusted-email@mizyun.test",
+          identities: [
+            {
+              provider: "apple",
+              identity_id: "identity-record-uuid",
+              identity_data: { sub: "verified-provider-subject" },
+            },
+          ],
+        },
+      },
+      error: null,
+    });
+    Object.assign((options.serviceRoleClient.auth as any).admin, {
+      getUserById,
+    });
+    const repo = new SupabaseAccountRepository(options);
+    expect(await repo.getLinkedAuthIdentities(testUserId)).toEqual([
+      { provider: "apple", subject: "verified-provider-subject" },
+    ]);
+    expect(getUserById).toHaveBeenCalledWith(testUserId);
+    getUserById.mockResolvedValueOnce({
+      data: {
+        user: {
+          id: testUserId,
+          identities: [
+            { provider: "apple", identity_id: "identity-record-uuid" },
+          ],
+        },
+      },
+      error: null,
+    });
+    await expect(repo.getLinkedAuthIdentities(testUserId)).rejects.toThrow(
+      "Trusted account identity is incomplete",
+    );
+    getUserById.mockResolvedValueOnce({
+      data: { user: { id: "another-user", identities: [] } },
+      error: null,
+    });
+    await expect(repo.getLinkedAuthIdentities(testUserId)).rejects.toThrow(
+      "Trusted account identity lookup failed",
+    );
+  });
+
+  it("resumes an accepted provider failure across repository restart after challenge expiry", async () => {
+    let now = new Date("2026-10-07T19:00:00Z");
+    const options = createMockOptions({ clock: { now: () => now } });
+    const repo = new SupabaseAccountRepository(options);
+    const token = await repo.issueDeletionChallenge(testUserId, {
+      ttlSeconds: 1,
+      now,
+    });
+    await expect(
+      repo.deleteUser(testUserId, {
+        confirmationToken: token,
+        now,
+        beforeCleanup: async () => {
+          throw new Error("synthetic-provider-secret");
+        },
+      }),
+    ).rejects.toThrow("External authorization cleanup requires retry");
+    expect(options.deleteUserMock).not.toHaveBeenCalled();
+    expect(options.mediaStorage.remove).not.toHaveBeenCalled();
+    expect(await repo.getDeletionJob(testUserId)).toMatchObject({
+      status: "failed",
+      stage: "none",
+      errorMessage: "External authorization cleanup requires retry",
+    });
+    now = new Date(now.getTime() + 60_000);
+    const restarted = new SupabaseAccountRepository(options);
+    await expect(
+      restarted.issueDeletionChallenge(testUserId, { ttlSeconds: 300, now }),
+    ).rejects.toThrow("Resume the accepted account deletion operation");
+    const beforeCleanup = vi.fn(async (context) => {
+      await context.assertLease();
+    });
+    expect(
+      await restarted.deleteUser(testUserId, {
+        confirmationToken: token,
+        now,
+        accessToken: "test-token",
+        beforeCleanup,
+      }),
+    ).toEqual({ deleted: true });
+    expect(beforeCleanup).toHaveBeenCalledTimes(1);
+    expect(options.deleteUserMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops cleanup when a competing worker takes the provider lease", async () => {
+    const now = new Date("2026-10-07T19:00:00Z");
+    const options = createMockOptions({ clock: { now: () => now } });
+    const repo = new SupabaseAccountRepository(options);
+    const token = await repo.issueDeletionChallenge(testUserId, {
+      ttlSeconds: 300,
+      now,
+    });
+    await expect(
+      repo.deleteUser(testUserId, {
+        confirmationToken: token,
+        now,
+        beforeCleanup: async () => {
+          options.jobsTable.rows[0]!.worker_id = "new-worker";
+        },
+      }),
+    ).rejects.toThrow("External authorization cleanup requires retry");
+    expect(options.deleteUserMock).not.toHaveBeenCalled();
+    expect(options.mediaStorage.remove).not.toHaveBeenCalled();
+    expect(options.jobsTable.rows[0]).toMatchObject({
+      status: "in_progress",
+      worker_id: "new-worker",
+    });
+  });
 
   it("exportForUser fails closed if accessToken is empty", async () => {
     const opts = createMockOptions();

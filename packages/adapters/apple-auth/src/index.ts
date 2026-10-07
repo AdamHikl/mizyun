@@ -15,3 +15,13 @@ export {
   type ExchangeAuthorizationCodeInput,
   type RevokeTokenInput,
 } from "./apple-client.js";
+
+export {
+  verifyAppleIdentityToken,
+  type VerifyAppleIdentityTokenOptions,
+} from "./token-verification.js";
+export {
+  encryptAppleRevocationToken,
+  decryptAppleRevocationToken,
+  type AppleRevocationTokenBinding,
+} from "./token-vault.js";
