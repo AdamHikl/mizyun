@@ -73,3 +73,5 @@
 - [ADR-0045 — Ephemeral health previews](0045-ephemeral-health-previews.md): accepted for the first integration source package 2026-10-06; per-category read-only foreground weight/workout previews, memory-only session, no backend/Coach/sharing, and Production disabled pending native/device/privacy acceptance.
 
 - [ADR-0046: Pro multi-photo drafts and Coach context](0046-pro-multi-photo-drafts.md) — accepted implementation; native/provider acceptance pending.
+
+- [ADR-0047 — Selected device health exports](0047-selected-device-health-exports.md): Dev-only selected first-party nutrition/standalone workout writes; encrypted local retry/mapping lifecycle, separate session permissions and qualified platform retention; native/device/privacy gates open.

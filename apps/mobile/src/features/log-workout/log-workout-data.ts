@@ -1,3 +1,9 @@
+import {
+  captureHealthExportOwner,
+  exportSavedWorkout,
+  deleteHealthExport,
+  markFirstPartyWorkout,
+} from "@/features/health-exports";
 import type { ApiClient, ApiError } from "@mizyun/api-client";
 import {
   computeWorkoutProgressions,
@@ -349,7 +355,13 @@ export const startWorkout = async (
   notes: string,
   details?: Readonly<Record<string, unknown>>,
 ): Promise<StartWorkoutResult> =>
-  startWorkoutWith(apiClient, name, notes, () => new Date(), details);
+  startWorkoutWith(
+    apiClient,
+    name,
+    notes,
+    () => new Date(),
+    markFirstPartyWorkout(details),
+  );
 
 export const startWorkoutWith = async (
   client: ApiClient,
@@ -498,14 +510,23 @@ export const loadRecentPerformanceWith = async (
 export const completeWorkout = async (
   workoutId: string,
   workoutStartedAt?: string,
-): Promise<WorkoutMutationResult> =>
-  completeWorkoutWith(apiClient, workoutId, () => new Date(), workoutStartedAt);
+): Promise<WorkoutMutationResult> => {
+  const binding = captureHealthExportOwner();
+  return completeWorkoutWith(
+    apiClient,
+    workoutId,
+    () => new Date(),
+    workoutStartedAt,
+    (workout) => exportSavedWorkout(binding, workout),
+  );
+};
 
 export const completeWorkoutWith = async (
   client: ApiClient,
   workoutId: string,
   now: () => Date = () => new Date(),
   workoutStartedAt?: string,
+  afterSave?: (workout: WorkoutResponse["workout"]) => void,
 ): Promise<WorkoutMutationResult> => {
   const completionTime = now();
   const startedAtDate = workoutStartedAt ? new Date(workoutStartedAt) : null;
@@ -525,6 +546,13 @@ export const completeWorkoutWith = async (
     body,
     schema: workoutResponseSchema,
   });
+  if (result.ok) {
+    try {
+      afterSave?.(result.value.workout);
+    } catch {
+      /* Saved independently. */
+    }
+  }
   return result.ok
     ? { ok: true }
     : { ok: false, message: humanize(result.error, "Complete your workout") };
@@ -552,7 +580,12 @@ export const deleteWorkoutSetWith = async (
 
 export const abandonWorkout = async (
   workoutId: string,
-): Promise<WorkoutMutationResult> => abandonWorkoutWith(apiClient, workoutId);
+): Promise<WorkoutMutationResult> => {
+  const binding = captureHealthExportOwner();
+  const result = await abandonWorkoutWith(apiClient, workoutId);
+  if (result.ok) deleteHealthExport(binding, "workout", workoutId);
+  return result;
+};
 
 export const abandonWorkoutWith = async (
   client: ApiClient,

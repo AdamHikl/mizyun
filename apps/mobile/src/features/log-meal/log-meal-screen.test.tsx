@@ -414,6 +414,7 @@ describe("manual per-100-g meal entry", () => {
     expect(byId("meal-portion-weight-input").props.value).toBe("");
     await submit();
     expect(mocks.submit.mock.calls[0]?.[0].caloriesKcal).toBe(250);
+    expect(mocks.submit.mock.calls[0]?.[0].healthExportFirstParty).toBe(false);
   });
   it("uses serving totals after a replacement AI draft without retaining label values", async () => {
     mocks.textDraft.mockResolvedValue({
@@ -500,6 +501,9 @@ describe("previous-day meal logging", () => {
   it("saves on the selected local calendar day", async () => {
     await openPreviousDay();
     await submit();
+    expect(mocks.submit.mock.calls[0]?.[0].healthExportTimeBasis).toBe(
+      "date_only",
+    );
     const consumed = new Date(mocks.submit.mock.calls[0][0].consumedAt);
     expect([
       consumed.getFullYear(),

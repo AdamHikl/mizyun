@@ -1,0 +1,14 @@
+[
+  {
+    "path": "apps/mobile/dist/bundle-check-ios/_expo/static/js/ios/entry-fb77c1cfe133bf5e06a906e10d06e98e.hbc",
+    "bytes": 8120101,
+    "sha256": "acad53bc71d4aeaf9d6ddcfb6b69a3efc5c1103675a6b723343c408db4269e56",
+    "literalAssertionsPassed": 3
+  },
+  {
+    "path": "apps/mobile/dist/bundle-check-android/_expo/static/js/android/entry-85353ca276c31a39f44e2edb8ae9fa67.hbc",
+    "bytes": 8190179,
+    "sha256": "86f5fefe5a65ff5a2eb569bbd00d3b91a501aa795106fe4a5304e5ca08ca04c3",
+    "literalAssertionsPassed": 3
+  }
+]

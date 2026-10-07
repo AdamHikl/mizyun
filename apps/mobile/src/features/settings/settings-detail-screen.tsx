@@ -1,3 +1,4 @@
+import { HealthExportCard } from "@/features/health-exports/ui";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
@@ -168,6 +169,9 @@ export function SettingsDetailScreen({
             Please sign in to configure Health steps.
           </ThemedText>
         );
+
+      case "health-exports":
+        return <HealthExportCard />;
 
       case "health-preview":
         return session !== null && getAppVariant() === "dev" ? (

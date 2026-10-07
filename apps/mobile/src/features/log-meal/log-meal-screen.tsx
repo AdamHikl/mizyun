@@ -175,6 +175,7 @@ export function LogMealScreen() {
   const [snapping, setSnapping] = useState(false);
   const [mealDescription, setMealDescription] = useState("");
   const [draftWarnings, setDraftWarnings] = useState<readonly string[]>([]);
+  const healthExportFirstParty = useRef(true);
   const [aiDraft, setAiDraft] = useState<FoodDraftCandidate | null>(null);
   const [sourceProposalId, setSourceProposalId] = useState<string | null>(null);
   // AI-ACT-007 — free-text instruction the user types after the
@@ -225,6 +226,7 @@ export function LogMealScreen() {
   const onSelectRecentMeal = useCallback(
     (meal: FoodEntry) => {
       measurement.current?.tap();
+      healthExportFirstParty.current = false;
       setNutritionBasis("total");
       setAiDraft(null);
       setAttachedPhotos([]);
@@ -296,6 +298,7 @@ export function LogMealScreen() {
             ),
           );
           setNutritionBasis(upgraded.nutritionBasis ?? "total");
+          healthExportFirstParty.current = false;
           setName(upgraded.name);
           setPortionGrams(
             upgraded.portionGrams ??
@@ -599,6 +602,11 @@ export function LogMealScreen() {
             ...(hasAdvancedInput && parsedAdvanced !== null
               ? parsedAdvanced
               : {}),
+            healthExportFirstParty:
+              healthExportFirstParty.current &&
+              aiDraft === null &&
+              sourceProposalId === null,
+            healthExportTimeBasis: mealDate === null ? "observed" : "date_only",
             consumedAt: fixedConsumedAt,
             ...(Object.keys(details).length === 0 ? {} : { details }),
           };
@@ -653,6 +661,7 @@ export function LogMealScreen() {
         setPortionGrams(nextDraft.portionGrams);
         setNutritionBasis("total");
         setAdvanced(strings);
+        healthExportFirstParty.current = false;
         setAiDraft(next);
         setDraftWarnings(draftEvidenceLines(next));
         setPendingPhotoDrafts(remaining);
@@ -888,6 +897,7 @@ export function LogMealScreen() {
           ),
         );
         setDraftWarnings(draftEvidenceLines(draft.draft));
+        healthExportFirstParty.current = false;
         setAiDraft(mealDraftForAdvancedAccess(draft.draft, advancedEnabled));
         setSourceProposalId(null);
 
@@ -947,6 +957,7 @@ export function LogMealScreen() {
           ),
         );
         setDraftWarnings(draftEvidenceLines(result.draft));
+        healthExportFirstParty.current = false;
         setAiDraft(mealDraftForAdvancedAccess(result.draft, advancedEnabled));
         setSourceProposalId(null);
 
@@ -1011,6 +1022,7 @@ export function LogMealScreen() {
           mergeMealDraftIntoForm(current, result.draft, advancedEnabled),
         );
         setDraftWarnings(draftEvidenceLines(result.draft));
+        healthExportFirstParty.current = false;
         setAiDraft(mealDraftForAdvancedAccess(result.draft, advancedEnabled));
         void loadAiUsage();
       } finally {
@@ -1101,6 +1113,7 @@ export function LogMealScreen() {
     refineInstruction.trim().length > 0;
 
   const onClear = useCallback(async () => {
+    healthExportFirstParty.current = true;
     setName("");
     setPortionGrams("");
     setNutritionBasis("total");

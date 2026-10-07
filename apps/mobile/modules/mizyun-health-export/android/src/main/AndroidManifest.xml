@@ -1,0 +1,11 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:tools="http://schemas.android.com/tools">
+  <!-- Health Connect classes are reached only after the API 28 guard. -->
+  <uses-sdk tools:overrideLibrary="androidx.health.connect.client" />
+  <uses-permission android:name="android.permission.health.WRITE_NUTRITION" />
+  <uses-permission android:name="android.permission.health.WRITE_EXERCISE" />
+  <queries>
+    <package android:name="com.google.android.apps.healthdata" />
+  </queries>
+  <!-- The existing steps module owns the shared permission rationale entry point. -->
+</manifest>

@@ -377,6 +377,7 @@ describe("account-data-management", () => {
     };
 
     await clearLocalUserData(userId, {
+      clearHealthExports: async () => undefined,
       draftStore,
       consentStore,
       reminderStore,
@@ -424,6 +425,7 @@ describe("account-data-management", () => {
     };
 
     await clearLocalUserData(userId, {
+      clearHealthExports: async () => undefined,
       offlineCacheStore,
       workoutPreferencesStore,
     });
@@ -606,6 +608,7 @@ describe("account-data-management", () => {
     ];
 
     await clearLocalUserData(userId, {
+      clearHealthExports: async () => undefined,
       challengeStore,
       listExportFiles: () => mockFiles,
     });
@@ -683,5 +686,22 @@ describe("account-data-management", () => {
       ok: false,
       message: "Could not check deletion status. Please try again.",
     });
+  });
+});
+
+describe("local health export cleanup failure", () => {
+  it("surfaces a failed health purge after other local cleanup settles", async () => {
+    const cleanup = vi.fn(async () => {
+      throw new Error("private storage failure");
+    });
+    await expect(
+      clearLocalUserData("00000000-0000-4000-8000-000000000001", {
+        clearHealthExports: cleanup,
+        listExportFiles: () => [],
+      }),
+    ).rejects.toThrow("Local health export cleanup is incomplete.");
+    expect(cleanup).toHaveBeenCalledWith(
+      "00000000-0000-4000-8000-000000000001",
+    );
   });
 });

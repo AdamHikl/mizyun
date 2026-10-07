@@ -24,6 +24,7 @@ import {
 } from "@/features/community";
 import { analyticsClient } from "@/composition/analytics-client";
 import { apiClient, apiConfiguration } from "@/composition/api-client";
+import { HealthExportSessionBridge } from "@/composition/health-export-session-bridge";
 import { StartupDataBridge } from "@/composition/startup-data-bridge";
 import {
   AuthProvider,
@@ -294,6 +295,7 @@ function TabLayoutContent() {
         <DeepLinkBridge />
         <SessionGate>
           <StartupDataBridge />
+          <HealthExportSessionBridge />
           <PushRegistrationBridge />
           <CommunityNotificationBridge />
           <CoachNotificationBridge />

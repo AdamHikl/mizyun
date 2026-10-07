@@ -365,3 +365,7 @@ Reduce logging friction with vision-assisted drafts while preserving confirmatio
 ### Community Dev sequence amendment (2026-10-01)
 
 Adam authorized #156–162 source development on Dev before the original post-pilot sequence. Work now includes comments, private groups, cooperative challenges, opt-in text messaging, separate moderated media, independent routine copies and bounded opt-in prefix discovery. See ADR-0032 and the Community implementation plan amendment. Existing participant/operator/legal/native/recovery/pilot acceptance remains open; Production is excluded.
+
+### Selected health export sequence amendment (2026-10-06)
+
+Adam clarified stage two as INT-04 selected outbound nutrition and completed workouts (#219). Implement this Dev-only local outbox before optional INT-03 backend synchronization. The first preview package remains under #215; neither package's native/device/privacy exits are waived. ADR-0047 defines the local storage, first-party eligibility, separate session-only write choices and platform-retention boundary. No Production, backend health synchronization, watch/vendor integration or developer API is enabled by this sequence change.

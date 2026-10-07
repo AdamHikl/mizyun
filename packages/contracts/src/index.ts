@@ -830,3 +830,5 @@ export * from "./community-media";
 export * from "./recurring-meal";
 
 export * from "./health-connection";
+
+export * from "./health-export";

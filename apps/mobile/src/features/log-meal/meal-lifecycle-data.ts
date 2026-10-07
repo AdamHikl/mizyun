@@ -1,4 +1,9 @@
 import {
+  captureHealthExportOwner,
+  exportSavedNutrition,
+  deleteHealthExport,
+} from "@/features/health-exports";
+import {
   dailyFoodSummaryResponseSchema,
   foodEntryCreateSchema,
   foodEntryListResponseSchema,
@@ -503,12 +508,22 @@ export const formFromEntry = (
 export const updateFoodEntry = async (
   entryId: string,
   form: LogMealForm,
-): Promise<LogMealResult> => updateFoodEntryWith(apiClient, entryId, form);
+): Promise<LogMealResult> => {
+  const binding = captureHealthExportOwner();
+  return updateFoodEntryWith(apiClient, entryId, form, (entry) =>
+    exportSavedNutrition(binding, entry, {
+      firstParty: true,
+      timeBasis: "observed",
+      existingOnly: true,
+    }),
+  );
+};
 
 export const updateFoodEntryWith = async (
   client: ApiClient,
   entryId: string,
   form: LogMealForm,
+  afterSave?: (entry: FoodEntryResponse["foodEntry"]) => void,
 ): Promise<LogMealResult> => {
   const patch = patchFromForm(form);
   if (patch === null) {
@@ -520,6 +535,13 @@ export const updateFoodEntryWith = async (
     body: patch,
     schema: foodEntryResponseSchema,
   });
+  if (result.ok) {
+    try {
+      afterSave?.(result.value.foodEntry);
+    } catch {
+      /* Saved independently. */
+    }
+  }
   return result.ok
     ? { ok: true, id: result.value.foodEntry.id }
     : {
@@ -636,7 +658,12 @@ export const renameFoodGroupWith = async (
 
 export const deleteFoodEntry = async (
   entryId: string,
-): Promise<FoodMutationResult> => deleteFoodEntryWith(apiClient, entryId);
+): Promise<FoodMutationResult> => {
+  const binding = captureHealthExportOwner();
+  const result = await deleteFoodEntryWith(apiClient, entryId);
+  if (result.ok) deleteHealthExport(binding, "nutrition", entryId);
+  return result;
+};
 
 export const deleteFoodEntryWith = async (
   client: ApiClient,

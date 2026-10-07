@@ -1,0 +1,18 @@
+INT-04 / #219 selected outbound health exports — 2026-10-06
+Base:3984c35fe922f3ebd16abff850dc1302550da9e8 +88 owned overlays
+Candidate:/private/tmp/mizyun-health-export-219
+pnpm check:PASS
+Input:34b7bc68249e9d73e14ad9f9b3b0e0dfd0ef6f0fa6b7bed9f5a30c3d9684837f
+Mobile:1579PASS /146files; focused610PASS /42files
+API:867PASS /15credential-gated E2E SKIP
+Contracts:256PASS (22newexportcases); core396PASS (11newexportcases)
+Config:78PASS /3obsolete-path bundle scans SKIP; actual two Hermes bundle scans6PASS
+Native export JS bridge:7PASS in mobile gate
+Coordinator native API scaffold check: complete Swift/Kotlin source PASS; Kotlin7 +Swift4 assertions PASS
+Expo autolinking: one expected export module in each platform inventory PASS
+Independent High sensitive review:3P2 repaired; recheck6suites59PASS; no unresolved actionable P1/P2 findings
+Physical OS writes/permissions/read-back/restore/reinstall/revocation:NOT RUN
+Full native app builds:NOT RUN
+Provider live tests /real DB/remote deployment/Store/Production:NOT RUN
+Full-gate log SHA256:befdb45caa5132dd7a5790775ff59a2ea4b24f4fc93f1b5f0de4cbd57e803f10
+Native diagnostic log SHA256:bab8e13fdb15b43bb0e1b551f40adae16287d3786cbba9fe6f9adb0737ef549e

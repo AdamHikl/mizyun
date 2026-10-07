@@ -1,3 +1,6 @@
+vi.mock("@/composition/app-variant", () => ({
+  getAppVariant: () => "production",
+}));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { FoodDraftCandidate, FoodEntry } from "@mizyun/contracts";
 

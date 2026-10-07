@@ -136,6 +136,8 @@ Add the tables/routes proposed in B, owner-only RLS, atomic batch receipts/curso
 
 ### INT-04 — Selected outbound nutrition and workouts
 
+**2026-10-06 authorized sequence:** Adam explicitly selected this as stage two (#219), ahead of optional INT-03. The initial implementation uses only a protected local device/account/install-bound outbox; no health tables/API are introduced. Production remains disabled until full native/device/privacy acceptance. See ADR-0047 and `docs/HEALTH_EXPORT_EVIDENCE_2026-10-06.md`. New manually entered observed-time nutrition and freshly marked standalone completed sessions qualify; unknown/imported/AI/community/date-only history does not. Separate choices are reconfirmed each app session. The bounded Dev trial retains up to40 stable mappings per installation and8 uncertain intervals per record; it fails visibly rather than evicting mappings.
+
 **Files:** [NEW] export policy/job contracts and pure projection rules; [NEW] mobile native writers/outbox; [MODIFY] health-connections settings, meal/workout completion/edit/delete integration; [MODIFY] health export mappings/API/account lifecycle from INT-03 if enabled.
 
 Separate write permission from read. iOS: selected dietary energy/protein/carbohydrate/fat samples and completed `HKWorkout`; Android: `WRITE_NUTRITION` / `WRITE_EXERCISE` only when enabled. Export a minimal completed-session summary with start/end/type, without invented energy expenditure or sets the platform cannot represent. Preserve timestamps/units and unknown nutrients. Keep advanced nutrition, weight write-back and active-energy exports disabled initially.

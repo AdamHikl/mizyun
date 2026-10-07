@@ -113,6 +113,7 @@ export type SettingsAvailabilityRule =
   | "always"
   | "progress-photos"
   | "signed-in"
+  | "health-exports"
   | "health-preview"
   | "has-profile"
   | "incomplete-setup";
@@ -651,6 +652,30 @@ export const SETTINGS_CATALOG: readonly SettingsCatalogItem[] = [
     keywords: ["body mass", "completed exercise", "local preview"],
   },
 
+  {
+    id: "health-exports",
+    destinationId: "health-exports",
+    label: "Nutrition & Workout Health Exports",
+    description: "Send selected confirmed nutrition and completed workouts",
+    categoryId: "health-connections",
+    categoryLabel: "Health connections",
+    breadcrumb: "Account → Health connections",
+    aliases: [
+      "export nutrition",
+      "export workouts",
+      "write Apple Health",
+      "write Health Connect",
+    ],
+    intentPhrases: [
+      "send my meals to health",
+      "send completed workouts to health",
+    ],
+    targetType: "setting-detail",
+    settingDetailKey: "health-exports",
+    availabilityRule: "health-exports",
+    keywords: ["write permission", "health exports"],
+  },
+
   // ── AI coach ──
   {
     id: "coach-preferences",
@@ -1176,6 +1201,7 @@ export function isSettingAvailable(
       return true;
     case "signed-in":
       return context.isSignedIn;
+    case "health-exports":
     case "health-preview":
       return context.isSignedIn && context.isHealthPreviewEnabled === true;
     case "has-profile":

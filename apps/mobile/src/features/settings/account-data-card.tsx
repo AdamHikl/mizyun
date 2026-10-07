@@ -35,6 +35,38 @@ type DeletionStage =
   | "clearing_local_cache"
   | "failed";
 
+/** Server deletion is complete; local cleanup has its own truthful retry boundary. */
+export async function finishDeletedAccountLocally(
+  userId: string,
+  signOut: () => Promise<unknown>,
+): Promise<void> {
+  let cleaned = true;
+  try {
+    await clearLocalUserData(userId);
+  } catch {
+    cleaned = false;
+  }
+  await signOut().catch(() => undefined);
+  Alert.alert(
+    "Account Deleted",
+    "Your account data has been removed from active systems. Backup copies age out under the retention policy. Copies you exported to Apple Health or Health Connect remain in those apps." +
+      (cleaned
+        ? " You have been signed out."
+        : " Local health export cleanup is incomplete. Retry local cleanup on this phone."),
+    cleaned
+      ? undefined
+      : [
+          {
+            text: "Retry local cleanup",
+            onPress: () => {
+              void finishDeletedAccountLocally(userId, async () => undefined);
+            },
+          },
+          { text: "OK" },
+        ],
+  );
+}
+
 export function AccountDataCard({
   disabled = false,
 }: {
@@ -73,12 +105,7 @@ export function AccountDataCard({
           if (status.status === "completed") {
             setPendingChallenge(null);
             await clearDeletionChallenge(userId).catch(() => {});
-            await clearLocalUserData(userId).catch(() => {});
-            await signOut().catch(() => {});
-            Alert.alert(
-              "Account Deleted",
-              "Your account and associated personal data have been removed from active systems. Backup copies age out under the 90-day retention policy. You have been signed out.",
-            );
+            await finishDeletedAccountLocally(userId, signOut);
             return;
           }
           if (status.status === "in_progress") {
@@ -271,15 +298,9 @@ export function AccountDataCard({
               await clearDeletionChallenge(currentUserId).catch(() => {});
             }
             setDeletionStage("clearing_local_cache");
-            if (currentUserId) {
-              await clearLocalUserData(currentUserId).catch(() => {});
-            }
             setIsDeleting(false);
-            await signOut().catch(() => {});
-            Alert.alert(
-              "Account Deleted",
-              "Your account and all associated personal data have been permanently erased from active systems.",
-            );
+            if (currentUserId)
+              await finishDeletedAccountLocally(currentUserId, signOut);
             return;
           }
         }
@@ -306,16 +327,9 @@ export function AccountDataCard({
       }
       setDeletionStage("clearing_local_cache");
 
-      if (currentUserId) {
-        await clearLocalUserData(currentUserId).catch(() => {});
-      }
-
       setIsDeleting(false);
-      await signOut().catch(() => {});
-      Alert.alert(
-        "Account Deleted",
-        "Your account and all associated personal data have been permanently erased from active systems.",
-      );
+      if (currentUserId)
+        await finishDeletedAccountLocally(currentUserId, signOut);
     } catch {
       const errorMsg = "An unexpected error occurred during account deletion.";
       Alert.alert("Deletion Error", errorMsg);

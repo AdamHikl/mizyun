@@ -1,3 +1,9 @@
+import {
+  captureHealthExportOwner,
+  exportSavedWorkout,
+  deleteHealthExport,
+  markFirstPartyWorkout,
+} from "@/features/health-exports";
 import type { ApiClient, ApiError } from "@mizyun/api-client";
 import * as Crypto from "expo-crypto";
 import {
@@ -453,11 +459,13 @@ export const deleteWorkout = async (
   workoutId: string,
   client: ApiClient = apiClient,
 ): Promise<WorkoutActionMutationResult> => {
+  const binding = client === apiClient ? captureHealthExportOwner() : null;
   const result = await client.request<void>({
     method: "DELETE",
     path: `/v1/workouts/${encodeURIComponent(workoutId)}`,
   });
 
+  if (result.ok) deleteHealthExport(binding, "workout", workoutId);
   return result.ok
     ? { ok: true }
     : { ok: false, message: humanize(result.error, "Delete workout") };
@@ -550,6 +558,7 @@ export const updateWorkoutDetails = async (
   payload: UpdateWorkoutPayload,
   client: ApiClient = apiClient,
 ): Promise<WorkoutActionMutationResult> => {
+  const binding = client === apiClient ? captureHealthExportOwner() : null;
   const exercises = payload.plannedExercises;
 
   const body: Record<string, unknown> = {
@@ -616,6 +625,7 @@ export const updateWorkoutDetails = async (
     schema: workoutResponseSchema,
   });
 
+  if (result.ok) exportSavedWorkout(binding, result.value.workout, true);
   return result.ok
     ? { ok: true, workout: result.value.workout }
     : { ok: false, message: humanize(result.error, "Update workout") };
@@ -699,7 +709,7 @@ export const createBlankWorkoutWith = async (
     name: name.trim() || "Custom Workout",
     ...(startedAtDate ? { startedAt: startedAtDate.toISOString() } : {}),
     details: withWorkoutLifecycle(
-      { sessionMode: "one_time", sessionExercises: [] },
+      markFirstPartyWorkout({ sessionMode: "one_time", sessionExercises: [] }),
       { kind: "session" },
     ),
   });

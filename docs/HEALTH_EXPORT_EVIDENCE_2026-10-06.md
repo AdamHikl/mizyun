@@ -1,0 +1,33 @@
+# Selected Health exports — INT-04 / #219
+
+Date: 2026-10-06. Adam clarified stage two as selected outbound nutrition and completed workouts. Source baseline: `3984c35fe922f3ebd16abff850dc1302550da9e8` plus owned uncommitted changes. No commit, deployment, native app installation, Store operation or Production enablement is claimed.
+
+## Implemented scope
+
+Dev Account → Health connections → Nutrition & Workout Health Exports has independent explicit write controls. Nutrition projects confirmed newly user-entered observed-time energy/protein/carbohydrate/fat only; unknown stays null. Workouts project freshly marked completed standalone session start/end as generic strength training. Unknown/imported/AI/community/derivative/restored-unknown/date-only history, advanced nutrients, titles/notes/sets/routes, active energy and weight write-back are excluded. Generic edits can only update an existing local mapping. Production and preview-account controls are disabled. No backend health tables/API, Coach payload, watch app or developer sharing is introduced.
+
+Save-first callbacks preserve successful Mizyun operations on export failure. The encrypted device/account/install-bound local outbox retains stable random identity, increasing revisions, pending/component acknowledgments and up to8 possibly attempted intervals for moved-time deletion. Forty independently atomic <=1800-byte SecureStore mappings include completed records across accounts on an installation; capacity exhaustion is visible. Session grants are not restored. No background dispatch or implicit permission request/retry. Logout/account/installation boundaries retire authority. Native gates retain unknown OS mutations through caller timeout.
+
+Account deletion clears local mappings across installations without health access; corruption/storage failure remains visible and offers a local-only retry after server deletion. Existing Apple Health/Health Connect copies remain separately managed in those apps.
+
+## Verification and review
+
+Focused meal/workout/settings/controller/service regressions: `pnpm --filter @mizyun/mobile test src/features/health-exports src/features/log-meal src/features/log-workout src/features/workouts src/features/settings/account-data-management.test.ts src/features/settings/account-data-card.test.tsx src/features/settings/settings-catalog.test.ts src/features/settings/settings-search.test.ts` — 610passed/42files. Core11 and contracts22 cases passed before integration; fresh combined checks below own final acceptance. Mobile typecheck passed. All focused failures during development were repaired; no unrun test counts as passed.
+
+Independent High review identified permission-sheet generation, partial iOS authorization and silent local cleanup-reporting defects. Native fixes separate authorization/mutation generations and report partial grants; local cleanup removes account mappings without a sentinel and reports retained local data with retry. Native author ran real platform-API checks with Expo scaffolds: 7JavaScript bridge cases, 7Kotlin native assertions and4Swift authorization-policy assertions. Complete native definitions compile/type-check against installed real platform SDKs; scaffolds do not prove Expo registration, a full app build or actual health writes. Reproducer: `python3 apps/mobile/modules/mizyun-health-export/checks/native-api-check.py --mode all`.
+
+Fresh `pnpm check` PASS on `/private/tmp/mizyun-health-export-219`, baseline `3984c35fe922f3ebd16abff850dc1302550da9e8` plus88 owned overlays. Frozen input SHA-256: `34b7bc68249e9d73e14ad9f9b3b0e0dfd0ef6f0fa6b7bed9f5a30c3d9684837f`. Full gate exported both bundles, passed mobile1579/146files, API867 with15 credential-gated E2E skips, core396 and contracts256. Three config bundle-purity checks targeting an obsolete directory skipped; separate actual iOS/Android Hermes scans passed all6 assertions. [Candidate hashes/exclusions](evidence/health-export-2026-10-06/candidate-source-hashes.json), [bundle sizes/hashes](evidence/health-export-2026-10-06/actual-bundle-scan.json), and [compact verification receipt](evidence/health-export-2026-10-06/verification-summary.txt) retain exact scope.
+
+Concurrent simulator scripts/skill/package changes, install/running/Build9 handoffs and shared status were excluded. The candidate's environment-build-deployment navigation entry was restored to baseline to exclude concurrent simulator references; the shared entry was preserved. All current owned runtime/config/test files matched candidate hashes at final acceptance. Dated evidence/status updates after the gate are handoff-only. The first isolated attempt failed on the excluded simulator references; the final gate is the accepted result. The full log is `/private/tmp/mizyun-health-export-check-2026-10-06.log`.
+
+Independent non-author High recheck resolved all3P2 findings and found no unresolved actionable findings; its6suites/59tests passed separately. Coordinator reran complete Swift/Kotlin native API diagnostics (7Kotlin checks,4Swift policy assertions), and both actual Expo autolinking inventories included exactly one export module. These remain scaffolded source/API evidence, not full native app builds. Provider live tests remain disabled; real database/Auth/deletion E2E suites require separate credentials. No Dev/backend deployment or device acceptance follows from this full local gate.
+
+## Open acceptance gates
+
+1. Full Expo native builds, generated HealthKit entitlement/write rationale inventory and separate Android WRITE grants; unsupported API24 must still launch.
+2. Real iPhone/Android first grant, one-category-only grant, partial nutrition grant, denial/revocation, permission-sheet background/return, foreground restriction, lock and clear/logout/account A→B.
+3. Actual platform write/read-back, lost response/same revision replay without duplicates, changed timestamp, unknown nutrient removal, partial recovery, own-origin deletion/replay, historical cleanup limitation and own-origin preview exclusion.
+4. Restart, restore/reinstall/new-device backup exclusions and protected storage failure; original platform records persist independently and are explained honestly.
+5. Privacy policy, Apple/Google health declarations and named direction-specific app compatibility before Production enablement. No blanket Cronometer/vendor/watch support follows from source checks.
+
+Next exact action: accept the recorded Dev source candidate through full native builds and physical iPhone/Android synthetic-owned write/read-back journeys. Keep Production controls disabled and INT-03 backend synchronization separate. #219 remains open until its stated exits have evidence; #215 preview acceptance remains independent.

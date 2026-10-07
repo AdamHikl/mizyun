@@ -1,3 +1,4 @@
+import { clearLocalHealthExports } from "@/features/health-exports";
 import type { ApiClient } from "@mizyun/api-client";
 import { Directory, File, Paths } from "expo-file-system";
 import * as SecureStore from "expo-secure-store";
@@ -203,6 +204,7 @@ export interface ClearLocalUserDataOptions {
   readonly challengeStore?: SecureKeyValueStore;
   readonly offlineCacheStore?: Parameters<typeof purgeOfflineCache>[1];
   readonly workoutPreferencesStore?: SecureKeyValueStore;
+  readonly clearHealthExports?: (userId: string) => Promise<void>;
   readonly listExportFiles?: () => ReadonlyArray<{
     readonly name: string;
     delete(): void;
@@ -251,6 +253,7 @@ export const clearLocalUserData = async (
 
   const workoutStore = options.workoutPreferencesStore ?? SecureStore;
 
+  let healthCleanupFailed = false;
   await Promise.allSettled([
     ...draftKinds.map((kind) =>
       clearLoggingDraft(userId, kind, options.draftStore),
@@ -277,6 +280,13 @@ export const clearLocalUserData = async (
     ),
     clearDeletionChallenge(userId, options.challengeStore),
     purgeOfflineCache(userId, options.offlineCacheStore),
+    Promise.resolve()
+      .then(() =>
+        (options.clearHealthExports ?? clearLocalHealthExports)(userId),
+      )
+      .catch(() => {
+        healthCleanupFailed = true;
+      }),
     Promise.resolve(
       workoutStore.deleteItemAsync(workoutPreferencesKeyFor(userId)),
     ).catch(() => {}),
@@ -287,6 +297,8 @@ export const clearLocalUserData = async (
       await file.delete();
     }),
   ]);
+  if (healthCleanupFailed)
+    throw new Error("Local health export cleanup is incomplete.");
 };
 
 export const fetchAccountExport = async (

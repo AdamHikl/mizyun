@@ -1857,6 +1857,84 @@
         "Below-Health-Connect Android launch, source correction/deletion and no backend transport acceptance",
         "Public privacy and platform health declarations before Production enablement"
       ]
+    },
+    {
+      "id": "health-exports",
+      "title": "Selected outbound nutrition and completed workout Health exports",
+      "summary": "Dev-only foreground session-confirmed writes through an encrypted device/account/install-bound local outbox.",
+      "aliases": [
+        "health exports",
+        "nutrition write",
+        "workout write",
+        "INT-04"
+      ],
+      "entryPoints": [
+        "apps/mobile/src/features/health-exports/index.ts",
+        "apps/mobile/src/features/health-exports/ui.ts",
+        "apps/mobile/modules/mizyun-health-export/index.ts"
+      ],
+      "ownedPaths": [
+        "apps/mobile/src/features/health-exports",
+        "apps/mobile/modules/mizyun-health-export",
+        "apps/mobile/src/composition/health-export-session-bridge.tsx",
+        "packages/contracts/src/health-export.ts",
+        "packages/contracts/src/health-export.test.ts",
+        "packages/core/src/health-export.ts",
+        "packages/core/src/health-export.test.ts"
+      ],
+      "contracts": ["packages/contracts/src/health-export.ts"],
+      "domainPort": ["packages/core/src/health-export.ts"],
+      "api": [],
+      "ui": ["apps/mobile/src/features/health-exports/health-export-card.tsx"],
+      "adapters": ["apps/mobile/modules/mizyun-health-export"],
+      "dataTables": [],
+      "migrationPaths": [],
+      "tests": [
+        "packages/contracts/src/health-export.test.ts",
+        "packages/core/src/health-export.test.ts",
+        "apps/mobile/modules/mizyun-health-export/index.test.ts",
+        "apps/mobile/src/features/health-exports/export-outbox.test.ts",
+        "apps/mobile/src/features/health-exports/export-storage.test.ts",
+        "apps/mobile/src/features/health-exports/service.test.ts",
+        "apps/mobile/src/features/health-exports/save-boundaries.test.ts",
+        "apps/mobile/src/features/health-exports/health-export-card.test.tsx"
+      ],
+      "relations": [
+        {
+          "type": "relatedTo",
+          "target": "health-preview",
+          "reason": "Separate write purpose; previews exclude own-origin copies"
+        },
+        {
+          "type": "dependsOn",
+          "target": "auth",
+          "reason": "Captured account/session generation retires pending dispatch"
+        },
+        {
+          "type": "relatedTo",
+          "target": "account-lifecycle",
+          "reason": "Purge encrypted local mappings and report retryable cleanup failure"
+        }
+      ],
+      "docs": [
+        "docs/INTEGRATIONS_IMPLEMENTATION_PLAN_2026-10-04.md",
+        "docs/adr/0047-selected-device-health-exports.md",
+        "docs/HEALTH_EXPORT_EVIDENCE_2026-10-06.md"
+      ],
+      "verificationCommands": [
+        "pnpm --filter @mizyun/mobile test src/features/health-exports",
+        "pnpm --filter @mizyun/core test src/health-export.test.ts",
+        "pnpm --filter @mizyun/contracts test src/health-export.test.ts"
+      ],
+      "lastReviewedSha": "3984c35fe922f3ebd16abff850dc1302550da9e8",
+      "lastReviewedDate": "2026-10-06",
+      "limitations": "Source-only Dev initial exports; 40 stable mappings per installation/8 uncertain intervals per record; Production disabled; full native/device/privacy gates under #219.",
+      "requirements": ["ACT-01", "ACT-02", "ACT-03", "ACT-04", "PRIV-01"],
+      "openAcceptance": [
+        "Full native iOS/Android builds and physical grant/partial/deny/revoke/write/read-back/replay/edit/delete tests",
+        "Restore/reinstall/locked-device and below-Health-Connect Android launch acceptance",
+        "Public privacy/Apple/Google health declarations before Production enablement"
+      ]
     }
   ]
 }

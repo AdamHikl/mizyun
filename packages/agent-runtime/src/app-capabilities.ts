@@ -1,5 +1,5 @@
 /** Trusted product facts, owned by this release. Never infer account access from this catalog. */
-export const COACH_APP_KNOWLEDGE_VERSION = "mizyun-app-v3";
+export const COACH_APP_KNOWLEDGE_VERSION = "mizyun-app-v4";
 
 export interface CoachAppCapability {
   readonly id: string;
@@ -84,6 +84,13 @@ export const COACH_APP_CAPABILITIES: readonly CoachAppCapability[] = [
     routes: [],
     guidance:
       "Weight and completed-workout Health previews are a Dev-only feature pending native/device acceptance. If visible, open Account → Health connections → Weight & Workout Health Preview and explicitly choose one category. The preview stays in memory and clears on leaving or backgrounding. Production availability, account sync, watches and developer sharing are not enabled by this preview. Coach cannot read its records or use them as personal evidence.",
+  },
+  {
+    id: "health-exports",
+    featureIds: ["health-exports"],
+    routes: [],
+    guidance:
+      "Selected nutrition and completed standalone workout exports are Dev-only pending full native/device/privacy acceptance. Account → Health connections → Nutrition & Workout Health Exports has separate explicit write controls. New first-party confirmed manual energy/macros and actual completed workout times may be exported; unknown/AI/imported/date-only history is excluded. No health payload is available to Coach. Local session-only grants, an encrypted device outbox and explicit retry do not establish Production, backend sync, watch apps or developer sharing. Platform copies remain after turning off or deleting the Mizyun account.",
   },
   {
     id: "community",

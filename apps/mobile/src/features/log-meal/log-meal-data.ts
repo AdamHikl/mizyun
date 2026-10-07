@@ -1,4 +1,8 @@
 import {
+  captureHealthExportOwner,
+  exportSavedNutrition,
+} from "@/features/health-exports";
+import {
   foodEntryCreateSchema,
   foodEntryResponseSchema,
   type FoodEntryResponse,
@@ -27,6 +31,8 @@ export type LogMealResult =
   | { readonly ok: false; readonly message: string };
 
 export interface LogMealForm {
+  readonly healthExportFirstParty?: boolean;
+  readonly healthExportTimeBasis?: "observed" | "date_only";
   readonly clientOperationId?: string;
   readonly name: string;
   readonly caloriesKcal: number | null;
@@ -72,13 +78,25 @@ const humanizeError = (result: Result<unknown, ApiError>): string => {
 
 export const submitLogMeal = async (
   form: LogMealForm,
-): Promise<LogMealResult> =>
-  submitLogMealWith(form, apiClient, () => new Date());
+): Promise<LogMealResult> => {
+  const binding = captureHealthExportOwner();
+  return submitLogMealWith(
+    form,
+    apiClient,
+    () => new Date(),
+    (entry) =>
+      exportSavedNutrition(binding, entry, {
+        firstParty: form.healthExportFirstParty === true,
+        timeBasis: form.healthExportTimeBasis ?? "date_only",
+      }),
+  );
+};
 
 export const submitLogMealWith = async (
   form: LogMealForm,
   client: ApiClient,
   now: () => Date = () => new Date(),
+  afterSave?: (entry: FoodEntryResponse["foodEntry"]) => void,
 ): Promise<LogMealResult> => {
   const trimmedName = form.name.trim();
   if (trimmedName.length === 0) {
@@ -131,6 +149,11 @@ export const submitLogMealWith = async (
   });
   if (!result.ok) {
     return { ok: false, message: humanizeError(result) };
+  }
+  try {
+    afterSave?.(result.value.foodEntry);
+  } catch {
+    /* Optional health export cannot undo a save. */
   }
   return { ok: true, id: result.value.foodEntry.id };
 };
