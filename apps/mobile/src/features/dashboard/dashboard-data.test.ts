@@ -22,7 +22,7 @@ import {
   fetchNutritionReview,
   fetchNutritionReviewSummaries,
   fetchWorkoutCountForPeriod,
-  extractMostRecentEligibleMeal,
+  extractFirstEligibleMeal,
   summariseNutritionReview,
   type LocalDayQuery,
   type NutritionReviewRangeQuery,
@@ -1290,14 +1290,73 @@ describe("DASH-LOAD-001: Historical failure and delay regressions", () => {
     expect(combined.caloriesKcal).toBe(1100);
   });
 
-  describe("extractMostRecentEligibleMeal", () => {
+  describe("extractFirstEligibleMeal", () => {
+    const meal = (
+      id: string,
+      consumedAt: string,
+      overrides: Partial<FoodEntry> = {},
+    ): FoodEntry => ({
+      id,
+      userId: "synthetic-owner",
+      name: `Synthetic ${id}`,
+      consumedAt,
+      caloriesKcal: 200,
+      proteinG: 10,
+      carbohydrateG: 20,
+      fatG: 5,
+      details: {},
+      source: "manual",
+      confidence: null,
+      confirmedByUser: true,
+      createdAt: consumedAt,
+      updatedAt: consumedAt,
+      ...overrides,
+    });
+
+    it("selects breakfast rather than the evening meal from descending or shuffled history", () => {
+      const breakfast = meal("breakfast", "2026-10-06T06:30:00Z");
+      const lunch = meal("lunch", "2026-10-06T11:00:00Z");
+      const evening = meal("evening", "2026-10-06T18:01:00Z");
+
+      expect(extractFirstEligibleMeal([evening, lunch, breakfast])).toBe(
+        breakfast,
+      );
+      expect(extractFirstEligibleMeal([lunch, breakfast, evening])).toBe(
+        breakfast,
+      );
+    });
+
+    it("uses consumption time when an earlier meal was logged later", () => {
+      const breakfast = meal("breakfast", "2026-10-06T06:30:00Z", {
+        createdAt: "2026-10-06T20:00:00Z",
+      });
+      const lunch = meal("lunch", "2026-10-06T11:00:00Z", {
+        createdAt: "2026-10-06T11:05:00Z",
+      });
+
+      expect(extractFirstEligibleMeal([lunch, breakfast])).toBe(breakfast);
+    });
+
+    it("skips blank names and invalid consumption times before selecting the earliest eligible meal", () => {
+      const breakfast = meal("breakfast", "2026-10-06T06:30:00Z");
+      const entries = [
+        meal("invalid-time", "not-a-date"),
+        meal("blank-name", "2026-10-06T05:00:00Z", { name: "   " }),
+        meal("evening", "2026-10-06T18:01:00Z"),
+        breakfast,
+      ];
+
+      expect(extractFirstEligibleMeal(entries)).toBe(breakfast);
+      expect(extractFirstEligibleMeal(entries.slice(0, 2))).toBeNull();
+    });
+
     it("returns null when entries array is empty", () => {
-      expect(extractMostRecentEligibleMeal([])).toBeNull();
+      expect(extractFirstEligibleMeal([])).toBeNull();
     });
 
     it("returns null when all entries have empty names", () => {
       expect(
-        extractMostRecentEligibleMeal([
+        extractFirstEligibleMeal([
           {
             id: "1",
             userId: "u1",
@@ -1335,7 +1394,7 @@ describe("DASH-LOAD-001: Historical failure and delay regressions", () => {
         createdAt: "2026-09-23T08:00:00Z",
         updatedAt: "2026-09-23T08:00:00Z",
       };
-      expect(extractMostRecentEligibleMeal([meal])).toBe(meal);
+      expect(extractFirstEligibleMeal([meal])).toBe(meal);
     });
   });
 });

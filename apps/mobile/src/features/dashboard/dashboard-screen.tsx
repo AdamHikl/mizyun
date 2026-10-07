@@ -33,7 +33,7 @@ import { useTheme } from "@/hooks/use-theme";
 import { formatTime12 } from "@/components/ui/ios-time-picker";
 import {
   copyFoodEntry,
-  fetchFoodHistory,
+  fetchFoodDateHistory,
 } from "../log-meal/meal-lifecycle-data";
 import {
   loadFirstMealReminders,
@@ -45,7 +45,7 @@ import { reconcileEveningReminders } from "../log-meal/evening-catch-up-reminder
 import {
   combineNutritionReview,
   computeDailyNutritionDisplay,
-  extractMostRecentEligibleMeal,
+  extractFirstEligibleMeal,
   fetchDailySummary,
   fetchEnergySummary,
   fetchLatestWeight,
@@ -271,7 +271,8 @@ export function DashboardScreen() {
   const [storedMetrics, setMetrics] = useState<MetricsState>(EMPTY_METRICS);
   const [steps, setSteps] = useState<DailyStepsResult>({ kind: "off" });
   const stepsRequestId = useRef(0);
-  const [recentMeal, setRecentMeal] = useState<FoodEntry | null>(null);
+  const [yesterdayFirstMeal, setYesterdayFirstMeal] =
+    useState<FoodEntry | null>(null);
   const [firstMealReminders, setFirstMealReminders] =
     useState<FirstMealReminderSettings | null>(null);
   const [reviewPeriod, setReviewPeriod] = useState<ReviewPeriod>("week");
@@ -297,7 +298,7 @@ export function DashboardScreen() {
     displayScope.current = "";
     setMetrics(EMPTY_METRICS);
     setSteps({ kind: "off" });
-    setRecentMeal(null);
+    setYesterdayFirstMeal(null);
     setFirstMealReminders(null);
     setRefreshing(false);
     manualRefreshPending.current = false;
@@ -334,6 +335,7 @@ export function DashboardScreen() {
     if (displayScope.current !== scope) {
       loadedMetrics.current = false;
       displayScope.current = scope;
+      setYesterdayFirstMeal(null);
     }
     setMetrics((previous) => {
       const current = previous.scope === scope ? previous : EMPTY_METRICS;
@@ -366,9 +368,9 @@ export function DashboardScreen() {
       void loadFirstMealReminders(userId).then((stored) => {
         if (isCurrentRequest()) setFirstMealReminders(stored);
       });
-      void fetchFoodHistory({ limit: 5 }).then((res) => {
+      void fetchFoodDateHistory(yesterdayDate).then((res) => {
         if (isCurrentRequest())
-          setRecentMeal(extractMostRecentEligibleMeal(res.entries));
+          setYesterdayFirstMeal(extractFirstEligibleMeal(res.entries));
       });
       cachedSnapshot = await loadCachedDashboard(userId, todayDate, {
         reviewPeriod,
@@ -876,7 +878,7 @@ export function DashboardScreen() {
           {userId !== null && (metrics.macros?.entryCount ?? 0) === 0 ? (
             <FirstMealDashboardCard
               userId={userId}
-              recentMeal={recentMeal}
+              yesterdayFirstMeal={yesterdayFirstMeal}
               reminderSettings={firstMealReminders}
               onMealCopied={loadMetrics}
             />
@@ -1067,21 +1069,21 @@ function RefreshNotice(props: {
 
 function FirstMealDashboardCard(props: {
   readonly userId: string;
-  readonly recentMeal: FoodEntry | null;
+  readonly yesterdayFirstMeal: FoodEntry | null;
   readonly reminderSettings: FirstMealReminderSettings | null;
   readonly onMealCopied: () => Promise<void>;
 }) {
-  const { userId, recentMeal, reminderSettings, onMealCopied } = props;
+  const { userId, yesterdayFirstMeal, reminderSettings, onMealCopied } = props;
   const theme = useTheme();
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
-    if (!recentMeal || busy) return;
+    if (!yesterdayFirstMeal || busy) return;
     setBusy(true);
     setCopied(false);
     const startMs = Date.now();
-    const result = await copyFoodEntry(recentMeal);
+    const result = await copyFoodEntry(yesterdayFirstMeal);
     if (result.ok) {
       const elapsed = Date.now() - startMs;
       void analyticsClient.track({
@@ -1116,7 +1118,7 @@ function FirstMealDashboardCard(props: {
         </View>
       </View>
 
-      {recentMeal !== null ? (
+      {yesterdayFirstMeal !== null ? (
         <View
           style={[
             styles.firstMealRepeatBox,
@@ -1130,18 +1132,20 @@ function FirstMealDashboardCard(props: {
           ]}
         >
           <View style={styles.firstMealRepeatInfo}>
-            <ThemedText type="smallBold">{recentMeal.name}</ThemedText>
+            <ThemedText type="smallBold">{yesterdayFirstMeal.name}</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              {recentMeal.caloriesKcal != null
-                ? `${recentMeal.caloriesKcal} kcal`
+              {yesterdayFirstMeal.caloriesKcal != null
+                ? `${yesterdayFirstMeal.caloriesKcal} kcal`
                 : "—"}
-              {recentMeal.proteinG != null ? ` · ${recentMeal.proteinG}P` : ""}
+              {yesterdayFirstMeal.proteinG != null
+                ? ` · ${yesterdayFirstMeal.proteinG}P`
+                : ""}
             </ThemedText>
           </View>
 
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`Copy ${recentMeal.name} to today`}
+            accessibilityLabel={`Copy ${yesterdayFirstMeal.name} to today`}
             accessibilityState={{ busy, disabled: busy }}
             disabled={busy}
             onPress={() => {

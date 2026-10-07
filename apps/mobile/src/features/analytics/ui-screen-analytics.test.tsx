@@ -117,6 +117,7 @@ vi.mock("@/features/health-steps/health-steps", () => ({
 vi.mock("@/features/log-meal/meal-lifecycle-data", () => ({
   copyFoodEntry: vi.fn(),
   fetchFoodHistory: vi.fn(),
+  fetchFoodDateHistory: vi.fn(),
 }));
 vi.mock("@/features/log-meal/first-meal-reminders", () => ({
   loadFirstMealReminders: vi.fn(),

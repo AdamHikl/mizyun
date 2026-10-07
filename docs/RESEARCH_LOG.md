@@ -4,6 +4,10 @@
 
 Reviewed the official [Android ScrollView reference](https://developer.android.com/reference/android/widget/ScrollView) after independent integration review found the expanded Health disclosure could clip at large text sizes. Put the disclosure and privacy-policy action inside one vertical content container with wrap-content height in a full-screen ScrollView. Android small-screen and enlarged-font native acceptance remains open.
 
+## First-meal shortcut selection (#222/#118) — 2026-10-07
+
+Checked the installed Expo57 [versioned reference](https://docs.expo.dev/versions/v57.0.0/) and ECMAScript [local calendar date operations](https://tc39.es/ecma262/multipage/numbers-and-dates.html#sec-date.prototype.setdate). Implementation consequence: reuse the existing `fetchFoodDateHistory` complete local-day loader (UTC superset, exact local-midnight filtering, all pages), select the earliest valid `consumedAt` from yesterday, and offer only the generic meal-log action when yesterday is empty or cannot be read. Do not subtract a fixed 24 hours or select the first result from descending recent history. Clear the suggestion when the dashboard's local-day scope changes. This is a client-only selection correction; native interaction acceptance remains separate.
+
 ## Running support planning (#216) — 2026-10-06
 
 Planning against `f40e8941afc5307efce6d5c5909c0146ed1f3dda` plus disclosed concurrent work. [Running guide](RUNNING_IMPLEMENTATION_PLAN_2026-10-06.md) records the source baseline, field/state decisions, staged file inventory and prospective acceptance. No feature code, migration, build, deployment or provider integration was executed.

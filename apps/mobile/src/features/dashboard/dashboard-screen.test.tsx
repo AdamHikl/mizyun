@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   energy: vi.fn(),
   workouts: vi.fn(),
   history: vi.fn(),
+  mealDateHistory: vi.fn(),
+  mealCopy: vi.fn(),
   cache: vi.fn(),
   save: vi.fn(),
   invalidate: vi.fn(),
@@ -151,8 +153,8 @@ vi.mock("@/features/health-steps/health-steps", () => ({
   readTodaySteps: vi.fn().mockResolvedValue({ kind: "off" }),
 }));
 vi.mock("@/features/log-meal/meal-lifecycle-data", () => ({
-  copyFoodEntry: vi.fn(),
-  fetchFoodHistory: vi.fn().mockResolvedValue({ entries: [] }),
+  copyFoodEntry: mocks.mealCopy,
+  fetchFoodDateHistory: mocks.mealDateHistory,
 }));
 vi.mock("@/features/log-meal/first-meal-reminders", () => ({
   loadFirstMealReminders: vi.fn().mockResolvedValue(null),
@@ -291,6 +293,10 @@ beforeEach(() => {
   mocks.energy.mockReset().mockResolvedValue(success(energy));
   mocks.workouts.mockReset().mockResolvedValue(success(2));
   mocks.history.mockReset().mockResolvedValue(success([]));
+  mocks.mealDateHistory
+    .mockReset()
+    .mockResolvedValue({ entries: [], message: null });
+  mocks.mealCopy.mockReset().mockResolvedValue({ ok: true });
   mocks.cache.mockReset().mockResolvedValue(snapshot);
   mocks.save.mockReset().mockResolvedValue(true);
   mocks.invalidate.mockReset();
@@ -340,12 +346,92 @@ describe("dashboard cached display and refresh status", () => {
     expect(firstMeal).not.toBeNull();
     const card = firstMeal.type(firstMeal.props);
     expect(text(card)).toContain("Start with your first meal");
+    expect(text(card)).not.toContain("Copy to Today");
+    expect(text(card)).toContain("Log a meal");
     expect(
       find(
         card,
         (node) => node.props?.accessibilityLabel === "Set reminder in settings",
       ),
     ).not.toBeNull();
+  });
+
+  it("suggests the first meal from the complete previous local day, including beyond five recent entries", async () => {
+    vi.setSystemTime(new Date(2026, 9, 1, 0, 30));
+    mocks.cache.mockResolvedValue(null);
+    mocks.daily.mockResolvedValue(
+      success({ ...summary, entryCount: 0, caloriesKcal: 0 }),
+    );
+    const entries = Array.from({ length: 9 }, (_, index) => ({
+      id: `synthetic-meal-${index}`,
+      name: index === 8 ? "Synthetic breakfast" : "Synthetic later meal",
+      consumedAt: new Date(2026, 8, 30, 20 - index * 1.5).toISOString(),
+      caloriesKcal: 350,
+      proteinG: 15,
+    }));
+    mocks.mealDateHistory.mockResolvedValue({ entries, message: null });
+    render();
+    focus();
+    await settle();
+    expect(mocks.mealDateHistory).toHaveBeenCalledWith("2026-09-30");
+    const firstMeal = find(
+      render(),
+      (node) => node.type?.name === "FirstMealDashboardCard",
+    );
+    expect(firstMeal.props.yesterdayFirstMeal).toBe(entries[8]);
+    const card = firstMeal.type(firstMeal.props);
+    expect(text(card)).toContain("Synthetic breakfast");
+    expect(text(card)).not.toContain("Synthetic later meal");
+    const copyButton = find(
+      card,
+      (node) =>
+        node.props?.accessibilityLabel === "Copy Synthetic breakfast to today",
+    );
+    expect(copyButton).not.toBeNull();
+    copyButton.props.onPress();
+    await settle();
+    expect(mocks.mealCopy).toHaveBeenCalledWith(entries[8]);
+  });
+
+  it("clears the prior day's first-meal suggestion during a local-day rollover and failed read", async () => {
+    vi.setSystemTime(new Date(2026, 9, 4, 10));
+    mocks.cache.mockResolvedValue(null);
+    mocks.daily.mockResolvedValue(
+      success({ ...summary, entryCount: 0, caloriesKcal: 0 }),
+    );
+    mocks.mealDateHistory.mockResolvedValue({
+      entries: [
+        {
+          id: "synthetic-breakfast",
+          name: "Synthetic breakfast",
+          consumedAt: new Date(2026, 9, 3, 8).toISOString(),
+        },
+      ],
+      message: null,
+    });
+    render();
+    focus();
+    await settle();
+    const firstMeal = (tree: any) =>
+      find(tree, (node) => node.type?.name === "FirstMealDashboardCard");
+    expect(firstMeal(render()).props.yesterdayFirstMeal?.name).toBe(
+      "Synthetic breakfast",
+    );
+    const pending = deferred<any>();
+    mocks.mealDateHistory.mockReturnValueOnce(pending.promise);
+    vi.setSystemTime(new Date(2026, 9, 5, 0, 30));
+    mocks.appState!("background");
+    mocks.appState!("active");
+    await settle();
+    expect(mocks.mealDateHistory).toHaveBeenLastCalledWith("2026-10-04");
+    expect(firstMeal(render()).props.yesterdayFirstMeal).toBeNull();
+    pending.resolve({ entries: [], message: "Synthetic read failure" });
+    await settle();
+    const cardNode = firstMeal(render());
+    expect(cardNode.props.yesterdayFirstMeal).toBeNull();
+    const card = cardNode.type(cardNode.props);
+    expect(text(card)).not.toContain("Copy to Today");
+    expect(text(card)).toContain("Log a meal");
   });
 
   it("adapts mounted nutrition to a font-scale increase and decrease while retaining totals", async () => {

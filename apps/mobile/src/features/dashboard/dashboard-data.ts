@@ -518,13 +518,23 @@ export const computeDailyNutritionDisplay = (params: {
   };
 };
 
-export const extractMostRecentEligibleMeal = (
+/** Select the earliest reusable meal from a complete selected day's history. */
+export const extractFirstEligibleMeal = (
   entries: ReadonlyArray<FoodEntry>,
 ): FoodEntry | null => {
+  let firstMeal: FoodEntry | null = null;
+  let firstTime = Infinity;
   for (const entry of entries) {
-    if (typeof entry.name === "string" && entry.name.trim().length > 0) {
-      return entry;
+    const consumedAt = Date.parse(entry.consumedAt);
+    if (
+      typeof entry.name === "string" &&
+      entry.name.trim().length > 0 &&
+      Number.isFinite(consumedAt) &&
+      consumedAt < firstTime
+    ) {
+      firstMeal = entry;
+      firstTime = consumedAt;
     }
   }
-  return null;
+  return firstMeal;
 };
