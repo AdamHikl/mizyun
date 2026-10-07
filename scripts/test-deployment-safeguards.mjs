@@ -1447,6 +1447,205 @@ await test("test-build-matrix.mjs: passes from clean checkout without generated 
   }
 });
 
+// Required journal receipts are part of the promotion boundary, including recovery.
+const journalFixtures = [
+  {
+    name: "dev",
+    repo: devRepoDir,
+    previous: commit1,
+    target: commit2,
+    journal: "mizyun-dev-release-journal.jsonl",
+    marker: "mizyun-dev-sha",
+    lock: devLockFile,
+    run: runPromoteDev,
+    backup: "not_required",
+  },
+  {
+    name: "production",
+    repo: prodRepoDir,
+    previous: prodCommit1,
+    target: prodCommit2,
+    journal: "mizyun-production-release-journal.jsonl",
+    marker: "mizyun-production-sha",
+    lock: prodLockFile,
+    run: runPromoteProd,
+    backup: "complete",
+  },
+];
+const journalNode = path.join(mockBinDir, "node");
+const readFixtureLog = (file) =>
+  existsSync(file) ? readFileSync(file, "utf8") : "";
+const readReceipts = (file) =>
+  readFixtureLog(file)
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
+
+for (const fixture of journalFixtures) {
+  await test(`promote-${fixture.name}.sh: initial journal failure prevents promotion side effects`, () => {
+    git(["checkout", "--detach", fixture.previous], fixture.repo);
+    const journal = path.join(fixture.repo, ".git", fixture.journal);
+    const original = existsSync(journal) ? readFileSync(journal) : null;
+    rmSync(journal, { force: true });
+    mkdirSync(journal);
+    const serviceLog = path.join(tempBase, "systemctl.log");
+    const migrationLog = path.join(tempBase, "supabase.log");
+    const servicesBefore = readFixtureLog(serviceLog);
+    const migrationsBefore = readFixtureLog(migrationLog);
+    try {
+      const res = fixture.run({ targetSha: fixture.target });
+      assert(res.status !== 0, "journal failure must fail promotion");
+      assert(
+        res.stderr.includes("Required release journal write failed (started)"),
+        "required receipt error must be explicit",
+      );
+      assert(
+        !res.stdout.includes("succeeded:"),
+        "must not report promotion success",
+      );
+      assert(
+        git(["rev-parse", "HEAD"], fixture.repo) === fixture.previous,
+        "must not change checkout",
+      );
+      assert(
+        readFixtureLog(serviceLog) === servicesBefore,
+        "must not touch services",
+      );
+      assert(
+        readFixtureLog(migrationLog) === migrationsBefore,
+        "must not apply migrations",
+      );
+    } finally {
+      rmSync(journal, { recursive: true, force: true });
+      if (original !== null) writeFileSync(journal, original);
+    }
+  });
+
+  for (const failRecoveryReceipt of [false, true]) {
+    await test(`promote-${fixture.name}.sh: terminal journal failure ${failRecoveryReceipt ? "keeps lock through failed recovery receipt" : "rolls back with truthful receipt"}`, () => {
+      git(["checkout", "--detach", fixture.previous], fixture.repo);
+      const journal = path.join(fixture.repo, ".git", fixture.journal);
+      const receiptCount = readReceipts(journal).length;
+      const lockProbe = path.join(
+        tempBase,
+        `journal-lock-probe-${fixture.name}`,
+      );
+      // Fail the actual terminal writer after migrations/restart/health, then
+      // probe the still-held lock in a distinct process during recovery.
+      writeFileSync(
+        journalNode,
+        `#!/bin/sh
+if [ "$1" = "-" ] && [ "$3" = "success" ]; then exit 1; fi
+if [ "$1" = "-" ] && [ "$3" = "rolled_back" ]; then
+  python3 - "$MIZYUN_FIXTURE_LOCK_FILE" "$MIZYUN_FIXTURE_LOCK_PROBE" <<'LOCK_PROBE'
+import fcntl, sys
+with open(sys.argv[1], "a") as lock:
+    try:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        result = "released"
+    except BlockingIOError:
+        result = "held"
+with open(sys.argv[2], "w") as output:
+    output.write(result)
+LOCK_PROBE
+  ${failRecoveryReceipt ? "exit 1" : ":"}
+fi
+exec '${process.execPath.replaceAll("'", "'\\''")}' "$@"
+`,
+      );
+      chmodSync(journalNode, 0o755);
+      try {
+        const res = fixture.run({
+          targetSha: fixture.target,
+          extraEnv: {
+            MIZYUN_FIXTURE_LOCK_FILE: fixture.lock,
+            MIZYUN_FIXTURE_LOCK_PROBE: lockProbe,
+            MIZYUN_HEALTH_RETRIES: "1",
+            MIZYUN_HEALTH_SLEEP: "0",
+          },
+        });
+        assert(
+          res.status !== 0,
+          "terminal receipt failure must fail promotion",
+        );
+        assert(
+          !res.stdout.includes("succeeded:"),
+          "must not report promotion success",
+        );
+        assert(
+          git(["rev-parse", "HEAD"], fixture.repo) === fixture.previous,
+          "must restore previous checkout",
+        );
+        assert(
+          readFileSync(
+            path.join(fixture.repo, ".git", fixture.marker),
+            "utf8",
+          ).trim() === fixture.previous,
+          "marker must describe restored checkout",
+        );
+        assert(
+          readFileSync(lockProbe, "utf8") === "held",
+          "deployment lock must remain held through recovery receipt",
+        );
+        const receipts = readReceipts(journal).slice(receiptCount);
+        assert(
+          receipts[0]?.status === "started",
+          "must retain initial receipt",
+        );
+        assert(
+          receipts.every((entry) => entry.status !== "success"),
+          "failed success receipt must not be accepted",
+        );
+        if (failRecoveryReceipt) {
+          assert(
+            receipts.length === 1,
+            "failed recovery receipt must not invent completion",
+          );
+          assert(
+            res.stderr.includes(
+              "Rollback completed but its required release journal receipt failed",
+            ),
+            "missing recovery receipt must be explicit",
+          );
+        } else {
+          const recovery = receipts.at(-1);
+          assert(recovery.status === "rolled_back", "must record recovery");
+          assert(
+            recovery.previousSha === fixture.previous &&
+              recovery.targetSha === fixture.target &&
+              recovery.checkedOutSha === fixture.previous,
+            "retain attempted and restored SHA identities",
+          );
+          assert(
+            recovery.backupState === fixture.backup &&
+              recovery.migrationState === "complete" &&
+              recovery.migrationsApplied === true,
+            "retain backup and migration facts after rollback",
+          );
+          assert(
+            recovery.readinessResult === "passed" &&
+              recovery.rollbackReadiness === "passed" &&
+              recovery.rollbackOutcome === "code_restored_health_passed",
+            "separate candidate readiness from rollback",
+          );
+          assert(
+            recovery.runningSha === null &&
+              recovery.runningReleaseVerified === false &&
+              recovery.backupReference === null &&
+              recovery.migrationIds === null &&
+              recovery.migrationChecksums === null,
+            "must not invent unmeasured release evidence",
+          );
+        }
+      } finally {
+        rmSync(journalNode, { force: true });
+        rmSync(lockProbe, { force: true });
+      }
+    });
+  }
+}
+
 // Cleanup temp test files
 rmSync(tempBase, { recursive: true, force: true });
 

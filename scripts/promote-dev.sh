@@ -119,18 +119,66 @@ fi
 
 previous_sha="$(git rev-parse HEAD 2>/dev/null || echo "none")"
 migrations_applied=false
+migration_state=not_started
+backup_state=not_required
+candidate_readiness=not_checked
+rollback_readiness=not_checked
+rollback_outcome=not_attempted
+deployment_environment=dev
+sha_marker=".git/mizyun-dev-sha"
 
 record_journal() {
-  local status="$1"
-  local prev="$2"
-  local target="$3"
-  local message="$4"
-  local ts
-  ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-  local entry
-  entry="$(printf '{"timestamp":"%s","status":"%s","targetSha":"%s","previousSha":"%s","service":"%s","migrationsApplied":%s,"message":"%s"}' \
-    "$ts" "$status" "$target" "$prev" "$service_unit" "$migrations_applied" "$message")"
-  echo "$entry" >> "$journal_file" 2>/dev/null || true
+  local status="$1" prev="$2" target="$3" message="$4"
+  local checked_out_sha
+  checked_out_sha="$(git rev-parse HEAD)" || return 1
+  # Keep this writer inline: the streamed promotion script must keep working
+  # after checking out an older candidate that lacks a new helper file.
+  if ! node - "$journal_file" "$status" "$prev" "$target" "$service_unit" \
+    "$migrations_applied" "$migration_state" "$backup_state" "$candidate_readiness" \
+    "$rollback_outcome" "$rollback_readiness" "$checked_out_sha" "$deployment_environment" "$message" <<'JOURNAL_NODE'
+const fs = require("node:fs");
+const [file, status, previousSha, targetSha, service, migrationsApplied, migrationState,
+  backupState, readinessResult, rollbackOutcome, rollbackReadiness, checkedOutSha,
+  environment, message] = process.argv.slice(2);
+let fd;
+let originalSize;
+try {
+  fd = fs.openSync(file, fs.constants.O_WRONLY | fs.constants.O_CREAT |
+    fs.constants.O_APPEND | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK, 0o600);
+  const stat = fs.fstatSync(fd);
+  if (!stat.isFile() || stat.nlink !== 1 || stat.uid !== process.geteuid() || (stat.mode & 0o022)) {
+    throw new Error("unsafe journal file");
+  }
+  originalSize = stat.size;
+  const entry = Buffer.from(JSON.stringify({ timestamp: new Date().toISOString(), status,
+    environment, previousSha, targetSha, checkedOutSha, service,
+    migrationsApplied: migrationsApplied === "true", migrationState,
+    migrationIds: null, migrationChecksums: null, backupState, backupReference: null,
+    readinessResult, rollbackOutcome, rollbackReadiness,
+    runningSha: null, runningReleaseVerified: false, message }) + "\n");
+  let offset = 0;
+  while (offset < entry.length) {
+    const written = fs.writeSync(fd, entry, offset, entry.length - offset);
+    if (written <= 0) throw new Error("incomplete journal write");
+    offset += written;
+  }
+  fs.fsyncSync(fd);
+  fs.closeSync(fd);
+  fd = undefined;
+} catch {
+  // A short append must not corrupt the next recovery entry. The deploy lock
+  // serializes this repair; failure to repair still fails the promotion.
+  if (fd !== undefined && originalSize !== undefined) {
+    try { fs.ftruncateSync(fd, originalSize); fs.fsyncSync(fd); } catch {}
+  }
+  if (fd !== undefined) { try { fs.closeSync(fd); } catch {} }
+  process.exitCode = 1;
+}
+JOURNAL_NODE
+  then
+    echo "FATAL: Required release journal write failed ($status); promotion cannot be accepted." >&2
+    return 1
+  fi
 }
 
 rollback_code() {
@@ -151,24 +199,54 @@ rollback_code() {
       fi
       sleep 1
     done
+    if [[ "$rollback_healthy" == true ]]; then
+      rollback_readiness=passed
+    else
+      rollback_readiness=failed
+    fi
     if [[ "$rollback_ok" == true && "$rollback_healthy" == true ]]; then
       echo "Rollback to $previous_sha succeeded and API is healthy." >&2
-      record_journal "rolled_back" "$previous_sha" "$target_sha" "Failure near line $failure_line; rollback succeeded"
+      rollback_outcome=code_restored_health_passed
+      printf '%s\n' "$previous_sha" > "$sha_marker" || echo "WARNING: Could not restore the checkout SHA marker." >&2
+      if ! record_journal "rolled_back" "$previous_sha" "$target_sha" "Failure near line $failure_line; code restored and local health passed"; then
+        echo "WARNING: Rollback completed but its required release journal receipt failed." >&2
+      fi
     else
-      echo "WARNING: API is unhealthy after rollback to $previous_sha." >&2
-      record_journal "rollback_failed" "$previous_sha" "$target_sha" "Failure near line $failure_line; rollback health check failed"
+      echo "WARNING: Rollback operations or API health failed after restoring $previous_sha." >&2
+      rollback_outcome=failed
+      rm -f "$sha_marker" || echo "WARNING: Could not invalidate the checkout SHA marker." >&2
+      if ! record_journal "rollback_failed" "$previous_sha" "$target_sha" "Failure near line $failure_line; rollback operations or local health failed"; then
+        echo "WARNING: Failed rollback could not be recorded in the required release journal." >&2
+      fi
     fi
   else
-    record_journal "rollback_failed" "$previous_sha" "$target_sha" "Failure near line $failure_line; no previous SHA to restore"
+    rollback_outcome=failed
+    if ! record_journal "rollback_failed" "$previous_sha" "$target_sha" "Failure near line $failure_line; no previous SHA to restore"; then
+      echo "WARNING: Failed rollback could not be recorded in the required release journal." >&2
+    fi
   fi
   if [[ "$migrations_applied" == true ]]; then
-    echo "Database migrations are forward-only and were not reverted; inspect compatibility." >&2
+    echo "Database migrations may have committed; they are forward-only and were not reverted; inspect compatibility." >&2
   fi
 }
 
-trap 'rollback_code "$LINENO"' ERR
-trap 'rollback_code "$LINENO"; exit 130' INT
-trap 'rollback_code "$LINENO"; exit 143' TERM
+abort_promotion() {
+  local failure_status="$1" failure_line="$2"
+  # No recursive ERR trap or second signal may bypass recovery and release the
+  # deployment lock (fd 200) before rollback and its receipt finish.
+  trap - ERR
+  trap '' INT TERM
+  set +e
+  rollback_code "$failure_line"
+  exit "$failure_status"
+}
+
+if ! record_journal "started" "$previous_sha" "$target_sha" "Promotion started; release acceptance pending"; then
+  exit 1
+fi
+trap 'abort_promotion "$?" "$LINENO"' ERR
+trap 'abort_promotion 130 "$LINENO"' INT
+trap 'abort_promotion 143 "$LINENO"' TERM
 
 # Preflight remote origin configuration
 origin_url="$(git remote get-url origin 2>/dev/null || true)"
@@ -203,8 +281,10 @@ if [[ "$dev_db_url" != *"sslmode="* ]]; then
 fi
 export PGSSLMODE="$MIZYUN_DEV_DB_SSLMODE"
 
-pnpm exec supabase db push --db-url "$dev_db_url" --yes
+migration_state=attempted
 migrations_applied=true
+pnpm exec supabase db push --db-url "$dev_db_url" --yes
+migration_state=complete
 
 # 6. Sync systemd unit if the template has changed (Q1 isolation)
 unit_template="deploy/hetzner/mizyun-api-dev.service"
@@ -220,12 +300,14 @@ fi
 
 sudo -n systemctl restart "$service_unit"
 api_ready=false
+candidate_readiness=failed
 max_attempts="${MIZYUN_HEALTH_RETRIES:-40}"
 sleep_duration="${MIZYUN_HEALTH_SLEEP:-1}"
 for _attempt in $(seq 1 "$max_attempts"); do
   if curl --silent --show-error --fail --max-time 2 \
     "$MIZYUN_LOCAL_API_URL/v1/health" >/dev/null 2>&1; then
     api_ready=true
+    candidate_readiness=passed
     break
   fi
   sleep "$sleep_duration"
@@ -233,11 +315,10 @@ done
 
 if [[ "$api_ready" != true ]]; then
   echo "Dev API did not become healthy within ${max_attempts} attempts." >&2
-  rollback_code "$LINENO"
-  exit 1
+  abort_promotion 1 "$LINENO"
 fi
 
-printf '%s\n' "$target_sha" > .git/mizyun-dev-sha
-record_journal "success" "$previous_sha" "$target_sha" "Dev promotion succeeded"
+record_journal "success" "$previous_sha" "$target_sha" "Candidate checkout and local health passed; running release identity unverified"
+printf '%s\n' "$target_sha" > "$sha_marker"
 trap - ERR INT TERM
 echo "Development deployment succeeded: $target_sha"
