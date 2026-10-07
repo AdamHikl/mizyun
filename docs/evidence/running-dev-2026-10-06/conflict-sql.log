@@ -1,0 +1,235 @@
+BEGIN
+CREATE EXTENSION
+SET
+ no_plan
+---------
+(0 rows)
+
+INSERT 0 2
+CREATE TABLE
+INSERT 0 1
+CREATE TABLE
+GRANT
+GRANT
+SET
+SET
+SET
+                ok
+-----------------------------------
+ ok 1 - Anon has no mutation grant
+(1 row)
+
+                        ok
+---------------------------------------------------
+ ok 2 - Service role has no running mutation grant
+(1 row)
+
+                 throws_ok
+--------------------------------------------
+ ok 3 - Authenticated cannot forge receipts
+(1 row)
+
+                  throws_ok
+----------------------------------------------
+ ok 4 - Authenticated cannot reset tombstones
+(1 row)
+
+INSERT 0 1
+                          is
+------------------------------------------------------
+ ok 5 - Lost-response create returns one existing run
+(1 row)
+
+                 is
+-------------------------------------
+ ok 6 - Create replay stores one row
+(1 row)
+
+                           is
+--------------------------------------------------------
+ ok 7 - Date-only envelope uses equal synthetic anchors
+(1 row)
+
+                  is
+--------------------------------------
+ ok 8 - UTC+14 preserves entered date
+(1 row)
+
+                          is
+------------------------------------------------------
+ ok 9 - Date filter precedes limit using activity day
+(1 row)
+
+                throws_ok
+------------------------------------------
+ ok 10 - Changed create payload conflicts
+(1 row)
+
+                          throws_ok
+--------------------------------------------------------------
+ ok 11 - Direct set cannot attach to run before FK acceptance
+(1 row)
+
+                       throws_ok
+-------------------------------------------------------
+ ok 12 - Direct owned update cannot strip run metadata
+(1 row)
+
+                        throws_ok
+---------------------------------------------------------
+ ok 13 - Direct delete cannot bypass receipt tombstoning
+(1 row)
+
+                          throws_ok
+-------------------------------------------------------------
+ ok 14 - Direct owned insert cannot create reserved run data
+(1 row)
+
+                throws_ok
+------------------------------------------
+ ok 15 - Direct RPC rejects zero distance
+(1 row)
+
+                        throws_ok
+---------------------------------------------------------
+ ok 16 - Direct RPC rejects explicit null duration basis
+(1 row)
+
+                      throws_ok
+------------------------------------------------------
+ ok 17 - Direct RPC rejects explicit null environment
+(1 row)
+
+                     throws_ok
+---------------------------------------------------
+ ok 18 - Direct RPC rejects explicit null envelope
+(1 row)
+
+                    throws_ok
+--------------------------------------------------
+ ok 19 - Direct RPC rejects unsupported precision
+(1 row)
+
+RESET
+UPDATE 1
+                      throws_ok
+-----------------------------------------------------
+ ok 20 - SQL publication cannot bypass running guard
+(1 row)
+
+                   throws_ok
+-----------------------------------------------
+ ok 21 - SQL routine sharing cannot attach run
+(1 row)
+
+                          throws_ok
+--------------------------------------------------------------
+ ok 22 - SQL challenge cannot attach run before FK acceptance
+(1 row)
+
+SET
+         lives_ok
+---------------------------
+ ok 23 - CAS edit succeeds
+(1 row)
+
+                         lives_ok
+----------------------------------------------------------
+ ok 24 - Lost edit response replays acknowledged revision
+(1 row)
+
+                  throws_ok
+---------------------------------------------
+ ok 25 - Two-device stale revision conflicts
+(1 row)
+
+                       throws_ok
+--------------------------------------------------------
+ ok 26 - Cannot cancel an acknowledged update operation
+(1 row)
+
+          lives_ok
+-----------------------------
+ ok 27 - Newer edit succeeds
+(1 row)
+
+                         throws_ok
+------------------------------------------------------------
+ ok 28 - Old acknowledged edit cannot replace newer content
+(1 row)
+
+SET
+                  is
+---------------------------------------
+ ok 29 - Other account cannot read run
+(1 row)
+
+                    is
+-------------------------------------------
+ ok 30 - Other account cannot read receipt
+(1 row)
+
+               throws_ok
+---------------------------------------
+ ok 31 - Other account cannot edit run
+(1 row)
+
+                     lives_ok
+---------------------------------------------------
+ ok 32 - Other account delete exposes no ownership
+(1 row)
+
+SET
+                      is
+-----------------------------------------------
+ ok 33 - Other account delete leaves owner run
+(1 row)
+
+        lives_ok
+-------------------------
+ ok 34 - Delete succeeds
+(1 row)
+
+               lives_ok
+--------------------------------------
+ ok 35 - Lost delete response retries
+(1 row)
+
+                    throws_ok
+--------------------------------------------------
+ ok 36 - Late create cannot resurrect deleted run
+(1 row)
+
+                    throws_ok
+--------------------------------------------------
+ ok 37 - Late update cannot resurrect deleted run
+(1 row)
+
+                            lives_ok
+----------------------------------------------------------------
+ ok 38 - Cancellation tombstones an operation before row exists
+(1 row)
+
+                     throws_ok
+---------------------------------------------------
+ ok 39 - Pending cancellation survives late create
+(1 row)
+
+             is
+-----------------------------
+ ok 40 - Deleted runs absent
+(1 row)
+
+RESET
+DELETE 1
+                        is
+---------------------------------------------------
+ ok 41 - Account erasure cascades minimal receipts
+(1 row)
+
+ finish
+--------
+ 1..41
+(1 row)
+
+ROLLBACK
