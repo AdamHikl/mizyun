@@ -191,8 +191,8 @@ export function AccountDataCard({
       }
       if (result.data.export.manifest?.completeness === "partial") {
         Alert.alert(
-          "Export Complete (Partial)",
-          "Some signed media URLs could not be generated. Data export saved.",
+          "Partial export saved",
+          "This export may omit records or media. Photo download links expire and do not include offline photo files. Review the export before deleting your account.",
         );
       }
       const shareResult = await Share.share({

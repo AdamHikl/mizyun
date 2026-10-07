@@ -312,11 +312,12 @@ export const accountRoutes: FastifyPluginAsync<AccountRoutesOptions> = async (
         principal.userId,
         { accessToken: principal.accessToken },
       );
-      const memories = await options.memoryStore.list(principal.userId, {
-        accessToken: principal.accessToken,
-        includeSuperseded: true,
-        limit: 10_000,
-      });
+      const memories = await options.memoryStore.exportForUser(
+        principal.userId,
+        {
+          accessToken: principal.accessToken,
+        },
+      );
       return accountExportToWire(exportDoc, memories, query.data.catalog);
     },
   );

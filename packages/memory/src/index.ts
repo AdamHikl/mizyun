@@ -146,6 +146,11 @@ export interface MemoryStore {
     userId: UserId,
     options: MemoryListOptions,
   ): Promise<readonly MemoryRecord[]>;
+  /** Export every retained state, including deleted audit rows, or fail. */
+  exportForUser(
+    userId: UserId,
+    options: MemoryGetOptions,
+  ): Promise<readonly MemoryRecord[]>;
   /**
    * Look up a single memory by id, scoped to the principal.
    * Returns `null` when no row matches.
@@ -323,6 +328,20 @@ export class InMemoryMemoryStore implements MemoryStore {
       )
       .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
       .slice(0, limit);
+  }
+
+  async exportForUser(
+    userId: UserId,
+    options: MemoryGetOptions,
+  ): Promise<readonly MemoryRecord[]> {
+    void options;
+    return [...this.#records.values()]
+      .filter((memory) => memory.userId === userId)
+      .sort(
+        (a, b) =>
+          a.createdAt.getTime() - b.createdAt.getTime() ||
+          a.id.localeCompare(b.id),
+      );
   }
 
   async get(

@@ -16,6 +16,7 @@ import type { MemoryId, UserId } from "@mizyun/core";
 
 import type { RepositorySupabaseClient } from "./index.js";
 import { RepositoryError } from "./repository-error.js";
+import { fetchAllExportPages } from "./export-pagination.js";
 import {
   MEMORY_LIST_DEFAULT_LIMIT,
   MEMORY_LIST_MAX_LIMIT,
@@ -180,6 +181,25 @@ export class SupabaseMemoryStore implements MemoryStore {
       throw new RepositoryError(result.error.message);
     }
     return result.data.map(fromRow);
+  }
+
+  async exportForUser(
+    userId: UserId,
+    options: MemoryGetOptions,
+  ): Promise<readonly MemoryRecord[]> {
+    if (!options.accessToken) {
+      throw new RepositoryError(
+        "Memory export requires a verified access token",
+      );
+    }
+    const rows = await fetchAllExportPages<MemoryRow>(
+      this.#clientFor(options.accessToken),
+      "memory_items",
+      "user_id",
+      userId,
+      "created_at",
+    );
+    return rows.map(fromRow);
   }
 
   async get(

@@ -412,6 +412,73 @@ describe("GET /v1/account/export", () => {
     expect(response.json().export.manifest.counts.memories).toBe(1);
   });
 
+  it("delivers the full memory export beyond the UI cap with accurate counts and owner isolation", async () => {
+    const { app, memoryStore } = build(tokenVerifierFor({ userId: userA }));
+    const ledger: string[] = [];
+    const states = ["active", "candidate", "superseded", "deleted"] as const;
+    for (let index = 0; index < 10_001; index++) {
+      const id = `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`;
+      ledger.push(id);
+      await memoryStore.save(
+        {
+          id: id as MemoryId,
+          userId: userA,
+          kind: "preference",
+          content: "Synthetic export fixture",
+          source: "user",
+          confidence: 1,
+          importance: 5,
+          status: states[index % states.length]!,
+        },
+        { accessToken: "test-token" },
+      );
+    }
+    await memoryStore.save(
+      {
+        id: "00000000-0000-4000-8000-000000999999" as MemoryId,
+        userId: "00000000-0000-4000-8000-000000000002" as UserId,
+        kind: "preference",
+        content: "Other owner",
+        source: "user",
+        confidence: 1,
+        importance: 5,
+        status: "active",
+      },
+      { accessToken: "other-token" },
+    );
+    vi.spyOn(memoryStore, "list").mockRejectedValue(
+      new Error("UI list must not be used for export"),
+    );
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/account/export",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(response.statusCode).toBe(200);
+    const exported = response.json().export;
+    expect(exported.memories.map((m: { id: string }) => m.id).sort()).toEqual(
+      ledger,
+    );
+    expect(exported.manifest.counts.memories).toBe(ledger.length);
+    expect(
+      new Set(exported.memories.map((m: { status: string }) => m.status)),
+    ).toEqual(new Set(states));
+  });
+
+  it("does not return a success envelope after a memory export page failure", async () => {
+    const { app, memoryStore } = build(tokenVerifierFor({ userId: userA }));
+    vi.spyOn(memoryStore, "exportForUser").mockRejectedValue(
+      new Error("Synthetic page failure"),
+    );
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/account/export",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).not.toHaveProperty("export");
+  });
+
   it("returns 401 without a bearer token", async () => {
     const { app } = build(tokenVerifierFor({ userId: userA }));
     const response = await app.inject({

@@ -103,4 +103,65 @@ describe("SupabaseMemoryStore authorization and recall", () => {
     expect(results).toHaveLength(1);
     expect(results[0]?.status).toBe("active");
   });
+  it("exports more than 10,000 memories under a smaller server cap, including all retained states", async () => {
+    const states = ["active", "candidate", "superseded", "deleted"];
+    const ledger = Array.from({ length: 10_003 }, (_, index) =>
+      row({
+        id: String(index).padStart(8, "0"),
+        status: states[index % states.length],
+      }),
+    );
+    const queries: { owner?: string; orders: string[]; from?: number }[] = [];
+    const client = {
+      from: (table: string) => {
+        expect(table).toBe("memory_items");
+        const observed: (typeof queries)[number] = { orders: [] };
+        queries.push(observed);
+        const q = {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn((column: string, owner: string) => {
+            expect(column).toBe("user_id");
+            observed.owner = owner;
+            return q;
+          }),
+          order: vi.fn((column: string) => {
+            observed.orders.push(column);
+            return q;
+          }),
+          range: vi.fn(async (from: number, to: number) => {
+            observed.from = from;
+            return {
+              data: ledger.slice(from, Math.min(to + 1, from + 137)),
+              error: null,
+            };
+          }),
+        };
+        return q;
+      },
+    } as unknown as RepositorySupabaseClient;
+    const clientFor = vi.fn(() => client);
+    const result = await new SupabaseMemoryStore({ clientFor }).exportForUser(
+      userId,
+      { accessToken: "verified-token" },
+    );
+    expect(result.map((m) => m.id)).toEqual(ledger.map((m) => m.id));
+    expect(new Set(result.map((m) => m.status))).toEqual(new Set(states));
+    expect(
+      queries.every(
+        (q) => q.owner === userId && q.orders.join(",") === "created_at,id",
+      ),
+    ).toBe(true);
+    expect(queries.at(-1)?.from).toBe(ledger.length);
+    expect(clientFor).toHaveBeenCalledWith("verified-token");
+  });
+
+  it("rejects memory export without an access token before creating a client", async () => {
+    const clientFor = vi.fn();
+    await expect(
+      new SupabaseMemoryStore({ clientFor }).exportForUser(userId, {
+        accessToken: "",
+      }),
+    ).rejects.toThrow("verified access token");
+    expect(clientFor).not.toHaveBeenCalled();
+  });
 });

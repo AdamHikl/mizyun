@@ -251,6 +251,7 @@ describe("SupabaseAccountRepository", () => {
     } as unknown as SupabaseMediaStorage;
 
     const memoryStore = {
+      exportForUser: vi.fn().mockResolvedValue([{ id: "mem-1" }]),
       list: vi.fn().mockResolvedValue([{ id: "mem-1" }]),
       delete: vi.fn().mockResolvedValue(undefined),
     } as unknown as MemoryStore;
@@ -831,7 +832,7 @@ describe("SupabaseAccountRepository", () => {
     );
   });
 
-  it("exportForUser returns complete manifest and signed URLs", async () => {
+  it("exportForUser preserves signed URLs but reports link-only media as partial", async () => {
     const mediaStorage = {
       remove: vi.fn(),
       signDownloadUrl: vi.fn().mockResolvedValue({
@@ -866,7 +867,7 @@ describe("SupabaseAccountRepository", () => {
     expect(result.userId).toBe(testUserId);
     expect(result.manifest).toMatchObject({
       schemaVersion: "2026-09-08",
-      completeness: "complete",
+      completeness: "partial",
       counts: {
         profiles: 1,
         goals: 0,
@@ -1015,13 +1016,54 @@ describe("SupabaseAccountRepository", () => {
     const recurrenceQueries = queries.filter((q) =>
       q.table.startsWith("recurring_meal_"),
     );
-    expect(recurrenceQueries).toHaveLength(4);
+    expect(recurrenceQueries).toHaveLength(6);
     expect(
       recurrenceQueries.every(
         (q) => q.column === "user_id" && q.owner === testUserId,
       ),
     ).toBe(true);
     expect(recurrenceQueries.filter((q) => q.from === 500)).toHaveLength(2);
+  });
+
+  it.each(["user_ai_consents", "product_analytics_consents"])(
+    "fails export when the %s read fails instead of omitting consent",
+    async (failedTable) => {
+      const client = {
+        from: (table: string) => {
+          const query = {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            order: vi.fn().mockReturnThis(),
+            range: vi.fn().mockResolvedValue({ data: [], error: null }),
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: null,
+              error:
+                table === failedTable
+                  ? { message: "private backend details" }
+                  : null,
+            }),
+          };
+          return query;
+        },
+      } as unknown as RepositorySupabaseClient;
+      const repo = new SupabaseAccountRepository(
+        createMockOptions({ clientFor: () => client }),
+      );
+      await expect(
+        repo.exportForUser(testUserId, { accessToken: "verified-token" }),
+      ).rejects.toThrow("Unable to export");
+    },
+  );
+
+  it("labels the non-paged fallback partial even without media", async () => {
+    const repo = new SupabaseAccountRepository(
+      createMockOptions({ mediaAssetRepository: null }),
+    );
+    const exported = await repo.exportForUser(testUserId, {
+      accessToken: "verified-token",
+    });
+    expect(exported.privateMedia).toEqual([]);
+    expect(exported.manifest?.completeness).toBe("partial");
   });
 
   it("getDeletionJobByToken retrieves active deletion job by confirmation token", async () => {

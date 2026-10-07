@@ -41,6 +41,7 @@ import type { MemoryStore } from "@mizyun/memory";
 
 import type { RepositorySupabaseClient } from "./index.js";
 import { RepositoryError } from "./repository-error.js";
+import { fetchAllExportPages as fetchAllPaged } from "./export-pagination.js";
 import { goalFromRow } from "./goal-repository.js";
 import { foodEntryFromRow } from "./food-entry-repository.js";
 import { exerciseFromRow } from "./exercise-repository.js";
@@ -97,50 +98,6 @@ export const DELETION_WORKER_LEASE_MS = 120_000; // 2 minutes
 
 const hashToken = (token: string): string =>
   crypto.createHash("sha256").update(token).digest("hex");
-
-const EXPORT_PAGE_SIZE = 500;
-const MAX_EXPORT_PAGES = 1000;
-
-async function fetchAllPaged<T extends Record<string, unknown>>(
-  client: RepositorySupabaseClient,
-  table: string,
-  filterCol: string,
-  filterVal: string,
-  orderCol: string,
-  ascending = true,
-  tieBreaker = "id",
-): Promise<ReadonlyArray<T>> {
-  const all: T[] = [];
-  let offset = 0;
-  let page = 0;
-  while (page < MAX_EXPORT_PAGES) {
-    page++;
-    let query = client.from<T>(table).select("*").eq(filterCol, filterVal);
-
-    if (orderCol === "id") {
-      query = query.order("id", { ascending });
-    } else {
-      query = query
-        .order(orderCol, { ascending })
-        .order(tieBreaker, { ascending: true });
-    }
-
-    const { data, error } = await query.range(
-      offset,
-      offset + EXPORT_PAGE_SIZE - 1,
-    );
-    if (error) {
-      throw new RepositoryError(`Error exporting ${table}: ${error.message}`);
-    }
-    const chunk = (data ?? []) as readonly T[];
-    if (chunk.length === 0) break;
-    all.push(...chunk);
-    offset += chunk.length;
-    // If the database returned fewer than the requested page size, we've reached the end
-    if (chunk.length < EXPORT_PAGE_SIZE) break;
-  }
-  return all;
-}
 
 export interface SupabaseAccountRepositoryOptions {
   readonly communityLifecycleEnabled?: boolean;
@@ -262,7 +219,6 @@ export class SupabaseAccountRepository implements AccountRepository {
     let productAnalyticsConsent: StoredProductAnalyticsConsent | null = null;
     let productAnalyticsEvents: ReadonlyArray<StoredProductAnalyticsEvent> = [];
     let memoryCount = 0;
-    let hasMediaSigningFailures = false;
     let community: AccountExport["community"];
     let recurringMeals: AccountExport["recurringMeals"];
     let runOperationReceipts: AccountExport["runOperationReceipts"];
@@ -447,9 +403,6 @@ export class SupabaseAccountRepository implements AccountRepository {
               })
               .catch(() => null);
             downloadUrl = signed?.url ?? null;
-            if (!downloadUrl) {
-              hasMediaSigningFailures = true;
-            }
           }
           return {
             id: asset.id,
@@ -463,20 +416,25 @@ export class SupabaseAccountRepository implements AccountRepository {
         }),
       );
 
-      const { data: consentRow } = await client
+      const { data: consentRow, error: consentError } = await client
         .from<AiConsentRow>("user_ai_consents")
         .select("*")
         .eq("user_id", userId)
         .maybeSingle();
+      if (consentError)
+        throw new RepositoryError("Unable to export AI consent");
       if (consentRow) {
         aiConsent = aiConsentFromRow(consentRow);
       }
 
-      const { data: paConsentRow } = await client
+      const { data: paConsentRow, error: paConsentError } = await client
         .from<ProductAnalyticsConsentRow>("product_analytics_consents")
         .select("*")
         .eq("user_id", userId)
         .maybeSingle();
+      if (paConsentError) {
+        throw new RepositoryError("Unable to export analytics consent");
+      }
       if (paConsentRow) {
         productAnalyticsConsent = productAnalyticsConsentFromRow(paConsentRow);
       }
@@ -586,9 +544,6 @@ export class SupabaseAccountRepository implements AccountRepository {
               })
               .catch(() => null);
             downloadUrl = signed?.url ?? null;
-            if (!downloadUrl) {
-              hasMediaSigningFailures = true;
-            }
           }
           return {
             id: asset.id,
@@ -602,13 +557,9 @@ export class SupabaseAccountRepository implements AccountRepository {
         }),
       );
       if (this.#memoryStore) {
-        const mems = await this.#memoryStore
-          .list(userId, {
-            accessToken: token,
-            includeSuperseded: true,
-            limit: 10_000,
-          })
-          .catch(() => []);
+        const mems = await this.#memoryStore.exportForUser(userId, {
+          accessToken: token,
+        });
         memoryCount = mems.length;
       }
       if (this.#aiConsentRepository) {
@@ -636,7 +587,10 @@ export class SupabaseAccountRepository implements AccountRepository {
     const manifest: ExportManifest = {
       schemaVersion: "2026-09-08",
       generatedAt: now,
-      completeness: hasMediaSigningFailures ? "partial" : "complete",
+      completeness:
+        this.#clientFor === null || privateMedia.length > 0
+          ? "partial"
+          : "complete",
       counts: {
         profiles: profile ? 1 : 0,
         goals: goals.length,
