@@ -80,17 +80,25 @@ vi.mock("@/composition/analytics-client", () => ({
     track: mocks.track,
   },
 }));
+// The preparation helper is real; the authenticated transport is a separate
+// boundary and must not initialize native/Auth configuration in this fixture.
+vi.mock("@/composition/api-client", () => ({
+  apiClient: { request: vi.fn(), status: () => ({ configured: true }) },
+}));
 vi.mock("@/features/logging-draft-storage", () => ({
-  loadLoggingDraft: async () => ({
+  loadRequiredLoggingDraft: async () => ({
     unitSystem: "metric",
     weight: "77.5",
     waist: "85",
     chest: "100",
   }),
-  saveLoggingDraft: vi.fn(),
+  saveLoggingDraft: vi.fn().mockResolvedValue(true),
   clearLoggingDraft: vi.fn(),
 }));
-vi.mock("./log-weight-data", () => ({ submitLogWeight: mocks.submit }));
+vi.mock("./log-weight-data", async (original) => ({
+  ...(await original<typeof import("./log-weight-data")>()),
+  submitLogWeight: mocks.submit,
+}));
 import { LogWeightScreen } from "./log-weight-screen";
 function render(): any {
   mocks.index = 0;
@@ -129,12 +137,18 @@ it("emits one correlated record only on a successful measurement save, without m
   await settle();
   mocks.remove!();
   await settle();
-  expect(mocks.submit).toHaveBeenCalledWith({
-    weight: "77.5",
-    waist: "85",
-    chest: "100",
-    unitSystem: "metric",
-  });
+  expect(mocks.submit).toHaveBeenCalledWith(
+    expect.objectContaining({
+      weightKg: 77.5,
+      measurements: { waist_cm: 85, chest_cm: 100 },
+      clientOperationId: expect.any(String),
+      measuredAt: expect.any(String),
+    }),
+    expect.objectContaining({
+      expectedUserId: "owner-a",
+      isCurrent: expect.any(Function),
+    }),
+  );
   expect(mocks.track.mock.calls.map(([event]) => event.name)).toEqual([
     "logging_flow_started",
     "logging_flow_completed",
@@ -159,7 +173,7 @@ it("reports failed save and observed navigation exit without a core record", asy
   ]);
 });
 
-it("captures the old attempt for delayed A saves instead of completing B's newly rendered attempt", async () => {
+it("does not complete B's attempt when A's save resolves after an account switch", async () => {
   let resolve!: (value: { ok: true }) => void;
   mocks.submit.mockReturnValue(
     new Promise((done) => {
@@ -167,6 +181,7 @@ it("captures the old attempt for delayed A saves instead of completing B's newly
     }),
   );
   save();
+  await settle();
   mocks.owner = "owner-b";
   render();
   resolve({ ok: true });
@@ -174,8 +189,8 @@ it("captures the old attempt for delayed A saves instead of completing B's newly
   expect(
     mocks.track.mock.calls.filter(
       ([event]) => event.name === "logging_flow_completed",
-    )[0][1].flowId,
-  ).toBe("scope-1");
+    ),
+  ).toHaveLength(0);
   expect(
     mocks.track.mock.calls.filter(
       ([event]) => event.name === "logging_flow_started",

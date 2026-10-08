@@ -37,8 +37,10 @@ const tokenVerifierFor = (
       : null,
 });
 
-const build = (verifier: AccessTokenVerifier) => {
-  const bodyMeasurementRepository = new InMemoryBodyMeasurementRepository();
+const build = (
+  verifier: AccessTokenVerifier,
+  bodyMeasurementRepository = new InMemoryBodyMeasurementRepository(),
+) => {
   const app = buildApp({
     tokenVerifier: verifier,
     agent: new AgentOrchestrator({
@@ -189,6 +191,193 @@ describe("GET /v1/body-measurements", () => {
     });
     expect(response.statusCode).toBe(200);
     expect(response.json().bodyMeasurements).toHaveLength(1);
+  });
+});
+
+describe("body measurement operation replay", () => {
+  const operation = "11111111-1111-4111-8111-111111111111";
+  const payload = {
+    clientOperationId: operation,
+    measuredAt: "2026-10-08T10:00:00.000Z",
+    weightKg: 72,
+    measurements: { waist_cm: 81, nested: { a: 1, b: 2 } },
+  };
+  const request = (
+    app: ReturnType<typeof buildApp>,
+    body: Record<string, unknown> = payload,
+    header = operation,
+  ) =>
+    app.inject({
+      method: "POST",
+      url: "/v1/body-measurements",
+      headers: { authorization: "Bearer valid", "idempotency-key": header },
+      payload: body,
+    });
+  const rowCount = async (
+    repo: InMemoryBodyMeasurementRepository,
+    userId = userA,
+  ) =>
+    (
+      await repo.list(userId, {
+        from: null,
+        to: null,
+        limit: 200,
+        accessToken: "test-token",
+      })
+    ).length;
+
+  it("rejects excess numeric(6,3) precision before insert and replays a valid three-decimal weight", async () => {
+    const { app, bodyMeasurementRepository: repo } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    const invalid = await request(app, { ...payload, weightKg: 72.1234 });
+    expect(invalid.statusCode).toBe(422);
+    expect(await rowCount(repo)).toBe(0);
+    const valid = { ...payload, weightKg: 72.123 };
+    const first = await request(app, valid);
+    const replay = await request(app, valid);
+    expect(first.statusCode).toBe(200);
+    expect(replay.statusCode).toBe(200);
+    expect(replay.json().bodyMeasurement.id).toBe(
+      first.json().bodyMeasurement.id,
+    );
+    expect(replay.json().bodyMeasurement.weightKg).toBe(72.123);
+    expect(await rowCount(repo)).toBe(1);
+  });
+
+  it("returns the same row after a lost response and API process restart", async () => {
+    const first = build(tokenVerifierFor({ userId: userA }));
+    const committed = await request(first.app);
+    expect(committed.statusCode).toBe(200);
+    // Drop this response at the transport boundary; retain the durable repository.
+    await first.app.close();
+    apps.splice(apps.indexOf(first.app), 1);
+    const restarted = build(
+      tokenVerifierFor({ userId: userA }),
+      first.bodyMeasurementRepository,
+    );
+    const replay = await request(restarted.app);
+    expect(replay.statusCode).toBe(200);
+    expect(replay.json().bodyMeasurement.id).toBe(
+      committed.json().bodyMeasurement.id,
+    );
+    expect(await rowCount(first.bodyMeasurementRepository)).toBe(1);
+  });
+
+  it("deduplicates simultaneous requests and rejects a changed concurrent payload", async () => {
+    const { app, bodyMeasurementRepository: repo } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    const responses = await Promise.all([request(app), request(app)]);
+    expect(responses.map((r) => r.statusCode)).toEqual([200, 200]);
+    expect(responses[0]!.json().bodyMeasurement.id).toBe(
+      responses[1]!.json().bodyMeasurement.id,
+    );
+    expect(await rowCount(repo)).toBe(1);
+    const next = "22222222-2222-4222-8222-222222222222";
+    const race = await Promise.all([
+      request(app, { ...payload, clientOperationId: next }, next),
+      request(app, { ...payload, clientOperationId: next, weightKg: 73 }, next),
+    ]);
+    expect(race.map((r) => r.statusCode).sort()).toEqual([200, 409]);
+    expect(await rowCount(repo)).toBe(2);
+  });
+
+  it("conflicts on changed values or time, but ignores JSON object key order", async () => {
+    const { app, bodyMeasurementRepository: repo } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    await request(app);
+    for (const body of [
+      { ...payload, weightKg: 73 },
+      { ...payload, measuredAt: "2026-10-08T10:01:00Z" },
+      { ...payload, measurements: { waist_cm: 82 } },
+    ]) {
+      const response = await request(app, body);
+      expect(response.statusCode).toBe(409);
+      expect(response.json().error.code).toBe("CONFLICT");
+    }
+    expect(
+      (
+        await request(app, {
+          ...payload,
+          measuredAt: "2026-10-08T12:00:00+02:00",
+          measurements: { nested: { b: 2, a: 1 }, waist_cm: 81 },
+        })
+      ).statusCode,
+    ).toBe(200);
+    expect(await rowCount(repo)).toBe(1);
+  });
+
+  it("normalizes omitted/null weight and empty measurements for a replay", async () => {
+    const { app, bodyMeasurementRepository: repo } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    const body = {
+      clientOperationId: operation,
+      measuredAt: payload.measuredAt,
+      measurements: { waist_cm: 81 },
+    };
+    const first = await request(app, body);
+    const replay = await request(app, { ...body, weightKg: null });
+    expect(replay.statusCode).toBe(200);
+    expect(replay.json().bodyMeasurement.id).toBe(
+      first.json().bodyMeasurement.id,
+    );
+    expect(await rowCount(repo)).toBe(1);
+  });
+
+  it("scopes the same UUID to each authenticated owner and allows an intentional new entry", async () => {
+    const first = build(tokenVerifierFor({ userId: userA }));
+    const second = build(
+      tokenVerifierFor({ userId: userB }),
+      first.bodyMeasurementRepository,
+    );
+    const a = await request(first.app);
+    const b = await request(second.app);
+    expect(a.json().bodyMeasurement.userId).toBe(userA);
+    expect(b.json().bodyMeasurement.userId).toBe(userB);
+    expect(a.json().bodyMeasurement.id).not.toBe(b.json().bodyMeasurement.id);
+    const next = "22222222-2222-4222-8222-222222222222";
+    expect(
+      (await request(first.app, { ...payload, clientOperationId: next }, next))
+        .statusCode,
+    ).toBe(200);
+    expect(await rowCount(first.bodyMeasurementRepository)).toBe(2);
+    expect(await rowCount(first.bodyMeasurementRepository, userB)).toBe(1);
+  });
+
+  it("rejects invalid/mismatched identity or a keyed request without its fixed time", async () => {
+    const { app, bodyMeasurementRepository: repo } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    expect((await request(app, payload, "bad")).statusCode).toBe(422);
+    expect(
+      (await request(app, payload, "22222222-2222-4222-8222-222222222222"))
+        .statusCode,
+    ).toBe(409);
+    expect(
+      (await request(app, { clientOperationId: operation, weightKg: 72 }))
+        .statusCode,
+    ).toBe(422);
+    expect((await request(app, { weightKg: 72 })).statusCode).toBe(422);
+    expect(await rowCount(repo)).toBe(0);
+  });
+
+  it("keeps older unkeyed clients compatible without claiming retry deduplication", async () => {
+    const { app, bodyMeasurementRepository: repo } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    for (let i = 0; i < 2; i++) {
+      const response = await app.inject({
+        method: "POST",
+        url: "/v1/body-measurements",
+        headers: { authorization: "Bearer valid" },
+        payload: { weightKg: 72 },
+      });
+      expect(response.statusCode).toBe(200);
+    }
+    expect(await rowCount(repo)).toBe(2);
   });
 });
 

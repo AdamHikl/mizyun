@@ -29,6 +29,26 @@ export class InMemoryBodyMeasurementRepository implements BodyMeasurementReposit
   readonly #byUser = new Map<UserId, StoredBodyMeasurement[]>();
   readonly #byId = new Map<string, StoredBodyMeasurement>();
 
+  async findByClientOperationId(
+    userId: UserId,
+    clientOperationId: string,
+    options: { readonly accessToken: string },
+  ): Promise<StoredBodyMeasurement | null> {
+    void options.accessToken;
+    return this.#findOperation(userId, clientOperationId);
+  }
+
+  #findOperation(
+    userId: UserId,
+    operationId: string,
+  ): StoredBodyMeasurement | null {
+    return (
+      this.#byUser
+        .get(userId)
+        ?.find((entry) => entry.clientOperationId === operationId) ?? null
+    );
+  }
+
   async create(
     userId: UserId,
     measurement: StoredBodyMeasurement,
@@ -37,6 +57,13 @@ export class InMemoryBodyMeasurementRepository implements BodyMeasurementReposit
     void options.accessToken;
     if (measurement.userId !== userId) {
       throw new Error("body measurement create userId mismatch");
+    }
+    if (measurement.clientOperationId) {
+      const existing = this.#findOperation(
+        userId,
+        measurement.clientOperationId,
+      );
+      if (existing !== null) return existing;
     }
     if (this.#byId.has(measurement.id)) {
       throw new Error(`body measurement id collision ${measurement.id}`);

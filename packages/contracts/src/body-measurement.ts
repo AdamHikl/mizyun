@@ -76,11 +76,20 @@ export type BodyMeasurementListResponse = z.infer<
  */
 export const bodyMeasurementCreateSchema = z
   .object({
+    clientOperationId: z.string().uuid().optional(),
     measuredAt: isoInstantSchema.optional(),
     weightKg: weightKgSchema.nullable().optional(),
     measurements: z.record(z.unknown()).optional(),
   })
   .strict()
+  .refine(
+    (create) =>
+      create.clientOperationId === undefined || create.measuredAt !== undefined,
+    {
+      message: "measuredAt is required with clientOperationId",
+      path: ["measuredAt"],
+    },
+  )
   .refine(
     (create) =>
       create.weightKg !== undefined ||

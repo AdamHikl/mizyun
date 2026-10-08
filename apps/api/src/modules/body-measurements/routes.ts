@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from "fastify";
+import { isDeepStrictEqual } from "node:util";
 import {
   validateBodyMeasurementCreate,
   type BodyMeasurementRepository,
@@ -174,6 +175,47 @@ export const bodyMeasurementsRoutes: FastifyPluginAsync<
         );
         return;
       }
+      const headerOperation = request.headers["idempotency-key"];
+      if (
+        headerOperation !== undefined &&
+        (typeof headerOperation !== "string" ||
+          !GENERIC_UUID.test(headerOperation))
+      ) {
+        await sendApiError(
+          reply,
+          request,
+          422,
+          "VALIDATION_ERROR",
+          "Idempotency-Key must be a UUID.",
+        );
+        return;
+      }
+      const bodyOperation = parsed.data.clientOperationId?.toLowerCase();
+      const headerId =
+        typeof headerOperation === "string"
+          ? headerOperation.toLowerCase()
+          : undefined;
+      if (bodyOperation && headerId && bodyOperation !== headerId) {
+        await sendApiError(
+          reply,
+          request,
+          409,
+          "CONFLICT",
+          "The body and header operation identities differ.",
+        );
+        return;
+      }
+      const clientOperationId = bodyOperation ?? headerId;
+      if (clientOperationId && !parsed.data.measuredAt) {
+        await sendApiError(
+          reply,
+          request,
+          422,
+          "VALIDATION_ERROR",
+          "measuredAt is required for repeatable measurements.",
+        );
+        return;
+      }
       const measuredAt = parsed.data.measuredAt
         ? new Date(parsed.data.measuredAt)
         : new Date();
@@ -196,9 +238,39 @@ export const bodyMeasurementsRoutes: FastifyPluginAsync<
         );
         return;
       }
+      const matches = (existing: StoredBodyMeasurement): boolean =>
+        existing.userId === principal.userId &&
+        existing.measuredAt.getTime() === measuredAt.getTime() &&
+        existing.weightKg === (parsed.data.weightKg ?? null) &&
+        isDeepStrictEqual(
+          existing.measurements,
+          parsed.data.measurements ?? {},
+        );
+      if (clientOperationId) {
+        const existing =
+          await options.bodyMeasurementRepository.findByClientOperationId(
+            principal.userId,
+            clientOperationId,
+            { accessToken: principal.accessToken },
+          );
+        if (existing !== null) {
+          if (!matches(existing)) {
+            await sendApiError(
+              reply,
+              request,
+              409,
+              "CONFLICT",
+              "This operation already saved a different measurement. Recover the original entry before making changes.",
+            );
+            return;
+          }
+          return toWire(existing);
+        }
+      }
       const now = new Date();
       const id = crypto.randomUUID();
       const stored: StoredBodyMeasurement = {
+        clientOperationId: clientOperationId ?? null,
         id,
         userId: principal.userId,
         source: "manual" as BodyMeasurementSource,
@@ -214,6 +286,17 @@ export const bodyMeasurementsRoutes: FastifyPluginAsync<
         stored,
         { accessToken: principal.accessToken },
       );
+      // A concurrent insert can return the winner; compare its canonical payload too.
+      if (clientOperationId && !matches(saved)) {
+        await sendApiError(
+          reply,
+          request,
+          409,
+          "CONFLICT",
+          "This operation already saved a different measurement. Recover the original entry before making changes.",
+        );
+        return;
+      }
       return toWire(saved);
     },
   );

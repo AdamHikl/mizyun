@@ -10,6 +10,7 @@ import { RepositoryError } from "./repository-error.js";
 interface BodyMeasurementRow extends Record<string, unknown> {
   readonly id: string;
   readonly user_id: string;
+  readonly client_operation_id?: string | null;
   readonly measured_at: string;
   readonly weight_kg: number | null;
   readonly measurements: Record<string, unknown>;
@@ -22,6 +23,7 @@ export const bodyMeasurementFromRow = (
 ): StoredBodyMeasurement => ({
   id: row.id,
   userId: row.user_id as UserId,
+  clientOperationId: row.client_operation_id ?? null,
   measuredAt: new Date(row.measured_at),
   weightKg: row.weight_kg,
   measurements: { ...row.measurements },
@@ -36,6 +38,7 @@ const toInsertRow = (
 ): Partial<BodyMeasurementRow> => ({
   id: measurement.id,
   user_id: userId,
+  client_operation_id: measurement.clientOperationId ?? null,
   measured_at: measurement.measuredAt.toISOString(),
   weight_kg: measurement.weightKg,
   measurements: { ...measurement.measurements },
@@ -53,6 +56,21 @@ export class SupabaseBodyMeasurementRepository implements BodyMeasurementReposit
     this.#clientFor = options.clientFor;
   }
 
+  async findByClientOperationId(
+    userId: UserId,
+    clientOperationId: string,
+    options: { readonly accessToken: string },
+  ): Promise<StoredBodyMeasurement | null> {
+    const { data, error } = await this.#clientFor(options.accessToken)
+      .from<BodyMeasurementRow>("body_measurements")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("client_operation_id", clientOperationId)
+      .maybeSingle();
+    if (error) throw new RepositoryError(error.message);
+    return data === null ? null : fromRow(data);
+  }
+
   async create(
     userId: UserId,
     measurement: StoredBodyMeasurement,
@@ -65,6 +83,14 @@ export class SupabaseBodyMeasurementRepository implements BodyMeasurementReposit
       .select("*")
       .single();
     if (error || data === null) {
+      if (measurement.clientOperationId && error?.code === "23505") {
+        const existing = await this.findByClientOperationId(
+          userId,
+          measurement.clientOperationId,
+          options,
+        );
+        if (existing !== null) return existing;
+      }
       throw new RepositoryError(
         error?.message ?? "body measurement insert returned no row",
       );

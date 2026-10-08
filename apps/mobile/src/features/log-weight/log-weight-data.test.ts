@@ -1,13 +1,20 @@
 import { describe, expect, it } from "vitest";
-
 import type { ApiClient, ApiError, RequestOptions } from "@mizyun/api-client";
 import type { Result } from "@mizyun/core";
+import {
+  prepareWeightSubmission,
+  submitLogWeightWith,
+  type WeightSubmission,
+} from "./log-weight-data";
 
-import { submitLogWeightWith } from "./log-weight-data";
-
-const NOW = new Date("2026-07-19T10:15:00.000Z");
+const NOW = "2026-07-19T10:15:00.000Z";
 const ID = "00000000-0000-4000-8000-000000000001";
-
+const form = {
+  weight: "72",
+  waist: "",
+  chest: "",
+  unitSystem: "metric" as const,
+};
 const fakeClient = (
   result: Result<unknown, ApiError>,
   requests: RequestOptions[] = [],
@@ -23,64 +30,75 @@ const fakeClient = (
   }),
 });
 
-describe("submitLogWeightWith", () => {
-  it("rejects a missing or non-positive weight", async () => {
-    const client = fakeClient({ ok: true, value: {} });
-    await expect(
-      submitLogWeightWith(
-        { weight: "", waist: "", chest: "", unitSystem: "metric" },
-        client,
-      ),
-    ).resolves.toMatchObject({ ok: false });
-    await expect(
-      submitLogWeightWith(
-        { weight: "0", waist: "", chest: "", unitSystem: "metric" },
-        client,
-      ),
-    ).resolves.toMatchObject({ ok: false });
+describe("measurement submission boundary", () => {
+  it("rejects empty, nonpositive, or malformed optional measurements before preparing a command", () => {
+    for (const invalid of [
+      { ...form, weight: "" },
+      { ...form, weight: "0" },
+      { ...form, waist: "not a number" },
+    ]) {
+      expect(prepareWeightSubmission(invalid, ID, NOW).ok).toBe(false);
+    }
   });
-
-  it("converts pounds to canonical kilograms before posting", async () => {
+  it("converts pounds/inches once, with fixed identity and time, before posting", async () => {
+    const prepared = prepareWeightSubmission(
+      { ...form, weight: "160", waist: "32", unitSystem: "imperial" },
+      ID,
+      NOW,
+    );
+    expect(prepared.ok).toBe(true);
+    if (!prepared.ok) throw new Error("fixture invalid");
     const requests: RequestOptions[] = [];
-    const response = {
-      bodyMeasurement: {
-        id: ID,
-        userId: ID,
-        measuredAt: NOW.toISOString(),
-        weightKg: 72.574_779,
-        measurements: {},
-        source: "manual",
-        createdAt: NOW.toISOString(),
-      },
-    };
     const result = await submitLogWeightWith(
-      {
-        weight: "160",
-        waist: "32",
-        chest: "",
-        unitSystem: "imperial",
-      },
-      fakeClient({ ok: true, value: response }, requests),
-      () => NOW,
+      prepared.payload,
+      fakeClient(
+        { ok: true, value: { bodyMeasurement: { id: ID } } },
+        requests,
+      ),
     );
     expect(result).toEqual({ ok: true, id: ID });
-    const body = requests[0]?.body as { weightKg?: number };
-    expect(body.weightKg).toBe(72.575);
-    expect(body).toMatchObject({ measurements: { waist_cm: 81.28 } });
-  });
-
-  it("does not silently omit an invalid optional field", async () => {
-    const requests: RequestOptions[] = [];
-    const result = await submitLogWeightWith(
-      {
-        weight: "72",
-        waist: "not a number",
-        chest: "",
-        unitSystem: "metric",
+    expect(requests[0]).toMatchObject({
+      body: {
+        clientOperationId: ID,
+        measuredAt: NOW,
+        weightKg: 72.575,
+        measurements: { waist_cm: 81.28 },
       },
-      fakeClient({ ok: true, value: {} }, requests),
-    );
-    expect(result.ok).toBe(false);
+      headers: { "Idempotency-Key": ID },
+    });
+  });
+  it("does not invent an identity or timestamp for a keyless restored command", async () => {
+    const requests: RequestOptions[] = [];
+    const client = fakeClient({ ok: true, value: {} }, requests);
+    for (const payload of [
+      { weightKg: 72 },
+      { weightKg: 72, measuredAt: NOW },
+      { weightKg: 72, measuredAt: NOW, clientOperationId: "bad" },
+    ]) {
+      expect(
+        (await submitLogWeightWith(payload as WeightSubmission, client)).ok,
+      ).toBe(false);
+    }
     expect(requests).toHaveLength(0);
+  });
+  it("passes the owner/context guard to the API client without changing the immutable payload", async () => {
+    const requests: RequestOptions[] = [];
+    const isCurrent = () => true;
+    const payload: WeightSubmission = {
+      clientOperationId: ID,
+      measuredAt: NOW,
+      weightKg: 72,
+    };
+    await submitLogWeightWith(
+      payload,
+      fakeClient(
+        { ok: true, value: { bodyMeasurement: { id: ID } } },
+        requests,
+      ),
+      { expectedUserId: "owner-a", isCurrent },
+    );
+    expect(requests[0]?.body).toEqual(payload);
+    expect(requests[0]?.expectedUserId).toBe("owner-a");
+    expect(requests[0]?.isCurrent).toBe(isCurrent);
   });
 });

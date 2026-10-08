@@ -20,6 +20,7 @@ const measurementRow = {
 };
 
 const fakeClient = (opts: {
+  filters?: unknown[][];
   selectMaybeSingle?: RepositorySingleResult<unknown>;
   insertSingle?: RepositorySingleResult<unknown>;
   selectList?: RepositoryListResult<unknown>;
@@ -30,7 +31,13 @@ const fakeClient = (opts: {
       insert: vi.fn().mockReturnThis(),
       update: vi.fn().mockReturnThis(),
       delete: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockImplementation(function (
+        this: unknown,
+        ...args: unknown[]
+      ) {
+        opts.filters?.push(args);
+        return this;
+      }),
       gte: vi.fn().mockReturnThis(),
       lte: vi.fn().mockReturnThis(),
       order: vi.fn().mockReturnThis(),
@@ -74,6 +81,80 @@ describe("SupabaseBodyMeasurementRepository.create", () => {
     );
     expect(result.weightKg).toBe(70);
     expect(result.measurements).toEqual({ body_fat_percent: 18.5 });
+  });
+
+  it("recovers a unique-index race using both owner and operation filters", async () => {
+    const operation = "11111111-1111-4111-8111-111111111111";
+    const filters: unknown[][] = [];
+    const clientFor = vi.fn((_token: string) =>
+      fakeClient({
+        insertSingle: {
+          data: null,
+          error: { code: "23505", message: "unique violation" },
+        },
+        selectMaybeSingle: {
+          data: { ...measurementRow, client_operation_id: operation },
+          error: null,
+        },
+        filters,
+      }),
+    );
+    const repo = new SupabaseBodyMeasurementRepository({ clientFor });
+    const result = await repo.create(
+      measurementRow.user_id as UserId,
+      {
+        id: "22222222-2222-4222-8222-222222222222",
+        userId: measurementRow.user_id as UserId,
+        clientOperationId: operation,
+        measuredAt: new Date(measurementRow.measured_at),
+        weightKg: 70,
+        measurements: measurementRow.measurements,
+        source: "manual",
+        createdAt: new Date(measurementRow.created_at),
+      },
+      { accessToken: "owner-token" },
+    );
+    expect(result.id).toBe(measurementRow.id);
+    expect(result.clientOperationId).toBe(operation);
+    expect(filters).toEqual([
+      ["user_id", measurementRow.user_id],
+      ["client_operation_id", operation],
+    ]);
+    expect(
+      clientFor.mock.calls.every(([token]) => token === "owner-token"),
+    ).toBe(true);
+  });
+
+  it("does not disguise unrelated insert failures as a successful replay", async () => {
+    const filters: unknown[][] = [];
+    const repo = new SupabaseBodyMeasurementRepository({
+      clientFor: () =>
+        fakeClient({
+          insertSingle: {
+            data: null,
+            error: { code: "42501", message: "permission denied" },
+          },
+          selectMaybeSingle: { data: measurementRow, error: null },
+          filters,
+        }),
+    });
+    await expect(
+      repo.create(
+        measurementRow.user_id as UserId,
+        {
+          id: measurementRow.id,
+          userId: measurementRow.user_id as UserId,
+          clientOperationId: "11111111-1111-4111-8111-111111111111",
+          measuredAt: new Date(measurementRow.measured_at),
+          weightKg: 70,
+          measurements: measurementRow.measurements,
+          source: "manual",
+          createdAt: new Date(measurementRow.created_at),
+        },
+        { accessToken: "owner-token" },
+      ),
+    ).rejects.toThrow("permission denied");
+    expect(filters).toHaveLength(0);
   });
 });
 

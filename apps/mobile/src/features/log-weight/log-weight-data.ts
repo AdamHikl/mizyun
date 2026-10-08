@@ -5,7 +5,7 @@ import {
   type BodyMeasurementResponse,
 } from "@mizyun/contracts";
 
-import type { ApiClient, ApiError } from "@mizyun/api-client";
+import type { ApiClient, ApiError, RequestOptions } from "@mizyun/api-client";
 import { apiClient } from "@/composition/api-client";
 import type { Result } from "@mizyun/core";
 import { displayWeightToKilograms } from "@/lib/weight-units";
@@ -27,6 +27,22 @@ export interface LogWeightForm {
   readonly unitSystem: "metric" | "imperial";
 }
 
+export type WeightSubmission = BodyMeasurementCreate & {
+  readonly clientOperationId: string;
+  readonly measuredAt: string;
+};
+
+export const isWeightSubmission = (
+  value: unknown,
+): value is WeightSubmission => {
+  const parsed = bodyMeasurementCreateSchema.safeParse(value);
+  return (
+    parsed.success &&
+    parsed.data.clientOperationId !== undefined &&
+    parsed.data.measuredAt !== undefined
+  );
+};
+
 const humanize = (result: Result<unknown, ApiError>): string => {
   if (!result.ok) {
     switch (result.error.kind) {
@@ -35,6 +51,9 @@ const humanize = (result: Result<unknown, ApiError>): string => {
       case "network_error":
         return "Network unavailable. Try again when you're online.";
       case "http_error":
+        if (result.error.status === 409) {
+          return "This measurement was already saved with different values. Recover the original entry before making changes.";
+        }
         if (result.error.status === 422) {
           return "Please double-check the values and try again.";
         }
@@ -53,15 +72,17 @@ const humanize = (result: Result<unknown, ApiError>): string => {
 };
 
 export const submitLogWeight = async (
-  form: LogWeightForm,
-): Promise<LogWeightResult> =>
-  submitLogWeightWith(form, apiClient, () => new Date());
+  payload: WeightSubmission,
+  binding?: Pick<RequestOptions, "expectedUserId" | "isCurrent">,
+): Promise<LogWeightResult> => submitLogWeightWith(payload, apiClient, binding);
 
-export const submitLogWeightWith = async (
+export const prepareWeightSubmission = (
   form: LogWeightForm,
-  client: ApiClient,
-  now: () => Date = () => new Date(),
-): Promise<LogWeightResult> => {
+  clientOperationId: string,
+  measuredAt: string,
+):
+  | { readonly ok: true; readonly payload: WeightSubmission }
+  | { readonly ok: false; readonly message: string } => {
   const weight = parseOptionalPositive(form.weight);
   const waist = parseOptionalPositive(form.waist);
   const chest = parseOptionalPositive(form.chest);
@@ -76,8 +97,8 @@ export const submitLogWeightWith = async (
     typeof weight !== "number"
       ? null
       : displayWeightToKilograms(weight, form.unitSystem);
-  const measuredAt = now().toISOString();
   const payload: BodyMeasurementCreate = {
+    clientOperationId,
     ...(weightKg !== null ? { weightKg } : {}),
     ...(typeof waist === "number" || typeof chest === "number"
       ? {
@@ -104,11 +125,30 @@ export const submitLogWeightWith = async (
       message: "Please double-check the values and try again.",
     };
   }
+  return {
+    ok: true,
+    payload: { ...parsed.data, clientOperationId, measuredAt },
+  };
+};
+
+export const submitLogWeightWith = async (
+  payload: WeightSubmission,
+  client: ApiClient,
+  binding?: Pick<RequestOptions, "expectedUserId" | "isCurrent">,
+): Promise<LogWeightResult> => {
+  if (!isWeightSubmission(payload)) {
+    return {
+      ok: false,
+      message: "Recover the saved measurement draft before trying again.",
+    };
+  }
   const result = await client.request<BodyMeasurementResponse>({
     method: "POST",
     path: "/v1/body-measurements",
-    body: parsed.data,
+    body: bodyMeasurementCreateSchema.parse(payload),
+    headers: { "Idempotency-Key": payload.clientOperationId },
     schema: bodyMeasurementResponseSchema,
+    ...binding,
   });
   if (!result.ok) {
     return { ok: false, message: humanize(result) };

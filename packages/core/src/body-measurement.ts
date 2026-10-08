@@ -50,6 +50,7 @@ export interface BodyMeasurementCore {
  * (no `updatedAt` because the row is immutable).
  */
 export interface StoredBodyMeasurement extends BodyMeasurementCore {
+  readonly clientOperationId?: string | null;
   readonly id: string;
   readonly userId: UserId;
   readonly source: BodyMeasurementSource;
@@ -246,6 +247,11 @@ export const validateBodyMeasurementCreate = (create: {
  * `update` method.
  */
 export interface BodyMeasurementRepository {
+  findByClientOperationId(
+    userId: UserId,
+    clientOperationId: string,
+    options: { readonly accessToken: string },
+  ): Promise<StoredBodyMeasurement | null>;
   /**
    * `accessToken` is the verified principal's bearer token. The
    * in-memory adapter ignores it; the Supabase adapter uses it
