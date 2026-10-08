@@ -19,7 +19,7 @@ import {
   clearDeletionChallenge,
   clearLocalUserData,
   checkAccountDeletionStatus,
-  confirmAccountDeletion,
+  confirmRecoverableAccountDeletion,
   fetchAccountExport,
   loadDeletionChallenge,
   requestAccountDeletion,
@@ -214,10 +214,12 @@ export function AccountDataCard({
 
   const executeDeletion = async () => {
     const currentUserId = session?.user.id;
+    if (!currentUserId) return;
     setIsDeleting(true);
     setFeedbackMessage(null);
     try {
       let token = pendingChallenge?.token;
+      let expiresAt = pendingChallenge?.expiresAt;
       if (!token) {
         setDeletionStage("requesting_challenge");
         const challenge = await requestAccountDeletion(apiClient);
@@ -229,6 +231,7 @@ export function AccountDataCard({
           return;
         }
         token = challenge.confirmationToken;
+        expiresAt = challenge.expiresAt;
         const newChallenge = {
           token: challenge.confirmationToken,
           expiresAt: challenge.expiresAt,
@@ -278,9 +281,11 @@ export function AccountDataCard({
       }
 
       setDeletionStage("erasing_server_data");
-      const confirmResult = await confirmAccountDeletion(
+      if (!expiresAt) throw new Error("Missing deletion recovery receipt");
+      const confirmResult = await confirmRecoverableAccountDeletion(
         apiClient,
-        token,
+        currentUserId,
+        { token, expiresAt },
         appleAuthorizationCode,
       );
       if (!confirmResult.ok) {

@@ -26,6 +26,7 @@ import {
   clearDeletionChallenge,
   clearLocalUserData,
   confirmAccountDeletion,
+  confirmRecoverableAccountDeletion,
   fetchAccountExport,
   loadDeletionChallenge,
   requestAccountDeletion,
@@ -612,11 +613,13 @@ describe("account-data-management", () => {
       },
     ];
 
-    await clearLocalUserData(userId, {
-      clearHealthExports: async () => undefined,
-      challengeStore,
-      listExportFiles: () => mockFiles,
-    });
+    await expect(
+      clearLocalUserData(userId, {
+        clearHealthExports: async () => undefined,
+        challengeStore,
+        listExportFiles: () => mockFiles,
+      }),
+    ).rejects.toThrow("Local account data cleanup is incomplete.");
 
     expect(mockFiles[0]!.delete).toHaveBeenCalledTimes(1);
     expect(mockFiles[1]!.delete).toHaveBeenCalledTimes(1);
@@ -753,3 +756,119 @@ describe("local meal photo cleanup failure", () => {
     },
   );
 });
+
+describe("account deletion recovery boundaries", () => {
+  it("does not turn HTTP success with unfinished deletion into local cleanup success", async () => {
+    const client = {
+      request: vi
+        .fn()
+        .mockResolvedValue({ ok: true, value: { deleted: false } }),
+    } as unknown as ApiClient;
+    const result = await confirmAccountDeletion(client, "receipt");
+    expect(result).toMatchObject({
+      ok: false,
+      retryable: true,
+      reason: "server_error",
+    });
+  });
+
+  it("sends no deletion request when recovery persistence fails", async () => {
+    const request = vi.fn();
+    const store = {
+      getItemAsync: vi.fn(),
+      setItemAsync: vi.fn().mockRejectedValue(new Error("disk failed")),
+      deleteItemAsync: vi.fn(),
+    };
+    const result = await confirmRecoverableAccountDeletion(
+      { request } as unknown as ApiClient,
+      "owner",
+      { token: "receipt", expiresAt: "2026-10-08T12:00:00.000Z" },
+      undefined,
+      store,
+    );
+    expect(result.ok).toBe(false);
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it("waits for persisted recovery before dispatch and retains it after response loss", async () => {
+    const order: string[] = [];
+    const map = new Map<string, string>();
+    const store = {
+      getItemAsync: async (key: string) => map.get(key) ?? null,
+      setItemAsync: async (key: string, value: string) => {
+        map.set(key, value);
+        order.push("persist");
+      },
+      deleteItemAsync: async () => undefined,
+    };
+    const request = vi.fn(async () => {
+      order.push("delete");
+      return { ok: false, error: { kind: "network_error", message: "lost" } };
+    });
+    const challenge = {
+      token: "receipt",
+      expiresAt: "2026-10-08T12:00:00.000Z",
+    };
+    const result = await confirmRecoverableAccountDeletion(
+      { request } as unknown as ApiClient,
+      "owner",
+      challenge,
+      undefined,
+      store,
+    );
+    expect(result.ok).toBe(false);
+    expect(order).toEqual(["persist", "delete"]);
+    expect(await loadDeletionChallenge("owner", store)).toEqual(challenge);
+  });
+
+  it("reports export-list failure while still settling other cleanup", async () => {
+    const health = vi.fn(async () => undefined);
+    await expect(
+      clearLocalUserData("owner", {
+        listExportFiles: () => {
+          throw new Error("directory unavailable");
+        },
+        clearHealthExports: health,
+      }),
+    ).rejects.toThrow("Local account data cleanup is incomplete.");
+    expect(health).toHaveBeenCalledOnce();
+  });
+
+  it("reports preference purge failure without skipping export cleanup", async () => {
+    const remove = vi.fn();
+    await expect(
+      clearLocalUserData("owner", {
+        listExportFiles: () => [
+          { name: "mizyun-account-export-owned.json", delete: remove },
+        ],
+        clearHealthExports: async () => undefined,
+        workoutPreferencesStore: {
+          getItemAsync: vi.fn(),
+          setItemAsync: vi.fn(),
+          deleteItemAsync: vi.fn().mockRejectedValue(new Error("disk failure")),
+        },
+      }),
+    ).rejects.toThrow("Local account data cleanup is incomplete.");
+    expect(remove).toHaveBeenCalledOnce();
+  });
+});
+
+it.each(["draft", "consent"] as const)(
+  "reports %s cleanup returning false",
+  async (kind) => {
+    const failingStore = {
+      getItemAsync: vi.fn().mockResolvedValue(null),
+      setItemAsync: vi.fn(),
+      deleteItemAsync: vi.fn().mockRejectedValue(new Error("storage failure")),
+    };
+    await expect(
+      clearLocalUserData("owner", {
+        clearHealthExports: async () => undefined,
+        listExportFiles: () => [],
+        ...(kind === "draft"
+          ? { draftStore: failingStore }
+          : { consentStore: failingStore }),
+      }),
+    ).rejects.toThrow("Local account data cleanup is incomplete.");
+  },
+);

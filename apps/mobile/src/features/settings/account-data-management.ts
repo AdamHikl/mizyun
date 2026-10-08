@@ -236,6 +236,7 @@ export const clearLocalUserData = async (
     ...(options.additionalDraftKinds ?? []),
   ];
 
+  let exportListingFailed = false;
   const exportFiles: ReadonlyArray<{ readonly name: string; delete(): void }> =
     (() => {
       try {
@@ -245,6 +246,7 @@ export const clearLocalUserData = async (
         const dir = new Directory(Paths.document);
         return dir.list() as Array<{ name: string; delete(): void }>;
       } catch {
+        exportListingFailed = true;
         return [];
       }
     })();
@@ -257,7 +259,7 @@ export const clearLocalUserData = async (
 
   let healthCleanupFailed = false;
   let photoCleanupFailed = false;
-  await Promise.allSettled([
+  const cleanupResults = await Promise.allSettled([
     Promise.resolve()
       .then(() => clearAllMealPhotoRetries(userId, options.draftStore))
       .then((cleaned) => {
@@ -298,12 +300,12 @@ export const clearLocalUserData = async (
       .catch(() => {
         healthCleanupFailed = true;
       }),
-    Promise.resolve(
+    Promise.resolve().then(() =>
       workoutStore.deleteItemAsync(workoutPreferencesKeyFor(userId)),
-    ).catch(() => {}),
-    Promise.resolve(
+    ),
+    Promise.resolve().then(() =>
       workoutStore.deleteItemAsync(healthStepsPreferenceKey(userId)),
-    ).catch(() => {}),
+    ),
     ...matchedFiles.map(async (file) => {
       await file.delete();
     }),
@@ -312,6 +314,15 @@ export const clearLocalUserData = async (
     throw new Error("Local meal photo cleanup is incomplete.");
   if (healthCleanupFailed)
     throw new Error("Local health export cleanup is incomplete.");
+  if (
+    exportListingFailed ||
+    cleanupResults.some(
+      (result) =>
+        result.status === "rejected" ||
+        (result.status === "fulfilled" && result.value === false),
+    )
+  )
+    throw new Error("Local account data cleanup is incomplete.");
 };
 
 export const fetchAccountExport = async (
@@ -413,7 +424,42 @@ export const confirmAccountDeletion = async (
     return { ok: false, message, retryable, reason };
   }
 
+  if (result.value.deleted !== true) {
+    return {
+      ok: false,
+      retryable: true,
+      reason: "server_error",
+      message:
+        "Account deletion is not complete. Your request is preserved; check status or retry.",
+    };
+  }
   return { ok: true };
+};
+
+/** Persist the recovery receipt before any destructive request leaves the phone. */
+export const confirmRecoverableAccountDeletion = async (
+  client: ApiClient,
+  userId: string,
+  challenge: StoredDeletionChallenge,
+  appleAuthorizationCode?: string,
+  store: SecureKeyValueStore = SecureStore,
+): Promise<ConfirmAccountDeletionResult> => {
+  try {
+    await saveDeletionChallenge(userId, challenge, store);
+  } catch {
+    return {
+      ok: false,
+      retryable: true,
+      reason: "unknown",
+      message:
+        "Could not preserve account deletion recovery on this phone. Please retry before deleting your account.",
+    };
+  }
+  return confirmAccountDeletion(
+    client,
+    challenge.token,
+    appleAuthorizationCode,
+  );
 };
 
 export type SaveExportToFileResult =

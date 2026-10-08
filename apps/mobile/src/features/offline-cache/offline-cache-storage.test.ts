@@ -697,3 +697,49 @@ describe("offline-cache-storage", () => {
     expect(await store.getItem(userBIndexKey)).not.toBeNull();
   });
 });
+
+describe("offline purge recovery and owner isolation", () => {
+  it("retains the index after failed segment deletion and retries it", async () => {
+    const store = new MemoryStorage();
+    const key = dashboardCacheKey("owner", "2026-10-08", "week");
+    store.map.set(key, "private");
+    store.map.set(dashboardIndexKey("owner"), JSON.stringify([key]));
+    const remove = store.removeItem.bind(store);
+    let fail = true;
+    store.removeItem = async (k) => {
+      if (k === key && fail) throw new Error("disk failed");
+      await remove(k);
+    };
+    await expect(purgeOfflineCache("owner", store)).rejects.toThrow(
+      "Offline account cache cleanup is incomplete.",
+    );
+    expect(store.map.has(dashboardIndexKey("owner"))).toBe(true);
+    fail = false;
+    await purgeOfflineCache("owner", store);
+    expect(store.map.has(key)).toBe(false);
+    expect(store.map.has(dashboardIndexKey("owner"))).toBe(false);
+  });
+
+  it("rejects an index pointing at another account without deleting its data", async () => {
+    const store = new MemoryStorage();
+    const key = dashboardCacheKey("other", "2026-10-08", "week");
+    store.map.set(key, "other private data");
+    store.map.set(dashboardIndexKey("owner"), JSON.stringify([key]));
+    await expect(purgeOfflineCache("owner", store)).rejects.toThrow(
+      "Offline account cache cleanup is incomplete.",
+    );
+    expect(store.map.get(key)).toBe("other private data");
+  });
+
+  it("reports unreadable cache inventory while still removing known caches", async () => {
+    const store = new MemoryStorage();
+    store.map.set(profileCacheKey("owner"), "private");
+    store.getItem = async () => {
+      throw new Error("disk failed");
+    };
+    await expect(purgeOfflineCache("owner", store)).rejects.toThrow(
+      "Offline account cache cleanup is incomplete.",
+    );
+    expect(store.map.has(profileCacheKey("owner"))).toBe(false);
+  });
+});

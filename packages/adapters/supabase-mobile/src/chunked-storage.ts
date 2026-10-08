@@ -36,6 +36,8 @@ const parseManifest = (value: string | null): Manifest | null => {
 
 let generationSequence = 0;
 
+const mutationQueues = new WeakMap<StringStorage, Map<string, Promise<void>>>();
+
 export class ChunkedStorage implements StringStorage {
   constructor(
     private readonly storage: StringStorage,
@@ -45,6 +47,22 @@ export class ChunkedStorage implements StringStorage {
       throw new Error(
         "chunkSize must be an integer of at least 128 characters",
       );
+    }
+  }
+
+  async #mutate(key: string, operation: () => Promise<void>): Promise<void> {
+    let queues = mutationQueues.get(this.storage);
+    if (!queues) {
+      queues = new Map();
+      mutationQueues.set(this.storage, queues);
+    }
+    const previous = queues.get(key) ?? Promise.resolve();
+    const current = previous.catch(() => undefined).then(operation);
+    queues.set(key, current);
+    try {
+      await current;
+    } finally {
+      if (queues.get(key) === current) queues.delete(key);
     }
   }
 
@@ -65,47 +83,62 @@ export class ChunkedStorage implements StringStorage {
   }
 
   async setItem(key: string, value: string): Promise<void> {
-    const baseKey = encodeKey(key);
-    const manifestKey = `${baseKey}.manifest`;
-    const previous = parseManifest(await this.storage.getItem(manifestKey));
-    const generation = `${Date.now().toString(36)}_${(generationSequence += 1).toString(36)}`;
-    const chunks =
-      value.match(new RegExp(`.{1,${this.chunkSize}}`, "gs")) ?? [];
+    return this.#mutate(key, async () => {
+      const baseKey = encodeKey(key);
+      const manifestKey = `${baseKey}.manifest`;
+      const previous = parseManifest(await this.storage.getItem(manifestKey));
+      const generation = `${Date.now().toString(36)}_${(generationSequence += 1).toString(36)}`;
+      const chunks =
+        value.match(new RegExp(`.{1,${this.chunkSize}}`, "gs")) ?? [];
 
-    await Promise.all(
-      chunks.map((chunk, index) =>
-        this.storage.setItem(`${baseKey}.${generation}.${index}`, chunk),
-      ),
-    );
-    await this.storage.setItem(
-      manifestKey,
-      JSON.stringify({
-        version: 1,
-        generation,
-        count: chunks.length,
-      } satisfies Manifest),
-    );
-
-    if (previous) {
       await Promise.all(
-        Array.from({ length: previous.count }, (_, index) =>
-          this.storage.removeItem(`${baseKey}.${previous.generation}.${index}`),
+        chunks.map((chunk, index) =>
+          this.storage.setItem(`${baseKey}.${generation}.${index}`, chunk),
         ),
       );
-    }
+      await this.storage.setItem(
+        manifestKey,
+        JSON.stringify({
+          version: 1,
+          generation,
+          count: chunks.length,
+        } satisfies Manifest),
+      );
+
+      if (previous) {
+        await Promise.all(
+          Array.from({ length: previous.count }, (_, index) =>
+            this.storage.removeItem(
+              `${baseKey}.${previous.generation}.${index}`,
+            ),
+          ),
+        );
+      }
+    });
   }
 
   async removeItem(key: string): Promise<void> {
-    const baseKey = encodeKey(key);
-    const manifestKey = `${baseKey}.manifest`;
-    const manifest = parseManifest(await this.storage.getItem(manifestKey));
-    await this.storage.removeItem(manifestKey);
-    if (!manifest) return;
+    return this.#mutate(key, async () => {
+      const baseKey = encodeKey(key);
+      const manifestKey = `${baseKey}.manifest`;
+      const manifest = parseManifest(await this.storage.getItem(manifestKey));
+      if (!manifest) {
+        await this.storage.removeItem(manifestKey);
+        return;
+      }
 
-    await Promise.all(
-      Array.from({ length: manifest.count }, (_, index) =>
-        this.storage.removeItem(`${baseKey}.${manifest.generation}.${index}`),
-      ),
-    );
+      const removals = await Promise.allSettled(
+        Array.from({ length: manifest.count }, (_, index) =>
+          Promise.resolve().then(() =>
+            this.storage.removeItem(
+              `${baseKey}.${manifest.generation}.${index}`,
+            ),
+          ),
+        ),
+      );
+      if (removals.some((result) => result.status === "rejected"))
+        throw new Error("Stored data cleanup is incomplete.");
+      await this.storage.removeItem(manifestKey);
+    });
   }
 }

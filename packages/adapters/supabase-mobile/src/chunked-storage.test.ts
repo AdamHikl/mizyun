@@ -60,3 +60,67 @@ describe("createWebStorage", () => {
     await expect(storage.getItem("session")).resolves.toBe("value");
   });
 });
+
+it("retains the chunk manifest until every private chunk is removed", async () => {
+  const map = new Map<string, string>();
+  let fail = false;
+  const primitive = {
+    getItem: async (key: string) => map.get(key) ?? null,
+    setItem: async (key: string, value: string) => {
+      map.set(key, value);
+    },
+    removeItem: async (key: string) => {
+      if (fail && !key.endsWith(".manifest")) throw new Error("disk failed");
+      map.delete(key);
+    },
+  };
+  const storage = new ChunkedStorage(primitive, 128);
+  await storage.setItem("account-cache", "private".repeat(60));
+  const manifestKey = [...map.keys()].find((key) => key.endsWith(".manifest"))!;
+  fail = true;
+  await expect(storage.removeItem("account-cache")).rejects.toThrow(
+    "Stored data cleanup is incomplete.",
+  );
+  expect(map.has(manifestKey)).toBe(true);
+  fail = false;
+  await storage.removeItem("account-cache");
+  expect(map.size).toBe(0);
+});
+
+it("serializes remove and replacement writes across wrappers sharing storage", async () => {
+  const map = new Map<string, string>();
+  let release!: () => void;
+  let started!: () => void;
+  const entered = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  const blocked = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let block = false;
+  const primitive = {
+    getItem: async (key: string) => map.get(key) ?? null,
+    setItem: async (key: string, value: string) => {
+      map.set(key, value);
+    },
+    removeItem: async (key: string) => {
+      if (block && !key.endsWith(".manifest")) {
+        started();
+        await blocked;
+      }
+      map.delete(key);
+    },
+  };
+  const remover = new ChunkedStorage(primitive, 128);
+  const writer = new ChunkedStorage(primitive, 128);
+  await writer.setItem("account-cache", "old".repeat(60));
+  block = true;
+  const removal = remover.removeItem("account-cache");
+  await entered;
+  const replacement = writer.setItem("account-cache", "replacement".repeat(40));
+  release();
+  await Promise.all([removal, replacement]);
+  expect(await writer.getItem("account-cache")).toBe("replacement".repeat(40));
+  await remover.removeItem("account-cache");
+  expect(map.size).toBe(0);
+});

@@ -123,7 +123,7 @@ const isLoadDashboardOptions = (val: unknown): val is LoadDashboardOptions =>
 const defaultSecureStorePrimitive: StringStorage = {
   getItem: (key) => SecureStore.getItemAsync(key),
   setItem: (key, value) => SecureStore.setItemAsync(key, value),
-  removeItem: (key) => SecureStore.deleteItemAsync(key).catch(() => {}),
+  removeItem: (key) => SecureStore.deleteItemAsync(key),
 };
 
 export const createDefaultOfflineCacheStorage = (): StringStorage =>
@@ -437,28 +437,39 @@ export const purgeOfflineCache = async (
   if (!userId) return;
   await withIndexLock(userId, async () => {
     const indexKey = dashboardIndexKey(userId);
+    const prefix = dashboardCacheKey(userId) + ".";
     let keysToPurge: string[] = [];
+    let indexFailed = false;
     try {
       const rawIndex = await store.getItem(indexKey);
-      if (rawIndex) {
-        const parsed = JSON.parse(rawIndex);
-        if (Array.isArray(parsed)) {
-          keysToPurge = parsed.filter(
-            (k): k is string => typeof k === "string",
-          );
+      if (rawIndex !== null) {
+        const parsed: unknown = JSON.parse(rawIndex);
+        if (!Array.isArray(parsed)) indexFailed = true;
+        else {
+          for (const key of parsed) {
+            if (
+              typeof key === "string" &&
+              key.startsWith(prefix) &&
+              /^\d{4}-\d{2}-\d{2}\.(week|month)$/.test(key.slice(prefix.length))
+            )
+              keysToPurge.push(key);
+            else indexFailed = true;
+          }
         }
       }
     } catch {
-      // Ignore parse failure
+      indexFailed = true;
     }
-
-    const removalPromises = [
-      store.removeItem(profileCacheKey(userId)),
-      store.removeItem(dashboardCacheKey(userId)),
-      store.removeItem(indexKey),
-      ...keysToPurge.map((key) => store.removeItem(key)),
-    ];
-
-    await Promise.allSettled(removalPromises);
+    const results = await Promise.allSettled(
+      [
+        profileCacheKey(userId),
+        dashboardCacheKey(userId),
+        ...new Set(keysToPurge),
+      ].map((key) => Promise.resolve().then(() => store.removeItem(key))),
+    );
+    // Keep the index until all referenced removals succeed so retry can find them.
+    if (indexFailed || results.some((result) => result.status === "rejected"))
+      throw new Error("Offline account cache cleanup is incomplete.");
+    await store.removeItem(indexKey);
   });
 };
