@@ -32,9 +32,9 @@ export function DailyNutrients({
   const referenceAmounts = {
     fibreG: references.fibreMinimumG,
     saturatedFatG: references.saturatedFatMaximumG,
-    totalSugarsG: null,
+    totalSugarsG: references.totalSugarsEuLabelReferenceG,
     sodiumMg: references.sodiumBelowMg,
-    cholesterolMg: null,
+    cholesterolMg: references.cholesterolFdaDailyValueMg,
   };
   const referenceLabels = {
     fibreG: `Reference goal: at least ${references.fibreMinimumG} g`,
@@ -42,9 +42,9 @@ export function DailyNutrients({
       references.saturatedFatMaximumG === null
         ? "Reference limit: 10% of daily energy"
         : `Reference limit: up to ${formatAmount(references.saturatedFatMaximumG)} g · 10% of calorie target`,
-    totalSugarsG: "No total-sugars limit · free sugars are different",
+    totalSugarsG: `EU label reference: ${references.totalSugarsEuLabelReferenceG} g · 2,000 kcal`,
     sodiumMg: `Reference limit: below ${references.sodiumBelowMg} mg`,
-    cholesterolMg: "No general daily limit",
+    cholesterolMg: `FDA Daily Value: ${references.cholesterolFdaDailyValueMg} mg`,
   };
   // Use the existing scoped summary and its bounded cache lifetime. Do not
   // expose retained aggregates while that read is pending or has failed.
@@ -139,6 +139,9 @@ export function DailyNutrients({
                         amountLabel,
                         coverageLabel,
                         referenceLabels[key],
+                        key === "totalSugarsG" || key === "cholesterolMg"
+                          ? "Label reference, not a personal medical limit"
+                          : null,
                         coverageProgressLabel,
                       ]
                         .filter(Boolean)
@@ -204,8 +207,9 @@ export function DailyNutrients({
                 themeColor="textSecondary"
                 style={styles.caption}
               >
-                General adult WHO references, not personal targets. Totals use
-                saved meal values, including any AI estimates you confirmed.
+                WHO guidance and EU/FDA label references, not personal targets
+                or medical limits. Totals use saved meal values, including any
+                AI estimates you confirmed.
               </ThemedText>
             </>
           )}

@@ -60,7 +60,7 @@ beforeEach(() => {
 });
 
 describe("Home more nutrients", () => {
-  it("shows a matching bar for every nutrient without inventing limits", () => {
+  it("shows a matching bar for every nutrient with labeled references", () => {
     state.expanded = true;
     const bars = nodes(DailyNutrients(props)).filter((node) =>
       node.props?.testID?.endsWith("-progress"),
@@ -113,7 +113,7 @@ describe("Home more nutrients", () => {
     );
   });
 
-  it("uses explicit meal coverage for nutrients without a daily reference", () => {
+  it("uses recorded amounts against label references rather than meal coverage", () => {
     state.expanded = true;
     const tree = DailyNutrients({
       ...props,
@@ -146,11 +146,58 @@ describe("Home more nutrients", () => {
     );
     expect(
       parseFloat(sugarBar.props.children.props.style[1].width),
-    ).toBeCloseTo(200 / 3);
+    ).toBeCloseTo((28 / 90) * 100);
     expect(cholesterolBar.props.children.props.style[1].width).toBe("0%");
-    expect(text(tree)).toContain("Meal coverage: 2 of 3 recorded");
+    expect(text(tree)).toContain(
+      "28 g recorded Incomplete · 2 of 3 meals recorded",
+    );
+    expect(text(tree)).not.toContain("Meal coverage:");
     expect(text(tree)).toContain("Dietary cholesterol Not recorded");
     expect(text(tree)).not.toContain("cholesterol 0 mg");
+  });
+
+  it("keeps complete sugar and cholesterol bars tied to amounts, including explicit zero", () => {
+    state.expanded = true;
+    const tree = DailyNutrients({ ...props, dailyTargetKcal: 3200 });
+    const all = nodes(tree);
+    const sugar = all.find(
+      (node) => node.props?.testID === "daily-nutrient-totalSugarsG-progress",
+    );
+    const cholesterol = all.find(
+      (node) => node.props?.testID === "daily-nutrient-cholesterolMg-progress",
+    );
+    expect(parseFloat(sugar.props.children.props.style[1].width)).toBeCloseTo(
+      (42 / 90) * 100,
+    );
+    expect(cholesterol.props.children.props.style[1].width).toBe("0%");
+    const spoken = all
+      .filter((node) => node.props?.accessibilityRole === "text")
+      .map((node) => node.props.accessibilityLabel);
+    expect(spoken).toContain(
+      "Total sugars. 42 g. EU label reference: 90 g · 2,000 kcal. Label reference, not a personal medical limit",
+    );
+    expect(spoken).toContain(
+      "Dietary cholesterol. 0 mg. FDA Daily Value: 300 mg. Label reference, not a personal medical limit",
+    );
+    expect(text(tree)).toContain("not personal targets or medical limits");
+  });
+
+  it("keeps above-reference sugar and cholesterol amounts visible while clamping fills", () => {
+    state.expanded = true;
+    const tree = DailyNutrients({
+      ...props,
+      summary: { ...summary, totalSugarsG: 110, cholesterolMg: 450 },
+    });
+    for (const key of ["totalSugarsG", "cholesterolMg"]) {
+      const bar = nodes(tree).find(
+        (node) => node.props?.testID === `daily-nutrient-${key}-progress`,
+      );
+      expect(bar.props.children.props.style[1].width).toBe("100%");
+    }
+    expect(text(tree)).toContain("Total sugars 110 g EU label reference: 90 g");
+    expect(text(tree)).toContain(
+      "Dietary cholesterol 450 mg FDA Daily Value: 300 mg",
+    );
   });
 
   it("keeps an above-limit value visible while bounding its reference bar", () => {
@@ -181,11 +228,9 @@ describe("Home more nutrients", () => {
       "Sodium 1450 mg Reference limit: below 2000 mg",
     );
     expect(text(tree)).toContain(
-      "Dietary cholesterol 0 mg No general daily limit",
+      "Dietary cholesterol 0 mg FDA Daily Value: 300 mg",
     );
-    expect(text(tree)).toContain(
-      "No total-sugars limit · free sugars are different",
-    );
+    expect(text(tree)).toContain("EU label reference: 90 g · 2,000 kcal");
     toggle(tree).props.onPress();
     expect(text(DailyNutrients(props))).not.toContain("Fibre");
   });

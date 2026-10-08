@@ -6,10 +6,24 @@ describe("general adult nutrient references", () => {
     expect(adultNutrientReferences(2400)).toEqual({
       fibreMinimumG: 25,
       sodiumBelowMg: 2000,
+      totalSugarsEuLabelReferenceG: 90,
+      cholesterolFdaDailyValueMg: 300,
       saturatedFatMaximumG: 2400 / 90,
     });
     expect(adultNutrientReferences(1800).saturatedFatMaximumG).toBe(20);
   });
+
+  it.each([null, 1200, 2000, 3200])(
+    "keeps labeling benchmarks fixed independently of calorie target %s",
+    (target) => {
+      expect(adultNutrientReferences(target).totalSugarsEuLabelReferenceG).toBe(
+        90,
+      );
+      expect(adultNutrientReferences(target).cholesterolFdaDailyValueMg).toBe(
+        300,
+      );
+    },
+  );
 
   it.each([null, 0, -1800, NaN, Infinity])(
     "withholds the energy-dependent reference for invalid target %s",
