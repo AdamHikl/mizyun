@@ -127,6 +127,52 @@ rollback_outcome=not_attempted
 deployment_environment=dev
 sha_marker=".git/mizyun-dev-sha"
 
+# Keep validation inline: an older checkout may not contain new helper files.
+read_previous_instance() {
+  local payload
+  payload="$(curl --silent --show-error --max-time 4 --max-filesize 16384 \
+    "$MIZYUN_LOCAL_API_URL/v1/readiness" 2>/dev/null)" || return 0
+  node -e 'try { const r=JSON.parse(process.argv[1]); if(r.version===1 && /^[0-9a-f-]{36}$/.test(r.release?.instanceId)) process.stdout.write(r.release.instanceId); } catch {}' "$payload"
+}
+previous_instance="$(read_previous_instance)"
+previous_readiness_required=false
+# An unavailable endpoint does not prove that the previous code is legacy.
+# Only a checkout predating readiness may use explicitly unverified health.
+if [[ -n "$previous_instance" ]] || git cat-file -e "${previous_sha}:apps/api/src/release-readiness.ts" 2>/dev/null; then
+  previous_readiness_required=true
+fi
+running_sha=""
+running_instance=""
+running_release_verified=false
+readiness_not_before=0
+
+verify_running_release() {
+  local expected_sha="$1" payload checked_out evidence
+  checked_out="$(git rev-parse HEAD)" || return 1
+  payload="$(curl --silent --show-error --fail --max-time 4 --max-filesize 16384 \
+    "$MIZYUN_LOCAL_API_URL/v1/readiness" 2>/dev/null)" || return 1
+  evidence="$(node - "$expected_sha" "$checked_out" "$previous_instance" "$readiness_not_before" "$payload" <<'READINESS_NODE'
+const [expected, checkedOut, previousInstance, notBefore, payload] = process.argv.slice(2);
+try {
+  const r = JSON.parse(payload);
+  if (r.version !== 1 || r.ready !== true || r.release?.sha !== expected || checkedOut !== expected ||
+      !/^[0-9a-f]{40}$/.test(r.release.sha) || !/^[0-9a-f-]{36}$/.test(r.release.instanceId) ||
+      r.release.instanceId === previousInstance || !Number.isSafeInteger(r.release.startedAt) ||
+      !Number.isSafeInteger(Number(notBefore)) || Number(notBefore) <= 0 ||
+      r.release.startedAt < Number(notBefore) || r.release.startedAt > Date.now() ||
+      r.dependencies?.database !== true || r.dependencies?.auth !== true || r.dependencies?.storage !== true) {
+    process.exitCode = 1;
+  } else {
+    process.stdout.write(r.release.sha + " " + r.release.instanceId);
+  }
+} catch { process.exitCode = 1; }
+READINESS_NODE
+  )" || return 1
+  running_sha="${evidence%% *}"
+  running_instance="${evidence#* }"
+  running_release_verified=true
+}
+
 record_journal() {
   local status="$1" prev="$2" target="$3" message="$4"
   local checked_out_sha
@@ -135,14 +181,19 @@ record_journal() {
   # after checking out an older candidate that lacks a new helper file.
   if ! node - "$journal_file" "$status" "$prev" "$target" "$service_unit" \
     "$migrations_applied" "$migration_state" "$backup_state" "$candidate_readiness" \
-    "$rollback_outcome" "$rollback_readiness" "$checked_out_sha" "$deployment_environment" "$message" <<'JOURNAL_NODE'
+    "$rollback_outcome" "$rollback_readiness" "$checked_out_sha" "$deployment_environment" "$message" \
+    "$running_sha" "$running_instance" "$running_release_verified" <<'JOURNAL_NODE'
 const fs = require("node:fs");
 const [file, status, previousSha, targetSha, service, migrationsApplied, migrationState,
   backupState, readinessResult, rollbackOutcome, rollbackReadiness, checkedOutSha,
-  environment, message] = process.argv.slice(2);
+  environment, message, runningSha, runningInstance, runningReleaseVerified] = process.argv.slice(2);
 let fd;
 let originalSize;
 try {
+  if (status === "success" && (readinessResult !== "passed" || runningReleaseVerified !== "true" ||
+      runningSha !== targetSha || checkedOutSha !== targetSha || !runningInstance)) {
+    throw new Error("unverified completed release");
+  }
   fd = fs.openSync(file, fs.constants.O_WRONLY | fs.constants.O_CREAT |
     fs.constants.O_APPEND | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK, 0o600);
   const stat = fs.fstatSync(fd);
@@ -155,7 +206,8 @@ try {
     migrationsApplied: migrationsApplied === "true", migrationState,
     migrationIds: null, migrationChecksums: null, backupState, backupReference: null,
     readinessResult, rollbackOutcome, rollbackReadiness,
-    runningSha: null, runningReleaseVerified: false, message }) + "\n");
+    runningSha: runningSha || null, runningInstance: runningInstance || null,
+    runningReleaseVerified: runningReleaseVerified === "true", message }) + "\n");
   let offset = 0;
   while (offset < entry.length) {
     const written = fs.writeSync(fd, entry, offset, entry.length - offset);
@@ -185,15 +237,35 @@ rollback_code() {
   local failure_line="$1"
   local rollback_ok=true
   echo "Dev promotion failed near line $failure_line; restoring API code $previous_sha." >&2
+  # Do not replace a live candidate's in-place source/dependency tree. A
+  # failed stop leaves that tree untouched and requires operator containment.
+  running_sha=""
+  running_instance=""
+  running_release_verified=false
+  if ! sudo -n systemctl stop "$service_unit" >/dev/null 2>&1; then
+    rollback_outcome=failed
+    rollback_readiness=not_checked
+    rm -f "$sha_marker" || echo "WARNING: Could not invalidate the checkout SHA marker." >&2
+    if ! record_journal "rollback_failed" "$previous_sha" "$target_sha" "Failure near line $failure_line; recovery stop failed; checkout/dependencies untouched; operator containment required"; then
+      echo "WARNING: Failed recovery stop could not be recorded in the required release journal." >&2
+    fi
+    echo "FATAL: Cannot stop the API for recovery; checkout/dependencies were not changed. Operator containment required." >&2
+    return 1
+  fi
   if [[ "$previous_sha" != "none" ]]; then
     git checkout --detach "$previous_sha" >/dev/null 2>&1 || rollback_ok=false
     CI=true pnpm install --frozen-lockfile >/dev/null 2>&1 || rollback_ok=false
+    running_sha=""
+    running_instance=""
+    running_release_verified=false
+    readiness_not_before="$(node -e 'process.stdout.write(String(Date.now()))')"
     sudo -n systemctl restart "$service_unit" >/dev/null 2>&1 || rollback_ok=false
 
     local rollback_healthy=false
     for _attempt in {1..10}; do
-      if curl --silent --show-error --fail --max-time 2 \
-        "$MIZYUN_LOCAL_API_URL/v1/health" >/dev/null 2>&1; then
+      if { [[ "$previous_readiness_required" == true ]] && verify_running_release "$previous_sha"; } ||
+        { [[ "$previous_readiness_required" != true ]] && curl --silent --show-error --fail --max-time 2 \
+          "$MIZYUN_LOCAL_API_URL/v1/health" >/dev/null 2>&1; }; then
         rollback_healthy=true
         break
       fi
@@ -201,14 +273,16 @@ rollback_code() {
     done
     if [[ "$rollback_healthy" == true ]]; then
       rollback_readiness=passed
+      if [[ "$running_release_verified" != true ]]; then rollback_readiness=legacy_health_passed; fi
     else
       rollback_readiness=failed
     fi
     if [[ "$rollback_ok" == true && "$rollback_healthy" == true ]]; then
       echo "Rollback to $previous_sha succeeded and API is healthy." >&2
       rollback_outcome=code_restored_health_passed
+      if [[ "$running_release_verified" == true ]]; then rollback_outcome=code_restored_readiness_passed; fi
       printf '%s\n' "$previous_sha" > "$sha_marker" || echo "WARNING: Could not restore the checkout SHA marker." >&2
-      if ! record_journal "rolled_back" "$previous_sha" "$target_sha" "Failure near line $failure_line; code restored and local health passed"; then
+      if ! record_journal "rolled_back" "$previous_sha" "$target_sha" "Failure near line $failure_line; code restored; recovery checks passed (runningReleaseVerified states identity evidence)"; then
         echo "WARNING: Rollback completed but its required release journal receipt failed." >&2
       fi
     else
@@ -266,6 +340,8 @@ if ! git fetch --prune origin; then
   exit 2
 fi
 git cat-file -e "${target_sha}^{commit}"
+# Stop in-place workers before changing their source/dependency tree.
+sudo -n systemctl stop "$service_unit"
 git checkout --detach "$target_sha"
 CI=true pnpm install --frozen-lockfile
 
@@ -294,18 +370,18 @@ if [[ -f "$unit_template" ]]; then
   installed_hash="$(sha256sum "$installed_unit" 2>/dev/null | cut -d' ' -f1 || echo "none")"
   if [[ "$template_hash" != "$installed_hash" ]]; then
     echo "FATAL: Installed Hetzner Dev systemd unit does not match the candidate template; install it through the infrastructure workflow first." >&2
-    exit 2
+    abort_promotion 2 "$LINENO"
   fi
 fi
 
+readiness_not_before="$(node -e 'process.stdout.write(String(Date.now()))')"
 sudo -n systemctl restart "$service_unit"
 api_ready=false
 candidate_readiness=failed
 max_attempts="${MIZYUN_HEALTH_RETRIES:-40}"
 sleep_duration="${MIZYUN_HEALTH_SLEEP:-1}"
 for _attempt in $(seq 1 "$max_attempts"); do
-  if curl --silent --show-error --fail --max-time 2 \
-    "$MIZYUN_LOCAL_API_URL/v1/health" >/dev/null 2>&1; then
+  if verify_running_release "$target_sha"; then
     api_ready=true
     candidate_readiness=passed
     break
@@ -314,11 +390,11 @@ for _attempt in $(seq 1 "$max_attempts"); do
 done
 
 if [[ "$api_ready" != true ]]; then
-  echo "Dev API did not become healthy within ${max_attempts} attempts." >&2
+  echo "Dev API did not attest the requested running release and dependencies within ${max_attempts} attempts." >&2
   abort_promotion 1 "$LINENO"
 fi
 
-record_journal "success" "$previous_sha" "$target_sha" "Candidate checkout and local health passed; running release identity unverified"
+record_journal "success" "$previous_sha" "$target_sha" "Requested, checked-out and fresh running release match; dependency readiness passed"
 printf '%s\n' "$target_sha" > "$sha_marker"
 trap - ERR INT TERM
 echo "Development deployment succeeded: $target_sha"

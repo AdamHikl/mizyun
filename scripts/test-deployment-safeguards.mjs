@@ -229,11 +229,16 @@ if [ "$1" = "start" ] && [ "$2" = "mizyun-backup-for-deploy.service" ]; then
   echo "backup-resume $(git rev-parse HEAD)" >> "${path.join(tempBase, "promotion-events.log")}"
   if [ "$MIZYUN_FIXTURE_BACKUP_FAIL" = "true" ]; then exit 1; fi
 fi
-if [ "$1" = "stop" ] && [ "$2" = "mizyun-api.service" ]; then
+if [ "$1" = "stop" ]; then
   echo "api-stop $(git rev-parse HEAD)" >> "${path.join(tempBase, "promotion-events.log")}"
+  if [ "$MIZYUN_FIXTURE_ROLLBACK_STOP_FAIL" = "true" ] && [ "$(git rev-parse HEAD)" = "$MIZYUN_FIXTURE_FAULT_SHA" ]; then exit 1; fi
 fi
 if [ "$1" = "start" ] && [ "$2" = "cloudflared.service" ]; then
   echo "tunnel-start $(git rev-parse HEAD)" >> "${path.join(tempBase, "promotion-events.log")}"
+fi
+if [ "$1" = "restart" ]; then
+  if [ "$MIZYUN_FIXTURE_READINESS_FAULT" = "stale" ] && [ "$(git rev-parse HEAD)" = "$MIZYUN_FIXTURE_FAULT_SHA" ]; then exit 0; fi
+  '${process.execPath}' -e 'const fs=require("node:fs"),crypto=require("node:crypto"),cp=require("node:child_process");fs.writeFileSync("${path.join(tempBase, "running-release.json")}",JSON.stringify({version:1,ready:true,release:{sha:cp.execFileSync("git",["rev-parse","HEAD"],{encoding:"utf8"}).trim(),instanceId:crypto.randomUUID(),startedAt:Date.now()},dependencies:{database:true,auth:true,storage:true}}));'
 fi
 exit 0
 `,
@@ -288,6 +293,27 @@ if [ -f "${path.join(tempBase, "mock_curl_fail_count")}" ]; then
     exit 1
   fi
 fi
+case "$*" in
+  *"/v1/readiness"*)
+    '${process.execPath}' - "$MIZYUN_FIXTURE_READINESS_FAULT" "$MIZYUN_FIXTURE_FAULT_SHA" <<'READINESS_FIXTURE'
+const fs=require("node:fs"),cp=require("node:child_process"),crypto=require("node:crypto");
+const file="${path.join(tempBase, "running-release.json")}";
+const head=cp.execFileSync("git",["rev-parse","HEAD"],{encoding:"utf8"}).trim();
+const r=fs.existsSync(file)?JSON.parse(fs.readFileSync(file,"utf8")):{version:1,ready:true,release:{sha:head,instanceId:crypto.randomUUID(),startedAt:1},dependencies:{database:true,auth:true,storage:true}};
+const [fault,target]=process.argv.slice(2);
+if(head===process.env.MIZYUN_FIXTURE_LEGACY_SHA)process.exit(22);
+if(head===target){
+  if(fault==="missing"){process.exit(22);}
+  if(fault==="malformed"){process.stdout.write("invalid json");process.exit(0);}
+  if(fault==="wrong-sha")r.release.sha="f".repeat(40);
+  if(fault==="database")r.dependencies.database=false;
+  if(fault==="old-start")r.release.startedAt=1;
+  if(fault==="future-start")r.release.startedAt=Date.now()+60000;
+}
+process.stdout.write(JSON.stringify(r));
+READINESS_FIXTURE
+    exit $?;;
+esac
 exit 0
 `,
 );
@@ -312,6 +338,9 @@ const fixtureGit = path.join(mockBinDir, "git");
 writeFileSync(
   fixtureGit,
   `#!/bin/sh
+if [ "$1" = "cat-file" ] && [ "$2" = "-e" ] && [ "$MIZYUN_FIXTURE_REQUIRE_READINESS" = "true" ]; then
+  case "$3" in *":apps/api/src/release-readiness.ts") exit 0;; esac
+fi
 if [ "$1" = "remote" ] && [ "$2" = "get-url" ] && [ "$3" = "origin" ]; then
   origin=$("${actualGit}" "$@") || exit $?
   case "$origin" in
@@ -583,7 +612,7 @@ await test("promote-dev.sh: Health-check failure triggers rollback (regression f
     `expected exit 1 on health failure, got ${res.status}`,
   );
   assert(
-    res.stderr.includes("Dev API did not become healthy"),
+    res.stderr.includes("Dev API did not attest the requested running release"),
     "expected timeout message",
   );
   assert(
@@ -606,9 +635,9 @@ await test("promote-dev.sh: Health-check failure triggers rollback (regression f
 });
 
 await test("promote-dev.sh: Rollback logs 'rolled_back' when rollback health check succeeds", () => {
-  // Fail only 2 attempts (the deployment health check), then succeed on rollback
+  // Fail the baseline read plus 2 candidate checks, then recover on rollback
   const curlFailCount = path.join(tempBase, "mock_curl_fail_count");
-  writeFileSync(curlFailCount, "2");
+  writeFileSync(curlFailCount, "3");
 
   const journalPath = path.join(
     devRepoDir,
@@ -1019,7 +1048,7 @@ await test("promote-production.sh: backup failure never reaches candidate migrat
   );
   assert(
     readFileSync(events, "utf8").trim() ===
-      `backup-resume ${prodCommit1}\ntunnel-start ${prodCommit1}`,
+      `backup-resume ${prodCommit1}\napi-stop ${prodCommit1}\ntunnel-start ${prodCommit1}`,
     "backup must run before checkout and no migration may run",
   );
 });
@@ -1626,12 +1655,12 @@ exec '${process.execPath.replaceAll("'", "'\\''")}' "$@"
           assert(
             recovery.readinessResult === "passed" &&
               recovery.rollbackReadiness === "passed" &&
-              recovery.rollbackOutcome === "code_restored_health_passed",
+              recovery.rollbackOutcome === "code_restored_readiness_passed",
             "separate candidate readiness from rollback",
           );
           assert(
-            recovery.runningSha === null &&
-              recovery.runningReleaseVerified === false &&
+            recovery.runningSha === fixture.previous &&
+              recovery.runningReleaseVerified === true &&
               recovery.backupReference === null &&
               recovery.migrationIds === null &&
               recovery.migrationChecksums === null,
@@ -1644,6 +1673,234 @@ exec '${process.execPath.replaceAll("'", "'\\''")}' "$@"
       }
     });
   }
+}
+
+for (const fixture of journalFixtures) {
+  await test(`promote-${fixture.name}.sh: success records independently observed fresh running release`, () => {
+    git(["checkout", "--detach", fixture.previous], fixture.repo);
+    const result = fixture.run({ targetSha: fixture.target });
+    assert(result.status === 0, result.stderr);
+    const receipt = readReceipts(
+      path.join(fixture.repo, ".git", fixture.journal),
+    ).at(-1);
+    assert(
+      receipt.status === "success" &&
+        receipt.targetSha === fixture.target &&
+        receipt.checkedOutSha === fixture.target &&
+        receipt.runningSha === fixture.target &&
+        receipt.runningReleaseVerified === true,
+      "three release identities must match with measured runtime evidence",
+    );
+    assert(
+      typeof receipt.runningInstance === "string",
+      "must retain observed process instance",
+    );
+  });
+  await test(`promote-${fixture.name}.sh: older binary rollback keeps running identity explicitly unverified`, () => {
+    git(["checkout", "--detach", fixture.previous], fixture.repo);
+    const result = fixture.run({
+      targetSha: fixture.target,
+      extraEnv: {
+        MIZYUN_FIXTURE_LEGACY_SHA: fixture.previous,
+        MIZYUN_FIXTURE_READINESS_FAULT: "missing",
+        MIZYUN_FIXTURE_FAULT_SHA: fixture.target,
+        MIZYUN_HEALTH_RETRIES: "1",
+        MIZYUN_HEALTH_SLEEP: "0",
+      },
+    });
+    assert(result.status !== 0, "unsupported candidate must fail closed");
+    const receipt = readReceipts(
+      path.join(fixture.repo, ".git", fixture.journal),
+    ).at(-1);
+    assert(
+      receipt.status === "rolled_back" &&
+        receipt.rollbackReadiness === "legacy_health_passed",
+      "legacy health is not dependency readiness",
+    );
+    assert(
+      receipt.runningSha === null &&
+        receipt.runningReleaseVerified === false &&
+        receipt.rollbackOutcome === "code_restored_health_passed",
+      "legacy recovery cannot invent a running release",
+    );
+  });
+  await test(`promote-${fixture.name}.sh: prior readiness outage cannot enable legacy health fallback`, () => {
+    git(["checkout", "--detach", fixture.previous], fixture.repo);
+    const result = fixture.run({
+      targetSha: fixture.target,
+      extraEnv: {
+        MIZYUN_FIXTURE_REQUIRE_READINESS: "true",
+        MIZYUN_FIXTURE_LEGACY_SHA: fixture.previous,
+        MIZYUN_FIXTURE_READINESS_FAULT: "missing",
+        MIZYUN_FIXTURE_FAULT_SHA: fixture.target,
+        MIZYUN_HEALTH_RETRIES: "1",
+        MIZYUN_HEALTH_SLEEP: "0",
+      },
+    });
+    assert(result.status !== 0, "unavailable modern readiness must fail");
+    const receipt = readReceipts(
+      path.join(fixture.repo, ".git", fixture.journal),
+    ).at(-1);
+    assert(
+      receipt.status === "rollback_failed" &&
+        receipt.rollbackReadiness === "failed",
+      "healthy old endpoint cannot substitute for required release readiness",
+    );
+    assert(
+      receipt.runningReleaseVerified === false,
+      "must not invent runtime identity",
+    );
+  });
+  for (const fault of [
+    "wrong-sha",
+    "stale",
+    "missing",
+    "malformed",
+    "database",
+    "old-start",
+    "future-start",
+  ]) {
+    await test(`promote-${fixture.name}.sh: rejects ${fault} readiness and verifies rollback`, () => {
+      git(["checkout", "--detach", fixture.previous], fixture.repo);
+      const result = fixture.run({
+        targetSha: fixture.target,
+        extraEnv: {
+          MIZYUN_FIXTURE_READINESS_FAULT: fault,
+          MIZYUN_FIXTURE_FAULT_SHA: fixture.target,
+          MIZYUN_HEALTH_RETRIES: "1",
+          MIZYUN_HEALTH_SLEEP: "0",
+        },
+      });
+      assert(
+        result.status !== 0,
+        "bad readiness must fail promotion even when HTTP succeeds",
+      );
+      assert(
+        !result.stdout.includes("succeeded:"),
+        "must not report candidate success",
+      );
+      const receipt = readReceipts(
+        path.join(fixture.repo, ".git", fixture.journal),
+      ).at(-1);
+      assert(
+        receipt.status === "rolled_back" &&
+          receipt.readinessResult === "failed" &&
+          receipt.rollbackReadiness === "passed",
+        "candidate failure must remain distinct from verified rollback",
+      );
+      assert(
+        receipt.runningSha === fixture.previous &&
+          receipt.runningReleaseVerified === true,
+        "record actual restored running identity",
+      );
+    });
+  }
+}
+
+await test("promote-dev.sh: candidate unit mismatch restores prior code and running service", () => {
+  git(["checkout", "--detach", commit2], devRepoDir);
+  const deployDir = path.join(devRepoDir, "deploy/hetzner");
+  mkdirSync(deployDir, { recursive: true });
+  writeFileSync(
+    path.join(deployDir, "mizyun-api-dev.service"),
+    "fixture unit deliberately mismatched\n",
+  );
+  git(["add", "deploy/hetzner/mizyun-api-dev.service"], devRepoDir);
+  git(["commit", "-m", "Fixture mismatched unit"], devRepoDir);
+  const target = git(["rev-parse", "HEAD"], devRepoDir);
+  git(["checkout", "--detach", commit1], devRepoDir);
+  const result = runPromoteDev({ targetSha: target });
+  assert(
+    result.status === 2,
+    "unit mismatch must fail with its original status",
+  );
+  assert(
+    result.stderr.includes("does not match the candidate template"),
+    "must identify unit mismatch",
+  );
+  assert(
+    git(["rev-parse", "HEAD"], devRepoDir) === commit1,
+    "restore prior checkout",
+  );
+  const receipt = readReceipts(
+    path.join(devRepoDir, ".git/mizyun-dev-release-journal.jsonl"),
+  ).at(-1);
+  assert(
+    receipt.status === "rolled_back" &&
+      receipt.runningSha === commit1 &&
+      receipt.runningReleaseVerified,
+    "service recovery must attest the prior release",
+  );
+});
+
+for (const fixture of journalFixtures) {
+  await test(`promote-${fixture.name}.sh: recovery stops failed candidate before reverting the in-place tree`, () => {
+    git(["checkout", "--detach", fixture.previous], fixture.repo);
+    const events = path.join(tempBase, "promotion-events.log");
+    rmSync(events, { force: true });
+    const result = fixture.run({
+      targetSha: fixture.target,
+      extraEnv: {
+        MIZYUN_FIXTURE_READINESS_FAULT: "database",
+        MIZYUN_FIXTURE_FAULT_SHA: fixture.target,
+        MIZYUN_HEALTH_RETRIES: "1",
+        MIZYUN_HEALTH_SLEEP: "0",
+      },
+    });
+    assert(result.status !== 0, "candidate readiness must fail");
+    const lines = readFixtureLog(events).trim().split("\n");
+    assert(
+      lines.includes(`api-stop ${fixture.target}`),
+      "recovery must stop while candidate is still checked out",
+    );
+    const receipt = readReceipts(
+      path.join(fixture.repo, ".git", fixture.journal),
+    ).at(-1);
+    assert(
+      receipt.status === "rolled_back" &&
+        receipt.runningSha === fixture.previous &&
+        receipt.runningReleaseVerified,
+      "restart restored source and verify prior identity",
+    );
+  });
+  await test(`promote-${fixture.name}.sh: failed recovery stop cannot mutate source or dependencies`, () => {
+    git(["checkout", "--detach", fixture.previous], fixture.repo);
+    const installs = path.join(tempBase, "pnpm.log");
+    rmSync(installs, { force: true });
+    const result = fixture.run({
+      targetSha: fixture.target,
+      extraEnv: {
+        MIZYUN_FIXTURE_READINESS_FAULT: "database",
+        MIZYUN_FIXTURE_FAULT_SHA: fixture.target,
+        MIZYUN_FIXTURE_ROLLBACK_STOP_FAIL: "true",
+        MIZYUN_HEALTH_RETRIES: "1",
+        MIZYUN_HEALTH_SLEEP: "0",
+      },
+    });
+    assert(result.status !== 0, "failed recovery must remain a failure");
+    assert(
+      git(["rev-parse", "HEAD"], fixture.repo) === fixture.target,
+      "failed stop must leave candidate checkout untouched",
+    );
+    assert(
+      readFixtureLog(installs).trim().split("\n").length === 1,
+      "cannot install old dependencies after failed recovery stop",
+    );
+    const receipt = readReceipts(
+      path.join(fixture.repo, ".git", fixture.journal),
+    ).at(-1);
+    assert(
+      receipt.status === "rollback_failed" &&
+        receipt.rollbackReadiness === "not_checked" &&
+        receipt.checkedOutSha === fixture.target &&
+        receipt.runningReleaseVerified === false,
+      "record incomplete containment without invented recovery evidence",
+    );
+    assert(
+      result.stderr.includes("Operator containment required"),
+      "must identify required operator recovery",
+    );
+  });
 }
 
 // Cleanup temp test files

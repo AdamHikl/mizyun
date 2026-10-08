@@ -1,6 +1,13 @@
 import { formatConfigIssue, loadServerConfig } from "@mizyun/config";
 
 import { buildApp } from "./app.js";
+import {
+  captureRunningRelease,
+  createReleaseReadiness,
+  registerReleaseReadiness,
+} from "./release-readiness.js";
+
+const runningRelease = captureRunningRelease();
 
 const configResult = loadServerConfig();
 if (!configResult.ok) {
@@ -13,6 +20,10 @@ if (!configResult.ok) {
 const { host, port } = configResult.value;
 
 const app = buildApp();
+registerReleaseReadiness(
+  app,
+  createReleaseReadiness(runningRelease, configResult.value.supabaseConfig),
+);
 
 const shutdown = async (signal: string): Promise<void> => {
   app.log.info({ signal }, "shutting down");
