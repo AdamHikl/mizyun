@@ -227,7 +227,6 @@ beforeEach(async () => {
   await flush();
   render();
 });
-
 it("keeps a confirmed meal saved when local reminder reconciliation fails", async () => {
   mocks.reminders.mockRejectedValueOnce(new Error("Keychain locked"));
   await submit();
@@ -718,6 +717,63 @@ it("selects three photos for Pro and submits them together after explicit Proces
       expect.objectContaining({ photo: expect.any(Blob) }),
     ],
   );
+  expect(mocks.submit).not.toHaveBeenCalled();
+});
+it("recovers an unreadable photo with a short reselect message and preserves meal values", async () => {
+  mocks.retention = true;
+  mocks.picker.mockResolvedValue({
+    canceled: false,
+    assets: [{ uri: "missing-photo" }],
+  });
+  await byId("snap-meal-button").props.onPress();
+  await flush();
+  mocks.normalize.mockRejectedValueOnce(
+    new Error(
+      "FunctionCallException: NSCocoaErrorDomain Code=260 file:///private/synthetic-missing.jpg",
+    ),
+  );
+  byId("process-meal-photo-button").props.onPress();
+  await flush();
+  expect(
+    find(
+      render(),
+      (node) =>
+        node.props?.children ===
+        "Couldn't read this photo. Remove it and choose it again, or enter the meal by hand.",
+    ),
+  ).toBeTruthy();
+  expect(
+    find(
+      render(),
+      (node) =>
+        typeof node.props?.children === "string" &&
+        node.props.children.includes("NSCocoaErrorDomain"),
+    ),
+  ).toBeFalsy();
+  expect(byId("meal-name-input").props.value).toBe(draft.name);
+  expect(mocks.photoDraft).not.toHaveBeenCalled();
+  find(
+    render(),
+    (node) => node.props?.accessibilityLabel === "Remove attached photo 1",
+  ).props.onPress();
+  await flush();
+  expect(mocks.photoDiscard).toHaveBeenCalledWith(
+    "synthetic-user",
+    "owned-missing-photo",
+  );
+  mocks.picker.mockResolvedValue({
+    canceled: false,
+    assets: [{ uri: "replacement-photo" }],
+  });
+  mocks.photoDraft.mockResolvedValueOnce({
+    ok: true,
+    draft: syntheticPhotoDraft,
+  });
+  await byId("snap-meal-button").props.onPress();
+  await flush();
+  byId("process-meal-photo-button").props.onPress();
+  await flush();
+  expect(mocks.photoDraft).toHaveBeenCalledTimes(1);
   expect(mocks.submit).not.toHaveBeenCalled();
 });
 it("rejects picker results over three without silently dropping photos", async () => {

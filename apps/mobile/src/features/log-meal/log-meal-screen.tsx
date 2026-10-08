@@ -1050,13 +1050,12 @@ export function LogMealScreen() {
         setSourceProposalId(null);
 
         void loadAiUsage();
-      } catch (cause) {
+      } catch {
+        if (owner !== photoOwner.current) return;
         hadFailure.current = true;
         attempt?.fail("upload", "unexpected", true);
         setError(
-          cause instanceof Error
-            ? `Couldn't read the photo: ${cause.message}`
-            : "Couldn't read the photo.",
+          "Couldn't read this photo. Remove it and choose it again, or enter the meal by hand.",
         );
       } finally {
         setSnapping(false);
