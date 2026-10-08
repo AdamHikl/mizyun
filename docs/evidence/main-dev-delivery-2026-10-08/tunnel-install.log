@@ -1,0 +1,45 @@
+MainPID=2515930
+ExecMainStartTimestampMonotonic=1753093803069
+Id=cloudflared.service
+ActiveState=active
+
+MainPID=3086051
+ExecMainStartTimestampMonotonic=1702208063123
+Id=mizyun-api.service
+ActiveState=active
+
+MainPID=2496699
+ExecMainStartTimestampMonotonic=1752827241119
+Id=mizyun-api-dev.service
+ActiveState=active
+{"ok":true,"errors":[]}
+Type=notify
+Restart=on-failure
+Id=cloudflared.service
+Requires=sysinit.target system.slice
+Requisite=
+Wants=mizyun-api.service mizyun-api-dev.service network-online.target
+BindsTo=
+PartOf=
+Conflicts=shutdown.target
+ConflictedBy=
+Before=multi-user.target shutdown.target
+After=basic.target systemd-journald.socket mizyun-api.service mizyun-api-dev.service network-online.target system.slice sysinit.target
+PropagatesStopTo=
+StopPropagatedFrom=
+LoadState=loaded
+UnitFileState=enabled
+MainPID=2515930
+ExecMainStartTimestampMonotonic=1753093803069
+Id=cloudflared.service
+ActiveState=active
+
+MainPID=3086051
+ExecMainStartTimestampMonotonic=1702208063123
+Id=mizyun-api.service
+ActiveState=active
+
+MainPID=2496699
+ExecMainStartTimestampMonotonic=1752827241119
+Id=mizyun-api-dev.service
+ActiveState=active

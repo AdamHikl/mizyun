@@ -1,0 +1,22 @@
+{
+  "empty": {
+    "httpStatus": 400,
+    "body": {
+      "error": {
+        "code": "VALIDATION_ERROR",
+        "message": "The request body could not be accepted.",
+        "requestId": "latest10-runtime-empty"
+      }
+    }
+  },
+  "malformed": {
+    "httpStatus": 400,
+    "body": {
+      "error": {
+        "code": "VALIDATION_ERROR",
+        "message": "The request body could not be accepted.",
+        "requestId": "latest10-runtime-malformed"
+      }
+    }
+  }
+}

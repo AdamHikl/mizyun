@@ -1,0 +1,316 @@
+{
+  "at": "2026-10-08T20:32:25.663303+00:00",
+  "scope": "Ten issues explicitly selected and confirmed by Adam",
+  "outcomes": [
+    {
+      "labels": [
+        {
+          "id": "LA_kwDOTYbsKc8AAAACrsvF3w",
+          "name": "enhancement",
+          "description": "New feature or request",
+          "color": "a2eeef"
+        },
+        {
+          "id": "LA_kwDOTYbsKc8AAAAC1najZA",
+          "name": "priority:P2",
+          "description": "Valuable enhancement or secondary platform",
+          "color": "fbca04"
+        },
+        {
+          "id": "LA_kwDOTYbsKc8AAAAC1namug",
+          "name": "status:done",
+          "description": "Completed and verified",
+          "color": "6a737d"
+        },
+        {
+          "id": "LA_kwDOTYbsKc8AAAAC1naskw",
+          "name": "area:nutrition",
+          "description": "Meal logging, macro tracking, food database",
+          "color": "16a34a"
+        }
+      ],
+      "number": 218,
+      "state": "CLOSED",
+      "url": "https://github.com/AdamHikl/mizyun/issues/218"
+    },
+    {
+      "labels": [
+        {
+          "id": "LA_kwDOTYbsKc8AAAACrsvF3w",
+          "name": "enhancement",
+          "description": "New feature or request",
+          "color": "a2eeef"
+        },
+        {
+          "id": "LA_kwDOTYbsKc8AAAAC1nai9Q",
+          "name": "priority:P1",
+          "description": "MVP-critical deliverable",
+          "color": "d93f0b"
+        },
+        {
+          "id": "LA_kwDOTYbsKc8AAAAC1namug",
+          "name": "status:done",
+          "description": "Completed and verified",
+          "color": "6a737d"
+        },
+        {
+          "id": "LA_kwDOTYbsKc8AAAAC1nasIA",
+          "name": "area:workout",
+          "description": "Workouts hub, routine builder, sets, exercises",
+          "color": "e11d48"
+        },
+        {
+          "id": "LA_kwDOTYbsKc8AAAAC1naskw",
+          "name": "area:nutrition",
+          "description": "Meal logging, macro tracking, food database",
+          "color": "16a34a"
+        }
+      ],
+      "number": 219,
+      "state": "CLOSED",
+      "url": "https://github.com/AdamHikl/mizyun/issues/219"
+    },
+    {
+      "labels": [
+        {
+          "id": "LA_kwDOTYbsKc8AAAAC1najZA",
+          "name": "priority:P2",
+          "description": "Valuable enhancement or secondary platform",
+          "color": "fbca04"
+        },
+        {
+          "id": "LA_kwDOTYbsKc8AAAAC1namug",
+          "name": "status:done",
+          "description": "Completed and verified",
+          "color": "6a737d"
+        },
+        {
+          "id": "LA_kwDOTYbsKc8AAAAC1nap6g",
+          "name": "area:infra",
+          "description": "Raspberry Pi, dual-environment, self-hosted backend",
+          "color": "5319e7"
+        }
+      ],
+      "number": 220,
+      "state": "CLOSED",
+      "url": "https://github.com/AdamHikl/mizyun/issues/220"
+    },
+    {
+      "labels": [
+        {
+          "id": "LA_kwDOTYbsKc8AAAACrsvFrQ",
+          "name": "bug",
+          "description": "Something isn't working",
+          "color": "d73a4a"
+        },
+        {
+          "id": "LA_kwDOTYbsKc8AAAAC1najZA",
+          "name": "priority:P2",
+          "description": "Valuable enhancement or secondary platform",
+          "color": "fbca04"
+        },
+        {
+          "id": "LA_kwDOTYbsKc8AAAAC1namug",
+          "name": "status:done",
+          "description": "Completed and verified",
+          "color": "6a737d"
+        },
+        {
+          "id": "LA_kwDOTYbsKc8AAAAC1naskw",
+          "name": "area:nutrition",
+          "description": "Meal logging, macro tracking, food database",
+          "color": "16a34a"
+        }
+      ],
+      "number": 222,
+      "state": "CLOSED",
+      "url": "https://github.com/AdamHikl/mizyun/issues/222"
+    },
+    {
+      "labels": [
+        {
+          "id": "LA_kwDOTYbsKc8AAAACrsvFrQ",
+          "name": "bug",
+          "description": "Something isn't working",
+          "color": "d73a4a"
+        },
+        {
+          "id": "LA_kwDOTYbsKc8AAAAC1najZA",
+          "name": "priority:P2",
+          "description": "Valuable enhancement or secondary platform",
+          "color": "fbca04"
+        },
+        {
+          "id": "LA_kwDOTYbsKc8AAAAC1namug",
+          "name": "status:done",
+          "description": "Completed and verified",
+          "color": "6a737d"
+        },
+        {
+          "id": "LA_kwDOTYbsKc8AAAAC1nasIA",
+          "name": "area:workout",
+          "description": "Workouts hub, routine builder, sets, exercises",
+          "color": "e11d48"
+        }
+      ],
+      "number": 223,
+      "state": "CLOSED",
+      "url": "https://github.com/AdamHikl/mizyun/issues/223"
+    },
+    {
+      "labels": [
+        {
+          "id": "LA_kwDOTYbsKc8AAAACrsvF3w",
+          "name": "enhancement",
+          "description": "New feature or request",
+          "color": "a2eeef"
+        },
+        {
+          "id": "LA_kwDOTYbsKc8AAAAC1najZA",
+          "name": "priority:P2",
+          "description": "Valuable enhancement or secondary platform",
+          "color": "fbca04"
+        },
+        {
+          "id": "LA_kwDOTYbsKc8AAAAC1namug",
+          "name": "status:done",
+          "description": "Completed and verified",
+          "color": "6a737d"
+        },
+        {
+          "id": "LA_kwDOTYbsKc8AAAAC1naocw",
+          "name": "area:branding",
+          "description": "Branding, icons, splash, design tokens",
+          "color": "1d76db"
+        }
+      ],
+      "number": 224,
+      "state": "CLOSED",
+      "url": "https://github.com/AdamHikl/mizyun/issues/224"
+    },
+    {
+      "labels": [
+        {
+          "id": "LA_kwDOTYbsKc8AAAACrsvFrQ",
+          "name": "bug",
+          "description": "Something isn't working",
+          "color": "d73a4a"
+        },
+        {
+          "id": "LA_kwDOTYbsKc8AAAAC1nai9Q",
+          "name": "priority:P1",
+          "description": "MVP-critical deliverable",
+          "color": "d93f0b"
+        },
+        {
+          "id": "LA_kwDOTYbsKc8AAAAC1namug",
+          "name": "status:done",
+          "description": "Completed and verified",
+          "color": "6a737d"
+        },
+        {
+          "id": "LA_kwDOTYbsKc8AAAAC1naskw",
+          "name": "area:nutrition",
+          "description": "Meal logging, macro tracking, food database",
+          "color": "16a34a"
+        }
+      ],
+      "number": 225,
+      "state": "CLOSED",
+      "url": "https://github.com/AdamHikl/mizyun/issues/225"
+    },
+    {
+      "labels": [
+        {
+          "id": "LA_kwDOTYbsKc8AAAACrsvFrQ",
+          "name": "bug",
+          "description": "Something isn't working",
+          "color": "d73a4a"
+        },
+        {
+          "id": "LA_kwDOTYbsKc8AAAAC1najZA",
+          "name": "priority:P2",
+          "description": "Valuable enhancement or secondary platform",
+          "color": "fbca04"
+        },
+        {
+          "id": "LA_kwDOTYbsKc8AAAAC1namug",
+          "name": "status:done",
+          "description": "Completed and verified",
+          "color": "6a737d"
+        },
+        {
+          "id": "LA_kwDOTYbsKc8AAAAC1nasIA",
+          "name": "area:workout",
+          "description": "Workouts hub, routine builder, sets, exercises",
+          "color": "e11d48"
+        }
+      ],
+      "number": 226,
+      "state": "CLOSED",
+      "url": "https://github.com/AdamHikl/mizyun/issues/226"
+    },
+    {
+      "labels": [
+        {
+          "id": "LA_kwDOTYbsKc8AAAACrsvFrQ",
+          "name": "bug",
+          "description": "Something isn't working",
+          "color": "d73a4a"
+        },
+        {
+          "id": "LA_kwDOTYbsKc8AAAAC1najZA",
+          "name": "priority:P2",
+          "description": "Valuable enhancement or secondary platform",
+          "color": "fbca04"
+        },
+        {
+          "id": "LA_kwDOTYbsKc8AAAAC1namug",
+          "name": "status:done",
+          "description": "Completed and verified",
+          "color": "6a737d"
+        },
+        {
+          "id": "LA_kwDOTYbsKc8AAAAC1nasIA",
+          "name": "area:workout",
+          "description": "Workouts hub, routine builder, sets, exercises",
+          "color": "e11d48"
+        }
+      ],
+      "number": 228,
+      "state": "CLOSED",
+      "url": "https://github.com/AdamHikl/mizyun/issues/228"
+    },
+    {
+      "labels": [
+        {
+          "id": "LA_kwDOTYbsKc8AAAACrsvFrQ",
+          "name": "bug",
+          "description": "Something isn't working",
+          "color": "d73a4a"
+        },
+        {
+          "id": "LA_kwDOTYbsKc8AAAAC1nai9Q",
+          "name": "priority:P1",
+          "description": "MVP-critical deliverable",
+          "color": "d93f0b"
+        },
+        {
+          "id": "LA_kwDOTYbsKc8AAAAC1namug",
+          "name": "status:done",
+          "description": "Completed and verified",
+          "color": "6a737d"
+        },
+        {
+          "id": "LA_kwDOTYbsKc8AAAAC1nap6g",
+          "name": "area:infra",
+          "description": "Raspberry Pi, dual-environment, self-hosted backend",
+          "color": "5319e7"
+        }
+      ],
+      "number": 229,
+      "state": "CLOSED",
+      "url": "https://github.com/AdamHikl/mizyun/issues/229"
+    }
+  ]
+}

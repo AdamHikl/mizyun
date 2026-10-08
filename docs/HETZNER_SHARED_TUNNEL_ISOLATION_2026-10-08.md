@@ -1,6 +1,6 @@
 # Shared tunnel dependency correction — issue #229
 
-Date: 2026-10-08. Scope: local source, dependency validation, and acceptance preparation. Live installation and shared-routing acceptance remain **unrun** and require a separately authorized work package. This document grants no remote configuration or service authority.
+Date: 2026-10-08. Scope: local correction and separately authorized live dependency installation/manager reload. Actual Dev stop/restart routing observations are recorded below; full reboot/failure/recovery acceptance remains unrun. Authorization came directly from Adam, not this document.
 
 ## Failure and correction
 
@@ -76,3 +76,7 @@ The `Wants=` choice and acceptance sequence are implementation conclusions drawn
 Coordinator inspected the root-owned unique Hetzner marker, resolved unit properties and command metadata without changing services or reading token contents. Live systemd is255.4-1ubuntu8.17; the connector is loaded/enabled/active/notify/on-failure, PID2515930. It still requires both `mizyun-api-dev.service` and `mizyun-api.service`, and wants only network-online; the new direct-property validator rejects this snapshot with the four expected dependency errors. There are no reported drop-ins. Token-file command and every normalized nondependency directive match the reviewed local template. Production API PID3086051 and Dev API PID2496699 were observed, not restarted.
 
 This makes the replacement difference concrete: change only Requires/Wants dependencies while retaining the reviewed installation directives. It does not prove uninterrupted routing, authorize installation or waive effective dependency/alias/link review at installation time. Redacted property/checksum evidence is retained with the batch record.
+
+## Authorized live installation and Dev promotion — 2026-10-08
+
+Adam explicitly approved the minimal dependency correction/manager reload while preserving command/token/routes/processes. Exact source1b9b5f61ca5123ebeb079b85cf670fdc2016326e passed fresh clean-candidate gates and was published. The independently reviewed installer checked the unique root-owned marker, exact old directive/checksum correspondence, absence of drop-ins, staged systemd syntax, rollback backup and all3 active/nonzero PIDs/start times. Rollback file: `/var/backups/mizyun-cloudflared-20261008-before-dependency-correction.service`, root-owned mode0600. It installed the corrected full unit and reloaded; effective dependency validator PASS and identical all3 process snapshots. No service start/stop/restart was part of this correction. Subsequent authorized Dev promotion stopped/restarted only Dev:251Production health samples all200,4Dev502 samples then fresh ready new SHA. Production/tunnel PID and starts unchanged. Stronger Production readiness is unavailable on legacy source; boot/connector failure/intentional backup recovery remain unrun. #229 closed at Adam’s direction with those unobserved gates preserved. Earlier unrun/open statements describe the original local-only phase. [Current delivery evidence](MAIN_DEV_DELIVERY_2026-10-08.md).

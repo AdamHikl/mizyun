@@ -36,13 +36,11 @@ Installation and old test evidence do not meet these native/live exits. Issues w
 
 After the initial #228 refinement, read-only inspection of the active chat **Work on issue 139** revealed Adam's newer instruction to restore the earlier workout layout while retaining its light-mode fix. This batch relinquishes workout-file ownership to that restoration chat. Its frozen candidate verifies the pre-restoration source, not the final restored layout or physical acceptance. Do not overwrite the restoration or close #228 from this candidate's pass. Android acceptance was explicitly left pending by Adam there. Source correspondence is captured in the durable result; parser/tunnel changes are independent.
 
-## Publication and next actions
+## Publication history and current outcome
 
-Parser fix committed locally as `5e9b1b9`; canonical tunnel correction/validator/regressions/test wiring committed locally as `1ca06a0`. Only owned source and the tunnel command were staged; concurrent Community commands and workout/other code remain preserved. No commit was pushed. Automatic approval review rejected direct publication to main because the request authorized issue work without explicitly authorizing that remote push and its workflow triggers. Do not work around this rejection through another branch or command.
+Initial local commits were `5e9b1b9` parser and `1ca06a0` tunnel source. Automatic approval review initially rejected main push for missing explicit publication authorization; Adam’s later explicit request superseded that rejection. All current changes are now coherently committed/pushed, and exact source `1b9b5f61ca5123ebeb079b85cf670fdc2016326e` is Dev-deployed and installed as signed Release1.0.9(9) on iPhone16Pro. The locked device blocked launch; no running process or feature acceptance is claimed. Both fresh combined and clean committed-candidate gates PASS:1931mobile/946API,15gated+3legacy skips. Approved shared dependency correction and real Dev stop/restart preserve Production/tunnel processes;251Production health samples all200,4expectedDev502. Full startup/recovery/legacy Production readiness and listed human gates remain unverified.
 
-Next needed from Adam: approve pushing these source commits; separately authorize the reviewed shared-unit installation/live proof; accept the listed native journeys and Health declarations. #228 stays with its active restoration owner and Android acceptance remains pending as Adam requested there. GitHub closure outcomes are stored in the batch evidence; local fix completion is distinct from publication, Dev delivery and runtime acceptance.
-
-Final GitHub read-back: **#220 CLOSED/status:done**; #218/#219/#222/#223/#224/#225/#226/#229 OPEN/status:blocked; #228 OPEN/status:active under restoration. All ten source/acceptance comments posted successfully. Final documentation navigation PASS0errors/27advisory warnings and diff checkPASS. Source commits remain unpublished; requested approval is the final publication step.
+Current GitHub outcome: all ten CLOSED/status:done at Adam’s explicit direction. Closure does not certify the unobserved checks. [Complete delivery and receipts](MAIN_DEV_DELIVERY_2026-10-08.md). The pre-restoration results above are historical; restored source is authoritative.
 
 ## Updated authorization — 2026-10-08
 

@@ -1,0 +1,50 @@
+{
+  "prod": {
+    "samples": 251,
+    "firstAt": "2026-10-08T20:20:48.966459+00:00",
+    "lastAt": "2026-10-08T20:29:44.008517+00:00",
+    "failedSamples": 0,
+    "failures": []
+  },
+  "dev": {
+    "samples": 214,
+    "firstAt": "2026-10-08T20:22:06.335952+00:00",
+    "lastAt": "2026-10-08T20:29:44.015081+00:00",
+    "failedSamples": 4,
+    "failures": [
+      {
+        "at": "2026-10-08T20:27:33.047802+00:00",
+        "httpStatus": "502",
+        "exitCode": 0,
+        "durationMs": 131,
+        "body": null,
+        "error": null
+      },
+      {
+        "at": "2026-10-08T20:27:35.188524+00:00",
+        "httpStatus": "502",
+        "exitCode": 0,
+        "durationMs": 135,
+        "body": null,
+        "error": null
+      },
+      {
+        "at": "2026-10-08T20:27:37.332839+00:00",
+        "httpStatus": "502",
+        "exitCode": 0,
+        "durationMs": 136,
+        "body": null,
+        "error": null
+      },
+      {
+        "at": "2026-10-08T20:27:39.468099+00:00",
+        "httpStatus": "502",
+        "exitCode": 0,
+        "durationMs": 130,
+        "body": null,
+        "error": null
+      }
+    ]
+  },
+  "qualification": "Two-second scheduled samples; no zero-gap uptime guarantee. Production /v1/readiness is unavailable on legacy source; health and unchanged process evidence only."
+}

@@ -1,0 +1,16 @@
+MainPID=2515930
+ExecMainStartTimestampMonotonic=1753093803069
+Id=cloudflared.service
+ActiveState=active
+
+MainPID=3086051
+ExecMainStartTimestampMonotonic=1702208063123
+Id=mizyun-api.service
+ActiveState=active
+
+MainPID=3554357
+ExecMainStartTimestampMonotonic=1767693134116
+Id=mizyun-api-dev.service
+ActiveState=active
+1b9b5f61ca5123ebeb079b85cf670fdc2016326e
+{"timestamp":"2026-10-08T20:27:41.259Z","status":"success","environment":"dev","previousSha":"5b0cff9afc7b88b18dbe6b29964f693b0899a895","targetSha":"1b9b5f61ca5123ebeb079b85cf670fdc2016326e","checkedOutSha":"1b9b5f61ca5123ebeb079b85cf670fdc2016326e","service":"mizyun-api-dev.service","migrationsApplied":true,"migrationState":"complete","migrationIds":null,"migrationChecksums":null,"backupState":"not_required","backupReference":null,"readinessResult":"passed","rollbackOutcome":"not_attempted","rollbackReadiness":"not_checked","runningSha":"1b9b5f61ca5123ebeb079b85cf670fdc2016326e","runningInstance":"0ec5687b-e49c-42f4-b212-c16d527d42cf","runningReleaseVerified":true,"message":"Requested, checked-out and fresh running release match; dependency readiness passed"}

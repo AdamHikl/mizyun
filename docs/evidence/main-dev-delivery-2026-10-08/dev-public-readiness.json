@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "ready": true,
+  "release": {
+    "sha": "1b9b5f61ca5123ebeb079b85cf670fdc2016326e",
+    "instanceId": "0ec5687b-e49c-42f4-b212-c16d527d42cf",
+    "startedAt": 1791491259983
+  },
+  "dependencies": { "database": true, "auth": true, "storage": true }
+}

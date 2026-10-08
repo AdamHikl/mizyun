@@ -23,5 +23,31 @@
     "communityRecovery": "PASS; bounded quarantined scope only",
     "deployment": "PASS; helper revised with rollback and process checks"
   },
-  "humanAcceptance": "Not inferred from checks/install or requested issue closure"
+  "humanAcceptance": "Not inferred from checks/install or requested issue closure",
+  "committedCandidateFullGate": {
+    "sourceSha": "1b9b5f61ca5123ebeb079b85cf670fdc2016326e",
+    "result": "PASS",
+    "inputSha256": "ec7361c7a75ab9826d5ff7019b31d682412e7bdf76a9a7b26b35db2b0e23fcd3",
+    "mobileTests": 1931,
+    "apiTests": 946,
+    "gatedApiSkips": 15,
+    "legacyConfigSkips": 3
+  },
+  "hostedCi": {
+    "sourceSha": "1b9b5f61ca5123ebeb079b85cf670fdc2016326e",
+    "qualityGate": {
+      "result": "success",
+      "runId": 37838745041
+    },
+    "navigation": {
+      "result": "success",
+      "runId": 37838745040
+    }
+  },
+  "finalDocumentation": {
+    "navigation": "PASS",
+    "formatting": "PASS",
+    "diffCheck": "PASS",
+    "statusWithinBounds": true
+  }
 }

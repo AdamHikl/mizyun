@@ -1,0 +1,23 @@
+{
+  "sourceSha": "1b9b5f61ca5123ebeb079b85cf670fdc2016326e",
+  "buildResult": "BUILD SUCCEEDED",
+  "configuration": "Release",
+  "signatureVerified": true,
+  "teamIdentifier": "LQJNDVBL43",
+  "bundle": {
+    "CFBundleIdentifier": "com.mizyun.development",
+    "CFBundleShortVersionString": "1.0.9",
+    "CFBundleVersion": "9"
+  },
+  "device": "iPhone16Pro",
+  "udid": "00008140-001114501A86801C",
+  "installed": true,
+  "installedContainer": "8BBF1E67-D8BB-4B1F-A4C9-A57B8D81A859",
+  "launchVerified": false,
+  "launchBlocker": "iOS device locked; CoreDevice launch rejected; independently observed no running Mizyun process",
+  "nativeFeatureAcceptance": "Unrun",
+  "artifactSha256": {
+    "executable": "cb1a22274bbb568bcde5ef5d53d82bd44d0a0435d750d1dad8813e8b7fb9c4d6",
+    "jsBundle": "94f61258a9d8450c4cb288035671370342b9f618933db35bdc301ad67643d547"
+  }
+}

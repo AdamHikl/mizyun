@@ -1,0 +1,15 @@
+Executable=/Users/adam/Documents/mizyun/apps/mobile/ios/build/Build/Products/Release-iphoneos/MizyunDev.app/MizyunDev
+Identifier=com.mizyun.development
+Format=app bundle with Mach-O thin (arm64)
+CodeDirectory v=20400 size=36922 flags=0x0(none) hashes=1143+7 location=embedded
+Signature size=4778
+Authority=Apple Development: Adam Hikl (S9NQ5DX32C)
+Authority=Apple Worldwide Developer Relations Certification Authority
+Authority=Apple Root CA
+Signed Time=8 Oct 2026 at 22:29:06
+Info.plist entries=52
+TeamIdentifier=LQJNDVBL43
+Sealed Resources version=2 rules=10 files=136
+Internal requirements count=1 size=184
+Total signatures=1
+Chosen signature=1

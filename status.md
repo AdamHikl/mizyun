@@ -4,14 +4,14 @@
 
 ## Current authority and delivery
 
-- **Main/Dev integration (Oct8):** Adam authorized ten-issue closure, main commits/push, Dev backend/iPhone and shared-tunnel correction. Combined gate1931mobile/946API(+15/3skips),1049SQL/18replayPASS; delivery pending. [Record](docs/MAIN_DEV_DELIVERY_2026-10-08.md); prior gates retained.
+- **Latest ten/main (Oct8):** all10CLOSED/done per Adam; coherent main commits pushed; gate1931mobile/946API(+15/3skips),1049SQL/18replayPASS. [Delivery/gates](docs/MAIN_DEV_DELIVERY_2026-10-08.md). Human/provider/release acceptance distinct.
 
 - **Issues:** prior approvals; #21/#23/#25/#26/#31 partial/gatePASS. #117/#118 done; gatePASS; Adam tests Dev/native. [Evidence](docs/MEAL_ISSUES_117_118_EVIDENCE_2026-10-08.md).
 
 - **Git integration — 2026-10-07:** main packages pushed; runtime32d1d790cf072171da8fe38527256fef7b33c898/full gate/High reviewsPASS. [Preserved evidence](docs/archive/status/STATUS_PRE_COMPLETED_WORKOUT_REVIEW_2026-10-07.md). Exact-candidate native/device and all release/privacy exits remain open.
 - **Build9 / #212 (#27/#32):** source`dd5b435385b379d8c0df1b69813f8d8fdd3d985a`,1.0.9/9/9; signedIPA/widget/dSYMs and AAB/upload cert/16KB LOADPASS; fresh full gatesPASS. [Artifacts/evidence](docs/BUILD_9_RELEASE_EVIDENCE_2026-10-05.md). iPhone16Pro installed/launched1.0.9(9) PID6828; native/16KB runtime/Store exits open.
-- **Dev backend:** pristine5b0cff9afc7b88b18dbe6b29964f693b0899a895; API4100/DB5433 PID2496699; exact public readiness/database/Auth/StoragePASS, three migrations through20261008120000. [Combined delivery](docs/COMBINED_DEV_IPHONE_INSTALL_2026-10-08.md). Tunnel dependency#229 open; routing restored.
-- **Latest iPhone Dev:** 584452e,1.0.9(9)/com.mizyun.development/iPhone16Pro; original workout UI restored; full gate/signature/install/launch/processPASS PID17907. [Evidence](docs/WORKOUT_UI_RESTORATION_2026-10-08.md). Combined departments and contrast fix retained; native/provider/accessibility/Apple-key exits open.
+- **Dev backend:** pristine1b9b5f61ca5123ebeb079b85cf670fdc2016326e; API4100/DB5433 PID3554357/instance0ec5687b; exact public database/Auth/Storage readinessPASS, ledger through20261008120000/zero pending. Approved tunnel correctionPASS;251Production200 samples/unchanged Prod-tunnel processes. [Receipt](docs/MAIN_DEV_DELIVERY_2026-10-08.md).
+- **Latest iPhone Dev:**1b9b5f6,1.0.9(9)/com.mizyun.development/iPhone16Pro; Releasebuild/signature/installPASS. Launch blocked: phone locked; processabsent. Next: unlock, launch/verify. Original workout UI retained; native/provider/accessibility/Apple-key exits open. [Receipt](docs/MAIN_DEV_DELIVERY_2026-10-08.md).
 - **Production:** pristine9b0c41a; API4000/DB5432 PID3086051, tunnel2515930 restored,57migrations through20261004110000. Backup20261005T060157Z/checksumsPASS; public health200/protected Coach401. Adam confirmed build6 meal/workout/Coach journeys on d610382; API/packages/schema unchanged in9b0c41a. New build7 device/Store exits remain separate.
 - **Environment and AI:** Hetzner CX23 owns Dev/Production; Pi remains encrypted recovery storage. Gemini-or-disabled, consent-based adult admission, current usage/kill switches; no email allowlist. Retain the explicit founder/partner shared-Gemini Dev exception. Local Qwen remains paused. `docs/BEFORE_TESTING.md` and live-provider gates remain in force.
 
@@ -54,7 +54,7 @@
 
 ## Community and release gates retained
 
-**#224 COMMUNITY-UI-001:** Quiet feed UI-01–07 plus iPhone refinements on7d5c9d0; false sign-out and membership recovery fixed; social/settings/safety journeys retained. Non-author High review clear; full gatePASS:1754 mobile/892 API(+15 gated skips), iOS/Android exports; prior904 SQL/concurrencyPASS. Exact SHA pushed/deployed to Dev with three migrations; standalone iPhone9 installed/launched. [Evidence/next action](docs/COMMUNITY_UI_REDESIGN_EVIDENCE_2026-10-07.md). Two-account/native/pilot/release gates open; issueactive.
+**#224 COMMUNITY-UI-001:** Quiet feed UI-01–07 plus iPhone refinements on7d5c9d0; false sign-out and membership recovery fixed; social/settings/safety journeys retained. Non-author High review clear; full gatePASS:1754 mobile/892 API(+15 gated skips), iOS/Android exports; prior904 SQL/concurrencyPASS. Exact SHA pushed/deployed to Dev with three migrations; standalone iPhone9 installed/launched. [Evidence/next action](docs/COMMUNITY_UI_REDESIGN_EVIDENCE_2026-10-07.md). Two-account/native/pilot/release gates open; #224closed per Adam.
 
 Community #140/#142–162/#166–167 exits remain open; delivery false/cohort required under founder/partner Dev policy. Revocation ledger/replay, fallback and closure materials added2026-10-08; review clear; isolated gatePASS:1811mobile/937API,15gated+3config skips;1049SQL/19race/18replayPASS. [Evidence](docs/COMMUNITY_IMPLEMENTATION_EVIDENCE_2026-10-08.md), [per-issue actions](docs/COMMUNITY_REMAINING_ISSUES_2026-10-08.md). Independent ledger durability/coverage and physical Storage erasure open (#151/#153); restored traffic closed. Real archive transfer/decryption needs explicit authorization; none occurred. Next: choose ledger destination + run device batch; external reconciliation open.
 
