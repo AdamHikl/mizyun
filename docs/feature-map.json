@@ -851,7 +851,10 @@
         "scripts/ios-simulator-dev.mjs",
         "scripts/ios-simulator-dev.test.mjs",
         "apps/api/src/release-readiness.ts",
-        "apps/api/src/release-readiness.test.ts"
+        "apps/api/src/release-readiness.test.ts",
+        "deploy/hetzner/cloudflared.service",
+        "deploy/hetzner/verify-shared-tunnel-dependencies.mjs",
+        "scripts/test-hetzner-tunnel-isolation.mjs"
       ],
       "contracts": [],
       "domainPort": [],
@@ -872,7 +875,8 @@
         "scripts/test-backup-dev-encrypted.py",
         "apps/api/src/release-compatibility.test.ts",
         "scripts/ios-simulator-dev.test.mjs",
-        "apps/api/src/release-readiness.test.ts"
+        "apps/api/src/release-readiness.test.ts",
+        "scripts/test-hetzner-tunnel-isolation.mjs"
       ],
       "relations": [
         {
@@ -890,12 +894,14 @@
         ".agents/skills/deploy-dev/SKILL.md",
         ".agents/skills/deploy-production/SKILL.md",
         ".agents/skills/test-ios-simulator/SKILL.md",
-        "docs/adr/0051-running-release-readiness.md"
+        "docs/adr/0051-running-release-readiness.md",
+        "docs/HETZNER_SHARED_TUNNEL_ISOLATION_2026-10-08.md"
       ],
       "verificationCommands": [
         "pnpm test:deployment-safeguards",
         "pnpm test:build-matrix",
-        "pnpm --filter @mizyun/config test"
+        "pnpm --filter @mizyun/config test",
+        "pnpm test:hetzner-operations"
       ],
       "lastReviewedSha": "ed70df727fdb38940b686b1dd2647d519f8478cd",
       "lastReviewedDate": "2026-09-22",
@@ -904,7 +910,8 @@
       "openAcceptance": [
         "REL-AUD-003/R3 Part B: Store distribution signing keys and release build profiles",
         "INFRA-DUAL-005/R8: Physical-device standalone journey and off-device backup restore rehearsal",
-        "Q9: live running-release readiness, authenticated smoke, migration drift and schema-compatible rollback evidence"
+        "Q9: live running-release readiness, authenticated smoke, migration drift and schema-compatible rollback evidence",
+        "#229: authorized shared-tunnel installation and live Dev stop/restart with uninterrupted Production routing; source fixtures do not establish live isolation"
       ]
     },
     {

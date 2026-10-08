@@ -1,0 +1,157 @@
+[
+  {
+    "issue": 229,
+    "commands": [
+      {
+        "action": "comment",
+        "exitCode": 0,
+        "result": "https://github.com/AdamHikl/mizyun/issues/229#issuecomment-6067931817"
+      },
+      {
+        "action": "edit",
+        "exitCode": 0,
+        "result": "https://github.com/AdamHikl/mizyun/issues/229"
+      }
+    ]
+  },
+  {
+    "issue": 228,
+    "commands": [
+      {
+        "action": "comment",
+        "exitCode": 0,
+        "result": "https://github.com/AdamHikl/mizyun/issues/228#issuecomment-6067932587"
+      },
+      {
+        "action": "edit",
+        "exitCode": 0,
+        "result": "https://github.com/AdamHikl/mizyun/issues/228"
+      }
+    ]
+  },
+  {
+    "issue": 226,
+    "commands": [
+      {
+        "action": "comment",
+        "exitCode": 0,
+        "result": "https://github.com/AdamHikl/mizyun/issues/226#issuecomment-6067933517"
+      },
+      {
+        "action": "edit",
+        "exitCode": 0,
+        "result": "https://github.com/AdamHikl/mizyun/issues/226"
+      }
+    ]
+  },
+  {
+    "issue": 225,
+    "commands": [
+      {
+        "action": "comment",
+        "exitCode": 0,
+        "result": "https://github.com/AdamHikl/mizyun/issues/225#issuecomment-6067934306"
+      },
+      {
+        "action": "edit",
+        "exitCode": 0,
+        "result": "https://github.com/AdamHikl/mizyun/issues/225"
+      }
+    ]
+  },
+  {
+    "issue": 224,
+    "commands": [
+      {
+        "action": "comment",
+        "exitCode": 0,
+        "result": "https://github.com/AdamHikl/mizyun/issues/224#issuecomment-6067935182"
+      },
+      {
+        "action": "edit",
+        "exitCode": 0,
+        "result": "https://github.com/AdamHikl/mizyun/issues/224"
+      }
+    ]
+  },
+  {
+    "issue": 223,
+    "commands": [
+      {
+        "action": "comment",
+        "exitCode": 0,
+        "result": "https://github.com/AdamHikl/mizyun/issues/223#issuecomment-6067936229"
+      },
+      {
+        "action": "edit",
+        "exitCode": 0,
+        "result": "https://github.com/AdamHikl/mizyun/issues/223"
+      }
+    ]
+  },
+  {
+    "issue": 222,
+    "commands": [
+      {
+        "action": "comment",
+        "exitCode": 0,
+        "result": "https://github.com/AdamHikl/mizyun/issues/222#issuecomment-6067937017"
+      },
+      {
+        "action": "edit",
+        "exitCode": 0,
+        "result": "https://github.com/AdamHikl/mizyun/issues/222"
+      }
+    ]
+  },
+  {
+    "issue": 219,
+    "commands": [
+      {
+        "action": "comment",
+        "exitCode": 0,
+        "result": "https://github.com/AdamHikl/mizyun/issues/219#issuecomment-6067937814"
+      },
+      {
+        "action": "edit",
+        "exitCode": 0,
+        "result": "https://github.com/AdamHikl/mizyun/issues/219"
+      }
+    ]
+  },
+  {
+    "issue": 218,
+    "commands": [
+      {
+        "action": "comment",
+        "exitCode": 0,
+        "result": "https://github.com/AdamHikl/mizyun/issues/218#issuecomment-6067938559"
+      },
+      {
+        "action": "edit",
+        "exitCode": 0,
+        "result": "https://github.com/AdamHikl/mizyun/issues/218"
+      }
+    ]
+  },
+  {
+    "issue": 220,
+    "commands": [
+      {
+        "action": "comment",
+        "exitCode": 0,
+        "result": "https://github.com/AdamHikl/mizyun/issues/220#issuecomment-6067940212"
+      },
+      {
+        "action": "edit",
+        "exitCode": 0,
+        "result": "https://github.com/AdamHikl/mizyun/issues/220"
+      },
+      {
+        "action": "close",
+        "exitCode": 0,
+        "result": "\u2713 Closed issue AdamHikl/mizyun#220 (Return client error for empty or malformed JSON requests)"
+      }
+    ]
+  }
+]
