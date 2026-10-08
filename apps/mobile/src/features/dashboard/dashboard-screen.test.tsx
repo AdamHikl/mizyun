@@ -604,6 +604,31 @@ describe("dashboard cached display and refresh status", () => {
     expect(mocks.daily).toHaveBeenCalledTimes(1);
   });
 
+  it("places More nutrients beside the Meals navigation control and resets the card scope", async () => {
+    render();
+    focus();
+    await settle();
+    let card = nutrition(render());
+    const priorKey = card.key;
+    const tree = card.type(card.props);
+    const panel = find(tree, (node) => node.type?.name === "DailyNutrients");
+    const mealsButton = find(
+      tree,
+      (node) => node.props?.accessibilityLabel === "View Meals Hub",
+    );
+    expect(panel.props.summary).toEqual(summary);
+    expect(panel.props.dailyTargetKcal).toBe(2200);
+    expect(
+      find(mealsButton, (node) => node.type?.name === "DailyNutrients"),
+    ).toBeFalsy();
+    mealsButton.props.onPress();
+    expect(mocks.push).toHaveBeenLastCalledWith("/meals");
+    mocks.owner = "other-owner";
+    card = nutrition(render());
+    expect(card.key).not.toBe(priorKey);
+    expect(card.props.summary).toBeNull();
+  });
+
   it("shows cached numbers immediately without claiming offline before the live read settles", async () => {
     const pending = deferred<any>();
     mocks.daily.mockReturnValueOnce(pending.promise);

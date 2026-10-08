@@ -109,6 +109,7 @@ export function createServiceRpc({ url, key, fetchImpl = fetch }) {
         },
         body: JSON.stringify(args),
         signal: AbortSignal.timeout(10000),
+        redirect: "error",
       },
     );
     if (!response.ok) throw new Error("Community worker RPC failed");

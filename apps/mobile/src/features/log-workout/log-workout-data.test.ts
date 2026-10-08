@@ -416,6 +416,10 @@ describe("workout lifecycle", () => {
     expect(recent?.summary.bestLoadKg).toBe(100);
     expect(requests[0]?.path).toContain(`excludeWorkoutId=${WORKOUT_ID}`);
     expect(completed.ok).toBe(true);
+    expect(completed).toEqual({
+      ok: true,
+      workout: { ...WORKOUT, completedAt: NOW },
+    });
     expect(requests[1]).toMatchObject({
       method: "PUT",
       body: { completedAt: NOW.toISOString() },

@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="robots" content="noindex, nofollow, noarchive" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'"
+    />
+    <title>Open your Mizyun invitation</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family:
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+        color: #18372e;
+        background: #f2f6f3;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: clamp(20px, 5vw, 48px);
+      }
+      main {
+        max-width: 560px;
+        margin: 8vh auto;
+      }
+      .brand {
+        font-size: 1.1rem;
+        font-weight: 750;
+        letter-spacing: -0.03em;
+      }
+      .card {
+        margin-top: 32px;
+        padding: clamp(24px, 5vw, 40px);
+        border: 1px solid #cbd9cf;
+        border-radius: 24px;
+        background: #fff;
+      }
+      h1 {
+        font-size: clamp(1.8rem, 6vw, 2.4rem);
+        line-height: 1.15;
+        letter-spacing: -0.04em;
+        margin: 0 0 20px;
+      }
+      h2 {
+        font-size: 1.1rem;
+        margin: 28px 0 8px;
+      }
+      p {
+        line-height: 1.6;
+        margin: 12px 0;
+        overflow-wrap: anywhere;
+      }
+      .muted {
+        color: #486354;
+      }
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 52px;
+        padding: 12px 22px;
+        margin: 12px 0 4px;
+        border-radius: 14px;
+        background: #205d42;
+        color: #fff;
+        text-decoration: none;
+        font-weight: 650;
+      }
+      .button:focus-visible {
+        outline: 3px solid #d38413;
+        outline-offset: 4px;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          color: #edf5ef;
+          background: #101c16;
+        }
+        .card {
+          background: #192b21;
+          border-color: #3a5746;
+        }
+        .muted {
+          color: #b6cdbd;
+        }
+        .button {
+          background: #a4e1b9;
+          color: #173626;
+        }
+      }
+      @media (max-width: 360px) {
+        main {
+          margin-top: 4vh;
+        }
+        .card {
+          border-radius: 18px;
+        }
+        .button {
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="brand">Mizyun</div>
+      <section class="card" aria-labelledby="title">
+        <h1 id="title">Open your invitation</h1>
+        <p class="muted">
+          An invitation helps you find someone in Community. You choose whether
+          to send a follow request in the app.
+        </p>
+        <div id="invalid" role="status">
+          <p id="error">
+            This invitation link cannot be opened. Ask the person who invited
+            you for a new link.
+          </p>
+        </div>
+        <div id="valid" hidden>
+          <p id="variant"></p>
+          <a
+            id="open-app"
+            class="button"
+            rel="noreferrer"
+            aria-describedby="installed-note"
+          ></a>
+          <p id="installed-note" class="muted">
+            The correct Mizyun app must be installed on this device. Your
+            browser may ask before opening it.
+          </p>
+          <h2>If the app does not open</h2>
+          <p>
+            Install the correct app through your usual trusted source, then
+            reopen the original invitation from the message you received and
+            choose Open again.
+          </p>
+          <p class="muted">
+            The app checks whether the invitation is still available. Opening
+            this page does not approve a request or reveal anyone’s profile.
+          </p>
+        </div>
+        <noscript>
+          <p>
+            Enable JavaScript to open an invitation here, or ask the person who
+            invited you for an app invitation link. This page cannot open an
+            invitation without JavaScript.
+          </p>
+        </noscript>
+      </section>
+    </main>
+    <script>
+      (() => {
+        "use strict";
+        let fragment = window.location.hash;
+        // Do not put the capability in history.state, storage, logs or requests.
+        // Fail closed if the current URL cannot be cleared.
+        try {
+          window.history.replaceState(null, "", window.location.pathname);
+        } catch {
+          fragment = "";
+          document.getElementById("error").textContent =
+            "This browser could not safely open the invitation. Reopen the original link in your device’s browser.";
+          return;
+        }
+        const match = /^#(dev|production)\/([A-Za-z0-9_-]{22})$/.exec(fragment);
+        const valid = match && match[0] === fragment;
+        fragment = "";
+        if (!valid) return;
+        const development = match[1] === "dev";
+        const name = development ? "Mizyun Dev" : "Mizyun";
+        const link = document.getElementById("open-app");
+        link.href = `${development ? "mizyun-dev" : "mizyun"}://invite/${match[2]}`;
+        link.textContent = `Open ${name}`;
+        document.getElementById("variant").textContent = development
+          ? "This invitation is for Mizyun Dev. It works only with the Dev app and account."
+          : "This invitation is for Mizyun. It works only with the regular app and account.";
+        document.getElementById("invalid").hidden = true;
+        document.getElementById("valid").hidden = false;
+      })();
+    </script>
+  </body>
+</html>

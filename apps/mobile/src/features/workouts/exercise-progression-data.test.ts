@@ -233,6 +233,103 @@ describe("exercise-progression-data", () => {
     expect(progression.loadDeltaPercent).toBe(16.7);
   });
 
+  it("retains warmup-only history without awarding volume, records, or target progress", () => {
+    const warmups = mockSets.map((set) => ({
+      ...set,
+      setType: "warmup" as const,
+    }));
+    const progression = calculateExerciseProgression(
+      mockExercise,
+      mockExercise.name,
+      warmups,
+      mockWorkouts,
+    );
+
+    expect.soft(progression).toMatchObject({
+      allTimeBestLoadKg: null,
+      allTimeBest1RMKg: null,
+      totalVolumeKg: 0,
+      totalSessionsCount: 3,
+      totalSetsCount: 6,
+      loadDeltaKg: null,
+      loadDeltaPercent: null,
+    });
+    expect(
+      progression.sessionsChronological.map((session) => session.workoutId),
+    ).toEqual(["w-1", "w-2", "w-3"]);
+    for (const session of progression.sessionsChronological) {
+      expect.soft(session).toMatchObject({
+        peakLoadKg: null,
+        estimated1RMKg: null,
+        totalVolumeKg: 0,
+        targetStatus: "no_target",
+      });
+      expect(session.sets).toEqual(
+        warmups.filter((set) => set.workoutId === session.workoutId),
+      );
+    }
+  });
+
+  it("excludes a heavier warmup while retaining normal, failure, and drop metrics and history", () => {
+    const template = mockSets[0]!;
+    const sessionSets: WorkoutSet[] = [
+      {
+        ...template,
+        id: "warmup",
+        sequence: 1,
+        setType: "warmup",
+        loadKg: 120,
+        repetitions: 10,
+      },
+      {
+        ...template,
+        id: "normal",
+        sequence: 2,
+        setType: "normal",
+        loadKg: 70,
+        repetitions: 8,
+      },
+      {
+        ...template,
+        id: "failure",
+        sequence: 3,
+        setType: "failure",
+        loadKg: 75,
+        repetitions: 5,
+      },
+      {
+        ...template,
+        id: "drop",
+        sequence: 4,
+        setType: "drop",
+        loadKg: 60,
+        repetitions: 10,
+      },
+    ];
+    const progression = calculateExerciseProgression(
+      mockExercise,
+      mockExercise.name,
+      [...sessionSets].reverse(),
+      mockWorkouts,
+    );
+
+    expect.soft(progression).toMatchObject({
+      allTimeBestLoadKg: 75,
+      allTimeBest1RMKg: 88.7,
+      totalVolumeKg: 1535,
+      totalSessionsCount: 1,
+      totalSetsCount: 4,
+    });
+    expect(progression.sessionsChronological[0]).toMatchObject({
+      sets: sessionSets,
+      peakLoadKg: 75,
+      estimated1RMKg: 88.7,
+      totalVolumeKg: 1535,
+      sessionTargetLoadKg: 75,
+      targetStatus: "hit_target",
+    });
+  });
+
   it("fetches exercise progression from API", async () => {
     const client: ApiClient = {
       request: vi

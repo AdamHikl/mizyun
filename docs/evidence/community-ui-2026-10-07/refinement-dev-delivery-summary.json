@@ -1,0 +1,49 @@
+{
+  "checkedAt": "2026-10-07T16:44:07.131587+00:00",
+  "checkout": "/var/lib/mizyun/dev/repo",
+  "sha": "7d5c9d0ecfd52629995af25d896dd6cdfef1abaf",
+  "pristine": true,
+  "hostMarkerVerified": true,
+  "service": {
+    "MainPID": "638748",
+    "ActiveState": "active",
+    "SubState": "running"
+  },
+  "databaseHostPort": 5433,
+  "journal": {
+    "timestamp": "2026-10-07T16:43:05Z",
+    "status": "success",
+    "targetSha": "7d5c9d0ecfd52629995af25d896dd6cdfef1abaf",
+    "previousSha": "a64a15898c43ece0c2e551086f040c645e2b5baa",
+    "service": "mizyun-api-dev.service",
+    "migrationsApplied": true,
+    "message": "Dev promotion succeeded"
+  },
+  "migrations": ["20261007110000", "20261007120000", "20261007130000"],
+  "operations": {
+    "enabled": true,
+    "enrollment": true,
+    "discovery": true,
+    "publish": true,
+    "engagement": true,
+    "delivery": false,
+    "cohort_required": true
+  },
+  "workPackage": "COMMUNITY-UI-001",
+  "command": "pnpm deploy:dev 7d5c9d0ecfd52629995af25d896dd6cdfef1abaf",
+  "deploymentExitCode": 0,
+  "committedGateInputSha256": "f766809df6309c3e9f5c1f0714e25ef2312a897ec0e4277b9bcea5193b04fe45",
+  "pushedMainSha": "7d5c9d0ecfd52629995af25d896dd6cdfef1abaf",
+  "publicRoutes": {
+    "checkedAt": "2026-10-07T16:44:05.188024+00:00",
+    "health": 200,
+    "profileWithoutAuthentication": 401,
+    "authorActivitiesWithoutAuthentication": 401,
+    "messagingWithoutAuthentication": 401
+  },
+  "previousAuthorActivitiesWithoutAuthentication": {
+    "checkedAt": "2026-10-07T16:40:10.579555+00:00",
+    "status": 404
+  },
+  "acceptanceScope": "exact checkout, service, forward migration ledger, public health and unauthenticated route protection; no signed-in two-account acceptance"
+}

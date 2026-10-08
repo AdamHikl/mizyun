@@ -23,7 +23,8 @@ const retiredOwners = new Set<string>();
 const photoDirectory = (owner: string) =>
   new Directory(Paths.document, "meal-photo-drafts", encodeURIComponent(owner));
 const owned = (owner: string, uri: string) =>
-  uri.startsWith(`${photoDirectory(owner).uri}/`) && !uri.includes("/../");
+  uri.startsWith(`${photoDirectory(owner).uri.replace(/\/+$/, "")}/`) &&
+  !uri.includes("/../");
 export const discardOwnedMealPhoto = (owner: string, uri: string): void => {
   if (!owned(owner, uri)) return;
   try {
@@ -31,6 +32,23 @@ export const discardOwnedMealPhoto = (owner: string, uri: string): void => {
     if (file.exists) file.delete();
   } catch {
     /* Cleanup can be retried later. */
+  }
+};
+
+const copyMealPhotoFile = async (
+  owner: string,
+  source: File,
+  destination: File,
+): Promise<void> => {
+  try {
+    // Expo 57 copy is asynchronous. Keep the source until the native read finishes.
+    await source.copy(destination);
+    if (retiredOwners.has(owner)) throw new Error("Account data was cleared.");
+    if (!destination.exists || destination.size <= 0)
+      throw new Error("The photo could not be saved on this device.");
+  } catch (cause) {
+    discardOwnedMealPhoto(owner, destination.uri);
+    throw cause;
   }
 };
 
@@ -49,9 +67,12 @@ export const persistMealPhotoSource = async (
   const directory = photoDirectory(owner);
   directory.create({ intermediates: true, idempotent: true });
   const destination = new File(directory, `${createOperationId()}.jpg`);
-  normalized.copy(destination);
-  normalized.delete();
-  return { uri: destination.uri };
+  try {
+    await copyMealPhotoFile(owner, normalized, destination);
+    return { uri: destination.uri };
+  } finally {
+    if (normalized.exists) normalized.delete();
+  }
 };
 
 export interface RetainedMealPhoto {
@@ -100,8 +121,11 @@ export const prepareRetainedMealPhoto = async (
         directory,
         `${createOperationId()}-thumbnail.jpg`,
       );
-      file.copy(destination);
-      file.delete();
+      try {
+        await copyMealPhotoFile(owner, file, destination);
+      } finally {
+        if (file.exists) file.delete();
+      }
       return {
         uri: destination.uri,
         width: saved.width,
@@ -205,7 +229,7 @@ export const persistMealPhotoRetry = async (
       const directory = photoDirectory(owner);
       directory.create({ intermediates: true, idempotent: true });
       const copy = new File(directory, `${createOperationId()}-retry.jpg`);
-      new File(photo.uri).copy(copy);
+      await copyMealPhotoFile(owner, new File(photo.uri), copy);
       retry = { ...photo, uri: copy.uri };
     } catch {
       return false;

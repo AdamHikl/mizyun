@@ -54,6 +54,7 @@ import {
   type FirstMealReminderSettings,
 } from "../log-meal/first-meal-reminders";
 import { reconcileEveningReminders } from "../log-meal/evening-catch-up-reminders";
+import { DailyNutrients } from "./daily-nutrients";
 
 import {
   combineNutritionReview,
@@ -987,6 +988,7 @@ export function DashboardScreen() {
 
           {/* 1. Daily Nutrition & Macro Visual Card */}
           <DailyNutritionCard
+            key={renderScope}
             summary={metrics.macros}
             energy={metrics.energy}
             caloriesToday={metrics.caloriesToday}
@@ -1509,108 +1511,117 @@ function DailyNutritionCard(props: {
   });
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="View Meals Hub"
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.dailyNutritionCardWrapper,
-        pressed && styles.pressed,
-      ]}
-    >
-      <ThemedView type="backgroundElement" style={styles.dailyNutritionCard}>
-        <View style={styles.dailyNutritionHeader}>
-          <View style={styles.nutritionHeaderCopy}>
-            <ThemedText type="smallBold" themeColor="textSecondary">
-              TODAY'S NUTRITION
-            </ThemedText>
-            <View style={styles.calorieRow}>
-              <ThemedText type="title" style={styles.dailyCalorieValue}>
-                {display.consumedKcal !== null
-                  ? `${display.consumedKcal}`
-                  : "—"}
+    <ThemedView type="backgroundElement" style={styles.dailyNutritionCard}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="View Meals Hub"
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.dailyNutritionCardWrapper,
+          pressed && styles.pressed,
+        ]}
+      >
+        <View style={{ gap: Spacing.three }}>
+          <View style={styles.dailyNutritionHeader}>
+            <View style={styles.nutritionHeaderCopy}>
+              <ThemedText type="smallBold" themeColor="textSecondary">
+                TODAY'S NUTRITION
               </ThemedText>
+              <View style={styles.calorieRow}>
+                <ThemedText type="title" style={styles.dailyCalorieValue}>
+                  {display.consumedKcal !== null
+                    ? `${display.consumedKcal}`
+                    : "—"}
+                </ThemedText>
+                <ThemedText
+                  type="small"
+                  themeColor="textSecondary"
+                  style={styles.dailyTargetSub}
+                >
+                  {display.targetKcal !== null
+                    ? ` / ${display.targetKcal} kcal`
+                    : " kcal"}
+                </ThemedText>
+              </View>
+            </View>
+            <View
+              style={[
+                styles.remainingBadge,
+                display.badgeType === "over" && styles.remainingBadgeOver,
+                display.badgeType === "alert" && styles.remainingBadgeAlert,
+              ]}
+            >
               <ThemedText
-                type="small"
-                themeColor="textSecondary"
-                style={styles.dailyTargetSub}
+                type="smallBold"
+                style={[
+                  styles.remainingBadgeText,
+                  display.badgeType === "over" && styles.remainingBadgeTextOver,
+                  display.badgeType === "alert" &&
+                    styles.remainingBadgeTextAlert,
+                ]}
               >
-                {display.targetKcal !== null
-                  ? ` / ${display.targetKcal} kcal`
-                  : " kcal"}
+                {display.badgeText}
               </ThemedText>
             </View>
           </View>
-          <View
-            style={[
-              styles.remainingBadge,
-              display.badgeType === "over" && styles.remainingBadgeOver,
-              display.badgeType === "alert" && styles.remainingBadgeAlert,
-            ]}
-          >
-            <ThemedText
-              type="smallBold"
-              style={[
-                styles.remainingBadgeText,
-                display.badgeType === "over" && styles.remainingBadgeTextOver,
-                display.badgeType === "alert" && styles.remainingBadgeTextAlert,
-              ]}
-            >
-              {display.badgeText}
-            </ThemedText>
-          </View>
-        </View>
 
-        {/* Calorie Progress Bar */}
-        {display.targetKcal !== null ? (
-          <View style={styles.progressBarTrack}>
-            <View
-              style={[
-                styles.progressBarFill,
-                { width: `${display.kcalPercent}%` },
-                display.badgeType === "over" && styles.progressBarFillOver,
-              ]}
+          {/* Calorie Progress Bar */}
+          {display.targetKcal !== null ? (
+            <View style={styles.progressBarTrack}>
+              <View
+                style={[
+                  styles.progressBarFill,
+                  { width: `${display.kcalPercent}%` },
+                  display.badgeType === "over" && styles.progressBarFillOver,
+                ]}
+              />
+            </View>
+          ) : null}
+
+          {/* Macro Columns */}
+          <View
+            style={[styles.macroBarsRow, fontScale > 1.3 && styles.stackedRow]}
+          >
+            <MacroBar
+              label="Protein"
+              current={display.proteinG}
+              target={display.targetProteinG}
+              color="#10B981"
+              percent={display.proteinPercent}
+            />
+            <MacroBar
+              label="Carbs"
+              current={display.carbohydrateG}
+              target={display.targetCarbohydrateG}
+              color="#F59E0B"
+              percent={display.carbohydratePercent}
+            />
+            <MacroBar
+              label="Fat"
+              current={display.fatG}
+              target={display.targetFatG}
+              color="#8B5CF6"
+              percent={display.fatPercent}
             />
           </View>
-        ) : null}
 
-        {/* Macro Columns */}
-        <View
-          style={[styles.macroBarsRow, fontScale > 1.3 && styles.stackedRow]}
-        >
-          <MacroBar
-            label="Protein"
-            current={display.proteinG}
-            target={display.targetProteinG}
-            color="#10B981"
-            percent={display.proteinPercent}
-          />
-          <MacroBar
-            label="Carbs"
-            current={display.carbohydrateG}
-            target={display.targetCarbohydrateG}
-            color="#F59E0B"
-            percent={display.carbohydratePercent}
-          />
-          <MacroBar
-            label="Fat"
-            current={display.fatG}
-            target={display.targetFatG}
-            color="#8B5CF6"
-            percent={display.fatPercent}
-          />
+          {/* Incomplete nutrition notice */}
+          {display.hasIncompleteMeals ? (
+            <View style={styles.incompleteNotice}>
+              <ThemedText type="small" style={styles.incompleteNoticeText}>
+                Some meals have unconfirmed nutrition · Review in Meals Hub →
+              </ThemedText>
+            </View>
+          ) : null}
         </View>
-
-        {/* Incomplete nutrition notice */}
-        {display.hasIncompleteMeals ? (
-          <View style={styles.incompleteNotice}>
-            <ThemedText type="small" style={styles.incompleteNoticeText}>
-              Some meals have unconfirmed nutrition · Review in Meals Hub →
-            </ThemedText>
-          </View>
-        ) : null}
-      </ThemedView>
-    </Pressable>
+      </Pressable>
+      <DailyNutrients
+        summary={summary}
+        dailyTargetKcal={display.targetKcal}
+        loading={loading}
+        hasError={hasError}
+      />
+    </ThemedView>
   );
 }
 

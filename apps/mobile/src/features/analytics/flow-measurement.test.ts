@@ -240,6 +240,14 @@ describe("scoped logging attempt measurement", () => {
     expect(hooks.scopes).toBe(2);
   });
 
+  it("does not count a disabled history review as a logging attempt", () => {
+    const measurement = useLoggingFlowMeasurement("workout", "owner-a", false);
+    hooks.effects.pop()!();
+    expect(measurement.current).toBeNull();
+    expect(hooks.listener).toBeNull();
+    expect(hooks.track).not.toHaveBeenCalled();
+  });
+
   it("keeps an attempt open when a later navigation listener prevents removal", async () => {
     const measurement = useLoggingFlowMeasurement("meal", "owner-a");
     const cleanup = hooks.effects.pop()!();

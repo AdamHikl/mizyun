@@ -201,7 +201,7 @@ def inspect_container(name, token):
     return entry['Id']
 
 
-def restore_payload(directory, candidate, source):
+def restore_payload(directory, candidate, source, revocations=None):
     migrations, head = candidate_migrations(candidate, source, regular(directory / 'migration-versions.txt', 128_000).read_text())
     token = uuid.uuid4().hex
     name = 'mizyun-dev-quarantine-' + token
@@ -265,11 +265,25 @@ def restore_payload(directory, candidate, source):
         proof = json.loads(run(['docker', 'exec', '-i', identifier, 'psql', '-X', '-qAt', '-U', 'supabase_admin', '-d', 'mizyun_restore', '-v', 'ON_ERROR_STOP=1'], data=sql))
         if not all(proof.get(k) is True for k in ('operationsClosed', 'cohortEmpty', 'deliveryEmpty', 'pushTokensEmpty', 'featureFlagsClosed', 'mediaQuarantined')) or proof.get('reopenPermitted') is not False or proof.get('revocationsReconciled') is not False:
             raise ValueError('Quarantine verification failed')
+        replayed = 0
+        if revocations is not None:
+            import importlib.util
+            specification = importlib.util.spec_from_file_location('community_revocation_replay', REPO / 'scripts/community-revocation-replay.py')
+            ledger = importlib.util.module_from_spec(specification)
+            specification.loader.exec_module(ledger)
+            for start in range(0, len(revocations), 100):
+                batch = revocations[start:start + 100]
+                replay_proof = json.loads(run(['docker', 'exec', '-i', identifier, 'psql', '-X', '-qAt', '-U', 'supabase_admin', '-d', 'mizyun_restore', '-v', 'ON_ERROR_STOP=1'], data=ledger.replay_sql(batch, token)))
+                if replay_proof.get('reopenPermitted') is not False or replay_proof.get('reconciliationComplete') is not False or replay_proof.get('processedCount') != len(batch):
+                    raise ValueError('Revocation replay verification failed')
+                replayed += len(batch)
         # Reinspect before reporting to catch changed mounts/network/identity.
         inspect_container(name, token)
         result = {'candidateSHA': candidate, 'sourceSHA': source, 'candidateMigrationHead': head,
             'forwardMigrationsApplied': len(migrations), 'restoredMigrationLedgerUpdated': False,
             'databaseCountsVerified': len(counts), 'quarantineApplied': True,
+            'ledgerEventsReplayed': replayed, 'ledgerCompletenessCertified': False,
+            'storageErasureVerified': False,
             'revocationsReconciled': False, 'reopenPermitted': False}
     finally:
         if attempted:
@@ -290,6 +304,8 @@ def main():
     parser.add_argument('--source-sha', required=True)
     parser.add_argument('--candidate-sha', required=True)
     parser.add_argument('--identity', required=True)
+    parser.add_argument('--revocation-ledger')
+    parser.add_argument('--ledger-checkpoint-sha256')
     args = parser.parse_args()
     def interrupted(_number, _frame):
         raise RuntimeError('Quarantined restore interrupted')
@@ -300,6 +316,15 @@ def main():
     identity = regular(args.identity, 16_384)
     if stat.S_IMODE(identity.stat().st_mode) & 0o077:
         raise ValueError('Private identity permissions must exclude other users')
+    if bool(args.revocation_ledger) != bool(args.ledger_checkpoint_sha256):
+        raise ValueError('Ledger and independently trusted checkpoint must be supplied together')
+    revocations = None
+    if args.revocation_ledger:
+        import importlib.util
+        specification = importlib.util.spec_from_file_location('community_revocation_replay', REPO / 'scripts/community-revocation-replay.py')
+        ledger = importlib.util.module_from_spec(specification)
+        specification.loader.exec_module(ledger)
+        revocations = ledger.load_ledger(args.revocation_ledger, args.ledger_checkpoint_sha256, identity)
     if shutil.disk_usage(tempfile.gettempdir()).free < 3 * MAX_BYTES:
         raise ValueError('Insufficient private staging space')
     with tempfile.TemporaryDirectory(prefix='mizyun-dev-quarantine-') as scratch:
@@ -318,10 +343,10 @@ def main():
         expected = checksums(regular(directory / 'storage-files.sha256', 16_000_000).read_text())
         if actual != expected:
             raise ValueError('Restored Storage file integrity mismatch')
-        result = restore_payload(directory, args.candidate_sha, args.source_sha)
+        result = restore_payload(directory, args.candidate_sha, args.source_sha, revocations=revocations)
         result.update({'environment': 'dev', 'archiveSHA256': args.ciphertext_sha256,
             'payloadIntegrityVerified': True, 'storageFilesVerified': len(actual),
-            'storageAclRestored': False, 'externalLedgerVerified': False})
+            'storageAclRestored': False, 'externalLedgerVerified': revocations is not None})
     print(json.dumps(result, sort_keys=True))
 
 

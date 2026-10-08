@@ -58,7 +58,7 @@ describe("save-first health export boundary", () => {
           throw new Error("write denied");
         },
       ),
-    ).toEqual({ ok: true });
+    ).toEqual({ ok: true, workout: saved });
   });
   it("failed Mizyun mutations never produce export receipts", async () => {
     const afterSave = vi.fn();

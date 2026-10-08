@@ -27,6 +27,8 @@
         "packages/core/src/recurring-meal.test.ts",
         "packages/core/src/nutrition-per100g.ts",
         "packages/core/src/nutrition-per100g.test.ts",
+        "packages/core/src/nutrient-references.ts",
+        "packages/core/src/nutrient-references.test.ts",
         "packages/adapters/supabase-server/src/recurring-meal-repository.ts",
         "packages/adapters/supabase-server/src/recurring-meal-repository.test.ts",
         "scripts/test-recurring-meals-db.py",
@@ -1389,7 +1391,9 @@
         "scripts/restore-dev-quarantined.py",
         "apps/mobile/src/features/community/profiles/index.ts",
         "apps/mobile/src/app/(tabs)/community/index.tsx",
-        "apps/api/src/modules/community/profile-activity-routes.ts"
+        "apps/api/src/modules/community/profile-activity-routes.ts",
+        "scripts/community-revocation-ledger.mjs",
+        "scripts/community-revocation-replay.py"
       ],
       "ownedPaths": [
         "packages/contracts/src/community.ts",
@@ -1434,7 +1438,12 @@
         "deploy/raspberry-pi/docker-compose.dev.yml",
         "apps/mobile/src/app/(tabs)/community",
         "packages/contracts/src/community-profile-view.ts",
-        "packages/adapters/supabase-server/src/community-profile-read.test.ts"
+        "packages/adapters/supabase-server/src/community-profile-read.test.ts",
+        "scripts/community-revocation-ledger.mjs",
+        "scripts/community-revocation-ledger.test.mjs",
+        "scripts/community-revocation-replay.py",
+        "scripts/test-community-revocation-replay.py",
+        "scripts/test-community-revocation-replay-db.py"
       ],
       "contracts": [
         "packages/contracts/src/community.ts",
@@ -1629,7 +1638,8 @@
         "supabase/migrations/20261001207000_community_expansion_lifecycle.sql",
         "supabase/migrations/20261007110000_community_author_activities.sql",
         "supabase/migrations/20261007120000_community_messaging_reads.sql",
-        "supabase/migrations/20261007130000_community_artifact_authors.sql"
+        "supabase/migrations/20261007130000_community_artifact_authors.sql",
+        "supabase/migrations/20261008120000_community_revocation_ledger.sql"
       ],
       "tests": [
         "packages/contracts/src/community.test.ts",
@@ -1723,7 +1733,12 @@
         "scripts/verify-community-dev-expansions.py",
         "apps/mobile/src/features/community/expansions/use-expansion-command.test.ts",
         "apps/mobile/src/features/community/comments/screen.test.tsx",
-        "scripts/test-restore-dev-quarantined.py"
+        "scripts/test-restore-dev-quarantined.py",
+        "scripts/community-revocation-ledger.test.mjs",
+        "scripts/test-community-revocation-replay.py",
+        "scripts/test-community-revocation-replay-db.py",
+        "supabase/tests/database/0038_community_revocation_ledger.test.sql",
+        "apps/mobile/src/features/community/invitation-fallback.test.ts"
       ],
       "relations": [
         {
@@ -1763,7 +1778,10 @@
         "docs/COMMUNITY_EXPANSIONS_DEV_EVIDENCE_2026-10-01.md",
         "docs/COMMUNITY_DEV_TEST_GUIDE_2026-10-02.md",
         "docs/COMMUNITY_UX_AUDIT_2026-10-02.md",
-        "docs/COMMUNITY_DEV_QUARANTINE_SYNTHETIC_2026-10-01.json"
+        "docs/COMMUNITY_DEV_QUARANTINE_SYNTHETIC_2026-10-01.json",
+        "docs/adr/0052-community-revocation-capture-and-quarantined-replay.md",
+        "docs/COMMUNITY_CLOSURE_MATERIALS_2026-10-08.md",
+        "docs/COMMUNITY_REMAINING_ISSUES_2026-10-08.md"
       ],
       "verificationCommands": [
         "pnpm --filter @mizyun/contracts test src/community.test.ts",

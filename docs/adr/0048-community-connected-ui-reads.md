@@ -1,6 +1,6 @@
 # ADR-0048: Connected Community navigation and bounded social reads
 
-Date: 2026-10-07. Status: Accepted for local implementation of COMMUNITY-UI-001 / #224; Dev deployment and native acceptance pending.
+Date: 2026-10-07. Status: Accepted for COMMUNITY-UI-001 / #224; deployed to Dev at `7d5c9d0ecfd52629995af25d896dd6cdfef1abaf`; native acceptance pending.
 
 ## Context
 

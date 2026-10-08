@@ -1,0 +1,41 @@
+{
+  "installedAtUtc": "2026-10-07T17:12:35Z",
+  "issue": 225,
+  "baselineSha": "7d5c9d0ecfd52629995af25d896dd6cdfef1abaf",
+  "sourceScope": "baseline plus verified uncommitted meal-photo fix",
+  "sourceConfigurationHashesMatched": 845,
+  "sourceConfigurationManifestSha256": "e809c69e9c06ee9ebf6ee5d52173d15041ff77bee3a032e64591853e019f4c0d",
+  "platform": "iOS",
+  "variant": "dev",
+  "deviceModel": "iPhone 16 Pro",
+  "deviceUdid": "00008140-001114501A86801C",
+  "bundleId": "com.mizyun.development",
+  "displayName": "Mizyun Dev",
+  "version": "1.0.9",
+  "buildNumber": "9",
+  "signature": {
+    "team": "LQJNDVBL43",
+    "deepStrictVerification": "pass",
+    "appleSigninCapability": "pass"
+  },
+  "runtimeEndpoints": {
+    "apiUrl": "https://mizyun-api-dev.phiskel.com",
+    "supabaseUrl": "https://mizyun-supabase-dev.phiskel.com",
+    "authRedirectUri": "mizyun-dev://auth/callback"
+  },
+  "mealPhotosEnabled": true,
+  "configuration": "Release",
+  "requiresMetro": false,
+  "mainJsBundleBytes": 8301817,
+  "mainJsBundleSha256": "b6fc40921223ce5de40b68cfb650d30024e055daa81ae4918398e91d26529faf",
+  "command": "pnpm mobile:install:ios:dev --device 00008140-001114501A86801C",
+  "exitCode": 0,
+  "build": "pass",
+  "install": "pass",
+  "launch": "pass",
+  "processId": 13101,
+  "featureAcceptance": "pending exact photo selection/process/save/reopen/retry journey",
+  "backendDeployedThisSession": false,
+  "productionChanged": false,
+  "artifactPath": "/Users/adam/Documents/mizyun/apps/mobile/ios/build/Build/Products/Release-iphoneos/MizyunDev.app"
+}

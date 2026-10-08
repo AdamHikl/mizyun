@@ -1,0 +1,26 @@
+{
+  "date": "2026-10-08",
+  "issue": 139,
+  "baseline": "9e7fc4b13b54b4d0818c3b259bfef55321795f1f",
+  "candidate": "/private/tmp/mizyun-139-check-rn1fiikm",
+  "command": "pnpm check",
+  "exitCode": 0,
+  "mobilePassed": 1868,
+  "apiPassed": 937,
+  "apiCredentialGatedSkipped": 15,
+  "configLegacyBundlePathSkipped": 3,
+  "focusedWorkoutLoggerPassed": 243,
+  "overlays": 12,
+  "sourceDrift": [],
+  "nativeAcceptance": "pending",
+  "installed": false,
+  "deployed": false,
+  "log": "/private/tmp/mizyun-139-discoverability-check.log",
+  "renderedPreview": {
+    "darkWidth": 375,
+    "lightWidth": 320,
+    "simulatedTextScale": 1.6,
+    "nativeAccepted": false
+  },
+  "followUpIssue": 228
+}

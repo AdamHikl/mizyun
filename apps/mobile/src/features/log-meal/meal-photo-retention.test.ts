@@ -7,6 +7,10 @@ const mocks = vi.hoisted(() => ({
   request: vi.fn(),
   resize: vi.fn(),
   save: vi.fn(),
+  normalize: vi.fn(),
+  delayedCopy: null as null | (() => Promise<void>),
+  copyFailure: false,
+  emptyCopy: false,
   sequence: 0,
   indexFailure: false,
   clearFailure: false,
@@ -33,7 +37,14 @@ vi.mock("./meal-form", () => ({
 }));
 vi.mock("expo-file-system", () => {
   const uri = (parts: any[]) =>
-    parts.map((part) => (typeof part === "string" ? part : part.uri)).join("/");
+    parts
+      .map((part, index) => {
+        const value = typeof part === "string" ? part : part.uri;
+        return index === 0
+          ? value.replace(/\/+$/, "")
+          : value.replace(/^\/+|\/+$/g, "");
+      })
+      .join("/");
   class File {
     uri: string;
     constructor(...parts: any[]) {
@@ -46,8 +57,15 @@ vi.mock("expo-file-system", () => {
       return mocks.files.get(this.uri) ?? 0;
     }
     copy(destination: File) {
-      if (!this.exists) throw new Error("Missing");
-      mocks.files.set(destination.uri, this.size);
+      const task = (async () => {
+        if (mocks.delayedCopy) await mocks.delayedCopy();
+        if (!this.exists) throw new Error("Missing");
+        // A failed native copy may leave a partial destination.
+        mocks.files.set(destination.uri, mocks.emptyCopy ? 0 : this.size);
+        if (mocks.copyFailure) throw new Error("Copy failed");
+      })();
+      void task.catch(() => {});
+      return task;
     }
     delete() {
       mocks.files.delete(this.uri);
@@ -59,21 +77,20 @@ vi.mock("expo-file-system", () => {
   class Directory {
     uri: string;
     constructor(...parts: any[]) {
-      this.uri = uri(parts);
+      this.uri = uri(parts) + "/";
     }
     create() {}
     get exists() {
-      return [...mocks.files.keys()].some((key) =>
-        key.startsWith(this.uri + "/"),
-      );
+      return [...mocks.files.keys()].some((key) => key.startsWith(this.uri));
     }
     delete() {
       for (const key of mocks.files.keys())
-        if (key.startsWith(this.uri + "/")) mocks.files.delete(key);
+        if (key.startsWith(this.uri)) mocks.files.delete(key);
     }
   }
   return { File, Directory, Paths: { document: { uri: "file:///documents" } } };
 });
+vi.mock("./meal-photo", () => ({ normalizeMealPhoto: mocks.normalize }));
 vi.mock("expo-image-manipulator", () => ({
   SaveFormat: { JPEG: "jpeg" },
   ImageManipulator: {
@@ -114,10 +131,12 @@ import {
   loadMealPhotoRetry,
   mealPhotoRetentionEnabled,
   persistMealPhotoRetry,
+  persistMealPhotoSource,
   prepareRetainedMealPhoto,
   removeMealPhotoRetry,
   uploadMealPhotoRetry,
 } from "./meal-photo-retention";
+import { File } from "expo-file-system";
 const descriptor = (owner = "owner-a") => ({
   uri: `file:///documents/meal-photo-drafts/${owner}/source.jpg`,
   width: 0,
@@ -131,15 +150,171 @@ beforeEach(() => {
   mocks.indexFailure = false;
   mocks.clearFailure = false;
   mocks.delayedWrite = null;
+  mocks.delayedCopy = null;
+  mocks.copyFailure = false;
+  mocks.emptyCopy = false;
   mocks.variant = "dev";
   mocks.enabled = true;
   vi.clearAllMocks();
   mocks.request.mockResolvedValue({ ok: false });
+  mocks.normalize.mockImplementation(async () => {
+    const file = new File("file:///cache/normalized.jpg");
+    mocks.files.set(file.uri, 500_000);
+    return file;
+  });
   mocks.save.mockImplementation(async () => {
     const uri = `file:///cache/thumbnail-${++mocks.sequence}.jpg`;
     mocks.files.set(uri, 50_000);
     return { uri, width: 320, height: 640 };
   });
+});
+const flush = async () => {
+  for (let i = 0; i < 20; i++) await Promise.resolve();
+};
+it("keeps the normalized source until its durable asynchronous copy finishes", async () => {
+  let release!: () => void;
+  mocks.delayedCopy = () =>
+    new Promise<void>((resolve) => {
+      release = resolve;
+    });
+  let settled = false;
+  const task = persistMealPhotoSource("owner-a", { uri: "library-original" });
+  void task.then(
+    () => {
+      settled = true;
+    },
+    () => {
+      settled = true;
+    },
+  );
+  await flush();
+  const settledBeforeCopy = settled;
+  const sourceExistsBeforeCopy = mocks.files.has(
+    "file:///cache/normalized.jpg",
+  );
+  release();
+  const photo = await task;
+  expect(settledBeforeCopy).toBe(false);
+  expect(sourceExistsBeforeCopy).toBe(true);
+  expect(mocks.files.has(photo.uri)).toBe(true);
+  expect(mocks.files.has("file:///cache/normalized.jpg")).toBe(false);
+});
+it("keeps the thumbnail cache until its asynchronous durable copy finishes", async () => {
+  let release!: () => void;
+  mocks.delayedCopy = () =>
+    new Promise<void>((resolve) => {
+      release = resolve;
+    });
+  let settled = false;
+  const task = prepareRetainedMealPhoto("owner-a", { uri: "library-original" });
+  void task.then(
+    () => {
+      settled = true;
+    },
+    () => {
+      settled = true;
+    },
+  );
+  await flush();
+  const settledBeforeCopy = settled;
+  const cachedBeforeCopy = [...mocks.files.keys()].some((uri) =>
+    uri.startsWith("file:///cache/"),
+  );
+  release();
+  const photo = await task;
+  expect(settledBeforeCopy).toBe(false);
+  expect(cachedBeforeCopy).toBe(true);
+  expect(mocks.files.has(photo.uri)).toBe(true);
+});
+it("publishes a retry only after its independent copy exists", async () => {
+  const photo = descriptor();
+  mocks.files.set(photo.uri, 500_000);
+  let release!: () => void;
+  mocks.delayedCopy = () =>
+    new Promise<void>((resolve) => {
+      release = resolve;
+    });
+  const task = persistMealPhotoRetry("owner-a", "meal-a", photo);
+  await flush();
+  const publishedBeforeCopy = await loadMealPhotoRetry("owner-a", "meal-a");
+  release();
+  expect(await task).toBe(true);
+  expect(publishedBeforeCopy).toBeNull();
+  const retry = await loadMealPhotoRetry("owner-a", "meal-a");
+  discardOwnedMealPhoto("owner-a", photo.uri);
+  expect(mocks.files.has(retry!.uri)).toBe(true);
+});
+it("cleans failed source and thumbnail copies without publishing missing files", async () => {
+  mocks.copyFailure = true;
+  await expect(
+    persistMealPhotoSource("owner-a", { uri: "library-original" }),
+  ).rejects.toThrow("Copy failed");
+  expect(mocks.files.size).toBe(0);
+  await expect(
+    prepareRetainedMealPhoto("owner-a", { uri: "library-original" }),
+  ).rejects.toThrow("Copy failed");
+  expect(mocks.files.size).toBe(0);
+});
+it("preserves the original and removes a partial retry after copy rejection", async () => {
+  const photo = descriptor();
+  mocks.files.set(photo.uri, 500_000);
+  mocks.copyFailure = true;
+  expect(await persistMealPhotoRetry("owner-a", "meal-a", photo)).toBe(false);
+  expect(await loadMealPhotoRetry("owner-a", "meal-a")).toBeNull();
+  expect([...mocks.files.keys()]).toEqual([photo.uri]);
+});
+it("removes a late copy after the owner's account data has been cleared", async () => {
+  const owner = "deleted-during-copy";
+  let release!: () => void;
+  mocks.delayedCopy = () =>
+    new Promise<void>((resolve) => {
+      release = resolve;
+    });
+  const task = persistMealPhotoSource(owner, { uri: "library-original" });
+  await flush();
+  expect(await clearAllMealPhotoRetries(owner)).toBe(true);
+  release();
+  await expect(task).rejects.toThrow("Account data was cleared");
+  expect(mocks.files.size).toBe(0);
+});
+it.each(["thumbnail", "retry"])(
+  "does not retain a late %s copy after account cleanup",
+  async (kind) => {
+    const owner = `deleted-during-${kind}-copy`;
+    const source = descriptor(owner);
+    if (kind === "retry") mocks.files.set(source.uri, 500_000);
+    let release!: () => void;
+    mocks.delayedCopy = () =>
+      new Promise<void>((resolve) => {
+        release = resolve;
+      });
+    const task = (
+      kind === "retry"
+        ? persistMealPhotoRetry(owner, "meal-a", source)
+        : prepareRetainedMealPhoto(owner, { uri: "library-original" })
+    ).then(
+      (value) => ({ value }),
+      (error) => ({ error }),
+    );
+    await flush();
+    expect(await clearAllMealPhotoRetries(owner)).toBe(true);
+    release();
+    const outcome = await task;
+    if (kind === "retry") expect(outcome).toEqual({ value: false });
+    else
+      expect(outcome).toMatchObject({
+        error: new Error("Account data was cleared."),
+      });
+    expect(await loadMealPhotoRetry(owner, "meal-a")).toBeNull();
+    expect(mocks.files.size).toBe(0);
+  },
+);
+it("rejects and cleans an empty destination even if native copy resolves", async () => {
+  mocks.emptyCopy = true;
+  await expect(
+    persistMealPhotoSource("owner-a", { uri: "library-original" }),
+  ).rejects.toThrow("could not be saved");
+  expect(mocks.files.size).toBe(0);
 });
 it("caps portrait photos by decoded dimensions and independently reencodes JPEG", async () => {
   const prepared = await prepareRetainedMealPhoto("owner-a", {
@@ -221,6 +396,12 @@ it("never deletes a camera-library original or other owner's path", () => {
   discardOwnedMealPhoto("owner-a", "library-original");
   discardOwnedMealPhoto("owner-a", descriptor("owner-b").uri);
   expect(mocks.files.size).toBe(2);
+});
+it("recognizes an owned file when native directory URIs end with a slash", () => {
+  const photo = descriptor();
+  mocks.files.set(photo.uri, 1000);
+  discardOwnedMealPhoto("owner-a", photo.uri);
+  expect(mocks.files.has(photo.uri)).toBe(false);
 });
 it("requires Dev and the explicit manifest flag", () => {
   mocks.variant = "production";

@@ -130,5 +130,8 @@
     "tests": 15,
     "reason": "existing credential/local-integration gates; no live acceptance claimed"
   },
-  "acceptance_scope": "automated source and bundle verification only"
+  "acceptance_scope": "automated source and bundle verification only",
+  "committed_candidate_sha": "7d5c9d0ecfd52629995af25d896dd6cdfef1abaf",
+  "committed_gate_input_sha256": "f766809df6309c3e9f5c1f0714e25ef2312a897ec0e4277b9bcea5193b04fe45",
+  "committed_gate_exit_code": 0
 }

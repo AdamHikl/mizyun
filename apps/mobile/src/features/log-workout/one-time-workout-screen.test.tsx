@@ -23,6 +23,13 @@ const mocks = vi.hoisted(() => ({
   alert: vi.fn(),
   back: vi.fn(),
   clearDraft: vi.fn(),
+  effects: [] as (() => void | (() => void))[],
+  communityEnrolled: false,
+  loadPreferences: vi.fn(),
+  appState: vi.fn(),
+  cancelRest: vi.fn(),
+  dismissNotification: vi.fn(),
+  measurement: vi.fn(),
 }));
 
 vi.mock("react", async (original) => ({
@@ -50,12 +57,14 @@ vi.mock("react", async (original) => ({
     (mocks.cells[mocks.index++] ??= { current: initial }),
   useMemo: (fn: () => unknown) => fn(),
   useCallback: (fn: unknown) => fn,
-  useEffect: () => {},
+  useEffect: (effect: () => void | (() => void)) => {
+    mocks.effects.push(effect);
+  },
 }));
 vi.mock("react-native", () => ({
   ActivityIndicator: "ActivityIndicator",
   Alert: { alert: mocks.alert },
-  AppState: {},
+  AppState: { addEventListener: mocks.appState },
   KeyboardAvoidingView: "KeyboardAvoidingView",
   Platform: { OS: "ios", select: (x: any) => x.ios ?? x.default },
   Pressable: "Pressable",
@@ -88,15 +97,18 @@ vi.mock("@/features/auth/auth-context", () => ({
   }),
 }));
 vi.mock("@/features/analytics/flow-measurement", () => ({
-  useLoggingFlowMeasurement: () => ({
-    current: {
-      tap: vi.fn(),
-      fail: vi.fn(),
-      retry: vi.fn(),
-      complete: vi.fn(),
-      exit: vi.fn(),
-    },
-  }),
+  useLoggingFlowMeasurement: (...args: any[]) => {
+    mocks.measurement(...args);
+    return {
+      current: {
+        tap: vi.fn(),
+        fail: vi.fn(),
+        retry: vi.fn(),
+        complete: vi.fn(),
+        exit: vi.fn(),
+      },
+    };
+  },
 }));
 vi.mock("@/composition/app-variant", () => ({
   getAppVariant: () => "production",
@@ -106,7 +118,7 @@ vi.mock("@/composition/api-client", () => ({
 }));
 vi.mock("@/features/community", () => ({
   ShareWorkoutModal: "ShareWorkoutModal",
-  useCommunityProfile: () => ({ isEnrolled: false }),
+  useCommunityProfile: () => ({ isEnrolled: mocks.communityEnrolled }),
 }));
 vi.mock("@/features/logging-draft-storage", () => ({
   clearLoggingDraft: mocks.clearDraft,
@@ -120,6 +132,13 @@ vi.mock("@/features/workouts", async () => ({
   useOptionalActiveWorkout: () => mocks.context,
   restTimerNextAction: (await import("../workouts/rest-timer-presentation"))
     .restTimerNextAction,
+  calculateWorkoutVolume: (
+    await vi.importActual<typeof import("../workouts/workouts-hub-data")>(
+      "../workouts/workouts-hub-data",
+    )
+  ).calculateWorkoutVolume,
+  formatStopwatch: (await import("../workouts/active-workout-state"))
+    .formatStopwatch,
 }));
 vi.mock("@/features/workouts/exercise-library-modal", () => ({
   ExerciseLibraryModal: "ExerciseLibraryModal",
@@ -142,15 +161,15 @@ vi.mock("@/features/workouts/workouts-hub-data", () => ({
 }));
 vi.mock("@/features/workouts/workout-preferences", () => ({
   DEFAULT_REST_SECONDS: 75,
-  loadWorkoutPreferences: vi.fn(),
+  loadWorkoutPreferences: mocks.loadPreferences,
 }));
 vi.mock("@/features/workouts/rest-timer-notifications", () => ({
-  cancelRestNotification: vi.fn(),
+  cancelRestNotification: mocks.cancelRest,
   scheduleRestNotification: vi.fn().mockResolvedValue(null),
 }));
 vi.mock("@/features/workouts/workout-notification", () => ({
   completedSetsForNotificationEntry: () => [],
-  dismissActiveWorkoutNotification: vi.fn(),
+  dismissActiveWorkoutNotification: mocks.dismissNotification,
   formatNextSetSummary: vi.fn(),
   selectNextExerciseIndexForNotification: () => null,
   shouldSyncActiveWorkoutNotification: () => false,
@@ -172,6 +191,7 @@ vi.mock("./log-workout-data", async (original) => ({
 
 import { LogWorkoutScreen } from "./log-workout-screen";
 import { extractPlannedExercises } from "./log-workout-data";
+import { CompletedWorkoutFeed } from "./completed-workout-feed";
 
 const exercise = {
   id: "exercise-squat",
@@ -215,6 +235,46 @@ function find(node: any, predicate: (node: any) => boolean): any {
   if (!node || typeof node !== "object") return null;
   return predicate(node) ? node : find(node.props?.children, predicate);
 }
+function textContent(node: any): string {
+  if (Array.isArray(node))
+    return node.map(textContent).join(" ").replace(/\s+/g, " ");
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  return node && typeof node === "object"
+    ? textContent(node.props?.children)
+    : "";
+}
+const recordedSet: WorkoutSet = {
+  id: "saved-set",
+  userId: workout.userId,
+  workoutId: workout.id,
+  exerciseId: exercise.id,
+  sequence: 1,
+  setType: "normal",
+  loadKg: 50,
+  repetitions: 6,
+  durationSeconds: null,
+  distanceMeters: null,
+  perceivedExertion: null,
+  completedAt: "2026-10-04T10:10:00.000Z",
+  createdAt: "2026-10-04T10:10:00.000Z",
+};
+function completedFeed(
+  overrides: Partial<Parameters<typeof CompletedWorkoutFeed>[0]> = {},
+) {
+  return CompletedWorkoutFeed({
+    workout: {
+      ...workout,
+      completedAt: "2026-10-04T10:42:30.000Z",
+      notes: "Saved workout note",
+    },
+    exercises: [exercise],
+    allExercises: [exercise] as any,
+    savedSets: [recordedSet],
+    unitSystem: "metric",
+    onOpenHistory: vi.fn(),
+    ...overrides,
+  });
+}
 function feed(tree = render()): any {
   return find(tree, (node) => typeof node.props?.onLogSet === "function");
 }
@@ -249,6 +309,8 @@ function persistedWorkout(entries: any[]): Workout {
 beforeEach(() => {
   mocks.cells = [];
   mocks.context = null;
+  mocks.effects = [];
+  mocks.communityEnrolled = false;
   mocks.workspace = {
     workout,
     sets: [],
@@ -263,7 +325,16 @@ beforeEach(() => {
   });
   mocks.createExercise.mockReset();
   mocks.load.mockReset().mockImplementation(async () => mocks.workspace);
-  mocks.complete.mockReset().mockResolvedValue({ ok: true });
+  mocks.complete.mockReset().mockResolvedValue({
+    ok: true,
+    workout: { ...workout, completedAt: "2026-10-04T10:42:30.000Z" },
+  });
+  mocks.loadPreferences.mockResolvedValue({
+    defaultRestSeconds: 75,
+    liveNotificationEnabled: false,
+    autoAdvanceTargetWeights: false,
+  });
+  mocks.appState.mockReturnValue({ remove: vi.fn() });
   mocks.addSet.mockReset();
   mocks.abandon.mockReset().mockResolvedValue({ ok: true });
 });
@@ -313,6 +384,67 @@ function plannedCard() {
   return { active, card };
 }
 
+it.each(["warmup", "normal", "failure", "drop"])(
+  "shows a visible %s set type control that opens the picker without logging",
+  (type) => {
+    plannedRoutineWorkspace([type]);
+    const { card } = plannedCard();
+    const content = card.type(card.props);
+    const control = find(
+      content,
+      (node) => node.props?.testID === "pending-set-type-control",
+    );
+    const label = type[0]!.toUpperCase() + type.slice(1);
+    expect(textContent(control)).toContain("Set 1 type");
+    expect(textContent(control)).toContain(label);
+    expect(control.props.accessibilityLabel).toBe(`Set 1 type: ${label}`);
+    control.props.onPress();
+    expect(
+      find(render(), (node) => node.type === "SetTypeModal").props.currentType,
+    ).toBe(type);
+    expect(mocks.addSet).not.toHaveBeenCalled();
+  },
+);
+
+it("disables both type selectors during a pending set save and restores them after failure", async () => {
+  plannedRoutineWorkspace(["normal"]);
+  let { active, card } = plannedCard();
+  active.props.onUpdatePendingInput(exercise.id, { load: "50", reps: "6" });
+  let resolveSave!: (result: any) => void;
+  mocks.addSet.mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        resolveSave = resolve;
+      }),
+  );
+  const saving = active.props.onLogSet(active.props.exercises[0]);
+  await settle();
+  ({ card } = plannedCard());
+  const busyContent = card.type(card.props);
+  const selectors = [
+    find(
+      busyContent,
+      (node) => node.props?.testID === "pending-set-type-control",
+    ),
+    find(busyContent, (node) =>
+      node.props?.accessibilityLabel?.includes("Tap to change set type."),
+    ),
+  ];
+  for (const selector of selectors) {
+    expect(selector.props.disabled).toBe(true);
+    expect(selector.props.accessibilityState.disabled).toBe(true);
+  }
+  resolveSave({ ok: false, message: "retry" });
+  await saving;
+  ({ card } = plannedCard());
+  expect(
+    find(
+      card.type(card.props),
+      (node) => node.props?.testID === "pending-set-type-control",
+    ).props.disabled,
+  ).toBe(false);
+});
+
 it("prefills and submits each planned type, advancing from warmup to normal to failure", async () => {
   plannedRoutineWorkspace(["warmup", "normal", "failure"]);
   mocks.addSet.mockImplementation(async (_id, form) => {
@@ -356,6 +488,193 @@ it("restores planned defaults after reload and allows a manual override for the 
   await active.props.onLogSet(active.props.exercises[0]);
   expect(mocks.addSet.mock.lastCall?.[1].setType).toBe("drop");
   expect(plannedCard().card.props.pendingInput.setType).toBe("drop");
+});
+
+it.each(["one_time", "routine"])(
+  "opens a completed %s workout for review and closes without saving again",
+  (mode) => {
+    mocks.workspace.workout = {
+      ...workout,
+      completedAt: "2026-10-04T10:42:30.000Z",
+      details: {
+        workoutLifecycle: { kind: "session" },
+        ...(mode === "one_time" ? { sessionMode: "one_time" } : {}),
+      },
+    };
+    const tree = render();
+    const header = find(tree, (node) => node.type === "StackScreen");
+    const close = header.props.options.headerRight();
+    expect(close.props.accessibilityLabel).toBe("Close workout");
+    close.props.onPress();
+    expect(mocks.back).toHaveBeenCalledOnce();
+    expect(mocks.complete).not.toHaveBeenCalled();
+    expect(mocks.abandon).not.toHaveBeenCalled();
+    expect(mocks.progression).not.toHaveBeenCalled();
+    expect(feed(tree)).toBeFalsy();
+    expect(header.props.options.headerLeft()).toBeNull();
+    expect(mocks.measurement).toHaveBeenLastCalledWith(
+      "workout",
+      "workout-owner",
+      false,
+    );
+  },
+);
+
+it("does not disturb another active workout or its rest timer while reviewing history", async () => {
+  const restTimer = {
+    endsAt: Date.now() + 60000,
+    total: 60,
+    exerciseName: "Active row",
+    notificationId: "active-rest",
+  };
+  mocks.context = {
+    activeWorkout: { id: "another-active-workout" },
+    restTimer,
+    setActiveWorkout: vi.fn(),
+    startRestTimer: vi.fn(),
+    clearRestTimer: vi.fn(),
+  };
+  mocks.workspace.workout = {
+    ...workout,
+    completedAt: "2026-10-04T10:42:30.000Z",
+  };
+  const interval = vi.spyOn(globalThis, "setInterval");
+  const tree = render();
+  for (const effect of mocks.effects) effect();
+  await settle();
+  mocks.effects = [];
+  render();
+  for (const effect of mocks.effects) effect();
+  await settle();
+  expect(mocks.context.setActiveWorkout).not.toHaveBeenCalled();
+  expect(mocks.context.startRestTimer).not.toHaveBeenCalled();
+  expect(mocks.context.clearRestTimer).not.toHaveBeenCalled();
+  expect(mocks.cancelRest).not.toHaveBeenCalled();
+  expect(mocks.dismissNotification).not.toHaveBeenCalled();
+  expect(mocks.appState).not.toHaveBeenCalled();
+  expect(interval).not.toHaveBeenCalled();
+  expect(
+    find(tree, (node) => typeof node.props?.onAdjust === "function"),
+  ).toBeFalsy();
+  interval.mockRestore();
+});
+
+it("switches to review immediately after saving when the sharing prompt keeps the screen open", async () => {
+  mocks.communityEnrolled = true;
+  const header = find(render(), (node) => node.type === "StackScreen");
+  await header.props.options.headerRight().props.onPress();
+  mocks.alert.mock.calls
+    .at(-1)![2]
+    .find((button: any) => button.text === "Finish & Save")
+    .onPress();
+  await settle();
+  const next = render();
+  expect(feed(next)).toBeFalsy();
+  expect(
+    find(
+      next,
+      (node) => node.type === "StackScreen",
+    ).props.options.headerRight().props.accessibilityLabel,
+  ).toBe("Close workout");
+  expect(mocks.complete).toHaveBeenCalledOnce();
+  expect(mocks.back).not.toHaveBeenCalled();
+});
+
+it("does not offer a new workout editor when an explicit history record cannot be loaded", () => {
+  mocks.workspace.workout = null;
+  const tree = render();
+  expect(
+    find(tree, (node) => typeof node.props?.onStart === "function"),
+  ).toBeFalsy();
+  expect(feed(tree)).toBeFalsy();
+});
+
+it("shows the recorded completion date and a fixed duration instead of a live timer", () => {
+  const tree = completedFeed();
+  const text = textContent(tree);
+  expect(text).toContain("Completed workout");
+  expect(text).toContain("42:30");
+  expect(text).toContain(
+    new Date("2026-10-04T10:42:30.000Z").toLocaleString(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }),
+  );
+  expect(text).toContain("300 kg working-set volume");
+  expect(text).toContain("Saved workout note");
+  const now = vi
+    .spyOn(Date, "now")
+    .mockReturnValue(Date.parse("2030-01-01T10:00:00Z"));
+  expect(textContent(completedFeed())).toBe(text);
+  now.mockRestore();
+  expect(find(tree, (node) => node.type === "TextInput")).toBeFalsy();
+  expect(
+    find(tree, (node) =>
+      /Finish|Log Set|Delete|Reorder|Move |Discard|Add Exercise/.test(
+        node.props?.accessibilityLabel ?? "",
+      ),
+    ),
+  ).toBeFalsy();
+  expect(text).not.toContain("PREVIOUS");
+});
+
+it("retains timed sets, distance, effort, set types and sets with an unavailable exercise", () => {
+  const text = textContent(
+    completedFeed({
+      savedSets: [
+        {
+          ...recordedSet,
+          exerciseId: "unavailable-exercise",
+          setType: "failure",
+          loadKg: null,
+          repetitions: null,
+          durationSeconds: 90,
+          distanceMeters: 500,
+          perceivedExertion: 8,
+        },
+      ],
+    }),
+  );
+  expect(text).toContain("Recorded exercise");
+  expect(text).toContain("failure");
+  expect(text).toContain("01:30 duration");
+  expect(text).toContain("500 m distance");
+  expect(text).toContain("RPE 8");
+});
+
+it("shows saved values in imperial units and excludes warmups from working-set volume", () => {
+  const text = textContent(
+    completedFeed({
+      unitSystem: "imperial",
+      savedSets: [
+        recordedSet,
+        {
+          ...recordedSet,
+          id: "warmup",
+          sequence: 2,
+          setType: "warmup",
+          loadKg: 10,
+        },
+      ],
+    }),
+  );
+  expect(text).toContain("661.4 lb working-set volume");
+  expect(text).toContain("110.2");
+  expect(text).toContain("warmup");
+});
+
+it("uses historical empty copy and keeps exercise history available without logging controls", () => {
+  const onOpenHistory = vi.fn();
+  const tree = completedFeed({ savedSets: [], onOpenHistory });
+  expect(textContent(tree)).toContain(
+    "No sets were recorded for this workout.",
+  );
+  expect(textContent(tree)).not.toContain("Add an exercise");
+  find(
+    tree,
+    (node) => node.props?.accessibilityLabel === "View history for Squat",
+  ).props.onPress();
+  expect(onOpenHistory).toHaveBeenCalledWith("Squat");
 });
 
 it("reuses the saved UUID and original name when the catalog label is clearer", async () => {

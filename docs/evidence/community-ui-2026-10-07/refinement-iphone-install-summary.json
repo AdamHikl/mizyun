@@ -1,0 +1,40 @@
+{
+  "workPackage": "COMMUNITY-UI-001",
+  "sourceSha": "7d5c9d0ecfd52629995af25d896dd6cdfef1abaf",
+  "installedAt": "2026-10-07T16:45:49Z",
+  "command": "pnpm mobile:install:ios:dev --device 00008140-001114501A86801C",
+  "installerExitCode": 0,
+  "configuration": "Release-iphoneos",
+  "xcodeVersion": "27.0",
+  "xcodeBuild": "27A266a",
+  "teamIdentifier": "LQJNDVBL43",
+  "device": {
+    "model": "iPhone 16 Pro",
+    "udid": "00008140-001114501A86801C"
+  },
+  "artifactPath": "apps/mobile/ios/build/Build/Products/Release-iphoneos/MizyunDev.app",
+  "sourceManifest": "docs/evidence/community-ui-2026-10-07/refinement-source-sha256.txt",
+  "app": {
+    "CFBundleDisplayName": "Mizyun Dev",
+    "CFBundleIdentifier": "com.mizyun.development",
+    "CFBundleShortVersionString": "1.0.9",
+    "CFBundleVersion": "9",
+    "CFBundleExecutable": "MizyunDev"
+  },
+  "embeddedBundleSha256": "3b1941fc818592b33bcbaac07004bf5266711156085245312b724a23567635a5",
+  "executableSha256": "39888a3ee949ee3fdb9a85a3452236be18aa398873f9e61853719954284f816c",
+  "sourceManifestSha256": "6d8760b61bd399bc8c5169bc293099df697cf650643e912055b4ca35b52df6ab",
+  "sourceFilesChecked": 117,
+  "sourceHashesBeforeAfterUnchanged": true,
+  "signatureVerification": "codesign --verify --deep --strict passed",
+  "installationContainer": "18473535-6CDB-4538-BDD1-BA52DBBD22E0",
+  "runningAppPid": 12961,
+  "installedAppMetadataOutcome": "success",
+  "independentProcessInspectionOutcome": "success",
+  "metroPort8081ListenerBeforeAfter": false,
+  "acceptanceScope": "build, signature, install and independent process launch only",
+  "openGates": [
+    "signed-in two-account Community/native/accessibility acceptance",
+    "existing pilot, privacy, notification and release gates"
+  ]
+}

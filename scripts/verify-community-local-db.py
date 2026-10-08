@@ -67,6 +67,12 @@ def main():
                 sql(source)
                 applied.append(version)
         sql("insert into storage.buckets(id,name,public) values('private-media','private-media',false) on conflict do nothing;")
+        sql("insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types) values('community-media','community-media',false,2097152,array['image/jpeg']) on conflict do nothing;")
+        # Schema-only copies omit migration seed rows when the source stack has
+        # already applied those migrations. Seed controls only in this scratch;
+        # each test still explicitly chooses its synthetic enabled/closed state.
+        sql("insert into public.community_operations(singleton) values(true) on conflict do nothing;")
+        sql("insert into public.community_feature_controls(feature) values('comments'),('groups'),('challenges'),('messaging'),('media'),('routines'),('discovery') on conflict do nothing;")
         total = 0
         tests = sorted((ROOT / "supabase/tests/database").glob("*.sql"))
         for test in tests:

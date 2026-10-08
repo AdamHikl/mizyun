@@ -276,6 +276,7 @@ export const calculateWorkoutVolume = (
 ): number => {
   let volume = 0;
   for (const set of sets) {
+    if (set.setType === "warmup") continue;
     if (typeof set.loadKg === "number" && typeof set.repetitions === "number") {
       volume += set.loadKg * set.repetitions;
     }
@@ -303,6 +304,7 @@ export const buildExerciseSummaries = (
       topLoad: null,
     };
     const nextTop =
+      set.setType !== "warmup" &&
       set.loadKg !== null &&
       (current.topLoad === null || set.loadKg > current.topLoad)
         ? set.loadKg
