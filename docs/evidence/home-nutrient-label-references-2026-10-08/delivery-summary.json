@@ -1,0 +1,56 @@
+{
+  "date": "2026-10-08",
+  "clientSha": "67809bf3e9e125ca6f870b8f5c48cf25f0bcbfb9",
+  "backendShaUnchanged": "5b0cff9afc7b88b18dbe6b29964f693b0899a895",
+  "branch": "codex/combined-dev-2026-10-08",
+  "focused": {
+    "corePassed": 10,
+    "homePassed": 50,
+    "mobileTypecheck": "PASS"
+  },
+  "independentHighReview": "no blocking finding",
+  "fullGate": {
+    "command": "pnpm check",
+    "result": "PASS",
+    "inputSha256": "f5f4fef8f99b031e9307d7b6615e6aa452732c6d81ada347ee60e7e3394d8e12",
+    "mobilePassed": 1929,
+    "corePassed": 420,
+    "apiPassed": 937,
+    "credentialGatedApiSkips": 15,
+    "legacyConfigSkips": 3
+  },
+  "iphone": {
+    "udid": "00008140-001114501A86801C",
+    "bundleId": "com.mizyun.development",
+    "version": "1.0.9",
+    "build": "9",
+    "team": "LQJNDVBL43",
+    "releaseBuild": "PASS",
+    "strictSignature": "PASS using macOS trust services",
+    "appleSignInEntitlements": "PASS",
+    "install": "PASS",
+    "launch": "PASS",
+    "independentlyObservedPid": 17293,
+    "widgetPid": 17268,
+    "cdHash": "43c0a9feb67900dbc4dc12916dea9d13535e4b25",
+    "standalone": true
+  },
+  "sourceFiles": {
+    "packages/core/src/nutrient-references.ts": "abab853bfa9395ec87d29bc0e2bd7e368f84ab0eb38df9e5f5df5ea400c8473d",
+    "packages/core/src/nutrient-references.test.ts": "d4e7a0f2ba78a442fcd60cf1a7a68a90d30a680cb58bad4ef72a1d95ed6dd9e7",
+    "apps/mobile/src/features/dashboard/daily-nutrients.tsx": "512e1aac3a50f9afe0b2e28dd9acc168aa586f91a85d5f8778b8bfed021d9569",
+    "apps/mobile/src/features/dashboard/daily-nutrients.test.tsx": "e0d231b66ae8f419caf360d1aba10d58b4f9780443404cfd5b3e3c496eac023d"
+  },
+  "artifactSha256": {
+    "MizyunDev": "fef3f32a10f115dee1640025e4d25354f2c51e9ef76a0e870a4f12a09ee663ea",
+    "main.jsbundle": "001ec82d96cb5e6931602cf83ead6322ddd9789bb79fc04e7d29d50342b7b3d2",
+    "Info.plist": "64def935fcb285f5e7aae8b93e5191e0733284b103eee7984a1f470fc1254a9e"
+  },
+  "logSha256": {
+    "/private/tmp/mizyun-label-references-core.log": "54b61271095345880f2a3f51a268a38fdf27a2636892d360dd287513051c8e18",
+    "/private/tmp/mizyun-label-references-mobile.log": "093f8e6f4376b58800d6fd63093fe283a87cd1f0159f0416d056c557c5931e42",
+    "/private/tmp/mizyun-label-references-check.log": "e6a51e026653868f7e60fb5f1119291c70c49742355b55cec50b735f147a56c4",
+    "/private/tmp/mizyun-label-references-xcodebuild.log": "5d955b8c9cb2a034918be6a5c37352eb3d203541a05f379ca421b9a5859665bb"
+  },
+  "nativeFeatureAcceptance": "open: installed/launched; wrapping/VoiceOver/private signed-in journeys not automated"
+}

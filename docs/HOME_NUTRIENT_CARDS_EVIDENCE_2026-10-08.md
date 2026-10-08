@@ -1,0 +1,14 @@
+# Home nutrient-card consistency — 2026-10-08
+
+Adam requested that expanded “More nutrients” match Home’s Protein, Carbs and Fat cards. The follow-up uses the same rounded surface, padding, colored label/dot, small typography and thin reference bar. Two columns wrap naturally; screens below360 points or fontScale above1.3 use one column, with no fixed card height.
+
+The saved-data boundaries are preserved: unknown values remain “Not recorded”; partial subtotals retain “recorded” and meal coverage. After Adam requested the same thin bars for every extra nutrient, all cards display a matching track. Fibre, saturated-fat and sodium fills compare saved totals or confirmed recorded subtotals with numeric references; partial values keep their incomplete label. Nutrients without a numeric reference use an explicitly labeled meal-coverage fill, preserving the absence of a sugar/cholesterol limit and the symbolic saturated-fat reference when its calorie target is missing. Unknown values retain their explicit text; unknown reference amounts or unknown meal coverage use an empty track. A known coverage count can still fill its coverage bar even when its subtotal is unavailable. Above-limit amounts remain visible while fills stop at100%. General adult references remain explicitly separate from personal targets. Accessible card labels include nutrient, amount, coverage and reference.
+
+Focused `pnpm --filter @mizyun/mobile test src/features/dashboard/daily-nutrients.test.tsx src/features/dashboard/dashboard-screen.test.tsx`:48/48PASS, including partial over-reference subtotals, explicit meal-coverage fills, unknown cholesterol and above-limit amounts. Mobile typecheckPASS after correcting the new test fixture to the complete coverage contract. Independent High source review found no blocker. Final combined quality gate and installation evidence are recorded in [combined delivery](COMBINED_DEV_IPHONE_INSTALL_2026-10-08.md).
+
+Source-rendered React Native Web previews use actual `DailyNutrients`, extracted current `MacroBar` and styles, themed text and synthetic test fixtures. Dark390-point partial coverage and light320-point simulated1.6 text scale were inspected. The final previews verify five visible nutrient tracks and no horizontal overflow; reference and meal-coverage fills are labeled separately. These previews are layout evidence, not native VoiceOver or physical-device feature acceptance.
+
+- [Dark partial-data preview](evidence/home-nutrient-cards-2026-10-08/dark-390-partial.png)
+- [Light narrow/large-text complete-data preview](evidence/home-nutrient-cards-2026-10-08/light-320-large-text-complete.png)
+
+Next device check: Home → More nutrients; inspect card consistency, complete/partial values, collapse/reopen, light/dark appearance and maximum text size. Full native accessibility and exact-candidate signed-in journeys remain open under#227.

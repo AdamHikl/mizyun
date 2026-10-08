@@ -1,0 +1,231 @@
+<!doctype html><meta charset="utf-8" /><meta
+  name="viewport"
+  content="width=device-width,initial-scale=1"
+/><style>
+  body {
+    margin: 0;
+    font-family: -apple-system, system-ui;
+    background: #0b1013;
+    color: #f6f7f8;
+    --muted: #a3afc0;
+  }
+  main {
+    margin: 20px auto;
+    padding: 22px;
+    border: 1px solid #174b40;
+    border-radius: 18px;
+    background: #161f24;
+    max-width: 350px;
+    box-sizing: border-box;
+  }
+  h1 {
+    font-size: 14px;
+    color: var(--muted);
+    margin: 0 0 20px;
+  }
+  h2 {
+    font-size: 28px;
+    margin: 0 0 16px;
+  }
+  p {
+    line-height: 1.4;
+  }
+  .macros {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .macros div {
+    padding: 12px;
+    background: #222c32;
+    border-radius: 12px;
+    flex: 1;
+    font-size: 13px;
+  }
+  .macros b {
+    display: block;
+    margin-bottom: 10px;
+  }
+  button {
+    cursor: pointer;
+  }
+  body.light {
+    background: #f6f8fa;
+    color: #141c25;
+    --muted: #586575;
+  }
+  body.light main {
+    background: #fff;
+  }
+  body.light .macros div {
+    background: #f1f4f6;
+  }
+  body.large span,
+  body.large .macros div {
+    font-size: 26px !important;
+  }
+  .large .macros {
+    flex-direction: column;
+  }
+  div {
+    line-height: 1.4;
+  }
+</style>
+<main>
+  <h1>TODAY'S NUTRITION</h1>
+  <h2>
+    1350 <span style="font-size: 16px; color: var(--muted)">/ 2400 kcal</span>
+  </h2>
+  <div class="macros">
+    <div><b style="color: #10b981">Protein</b>60g / 100g</div>
+    <div><b style="color: #e79c16">Carbs</b>170g / 300g</div>
+    <div><b style="color: #9970f2">Fat</b>45g / 70g</div>
+  </div>
+  <div
+    style="
+      display: flex;
+      flex-direction: column;
+      border-top-width: 1px;
+      border-top-color: rgba(148, 163, 184, 0.2);
+    "
+  >
+    <button
+      style="
+        display: flex;
+        background: transparent;
+        border: 0;
+        color: inherit;
+        width: 100%;
+        text-align: left;
+        font: inherit;
+        min-height: 44px;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding-vertical: 10px;
+      "
+    >
+      <span style="font-size: 14px; font-weight: 600; color: inherit"
+        >More nutrients</span
+      ><span style="font-size: 17px; font-weight: 400; color: var(--muted)"
+        >−</span
+      >
+    </button>
+    <div style="display: flex; flex-direction: column; gap: 14px">
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <div
+          style="display: flex; flex-direction: row; flex-wrap: wrap; gap: 8px"
+        >
+          <span
+            style="
+              font-size: 14px;
+              font-weight: 600;
+              color: inherit;
+              flex-grow: 1;
+              flex-shrink: 1;
+            "
+            >Fibre</span
+          ><span style="font-size: 14px; font-weight: 600; color: inherit"
+            >18 g</span
+          >
+        </div>
+        <span style="font-size: 14px; font-weight: 400; color: var(--muted)"
+          >Reference goal: at least 25 g</span
+        >
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <div
+          style="display: flex; flex-direction: row; flex-wrap: wrap; gap: 8px"
+        >
+          <span
+            style="
+              font-size: 14px;
+              font-weight: 600;
+              color: inherit;
+              flex-grow: 1;
+              flex-shrink: 1;
+            "
+            >Saturated fat</span
+          ><span style="font-size: 14px; font-weight: 600; color: inherit"
+            >12 g</span
+          >
+        </div>
+        <span style="font-size: 14px; font-weight: 400; color: var(--muted)"
+          >Reference limit: up to 26.7 g · 10% of calorie target</span
+        >
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <div
+          style="display: flex; flex-direction: row; flex-wrap: wrap; gap: 8px"
+        >
+          <span
+            style="
+              font-size: 14px;
+              font-weight: 600;
+              color: inherit;
+              flex-grow: 1;
+              flex-shrink: 1;
+            "
+            >Total sugars</span
+          ><span style="font-size: 14px; font-weight: 600; color: inherit"
+            >42 g</span
+          >
+        </div>
+        <span style="font-size: 14px; font-weight: 400; color: var(--muted)"
+          >No total-sugars limit · free sugars are different</span
+        >
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <div
+          style="display: flex; flex-direction: row; flex-wrap: wrap; gap: 8px"
+        >
+          <span
+            style="
+              font-size: 14px;
+              font-weight: 600;
+              color: inherit;
+              flex-grow: 1;
+              flex-shrink: 1;
+            "
+            >Sodium</span
+          ><span style="font-size: 14px; font-weight: 600; color: inherit"
+            >1450 mg</span
+          >
+        </div>
+        <span style="font-size: 14px; font-weight: 400; color: var(--muted)"
+          >Reference limit: below 2000 mg</span
+        >
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <div
+          style="display: flex; flex-direction: row; flex-wrap: wrap; gap: 8px"
+        >
+          <span
+            style="
+              font-size: 14px;
+              font-weight: 600;
+              color: inherit;
+              flex-grow: 1;
+              flex-shrink: 1;
+            "
+            >Dietary cholesterol</span
+          ><span style="font-size: 14px; font-weight: 600; color: inherit"
+            >0 mg</span
+          >
+        </div>
+        <span style="font-size: 14px; font-weight: 400; color: var(--muted)"
+          >No general daily limit</span
+        >
+      </div>
+      <span style="font-size: 14px; font-weight: 400; color: var(--muted)"
+        >General adult WHO references, not personal targets. Totals use saved
+        meal values, including any AI estimates you confirmed.</span
+      >
+    </div>
+  </div>
+</main>
+<script>
+  document.body.className =
+    new URLSearchParams(location.search).get("theme") || "";
+</script>
