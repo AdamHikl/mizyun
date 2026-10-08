@@ -39,6 +39,8 @@ Allowed implementation state: `not started`, `in progress`, `implemented`, `bloc
 
 ### Q2
 
+2026-10-08: Weight durable identity/API conflict/owner SQL proof implemented and independently reviewed; wider workout/set/copy/proposal retries and native delivery remain open. [Batch evidence](ISSUE_ACCEPTANCE_BATCH_2026-10-08.md). No whole-exit closure.
+
 - [ ] Screen-level lost-response retry and app restart produce one meal and identical totals.
 - [ ] Identity/timestamp/payload persist before sending; failed persistence sends no request.
 - [ ] Double tap/concurrent request, old draft upgrade, payload conflict and intentional new entry covered.
@@ -55,6 +57,8 @@ Allowed implementation state: `not started`, `in progress`, `implemented`, `bloc
 - [ ] Cold/warm Auth flows and Mac-off standalone operation accepted on devices.
 
 ### Q4
+
+2026-10-08: Required pre-DELETE recovery persistence and truthful local cleanup/chunk retries implemented and independently reviewed; post-Auth transport, purge restart, data barriers and native/provider exits remain open. [Batch evidence](ISSUE_ACCEPTANCE_BATCH_2026-10-08.md). No whole-exit closure.
 
 APPLE-003 source/review progress is recorded in [oldest batch2](OLDEST_ISSUES_BATCH_2_2026-10-07.md) and ADR-0050. This closes no whole Q4 exit; post-Auth HTTP recovery, data barriers, native/provider and restore evidence remain open.
 
@@ -103,6 +107,8 @@ APPLE-003 source/review progress is recorded in [oldest batch2](OLDEST_ISSUES_BA
 - [ ] Evaluation corpus, predetermined thresholds, measured results and BEFORE_TESTING gate completed for external AI (`packages/agent-runtime/src/evaluation-corpus.ts`, `scripts/run-ai-evaluation.mjs`, `docs/BEFORE_TESTING.md`).
 
 ### Q9
+
+2026-10-08: Running-release/dependency identity and stop-before-checkout/rollback implemented with74 fault cases and independent review; live deployment, drift, backups and compatible rollback remain open. [Batch evidence](ISSUE_ACCEPTANCE_BATCH_2026-10-08.md). No whole-exit closure.
 
 2026-10-07 #23 required journal receipts and nonrecursive lock-held recovery are in [batch3](OLDEST_ISSUES_BATCH_3_2026-10-07.md). Requested/checked-out SHAs and local health are qualified separately from running-release identity; unknown backup/migration references remain explicit. Full Q9 exits below remain open.
 

@@ -437,13 +437,17 @@
       "dataTables": ["body_measurements", "media_assets"],
       "migrationPaths": [
         "supabase/migrations/20260714101000_user_data.sql",
-        "supabase/migrations/20260714103000_private_media.sql"
+        "supabase/migrations/20260714103000_private_media.sql",
+        "supabase/migrations/20261008100000_body_measurement_retry_identity.sql"
       ],
       "tests": [
         "apps/api/src/modules/body-measurements/routes.test.ts",
         "apps/api/src/modules/media/routes.test.ts",
         "apps/mobile/src/features/progress-photos/progress-photo-data.test.ts",
-        "apps/mobile/src/features/log-weight/log-weight-data.test.ts"
+        "apps/mobile/src/features/log-weight/log-weight-data.test.ts",
+        "apps/mobile/src/features/log-weight/log-weight-screen.test.tsx",
+        "packages/contracts/src/body-measurement.test.ts",
+        "supabase/tests/database/0037_body_measurement_retry_identity.test.sql"
       ],
       "relations": [
         {
@@ -476,7 +480,8 @@
       "limitations": "Physical camera hardware capture tested manually; CI validates media uploads via synthetic fixtures",
       "requirements": ["PHOTO-01", "PHOTO-02", "REL-AUD-005"],
       "openAcceptance": [
-        "REL-AUD-005: Non-diagnostic body photo policy evaluation with live provider"
+        "REL-AUD-005: Non-diagnostic body photo policy evaluation with live provider",
+        "REL-AUD-007/Q2: weight restart/lost-response acceptance on delivered migration/API/native candidate; broader mutation retry inventory remains open"
       ]
     },
     {
@@ -630,7 +635,7 @@
       ],
       "lastReviewedSha": "7faec30d0c2e7e165891dd970004c8865936ccde",
       "lastReviewedDate": "2026-09-09",
-      "limitations": "Permanent deletion of external AI provider server logs is governed by Google Gemini 30-day abuse retention window",
+      "limitations": "External provider retention depends on current Gemini terms, abuse monitoring, Search grounding and project logging/dataset settings; #29 governance remains open (see ISSUE_ACCEPTANCE_BATCH_2026-10-08.md)",
       "requirements": ["REL-AUD-001", "REL-AUD-002", "AUTH-04"],
       "openAcceptance": [
         "REL-AUD-001/Q4: Worker lease renewal & storage resume barriers",
@@ -844,11 +849,16 @@
         "apps/mobile/tooling",
         "apps/mobile/vitest/expo-application-stub.ts",
         "scripts/ios-simulator-dev.mjs",
-        "scripts/ios-simulator-dev.test.mjs"
+        "scripts/ios-simulator-dev.test.mjs",
+        "apps/api/src/release-readiness.ts",
+        "apps/api/src/release-readiness.test.ts"
       ],
       "contracts": [],
       "domainPort": [],
-      "api": ["packages/config/src/server.ts"],
+      "api": [
+        "packages/config/src/server.ts",
+        "apps/api/src/release-readiness.ts"
+      ],
       "ui": ["apps/mobile/app.config.js"],
       "adapters": [],
       "dataTables": [],
@@ -861,7 +871,8 @@
         "packages/config/src/mobile.test.ts",
         "scripts/test-backup-dev-encrypted.py",
         "apps/api/src/release-compatibility.test.ts",
-        "scripts/ios-simulator-dev.test.mjs"
+        "scripts/ios-simulator-dev.test.mjs",
+        "apps/api/src/release-readiness.test.ts"
       ],
       "relations": [
         {
@@ -878,7 +889,8 @@
         "docs/tutorials/HETZNER_BACKEND_GUIDE.md",
         ".agents/skills/deploy-dev/SKILL.md",
         ".agents/skills/deploy-production/SKILL.md",
-        ".agents/skills/test-ios-simulator/SKILL.md"
+        ".agents/skills/test-ios-simulator/SKILL.md",
+        "docs/adr/0051-running-release-readiness.md"
       ],
       "verificationCommands": [
         "pnpm test:deployment-safeguards",
@@ -891,7 +903,8 @@
       "requirements": ["INFRA-DUAL-004", "REL-AUD-003"],
       "openAcceptance": [
         "REL-AUD-003/R3 Part B: Store distribution signing keys and release build profiles",
-        "INFRA-DUAL-005/R8: Physical-device standalone journey and off-device backup restore rehearsal"
+        "INFRA-DUAL-005/R8: Physical-device standalone journey and off-device backup restore rehearsal",
+        "Q9: live running-release readiness, authenticated smoke, migration drift and schema-compatible rollback evidence"
       ]
     },
     {
