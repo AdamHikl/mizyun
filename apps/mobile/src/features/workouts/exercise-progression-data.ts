@@ -281,6 +281,7 @@ export const calculateExerciseProgression = (
     let best1RMKg: number | null = null;
 
     for (const s of sortedSets) {
+      if (s.setType === "warmup") continue;
       if (s.loadKg !== null && s.loadKg > 0) {
         if (peakLoadKg === null || s.loadKg > peakLoadKg) {
           peakLoadKg = s.loadKg;

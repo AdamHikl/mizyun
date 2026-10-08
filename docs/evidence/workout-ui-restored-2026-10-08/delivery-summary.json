@@ -1,0 +1,41 @@
+{
+  "date": "2026-10-08",
+  "sourceSha": "584452e4ee45401c52744c7000dd08fd845f9008",
+  "remoteShaVerified": true,
+  "baselineSha": "67809bf3e9e125ca6f870b8f5c48cf25f0bcbfb9",
+  "ui": "original set table restored; only saved-value theme color differs from baseline",
+  "focused": {
+    "files": 18,
+    "testsPassed": 245
+  },
+  "fullGate": {
+    "result": "PASS",
+    "inputSha256": "19b953b612e3cf406ba469d998aa8466c0327e76ff2b39a3efff742a4db21b30",
+    "mobileTestsPassed": 1931,
+    "coreTestsPassed": 420,
+    "apiTestsPassed": 937,
+    "apiCredentialGatedSkipped": 15,
+    "legacyConfigSkipped": 3,
+    "bundleExports": ["ios", "android"]
+  },
+  "native": {
+    "build": "Release BUILD SUCCEEDED",
+    "version": "1.0.9",
+    "buildNumber": "9",
+    "bundleId": "com.mizyun.development",
+    "signatureVerified": true,
+    "team": "LQJNDVBL43",
+    "cdHash": "ab7f447b3c78cc0326c56ae2b3e3fe9689d5d8be",
+    "device": "iPhone 16 Pro",
+    "install": "PASS",
+    "launch": "PASS",
+    "independentProcessId": 17907,
+    "widgetProcessId": 17909,
+    "featureAcceptance": "user confirmed restored UI done; full native/accessibility matrix unverified"
+  },
+  "devBackendSha": "5b0cff9afc7b88b18dbe6b29964f693b0899a895",
+  "backendDeploymentPerformed": false,
+  "productionActionPerformed": false,
+  "issue228": "closed per explicit user acceptance of restored UI; large-text redesign rejected",
+  "androidAcceptance": "pending per user"
+}

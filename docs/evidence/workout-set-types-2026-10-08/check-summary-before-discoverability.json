@@ -1,0 +1,18 @@
+{
+  "date": "2026-10-08",
+  "issue": 139,
+  "baseline": "9e7fc4b13b54b4d0818c3b259bfef55321795f1f",
+  "candidate": "/private/tmp/mizyun-139-check-rn1fiikm",
+  "command": "pnpm check",
+  "exitCode": 0,
+  "mobilePassed": 1867,
+  "apiPassed": 937,
+  "apiCredentialGatedSkipped": 15,
+  "configLegacyBundlePathSkipped": 3,
+  "focusedWorkoutLoggerPassed": 242,
+  "overlays": 12,
+  "sourceDrift": [],
+  "nativeAcceptance": "pending",
+  "installed": false,
+  "deployed": false
+}

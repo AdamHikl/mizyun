@@ -55,6 +55,10 @@ export interface WorkoutWorkspace {
 export type WorkoutMutationResult =
   { readonly ok: true } | { readonly ok: false; readonly message: string };
 
+export type WorkoutCompletionResult =
+  | { readonly ok: true; readonly workout: Workout }
+  | { readonly ok: false; readonly message: string };
+
 export type AddWorkoutSetResult =
   | { readonly ok: true; readonly workoutSet: WorkoutSet }
   | { readonly ok: false; readonly message: string };
@@ -516,7 +520,7 @@ export const loadRecentPerformanceWith = async (
 export const completeWorkout = async (
   workoutId: string,
   workoutStartedAt?: string,
-): Promise<WorkoutMutationResult> => {
+): Promise<WorkoutCompletionResult> => {
   const binding = captureHealthExportOwner();
   return completeWorkoutWith(
     apiClient,
@@ -533,7 +537,7 @@ export const completeWorkoutWith = async (
   now: () => Date = () => new Date(),
   workoutStartedAt?: string,
   afterSave?: (workout: WorkoutResponse["workout"]) => void,
-): Promise<WorkoutMutationResult> => {
+): Promise<WorkoutCompletionResult> => {
   const completionTime = now();
   const startedAtDate = workoutStartedAt ? new Date(workoutStartedAt) : null;
   const updateStartedAt =
@@ -560,7 +564,7 @@ export const completeWorkoutWith = async (
     }
   }
   return result.ok
-    ? { ok: true }
+    ? { ok: true, workout: result.value.workout }
     : { ok: false, message: humanize(result.error, "Complete your workout") };
 };
 

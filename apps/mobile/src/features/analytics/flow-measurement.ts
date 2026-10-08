@@ -100,11 +100,13 @@ export class LoggingFlowMeasurement {
 export function useLoggingFlowMeasurement(
   flow: LoggingFlow,
   owner: string | null,
+  enabled = true,
 ) {
   const navigation = useNavigation();
   const measurement = useRef<LoggingFlowMeasurement | null>(null);
   const currentOwner = useRef<string | null>(null);
   useEffect(() => {
+    if (!enabled) return;
     if (!measurement.current || currentOwner.current !== owner) {
       measurement.current = new LoggingFlowMeasurement(flow);
       currentOwner.current = owner;
@@ -118,6 +120,6 @@ export function useLoggingFlowMeasurement(
       });
     });
     return unsubscribe;
-  }, [flow, navigation, owner]);
+  }, [enabled, flow, navigation, owner]);
   return measurement;
 }

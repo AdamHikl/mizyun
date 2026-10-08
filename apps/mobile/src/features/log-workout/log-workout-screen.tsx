@@ -95,6 +95,7 @@ import {
   type PlannedExercise,
   type WorkoutWorkspace,
 } from "./log-workout-data";
+import { CompletedWorkoutFeed } from "./completed-workout-feed";
 import { plannedSetTypeForSequence } from "@/features/workouts/planned-set-types";
 
 interface WorkoutDraft {
@@ -183,7 +184,6 @@ export function LogWorkoutScreen() {
   const startContextRestTimer = workoutContext?.startRestTimer;
   const clearContextRestTimer = workoutContext?.clearRestTimer;
   const userId = session?.user.id ?? null;
-  const measurement = useLoggingFlowMeasurement("workout", userId);
   const unitSystem = profile?.unitSystem ?? "metric";
   const [workspace, setWorkspace] = useState<WorkoutWorkspace>(EMPTY_WORKSPACE);
   const [draft, setDraft] = useState<WorkoutDraft>(EMPTY_DRAFT);
@@ -191,6 +191,14 @@ export function LogWorkoutScreen() {
   const [busy, setBusy] = useState(false);
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const measurement = useLoggingFlowMeasurement(
+    "workout",
+    userId,
+    !loading &&
+      (workspace.workout === null
+        ? !workoutId
+        : workspace.workout.completedAt === null),
+  );
 
   // Live session state
   const [pendingInputs, setPendingInputs] = useState<
@@ -235,6 +243,11 @@ export function LogWorkoutScreen() {
   currentWorkoutOwner.current = `${userId}:${workspace.workout?.id ?? ""}`;
   const isOneTimeWorkout =
     workspace.workout?.details?.sessionMode === "one_time";
+  const isCompletedWorkout = workspace.workout?.completedAt != null;
+  const isActiveSession =
+    workspace.workout !== null &&
+    !isCompletedWorkout &&
+    !isRoutineDetails(workspace.workout.details);
   const restNotificationGeneration = useRef(0);
 
   const plannedExercises = useMemo(
@@ -286,6 +299,7 @@ export function LogWorkoutScreen() {
     const routine = workspace.workout;
     if (
       routine === null ||
+      routine.completedAt !== null ||
       !isRoutineDetails(routine.details) ||
       routineStartRef.current === routine.id
     ) {
@@ -316,7 +330,7 @@ export function LogWorkoutScreen() {
 
   // Draft save/load
   useEffect(() => {
-    if (userId === null) return;
+    if (userId === null || workoutId) return;
     let active = true;
     void loadLoggingDraft(userId, "workout", isStoredWorkoutDraft).then(
       (saved) => {
@@ -328,12 +342,12 @@ export function LogWorkoutScreen() {
     return () => {
       active = false;
     };
-  }, [userId]);
+  }, [userId, workoutId]);
 
   useEffect(() => {
-    if (!draftLoaded || userId === null) return;
+    if (!draftLoaded || userId === null || workoutId) return;
     void saveLoggingDraft(userId, "workout", draft);
-  }, [draft, draftLoaded, userId]);
+  }, [draft, draftLoaded, userId, workoutId]);
 
   // Load workout preferences (global rest timer setting and live notification toggle)
   useEffect(() => {
@@ -373,7 +387,7 @@ export function LogWorkoutScreen() {
 
   // Wall-clock rest timer ticker
   useEffect(() => {
-    if (!restTimer) return;
+    if (!isActiveSession || !restTimer) return;
     const checkTimer = () => {
       const now = Date.now();
       if (now >= restTimer.endsAt) {
@@ -389,10 +403,11 @@ export function LogWorkoutScreen() {
     checkTimer();
     const interval = setInterval(checkTimer, 500);
     return () => clearInterval(interval);
-  }, [restTimer]);
+  }, [isActiveSession, restTimer]);
 
   // AppState listener to immediately refresh/expire rest timer when app returns to foreground
   useEffect(() => {
+    if (!isActiveSession) return;
     const subscription = AppState.addEventListener("change", (nextState) => {
       if (nextState === "active") {
         setRestTimer((current) => {
@@ -412,7 +427,7 @@ export function LogWorkoutScreen() {
     return () => {
       subscription.remove();
     };
-  }, []);
+  }, [isActiveSession]);
 
   // Synchronize active workout session into global context
   useEffect(() => {
@@ -431,12 +446,18 @@ export function LogWorkoutScreen() {
 
   // Synchronize rest timer into global context
   useEffect(() => {
+    if (!isActiveSession) return;
     if (restTimer && Date.now() < restTimer.endsAt) {
       startContextRestTimer?.(restTimer);
     } else if (restTimer === null) {
       clearContextRestTimer?.();
     }
-  }, [clearContextRestTimer, restTimer, startContextRestTimer]);
+  }, [
+    clearContextRestTimer,
+    isActiveSession,
+    restTimer,
+    startContextRestTimer,
+  ]);
 
   const patchDraft = useCallback((patch: Partial<WorkoutDraft>) => {
     setDraft((current) => ({ ...current, ...patch }));
@@ -593,7 +614,7 @@ export function LogWorkoutScreen() {
 
   // Pre-load recent performance for all active exercises
   useEffect(() => {
-    if (!workspace.workout) return;
+    if (!isActiveSession || !workspace.workout) return;
     const workoutIdVal = workspace.workout.id;
     exerciseEntries.forEach((entry) => {
       if (entry.id.startsWith("planned-")) return;
@@ -606,7 +627,12 @@ export function LogWorkoutScreen() {
         });
       }
     });
-  }, [exerciseEntries, recentPerformanceMap, workspace.workout]);
+  }, [
+    exerciseEntries,
+    isActiveSession,
+    recentPerformanceMap,
+    workspace.workout,
+  ]);
 
   // Active session summary for the persistent live notification
   const activeSessionSummary = useMemo(() => {
@@ -750,10 +776,14 @@ export function LogWorkoutScreen() {
 
   // Clean up notification if user disabled the setting
   useEffect(() => {
-    if (workoutPreferencesLoaded && !liveNotificationEnabled) {
+    if (
+      isActiveSession &&
+      workoutPreferencesLoaded &&
+      !liveNotificationEnabled
+    ) {
       void dismissActiveWorkoutNotification();
     }
-  }, [liveNotificationEnabled, workoutPreferencesLoaded]);
+  }, [isActiveSession, liveNotificationEnabled, workoutPreferencesLoaded]);
 
   // Start workout action
   const onStart = useCallback(async () => {
@@ -944,6 +974,7 @@ export function LogWorkoutScreen() {
       const attempt = measurement.current;
       if (
         workspace.workout === null ||
+        workspace.workout.completedAt !== null ||
         busy ||
         exerciseMutationInFlight.current ||
         setSaveInFlight.current
@@ -1211,7 +1242,8 @@ export function LogWorkoutScreen() {
   // Remove / delete a completed set
   const handleRemoveSet = useCallback(
     (set: WorkoutSet) => {
-      if (workspace.workout === null) return;
+      if (workspace.workout === null || workspace.workout.completedAt !== null)
+        return;
       Alert.alert("Delete Set?", `Remove set ${set.sequence}?`, [
         { text: "Cancel", style: "cancel" },
         {
@@ -1242,7 +1274,8 @@ export function LogWorkoutScreen() {
     if (busy || exerciseMutationInFlight.current || setSaveInFlight.current)
       return;
     const attempt = measurement.current;
-    if (workspace.workout === null) return;
+    if (workspace.workout === null || workspace.workout.completedAt !== null)
+      return;
     if (isRoutineDetails(workspace.workout.details)) {
       setMessage("Wait for the workout session to start before finishing it.");
       return;
@@ -1322,6 +1355,11 @@ export function LogWorkoutScreen() {
                 );
                 return setMessage(result.message);
               }
+              refreshCounter.current++;
+              setWorkspace((current) => ({
+                ...current,
+                workout: result.workout,
+              }));
               void dismissActiveWorkoutNotification();
               attempt?.complete();
               if (userId !== null) await clearLoggingDraft(userId, "workout");
@@ -1369,7 +1407,8 @@ export function LogWorkoutScreen() {
     if (busy || exerciseMutationInFlight.current || setSaveInFlight.current)
       return;
     const attempt = measurement.current;
-    if (workspace.workout === null) return;
+    if (workspace.workout === null || workspace.workout.completedAt !== null)
+      return;
     if (isRoutineDetails(workspace.workout.details)) {
       setMessage("Wait for the workout session to start before discarding it.");
       return;
@@ -1423,11 +1462,17 @@ export function LogWorkoutScreen() {
     workspace.workout !== null ? (
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Finish Workout"
-        accessibilityHint="Review and save this workout."
+        accessibilityLabel={
+          isCompletedWorkout ? "Close workout" : "Finish Workout"
+        }
+        accessibilityHint={
+          isCompletedWorkout
+            ? "Return to workout history."
+            : "Review and save this workout."
+        }
         accessibilityState={{ disabled: busy, busy }}
         disabled={busy}
-        onPress={handleFinish}
+        onPress={isCompletedWorkout ? () => router.back() : handleFinish}
         style={({ pressed }) => [
           styles.headerFinishButton,
           pressed && styles.headerFinishButtonPressed,
@@ -1435,7 +1480,7 @@ export function LogWorkoutScreen() {
         ]}
       >
         <ThemedText type="smallBold" style={styles.headerFinishText}>
-          Finish
+          {isCompletedWorkout ? "Close" : "Finish"}
         </ThemedText>
       </Pressable>
     ) : null;
@@ -1444,19 +1489,23 @@ export function LogWorkoutScreen() {
     <ThemedView style={styles.page}>
       <Stack.Screen
         options={{
-          title: workspace.workout?.name || "Live Workout",
-          headerLeft: () => (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Minimize workout"
-              onPress={() => router.back()}
-              style={styles.headerMinimizeButton}
-            >
-              <ThemedText type="smallBold" style={styles.headerMinimizeText}>
-                ✕
-              </ThemedText>
-            </Pressable>
-          ),
+          title:
+            workspace.workout?.name || (workoutId ? "Workout" : "Live Workout"),
+          headerLeft: () =>
+            isCompletedWorkout ? null : (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={
+                  isActiveSession ? "Minimize workout" : "Close workout"
+                }
+                onPress={() => router.back()}
+                style={styles.headerMinimizeButton}
+              >
+                <ThemedText type="smallBold" style={styles.headerMinimizeText}>
+                  ✕
+                </ThemedText>
+              </Pressable>
+            ),
           headerRight: () => finishHeaderButton,
           // iOS otherwise adds a second glass capsule around the green button.
           unstable_headerRightItems:
@@ -1483,7 +1532,9 @@ export function LogWorkoutScreen() {
             automaticallyAdjustKeyboardInsets
             contentContainerStyle={[
               styles.content,
-              restTimer !== null && styles.contentWithRestTimer,
+              isActiveSession &&
+                restTimer !== null &&
+                styles.contentWithRestTimer,
             ]}
             keyboardDismissMode="on-drag"
             keyboardShouldPersistTaps="handled"
@@ -1496,13 +1547,35 @@ export function LogWorkoutScreen() {
                 </ThemedText>
               </View>
             ) : workspace.workout === null ? (
-              <StartSection
-                draft={draft}
-                inputColor={theme.text}
-                busy={busy}
-                onPatch={patchDraft}
-                onStart={onStart}
-                onInteraction={() => measurement.current?.tap()}
+              workoutId ? (
+                <View style={styles.center}>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    This workout could not be loaded. Try again or close this
+                    view.
+                  </ThemedText>
+                  <Button label="Close" onPress={() => router.back()} />
+                  {message === null ? (
+                    <Button label="Retry" onPress={() => void refresh()} />
+                  ) : null}
+                </View>
+              ) : (
+                <StartSection
+                  draft={draft}
+                  inputColor={theme.text}
+                  busy={busy}
+                  onPatch={patchDraft}
+                  onStart={onStart}
+                  onInteraction={() => measurement.current?.tap()}
+                />
+              )
+            ) : isCompletedWorkout ? (
+              <CompletedWorkoutFeed
+                workout={workspace.workout}
+                exercises={exerciseEntries}
+                allExercises={workspace.exercises}
+                savedSets={workspace.sets}
+                unitSystem={unitSystem}
+                onOpenHistory={setProgressionExerciseName}
               />
             ) : (
               <ActiveWorkoutFeed
@@ -1552,7 +1625,7 @@ export function LogWorkoutScreen() {
       </SafeAreaView>
 
       {/* Floating Rest Timer Bar */}
-      {restTimer !== null ? (
+      {isActiveSession && restTimer !== null ? (
         <FloatingRestTimer
           rest={restTimer}
           current={activeSessionSummary}
@@ -1636,7 +1709,7 @@ export function LogWorkoutScreen() {
         />
       )}
       {/* Exercise Library Modal to Add Exercises */}
-      {libraryVisible ? (
+      {isActiveSession && libraryVisible ? (
         <ExerciseLibraryModal
           visible={libraryVisible}
           onClose={() => setLibraryVisible(false)}
@@ -1655,7 +1728,7 @@ export function LogWorkoutScreen() {
       ) : null}
 
       {/* Set Type Modal */}
-      {selectedSetTypeEntry !== null ? (
+      {isActiveSession && selectedSetTypeEntry !== null ? (
         <SetTypeModal
           visible={selectedSetTypeEntry !== null}
           currentType={(() => {
@@ -1708,7 +1781,7 @@ export function LogWorkoutScreen() {
       ) : null}
 
       {/* Reorder Exercises Modal */}
-      {reorderModalVisible ? (
+      {isActiveSession && reorderModalVisible ? (
         <ReorderExercisesModal
           visible={reorderModalVisible}
           exercises={exerciseEntries}
@@ -2063,8 +2136,11 @@ function LiveExerciseCard(props: {
   readonly onMoveDown?: () => void;
   readonly onInteraction: () => void;
 }) {
+  const theme = useTheme();
   const unit = weightUnitLabel(props.unitSystem);
   const nextSetSequence = props.completedSets.length + 1;
+  const pendingType = props.pendingInput.setType ?? "normal";
+  const pendingTypeLabel = pendingType[0]!.toUpperCase() + pendingType.slice(1);
 
   const targetLoadDisplay = props.entry.targetLoad
     ? parseTargetLoadToDisplay(props.entry.targetLoad, props.unitSystem)
@@ -2215,10 +2291,16 @@ function LiveExerciseCard(props: {
               >
                 {loadStr} {unit} × {repsStr}
               </ThemedText>
-              <ThemedText type="smallBold" style={styles.colInputDone}>
+              <ThemedText
+                type="smallBold"
+                style={[styles.colInputDone, { color: theme.text }]}
+              >
                 {loadStr}
               </ThemedText>
-              <ThemedText type="smallBold" style={styles.colInputDone}>
+              <ThemedText
+                type="smallBold"
+                style={[styles.colInputDone, { color: theme.text }]}
+              >
                 {repsStr}
               </ThemedText>
               <Pressable
@@ -2240,6 +2322,8 @@ function LiveExerciseCard(props: {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Set ${nextSetSequence} type: ${props.pendingInput.setType ?? "normal"}. Tap to change set type.`}
+            accessibilityState={{ disabled: props.busy }}
+            disabled={props.busy}
             hitSlop={{ top: 0, bottom: 0, left: 8, right: 8 }}
             onPress={props.onOpenSetTypeModal}
             style={styles.colSetPressable}
@@ -2303,6 +2387,38 @@ function LiveExerciseCard(props: {
           </Pressable>
         </View>
       </View>
+
+      <Pressable
+        testID="pending-set-type-control"
+        accessibilityRole="button"
+        accessibilityLabel={`Set ${nextSetSequence} type: ${pendingTypeLabel}`}
+        accessibilityHint="Opens Normal, Warmup, Failure and Drop choices for the unfinished set."
+        accessibilityState={{ disabled: props.busy }}
+        disabled={props.busy}
+        onPress={props.onOpenSetTypeModal}
+        style={({ pressed }) => [
+          styles.pendingSetTypeControl,
+          {
+            borderColor: theme.border,
+            backgroundColor: theme.backgroundElement,
+          },
+          (pressed || props.busy) && { opacity: 0.6 },
+        ]}
+      >
+        <View style={styles.pendingSetTypeLabel}>
+          <ThemedText type="small" themeColor="textSecondary">
+            Set {nextSetSequence} type
+          </ThemedText>
+          <ThemedText type="smallBold">{pendingTypeLabel}</ThemedText>
+        </View>
+        <ThemedText
+          style={styles.pendingSetTypeChevron}
+          accessible={false}
+          importantForAccessibility="no"
+        >
+          ▾
+        </ThemedText>
+      </Pressable>
 
       {/* Log Set Footer */}
       <Pressable
@@ -2746,7 +2862,6 @@ const styles = StyleSheet.create({
   colInputDone: {
     width: 64,
     textAlign: "center",
-    color: "#FFFFFF",
   },
   colInputCell: {
     width: 64,
@@ -2808,6 +2923,24 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(16, 185, 129, 0.12)",
     borderWidth: 1,
     borderColor: "rgba(16, 185, 129, 0.3)",
+  },
+  pendingSetTypeControl: {
+    minHeight: 56,
+    borderWidth: 1,
+    borderRadius: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+  },
+  pendingSetTypeLabel: {
+    flex: 1,
+    minWidth: 0,
+    gap: Spacing.one,
+  },
+  pendingSetTypeChevron: {
+    flexShrink: 0,
   },
   logSetFooterText: {
     color: "#10B981",

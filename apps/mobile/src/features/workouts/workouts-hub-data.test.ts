@@ -191,6 +191,27 @@ describe("workouts-hub-data", () => {
     expect(volume).toBe(1480);
   });
 
+  it("keeps warmups in workout history without counting them as working volume", () => {
+    const sets: WorkoutSet[] = [
+      { ...mockSets[0]!, id: "warmup", setType: "warmup", loadKg: 100 },
+      ...(["normal", "drop", "failure"] as const).map((setType, index) => ({
+        ...mockSets[1]!,
+        id: `working-${index}`,
+        sequence: index + 2,
+        setType,
+      })),
+    ];
+    const workout = processWorkout(mockCompletedWorkout, sets, [mockExercise]);
+    expect(workout.completedSetCount).toBe(4);
+    expect(workout.totalVolumeKg).toBe(2040);
+    expect(workout.exerciseSummaries[0]?.topLoadKg).toBe(85);
+    expect(calculateWorkoutVolume([sets[0]!])).toBe(0);
+    expect(
+      processWorkout(mockCompletedWorkout, [sets[0]!], [mockExercise])
+        .exerciseSummaries[0],
+    ).toMatchObject({ setCount: 1, topLoadKg: null });
+  });
+
   it("processes workouts into correct status and exercise summaries", () => {
     const today = new Date("2026-08-26T12:00:00.000Z");
     const processedPlanned = processWorkout(
