@@ -43,3 +43,7 @@ Parser fix committed locally as `5e9b1b9`; canonical tunnel correction/validator
 Next needed from Adam: approve pushing these source commits; separately authorize the reviewed shared-unit installation/live proof; accept the listed native journeys and Health declarations. #228 stays with its active restoration owner and Android acceptance remains pending as Adam requested there. GitHub closure outcomes are stored in the batch evidence; local fix completion is distinct from publication, Dev delivery and runtime acceptance.
 
 Final GitHub read-back: **#220 CLOSED/status:done**; #218/#219/#222/#223/#224/#225/#226/#229 OPEN/status:blocked; #228 OPEN/status:active under restoration. All ten source/acceptance comments posted successfully. Final documentation navigation PASS0errors/27advisory warnings and diff checkPASS. Source commits remain unpublished; requested approval is the final publication step.
+
+## Updated authorization — 2026-10-08
+
+Adam explicitly authorized closing the ten issues in this batch, committing all current code changes in multiple commits, pushing main, and delivering the combined candidate to Dev backend and iPhone. He separately approved the shared-tunnel dependency correction and manager reload. The prior push rejection is superseded by this authorization. The restored original workout UI is authoritative; fresh combined verification and delivery are recorded in [main delivery evidence](MAIN_DEV_DELIVERY_2026-10-08.md). Issue closure at Adam’s direction does not certify the unobserved acceptance checks above.

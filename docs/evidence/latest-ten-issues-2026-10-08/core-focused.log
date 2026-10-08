@@ -1,0 +1,13 @@
+
+> @mizyun/core@0.1.0 test /Users/adam/Documents/mizyun/packages/core
+> vitest run src/health-export.test.ts
+
+
+ RUN  v3.2.7 /Users/adam/Documents/mizyun/packages/core
+
+ ✓ src/health-export.test.ts (11 tests) 8ms
+
+ Test Files  1 passed (1)
+      Tests  11 passed (11)
+   Start at  21:34:33
+   Duration  1.14s (transform 125ms, setup 0ms, collect 180ms, tests 8ms, environment 0ms, prepare 132ms)

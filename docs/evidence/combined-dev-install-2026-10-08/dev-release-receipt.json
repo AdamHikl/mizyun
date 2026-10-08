@@ -1,0 +1,22 @@
+{
+  "timestamp": "2026-10-08T16:19:55.324Z",
+  "status": "success",
+  "environment": "dev",
+  "previousSha": "7d5c9d0ecfd52629995af25d896dd6cdfef1abaf",
+  "targetSha": "5b0cff9afc7b88b18dbe6b29964f693b0899a895",
+  "checkedOutSha": "5b0cff9afc7b88b18dbe6b29964f693b0899a895",
+  "service": "mizyun-api-dev.service",
+  "migrationsApplied": true,
+  "migrationState": "complete",
+  "migrationIds": null,
+  "migrationChecksums": null,
+  "backupState": "not_required",
+  "backupReference": null,
+  "readinessResult": "passed",
+  "rollbackOutcome": "not_attempted",
+  "rollbackReadiness": "not_checked",
+  "runningSha": "5b0cff9afc7b88b18dbe6b29964f693b0899a895",
+  "runningInstance": "39e8f256-2a0b-4e1b-94df-a95b396b320c",
+  "runningReleaseVerified": true,
+  "message": "Requested, checked-out and fresh running release match; dependency readiness passed"
+}

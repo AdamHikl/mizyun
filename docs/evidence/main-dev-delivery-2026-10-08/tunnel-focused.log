@@ -1,0 +1,22 @@
+
+> mizyun@0.1.0 test:hetzner-operations /Users/adam/Documents/mizyun
+> node scripts/test-hetzner-operations.mjs && node --test scripts/test-hetzner-tunnel-isolation.mjs
+
+Hetzner operations safeguards passed.
+✔ shared tunnel preserves origin startup ordering and independent transport lifecycle (1.880792ms)
+✔ regression fixture reproduces Dev stop leaving the old shared tunnel stopped after Dev restart (0.195708ms)
+✔ Dev stop/restart fixture keeps the shared transport and Production origin active (0.165709ms)
+✔ resolved dependency validation rejects drop-ins, service aliases, and stop propagation in either direction (1.043334ms)
+✔ resolved dependency validation fails closed for incomplete or duplicated properties (0.181166ms)
+✔ resolved dependency validation rejects lost boot enablement, transport notification, retry, and ordering (0.282417ms)
+✔ Production backup still explicitly freezes tunnel before application writers and restores API before tunnel (0.31075ms)
+✔ Dev promotion and rollback remain scoped to the Dev API without gaining shared-tunnel control (0.1835ms)
+✔ actual Dev and Production release validators still reject unhealthy or stale candidates (1195.407083ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1295.009458

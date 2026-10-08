@@ -1,0 +1,109 @@
+
+> @mizyun/mobile@1.0.0 test /Users/adam/Documents/mizyun/apps/mobile
+> vitest run --passWithNoTests src/features/dashboard src/features/log-meal src/features/log-workout src/features/workouts src/features/health-exports src/features/community src/features/analytics src/features/settings/account-data-management.test.ts
+
+
+ RUN  v3.2.7 /Users/adam/Documents/mizyun/apps/mobile
+
+ ✓ src/features/analytics/local-analytics-storage.test.ts (4 tests) 179ms
+ ✓ src/features/community/groups/freshness.test.tsx (8 tests) 24ms
+ ✓ src/features/log-meal/edit-meal-screen.test.tsx (8 tests) 82ms
+ ✓ src/features/health-exports/export-outbox.test.ts (22 tests) 313ms
+ ✓ src/features/workouts/workouts-hub-screen.test.tsx (15 tests) 111ms
+ ✓ src/features/dashboard/dashboard-screen.test.tsx (37 tests) 441ms
+ ✓ src/features/log-workout/one-time-workout-screen.test.tsx (46 tests) 116ms
+ ✓ src/features/workouts/exercise-progression-data.test.ts (14 tests) 100ms
+ ✓ src/features/workouts/exercise-library-modal.test.tsx (7 tests) 154ms
+ ✓ src/features/log-meal/log-meal-screen.test.tsx (48 tests) 876ms
+ ✓ src/features/workouts/workout-notification.test.ts (44 tests) 67ms
+ ✓ src/features/community/feed/feed-screen.test.tsx (34 tests) 36ms
+ ✓ src/features/log-meal/meal-list-screen.test.tsx (22 tests) 362ms
+ ✓ src/features/community/relationships/controller.test.ts (22 tests) 102ms
+ ✓ src/features/community/messaging/privacy-actions.test.tsx (22 tests) 43ms
+ ✓ src/features/community/community-settings-screen.test.tsx (12 tests) 30ms
+ ✓ src/features/community/safety/safety-screen.test.tsx (6 tests) 30ms
+ ✓ src/features/workouts/workouts-hub-data.test.ts (25 tests) 29ms
+ ✓ src/features/community/comments/controller.test.ts (11 tests) 83ms
+ ✓ src/features/log-meal/first-meal-reminders.test.ts (31 tests) 56ms
+ ✓ src/features/community/share-workout-modal.test.tsx (6 tests) 42ms
+ ✓ src/features/community/routines/screen.test.tsx (12 tests) 34ms
+ ✓ src/features/health-exports/export-storage.test.ts (8 tests) 28ms
+ ✓ src/features/health-exports/service.test.ts (8 tests) 33ms
+ ✓ src/features/community/media/screen.test.tsx (15 tests) 32ms
+ ✓ src/features/health-exports/health-export-card.test.tsx (14 tests) 17ms
+ ✓ src/features/dashboard/dashboard-data.test.ts (46 tests) 49ms
+ ✓ src/features/log-meal/meal-lifecycle-data.test.ts (24 tests) 30ms
+ ✓ src/features/community/notifications/push-lifecycle.test.ts (14 tests) 11ms
+ ✓ src/features/community/feed/activity-detail-screen.test.tsx (7 tests) 34ms
+ ✓ src/features/community/relationships/screen.test.tsx (20 tests) 40ms
+ ✓ src/features/community/expansions/use-expansion-command.test.ts (14 tests) 17ms
+ ✓ src/features/community/comments/screen.test.tsx (4 tests) 59ms
+ ✓ src/features/community/notifications/inbox-screen.test.tsx (3 tests) 17ms
+ ✓ src/features/community/invitation-fallback.test.ts (36 tests) 10ms
+ ✓ src/features/workouts/set-type-modal.test.ts (2 tests) 5ms
+ ✓ src/features/log-meal/meal-photo-retention.test.ts (21 tests) 11ms
+ ✓ src/features/community/profiles/controller.test.ts (15 tests) 19ms
+ ✓ src/features/community/challenges/privacy-flow.test.tsx (4 tests) 20ms
+ ✓ src/features/analytics/ui-screen-analytics.test.tsx (5 tests) 32ms
+ ✓ src/features/community/state/read-cache.test.ts (16 tests) 15ms
+ ✓ src/features/community/safety/report-modal.test.tsx (4 tests) 15ms
+ ✓ src/features/analytics/network-analytics-client.test.ts (18 tests) 9ms
+ ✓ src/features/community/feed/formatters.test.ts (7 tests) 17ms
+ ✓ src/features/community/feed/activity-card.test.ts (3 tests) 20ms
+ ✓ src/features/community/discovery/qr-matrix.test.ts (2 tests) 16ms
+ ✓ src/features/community/feed/controller.test.ts (30 tests) 12ms
+ ✓ src/features/community/community-client.test.ts (34 tests) 16ms
+ ✓ src/features/log-meal/log-meal-analytics.test.tsx (2 tests) 8ms
+ ✓ src/features/settings/account-data-management.test.ts (27 tests) 48ms
+ ✓ src/features/community/invitation-links.test.ts (16 tests) 3ms
+ ✓ src/features/dashboard/daily-nutrients.test.tsx (13 tests) 10ms
+ ✓ src/features/community/ui/index.test.tsx (4 tests) 6ms
+ ✓ src/features/community/invitation-actions.test.ts (6 tests) 10ms
+ ✓ src/features/community/reactions/reaction-bar.test.ts (34 tests) 11ms
+ ✓ src/features/workouts/workout-live-activity.ios.test.ts (4 tests) 5ms
+ ✓ src/features/log-meal/meal-form.test.ts (34 tests) 9ms
+ ✓ src/features/community/notifications/controller.test.ts (9 tests) 10ms
+ ✓ src/features/log-workout/log-workout-data.test.ts (27 tests) 11ms
+ ✓ src/features/log-meal/log-meal-data.test.ts (23 tests) 20ms
+ ✓ src/features/community/share-workout-actions.test.ts (7 tests) 9ms
+ ✓ src/features/workouts/reorder-exercises-modal.test.ts (12 tests) 14ms
+ ✓ src/features/community/profiles/screen.test.tsx (11 tests) 19ms
+ ✓ src/features/dashboard/quick-meal-repeat.test.ts (7 tests) 12ms
+ ✓ src/features/analytics/flow-measurement.test.ts (8 tests) 28ms
+ ✓ src/features/community/profile-form.test.ts (6 tests) 8ms
+ ✓ src/features/health-exports/save-boundaries.test.ts (3 tests) 5ms
+ ✓ src/features/log-workout/log-workout-analytics.test.tsx (5 tests) 14ms
+ ✓ src/features/log-meal/private-meal-photo.test.tsx (8 tests) 10ms
+ ✓ src/features/workouts/rest-timer-notifications.test.ts (9 tests) 7ms
+ ✓ src/features/community/discovery/controller.test.ts (7 tests) 6ms
+ ✓ src/features/log-meal/evening-catch-up-reminders.test.ts (12 tests) 7ms
+ ✓ src/features/workouts/workout-preferences.test.ts (18 tests) 6ms
+ ✓ src/features/community/use-community-profile.test.ts (19 tests) 10ms
+ ✓ src/features/log-meal/meal-scale.test.ts (15 tests) 4ms
+ ✓ src/features/log-meal/food-day-completion.test.ts (10 tests) 6ms
+ ✓ src/features/log-meal/meal-retry-durability.test.ts (5 tests) 6ms
+ ✓ src/features/workouts/workout-editor-modal.test.tsx (2 tests) 11ms
+ ✓ src/features/community/shared-workout-details.test.tsx (3 tests) 8ms
+ ✓ src/features/log-meal/meal-history-search-state.test.ts (4 tests) 2ms
+ ✓ src/features/log-meal/meal-history-filter.test.ts (6 tests) 6ms
+ ✓ src/features/community/broader-discovery/screen.test.tsx (2 tests) 5ms
+ ✓ src/features/community/notifications/tap-controller.test.ts (7 tests) 6ms
+ ✓ src/features/log-meal/meal-notification-router.test.ts (6 tests) 5ms
+ ✓ src/features/community/expansions/screen.test.tsx (2 tests) 40ms
+ ✓ src/features/community/groups/mutation-intent.test.ts (2 tests) 2ms
+ ✓ src/features/analytics/classify-failure.test.ts (8 tests) 2ms
+ ✓ src/features/community/initials-avatar.test.ts (6 tests) 7ms
+ ✓ src/features/workouts/active-workout-state.test.ts (12 tests) 3ms
+ ✓ src/features/log-meal/advanced-nutrition-data.test.ts (2 tests) 2ms
+ ✓ src/features/workouts/rest-timer-presentation.test.ts (5 tests) 5ms
+ ✓ src/features/workouts/active-workout-context.test.ts (1 test) 4ms
+ ✓ src/features/community/discovery/access-gate.test.ts (3 tests) 2ms
+ ✓ src/features/community/scoped-client.test.ts (5 tests) 3ms
+ ✓ src/features/community/state/visibility-epoch.test.ts (1 test) 2ms
+ ✓ src/features/workouts/catalog-exercise-record.test.ts (4 tests) 2ms
+ ✓ src/features/community/share-workout-selection.test.ts (1 test) 1ms
+
+ Test Files  97 passed (97)
+      Tests  1273 passed (1273)
+   Start at  21:33:56
+   Duration  9.40s (transform 5.29s, setup 0ms, collect 29.83s, tests 4.33s, environment 16ms, prepare 8.88s)

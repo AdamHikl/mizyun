@@ -1,0 +1,89 @@
+
+> mizyun@0.1.0 test:community-operations /Users/adam/Documents/mizyun
+> node --test scripts/community-moderation.test.mjs scripts/community-worker.test.mjs scripts/community-revocation-ledger.test.mjs scripts/community-media-cleanup.test.mjs scripts/community-dev-maintenance.test.mjs && python3 scripts/test-backup-dev-encrypted.py && python3 scripts/test-restore-dev-quarantined.py && python3 scripts/test-community-revocation-replay.py
+
+✔ Dev maintenance finishes withdrawal and retention without claiming or contacting push (33.4245ms)
+✔ wrong host, missing secret and every mixed target fail before any network call (0.676292ms)
+✔ failed maintenance or redirect stops before later work and never logs server payloads (0.2675ms)
+✔ Dev timer removes both immutable media objects before acknowledging, even with delivery off (0.809125ms)
+✔ lost Storage response leaves durable ticket; retry removes exact two derived paths then acknowledges (2.387666ms)
+✔ forged private-media paths never reach Storage (0.163542ms)
+✔ byte privacy cleanup runs with all delivery disabled (0.247833ms)
+=== OFFLINE SIMULATION: no API, database, staffing, or SLA acceptance ===
+Step 1: Generating synthetic urgent report...
+✓ Report created: 10000000-0000-0000-0000-000000000001 [Priority: urgent]
+Step 2: Triaging queue and calculating SLA deadline...
+✓ Queue item triaged. Elapsed: 0.0h / SLA limit: 4h (Remaining: 4.0h)
+Step 3: Primary operator [simulation-primary] acting on report...
+✓ Decision executed: remove by simulation-primary. Content removed.
+Step 4: Validating reporter confidentiality invariant...
+Simulation projection omits reporterUserId and staffNotes; real API/export isolation remains unverified.
+Step 5: Subject submitting moderation appeal...
+✓ Appeal submitted: 40000000-0000-0000-0000-000000000004
+Step 6: Executing independent second review by [simulation-reviewer]...
+✓ Appeal resolved: approved by simulation-reviewer. Independent second-review rule verified.
+
+=======================================================
+✓ OFFLINE SIMULATION COMPLETED in 0ms
+No runtime, trained backup, coverage, contact, or deployment acceptance was exercised.
+=======================================================
+
+▶ community-moderation CLI (COMM-09)
+  ✔ requires a named session and exports SLA targets (1.618625ms)
+  ✔ parses queue command arguments by default (0.1785ms)
+  ✔ parses inspect command with report id (0.071709ms)
+  ✔ rejects inspect without report id (0.07625ms)
+  ✔ parses action command with required flags (0.080542ms)
+  ✔ rejects action with invalid action type (0.071458ms)
+  ✔ parses appeal review command (0.071042ms)
+  ✔ rejects review appeal with invalid decision (0.086625ms)
+  ✔ rejects shared secrets, caller-selected operators and unsafe API endpoints (0.273625ms)
+  ✔ never substitutes an offline simulation for a requested live drill (81.394792ms)
+  ✔ fails closed before live network requests when no named session exists (87.620542ms)
+  ✔ supports authenticated case claiming and pending appeal inspection (0.132ms)
+  ✔ requires an explicit permitted suspension duration (0.679708ms)
+  ✔ bounds queue and appeal pages (0.182625ms)
+  ✔ renders attacker-controlled report notes without terminal commands or forged lines (157.287625ms)
+  ✔ calculates SLA clock for urgent and normal priorities (0.984334ms)
+  ✔ runs synthetic report-to-resolution drill successfully (0.828209ms)
+✔ community-moderation CLI (COMM-09) (332.776792ms)
+✔ durably writes ciphertext and chain before acknowledging; retry after lost ACK deduplicates (52.795292ms)
+✔ late-committing older event is exported because pending reads use ACK state (55.480875ms)
+✔ ciphertext corruption or changed immutable event prevents ACK (44.370791ms)
+✔ partial journal and wrong environment fail closed before reading RPC (5.437042ms)
+✔ encryption failure leaves event unacknowledged and no plaintext file (6.276958ms)
+✔ private target, symlinks and concurrent writer locks are rejected (5.835167ms)
+✔ event projection excludes content and validates references (0.232625ms)
+✔ slow serial sends lease each job when ready without exhausting unsent retries (1.422167ms)
+✔ disabled delivery still performs bounded privacy cleanup (0.14875ms)
+✔ worker revalidates each claim, suppresses revoked work and retries failures without logging payloads (0.980791ms)
+✔ push lock screen uses only generic text and opaque event ID (0.401041ms)
+✔ unregistered provider rejects token, transport errors retry (0.153666ms)
+✔ credentials required and provider failure response body is never echoed (0.378459ms)
+✔ service RPC refuses redirect handling for credential-bearing requests (0.141292ms)
+✔ worker environment label cannot select another environment (0.087875ms)
+✔ receipt polling distinguishes provider handoff from missing and invalid receipts (0.280958ms)
+✔ maintenance still polls receipts with delivery disabled and binds acknowledgement to exact receipt (0.211875ms)
+ℹ tests 41
+ℹ suites 1
+ℹ pass 41
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 438.430875
+....................
+----------------------------------------------------------------------
+Ran 20 tests in 0.017s
+
+OK
+...................
+----------------------------------------------------------------------
+Ran 19 tests in 0.119s
+
+OK
+.......
+----------------------------------------------------------------------
+Ran 7 tests in 0.011s
+
+OK

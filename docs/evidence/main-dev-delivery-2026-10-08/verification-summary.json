@@ -1,0 +1,27 @@
+{
+  "date": "2026-10-08",
+  "fullGate": {
+    "result": "PASS",
+    "inputSha256": "d19ef793b7600ba7165b1d6caf369d73ff4c8e38438436f7538c432762052499",
+    "mobileTests": 1931,
+    "apiTests": 946,
+    "gatedApiSkips": 15,
+    "legacyConfigSkips": 3,
+    "bothPlatformBundles": true
+  },
+  "focused": {
+    "mobile": 1239,
+    "nutrientReferences": 10,
+    "communityOperations": "PASS",
+    "tunnelOperations": "PASS",
+    "sqlAssertions": 1049,
+    "sqlFiles": 39,
+    "syntheticReplayEvents": 18
+  },
+  "independentReviews": {
+    "mobileCore": "PASS; nutrient label contrast fixed and rechecked",
+    "communityRecovery": "PASS; bounded quarantined scope only",
+    "deployment": "PASS; helper revised with rollback and process checks"
+  },
+  "humanAcceptance": "Not inferred from checks/install or requested issue closure"
+}
