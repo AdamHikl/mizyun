@@ -1,16 +1,16 @@
 # Mizyun current status
 
-> Updated 2026-10-07. [Prior handoffs][handoffs]; historical next actions are not instructions. Limit:120 lines/12,288 UTF-8 bytes.
+> Updated 2026-10-08. [Prior handoffs][handoffs]; historical next actions are not instructions. Limit:120 lines/12,288 UTF-8 bytes.
 
 ## Current authority and delivery
 
-- **Issues:** #11/#13/#138 accepted/closed; #7/#23/#25/#102/#139 source, exits open. [Batch3](docs/OLDEST_ISSUES_BATCH_3_2026-10-07.md).
+- **Issues:** prior approvals retained; #21/#23/#25/#26/#31 partial, gatePASS. [Next checks](docs/ISSUE_ACCEPTANCE_BATCH_2026-10-08.md).
 
 - **Git integration — 2026-10-07:** all local work grouped into separate package commits for `main`, runtime source`32d1d790cf072171da8fe38527256fef7b33c898`; fresh `pnpm check`PASS (mobile1589/API867+15credential skips), focused contracts51/core22/mobile762/simulator13PASS, independent High preview/export/tooling reviews clear after Android rationale scrolling fix. The pre-commit full gate and exact pushed HEAD are recorded in this Git-integration chat. Next: exact-candidate native/device acceptance below; all existing release/privacy exits remain open.
 - **Build9 / #212 (#27/#32):** source`dd5b435385b379d8c0df1b69813f8d8fdd3d985a`,1.0.9/9/9; signedIPA/widget/dSYMs and AAB/upload cert/16KB LOADPASS; fresh full gatesPASS. [Artifacts/evidence](docs/BUILD_9_RELEASE_EVIDENCE_2026-10-05.md). iPhone16Pro installed/launched1.0.9(9) PID6828; native/16KB runtime/Store exits open.
 - **Dev backend:** pristinea64a158, API4100/DB5433 PID3424542; canonical gate/promotion/photo32-check Auth/API/Storage proofPASS. Running938efc5/Pro3984c35 preserved. Prompt `coach-system-v3-app-v3`. [Delivery](docs/MEAL_PHOTOS_DEV_DELIVERY_2026-10-06.md).
 - **Latest iPhone Dev install:** 2026-10-07T15:57:14Z, baseline2c61518 plus Community overlay; iPhone16Pro/com.mizyun.development1.0.9(9) PID12658; Release build/signature/config/install/launchPASS,103 source hashes stable. [Evidence](docs/COMMUNITY_UI_REDESIGN_EVIDENCE_2026-10-07.md). New server reads need Dev deployment; native exits open.
-- **Production:** pristine9b0c41a; API4000/DB5432 PID2401543, tunnel2401546 active,57migrations through20261004110000. Fresh backup20261005T060157Z/checksumsPASS; public health200/protected Coach401. Adam confirmed build6 meal/workout/Coach journeys on d610382; API/packages/schema unchanged in9b0c41a. New build7 device/Store exits remain separate.
+- **Production:** pristine9b0c41a; API4000/DB5432 PID3086051, tunnel2401546 active,57migrations through20261004110000. Fresh backup20261005T060157Z/checksumsPASS; public health200/protected Coach401. Adam confirmed build6 meal/workout/Coach journeys on d610382; API/packages/schema unchanged in9b0c41a. New build7 device/Store exits remain separate.
 - **Environment and AI:** Hetzner CX23 owns Dev/Production; Pi remains encrypted recovery storage. Gemini-or-disabled, consent-based adult admission, current usage/kill switches; no email allowlist. Retain the explicit founder/partner shared-Gemini Dev exception. Local Qwen remains paused. `docs/BEFORE_TESTING.md` and live-provider gates remain in force.
 
 ## Running — #216 / RUN-01–05
