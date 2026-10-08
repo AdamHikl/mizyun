@@ -1,0 +1,20 @@
+{
+  "baseline": "5925b31da5ef08fe0f784f23bb7309f46bb0e95c",
+  "scope": "Owned implementation overlay only; shared unrelated dirty edits excluded from isolated full gate. Database proof hashes disclose exact broader local schema/test scope.",
+  "sourceSHA256": {
+    "scripts/community-revocation-ledger.mjs": "e255df666fd71065301eeeabd678fbd9f7e5f67072381ec1890cb991199ccc59",
+    "scripts/community-revocation-ledger.test.mjs": "b7a7a6bc117b43ed509e90d5b06a2ce075169a8ef0541b98928acd5eef4e64a1",
+    "scripts/community-revocation-replay.py": "65f059c3c71c9184fd6ddc6252fcd9b659fb2b5a1100ed156cff708d32f128fa",
+    "scripts/test-community-revocation-replay.py": "3f24c8dc9843cb2f96f6f423f6c8d8addd99b35e1e2b02f81d2ec063ad58c802",
+    "scripts/test-community-revocation-replay-db.py": "fd2e82aecf7d5df9f7b63ddb394301d8bb77222f3e4ebd31439a8ed914b03bec",
+    "scripts/community-worker.mjs": "7a726a247f7c64e276937bc3243cdf702e82170483e07ec531af63653712c809",
+    "scripts/community-worker.test.mjs": "93c569eef243b0ae31def00b7f1cd8f06c11e8269bfa5d3613f14f6d1fad0b94",
+    "scripts/restore-dev-quarantined.py": "b24e35350a5ff0f4fcd61acd28b1dd266636631cf688598af9b03e82e417ca6d",
+    "supabase/migrations/20261008120000_community_revocation_ledger.sql": "2d4df24286978a9ef70042a314fa2eb5c3eced26d77c9b22c136ee4f795b04ae",
+    "supabase/tests/database/0038_community_revocation_ledger.test.sql": "afa9697771d9488ff2660a2bf45c61be84a3915db84d56260af544e386b7964b",
+    "apps/mobile/src/features/community/invitation-fallback.ts": "74913ca8759edbde684ccb4ba02f4c2583f271d7e444b540d0fe1e279d1baec2",
+    "apps/mobile/src/features/community/invitation-fallback.test.ts": "1856f4e2f1435265a82f64356a94dbd5ff8cc5b25ab75733cc4b47319d9b49bb",
+    "package.json": "2407d59f992a7802240c8e356fd465d69a5f23b3f2734a0b2f12666996043eaa",
+    "scripts/verify-community-local-db.py": "9dba7a8ba9787ad58d559c90a39b5f07cbe94751a603b952ca145228d735129b"
+  }
+}

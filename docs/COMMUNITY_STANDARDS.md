@@ -7,6 +7,8 @@
 **Publication:** draft; public rules/contact verification remains pending  
 **Applicable Service:** Mizyun Community (Mobile Applications & Supporting Services)
 
+**Draft clarification:** October 8, 2026; accepted in-app terms remain `2026-09-30` until a separately approved version is published.
+
 ---
 
 ## 1. Purpose, Scope, and Guiding Principles
@@ -16,7 +18,7 @@ Mizyun Community is an optional social experience designed for consenting adult 
 ### Core Principles
 
 - **Deliberate Sharing Only:** Saving a workout never automatically publishes it. Users preview and confirm every card shared with their audience.
-- **Adult Participation (18+):** Community enrollment requires an explicit adult confirmation and conservative server-side age eligibility verification (`birthYear <= currentUtcYear - 19`).
+- **Adult Participation (18+):** Community enrollment requires an explicit adult declaration and a conservative server-side eligibility check of the recorded birth year (`birthYear <= currentUtcYear - 19`). These self-reported inputs do not independently verify a person's age or identity.
 - **Complete Decoupling from Private Health:** Declining to join Community, withdrawing at any time, or incurring social moderation sanctions has **zero effect** on private workout logging, food tracking, body measurements, AI Coach access, or paid subscription entitlements.
 - **Mutual Respect & Positive Encouragement:** Mizyun is built for genuine peer encouragement. It is not an algorithmic popularity contest, public broadcast feed, or marketplace.
 
@@ -88,7 +90,7 @@ You must represent yourself truthfully. Prohibited actions include:
 
 ### 2.8 Sexual Content and Child Sexual Abuse Material (CSAE/CSAM)
 
-- **Child Exploitation & Abuse (CSAE/CSAM):** Mizyun maintains **absolute zero tolerance** for any content depicting, promoting, or facilitating child sexual exploitation, abuse, grooming, or harm. Such violations result in immediate permanent account termination, evidentiary preservation, and mandatory referral to the National Center for Missing & Exploited Children (NCMEC) and law enforcement authorities.
+- **Child Exploitation & Abuse (CSAE/CSAM):** Content depicting, promoting, or facilitating child sexual exploitation, abuse, grooming, or harm is prohibited. Concerns require urgent restriction of the social content or access and review by the designated safety operator. Evidence handling, authority referrals and any broader account action follow the accepted jurisdiction-specific escalation procedure and applicable law. The named contact, competent backup and escalation procedure must be verified before broader admission.
 - **Adult Sexual Content:** Sexually explicit bios, sexual solicitation, pornography, or sexually suggestive handles/names are strictly prohibited.
 
 ### 2.9 Illegal and Dangerous Activities
@@ -119,7 +121,7 @@ Mizyun provides robust, user-controlled privacy and moderation tools accessible 
 4. **Muting:** Muting hides an individual's shared cards from your feed without notifying them or severing your follow relationship.
 5. **Confidential Reporting:**
    - Users can report profiles, shared activities, or recent abuse (within 30 days of interaction, even after blocking).
-   - Reports are completely confidential. **The identity of the reporter is never revealed to the reported account under any circumstances.**
+   - The app does not show a reporter's identity to the reported account. Access to reports is restricted to authorized safety review. Any disclosure required by applicable law follows the accepted procedure; report text or circumstances may still allow someone to infer who reported them.
    - Rate limits prevent reporting abuse (maximum 10 new report cases per user per day).
 
 ---

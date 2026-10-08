@@ -1,5 +1,7 @@
 # Architecture Decision Records (ADR) Index
 
+- [ADR-0052 — Community revocation capture and quarantined replay](0052-community-revocation-capture-and-quarantined-replay.md): local implementation 2026-10-08; content-free outbox, encrypted sink and idempotent offline replay. Independent durability, coverage and recovery acceptance remain pending.
+
 - [ADR-0044 — Native-bound mobile environment](0044-native-bound-mobile-environment.md): accepted for local implementation 2026-10-06; effective Expo Debug configuration, installed application identity, and pre-client routing validation.
 
 - [ADR-0043 — Build 6 compatibility during build 7 promotion](0043-build6-forward-backend-compatibility.md): pinned legacy contracts, nullable invalidated nutrient estimates, qualified Coach controls and coherent backup/migration failure handling.

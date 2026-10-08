@@ -54,6 +54,27 @@ const sudoers = readFileSync("deploy/hetzner/mizyun-deployers.sudoers", "utf8");
 assert.match(sudoers, /\/usr\/bin\/systemctl stop mizyun-api\.service,/);
 assert.doesNotMatch(sudoers, /systemctl stop \*/);
 assert.match(sudoers, /\/usr\/bin\/systemctl start cloudflared\.service,/);
+const devPromote = readFileSync("scripts/promote-dev.sh", "utf8");
+const devServiceActions = [
+  ...new Set(
+    [
+      ...devPromote.matchAll(
+        /sudo -n systemctl (stop|restart) "\$service_unit"/g,
+      ),
+    ].map((match) => match[1]),
+  ),
+];
+const devRule = sudoers
+  .split("\n")
+  .find((line) => line.startsWith("mizyun-dev-deploy "));
+assert.ok(devRule, "the Dev deployer must have a narrow service policy");
+assert.deepEqual(
+  devRule.split("NOPASSWD: ")[1].split(", "),
+  devServiceActions.map(
+    (action) => `/usr/bin/systemctl ${action} mizyun-api-dev.service`,
+  ),
+  "the actual Dev promotion and rollback actions must be allowed only for the Dev API",
+);
 
 const backupService = readFileSync(
   "deploy/hetzner/mizyun-backup.service",

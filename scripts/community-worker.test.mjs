@@ -170,6 +170,21 @@ test("credentials required and provider failure response body is never echoed", 
   );
 });
 
+test("service RPC refuses redirect handling for credential-bearing requests", async () => {
+  const rpc = createServiceRpc({
+    url: "https://example.test",
+    key: "synthetic-service-key",
+    fetchImpl: async (_url, options) => {
+      assert.equal(options.redirect, "error");
+      throw new TypeError("redirect rejected");
+    },
+  });
+  await assert.rejects(
+    rpc("community_revocation_pending", {}),
+    /redirect rejected/,
+  );
+});
+
 test("worker environment label cannot select another environment", () => {
   assert.throws(
     () => assertWorkerTarget("dev", "https://mizyun-supabase.phiskel.com"),
