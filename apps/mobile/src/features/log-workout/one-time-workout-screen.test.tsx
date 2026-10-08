@@ -30,6 +30,15 @@ const mocks = vi.hoisted(() => ({
   cancelRest: vi.fn(),
   dismissNotification: vi.fn(),
   measurement: vi.fn(),
+  dimensions: { width: 430, fontScale: 1 },
+  scheme: "dark",
+  theme: {
+    text: "#F8FAFC",
+    primary: "#10B981",
+    border: "#334155",
+    backgroundElement: "#161D22",
+    backgroundSelected: "#222D35",
+  },
 }));
 
 vi.mock("react", async (original) => ({
@@ -72,6 +81,7 @@ vi.mock("react-native", () => ({
   TextInput: "TextInput",
   View: "View",
   StyleSheet: { create: (x: unknown) => x },
+  useWindowDimensions: () => mocks.dimensions,
 }));
 vi.mock("react-native-safe-area-context", () => ({
   SafeAreaView: "SafeAreaView",
@@ -88,8 +98,10 @@ vi.mock("@/constants/theme", () => ({
   MaxContentWidth: 600,
   Spacing: {},
 }));
-vi.mock("@/hooks/use-color-scheme", () => ({ useColorScheme: () => "dark" }));
-vi.mock("@/hooks/use-theme", () => ({ useTheme: () => ({}) }));
+vi.mock("@/hooks/use-color-scheme", () => ({
+  useColorScheme: () => mocks.scheme,
+}));
+vi.mock("@/hooks/use-theme", () => ({ useTheme: () => mocks.theme }));
 vi.mock("@/features/auth/auth-context", () => ({
   useAuth: () => ({
     session: { user: { id: "workout-owner" } },
@@ -307,6 +319,15 @@ function persistedWorkout(entries: any[]): Workout {
 }
 
 beforeEach(() => {
+  mocks.dimensions = { width: 430, fontScale: 1 };
+  mocks.scheme = "dark";
+  mocks.theme = {
+    text: "#F8FAFC",
+    primary: "#10B981",
+    border: "#334155",
+    backgroundElement: "#161D22",
+    backgroundSelected: "#222D35",
+  };
   mocks.cells = [];
   mocks.context = null;
   mocks.effects = [];
@@ -383,6 +404,109 @@ function plannedCard() {
   );
   return { active, card };
 }
+
+it.each(["light", "dark"])(
+  "keeps saved load/reps readable with the %s theme foreground",
+  (scheme) => {
+    mocks.scheme = scheme;
+    mocks.theme.text = scheme === "light" ? "#0F172A" : "#F8FAFC";
+    plannedRoutineWorkspace(["normal"]);
+    const { card } = plannedCard();
+    const tree = card.type({
+      ...card.props,
+      completedSets: [{ ...plannedTypeSet, loadKg: 123.5, repetitions: 12 }],
+    });
+    for (const value of [123.5, "12"]) {
+      const node = find(
+        tree,
+        (node) => node.type === "ThemedText" && node.props.children === value,
+      );
+      expect(node).not.toBeNull();
+      const flattened = Object.assign({}, ...node.props.style.filter(Boolean));
+      expect(flattened.color).toBe(mocks.theme.text);
+    }
+  },
+);
+
+it.each([
+  { width: 320, fontScale: 1 },
+  { width: 430, fontScale: 1.6 },
+])("reflows labeled set values and preserves callbacks at %s", (dimensions) => {
+  mocks.dimensions = dimensions;
+  plannedRoutineWorkspace(["warmup"]);
+  const { card } = plannedCard();
+  const onUpdate = vi.fn(),
+    onLog = vi.fn(),
+    onRemove = vi.fn(),
+    onHistory = vi.fn(),
+    onType = vi.fn();
+  const entry = {
+    ...card.props.entry,
+    name: "Standing Barbell Press Behind Neck",
+  };
+  const saved = {
+    ...plannedTypeSet,
+    loadKg: 123.5,
+    repetitions: 12,
+    setType: "failure",
+  };
+  const tree = card.type({
+    ...card.props,
+    entry,
+    unitSystem: "imperial",
+    completedSets: [saved],
+    pendingInput: { load: "", reps: "", setType: "warmup" },
+    onUpdatePendingInput: onUpdate,
+    onLogSet: onLog,
+    onRemoveSet: onRemove,
+    onOpenProgression: onHistory,
+    onOpenSetTypeModal: onType,
+  });
+  expect(
+    find(tree, (node) => node.props?.testID === "set-layout-compact"),
+  ).not.toBeNull();
+  expect(textContent(tree)).toContain("Standing Barbell Press Behind Neck");
+  expect(textContent(tree)).toContain("Set 1 · Failure · Logged");
+  expect(textContent(tree)).toContain("Set 2 · Warmup · Pending");
+  expect(textContent(tree)).toContain("Load (lb)");
+  const load = find(
+    tree,
+    (node) => node.props?.testID === `set-load-input-${entry.id}`,
+  );
+  const reps = find(
+    tree,
+    (node) => node.props?.testID === `set-reps-input-${entry.id}`,
+  );
+  expect(load.props.accessibilityLabel).toContain("Load in lb for set 2");
+  expect(reps.props.accessibilityLabel).toContain("Repetitions for set 2");
+  expect(load.props.keyboardType).toBe("decimal-pad");
+  expect(reps.props.keyboardType).toBe("decimal-pad");
+  load.props.onChangeText("125.5");
+  reps.props.onChangeText("8");
+  expect(onUpdate.mock.calls).toEqual([[{ load: "125.5" }], [{ reps: "8" }]]);
+  find(
+    tree,
+    (node) => node.props?.accessibilityLabel === "Delete completed set 1",
+  ).props.onPress();
+  expect(onRemove).toHaveBeenCalledWith(saved);
+  find(
+    tree,
+    (node) =>
+      node.props?.accessibilityLabel === `View progression for ${entry.name}`,
+  ).props.onPress();
+  expect(onHistory).toHaveBeenCalledOnce();
+  find(
+    tree,
+    (node) => node.props?.testID === "pending-set-type-control",
+  ).props.onPress();
+  expect(onType).toHaveBeenCalledOnce();
+  expect(onLog).not.toHaveBeenCalled();
+  find(
+    tree,
+    (node) => node.props?.accessibilityLabel === `Log set 2 for ${entry.name}`,
+  ).props.onPress();
+  expect(onLog).toHaveBeenCalledOnce();
+});
 
 it.each(["warmup", "normal", "failure", "drop"])(
   "shows a visible %s set type control that opens the picker without logging",

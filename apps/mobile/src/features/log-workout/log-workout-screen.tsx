@@ -10,6 +10,7 @@ import {
   ScrollView,
   StyleSheet,
   TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
@@ -2084,30 +2085,49 @@ function ActiveWorkoutFeed(props: {
   );
 }
 
-function renderSetBadge(setType: WorkoutSetType | undefined, sequence: number) {
+function renderSetBadge(
+  setType: WorkoutSetType | undefined,
+  sequence: number,
+  color?: string,
+) {
   if (setType === "warmup") {
     return (
       <View style={[styles.badgeBase, styles.warmupBadge]}>
-        <ThemedText style={styles.warmupBadgeText}>W</ThemedText>
+        <ThemedText
+          style={[styles.warmupBadgeText, color !== undefined && { color }]}
+        >
+          W
+        </ThemedText>
       </View>
     );
   }
   if (setType === "failure") {
     return (
       <View style={[styles.badgeBase, styles.failureBadge]}>
-        <ThemedText style={styles.failureBadgeText}>F</ThemedText>
+        <ThemedText
+          style={[styles.failureBadgeText, color !== undefined && { color }]}
+        >
+          F
+        </ThemedText>
       </View>
     );
   }
   if (setType === "drop") {
     return (
       <View style={[styles.badgeBase, styles.dropBadge]}>
-        <ThemedText style={styles.dropBadgeText}>D</ThemedText>
+        <ThemedText
+          style={[styles.dropBadgeText, color !== undefined && { color }]}
+        >
+          D
+        </ThemedText>
       </View>
     );
   }
   return (
-    <ThemedText type="smallBold" style={styles.colSet}>
+    <ThemedText
+      type="smallBold"
+      style={[styles.colSet, color !== undefined && { color }]}
+    >
       {sequence}
     </ThemedText>
   );
@@ -2137,6 +2157,22 @@ function LiveExerciseCard(props: {
   readonly onInteraction: () => void;
 }) {
   const theme = useTheme();
+  const scheme = useColorScheme();
+  const { width, fontScale } = useWindowDimensions();
+  const compact = width < 420 || fontScale > 1.2;
+  const stackedInputs = width < 360 || fontScale > 1.3;
+  const inputHeight = Math.max(44, Math.ceil(22 * fontScale + 16));
+  const actionSize = Math.max(44, Math.ceil(22 * fontScale + 12));
+  const badgeColor = (type: WorkoutSetType | undefined) =>
+    scheme === "light"
+      ? type === "warmup"
+        ? "#92400E"
+        : type === "failure"
+          ? "#B91C1C"
+          : type === "drop"
+            ? "#6D28D9"
+            : theme.text
+      : theme.text;
   const unit = weightUnitLabel(props.unitSystem);
   const nextSetSequence = props.completedSets.length + 1;
   const pendingType = props.pendingInput.setType ?? "normal";
@@ -2175,7 +2211,12 @@ function LiveExerciseCard(props: {
             : "10";
 
   return (
-    <View style={styles.exerciseCard}>
+    <View
+      style={[
+        styles.exerciseCard,
+        { backgroundColor: theme.backgroundElement, borderColor: theme.border },
+      ]}
+    >
       {/* Exercise Card Header */}
       <View style={styles.exerciseCardHeader}>
         <View style={styles.exerciseTitleBlock}>
@@ -2243,7 +2284,10 @@ function LiveExerciseCard(props: {
             style={styles.progressionBadge}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <ThemedText type="smallBold" style={styles.progressionBadgeText}>
+            <ThemedText
+              type="smallBold"
+              style={[styles.progressionBadgeText, { color: theme.text }]}
+            >
               📈 History →
             </ThemedText>
           </Pressable>
@@ -2251,25 +2295,50 @@ function LiveExerciseCard(props: {
       </View>
 
       {/* Set Table */}
-      <View style={styles.setTable}>
+      <View
+        style={styles.setTable}
+        testID={compact ? "set-layout-compact" : "set-layout-table"}
+      >
         {/* Table Header */}
-        <View style={styles.setTableHeaderRow}>
-          <ThemedText type="small" style={styles.colSetHeader}>
-            SET
-          </ThemedText>
-          <ThemedText type="small" style={styles.colPrevHeader}>
-            PREVIOUS
-          </ThemedText>
-          <ThemedText type="small" style={styles.colInputHeader}>
-            {unit.toUpperCase()}
-          </ThemedText>
-          <ThemedText type="small" style={styles.colInputHeader}>
-            REPS
-          </ThemedText>
-          <ThemedText type="small" style={styles.colCheckHeader}>
-            ✓
-          </ThemedText>
-        </View>
+        {!compact ? (
+          <View
+            style={[
+              styles.setTableHeaderRow,
+              { borderBottomColor: theme.border },
+            ]}
+          >
+            <ThemedText
+              type="small"
+              style={[styles.colSetHeader, { color: theme.text }]}
+            >
+              SET
+            </ThemedText>
+            <ThemedText
+              type="small"
+              style={[styles.colPrevHeader, { color: theme.text }]}
+            >
+              PREVIOUS
+            </ThemedText>
+            <ThemedText
+              type="small"
+              style={[styles.colInputHeader, { color: theme.text }]}
+            >
+              {unit.toUpperCase()}
+            </ThemedText>
+            <ThemedText
+              type="small"
+              style={[styles.colInputHeader, { color: theme.text }]}
+            >
+              REPS
+            </ThemedText>
+            <ThemedText
+              type="small"
+              style={[styles.colCheckHeader, { color: theme.text }]}
+            >
+              ✓
+            </ThemedText>
+          </View>
+        ) : null}
 
         {/* Completed Sets */}
         {props.completedSets.map((set, i) => {
@@ -2280,30 +2349,84 @@ function LiveExerciseCard(props: {
           const repsStr = set.repetitions !== null ? `${set.repetitions}` : "—";
 
           return (
-            <View key={set.id} style={styles.completedSetRow}>
-              <View style={styles.colSetWrapper}>
-                {renderSetBadge(set.setType, i + 1)}
-              </View>
-              <ThemedText
-                type="small"
-                themeColor="textSecondary"
-                style={styles.colPrev}
+            <View
+              key={set.id}
+              style={[styles.completedSetRow, compact && styles.compactSetRow]}
+            >
+              <View
+                style={
+                  compact ? styles.compactSetHeading : styles.colSetWrapper
+                }
               >
-                {loadStr} {unit} × {repsStr}
-              </ThemedText>
-              <ThemedText type="smallBold" style={styles.colInputDone}>
-                {loadStr}
-              </ThemedText>
-              <ThemedText type="smallBold" style={styles.colInputDone}>
-                {repsStr}
-              </ThemedText>
+                {compact ? (
+                  <ThemedText type="smallBold">
+                    Set {i + 1} ·{" "}
+                    {(set.setType ?? "normal")[0]!.toUpperCase() +
+                      (set.setType ?? "normal").slice(1)}{" "}
+                    · Logged
+                  </ThemedText>
+                ) : (
+                  renderSetBadge(set.setType, i + 1, badgeColor(set.setType))
+                )}
+              </View>
+              {!compact ? (
+                <ThemedText type="small" style={styles.colPrev}>
+                  {loadStr} {unit} × {repsStr}
+                </ThemedText>
+              ) : null}
+              <View
+                style={
+                  compact
+                    ? [
+                        styles.compactValues,
+                        stackedInputs && styles.stackedValues,
+                      ]
+                    : styles.tableValues
+                }
+              >
+                <View style={compact ? styles.compactValue : styles.tableValue}>
+                  {compact ? (
+                    <ThemedText type="small">{`Load (${unit})`}</ThemedText>
+                  ) : null}
+                  <ThemedText
+                    type="smallBold"
+                    style={[
+                      styles.colInputDone,
+                      { color: theme.text },
+                      compact && styles.compactSavedValue,
+                    ]}
+                  >
+                    {loadStr}
+                  </ThemedText>
+                </View>
+                <View style={compact ? styles.compactValue : styles.tableValue}>
+                  {compact ? <ThemedText type="small">Reps</ThemedText> : null}
+                  <ThemedText
+                    type="smallBold"
+                    style={[
+                      styles.colInputDone,
+                      { color: theme.text },
+                      compact && styles.compactSavedValue,
+                    ]}
+                  >
+                    {repsStr}
+                  </ThemedText>
+                </View>
+              </View>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`Delete completed set ${i + 1}`}
                 onPress={() => props.onRemoveSet(set)}
-                style={styles.checkedCircle}
+                style={[
+                  styles.checkedCircle,
+                  { width: actionSize, height: actionSize },
+                  compact && styles.compactAction,
+                ]}
               >
-                <ThemedText type="smallBold" style={styles.checkIconText}>
+                <ThemedText
+                  type="smallBold"
+                  style={[styles.checkIconText, { color: "#052E16" }]}
+                >
                   ✓
                 </ThemedText>
               </Pressable>
@@ -2312,7 +2435,13 @@ function LiveExerciseCard(props: {
         })}
 
         {/* Active / Pending Set Row */}
-        <View style={styles.activeSetRow}>
+        <View
+          style={[
+            styles.activeSetRow,
+            { backgroundColor: theme.backgroundSelected },
+            compact && styles.compactSetRow,
+          ]}
+        >
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Set ${nextSetSequence} type: ${props.pendingInput.setType ?? "normal"}. Tap to change set type.`}
@@ -2320,16 +2449,27 @@ function LiveExerciseCard(props: {
             disabled={props.busy}
             hitSlop={{ top: 0, bottom: 0, left: 8, right: 8 }}
             onPress={props.onOpenSetTypeModal}
-            style={styles.colSetPressable}
+            style={[
+              styles.colSetPressable,
+              compact && styles.compactSetHeading,
+            ]}
           >
-            {renderSetBadge(props.pendingInput.setType, nextSetSequence)}
+            {compact ? (
+              <ThemedText type="smallBold">
+                Set {nextSetSequence} · {pendingTypeLabel} · Pending
+              </ThemedText>
+            ) : (
+              renderSetBadge(
+                props.pendingInput.setType,
+                nextSetSequence,
+                badgeColor(props.pendingInput.setType),
+              )
+            )}
           </Pressable>
 
           <ThemedText
             type="small"
-            themeColor="textSecondary"
-            style={styles.colPrev}
-            numberOfLines={1}
+            style={[styles.colPrev, compact && styles.compactPrevious]}
           >
             {previousSet !== null && smartPlaceholderLoad !== "—"
               ? `${smartPlaceholderLoad} ${unit} × ${smartPlaceholderReps}`
@@ -2340,32 +2480,62 @@ function LiveExerciseCard(props: {
                   : "First set"}
           </ThemedText>
 
-          <View style={styles.colInputCell}>
-            <TextInput
-              testID={`set-load-input-${props.entry.id}`}
-              value={props.pendingInput.load}
-              onChangeText={(load) => props.onUpdatePendingInput({ load })}
-              onFocus={props.onInteraction}
-              placeholder={
-                smartPlaceholderLoad !== "—" ? smartPlaceholderLoad : "0"
-              }
-              placeholderTextColor="#6B7280"
-              keyboardType="decimal-pad"
-              style={[styles.tableInput, { color: props.inputColor }]}
-            />
-          </View>
+          <View
+            style={
+              compact
+                ? [styles.compactValues, stackedInputs && styles.stackedValues]
+                : styles.tableValues
+            }
+          >
+            <View style={[styles.colInputCell, compact && styles.compactValue]}>
+              {compact ? (
+                <ThemedText type="small">{`Load (${unit})`}</ThemedText>
+              ) : null}
+              <TextInput
+                testID={`set-load-input-${props.entry.id}`}
+                accessibilityLabel={`Load in ${unit} for set ${nextSetSequence} of ${props.entry.name}`}
+                value={props.pendingInput.load}
+                onChangeText={(load) => props.onUpdatePendingInput({ load })}
+                onFocus={props.onInteraction}
+                placeholder={
+                  smartPlaceholderLoad !== "—" ? smartPlaceholderLoad : "0"
+                }
+                placeholderTextColor={theme.text}
+                keyboardType="decimal-pad"
+                style={[
+                  styles.tableInput,
+                  {
+                    color: theme.text,
+                    minHeight: inputHeight,
+                    backgroundColor: theme.backgroundElement,
+                    borderColor: theme.border,
+                  },
+                ]}
+              />
+            </View>
 
-          <View style={styles.colInputCell}>
-            <TextInput
-              testID={`set-reps-input-${props.entry.id}`}
-              value={props.pendingInput.reps}
-              onChangeText={(reps) => props.onUpdatePendingInput({ reps })}
-              onFocus={props.onInteraction}
-              placeholder={smartPlaceholderReps}
-              placeholderTextColor="#6B7280"
-              keyboardType="decimal-pad"
-              style={[styles.tableInput, { color: props.inputColor }]}
-            />
+            <View style={[styles.colInputCell, compact && styles.compactValue]}>
+              {compact ? <ThemedText type="small">Reps</ThemedText> : null}
+              <TextInput
+                testID={`set-reps-input-${props.entry.id}`}
+                accessibilityLabel={`Repetitions for set ${nextSetSequence} of ${props.entry.name}`}
+                value={props.pendingInput.reps}
+                onChangeText={(reps) => props.onUpdatePendingInput({ reps })}
+                onFocus={props.onInteraction}
+                placeholder={smartPlaceholderReps}
+                placeholderTextColor={theme.text}
+                keyboardType="decimal-pad"
+                style={[
+                  styles.tableInput,
+                  {
+                    color: theme.text,
+                    minHeight: inputHeight,
+                    backgroundColor: theme.backgroundElement,
+                    borderColor: theme.border,
+                  },
+                ]}
+              />
+            </View>
           </View>
 
           <Pressable
@@ -2373,9 +2543,20 @@ function LiveExerciseCard(props: {
             accessibilityLabel={`Log set ${nextSetSequence} for ${props.entry.name}`}
             disabled={props.busy}
             onPress={props.onLogSet}
-            style={styles.checkButton}
+            style={[
+              styles.checkButton,
+              {
+                width: actionSize,
+                height: actionSize,
+                borderColor: theme.primary,
+              },
+              compact && styles.compactAction,
+            ]}
           >
-            <ThemedText type="smallBold" style={styles.checkButtonText}>
+            <ThemedText
+              type="smallBold"
+              style={[styles.checkButtonText, { color: theme.primary }]}
+            >
               ✓
             </ThemedText>
           </Pressable>
@@ -2422,7 +2603,10 @@ function LiveExerciseCard(props: {
         onPress={props.onLogSet}
         style={styles.logSetFooterRow}
       >
-        <ThemedText type="smallBold" style={styles.logSetFooterText}>
+        <ThemedText
+          type="smallBold"
+          style={[styles.logSetFooterText, { color: theme.text }]}
+        >
           ✓ Log Set {nextSetSequence}
         </ThemedText>
       </Pressable>
@@ -2700,12 +2884,10 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
   },
   exerciseCardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
+    gap: Spacing.two,
   },
   exerciseTitleBlock: {
-    flex: 1,
+    minWidth: 0,
     gap: 2,
   },
   exerciseNameText: {
@@ -2714,6 +2896,7 @@ const styles = StyleSheet.create({
   },
   exerciseHeaderRight: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: 6,
   },
@@ -2724,7 +2907,9 @@ const styles = StyleSheet.create({
   },
   cardReorderBtn: {
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    minHeight: 44,
+    minWidth: 44,
+    paddingVertical: 6,
     backgroundColor: "rgba(148, 163, 184, 0.15)",
     borderRadius: 6,
     alignItems: "center",
@@ -2735,6 +2920,9 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   progressionBadge: {
+    minHeight: 44,
+    justifyContent: "center",
+    flexShrink: 1,
     backgroundColor: "rgba(16, 185, 129, 0.12)",
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -2744,6 +2932,27 @@ const styles = StyleSheet.create({
     color: "#10B981",
     fontSize: 12,
   },
+  tableValues: { flexDirection: "row" },
+  tableValue: { width: 64 },
+  compactSetRow: { flexDirection: "column", alignItems: "stretch", gap: 10 },
+  compactSetHeading: {
+    width: "100%",
+    alignItems: "flex-start",
+    minHeight: 44,
+    justifyContent: "center",
+  },
+  compactPrevious: { flex: 0, paddingRight: 0 },
+  compactValues: { flexDirection: "row", gap: 12 },
+  stackedValues: { flexDirection: "column" },
+  compactValue: {
+    flex: 1,
+    width: "auto",
+    minWidth: 0,
+    paddingHorizontal: 0,
+    gap: 4,
+  },
+  compactSavedValue: { width: "auto", textAlign: "left" },
+  compactAction: { alignSelf: "flex-end", borderRadius: 100 },
   setTable: {
     gap: Spacing.one,
   },
@@ -2814,8 +3023,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   badgeBase: {
-    width: 24,
-    height: 24,
+    minWidth: 24,
+    minHeight: 24,
+    padding: 3,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
@@ -2856,14 +3066,14 @@ const styles = StyleSheet.create({
   colInputDone: {
     width: 64,
     textAlign: "center",
-    color: "#FFFFFF",
   },
   colInputCell: {
     width: 64,
     paddingHorizontal: 3,
   },
   tableInput: {
-    height: 38,
+    minHeight: 44,
+    paddingVertical: 8,
     borderRadius: 6,
     backgroundColor: "rgba(255, 255, 255, 0.08)",
     borderWidth: StyleSheet.hairlineWidth,
@@ -2879,7 +3089,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#10B981",
     alignItems: "center",
     justifyContent: "center",
-    marginLeft: 6,
+    marginLeft: 0,
   },
   checkIconText: {
     color: "#FFFFFF",
@@ -2893,7 +3103,7 @@ const styles = StyleSheet.create({
     borderColor: "#10B981",
     alignItems: "center",
     justifyContent: "center",
-    marginLeft: 6,
+    marginLeft: 0,
   },
   checkButtonText: {
     color: "#10B981",
