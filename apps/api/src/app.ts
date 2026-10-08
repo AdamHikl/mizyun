@@ -553,6 +553,40 @@ export const buildApp = (
   });
 
   app.setErrorHandler((error, request, reply) => {
+    // Only known transport-parser failures are client errors. Do not trust
+    // arbitrary statusCode fields from application/provider exceptions.
+    const parserStatuses: Readonly<Record<string, number>> = {
+      FST_ERR_CTP_EMPTY_JSON_BODY: 400,
+      FST_ERR_CTP_INVALID_JSON_BODY: 400,
+      FST_ERR_CTP_INVALID_CONTENT_LENGTH: 400,
+      FST_ERR_CTP_BODY_TOO_LARGE: 413,
+      FST_ERR_CTP_INVALID_MEDIA_TYPE: 415,
+    };
+    const parserCode =
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      typeof error.code === "string"
+        ? error.code
+        : undefined;
+    const parserStatus =
+      parserCode && Object.hasOwn(parserStatuses, parserCode)
+        ? parserStatuses[parserCode]
+        : undefined;
+    if (parserStatus !== undefined) {
+      // Parser diagnostics may contain body fragments. Log fixed metadata only.
+      request.log.warn(
+        { code: parserCode, statusCode: parserStatus },
+        "request body rejected",
+      );
+      return sendApiError(
+        reply,
+        request,
+        parserStatus,
+        "VALIDATION_ERROR",
+        "The request body could not be accepted.",
+      );
+    }
     // The redaction-stripping serializer in `./logging.ts` already
     // strips `cause` chains before the line reaches stdout. We log a
     // structured entry with just the safe fields and surface the
