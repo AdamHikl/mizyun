@@ -122,7 +122,7 @@ vi.mock("./meal-photo", () => ({ normalizeMealPhoto: vi.fn() }));
 vi.mock("./meal-lifecycle-data", () => ({ fetchFoodHistory: mocks.history }));
 vi.mock("./first-meal-reminders", () => ({
   loadFirstMealReminders: async () => ({ enabled: true }),
-  reconcileFirstMealReminders: vi.fn(),
+  reconcileFirstMealReminders: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock("./evening-catch-up-reminders", () => ({
   reconcileEveningReminders: vi.fn(),

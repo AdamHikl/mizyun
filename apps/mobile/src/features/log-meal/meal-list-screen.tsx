@@ -38,6 +38,7 @@ import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
 import { getIsoLocalDate } from "./food-day-completion";
 import { reconcileEveningReminders } from "./evening-catch-up-reminders";
+import { reconcileFirstMealReminders } from "./first-meal-reminders";
 import {
   fetchCurrentWeekSummaries,
   useAdvancedNutritionCapability,
@@ -186,6 +187,7 @@ export function MealListScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchAttempt, setSearchAttempt] = useState(0);
   const searchSessionIdRef = useRef(0);
+  const searchPaginationPending = useRef<number | null>(null);
 
   // Grouping selection state
   const [groupingDate, setGroupingDate] = useState<string | null>(null);
@@ -355,6 +357,15 @@ export function MealListScreen() {
     [userId, ownerKey],
   );
 
+  const refreshAfterMutation = useCallback(async (): Promise<void> => {
+    // Retire every old result before refreshing the unchanged search query.
+    ++searchSessionIdRef.current;
+    searchPaginationPending.current = null;
+    setServerSearch(null);
+    setSearchAttempt((value) => value + 1);
+    await load();
+  }, [load]);
+
   const loadMore = useCallback(async (): Promise<void> => {
     if (
       state.loadingMore ||
@@ -407,6 +418,7 @@ export function MealListScreen() {
   useEffect(() => {
     const trimmed = searchQuery.trim();
     const sessionId = ++searchSessionIdRef.current;
+    searchPaginationPending.current = null;
     if (trimmed.length === 0) {
       setServerSearch(null);
       return;
@@ -440,12 +452,21 @@ export function MealListScreen() {
   }, [searchAttempt, searchQuery, ownerKey]);
 
   const loadMoreSearch = useCallback(async (): Promise<void> => {
-    if (!serverSearch || serverSearch.loadingMore || !serverSearch.nextCursor) {
+    if (
+      !serverSearch ||
+      serverSearch.loading ||
+      serverSearch.loadingMore ||
+      searchPaginationPending.current !== null ||
+      serverSearch.sessionId !== searchSessionIdRef.current ||
+      ownerKey !== currentOwner.current ||
+      !serverSearch.nextCursor
+    ) {
       return;
     }
     const currentCursor = serverSearch.nextCursor;
     const currentQuery = serverSearch.query;
     const currentSessionId = serverSearch.sessionId;
+    searchPaginationPending.current = currentSessionId;
     setServerSearch((current) =>
       current &&
       current.query === currentQuery &&
@@ -457,6 +478,10 @@ export function MealListScreen() {
     const result = await fetchFoodHistory({
       search: currentQuery,
       cursor: currentCursor,
+    }).finally(() => {
+      if (searchPaginationPending.current === currentSessionId) {
+        searchPaginationPending.current = null;
+      }
     });
     if (requestOwner !== currentOwner.current) return;
     if (result.message !== null) {
@@ -480,7 +505,10 @@ export function MealListScreen() {
       }
       const mergedEntries = mergeFoodEntries(current.entries, result.entries);
       const nextCursor = result.nextCursor ?? null;
-      const groups = groupFoodEntriesByDay(mergedEntries, new Date());
+      const groups = groupFoodEntriesByDay(mergedEntries, new Date(), {
+        cutoffDateIsPartial:
+          nextCursor !== null && (result.cutoffDateIsPartial ?? false),
+      });
       return {
         ...current,
         groups,
@@ -558,20 +586,28 @@ export function MealListScreen() {
 
   const copy = useCallback(
     async (entry: FoodEntry): Promise<void> => {
+      const requestOwner = ownerKey;
+      if (!userId || requestOwner !== currentOwner.current) return;
       setBusyEntryId(entry.id);
       setState((current) => ({ ...current, message: null }));
-      const result = await copyFoodEntry(
-        entry,
-        await advancedCapability.refresh(),
-      );
+      const includeAdvanced = await advancedCapability.refresh();
+      if (requestOwner !== currentOwner.current) return;
+      const result = await copyFoodEntry(entry, includeAdvanced, {
+        expectedUserId: userId,
+      });
+      if (requestOwner !== currentOwner.current) return;
       setBusyEntryId(null);
       if (!result.ok) {
         setState((current) => ({ ...current, message: result.message }));
         return;
       }
-      await load();
+      await reconcileFirstMealReminders(userId, { todayLogged: true }).catch(
+        () => {},
+      );
+      if (requestOwner !== currentOwner.current) return;
+      await refreshAfterMutation();
     },
-    [load, advancedCapability],
+    [refreshAfterMutation, advancedCapability, ownerKey, userId],
   );
 
   const remove = useCallback(
@@ -587,9 +623,9 @@ export function MealListScreen() {
       }
       if (owner && mealPhotoRetentionEnabled())
         await removeMealPhotoRetry(owner, entryId);
-      await load();
+      await refreshAfterMutation();
     },
-    [load, session?.user.id],
+    [refreshAfterMutation, session?.user.id],
   );
 
   const confirmDelete = useCallback(
@@ -678,13 +714,13 @@ export function MealListScreen() {
       }));
       return;
     }
-    await load();
+    await refreshAfterMutation();
   }, [
     cancelGrouping,
     displayGroups,
     groupModalName,
     groupingDate,
-    load,
+    refreshAfterMutation,
     selectedEntryIds,
   ]);
 
@@ -697,9 +733,9 @@ export function MealListScreen() {
         setState((current) => ({ ...current, message: res.message }));
         return;
       }
-      await load();
+      await refreshAfterMutation();
     },
-    [load],
+    [refreshAfterMutation],
   );
 
   const handleUngroupAll = useCallback(
@@ -722,13 +758,13 @@ export function MealListScreen() {
                 }));
                 return;
               }
-              await load();
+              await refreshAfterMutation();
             },
           },
         ],
       );
     },
-    [load],
+    [refreshAfterMutation],
   );
 
   const handleRenameGroup = useCallback(async () => {
@@ -745,8 +781,8 @@ export function MealListScreen() {
       }));
       return;
     }
-    await load();
-  }, [load, renameNewName, renameTarget]);
+    await refreshAfterMutation();
+  }, [refreshAfterMutation, renameNewName, renameTarget]);
 
   // Portion adjustment handlers
   const openPortionAdjuster = useCallback((entry: FoodEntry) => {
@@ -809,9 +845,9 @@ export function MealListScreen() {
         setState((current) => ({ ...current, message: res.message }));
         return;
       }
-      await load();
+      await refreshAfterMutation();
     },
-    [load, portionTarget],
+    [refreshAfterMutation, portionTarget],
   );
 
   return (
@@ -1271,9 +1307,13 @@ export function MealListScreen() {
                         </View>
                       ) : (
                         <View style={styles.dayNutrition}>
-                          {group.isPartial ? (
+                          {hasSearchQuery || group.isPartial ? (
                             <ThemedText type="small" themeColor="textSecondary">
-                              Partial totals
+                              {hasSearchQuery
+                                ? group.isPartial
+                                  ? "Partial matching-meal totals"
+                                  : "Matching-meal totals"
+                                : "Partial totals"}
                             </ThemedText>
                           ) : null}
                           {(
@@ -1539,6 +1579,8 @@ export function MealListScreen() {
                   </Pressable>
                 ) : serverSearch &&
                   !serverSearch.loading &&
+                  !serverSearch.nextCursor &&
+                  serverSearch.error === null &&
                   serverSearch.entries.length > 0 ? (
                   <ThemedText
                     type="small"

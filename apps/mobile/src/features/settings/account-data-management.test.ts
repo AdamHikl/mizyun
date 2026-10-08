@@ -19,6 +19,10 @@ vi.mock("../log-meal/public-data", () => ({
   clearAllMealPhotoRetries: vi.fn().mockResolvedValue(true),
 }));
 import { clearAllMealPhotoRetries } from "../log-meal/public-data";
+vi.mock("../dashboard/public-data", () => ({
+  clearQuickMealRepeat: vi.fn().mockResolvedValue(undefined),
+}));
+import { clearQuickMealRepeat } from "../dashboard/public-data";
 
 import type { ApiClient } from "@mizyun/api-client";
 import {
@@ -35,6 +39,22 @@ import {
 } from "./account-data-management.js";
 
 describe("account-data-management", () => {
+  it("erases the meal-copy snapshot and reports failed local deletion", async () => {
+    const clear = vi.mocked(clearQuickMealRepeat);
+    clear.mockClear();
+    await clearLocalUserData("synthetic-copy-owner", {
+      listExportFiles: () => [],
+      clearHealthExports: async () => undefined,
+    });
+    expect(clear).toHaveBeenCalledWith("synthetic-copy-owner", undefined);
+    clear.mockRejectedValueOnce(new Error("Keychain locked"));
+    await expect(
+      clearLocalUserData("synthetic-copy-owner", {
+        listExportFiles: () => [],
+        clearHealthExports: async () => undefined,
+      }),
+    ).rejects.toThrow("Local account data cleanup is incomplete.");
+  });
   it("fetchAccountExport returns account data on success", async () => {
     const mockExport = {
       export: {

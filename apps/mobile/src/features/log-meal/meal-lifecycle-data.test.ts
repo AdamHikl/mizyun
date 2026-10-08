@@ -233,6 +233,26 @@ describe("food entry lifecycle mutations", () => {
     });
   });
 
+  it("replays a retained copy payload without changing its operation or consumed instant", async () => {
+    const requests: RequestOptions[] = [];
+    const payload = {
+      clientOperationId: "00000000-0000-4000-8000-000000000123",
+      name: "Original breakfast",
+      consumedAt: "2026-07-19T08:00:00.000Z",
+      caloriesKcal: 200,
+      details: { note: "original" },
+    };
+    await copyFoodEntryWith(
+      queuedClient([{ ok: true, value: { foodEntry: ENTRY } }], requests),
+      { ...ENTRY, name: "Edited breakfast" },
+      () => new Date("2026-07-20T12:00:00.000Z"),
+      false,
+      { payload, expectedUserId: "synthetic-copy-owner" },
+    );
+    expect(requests[0]?.body).toEqual(payload);
+    expect(requests[0]?.expectedUserId).toBe("synthetic-copy-owner");
+  });
+
   it("copies the snapshot with a new consumed-at instant", async () => {
     const requests: RequestOptions[] = [];
     const result = await copyFoodEntryWith(

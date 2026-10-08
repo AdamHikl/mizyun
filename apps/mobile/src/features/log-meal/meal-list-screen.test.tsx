@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   fetch: vi.fn(),
   refresh: vi.fn(),
   day: vi.fn(),
+  copy: vi.fn().mockResolvedValue({ ok: true }),
+  reminders: vi.fn().mockResolvedValue(undefined),
   owner: "user-a",
   version: "0:today:0",
   appState: null as ((state: string) => void) | null,
@@ -13,6 +15,7 @@ const hooks = vi.hoisted(() => ({
   slots: [] as any[],
   index: 0,
   effects: [] as (() => void)[],
+  cleanups: new Map<number, () => void>(),
   focus: null as (() => void) | null,
 }));
 vi.mock("react", async (original) => ({
@@ -31,7 +34,7 @@ vi.mock("react", async (original) => ({
   },
   useCallback: (callback: unknown) => callback,
   useMemo: (callback: () => unknown) => callback(),
-  useEffect: (callback: () => void, dependencies: any[]) => {
+  useEffect: (callback: () => void | (() => void), dependencies: any[]) => {
     const index = hooks.index++;
     const previous = hooks.slots[index];
     if (
@@ -42,7 +45,12 @@ vi.mock("react", async (original) => ({
       )
     ) {
       hooks.slots[index] = dependencies;
-      hooks.effects.push(callback);
+      hooks.effects.push(() => {
+        hooks.cleanups.get(index)?.();
+        const cleanup = callback();
+        if (cleanup) hooks.cleanups.set(index, cleanup);
+        else hooks.cleanups.delete(index);
+      });
     }
   },
 }));
@@ -114,14 +122,21 @@ vi.mock("./advanced-nutrition", () => ({
 vi.mock("./evening-catch-up-reminders", () => ({
   reconcileEveningReminders: vi.fn(),
 }));
+vi.mock("./first-meal-reminders", () => ({
+  reconcileFirstMealReminders: mocks.reminders,
+}));
 vi.mock("./meal-lifecycle-data", async (original) => ({
   ...(await original<typeof import("./meal-lifecycle-data")>()),
   fetchFoodHistory: mocks.fetch,
   fetchFoodDateHistory: mocks.day,
+  copyFoodEntry: mocks.copy,
 }));
 
 import { router } from "expo-router";
-import { groupFoodEntriesByDay } from "./meal-lifecycle-data";
+import {
+  groupFoodEntriesByDay,
+  type FoodHistoryResult,
+} from "./meal-lifecycle-data";
 
 import { MealListScreen } from "./meal-list-screen";
 
@@ -174,6 +189,8 @@ async function settle() {
 }
 
 beforeEach(() => {
+  hooks.cleanups.forEach((cleanup) => cleanup());
+  hooks.cleanups.clear();
   hooks.slots = [];
   hooks.effects = [];
   hooks.index = 0;
@@ -181,11 +198,57 @@ beforeEach(() => {
   mocks.fetch.mockReset();
   mocks.refresh.mockReset();
   mocks.day.mockReset();
+  mocks.copy.mockReset().mockResolvedValue({ ok: true });
+  mocks.reminders.mockReset().mockResolvedValue(undefined);
   mocks.owner = "user-a";
   mocks.version = "0:today:0";
 });
 
 describe("meal tab read lifecycle", () => {
+  it("suppresses the first-meal reminder after Copy to Today from history", async () => {
+    mocks.fetch.mockResolvedValue(response([entry("copy-source")]));
+    mocks.refresh.mockResolvedValue(false);
+    render();
+    hooks.focus!();
+    await settle();
+    const card = find(
+      render(),
+      (node) => typeof node.props?.onCopy === "function",
+    );
+    card.props.onCopy();
+    await settle();
+    expect(mocks.copy).toHaveBeenCalledWith(entry("copy-source"), false, {
+      expectedUserId: "user-a",
+    });
+    expect(mocks.reminders).toHaveBeenCalledWith("user-a", {
+      todayLogged: true,
+    });
+  });
+  it("does not dispatch a history copy after an account switch during entitlement refresh", async () => {
+    mocks.fetch.mockResolvedValue(response([entry("copy-source")]));
+    let resolve!: (enabled: boolean) => void;
+    mocks.refresh.mockImplementation(
+      () =>
+        new Promise<boolean>((done) => {
+          resolve = done;
+        }),
+    );
+    render();
+    hooks.focus!();
+    await settle();
+    const card = find(
+      render(),
+      (node) => typeof node.props?.onCopy === "function",
+    );
+    card.props.onCopy();
+    await settle();
+    mocks.owner = "user-b";
+    render();
+    resolve(false);
+    await settle();
+    expect(mocks.copy).not.toHaveBeenCalled();
+    expect(mocks.reminders).not.toHaveBeenCalled();
+  });
   it("revalidates the focused tab after returning from the background", async () => {
     mocks.fetch.mockResolvedValueOnce(response([entry("before")]));
     render();
@@ -261,7 +324,11 @@ describe("meal tab read lifecycle", () => {
   });
 });
 
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  hooks.cleanups.forEach((cleanup) => cleanup());
+  hooks.cleanups.clear();
+  vi.useRealTimers();
+});
 it("refreshes due meals each focused minute, retains older pages and stops polling on blur", async () => {
   vi.useFakeTimers();
   mocks.fetch.mockResolvedValueOnce(response([entry("first")], "older"));
@@ -514,6 +581,205 @@ it("qualifies partial totals and does not invent missing nutrients", async () =>
 vi.mock("./private-meal-photo", () => ({
   PrivateMealPhoto: "PrivateMealPhoto",
 }));
+
+describe("older meal history search", () => {
+  const searchState = () =>
+    hooks.slots.find((value) => value && typeof value.query === "string");
+  const changeSearch = (query: string) => {
+    find(
+      render(),
+      (node) => node.props?.accessibilityLabel === "Search meal history",
+    ).props.onChangeText(query);
+    render();
+  };
+  const matchingPage = (
+    start: number,
+    count: number,
+    cursor: string | null,
+  ) => {
+    const entries = Array.from({ length: count }, (_, index) =>
+      entry(`oats-${String(start + index).padStart(4, "0")}`),
+    );
+    return {
+      ...response(entries, cursor),
+      cutoffDateIsPartial: cursor !== null,
+      groups: groupFoodEntriesByDay(entries, new Date(), {
+        cutoffDateIsPartial: cursor !== null,
+      }),
+    };
+  };
+  async function startSearch(
+    result: FoodHistoryResult = matchingPage(0, 1, "next-match"),
+  ) {
+    vi.useFakeTimers();
+    mocks.fetch.mockResolvedValueOnce(response([entry("recent")]));
+    render();
+    hooks.focus!();
+    await settle();
+    mocks.fetch.mockResolvedValueOnce(result);
+    changeSearch("oats");
+    await vi.advanceTimersByTimeAsync(250);
+    await settle();
+  }
+  const moreButton = () =>
+    find(
+      render(),
+      (node) => node.props?.accessibilityLabel === "Load more matching meals",
+    );
+
+  it("refreshes matching meals after a successful copy without changing the query", async () => {
+    await startSearch(matchingPage(0, 1, null));
+    mocks.refresh.mockResolvedValue(false);
+    mocks.fetch.mockResolvedValueOnce(response([entry("recent")]));
+    mocks.fetch.mockResolvedValueOnce(matchingPage(0, 2, null));
+    find(
+      render(),
+      (node) => typeof node.props?.onCopy === "function",
+    ).props.onCopy();
+    await settle();
+    render();
+    await vi.advanceTimersByTimeAsync(250);
+    await settle();
+    expect(searchState().query).toBe("oats");
+    expect(searchState().entries).toHaveLength(2);
+    expect(mocks.fetch).toHaveBeenLastCalledWith({ search: "oats" });
+  });
+
+  it("labels matching totals and retains the split-day warning beyond 200 results", async () => {
+    await startSearch(matchingPage(0, 200, "match-page-2"));
+    expect(searchState().groups[0].isPartial).toBe(true);
+    mocks.fetch.mockResolvedValueOnce(matchingPage(200, 200, "match-page-3"));
+    moreButton().props.onPress();
+    await settle();
+    expect(mocks.fetch).toHaveBeenLastCalledWith({
+      search: "oats",
+      cursor: "match-page-2",
+    });
+    expect(searchState().entries).toHaveLength(400);
+    expect(searchState().groups[0].isPartial).toBe(true);
+    expect(textContent(render())).toContain("Partial matching-meal totals");
+    mocks.fetch.mockResolvedValueOnce(matchingPage(400, 1, null));
+    moreButton().props.onPress();
+    await settle();
+    expect(searchState().entries).toHaveLength(401);
+    expect(searchState().groups[0].isPartial).toBe(false);
+    expect(textContent(render())).toContain("Matching-meal totals");
+    expect(textContent(render())).not.toContain("Partial matching-meal totals");
+    expect(textContent(render())).toContain(
+      "All matching meals loaded (401 total)",
+    );
+  });
+
+  it("prevents two presses from requesting the same matching page", async () => {
+    await startSearch();
+    let resolve!: (value: ReturnType<typeof response>) => void;
+    mocks.fetch.mockReturnValue(new Promise((done) => (resolve = done)));
+    const button = moreButton();
+    button.props.onPress();
+    button.props.onPress();
+    expect(mocks.fetch).toHaveBeenCalledTimes(3);
+    resolve(response([entry("older-match")]));
+    await settle();
+    expect(searchState().entries).toHaveLength(2);
+  });
+
+  it("labels device-only filtered nutrition when the full-history search fails", async () => {
+    await startSearch({
+      ...matchingPage(0, 0, null),
+      message: "Search is unavailable.",
+    });
+    const tree = render();
+    expect(textContent(tree)).toContain(
+      "Showing matches from meals already loaded on this device.",
+    );
+    expect(textContent(tree)).toContain("Matching-meal totals");
+    expect(textContent(tree)).not.toContain("No meals match");
+    expect(textContent(tree)).not.toContain("All matching meals loaded");
+  });
+
+  it("retains failed-page matches and cursor, offers retry, and does not claim all matches are loaded", async () => {
+    await startSearch();
+    mocks.fetch.mockResolvedValueOnce({
+      ...response([]),
+      message: "More matches could not be loaded.",
+    });
+    moreButton().props.onPress();
+    await settle();
+    expect(searchState().entries).toHaveLength(1);
+    expect(searchState().nextCursor).toBe("next-match");
+    const tree = render();
+    expect(textContent(tree)).not.toContain("All matching meals loaded");
+    mocks.fetch.mockResolvedValueOnce(response([entry("retried-match")]));
+    find(
+      tree,
+      (node) =>
+        node.props?.accessibilityLabel === "Retry loading more matching meals",
+    ).props.onPress();
+    await settle();
+    expect(mocks.fetch).toHaveBeenLastCalledWith({
+      search: "oats",
+      cursor: "next-match",
+    });
+    expect(searchState().entries).toHaveLength(2);
+    expect(searchState().error).toBeNull();
+  });
+
+  it("ignores the old page after switching oats to rice and back to oats", async () => {
+    await startSearch();
+    let resolve!: (value: ReturnType<typeof response>) => void;
+    mocks.fetch.mockReturnValueOnce(new Promise((done) => (resolve = done)));
+    moreButton().props.onPress();
+    changeSearch("rice");
+    mocks.fetch.mockResolvedValueOnce(response([entry("current-oats")]));
+    changeSearch("oats");
+    await vi.advanceTimersByTimeAsync(250);
+    resolve(response([entry("stale-page")]));
+    await settle();
+    expect(searchState().entries.map((value: FoodEntry) => value.id)).toEqual([
+      "current-oats",
+    ]);
+  });
+
+  it("discards a delayed matching page after the account changes", async () => {
+    await startSearch();
+    let resolve!: (value: ReturnType<typeof response>) => void;
+    mocks.fetch.mockReturnValueOnce(new Promise((done) => (resolve = done)));
+    moreButton().props.onPress();
+    mocks.owner = "user-b";
+    render();
+    render();
+    resolve(response([entry("private-a")]));
+    await settle();
+    expect(searchState()).toBeUndefined();
+    expect(history().entries).toEqual([]);
+  });
+
+  it("keeps the new-query page locked when an older request settles", async () => {
+    await startSearch();
+    let resolveOld!: (value: ReturnType<typeof response>) => void;
+    mocks.fetch.mockReturnValueOnce(new Promise((done) => (resolveOld = done)));
+    moreButton().props.onPress();
+    mocks.fetch.mockResolvedValueOnce(
+      response([entry("new-query")], "new-page"),
+    );
+    changeSearch("rice");
+    await vi.advanceTimersByTimeAsync(250);
+    let resolveNew!: (value: ReturnType<typeof response>) => void;
+    mocks.fetch.mockReturnValueOnce(new Promise((done) => (resolveNew = done)));
+    const newButton = moreButton();
+    newButton.props.onPress();
+    resolveOld(response([entry("old-query")]));
+    await settle();
+    newButton.props.onPress();
+    expect(mocks.fetch).toHaveBeenCalledTimes(5);
+    resolveNew(response([entry("new-page")]));
+    await settle();
+    expect(searchState().entries.map((value: FoodEntry) => value.id)).toEqual([
+      "new-query",
+      "new-page",
+    ]);
+  });
+});
 
 vi.mock("./meal-photo-retention", () => ({
   removeMealPhotoRetry: vi.fn(),

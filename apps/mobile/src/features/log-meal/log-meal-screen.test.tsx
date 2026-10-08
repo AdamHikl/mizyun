@@ -222,9 +222,20 @@ beforeEach(async () => {
   mocks.history.mockResolvedValue({ entries: [] });
   mocks.refresh.mockResolvedValue(true);
   mocks.submit.mockResolvedValue({ ok: true });
+  mocks.reminders.mockResolvedValue(undefined);
   render();
   await flush();
   render();
+});
+
+it("keeps a confirmed meal saved when local reminder reconciliation fails", async () => {
+  mocks.reminders.mockRejectedValueOnce(new Error("Keychain locked"));
+  await submit();
+  expect(mocks.submit).toHaveBeenCalledTimes(1);
+  expect(mocks.reminders).toHaveBeenCalledWith("synthetic-user", {
+    todayLogged: true,
+  });
+  expect(byId("submit-meal-button").props.disabled).toBe(true);
 });
 
 it("closes meal entry without submitting or clearing its retained draft", async () => {

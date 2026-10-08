@@ -767,7 +767,9 @@ export function LogMealScreen() {
           : new Date();
         const isToday = mealDate.toDateString() === new Date().toDateString();
         if (isToday) {
-          await reconcileFirstMealReminders(userId, { todayLogged: true });
+          await reconcileFirstMealReminders(userId, {
+            todayLogged: true,
+          }).catch(() => {});
         }
         const hasMealAfter6Pm = isToday && mealDate.getHours() >= 18;
         if (hasMealAfter6Pm) {

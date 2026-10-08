@@ -37,6 +37,7 @@ import { purgeOfflineCache } from "../offline-cache/offline-cache-storage";
 import { keyFor as workoutPreferencesKeyFor } from "../workouts/workout-preferences";
 import { healthStepsPreferenceKey } from "../health-steps/health-steps-key";
 import { clearAllMealPhotoRetries } from "../log-meal/public-data";
+import { clearQuickMealRepeat } from "../dashboard/public-data";
 
 export interface SecureKeyValueStore {
   getItemAsync(key: string): Promise<string | null>;
@@ -193,6 +194,7 @@ export const checkAccountDeletionStatus = async (
 
 export interface ClearLocalUserDataOptions {
   readonly draftStore?: Parameters<typeof clearLoggingDraft>[2];
+  readonly quickMealRepeatStore?: Parameters<typeof clearQuickMealRepeat>[1];
   readonly consentStore?: Parameters<typeof revokeAiConsent>[1];
   readonly reminderScheduler?: ReminderScheduler;
   readonly reminderStore?: ReminderStore;
@@ -260,6 +262,7 @@ export const clearLocalUserData = async (
   let healthCleanupFailed = false;
   let photoCleanupFailed = false;
   const cleanupResults = await Promise.allSettled([
+    clearQuickMealRepeat(userId, options.quickMealRepeatStore),
     Promise.resolve()
       .then(() => clearAllMealPhotoRetries(userId, options.draftStore))
       .then((cleaned) => {

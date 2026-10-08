@@ -1,4 +1,5 @@
 import * as Notifications from "expo-notifications";
+import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
@@ -10,6 +11,7 @@ export interface FirstMealReminderSettings {
   readonly promptDismissed?: boolean;
   readonly notificationIds: readonly string[];
   readonly lastReconciledDate?: string | null;
+  readonly todayLoggedDate?: string | null;
 }
 
 export const DEFAULT_FIRST_MEAL_REMINDERS: FirstMealReminderSettings = {
@@ -39,12 +41,47 @@ export interface FirstMealReminderScheduler {
       readonly body: string;
       readonly data: Record<string, unknown>;
     },
+    identifier: string,
   ): Promise<string>;
   cancel(id: string): Promise<void>;
 }
 
 const keyFor = (userId: string): string =>
   `mizyun.first-meal-reminders.${userId}`;
+
+const queues = new Map<string, Promise<unknown>>();
+const lifecycle = new Map<string, { generation: number; active: boolean }>();
+const identity = (userId: string) =>
+  lifecycle.get(userId) ?? { generation: 0, active: false };
+const enqueue = <T>(userId: string, work: () => Promise<T>): Promise<T> => {
+  const next = (queues.get(userId) ?? Promise.resolve())
+    .catch(() => {})
+    .then(work);
+  queues.set(userId, next);
+  void next
+    .finally(() => {
+      if (queues.get(userId) === next) queues.delete(userId);
+    })
+    .catch(() => {});
+  return next;
+};
+
+/** Called only at a current authenticated account boundary, not by screens. */
+export const activateFirstMealReminders = (userId: string): void => {
+  const current = identity(userId);
+  lifecycle.set(userId, { generation: current.generation + 1, active: true });
+};
+
+/** Capture synchronously before a settings read to reject old account generations. */
+export const captureFirstMealReminderOwner = (
+  userId: string,
+): (() => boolean) => {
+  const captured = identity(userId);
+  return () =>
+    captured.active &&
+    identity(userId).active &&
+    identity(userId).generation === captured.generation;
+};
 
 export const isFirstMealReminderSettings = (
   value: unknown,
@@ -68,7 +105,11 @@ export const isFirstMealReminderSettings = (
     c.notificationIds.every((id) => typeof id === "string") &&
     (c.lastReconciledDate === undefined ||
       c.lastReconciledDate === null ||
-      typeof c.lastReconciledDate === "string")
+      typeof c.lastReconciledDate === "string") &&
+    (c.todayLoggedDate === undefined ||
+      c.todayLoggedDate === null ||
+      (typeof c.todayLoggedDate === "string" &&
+        /^\d{4}-\d{2}-\d{2}$/.test(c.todayLoggedDate)))
   );
 };
 
@@ -92,13 +133,15 @@ export const markFirstMealPromptDismissed = async (
   userId: string,
   store: ReminderStore = SecureStore,
 ): Promise<FirstMealReminderSettings> => {
-  const current = await loadFirstMealReminders(userId, store);
-  const updated: FirstMealReminderSettings = {
-    ...current,
-    promptDismissed: true,
-  };
-  await store.setItemAsync(keyFor(userId), JSON.stringify(updated));
-  return updated;
+  const isCurrent = captureFirstMealReminderOwner(userId);
+  return enqueue(userId, async () => {
+    if (!isCurrent()) throw new Error("Reminder account retired");
+    const current = await readForMutation(userId, store);
+    if (!isCurrent()) throw new Error("Reminder account retired");
+    const updated = { ...current, promptDismissed: true };
+    await store.setItemAsync(keyFor(userId), JSON.stringify(updated));
+    return updated;
+  });
 };
 
 const ROLLING_SCHEDULE_DAYS = 7;
@@ -145,143 +188,247 @@ const isoLocalDate = (d: Date): string => {
   return `${year}-${month}-${day}`;
 };
 
-export const applyFirstMealReminders = async (
-  userId: string,
-  requested: {
-    readonly enabled: boolean;
-    readonly hour: number;
-    readonly minute: number;
-    readonly routineLabel?: string | null;
-  },
-  options: {
-    readonly todayLogged?: boolean;
-    readonly now?: () => Date;
-  } = {},
-  scheduler: FirstMealReminderScheduler = expoFirstMealReminderScheduler,
-  store: ReminderStore = SecureStore,
-): Promise<
+type ReminderRequest = Pick<
+  FirstMealReminderSettings,
+  "enabled" | "hour" | "minute" | "routineLabel"
+>;
+type ApplyResult =
   | { readonly ok: true; readonly settings: FirstMealReminderSettings }
-  | { readonly ok: false; readonly reason: "permission_denied" | "unavailable" }
-> => {
-  const previous = await loadFirstMealReminders(userId, store);
-  const nextIds: string[] = [];
-  const now = options.now ? options.now() : new Date();
+  | {
+      readonly ok: false;
+      readonly reason: "permission_denied" | "unavailable";
+    };
+type ReminderOptions = {
+  readonly todayLogged?: boolean;
+  readonly now?: () => Date;
+};
 
+const cancelTracked = async (
+  ids: readonly string[],
+  scheduler: FirstMealReminderScheduler,
+): Promise<string[]> => {
+  const unique = [...new Set(ids)];
+  const results = await Promise.allSettled(
+    unique.map((id) => scheduler.cancel(id)),
+  );
+  return unique.filter((_, index) => results[index].status === "rejected");
+};
+const persist = (
+  userId: string,
+  settings: FirstMealReminderSettings,
+  store: ReminderStore,
+) => store.setItemAsync(keyFor(userId), JSON.stringify(settings));
+
+// UI reads may fall back to defaults. Native mutations must retain the ID journal.
+const readForMutation = async (
+  userId: string,
+  store: ReminderStore,
+): Promise<FirstMealReminderSettings> => {
+  const raw = await store.getItemAsync(keyFor(userId));
+  if (raw === null) return DEFAULT_FIRST_MEAL_REMINDERS;
+  const parsed: unknown = JSON.parse(raw);
+  if (!isFirstMealReminderSettings(parsed))
+    throw new Error("First-meal reminder journal could not be read.");
+  return parsed;
+};
+
+const applyQueued = async (
+  userId: string,
+  requested: ReminderRequest,
+  options: ReminderOptions,
+  scheduler: FirstMealReminderScheduler,
+  store: ReminderStore,
+  generation: number,
+  mayRequestPermission: boolean,
+): Promise<ApplyResult> => {
+  const valid = () =>
+    identity(userId).active && identity(userId).generation === generation;
+  if (!valid()) return { ok: false, reason: "unavailable" };
+  let previous: FirstMealReminderSettings;
+  try {
+    previous = await readForMutation(userId, store);
+  } catch {
+    return { ok: false, reason: "unavailable" };
+  }
+  if (!valid()) return { ok: false, reason: "unavailable" };
+  const now = options.now?.() ?? new Date();
+  const today = isoLocalDate(now);
+  // A confirmed local save remains authoritative for this day, including stale reads.
+  const todayLoggedDate = options.todayLogged
+    ? today
+    : (previous.todayLoggedDate ?? null);
+  const base: FirstMealReminderSettings = { ...previous, todayLoggedDate };
+  const nextIds: string[] = [];
+  let remainingOldIds = [...previous.notificationIds];
   try {
     if (requested.enabled) {
       await scheduler.ensureChannel();
-      const existing = await scheduler.getPermission();
-      const permission =
-        existing === "granted" ? existing : await scheduler.requestPermission();
+      if (!valid()) throw new Error("Reminder account retired");
+      let permission = await scheduler.getPermission();
+      if (!valid()) throw new Error("Reminder account retired");
+      if (permission !== "granted" && mayRequestPermission) {
+        permission = await scheduler.requestPermission();
+        if (!valid()) throw new Error("Reminder account retired");
+      }
       if (permission !== "granted") {
+        // Passive reconciliation never prompts; retire old schedules after revocation.
+        if (!mayRequestPermission) {
+          const remaining = await cancelTracked(
+            previous.notificationIds,
+            scheduler,
+          );
+          remainingOldIds = remaining;
+          await persist(userId, { ...base, notificationIds: remaining }, store);
+        } else if (options.todayLogged) {
+          await persist(userId, base, store);
+        }
         return { ok: false, reason: "permission_denied" };
       }
-
-      const scheduleDates = computeReminderScheduleDates(requested, {
-        todayLogged: options.todayLogged ?? false,
+    }
+    // Persist the suppression marker before mutating native schedules.
+    if (options.todayLogged) await persist(userId, base, store);
+    if (!valid()) throw new Error("Reminder account retired");
+    const failedOldIds = await cancelTracked(
+      previous.notificationIds,
+      scheduler,
+    );
+    remainingOldIds = failedOldIds;
+    await persist(userId, { ...base, notificationIds: failedOldIds }, store);
+    if (failedOldIds.length || !valid())
+      throw new Error("Reminder cancellation incomplete");
+    if (requested.enabled) {
+      for (const date of computeReminderScheduleDates(requested, {
+        todayLogged: todayLoggedDate === today,
         now,
-      });
-
-      for (const date of scheduleDates) {
-        const id = await scheduler.scheduleAtDate(date, {
-          title: "First meal of the day",
-          body: requested.routineLabel?.trim()
-            ? `Time for ${requested.routineLabel.trim()} — log your meal or repeat a recent one.`
-            : "Log your first meal or review recent meals to keep your day on track.",
-          data: {
-            url: "/log-meal",
-            source: "first_meal_reminder",
-          },
-        });
+      })) {
+        if (!valid()) throw new Error("Reminder account retired");
+        const id = Crypto.randomUUID();
         nextIds.push(id);
+        // Persist the caller-supplied native ID before scheduling; interruption
+        // during the native request can then be cleaned up on the next launch.
+        await persist(
+          userId,
+          { ...base, notificationIds: [...nextIds] },
+          store,
+        );
+        if (!valid()) throw new Error("Reminder account retired");
+        await scheduler.scheduleAtDate(
+          date,
+          {
+            title: "Mizyun reminder",
+            body: "Open Mizyun to review your next step.",
+            data: { url: "/log-meal", source: "first_meal_reminder", userId },
+          },
+          id,
+        );
+        if (!valid()) throw new Error("Reminder account retired");
       }
     }
-
-    // Cancel old notifications after scheduling new ones.
-    await Promise.all(
-      previous.notificationIds.map((id) => scheduler.cancel(id)),
-    );
-
     const settings: FirstMealReminderSettings = {
+      ...base,
       enabled: requested.enabled,
       hour: requested.hour,
       minute: requested.minute,
       routineLabel: requested.routineLabel ?? null,
-      promptDismissed: true,
-      notificationIds: nextIds,
-      lastReconciledDate: isoLocalDate(now),
+      promptDismissed: mayRequestPermission ? true : base.promptDismissed,
+      notificationIds: [...nextIds],
+      lastReconciledDate: today,
     };
-
-    await store.setItemAsync(keyFor(userId), JSON.stringify(settings));
+    await persist(userId, settings, store);
+    if (!valid()) throw new Error("Reminder account retired");
     return { ok: true, settings };
   } catch {
-    await Promise.allSettled(nextIds.map((id) => scheduler.cancel(id)));
+    const failedNewIds = await cancelTracked(nextIds, scheduler);
+    // Includes old failed cancellations and newly scheduled IDs whose cleanup failed.
+    await persist(
+      userId,
+      {
+        ...base,
+        notificationIds: [...new Set([...remainingOldIds, ...failedNewIds])],
+      },
+      store,
+    );
     return { ok: false, reason: "unavailable" };
   }
 };
 
-export const reconcileFirstMealReminders = async (
+export const applyFirstMealReminders = (
   userId: string,
-  options: {
-    readonly todayLogged: boolean;
-    readonly now?: () => Date;
-  },
+  requested: ReminderRequest,
+  options: ReminderOptions = {},
+  scheduler: FirstMealReminderScheduler = expoFirstMealReminderScheduler,
+  store: ReminderStore = SecureStore,
+): Promise<ApplyResult> => {
+  const generation = identity(userId).generation;
+  return enqueue(userId, () =>
+    applyQueued(userId, requested, options, scheduler, store, generation, true),
+  );
+};
+
+export const reconcileFirstMealReminders = (
+  userId: string,
+  options: { readonly todayLogged: boolean; readonly now?: () => Date },
   scheduler: FirstMealReminderScheduler = expoFirstMealReminderScheduler,
   store: ReminderStore = SecureStore,
 ): Promise<FirstMealReminderSettings> => {
-  const current = await loadFirstMealReminders(userId, store);
-  if (!current.enabled) {
-    if (current.notificationIds.length > 0) {
-      await Promise.allSettled(
-        current.notificationIds.map((id) => scheduler.cancel(id)),
-      );
-      const cleaned: FirstMealReminderSettings = {
-        ...current,
-        notificationIds: [],
-      };
-      await store.setItemAsync(keyFor(userId), JSON.stringify(cleaned));
-      return cleaned;
-    }
-    return current;
-  }
-
-  const result = await applyFirstMealReminders(
-    userId,
-    {
-      enabled: true,
-      hour: current.hour,
-      minute: current.minute,
-      routineLabel: current.routineLabel,
-    },
-    options,
-    scheduler,
-    store,
-  );
-
-  return result.ok ? result.settings : current;
+  const generation = identity(userId).generation;
+  return enqueue(userId, async () => {
+    const current = await readForMutation(userId, store);
+    const result = await applyQueued(
+      userId,
+      current,
+      options,
+      scheduler,
+      store,
+      generation,
+      false,
+    );
+    return result.ok ? result.settings : loadFirstMealReminders(userId, store);
+  });
 };
 
-export const clearFirstMealReminders = async (
+const retire = (userId: string) => {
+  const current = identity(userId);
+  lifecycle.set(userId, { generation: current.generation + 1, active: false });
+};
+
+/** Logout cleanup preserves opt-in preferences; rejection means native cleanup needs retry. */
+export const suspendFirstMealReminders = (
   userId: string,
   scheduler: FirstMealReminderScheduler = expoFirstMealReminderScheduler,
   store: ReminderStore = SecureStore,
 ): Promise<void> => {
-  try {
-    const previous = await loadFirstMealReminders(userId, store);
-    await Promise.allSettled(
-      previous.notificationIds.map((id) => scheduler.cancel(id)),
-    );
-    if (typeof store.deleteItemAsync === "function") {
-      await store.deleteItemAsync(keyFor(userId));
-    } else {
-      await store.setItemAsync(
-        keyFor(userId),
-        JSON.stringify(DEFAULT_FIRST_MEAL_REMINDERS),
+  retire(userId);
+  return enqueue(userId, async () => {
+    const previous = await readForMutation(userId, store);
+    if (previous === DEFAULT_FIRST_MEAL_REMINDERS) return;
+    const remaining = await cancelTracked(previous.notificationIds, scheduler);
+    await persist(userId, { ...previous, notificationIds: remaining }, store);
+    if (remaining.length)
+      throw new Error("First-meal reminder cancellation incomplete.");
+  });
+};
+
+export const clearFirstMealReminders = (
+  userId: string,
+  scheduler: FirstMealReminderScheduler = expoFirstMealReminderScheduler,
+  store: ReminderStore = SecureStore,
+): Promise<void> => {
+  retire(userId);
+  return enqueue(userId, async () => {
+    const previous = await readForMutation(userId, store);
+    const remaining = await cancelTracked(previous.notificationIds, scheduler);
+    if (remaining.length) {
+      await persist(
+        userId,
+        { ...DEFAULT_FIRST_MEAL_REMINDERS, notificationIds: remaining },
+        store,
       );
+      throw new Error("First-meal reminder cancellation incomplete.");
     }
-  } catch {
-    // Best-effort cleanup during account deletion or logout.
-  }
+    if (store.deleteItemAsync) await store.deleteItemAsync(keyFor(userId));
+    else await persist(userId, DEFAULT_FIRST_MEAL_REMINDERS, store);
+  });
 };
 
 export const expoFirstMealReminderScheduler: FirstMealReminderScheduler = {
@@ -295,8 +442,9 @@ export const expoFirstMealReminderScheduler: FirstMealReminderScheduler = {
   getPermission: async () => (await Notifications.getPermissionsAsync()).status,
   requestPermission: async () =>
     (await Notifications.requestPermissionsAsync()).status,
-  scheduleAtDate: async (date, payload) =>
+  scheduleAtDate: async (date, payload, identifier) =>
     Notifications.scheduleNotificationAsync({
+      identifier,
       content: {
         title: payload.title,
         body: payload.body,

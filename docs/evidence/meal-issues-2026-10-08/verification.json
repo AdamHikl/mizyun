@@ -1,0 +1,63 @@
+{
+  "date": "2026-10-08",
+  "baseline": "5925b31da5ef08fe0f784f23bb7309f46bb0e95c",
+  "scope": "Exact task-only overlays; unrelated photo/workout/Community changes excluded. Shared files staged as exact task blobs.",
+  "focused": {
+    "mobile": 410,
+    "apiFoodEntries": 103,
+    "adapterFoodEntries": 8,
+    "httpOwnership": 33
+  },
+  "fullGate": {
+    "command": "pnpm check",
+    "result": "PASS",
+    "inputSha256": "1a3192bfe86b0bdfe221e4883fcdeef28c188f614b5ed03e983baae3a6922a0b",
+    "logSha256": "b697a43e6103d57f81ad816d2c371c3dc8a501e3e3f681fd592ded3de5cbb929",
+    "mobileTestsPassed": 1850,
+    "apiTestsPassed": 937,
+    "apiTestsCredentialGatedSkipped": 15,
+    "configBundlePuritySkipped": 3,
+    "configSkipReason": "Legacy bundle-check path; actual iOS/Android exports completed at bundle-check-ios and bundle-check-android.",
+    "providerIntegration": "Disabled under BEFORE_TESTING.md",
+    "iosBundleExport": "PASS",
+    "androidBundleExport": "PASS"
+  },
+  "review": {
+    "sensitiveIntegration": "Independent non-author High review clear",
+    "search": "Independent review clear after mutation refresh/dependency correction"
+  },
+  "deviceAcceptance": "Delegated to Adam explicitly; no Dev deployment/native acceptance/Production claim",
+  "sourceSha256": {
+    "apps/mobile/src/app/_layout.tsx": "5f5f0912d9e17d4d5016e8e0635b8005ca07cbd097bdab8c68f84bcfedc13733",
+    "apps/mobile/src/features/auth/auth-context.tsx": "c60843a185c89c1325f4425f8bc5f42d255459f57d99e5c3bf9d39d02d7aeb9d",
+    "apps/mobile/src/features/auth/auth-analytics-lifecycle.test.tsx": "5e5b0e48fd332ce44d2024d97d0a13ed46d0d45c1689d303280647115997bbf7",
+    "apps/mobile/src/composition/first-meal-reminder-lifecycle.ts": "454b15f4e24a4698657dd40efda64dcec171ec0a7e28e1bea953a43291b4dc35",
+    "apps/mobile/src/composition/first-meal-reminder-lifecycle.test.ts": "453842ee3fb96e43e4351c8fba12a223cd240b0fd2b879b035189ec248bc6185",
+    "apps/mobile/src/composition/first-meal-reminder-runtime.ts": "92e1ecbe59e2d975aa829edfb4317c6d4443eae3179473078f9b664ebef59efd",
+    "apps/mobile/src/composition/first-meal-reminder-runtime.test.ts": "027ddd290ba72fb5d88d563e2009da5cff57145e58c71cad105003f3400e1c58",
+    "apps/mobile/src/composition/first-meal-reminder-session-bridge.tsx": "c099023d4ef3d5ead974c1f9f110de24a9b41a4c65475acb988352e66921963b",
+    "apps/mobile/src/features/dashboard/dashboard-screen.tsx": "fe67e59829651248c570d6a5ac62cef997c1e261cddafa966aa7bd3da3846628",
+    "apps/mobile/src/features/dashboard/dashboard-screen.test.tsx": "cb61050ea38d0791fe3b360e799f627036febe9484bcefa752ab002e20b1cd80",
+    "apps/mobile/src/features/dashboard/quick-meal-repeat.ts": "8a550903709ecc80a33947378cca1c47748967d4578e4f762e3fdcb198751814",
+    "apps/mobile/src/features/dashboard/quick-meal-repeat.test.ts": "af86e4f2d40111f494e6d1a11244e3ec9336fb486ec0152fbfcb8be67b386c9e",
+    "apps/mobile/src/features/dashboard/public-data.ts": "05dd719b17941c72a0da6327462a26f6a6f1db1ee67c111a144a1fbcbfd1fdd1",
+    "apps/mobile/src/features/log-meal/first-meal-reminders.ts": "fccb2a7c4cfb1c8cbb225f9a274a6031e60c4d8c2376e25e09e78a567f5e48a0",
+    "apps/mobile/src/features/log-meal/first-meal-reminders.test.ts": "d050dbdfb72329679ac5c4cf81eb3cb4d8a8c5e1e6f961597fae050e76cdc522",
+    "apps/mobile/src/features/log-meal/first-meal-routine-modal.tsx": "848403938bf861f03633539d1127c289a6cee64a7bd70402fddcf578a862dba5",
+    "apps/mobile/src/features/log-meal/log-meal-screen.tsx": "c0c6212aa86c53507945e7c3d72b3f2dfefb185019919f6f04dcb085b2a836ee",
+    "apps/mobile/src/features/log-meal/log-meal-screen.test.tsx": "2d1c87e1c82a76ffbc48cf8bb878b2a6386637cc02bf0200a7f90e11ef6b0d2b",
+    "apps/mobile/src/features/log-meal/meal-lifecycle-data.ts": "97b09d01828d7c61e4f49cb170704a0db919842559c328cc775de103f8b96264",
+    "apps/mobile/src/features/log-meal/meal-lifecycle-data.test.ts": "2316419a6ee78df5ff76dad5100e460a6a1e476dd70a868f8f4ff49d1e890464",
+    "apps/mobile/src/features/log-meal/meal-list-screen.tsx": "4ed0429e39656a8e6b3075c41f48f5b8a100059eae91e243a216d2e089cd9d3b",
+    "apps/mobile/src/features/log-meal/meal-list-screen.test.tsx": "fb83c98ae866e6a0497c20ecf63eef159b2ee39a4a4689b2c7f930460bd9b507",
+    "apps/mobile/src/features/log-meal/meal-notification-router.ts": "ea109c3cdf9c618f5b1eef67e693a5953eb82ecb6ac2875bcee53fdada962117",
+    "apps/mobile/src/features/log-meal/meal-notification-router.test.ts": "5f3fedc689123663800e74c38eda4a3500d8dc7bab39fdd7bae41dea656f9f1c",
+    "apps/mobile/src/features/log-meal/public-data.ts": "0d87cbb9d937ab9590fa1f992928b81bb378df686214a59abbc82f405f852a22",
+    "apps/mobile/src/features/settings/account-data-management.ts": "da3c10989ec0e503ceca272bfa173846b45136c3def2997322820648fd32dbf5",
+    "apps/mobile/src/features/settings/account-data-management.test.ts": "a3f38224d2cb3da690db1829f8dd03a979fe5f318828a5c493f429b99564b32d",
+    "apps/mobile/src/features/settings/first-meal-reminders-card.tsx": "f23ed6803933b6d4b2dfeab9ab236161543219fb0706495560046e5316831907",
+    "apps/mobile/src/features/settings/first-meal-reminder-preferences.ts": "cc37f9853e4ed65da8877eb6bd08eecc4ef7a4821ff280e0e96322302dacc5d4",
+    "apps/mobile/src/features/settings/first-meal-reminder-preferences.test.ts": "b3370ea494af7242d0b16cea4bdc854b00935a67cbe411d3802078be9ea28b0b",
+    "apps/mobile/src/features/log-meal/log-meal-analytics.test.tsx": "20a1e0d06fc1abeb928fad6c9b5bb5b0a3380ace8aefe8a2cc32a7c0d30e82ef"
+  }
+}

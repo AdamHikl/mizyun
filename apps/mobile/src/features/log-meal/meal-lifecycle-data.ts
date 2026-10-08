@@ -683,23 +683,27 @@ export const deleteFoodEntryWith = async (
       };
 };
 
-export const copyFoodEntry = async (
-  entry: FoodEntry,
-  includeAdvanced = false,
-): Promise<FoodMutationResult> =>
-  copyFoodEntryWith(apiClient, entry, () => new Date(), includeAdvanced);
+export interface FoodCopyOperationOptions {
+  readonly expectedUserId?: string;
+  readonly clientOperationId?: string;
+  readonly consumedAt?: string;
+  /** An already persisted snapshot must be replayed exactly after a lost response. */
+  readonly payload?: FoodEntryCreate;
+}
 
-export const copyFoodEntryWith = async (
-  client: ApiClient,
+export const createFoodCopyPayload = (
   entry: FoodEntry,
-  now: () => Date = () => new Date(),
   includeAdvanced = false,
-): Promise<FoodMutationResult> => {
+  options: FoodCopyOperationOptions = {},
+): FoodEntryCreate => {
   const details = { ...entry.details };
   delete details.recurringMeal;
-  const payload: FoodEntryCreate = {
+  return {
+    ...(options.clientOperationId
+      ? { clientOperationId: options.clientOperationId }
+      : {}),
     name: entry.name,
-    consumedAt: now().toISOString(),
+    consumedAt: options.consumedAt ?? new Date().toISOString(),
     caloriesKcal: entry.caloriesKcal,
     proteinG: entry.proteinG,
     carbohydrateG: entry.carbohydrateG,
@@ -715,6 +719,34 @@ export const copyFoodEntryWith = async (
       : {}),
     details,
   };
+};
+
+export const copyFoodEntry = async (
+  entry: FoodEntry,
+  includeAdvanced = false,
+  options: FoodCopyOperationOptions = {},
+): Promise<FoodMutationResult> =>
+  copyFoodEntryWith(
+    apiClient,
+    entry,
+    () => new Date(),
+    includeAdvanced,
+    options,
+  );
+
+export const copyFoodEntryWith = async (
+  client: ApiClient,
+  entry: FoodEntry,
+  now: () => Date = () => new Date(),
+  includeAdvanced = false,
+  options: FoodCopyOperationOptions = {},
+): Promise<FoodMutationResult> => {
+  const payload =
+    options.payload ??
+    createFoodCopyPayload(entry, includeAdvanced, {
+      ...options,
+      consumedAt: options.consumedAt ?? now().toISOString(),
+    });
   const parsed = foodEntryCreateSchema.safeParse(payload);
   if (!parsed.success) {
     return { ok: false, message: "That meal could not be copied." };
@@ -722,6 +754,7 @@ export const copyFoodEntryWith = async (
   const result = await client.request<FoodEntryResponse>({
     method: "POST",
     path: "/v1/food-entries",
+    expectedUserId: options.expectedUserId,
     body: parsed.data,
     schema: foodEntryResponseSchema,
   });

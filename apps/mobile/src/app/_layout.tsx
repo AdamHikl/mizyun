@@ -11,7 +11,7 @@ import * as Notifications from "expo-notifications";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { parseDeepLinkFragment } from "@mizyun/identity";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AppState, Linking } from "react-native";
 
 import { AnimatedSplashOverlay } from "@/components/animated-icon";
@@ -26,6 +26,8 @@ import { analyticsClient } from "@/composition/analytics-client";
 import { apiClient, apiConfiguration } from "@/composition/api-client";
 import { HealthExportSessionBridge } from "@/composition/health-export-session-bridge";
 import { StartupDataBridge } from "@/composition/startup-data-bridge";
+import { MealNotificationRouter } from "@/features/log-meal/meal-notification-router";
+import { FirstMealReminderSessionBridge } from "@/composition/first-meal-reminder-session-bridge";
 import {
   AuthProvider,
   SessionGate,
@@ -212,43 +214,38 @@ function WorkoutNotificationBridge() {
 }
 
 function MealNotificationBridge() {
+  const { session } = useAuth();
+  const navigation = useRootNavigationState();
+  const [revision, setRevision] = useState(0);
+  const bridge = useRef<MealNotificationRouter | null>(null);
+  if (!bridge.current)
+    bridge.current = new MealNotificationRouter({
+      push: (route) => router.push(route as Href),
+      clear: () => Notifications.clearLastNotificationResponse(),
+    });
   useEffect(() => {
-    const open = (notification: Notifications.Notification) => {
-      const data = notification.request.content.data ?? {};
-      if (data.url === "/meals") {
-        router.push({
-          pathname: "/meals",
-          params: {
-            ...(typeof data.source === "string" ? { source: data.source } : {}),
-          },
-        } as Href);
-        return;
-      }
-      if (data.url === "/log-meal") {
-        router.push({
-          pathname: "/log-meal",
-          params: {
-            ...(typeof data.source === "string" ? { source: data.source } : {}),
-          },
-        });
-        return;
-      }
+    const receive = (notification: Notifications.Notification) => {
+      bridge.current!.receive({
+        id: notification.request.identifier,
+        data: notification.request.content.data ?? {},
+      });
+      setRevision((current) => current + 1);
     };
     const initial = Notifications.getLastNotificationResponse();
-    if (initial?.notification) {
-      const data = initial.notification.request.content.data ?? {};
-      if (data.url === "/log-meal" || data.url === "/meals") {
-        open(initial.notification);
-        Notifications.clearLastNotificationResponse();
-      }
-    }
+    if (initial?.notification) receive(initial.notification);
     const subscription = Notifications.addNotificationResponseReceivedListener(
-      (response) => {
-        open(response.notification);
-      },
+      (response) => receive(response.notification),
     );
     return () => subscription.remove();
   }, []);
+  useEffect(() => {
+    bridge.current!.flush(
+      session && session.accessToken !== "preview-token"
+        ? session.user.id
+        : null,
+      Boolean(navigation?.key),
+    );
+  }, [session?.user.id, session?.accessToken, navigation?.key, revision]);
   return null;
 }
 
@@ -293,6 +290,7 @@ function TabLayoutContent() {
       <AuthProvider>
         <CommunityReadLifecycle />
         <DeepLinkBridge />
+        <FirstMealReminderSessionBridge />
         <SessionGate>
           <StartupDataBridge />
           <HealthExportSessionBridge />

@@ -52,7 +52,7 @@ export function FirstMealRoutineModal({
           routineLabel.trim().length > 0 ? routineLabel.trim() : null,
       },
       { todayLogged: true },
-    );
+    ).catch(() => ({ ok: false as const, reason: "unavailable" as const }));
     setSaving(false);
     if (!result.ok) {
       if (result.reason === "permission_denied") {

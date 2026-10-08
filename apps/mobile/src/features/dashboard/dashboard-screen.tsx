@@ -38,6 +38,13 @@ import {
 import { useTheme } from "@/hooks/use-theme";
 import { formatTime12 } from "@/components/ui/ios-time-picker";
 import {
+  prepareQuickMealRepeat,
+  completeQuickMealRepeat,
+  loadQuickMealRepeat,
+  isQuickMealRepeatOwnerActive,
+  type QuickMealRepeatOperation,
+} from "./quick-meal-repeat";
+import {
   copyFoodEntry,
   fetchFoodDateHistory,
 } from "../log-meal/meal-lifecycle-data";
@@ -277,10 +284,13 @@ export function DashboardScreen() {
   const [storedMetrics, setMetrics] = useState<MetricsState>(EMPTY_METRICS);
   const [steps, setSteps] = useState<DailyStepsResult>({ kind: "off" });
   const stepsRequestId = useRef(0);
-  const [yesterdayFirstMeal, setYesterdayFirstMeal] =
-    useState<FoodEntry | null>(null);
+  const [storedYesterdayFirstMeal, setYesterdayFirstMeal] = useState<{
+    readonly scope: string;
+    readonly entry: FoodEntry | null;
+  } | null>(null);
   const [firstMealReminders, setFirstMealReminders] =
     useState<FirstMealReminderSettings | null>(null);
+  const [mealCopiedScope, setMealCopiedScope] = useState<string | null>(null);
   const [reviewPeriod, setReviewPeriod] = useState<ReviewPeriod>("week");
   const activeRequestId = useRef(0);
   const userId = session?.user.id ?? null;
@@ -376,7 +386,10 @@ export function DashboardScreen() {
       });
       void fetchFoodDateHistory(yesterdayDate).then((res) => {
         if (isCurrentRequest())
-          setYesterdayFirstMeal(extractFirstEligibleMeal(res.entries));
+          setYesterdayFirstMeal({
+            scope,
+            entry: extractFirstEligibleMeal(res.entries),
+          });
       });
       cachedSnapshot = await loadCachedDashboard(userId, todayDate, {
         reviewPeriod,
@@ -484,9 +497,11 @@ export function DashboardScreen() {
 
         if (userId && !hasNutritionError && summary.value) {
           const entryCount = summary.value.entryCount ?? 0;
-          void reconcileFirstMealReminders(userId, {
-            todayLogged: entryCount > 0,
-          });
+          void Promise.resolve(
+            reconcileFirstMealReminders(userId, {
+              todayLogged: entryCount > 0,
+            }),
+          ).catch(() => {});
           const targetKcal = energy.value?.dailyTargetKcal ?? null;
           const consumedKcal = summary.value.caloriesKcal ?? null;
           const calorieTargetReached =
@@ -817,6 +832,10 @@ export function DashboardScreen() {
   // Hide an old account/day immediately, including the frame before focus
   // effects execute. Review-period changes retain today's independent values.
   const renderScope = `${ownerKey}:${isoLocalDate(new Date())}:${-new Date().getTimezoneOffset()}`;
+  const yesterdayFirstMeal =
+    storedYesterdayFirstMeal?.scope === renderScope
+      ? storedYesterdayFirstMeal.entry
+      : null;
   const scopedMetrics =
     storedMetrics.scope === renderScope ? storedMetrics : EMPTY_METRICS;
   const metrics =
@@ -945,11 +964,25 @@ export function DashboardScreen() {
           {/* First-Meal Routine & Quick Reuse Card */}
           {userId !== null && (metrics.macros?.entryCount ?? 0) === 0 ? (
             <FirstMealDashboardCard
+              key={`${ownerKey}:${isoLocalDate(new Date())}`}
               userId={userId}
+              isCurrent={() => currentOwner.current === ownerKey}
+              onAcknowledged={(date) =>
+                setMealCopiedScope(`${ownerKey}:${date}`)
+              }
               yesterdayFirstMeal={yesterdayFirstMeal}
               reminderSettings={firstMealReminders}
               onMealCopied={loadMetrics}
             />
+          ) : null}
+
+          {mealCopiedScope === `${ownerKey}:${isoLocalDate(new Date())}` ||
+          ((metrics.macros?.entryCount ?? 0) > 0 &&
+            !metrics.sectionStatus.nutritionToday.loading &&
+            !metrics.sectionStatus.nutritionToday.hasError) ? (
+            <ThemedText accessibilityLiveRegion="polite" type="smallBold">
+              First meal saved! ✨
+            </ThemedText>
           ) : null}
 
           {/* 1. Daily Nutrition & Macro Visual Card */}
@@ -1140,35 +1173,182 @@ function FirstMealDashboardCard(props: {
   readonly yesterdayFirstMeal: FoodEntry | null;
   readonly reminderSettings: FirstMealReminderSettings | null;
   readonly onMealCopied: () => Promise<void>;
+  readonly isCurrent: () => boolean;
+  readonly onAcknowledged: (localDate: string) => void;
 }) {
-  const { userId, yesterdayFirstMeal, reminderSettings, onMealCopied } = props;
+  const {
+    userId,
+    yesterdayFirstMeal: suggestedMeal,
+    reminderSettings,
+    onMealCopied,
+  } = props;
+  const currentProps = useRef(props);
+  currentProps.current = props;
+  const [recovered, setRecovered] = useState<QuickMealRepeatOperation | null>(
+    null,
+  );
+  const yesterdayFirstMeal =
+    recovered &&
+    !recovered.completed &&
+    recovered.owner === userId &&
+    recovered.localDate === isoLocalDate(new Date()) &&
+    props.isCurrent()
+      ? ({ ...recovered.payload, id: recovered.sourceEntryId } as FoodEntry)
+      : suggestedMeal;
   const theme = useTheme();
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inFlight = useRef(false);
+  const mounted = useRef(true);
+  const hydrationCheck = useRef<Promise<boolean> | null>(null);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const day = isoLocalDate(new Date());
+    let active = true;
+    const isCurrent = () =>
+      active &&
+      mounted.current &&
+      currentProps.current.isCurrent() &&
+      isQuickMealRepeatOwnerActive(userId) &&
+      isoLocalDate(new Date()) === day;
+    hydrationCheck.current = loadQuickMealRepeat(userId, day)
+      .then((pending) => {
+        if (!isCurrent()) return false;
+        setRecovered(pending);
+        if (pending?.completed) {
+          setCopied(true);
+          currentProps.current.onAcknowledged(day);
+          void Promise.resolve(
+            reconcileFirstMealReminders(userId, { todayLogged: true }),
+          ).catch(() => {});
+        }
+        return true;
+      })
+      .catch(() => {
+        if (isCurrent())
+          setError("Could not recover the meal copy. Try again safely.");
+        return false;
+      });
+    return () => {
+      active = false;
+    };
+  }, [userId]);
+
+  const retryRecovery = async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
+    setError(null);
+    const day = isoLocalDate(new Date());
+    const isCurrent = () =>
+      mounted.current &&
+      currentProps.current.isCurrent() &&
+      isQuickMealRepeatOwnerActive(userId) &&
+      isoLocalDate(new Date()) === day;
+    try {
+      const pending = await loadQuickMealRepeat(userId, day);
+      if (!isCurrent()) return;
+      setRecovered(pending);
+      hydrationCheck.current = Promise.resolve(true);
+      if (pending?.completed) {
+        setCopied(true);
+        currentProps.current.onAcknowledged(day);
+        await Promise.resolve(
+          reconcileFirstMealReminders(userId, { todayLogged: true }),
+        ).catch(() => {});
+      }
+    } catch {
+      if (isCurrent())
+        setError("Could not recover the meal copy. Try again safely.");
+    } finally {
+      inFlight.current = false;
+      if (isCurrent()) setBusy(false);
+    }
+  };
 
   const handleCopy = async () => {
-    if (!yesterdayFirstMeal || busy) return;
+    if (!yesterdayFirstMeal || inFlight.current || copied) return;
+    inFlight.current = true;
     setBusy(true);
-    setCopied(false);
-    const startMs = Date.now();
-    const result = await copyFoodEntry(yesterdayFirstMeal);
-    if (result.ok) {
-      const elapsed = Date.now() - startMs;
+    setError(null);
+    const day = isoLocalDate(new Date());
+    const isCurrent = () =>
+      mounted.current &&
+      props.isCurrent() &&
+      isQuickMealRepeatOwnerActive(userId) &&
+      isoLocalDate(new Date()) === day;
+    try {
+      if (hydrationCheck.current) {
+        const hydrated = await hydrationCheck.current;
+        if (!isCurrent()) return;
+        if (!hydrated) {
+          // The failed mount read cannot authorize a fresh operation. A later
+          // explicit tap may re-read storage before preparing a safe retry.
+          hydrationCheck.current = null;
+          setError("Could not recover the meal copy. Try again safely.");
+          return;
+        }
+      }
+      const pending = await prepareQuickMealRepeat(
+        userId,
+        day,
+        yesterdayFirstMeal,
+      );
+      if (!isCurrent()) return;
+      if (pending.completed) {
+        setCopied(true);
+        props.onAcknowledged(day);
+        await Promise.resolve(
+          reconcileFirstMealReminders(userId, { todayLogged: true }),
+        ).catch(() => {});
+        if (!isCurrent()) return;
+        await onMealCopied();
+        return;
+      }
+      const result = await copyFoodEntry(yesterdayFirstMeal, false, {
+        expectedUserId: userId,
+        payload: pending.payload,
+      });
+      if (!isCurrent()) return;
+      if (!result.ok) {
+        setError(result.message);
+        return;
+      }
+      // Acknowledgement belongs to the parent: refreshed totals remove this card.
+      setCopied(true);
+      props.onAcknowledged(day);
       void analyticsClient.track({
         name: "feature_viewed",
-        properties: {
-          feature: "quick_meal_repeat",
-        },
+        properties: { feature: "quick_meal_repeat" },
       });
-      await reconcileFirstMealReminders(userId, { todayLogged: true });
-      if (new Date().getHours() >= 18) {
-        void reconcileEveningReminders(userId, { hasMealAfter6Pm: true });
+      // Keep the immutable snapshot if completion persistence fails; replay stays safe.
+      try {
+        await completeQuickMealRepeat(pending);
+      } catch {
+        /* replay remains idempotent */
       }
+      if (!isCurrent()) return;
+      await Promise.resolve(
+        reconcileFirstMealReminders(userId, { todayLogged: true }),
+      ).catch(() => {});
+      if (!isCurrent()) return;
+      if (new Date().getHours() >= 18)
+        void reconcileEveningReminders(userId, { hasMealAfter6Pm: true });
       await onMealCopied();
-      setCopied(true);
-      setTimeout(() => setCopied(false), 3000);
+    } catch {
+      if (isCurrent())
+        setError("Could not confirm the meal copy. Try again safely.");
+    } finally {
+      inFlight.current = false;
+      if (isCurrent()) setBusy(false);
     }
-    setBusy(false);
   };
 
   return (
@@ -1214,8 +1394,8 @@ function FirstMealDashboardCard(props: {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Copy ${yesterdayFirstMeal.name} to today`}
-            accessibilityState={{ busy, disabled: busy }}
-            disabled={busy}
+            accessibilityState={{ busy, disabled: busy || copied }}
+            disabled={busy || copied}
             onPress={() => {
               trackDashboardControl("first_meal_copy");
               void handleCopy();
@@ -1233,6 +1413,27 @@ function FirstMealDashboardCard(props: {
               </ThemedText>
             )}
           </Pressable>
+        </View>
+      ) : null}
+
+      {error ? (
+        <View>
+          <ThemedText accessibilityRole="alert" type="small">
+            {error}
+          </ThemedText>
+          {yesterdayFirstMeal === null ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Retry saved meal recovery"
+              disabled={busy}
+              accessibilityState={{ busy, disabled: busy }}
+              onPress={() => {
+                void retryRecovery();
+              }}
+            >
+              <ThemedText type="smallBold">Retry saved meal</ThemedText>
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
 

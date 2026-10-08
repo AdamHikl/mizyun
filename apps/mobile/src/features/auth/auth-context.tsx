@@ -25,6 +25,7 @@ import {
 import { getAppVariant } from "@/composition/app-variant";
 import { authClient } from "@/composition/auth-client";
 import { analyticsClient } from "@/composition/analytics-client";
+import { firstMealReminderLifecycle } from "@/composition/first-meal-reminder-runtime";
 import { profileResponseSchema } from "@mizyun/contracts";
 import { AuthScreen } from "./auth-screen";
 import { AuthSetupScreen } from "./auth-setup-screen";
@@ -153,6 +154,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       );
       const previousPushSession = pushSession.current;
       pushSession.current = nextSession;
+      if (
+        previousPushSession?.user.id !== nextSession?.user.id ||
+        nextSession?.accessToken === "preview-token"
+      ) {
+        void firstMealReminderLifecycle
+          .setOwner(
+            nextSession && nextSession.accessToken !== "preview-token"
+              ? nextSession.user.id
+              : null,
+          )
+          .catch(() => {});
+      }
       if (
         previousPushSession &&
         previousPushSession.user.id !== nextSession?.user.id

@@ -9,6 +9,7 @@ import {
   type NetworkAnalyticsApiTransport,
 } from "../analytics/network-analytics-client";
 const mocks = vi.hoisted(() => ({
+  reminderOwner: vi.fn().mockResolvedValue(undefined),
   subscribe: null as ((value: AuthSession | null) => void) | null,
   analytics: null as NetworkAnalyticsClient | null,
   slots: [] as any[],
@@ -16,6 +17,9 @@ const mocks = vi.hoisted(() => ({
   effects: [] as (() => void)[],
   variant: "production" as "dev" | "production",
   configured: false,
+}));
+vi.mock("@/composition/first-meal-reminder-runtime", () => ({
+  firstMealReminderLifecycle: { setOwner: mocks.reminderOwner },
 }));
 vi.mock("@/composition/app-variant", () => ({
   getAppVariant: () => mocks.variant,
@@ -126,6 +130,15 @@ beforeEach(() => {
   mocks.variant = "production";
   mocks.configured = false;
   mocks.analytics = null;
+  mocks.reminderOwner.mockClear();
+});
+it("retires reminders across account replacement and normal logout", () => {
+  AuthProvider({ children: null });
+  mocks.effects.splice(0).forEach((effect) => effect());
+  mocks.subscribe!(session("a"));
+  mocks.subscribe!(session("b"));
+  mocks.subscribe!(null);
+  expect(mocks.reminderOwner.mock.calls).toEqual([["a"], ["b"], [null]]);
 });
 
 function renderReadyProvider() {

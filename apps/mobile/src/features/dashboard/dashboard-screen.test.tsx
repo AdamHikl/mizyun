@@ -9,6 +9,10 @@ const mocks = vi.hoisted(() => ({
   history: vi.fn(),
   mealDateHistory: vi.fn(),
   mealCopy: vi.fn(),
+  reminders: vi.fn(),
+  secureRead: vi.fn(),
+  secureWrite: vi.fn(),
+  secureDelete: vi.fn(),
   cache: vi.fn(),
   save: vi.fn(),
   invalidate: vi.fn(),
@@ -42,12 +46,12 @@ vi.mock("react", async (original) => ({
   useRef: (current: unknown) => (hooks.slots[hooks.index++] ??= { current }),
   useState: (initial: unknown) => {
     const index = hooks.index++;
-    if (!(index in hooks.slots)) hooks.slots[index] = initial;
+    const slots = hooks.slots;
+    if (!(index in slots)) slots[index] = initial;
     return [
-      hooks.slots[index],
+      slots[index],
       (next: any) => {
-        hooks.slots[index] =
-          typeof next === "function" ? next(hooks.slots[index]) : next;
+        slots[index] = typeof next === "function" ? next(slots[index]) : next;
       },
     ];
   },
@@ -108,6 +112,11 @@ vi.mock("expo-router", () => ({
     hooks.focus = callback;
   },
 }));
+vi.mock("expo-secure-store", () => ({
+  getItemAsync: mocks.secureRead,
+  setItemAsync: mocks.secureWrite,
+  deleteItemAsync: mocks.secureDelete,
+}));
 vi.mock("expo-crypto", () => ({ randomUUID: mocks.uuid }));
 vi.mock("react-native-safe-area-context", () => ({
   SafeAreaView: "SafeAreaView",
@@ -164,13 +173,19 @@ vi.mock("@/features/workouts", () => ({
 vi.mock("@/features/health-steps/health-steps", () => ({
   readTodaySteps: vi.fn().mockResolvedValue({ kind: "off" }),
 }));
-vi.mock("@/features/log-meal/meal-lifecycle-data", () => ({
+vi.mock("@/features/log-meal/meal-photo-retention", () => ({
+  clearAllMealPhotoRetries: vi.fn(),
+}));
+vi.mock("@/features/log-meal/meal-lifecycle-data", async (original) => ({
+  ...(await original<
+    typeof import("@/features/log-meal/meal-lifecycle-data")
+  >()),
   copyFoodEntry: mocks.mealCopy,
   fetchFoodDateHistory: mocks.mealDateHistory,
 }));
 vi.mock("@/features/log-meal/first-meal-reminders", () => ({
   loadFirstMealReminders: vi.fn().mockResolvedValue(null),
-  reconcileFirstMealReminders: vi.fn(),
+  reconcileFirstMealReminders: mocks.reminders,
 }));
 vi.mock("@/features/log-meal/evening-catch-up-reminders", () => ({
   reconcileEveningReminders: vi.fn(),
@@ -279,7 +294,7 @@ const retry = (tree: any) =>
     ),
   );
 async function settle() {
-  for (let i = 0; i < 12; i++) await Promise.resolve();
+  for (let i = 0; i < 32; i++) await Promise.resolve();
 }
 let cleanupFocus: (() => void) | void;
 function focus() {
@@ -309,6 +324,10 @@ beforeEach(() => {
     .mockReset()
     .mockResolvedValue({ entries: [], message: null });
   mocks.mealCopy.mockReset().mockResolvedValue({ ok: true });
+  mocks.reminders.mockReset().mockResolvedValue(undefined);
+  mocks.secureRead.mockReset().mockResolvedValue(null);
+  mocks.secureWrite.mockReset().mockResolvedValue(undefined);
+  mocks.secureDelete.mockReset().mockResolvedValue(undefined);
   mocks.cache.mockReset().mockResolvedValue(snapshot);
   mocks.save.mockReset().mockResolvedValue(true);
   mocks.invalidate.mockReset();
@@ -433,6 +452,8 @@ describe("dashboard cached display and refresh status", () => {
       find(tree, (node) => node.type?.name === "FirstMealDashboardCard"),
     ).toBeFalsy();
     expect(nutrition(tree).props.caloriesToday).toBe(750);
+    expect(mocks.mealCopy).not.toHaveBeenCalled();
+    expect(text(tree)).toContain("First meal saved! ✨");
     expect(
       find(tree, (node) => node.props?.accessibilityLabel === "Log a meal"),
     ).not.toBeNull();
@@ -470,6 +491,7 @@ describe("dashboard cached display and refresh status", () => {
     mocks.daily.mockResolvedValue(
       success({ ...summary, entryCount: 0, caloriesKcal: 0 }),
     );
+    mocks.uuid.mockReturnValue("00000000-0000-4000-8000-000000000123");
     const entries = Array.from({ length: 9 }, (_, index) => ({
       id: `synthetic-meal-${index}`,
       name: index === 8 ? "Synthetic breakfast" : "Synthetic later meal",
@@ -498,7 +520,13 @@ describe("dashboard cached display and refresh status", () => {
     expect(copyButton).not.toBeNull();
     copyButton.props.onPress();
     await settle();
-    expect(mocks.mealCopy).toHaveBeenCalledWith(entries[8]);
+    expect(mocks.mealCopy).toHaveBeenCalledWith(entries[8], false, {
+      expectedUserId: mocks.owner,
+      payload: expect.objectContaining({
+        name: entries[8].name,
+        clientOperationId: expect.any(String),
+      }),
+    });
   });
 
   it("clears the prior day's first-meal suggestion during a local-day rollover and failed read", async () => {
@@ -887,4 +915,230 @@ it("keeps the common account bar outside scrolling tab content", () => {
   expect(safeArea.props.children[0].type).toBe("TabHeader");
   expect(scroll).toBeTruthy();
   expect(find(scroll, (node) => node.type === "TabHeader")).toBeFalsy();
+});
+
+function renderFirstMeal(node: any, state: any[]): any {
+  const previous = {
+    slots: hooks.slots,
+    index: hooks.index,
+    effects: hooks.effects,
+  };
+  hooks.slots = state;
+  hooks.index = 0;
+  hooks.effects = [];
+  const tree = node.type(node.props);
+  hooks.effects.splice(0).forEach((effect) => effect());
+  Object.assign(hooks, previous);
+  return tree;
+}
+async function setupRepeat() {
+  mocks.uuid.mockReturnValue("00000000-0000-4000-8000-000000000123");
+  mocks.cache.mockResolvedValue(null);
+  mocks.daily.mockResolvedValue(
+    success({ ...summary, entryCount: 0, caloriesKcal: 0 }),
+  );
+  mocks.mealDateHistory.mockResolvedValue({
+    entries: [
+      {
+        id: "synthetic-breakfast",
+        name: "Synthetic breakfast",
+        consumedAt: new Date(2026, 9, 3, 8).toISOString(),
+        caloriesKcal: 200,
+      },
+    ],
+    message: null,
+  });
+  render();
+  focus();
+  await settle();
+  const node = find(
+    render(),
+    (candidate) => candidate.type?.name === "FirstMealDashboardCard",
+  );
+  const state: any[] = [];
+  const repeat = {
+    node,
+    state,
+    card: () => renderFirstMeal(repeat.node, state),
+  };
+  return repeat;
+}
+const copyAction = (tree: any) =>
+  find(
+    tree,
+    (node) =>
+      node.props?.accessibilityLabel === "Copy Synthetic breakfast to today",
+  );
+
+describe("first-meal copy recovery", () => {
+  it("refreshes a confirmed meal copy even when reminder cleanup fails", async () => {
+    const repeat = await setupRepeat();
+    repeat.card();
+    await settle();
+    mocks.daily.mockResolvedValue(success(summary));
+    mocks.reminders.mockRejectedValueOnce(new Error("Keychain locked"));
+    copyAction(repeat.card()).props.onPress();
+    await settle();
+    await settle();
+    expect(mocks.mealCopy).toHaveBeenCalledTimes(1);
+    expect(text(render())).toContain("First meal saved! ✨");
+    expect(
+      find(render(), (node) => node.type?.name === "FirstMealDashboardCard"),
+    ).toBeFalsy();
+  });
+  it("guards rapid taps before a render and keeps acknowledgement after refreshed totals remove the card", async () => {
+    const stored = new Map<string, string>();
+    mocks.secureRead.mockImplementation(async (key) => stored.get(key) ?? null);
+    mocks.secureWrite.mockImplementation(async (key, value) => {
+      stored.set(key, value);
+    });
+    const repeat = await setupRepeat();
+    mocks.daily.mockResolvedValue(success(summary));
+    const button = copyAction(repeat.card());
+    button.props.onPress();
+    button.props.onPress();
+    await settle();
+    await settle();
+    expect(mocks.secureWrite).toHaveBeenCalledTimes(2);
+    expect(mocks.mealCopy).toHaveBeenCalledTimes(1);
+    const tree = render();
+    expect(
+      find(tree, (node) => node.type?.name === "FirstMealDashboardCard"),
+    ).toBeFalsy();
+    expect(text(tree)).toContain("First meal saved! ✨");
+  });
+
+  it("hydrates a failed copy after remount without yesterday's source and retries only on a tap", async () => {
+    const stored = new Map<string, string>();
+    mocks.secureRead.mockImplementation(async (key) => stored.get(key) ?? null);
+    mocks.secureWrite.mockImplementation(async (key, value) => {
+      stored.set(key, value);
+    });
+    const repeat = await setupRepeat();
+    mocks.mealCopy.mockResolvedValueOnce({
+      ok: false,
+      message: "Connection lost. Try again.",
+    });
+    copyAction(repeat.card()).props.onPress();
+    await settle();
+    expect(text(repeat.card())).toContain("Connection lost. Try again.");
+    const firstPayload = mocks.mealCopy.mock.calls[0][2];
+    repeat.node = {
+      ...repeat.node,
+      props: { ...repeat.node.props, yesterdayFirstMeal: null },
+    };
+    vi.setSystemTime(new Date("2026-10-04T10:28:00Z"));
+    const remountedState: any[] = [];
+    renderFirstMeal(repeat.node, remountedState);
+    await settle();
+    expect(mocks.mealCopy).toHaveBeenCalledTimes(1);
+    const remounted = renderFirstMeal(repeat.node, remountedState);
+    expect(text(remounted)).toContain("Synthetic breakfast");
+    copyAction(remounted).props.onPress();
+    await settle();
+    expect(mocks.mealCopy.mock.calls[1][2]).toEqual(firstPayload);
+    expect(mocks.secureWrite).toHaveBeenCalledTimes(2);
+  });
+
+  it("avoids another POST after confirmed success and remount with stale empty totals", async () => {
+    const stored = new Map<string, string>();
+    mocks.secureRead.mockImplementation(async (key) => stored.get(key) ?? null);
+    mocks.secureWrite.mockImplementation(async (key, value) => {
+      stored.set(key, value);
+    });
+    const repeat = await setupRepeat();
+    copyAction(repeat.card()).props.onPress();
+    await settle();
+    await settle();
+    expect(mocks.mealCopy).toHaveBeenCalledTimes(1);
+    mocks.reminders.mockClear();
+    copyAction(renderFirstMeal(repeat.node, [])).props.onPress();
+    await settle();
+    expect(mocks.mealCopy).toHaveBeenCalledTimes(1);
+    expect(text(render())).toContain("First meal saved!");
+    expect(mocks.reminders).toHaveBeenCalledWith("synthetic-owner", {
+      todayLogged: true,
+    });
+    expect([...stored.values()][0]).not.toContain("breakfast");
+  });
+
+  it("offers recovery after a failed mount read with no history source and never posts automatically", async () => {
+    const repeat = await setupRepeat();
+    repeat.node = {
+      ...repeat.node,
+      props: { ...repeat.node.props, yesterdayFirstMeal: null },
+    };
+    mocks.secureRead.mockRejectedValueOnce(new Error("locked"));
+    repeat.card();
+    await settle();
+    const recovery = find(
+      repeat.card(),
+      (node) => node.props?.accessibilityLabel === "Retry saved meal recovery",
+    );
+    expect(recovery).toBeTruthy();
+    mocks.secureRead.mockResolvedValue(
+      JSON.stringify({
+        owner: mocks.owner,
+        localDate: "2026-10-04",
+        sourceEntryId: "retained-source",
+        completed: false,
+        payload: {
+          name: "Retained breakfast",
+          consumedAt: "2026-10-04T08:00:00.000Z",
+          clientOperationId: "00000000-0000-4000-8000-000000000123",
+          caloriesKcal: 200,
+        },
+      }),
+    );
+    recovery.props.onPress();
+    await settle();
+    expect(text(repeat.card())).toContain("Retained breakfast");
+    expect(mocks.mealCopy).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when pending storage cannot be read or written", async () => {
+    const repeat = await setupRepeat();
+    mocks.secureRead.mockRejectedValueOnce(new Error("locked"));
+    copyAction(repeat.card()).props.onPress();
+    await settle();
+    expect(mocks.mealCopy).not.toHaveBeenCalled();
+    expect(text(repeat.card())).toContain("Try again safely");
+    mocks.secureWrite.mockRejectedValueOnce(new Error("full"));
+    copyAction(repeat.card()).props.onPress();
+    await settle();
+    expect(mocks.mealCopy).not.toHaveBeenCalled();
+  });
+
+  it("does not dispatch an old-account operation after delayed storage hydration", async () => {
+    const repeat = await setupRepeat();
+    const pending = deferred<string | null>();
+    mocks.secureRead.mockReturnValueOnce(pending.promise);
+    copyAction(repeat.card()).props.onPress();
+    await settle();
+    mocks.owner = "second-synthetic-owner";
+    render();
+    pending.resolve(null);
+    await settle();
+    expect(mocks.mealCopy).not.toHaveBeenCalled();
+    expect(text(render())).not.toContain("First meal saved!");
+  });
+
+  it.each(["account", "day"])(
+    "ignores a late successful response after %s changes",
+    async (change) => {
+      const repeat = await setupRepeat();
+      const pending = deferred<any>();
+      mocks.mealCopy.mockReturnValueOnce(pending.promise);
+      copyAction(repeat.card()).props.onPress();
+      await settle();
+      if (change === "account") {
+        mocks.owner = "second-synthetic-owner";
+        render();
+      } else vi.setSystemTime(new Date(2026, 9, 5, 0, 1));
+      pending.resolve({ ok: true });
+      await settle();
+      expect(text(render())).not.toContain("First meal saved!");
+      expect(mocks.secureDelete).not.toHaveBeenCalled();
+    },
+  );
 });

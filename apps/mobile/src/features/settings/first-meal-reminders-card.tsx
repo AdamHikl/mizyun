@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -15,11 +15,11 @@ import { IosTimePicker, formatTime12 } from "@/components/ui/ios-time-picker";
 import { Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import {
-  applyFirstMealReminders,
   DEFAULT_FIRST_MEAL_REMINDERS,
   loadFirstMealReminders,
   type FirstMealReminderSettings,
 } from "@/features/log-meal/first-meal-reminders";
+import { saveFirstMealReminderPreferences } from "./first-meal-reminder-preferences";
 
 export function FirstMealRemindersCard({
   userId,
@@ -33,9 +33,16 @@ export function FirstMealRemindersCard({
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const theme = useTheme();
+  const owner = useRef(userId);
+  owner.current = userId;
+  const pending = useRef(false);
 
   useEffect(() => {
     let active = true;
+    setLoading(true);
+    setSaving(false);
+    setSettings(DEFAULT_FIRST_MEAL_REMINDERS);
+    setMessage(null);
     void loadFirstMealReminders(userId).then((stored) => {
       if (!active) return;
       setSettings(stored);
@@ -47,14 +54,14 @@ export function FirstMealRemindersCard({
   }, [userId]);
 
   const save = async () => {
+    if (pending.current) return;
+    pending.current = true;
+    const capturedOwner = userId;
     setSaving(true);
     setMessage(null);
-    const result = await applyFirstMealReminders(userId, {
-      enabled: settings.enabled,
-      hour: settings.hour,
-      minute: settings.minute,
-      routineLabel: settings.routineLabel,
-    });
+    const result = await saveFirstMealReminderPreferences(userId, settings);
+    pending.current = false;
+    if (capturedOwner !== owner.current) return;
     setSaving(false);
     if (!result.ok) {
       setMessage(
@@ -77,7 +84,8 @@ export function FirstMealRemindersCard({
       <ThemedText type="smallBold">First-meal reminder</ThemedText>
       <ThemedText type="small" themeColor="textSecondary">
         Optional local reminder to log your first meal or repeat a recent one.
-        Automatically suppressed for the rest of the day once you log food.
+        Automatically suppressed for the rest of the day once you log food. Open
+        Mizyun at least weekly to keep the local schedule up to date.
       </ThemedText>
 
       {loading ? (
