@@ -76,7 +76,7 @@
     "test:production-android-signing-tooling": "node scripts/test-production-android-signing-tooling.mjs",
     "test:production-ios-ipa-tooling": "node scripts/test-production-ios-ipa-tooling.mjs",
     "test:deployment-safeguards": "node scripts/test-deployment-safeguards.mjs",
-    "test:hetzner-operations": "node scripts/test-hetzner-operations.mjs",
+    "test:hetzner-operations": "node scripts/test-hetzner-operations.mjs && node --test scripts/test-hetzner-tunnel-isolation.mjs",
     "test:backup-retention": "node --test scripts/prune-backups.test.mjs",
     "test:exercise-catalog": "node --test scripts/import-exercise-catalog.test.mjs",
     "test:google-oauth-config": "node --test scripts/validate-google-oauth-env.test.mjs",

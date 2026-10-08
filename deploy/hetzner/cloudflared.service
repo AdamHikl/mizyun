@@ -1,8 +1,9 @@
 [Unit]
 Description=Cloudflare Tunnel client for Mizyun on Hetzner
 After=network-online.target mizyun-api.service mizyun-api-dev.service
-Wants=network-online.target
-Requires=mizyun-api.service mizyun-api-dev.service
+# Pull in the origins at startup without coupling this shared transport to
+# either API's stop/restart lifecycle. Release readiness is checked separately.
+Wants=network-online.target mizyun-api.service mizyun-api-dev.service
 
 [Service]
 TimeoutStartSec=30
