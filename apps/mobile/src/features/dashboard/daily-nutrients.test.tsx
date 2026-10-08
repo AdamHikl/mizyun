@@ -60,7 +60,7 @@ beforeEach(() => {
 });
 
 describe("Home more nutrients", () => {
-  it("shows reference bars only for complete nutrients with numeric references", () => {
+  it("shows a matching bar for every nutrient without inventing limits", () => {
     state.expanded = true;
     const bars = nodes(DailyNutrients(props)).filter((node) =>
       node.props?.testID?.endsWith("-progress"),
@@ -68,7 +68,9 @@ describe("Home more nutrients", () => {
     expect(bars.map((node) => node.props.testID)).toEqual([
       "daily-nutrient-fibreG-progress",
       "daily-nutrient-saturatedFatG-progress",
+      "daily-nutrient-totalSugarsG-progress",
       "daily-nutrient-sodiumMg-progress",
+      "daily-nutrient-cholesterolMg-progress",
     ]);
     const partial = {
       ...summary,
@@ -91,20 +93,64 @@ describe("Home more nutrients", () => {
     const partialBars = nodes(
       DailyNutrients({ ...props, summary: partial, dailyTargetKcal: null }),
     );
-    expect(
-      partialBars.some(
-        (node) => node.props?.testID === "daily-nutrient-fibreG-progress",
-      ),
-    ).toBe(false);
+    const fibreBar = partialBars.find(
+      (node) => node.props?.testID === "daily-nutrient-fibreG-progress",
+    );
+    expect(fibreBar.props.children.props.style[1].width).toBe("100%");
     expect(
       partialBars.some(
         (node) =>
           node.props?.testID === "daily-nutrient-saturatedFatG-progress",
       ),
-    ).toBe(false);
+    ).toBe(true);
+    expect(
+      text(
+        DailyNutrients({ ...props, summary: partial, dailyTargetKcal: null }),
+      ),
+    ).toContain("Meal coverage: 3 of 3 recorded");
     expect(text(DailyNutrients({ ...props, summary: partial }))).toContain(
       "30 g recorded Incomplete · 2 of 3 meals recorded",
     );
+  });
+
+  it("uses explicit meal coverage for nutrients without a daily reference", () => {
+    state.expanded = true;
+    const tree = DailyNutrients({
+      ...props,
+      summary: {
+        ...summary,
+        totalSugarsG: null,
+        cholesterolMg: null,
+        advancedCoverage: {
+          fibreG: 3,
+          saturatedFatG: 3,
+          totalSugarsG: 2,
+          sodiumMg: 3,
+          cholesterolMg: 0,
+        },
+        advancedKnownSubtotal: {
+          fibreG: 18,
+          saturatedFatG: 12,
+          totalSugarsG: 28,
+          sodiumMg: 1450,
+          cholesterolMg: 0,
+        },
+      },
+    });
+    const bars = nodes(tree);
+    const sugarBar = bars.find(
+      (node) => node.props?.testID === "daily-nutrient-totalSugarsG-progress",
+    );
+    const cholesterolBar = bars.find(
+      (node) => node.props?.testID === "daily-nutrient-cholesterolMg-progress",
+    );
+    expect(
+      parseFloat(sugarBar.props.children.props.style[1].width),
+    ).toBeCloseTo(200 / 3);
+    expect(cholesterolBar.props.children.props.style[1].width).toBe("0%");
+    expect(text(tree)).toContain("Meal coverage: 2 of 3 recorded");
+    expect(text(tree)).toContain("Dietary cholesterol Not recorded");
+    expect(text(tree)).not.toContain("cholesterol 0 mg");
   });
 
   it("keeps an above-limit value visible while bounding its reference bar", () => {

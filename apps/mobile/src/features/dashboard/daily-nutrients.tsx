@@ -106,13 +106,28 @@ export function DailyNutrients({
                       ? "Incomplete · coverage unavailable"
                       : `Incomplete · ${known} of ${summary!.entryCount} meals recorded`;
                   const referenceAmount = referenceAmounts[key];
+                  const recordedMeals = complete ? summary!.entryCount : known;
+                  const coverageProgressLabel =
+                    referenceAmount === null
+                      ? recordedMeals == null
+                        ? "Meal coverage unavailable"
+                        : `Meal coverage: ${recordedMeals} of ${summary!.entryCount} recorded`
+                      : null;
                   const percent =
-                    complete && amount != null && referenceAmount != null
+                    amount != null && referenceAmount != null
                       ? Math.max(
                           0,
                           Math.min(100, (amount / referenceAmount) * 100),
                         )
-                      : null;
+                      : referenceAmount === null && recordedMeals != null
+                        ? Math.max(
+                            0,
+                            Math.min(
+                              100,
+                              (recordedMeals / summary!.entryCount) * 100,
+                            ),
+                          )
+                        : 0;
                   return (
                     <View
                       key={key}
@@ -124,6 +139,7 @@ export function DailyNutrients({
                         amountLabel,
                         coverageLabel,
                         referenceLabels[key],
+                        coverageProgressLabel,
                       ]
                         .filter(Boolean)
                         .join(". ")}
@@ -139,20 +155,18 @@ export function DailyNutrients({
                           {label}
                         </ThemedText>
                       </View>
-                      {percent !== null ? (
+                      <View
+                        style={styles.track}
+                        testID={`daily-nutrient-${key}-progress`}
+                        accessible={false}
+                      >
                         <View
-                          style={styles.track}
-                          testID={`daily-nutrient-${key}-progress`}
-                          accessible={false}
-                        >
-                          <View
-                            style={[
-                              styles.fill,
-                              { backgroundColor: color, width: `${percent}%` },
-                            ]}
-                          />
-                        </View>
-                      ) : null}
+                          style={[
+                            styles.fill,
+                            { backgroundColor: color, width: `${percent}%` },
+                          ]}
+                        />
+                      </View>
                       <ThemedText type="smallBold" style={styles.amount}>
                         {amountLabel}
                       </ThemedText>
@@ -172,6 +186,15 @@ export function DailyNutrients({
                       >
                         {referenceLabels[key]}
                       </ThemedText>
+                      {coverageProgressLabel !== null ? (
+                        <ThemedText
+                          type="small"
+                          themeColor="textSecondary"
+                          style={styles.caption}
+                        >
+                          {coverageProgressLabel}
+                        </ThemedText>
+                      ) : null}
                     </View>
                   );
                 })}
