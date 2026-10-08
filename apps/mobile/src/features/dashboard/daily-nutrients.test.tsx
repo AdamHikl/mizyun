@@ -15,6 +15,7 @@ vi.mock("react-native", () => ({
   Pressable: "Pressable",
   View: "View",
   StyleSheet: { create: (styles: unknown) => styles },
+  useWindowDimensions: () => ({ width: 390, fontScale: 1 }),
 }));
 vi.mock("@/components/themed-text", () => ({ ThemedText: "ThemedText" }));
 
@@ -48,11 +49,77 @@ function text(node: any): string {
 function toggle(tree: any): any {
   return tree.props.children[0];
 }
+function nodes(node: any): any[] {
+  if (Array.isArray(node)) return node.flatMap(nodes);
+  return node && typeof node === "object"
+    ? [node, ...nodes(node.props?.children)]
+    : [];
+}
 beforeEach(() => {
   state.expanded = false;
 });
 
 describe("Home more nutrients", () => {
+  it("shows reference bars only for complete nutrients with numeric references", () => {
+    state.expanded = true;
+    const bars = nodes(DailyNutrients(props)).filter((node) =>
+      node.props?.testID?.endsWith("-progress"),
+    );
+    expect(bars.map((node) => node.props.testID)).toEqual([
+      "daily-nutrient-fibreG-progress",
+      "daily-nutrient-saturatedFatG-progress",
+      "daily-nutrient-sodiumMg-progress",
+    ]);
+    const partial = {
+      ...summary,
+      fibreG: null,
+      advancedCoverage: {
+        fibreG: 2,
+        saturatedFatG: 3,
+        totalSugarsG: 3,
+        sodiumMg: 3,
+        cholesterolMg: 3,
+      },
+      advancedKnownSubtotal: {
+        fibreG: 30,
+        saturatedFatG: 12,
+        totalSugarsG: 42,
+        sodiumMg: 1450,
+        cholesterolMg: 0,
+      },
+    };
+    const partialBars = nodes(
+      DailyNutrients({ ...props, summary: partial, dailyTargetKcal: null }),
+    );
+    expect(
+      partialBars.some(
+        (node) => node.props?.testID === "daily-nutrient-fibreG-progress",
+      ),
+    ).toBe(false);
+    expect(
+      partialBars.some(
+        (node) =>
+          node.props?.testID === "daily-nutrient-saturatedFatG-progress",
+      ),
+    ).toBe(false);
+    expect(text(DailyNutrients({ ...props, summary: partial }))).toContain(
+      "30 g recorded Incomplete · 2 of 3 meals recorded",
+    );
+  });
+
+  it("keeps an above-limit value visible while bounding its reference bar", () => {
+    state.expanded = true;
+    const tree = DailyNutrients({
+      ...props,
+      summary: { ...summary, sodiumMg: 3000 },
+    });
+    const bar = nodes(tree).find(
+      (node) => node.props?.testID === "daily-nutrient-sodiumMg-progress",
+    );
+    expect(bar.props.children.props.style[1].width).toBe("100%");
+    expect(text(tree)).toContain("3000 mg Reference limit: below 2000 mg");
+  });
+
   it("expands in place, shows saved totals and separates references from personal targets", () => {
     let tree = DailyNutrients(props);
     expect(text(tree)).not.toContain("Fibre");
