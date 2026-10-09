@@ -54,6 +54,9 @@ type Pending = {
 
 /** Session-only memory; invalidation retires both stored and in-flight reads. */
 export class SessionReadCache implements ApiClient {
+  // Decoration has its own live authority and never invalidates nutrition reads.
+  readonly getMealIllustrationCapability?: ApiClient["getMealIllustrationCapability"];
+  readonly ensureMealIllustration?: ApiClient["ensureMealIllustration"];
   readonly draftFoodEntry?: ApiClient["draftFoodEntry"];
   readonly draftCoachMealPhoto?: ApiClient["draftCoachMealPhoto"];
   private entries = new Map<string, Entry>();
@@ -70,6 +73,9 @@ export class SessionReadCache implements ApiClient {
     private session: () => Promise<AuthSession | null>,
     private now = () => Date.now(),
   ) {
+    this.getMealIllustrationCapability =
+      raw.getMealIllustrationCapability?.bind(raw);
+    this.ensureMealIllustration = raw.ensureMealIllustration?.bind(raw);
     this.draftFoodEntry = raw.draftFoodEntry?.bind(raw);
     const draftCoachMealPhoto = raw.draftCoachMealPhoto?.bind(raw);
     if (draftCoachMealPhoto)

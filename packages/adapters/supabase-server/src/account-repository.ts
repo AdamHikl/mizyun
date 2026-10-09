@@ -1,3 +1,4 @@
+import type { MealIllustrationRepository } from "@mizyun/core";
 import crypto from "node:crypto";
 import { exportCommunityAccount } from "./community-account-export.js";
 
@@ -101,6 +102,7 @@ const hashToken = (token: string): string =>
 
 export interface SupabaseAccountRepositoryOptions {
   readonly communityLifecycleEnabled?: boolean;
+  readonly mealIllustrationRepository?: MealIllustrationRepository;
   readonly profileRepository: ProfileRepository;
   readonly goalRepository: GoalRepository;
   readonly foodEntryRepository: FoodEntryRepository;
@@ -146,6 +148,7 @@ export interface SupabaseAccountRepositoryOptions {
  */
 export class SupabaseAccountRepository implements AccountRepository {
   readonly #communityLifecycleEnabled: boolean;
+  readonly #mealIllustrationRepository: MealIllustrationRepository | null;
   readonly #profileRepository: ProfileRepository;
   readonly #goalRepository: GoalRepository;
   readonly #foodEntryRepository: FoodEntryRepository;
@@ -168,6 +171,8 @@ export class SupabaseAccountRepository implements AccountRepository {
   constructor(options: SupabaseAccountRepositoryOptions) {
     this.#communityLifecycleEnabled =
       options.communityLifecycleEnabled ?? false;
+    this.#mealIllustrationRepository =
+      options.mealIllustrationRepository ?? null;
     this.#profileRepository = options.profileRepository;
     this.#goalRepository = options.goalRepository;
     this.#foodEntryRepository = options.foodEntryRepository;
@@ -611,6 +616,20 @@ export class SupabaseAccountRepository implements AccountRepository {
 
     return {
       manifest,
+      ...(this.#mealIllustrationRepository
+        ? {
+            mealIllustrationUsage:
+              await this.#mealIllustrationRepository.exportUsageForUser(
+                userId,
+                token,
+              ),
+            mealIllustrations:
+              await this.#mealIllustrationRepository.exportForUser(
+                userId,
+                token,
+              ),
+          }
+        : {}),
       ...(community ? { community } : {}),
       ...(recurringMeals ? { recurringMeals } : {}),
       ...(runOperationReceipts ? { runOperationReceipts } : {}),
@@ -1109,6 +1128,7 @@ export class SupabaseAccountRepository implements AccountRepository {
       }
 
       try {
+        await this.#mealIllustrationRepository?.deleteForUser(userId);
         await sweepUserMedia(token);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);

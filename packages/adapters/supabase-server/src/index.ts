@@ -326,3 +326,8 @@ export { SupabaseRecurringMealRepository } from "./recurring-meal-repository.js"
 
 export { SupabaseRunRepository } from "./run-repository.js";
 export * from "./meal-photos.js";
+
+export {
+  SupabaseMealIllustrationRepository,
+  processMealIllustration,
+} from "./meal-illustrations.js";

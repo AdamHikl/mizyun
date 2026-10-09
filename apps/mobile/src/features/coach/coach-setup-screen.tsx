@@ -31,7 +31,7 @@ import {
   type Workout,
 } from "@mizyun/contracts";
 
-import { ThemedText } from "@/components/themed-text";
+import { ThemedText, type ThemedTextProps } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { TabHeader, useTabHeaderLayout } from "@/components/tab-header";
 import {
@@ -1353,6 +1353,48 @@ export function CoachSetupScreen() {
   );
 }
 
+// Fabric's iOS Text selectable only offers whole-block Copy. A read-only
+// UITextView (multiline TextInput) also provides native selection handles.
+function SelectableCoachText({
+  children,
+  style,
+  type,
+}: Pick<ThemedTextProps, "children" | "style" | "type">) {
+  const theme = useTheme();
+  const { fontScale } = useWindowDimensions();
+  const textStyle = [
+    styles.messageText,
+    type === "smallBold" && styles.messageBoldText,
+    style,
+  ];
+  const content = (
+    <ThemedText type={type} style={textStyle}>
+      {children}
+    </ThemedText>
+  );
+
+  if (Platform.OS !== "ios") {
+    return (
+      <ThemedText selectable type={type} style={textStyle}>
+        {children}
+      </ThemedText>
+    );
+  }
+
+  return (
+    <TextInput
+      key={fontScale}
+      multiline
+      editable={false}
+      scrollEnabled={false}
+      showSoftInputOnFocus={false}
+      style={[{ color: theme.text, padding: 0 }, textStyle]}
+    >
+      {content}
+    </TextInput>
+  );
+}
+
 function FormattedCoachMessage({ text }: { readonly text: string }) {
   const lines = useMemo(() => text.split("\n"), [text]);
 
@@ -1378,13 +1420,12 @@ function FormattedCoachMessage({ text }: { readonly text: string }) {
               key={`header-${lineIndex}`}
               style={styles.messageHeaderContainer}
             >
-              <ThemedText
-                selectable
+              <SelectableCoachText
                 type="smallBold"
                 style={styles.messageHeaderText}
               >
                 {headerText}
-              </ThemedText>
+              </SelectableCoachText>
             </View>
           );
         }
@@ -1395,9 +1436,9 @@ function FormattedCoachMessage({ text }: { readonly text: string }) {
           const bulletContent = bulletMatch[1] ?? "";
           return (
             <View key={`bullet-${lineIndex}`} style={styles.messageBulletRow}>
-              <ThemedText selectable style={styles.messageBulletDot}>
+              <SelectableCoachText style={styles.messageBulletDot}>
                 •
-              </ThemedText>
+              </SelectableCoachText>
               <View style={styles.messageBulletContent}>
                 {renderInlineMarkdown(bulletContent, `bullet-${lineIndex}`)}
               </View>
@@ -1412,13 +1453,12 @@ function FormattedCoachMessage({ text }: { readonly text: string }) {
           const content = numberedMatch[2] ?? "";
           return (
             <View key={`num-${lineIndex}`} style={styles.messageBulletRow}>
-              <ThemedText
-                selectable
+              <SelectableCoachText
                 type="smallBold"
                 style={styles.messageNumberDot}
               >
                 {num}
-              </ThemedText>
+              </SelectableCoachText>
               <View style={styles.messageBulletContent}>
                 {renderInlineMarkdown(content, `num-${lineIndex}`)}
               </View>
@@ -1441,14 +1481,14 @@ function renderInlineMarkdown(text: string, keyPrefix: string) {
   const parts = text.split(/\*\*/g);
   if (parts.length === 1) {
     return (
-      <ThemedText selectable style={styles.messageText}>
+      <SelectableCoachText style={styles.messageText}>
         {text}
-      </ThemedText>
+      </SelectableCoachText>
     );
   }
 
   return (
-    <ThemedText selectable style={styles.messageText}>
+    <SelectableCoachText style={styles.messageText}>
       {parts.map((part, i) =>
         i % 2 === 1 ? (
           <ThemedText
@@ -1464,7 +1504,7 @@ function renderInlineMarkdown(text: string, keyPrefix: string) {
           </ThemedText>
         ),
       )}
-    </ThemedText>
+    </SelectableCoachText>
   );
 }
 

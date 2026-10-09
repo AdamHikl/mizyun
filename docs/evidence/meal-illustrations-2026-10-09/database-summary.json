@@ -1,0 +1,21 @@
+{
+  "database": "mizyun_illustrations_scratch_340bcf1b622f",
+  "shared_records_copied": false,
+  "scratch_only_prerequisite_migrations": [
+    "20261006183000_running_conflict_http.sql",
+    "20261006200000_retained_meal_photos.sql",
+    "20261007110000_community_author_activities.sql",
+    "20261007120000_community_messaging_reads.sql",
+    "20261007130000_community_artifact_authors.sql",
+    "20261007190000_account_provider_revocations.sql",
+    "20261008100000_body_measurement_retry_identity.sql",
+    "20261008120000_community_revocation_ledger.sql"
+  ],
+  "pgtap_assertions": 38,
+  "race_and_lifecycle_checks": 5,
+  "source_sha256": {
+    "supabase/migrations/20261009120000_meal_illustrations.sql": "4063e0fc8e41f231cce4007cbb11f91de01461039c0a5d716c19a1e21719cc56",
+    "supabase/tests/database/0039_meal_illustrations.test.sql": "26d43f65e29a6eea952f7e8e5cb357f3ab0ca4b80faffffeb204f52a8dcbe431",
+    "scripts/test-meal-illustrations-db.py": "ab5b3dc56a6404877eb839c4395bb1cf46865358feaf36e6c84f95338e102d81"
+  }
+}

@@ -6,13 +6,14 @@
     {
       "id": "meal-logging",
       "title": "Meal & Nutrition Logging",
-      "summary": "Manual food CRUD, keyset-paginated history/search, macro/calorie calculations, local-day offsets, offline drafts, and photo/text/refine generation with Pro nutrient estimates. Explicit opt-in recurring saved meals with server-side schedules and durable occurrence ledger. Dev-only optional compressed private meal thumbnails with explicit source choice and durable cleanup/retry.",
+      "summary": "Manual food CRUD, keyset-paginated history/search, macro/calorie calculations, local-day offsets, offline drafts, and photo/text/refine generation with Pro nutrient estimates. Explicit opt-in recurring saved meals with server-side schedules and durable occurrence ledger. Dev-only optional compressed private meal thumbnails with explicit source choice and durable cleanup/retry. Automatic decorative catalog thumbnails and default-off private background illustrations, independent of meal saving.",
       "aliases": ["food", "nutrition", "calories", "macros", "diet", "meal"],
       "entryPoints": [
         "apps/api/src/modules/food-entries/routes.ts",
         "apps/mobile/src/features/log-meal/index.ts",
         "apps/api/src/modules/recurring-meals/routes.ts",
-        "apps/mobile/src/features/recurring-meals/index.ts"
+        "apps/mobile/src/features/recurring-meals/index.ts",
+        "apps/api/src/modules/meal-illustrations/routes.ts"
       ],
       "ownedPaths": [
         "apps/api/src/modules/food-entries",
@@ -36,23 +37,38 @@
         "packages/adapters/supabase-server/src/meal-photos.test.ts",
         "packages/config/src/meal-photos.ts",
         "packages/config/src/meal-photos.test.ts",
-        "scripts/verify-meal-photos.mjs"
+        "scripts/verify-meal-photos.mjs",
+        "apps/api/src/modules/meal-illustrations",
+        "packages/core/src/meal-illustration.ts",
+        "packages/core/src/meal-illustration.test.ts",
+        "packages/agent-runtime/src/meal-illustration.ts",
+        "packages/providers/gemini/src/meal-illustration.ts",
+        "packages/providers/gemini/src/meal-illustration.test.ts",
+        "packages/adapters/supabase-server/src/meal-illustrations.ts",
+        "packages/adapters/supabase-server/src/meal-illustrations.test.ts",
+        "scripts/test-meal-illustrations-db.py",
+        "apps/mobile/assets/images/meal-illustrations",
+        "packages/config/src/meal-illustration.test.ts",
+        "packages/api-client/src/meal-illustration.test.ts"
       ],
       "contracts": [
         "packages/contracts/src/food-entry.ts",
-        "packages/contracts/src/recurring-meal.ts"
+        "packages/contracts/src/recurring-meal.ts",
+        "packages/contracts/src/meal-illustration.ts"
       ],
       "domainPort": [
         "packages/core/src/food-entry.ts",
         "packages/core/src/nutrition-per100g.ts",
         "packages/core/src/energy.ts",
-        "packages/core/src/recurring-meal.ts"
+        "packages/core/src/recurring-meal.ts",
+        "packages/core/src/meal-illustration.ts"
       ],
       "api": [
         "apps/api/src/modules/food-entries/routes.ts",
         "apps/api/src/modules/food-entries/draft-route.ts",
         "apps/api/src/modules/recurring-meals/routes.ts",
-        "apps/api/src/modules/food-entries/photo-routes.ts"
+        "apps/api/src/modules/food-entries/photo-routes.ts",
+        "apps/api/src/modules/meal-illustrations/routes.ts"
       ],
       "ui": [
         "apps/mobile/src/app/(tabs)/meals.tsx",
@@ -61,26 +77,32 @@
         "apps/mobile/src/features/log-meal/meal-form.ts",
         "apps/mobile/src/features/log-meal/log-meal-data.ts",
         "apps/mobile/src/app/recurring-meals.tsx",
-        "apps/mobile/src/features/log-meal/private-meal-photo.tsx"
+        "apps/mobile/src/features/log-meal/private-meal-photo.tsx",
+        "apps/mobile/src/features/log-meal/meal-visual.tsx"
       ],
       "adapters": [
         "packages/adapters/supabase-server/src/food-entry-repository.ts",
         "packages/adapters/supabase-server/src/recurring-meal-repository.ts",
-        "packages/adapters/supabase-server/src/meal-photos.ts"
+        "packages/adapters/supabase-server/src/meal-photos.ts",
+        "packages/adapters/supabase-server/src/meal-illustrations.ts"
       ],
       "dataTables": [
         "food_entries",
         "recurring_meal_schedules",
         "recurring_meal_occurrences",
         "meal_photos",
-        "meal_photo_cleanup_jobs"
+        "meal_photo_cleanup_jobs",
+        "meal_illustrations",
+        "meal_illustration_environment_usage",
+        "meal_illustration_user_usage"
       ],
       "migrationPaths": [
         "supabase/migrations/20260714101000_user_data.sql",
         "supabase/migrations/20260718100000_persist_001_columns.sql",
         "supabase/migrations/20260908120000_security_and_retry_integrity.sql",
         "supabase/migrations/20261003100000_recurring_meals.sql",
-        "supabase/migrations/20261006200000_retained_meal_photos.sql"
+        "supabase/migrations/20261006200000_retained_meal_photos.sql",
+        "supabase/migrations/20261009120000_meal_illustrations.sql"
       ],
       "tests": [
         "apps/api/src/modules/food-entries/routes.test.ts",
@@ -97,7 +119,20 @@
         "apps/mobile/src/features/log-meal/private-meal-photo.test.tsx",
         "packages/adapters/supabase-server/src/meal-photos.test.ts",
         "packages/config/src/meal-photos.test.ts",
-        "supabase/tests/database/0034_retained_meal_photos.test.sql"
+        "supabase/tests/database/0034_retained_meal_photos.test.sql",
+        "apps/api/src/modules/meal-illustrations/routes.test.ts",
+        "apps/api/src/modules/meal-illustrations/repository.test.ts",
+        "apps/mobile/src/features/log-meal/automatic-meal-illustration.test.tsx",
+        "apps/mobile/src/features/log-meal/meal-visual.test.tsx",
+        "apps/mobile/src/features/log-meal/meal-illustration-catalog.test.ts",
+        "apps/mobile/src/features/log-meal/meal-illustration-loader.test.ts",
+        "supabase/tests/database/0039_meal_illustrations.test.sql",
+        "packages/core/src/meal-illustration.test.ts",
+        "packages/contracts/src/meal-illustration.test.ts",
+        "packages/adapters/supabase-server/src/meal-illustrations.test.ts",
+        "packages/providers/gemini/src/meal-illustration.test.ts",
+        "packages/config/src/meal-illustration.test.ts",
+        "packages/api-client/src/meal-illustration.test.ts"
       ],
       "relations": [
         {
@@ -145,7 +180,8 @@
         "NUT-08",
         "NUT-09",
         "REL-AUD-007",
-        "NUTR-REC-001"
+        "NUTR-REC-001",
+        "NUT-10"
       ],
       "openAcceptance": [
         "REL-AUD-007/Q2: Durable unknown-outcome persistence for ambiguous retries across network drops",

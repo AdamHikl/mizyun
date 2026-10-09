@@ -1,0 +1,22 @@
+
+> @mizyun/mobile@1.0.0 test /Users/adam/Documents/mizyun/apps/mobile
+> vitest run --passWithNoTests src/features/log-meal/automatic-meal-illustration.test.tsx src/features/log-meal/meal-visual.test.tsx src/features/log-meal/meal-illustration-catalog.test.ts src/features/log-meal/meal-illustration-loader.test.ts src/features/log-meal/private-meal-photo.test.tsx src/features/log-meal/meal-list-screen.test.tsx src/features/log-meal/edit-meal-screen.test.tsx src/composition/session-read-cache.test.ts src/features/community/state/read-cache.test.ts
+
+
+ RUN  v3.2.7 /Users/adam/Documents/mizyun/apps/mobile
+
+ ✓ src/features/log-meal/meal-illustration-loader.test.ts (5 tests) 5ms
+ ✓ src/features/log-meal/meal-illustration-catalog.test.ts (10 tests) 5ms
+ ✓ src/features/log-meal/meal-visual.test.tsx (1 test) 2ms
+ ✓ src/features/log-meal/private-meal-photo.test.tsx (10 tests) 6ms
+ ✓ src/features/log-meal/automatic-meal-illustration.test.tsx (6 tests) 9ms
+ ✓ src/features/community/state/read-cache.test.ts (16 tests) 12ms
+ ✓ src/features/log-meal/edit-meal-screen.test.tsx (8 tests) 71ms
+ ✓ src/composition/session-read-cache.test.ts (24 tests) 516ms
+ ✓ src/features/log-meal/meal-list-screen.test.tsx (22 tests) 273ms
+
+ Test Files  9 passed (9)
+      Tests  102 passed (102)
+   Start at  08:44:51
+   Duration  2.76s (transform 1.51s, setup 0ms, collect 3.86s, tests 900ms, environment 1ms, prepare 964ms)
+

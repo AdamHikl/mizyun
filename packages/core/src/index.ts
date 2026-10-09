@@ -355,3 +355,5 @@ export * from "./health-export";
 export * from "./running";
 
 export * from "./run-repository";
+
+export * from "./meal-illustration";

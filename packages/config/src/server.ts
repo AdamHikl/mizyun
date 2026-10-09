@@ -64,6 +64,11 @@ export interface ServerAppleAuthConfiguration {
   readonly clientId: string;
 }
 
+export interface ServerMealIllustrationConfiguration {
+  readonly apiKey: string;
+  readonly model: string;
+}
+
 export interface ServerConfig {
   readonly host: string;
   readonly port: number;
@@ -78,6 +83,7 @@ export interface ServerConfig {
   readonly appleAuthConfig: ServerAppleAuthConfiguration | null;
   readonly appleRevocationEncryptionKey?: string | undefined;
   readonly aiExternalAccess: boolean;
+  readonly mealIllustrationConfig?: ServerMealIllustrationConfiguration | null;
   /** @deprecated Parsed only for configuration compatibility; never gates AI access. */
   readonly aiAllowedEmails: readonly string[];
 }
@@ -95,6 +101,8 @@ export const SERVER_ENV_KEYS = {
   agentProvider: "AGENT_PROVIDER",
   visionProvider: "VISION_PROVIDER",
   geminiApiKey: "GEMINI_API_KEY",
+  mealIllustrationsEnabled: "MEAL_ILLUSTRATIONS_ENABLED",
+  geminiImageModel: "GEMINI_IMAGE_MODEL",
   geminiModel: "GEMINI_MODEL",
   geminiFallbackModel: "GEMINI_FALLBACK_MODEL",
   geminiThinkingBudget: "GEMINI_THINKING_BUDGET",
@@ -256,6 +264,13 @@ const baseServerSchema = z.object({
     .min(1, "AI_USER_MAX_CONCURRENT_REQUESTS must be >= 1")
     .max(1, "AI_USER_MAX_CONCURRENT_REQUESTS must be <= 1")
     .default(1),
+  mealIllustrationsEnabled: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+  geminiImageModel: z
+    .enum(["gemini-3.1-flash-lite-image"])
+    .default("gemini-3.1-flash-lite-image"),
   aiExternalAccess: z
     .enum(["true", "false"])
     .default("false")
@@ -365,7 +380,8 @@ export const loadServerConfig = (
   }
   if (
     parsed.success &&
-    parsed.data.agentProvider === "gemini" &&
+    (parsed.data.agentProvider === "gemini" ||
+      parsed.data.mealIllustrationsEnabled) &&
     parsed.data.geminiApiKey === undefined
   ) {
     issues.push({ kind: "missing", keys: [SERVER_ENV_KEYS.geminiApiKey] });
@@ -518,6 +534,10 @@ export const loadServerConfig = (
     ...(value.appleRevocationEncryptionKey !== undefined
       ? { appleRevocationEncryptionKey: value.appleRevocationEncryptionKey }
       : {}),
+    mealIllustrationConfig:
+      value.mealIllustrationsEnabled && value.geminiApiKey
+        ? { apiKey: value.geminiApiKey, model: value.geminiImageModel }
+        : null,
     aiExternalAccess: value.aiExternalAccess,
     aiAllowedEmails: value.aiAllowedEmails ?? [],
   });

@@ -1,0 +1,8 @@
+PASS: forward illustration migration in schema-only local scratch
+PASS: pgTAP 38 assertions
+PASS: twelve simultaneous same-dish requests reserve exactly one attempt
+PASS: simultaneous accounts cannot exceed two environment jobs
+PASS: lost/restarted dispatched result stays charged and is not generated again
+PASS: source erasure removes private artwork without refunding budget
+PASS: account erasure removes owned counters and preserves anonymous environment cap
+Removed unique local scratch database

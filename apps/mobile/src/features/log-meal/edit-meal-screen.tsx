@@ -1,4 +1,4 @@
-import { PrivateMealPhoto } from "./private-meal-photo";
+import { MealVisual } from "./meal-visual";
 import {
   Pressable,
   ScrollView,
@@ -648,8 +648,9 @@ export function EditMealScreen() {
 
           {entry !== null ? (
             <>
-              <PrivateMealPhoto
+              <MealVisual
                 entryId={entry.id}
+                name={entry.name}
                 hasPhoto={Boolean(entry.photoAssetId)}
                 editable
               />

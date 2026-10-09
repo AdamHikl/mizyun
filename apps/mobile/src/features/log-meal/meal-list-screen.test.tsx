@@ -578,8 +578,8 @@ it("qualifies partial totals and does not invent missing nutrients", async () =>
   ).toBeFalsy();
 });
 
-vi.mock("./private-meal-photo", () => ({
-  PrivateMealPhoto: "PrivateMealPhoto",
+vi.mock("./meal-visual", () => ({
+  MealVisual: "MealVisual",
 }));
 
 describe("older meal history search", () => {

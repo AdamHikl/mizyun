@@ -2,7 +2,7 @@ import {
   removeMealPhotoRetry,
   mealPhotoRetentionEnabled,
 } from "./meal-photo-retention";
-import { PrivateMealPhoto } from "./private-meal-photo";
+import { MealVisual } from "./meal-visual";
 import {
   ActivityIndicator,
   AppState,
@@ -1865,8 +1865,9 @@ function MealEntryRow(props: {
           Automatically logged · review if your meal changed
         </ThemedText>
       ) : null}
-      <PrivateMealPhoto
+      <MealVisual
         entryId={entry.id}
+        name={entry.name}
         hasPhoto={Boolean(entry.photoAssetId)}
         editable
       />

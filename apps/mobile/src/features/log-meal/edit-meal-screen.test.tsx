@@ -360,6 +360,6 @@ describe("AI advanced nutrients in saved meal editing", () => {
   });
 });
 
-vi.mock("./private-meal-photo", () => ({
-  PrivateMealPhoto: "PrivateMealPhoto",
+vi.mock("./meal-visual", () => ({
+  MealVisual: "MealVisual",
 }));

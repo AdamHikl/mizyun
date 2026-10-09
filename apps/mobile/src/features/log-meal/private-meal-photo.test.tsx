@@ -74,12 +74,14 @@ const photo = {
   expiresAt: new Date(Date.now() + 60_000).toISOString(),
 };
 let hasPhoto = true;
+let fallback: any = null;
 function render(): any {
   hooks.index = 0;
   const tree = PrivateMealPhoto({
     entryId: "meal-a",
     hasPhoto,
     editable: true,
+    fallback,
   });
   hooks.effects.splice(0).forEach((effect) => effect());
   return tree;
@@ -105,6 +107,7 @@ beforeEach(async () => {
   mocks.token = "token-a";
   mocks.enabled = true;
   hasPhoto = true;
+  fallback = null;
   mocks.pending.mockResolvedValue(null);
   mocks.read.mockResolvedValue({ ok: true, value: { photo } });
   mocks.upload.mockResolvedValue(true);
@@ -190,6 +193,27 @@ it("renders no private image in Production", async () => {
   expect(render()).toBeNull();
   await flush();
   expect(mocks.read).not.toHaveBeenCalled();
+});
+
+it("renders the automatic illustration without photo infrastructure or a saved photo", async () => {
+  fallback = { type: "Illustration", props: { name: "Oatmeal" } };
+  hasPhoto = false;
+  expect(render()).toBe(fallback);
+  await flush();
+  expect(mocks.read).not.toHaveBeenCalled();
+  mocks.enabled = false;
+  expect(render()).toBe(fallback);
+});
+
+it("a real photo replaces the illustration and removal restores it", async () => {
+  fallback = { type: "Illustration", props: { name: "Oatmeal" } };
+  render();
+  await flush();
+  expect(find(render(), (node) => node === fallback)).toBeFalsy();
+  mocks.read.mockResolvedValueOnce({ ok: true, value: { photo: null } });
+  byLabel("Remove saved meal photo").props.onPress();
+  await flush();
+  expect(find(render(), (node) => node === fallback)).toBe(fallback);
 });
 
 it("removes a photo from its preview and cancels an unresolved local retry", async () => {

@@ -83,3 +83,5 @@
 - [ADR-0046 — Manual running authority and retry-safe mutations](0046-manual-running-authority.md): accepted for Dev implementation 2026-10-06; authoritative local dates, dedicated run UI, atomic owner receipts and separate resistance context.
 
 - [ADR-0049 — Private meal thumbnails on Dev](0049-private-meal-thumbnails.md): accepted2026-10-06; optional reduced owner-only meal photos, recovery/deletion and explicit Dev activation.
+
+- [ADR-0053 — Automatic decorative meal illustrations](0053-automatic-meal-illustrations.md): accepted for implementation2026-10-09; instant bundled food artwork, private asynchronous reuse, separate durable image limits, and default-off live provider acceptance.

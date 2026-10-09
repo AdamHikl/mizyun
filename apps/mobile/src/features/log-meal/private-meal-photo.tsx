@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Modal, Pressable, View } from "react-native";
 import { Image } from "expo-image";
 import { ThemedText } from "@/components/themed-text";
@@ -18,10 +18,14 @@ export function PrivateMealPhoto({
   entryId,
   hasPhoto,
   editable = false,
+  fallback = null,
+  onPhotoRemoved,
 }: {
   readonly entryId: string;
   readonly hasPhoto: boolean;
   readonly editable?: boolean;
+  readonly fallback?: ReactNode;
+  readonly onPhotoRemoved?: () => void;
 }) {
   const { session } = useAuth();
   const owner = session?.user.id ?? null;
@@ -65,9 +69,9 @@ export function PrivateMealPhoto({
       generation.current++;
     };
   }, [scope, enabled, hasPhoto]);
-  if (!enabled || !owner) return null;
+  if (!enabled || !owner) return fallback;
   const visible = state?.scope === scope ? state : null;
-  if (!hasPhoto && !visible?.photo && !visible?.pending) return null;
+  if (!hasPhoto && !visible?.photo && !visible?.pending) return fallback;
   const busy = busyScope === scope;
   const perform = async (action: "retry" | "discard" | "remove") => {
     if (busy) return;
@@ -85,6 +89,7 @@ export function PrivateMealPhoto({
       else {
         const result = await deleteMealPhoto(entryId);
         ok = result.ok;
+        if (ok && valid()) onPhotoRemoved?.();
         if (ok && valid()) ok = await removeMealPhotoRetry(owner, entryId);
       }
       if (!valid()) return;
@@ -138,7 +143,9 @@ export function PrivateMealPhoto({
             accessibilityLabel="Meal photo"
           />
         </Pressable>
-      ) : null}
+      ) : (
+        fallback
+      )}
       {visible?.message ? (
         <ThemedText accessibilityRole="alert" type="small">
           {visible.message}

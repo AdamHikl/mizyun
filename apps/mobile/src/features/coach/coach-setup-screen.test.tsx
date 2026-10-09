@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   token: "synthetic-token",
   appState: "active",
   fontScale: 1,
+  platform: "ios",
   headerHeight: 128,
   appListeners: new Set<(state: string) => void>(),
 }));
@@ -80,7 +81,12 @@ vi.mock("react-native", () => ({
   ScrollView: "ScrollView",
   TextInput: "TextInput",
   View: "View",
-  Platform: { OS: "ios", select: (values: any) => values.ios },
+  Platform: {
+    get OS() {
+      return mocks.platform;
+    },
+    select: (values: any) => values[mocks.platform],
+  },
   StyleSheet: { create: (s: unknown) => s },
   Keyboard: { addListener: () => ({ remove: vi.fn() }) },
   AppState: {
@@ -239,6 +245,7 @@ beforeEach(() => {
   mocks.token = "synthetic-token";
   mocks.appState = "active";
   mocks.fontScale = 1;
+  mocks.platform = "ios";
   mocks.headerHeight = 128;
   mocks.appListeners.clear();
   mocks.load.mockResolvedValue({ ok: true, status: ready, conversations: [] });
@@ -354,9 +361,15 @@ describe("Coach conversation hierarchy", () => {
 });
 
 describe("Coach reply text selection", () => {
-  it.each(["history", "new reply"])(
-    "enables native copying of formatted text in %s",
-    async (source) => {
+  it.each([
+    ["ios", "history"],
+    ["ios", "new reply"],
+    ["android", "history"],
+    ["android", "new reply"],
+  ])(
+    "supports selection on %s for formatted text in %s",
+    async (platform, source) => {
+      mocks.platform = platform;
       const reply = {
         id: "selectable-reply",
         role: "assistant",
@@ -398,7 +411,7 @@ describe("Coach reply text selection", () => {
       const roots = (node: any): any[] => {
         if (!node || typeof node !== "object") return [];
         if (Array.isArray(node)) return node.flatMap(roots);
-        if (node.type === "ThemedText") return [node];
+        if (node.type?.name === "SelectableCoachText") return [node];
         return roots(node.props?.children);
       };
       const content = (node: any): string => {
@@ -417,7 +430,23 @@ describe("Coach reply text selection", () => {
         "Numbered advice",
         "`Example text`",
       ]);
-      for (const root of textRoots) expect(root.props.selectable).toBe(true);
+      for (const root of textRoots) {
+        const surface = root.type(root.props);
+        if (platform !== "ios") {
+          expect(surface.type).toBe("ThemedText");
+          expect(surface.props.selectable).toBe(true);
+          expect(content(surface)).toBe(content(root));
+          continue;
+        }
+        expect(surface.type).toBe("TextInput");
+        expect(surface.props.editable).toBe(false);
+        expect(surface.props.multiline).toBe(true);
+        expect(surface.props.scrollEnabled).toBe(false);
+        expect(surface.props.showSoftInputOnFocus).toBe(false);
+        expect(surface.props.value).toBeUndefined();
+        expect(surface.props.selection).toBeUndefined();
+        expect(content(surface)).toBe(content(root));
+      }
       const bold = nodes(textRoots[2]).find(
         (node) => node.props?.type === "smallBold",
       );

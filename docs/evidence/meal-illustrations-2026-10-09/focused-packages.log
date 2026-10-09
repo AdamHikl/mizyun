@@ -1,0 +1,86 @@
+
+> @mizyun/adapter-supabase-server@0.1.0 test /Users/adam/Documents/mizyun/packages/adapters/supabase-server
+> vitest run src/meal-illustrations.test.ts src/account-repository.test.ts
+
+
+ RUN  v3.2.7 /Users/adam/Documents/mizyun/packages/adapters/supabase-server
+
+ ✓ src/account-repository.test.ts (28 tests) 36ms
+ ✓ src/meal-illustrations.test.ts (6 tests) 41ms
+
+ Test Files  2 passed (2)
+      Tests  34 passed (34)
+   Start at  08:44:42
+   Duration  1.04s (transform 662ms, setup 0ms, collect 911ms, tests 77ms, environment 0ms, prepare 103ms)
+
+
+> @mizyun/provider-gemini@0.1.0 test /Users/adam/Documents/mizyun/packages/providers/gemini
+> vitest run src/meal-illustration.test.ts
+
+
+ RUN  v3.2.7 /Users/adam/Documents/mizyun/packages/providers/gemini
+
+ ✓ src/meal-illustration.test.ts (8 tests) 7ms
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+   Start at  08:44:44
+   Duration  299ms (transform 31ms, setup 0ms, collect 32ms, tests 7ms, environment 0ms, prepare 43ms)
+
+
+> @mizyun/config@0.1.0 test /Users/adam/Documents/mizyun/packages/config
+> vitest run src/meal-illustration.test.ts
+
+
+ RUN  v3.2.7 /Users/adam/Documents/mizyun/packages/config
+
+ ✓ src/meal-illustration.test.ts (2 tests) 3ms
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  08:44:45
+   Duration  925ms (transform 544ms, setup 0ms, collect 669ms, tests 3ms, environment 0ms, prepare 45ms)
+
+
+> @mizyun/api-client@0.1.0 test /Users/adam/Documents/mizyun/packages/api-client
+> vitest run src/meal-illustration.test.ts src/http-api-client.test.ts
+
+
+ RUN  v3.2.7 /Users/adam/Documents/mizyun/packages/api-client
+
+ ✓ src/meal-illustration.test.ts (3 tests) 6ms
+ ✓ src/http-api-client.test.ts (33 tests) 13ms
+
+ Test Files  2 passed (2)
+      Tests  36 passed (36)
+   Start at  08:44:46
+   Duration  1.03s (transform 606ms, setup 0ms, collect 1.51s, tests 19ms, environment 0ms, prepare 97ms)
+
+
+> @mizyun/core@0.1.0 test /Users/adam/Documents/mizyun/packages/core
+> vitest run src/meal-illustration.test.ts
+
+
+ RUN  v3.2.7 /Users/adam/Documents/mizyun/packages/core
+
+ ✓ src/meal-illustration.test.ts (2 tests) 3ms
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  08:44:48
+   Duration  295ms (transform 27ms, setup 0ms, collect 26ms, tests 3ms, environment 0ms, prepare 42ms)
+
+
+> @mizyun/contracts@0.1.0 test /Users/adam/Documents/mizyun/packages/contracts
+> vitest run --passWithNoTests src/meal-illustration.test.ts
+
+
+ RUN  v3.2.7 /Users/adam/Documents/mizyun/packages/contracts
+
+ ✓ src/meal-illustration.test.ts (2 tests) 3ms
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  08:44:49
+   Duration  290ms (transform 29ms, setup 0ms, collect 33ms, tests 3ms, environment 0ms, prepare 43ms)
+

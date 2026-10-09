@@ -1,3 +1,12 @@
+import type { MealIllustrationRepository } from "@mizyun/core";
+import type { MealIllustrationProvider } from "@mizyun/agent-runtime";
+import {
+  SupabaseMealIllustrationRepository,
+  processMealIllustration,
+} from "@mizyun/adapter-supabase-server";
+import { GeminiMealIllustrationProvider } from "@mizyun/provider-gemini";
+import { mealIllustrationRoutes } from "./modules/meal-illustrations/routes.js";
+import { InMemoryMealIllustrationRepository } from "./modules/meal-illustrations/repository.js";
 import type { RunRepository } from "@mizyun/core";
 import { SupabaseRunRepository } from "@mizyun/adapter-supabase-server";
 import { InMemoryRunRepository } from "./run-repository.js";
@@ -273,6 +282,10 @@ export interface CoachControlOptions {
 }
 
 export interface AppDependencies {
+  readonly mealIllustrationRepository?: MealIllustrationRepository;
+  readonly mealIllustrationProvider?: MealIllustrationProvider;
+  readonly mealIllustrationsEnabled?: () => boolean;
+  readonly mealIllustrationTimeoutMs?: number;
   readonly communityOperations?: CommunityOperationsConfig;
   /**
    * Pre-constructed orchestrator. When supplied, `buildApp`
@@ -813,6 +826,40 @@ export const buildApp = (
     });
   }
 
+  const mealIllustrationRepository =
+    dependencies.mealIllustrationRepository ??
+    (sp
+      ? sp.serviceRoleClient
+        ? new SupabaseMealIllustrationRepository({
+            serviceClient: sp.serviceRoleClient,
+            clientFor: sp.clientFor,
+          })
+        : null
+      : new InMemoryMealIllustrationRepository());
+  if (
+    foodEntryRepository instanceof InMemoryFoodEntryRepository &&
+    mealIllustrationRepository
+  )
+    foodEntryRepository.setSourceChangeObserverForTest((userId, id) => {
+      void mealIllustrationRepository.invalidateForEntry(userId, id);
+    });
+  const imageConfig = configResult.ok
+    ? configResult.value.mealIllustrationConfig
+    : null;
+  const mealIllustrationProvider =
+    dependencies.mealIllustrationProvider ??
+    (imageConfig ? new GeminiMealIllustrationProvider(imageConfig) : null);
+  const mealIllustrationsEnabled =
+    dependencies.mealIllustrationsEnabled ??
+    (() => {
+      const latest = loadServerConfig();
+      return (
+        latest.ok &&
+        latest.value.aiExternalAccess &&
+        latest.value.mealIllustrationConfig != null
+      );
+    });
+
   const accountRepository: AccountRepository =
     dependencies.accountRepository ??
     (sp
@@ -832,6 +879,7 @@ export const buildApp = (
           memoryStore: resolveMemoryStore(dependencies),
           aiConsentRepository,
           productAnalyticsRepository,
+          ...(mealIllustrationRepository ? { mealIllustrationRepository } : {}),
           serviceRoleClient: sp.serviceRoleClient ?? null,
           clientFor: sp.clientFor,
         })
@@ -852,6 +900,7 @@ export const buildApp = (
           memoryStore: resolveMemoryStore(dependencies),
           aiConsentRepository,
           productAnalyticsRepository,
+          ...(mealIllustrationRepository ? { mealIllustrationRepository } : {}),
         }));
 
   const emailSender =
@@ -1090,6 +1139,19 @@ export const buildApp = (
     available:
       !!sp?.serviceRoleClient ||
       (!!dependencies.recurringMealRepository && !sp),
+  });
+  void app.register(mealIllustrationRoutes, {
+    prefix: "/v1/food-entries",
+    foodEntryRepository,
+    profileRepository,
+    aiConsentRepository,
+    repository: mealIllustrationRepository,
+    provider: mealIllustrationProvider,
+    enabled: mealIllustrationsEnabled,
+    processImage: processMealIllustration,
+    ...(dependencies.mealIllustrationTimeoutMs
+      ? { timeoutMs: dependencies.mealIllustrationTimeoutMs }
+      : {}),
   });
   void app.register(foodDraftRoutes, {
     prefix: "/v1/food-entries",

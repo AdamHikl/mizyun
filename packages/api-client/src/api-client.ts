@@ -2,6 +2,8 @@ import type { Result } from "@mizyun/core";
 import type {
   CoachMessageResponse,
   FoodDraftResponse,
+  MealIllustrationResponse,
+  MealIllustrationCapability,
 } from "@mizyun/contracts";
 
 import type { ApiConfigurationStatus, ApiError, RequestOptions } from "./types";
@@ -24,6 +26,14 @@ export interface ApiClient {
    * Never throws. `fetch` rejections surface as `kind: "network_error"`.
    */
   request<T>(options: RequestOptions): Promise<Result<T, ApiError>>;
+
+  ensureMealIllustration?(
+    entryId: string,
+    options?: Partial<RequestOptions>,
+  ): Promise<Result<MealIllustrationResponse, ApiError>>;
+  getMealIllustrationCapability?(
+    options?: Partial<RequestOptions>,
+  ): Promise<Result<MealIllustrationCapability, ApiError>>;
 
   /**
    * VISION-001 — multipart upload of a meal photo + optional

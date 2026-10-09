@@ -16,6 +16,10 @@
  */
 import { z } from "zod";
 import {
+  exportedMealIllustrationSchema,
+  exportedMealIllustrationUsageSchema,
+} from "./meal-illustration";
+import {
   analyticsConsentResponseSchema,
   analyticsEventV2Schema,
   ANALYTICS_DASHBOARD_CATALOG,
@@ -107,6 +111,10 @@ export const communityAccountExportSchema = z
   .strict();
 
 export const accountExportSchema = z.object({
+  mealIllustrations: z.array(exportedMealIllustrationSchema).optional(),
+  mealIllustrationUsage: z
+    .array(exportedMealIllustrationUsageSchema)
+    .optional(),
   manifest: exportManifestSchema.optional(),
   userId: z.string().uuid(),
   generatedAt: z.string().datetime(),
