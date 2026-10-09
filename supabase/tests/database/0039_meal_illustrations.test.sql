@@ -13,6 +13,7 @@ insert into public.profiles(id,birth_year) values
  ('f2300000-0000-4000-8000-000000000001',1990),('f2300000-0000-4000-8000-000000000002',1990),
  ('f2300000-0000-4000-8000-000000000003',2012),('f2300000-0000-4000-8000-000000000004',1990)
  on conflict(id) do update set birth_year=excluded.birth_year;
+update public.profiles set plan_tier='paid' where id::text like 'f2300000-%';
 insert into public.user_ai_consents(user_id,granted,confirmed_adult,consent_version) values
  ('f2300000-0000-4000-8000-000000000001',true,true,'2026-09-08'),
  ('f2300000-0000-4000-8000-000000000002',true,true,'2026-09-08'),

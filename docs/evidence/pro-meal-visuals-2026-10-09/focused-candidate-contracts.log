@@ -1,0 +1,14 @@
+
+> @mizyun/contracts@0.1.0 test /Users/adam/.codex/worktrees/meal-illustrations-dev/mizyun/packages/contracts
+> vitest run --passWithNoTests src/meal-image-path.test.ts
+
+
+ RUN  v3.2.7 /Users/adam/.codex/worktrees/meal-illustrations-dev/mizyun/packages/contracts
+
+ ✓ src/meal-image-path.test.ts (2 tests) 3ms
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  17:48:57
+   Duration  319ms (transform 40ms, setup 0ms, collect 48ms, tests 3ms, environment 0ms, prepare 53ms)
+

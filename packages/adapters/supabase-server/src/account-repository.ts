@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { exportCommunityAccount } from "./community-account-export.js";
 
 import {
+  isOwnedMealImagePath,
   type AccountDeletionError,
   type AccountDeletionCleanupContext,
   type AccountExport,
@@ -114,6 +115,8 @@ export interface SupabaseAccountRepositoryOptions {
   readonly feedbackRepository?: FeedbackRepository | null | undefined;
   readonly mediaAssetRepository?: MediaAssetRepository | null | undefined;
   readonly mediaStorage?: AccountMediaStorage | null | undefined;
+  /** Trusted account lifecycle only: owner-scoped export/erasure survives a downgrade. */
+  readonly exportMediaStorage?: AccountMediaStorage | null | undefined;
   readonly memoryStore?: MemoryStore | null | undefined;
   readonly aiConsentRepository?: AiConsentRepository | null | undefined;
   readonly productAnalyticsRepository?:
@@ -160,6 +163,7 @@ export class SupabaseAccountRepository implements AccountRepository {
   readonly #feedbackRepository: FeedbackRepository | null;
   readonly #mediaAssetRepository: MediaAssetRepository | null;
   readonly #mediaStorage: AccountMediaStorage | null;
+  readonly #exportMediaStorage: AccountMediaStorage | null;
   readonly #memoryStore: MemoryStore | null;
   readonly #aiConsentRepository: AiConsentRepository | null;
   readonly #productAnalyticsRepository: ProductAnalyticsRepository | null;
@@ -184,6 +188,7 @@ export class SupabaseAccountRepository implements AccountRepository {
     this.#feedbackRepository = options.feedbackRepository ?? null;
     this.#mediaAssetRepository = options.mediaAssetRepository ?? null;
     this.#mediaStorage = options.mediaStorage ?? null;
+    this.#exportMediaStorage = options.exportMediaStorage ?? null;
     this.#memoryStore = options.memoryStore ?? null;
     this.#aiConsentRepository = options.aiConsentRepository ?? null;
     this.#productAnalyticsRepository =
@@ -227,9 +232,23 @@ export class SupabaseAccountRepository implements AccountRepository {
     let community: AccountExport["community"];
     let recurringMeals: AccountExport["recurringMeals"];
     let runOperationReceipts: AccountExport["runOperationReceipts"];
+    let mealImagePaths: AccountExport["mealImagePaths"];
 
     if (this.#clientFor !== null) {
       const client = this.#clientFor(token);
+      mealImagePaths = (
+        await fetchAllPaged(
+          client,
+          "food_media_paths",
+          "user_id",
+          userId,
+          "path_key",
+        )
+      ).map((row) => ({
+        userId: String(row.user_id),
+        pathKey: String(row.path_key),
+        createdAt: new Date(String(row.created_at)).toISOString(),
+      }));
       runOperationReceipts = await fetchAllPaged(
         client,
         "run_operation_receipts",
@@ -399,8 +418,15 @@ export class SupabaseAccountRepository implements AccountRepository {
       privateMedia = await Promise.all(
         activeMedia.map(async (asset) => {
           let downloadUrl: string | null = null;
-          if (this.#mediaStorage?.signDownloadUrl) {
-            const signed = await this.#mediaStorage
+          const exportStorage =
+            asset.purpose === "food"
+              ? asset.userId === userId &&
+                isOwnedMealImagePath(userId, asset.bucketId, asset.objectPath)
+                ? (this.#exportMediaStorage ?? this.#mediaStorage)
+                : null
+              : this.#mediaStorage;
+          if (exportStorage?.signDownloadUrl) {
+            const signed = await exportStorage
               .signDownloadUrl(asset.bucketId, asset.objectPath, {
                 ttlSeconds: 86400,
                 now,
@@ -540,8 +566,15 @@ export class SupabaseAccountRepository implements AccountRepository {
       privateMedia = await Promise.all(
         mediaList.map(async (asset) => {
           let downloadUrl: string | null = null;
-          if (this.#mediaStorage?.signDownloadUrl) {
-            const signed = await this.#mediaStorage
+          const exportStorage =
+            asset.purpose === "food"
+              ? asset.userId === userId &&
+                isOwnedMealImagePath(userId, asset.bucketId, asset.objectPath)
+                ? (this.#exportMediaStorage ?? this.#mediaStorage)
+                : null
+              : this.#mediaStorage;
+          if (exportStorage?.signDownloadUrl) {
+            const signed = await exportStorage
               .signDownloadUrl(asset.bucketId, asset.objectPath, {
                 ttlSeconds: 86400,
                 now,
@@ -616,6 +649,7 @@ export class SupabaseAccountRepository implements AccountRepository {
 
     return {
       manifest,
+      ...(mealImagePaths ? { mealImagePaths } : {}),
       ...(this.#mealIllustrationRepository
         ? {
             mealIllustrationUsage:
@@ -1096,9 +1130,17 @@ export class SupabaseAccountRepository implements AccountRepository {
           accessToken: sweepToken,
         });
         for (const asset of assets) {
-          await this.#mediaStorage.remove(asset.bucketId, asset.objectPath, {
-            accessToken: sweepToken,
-          });
+          const erasureStorage =
+            asset.purpose === "food"
+              ? asset.userId === userId &&
+                isOwnedMealImagePath(userId, asset.bucketId, asset.objectPath)
+                ? (this.#exportMediaStorage ?? this.#mediaStorage)
+                : null
+              : this.#mediaStorage;
+          if (erasureStorage)
+            await erasureStorage.remove(asset.bucketId, asset.objectPath, {
+              accessToken: sweepToken,
+            });
         }
       }
     };

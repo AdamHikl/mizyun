@@ -75,13 +75,16 @@ const photo = {
 };
 let hasPhoto = true;
 let fallback: any = null;
+let displayEnabled = true;
+let editable = true;
 function render(): any {
   hooks.index = 0;
   const tree = PrivateMealPhoto({
     entryId: "meal-a",
     hasPhoto,
-    editable: true,
+    editable,
     fallback,
+    displayEnabled,
   });
   hooks.effects.splice(0).forEach((effect) => effect());
   return tree;
@@ -108,6 +111,8 @@ beforeEach(async () => {
   mocks.enabled = true;
   hasPhoto = true;
   fallback = null;
+  displayEnabled = true;
+  editable = true;
   mocks.pending.mockResolvedValue(null);
   mocks.read.mockResolvedValue({ ok: true, value: { photo } });
   mocks.upload.mockResolvedValue(true);
@@ -225,4 +230,147 @@ it("removes a photo from its preview and cancels an unresolved local retry", asy
   expect(mocks.remove).toHaveBeenCalledWith("meal-a");
   expect(mocks.discard).toHaveBeenCalledWith("owner-a", "meal-a");
   expect(byLabel("Meal photo preview")).toBeFalsy();
+});
+
+it("offers Free text-only erasure without fetching, signing, displaying, or uploading photos", async () => {
+  displayEnabled = false;
+  fallback = { type: "Illustration", props: {} };
+  render();
+  await flush();
+  const tree = render();
+  expect(mocks.read).not.toHaveBeenCalled();
+  expect(
+    find(
+      tree,
+      (node) =>
+        node.type === "Image" || node.type === "Modal" || node === fallback,
+    ),
+  ).toBeFalsy();
+  expect(byLabel("Reload meal photo")).toBeFalsy();
+  expect(byLabel("Retry meal photo upload")).toBeFalsy();
+  byLabel("Remove saved meal photo").props.onPress();
+  await flush();
+  expect(mocks.remove).toHaveBeenCalledWith("meal-a");
+  expect(mocks.discard).toHaveBeenCalledWith("owner-a", "meal-a");
+  expect(mocks.read).not.toHaveBeenCalled();
+  expect(mocks.upload).not.toHaveBeenCalled();
+  expect(render()).toBeNull();
+});
+
+it("allows text-only erasure when photo retention infrastructure is disabled", async () => {
+  displayEnabled = false;
+  mocks.enabled = false;
+  render();
+  await flush();
+  byLabel("Remove saved meal photo").props.onPress();
+  await flush();
+  expect(mocks.remove).toHaveBeenCalledWith("meal-a");
+  expect(mocks.read).not.toHaveBeenCalled();
+});
+
+it("lets Free users discard a local pending photo without image reads or retry controls", async () => {
+  displayEnabled = false;
+  hasPhoto = false;
+  mocks.pending.mockResolvedValue({ uri: "owned-pending-photo" });
+  render();
+  await flush();
+  expect(byLabel("Discard pending meal photo")).toBeTruthy();
+  expect(byLabel("Retry meal photo upload")).toBeFalsy();
+  expect(byLabel("Reload meal photo")).toBeFalsy();
+  byLabel("Discard pending meal photo").props.onPress();
+  await flush();
+  expect(mocks.discard).toHaveBeenCalledWith("owner-a", "meal-a");
+  expect(mocks.read).not.toHaveBeenCalled();
+  expect(mocks.upload).not.toHaveBeenCalled();
+  expect(render()).toBeNull();
+});
+
+it("hides a ready image and open preview immediately when display access is revoked", async () => {
+  render();
+  await flush();
+  byLabel("View meal photo").props.onPress();
+  expect(byLabel("Meal photo preview")).toBeTruthy();
+  const previousReadCount = mocks.read.mock.calls.length;
+  displayEnabled = false;
+  const tree = render();
+  expect(
+    find(tree, (node) => node.type === "Image" || node.type === "Modal"),
+  ).toBeFalsy();
+  await flush();
+  expect(mocks.read).toHaveBeenCalledTimes(previousReadCount);
+  expect(byLabel("Remove saved meal photo")).toBeTruthy();
+});
+
+it("blocks a previously captured Retry handler and cancels its authority after display revocation", async () => {
+  hasPhoto = false;
+  mocks.pending.mockResolvedValue({ uri: "owned-pending-photo" });
+  mocks.read.mockResolvedValue({ ok: true, value: { photo: null } });
+  render();
+  await flush();
+  const retry = byLabel("Retry meal photo upload").props.onPress;
+  displayEnabled = false;
+  render();
+  retry();
+  await flush();
+  expect(mocks.upload).not.toHaveBeenCalled();
+  expect(byLabel("Retry meal photo upload")).toBeFalsy();
+});
+
+it("retires an in-flight retry before it can restore a photo after display revocation", async () => {
+  hasPhoto = false;
+  mocks.pending.mockResolvedValue({ uri: "owned-pending-photo" });
+  mocks.read.mockResolvedValue({ ok: true, value: { photo: null } });
+  let finish!: (value: boolean) => void;
+  mocks.upload.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  render();
+  await flush();
+  byLabel("Retry meal photo upload").props.onPress();
+  await flush();
+  const isCurrent = mocks.upload.mock.calls[0]![2];
+  expect(isCurrent()).toBe(true);
+  const previousReads = mocks.read.mock.calls.length;
+  displayEnabled = false;
+  render();
+  expect(isCurrent()).toBe(false);
+  finish(true);
+  await flush();
+  expect(mocks.read).toHaveBeenCalledTimes(previousReads);
+  expect(byLabel("Meal photo")).toBeFalsy();
+  expect(byLabel("Discard pending meal photo")).toBeTruthy();
+});
+
+it("does not expose text erasure controls for noneditable Free rows", async () => {
+  displayEnabled = false;
+  editable = false;
+  render();
+  await flush();
+  expect(render()).toBeNull();
+  expect(mocks.read).not.toHaveBeenCalled();
+});
+
+it("rejects a previous account's late pending-photo read in text-only mode", async () => {
+  displayEnabled = false;
+  hasPhoto = false;
+  let finish!: (value: unknown) => void;
+  mocks.pending.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  render();
+  mocks.owner = "owner-b";
+  mocks.token = "token-b";
+  render();
+  await flush();
+  finish({ uri: "owned-by-previous-account" });
+  await flush();
+  expect(render()).toBeNull();
+  expect(byLabel("Discard pending meal photo")).toBeFalsy();
+  expect(mocks.read).not.toHaveBeenCalled();
 });

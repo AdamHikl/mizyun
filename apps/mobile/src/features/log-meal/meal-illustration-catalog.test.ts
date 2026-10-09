@@ -11,6 +11,22 @@ describe("automatic decorative catalog", () => {
     ["Vegetable soup", "soup"],
     ["Toast sandwich", "sandwich"],
     ["Chocolate muffin", "dessert"],
+    ["Two Large Peanut Butter and Jelly Toasts", "toast"],
+    ["High Protein Vanilla Pudding", "pudding"],
+    ["Banana", "banana"],
+    ["Ryža", "rice"],
+    ["Roasted potatoes", "potatoes"],
+    ["Pancakes", "pancakes"],
+    ["Cereal with milk", "cereal"],
+    ["Berry smoothie", "smoothie"],
+    ["Milk", "milk"],
+    ["Cheese", "cheese"],
+    ["Croissant", "croissant"],
+    ["Protein bar", "protein-bar"],
+    ["Sushi", "sushi"],
+    ["Burrito", "burrito"],
+    ["Nuts", "nuts"],
+    ["Vanilla ice cream", "ice-cream"],
   ])("matches %s without user input", (name, kind) => {
     expect(selectMealIllustration(name).kind).toBe(kind);
   });
@@ -21,14 +37,26 @@ describe("automatic decorative catalog", () => {
     expect(selectMealIllustration("Pineapple").kind).toBe("meal");
     expect(selectMealIllustration("Eggplant").kind).toBe("meal");
   });
-  it("always provides a neutral fallback, including empty and unfamiliar names", () => {
+  it("marks empty and unfamiliar names as unmatched", () => {
     for (const name of ["", "Homemade dinner", "家常菜"]) {
       expect(selectMealIllustration(name)).toEqual({
         kind: "meal",
+        atlas: "base",
         row: 3,
         column: 3,
         matched: false,
       });
     }
+  });
+});
+
+it("uses the supplemental sheet coordinates for the screenshot meals", () => {
+  expect(
+    selectMealIllustration("Peanut butter and jelly toasts"),
+  ).toMatchObject({ atlas: "supplement", row: 0, column: 0 });
+  expect(selectMealIllustration("Vanilla pudding")).toMatchObject({
+    atlas: "supplement",
+    row: 0,
+    column: 1,
   });
 });

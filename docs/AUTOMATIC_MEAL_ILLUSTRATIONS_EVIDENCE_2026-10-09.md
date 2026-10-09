@@ -1,6 +1,8 @@
 # Automatic meal illustrations — 2026-10-09
 
-Issue[#230](https://github.com/AdamHikl/mizyun/issues/230); requirementNUT-10; [ADR-0053](adr/0053-automatic-meal-illustrations.md). Local uncommitted implementation on baseline`0d9da8a46197f20b12f00d643851a84866368998`. No commit, deployment, remote configuration or new live provider evaluation occurred.
+Issue[#230](https://github.com/AdamHikl/mizyun/issues/230); requirementNUT-10; [ADR-0053](adr/0053-automatic-meal-illustrations.md). Local uncommitted implementation on baseline`0d9da8a46197f20b12f00d643851a84866368998`. At source verification, no commit, deployment, remote configuration or new live provider evaluation had occurred. Subsequently, Adam authorized Dev delivery: snapshot537f4ae was pushed/deployed and the latest iPhone Dev installed; launch remained blocked by the locked phone. See[delivery receipt](MEAL_ILLUSTRATIONS_DEV_DELIVERY_2026-10-09.md).
+
+> The later Pro restriction/catalog expansion supersedes the original neutral-plate and unrestricted catalog behavior below. See [Pro follow-up evidence](PRO_MEAL_VISUALS_EVIDENCE_2026-10-09.md); original delivery facts remain historical.
 
 ## Delivered behavior
 
@@ -24,6 +26,6 @@ Independent High non-author review cleared the settled backend after fixes for s
 
 New generation remains`MEAL_ILLUSTRATIONS_ENABLED=false` by default. Current synthetic-provider prerequisites in[BEFORE_TESTING](BEFORE_TESTING.md), paid image-model availability, output quality, actual latency/cost and provider privacy/disclosure acceptance remain open. Bundled synthetic artwork was generated; this does not establish the server's Gemini integration.
 
-Next: run iOS/Android catalog clipping, light/dark, large text/VoiceOver, photo priority/removal, offline/reconnect and rapid account/name switches on the exact Dev candidate. Actual PostgREST/Auth two-account export/erasure acceptance remains distinct from local SQL and fake transport tests. Apply the forward migration before schema-aware deployment; stale PostgREST cache fails closed. No Dev deployment/device acceptance or Production release is claimed. Issue remains open for these exits.
+Next: run iOS/Android catalog clipping, light/dark, large text/VoiceOver, photo priority/removal, offline/reconnect and rapid account/name switches on the exact Dev candidate. Actual PostgREST/Auth two-account export/erasure acceptance remains distinct from local SQL and fake transport tests. Apply the forward migration before schema-aware deployment; stale PostgREST cache fails closed. That source gate did not establish Dev deployment/device acceptance or Production release; later Dev deployment/installation evidence is recorded separately in the delivery receipt. Device feature acceptance and Production release remain open. Issue remains open for these exits.
 
 Concurrent Coach selection changes are separate work. Shared status/research additions were preserved. The full gate checked the stable combined local tree, including those separate Coach changes; they are excluded from the owned implementation manifest. Only handoff evidence/status files were updated after the passing gate, then format/navigation checks rerun. [Source hashes](evidence/meal-illustrations-2026-10-09/source-manifest.json), [art prompt/provenance](../apps/mobile/assets/images/meal-illustrations/README.md), [prior status](archive/status/STATUS_PRE_MEAL_ILLUSTRATIONS_2026-10-09.md).

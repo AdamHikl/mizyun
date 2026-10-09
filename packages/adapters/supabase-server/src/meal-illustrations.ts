@@ -129,7 +129,10 @@ export class SupabaseMealIllustrationRepository implements MealIllustrationRepos
     accessToken: string,
   ): Promise<readonly StoredMealIllustration[]> {
     const result: StoredMealIllustration[] = [];
-    const client = this.options.clientFor(accessToken);
+    // Only the authenticated account-export flow invokes this ownership-scoped port.
+    // Feature reads use admission RPC; downgrade RLS must not omit retained export bytes.
+    void accessToken;
+    const client = this.options.serviceClient;
     for (let start = 0; ; start += 100) {
       const page = await client
         .from<IllustrationRow>("meal_illustrations")

@@ -20,24 +20,29 @@ export function PrivateMealPhoto({
   editable = false,
   fallback = null,
   onPhotoRemoved,
+  displayEnabled = true,
 }: {
   readonly entryId: string;
   readonly hasPhoto: boolean;
   readonly editable?: boolean;
   readonly fallback?: ReactNode;
   readonly onPhotoRemoved?: () => void;
+  readonly displayEnabled?: boolean;
 }) {
   const { session } = useAuth();
   const owner = session?.user.id ?? null;
   const scope = `${owner ?? ""}:${session?.accessToken ?? ""}:${entryId}`;
   const current = useRef(scope);
   current.current = scope;
+  const currentDisplay = useRef(displayEnabled);
+  currentDisplay.current = displayEnabled;
   const generation = useRef(0);
   const [state, setState] = useState<{
     scope: string;
     photo: StoredMealPhoto | null;
     pending: boolean;
     message: string | null;
+    removed?: boolean;
   } | null>(null);
   const [previewScope, setPreviewScope] = useState<string | null>(null);
   const [busyScope, setBusyScope] = useState<string | null>(null);
@@ -46,9 +51,18 @@ export function PrivateMealPhoto({
     const requestGeneration = ++generation.current;
     const valid = () =>
       current.current === scope && generation.current === requestGeneration;
-    if (!owner || !enabled) return;
+    if (!owner || (displayEnabled && !enabled)) return;
     const pending = await loadMealPhotoRetry(owner, entryId);
     if (!valid()) return;
+    if (!currentDisplay.current) {
+      setState({
+        scope,
+        photo: null,
+        pending: pending !== null,
+        message: null,
+      });
+      return;
+    }
     if (!hasPhoto && !pending && !force) {
       setState({ scope, photo: null, pending: false, message: null });
       return;
@@ -68,16 +82,21 @@ export function PrivateMealPhoto({
     return () => {
       generation.current++;
     };
-  }, [scope, enabled, hasPhoto]);
-  if (!enabled || !owner) return fallback;
+  }, [scope, enabled, hasPhoto, displayEnabled]);
+  if (!owner) return displayEnabled ? fallback : null;
+  if (displayEnabled && !enabled) return fallback;
   const visible = state?.scope === scope ? state : null;
-  if (!hasPhoto && !visible?.photo && !visible?.pending) return fallback;
+  if (!displayEnabled && !editable) return null;
+  if (!hasPhoto && !visible?.photo && !visible?.pending)
+    return displayEnabled ? fallback : null;
   const busy = busyScope === scope;
   const perform = async (action: "retry" | "discard" | "remove") => {
-    if (busy) return;
+    if (busy || (action === "retry" && !currentDisplay.current)) return;
     const requestGeneration = ++generation.current;
     const valid = () =>
-      current.current === scope && generation.current === requestGeneration;
+      current.current === scope &&
+      generation.current === requestGeneration &&
+      (action !== "retry" || currentDisplay.current);
     setBusyScope(scope);
     setPreviewScope(null);
     let ok = false;
@@ -93,7 +112,15 @@ export function PrivateMealPhoto({
         if (ok && valid()) ok = await removeMealPhotoRetry(owner, entryId);
       }
       if (!valid()) return;
-      if (ok) await load(true);
+      if (ok && !currentDisplay.current)
+        setState({
+          scope,
+          photo: null,
+          pending: false,
+          message: null,
+          removed: action === "remove" || visible?.removed === true,
+        });
+      else if (ok) await load(true);
       else
         setState((previous) =>
           previous?.scope === scope
@@ -107,6 +134,41 @@ export function PrivateMealPhoto({
       if (current.current === scope) setBusyScope(null);
     }
   };
+  if (!displayEnabled) {
+    const canRemove = hasPhoto && visible?.removed !== true;
+    if (!canRemove && !visible?.pending && !visible?.message) return null;
+    return (
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+        {visible?.message ? (
+          <ThemedText accessibilityRole="alert" type="small">
+            {visible.message}
+          </ThemedText>
+        ) : null}
+        {canRemove ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Remove saved meal photo"
+            disabled={busy}
+            onPress={() => void perform("remove")}
+            style={{ minHeight: 44, justifyContent: "center" }}
+          >
+            <ThemedText type="smallBold">Remove photo</ThemedText>
+          </Pressable>
+        ) : null}
+        {visible?.pending ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Discard pending meal photo"
+            disabled={busy}
+            onPress={() => void perform("discard")}
+            style={{ minHeight: 44, justifyContent: "center" }}
+          >
+            <ThemedText type="smallBold">Discard photo</ThemedText>
+          </Pressable>
+        ) : null}
+      </View>
+    );
+  }
   const photo = visible?.photo;
   return (
     <View
@@ -122,6 +184,7 @@ export function PrivateMealPhoto({
           accessibilityRole="button"
           accessibilityLabel="View meal photo"
           onPress={() => {
+            if (!currentDisplay.current) return;
             if (Date.parse(photo.expiresAt) <= Date.now()) {
               void load();
               return;

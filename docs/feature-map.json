@@ -6,7 +6,7 @@
     {
       "id": "meal-logging",
       "title": "Meal & Nutrition Logging",
-      "summary": "Manual food CRUD, keyset-paginated history/search, macro/calorie calculations, local-day offsets, offline drafts, and photo/text/refine generation with Pro nutrient estimates. Explicit opt-in recurring saved meals with server-side schedules and durable occurrence ledger. Dev-only optional compressed private meal thumbnails with explicit source choice and durable cleanup/retry. Automatic decorative catalog thumbnails and default-off private background illustrations, independent of meal saving.",
+      "summary": "Manual food CRUD, keyset-paginated history/search, macro/calorie calculations, local-day offsets, offline drafts, and photo/text/refine generation with Pro nutrient estimates. Explicit opt-in recurring saved meals with server-side schedules and durable occurrence ledger. Dev-only optional compressed private meal thumbnails with explicit source choice and durable cleanup/retry. Automatic decorative catalog thumbnails and default-off private background illustrations, independent of meal saving. Pro-only meal visual display and photo retention with server/RPC/Storage downgrade fencing; common food catalog reuse avoids per-meal generation.",
       "aliases": ["food", "nutrition", "calories", "macros", "diet", "meal"],
       "entryPoints": [
         "apps/api/src/modules/food-entries/routes.ts",
@@ -49,7 +49,11 @@
         "scripts/test-meal-illustrations-db.py",
         "apps/mobile/assets/images/meal-illustrations",
         "packages/config/src/meal-illustration.test.ts",
-        "packages/api-client/src/meal-illustration.test.ts"
+        "packages/api-client/src/meal-illustration.test.ts",
+        "apps/api/src/meal-visual-access.ts",
+        "packages/core/src/meal-image-path.ts",
+        "packages/core/src/meal-image-path.test.ts",
+        "packages/contracts/src/meal-image-path.test.ts"
       ],
       "contracts": [
         "packages/contracts/src/food-entry.ts",
@@ -68,7 +72,8 @@
         "apps/api/src/modules/food-entries/draft-route.ts",
         "apps/api/src/modules/recurring-meals/routes.ts",
         "apps/api/src/modules/food-entries/photo-routes.ts",
-        "apps/api/src/modules/meal-illustrations/routes.ts"
+        "apps/api/src/modules/meal-illustrations/routes.ts",
+        "apps/api/src/modules/food-entries/visual-routes.ts"
       ],
       "ui": [
         "apps/mobile/src/app/(tabs)/meals.tsx",
@@ -94,7 +99,8 @@
         "meal_photo_cleanup_jobs",
         "meal_illustrations",
         "meal_illustration_environment_usage",
-        "meal_illustration_user_usage"
+        "meal_illustration_user_usage",
+        "food_media_paths"
       ],
       "migrationPaths": [
         "supabase/migrations/20260714101000_user_data.sql",
@@ -102,7 +108,8 @@
         "supabase/migrations/20260908120000_security_and_retry_integrity.sql",
         "supabase/migrations/20261003100000_recurring_meals.sql",
         "supabase/migrations/20261006200000_retained_meal_photos.sql",
-        "supabase/migrations/20261009120000_meal_illustrations.sql"
+        "supabase/migrations/20261009120000_meal_illustrations.sql",
+        "supabase/migrations/20261009150000_pro_meal_visuals.sql"
       ],
       "tests": [
         "apps/api/src/modules/food-entries/routes.test.ts",

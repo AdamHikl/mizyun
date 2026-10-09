@@ -18,6 +18,7 @@ import {
 } from "@mizyun/adapter-supabase-server";
 import type { MealPhotoService } from "@mizyun/core";
 import { mealPhotoRoutes } from "./modules/food-entries/photo-routes.js";
+import { mealVisualRoutes } from "./modules/food-entries/visual-routes.js";
 import { SupabaseRecurringMealRepository } from "@mizyun/adapter-supabase-server";
 import type { RecurringMealRepository } from "@mizyun/core";
 import { InMemoryRecurringMealRepository } from "./recurring-meal-repository.js";
@@ -860,6 +861,13 @@ export const buildApp = (
       );
     });
 
+  const foodLifecycleStorage =
+    sp?.serviceRoleClient && photoConfig?.serviceRoleKey
+      ? new SupabaseMediaStorage({
+          clientFor: () => sp.storageClientFor(photoConfig.serviceRoleKey!),
+          ...(sp.publicUrl ? { publicUrl: sp.publicUrl } : {}),
+        })
+      : undefined;
   const accountRepository: AccountRepository =
     dependencies.accountRepository ??
     (sp
@@ -876,6 +884,9 @@ export const buildApp = (
           feedbackRepository,
           mediaAssetRepository,
           mediaStorage,
+          ...(foodLifecycleStorage
+            ? { exportMediaStorage: foodLifecycleStorage }
+            : {}),
           memoryStore: resolveMemoryStore(dependencies),
           aiConsentRepository,
           productAnalyticsRepository,
@@ -1125,6 +1136,13 @@ export const buildApp = (
     prefix: "/v1/food-entries",
     enabled: mealPhotosEnabled,
     service: mealPhotoService,
+    profileRepository,
+    betaProRepository,
+  });
+  void app.register(mealVisualRoutes, {
+    prefix: "/v1/food-entries",
+    profileRepository,
+    betaProRepository,
   });
   void app.register(foodEntriesRoutes, {
     prefix: "/v1/food-entries",
@@ -1145,6 +1163,7 @@ export const buildApp = (
     foodEntryRepository,
     profileRepository,
     aiConsentRepository,
+    betaProRepository,
     repository: mealIllustrationRepository,
     provider: mealIllustrationProvider,
     enabled: mealIllustrationsEnabled,
@@ -1262,6 +1281,11 @@ export const buildApp = (
     mediaAssetRepository,
     mediaStorage,
     bucketId: MEDIA_BUCKET_ID,
+    profileRepository,
+    betaProRepository,
+    ...(foodLifecycleStorage
+      ? { foodErasureStorage: foodLifecycleStorage }
+      : {}),
   });
   void app.register(feedbackRoutes, {
     prefix: "/v1/feedback",

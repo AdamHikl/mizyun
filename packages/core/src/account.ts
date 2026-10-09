@@ -83,6 +83,7 @@ export interface ExportedMediaAsset {
  * can render the full record set without a second round-trip.
  */
 export interface AccountExport {
+  readonly mealImagePaths?: readonly import("./meal-image-path.js").MealImagePathRecord[];
   readonly mealIllustrations?: readonly import("./meal-illustration.js").StoredMealIllustration[];
   readonly mealIllustrationUsage?: readonly import("./meal-illustration.js").MealIllustrationUsage[];
   readonly manifest?: ExportManifest;

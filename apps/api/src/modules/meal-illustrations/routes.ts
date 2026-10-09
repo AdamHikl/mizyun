@@ -19,6 +19,8 @@ import {
 } from "@mizyun/agent-runtime";
 import { authorizeAiAccess } from "../../ai-eligibility.js";
 import { sendApiError } from "../../errors.js";
+import type { BetaProRepository } from "../../beta-pro-repository.js";
+import { hasMealVisuals } from "../../meal-visual-access.js";
 
 function withAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -46,6 +48,7 @@ export interface MealIllustrationRoutesOptions {
   readonly foodEntryRepository: FoodEntryRepository;
   readonly profileRepository: ProfileRepository;
   readonly aiConsentRepository: AiConsentRepository;
+  readonly betaProRepository: BetaProRepository;
   readonly repository: MealIllustrationRepository | null;
   readonly provider: MealIllustrationProvider | null;
   readonly enabled: () => boolean;
@@ -80,7 +83,12 @@ export const mealIllustrationRoutes: FastifyPluginAsync<
         ]),
         signal,
       );
+      const pro = await withAbort(
+        hasMealVisuals(options, userId, accessToken, profile.planTier),
+        signal,
+      );
       return (
+        pro &&
         !signal.aborted &&
         options.enabled() &&
         authorizeAiAccess({ profile, consent }).authorized

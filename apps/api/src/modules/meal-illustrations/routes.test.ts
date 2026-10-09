@@ -6,6 +6,7 @@ import { InMemoryFoodEntryRepository } from "../../food-entry-repository.js";
 import { InMemoryProfileRepository } from "../../profile-repository.js";
 import { InMemoryAiConsentRepository } from "../../ai-consent-repository.js";
 import { InMemoryMealIllustrationRepository } from "./repository.js";
+import { InMemoryBetaProRepository } from "../../beta-pro-repository.js";
 
 const userA = "00000000-0000-4000-8000-000000000001" as UserId;
 const userB = "00000000-0000-4000-8000-000000000002" as UserId;
@@ -25,6 +26,8 @@ function setup(
     enabled?: boolean;
     generate?: () => Promise<Uint8Array>;
     timeoutMs?: number;
+    planTier?: "free" | "paid";
+    betaStatus?: "pending" | "approved" | "rejected";
   } = {},
 ) {
   let enabled = input.enabled ?? true;
@@ -36,7 +39,20 @@ function setup(
     defaultTimezone: "UTC",
     defaultUnitSystem: "metric",
     defaultBirthYear: input.birthYear === undefined ? 1990 : input.birthYear,
+    defaultPlanTier: input.planTier ?? "paid",
   });
+  const beta = new InMemoryBetaProRepository();
+  if (input.betaStatus)
+    beta.__seedForTest({
+      id: crypto.randomUUID(),
+      userId: userA,
+      email: "synthetic@example.test",
+      status: input.betaStatus,
+      notes: null,
+      pushToken: null,
+      createdAt: new Date(),
+      reviewedAt: null,
+    });
   const repository = new InMemoryMealIllustrationRepository();
   const provider = {
     generate: vi.fn(async (_dishName: string, _signal: AbortSignal) =>
@@ -64,6 +80,7 @@ function setup(
     foodEntryRepository: food,
     profileRepository: profile,
     aiConsentRepository: consent,
+    betaProRepository: beta,
     mealIllustrationRepository: repository,
     mealIllustrationProvider: provider,
     mealIllustrationsEnabled: () => enabled,
@@ -95,6 +112,7 @@ function setup(
     consent,
     repository,
     provider,
+    beta,
     disable: () => {
       enabled = false;
     },
@@ -104,6 +122,60 @@ const settle = (s: ReturnType<typeof setup>, state: string) =>
   vi.waitFor(() =>
     expect([...s.repository.records.values()][0]?.state).toBe(state),
   );
+describe("Pro illustration access", () => {
+  it("denies Free and unapproved passes before admission/provider work", async () => {
+    for (const betaStatus of [undefined, "pending", "rejected"] as const) {
+      const s = setup({
+        planTier: "free",
+        ...(betaStatus ? { betaStatus } : {}),
+      });
+      expect((await s.request()).json()).toEqual({ status: "unavailable" });
+      expect(s.repository.records.size).toBe(0);
+      expect(s.provider.generate).not.toHaveBeenCalled();
+    }
+  });
+  it("allows an approved existing pass with a Free profile", async () => {
+    const s = setup({ planTier: "free", betaStatus: "approved" });
+    expect((await s.request()).statusCode).toBe(202);
+    await settle(s, "ready");
+  });
+  it("downgrade blocks ready display while preserving export bytes and erasure", async () => {
+    const s = setup();
+    await s.request();
+    await settle(s, "ready");
+    const current = await s.profile.getOrCreate(userA, {
+      accessToken: "A",
+      now: new Date(),
+    });
+    await s.profile.update(
+      userA,
+      { ...current, planTier: "free" },
+      { accessToken: "A" },
+    );
+    expect((await s.request()).json()).toEqual({ status: "unavailable" });
+    expect((await s.repository.exportForUser(userA))[0]?.image).not.toBeNull();
+    await s.repository.deleteForUser(userA);
+    expect(s.repository.records.size).toBe(0);
+  });
+  it("revoked pass while generation is in flight prevents publication", async () => {
+    let finish!: (bytes: Uint8Array) => void;
+    const s = setup({
+      planTier: "free",
+      betaStatus: "approved",
+      generate: () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    });
+    await s.request();
+    await vi.waitFor(() => expect(s.provider.generate).toHaveBeenCalledOnce());
+    const pass = (await s.beta.getRequest(userA))!;
+    s.beta.__seedForTest({ ...pass, status: "rejected" });
+    finish(png);
+    await settle(s, "failed");
+    expect((await s.repository.exportForUser(userA))[0]?.image).toBeNull();
+  });
+});
 describe("private background meal illustrations", () => {
   it("exports retained bytes and owner usage after the kill switch turns off", async () => {
     const s = setup();

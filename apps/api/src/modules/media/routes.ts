@@ -2,12 +2,14 @@ import type { FastifyPluginAsync } from "fastify";
 import {
   buildMediaTimeline,
   buildObjectPath,
+  isOwnedMealImagePath,
   compareMediaAssets,
   validateMediaAssetCreate,
   type MediaAssetRepository,
   type MediaAssetValidationError,
   type StoredMediaAsset,
   type UserId,
+  type ProfileRepository,
 } from "@mizyun/core";
 import {
   mediaAssetListResponseSchema,
@@ -31,11 +33,16 @@ import {
 
 import { sendApiError } from "../../errors.js";
 import type { MediaStorage } from "../../media-storage.js";
+import type { BetaProRepository } from "../../beta-pro-repository.js";
+import { hasMealVisuals } from "../../meal-visual-access.js";
 
 interface MediaRoutesOptions {
   readonly mediaAssetRepository: MediaAssetRepository;
   readonly mediaStorage: MediaStorage;
   readonly bucketId: string;
+  readonly profileRepository: ProfileRepository;
+  readonly betaProRepository: BetaProRepository;
+  readonly foodErasureStorage?: MediaStorage;
 }
 
 const GENERIC_UUID =
@@ -153,6 +160,29 @@ export const mediaRoutes: FastifyPluginAsync<MediaRoutesOptions> = async (
   app,
   options,
 ) => {
+  const requireFoodPro = async (
+    purpose: string,
+    request: Parameters<typeof sendApiError>[1],
+    reply: Parameters<typeof sendApiError>[0],
+  ) => {
+    if (
+      purpose !== "food" ||
+      (await hasMealVisuals(
+        options,
+        request.principal!.userId as UserId,
+        request.principal!.accessToken,
+      ))
+    )
+      return true;
+    await sendApiError(
+      reply,
+      request,
+      403,
+      "FORBIDDEN",
+      "Meal images require Pro Pass.",
+    );
+    return false;
+  };
   // POST /v1/media/upload-url — issue a signed upload URL and
   // record the asset metadata. The route server-generates the
   // object path so a misconfigured client cannot place bytes
@@ -199,6 +229,7 @@ export const mediaRoutes: FastifyPluginAsync<MediaRoutesOptions> = async (
         return;
       }
       const now = new Date();
+      if (!(await requireFoodPro(parsed.data.purpose, request, reply))) return;
       const id = crypto.randomUUID();
       const objectPath = buildObjectPath(
         principal.userId,
@@ -231,6 +262,7 @@ export const mediaRoutes: FastifyPluginAsync<MediaRoutesOptions> = async (
       await options.mediaAssetRepository.create(principal.userId, stored, {
         accessToken: principal.accessToken,
       });
+      if (!(await requireFoodPro(stored.purpose, request, reply))) return;
       return mediaUploadUrlResponseSchema.parse({
         assetId: id,
         uploadUrl: signed.url,
@@ -321,6 +353,7 @@ export const mediaRoutes: FastifyPluginAsync<MediaRoutesOptions> = async (
         );
         return;
       }
+      if (!(await requireFoodPro(asset.purpose, request, reply))) return;
       const signed = await options.mediaStorage.signDownloadUrl(
         options.bucketId,
         asset.objectPath,
@@ -330,6 +363,8 @@ export const mediaRoutes: FastifyPluginAsync<MediaRoutesOptions> = async (
           accessToken: principal.accessToken,
         },
       );
+      if (!(await requireFoodPro(asset.purpose, request, reply))) return;
+      reply.header("cache-control", "no-store");
       return mediaSignResponseSchema.parse({
         signedUrl: signed.url,
         expiresAt: signed.expiresAt.toISOString(),
@@ -374,9 +409,20 @@ export const mediaRoutes: FastifyPluginAsync<MediaRoutesOptions> = async (
         return;
       }
       const now = new Date();
-      await options.mediaStorage.remove(options.bucketId, asset.objectPath, {
-        accessToken: principal.accessToken,
-      });
+      const erasureStorage =
+        asset.purpose === "food"
+          ? isOwnedMealImagePath(
+              principal.userId,
+              asset.bucketId,
+              asset.objectPath,
+            )
+            ? (options.foodErasureStorage ?? options.mediaStorage)
+            : null
+          : options.mediaStorage;
+      if (erasureStorage)
+        await erasureStorage.remove(options.bucketId, asset.objectPath, {
+          accessToken: principal.accessToken,
+        });
       const updated = await options.mediaAssetRepository.softDelete(id, now, {
         accessToken: principal.accessToken,
       });
@@ -416,6 +462,7 @@ export const mediaRoutes: FastifyPluginAsync<MediaRoutesOptions> = async (
         return;
       }
       const purpose = parsed.data.purpose ?? "progress";
+      if (!(await requireFoodPro(purpose, request, reply))) return;
       const limit = Math.min(
         MAX_LIMIT,
         Math.max(1, parsed.data.limit ?? DEFAULT_LIMIT),
@@ -491,6 +538,7 @@ export const mediaRoutes: FastifyPluginAsync<MediaRoutesOptions> = async (
           signedUrlExpiresAt: string;
         }> = [];
         for (const asset of kept) {
+          if (!(await requireFoodPro(asset.purpose, request, reply))) return;
           const signed = await options.mediaStorage.signDownloadUrl(
             options.bucketId,
             asset.objectPath,
@@ -514,6 +562,8 @@ export const mediaRoutes: FastifyPluginAsync<MediaRoutesOptions> = async (
         remaining -= entries.length;
       }
       try {
+        if (!(await requireFoodPro(purpose, request, reply))) return;
+        reply.header("cache-control", "no-store");
         return mediaTimelineResponseSchema.parse({
           buckets: trimmed.map((bucket) => ({
             date: bucket.date,
@@ -592,19 +642,32 @@ export const mediaRoutes: FastifyPluginAsync<MediaRoutesOptions> = async (
           ? parsed.data.urlTtlSeconds
           : SIGNED_URL_TTL_SECONDS;
       const now = new Date();
+      if (
+        !(await requireFoodPro(a.purpose, request, reply)) ||
+        !(await requireFoodPro(b.purpose, request, reply))
+      )
+        return;
       const [signedA, signedB] = await Promise.all([
         options.mediaStorage.signDownloadUrl(options.bucketId, a.objectPath, {
-          ttlSeconds: ttl,
+          ttlSeconds:
+            a.purpose === "food" ? Math.min(ttl, SIGNED_URL_TTL_SECONDS) : ttl,
           now,
           accessToken: principal.accessToken,
         }),
         options.mediaStorage.signDownloadUrl(options.bucketId, b.objectPath, {
-          ttlSeconds: ttl,
+          ttlSeconds:
+            b.purpose === "food" ? Math.min(ttl, SIGNED_URL_TTL_SECONDS) : ttl,
           now,
           accessToken: principal.accessToken,
         }),
       ]);
       const { daysBetween, direction } = compareMediaAssets(a, b);
+      if (
+        !(await requireFoodPro(a.purpose, request, reply)) ||
+        !(await requireFoodPro(b.purpose, request, reply))
+      )
+        return;
+      reply.header("cache-control", "no-store");
       return mediaCompareResponseSchema.parse({
         sideA: {
           asset: toWireAsset(a),

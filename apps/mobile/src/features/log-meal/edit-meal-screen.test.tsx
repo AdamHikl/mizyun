@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   clear: vi.fn(),
   refresh: vi.fn(),
   enabled: true,
+  visuals: true,
 }));
 const hooks = vi.hoisted(() => ({
   slots: [] as any[],
@@ -95,6 +96,9 @@ vi.mock("./advanced-nutrition", () => ({
     enabled: mocks.enabled,
     refresh: mocks.refresh,
   }),
+}));
+vi.mock("./meal-visual-capability", () => ({
+  useMealVisualCapability: () => ({ enabled: mocks.visuals, refresh: vi.fn() }),
 }));
 vi.mock("./meal-lifecycle-data", () => ({
   fetchFoodEntry: mocks.fetch,
@@ -185,6 +189,7 @@ beforeEach(async () => {
   hooks.effects = [];
   vi.clearAllMocks();
   mocks.enabled = true;
+  mocks.visuals = true;
   mocks.refresh.mockResolvedValue(true);
   mocks.fetch.mockResolvedValue({ ok: true, entry });
   mocks.load.mockResolvedValue(null);
@@ -363,3 +368,15 @@ describe("AI advanced nutrients in saved meal editing", () => {
 vi.mock("./meal-visual", () => ({
   MealVisual: "MealVisual",
 }));
+
+it("gates saved-meal visuals independently from nutrition editing access", () => {
+  expect(
+    find(render(), (node) => node.type === "MealVisual").props.enabled,
+  ).toBe(true);
+  mocks.visuals = false;
+  mocks.enabled = true;
+  expect(
+    find(render(), (node) => node.type === "MealVisual").props.enabled,
+  ).toBe(false);
+  expect(nutrients().enabled).toBe(true);
+});

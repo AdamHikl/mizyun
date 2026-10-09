@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   copy: vi.fn().mockResolvedValue({ ok: true }),
   reminders: vi.fn().mockResolvedValue(undefined),
   owner: "user-a",
+  visuals: true,
   version: "0:today:0",
   appState: null as ((state: string) => void) | null,
 }));
@@ -119,6 +120,9 @@ vi.mock("./advanced-nutrition", () => ({
   }),
   fetchCurrentWeekSummaries: vi.fn(),
 }));
+vi.mock("./meal-visual-capability", () => ({
+  useMealVisualCapability: () => ({ enabled: mocks.visuals, refresh: vi.fn() }),
+}));
 vi.mock("./evening-catch-up-reminders", () => ({
   reconcileEveningReminders: vi.fn(),
 }));
@@ -189,6 +193,7 @@ async function settle() {
 }
 
 beforeEach(() => {
+  mocks.visuals = true;
   hooks.cleanups.forEach((cleanup) => cleanup());
   hooks.cleanups.clear();
   hooks.slots = [];
@@ -581,6 +586,35 @@ it("qualifies partial totals and does not invent missing nutrients", async () =>
 vi.mock("./meal-visual", () => ({
   MealVisual: "MealVisual",
 }));
+
+it("passes screen-owned Pro authority to the meal row and its visual", async () => {
+  mocks.fetch.mockResolvedValue(response([entry("visual-meal")]));
+  render();
+  hooks.focus!();
+  await settle();
+  const row = find(
+    render(),
+    (node) =>
+      typeof node.type === "function" && node.type.name === "MealEntryRow",
+  );
+  expect(row.props.mealVisualsEnabled).toBe(true);
+  expect(
+    find(row.type(row.props), (node) => node.type === "MealVisual").props
+      .enabled,
+  ).toBe(true);
+  mocks.visuals = false;
+  const downgraded = find(
+    render(),
+    (node) =>
+      typeof node.type === "function" && node.type.name === "MealEntryRow",
+  );
+  expect(
+    find(
+      downgraded.type(downgraded.props),
+      (node) => node.type === "MealVisual",
+    ).props.enabled,
+  ).toBe(false);
+});
 
 describe("older meal history search", () => {
   const searchState = () =>

@@ -881,6 +881,106 @@ describe("SupabaseAccountRepository", () => {
       "https://signed.supabase.co/photo.jpg",
     );
   });
+  it("keeps downgraded food export in the explicit owner-scoped lifecycle signing path", async () => {
+    const displayStorage = {
+      remove: vi.fn(),
+      signDownloadUrl: vi
+        .fn()
+        .mockRejectedValue(new Error("Pro display denied")),
+    };
+    const exportStorage = {
+      remove: vi.fn(),
+      signDownloadUrl: vi.fn().mockResolvedValue({
+        url: "https://synthetic.test/private-export",
+        expiresAt: new Date(),
+      }),
+    };
+    const food = {
+      id: "food-photo",
+      userId: testUserId,
+      bucketId: "private-media",
+      objectPath: `${testUserId}/meal-photos/00000000-0000-4000-8000-00000000f001.jpg`,
+      purpose: "food",
+      mimeType: "image/jpeg",
+      byteSize: 100,
+      createdAt: new Date(),
+      deletedAt: null,
+    };
+    const mediaAssetRepository = {
+      list: vi.fn().mockResolvedValue([food]),
+    } as unknown as MediaAssetRepository;
+    const repo = new SupabaseAccountRepository(
+      createMockOptions({
+        mediaStorage: displayStorage,
+        exportMediaStorage: exportStorage,
+        mediaAssetRepository,
+      }),
+    );
+    const result = await repo.exportForUser(testUserId, {
+      accessToken: "verified-owner",
+    });
+    expect(result.privateMedia[0]?.downloadUrl).toBe(
+      "https://synthetic.test/private-export",
+    );
+    expect(displayStorage.signDownloadUrl).not.toHaveBeenCalled();
+    expect(exportStorage.signDownloadUrl).toHaveBeenCalledWith(
+      "private-media",
+      food.objectPath,
+      expect.objectContaining({ accessToken: "verified-owner" }),
+    );
+    for (const objectPath of [
+      "another-owner/photo.jpg",
+      `${testUserId}/../peer/private.jpg`,
+      `${testUserId}/%2e%2e/peer/private.jpg`,
+      `${food.objectPath}?private=query`,
+    ]) {
+      vi.mocked(mediaAssetRepository.list).mockResolvedValue([
+        { ...food, objectPath },
+      ] as never);
+      expect(
+        (
+          await repo.exportForUser(testUserId, {
+            accessToken: "verified-owner",
+          })
+        ).privateMedia[0]?.downloadUrl,
+      ).toBeNull();
+    }
+    expect(exportStorage.signDownloadUrl).toHaveBeenCalledOnce();
+  });
+  it("skips unsafe legacy Storage IO while completing owned account erasure", async () => {
+    const storage = { remove: vi.fn() };
+    const mediaAssetRepository = {
+      list: vi.fn().mockResolvedValue([
+        {
+          userId: testUserId,
+          bucketId: "private-media",
+          objectPath: `${testUserId}/%2e%2e/peer/private.jpg`,
+          purpose: "food",
+        },
+      ]),
+    } as unknown as MediaAssetRepository;
+    const options = createMockOptions({
+      exportMediaStorage: storage,
+      mediaAssetRepository,
+    });
+    const repo = new SupabaseAccountRepository(options);
+    const now = new Date();
+    const token = await repo.issueDeletionChallenge(testUserId, {
+      ttlSeconds: 300,
+      now,
+    });
+    expect(
+      (
+        await repo.deleteUser(testUserId, {
+          accessToken: "verified-owner",
+          confirmationToken: token,
+          now,
+        })
+      ).deleted,
+    ).toBe(true);
+    expect(storage.remove).not.toHaveBeenCalled();
+    expect(options.deleteUserMock).toHaveBeenCalledOnce();
+  });
 
   it("exportForUser marks manifest partial if private media URL signing fails", async () => {
     const mediaStorage = {
@@ -995,7 +1095,15 @@ describe("SupabaseAccountRepository", () => {
                 ? schedules
                 : table === "recurring_meal_occurrences"
                   ? occurrences
-                  : [];
+                  : table === "food_media_paths"
+                    ? [
+                        {
+                          user_id: testUserId,
+                          path_key: "a".repeat(64),
+                          created_at: "2026-10-09T10:00:00+00:00",
+                        },
+                      ]
+                    : [];
             return { data: rows.slice(from, to + 1), error: null };
           }),
           maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
@@ -1013,6 +1121,17 @@ describe("SupabaseAccountRepository", () => {
     expect(clientFor).toHaveBeenCalledWith("verified-owner-token");
     expect(result.recurringMeals?.schedules).toEqual(schedules);
     expect(result.recurringMeals?.occurrences).toEqual(occurrences);
+    expect(result.mealImagePaths).toEqual([
+      {
+        userId: testUserId,
+        pathKey: "a".repeat(64),
+        createdAt: "2026-10-09T10:00:00.000Z",
+      },
+    ]);
+    expect(queries.find((q) => q.table === "food_media_paths")).toMatchObject({
+      column: "user_id",
+      owner: testUserId,
+    });
     const recurrenceQueries = queries.filter((q) =>
       q.table.startsWith("recurring_meal_"),
     );

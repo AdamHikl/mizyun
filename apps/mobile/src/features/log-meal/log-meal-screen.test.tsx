@@ -10,6 +10,9 @@ const mocks = vi.hoisted(() => ({
   photoPersist: vi.fn(),
   photoUpload: vi.fn(),
   photoDiscard: vi.fn(),
+  photoRemoveRetry: vi.fn(),
+  visuals: true,
+  visualRefresh: vi.fn(),
   pro: true,
   owner: "synthetic-user",
   token: "synthetic-token",
@@ -138,6 +141,12 @@ vi.mock("./advanced-nutrition", () => ({
     refresh: mocks.refresh,
   }),
 }));
+vi.mock("./meal-visual-capability", () => ({
+  useMealVisualCapability: () => ({
+    enabled: mocks.visuals,
+    refresh: mocks.visualRefresh,
+  }),
+}));
 vi.mock("./log-meal-data", () => ({
   submitLogMeal: mocks.submit,
   snapMealPhoto: mocks.photoDraft,
@@ -201,6 +210,9 @@ beforeEach(async () => {
   mocks.params = {};
   mocks.pro = true;
   mocks.retention = false;
+  mocks.visuals = true;
+  mocks.visualRefresh.mockResolvedValue(true);
+  mocks.photoRemoveRetry.mockResolvedValue(true);
   mocks.sourceCopy.mockImplementation(async (assetOwner, asset) => ({
     uri: `owned-${asset.uri}`,
   }));
@@ -975,6 +987,7 @@ vi.mock("./meal-photo-retention", () => ({
   persistMealPhotoSource: mocks.sourceCopy,
   persistMealPhotoRetry: mocks.photoPersist,
   uploadMealPhotoRetry: mocks.photoUpload,
+  removeMealPhotoRetry: mocks.photoRemoveRetry,
   discardOwnedMealPhoto: mocks.photoDiscard,
 }));
 
@@ -1073,4 +1086,142 @@ it("drops late source-copy completion after Clear", async () => {
     "synthetic-user",
     "owned-late-photo",
   );
+});
+
+async function attachPhotoForRetention(photos = ["manual-photo"]) {
+  mocks.retention = true;
+  mocks.picker.mockResolvedValueOnce({
+    canceled: false,
+    assets: photos.map((uri) => ({ uri })),
+  });
+  find(
+    render(),
+    (node) => node.props?.accessibilityLabel === "Choose a meal photo",
+  ).props.onPress();
+  await flush();
+  render();
+}
+
+it("keeps Free photo nutrition analysis and meal saving without retained-photo controls or retry", async () => {
+  mocks.visuals = false;
+  mocks.pro = false;
+  mocks.refresh.mockResolvedValue(false);
+  mocks.photoDraft.mockResolvedValueOnce({
+    ok: true,
+    draft: syntheticPhotoDraft,
+  });
+  mocks.submit.mockResolvedValueOnce({ ok: true, id: "free-meal" });
+  await attachPhotoForRetention();
+  expect(byId("keep-meal-photo-toggle")).toBeFalsy();
+  byId("process-meal-photo-button").props.onPress();
+  await flush();
+  render();
+  expect(mocks.photoDraft).toHaveBeenCalledTimes(1);
+  await submit();
+  expect(mocks.submit).toHaveBeenCalledTimes(1);
+  expect(mocks.visualRefresh).not.toHaveBeenCalled();
+  expect(mocks.photoPersist).not.toHaveBeenCalled();
+  expect(mocks.photoUpload).not.toHaveBeenCalled();
+  expect(router.back).toHaveBeenCalled();
+});
+
+it("does not require a keep-photo choice after a fresh Pro downgrade and still saves the meal", async () => {
+  await attachPhotoForRetention(["one", "two"]);
+  expect(
+    find(
+      render(),
+      (node) =>
+        node.props?.accessibilityLabel === "Keep photo 1 with this meal",
+    ),
+  ).toBeTruthy();
+  mocks.visualRefresh.mockResolvedValue(false);
+  mocks.submit.mockResolvedValueOnce({ ok: true, id: "downgraded-meal" });
+  await submit();
+  expect(mocks.visualRefresh).toHaveBeenCalledTimes(1);
+  expect(mocks.submit).toHaveBeenCalledTimes(1);
+  expect(mocks.photoPersist).not.toHaveBeenCalled();
+  expect(router.back).toHaveBeenCalled();
+});
+
+it("saves a meal when fresh retained-photo authority is denied after submission", async () => {
+  await attachPhotoForRetention();
+  mocks.visualRefresh.mockResolvedValue(false);
+  mocks.submit.mockResolvedValueOnce({ ok: true, id: "saved-no-photo" });
+  await submit();
+  expect(mocks.submit).toHaveBeenCalledTimes(1);
+  expect(mocks.visualRefresh).toHaveBeenCalledTimes(1);
+  expect(mocks.photoPersist).not.toHaveBeenCalled();
+  expect(mocks.photoUpload).not.toHaveBeenCalled();
+  expect(router.back).toHaveBeenCalled();
+});
+
+it("removes the retained retry and completes the meal after a downgrade during retry persistence", async () => {
+  await attachPhotoForRetention();
+  let finish!: (value: boolean) => void;
+  mocks.photoPersist.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  mocks.submit.mockResolvedValueOnce({
+    ok: true,
+    id: "saved-during-downgrade",
+  });
+  byId("submit-meal-button").props.onPress();
+  await flush();
+  expect(mocks.photoPersist).toHaveBeenCalledTimes(1);
+  mocks.visuals = false;
+  render();
+  finish(true);
+  await flush();
+  expect(mocks.photoUpload).not.toHaveBeenCalled();
+  expect(mocks.photoRemoveRetry).toHaveBeenCalledWith(
+    "synthetic-user",
+    "saved-during-downgrade",
+  );
+  expect(router.back).toHaveBeenCalled();
+});
+
+it("invalidates retained-photo upload on a token change and removes its local retry", async () => {
+  await attachPhotoForRetention();
+  let finish!: (value: boolean) => void;
+  mocks.photoUpload.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  mocks.submit.mockResolvedValueOnce({
+    ok: true,
+    id: "saved-during-token-change",
+  });
+  byId("submit-meal-button").props.onPress();
+  await flush();
+  const isCurrent = mocks.photoUpload.mock.calls[0]![2];
+  expect(isCurrent()).toBe(true);
+  mocks.token = "rotated-token";
+  render();
+  expect(isCurrent()).toBe(false);
+  finish(false);
+  await flush();
+  expect(mocks.photoRemoveRetry).toHaveBeenCalledWith(
+    "synthetic-user",
+    "saved-during-token-change",
+  );
+  expect(router.back).toHaveBeenCalled();
+});
+
+it("drops a failed upload's retry when Pro can no longer be freshly confirmed", async () => {
+  await attachPhotoForRetention();
+  mocks.visualRefresh.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+  mocks.submit.mockResolvedValueOnce({ ok: true, id: "saved-failed-upload" });
+  await submit();
+  expect(mocks.photoUpload).toHaveBeenCalledTimes(1);
+  expect(mocks.photoRemoveRetry).toHaveBeenCalledWith(
+    "synthetic-user",
+    "saved-failed-upload",
+  );
+  expect(mocks.visualRefresh).toHaveBeenCalledTimes(2);
+  expect(router.back).toHaveBeenCalled();
 });

@@ -3,7 +3,9 @@ import { View } from "react-native";
 import { Image } from "expo-image";
 import { selectMealIllustration } from "./meal-illustration-catalog";
 
-const atlas = require("../../../assets/images/meal-illustrations/food-atlas-v1.png");
+const baseAtlas = require("../../../assets/images/meal-illustrations/food-atlas-v1.png");
+
+const supplementalAtlas = require("../../../assets/images/meal-illustrations/food-atlas-v2-supplement.png");
 
 export function MealIllustrationTile({
   name,
@@ -12,9 +14,10 @@ export function MealIllustrationTile({
   readonly name: string;
   readonly uri?: string;
 }) {
-  const { row, column } = selectMealIllustration(name);
+  const { row, column, matched, atlas } = selectMealIllustration(name);
   const [failedUri, setFailedUri] = useState<string | null>(null);
   const visibleUri = uri && failedUri !== uri ? uri : undefined;
+  if (!visibleUri && !matched) return null;
   return (
     <View
       accessibilityRole="image"
@@ -23,7 +26,13 @@ export function MealIllustrationTile({
     >
       <Image
         key={visibleUri ?? "catalog"}
-        source={visibleUri ? { uri: visibleUri } : atlas}
+        source={
+          visibleUri
+            ? { uri: visibleUri }
+            : atlas === "supplement"
+              ? supplementalAtlas
+              : baseAtlas
+        }
         cachePolicy={visibleUri ? "none" : "memory-disk"}
         contentFit="contain"
         accessible={false}

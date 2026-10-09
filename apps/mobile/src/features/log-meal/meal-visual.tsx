@@ -4,11 +4,13 @@ import { AutomaticMealIllustration } from "./automatic-meal-illustration";
 
 /** Real retained photos win; the illustration never participates in saving a meal. */
 export function MealVisual({
+  enabled,
   entryId,
   name,
   hasPhoto,
   editable = false,
 }: {
+  readonly enabled: boolean;
   readonly entryId: string;
   readonly name: string;
   readonly hasPhoto: boolean;
@@ -16,6 +18,16 @@ export function MealVisual({
 }) {
   const scope = `${entryId}:${hasPhoto}`;
   const [removedScope, setRemovedScope] = useState<string | null>(null);
+  if (!enabled)
+    return editable ? (
+      <PrivateMealPhoto
+        entryId={entryId}
+        hasPhoto={hasPhoto}
+        editable
+        displayEnabled={false}
+        onPhotoRemoved={() => setRemovedScope(scope)}
+      />
+    ) : null;
   return (
     <PrivateMealPhoto
       entryId={entryId}

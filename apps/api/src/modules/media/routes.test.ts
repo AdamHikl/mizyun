@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   AgentOrchestrator,
@@ -11,6 +11,7 @@ import { InMemoryMemoryStore } from "@mizyun/memory";
 import { buildApp } from "../../app.js";
 import { InMemoryMediaAssetRepository } from "../../media-asset-repository.js";
 import { InMemoryMediaStorage } from "../../media-storage.js";
+import { InMemoryProfileRepository } from "../../profile-repository.js";
 
 const userA: UserId = "00000000-0000-4000-8000-000000000001" as UserId;
 const userB: UserId = "00000000-0000-4000-8000-000000000002" as UserId;
@@ -34,7 +35,10 @@ const tokenVerifierFor = (
       : null,
 });
 
-const build = (verifier: AccessTokenVerifier) => {
+const build = (
+  verifier: AccessTokenVerifier,
+  planTier: "paid" | "free" = "free",
+) => {
   const mediaAssetRepository = new InMemoryMediaAssetRepository();
   const mediaStorage = new InMemoryMediaStorage();
   // The app composition root owns the storage. For tests we
@@ -50,9 +54,14 @@ const build = (verifier: AccessTokenVerifier) => {
     }),
     mediaAssetRepository,
     mediaStorage,
+    profileRepository: new InMemoryProfileRepository({
+      defaultTimezone: "UTC",
+      defaultUnitSystem: "metric",
+      defaultPlanTier: planTier,
+    }),
   });
   apps.push(app);
-  return { app, mediaAssetRepository };
+  return { app, mediaAssetRepository, mediaStorage };
 };
 
 const seedAsset = (
@@ -79,6 +88,23 @@ const seedAsset = (
 };
 
 describe("POST /v1/media/upload-url", () => {
+  it("requires Pro for generic food retention and allows paid users", async () => {
+    for (const tier of ["free", "paid"] as const) {
+      const { app, mediaStorage } = build(
+        tokenVerifierFor({ userId: userA }),
+        tier,
+      );
+      const upload = vi.spyOn(mediaStorage, "signUploadUrl");
+      const response = await app.inject({
+        method: "POST",
+        url: "/v1/media/upload-url",
+        headers: { authorization: "Bearer valid" },
+        payload: { purpose: "food", mimeType: "image/jpeg", byteSize: 100 },
+      });
+      expect(response.statusCode).toBe(tier === "paid" ? 200 : 403);
+      expect(upload).toHaveBeenCalledTimes(tier === "paid" ? 1 : 0);
+    }
+  });
   it("issues a signed upload URL and records the asset", async () => {
     const { app, mediaAssetRepository } = build(
       tokenVerifierFor({ userId: userA }),
@@ -270,6 +296,48 @@ describe("GET /v1/media", () => {
 });
 
 describe("POST /v1/media/sign", () => {
+  it("blocks Free food signing, timeline, and compare while allowing removal", async () => {
+    const { app, mediaAssetRepository, mediaStorage } = build(
+      tokenVerifierFor({ userId: userA }),
+    );
+    const asset = seedAsset(mediaAssetRepository, { purpose: "food" });
+    const second = seedAsset(mediaAssetRepository, {
+      id: "00000000-0000-4000-8000-00000000a002",
+      purpose: "food",
+    });
+    const sign = vi.spyOn(mediaStorage, "signDownloadUrl");
+    for (const input of [
+      {
+        method: "POST" as const,
+        url: "/v1/media/sign",
+        payload: { assetId: asset.id },
+      },
+      { method: "GET" as const, url: "/v1/media/timeline?purpose=food" },
+      {
+        method: "POST" as const,
+        url: "/v1/media/compare",
+        payload: { assetIdA: asset.id, assetIdB: second.id },
+      },
+    ])
+      expect(
+        (
+          await app.inject({
+            ...input,
+            headers: { authorization: "Bearer valid" },
+          })
+        ).statusCode,
+      ).toBe(403);
+    expect(sign).not.toHaveBeenCalled();
+    expect(
+      (
+        await app.inject({
+          method: "DELETE",
+          url: `/v1/media/${asset.id}`,
+          headers: { authorization: "Bearer valid" },
+        })
+      ).statusCode,
+    ).toBe(204);
+  });
   it("issues a signed download URL for an owned asset", async () => {
     const { app, mediaAssetRepository } = build(
       tokenVerifierFor({ userId: userA }),

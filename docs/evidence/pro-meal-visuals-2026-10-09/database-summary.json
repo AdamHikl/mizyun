@@ -1,0 +1,24 @@
+{
+  "database": "mizyun_illustrations_scratch_f83b196ec801",
+  "shared_records_copied": false,
+  "scratch_only_prerequisite_migrations": [
+    "20261006183000_running_conflict_http.sql",
+    "20261006200000_retained_meal_photos.sql",
+    "20261007110000_community_author_activities.sql",
+    "20261007120000_community_messaging_reads.sql",
+    "20261007130000_community_artifact_authors.sql",
+    "20261007190000_account_provider_revocations.sql",
+    "20261008100000_body_measurement_retry_identity.sql",
+    "20261008120000_community_revocation_ledger.sql"
+  ],
+  "pgtap_assertions": 120,
+  "race_and_lifecycle_checks": 6,
+  "source_sha256": {
+    "supabase/migrations/20261009120000_meal_illustrations.sql": "4063e0fc8e41f231cce4007cbb11f91de01461039c0a5d716c19a1e21719cc56",
+    "supabase/migrations/20261009150000_pro_meal_visuals.sql": "68e971193920f0f4d483606a1a56e2a1ef071d88ef545d9393cb90c0b6f281df",
+    "supabase/tests/database/0034_retained_meal_photos.test.sql": "62722160c8d296fc17966d14ba83f5ecb8efd3d6fb5e8166bd961774e00d45d6",
+    "supabase/tests/database/0039_meal_illustrations.test.sql": "6e22025a4f319797936a60a18db47a11e5fc4ca4af5a8e67603b619fb3677970",
+    "supabase/tests/database/0040_pro_meal_visuals.test.sql": "1e03160761d3c3c929af1562a96c93e220f80ffbaf656730bc9ab3b29c538637",
+    "scripts/test-meal-illustrations-db.py": "64ea34a32011c275be7432d8ad75951ba4ab653718442e034db950f613c6717c"
+  }
+}

@@ -3,6 +3,7 @@ import {
   mealPhotoRetentionEnabled,
 } from "./meal-photo-retention";
 import { MealVisual } from "./meal-visual";
+import { useMealVisualCapability } from "./meal-visual-capability";
 import {
   ActivityIndicator,
   AppState,
@@ -158,6 +159,10 @@ export function MealListScreen() {
   const { headerHeight, onHeaderLayout } = useTabHeaderLayout();
   const theme = useTheme();
   const { session } = useAuth();
+  const mealVisualCapability = useMealVisualCapability(
+    session?.user.id ?? null,
+    session?.accessToken,
+  );
   const advancedCapability = useAdvancedNutritionCapability(
     session?.user.id ?? null,
   );
@@ -1475,6 +1480,9 @@ export function MealListScreen() {
                                   <MealEntryRow
                                     key={child.id}
                                     entry={child}
+                                    mealVisualsEnabled={
+                                      mealVisualCapability.enabled
+                                    }
                                     showAdvanced={
                                       advancedCapability.enabled && showAdvanced
                                     }
@@ -1515,6 +1523,7 @@ export function MealListScreen() {
                           <MealEntryRow
                             key={clusterItem.entry.id}
                             entry={clusterItem.entry}
+                            mealVisualsEnabled={mealVisualCapability.enabled}
                             showAdvanced={
                               advancedCapability.enabled && showAdvanced
                             }
@@ -1778,6 +1787,7 @@ export function MealListScreen() {
 
 function MealEntryRow(props: {
   readonly entry: FoodEntry;
+  readonly mealVisualsEnabled: boolean;
   readonly showAdvanced: boolean;
   readonly visibleAdvancedFields: ReadonlyArray<string>;
   readonly isGrouping: boolean;
@@ -1794,6 +1804,7 @@ function MealEntryRow(props: {
 }) {
   const {
     entry,
+    mealVisualsEnabled,
     showAdvanced,
     visibleAdvancedFields,
     isGrouping,
@@ -1868,6 +1879,7 @@ function MealEntryRow(props: {
       <MealVisual
         entryId={entry.id}
         name={entry.name}
+        enabled={mealVisualsEnabled}
         hasPhoto={Boolean(entry.photoAssetId)}
         editable
       />

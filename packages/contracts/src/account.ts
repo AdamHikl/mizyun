@@ -112,6 +112,17 @@ export const communityAccountExportSchema = z
 
 export const accountExportSchema = z.object({
   mealIllustrations: z.array(exportedMealIllustrationSchema).optional(),
+  mealImagePaths: z
+    .array(
+      z
+        .object({
+          userId: z.string().uuid(),
+          pathKey: z.string().regex(/^[a-f0-9]{64}$/),
+          createdAt: z.string().datetime(),
+        })
+        .strict(),
+    )
+    .optional(),
   mealIllustrationUsage: z
     .array(exportedMealIllustrationUsageSchema)
     .optional(),

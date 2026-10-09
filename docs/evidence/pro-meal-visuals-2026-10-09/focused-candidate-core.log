@@ -1,0 +1,14 @@
+
+> @mizyun/core@0.1.0 test /Users/adam/.codex/worktrees/meal-illustrations-dev/mizyun/packages/core
+> vitest run src/meal-image-path.test.ts
+
+
+ RUN  v3.2.7 /Users/adam/.codex/worktrees/meal-illustrations-dev/mizyun/packages/core
+
+ ✓ src/meal-image-path.test.ts (2 tests) 2ms
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  17:48:56
+   Duration  295ms (transform 27ms, setup 0ms, collect 25ms, tests 2ms, environment 0ms, prepare 58ms)
+

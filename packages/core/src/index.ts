@@ -357,3 +357,8 @@ export * from "./running";
 export * from "./run-repository";
 
 export * from "./meal-illustration";
+
+export {
+  isOwnedMealImagePath,
+  type MealImagePathRecord,
+} from "./meal-image-path";

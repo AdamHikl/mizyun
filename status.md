@@ -27,7 +27,7 @@
 
 ## Local follow-ups awaiting acceptance
 
-- **#230 illustrations:** local0d9da8a+uncommitted; instant offline catalog/photo priority + default-off private generation.243focused/38SQL+5races/High reviews/full gatePASS (1957mobile/970API+15skips), iOS/Android exports. Next: Dev/native/provider acceptance; no deploy. [Evidence](docs/AUTOMATIC_MEAL_ILLUSTRATIONS_EVIDENCE_2026-10-09.md).
+- **#230/#233 visuals:** Pro display/save locked;31food categories/no plate; owner export/erase preserved. Isolated gatePASS(2008mobile/979API+15skips),120SQL+6races/reviewPASS; Dev537f4ae/imagegenoff. Next: Dev/install/native/provider acceptance. [Evidence](docs/PRO_MEAL_VISUALS_EVIDENCE_2026-10-09.md), [prior delivery](docs/MEAL_ILLUSTRATIONS_DEV_DELIVERY_2026-10-09.md).
 
 - **#208 (Oct9):** iOS selection;110tests/gatePASS; [evidence/gate](docs/COACH_TEXT_SELECTION_HANDLES_EVIDENCE_2026-10-09.md). Next: installed partial-copy/scroll/keyboard/themes/large-text/VoiceOver; per-block scope, native exits open.
 
