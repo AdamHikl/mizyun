@@ -243,6 +243,8 @@ export class SupabaseAccountRepository implements AccountRepository {
           "user_id",
           userId,
           "path_key",
+          true,
+          "path_key",
         )
       ).map((row) => ({
         userId: String(row.user_id),

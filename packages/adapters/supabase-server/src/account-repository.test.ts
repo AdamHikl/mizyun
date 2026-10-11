@@ -1056,7 +1056,7 @@ describe("SupabaseAccountRepository", () => {
     expect(result.manifest?.completeness).toBe("complete");
   });
 
-  it("exports all recurring snapshots and ledger pages with the verified owner filter", async () => {
+  it("exports all owner snapshots and primary-key ledger pages without an id column", async () => {
     const schedules = Array.from({ length: 501 }, (_, index) => ({
       id: `schedule-${index}`,
       user_id: testUserId,
@@ -1069,17 +1069,24 @@ describe("SupabaseAccountRepository", () => {
       food_entry_id: null,
       skipped: true,
     }));
+    const mealPaths = Array.from({ length: 501 }, (_, index) => ({
+      user_id: testUserId,
+      path_key: index.toString(16).padStart(64, "0"),
+      created_at: "2026-10-09T10:00:00+00:00",
+    }));
     const queries: {
       table: string;
       column: string;
       owner: unknown;
       from: number;
       to: number;
+      orders: string[];
     }[] = [];
     const client = {
       from: vi.fn((table: string) => {
         let owner: unknown;
         let column = "";
+        const orders: string[] = [];
         const query = {
           select: vi.fn().mockReturnThis(),
           eq: vi.fn((col: string, value: unknown) => {
@@ -1087,22 +1094,43 @@ describe("SupabaseAccountRepository", () => {
             owner = value;
             return query;
           }),
-          order: vi.fn().mockReturnThis(),
+          order: vi.fn((orderedColumn: string) => {
+            orders.push(orderedColumn);
+            return query;
+          }),
           range: vi.fn(async (from: number, to: number) => {
-            queries.push({ table, column, owner, from, to });
+            queries.push({
+              table,
+              column,
+              owner,
+              from,
+              to,
+              orders: [...orders],
+            });
+            if (
+              table === "food_media_paths" &&
+              orders.some(
+                (orderedColumn) =>
+                  !["path_key", "user_id", "created_at"].includes(
+                    orderedColumn,
+                  ),
+              )
+            ) {
+              return {
+                data: null,
+                error: {
+                  code: "42703",
+                  message: "column food_media_paths.id does not exist",
+                },
+              };
+            }
             const rows =
               table === "recurring_meal_schedules"
                 ? schedules
                 : table === "recurring_meal_occurrences"
                   ? occurrences
                   : table === "food_media_paths"
-                    ? [
-                        {
-                          user_id: testUserId,
-                          path_key: "a".repeat(64),
-                          created_at: "2026-10-09T10:00:00+00:00",
-                        },
-                      ]
+                    ? mealPaths
                     : [];
             return { data: rows.slice(from, to + 1), error: null };
           }),
@@ -1121,17 +1149,26 @@ describe("SupabaseAccountRepository", () => {
     expect(clientFor).toHaveBeenCalledWith("verified-owner-token");
     expect(result.recurringMeals?.schedules).toEqual(schedules);
     expect(result.recurringMeals?.occurrences).toEqual(occurrences);
-    expect(result.mealImagePaths).toEqual([
-      {
+    expect(result.mealImagePaths).toEqual(
+      mealPaths.map((row) => ({
         userId: testUserId,
-        pathKey: "a".repeat(64),
+        pathKey: row.path_key,
         createdAt: "2026-10-09T10:00:00.000Z",
-      },
-    ]);
-    expect(queries.find((q) => q.table === "food_media_paths")).toMatchObject({
-      column: "user_id",
-      owner: testUserId,
-    });
+      })),
+    );
+    const mealPathQueries = queries.filter(
+      (q) => q.table === "food_media_paths",
+    );
+    expect(mealPathQueries.map((q) => q.from)).toEqual([0, 500, 501]);
+    expect(
+      mealPathQueries.every(
+        (q) =>
+          q.column === "user_id" &&
+          q.owner === testUserId &&
+          q.orders.length === 1 &&
+          q.orders[0] === "path_key",
+      ),
+    ).toBe(true);
     const recurrenceQueries = queries.filter((q) =>
       q.table.startsWith("recurring_meal_"),
     );
