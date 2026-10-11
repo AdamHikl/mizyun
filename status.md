@@ -8,7 +8,7 @@
 
 - **Issues:** #21/#23/#25/#26/#31 partial/gatePASS. #117/#118 done; gatePASS; Adam tests Dev/native. [Evidence](docs/MEAL_ISSUES_117_118_EVIDENCE_2026-10-08.md).
 
-- **All-local integration (Oct11):** source/evidence; gate2157mobile/980API+15skips/reviewPASS. [Receipt](docs/ALL_LOCAL_MAIN_INTEGRATION_2026-10-11.md). Dev/Production/native/privacy exits retained.
+- **All-local main (Oct11):** `fb96de7` pushed; gate2157mobile/980API+15skips/reviewPASS. [Receipt](docs/ALL_LOCAL_MAIN_INTEGRATION_2026-10-11.md). Dev/Production/native/privacy exits retained.
 - **Build9 / #212 (#27/#32):** source`dd5b435385b379d8c0df1b69813f8d8fdd3d985a`,1.0.9/9/9; IPA/widget/dSYMs/AAB/upload cert/16KB LOAD/full gatesPASS. [Artifacts/evidence](docs/BUILD_9_RELEASE_EVIDENCE_2026-10-05.md). iPhone16Pro installed/launched1.0.9(9) PID6828; native/16KB runtime/Store exits open.
 - **Dev backend (Oct11):** approved2596a69b3fe4d20920a173de91fb4dc533b9bd4a pushed/deployed; clean checkout/fresh running SHA/API4100/DB5433 readiness PASS, instance0da05616; migrations up to date through20261009150000. [Exact receipt](docs/evidence/community-simulators-2026-10-10/README.md). NoProduction/global flags changed.
 - **Latest iPhone Dev (Oct10):** combined startup/Coach/visuals/watch snapshot,1.0.9(9)/com.mizyun.development; Release/signature/installPASS. Launch blockedlocked; unlock/open next. Native/provider/AX/watch exits open. [Receipt](docs/LATEST_DEV_IPHONE_DELIVERY_2026-10-10.md).

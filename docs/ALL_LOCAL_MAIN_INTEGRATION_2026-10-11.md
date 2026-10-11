@@ -21,3 +21,7 @@ Prior disposable SQL receipts were checked against current source hashes: Pro me
 This Git integration does not deploy either backend, install a new native build, close additional issues or establish live-provider acceptance. Dev remains `2596a69b3fe4d20920a173de91fb4dc533b9bd4a`; migration `20261011120000` remains undeployed. Production is unchanged. #158 requires real consenting-group pilot and safety/accessibility feedback; #161 retains its documented Android/retry/retained-view subset. Other native, operator, custody, retention, legal and release exits stay in their package receipts and status.
 
 Next backend action is separately approved exact-SHA Dev preflight/deployment, followed by the remaining selected native acceptance. It is outside this commit/push/merge authorization.
+
+## Git delivery
+
+All369inventoried source/evidence files were committed as `fb96de77bc949d51e9c69b152a53207b958b550a`, fast-forward merged into `main`, and pushed to origin alongside `codex/all-local-main-20261011`. The source branch and earlier local candidates remain preserved. A result-only handoff records this exact source commit; source hashes remain unchanged.

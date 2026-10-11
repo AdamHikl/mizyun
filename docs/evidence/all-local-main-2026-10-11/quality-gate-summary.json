@@ -75,5 +75,8 @@
   "provider_integration_skipped": "15 opt-in credential-gated API tests",
   "new_native_and_database_tests": false,
   "dev_deployment": false,
-  "production_release": false
+  "production_release": false,
+  "source_commit": "fb96de77bc949d51e9c69b152a53207b958b550a",
+  "source_branch": "codex/all-local-main-20261011",
+  "source_push_and_main_merge": "PASS"
 }
