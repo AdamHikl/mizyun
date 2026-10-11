@@ -174,6 +174,37 @@ describe("profile navigation and directional approval", () => {
     mocks.alert.mock.calls[0][2][1].onPress();
     expect(mocks.act).not.toHaveBeenCalled();
   });
+  it("explains an expired follow confirmation without sending the request", () => {
+    mocks.profile = {
+      ...mocks.profile,
+      relationshipWithViewer: "none",
+      relationshipContext: { outgoing: null, incoming: null },
+    };
+    const tree = render();
+    mocks.focus!();
+    button(tree, "Request to follow").props.onPress();
+    const confirm = mocks.alert.mock.calls[0][2][1].onPress;
+    mocks.current = false;
+    confirm();
+    expect(mocks.act).not.toHaveBeenCalled();
+    expect(mocks.alert.mock.calls[1]).toEqual([
+      "Profile needs refreshing",
+      "No request was sent. Refresh the profile, then request to follow again.",
+    ]);
+    expect(mocks.load).toHaveBeenCalledOnce();
+  });
+  it("keeps an old confirmation silent after the account lifetime changes", () => {
+    const tree = render();
+    mocks.focus!();
+    button(tree, "Approve").props.onPress();
+    const confirm = mocks.alert.mock.calls[0][2][1].onPress;
+    mocks.token = "token-two";
+    render();
+    mocks.current = false;
+    confirm();
+    expect(mocks.act).not.toHaveBeenCalled();
+    expect(mocks.alert).toHaveBeenCalledOnce();
+  });
   it("shows own profile as a view with a separate identity editor and owner graph entry points", () => {
     mocks.profile = {
       ...mocks.profile,

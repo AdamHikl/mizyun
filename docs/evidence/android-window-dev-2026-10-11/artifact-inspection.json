@@ -1,0 +1,65 @@
+{
+  "scope": "Dev only; test signature; not a Play upload candidate",
+  "head": "0d9da8a46197f20b12f00d643851a84866368998",
+  "sourceInventorySha256": "5b28bc6618c50302269f8e7bacb60c42f804768f2c351f783b16d4dec636c17e",
+  "artifacts": {
+    "apk": {
+      "path": "/Users/adam/Documents/mizyun/apps/mobile/dist/releases/android/device/MizyunDev-1.0.9-code9-window-20261011-5b28bc6618c5.apk",
+      "bytes": 43476655,
+      "sha256": "5135b768c7f671a1173a57be7fe60a93ec38d1ad87a233851e77dbb70fe1057a"
+    },
+    "aab": {
+      "path": "/Users/adam/Documents/mizyun/apps/mobile/dist/releases/android/device/MizyunDev-1.0.9-code9-window-20261011-5b28bc6618c5.aab",
+      "bytes": 38546393,
+      "sha256": "9d40bcf82ce11893882e2d8fce2a749b55a947cdb93bcaf73911c6dd52b5abdc"
+    },
+    "mapping.txt": {
+      "path": "/Users/adam/Documents/mizyun/apps/mobile/dist/releases/android/device/MizyunDev-1.0.9-code9-window-20261011-5b28bc6618c5.mapping.txt",
+      "bytes": 113605850,
+      "sha256": "6e7daa7ded5f0eea90b4ed131b7437b3387af3743c5c81693e98c52b8579232e"
+    },
+    "configuration.txt": {
+      "path": "/Users/adam/Documents/mizyun/apps/mobile/dist/releases/android/device/MizyunDev-1.0.9-code9-window-20261011-5b28bc6618c5.configuration.txt",
+      "bytes": 104848,
+      "sha256": "713d21e7ba49da95fa93f0193c64b6f307d7b1ece816f6c5b7ec46744f8d6015"
+    },
+    "usage.txt": {
+      "path": "/Users/adam/Documents/mizyun/apps/mobile/dist/releases/android/device/MizyunDev-1.0.9-code9-window-20261011-5b28bc6618c5.usage.txt",
+      "bytes": 9540799,
+      "sha256": "4bac11a357105a6cc164bc889239715703761dae23e95828d5f8538caf7b4f7e"
+    },
+    "seeds.txt": {
+      "path": "/Users/adam/Documents/mizyun/apps/mobile/dist/releases/android/device/MizyunDev-1.0.9-code9-window-20261011-5b28bc6618c5.seeds.txt",
+      "bytes": 2224317,
+      "sha256": "a38f6fe6e6d67c5f9e230b86168d53e742ad526fcf322ecefca3c5a861e32f23"
+    }
+  },
+  "embeddedMappingByteMatches": true,
+  "package": "com.mizyun.dev",
+  "version": "1.0.9",
+  "versionCode": 9,
+  "targetSdk": 36,
+  "abi": "arm64-v8a",
+  "debuggable": false,
+  "material": "1.14.0",
+  "mainActivity": {
+    "screenOrientation": null,
+    "resizeableActivity": true
+  },
+  "signerSha256": "fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c",
+  "embeddedPublicConfig": {
+    "mizyunVariant": "dev",
+    "mizyunProfile": "development",
+    "mizyunRuntimeEndpoints": {
+      "apiUrl": "https://mizyun-api-dev.phiskel.com",
+      "supabaseUrl": "https://mizyun-supabase-dev.phiskel.com",
+      "authRedirectUri": "mizyun-dev://auth/callback"
+    }
+  },
+  "r8Version": "8.12.14",
+  "enabledPercentages": {
+    "obfuscation": 81.67,
+    "optimization": 81.19,
+    "shrinking": 81.76
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "apkSha256": "5135b768c7f671a1173a57be7fe60a93ec38d1ad87a233851e77dbb70fe1057a",
+  "api": 36,
+  "phone": {
+    "avd": "Mizyun_Pixel_9_API_36",
+    "serial": "emulator-5554",
+    "physicalPixels": "1080x2424",
+    "existingOverridePixels": "1080x1920",
+    "densityDpi": 420,
+    "finalDp": "411x731",
+    "initialPid": 5617,
+    "coldRestartPid": 5967,
+    "coldRestartMs": 573,
+    "account": "existing synthetic Dev account A",
+    "portraitHome": "observed",
+    "landscapeHome": "observed; left cutout padding and navigation visible",
+    "mealForm": "portrait and landscape scrolling to Save observed; no Save submitted",
+    "keyboard": "stylus tutorial cancelled; floating keyboard visible; docked IME resize not accepted",
+    "finalState": "portrait authenticated Home"
+  },
+  "tablet": {
+    "avd": "Mizyun_Window_Tablet_API_36",
+    "serial": "emulator-5556",
+    "pixels": "2560x1600",
+    "densityDpi": 320,
+    "landscapeDp": "1280x800",
+    "portraitDp": "800x1280",
+    "pid": 3705,
+    "coldLaunchMs": 890,
+    "account": "signed out; App Preview only",
+    "mealsPortrait": "observed; bounded content and navigation",
+    "mealsLandscape": "observed; bounded content and navigation",
+    "authenticatedJourneys": "not run"
+  },
+  "actualWindowAttributesBoth": "layoutInDisplayCutoutMode=always; EDGE_TO_EDGE_ENFORCED; adjust=resize",
+  "processScopedCrashMarkerCounts": {
+    "phone-first-logcat": 0,
+    "phone-current-logcat": 0,
+    "tablet-logcat": 0
+  },
+  "camera": "unexpected permission prompt denied; no camera capture",
+  "notificationPermission": "denied on tablet",
+  "unrun": [
+    "API35/34 and below",
+    "physical Android",
+    "docked keyboard and all input forms",
+    "multi-window/fold postures",
+    "3-button navigation",
+    "dark mode/large text/accessibility",
+    "tablet authenticated journeys",
+    "Play Console evaluation"
+  ],
+  "productionActions": false,
+  "cleanup": "Phone returned to portrait Home; stopped only the two task-started emulators; preserved profiles and unknown Metro8087."
+}

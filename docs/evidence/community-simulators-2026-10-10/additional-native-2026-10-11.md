@@ -1,0 +1,25 @@
+# Additional native continuation — 2026-10-11
+
+Controller: existing GPT-6.1 Sol Medium helper; sole CUA native input owner. Root coordinated setup and cleanup. Reused signed Dev Debug binary/current Metro with root-reported matching 59 native-input hashes; no build, install, source edit, test, deployment or GitHub mutation by this helper. Root setup: Metro session61047/port8085; retained Pro/B PID32894 and task-booted Max/A PID39377. Setup is separate from acceptance.
+
+## Observed native results
+
+- **PASS, fresh B identity:** actual standard window `iPhone 17 Pro – iOS 26.5`, selected Pro sidebar and Info UUID `F4939E5D-BA85-4479-AA1E-92B21441FB8C` agreed. Normal Feed → Me showed freshly loaded `Synthetic Community B`, `@sim_b_f9732c7f83`, no draft/modal/share sheet. Capture Keyboard remained OFF.
+- **PASS, exact searchable A discovery:** normal B People → exact handle field. `setValue` visibly entered `sim_a_c9d7e6eb7d`; bounded first unchanged Find/expired-control recovery used the normal Try again control. Fresh Find exposed both `View @sim_a_c9d7e6eb7d profile` and `Synthetic Community A · @sim_a_c9d7e6eb7d →`. No Follow action occurred. This repeats discovery only, not invitation, relationship or mute acceptance.
+- **Observed A Home only:** selecting Max showed actual Max window/sidebar and `Welcome back, Synthetic Community A`. Its actual screenshot Info UUID prefix/suffix matched `74C55221-5CFB-434F-BE42-492349429896`, while AX inspector values still incorrectly described Pro/F493. No consequential A input occurred under mixed metadata. Returned to verified Pro/B.
+
+## Control blocker and stop
+
+A subsequent full AX read took18.1239s and returned only its window label. Screenshot observation unexpectedly took245.1739s; actual Pro pixels showed normal People with the neutral `Community information changed. Try again.` state, no draft. One already-started recovery rebind took26.7400s and returned an unknown window root plus Pro sidebar/Info and retired Community state. Root then ordered native STOP; no further input or screenshots occurred.
+
+The prolonged observation and lease retirement do not establish a Mizyun defect. **Mute/Unmute, message Send/read/edit/remove, offline/background and any new lifecycle acceptance were not run or passed.** No message text, report, invitation, reaction, permission, account, private record or media mutation occurred. No Capture Keyboard toggle, external sharing, provider/Production action or API fixture manipulation by this controller. Root owns any independent fixture receipts and task process/device cleanup. Both account sessions/data are preserved; last observed B screen is neutral People/no drafts.
+
+## Independent #152 evidence-scope review
+
+This is a Medium scope/proof audit, not a new sensitive code review. Original issue states device acceptance separately. Its three engineering acceptance bullets have concrete automatic proof:
+
+1. **“Retry after committed-but-lost response yields one durable effect.”** Real database publication replay at `supabase/tests/database/0014_community_publication_controls.test.sql:15` and `:17`; relationship retry at `0011_community_relationship_controls.test.sql:26`; simultaneous publication retry/source-deletion transaction scripts. [Final combined review](../../COMMUNITY_FINAL_REVIEW_2026-09-30.md#fresh-verification) records526 real SQL assertions and actual concurrency PASS at lines28–29, plus the combined gate/review at lines27–31. These are dated historical proofs, not rerun today.
+2. **“Old request result cannot render under a new principal.”** `scoped-client.test.ts:49`, `:64`, `:86` covers principal changes and real transport with controlled asynchronous session resolution; `state/read-cache.test.ts:284`, `:312` covers mutation/background/account/token retirement; `feed/controller.test.ts:521`, `:548`, `:587` covers reset, account switch and late results. SDK/controlled-fetch results are distinct from live Auth acceptance.
+3. **“Foreground after remote revocation clears stale activity before showing it; no persisted shared health data survives account switch.”** `feed/controller.test.ts:619`, `:645`; `feed/feed-screen.test.tsx:721`; `state/read-cache.test.ts:257`, `:284`; `state/visibility-epoch.test.ts:5` cover background retirement, fresh authority, revoked previous pages and stale epochs. Shared cache uses memory-only Maps with clearing on principal/token/background transitions; no shared-health persistence adapter. Earlier [native continuation](remaining-native-2026-10-11.md) demonstrates original10s protected-content/action retirement and fresh revoked-detail denial only.
+
+Root must verify current source/manifest and settled full-gate linkage and historical independent non-author sensitive review before closing the engineering scope. No global legal/operator/pilot gate should be added to these three original engineering bullets. Physical remote-revocation/resume, account-switch, offline and broader native acceptance remain separately qualified under #137/#150 and relevant launch issues. This helper did not close #152 or claim those device exits.

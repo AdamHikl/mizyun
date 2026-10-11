@@ -7,6 +7,7 @@ import React, {
   useSyncExternalStore,
 } from "react";
 import { Link, Stack, type Href, useFocusEffect } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   ActivityIndicator,
   Alert,
@@ -48,6 +49,7 @@ export function DiscoveryScreen({
   birthYear?: number | null;
 }) {
   const colors = useTheme();
+  const insets = useSafeAreaInsets();
   const palette = useCommunityPalette();
   const community = useCommunityProfile({
     principalKey,
@@ -260,6 +262,15 @@ export function DiscoveryScreen({
                   onPress: () => {
                     if (alive.current && renderIntent())
                       void controller.follow(user, fromInvitation);
+                    else if (
+                      focused.current &&
+                      foreground.current &&
+                      currentController.current === controller
+                    )
+                      Alert.alert(
+                        "Profile needs refreshing",
+                        "No request was sent. Refresh the profile or search again, then request to follow again.",
+                      );
                   },
                 },
               ],
@@ -279,12 +290,21 @@ export function DiscoveryScreen({
   );
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: colors.background }}
+      style={{
+        flex: 1,
+        backgroundColor: colors.background,
+        paddingTop: insets.top,
+        paddingLeft: insets.left,
+        paddingRight: insets.right,
+      }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView
         style={{ flex: 1, backgroundColor: colors.background }}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: 48 + insets.bottom },
+        ]}
         keyboardShouldPersistTaps="handled"
       >
         <Stack.Screen

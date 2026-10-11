@@ -1,0 +1,4 @@
+interface:
+  display_name: "Test Mizyun on Two iOS Simulators"
+  short_description: "Two accounts, one build, focused native acceptance"
+  default_prompt: "Use $test-ios-simulator-pair to test the selected Mizyun flows with one Dev account on each iOS simulator and record only observed results."

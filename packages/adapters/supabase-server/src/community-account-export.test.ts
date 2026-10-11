@@ -19,6 +19,9 @@ describe("community account export", () => {
       SOCIAL_EXPORT_CATEGORIES.map(() => 0),
     );
     expect(result.consistency).toBe("live_keyset");
+    expect(result.schemaVersion).toBe("2026-10-11");
+    expect(result.categories).toHaveProperty("challengeMemberships");
+    expect(result.categories).toHaveProperty("commentSettings");
     expect(rpc).toHaveBeenCalledTimes(SOCIAL_EXPORT_CATEGORIES.length);
     expect(
       rpc.mock.calls.every(
@@ -50,6 +53,25 @@ describe("community account export", () => {
       .mockResolvedValue({ data: null, error: { message: "denied" } });
     await expect(exportCommunityAccount(clientWithRpc(rpc))).rejects.toThrow(
       "Community export failed",
+    );
+  });
+  it.each(
+    [
+      null,
+      {},
+      [null],
+      [{ item_key: 1, item: {} }],
+      [{ item_key: "a", item: null }],
+      [{ item_key: "a", item: [] }],
+      Array.from({ length: 501 }, (_, i) => ({
+        item_key: String(i),
+        item: {},
+      })),
+    ].map((data) => ({ data })),
+  )("fails closed for malformed successful page $data", async ({ data }) => {
+    const rpc = vi.fn().mockResolvedValue({ data, error: null });
+    await expect(exportCommunityAccount(clientWithRpc(rpc))).rejects.toThrow(
+      "invalid",
     );
   });
   it("rejects replayed page cursors rather than accumulating duplicates", async () => {

@@ -149,6 +149,11 @@ export const COACH_APP_CAPABILITIES: readonly CoachAppCapability[] = [
 /** Explicit exclusions prevent engineering inventory becoming false product claims. */
 export const COACH_INTERNAL_FEATURES = [
   {
+    id: "workout-companions",
+    reason:
+      "Dev-only manual watch controls await paired-device acceptance and release; exclude them from general Coach availability claims.",
+  },
+  {
     id: "environment-build-deployment",
     reason:
       "Backend/native deployment and recovery operations are not an in-app feature.",

@@ -1,0 +1,8 @@
+apps/mobile test:       Tests  1957 passed (1957)
+apps/api test:       Tests  970 passed | 15 skipped (985)
+[check] PASS: all gates completed for input SHA-256 8056687f1c91517baa29150f80df891e55b62b31db2c963732554c969765785d.
+Applying migration 20261009120000_meal_illustrations.sql...
+Finished supabase db push.
+Development deployment succeeded: 537f4ae0ac6e2e253715685574b34a3ac1dc8dd6
+{"status":"ok","service":"mizyun-api","timestamp":"2026-10-09T07:11:04.244Z"}
+Hetzner Dev now runs 537f4ae0ac6e2e253715685574b34a3ac1dc8dd6.

@@ -80,6 +80,9 @@ export interface WorkoutSetForm {
   readonly perceivedExertion: string;
   readonly setType?: WorkoutSetType;
   readonly unitSystem: "metric" | "imperial";
+  readonly sequence?: number;
+  readonly completedAt?: string;
+  readonly canonicalLoadKg?: number;
 }
 
 export interface PlannedExercise {
@@ -470,15 +473,20 @@ export const addWorkoutSetWith = async (
   }
   const parsed = workoutSetCreateSchema.safeParse({
     exerciseId: form.exerciseId,
+    ...(form.sequence !== undefined ? { sequence: form.sequence } : {}),
     ...(form.setType !== undefined ? { setType: form.setType } : {}),
     ...(typeof repetitions === "number" ? { repetitions } : {}),
     ...(typeof load === "number"
-      ? { loadKg: displayWeightToKilograms(load, form.unitSystem) }
+      ? {
+          loadKg:
+            form.canonicalLoadKg ??
+            displayWeightToKilograms(load, form.unitSystem),
+        }
       : {}),
     ...(typeof durationSeconds === "number" ? { durationSeconds } : {}),
     ...(typeof distanceMeters === "number" ? { distanceMeters } : {}),
     ...(typeof perceivedExertion === "number" ? { perceivedExertion } : {}),
-    completedAt: now().toISOString(),
+    completedAt: form.completedAt ?? now().toISOString(),
   });
   if (!parsed.success) {
     return { ok: false, message: "Enter reps, load, duration, or distance." };
@@ -520,12 +528,13 @@ export const loadRecentPerformanceWith = async (
 export const completeWorkout = async (
   workoutId: string,
   workoutStartedAt?: string,
+  completedAt?: string,
 ): Promise<WorkoutCompletionResult> => {
   const binding = captureHealthExportOwner();
   return completeWorkoutWith(
     apiClient,
     workoutId,
-    () => new Date(),
+    () => (completedAt ? new Date(completedAt) : new Date()),
     workoutStartedAt,
     (workout) => exportSavedWorkout(binding, workout),
   );

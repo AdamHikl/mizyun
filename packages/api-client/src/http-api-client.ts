@@ -2,6 +2,10 @@ import { err, ok, type Result } from "@mizyun/core";
 import {
   coachMessageResponseSchema,
   foodDraftResponseSchema,
+  mealIllustrationResponseSchema,
+  mealIllustrationCapabilitySchema,
+  type MealIllustrationResponse,
+  type MealIllustrationCapability,
   type CoachMessageResponse,
   type FoodDraftResponse,
 } from "@mizyun/contracts";
@@ -260,6 +264,30 @@ export class HttpApiClient implements ApiClient {
     return parsed.success
       ? ok(parsed.data)
       : err({ kind: "validation_error", issues: parsed.error.issues });
+  }
+
+  async ensureMealIllustration(
+    entryId: string,
+    options: Partial<RequestOptions> = {},
+  ): Promise<Result<MealIllustrationResponse, ApiError>> {
+    return this.request({
+      ...options,
+      method: "POST",
+      path: `/v1/food-entries/${encodeURIComponent(entryId)}/illustration`,
+      body: undefined,
+      schema: mealIllustrationResponseSchema,
+    });
+  }
+  async getMealIllustrationCapability(
+    options: Partial<RequestOptions> = {},
+  ): Promise<Result<MealIllustrationCapability, ApiError>> {
+    return this.request({
+      ...options,
+      method: "GET",
+      path: "/v1/food-entries/illustrations/capability",
+      body: undefined,
+      schema: mealIllustrationCapabilitySchema,
+    });
   }
 
   async request<T>(options: RequestOptions): Promise<Result<T, ApiError>> {

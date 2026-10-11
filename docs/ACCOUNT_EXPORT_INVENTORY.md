@@ -242,9 +242,9 @@ Every export response includes a top-level `manifest` metadata block:
 }
 ```
 
-## Community subtree — COMM-12 / #151 (2026-09-30)
+## Community subtree — COMM-12 / #151 (2026-10-11)
 
-The existing top-level export envelope remains `2026-09-08`; the separate `community` subtree has `schemaVersion: 2026-09-30`, `consistency: live_keyset`, `completeness: complete`, per-category counts and explicit categories. This subtree is not a cross-table or database snapshot. Each category reads deterministic owner-scoped lexicographic keys in500-row pages with1000-page budget. RPC failure, repeated/nonadvancing cursor or exhausted budget fails the export rather than claiming completeness. Concurrent inserts/withdrawal can affect different live category reads. Missing account-lifecycle acceptance from #25/#26 remains open.
+The existing top-level export envelope remains `2026-09-08`; the separate source-candidate `community` subtree has `schemaVersion: 2026-10-11` (older `2026-09-30` and `2026-10-01` subtrees remain readable), `consistency: live_keyset`, `completeness: complete`, per-category counts and explicit categories. This subtree is not a cross-table or database snapshot. Each category reads deterministic owner-scoped lexicographic keys in500-row pages with1000-page budget. RPC failure, missing/non-array/oversized page, malformed row, repeated/nonadvancing cursor or exhausted budget fails the export rather than claiming completeness. Concurrent inserts/withdrawal can affect different live category reads. Missing account-lifecycle acceptance from #25/#26 remains open.
 
 | Category                        | Included ownership                                                           | Excluded data                                                                        |
 | ------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
@@ -256,5 +256,20 @@ The existing top-level export envelope remains `2026-09-08`; the separate `commu
 | reports / appeals               | Own reporter case status/text and own appeal                                 | Other reporters' identities, staff notes/operators/evidence, unrelated subject cases |
 | notificationPreferences / inbox | Own settings and retained event metadata                                     | Private source health details                                                        |
 | pushRegistrations / delivery    | Own installation metadata and delivery status/attempts/expiry                | Device push token, Auth session ID, lease IDs, internal dedupe keys                  |
+
+The source candidate declares **33 categories**; the current Dev `2596a69b` export still declares31 at `2026-10-01` until the new forward migration and runtime are accepted/deployed together. In addition to the original categories above:
+
+| Category                                                                     | Included ownership                                                                                        | Excluded data                                                  |
+| ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| comments / commentMentions                                                   | Own comments and own mention-event metadata                                                               | Unrelated discussions and other members’ private data          |
+| commentPreferences / commentSettings                                         | Own mention consent and settings for own published cards                                                  | Another author’s thread settings                               |
+| groupMemberships / groupPosts / groupAppeals / groupEvents / groupOperations | Own membership, authored posts, appeals, events and operation receipts                                    | Unrelated membership and private staff evidence                |
+| routineShares / routineImports                                               | Own shared projections and own import receipts                                                            | Another person’s private routines                              |
+| messages / messageOperations / messagingPreferences                          | Own authored messages, operation receipts and own consent/preferences                                     | Another person’s authored messages and unrelated conversations |
+| broaderDiscoveryPreferences                                                  | Own explicit discovery consent                                                                            | Other members’ discoverability choices                         |
+| challenges / challengeMemberships / challengeContributions                   | Own created challenges, own joined memberships (including another creator’s challenge), own contributions | Foreign memberships/contributions and private workouts         |
+| media / mediaReviews                                                         | Own media metadata and permitted own review metadata                                                      | Signed URLs, unrelated assets and private reviewer evidence    |
+
+Adding participant membership and per-card settings closes source inventory omissions; it does not certify archive coverage, Storage bytes, legal retention or a cross-category snapshot. New export results are withheld on malformed transport success instead of being marked complete.
 
 Withdrawal keeps the account/private diary, safety blocks, preferences and current-day abuse counters; asynchronous durable generation cleanup physically removes old publication/inbox/device artifacts. Same-day reenrollment cannot reset invitation/publication quotas. Account deletion separately batches all introduced owner/incoming references before Auth erasure, guarded by the exact deletion-job lease. A reporter deletion preserves only an anonymized minimal case if needed for an active sanction's independent appeal; expired closed-case evidence is removed, and no retention/legal approval is inferred from the implementation.

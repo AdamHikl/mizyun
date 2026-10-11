@@ -80,6 +80,18 @@ Use an existing synthetic **Dev** test account through normal UI. Keep credentia
 
 Read [native-testing.md](references/native-testing.md) for the tested DeviceHub controls, bounded recovery and feature scenarios. Verify each action's expected native result before continuing. For UI/IA requests, reviewers can examine captured pixels concurrently; only one coordinator controls the simulator. Use appropriate independent review for changed safeguards under repository instructions.
 
+## Two accounts on two simulators
+
+For focused paired-account runs, use [test-ios-simulator-pair](../test-ios-simulator-pair/SKILL.md). It adds retained A/B sessions, minimal retesting, device grounding, finite control recovery and original-criteria closure; setup mechanics remain here.
+
+For live recipient/revocation tests, retain one synthetic account on each of two explicit iOS UUIDs instead of repeatedly signing out. Inventory existing devices first; prefer a compatible existing second device. Record its initial boot/install state, verify native provenance once, and install the same signed Dev Debug artifact only where absent or incompatible. Use one owned canonical Dev Metro for both; verify each fresh bundle/native actor independently. Never copy Keychain/Auth data between devices. Do not use a generic `booted` destination.
+
+One controller serializes native input. In the observed DeviceHub workflow, normal Show in Device Hub exposes the sidebar; select the intended device and inspect Info for its UUID. Before each consequential action require the actual standard window title, selected sidebar row and current account/source content to agree. Tool-output prefixes and cached inspector metadata have disagreed with the actual selected device: a UUID observed earlier alone is insufficient. Do not invent a direct UUID input API. Keep separate recipient baseline and post-mutation results; expiry before mutation does not prove revocation. If navigation leaves the retained detail, qualify fresh-feed disappearance separately from stale-detail denial.
+
+An exposed Capture Keyboard toggle may be tried once for a newly grounded input failure; record and restore its initial state. A visible caret or successful tool return does not prove entered text. If typeText/paste stays blank, stop unchanged retries and record a control blocker rather than changing app authorization or claiming an application defect. Obtain any specifically required permission/share/report authorization for the concrete synthetic action; an approval for one action does not approve unrelated actions.
+
+Cleanup only task-owned Metro/awake processes and devices this task booted. Preserve an initially booted device, both account sessions and synthetic data. A pending native handoff may retain task setup explicitly; otherwise shut down only the task-booted UUID without erasing it.
+
 ## 5. Capture and restore
 
 Capture actual native pixels using the pinned UUID, never a source mockup:

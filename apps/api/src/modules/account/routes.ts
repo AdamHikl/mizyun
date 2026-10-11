@@ -100,6 +100,9 @@ const accountExportToWire = (
           }
         : undefined,
       community: exportDoc.community,
+      mealIllustrations: exportDoc.mealIllustrations,
+      mealIllustrationUsage: exportDoc.mealIllustrationUsage,
+      mealImagePaths: exportDoc.mealImagePaths,
       recurringMeals: exportDoc.recurringMeals,
       runOperationReceipts: exportDoc.runOperationReceipts,
       productAnalytics: analytics

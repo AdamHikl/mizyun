@@ -839,3 +839,5 @@ export {
   type GeminiVisionProviderOptions,
   type GeminiVisionClient,
 } from "./vision.js";
+
+export { GeminiMealIllustrationProvider } from "./meal-illustration.js";

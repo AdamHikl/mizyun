@@ -166,6 +166,8 @@ HealthKit sleep analysis / Health Connect `READ_SLEEP` separately. Show asleep v
 
 ### INT-07 — Apple Watch and Wear OS workout companions
 
+**2026-10-09 authorized sequence:** Adam selected wearables as the next implementation and deferred phone testing. #232 implements the Dev-only foreground manual companion slice under ADR-0054. Existing physical Health/phone/watch acceptance remains open; optional INT-03 account synchronization, sensors, vendor APIs, watch Auth and Production remain separate packages. See [current evidence](WORKOUT_COMPANIONS_EVIDENCE_2026-10-09.md).
+
 **Files:** [NEW] owned native watch project source, proposed `apps/watch-ios/` and `apps/watch-android/`; [NEW] portable companion event schemas/core reconciliation; [NEW] phone bridge under mobile workout/companion features; [NEW] reproducible Expo config/build integration and paired-device tests. Do not keep the only watch source inside regenerated `ios/` or `android/` output.
 
 First scope: current exercise/sets, reps/load, rest timer with haptic, save set and finish. Represent each action as an immutable event with operation ID, session version and acknowledgment. Watch persists an outbox across restart; phone/server remains canonical. Duplicate/out-of-order messages and competing finish actions reconcile deterministically. Rest timers use a saved deadline rather than assuming suspended timers keep ticking. Logging without sensors must remain possible.

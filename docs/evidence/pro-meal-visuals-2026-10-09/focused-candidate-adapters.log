@@ -1,0 +1,15 @@
+
+> @mizyun/adapter-supabase-server@0.1.0 test /Users/adam/.codex/worktrees/meal-illustrations-dev/mizyun/packages/adapters/supabase-server
+> vitest run src/account-repository.test.ts src/meal-photos.test.ts src/meal-illustrations.test.ts
+
+
+ RUN  v3.2.7 /Users/adam/.codex/worktrees/meal-illustrations-dev/mizyun/packages/adapters/supabase-server
+
+ ✓ src/meal-illustrations.test.ts (6 tests) 38ms
+ ✓ src/meal-photos.test.ts (9 tests) 37ms
+ ✓ src/account-repository.test.ts (30 tests) 39ms
+
+ Test Files  3 passed (3)
+      Tests  45 passed (45)
+   Start at  17:48:54
+   Duration  1.03s (transform 588ms, setup 0ms, collect 1.98s, tests 114ms, environment 0ms, prepare 151ms)

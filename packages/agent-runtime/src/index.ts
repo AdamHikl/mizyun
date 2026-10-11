@@ -1352,3 +1352,5 @@ export class StubVisionProvider implements VisionDraftProvider {
 }
 
 export * from "./evaluation-corpus.js";
+
+export type { MealIllustrationProvider } from "./meal-illustration.js";

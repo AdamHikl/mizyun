@@ -136,6 +136,8 @@ type Pending = {
 
 /** Bounded foreground memory, owned by the mobile composition, never disk. */
 export class CommunityReadCache implements ApiClient {
+  readonly getMealIllustrationCapability?: ApiClient["getMealIllustrationCapability"];
+  readonly ensureMealIllustration?: ApiClient["ensureMealIllustration"];
   readonly draftFoodEntry?: ApiClient["draftFoodEntry"];
   readonly draftCoachMealPhoto?: ApiClient["draftCoachMealPhoto"];
   private entries = new Map<string, Entry>();
@@ -150,6 +152,9 @@ export class CommunityReadCache implements ApiClient {
     private raw: ApiClient,
     private session: () => Promise<AuthSession | null>,
   ) {
+    this.getMealIllustrationCapability =
+      raw.getMealIllustrationCapability?.bind(raw);
+    this.ensureMealIllustration = raw.ensureMealIllustration?.bind(raw);
     stores.add(this);
     this.draftFoodEntry = raw.draftFoodEntry?.bind(raw);
     this.draftCoachMealPhoto = raw.draftCoachMealPhoto?.bind(raw);

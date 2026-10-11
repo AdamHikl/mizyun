@@ -1,0 +1,36 @@
+# Feed, reactions and inbox native evidence — 2026-10-11
+
+Actual native controller: GPT-6.1 Sol Medium, sole serialized DeviceHub/CUA input. Coordinator owns source, gates, fixture/API reads, launch/setup and cleanup. This record covers the selected synthetic paired simulator journey for #146/#147/#149; it does not imply physical-device, push-provider or Production acceptance.
+
+## Environment and scope
+
+- A: Synthetic Community A, iPhone 17 Pro Max, iOS 26.5, UUID `74C55221-5CFB-434F-BE42-492349429896` (initially Shutdown).
+- B: Synthetic Community B, iPhone 17 Pro, iOS 26.5, UUID `F4939E5D-BA85-4479-AA1E-92B21441FB8C` (initially Booted).
+- Dev Debug `com.mizyun.development`, version 1.0.9(9), owned Metro port 8085/session 76176. Coordinator reports 58 native hashes matching and the two Android-only configuration removals reproducing the 59th hash.
+- Coordinator reports settled all-source gate: mobile 2047, API 980 plus 15 existing skips, adapter 198. These are coordinator evidence, not native checks run by this worker.
+- Dev remains `2596a69b3fe4d20920a173de91fb4dc533b9bd4a`; new feed-only backend changes await deployment authorization. Reaction/inbox runtime is unchanged. Native evidence below must not be attributed to an undeployed feed RPC fix.
+- Coordinator prepared B approved following A and one A summary: Strength workout, Oct 10, 2026, published Oct 11 at 4:07 PM, no duration/exercise detail. Native activity ID `b49fef2b-e301-4286-9fd0-23458ac15d9c`. Baseline counts/inbox zero are coordinator own-auth reads.
+
+Window title, selected sidebar, Info UUID and current actor/content were grounded. DeviceHub sometimes retained the previous inspector values after selection; Apps → Info refreshed them before consequential input. Capture Keyboard stayed OFF. No signout, account switch, preference save or Allow action occurred. Original ten-second access lease was retained; expiry hid protected controls and normal revalidation was used.
+
+## Actual results
+
+1. B fresh Feed rendered the exact A Oct 10 summary with zero reactions. Detail contained only the summary, Clap and four other reaction counts zero. B pressed Clap exactly once. The lease retired during observation; a normal Check activity access again returned Clap Selected, count 1, every other count 0. No repeat mutation was sent.
+2. B returned to fresh Feed: exact card, one reaction. Reopened detail retained Clap Selected, count 1. Coordinator independently corroborated one active B Clap and one A inbox/reaction event.
+3. A Updates visibly contained exactly one Unread “Someone cheered you on” event at 4:10:03 PM. Tapping it resolved the exact A Oct 10 Strength summary/shared Oct 11 at 4:07 PM, author view Clap 1/others 0. Normal revalidation was necessary after the original lease expired. Returning to Updates showed the same single event marked Read.
+4. A explicitly pressed Register this device for Community alerts. Actual response: “Device registration was not confirmed. Check your connection and notification settings, then retry.” No accessible OS permission prompt or literal denied-permission copy was observed. This is not accepted as the denied-permission subcase. Preferences continued to state phone notifications were not enabled and private tracking/updates work without permission.
+5. After that registration failure, A fresh Updates retained the single Read event; Feed rendered the exact card/one reaction; People and Following worked normally, with the expected empty following state. No settings switches or preferences were saved.
+6. B returned to verified draft-free Home. Coordinator performed one explicit app process restart (new PID 1718, same Metro). Actual B Home retained Synthetic Community B; fresh Community fetched the exact card/one reaction and reopened detail retained Clap Selected 1/others 0, without any new reaction input. This is process-restart persistence in addition to screen-remount persistence.
+7. Coordinator launched normal iOS Settings on A. Actual Settings → Apps → Mizyun Dev → Notifications showed Allow Notifications ON, so historical denial was not retained. Under the user's explicit prior Don't Allow authorization, the controller set this exact app's Allow Notifications OFF and observed Value 0. No unrelated settings changed. Coordinator returned the retained Dev app (same PID 99851). Fresh Following retry rendered its empty state, Feed rendered the exact summary/one reaction, and Updates retained the single Read event. Fresh preferences → explicit Register displayed “Device permission was denied. Your inbox and private tracking remain available.” This completes actual denied-permission guidance and availability acceptance. OFF is intentionally retained as the user-approved denial.
+8. B returned to exact Pro/UUID, revalidated the exact activity. Two attempted removals retired under the original ten-second lease; a fresh read still showed selected Clap 1. One bounded immediate action on the newly observed selected Clap succeeded and returned Clap 0, unselected, other counts 0. No lease or security controls were changed. Coordinator own-auth read at 14:33:10Z independently confirmed B viewerReaction null/all counts 0 and A inbox/reaction events 0.
+9. A returned from preferences to Updates: No Community updates, no reaction event. Explicit Refresh updates completed and retained that empty state. Both apps are draft/dialog-free; A is on empty Updates, B's protected activity detail naturally retires with its normal lease. Native input stopped at the coordinator's requested checkpoint.
+
+## Final cleanup and qualifications
+
+Coordinator reports normal-owner API unpublish at 14:44:56Z: activity detail 404, feed zero, reaction unavailable, inbox zero. The temporary follower edge was removed; both profiles remain active, five graph/block counts are zero and the private workout remains retained. These are coordinator API cleanup observations, not fresh native withdrawal acceptance.
+
+Coordinator reports independent High original-scope audit accepted qualified #146 engineering and unchanged-UI closure without a new Dev deployment, reusing original empty/unpublish evidence from #145/#167. No new feed deployment, fresh native pagination, withdrawal/detail-refusal or private Workout/Food journey is claimed in this record. No lost-response or rapid-tap native claim is made; database/concurrency/source evidence remains separate.
+
+The final resumed native phase performed cleanup navigation only. Actual Max title/sidebar/Info UUID aligned, Keep tracking privately returned verified Synthetic Community A Home. Actual Pro title/sidebar/Info UUID aligned, normal Go back and Home tab returned verified Synthetic Community B Home. An empty Feed was incidentally visible on the return path; it was not treated as a new acceptance test. Both apps ended on normal draft/dialog-free Home. User-approved A notification permission OFF is intentionally retained; no other settings/auth/save changes occurred. Native input stopped before coordinator resource cleanup.
+
+This worker ran no tests, API requests, setup/build/relaunch commands, fixtures, credentials, GitHub actions or deployments. Only this owned evidence file was written and formatted.

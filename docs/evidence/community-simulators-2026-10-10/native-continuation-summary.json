@@ -1,0 +1,417 @@
+{
+  "date": "2026-10-10",
+  "sourceHead": "0d9da8a46197f20b12f00d643851a84866368998",
+  "candidate": "Recorded dirty candidate; five runtime hashes unchanged; no new source edits or source suites this continuation",
+  "backendSha": "4fa20a882d6d8c8fd446d07e55208b18240d8b22",
+  "migrationMaximum": "20261009150000",
+  "controller": {
+    "model": "gpt-6.1-sol",
+    "reasoning": "medium",
+    "soleInputOwner": "comm_control_recovery"
+  },
+  "ios": {
+    "device": "F4939E5D-BA85-4479-AA1E-92B21441FB8C",
+    "model": "iPhone 17 Pro",
+    "os": "26.5",
+    "bundle": "com.mizyun.development",
+    "version": "1.0.9",
+    "build": 9,
+    "launchPid": 23888,
+    "signedArtifact": "/private/tmp/mizyun-comm-ios-20261010/Build/Products/Debug-iphonesimulator/MizyunDev.app",
+    "nativeSourceInputsUnchanged": 59,
+    "generatedAndroidBuildAdditionsExcludedAfterInspection": 538,
+    "rebuild": false,
+    "font": "extra-extra-large",
+    "appearance": "light",
+    "systemPrompt": "B latest password prompt dismissed; no password stored",
+    "control": "AX navigation usable; coordinates/gestures remain noWindowsAvailable; intermittent ScreenCaptureKit errors",
+    "latestState": "Native B unsubmitted Join form may remain locally visible; server B restored active through approved own-auth API. A remains enabled/circle owner. Native input stopped; do not infer rendered Join success."
+  },
+  "android": {
+    "historicalState": "This iOS continuation initially had no usable Android surface; superseded by android-ready-summary.json",
+    "latestReceipt": "android-ready-summary.json",
+    "currentAcceptance": "Setup/current bundle/Login only; user explicitly skipped all remaining Android testing after keyboard setup failed"
+  },
+  "routineDiagnostics": {
+    "scope": "Guarded read-only synthetic B own private routines and already-visible A share; private full bodies mode0600 outside Git",
+    "beforeSuccessfulNativeRetry": {
+      "ownCount": 0
+    },
+    "afterNativeSuccess": {
+      "ownCount": 1,
+      "publicTitleCopies": 1,
+      "privateCanaryFound": false
+    },
+    "afterOneNativeImportRetry": {
+      "ownCount": 1,
+      "nativeRetryToast": "Not observed after authority expiry; no duplicate corroborated by read"
+    },
+    "afterNativePrivateRename": {
+      "ownCount": 1,
+      "editedPrivateTitleCopies": 1,
+      "publishedOriginalTitleRetained": true,
+      "editedPrivateTitleInPublicShare": false,
+      "privateCanaryFound": false
+    }
+  },
+  "sourceGate": "Earlier final pnpm check PASS on settled code:2128 mobile/176files;979API PASS/15credential-gated skips; input f76ee946bbf9a5e3982e889f23acd9cd96c9d54fd55447975ccc21425c11b001; not repeated without source change",
+  "reportSubmit": "Explicitly approved exact one-report test; native form retired before reason/details/Submit. No report/block/staff notification claimed; control-blocked.",
+  "liveIssues": "Oct11read-onlyrefresh: same selected27open/status:blocked; noissueclosed.",
+  "cleanup": "Native controller input/writes STOP. Task-created Max shutdown exit0/data and auth retained; booted inventory lists only initially running Pro/B. Owned Metro21784 stopped via Ctrl-C exit0 after gate timing failure. Timed awake80779 ended; Android stopped/data retained. No erase/auth wipe. Final lsof found no8085listener.",
+  "nativeOutcomes": "Current continuation subsets: challenge picker/declaration/management, prefixOFF, routine import/private view/title-only edit, comment edit/remove and inbox preference/read persistence PASS; photo selection and Android control remain blocked. See controller-continuation.md. Latest paired setup: normal A signin on second simulator and both UUID/header/actor checks; full ownership restoration verified in A owner/B member views; B three category preferences OFF/save/reopen persisted, restored ON/save; A detailed-workout/B exact recipient baseline passed, user explicitly approved unpublish, native confirmation executed and B fresh Feed empty; private source retained.",
+  "parentIssueComment": "https://github.com/AdamHikl/mizyun/issues/137#issuecomment-6106542203",
+  "handoff": "Approve exact2596a69 push/Dev deployment, then rerun approved B local-only export/native acceptance. Existing withdrawal and own-auth API B restoration complete; native Join/report remain blocked. No Production/issue closure.",
+  "latestNativeDelta": "Supersedes earlier interim state: A original edit removed old routine from fresh B browse while B private copy survived; A\u2192B\u2192A group cycle complete, owner A; B alert categories restored ON; approved A unpublish removed card from B fresh Feed, private workout retained.",
+  "groupOwnership": {
+    "authorization": "Explicit user approval of synthetic A\u2192B test then restoration to A",
+    "execution": "Full native A\u2192B\u2192A cycle PASS subset. B owner controls verified after transfer; one expired restoration attempt did not change roles. Fresh compact retry7.66s restored A; independent fresh member read5.77s A owner/B member and B admin controls absent.",
+    "currentOwner": "Synthetic A",
+    "restoration": "Completed and independently re-read natively; group/posts/graph retained"
+  },
+  "twoSimulatorSetup": {
+    "userDecision": "Use two iOS simulators simultaneously, retaining distinct A/B sessions to avoid account switching",
+    "existingB": {
+      "uuid": "F4939E5D-BA85-4479-AA1E-92B21441FB8C",
+      "name": "iPhone 17 Pro",
+      "initialState": "Already booted; B signed in; no logout/replacement/lifecycle action"
+    },
+    "secondA": {
+      "uuid": "74C55221-5CFB-434F-BE42-492349429896",
+      "name": "iPhone 17 Pro Max",
+      "runtime": "iOS26.5",
+      "initialState": "Shutdown beforetask; bootfinished104s, noexistingDevappcontainer confirmed afterready",
+      "app": "Same verified signed Dev Debug1.0.9(9) installed and launched on explicitUUID; normal A sign-in verified.",
+      "setup": "Verified signed Debug1.0.9(9) installed and launched via repositoryhelper on explicitUUID",
+      "appPid": 42301,
+      "freshBundleMs": 1296,
+      "mainModules": 2289,
+      "nativeAcceptance": "Normal A sign-in reached A Home. Later fresh matching ProMax/UUID/account read found both notification and password prompts already cleared; controller did not press either permission/storage button. A Community group-owner view then verified restored owner controls."
+    },
+    "metro": {
+      "session": 21784,
+      "pid": 41390,
+      "port": 8085,
+      "log": "/private/tmp/mizyun-comm-ios-two-devices-20261010.log",
+      "environment": "Canonical devEnvironment(.env.dev), unchanged signed Debug candidate"
+    },
+    "awakeSession": 80779,
+    "provenance": "All59saved native-input checksums unchanged;538added files limited to generated Android build paths",
+    "controller": "Verified GPT-6.1 Sol Medium, single input owner for both. Normal Show in Device Hub/sidebar/Info verified exact ProMax74C and ProF493 UUIDs. One mixed target snapshot was detected before mutation; fresh header/selected row/account content must all agree.",
+    "acceptance": "Both separate native signed-in actors verified; group role restoration and paired fresh-feed unpublish subset PASS; not complete native matrix.",
+    "currentState": "A ProMax/B Pro usable signed-in Community actors; ownerA restored, public workout removed by exact approval, private sources retained.",
+    "awakeState": "Timed session80779 completed exit0 onOct11"
+  },
+  "permissionRejection": {
+    "device": "A ProMax74C55221-5CFB-434F-BE42-492349429896",
+    "action": "Don\u2019t Allow notification permission",
+    "reviewReason": "Permission-setting action lacked specific human authorization under generic simulator testing",
+    "executedAtRejection": false,
+    "userApproval": "Explicit Approve Don\u2019t Allow received and relayed; no stale target replay",
+    "execution": "Explicit approval received; fresh A read found prompt already gone, so no decline button replayed and final OS permission state was not inferred."
+  },
+  "pairedWorkoutRevocation": {
+    "baseline": "B Pro fresh actor view sees exact A shared Strength workout/BarbellBackSquat10kg8reps; private title/note/RPE excluded. A Max own preview detailed/exercises ON/duration OFF/1approved follower/Unpublish available.",
+    "unpublish": "PASS subset: verified Max/A exact own preview \u2192 Unpublish confirmation \u2192 Confirm4.98s. Private history remained1 completed activity. B fresh Feed5.04s plus full AX/pixels4.04s empty, old A card absent.",
+    "source": "Private workout retained; no source deletion or relationship/withdrawal mutation.",
+    "authorization": "Explicit user answer Approve unpublish test for only A synthetic Strength workout in Dev; private source retained.",
+    "limits": "Direct stale-ID/detail denial not tested: retained detail was left for message fallback. Earlier expired detail preceded mutation and is not revocation proof. Own list Review sharing/unpublish affordance alone not authoritative. Source inspection workouts-hub-screen.tsx1060 confirms that own-list label is a generic static action affordance, not publication status."
+  },
+  "historicalMetro": {
+    "ownedPid": 23471,
+    "session": 21866,
+    "port": 8085,
+    "listener": "::1",
+    "log": "/private/tmp/mizyun-comm-metro-continuation-20261010.log",
+    "freshMainBundleMs": 8273,
+    "mainModules": 2289
+  },
+  "metro": {
+    "session": 21784,
+    "pid": 41390,
+    "port": 8085,
+    "log": "/private/tmp/mizyun-comm-ios-two-devices-20261010.log",
+    "environment": "Canonical devEnvironment(.env.dev), unchanged signed Debug candidate",
+    "listener": "*:8085",
+    "ended": true,
+    "exitCode": 0
+  },
+  "messageInput": {
+    "result": "BLOCKED by native control; no draft/Send",
+    "attempt": "Verified B Pro/A conversation; exposed Capture Keyboard ON produced caret but typeText and normal paste rendered no text,0/1000. No application defect reproduced.",
+    "restoration": "Capture Keyboard OFF verified; blank composer left normally.",
+    "latestAttempt": "Oct11changed-basis coordinate-focus click failed -10005 noWindowsAvailable2.11s before typing; AXMessage Group notsettable. No repeated retry/paste/Send."
+  },
+  "latestContinuationDate": "2026-10-11",
+  "exportTest": {
+    "route": "Normal BPro Account full-account export; no Community-only option",
+    "execution": "One approved native Generate failed generic23.09s; no successful file/share outcome; ownB Dev HTTP500 diagnosed to food_media_paths implicit id ordering. Fix reviewed/30testsPASS; full isolated check running. Native export acceptance pending Dev fix.",
+    "scope": "Approved B synthetic full-account local generation/inspection; no external sharing/full sensitive export inGit"
+  },
+  "withdrawalPreview": {
+    "result": "PASS preview only; canceled Keep Community",
+    "confirmation": "Profile/cards unavailable immediately; follows/requests/invites end; handle reserved; returning requires fresh choice and restores no social history; private tracking/Coach/paid entitlement retained",
+    "execution": "Native withdrawalPASS; A fresh Following/Followers empty and B discovery unavailable; B private workout/routine retained. Native rejoin prepared but no Join pressed; input stopped. Own-B authenticated Dev fixture reenrollment returned201 active, matching user/handle/searchOFF; old graph not restored. API restoration is not native Join acceptance."
+  },
+  "pairedNavigation": {
+    "result": "PASS subset: verifiedBPro Community\u2192Coach(no request)\u2192Community retained actual empty Feed without indefinite loader",
+    "limits": "Actual empty feed cannot prove suppression of false-empty encouragement on a populated feed"
+  },
+  "provenanceOct11": "Five owned runtime hashes and all59 saved native-input checksums freshly match; no source suites repeated without runtime edits",
+  "appearance": {
+    "result": "Dark untested; no usable exposed control in inspected normal menus",
+    "restoration": "No theme/textsize/settings changed; initial light/XXL retained; normal explicitCancel closedmenu"
+  },
+  "approvalContinuationOct11": {
+    "trustedUserReply": "go ahead",
+    "context": "Direct reply after coordinator named all three pending approvals: B synthetic local full-account export, B Community withdrawal/rejoin, exactly one synthetic Dev report",
+    "scope": "These three concrete tests now authorized; no permanent account deletion, external export sharing, messages/media publication or global/staff/provider changes",
+    "execution": "Completed bounded native packet; export failed, report unsubmitted/control-blocked, withdrawal passed; native Join blocked. Approved own-account API fixture reenrollment restored B active."
+  },
+  "exportFailure": {
+    "native": "ApprovedGenerate failedgeneric23.09s, noShare/fileobserved",
+    "http": "FreshownBdiagnosticGETDevaccount/export status500 INTERNAL_ERROR",
+    "server": "food_media_paths exportRepositoryError",
+    "underlying": "OwnBscopedREST status400 PostgreSQL42703 columnfood_media_paths.iddoesnotexist",
+    "cause": "Pagination defaultidtie-breaker on path_key-onlyprimarykeytable",
+    "implementation": "Explicit path_key ordering/tie-breaker and501-row schema-boundary regression committed only in isolated2596a69; independent nonauthorHigh review no findings, negative-controlFAIL/focused30PASS/fullgatePASS",
+    "scope": "No schema/RLS/grant/category omission; previousPro mealworkpreserved"
+  },
+  "rejoinRestorationOct11": {
+    "method": "Normal own-authenticated Dev POST /v1/community/profile",
+    "precondition": "Own matching B withdrawn profile read HTTP200",
+    "result": "HTTP201 active, own user/handle preserved, searchOFF; fresh approved adult/rules consent, synthetic display name, optional fields omitted",
+    "proofTier": "Fixture restoration only; native Join BLOCKED/unpressed",
+    "privateResult": "/private/tmp/mizyun-comm-b-rejoin-restoration-result-20261011.json",
+    "graph": "Old graph/history intentionally not restored"
+  },
+  "taskMaxShutdownOct11": {
+    "device": "74C55221-5CFB-434F-BE42-492349429896",
+    "exitCode": 0,
+    "verification": "Booted inventory lists only initial Pro/B",
+    "dataAndAuth": "retained",
+    "reason": "Native input stopped; free resources for final gate"
+  },
+  "exportFixGateOct11": {
+    "baseSha": "4fa20a882d6d8c8fd446d07e55208b18240d8b22",
+    "scope": "Only account-repository.ts and account-repository.test.ts session delta",
+    "independentReview": "High nonauthor no findings",
+    "red": "ExpectedFAIL reproduced food_media_paths id ordering error",
+    "focused": "30/30PASS",
+    "firstFullGate": "FAIL existing settings-search timing median82.15ms vs50; mobile2007PASS/1FAIL, adapters196PASS; both bundles/typechecks passed",
+    "unchangedTimingFileRerun": "93/93PASS after owned Metro/Max stopped; no threshold/source change",
+    "fullGateRerun": "PASS exit0, input SHA256 b843c750bbfd24ddeb69de6dabc4cd223aebf99861fe88c28d55f98a08cc9c97; all required standard gates ran with VITEST_MAX_FORKS=1 VITEST_MIN_FORKS=1 VITEST_MAX_THREADS=1 VITEST_MIN_THREADS=1",
+    "secondFullGate": "FAIL same unchanged timing assertion median96.22ms; mobile2007PASS/1FAIL again",
+    "candidateSha": "2596a69b3fe4d20920a173de91fb4dc533b9bd4a",
+    "branch": "codex/comm-export-key",
+    "worktree": "/Users/adam/.codex/worktrees/comm-export-key/mizyun",
+    "counts": {
+      "mobilePassed": 2008,
+      "mobileFiles": 172,
+      "apiPassed": 979,
+      "apiCredentialGatedSkipped": 15,
+      "adapterPassed": 196,
+      "adapterFiles": 26
+    },
+    "skipReasons": "Auth5, persistence8, account deletion2; not live acceptance",
+    "preflight": "PASS clean exact candidate, Hetzner primary marker and public Dev HTTP200; read-only",
+    "devShaFreshReadOct11": "4fa20a882d6d8c8fd446d07e55208b18240d8b22",
+    "deployment": "Pushed codex/comm-export-key and deployed exact2596a69b; fresh running readiness/required journal success and clean checkout verified"
+  },
+  "deploymentApprovalOct11": {
+    "trustedUserReply": "Approve push and Dev deployment",
+    "candidateSha": "2596a69b3fe4d20920a173de91fb4dc533b9bd4a",
+    "scope": "Push exact reviewed candidate and deploy to Hetzner Dev, then finish already-approved B local-only full export",
+    "execution": "Completed session85351 exit0; exact approved branch pushed and Hetzner Dev deployed after committed-SHA full gate PASS. Workspace concurrency1/Vitest workers1; no source/assertion/skip changes.",
+    "log": "/private/tmp/mizyun-comm-export-key-deploy-serial-20261011.log",
+    "firstAttempt": "Session30681 exit2 before push/restart: committed-SHA gate failed existing settings-search timing median83.90ms vs50 despite Vitest workers1; mobile2007PASS/1FAIL. Dev remains unchanged."
+  },
+  "exportLocalInspectionPreparationOct11": {
+    "nativeInputHashes": "59/59match; inventory538additional paths allgenerated Android builds/no new or missingnative inputs",
+    "bNativeExportBaseline": "0export files in pinned B app Documents; no unrelated data read",
+    "diagnosticAuth": "Expired ownB diagnostic token refreshed only; native sign-in untouched",
+    "inspector": "Private local script validates schema/owner/category counts and credential omission; full export outsideGit"
+  },
+  "exactDevDeploymentOct11": {
+    "sha": "2596a69b3fe4d20920a173de91fb4dc533b9bd4a",
+    "branch": "codex/comm-export-key",
+    "sessionId": 85351,
+    "exitCode": 0,
+    "checkInputSha256": "5654232df3ab1756b235ff3c1a8f652297252e02227f36dfcc0ccd1753bf0fbb",
+    "mobilePassed": 2008,
+    "apiPassed": 979,
+    "apiCredentialGatedSkipped": 15,
+    "adapterPassed": 196,
+    "publicHealth": "HTTP200 statusok2026-10-11T07:50:45.046Z",
+    "releaseJournal": "success2026-10-11T07:50:44.744Z, requested/checkedOut/running SHA match, runningReleaseVerified true, readiness passed, migrations reconciled/up to date",
+    "runningInstance": "0da05616-23fc-41f6-9d01-14144bdf2629",
+    "dependenciesReady": {
+      "database": true,
+      "auth": true,
+      "storage": true
+    },
+    "remoteCheckoutClean": true,
+    "productionChanged": false
+  },
+  "exportApiRetestOct11": {
+    "httpStatus": 200,
+    "elapsedMs": 1005,
+    "bodyBytes": 5322,
+    "inspection": "export-api-inspection-2026-10-11.json",
+    "result": "Schema/ownB/manifest/counts/all31Communitycategories/fixture-secret omission PASS; full JSON onlyprivate mode0600",
+    "consistency": "live_keyset, not a cross-table point-in-time snapshot",
+    "native": "PASS exactly1Generate\u2192native JSON share sheet\u2192Cancel\u2192exact dismissal feedback\u2192BHome; actual saved-file schema/owner/all31categories/counts PASS"
+  },
+  "metroOct11": {
+    "sessionId": 81670,
+    "port": 8085,
+    "log": "/private/tmp/mizyun-comm-b-export-metro-20261011.log",
+    "state": "STOPPED Ctrl-C session81670 exit0; final lsof no8085listener"
+  },
+  "nativeExportRetestOct11": {
+    "device": "F4939E5D-BA85-4479-AA1E-92B21441FB8C",
+    "actor": "synthetic B",
+    "generateCount": 1,
+    "shareSheetObserved": true,
+    "cancelInvoked": true,
+    "externalShared": false,
+    "nativeFileReceipt": "export-native-file-receipt-2026-10-11.json",
+    "nativeInspection": "export-native-inspection-2026-10-11.json",
+    "schemaOwnershipAndCounts": "PASS",
+    "fileBytes": 7430,
+    "fullPayloadInGit": false,
+    "limitation": "Complete live_keyset result does not prove independent custody, cross-table snapshot or erasure",
+    "shareDismissalConfirmed": true,
+    "feedback": "Account data export share dismissed.",
+    "finalScreen": "B Home, no draft/menu/share sheet",
+    "screenshot": "b-export-share-dismissed-2026-10-11.png",
+    "controllerStopped": true
+  },
+  "cleanupOct11Final": {
+    "metroSession": 81670,
+    "metroExitCode": 0,
+    "awakeSession": 47626,
+    "awakeExitCode": 130,
+    "scope": "Only task-owned Metro/temporary caffeinate stopped",
+    "booted": "Only initially running ProF493/B, left booted",
+    "max": "Task-booted Max74C shutdown previously/data andAuth retained",
+    "android": "Skipped at user instruction/stopped/data retained",
+    "accountDataErased": false,
+    "nativeExportsDeleted": false,
+    "finalBScreen": "Home",
+    "captureKeyboard": "OFF"
+  },
+  "finalParentIssueCommentOct11": "https://github.com/AdamHikl/mizyun/issues/137#issuecomment-6106938198",
+  "finalDocsChecksOct11": "Owned docs formatted/diff-checkPASS; status75lines12241bytes within120/12288limit; exact deployed candidate fullgate alreadyPASS, no unnecessary repeated source/native/provider suite",
+  "remainingAcceptanceOct11": {
+    "receipt": "remaining-setup-2026-10-11.json",
+    "nativeEvidence": "remaining-native-2026-10-11.md",
+    "denialEvidence": "followback-denial-2026-10-11.json",
+    "closedIssue": 166,
+    "selectedOpenIssues": 26,
+    "controlBlocker": "Mac locked; controller stopped before block/report input",
+    "sourceEditsOrRepeatedSuites": false,
+    "cleanupReceipt": "remaining-setup-2026-10-11.json",
+    "parentComment": "https://github.com/AdamHikl/mizyun/issues/137#issuecomment-6107283377"
+  },
+  "safetyContinuationOct11": {
+    "nativeRecord": "remaining-native-2026-10-11.md",
+    "setupResultsCleanup": "remaining-setup-2026-10-11.json",
+    "blockCorroboration": "block-read-corroboration-2026-10-11.json",
+    "navigationCorroboration": "navigation-api-corroboration-2026-10-11.json",
+    "results": "Native exact search/blockUnblock/noresurrection/inviteCreateRevoke/populateddetail/10sretirement/freshrevokeddenial/BackemptyFeed PASS subsets",
+    "report": "Unsubmitted; exact marker details input unsupported, no blind retry",
+    "remaining": "Mute/crossed graph, warmcoldinvalid invitations, message/media, nativeJoin, repeated populatednavigation/offline/background/accessibility; broad external gates unchanged",
+    "sourceRuntimeEdits": false,
+    "newAutomatedSuites": false,
+    "selectedOpenIssues": 26,
+    "cleanup": "STOP taskMetro6487/awake45467, only taskMaxshutdown, initialProrunning/dataretained, fixtureShare/edge removed normally",
+    "parentIssueComment": "https://github.com/AdamHikl/mizyun/issues/137#issuecomment-6107723602",
+    "finalDocsChecks": "Owned Prettier/diff-check PASS; six runtime hashes unchanged; status75lines12283bytes"
+  },
+  "closureScopeAuditOct11": {
+    "record": "closure-scope-audit-2026-10-11.md",
+    "closed": [166, 167, 168, 169],
+    "selectedOpen": 23,
+    "167": "CLOSED/done after explicit user simulator acceptance approval; physical acceptance separate",
+    "deviceAcceptanceSeparateFor": [167, 168, 169],
+    "newSourceOrNativeTests": false
+  },
+  "latestRemaining23AuditOct11": {
+    "record": "remaining23-audit-2026-10-11.md",
+    "closed": [152, 166, 167, 168, 169],
+    "selectedOpen": 22,
+    "freshFocused": {
+      "tests": 86,
+      "files": 5,
+      "exit": 0,
+      "skips": 0
+    },
+    "runtimeEdits": false,
+    "nativeNewUniqueExit": false,
+    "cleanup": "Metro61047 stopped/no8085listener; Max shutdown; Pro/data/Auth retained"
+  },
+  "simulatorAcceptanceApprovedOct11": {
+    "passedActionsRequirePhysicalRepeat": false,
+    "androidSkippedByUser": true,
+    "closedSelected": [142, 143, 144, 145, 152, 166, 167, 168, 169],
+    "openSelected": [
+      137, 140, 146, 147, 148, 149, 150, 151, 153, 154, 155, 156, 157, 158, 159,
+      160, 161, 162
+    ],
+    "proof": "simulator-results-approved-2026-10-11.md",
+    "closure145": "https://github.com/AdamHikl/mizyun/issues/145#issuecomment-6108455615",
+    "newTestsOrNativeReruns": true,
+    "closure142": "https://github.com/AdamHikl/mizyun/issues/142#issuecomment-6108711100",
+    "newTestsOrNativeRerunsScope": "#142 targeted identity continuation only: 98 focused tests and withdrawal/refusal/rejoin/stable-block native acceptance. Earlier scope audit did not rerun tests.#143 selected mute/unmute continuation:95focused tests/5files PASS, no rerun after unlock/unchanged hashes; native flow and live incarnation proof PASS, fixture/resources restored.",
+    "closure143": "https://github.com/AdamHikl/mizyun/issues/143#issuecomment-6109160396",
+    "continuation144": {
+      "state": "CLOSED/status:done",
+      "proof": "invitations-closure-2026-10-11.md",
+      "native": "Warm/current actor/minimal hidden identity/cancel/deliberate request/revoked/malformed/final Auth-shaped denial and B Home PASS",
+      "source": "Six local routing/Auth files; focused61PASS/non-author High review approved",
+      "gate": "PASS isolated15-overlay candidate:2046mobile/979API+15skips; input a7561ea405a2a7b6c824f8579338ae282b7f84ec69443c8c6cca1012e4a7777a",
+      "remaining": "None for original #144; no physical repeat",
+      "fixtureRestored": true,
+      "release": "No new commit/push/deploy/Production",
+      "resourcesStopped": true
+    },
+    "closure144": "https://github.com/AdamHikl/mizyun/issues/144#issuecomment-6109634329"
+  },
+  "identityAcceptanceOct11": {
+    "issue": 142,
+    "state": "CLOSED/status:done",
+    "proof": "identity-closure-2026-10-11.md",
+    "native": "identity-native-2026-10-11.md",
+    "live": "identity-live-2026-10-11.json",
+    "source": "identity-source-2026-10-11.json",
+    "freshTests": 98,
+    "focusedFiles": 5,
+    "runtimeEdits": false,
+    "backend": "2596a69b3fe4d20920a173de91fb4dc533b9bd4a",
+    "generationBefore": 2,
+    "generationAfter": 3,
+    "privateWorkoutRecordsPreserved": 2,
+    "blockSurvived": true,
+    "fixtureRestored": true,
+    "bothCommunityEnabled": true,
+    "metroStopped": true,
+    "onlyTaskBootedMaxShutdown": true,
+    "closure": "https://github.com/AdamHikl/mizyun/issues/142#issuecomment-6108711100"
+  },
+  "relationshipsAcceptanceOct11": {
+    "issue": 143,
+    "state": "CLOSED/status:done",
+    "closure": "https://github.com/AdamHikl/mizyun/issues/143#issuecomment-6109160396",
+    "parent": "https://github.com/AdamHikl/mizyun/issues/137#issuecomment-6109163650",
+    "proof": "relationships-closure-2026-10-11.md",
+    "nativeMuteUnmuteAndRetainedFollow": "PASS",
+    "freshFocusedTests": 95,
+    "focusedFiles": 5,
+    "focusedSkips": 0,
+    "runtimeEdits": false,
+    "testsRepeatedAfterUnlock": false,
+    "optionalFinalBNativeList": "NOT RUN; qualified separate owner-auth graph",
+    "providerPush": "NOT RUN; #149",
+    "cleanup": "Temporary edge removed; accounts/private records retained; owned Metro/awake stopped; task Max shutdown; Pro retained"
+  }
+}

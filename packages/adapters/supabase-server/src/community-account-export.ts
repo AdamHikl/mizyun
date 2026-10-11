@@ -17,6 +17,7 @@ export const SOCIAL_EXPORT_CATEGORIES = [
   "delivery",
   "comments",
   "commentPreferences",
+  "commentSettings",
   "commentMentions",
   "groupMemberships",
   "groupPosts",
@@ -30,6 +31,7 @@ export const SOCIAL_EXPORT_CATEGORIES = [
   "messagingPreferences",
   "broaderDiscoveryPreferences",
   "challenges",
+  "challengeMemberships",
   "challengeContributions",
   "media",
   "mediaReviews",
@@ -59,9 +61,27 @@ export async function exportCommunityAccount(client: RepositorySupabaseClient) {
       );
       if (error)
         throw new RepositoryError(`Community export failed for ${category}`);
-      const rows: readonly ExportRow[] = data ?? [];
+      if (!Array.isArray(data) || data.length > 500) {
+        throw new RepositoryError(
+          `Community export returned an invalid page for ${category}`,
+        );
+      }
+      const rows: readonly ExportRow[] = data;
       for (const row of rows) {
-        if (!row.item_key || (cursor !== null && row.item_key <= cursor)) {
+        if (
+          !row ||
+          typeof row !== "object" ||
+          typeof row.item_key !== "string" ||
+          !row.item_key ||
+          !row.item ||
+          typeof row.item !== "object" ||
+          Array.isArray(row.item)
+        ) {
+          throw new RepositoryError(
+            `Community export returned an invalid row for ${category}`,
+          );
+        }
+        if (cursor !== null && row.item_key <= cursor) {
           throw new RepositoryError("Community export cursor did not advance");
         }
         cursor = row.item_key;
@@ -78,7 +98,7 @@ export async function exportCommunityAccount(client: RepositorySupabaseClient) {
     counts[category] = items.length;
   }
   return {
-    schemaVersion: "2026-10-01" as const,
+    schemaVersion: "2026-10-11" as const,
     consistency: "live_keyset" as const,
     completeness: "complete" as const,
     counts,

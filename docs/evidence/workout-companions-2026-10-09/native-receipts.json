@@ -1,0 +1,62 @@
+{
+  "date": "2026-10-09",
+  "scope": "Unsigned native compilation and synthetic tests; no paired device or full phone app build",
+  "logs": [
+    {
+      "log": "/private/tmp/mizyun-watch-ios-build.log",
+      "sha256": "28f0866b4d17b9cc04c27177ffcec1a61b1f124a68e470180cb1b410d4245d21",
+      "completion": ["** BUILD SUCCEEDED **"]
+    },
+    {
+      "log": "/private/tmp/mizyun-watch-android-build.log",
+      "sha256": "737a49588706c827405452a81f5c741a66c1a3d4d17fe89cacddac26f7a26449",
+      "completion": ["BUILD SUCCESSFUL in 4s"]
+    },
+    {
+      "log": "/private/tmp/mizyun-companion-prebuild-ios.log",
+      "sha256": "760817c0abef0754ae42e2529d618519cf915fee2cdeec02b4741f131bac4111",
+      "completion": ["\u2714 Finished prebuild"]
+    },
+    {
+      "log": "/private/tmp/mizyun-companion-prebuild-android.log",
+      "sha256": "d5e4be0a0c10691bffa446716505e068d943d1fca32f0d93d5af6f817e29c4e4",
+      "completion": ["\u2714 Finished prebuild"]
+    },
+    {
+      "log": "/private/tmp/mizyun-companion-embedded-watch-build.log",
+      "sha256": "0ce218ca92483a6a27f76faa72dd36034dd5ad611ca98d2b4989b2327f8ad107",
+      "completion": ["** BUILD SUCCEEDED **"]
+    },
+    {
+      "log": "/private/tmp/mizyun-companion-phone-android-compile.log",
+      "sha256": "a152c617babc89b5d1c2c49964d8dff2e06f94c55dbe3963dafea2a831b5f4f7",
+      "completion": ["BUILD SUCCESSFUL in 20s"]
+    },
+    {
+      "log": "/private/tmp/mizyun-companion-phone-ios-compile.log",
+      "sha256": "8d50baaabf251c086e69bae642080bfc74806a4603aad23462736e193e68074b",
+      "completion": ["** BUILD SUCCEEDED **"]
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "/private/tmp/mizyun-watch-ios-build/Build/Products/Debug-watchsimulator/MizyunWorkoutWatchDev.app/MizyunWorkoutWatchDev",
+      "sha256": "e2b44232b124d8e26ecb1aee56bab5b1433241689e543d74368d9530b91a483e"
+    },
+    {
+      "path": "/private/tmp/mizyun-companion-embedded-watch-products/Debug-watchsimulator/MizyunWorkoutWatchDev.app/MizyunWorkoutWatchDev",
+      "sha256": "565eec87aaffa560bef9a4c644dedde7ce22967aff4ce6f45a16fa160fb4e8d7"
+    },
+    {
+      "path": "apps/watch-android/app/build/outputs/apk/debug/app-debug.apk",
+      "sha256": "225ee8d51a3b5b20c1efb09990272363769fd6ce85a4eaa6431c266c0031931a"
+    }
+  ],
+  "standaloneWatchBundle": "com.mizyun.development.watchkitapp",
+  "wearJUnit": {
+    "tests": "4",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  }
+}

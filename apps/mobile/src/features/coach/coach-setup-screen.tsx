@@ -31,7 +31,7 @@ import {
   type Workout,
 } from "@mizyun/contracts";
 
-import { ThemedText } from "@/components/themed-text";
+import { ThemedText, type ThemedTextProps } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { TabHeader, useTabHeaderLayout } from "@/components/tab-header";
 import {
@@ -53,6 +53,7 @@ import { fetchAdvancedNutritionCapability } from "@/features/log-meal/advanced-n
 import { normalizeMealPhoto } from "@/features/log-meal/meal-photo";
 
 import { apiClient } from "@/composition/api-client";
+import { subscribeSessionReadUpdates } from "@/composition/personal-read-events";
 import {
   useAiConsentController,
   type PendingAiAction,
@@ -141,6 +142,8 @@ export function CoachSetupScreen() {
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
+  const historyOwner = useRef<string | null>(null);
+  const readyOwner = useRef<string | null>(null);
   const [sending, setSending] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [pendingDraft, setPendingDraft] = useState<CoachPendingDraft | null>(
@@ -200,28 +203,26 @@ export function CoachSetupScreen() {
       request: (options) =>
         apiClient.request({ ...options, expectedUserId: userId, isCurrent }),
     };
-    setLoading(true);
+    readyOwner.current = null;
+    setStatus(null);
+    setLoading(historyOwner.current !== ownerKey);
     setLoadFailed(false);
-    const result = await loadCoachWith(scoped);
-    if (!isCurrent()) return;
-    if (!result.ok) {
-      setMessage(result.message);
-      setLoadFailed(true);
-      setLoading(false);
-      return;
-    }
-    setStatus(result.status);
-    setConversations(result.conversations);
-    setMessage(null);
-    if (result.status.ready) {
+    setMessage("Checking Coach availability…");
+    let historyShown = false;
+    let historyError: string | null = null;
+    const showHistory = async (history: readonly CoachConversation[]) => {
+      if (!isCurrent()) return;
+      historyShown = true;
+      setConversations(history);
       const selected =
-        result.conversations.find(
+        history.find(
           (conversation) => conversation.id === activeConversationId.current,
-        ) ?? result.conversations[0];
+        ) ?? history[0];
       if (selected) {
         const thread = await loadCoachThread(selected.id, scoped);
         if (!isCurrent()) return;
         if (thread.ok) {
+          historyOwner.current = ownerKey;
           setActive(thread.conversation);
           setMessages(thread.messages);
           setMessagesByConversation((current) => {
@@ -230,15 +231,44 @@ export function CoachSetupScreen() {
             return next;
           });
         } else {
+          historyError = thread.message;
           setMessage(thread.message);
           setLoadFailed(true);
+          historyOwner.current = null;
+          setActive(null);
+          setMessages([]);
         }
       } else {
+        historyOwner.current = null;
         activeConversationId.current = null;
         setActive(null);
         setMessages([]);
       }
+      setLoading(false);
+    };
+    const result = await loadCoachWith(scoped, showHistory);
+    if (!isCurrent()) return;
+    if (!result.ok) {
+      historyOwner.current = null;
+      setActive(null);
+      setMessages([]);
+      setConversations([]);
+      setMessagesByConversation(new Map());
+      setMessage(result.message);
+      setLoadFailed(true);
+      setLoading(false);
+      return;
     }
+    // Older callers/mocks may return the history without using the callback.
+    if (!historyShown) await showHistory(result.conversations);
+    if (!isCurrent()) return;
+    setStatus(result.status);
+    readyOwner.current = result.status?.ready ? ownerKey : null;
+    setMessage(
+      historyError ??
+        result.readinessMessage ??
+        (result.status && !result.status.ready ? result.status.reason : null),
+    );
     setLoading(false);
   }, [ownerKey, userId]);
 
@@ -259,6 +289,16 @@ export function CoachSetupScreen() {
   }, [refresh]);
 
   useEffect(() => {
+    return subscribeSessionReadUpdates((path) => {
+      if (
+        path.startsWith("/v1/coach/conversations") &&
+        AppState.currentState === "active"
+      )
+        void refresh();
+    });
+  }, [refresh]);
+
+  useEffect(() => {
     if (
       refreshPending.current &&
       !sendLock.current &&
@@ -271,6 +311,8 @@ export function CoachSetupScreen() {
 
   useEffect(() => {
     activeConversationId.current = null;
+    historyOwner.current = null;
+    readyOwner.current = null;
     setStatus(null);
     setConversations([]);
     setActive(null);
@@ -313,11 +355,19 @@ export function CoachSetupScreen() {
     }
   }, [messages]);
 
+  const historyVisible = historyOwner.current === ownerKey && active !== null;
+  const canUseCoach =
+    status?.ready === true &&
+    readyOwner.current === ownerKey &&
+    !loading &&
+    !loadFailed;
+
   // Opening an empty Coach page is read-only. Persist a thread only for an
   // explicit new-conversation action or the first consent-approved send.
   const beginConversation = useCallback(async () => {
     const result = await createCoachConversation();
     if (result.ok) {
+      historyOwner.current = ownerKey;
       setActive(result.conversation);
       setMessages([]);
       setConversations((current) => [result.conversation, ...current]);
@@ -326,13 +376,15 @@ export function CoachSetupScreen() {
       setMessage(result.message);
     }
     return result.ok ? result.conversation : null;
-  }, []);
+  }, [ownerKey]);
 
   const create = useCallback(async () => {
     if (
       loading ||
       loadFailed ||
-      !status?.ready ||
+      !canUseCoach ||
+      currentOwner.current !== ownerKey ||
+      AppState.currentState !== "active" ||
       sendLock.current ||
       deleteLock.current
     )
@@ -345,7 +397,7 @@ export function CoachSetupScreen() {
       sendLock.current = false;
       setLoading(false);
     }
-  }, [beginConversation, loadFailed, loading, status?.ready]);
+  }, [beginConversation, canUseCoach, loadFailed, loading, ownerKey]);
 
   const switchToConversation = useCallback(
     async (conversationId: string) => {
@@ -381,6 +433,7 @@ export function CoachSetupScreen() {
         const thread = await loadCoachThread(conversationId, scoped);
         if (!isCurrent()) return;
         if (thread.ok) {
+          historyOwner.current = ownerKey;
           setActive(thread.conversation);
           setMessages(thread.messages);
           setMessagesByConversation((current) => {
@@ -406,6 +459,9 @@ export function CoachSetupScreen() {
       if (
         loading ||
         loadFailed ||
+        !canUseCoach ||
+        currentOwner.current !== ownerKey ||
+        AppState.currentState !== "active" ||
         text.length === 0 ||
         sending ||
         sendLock.current ||
@@ -504,13 +560,26 @@ export function CoachSetupScreen() {
         inputRef.current?.focus();
       }
     },
-    [active, beginConversation, draft, loadFailed, loading, sending, userId],
+    [
+      active,
+      beginConversation,
+      canUseCoach,
+      draft,
+      loadFailed,
+      loading,
+      ownerKey,
+      sending,
+      userId,
+    ],
   );
 
   const pickAndSendMealPhoto = useCallback(async () => {
     if (
       loading ||
       loadFailed ||
+      !canUseCoach ||
+      currentOwner.current !== ownerKey ||
+      AppState.currentState !== "active" ||
       sending ||
       deleting ||
       sendLock.current ||
@@ -589,6 +658,8 @@ export function CoachSetupScreen() {
     beginConversation,
     deleting,
     draft,
+    canUseCoach,
+    ownerKey,
     loadFailed,
     loading,
     sending,
@@ -620,6 +691,12 @@ export function CoachSetupScreen() {
 
   const send = useCallback(
     async (retryDraft?: CoachPendingDraft, textOverride?: string) => {
+      if (
+        !canUseCoach ||
+        currentOwner.current !== ownerKey ||
+        AppState.currentState !== "active"
+      )
+        return;
       const retry =
         retryDraft?.conversationId === active?.id ? retryDraft : undefined;
       const text = (retry?.text ?? textOverride ?? draft).trim();
@@ -630,12 +707,18 @@ export function CoachSetupScreen() {
         idempotencyKey: retry?.idempotencyKey,
       });
     },
-    [active?.id, draft, requestAction],
+    [active?.id, canUseCoach, draft, ownerKey, requestAction],
   );
 
   const attachMealPhoto = useCallback(async () => {
+    if (
+      !canUseCoach ||
+      currentOwner.current !== ownerKey ||
+      AppState.currentState !== "active"
+    )
+      return;
     await requestAction({ kind: "coach_photo", photoUri: "" });
-  }, [requestAction]);
+  }, [canUseCoach, ownerKey, requestAction]);
 
   useEffect(() => {
     if (
@@ -647,7 +730,7 @@ export function CoachSetupScreen() {
         if (
           !loading &&
           !loadFailed &&
-          status?.ready &&
+          canUseCoach &&
           !sending &&
           !sendLock.current
         ) {
@@ -663,6 +746,7 @@ export function CoachSetupScreen() {
       }
     }
   }, [
+    canUseCoach,
     loadFailed,
     loading,
     params.autoSend,
@@ -775,7 +859,15 @@ export function CoachSetupScreen() {
 
   const acceptAdaptation = useCallback(
     async (proposal: CoachWeeklyAdaptationProposal) => {
-      if (active === null || sending || deleting) return;
+      if (
+        active === null ||
+        sending ||
+        deleting ||
+        !canUseCoach ||
+        currentOwner.current !== ownerKey ||
+        AppState.currentState !== "active"
+      )
+        return;
       setSending(true);
       setMessage(null);
       try {
@@ -790,7 +882,7 @@ export function CoachSetupScreen() {
         setSending(false);
       }
     },
-    [active, deleting, sending],
+    [active, canUseCoach, deleting, ownerKey, sending],
   );
   const sendPrompt = useCallback((promptText: string) => {
     setDraft(promptText);
@@ -811,7 +903,7 @@ export function CoachSetupScreen() {
                 stackHeader && styles.headerTopRowLargeText,
               ]}
             >
-              {status?.ready ? (
+              {canUseCoach || historyVisible ? (
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Open thread list"
@@ -877,17 +969,13 @@ export function CoachSetupScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="New conversation"
                   disabled={
-                    loading ||
-                    loadFailed ||
-                    !status?.ready ||
-                    sending ||
-                    deleting
+                    loading || loadFailed || !canUseCoach || sending || deleting
                   }
                   accessibilityState={{
                     disabled:
                       loading ||
                       loadFailed ||
-                      !status?.ready ||
+                      !canUseCoach ||
                       sending ||
                       deleting,
                   }}
@@ -904,7 +992,7 @@ export function CoachSetupScreen() {
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Delete conversation"
-                    disabled={sending || deleting}
+                    disabled={sending || deleting || !canUseCoach}
                     onPress={remove}
                     style={({ pressed }) => [
                       styles.navIconButton,
@@ -970,14 +1058,16 @@ export function CoachSetupScreen() {
               : ""}
           </View>
 
-          {loading ? (
+          {(loading && !historyVisible) ||
+          (historyOwner.current !== null &&
+            historyOwner.current !== ownerKey) ? (
             <View style={[styles.center, { paddingTop: headerHeight }]}>
               <ActivityIndicator color="#10B981" />
               <ThemedText type="small" themeColor="textSecondary">
                 Loading Coach…
               </ThemedText>
             </View>
-          ) : status !== null && !status.ready ? (
+          ) : status !== null && !status.ready && !historyVisible ? (
             <ThemedView
               type="backgroundElement"
               style={[styles.card, { marginTop: headerHeight + Spacing.four }]}
@@ -994,7 +1084,7 @@ export function CoachSetupScreen() {
                 <ThemedText type="smallBold">Check again</ThemedText>
               </Pressable>
             </ThemedView>
-          ) : loadFailed ? (
+          ) : loadFailed && !historyVisible ? (
             <ThemedView
               type="backgroundElement"
               style={[styles.card, { marginTop: headerHeight + Spacing.four }]}
@@ -1190,8 +1280,11 @@ export function CoachSetupScreen() {
                       key={item.id}
                       message={item}
                       retrying={sending && item.id === activeRetryBubbleId}
+                      actionsEnabled={canUseCoach}
                       onRetry={
-                        item.id === activeRetryBubbleId && activeRetry !== null
+                        canUseCoach &&
+                        item.id === activeRetryBubbleId &&
+                        activeRetry !== null
                           ? () => void send(activeRetry)
                           : undefined
                       }
@@ -1225,12 +1318,25 @@ export function CoachSetupScreen() {
                   accessibilityRole="alert"
                 >
                   <ThemedText type="small">{message}</ThemedText>
+                  {!canUseCoach && !sending ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Check Coach availability"
+                      onPress={() => void refresh()}
+                      style={styles.retryButton}
+                    >
+                      <ThemedText type="smallBold">Check again</ThemedText>
+                    </Pressable>
+                  ) : null}
                   {activeRetry !== null && !retryBubbleVisible ? (
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel="Retry saved Coach message"
-                      accessibilityState={{ disabled: sending, busy: sending }}
-                      disabled={sending}
+                      accessibilityState={{
+                        disabled: sending || !canUseCoach,
+                        busy: sending,
+                      }}
+                      disabled={sending || !canUseCoach}
                       onPress={() => void send(activeRetry)}
                       style={styles.retryButton}
                     >
@@ -1246,8 +1352,11 @@ export function CoachSetupScreen() {
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Retry saved Coach message"
-                    accessibilityState={{ disabled: sending, busy: sending }}
-                    disabled={sending}
+                    accessibilityState={{
+                      disabled: sending || !canUseCoach,
+                      busy: sending,
+                    }}
+                    disabled={sending || !canUseCoach}
                     onPress={() => void send(activeRetry)}
                     style={styles.retryButton}
                   >
@@ -1268,8 +1377,10 @@ export function CoachSetupScreen() {
                     accessibilityRole="button"
                     accessibilityLabel="Attach photos"
                     accessibilityHint="Choose up to three photos with Pro, or one with Free. Type a question first for meals, menus, labels or training context."
-                    accessibilityState={{ disabled: sending || deleting }}
-                    disabled={sending || deleting}
+                    accessibilityState={{
+                      disabled: sending || deleting || !canUseCoach,
+                    }}
+                    disabled={sending || deleting || !canUseCoach}
                     onPress={() => void attachMealPhoto()}
                     style={styles.photoIconButton}
                   >
@@ -1293,13 +1404,24 @@ export function CoachSetupScreen() {
                     accessibilityState={{
                       busy: sending,
                       disabled:
-                        sending || deleting || draft.trim().length === 0,
+                        sending ||
+                        deleting ||
+                        !canUseCoach ||
+                        draft.trim().length === 0,
                     }}
-                    disabled={sending || deleting || draft.trim().length === 0}
+                    disabled={
+                      sending ||
+                      deleting ||
+                      !canUseCoach ||
+                      draft.trim().length === 0
+                    }
                     onPress={() => void send()}
                     style={[
                       styles.circleSendButton,
-                      (sending || deleting || draft.trim().length === 0) &&
+                      (sending ||
+                        deleting ||
+                        !canUseCoach ||
+                        draft.trim().length === 0) &&
                         styles.disabledSendButton,
                     ]}
                   >
@@ -1317,10 +1439,12 @@ export function CoachSetupScreen() {
       </SafeAreaView>
 
       <ThreadListSheet
-        visible={threadListVisible}
-        conversations={conversations}
-        activeId={active?.id ?? null}
-        messagesByConversation={messagesByConversation}
+        visible={threadListVisible && (historyVisible || canUseCoach)}
+        conversations={historyVisible || canUseCoach ? conversations : []}
+        activeId={historyVisible ? (active?.id ?? null) : null}
+        messagesByConversation={
+          historyVisible || canUseCoach ? messagesByConversation : new Map()
+        }
         now={now}
         onSelect={(id) => {
           setThreadListVisible(false);
@@ -1353,6 +1477,48 @@ export function CoachSetupScreen() {
   );
 }
 
+// Fabric's iOS Text selectable only offers whole-block Copy. A read-only
+// UITextView (multiline TextInput) also provides native selection handles.
+function SelectableCoachText({
+  children,
+  style,
+  type,
+}: Pick<ThemedTextProps, "children" | "style" | "type">) {
+  const theme = useTheme();
+  const { fontScale } = useWindowDimensions();
+  const textStyle = [
+    styles.messageText,
+    type === "smallBold" && styles.messageBoldText,
+    style,
+  ];
+  const content = (
+    <ThemedText type={type} style={textStyle}>
+      {children}
+    </ThemedText>
+  );
+
+  if (Platform.OS !== "ios") {
+    return (
+      <ThemedText selectable type={type} style={textStyle}>
+        {children}
+      </ThemedText>
+    );
+  }
+
+  return (
+    <TextInput
+      key={fontScale}
+      multiline
+      editable={false}
+      scrollEnabled={false}
+      showSoftInputOnFocus={false}
+      style={[{ color: theme.text, padding: 0 }, textStyle]}
+    >
+      {content}
+    </TextInput>
+  );
+}
+
 function FormattedCoachMessage({ text }: { readonly text: string }) {
   const lines = useMemo(() => text.split("\n"), [text]);
 
@@ -1378,13 +1544,12 @@ function FormattedCoachMessage({ text }: { readonly text: string }) {
               key={`header-${lineIndex}`}
               style={styles.messageHeaderContainer}
             >
-              <ThemedText
-                selectable
+              <SelectableCoachText
                 type="smallBold"
                 style={styles.messageHeaderText}
               >
                 {headerText}
-              </ThemedText>
+              </SelectableCoachText>
             </View>
           );
         }
@@ -1395,9 +1560,9 @@ function FormattedCoachMessage({ text }: { readonly text: string }) {
           const bulletContent = bulletMatch[1] ?? "";
           return (
             <View key={`bullet-${lineIndex}`} style={styles.messageBulletRow}>
-              <ThemedText selectable style={styles.messageBulletDot}>
+              <SelectableCoachText style={styles.messageBulletDot}>
                 •
-              </ThemedText>
+              </SelectableCoachText>
               <View style={styles.messageBulletContent}>
                 {renderInlineMarkdown(bulletContent, `bullet-${lineIndex}`)}
               </View>
@@ -1412,13 +1577,12 @@ function FormattedCoachMessage({ text }: { readonly text: string }) {
           const content = numberedMatch[2] ?? "";
           return (
             <View key={`num-${lineIndex}`} style={styles.messageBulletRow}>
-              <ThemedText
-                selectable
+              <SelectableCoachText
                 type="smallBold"
                 style={styles.messageNumberDot}
               >
                 {num}
-              </ThemedText>
+              </SelectableCoachText>
               <View style={styles.messageBulletContent}>
                 {renderInlineMarkdown(content, `num-${lineIndex}`)}
               </View>
@@ -1441,14 +1605,14 @@ function renderInlineMarkdown(text: string, keyPrefix: string) {
   const parts = text.split(/\*\*/g);
   if (parts.length === 1) {
     return (
-      <ThemedText selectable style={styles.messageText}>
+      <SelectableCoachText style={styles.messageText}>
         {text}
-      </ThemedText>
+      </SelectableCoachText>
     );
   }
 
   return (
-    <ThemedText selectable style={styles.messageText}>
+    <SelectableCoachText style={styles.messageText}>
       {parts.map((part, i) =>
         i % 2 === 1 ? (
           <ThemedText
@@ -1464,13 +1628,14 @@ function renderInlineMarkdown(text: string, keyPrefix: string) {
           </ThemedText>
         ),
       )}
-    </ThemedText>
+    </SelectableCoachText>
   );
 }
 
 function MessageBubble({
   message,
   retrying,
+  actionsEnabled,
   onRetry,
   onReviewNutritionProposal,
   onReviewWorkoutProposal,
@@ -1478,6 +1643,7 @@ function MessageBubble({
 }: {
   readonly message: CoachMessage;
   readonly retrying: boolean;
+  readonly actionsEnabled: boolean;
   readonly onRetry?: (() => void) | undefined;
   readonly onReviewNutritionProposal: (
     proposal: CoachNutritionProposal,
@@ -1580,6 +1746,7 @@ function MessageBubble({
         <WeeklyAdaptationCard
           proposal={message.actionProposal}
           onAccept={onAcceptWeeklyAdaptation}
+          disabled={!actionsEnabled}
         />
       ) : null}
       {assistant && message.evidenceKinds.length > 0 ? (
@@ -2164,9 +2331,11 @@ function DailyPlanCard({
 function WeeklyAdaptationCard({
   proposal,
   onAccept,
+  disabled,
 }: {
   readonly proposal: CoachWeeklyAdaptationProposal;
   readonly onAccept: (proposal: CoachWeeklyAdaptationProposal) => void;
+  readonly disabled: boolean;
 }) {
   const canApply =
     proposal.readiness === "ready" &&
@@ -2268,7 +2437,11 @@ function WeeklyAdaptationCard({
           accessibilityRole="button"
           accessibilityLabel={`Accept goal pace change from ${proposal.currentPace} to ${proposal.proposedPace}`}
           accessibilityHint="Updates the active goal and recalculates future deterministic calorie targets."
-          onPress={() => onAccept(proposal)}
+          disabled={disabled}
+          accessibilityState={{ disabled }}
+          onPress={() => {
+            if (!disabled) onAccept(proposal);
+          }}
           style={({ pressed }) => [
             styles.proposalButton,
             pressed && styles.pressed,

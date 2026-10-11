@@ -1,3 +1,6 @@
+vi.mock("@/features/workout-companion", () => ({
+  WatchWorkoutControls: "WatchWorkoutControls",
+}));
 import { beforeEach, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   refs: [] as any[],

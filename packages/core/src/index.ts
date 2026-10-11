@@ -355,3 +355,10 @@ export * from "./health-export";
 export * from "./running";
 
 export * from "./run-repository";
+
+export * from "./meal-illustration";
+export {
+  isOwnedMealImagePath,
+  type MealImagePathRecord,
+} from "./meal-image-path";
+export * from "./workout-companion";

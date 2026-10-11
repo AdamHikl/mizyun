@@ -70,9 +70,11 @@ import {
   mealPhotoRetentionEnabled,
   persistMealPhotoSource,
   persistMealPhotoRetry,
+  removeMealPhotoRetry,
   uploadMealPhotoRetry,
   discardOwnedMealPhoto,
 } from "./meal-photo-retention";
+import { useMealVisualCapability } from "./meal-visual-capability";
 import { fetchFoodHistory } from "./meal-lifecycle-data";
 import { getEntryGrams } from "./meal-scale";
 import {
@@ -199,6 +201,13 @@ export function LogMealScreen() {
   const [showRoutineModal, setShowRoutineModal] = useState(false);
   const hadFailure = useRef(false);
   const userId = session?.user.id ?? null;
+  const mealVisualCapability = useMealVisualCapability(
+    userId,
+    session?.accessToken,
+  );
+  const canKeepMealPhoto = retainPhotos && mealVisualCapability.enabled;
+  const currentPhotoRetention = useRef(canKeepMealPhoto);
+  currentPhotoRetention.current = canKeepMealPhoto;
   const mealOwner = useRef(userId);
   mealOwner.current = userId;
   const photoSelectionGeneration = useRef(0);
@@ -431,6 +440,10 @@ export function LogMealScreen() {
   const onSubmit = useCallback(async () => {
     const owner = mealOwner.current;
     const photoScope = photoOwner.current;
+    const photoRetentionCurrent = () =>
+      owner === mealOwner.current &&
+      photoScope === photoOwner.current &&
+      currentPhotoRetention.current;
     const abandonIfOwnerChanged = () => {
       if (owner === mealOwner.current) return false;
       isSubmittingRef.current = false;
@@ -457,17 +470,21 @@ export function LogMealScreen() {
       return;
     }
     if (
-      retainPhotos &&
+      canKeepMealPhoto &&
       keepPhoto &&
       attachedPhotos.length > 1 &&
       !attachedPhotos.some((photo) => photo.uri === selectedPhotoUri)
     ) {
-      isSubmittingRef.current = false;
-      setSubmitting(false);
-      setError(
-        "Choose which photo to keep with this meal, or turn off Keep photo with meal.",
-      );
-      return;
+      const retainingAllowed = await mealVisualCapability.refresh();
+      if (abandonIfOwnerChanged()) return;
+      if (retainingAllowed && photoRetentionCurrent()) {
+        isSubmittingRef.current = false;
+        setSubmitting(false);
+        setError(
+          "Choose which photo to keep with this meal, or turn off Keep photo with meal.",
+        );
+        return;
+      }
     }
     if (invalidMealDate) {
       isSubmittingRef.current = false;
@@ -666,30 +683,55 @@ export function LogMealScreen() {
       const chosen =
         attachedPhotos.find((photo) => photo.uri === selectedPhotoUri) ??
         (attachedPhotos.length === 1 ? attachedPhotos[0] : undefined);
-      if (retainPhotos && keepPhoto && chosen && owner) {
-        const pending = {
-          uri: chosen.uri,
-          width: 0,
-          height: 0,
-          clientOperationId: opId,
-        };
-        const durable = await persistMealPhotoRetry(owner, result.id, pending);
+      if (
+        retainPhotos &&
+        keepPhoto &&
+        chosen &&
+        owner &&
+        photoRetentionCurrent()
+      ) {
+        const retainingAllowed = await mealVisualCapability.refresh();
         if (abandonIfOwnerChanged()) return;
-        if (!durable) {
-          isSubmittingRef.current = false;
-          setSubmitting(false);
-          setError(
-            "Meal saved. Photo retry could not be saved on this device. Retry Save to finish attaching the photo.",
+        if (retainingAllowed && photoRetentionCurrent()) {
+          const pending = {
+            uri: chosen.uri,
+            width: 0,
+            height: 0,
+            clientOperationId: opId,
+          };
+          const durable = await persistMealPhotoRetry(
+            owner,
+            result.id,
+            pending,
           );
-          return;
+          if (!photoRetentionCurrent()) {
+            await removeMealPhotoRetry(owner, result.id).catch(() => false);
+            if (abandonIfOwnerChanged()) return;
+          } else {
+            if (abandonIfOwnerChanged()) return;
+            if (!durable) {
+              isSubmittingRef.current = false;
+              setSubmitting(false);
+              setError(
+                "Meal saved. Photo retry could not be saved on this device. Retry Save to finish attaching the photo.",
+              );
+              return;
+            }
+            // Failed uploads keep a retry only while current Pro authority can be confirmed.
+            const uploaded = await uploadMealPhotoRetry(
+              owner,
+              result.id,
+              photoRetentionCurrent,
+            );
+            const stillAllowed =
+              uploaded ||
+              (photoRetentionCurrent() &&
+                (await mealVisualCapability.refresh()));
+            if (!stillAllowed || !photoRetentionCurrent())
+              await removeMealPhotoRetry(owner, result.id).catch(() => false);
+            if (abandonIfOwnerChanged()) return;
+          }
         }
-        // Photos are independent of meal nutrition. Failed uploads stay available on the meal card after restart.
-        await uploadMealPhotoRetry(
-          owner,
-          result.id,
-          () => photoScope === photoOwner.current,
-        );
-        if (abandonIfOwnerChanged()) return;
       }
       const queued = pendingPhotoDrafts[0];
       if (queued) {
@@ -799,6 +841,8 @@ export function LogMealScreen() {
     );
     setError(result.message);
   }, [
+    canKeepMealPhoto,
+    mealVisualCapability,
     keepPhoto,
     selectedPhotoUri,
     retainPhotos,
@@ -1497,12 +1541,12 @@ export function LogMealScreen() {
                   📷 Photo {index + 1} of {attachedPhotos.length}
                 </ThemedText>
                 <ThemedText themeColor="textSecondary" type="small">
-                  {retainPhotos
+                  {canKeepMealPhoto
                     ? "Optional photo · AI processing is separate"
                     : "Ready to process with your description"}
                 </ThemedText>
               </View>
-              {retainPhotos && keepPhoto && attachedPhotos.length > 1 ? (
+              {canKeepMealPhoto && keepPhoto && attachedPhotos.length > 1 ? (
                 <Pressable
                   accessibilityRole="radio"
                   accessibilityState={{
@@ -1536,7 +1580,7 @@ export function LogMealScreen() {
               </Pressable>
             </View>
           ))}
-          {retainPhotos && attachedPhotos.length > 0 ? (
+          {canKeepMealPhoto && attachedPhotos.length > 0 ? (
             <Pressable
               testID="keep-meal-photo-toggle"
               accessibilityRole="checkbox"

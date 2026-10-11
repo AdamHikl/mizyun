@@ -1,0 +1,67 @@
+{
+  "date": "2026-10-10",
+  "sourceHead": "0d9da8a46197f20b12f00d643851a84866368998",
+  "source": "Dirty candidate, five current runtime hashes in ui-fixes-source-manifest.json",
+  "backendSha": "4fa20a882d6d8c8fd446d07e55208b18240d8b22",
+  "migrationMaximum": "20261009150000",
+  "uiControllerModel": "gpt-6.1-sol",
+  "uiControllerReasoning": "medium",
+  "metro": {
+    "ownedPid": 76658,
+    "port": 8085,
+    "listener": "::1",
+    "log": "/private/tmp/mizyun-comm-metro-resume-20261010.log",
+    "health": "packager-status:running via IPv6",
+    "resume2": "failed EADDRINUSE, not active"
+  },
+  "ios": {
+    "device": "F4939E5D-BA85-4479-AA1E-92B21441FB8C",
+    "model": "iPhone 17 Pro",
+    "os": "26.5",
+    "font": "extra-extra-large",
+    "appearance": "light",
+    "control": "AX navigation recovered through Settings search; coordinates/gestures fail noWindowsAvailable",
+    "systemPrompt": "A prompt manually declined by Adam; B current Save Password? still awaits Not Now; no credentials saved"
+  },
+  "android": {
+    "avd": "Mizyun_Pixel_9_API_36",
+    "serial": "emulator-5556",
+    "api": 36,
+    "abi": "arm64-v8a",
+    "apkSha256": "d71717212ae912eaafe9adbdac4312ab1a12ee016a597d9b024cbec2e90d49ed",
+    "currentApkInstalled": false,
+    "metroReverseCreated": false,
+    "uiAcceptance": "BLOCKED: standalone emulator unsupported; Studio Welcome VDM disabled",
+    "resumeAttempt": "Studio getApp requested20s; no AX/pixels; interrupted after228.3s; no existing-project Open, SDK or Gradle action"
+  },
+  "ownerWorkoutDiagnostic": {
+    "alias": "B",
+    "freshOwnApiCount": 1,
+    "fixtureMatch": true,
+    "completedAt": "2026-10-10T07:30:02.732Z",
+    "privateResponse": "Retained mode0600 outside Git; no token/email/password in evidence"
+  },
+  "sourceReview": "Independent nonauthor Medium review clear after retired-choice and global-epoch findings resolved",
+  "reportSubmit": "Automatic approval rejected consequential moderation record/possible staff notification; no submit, explicit human approval pending",
+  "focusedChecks": {
+    "uniqueTestsPassed": 180,
+    "files": 11,
+    "initial": "178pass/2fixturefail",
+    "affectedRerun": "15/15pass; real CommunityReadCache fixture registered/disposed; runtime/assertions unchanged"
+  },
+  "cleanup": "Verified owned Metro76658 stopped/port8085free; awake48265/51066 stopped; verified task-booted emulator5556 stopped with data preserved; initially booted iOS preserved; no reverse mapping; B prompt/prefixON and A public routine/graph preserved",
+  "finalRepositoryGate": {
+    "result": "PASS",
+    "inputSha256": "f76ee946bbf9a5e3982e889f23acd9cd96c9d54fd55447975ccc21425c11b001",
+    "mobilePassed": 2128,
+    "mobileFiles": 176,
+    "apiPassed": 979,
+    "apiCredentialGatedSkipped": 15,
+    "log": "/private/tmp/mizyun-comm-resumed-full-typed-final-20261010.log",
+    "initialGateFailure": "test-only ApiClient mock lacked required status; fixed, affected15/15pass; runtime/assertions unchanged"
+  },
+  "liveIssueRefresh": {
+    "selectedOpen": 27,
+    "allStatusBlocked": true
+  }
+}

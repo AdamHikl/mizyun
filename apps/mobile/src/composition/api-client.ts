@@ -10,6 +10,7 @@ import { authClient } from "./auth-client";
 import { mobileConfigResult } from "./mobile-config";
 import { CommunityReadCache } from "@/features/community/state/read-cache";
 import { SessionReadCache } from "./session-read-cache";
+import { createPersonalReadStorage } from "@/features/offline-cache/personal-read-storage";
 
 /**
  * Pure factory: pick the right `ApiClient` from the validated mobile
@@ -54,6 +55,16 @@ export const sessionReadCache = new SessionReadCache(
     authClient,
   ),
   () => authClient.getSession(),
+  () => Date.now(),
+  // Construct the encrypted adapter only when a read/write actually needs it.
+  // Composition imports remain safe before native storage initialization.
+  {
+    load: (userId) => createPersonalReadStorage().load(userId),
+    save: (userId, records) =>
+      createPersonalReadStorage().save(userId, records),
+    purge: (userId) => createPersonalReadStorage().purge(userId),
+    generation: (userId) => createPersonalReadStorage().generation!(userId),
+  },
 );
 export const invalidateSessionReads = (): void => sessionReadCache.clear();
 export const getSessionReadVersion = (): string => sessionReadCache.version();

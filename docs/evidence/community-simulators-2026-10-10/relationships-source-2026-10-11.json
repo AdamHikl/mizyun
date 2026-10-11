@@ -1,0 +1,144 @@
+{
+  "date": "2026-10-11",
+  "head": "0d9da8a46197f20b12f00d643851a84866368998",
+  "backendCandidate": "2596a69b3fe4d20920a173de91fb4dc533b9bd4a",
+  "sourceSHA256": {
+    "packages/core/src/community.ts": "5af3d10446c50e6ccd6b2f93242f094e1521eb3baa397124b6e7436642292754",
+    "packages/contracts/src/community.ts": "59bae24ce37ed9bed063e8349059aeade20121ef4e0f524f1ec60712e6573af8",
+    "apps/api/src/modules/community/relationship-routes.ts": "70181e48e6f30d185cd3e72c8641c41fe810cf7364ba446b3c214fb55c7d254a",
+    "packages/adapters/supabase-server/src/community-repository.ts": "a0bd0dc5bbf3d8bc755ffadebb0681dbab07166df87288a50b3217e37d1d6858",
+    "apps/api/src/community-repository.ts": "3b2adf5e362475d44cc0d9d2c1a00cf169f4b301bec2e58282f0dfb98a532e87",
+    "apps/mobile/src/features/community/relationships/controller.ts": "734611f91a02ea073f8a001330027371b6a701e5a9010ee696db305e34144bd7",
+    "apps/mobile/src/features/community/relationships/screen.tsx": "99bb6d866b4eaf0eea2e1f1800bd2b8f3c49244bef59861e6114992859cb9634",
+    "apps/mobile/src/features/community/profiles/screen.tsx": "0cfe318299dd8db195a37115f357d8a32847d12abf295f76be7c08d72f73d2ff",
+    "apps/mobile/src/features/community/profiles/controller.ts": "6782ed921f4b5511d48bf20d69795852af145eff81087ea3cda232dcfff9ef82",
+    "apps/mobile/src/features/community/relationships/controller.test.ts": "2d20f1e017b62250d73727897b27f3ec6358c6f7b01d147c3671b6dfc2b91fde",
+    "apps/mobile/src/features/community/relationships/screen.test.tsx": "8fa222349c4b3a2ddaeea548ea7771ee326a7b8ac705c065a198760f8b1ded92",
+    "apps/mobile/src/features/community/profiles/controller.test.ts": "e777d09ca542e3ef14cb66c7f77334ac9c3ca87d921dadb334636708e10dee70",
+    "apps/api/src/modules/community/relationship-routes.test.ts": "ddbf445631edcd690667e5584d5e018f5cf9fef0857bccd829792e2336a0f3bb",
+    "apps/api/src/community-repository.test.ts": "ed6b7deef5d551990e8e25fc4570886f5705d7f71e86898eeecc1e53c00f2a7d"
+  },
+  "runtimeMatchesBackendCandidate": [
+    "packages/core/src/community.ts",
+    "packages/contracts/src/community.ts",
+    "apps/api/src/modules/community/relationship-routes.ts",
+    "packages/adapters/supabase-server/src/community-repository.ts",
+    "apps/api/src/community-repository.ts",
+    "apps/mobile/src/features/community/relationships/controller.ts",
+    "apps/mobile/src/features/community/profiles/controller.ts"
+  ],
+  "localUIOverlay": [
+    "apps/mobile/src/features/community/relationships/screen.tsx",
+    "apps/mobile/src/features/community/profiles/screen.tsx"
+  ],
+  "nativeReuse": "58/59 saved inputs unchanged; sole app.config.js variance is previously inspected Android-only Gradle optimization plugin; removing exact line reproduces saved hash. Reused qualified iOS compatible build1.0.9(9).",
+  "datedSQLProofSHA256": {
+    "supabase/tests/database/0008_community_isolation.test.sql": "374956f89322dcd612701e96dfd25191c6b25d93970698cb736afc8836a3586d",
+    "supabase/tests/database/0009_community_boundary_regressions.test.sql": "4688da0e5387f3d1bc3cb09dd99714c245216bad96fab2fb62bdd863cc510af2",
+    "supabase/tests/database/0011_community_relationship_controls.test.sql": "cfd3bb22e9a692776ae639f9a44d4ea6de9487bf40415dd1cd1300b2bbc0281a",
+    "supabase/tests/database/0017_community_notifications_operations.test.sql": "58367ba239ec97013b78d0d0c8628d519767af127a612fbc6c3e537f7df2e666",
+    "scripts/test-community-relationship-concurrency.py": "7f4b28331d8ddea4dfec70b2da44c3fa4ec28a00730b1d37c2cfd571e71c44af"
+  },
+  "setup": {
+    "metroSession": 28387,
+    "port": 8085,
+    "launchB": 67156,
+    "launchA": 67374,
+    "freshBundle": "10086ms/2289modules plus6896ms/1module",
+    "initialDevices": {
+      "BPro": "Booted",
+      "AMax": "Shutdown"
+    },
+    "controller": {
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium"
+    }
+  },
+  "localUIOverlayMatchesOct10CheckedManifest": "PASS: ui-fixes-source-manifest.json (resumed candidate); initial javascript-source-manifest.json is older, not used to certify these two fixes.",
+  "controlCheckpoint": "Mac locked; initial READY observation reported22.8s automatic unlock failure. No native social input; user unlock requested once. Fixture ready and held.",
+  "implementationEdits": false,
+  "freshFocusedTests": {
+    "mobile": {
+      "passed": 62,
+      "files": 3,
+      "command": "pnpm --filter @mizyun/mobile test src/features/community/relationships/controller.test.ts src/features/community/relationships/screen.test.tsx src/features/community/profiles/controller.test.ts --maxWorkers=1 --minWorkers=1",
+      "log": "/private/tmp/mizyun-relationships-mobile-final-20261011.log"
+    },
+    "api": {
+      "passed": 33,
+      "files": 2,
+      "command": "pnpm --filter @mizyun/api test src/modules/community/relationship-routes.test.ts src/community-repository.test.ts --maxWorkers=1 --minWorkers=1",
+      "log": "/private/tmp/mizyun-relationships-api-final-20261011.log"
+    },
+    "passed": 95,
+    "files": 5,
+    "skipped": 0,
+    "fullGateRerun": false,
+    "reason": "No runtime edits; dated exact deployed and resumed UI full gates retained separately."
+  },
+  "postFocusedSourceHashes": "PASS",
+  "cleanup": {
+    "controller": "STOP; no native social input",
+    "fixture": "Exact temporary approved A\u2192B edge removed HTTP200; both following0/mutes0/blocks0; setup invitation revoked",
+    "privateRecords": "Same two private B records before/ready/final; both Community active/search settings retained",
+    "logicalInbox": "A old approval no longer visible after edge deletion; inbox1\u21920, profile200\u2192404",
+    "metro": "Owned session28387 stopped; no8085 listener",
+    "device": "Only task-booted Max shut down; initially booted Pro/Auth retained"
+  },
+  "finalPinnedHashes": "PASS",
+  "issue": {
+    "number": 143,
+    "state": "CLOSED/status:done",
+    "closure": "https://github.com/AdamHikl/mizyun/issues/143#issuecomment-6109160396",
+    "parent": "https://github.com/AdamHikl/mizyun/issues/137#issuecomment-6109163650",
+    "verifiedLive": true
+  },
+  "finalDocsChecks": "PASS: owned formatting/diff, 19 pinned source/test/SQL hashes unchanged, 95 relative links, redacted receipts and live selected inventory8closed/19open; status77lines/12228bytes. No new runtime edits or suite after unlock.",
+  "resume": {
+    "userUnlockSignal": "unlock; native controller freshAX4.2s confirmed lock cleared",
+    "metroSession": 40224,
+    "port": 8085,
+    "awakeSession": 56492,
+    "launchB": 71448,
+    "launchA": 72031,
+    "fixture": "New exact one-edge normal own-auth checkpoint, fresh operation; old fixture restored and preserved",
+    "testRerun": false,
+    "pinnedRuntimeTestSQLHashesStillMatch": true,
+    "initialDevices": {
+      "BPro": "Booted",
+      "AMax": "Shutdown"
+    },
+    "freshBundle": "1124ms/2102modules plus87ms/1module; current actual A native identity and exactBFollowing verified",
+    "mutedCheckpoint": {
+      "native": "One native Mute; fresh Muted exactB row and Unmute visible; copy says following/access unchanged",
+      "ownAuth": "A exactBmute true/count1; sameapprovedfollow; AprofileB200; Bmute0/following0; bothactive/BsearchOFF",
+      "inbox": "Approval1\u21920 whilemuted; no external delivery claimed",
+      "pixels": "ios-relationships-muted-2026-10-11.png; actual pinnedMax pixels inspected, target/copy/action readable; Debug warning banner overlays bottom area, not standalone/release acceptance"
+    },
+    "nativeResult": "PASS: mute/refresh/profile authorized while muted/unmute/fresh empty Muted/A Following retained. B fresh counterpart list not run; owner API graph corroboration and previously accepted B approval remain separate.",
+    "unmutedCheckpoint": {
+      "aMutesB": false,
+      "approvedFollowRetained": true,
+      "profileHTTP": 200,
+      "logicalInboxCount": 1,
+      "pixels": "ios-relationships-unmuted-2026-10-11.png"
+    },
+    "approvalIncarnationProof": "relationships-approval-incarnation-2026-10-11.json",
+    "cleanup": {
+      "temporaryFollowRemovedHTTP": 200,
+      "bothAccountsActive": true,
+      "followingMutesBlocks": 0,
+      "bSearchOFF": true,
+      "privateWorkoutIdsPreserved": true,
+      "privateWorkoutCount": 2,
+      "aProfileBHTTP": 404,
+      "logicalInboxCount": 0,
+      "controllerStopped": true,
+      "metro40224Stopped": true,
+      "caffeinate56492Stopped": true,
+      "taskMaxShutdown": true,
+      "retainedProBooted": true,
+      "port8085ListenerAbsent": true
+    }
+  }
+}

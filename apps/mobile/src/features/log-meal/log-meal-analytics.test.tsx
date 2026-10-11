@@ -114,6 +114,12 @@ vi.mock("./advanced-nutrition", () => ({
     refresh: mocks.refresh,
   }),
 }));
+vi.mock("./meal-visual-capability", () => ({
+  useMealVisualCapability: () => ({
+    enabled: false,
+    refresh: async () => false,
+  }),
+}));
 vi.mock("./log-meal-data", () => ({
   submitLogMeal: mocks.submit,
   draftMealFromText: mocks.textDraft,

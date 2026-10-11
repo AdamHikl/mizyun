@@ -7,7 +7,9 @@ const mocks = vi.hoisted(() => ({
   day: vi.fn(),
   copy: vi.fn().mockResolvedValue({ ok: true }),
   reminders: vi.fn().mockResolvedValue(undefined),
+  eveningReminders: vi.fn(),
   owner: "user-a",
+  visuals: true,
   version: "0:today:0",
   appState: null as ((state: string) => void) | null,
 }));
@@ -119,8 +121,11 @@ vi.mock("./advanced-nutrition", () => ({
   }),
   fetchCurrentWeekSummaries: vi.fn(),
 }));
+vi.mock("./meal-visual-capability", () => ({
+  useMealVisualCapability: () => ({ enabled: mocks.visuals, refresh: vi.fn() }),
+}));
 vi.mock("./evening-catch-up-reminders", () => ({
-  reconcileEveningReminders: vi.fn(),
+  reconcileEveningReminders: mocks.eveningReminders,
 }));
 vi.mock("./first-meal-reminders", () => ({
   reconcileFirstMealReminders: mocks.reminders,
@@ -189,6 +194,7 @@ async function settle() {
 }
 
 beforeEach(() => {
+  mocks.visuals = true;
   hooks.cleanups.forEach((cleanup) => cleanup());
   hooks.cleanups.clear();
   hooks.slots = [];
@@ -200,11 +206,37 @@ beforeEach(() => {
   mocks.day.mockReset();
   mocks.copy.mockReset().mockResolvedValue({ ok: true });
   mocks.reminders.mockReset().mockResolvedValue(undefined);
+  mocks.eveningReminders.mockReset();
   mocks.owner = "user-a";
   mocks.version = "0:today:0";
 });
 
 describe("meal tab read lifecycle", () => {
+  it("displays saved evening meals without cancelling reminders from stale history", async () => {
+    const now = new Date();
+    const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const meal = {
+      ...entry("saved-evening"),
+      consumedAt: `${localDate}T19:00:00`,
+    };
+    mocks.fetch.mockResolvedValue({
+      ...response([meal]),
+      savedAt: now.getTime() - 60_000,
+    });
+    render();
+    hooks.focus!();
+    await settle();
+    render();
+    expect(history().entries).toHaveLength(1);
+    expect(mocks.eveningReminders).not.toHaveBeenCalled();
+    mocks.fetch.mockResolvedValue(response([meal]));
+    mocks.version = "fresh-version";
+    hooks.focus!();
+    await settle();
+    expect(mocks.eveningReminders).toHaveBeenCalledWith("user-a", {
+      hasMealAfter6Pm: true,
+    });
+  });
   it("suppresses the first-meal reminder after Copy to Today from history", async () => {
     mocks.fetch.mockResolvedValue(response([entry("copy-source")]));
     mocks.refresh.mockResolvedValue(false);
@@ -578,9 +610,38 @@ it("qualifies partial totals and does not invent missing nutrients", async () =>
   ).toBeFalsy();
 });
 
-vi.mock("./private-meal-photo", () => ({
-  PrivateMealPhoto: "PrivateMealPhoto",
+vi.mock("./meal-visual", () => ({
+  MealVisual: "MealVisual",
 }));
+
+it("passes screen-owned Pro authority to the meal row and its visual", async () => {
+  mocks.fetch.mockResolvedValue(response([entry("visual-meal")]));
+  render();
+  hooks.focus!();
+  await settle();
+  const row = find(
+    render(),
+    (node) =>
+      typeof node.type === "function" && node.type.name === "MealEntryRow",
+  );
+  expect(row.props.mealVisualsEnabled).toBe(true);
+  expect(
+    find(row.type(row.props), (node) => node.type === "MealVisual").props
+      .enabled,
+  ).toBe(true);
+  mocks.visuals = false;
+  const downgraded = find(
+    render(),
+    (node) =>
+      typeof node.type === "function" && node.type.name === "MealEntryRow",
+  );
+  expect(
+    find(
+      downgraded.type(downgraded.props),
+      (node) => node.type === "MealVisual",
+    ).props.enabled,
+  ).toBe(false);
+});
 
 describe("older meal history search", () => {
   const searchState = () =>

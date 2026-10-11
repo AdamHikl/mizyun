@@ -675,7 +675,7 @@ export type UnblockCommunityResponse = z.infer<
 export const communityListQuerySchema = z
   .object({
     limit: z.coerce.number().int().min(1).max(50).default(20),
-    cursor: z.string().max(200).optional(),
+    cursor: z.string().max(512).optional(),
   })
   .strict();
 export const setCommunityMuteSchema = z.object({ muted: z.boolean() }).strict();

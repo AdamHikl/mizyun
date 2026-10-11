@@ -1,0 +1,30 @@
+{
+  "scope": "Own-auth synthetic Dev reads; corroboration, not native action proof",
+  "checkpoints": [
+    {
+      "at": "2026-10-11T15:30:26.591Z",
+      "AallowMentions": true,
+      "BallowMentions": false,
+      "AofferedToB": true,
+      "rootPresent": true,
+      "replyCount": 0,
+      "replyExplicitlyMentionsA": false,
+      "AmentionEventCount": 0,
+      "commentsEnabled": true
+    },
+    {
+      "at": "2026-10-11T15:35:09.385Z",
+      "AallowMentions": false,
+      "BallowMentions": false,
+      "AofferedToB": false,
+      "rootPresent": true,
+      "replyCount": 0,
+      "replyExplicitlyMentionsA": false,
+      "AmentionEventCount": 0,
+      "commentsEnabled": true,
+      "BsyntheticReportCount": 1
+    }
+  ],
+  "reportedSyntheticOnly": true,
+  "nativeReplyPublished": false
+}

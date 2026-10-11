@@ -264,6 +264,28 @@ describe("protected routine snapshot freshness", () => {
     button(render(), "Share a private routine").props.onPress();
     expect(text()).toContain("Private source routine");
   });
+  it("clears an expired-access notice after a successful fresh empty read", async () => {
+    render();
+    await flush();
+    vi.advanceTimersByTime(10_000);
+    expect(text()).toContain(
+      "Refresh shared routines to check current access.",
+    );
+    mocks.request.mockResolvedValueOnce({
+      ok: true,
+      value: { items: [], nextCursor: null },
+    });
+    button(render(), "Refresh routines").props.onPress();
+    await flush();
+    expect(text()).toContain("No currently available shared routines.");
+    expect(text()).not.toContain(
+      "Refresh shared routines to check current access.",
+    );
+    expect(text()).not.toContain(item.snapshot.title);
+    expect(
+      button(render(), "Import an independent private copy"),
+    ).toBeUndefined();
+  });
   it("clears old snapshots before refresh and refuses stalled responses after expiry", async () => {
     render();
     await flush();

@@ -1,0 +1,10 @@
+{
+  "exact_hash_matches": 58,
+  "android_only_config_normalization": ["apps/mobile/app.config.js"],
+  "added_android_only_source": [
+    "apps/mobile/plugins/with-android-release-optimization.js",
+    "apps/mobile/plugins/with-android-window-support.js"
+  ],
+  "generated_android_build_entries": 1002,
+  "removed_paths": []
+}

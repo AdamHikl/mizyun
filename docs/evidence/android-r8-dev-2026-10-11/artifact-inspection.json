@@ -1,0 +1,61 @@
+{
+  "scope": "Dev only; local debug test signature; not a Google Play upload candidate",
+  "head": "0d9da8a46197f20b12f00d643851a84866368998",
+  "sourceInventorySha256": "9cf257a86d4e044f1a116aedefc5f50007d328e7a1a856e60d059e8e3320f8cb",
+  "package": "com.mizyun.dev",
+  "version": "1.0.9",
+  "versionCode": 9,
+  "abi": "arm64-v8a",
+  "build": "SUCCESSFUL in 5m 8s; 743 tasks: 720 executed, 23 up-to-date",
+  "r8Version": "8.12.14",
+  "r8Stats": {
+    "noObfuscationPercentage": 18.35,
+    "noOptimizationPercentage": 18.83,
+    "noShrinkingPercentage": 18.25
+  },
+  "enabledPercentagesFromComplements": {
+    "Obfuscation": 81.65,
+    "Optimization": 81.17,
+    "Shrinking": 81.75
+  },
+  "uncompressedDexBytes": 11551940,
+  "mappingByteMatchesEmbedded": true,
+  "artifacts": {
+    "apk": {
+      "path": "/Users/adam/Documents/mizyun/apps/mobile/dist/releases/android/device/MizyunDev-1.0.9-code9-r8-20261011-9cf257a86d4e.apk",
+      "sha256": "abd17a6a24a4c469b2e22a1d8080dfd08779d871aed422a56303b30a0a047715",
+      "bytes": 43281406
+    },
+    "aab": {
+      "path": "/Users/adam/Documents/mizyun/apps/mobile/dist/releases/android/device/MizyunDev-1.0.9-code9-r8-20261011-9cf257a86d4e.aab",
+      "sha256": "3d37898ff6c4d43ff5637c108afafd2ffb5d4f9a648f793d67933802fd34ac98",
+      "bytes": 38392131
+    },
+    "mapping.txt": {
+      "path": "/Users/adam/Documents/mizyun/apps/mobile/dist/releases/android/device/MizyunDev-1.0.9-code9-r8-20261011-9cf257a86d4e.mapping.txt",
+      "sha256": "69ab46285c650cace922a5e0bf4d8886c3f31db7a864356547568a26aae29d91",
+      "bytes": 113251668
+    },
+    "configuration.txt": {
+      "path": "/Users/adam/Documents/mizyun/apps/mobile/dist/releases/android/device/MizyunDev-1.0.9-code9-r8-20261011-9cf257a86d4e.configuration.txt",
+      "sha256": "c4abae7f64170ca57b1363532607a8868353bfffbd1e61bdbe7fec9f34847006",
+      "bytes": 104039
+    },
+    "usage.txt": {
+      "path": "/Users/adam/Documents/mizyun/apps/mobile/dist/releases/android/device/MizyunDev-1.0.9-code9-r8-20261011-9cf257a86d4e.usage.txt",
+      "sha256": "aaef8616e0e6b9057f80913dd8e63e159e094166ee1bc04ea9f1e7790fd1485c",
+      "bytes": 9511885
+    },
+    "seeds.txt": {
+      "path": "/Users/adam/Documents/mizyun/apps/mobile/dist/releases/android/device/MizyunDev-1.0.9-code9-r8-20261011-9cf257a86d4e.seeds.txt",
+      "sha256": "e67147651aa3df252ecb9fb016fbfb4a904304fa04e4b79458326e056a793d7b",
+      "bytes": 2219626
+    }
+  },
+  "signerSha256": "fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c",
+  "endpoints": {
+    "api": "https://mizyun-api-dev.phiskel.com",
+    "supabase": "https://mizyun-supabase-dev.phiskel.com",
+    "redirect": "mizyun-dev://auth/callback"
+  }
+}

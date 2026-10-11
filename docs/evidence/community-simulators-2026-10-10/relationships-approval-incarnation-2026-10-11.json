@@ -1,0 +1,11 @@
+{
+  "date": "2026-10-11",
+  "scope": "Normal own-A authenticated live approval-notification incarnation check; no provider push/native notification-tap claim",
+  "oldEdgeRemovedInPreviousContinuation": true,
+  "reapprovedEdgeHasFreshIncarnation": true,
+  "freshApprovalEventIsDistinct": true,
+  "nativeMuteRestored": true,
+  "oldApprovalResolveHTTP": 404,
+  "currentApprovalResolveHTTP": 200,
+  "currentApprovedFollowPresent": true
+}

@@ -1,0 +1,32 @@
+plugins { id 'com.android.application'; id 'org.jetbrains.kotlin.android' }
+android {
+  namespace 'com.mizyun.companion'
+  compileSdk 36
+  defaultConfig { applicationId 'com.mizyun.dev'; minSdk 30; targetSdk 36; versionCode 1; versionName '0.1.0-dev' }
+  // Data Layer requires phone and watch package/signature equality. Reuse the existing Dev debug key only.
+  signingConfigs {
+    debug {
+      storeFile rootProject.file('../mobile/android/app/debug.keystore')
+      storePassword 'android'
+      keyAlias 'androiddebugkey'
+      keyPassword 'android'
+    }
+  }
+  buildTypes {
+    debug { signingConfig signingConfigs.debug }
+    release { signingConfig null }
+  }
+  compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+  kotlinOptions { jvmTarget = '17' }
+  testOptions { unitTests.returnDefaultValues = true }
+}
+tasks.configureEach { task ->
+  if (task.name.toLowerCase().contains('release')) {
+    task.doFirst { throw new GradleException('Workout companion is Dev-only. Production/Release builds are disabled.') }
+  }
+}
+dependencies {
+  implementation 'com.google.android.gms:play-services-wearable:20.0.1'
+  testImplementation 'junit:junit:4.13.2'
+  testImplementation 'org.json:json:20240303'
+}

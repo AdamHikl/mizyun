@@ -235,6 +235,16 @@ for (const [profileName, config] of [
       `${profileName} profile is missing the Android workout Live Update permission plugin`,
     );
   }
+  if (!hasPlugin(config, "./plugins/with-android-release-optimization")) {
+    throw new Error(
+      `${profileName} profile is missing the Android release R8 optimization plugin`,
+    );
+  }
+  if (!hasPlugin(config, "./plugins/with-android-window-support")) {
+    throw new Error(
+      `${profileName} profile is missing the Android adaptive window support plugin`,
+    );
+  }
   const widgets = config.expo.plugins.find(
     (plugin) => Array.isArray(plugin) && plugin[0] === "expo-widgets",
   );

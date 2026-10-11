@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { UserId } from "@mizyun/core";
 import { buildApp } from "../../app.js";
 import { InMemoryCommunityRepository } from "../../community-repository.js";
@@ -110,6 +110,54 @@ describe("bounded profile activity audience", () => {
     await repository.revokeActivity(second.id, alice, { accessToken: alice });
     expect((await read(bob, alice)).json().items).toEqual([]);
   });
+  it("rejects replay under another viewer, another author, or a different feed scope before querying", async () => {
+    const { app, repository, read, publish } = await setup();
+    await publish(alice, 1);
+    await publish(alice, 2);
+    const edge = await repository.sendFollowRequest(bob, alice);
+    await repository.updateRelationshipStatus(edge.id, alice, "approved");
+    const authorCursor = (await read(alice, alice, "?limit=1")).json()
+      .nextCursor;
+    const bobAuthorCursor = (await read(bob, alice, "?limit=1")).json()
+      .nextCursor;
+    const feedCursor = (
+      await app.inject({
+        method: "GET",
+        url: "/v1/community/feed?limit=1",
+        headers: { authorization: `Bearer ${alice}` },
+      })
+    ).json().nextCursor;
+    const getFeed = vi.spyOn(repository, "getFeed");
+    expect((await read(bob, alice, `?cursor=${authorCursor}`)).statusCode).toBe(
+      422,
+    );
+    expect(
+      (await read(bob, bob, `?cursor=${bobAuthorCursor}`)).statusCode,
+    ).toBe(422);
+    expect((await read(alice, alice, `?cursor=${feedCursor}`)).statusCode).toBe(
+      422,
+    );
+    expect(
+      (
+        await app.inject({
+          method: "GET",
+          url: `/v1/community/feed?cursor=${authorCursor}`,
+          headers: { authorization: `Bearer ${alice}` },
+        })
+      ).statusCode,
+    ).toBe(422);
+    expect(
+      (
+        await app.inject({
+          method: "GET",
+          url: `/v1/community/feed?cursor=${feedCursor}`,
+          headers: { authorization: `Bearer ${bob}` },
+        })
+      ).statusCode,
+    ).toBe(422);
+    expect(getFeed).not.toHaveBeenCalled();
+  });
+
   it("rejects malformed cursors instead of falling back to a first page", async () => {
     const { read } = await setup();
     expect((await read(alice, alice, "?cursor=bad")).statusCode).toBe(422);

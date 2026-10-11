@@ -11,6 +11,7 @@ const state = vi.hoisted(() => ({
   appState: "active",
   listeners: new Set<(next: string) => void>(),
   authListeners: new Set<(next: AuthSession | null) => void>(),
+  networkListeners: new Set<(next: any) => void>(),
   preload: vi.fn(),
   slots: [] as { deps: unknown[]; cleanup?: () => void }[],
   refs: [] as { current: unknown }[],
@@ -39,6 +40,12 @@ vi.mock("react-native", () => ({
       state.listeners.add(callback);
       return { remove: () => state.listeners.delete(callback) };
     },
+  },
+}));
+vi.mock("expo-network", () => ({
+  addNetworkStateListener: (callback: (state: any) => void) => {
+    state.networkListeners.add(callback);
+    return { remove: () => state.networkListeners.delete(callback) };
   },
 }));
 vi.mock("@/features/auth/auth-context", () => ({
@@ -94,6 +101,7 @@ beforeEach(() => {
   state.effects = [];
   state.listeners.clear();
   state.authListeners.clear();
+  state.networkListeners.clear();
   state.preload.mockReset().mockResolvedValue(undefined);
   request = vi.fn().mockResolvedValue(success);
   state.cache = new SessionReadCache(
@@ -158,4 +166,21 @@ it("unchanged auth events preserve work but a refreshed token retires it and rew
   render();
   expect(state.preload.mock.calls.at(-1)![1]).toEqual(state.session);
   expect(await state.cache!.request(options)).toEqual(success);
+});
+it("rewarms all tabs on reconnect and ignores duplicate online and background events", () => {
+  render();
+  const notify = (next: any) => {
+    for (const callback of state.networkListeners) callback(next);
+  };
+  notify({ isConnected: true, isInternetReachable: true });
+  expect(state.preload).toHaveBeenCalledTimes(1);
+  notify({ isConnected: false });
+  notify({ isConnected: true, isInternetReachable: true });
+  expect(state.preload).toHaveBeenCalledTimes(2);
+  notify({ isConnected: true, isInternetReachable: true });
+  expect(state.preload).toHaveBeenCalledTimes(2);
+  appState("background");
+  notify({ isConnected: false });
+  notify({ isConnected: true, isInternetReachable: true });
+  expect(state.preload).toHaveBeenCalledTimes(2);
 });

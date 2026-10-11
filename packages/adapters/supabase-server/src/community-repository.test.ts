@@ -657,6 +657,47 @@ describe("Community database operation boundaries", () => {
     });
   });
 
+  it.each([undefined, otherId])(
+    "preserves PostgreSQL microseconds for feed and author continuations (%s)",
+    async (authorUserId) => {
+      const precise = {
+        ...activityRow,
+        published_at: "2026-09-30T10:00:00.123456+00:00",
+      };
+      const { repository, rpc } = rpcRepository({
+        community_feed: { data: [precise], error: null },
+        community_author_activities: {
+          data: [
+            precise,
+            { ...precise, id: "00000000-0000-4000-8000-000000000099" },
+          ],
+          error: null,
+        },
+      });
+      const page = await repository.getFeed(callerId, {
+        accessToken: callerToken,
+        limit: 1,
+        ...(authorUserId ? { authorUserId } : {}),
+      });
+      expect(page.nextCursor).toBe(`${precise.published_at}|${precise.id}`);
+      await repository.getFeed(callerId, {
+        accessToken: callerToken,
+        limit: 1,
+        ...(authorUserId ? { authorUserId } : {}),
+        beforeCursor: page.nextCursor!,
+      });
+      expect(rpc).toHaveBeenLastCalledWith(
+        authorUserId ? "community_author_activities" : "community_feed",
+        {
+          ...(authorUserId ? { p_author_user_id: authorUserId } : {}),
+          p_limit: authorUserId ? 2 : 1,
+          p_before_time: precise.published_at,
+          p_before_id: precise.id,
+        },
+      );
+    },
+  );
+
   it("rejects malformed feed cursor before database access", async () => {
     const { repository, rpc } = rpcRepository({});
     await expect(

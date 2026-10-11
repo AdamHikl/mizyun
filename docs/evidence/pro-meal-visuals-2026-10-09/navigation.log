@@ -1,0 +1,57 @@
+
+> mizyun@0.1.0 navigation:check /Users/adam/Documents/mizyun
+> node scripts/navigation/check.mjs
+
+=== Mizyun Navigation & Boundary Checks ===
+
+1. Validating feature-map.json structure and references...
+  PASS: Feature map structure and path references are valid.
+  WARN: Feature 'meal-logging': 73 owned path(s) changed after reviewed SHA ed70df72. Review SHA may need refresh.
+  WARN: Feature 'meal-logging': 49 owned path(s) have local staged, unstaged, or untracked changes.
+  WARN: Feature 'workouts-sets': 71 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'workouts-sets': 6 owned path(s) have local staged, unstaged, or untracked changes.
+  WARN: Feature 'profile-goals-energy': 18 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'profile-goals-energy': 5 owned path(s) have local staged, unstaged, or untracked changes.
+  WARN: Feature 'body-media': 11 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'body-media': 2 owned path(s) have local staged, unstaged, or untracked changes.
+  WARN: Feature 'auth': 22 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'account-lifecycle': 47 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'account-lifecycle': 1 owned path(s) have local staged, unstaged, or untracked changes.
+  WARN: Feature 'coach-consent-budgets': 38 owned path(s) changed after reviewed SHA ed70df72. Review SHA may need refresh.
+  WARN: Feature 'coach-consent-budgets': 10 owned path(s) have local staged, unstaged, or untracked changes.
+  WARN: Feature 'user-feedback': 3 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'environment-build-deployment': 57 owned path(s) changed after reviewed SHA ed70df72. Review SHA may need refresh.
+  WARN: Feature 'environment-build-deployment': 2 owned path(s) have local staged, unstaged, or untracked changes.
+  WARN: Feature 'contracts-shared': 42 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'contracts-shared': 7 owned path(s) have local staged, unstaged, or untracked changes.
+  WARN: Feature 'database-schema': 79 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'database-schema': 5 owned path(s) have local staged, unstaged, or untracked changes.
+  WARN: Feature 'composition-roots': 87 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'composition-roots': 8 owned path(s) have local staged, unstaged, or untracked changes.
+  WARN: Feature 'analytics-observability': 38 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'legal-compliance': 2 owned path(s) changed after reviewed SHA 7faec30d. Review SHA may need refresh.
+  WARN: Feature 'health-steps': 13 owned path(s) changed after reviewed SHA f8b02575. Review SHA may need refresh.
+  WARN: Feature 'community': 178 owned path(s) changed after reviewed SHA d81c10f6. Review SHA may need refresh.
+  WARN: Feature 'community': 1 owned path(s) have local staged, unstaged, or untracked changes.
+  WARN: Feature 'agent-navigation': 21 owned path(s) changed after reviewed SHA 3eb87357. Review SHA may need refresh.
+  WARN: Feature 'health-preview': 20 owned path(s) changed after reviewed SHA f40e8941. Review SHA may need refresh.
+  WARN: Feature 'health-exports': 31 owned path(s) changed after reviewed SHA 3984c35f. Review SHA may need refresh.
+  WARN: Feature 'workout-companions': 37 owned path(s) have local staged, unstaged, or untracked changes.
+
+2. Checking mapped source coverage...
+  WARN: Mapped source coverage: 183/1099 relevant source files are unmapped. Examples: apps/api/src/account-deletion.e2e.test.ts, apps/api/src/account-repository.ts, apps/api/src/ai-consent-repository.ts, apps/api/src/ai-eligibility.test.ts, apps/api/src/ai-eligibility.ts, apps/api/src/auth.e2e.test.ts, apps/api/src/beta-pro-repository.ts, apps/api/src/body-measurement-repository.ts, apps/api/src/conversation-repository.ts, apps/api/src/errors.test.ts, apps/api/src/errors.ts, apps/api/src/exercise-repository.ts, and 171 more. Generated output, snapshots, declarations, dependencies, and build artifacts are exempt.
+
+3. Measuring normal startup context size...
+  INFO: 269 lines / 32173 bytes across AGENTS.md, status.md, and docs/START_HERE.md.
+
+4. Validating local markdown links and anchors in navigation docs...
+  PASS: All internal markdown links resolve.
+
+5. Validating architectural import boundaries...
+  PASS: Pure core, provider neutrality, and mobile boundaries strictly respected.
+
+6. Refreshing source/config discovery...
+  PASS: Current snapshot bd0450ebd4eeedfd88b098964ae4bbd50b1420ef89bc7ce36c008b67b9815d08; 1500 files / 3145 source edges / 15 workspace packages.
+  INFO: 1437 unresolved imports (includes external/nonliteral imports; static graph is advisory).
+--------------------------------------------------------------------------------
+Checks PASSED: 0 errors, 32 warning(s).

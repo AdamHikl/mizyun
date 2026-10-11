@@ -113,6 +113,19 @@ describe("meal photo retry boundary", () => {
     );
     expect(storage.remove).toHaveBeenCalledWith(row.objectPath);
   });
+  it("does not publish a new upload if Pro access is lost before commit", async () => {
+    const { service, rpc, storage, row } = make();
+    rpc
+      .mockResolvedValueOnce({ data: row, error: null })
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: "meal_photo_unavailable" },
+      });
+    await expect(service.save(await input())).rejects.toMatchObject({
+      kind: "unavailable",
+    });
+    expect(storage.remove).toHaveBeenCalledWith(row.objectPath);
+  });
   it("commits revocation even when storage cleanup must retry", async () => {
     const { service, rpc } = make();
     vi.spyOn(service, "cleanup").mockRejectedValue(

@@ -369,3 +369,7 @@ Adam authorized #156–162 source development on Dev before the original post-pi
 ### Selected health export sequence amendment (2026-10-06)
 
 Adam clarified stage two as INT-04 selected outbound nutrition and completed workouts (#219). Implement this Dev-only local outbox before optional INT-03 backend synchronization. The first preview package remains under #215; neither package's native/device/privacy exits are waived. ADR-0047 defines the local storage, first-party eligibility, separate session-only write choices and platform-retention boundary. No Production, backend health synchronization, watch/vendor integration or developer API is enabled by this sequence change.
+
+### Wearable companion sequence amendment (2026-10-09)
+
+Adam selected INT-07 Apple Watch and Wear OS manual workout companions (#232) as the next Dev implementation while deferring phone testing. Implement the bounded foreground phone-owned slice under ADR-0054 ahead of optional INT-03 account health synchronization and vendor/developer integrations. Preserve all existing Health/native/privacy acceptance requirements; physical testing remains deferred and Production remains excluded. [Integration plan](docs/INTEGRATIONS_IMPLEMENTATION_PLAN_2026-10-04.md) and [evidence](docs/WORKOUT_COMPANIONS_EVIDENCE_2026-10-09.md) own the detailed package and gates.

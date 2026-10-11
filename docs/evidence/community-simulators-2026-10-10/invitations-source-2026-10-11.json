@@ -1,0 +1,171 @@
+{
+  "date": "2026-10-11",
+  "issue": 144,
+  "head": "0d9da8a46197f20b12f00d643851a84866368998",
+  "backendSHA": "2596a69b3fe4d20920a173de91fb4dc533b9bd4a",
+  "runtimeEdits": true,
+  "sourceSHA256": {
+    "apps/mobile/src/features/community/invitation-links.ts": "15c04d44c0eb088b656cad949ef09585768c76c77eea803ebfb25f9927822002",
+    "apps/mobile/src/features/community/invitation-actions.ts": "fe9d11cbae6c2866f12a1bfb4c37038577479612a8dc6aed3965d53ab76de398",
+    "apps/mobile/src/features/community/discovery/controller.ts": "1cfd4a9760883deaac20d32a93e4ebed88fadc0ec357481907f36e66e6e707d4",
+    "apps/mobile/src/features/community/discovery/screen.tsx": "91b2c01145d384f86d6405d089d86c257ef2d575e811dce2cd6103d8c57a77d1",
+    "apps/mobile/src/app/_layout.tsx": "11db46b058401b50fede4d5ab0cd98d63284b9edc56459eea27e999944b386a5",
+    "apps/mobile/src/app/community/invite.tsx": "c2270dccdebc680e13182e2727f83272b7881db11ae9b0f970623947911aa487",
+    "apps/api/src/modules/community/discovery-routes.ts": "9d494c17a823fe460d0719ba22dd93578ee839f65fa0fdb75b06aad2d3921564",
+    "apps/api/src/modules/community/invitation-routes.ts": "3e3a87847dd1cf272c2cf8e87d8c186b1741bc2e8bf29848daa98e2e24ebf9b7",
+    "packages/adapters/supabase-server/src/community-repository.ts": "a0bd0dc5bbf3d8bc755ffadebb0681dbab07166df87288a50b3217e37d1d6858",
+    "supabase/tests/database/0009_community_boundary_regressions.test.sql": "4688da0e5387f3d1bc3cb09dd99714c245216bad96fab2fb62bdd863cc510af2",
+    "supabase/tests/database/0013_community_discovery_controls.test.sql": "6434db9c3da499243aaceb3f1a0aac3d4c16c8c57433194574da1c443c67ea75",
+    "apps/mobile/src/app/+native-intent.ts": "f1839f8bf1b55ce4e70b52cdfe4d7b7b8c30e8894bfda033c1872336bee6f279",
+    "apps/mobile/src/features/community/invitation-system-path.ts": "f0bf99fc86ba1bc3657ea06692f7975e7f5ccfe95558a09e48a736c3e3be7764",
+    "apps/mobile/src/features/community/invitation-system-path.test.ts": "5d5708765972f3e95cc714ffe345dafc9c4718e2ee72ab1085e07e2c84a6cd34",
+    "apps/mobile/src/features/auth/app-auth-link.ts": "7199761d223332174b9fe8ac3f3a7a76a703584fe47803ee8c185b212cd51192",
+    "apps/mobile/src/features/auth/app-auth-link.test.ts": "3202c9bcc56a4e84bc141246a3d23b40d6d2f63da791b899dcc8d8a0df724726"
+  },
+  "nativeReuse": {
+    "app": "/private/tmp/mizyun-comm-ios-20261010/Build/Products/Debug-iphonesimulator/MizyunDev.app",
+    "bundle": "com.mizyun.development",
+    "version": "1.0.9(9)",
+    "qualification": "58 saved native inputs match; app.config.js differs only by two inspected Android-only mod plugins (optimization and window-support). Removing exactly these entries reproduces saved config hash. No iOS mod changed.",
+    "metroSession": 74167,
+    "port": 8085,
+    "awakeSession": 87325,
+    "AInitial": "Shutdown",
+    "BInitial": "Booted",
+    "launchA": 25514,
+    "freshBundle": "15799ms/2289modules; current Home SyntheticCommunityA independently observed",
+    "fixedLaunchA": 31890,
+    "fixedBundle": "96ms/1module; native fixed invitation actualpixels independently inspected",
+    "finalMetroSession": 38948,
+    "finalMetroStopped": true
+  },
+  "controller": "GPT-6.1 Sol Medium actual worker setting; previous controller reuse/new spawn hit thread limit, existing audit worker owns sequential native control",
+  "research": {
+    "expo": "https://docs.expo.dev/linking/into-your-app/",
+    "accessed": "2026-10-11",
+    "consequence": "OS CLI deep-link dispatch is URL launch setup, not typed native UI input/acceptance. Actual recipient render/follow is separately observed by native controller; custom scheme installed app scope; new website fallback separate."
+  },
+  "launchRecovery": "Initial 90s helper boot readiness failed; new bounded bootstatus returned alreadyBooted; one helper retry succeeded. No rebuild/erase/forced relaunch.",
+  "focusedTestSHA256": {
+    "apps/mobile/src/features/community/invitation-links.test.ts": "5827e70a581e22e74da507a69f84641a44b167dbc0be98efe295f9fe3fe261b1",
+    "apps/mobile/src/features/community/invitation-actions.test.ts": "19f86ade8f086b6e06086553933a1fde2a914ab5cda3da0d53f1f84c541a10f0",
+    "apps/mobile/src/features/community/discovery/controller.test.ts": "69b2a8f354b3dcfead31ec06a3d16d767d5c9a28249fd88b5fe0769d062faab8",
+    "apps/mobile/src/features/community/discovery/access-gate.test.ts": "68129abfe04a875784136a8acebe40bc4b6983e3344eafced1cac6ff66eafd66",
+    "apps/mobile/src/features/community/discovery/qr-matrix.test.ts": "732705717f2203497d841c491f8ce51d7cf59db69fdb1ad63978aba7ace86659",
+    "apps/api/src/modules/community/invitation-routes.test.ts": "02fbf48d6ac5c0254bd0088071745a023339c821cfe62a040f179cb070454ed6",
+    "apps/api/src/modules/community/discovery-routes.test.ts": "0e685723fcf761994eee03a0626da46f56462d7bd324f23ef282965156b7ffdf",
+    "apps/api/src/logging.test.ts": "6c934d51ea6d0b850aa5c8807f9dc74314965aed7073a600e636014598305162"
+  },
+  "backendRuntimeMatches": {
+    "apps/mobile/src/features/community/invitation-links.ts": true,
+    "apps/mobile/src/features/community/invitation-actions.ts": true,
+    "apps/mobile/src/features/community/discovery/controller.ts": true,
+    "apps/mobile/src/app/_layout.tsx": false,
+    "apps/mobile/src/app/community/invite.tsx": true,
+    "apps/api/src/modules/community/discovery-routes.ts": true,
+    "apps/api/src/modules/community/invitation-routes.ts": true,
+    "packages/adapters/supabase-server/src/community-repository.ts": true
+  },
+  "discoveryUIOverlayMatchesCheckedOct10": true,
+  "ownedFiles": [
+    "apps/mobile/src/app/+native-intent.ts",
+    "apps/mobile/src/app/_layout.tsx",
+    "apps/mobile/src/features/community/invitation-system-path.ts",
+    "apps/mobile/src/features/community/invitation-system-path.test.ts",
+    "apps/mobile/src/features/auth/app-auth-link.ts",
+    "apps/mobile/src/features/auth/app-auth-link.test.ts"
+  ],
+  "failure": "Actual valid warm custom-scheme invitation rendered Unmatched Route. Task capability revoked200 immediately, no Follow.",
+  "fix": "Expo native-intent maps strict installed-scheme invitations before Router; foreign/ambiguous/unparseable invitations get neutral refusal; raw Auth bridge accepts only installed-scheme exact callback authority/path, preserving valid recovery/OAuth and memory-only invitation continuation.",
+  "independentReview": {
+    "author": "coordinator",
+    "reviewer": "invitation_final_high_review",
+    "dispatchModel": "gpt-6.1-sol",
+    "dispatchEffort": "high",
+    "result": "Final six-file source approved; no remaining actionable findings. Read-only non-author review; all workspace/candidate hashes match. Native/final tests remain separate.",
+    "resolved": [
+      "Unparseable invitation authority leaked raw bearer URI; neutral refusal/fallback now used.",
+      "Raw Linking bridge could consume Auth-shaped invitation parameters; only installed-scheme exact Auth callbacks reach consumeDeepLink.",
+      "Alternate community:bad/invite authority included in malformed invitation refusal; recovery fixture uses actual kind field."
+    ]
+  },
+  "focusedFinal": {
+    "command": "pnpm --filter @mizyun/mobile test src/features/community/invitation-system-path.test.ts src/features/community/invitation-links.test.ts src/features/community/invitation-actions.test.ts src/features/community/discovery/controller.test.ts src/features/community/discovery/access-gate.test.ts src/features/community/discovery/qr-matrix.test.ts src/features/auth/app-auth-link.test.ts --maxWorkers=1 --minWorkers=1",
+    "result": "61 tests/7 files PASS",
+    "log": "/private/tmp/mizyun-invitations-mobile-settled-20261011.log"
+  },
+  "fullGatePreparation": {
+    "candidate": "/private/tmp/mizyun-invitations-candidate-20261011",
+    "overlays": 15,
+    "firstAttempt": "sandbox ps EPERM before checks",
+    "firstHostRun": "Stopped at typecheck: unrelated challenge test expected four-argument personal cache constructor; challenge overlay depended on excluded unrelated work",
+    "correction": "Restored only unrelated challenge screen/test in candidate to baseline; root unchanged, all six owned files/tests retained",
+    "currentLog": "/private/tmp/mizyun-invitations-full-final-20261011.log",
+    "state": "PASS"
+  },
+  "fullGateFinal": {
+    "command": "VITEST_MAX_THREADS=1 VITEST_MIN_THREADS=1 VITEST_MAX_FORKS=1 VITEST_MIN_FORKS=1 npm_config_workspace_concurrency=1 pnpm check",
+    "result": "exit0/PASS all required gates",
+    "inputSHA256": "a7561ea405a2a7b6c824f8579338ae282b7f84ec69443c8c6cca1012e4a7777a",
+    "candidate": "/private/tmp/mizyun-invitations-candidate-20261011",
+    "base": "2596a69b3fe4d20920a173de91fb4dc533b9bd4a",
+    "pinnedOverlays": 15,
+    "mobile": {
+      "passed": 2046,
+      "files": 174
+    },
+    "api": {
+      "passed": 979,
+      "skipped": 15,
+      "skipReason": "Existing credential-gated Auth5/persistence8/account deletion2"
+    },
+    "config": {
+      "passed": 83,
+      "skipped": 3,
+      "skipReason": "Existing bundle path lookup skips"
+    },
+    "supabaseServer": {
+      "passed": 196,
+      "files": 26
+    },
+    "identity": {
+      "passed": 73,
+      "files": 4
+    },
+    "log": "/private/tmp/mizyun-invitations-full-final-20261011.log",
+    "bothBundles": true,
+    "sourceOrAssertionsRelaxed": false
+  },
+  "nativeFinalGuard": {
+    "result": "PASS",
+    "scenario": "Installed-scheme malformed invitation with fake Auth-shaped fragment only; strict denial and current synthetic B preserved",
+    "observed": "Friend invitation/current B/neutral new-fresh-link guidance; no inviter card/Follow/Unmatched Route/raw URI/Auth error",
+    "pixel": "ios-invitation-final-guard-2026-10-11.png",
+    "coordinatorPixelReview": "PASS actual exact-Pro screenshot inspected",
+    "device": "F4939E5D-BA85-4479-AA1E-92B21441FB8C",
+    "launchPID": 16955,
+    "mainBundle": "10854ms/2292modules",
+    "metroSession": 54790,
+    "awakeSession": 4929,
+    "sourceAndGateInputsUnchanged": true,
+    "normalHomeAndCleanup": "PASS fresh normal Home welcomed B; controller STOP draft-free; owned Metro54790/awake4929 stopped; initially booted Pro retained, Max remains shutdown"
+  },
+  "disposition": {
+    "issue": "CLOSED",
+    "verifiedState": "CLOSED/status:done",
+    "closureComment": "https://github.com/AdamHikl/mizyun/issues/144#issuecomment-6109634329",
+    "remainingForAdam": "None for original #144; no physical repeat; separate website/release/rollout scopes unchanged",
+    "selectedClosed": [142, 143, 144, 145, 152, 166, 167, 168, 169],
+    "selectedOpen": [
+      137, 140, 146, 147, 148, 149, 150, 151, 153, 154, 155, 156, 157, 158, 159,
+      160, 161, 162
+    ]
+  },
+  "handoffChecks": {
+    "ownedPrettier": "PASS",
+    "diffCheck": "PASS",
+    "currentWorkspaceNavigation": "PASS/0errors/35 advisory warnings; source candidate gate separately passed",
+    "statusBounds": "77lines/12226bytes",
+    "afterUnlock": "Owned formatting/diff checks PASS; all15 source hashes unchanged from full PASS gate; sole affected native guard/Home check PASS"
+  }
+}

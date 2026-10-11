@@ -1,0 +1,36 @@
+{
+  "date": "2026-10-09",
+  "baseline": "0d9da8a46197f20b12f00d643851a84866368998",
+  "candidate": "/private/tmp/mizyun-208-candidate-q2hqk7ud",
+  "sourceSha256": {
+    "apps/mobile/src/features/coach/coach-setup-screen.tsx": "82cdb9ec5320c143726ab181ab6a5900a65615f9a9b37b9d7a7a66d1d25ba243",
+    "apps/mobile/src/features/coach/coach-setup-screen.test.tsx": "37aace2d3102de7cec4c7823837d38cb403b56ab121cb2120c4bd6161829a5cd"
+  },
+  "focusedCoachTests": {
+    "filesPassed": 8,
+    "testsPassed": 110
+  },
+  "fullCheck": {
+    "command": "pnpm check",
+    "exitCode": 0,
+    "inputSha256": "af71fdbf66b1db70a743a04372bd3f0d9250082ecb02e026ab1abcf4c4af46a2",
+    "log": "/private/tmp/mizyun-208-check.log",
+    "mobilePassed": 1933,
+    "apiPassed": 946,
+    "apiCredentialGatedSkipped": 15,
+    "configurationSkipped": 3,
+    "iOSExport": "passed",
+    "AndroidExport": "passed"
+  },
+  "scope": "Baseline plus two Coach source/test overlays, research/status and selection evidence; concurrent meal/cache/illustration work excluded. Copied dependency trees retain relative workspace links and independent APFS-cloned files.",
+  "independentReview": "GPT-6.1 Sol High read-only native-source diagnosis and actual diff review; no actionable source findings.",
+  "nativeAcceptance": "Unrun; existing simulator artifact failed native-input provenance. Requires installed iOS/Android selection handles, partial Copy/paste, layout, scroll/keyboard, themes, Dynamic Type and VoiceOver.",
+  "delivery": "Local uncommitted fix; no push, deploy or physical installation.",
+  "postGateEdits": "Evidence receipt and compact status outcome only; tested Coach source hashes unchanged.",
+  "sharedNavigationPostGate": {
+    "exitCode": 1,
+    "reason": "Concurrent apps/api/src/modules/meal-illustrations not yet mapped in feature-map.json; no Coach failure. Isolated full navigation gate passed.",
+    "log": "/private/tmp/mizyun-208-final-navigation.log"
+  },
+  "issueUpdate": "https://github.com/AdamHikl/mizyun/issues/208#issuecomment-6075669613"
+}

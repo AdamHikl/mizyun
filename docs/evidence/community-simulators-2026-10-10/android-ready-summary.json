@@ -1,0 +1,92 @@
+{
+  "date": "2026-10-10",
+  "controllerModel": "gpt-6.1-sol",
+  "controllerReasoning": "medium",
+  "sourceHead": "0d9da8a46197f20b12f00d643851a84866368998",
+  "candidate": "Dirty recorded source; five Community runtime hashes still match ui-fixes-source-manifest.json; no source change or repeated source suites",
+  "controlRecovery": {
+    "userSetup": "User opened existing Android project and selected existing SDK; no agent SDK upgrades/downloads",
+    "studio": "Existing android project with Running Devices; Gradle sync failed release-keystore guard; no Try Again/build/config input",
+    "launch": "Normal observed existing Virtual Devices menu row launched embedded Mizyun Pixel 9 API 36",
+    "input": "Initial native swipe/tap worked. Current Email tap fails noWindowsAvailable, including one bounded fresh attempt after Android-ready handoff; no credentials entered; no further loop."
+  },
+  "device": {
+    "avd": "Mizyun_Pixel_9_API_36",
+    "serial": "emulator-5554",
+    "api": 36,
+    "abi": "arm64-v8a",
+    "initialState": "No emulator attached before the task GUI launch",
+    "bootCompleted": true,
+    "fontScale": 1.0
+  },
+  "preflight": "Existing Dev app signed out, no active editor/workout/draft visible; Production app untouched",
+  "artifact": {
+    "path": "apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk",
+    "sha256": "d71717212ae912eaafe9adbdac4312ab1a12ee016a597d9b024cbec2e90d49ed",
+    "signatureSha256": "fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c",
+    "package": "com.mizyun.dev",
+    "version": "1.0.9",
+    "versionCode": 9,
+    "targetSdk": 36,
+    "minSdk": 24,
+    "debuggable": true,
+    "install": "adb install -r Success; data retained; no rebuild"
+  },
+  "metro": {
+    "session": 15797,
+    "pid": 30204,
+    "port": 8085,
+    "listener": "*:8085; IPv4 status verified",
+    "canonicalEnvironment": "devEnvironment(.env.dev), Expo --dev-client without --localhost",
+    "log": "/private/tmp/mizyun-comm-metro-android-dual-8085-20261010.log",
+    "freshAndroidBundleMs": 9551,
+    "mainModules": 2383,
+    "entry": "expo-router/entry.js",
+    "reverse": "Only task-owned tcp8085\u2192tcp8085; initial mappings none",
+    "awakeSession": 95201
+  },
+  "startupDiagnosis": {
+    "compiledApkPort": "aapt integer/react_native_dev_server_port=0x1f95=8085",
+    "nativeError8081": "Generic guidance, not actual APK port; bounded 8081 attempt did not load",
+    "originalListener": "iOS canonical helper bound only ::1, while stock Android emulator host alias is IPv4 10.0.2.2",
+    "resolution": "Canonical Android listener dual stack on compiled8085; draft-free signed-out Dev lifecycle restart; fresh native Login and Android bundle",
+    "discardedSetup": "8085 session99269/PID28703 and diagnosis8081 session77513/PID29565 stopped; both old mappings removed before current mapping; no other service touched",
+    "nativeReloadReview": "Rejected as apparent Gradle sync/dependency download; no tap. Safe app-only lifecycle plus listener correction completed setup without Gradle sync"
+  },
+  "warnings": "Require cycles in pre-existing auth/personal-read modules and New Architecture LayoutAnimation no-op; no fresh Metro ERROR",
+  "acceptance": "Exact APK install/current Android bundle/native Login rendering PASS. Signed-in Community acceptance BLOCKED at native field input; no credentials entered.",
+  "cleanup": "Final cleanup stopped owned Metro60075/PID35661 and awake50946; port8085 has no listener. No new reverse mapping restored. Task Android5554 already stopped with data retained per user instruction. Initially running iOS B Home/Save Password prompt and user Studio left intact; ownerB, restorationA authorized/pending.",
+  "parentIssueComment": "https://github.com/AdamHikl/mizyun/issues/137#issuecomment-6098680896",
+  "resume": {
+    "trigger": "User continue; supported Email click/type recovered",
+    "controller": "GPT-6.1 Sol Medium; one native input owner",
+    "input": "Taps now return successfully, but typeText/App.paste/normal key probe did not visibly populate Email. Both fields cleared through native controls. Observed Gboard menu offers Show on-screen keyboard; automatic review rejected that click as ambiguous with Sign in. Action did not execute; manual keyboard handoff pending.",
+    "metroSession": 12024,
+    "metroPid": 32531,
+    "port": 8085,
+    "listener": "*:8085; IPv4/statusrunning",
+    "log": "/private/tmp/mizyun-comm-metro-android-resume-20261010.log",
+    "reverse": "Task-owned emulator5554 tcp8085\u2192tcp8085 restored",
+    "awakeSession": 19035,
+    "acceptance": "Android native text entry/sign-in awaiting keyboard handoff; no Community feature pass claimed. iOS picker resolved to photos landing without preview/upload evidence; remaining AX cases resumed.",
+    "keyboardReview": "Rejected normal Show on-screen keyboard click because target was considered ambiguous with Sign in; no click executed, no SDK/configuration change; request user selection to restore normal keyboard input."
+  },
+  "resume2": {
+    "trigger": "User continue; iOS Save Password prompt cleared",
+    "metroSession": 60075,
+    "metroPid": 35661,
+    "port": 8085,
+    "listener": "*:8085; IPv4/statusrunning",
+    "log": "/private/tmp/mizyun-comm-metro-android-resume2-20261010.log",
+    "awakeSession": 50946,
+    "reverse": "None restored this continuation; Android input not ready",
+    "ios": "A Home/modal clear observed; native owner/recipient cases resumed",
+    "android": "Fresh full keyboard appeared at56% scale; field focus changed keyboard to handwriting toolbar. Stale batched key coordinates opened Forgot password; normal Back restored blank Login. No reset link/request, auth or credential change. Hold for grounded stable keyboard path.",
+    "androidControls": "Bounded Studio AX Hardware Input inspection exposed no popup or visible input-mode change. Device UI Shortcuts exposed theme/navigation/language/TalkBack/Select to Speak/font/display/layout controls; no keyboard-forwarding or touch/stylus control observed. Popup closed normally; no settings changed."
+  },
+  "userDecision": {
+    "scope": "Explicit user: keyboard does not work; skip Android, test iPhone only",
+    "acceptance": "Remaining signed-in Android feature cases untested by user instruction; setup/Login evidence retained",
+    "cleanup": "Verified emulator5554 AVD name Mizyun_Pixel_9_API_36; adb emu kill OK, no erase/wipe/data removal. No task reverse restored this continuation."
+  }
+}

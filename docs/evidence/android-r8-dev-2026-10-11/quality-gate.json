@@ -1,0 +1,28 @@
+{
+  "date": "2026-10-11",
+  "head": "0d9da8a46197f20b12f00d643851a84866368998",
+  "buildInventorySha256": "9cf257a86d4e044f1a116aedefc5f50007d328e7a1a856e60d059e8e3320f8cb",
+  "stableCandidate": "/private/tmp/mizyun-r8-verified-candidate-20261011",
+  "excludedConcurrentScope": [
+    "docs/evidence/community-simulators-2026-10-10/identity-native-2026-10-11.md"
+  ],
+  "nativeInputDifferences": [],
+  "command": "pnpm check",
+  "result": "PASS",
+  "inputSha256": "c77d439b5de6c9e3778f054362fe25c2cb6ea1a0ea28bd1af9a59d06cb0845e4",
+  "testCounts": {
+    "mobilePass": 2128,
+    "apiPass": 979,
+    "apiSkipped": 15,
+    "supabaseServerPass": 196
+  },
+  "fullGateConfigPuritySkipped": 3,
+  "supplementaryPurity": {
+    "command": "pnpm --filter @mizyun/config exec vitest run src/mobile-public.test.ts",
+    "cacheOnlyPreparation": "Copied fresh bundle-check-ios output to existing test legacy bundle-check path; actual Hermes .hbc verified",
+    "pass": 6,
+    "skipped": 0
+  },
+  "sharedTreeRun": "rejected stale; unrelated later Community evidence formatting failure preserved",
+  "productionActions": false
+}

@@ -19,6 +19,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RunCard, RunningWeek, listRuns } from "@/features/running";
 import { apiClient } from "@/composition/api-client";
+import { subscribeSessionReadUpdates } from "@/composition/personal-read-events";
 import type { Workout } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
@@ -168,7 +169,19 @@ export function WorkoutsHubScreen() {
       const subscription = AppState.addEventListener("change", (state) => {
         if (state === "active") void loadData();
       });
-      return () => subscription.remove();
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const unsubscribe = subscribeSessionReadUpdates((path) => {
+        if (!/^\/v1\/(workouts|exercises|runs)([/?]|$)/.test(path)) return;
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+          void loadData();
+        }, 50);
+      });
+      return () => {
+        clearTimeout(timer);
+        unsubscribe();
+        subscription.remove();
+      };
     }, [loadData]),
   );
 

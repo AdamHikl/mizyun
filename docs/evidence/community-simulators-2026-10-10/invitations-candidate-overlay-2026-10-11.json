@@ -1,0 +1,28 @@
+{
+  "baseline": "2596a69b3fe4d20920a173de91fb4dc533b9bd4a",
+  "scope": "Existing relevant Community UI overlays plus six owned invitation-entry/Auth callback source and test files; unrelated concurrent source excluded",
+  "sha256": {
+    "apps/mobile/src/features/community/discovery/screen.tsx": "91b2c01145d384f86d6405d089d86c257ef2d575e811dce2cd6103d8c57a77d1",
+    "apps/mobile/src/features/community/feed/feed-screen.test.tsx": "f143217fda0a155027cc8fd08fddc891647e3cd0ca009159c4f8f421dfc9e9d6",
+    "apps/mobile/src/features/community/profiles/screen.test.tsx": "5c2de59ac3fa06033c8f2eb4e6801eaf79be2f3a43c953501fbead959b474939",
+    "apps/mobile/src/features/community/profiles/screen.tsx": "0cfe318299dd8db195a37115f357d8a32847d12abf295f76be7c08d72f73d2ff",
+    "apps/mobile/src/features/community/relationships/screen.test.tsx": "8fa222349c4b3a2ddaeea548ea7771ee326a7b8ac705c065a198760f8b1ded92",
+    "apps/mobile/src/features/community/relationships/screen.tsx": "99bb6d866b4eaf0eea2e1f1800bd2b8f3c49244bef59861e6114992859cb9634",
+    "apps/mobile/src/features/community/state/read-cache.ts": "53578b5f943a9d369f79002bf34f5c625acd2f789f1e06bb2f618c6b61d140a5",
+    "apps/mobile/src/features/community/ui/index.test.tsx": "51a88e7934aa416c09e4a73aee76a78983dacc3e00e1b6b1a1a1d4e204eae9e4",
+    "apps/mobile/src/features/community/ui/index.tsx": "832bbb0898b213318e9ce6d7905bc07a80b3cac5f911ad6dbdfbe4ee062c3c0f",
+    "apps/mobile/src/app/+native-intent.ts": "f1839f8bf1b55ce4e70b52cdfe4d7b7b8c30e8894bfda033c1872336bee6f279",
+    "apps/mobile/src/features/community/invitation-system-path.ts": "f0bf99fc86ba1bc3657ea06692f7975e7f5ccfe95558a09e48a736c3e3be7764",
+    "apps/mobile/src/features/community/invitation-system-path.test.ts": "5d5708765972f3e95cc714ffe345dafc9c4718e2ee72ab1085e07e2c84a6cd34",
+    "apps/mobile/src/app/_layout.tsx": "11db46b058401b50fede4d5ab0cd98d63284b9edc56459eea27e999944b386a5",
+    "apps/mobile/src/features/auth/app-auth-link.ts": "7199761d223332174b9fe8ac3f3a7a76a703584fe47803ee8c185b212cd51192",
+    "apps/mobile/src/features/auth/app-auth-link.test.ts": "3202c9bcc56a4e84bc141246a3d23b40d6d2f63da791b899dcc8d8a0df724726"
+  },
+  "excludedChallengeOverlay": {
+    "files": [
+      "apps/mobile/src/features/community/challenges/privacy-flow.test.tsx",
+      "apps/mobile/src/features/community/challenges/screen.tsx"
+    ],
+    "reason": "Pre-existing challenge regression depends on unrelated personal persistent-cache constructor. Initial isolated gate caught missing dependency at typecheck; restored only these unrelated candidate files to baseline. Shared workspace unchanged; all owned source/test files retained."
+  }
+}

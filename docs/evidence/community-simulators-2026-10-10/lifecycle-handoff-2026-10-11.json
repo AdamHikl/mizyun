@@ -1,0 +1,17 @@
+{
+  "candidateSha": "6db9130d26705506f96696f6027d77c6ff3e9632",
+  "readOnlyPreflight": "PASS",
+  "cleanCandidate": true,
+  "hostMarkerVerified": true,
+  "publicDevHealthHttp": 200,
+  "originPushed": false,
+  "deployed": false,
+  "logSha256": "b7332e89417779b49165f2369c21b5ac79b754c3291cedb0415b307d5c47a03f",
+  "issues": {
+    "150": "https://github.com/AdamHikl/mizyun/issues/150#issuecomment-6110820021",
+    "151": "https://github.com/AdamHikl/mizyun/issues/151#issuecomment-6110820682",
+    "156": "https://github.com/AdamHikl/mizyun/issues/156#issuecomment-6110821182"
+  },
+  "issueStates": "OPEN/status:blocked; original missing exits retained",
+  "nextAction": "Await separate exact-SHA push/Hetzner Dev migration approval; then run deployed feature verification. No permission elapsed time is treated as approval."
+}

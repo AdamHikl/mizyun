@@ -184,3 +184,47 @@ test("event projection excludes content and validates references", () => {
   ])
     assert.throws(() => validateEvent({ ...event, ...patch }), /Invalid/);
 });
+
+test("privacy reductions require concrete owner/generation/target scope", () => {
+  const peer = "33333333-3333-4333-8333-333333333333";
+  for (const kind of [
+    "mute",
+    "mention_optout",
+    "comment_setting_optout",
+    "notification_optout",
+  ]) {
+    const scoped = {
+      ...event,
+      kind,
+      target_id: kind === "mute" ? peer : event.user_id,
+      related_user_id: kind === "mute" ? peer : null,
+    };
+    assert.deepEqual(validateEvent(scoped), scoped);
+    assert.throws(
+      () => validateEvent({ ...scoped, generation: null }),
+      /Invalid/,
+    );
+    assert.throws(
+      () => validateEvent({ ...scoped, target_id: null }),
+      /Invalid/,
+    );
+    assert.throws(
+      () => validateEvent({ ...scoped, notes: "private" }),
+      /Invalid/,
+    );
+  }
+  assert.throws(
+    () =>
+      validateEvent({
+        ...event,
+        kind: "mute",
+        target_id: peer,
+        related_user_id: null,
+      }),
+    /Invalid/,
+  );
+  assert.throws(
+    () => validateEvent({ ...event, kind: "mention_optout", target_id: peer }),
+    /Invalid/,
+  );
+});

@@ -1,0 +1,15 @@
+{
+  "baseSha": "b60bf9b27fd6af2b4e3e4de906975cb86d51617e",
+  "command": "npm_config_workspace_concurrency=1 VITEST_MIN_THREADS=1 VITEST_MAX_THREADS=1 VITEST_MIN_FORKS=1 VITEST_MAX_FORKS=1 pnpm check",
+  "result": "PASS",
+  "exitCode": 0,
+  "inputSha256": "9f229ff6a97d8ec385b202a5adb4e46fcd23155671c0b75b13ebc5006b29e72b",
+  "logSha256": "630cab8928593251058b657a10c00607c315ca968e9368903d49a19334165491",
+  "mobilePassed": 2047,
+  "apiPassed": 980,
+  "apiCredentialGatedSkipped": 15,
+  "configExistingBundlePathSkipped": 3,
+  "qualifiedSource": "lifecycle-source-2026-10-11.json",
+  "postGateChanges": "Only this gate receipt, status outcome and evidence prose; no runtime or test input changed after the passing gate.",
+  "priorAttempts": "Initial navigation rejection for omitted concurrent documentation references; two early runs interrupted to correct isolated status size before substantive test execution. None counted as a passing full gate."
+}

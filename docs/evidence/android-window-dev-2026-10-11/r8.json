@@ -1,0 +1,71 @@
+{
+  "options": {
+    "hasObfuscationDictionary": false,
+    "hasClassObfuscationDictionary": false,
+    "hasPackageObfuscationDictionary": false,
+    "keepAttributes": {
+      "isAnnotationDefaultKept": true,
+      "isEnclosingMethodKept": true,
+      "isExceptionsKept": false,
+      "isInnerClassesKept": true,
+      "isLocalVariableTableKept": false,
+      "isLocalVariableTypeTableKept": false,
+      "isMethodParametersKept": false,
+      "isPermittedSubclassesKept": false,
+      "isRuntimeInvisibleAnnotationsKept": false,
+      "isRuntimeInvisibleParameterAnnotationsKept": false,
+      "isRuntimeInvisibleTypeAnnotationsKept": false,
+      "isRuntimeVisibleAnnotationsKept": true,
+      "isRuntimeVisibleParameterAnnotationsKept": true,
+      "isRuntimeVisibleTypeAnnotationsKept": true,
+      "isSignatureKept": true,
+      "isSourceDebugExtensionKept": false,
+      "isSourceDirKept": false,
+      "isSourceFileKept": false,
+      "isStackMapTableKept": false
+    },
+    "isAccessModificationEnabled": true,
+    "isFlattenPackageHierarchyEnabled": false,
+    "isObfuscationEnabled": true,
+    "isOptimizationsEnabled": true,
+    "isProGuardCompatibilityModeEnabled": false,
+    "isProtoLiteOptimizationEnabled": false,
+    "isRepackageClassesEnabled": false,
+    "isShrinkingEnabled": true,
+    "apiModeling": {},
+    "minApiLevel": "24",
+    "isDebugModeEnabled": false
+  },
+  "baselineProfileRewriting": {},
+  "compilation": {
+    "buildTimeNs": 143530275458,
+    "numberOfThreads": 10
+  },
+  "dexFiles": [
+    {
+      "checksum": "672b3d47a3eb6e60fa558a0b3cf8d373068244b28c17a81bb5e6d7750a44c692",
+      "startup": false
+    },
+    {
+      "checksum": "6f4035b04481a813f07fdea5623de06285251f34c59c80b37fd43dca7c7e8b68",
+      "startup": false
+    }
+  ],
+  "stats": {
+    "noObfuscationPercentage": 18.33,
+    "noOptimizationPercentage": 18.81,
+    "noShrinkingPercentage": 18.24
+  },
+  "featureSplits": {
+    "featureSplits": [
+      {
+        "dexFiles": []
+      }
+    ],
+    "isolatedSplits": false
+  },
+  "resourceOptimization": {
+    "isOptimizedShrinkingEnabled": false
+  },
+  "version": "8.12.14"
+}

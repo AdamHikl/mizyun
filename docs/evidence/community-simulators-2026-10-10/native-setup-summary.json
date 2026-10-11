@@ -1,0 +1,43 @@
+{
+  "sourceHead": "0d9da8a46197f20b12f00d643851a84866368998",
+  "workingTree": "concurrent edits included; JavaScript manifest separately recorded",
+  "devBackendSha": "4fa20a882d6d8c8fd446d07e55208b18240d8b22",
+  "devMigration": "20261009150000",
+  "ios": {
+    "device": "F4939E5D-BA85-4479-AA1E-92B21441FB8C",
+    "model": "iPhone17Pro",
+    "os": "26.5",
+    "bundleId": "com.mizyun.development",
+    "version": "1.0.9(9)",
+    "initialText": "extra-extra-large",
+    "initialAppearance": "light",
+    "nativeInputCount": 59,
+    "artifact": "/private/tmp/mizyun-comm-ios-20261010/Build/Products/Debug-iphonesimulator/MizyunDev.app",
+    "build": "Debug iphonesimulator; signed; BUILD SUCCEEDED"
+  },
+  "android": {
+    "avd": "Mizyun_Pixel_9_API_36",
+    "serial": "emulator-5556",
+    "initiallyBooted": false,
+    "appId": "com.mizyun.dev",
+    "version": "1.0.9(9)",
+    "abi": "arm64-v8a",
+    "artifact": "/Users/adam/Documents/mizyun/apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk",
+    "apkSha256": "d71717212ae912eaafe9adbdac4312ab1a12ee016a597d9b024cbec2e90d49ed",
+    "signerSha256": "fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c",
+    "build": "assembleDebug BUILD SUCCESSFUL; process-scoped debug-keystore allowance; no Release artifact",
+    "routing": {
+      "apiUrl": "https://mizyun-api-dev.phiskel.com",
+      "supabaseUrl": "https://mizyun-supabase-dev.phiskel.com",
+      "authRedirectUri": "mizyun-dev://auth/callback"
+    },
+    "uiAcceptance": "pending supported control surface"
+  },
+  "metro": {
+    "port": 8085,
+    "sessionId": 69410,
+    "iosFreshBundle": true,
+    "androidFreshBundle": false
+  },
+  "fixtureScope": "exactly two new synthetic Dev identities, active Community; no global feature changes; delivery remains disabled"
+}

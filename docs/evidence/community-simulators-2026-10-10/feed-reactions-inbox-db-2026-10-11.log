@@ -1,0 +1,117 @@
+BEGIN
+DO
+CREATE EXTENSION
+SET
+1..39
+SELECT 1
+UPDATE 1
+SET
+INSERT 0 6
+UPDATE 6
+INSERT 0 6
+INSERT 0 3
+INSERT 0 3
+INSERT 0 2
+SELECT 1
+INSERT 0 5
+INSERT 0 4
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+GRANT
+SET
+SET
+SET
+INSERT 0 2
+ok 1 - Feed starts at higher UUID when publication microseconds tie
+ok 2 - RPC publication boundary retains all six fractional digits
+ok 3 - Exact cursor traverses equal microseconds by descending UUID
+ok 4 - Exact cursor reaches the next lower microsecond within the same millisecond
+ok 5 - Millisecond-truncated boundary demonstrates the omitted-row failure
+ok 6 - Author RPC preserves the same exact tuple boundary
+RESET
+SET
+INSERT 0 1
+DELETE 1
+SET
+SET
+ok 7 - Insert above cursor and delete below cursor neither repeat prior cards nor skip surviving continuation
+ok 8 - Refresh includes the newly inserted card above the old cursor
+INSERT 0 1
+RESET
+SET
+INSERT 0 1
+ok 9 - Initial reaction creates one identified logical inbox event
+COMMIT
+BEGIN
+SET
+SET
+SET
+SET
+INSERT 0 1
+ok 10 - Fresh authenticated replay preserves the committed reaction identity
+COMMIT
+BEGIN
+SET
+SET
+ok 11 - Fresh transaction reads exactly one active reaction after committed replay
+ok 12 - Committed replay retains exactly one logical notification
+ok 13 - Replay keeps the original notification identity
+ok 14 - Committed replay retains one durable logical dedupe key
+INSERT 0 1
+ok 15 - Original worker claims the committed reaction job
+ok 16 - Restart cannot steal an unexpired worker lease
+UPDATE 1
+INSERT 0 1
+ok 17 - Expired-lease recovery reuses the original outbox job
+ok 18 - Recovered worker receives a new lease identity
+ok 19 - Crashed worker lease cannot dispatch after replacement
+ok 20 - Recovered worker prepares the same opaque logical event
+ok 21 - Worker lease recovery creates no second logical inbox event
+
+UPDATE 1
+INSERT 0 1
+SET
+SET
+SET
+INSERT 0 1
+SET
+ok 22 - Old feed cursor cannot retain an audience after bilateral block
+ok 23 - Old author cursor cannot retain an audience after bilateral block
+ok 24 - Old detail identity cannot bypass bilateral block
+RESET
+SET
+ok 25 - Queued reaction is suppressed when a block intervenes after claim
+ok 26 - Blocked delivery is terminally suppressed
+INSERT 0 1
+INSERT 0 1
+ok 27 - Queued logout fixture is eligible before session revocation
+DELETE 1
+ok 28 - Logout fixture retains token to model failed device deregistration
+ok 29 - Missing Auth session suppresses queued delivery despite retained token
+ok 30 - Session-revoked job is terminally suppressed
+INSERT 0 1
+INSERT 0 1
+ok 31 - Queued deletion fixture is eligible before account erasure
+DELETE 1
+ok 32 - Old claimed identity cannot dispatch after recipient Auth deletion
+ok 33 - Recipient Auth deletion removes queued outbox job
+ok 34 - Recipient Auth deletion removes logical inbox events
+ok 35 - Recipient Auth deletion removes device registry
+INSERT 0 1
+INSERT 0 1
+SET
+SET
+SET
+ok 36 - Independent withdrawn-author fixture is visible under the old tuple before withdrawal
+SET
+
+SET
+ok 37 - Old author cursor cannot bypass author withdrawal
+ok 38 - Old feed cursor rechecks withdrawal after the earlier block
+ok 39 - Old detail identity cannot bypass author withdrawal
+RESET
+SET
+DELETE 5
+UPDATE 1
+COMMIT

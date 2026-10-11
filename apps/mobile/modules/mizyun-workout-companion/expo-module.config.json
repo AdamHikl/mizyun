@@ -1,0 +1,7 @@
+{
+  "platforms": ["ios", "android"],
+  "ios": { "modules": ["MizyunWorkoutCompanionModule"] },
+  "android": {
+    "modules": ["com.mizyun.workoutcompanion.WorkoutCompanionModule"]
+  }
+}

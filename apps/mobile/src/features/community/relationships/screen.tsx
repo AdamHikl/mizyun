@@ -24,7 +24,8 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { MaxContentWidth } from "@/constants/theme";
+import { BottomTabInset, MaxContentWidth } from "@/constants/theme";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CommunityRootHeader } from "../ui";
 import { InitialsAvatar } from "../initials-avatar";
 import { apiClient } from "@/composition/api-client";
@@ -135,6 +136,7 @@ function OwnerRelationships({
   isLifetimeCurrent: () => boolean;
 }) {
   const colors = useTheme();
+  const insets = useSafeAreaInsets();
 
   const community = useCommunityProfile({
     principalKey,
@@ -361,6 +363,16 @@ function OwnerRelationships({
           text: "Confirm",
           onPress: () => {
             if (alive.current && intentCurrent()) void perform(action, row);
+            else if (
+              alive.current &&
+              focused.current &&
+              foreground.current &&
+              isLifetimeCurrent()
+            )
+              Alert.alert(
+                "Relationship needs refreshing",
+                "No action was sent. Refresh the list, then review and confirm your choice again.",
+              );
           },
         },
       ],
@@ -423,380 +435,403 @@ function OwnerRelationships({
     </Pressable>
   );
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: colors.background }}
-      contentContainerStyle={styles.content}
-      refreshControl={
-        <RefreshControl
-          refreshing={state.loading || checkingMembership}
-          onRefresh={() => {
-            if (principalKey && !busy) {
-              invalidateCommunityReads();
-              reload();
-            }
-          }}
-          enabled={!!principalKey && !busy}
-          tintColor={colors.primary}
-        />
-      }
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: colors.background,
+        paddingTop: insets.top,
+        paddingLeft: insets.left,
+        paddingRight: insets.right,
+      }}
     >
-      {reportTarget && (
-        <ReportModal
-          visible
-          targetType="profile"
-          targetId={reportTarget.row.user.userId}
-          targetHandle={reportTarget.row.user.handle}
-          principalKey={principalKey}
-          interactionReceiptId={reportTarget.receiptId}
-          onClose={reload}
-          onSuccess={(_id, blocked) => {
-            if (blocked) {
-              setReportTarget(null);
-              setOptionsUser(null);
-              reload();
-            }
-          }}
-        />
-      )}
-      <CommunityRootHeader selected="people" />
-      {community.isEnrolled && (
-        <View style={styles.search}>
-          <View style={styles.wrap}>
+      <ScrollView
+        style={{ flex: 1, backgroundColor: colors.background }}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: Math.max(48, BottomTabInset) + insets.bottom },
+        ]}
+        keyboardShouldPersistTaps="handled"
+        refreshControl={
+          <RefreshControl
+            refreshing={state.loading || checkingMembership}
+            onRefresh={() => {
+              if (principalKey && !busy) {
+                invalidateCommunityReads();
+                reload();
+              }
+            }}
+            enabled={!!principalKey && !busy}
+            tintColor={colors.primary}
+          />
+        }
+      >
+        {reportTarget && (
+          <ReportModal
+            visible
+            targetType="profile"
+            targetId={reportTarget.row.user.userId}
+            targetHandle={reportTarget.row.user.handle}
+            principalKey={principalKey}
+            interactionReceiptId={reportTarget.receiptId}
+            onClose={reload}
+            onSuccess={(_id, blocked) => {
+              if (blocked) {
+                setReportTarget(null);
+                setOptionsUser(null);
+                reload();
+              }
+            }}
+          />
+        )}
+        <CommunityRootHeader selected="people" />
+        {community.isEnrolled && (
+          <View style={styles.search}>
+            <View style={styles.wrap}>
+              <Text
+                accessibilityRole="header"
+                style={[styles.title, { color: colors.text }]}
+              >
+                Find a person
+              </Text>
+              <Link
+                href={"/community/invite" as Href}
+                style={[styles.findLink, { color: colors.primary }]}
+              >
+                Invite a friend
+              </Link>
+            </View>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+              Search their exact @handle. They choose whether to allow handle
+              search.
+            </Text>
+            <TextInput
+              accessibilityLabel="Exact friend handle"
+              placeholder="@handle"
+              placeholderTextColor={colors.textSecondary}
+              autoCapitalize="none"
+              autoCorrect={false}
+              maxLength={25}
+              value={query}
+              editable={!searchBusy}
+              onChangeText={(value) => {
+                setQuery(value);
+                clearSearch();
+              }}
+              style={[
+                styles.input,
+                { color: colors.text, borderColor: colors.border },
+              ]}
+            />
+            {button(
+              "Find exact handle",
+              () => {
+                void (async () => {
+                  clearSearch();
+                  const revision = searchRevision.current;
+                  const intent = controller.captureIntent();
+                  const deadline = Date.now() + 10_000;
+                  const current = () =>
+                    alive.current &&
+                    intent() &&
+                    revision === searchRevision.current &&
+                    Date.now() < deadline;
+                  if (!current() || !principalKey) return;
+                  setSearchBusy(true);
+                  const result = await searchCommunityProfiles(
+                    scopeCommunityClient(apiClient, principalKey, current),
+                    query,
+                    1,
+                  );
+                  if (!current()) {
+                    if (revision === searchRevision.current) {
+                      setSearchBusy(false);
+                      setSearchError("Profile access changed. Search again.");
+                    }
+                    return;
+                  }
+                  setSearchBusy(false);
+                  if (!result.ok)
+                    setSearchError(humanizeCommunityError(result.error));
+                  else {
+                    setSearchResult(result.value.profiles[0] ?? null);
+                    if (!result.value.profiles.length)
+                      setSearchError(
+                        "No discoverable profile is available for that handle.",
+                      );
+                  }
+                  searchTimer.current = setTimeout(
+                    clearSearch,
+                    Math.max(0, deadline - Date.now()),
+                  );
+                })();
+              },
+              busy || searchBusy || !query.trim(),
+              true,
+            )}
+            {searchError && (
+              <Text
+                accessibilityLiveRegion="polite"
+                style={{ color: colors.textSecondary }}
+              >
+                {searchError}
+              </Text>
+            )}
+            {searchResult && (
+              <Link
+                href={`/community/profile/${searchResult.userId}` as Href}
+                accessibilityLabel={`View @${searchResult.handle} profile`}
+                style={[styles.findLink, { color: colors.primary }]}
+              >
+                {searchResult.displayName} · @{searchResult.handle} →
+              </Link>
+            )}
+          </View>
+        )}
+        <View style={styles.tabs} accessibilityRole="tablist">
+          {select("incoming", "Requests", requestsList)}
+          {select("following", "Following", state.list === "following")}
+          {select("followers", "Followers", state.list === "followers")}
+        </View>
+        {requestsList && (
+          <View style={styles.wrap} accessibilityLabel="Request direction">
+            {select("incoming", "Received", state.list === "incoming", true)}
+            {select("outgoing", "Sent", state.list === "outgoing", true)}
+          </View>
+        )}
+        {!community.isEnrolled && !checkingMembership && (
+          <Text
+            accessibilityLiveRegion="polite"
+            style={{ color: colors.textSecondary }}
+          >
+            {community.error ??
+              "Join Community to manage follows. Your safety lists remain available."}
+          </Text>
+        )}
+        <View style={styles.section}>
+          {safetyList && (
             <Text
               accessibilityRole="header"
               style={[styles.title, { color: colors.text }]}
             >
-              Find a person
+              {info.title}
             </Text>
-            <Link
-              href={"/community/invite" as Href}
-              style={[styles.findLink, { color: colors.primary }]}
-            >
-              Invite a friend
-            </Link>
-          </View>
+          )}
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            Search their exact @handle. They choose whether to allow handle
-            search.
+            {info.description}
           </Text>
-          <TextInput
-            accessibilityLabel="Exact friend handle"
-            placeholder="@handle"
-            placeholderTextColor={colors.textSecondary}
-            autoCapitalize="none"
-            autoCorrect={false}
-            maxLength={25}
-            value={query}
-            editable={!searchBusy}
-            onChangeText={(value) => {
-              setQuery(value);
-              clearSearch();
-            }}
-            style={[
-              styles.input,
-              { color: colors.text, borderColor: colors.border },
-            ]}
-          />
-          {button(
-            "Find exact handle",
-            () => {
-              void (async () => {
-                clearSearch();
-                const revision = searchRevision.current;
-                const intent = controller.captureIntent();
-                const deadline = Date.now() + 10_000;
-                const current = () =>
-                  alive.current &&
-                  intent() &&
-                  revision === searchRevision.current &&
-                  Date.now() < deadline;
-                if (!current() || !principalKey) return;
-                setSearchBusy(true);
-                const result = await searchCommunityProfiles(
-                  scopeCommunityClient(apiClient, principalKey, current),
-                  query,
-                  1,
-                );
-                if (!current()) {
-                  if (revision === searchRevision.current) {
-                    setSearchBusy(false);
-                    setSearchError("Profile access changed. Search again.");
-                  }
-                  return;
-                }
-                setSearchBusy(false);
-                if (!result.ok)
-                  setSearchError(humanizeCommunityError(result.error));
-                else {
-                  setSearchResult(result.value.profiles[0] ?? null);
-                  if (!result.value.profiles.length)
-                    setSearchError(
-                      "No discoverable profile is available for that handle.",
-                    );
-                }
-                searchTimer.current = setTimeout(
-                  clearSearch,
-                  Math.max(0, deadline - Date.now()),
-                );
-              })();
-            },
-            busy || searchBusy || !query.trim(),
-            true,
-          )}
-          {searchError && (
-            <Text
-              accessibilityLiveRegion="polite"
-              style={{ color: colors.textSecondary }}
-            >
-              {searchError}
-            </Text>
-          )}
-          {searchResult && (
-            <Link
-              href={`/community/profile/${searchResult.userId}` as Href}
-              accessibilityLabel={`View @${searchResult.handle} profile`}
-              style={[styles.findLink, { color: colors.primary }]}
-            >
-              {searchResult.displayName} · @{searchResult.handle} →
-            </Link>
-          )}
         </View>
-      )}
-      <View style={styles.tabs} accessibilityRole="tablist">
-        {select("incoming", "Requests", requestsList)}
-        {select("following", "Following", state.list === "following")}
-        {select("followers", "Followers", state.list === "followers")}
-      </View>
-      {requestsList && (
-        <View style={styles.wrap} accessibilityLabel="Request direction">
-          {select("incoming", "Received", state.list === "incoming", true)}
-          {select("outgoing", "Sent", state.list === "outgoing", true)}
-        </View>
-      )}
-      {!community.isEnrolled && !checkingMembership && (
-        <Text
-          accessibilityLiveRegion="polite"
-          style={{ color: colors.textSecondary }}
-        >
-          {community.error ??
-            "Join Community to manage follows. Your safety lists remain available."}
-        </Text>
-      )}
-      <View style={styles.section}>
-        {safetyList && (
-          <Text
-            accessibilityRole="header"
-            style={[styles.title, { color: colors.text }]}
-          >
-            {info.title}
+        {state.notice && (
+          <Text accessibilityLiveRegion="polite" style={{ color: colors.text }}>
+            {state.notice}
           </Text>
         )}
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          {info.description}
-        </Text>
-      </View>
-      {state.notice && (
-        <Text accessibilityLiveRegion="polite" style={{ color: colors.text }}>
-          {state.notice}
-        </Text>
-      )}
-      {state.error && (
-        <Text accessibilityRole="alert" style={{ color: colors.text }}>
-          {state.error}
-        </Text>
-      )}
-      {(state.loading || checkingMembership) && (
-        <ActivityIndicator
-          accessibilityLabel={
-            checkingMembership
-              ? "Checking Community access"
-              : "Loading your friends"
-          }
-          color={colors.primary}
-        />
-      )}
-      {(state.error || community.status === "error") &&
-        button("Try again", reload, busy || !principalKey)}
-      {enabled && !busy && !state.error && state.rows.length === 0 && (
-        <View style={styles.empty}>
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>
-            {info.empty}
+        {state.error && (
+          <Text accessibilityRole="alert" style={{ color: colors.text }}>
+            {state.error}
           </Text>
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            {info.hint}
-          </Text>
-          {community.isEnrolled &&
-            ["incoming", "outgoing", "following"].includes(state.list) && (
-              <Link
-                href={"/community/invite" as Href}
-                accessibilityRole="link"
-                style={[styles.findLink, { color: colors.primary }]}
-              >
-                Find friends →
-              </Link>
-            )}
-        </View>
-      )}
-      {enabled &&
-        state.rows.map((row) => (
-          <View
-            key={row.user.userId}
-            style={[
-              styles.card,
-              {
-                backgroundColor: colors.background,
-                borderColor: colors.border,
-              },
-            ]}
-          >
-            <View style={styles.identity}>
-              <InitialsAvatar
-                symbol={row.user.avatarSymbol}
-                seed={row.user.handle}
-                size={44}
-              />
-              <Link
-                href={`/community/profile/${row.user.userId}` as Href}
-                asChild
-                disabled={busy || state.list === "blocked"}
-              >
-                <Pressable
+        )}
+        {(state.loading || checkingMembership) && (
+          <ActivityIndicator
+            accessibilityLabel={
+              checkingMembership
+                ? "Checking Community access"
+                : "Loading your friends"
+            }
+            color={colors.primary}
+          />
+        )}
+        {(state.error || community.status === "error") &&
+          button("Try again", reload, busy || !principalKey)}
+        {enabled && !busy && !state.error && state.rows.length === 0 && (
+          <View style={styles.empty}>
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>
+              {info.empty}
+            </Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+              {info.hint}
+            </Text>
+            {community.isEnrolled &&
+              ["incoming", "outgoing", "following"].includes(state.list) && (
+                <Link
+                  href={"/community/invite" as Href}
                   accessibilityRole="link"
-                  accessibilityLabel={`View @${row.user.handle} profile`}
-                  disabled={busy || state.list === "blocked"}
-                  style={styles.name}
+                  style={[styles.findLink, { color: colors.primary }]}
                 >
-                  <Text style={[styles.emptyTitle, { color: colors.text }]}>
-                    {row.user.displayName}
-                  </Text>
-                  <Text style={{ color: colors.textSecondary }}>
-                    @{row.user.handle}
+                  Find friends →
+                </Link>
+              )}
+          </View>
+        )}
+        {enabled &&
+          state.rows.map((row) => (
+            <View
+              key={row.user.userId}
+              style={[
+                styles.card,
+                {
+                  backgroundColor: colors.background,
+                  borderColor: colors.border,
+                },
+              ]}
+            >
+              <View style={styles.identity}>
+                <InitialsAvatar
+                  symbol={row.user.avatarSymbol}
+                  seed={row.user.handle}
+                  size={44}
+                />
+                <Link
+                  href={`/community/profile/${row.user.userId}` as Href}
+                  asChild
+                  disabled={busy || state.list === "blocked"}
+                >
+                  <Pressable
+                    accessibilityRole="link"
+                    accessibilityLabel={`View @${row.user.handle} profile`}
+                    disabled={busy || state.list === "blocked"}
+                    style={styles.name}
+                  >
+                    <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                      {row.user.displayName}
+                    </Text>
+                    <Text style={{ color: colors.textSecondary }}>
+                      @{row.user.handle}
+                    </Text>
+                  </Pressable>
+                </Link>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Options for @${row.user.handle}`}
+                  disabled={busy}
+                  onPress={() =>
+                    setOptionsUser(
+                      optionsUser === row.user.userId ? null : row.user.userId,
+                    )
+                  }
+                  accessibilityState={{
+                    disabled: busy,
+                    expanded: optionsUser === row.user.userId,
+                  }}
+                  style={styles.options}
+                >
+                  <Text
+                    style={[styles.buttonText, { color: colors.textSecondary }]}
+                  >
+                    •••
                   </Text>
                 </Pressable>
-              </Link>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Options for @${row.user.handle}`}
-                disabled={busy}
-                onPress={() =>
-                  setOptionsUser(
-                    optionsUser === row.user.userId ? null : row.user.userId,
-                  )
-                }
-                accessibilityState={{
-                  disabled: busy,
-                  expanded: optionsUser === row.user.userId,
-                }}
-                style={styles.options}
-              >
-                <Text
-                  style={[styles.buttonText, { color: colors.textSecondary }]}
-                >
-                  •••
-                </Text>
-              </Pressable>
-            </View>
-            {state.list === "followers" && (
-              <View style={styles.wrap}>
-                {row.outgoingFollowStatus === "none" &&
-                  button(
-                    "Follow back",
-                    () => confirm("follow", row),
-                    busy,
-                    true,
-                    `Follow back @${row.user.handle}`,
-                    "Sends a follow request. They must approve before you can see their shared workouts.",
+              </View>
+              {state.list === "followers" && (
+                <View style={styles.wrap}>
+                  {row.outgoingFollowStatus === "none" &&
+                    button(
+                      "Follow back",
+                      () => confirm("follow", row),
+                      busy,
+                      true,
+                      `Follow back @${row.user.handle}`,
+                      "Sends a follow request. They must approve before you can see their shared workouts.",
+                    )}
+                  {row.outgoingFollowStatus === "pending" && (
+                    <Text
+                      style={[
+                        styles.buttonText,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
+                      Requested · Waiting for approval
+                    </Text>
                   )}
-                {row.outgoingFollowStatus === "pending" && (
-                  <Text
-                    style={[styles.buttonText, { color: colors.textSecondary }]}
-                  >
-                    Requested · Waiting for approval
-                  </Text>
-                )}
-                {row.outgoingFollowStatus === "approved" && (
-                  <Text
-                    style={[styles.buttonText, { color: colors.textSecondary }]}
-                  >
-                    Following
-                  </Text>
-                )}
-              </View>
-            )}
-            {optionsUser === row.user.userId && (
-              <View
-                style={[
-                  styles.wrap,
-                  styles.rowOptions,
-                  { borderColor: colors.border },
-                ]}
-              >
-                {state.list === "following" && [
-                  button("Mute", () => confirm("mute", row)),
-                  button("Unfollow", () => confirm("unfollow", row)),
-                ]}
-                {state.list === "followers" &&
-                  button("Remove follower", () => confirm("remove", row))}
-                {button("Report profile or handle", () => void openReport(row))}
-                {state.list !== "blocked" &&
-                  button("Block", () => confirm("block", row))}
-              </View>
-            )}
-            {state.list === "incoming" && (
-              <View style={styles.wrap}>
-                {button("Approve", () => confirm("approve", row), busy, true)}
-                {button("Decline", () => confirm("decline", row))}
-              </View>
-            )}
-            {state.list === "outgoing" && (
-              <View style={styles.wrap}>
-                {button("Cancel request", () => confirm("cancel", row))}
-              </View>
-            )}
-            {state.list === "blocked" &&
-              button("Unblock", () => confirm("unblock", row))}
-            {state.list === "muted" &&
-              button("Unmute", () => confirm("unmute", row))}
-          </View>
-        ))}
-      {state.cursor &&
-        button("Load more", () => void controller.load(state.list, true))}
-      {safetyList ? (
-        <Text style={[styles.buttonText, { color: colors.textSecondary }]}>
-          Safety & preferences
-        </Text>
-      ) : (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ expanded: showSafety || safetyList }}
-          onPress={() => {
-            if (safetyList) {
-              setShowSafety(true);
-            } else setShowSafety(!showSafety);
-          }}
-          style={styles.safetyToggle}
-        >
+                  {row.outgoingFollowStatus === "approved" && (
+                    <Text
+                      style={[
+                        styles.buttonText,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
+                      Following
+                    </Text>
+                  )}
+                </View>
+              )}
+              {optionsUser === row.user.userId && (
+                <View
+                  style={[
+                    styles.wrap,
+                    styles.rowOptions,
+                    { borderColor: colors.border },
+                  ]}
+                >
+                  {state.list === "following" && [
+                    button("Mute", () => confirm("mute", row)),
+                    button("Unfollow", () => confirm("unfollow", row)),
+                  ]}
+                  {state.list === "followers" &&
+                    button("Remove follower", () => confirm("remove", row))}
+                  {button(
+                    "Report profile or handle",
+                    () => void openReport(row),
+                  )}
+                  {state.list !== "blocked" &&
+                    button("Block", () => confirm("block", row))}
+                </View>
+              )}
+              {state.list === "incoming" && (
+                <View style={styles.wrap}>
+                  {button("Approve", () => confirm("approve", row), busy, true)}
+                  {button("Decline", () => confirm("decline", row))}
+                </View>
+              )}
+              {state.list === "outgoing" && (
+                <View style={styles.wrap}>
+                  {button("Cancel request", () => confirm("cancel", row))}
+                </View>
+              )}
+              {state.list === "blocked" &&
+                button("Unblock", () => confirm("unblock", row))}
+              {state.list === "muted" &&
+                button("Unmute", () => confirm("unmute", row))}
+            </View>
+          ))}
+        {state.cursor &&
+          button("Load more", () => void controller.load(state.list, true))}
+        {safetyList ? (
           <Text style={[styles.buttonText, { color: colors.textSecondary }]}>
-            Safety & preferences {showSafety || safetyList ? "−" : "+"}
+            Safety & preferences
           </Text>
-        </Pressable>
-      )}
-      {(showSafety || safetyList) && (
-        <View style={[styles.safetyPanel, { borderColor: colors.border }]}>
-          <View style={styles.wrap} accessibilityRole="tablist">
-            {select("muted", "Muted", state.list === "muted")}
-            {select("blocked", "Blocked", state.list === "blocked")}
-          </View>
-          <Link
-            href={"/community/safety" as Href}
-            accessibilityRole="link"
-            style={[styles.findLink, { color: colors.primary }]}
+        ) : (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showSafety || safetyList }}
+            onPress={() => {
+              if (safetyList) {
+                setShowSafety(true);
+              } else setShowSafety(!showSafety);
+            }}
+            style={styles.safetyToggle}
           >
-            Reports, appeals & safety contact →
-          </Link>
-        </View>
-      )}
-    </ScrollView>
+            <Text style={[styles.buttonText, { color: colors.textSecondary }]}>
+              Safety & preferences {showSafety || safetyList ? "−" : "+"}
+            </Text>
+          </Pressable>
+        )}
+        {(showSafety || safetyList) && (
+          <View style={[styles.safetyPanel, { borderColor: colors.border }]}>
+            <View style={styles.wrap} accessibilityRole="tablist">
+              {select("muted", "Muted", state.list === "muted")}
+              {select("blocked", "Blocked", state.list === "blocked")}
+            </View>
+            <Link
+              href={"/community/safety" as Href}
+              accessibilityRole="link"
+              style={[styles.findLink, { color: colors.primary }]}
+            >
+              Reports, appeals & safety contact →
+            </Link>
+          </View>
+        )}
+      </ScrollView>
+    </View>
   );
 }
 const styles = StyleSheet.create({

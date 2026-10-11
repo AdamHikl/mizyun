@@ -1,0 +1,111 @@
+{
+  "stage": "restored",
+  "checkpoints": [
+    {
+      "at": "2026-10-11T14:08:20.095Z",
+      "detailHTTP": 200,
+      "feedCount": 1,
+      "cardFound": true,
+      "viewerReaction": null,
+      "counts": {
+        "clap": 0,
+        "fire": 0,
+        "high_five": 0,
+        "fist_bump": 0,
+        "thumbs_up": 0
+      },
+      "inboxCount": 0,
+      "reactionEvents": 0
+    },
+    {
+      "at": "2026-10-11T14:11:25.155Z",
+      "detailHTTP": 200,
+      "feedCount": 1,
+      "cardFound": true,
+      "viewerReaction": "clap",
+      "counts": {
+        "clap": 1,
+        "fire": 0,
+        "high_five": 0,
+        "fist_bump": 0,
+        "thumbs_up": 0
+      },
+      "inboxCount": 1,
+      "reactionEvents": 1
+    },
+    {
+      "at": "2026-10-11T14:19:53.251Z",
+      "detailHTTP": 200,
+      "feedCount": 1,
+      "cardFound": true,
+      "viewerReaction": "clap",
+      "counts": {
+        "clap": 1,
+        "fire": 0,
+        "high_five": 0,
+        "fist_bump": 0,
+        "thumbs_up": 0
+      },
+      "inboxCount": 1,
+      "readEvents": 1,
+      "reactionEvents": 1
+    },
+    {
+      "at": "2026-10-11T14:33:10.909Z",
+      "detailHTTP": 200,
+      "feedCount": 1,
+      "cardFound": true,
+      "viewerReaction": null,
+      "counts": {
+        "clap": 0,
+        "fire": 0,
+        "high_five": 0,
+        "fist_bump": 0,
+        "thumbs_up": 0
+      },
+      "inboxCount": 0,
+      "readEvents": 0,
+      "reactionEvents": 0
+    },
+    {
+      "at": "2026-10-11T14:44:56.517Z",
+      "detailHTTP": 404,
+      "feedCount": 0,
+      "cardFound": false,
+      "viewerReaction": null,
+      "counts": null,
+      "inboxCount": 0,
+      "readEvents": 0,
+      "reactionEvents": 0
+    }
+  ],
+  "final": {
+    "active": true,
+    "counts": [0, 0, 0, 0, 0]
+  },
+  "privateSourceRetained": true,
+  "sourceQualification": "Normal owner-auth cleanup/corroboration; not fresh native withdrawal/private Food acceptance",
+  "issueStates": {
+    "146": "CLOSED/status:done",
+    "147": "CLOSED/status:done",
+    "149": "CLOSED/status:done"
+  },
+  "pending": {
+    "deployment": "Exact b60bf9b27fd6af2b4e3e4de906975cb86d51617e push/Dev deployment approval pending; new cursor not live accepted",
+    "provider": "External configuration/receipts/lifecycle delivery gate OPEN under137, delivery disabled"
+  },
+  "parentGates": [
+    "https://github.com/AdamHikl/mizyun/issues/137#issuecomment-6110214566",
+    "https://github.com/AdamHikl/mizyun/issues/137#issuecomment-6110156719"
+  ],
+  "resources": {
+    "native": "Both retained actors on normal draft-free Home, no extrafeature checks",
+    "metro76176": "stopped, no8085listener",
+    "awake8840": "stopped",
+    "A": "Shutdown, initiallyShutdown/taskbooted",
+    "B": "Booted, initiallyBooted",
+    "notificationA": "User-approvedOFF intentionallyretained",
+    "authPrivateData": "retained",
+    "unrelatedServices": "untouched"
+  }
+}

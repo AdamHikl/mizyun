@@ -14,8 +14,8 @@ from datetime import datetime
 
 UUID = re.compile(r'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$')
 HASH = re.compile(r'^[a-f0-9]{64}$')
-KINDS = {'withdrawal', 'account_erasure', 'block', 'sanction', 'activity', 'routine', 'media', 'comment', 'message', 'relationship', 'invitation', 'source_workout', 'group', 'group_post', 'challenge', 'group_membership', 'messaging_optout', 'discovery_optout', 'reaction', 'challenge_membership', 'challenge_contribution'}
-GENERATION_REQUIRED = {'withdrawal', 'activity', 'routine', 'media', 'comment', 'message', 'invitation', 'group_post', 'group_membership', 'messaging_optout', 'discovery_optout', 'challenge_membership'}
+KINDS = {'withdrawal', 'account_erasure', 'block', 'sanction', 'activity', 'routine', 'media', 'comment', 'message', 'relationship', 'invitation', 'source_workout', 'group', 'group_post', 'challenge', 'group_membership', 'messaging_optout', 'discovery_optout', 'reaction', 'challenge_membership', 'challenge_contribution', 'mute', 'mention_optout', 'comment_setting_optout', 'notification_optout'}
+GENERATION_REQUIRED = {'withdrawal', 'activity', 'routine', 'media', 'comment', 'message', 'invitation', 'group_post', 'group_membership', 'messaging_optout', 'discovery_optout', 'challenge_membership', 'mute', 'mention_optout', 'comment_setting_optout', 'notification_optout'}
 MAX_JOURNAL = 32 * 1024 * 1024
 
 
@@ -57,7 +57,9 @@ def validate_event(event):
     timestamp = datetime.fromisoformat(event['created_at'].replace('Z', '+00:00'))
     if timestamp.tzinfo is None:
         raise ValueError('Event timestamp requires offset')
-    if (event['kind'] in GENERATION_REQUIRED and event['generation'] is None) or (event['kind'] != 'withdrawal' and event['target_id'] is None) or (event['kind'] in ('block', 'relationship') and (event['related_user_id'] is None or event['related_user_id'] == event['user_id'])):
+    if (event['kind'] in GENERATION_REQUIRED and event['generation'] is None) or (event['kind'] != 'withdrawal' and event['target_id'] is None) or (event['kind'] in ('block', 'relationship', 'mute') and (event['related_user_id'] is None or event['related_user_id'] == event['user_id'])):
+        raise ValueError('Invalid revocation scope')
+    if (event['kind'] == 'mute' and event['target_id'] != event['related_user_id']) or (event['kind'] in ('mention_optout', 'comment_setting_optout', 'notification_optout') and event['related_user_id'] is not None) or (event['kind'] in ('mention_optout', 'notification_optout') and event['target_id'] != event['user_id']):
         raise ValueError('Invalid revocation scope')
     return event
 

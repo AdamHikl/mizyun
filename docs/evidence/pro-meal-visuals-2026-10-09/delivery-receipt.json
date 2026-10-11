@@ -1,0 +1,25 @@
+{
+  "source_sha": "4fa20a882d6d8c8fd446d07e55208b18240d8b22",
+  "branch": "codex/automatic-meal-illustrations-dev",
+  "dev_checkout_pristine": true,
+  "api_port": 4100,
+  "pid": 215860,
+  "instance_id": "400fecb1-5455-437d-a87a-f60b8aab8004",
+  "database_host_port": 5433,
+  "migration": "20261009150000",
+  "migration_sha256": "68e971193920f0f4d483606a1a56e2a1ef071d88ef545d9393cb90c0b6f281df",
+  "new_table": "food_media_paths",
+  "rls_and_owner_index": true,
+  "public_readiness": {
+    "ready": true,
+    "database": true,
+    "auth": true,
+    "storage": true
+  },
+  "unauthenticated_visual_capability_http": 401,
+  "generation_enabled": false,
+  "deployment_check_input_sha256": "35a5f50e22499617181b0b8f40ea767f7e05e6dfcdfd7511335eaae55208983f",
+  "iphone_state": "unavailable",
+  "updated_iphone_installed": false,
+  "production_changed": false
+}

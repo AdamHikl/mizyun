@@ -1007,3 +1007,49 @@ it("saves one-time selections without inventing targets and reloads them before 
     extractPlannedExercises(recovered.workout).map((exercise) => exercise.name),
   ).toEqual([EXERCISE.name]);
 });
+
+it("preserves a watch command's set sequence and observed timestamp at the real request boundary", async () => {
+  const requests: RequestOptions[] = [];
+  await addWorkoutSetWith(
+    queuedClient([{ ok: true, value: { workoutSet: {} } }], requests),
+    WORKOUT_ID,
+    {
+      exerciseId: EXERCISE_ID,
+      repetitions: "8",
+      load: "50",
+      durationSeconds: "",
+      distanceMeters: "",
+      perceivedExertion: "",
+      unitSystem: "metric",
+      sequence: 7,
+      completedAt: "2026-10-09T10:00:00.000Z",
+    },
+    () => NOW,
+  );
+  expect(requests[0]?.body).toMatchObject({
+    sequence: 7,
+    completedAt: "2026-10-09T10:00:00.000Z",
+    repetitions: 8,
+    loadKg: 50,
+  });
+});
+
+it("saves watch kilograms exactly without a rounded imperial display round-trip", async () => {
+  const requests: RequestOptions[] = [];
+  await addWorkoutSetWith(
+    queuedClient([{ ok: true, value: { workoutSet: {} } }], requests),
+    WORKOUT_ID,
+    {
+      exerciseId: EXERCISE_ID,
+      repetitions: "8",
+      load: "110.23",
+      canonicalLoadKg: 50,
+      durationSeconds: "",
+      distanceMeters: "",
+      perceivedExertion: "",
+      unitSystem: "imperial",
+    },
+    () => NOW,
+  );
+  expect(requests[0]?.body).toMatchObject({ loadKg: 50 });
+});

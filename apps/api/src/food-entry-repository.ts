@@ -27,6 +27,13 @@ import type {
  * Supabase stack, not this in-memory implementation.
  */
 export class InMemoryFoodEntryRepository implements FoodEntryRepository {
+  #sourceChanged: ((userId: UserId, id: string) => void) | null = null;
+  /** Fake parity with the SQL illustration source trigger; no provider call. */
+  setSourceChangeObserverForTest(
+    observer: (userId: UserId, id: string) => void,
+  ): void {
+    this.#sourceChanged = observer;
+  }
   readonly #byUser = new Map<UserId, StoredFoodEntry[]>();
   readonly #byId = new Map<string, StoredFoodEntry>();
 
@@ -148,6 +155,11 @@ export class InMemoryFoodEntryRepository implements FoodEntryRepository {
     next[idx] = entry;
     this.#byUser.set(owner, next);
     this.#byId.set(entry.id, entry);
+    if (
+      existing.name !== entry.name ||
+      existing.photoAssetId !== entry.photoAssetId
+    )
+      this.#sourceChanged?.(owner, entry.id);
     return entry;
   }
 
@@ -165,6 +177,7 @@ export class InMemoryFoodEntryRepository implements FoodEntryRepository {
       list.filter((entry) => entry.id !== id),
     );
     this.#byId.delete(id);
+    this.#sourceChanged?.(owner, id);
     return true;
   }
 

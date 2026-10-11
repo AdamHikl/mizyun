@@ -10,13 +10,36 @@ import {
   DisabledAgentProvider,
 } from "@mizyun/agent-runtime";
 import { InMemoryMemoryStore } from "@mizyun/memory";
+import { InMemoryProfileRepository } from "../../profile-repository.js";
+import { InMemoryBetaProRepository } from "../../beta-pro-repository.js";
 const userId = "00000000-0000-4000-8000-000000000001" as UserId;
 const mealId = "00000000-0000-4000-8000-000000000003";
 const apps: ReturnType<typeof buildApp>[] = [];
 afterEach(async () => {
   await Promise.all(apps.splice(0).map((a) => a.close()));
 });
-const build = (enabled = true) => {
+const build = (
+  enabled = true,
+  planTier: "paid" | "free" = "paid",
+  betaStatus?: "pending" | "approved" | "rejected",
+) => {
+  const profile = new InMemoryProfileRepository({
+    defaultTimezone: "UTC",
+    defaultUnitSystem: "metric",
+    defaultPlanTier: planTier,
+  });
+  const beta = new InMemoryBetaProRepository();
+  if (betaStatus)
+    beta.__seedForTest({
+      id: crypto.randomUUID(),
+      userId,
+      email: "synthetic@example.test",
+      status: betaStatus,
+      notes: null,
+      pushToken: null,
+      createdAt: new Date(),
+      reviewedAt: null,
+    });
   const service: MealPhotoService = {
     save: vi.fn().mockResolvedValue({ assetId: mealId, width: 1, height: 1 }),
     get: vi.fn().mockResolvedValue(null),
@@ -36,9 +59,11 @@ const build = (enabled = true) => {
     }),
     mealPhotosEnabled: enabled,
     mealPhotoService: service,
+    profileRepository: profile,
+    betaProRepository: beta,
   });
   apps.push(app);
-  return { app, service };
+  return { app, service, profile, beta };
 };
 const payload = {
   clientOperationId: mealId,
@@ -48,6 +73,86 @@ const payload = {
   height: 1,
 };
 describe("Dev private meal photos", () => {
+  it("blocks Free image reads and retention without touching media, while allowing erase", async () => {
+    const { app, service } = build(true, "free");
+    for (const method of ["GET", "POST"] as const) {
+      const response = await app.inject({
+        method,
+        url: `/v1/food-entries/${mealId}/photo`,
+        headers: { authorization: "Bearer owner" },
+        ...(method === "POST" ? { payload } : {}),
+      });
+      expect(response.statusCode).toBe(403);
+    }
+    expect(service.get).not.toHaveBeenCalled();
+    expect(service.save).not.toHaveBeenCalled();
+    expect(
+      (
+        await app.inject({
+          method: "DELETE",
+          url: `/v1/food-entries/${mealId}/photo`,
+          headers: { authorization: "Bearer owner" },
+        })
+      ).statusCode,
+    ).toBe(204);
+    expect(service.remove).toHaveBeenCalled();
+  });
+  it("visual capability follows paid or approved pass independently of provider/photo enablement", async () => {
+    for (const [tier, pass, allowed] of [
+      ["free", undefined, false],
+      ["paid", undefined, true],
+      ["free", "approved", true],
+      ["free", "rejected", false],
+      ["free", "pending", false],
+    ] as const) {
+      const { app } = build(false, tier, pass);
+      const response = await app.inject({
+        method: "GET",
+        url: "/v1/food-entries/visuals/capability",
+        headers: { authorization: "Bearer owner" },
+      });
+      expect(response.json()).toEqual({ mealVisuals: allowed });
+      expect(response.headers["cache-control"]).toBe("no-store");
+    }
+    expect(
+      (
+        await build().app.inject({
+          method: "GET",
+          url: "/v1/food-entries/visuals/capability",
+        })
+      ).statusCode,
+    ).toBe(401);
+  });
+  it("hides a photo if downgrade occurs while the signed read is in flight", async () => {
+    const { app, service, profile } = build();
+    vi.mocked(service.get).mockImplementation(async () => {
+      const current = await profile.getOrCreate(userId, {
+        accessToken: "owner",
+        now: new Date(),
+      });
+      await profile.update(
+        userId,
+        { ...current, planTier: "free" },
+        { accessToken: "owner" },
+      );
+      return {
+        assetId: mealId,
+        width: 1,
+        height: 1,
+        signedUrl: "https://synthetic.test/image",
+        expiresAt: new Date().toISOString(),
+      };
+    });
+    expect(
+      (
+        await app.inject({
+          method: "GET",
+          url: `/v1/food-entries/${mealId}/photo`,
+          headers: { authorization: "Bearer owner" },
+        })
+      ).statusCode,
+    ).toBe(403);
+  });
   it("denies disabled feature without touching storage", async () => {
     const { app, service } = build(false);
     const response = await app.inject({
@@ -58,6 +163,16 @@ describe("Dev private meal photos", () => {
     });
     expect(response.statusCode).toBe(404);
     expect(service.save).not.toHaveBeenCalled();
+    expect(
+      (
+        await app.inject({
+          method: "DELETE",
+          url: `/v1/food-entries/${mealId}/photo`,
+          headers: { authorization: "Bearer owner" },
+        })
+      ).statusCode,
+    ).toBe(204);
+    expect(service.remove).toHaveBeenCalledOnce();
   });
   it("requires authentication and passes captured ownership", async () => {
     const { app, service } = build();

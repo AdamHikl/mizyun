@@ -45,6 +45,10 @@ const KINDS = new Set([
   "reaction",
   "challenge_membership",
   "challenge_contribution",
+  "mute",
+  "mention_optout",
+  "comment_setting_optout",
+  "notification_optout",
 ]);
 const GENERATION_REQUIRED = new Set([
   "withdrawal",
@@ -59,6 +63,10 @@ const GENERATION_REQUIRED = new Set([
   "messaging_optout",
   "discovery_optout",
   "challenge_membership",
+  "mute",
+  "mention_optout",
+  "comment_setting_optout",
+  "notification_optout",
 ]);
 const MAX_JOURNAL_BYTES = 32 * 1024 * 1024;
 export const digest = (value) =>
@@ -87,8 +95,17 @@ export function validateEvent(raw) {
   if (
     (GENERATION_REQUIRED.has(raw.kind) && raw.generation === null) ||
     (raw.kind !== "withdrawal" && raw.target_id === null) ||
-    (["block", "relationship"].includes(raw.kind) &&
-      (raw.related_user_id === null || raw.related_user_id === raw.user_id))
+    (["block", "relationship", "mute"].includes(raw.kind) &&
+      (raw.related_user_id === null || raw.related_user_id === raw.user_id)) ||
+    (raw.kind === "mute" && raw.target_id !== raw.related_user_id) ||
+    ([
+      "mention_optout",
+      "comment_setting_optout",
+      "notification_optout",
+    ].includes(raw.kind) &&
+      raw.related_user_id !== null) ||
+    (["mention_optout", "notification_optout"].includes(raw.kind) &&
+      raw.target_id !== raw.user_id)
   )
     throw new Error("Invalid revocation scope");
   return {

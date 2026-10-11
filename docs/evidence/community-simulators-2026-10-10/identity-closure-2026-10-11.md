@@ -1,0 +1,49 @@
+# #142 Identity closure — 2026-10-11
+
+GitHub **CLOSED/status:done**, verified after closure: [#142 closure record](https://github.com/AdamHikl/mizyun/issues/142#issuecomment-6108711100). Selected inventory now 7 closed / 20 open.
+
+Adam requested implementation, simulator verification and closure of #142, and explicitly accepts passed iOS simulator actions without a physical-device repeat. The implementation already exists; this continuation completed the missing native refusal/re-enrollment/stable-block checks. No Identity runtime edits, new build, deployment or Production change were needed.
+
+## Native acceptance
+
+One GPT-6.1 Sol **Medium** controller operated both retained synthetic Dev accounts, serialized input, and grounded actual simulator UUID and actor before consequential actions. [Actual native steps and observations](identity-native-2026-10-11.md):
+
+- B's social-name draft accepted text and its preview changed; Cancel restored the saved separate identity and reserved handle. Earlier native bio persistence remains dated evidence.
+- B left Community through its normal confirmation. The fresh return form had blank social name, initials and bio; search/adult/rules unchecked; Join disabled. Private-profile data was not copied into the social form.
+- Keep tracking privately returned to B Home with its completed workout visible. Reopening Community presented fresh unchecked choices again.
+- B manually entered its synthetic social name, read current Dev rules, explicitly checked the separate adult declaration and rules choice, left search off, and pressed Join once. Feedback: “You joined Community. No workouts were shared.” Fresh Me retained the identity/handle with no shared workouts; Following was empty.
+- A's fresh native Blocked list showed the same single neutral unavailable row before and after B's withdrawal/rejoin. Exact target identity was independently corroborated through A's own authenticated Dev route.
+
+[Redacted live checkpoints](identity-live-2026-10-11.json) establish B generation **2 → 3**, active after Join, search off, both private workout IDs unchanged across baseline/withdrawal/rejoin/cleanup, no restored following or invitations, and A's exact stable-account block throughout. The temporary A→B block was created/restored as normal own-auth API fixture setup; neither operation is claimed as native Block/Unblock acceptance. Native Home showed one completed workout; the two preserved private records include the earlier private routine copy. Withdrawn graph reads were denied rather than counted as successful empty reads.
+
+## Original acceptance crosswalk
+
+| Original #142 criterion                                                                                                                | Evidence and result                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Existing users remain unenrolled/undiscoverable until explicit opt-in                                                                  | Current core/API/form regressions and real SQL enrollment controls reject missing/false/legacy/current-version-mismatched consent. The native blank, unchecked refusal and one explicit Join corroborate the user-facing boundary. Search stays off after enrollment. PASS.                                                                                                                                                                                                                  |
+| Equivalent handles cannot be double-claimed; old invitations cannot be impersonated; blocks and suspensions survive enrollment changes | Real SQL `0012` and enrollment concurrency prove normalized uniqueness, reserved names, immutable pilot handles, Auth-deletion 90-day quarantine/deadline and current-generation receipts. SQL `0009` proves stable blocks across generation change; fresh two-simulator/own-auth checks now corroborate this with B gen2→gen3. SQL `0012` proves suspended saves denied and suspension survives withdrawal. PASS. Pilot handles remain immutable/reserved; a rename feature is not claimed. |
+| Social DTOs omit private health/account fields                                                                                         | Inspected `toPublicCommunityProfile` allowlist and fresh own-A blocked DTO contain only `userId`, `handle`, `displayName`, `avatarSymbol`, `bio`, `createdAt`; email, birth year, height, goals, plan tier and coaching limitations are absent. Real SQL also verifies actual visible-row receipt minimization. PASS.                                                                                                                                                                        |
+| Qualified source/checks, independent authorization/lifecycle review and real database proof; device acceptance separate                | Source pinned below, fresh focused tests passed, historical independent non-author review and real disposable SQL/concurrency mapped below. Accepted native simulator flow recorded separately from these automatic tiers. No runtime change requiring another full gate. PASS.                                                                                                                                                                                                              |
+
+Conservative birth-year boundaries are verified by current focused core/API tests and dated real SQL: integer `1900..current UTC year - 19`, ambiguous/missing/future year denied, corrections withdraw atomically, restoring birth year does not silently re-enroll. No native demographic mutation or staff suspension drill is claimed.
+
+## Source and automatic proof
+
+[Fresh source/setup receipt](identity-source-2026-10-11.json) records HEAD `0d9da8a46197f20b12f00d643851a84866368998`, exact deployed Dev `2596a69b3fe4d20920a173de91fb4dc533b9bd4a`, source/test hashes, commands and outcomes. All seven Identity runtime files match that deployed candidate byte-for-byte; pre-pinned inputs remained unchanged after the final focused tests. Core/contracts/mobile Identity inputs also match the October10 checked JavaScript manifest.
+
+Fresh final focused tests: **98 tests / 5 files PASS, zero focused skips**: mobile form/hook/settings 37/3, core Community 37/1, API profile routes 24/1. Exact commands and log paths are in the receipt. No redundant broad app/provider/database suite was run.
+
+Dated proof remains dated, not a new run:
+
+- [September30 enrollment proof](../../COMMUNITY_ENROLLMENT_EVIDENCE_2026-09-30.md): actual 38-assertion `0012`, concurrency, non-author core/contracts/API/adapter/RPC/mobile review with resolved findings, final full gate 838 mobile / 644 API +15 credential-gated skips.
+- [September30 integration proof](../../COMMUNITY_COMMIT_EVIDENCE_2026-09-30.md): reproduced first/return enrollment API defect resolved and independently reviewed; actual 341 SQL assertions/16 files and enrollment/relationship/publication races.
+- [October8 real database proof](../../COMMUNITY_IMPLEMENTATION_EVIDENCE_2026-10-08.md): 1,049 assertions/39 files and 19 concurrency cases; `0009`, `0012` and enrollment-concurrency script hashes still match the recorded receipt. Enrollment migration matches its original September30 manifest.
+- The October10 UI candidate full gate passed 2,128 mobile / 979 API +15 credential-gated skips. Exact deployed `2596` passed its committed-SHA gate with 2,008 mobile / 979 API +15 skips / 196 adapter tests. [Dated logs and qualifications](README.md#verification). Neither is reported as a fresh entire-dirty-tree gate.
+
+Reused signed Debug simulator app `com.mizyun.development` 1.0.9(9), iOS26.5. Native input checks were 58/59 exact matches: sole `app.config.js` variance adds an Android-only Gradle optimization plugin. Removing exactly that line reproduces the saved hash; inspected plugin has only Android Gradle mods. Other 58 native inputs unchanged. Reuse is qualified by that inspected iOS compatibility, not a claim that all 59 hashes matched.
+
+## Cleanup and remaining boundaries
+
+Both synthetic accounts remain Community-enabled; B search off, private data/Auth retained, task block removed, following/invitations empty. Controller stopped draft-free. Owned Metro session23440 stopped; no8085 listener. Only task-booted Max/A shut down; initially booted Pro/B remains booted. No credential or private record entered Git.
+
+No additional input from Adam is needed to close **#142**. Genuine legal/contact/moderation/adult-research/pilot evidence remains on its own open packages (#140/#148/#154/#155); ledger/purge/restore and account erasure remain #151/#153. Android was explicitly skipped. Physical standalone, provider, accessibility, release and Store acceptance are not inferred from this simulator result. Older #142 physical-repeat/blocked notes are superseded by this recorded acceptance; broader gates are preserved.

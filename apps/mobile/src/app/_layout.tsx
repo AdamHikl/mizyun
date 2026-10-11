@@ -10,13 +10,13 @@ import {
 import * as Notifications from "expo-notifications";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
-import { parseDeepLinkFragment } from "@mizyun/identity";
 import { useEffect, useRef, useState } from "react";
 import { AppState, Linking } from "react-native";
 
 import { AnimatedSplashOverlay } from "@/components/animated-icon";
 import ActiveWorkoutMiniBar from "@/components/active-workout-mini-bar";
 import { getAppVariant } from "@/composition/app-variant";
+import { parseAppAuthCallback } from "@/features/auth/app-auth-link";
 import {
   CommunityNotificationBridge,
   CommunityReadLifecycle,
@@ -124,7 +124,7 @@ function DeepLinkBridge() {
         setPendingInvitation(token);
         return;
       }
-      const payload = parseDeepLinkFragment(rawUrl);
+      const payload = parseAppAuthCallback(rawUrl, invitationScheme);
 
       if (!payload) return;
       void consumeDeepLink(payload).catch(() => {

@@ -8,9 +8,13 @@ import {
 import { sendApiError } from "../../errors.js";
 import { registerCommunityErrorHandler } from "./error-handler.js";
 
+import {
+  decodeActivityCursor,
+  encodeActivityCursor,
+} from "./activity-cursor.js";
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const CURSOR =
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z\|[0-9a-f-]{36}$/i;
+
 const emptyCounts = {
   clap: 0,
   fire: 0,
@@ -70,12 +74,10 @@ export const communityProfileActivityRoutes: FastifyPluginAsync<{
           "Invalid profile activity query.",
         );
       const { limit, cursor } = parsed.data;
-      if (
-        cursor &&
-        (!CURSOR.test(cursor) ||
-          !UUID.test(cursor.split("|")[1]!) ||
-          !Number.isFinite(Date.parse(cursor.split("|")[0]!)))
-      )
+      const boundary = cursor
+        ? decodeActivityCursor(cursor, principal.userId, targetUserId)
+        : null;
+      if (cursor && !boundary)
         return sendApiError(
           reply,
           request,
@@ -87,7 +89,7 @@ export const communityProfileActivityRoutes: FastifyPluginAsync<{
         ...options,
         authorUserId: targetUserId,
         limit,
-        ...(cursor ? { beforeCursor: cursor } : {}),
+        ...(boundary ? { beforeCursor: boundary } : {}),
       });
       // Recipient projection is shared by self and peers, with no source/version fields.
       const items = page.items
@@ -119,7 +121,11 @@ export const communityProfileActivityRoutes: FastifyPluginAsync<{
           reactionCounts: reactions.get(item.id)?.reactionCounts ?? emptyCounts,
           viewerReaction: reactions.get(item.id)?.viewerReaction ?? null,
         })),
-        nextCursor: page.nextCursor ?? null,
+        nextCursor: encodeActivityCursor(
+          page.nextCursor,
+          principal.userId,
+          targetUserId,
+        ),
       });
     },
   );

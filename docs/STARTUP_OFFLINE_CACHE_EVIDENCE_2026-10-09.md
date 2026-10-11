@@ -1,0 +1,27 @@
+# Startup loading and offline personal reads — #182
+
+Date: 2026-10-09. Baseline HEAD `0d9da8a46197f20b12f00d643851a84866368998`. Local implementation only; no commit, push, Dev deployment, native build, device acceptance or Production release claimed.
+
+## Result
+
+Authenticated startup warms Home, Workouts, Meals, existing Coach history and eligible Community feed independently. Personal saved reads now restore through encrypted offline storage before waiting for network transport, share one in-flight refresh per query/schema, and update focused tabs when fresh data arrives. Home retains its existing date/offset-scoped offline dashboard snapshot without re-dating it from saved reads. Workouts includes routines, sessions, sets, catalog and initial run history/week; Meals includes initial history and loaded queries; Coach restores owned list/threads while keeping generation admission live. Startup does not fetch unlimited history, create conversations, generate AI content or download signed photos.
+
+Disk envelopes are owner-scoped, path/query allowlisted, bounded to 512 records/one-million UTF-8 bytes/48 hours, and schema-validated on use. Writes and lost responses retire snapshots before dispatch; failed encrypted cleanup stops the write. Account cleanup fences queued saves, scheduled timers and pre-cleanup requests. Foreground/account/token/date changes retire memory; saved snapshots remain available only to the current owner. Community retains its original ten-second foreground permission lease and memory-only store; it requires online revalidation after expiry.
+
+## Verification
+
+- Concrete before-fix regressions reproduced by helper: provider-off and offline status hid existing Coach history.
+- Coordinator focused startup/cache/offline/screens run: 242 tests passed before late cleanup/concurrency regressions; these results are preliminary and do not replace the final settled run.
+- Storage helper: 75 focused tests passed (57 new storage, 18 existing cache), including corruption, wrong owner, path exclusions, expiry, byte/record eviction, failure and cleanup races.
+- Coach helper: 93 Coach/history/consent/startup tests passed; pre-existing selectable-message changes preserved.
+- Final focused run: 360 tests passed across composition, offline-cache, Home/Workouts/Meals/Coach/history/consent. Final late bridge/environment regressions: 34 passed. Mobile typecheck, owned formatting, diff checks and navigation passed (0 errors, 32 existing review/import warnings).
+- Independent non-author High review: no remaining high/medium findings after fixes for failed purge, delayed account-switch writes, parallel writes, repeated denial/unused-query refresh loops, cleanup timers/in-flight reads and stale reminder effects. Late reconnect/lazy-adapter review also clear. A confirmed authorization denial conservatively disables that owner's disk caching until process restart.
+- Shared-tree full gate was invalidated by concurrent source changes and failed formatting in the separate backend/photo/illustration work. No pass is claimed for that moving combined candidate. The original sandbox attempt also failed before starting gates because process inspection was restricted; the permitted rerun reached the checks.
+- Fresh isolated `pnpm check` **PASS** for input SHA-256 `0c1bc3915b782820523fe66fc0889f6bbacf3cb4f278c81962090ba2b7f1d02a`: 2,015 mobile tests, 946 API tests, both iOS/Android exports, navigation, typechecks, formatting and remaining tooling/operational/AI gates. API Auth/persistence/deletion E2E: 15 credential-gated skips; configuration: 3 existing bundle-purity path skips (expected legacy `dist/bundle-check` rather than exported platform directories). No live provider, server mutation or native installation occurred.
+- Candidate scope: baseline HEAD plus the startup/cache overlays and preserved pre-existing Coach text-selection source/tests. Concurrent illustration/photo-capability/backend/watch edits were excluded, including only the cache/reminder hunks of Meals and excluding the illustration facade additions from the cache wrapper. Isolated focused 360 tests and mobile typecheck also passed. [Checked source manifest](evidence/startup-cache-2026-10-09/source-manifest.json) and [verification receipt](evidence/startup-cache-2026-10-09/verification-summary.json) identify the exact scope. Later edits only record outcomes; behavior sources in that candidate remain unchanged.
+
+## Ownership and acceptance
+
+Coordinator owns composition/cache/events, focused Home/Workouts/Meals subscriptions and continuity. One High helper implemented storage, one High helper implemented Coach history/display and regressions; a third non-author High helper reviews privacy/session/cleanup boundaries. Existing unrelated dirty work was preserved, including meal illustrations, watch companions, selected-message work and their evidence. Native persistence is not established by mocked encrypted storage.
+
+Next exact action: rebuild/install the accepted Dev candidate, visit all five tabs after authenticated cold start, repeat in airplane mode after one successful online load, reconnect while remaining in a tab, test writes/lost-response recovery, background/resume, different accounts and Community lease/revocation. First-ever uncached reads still require the network. Community expired/offline feed must not be presented as currently authorized. Issue #182 remains open until its recorded acceptance evidence is delivered.

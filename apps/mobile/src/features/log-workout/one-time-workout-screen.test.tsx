@@ -1,3 +1,6 @@
+vi.mock("@/features/workout-companion", () => ({
+  WatchWorkoutControls: "WatchWorkoutControls",
+}));
 import { beforeEach, expect, it, vi } from "vitest";
 import type {
   CoachWorkoutProposal,
@@ -1188,3 +1191,77 @@ it.each(["light", "dark"])(
     }
   },
 );
+
+function watchControls(tree = render()): any {
+  return find(tree, (node) => node.type === "WatchWorkoutControls");
+}
+const watchCommandBase = {
+  protocolVersion: 1,
+  watchNonce: "11111111-1111-4111-8111-111111111111",
+  bindingId: "22222222-2222-4222-8222-222222222222",
+  workoutId: workout.id,
+  operationId: "33333333-3333-4333-8333-333333333333",
+  baseRevision: 1,
+  createdAtMs: Date.parse("2026-10-04T10:20:00.000Z"),
+  expiresAtMs: Date.parse("2026-10-04T10:21:00.000Z"),
+};
+it("uses explicit watch input, canonical set type, stable time and sequence in the shared save", async () => {
+  mocks.workspace.workout = persistedWorkout([exercise]);
+  mocks.addSet.mockResolvedValue({ ok: true, workoutSet: recordedSet });
+  const controls = watchControls();
+  const outcome = await controls.props.execute({
+    ...watchCommandBase,
+    kind: "log-set",
+    exerciseId: exercise.id,
+    repetitions: 11,
+    loadKg: 42.5,
+    setType: "working",
+  });
+  expect(outcome).toBe("saved");
+  expect(mocks.addSet).toHaveBeenCalledWith(
+    workout.id,
+    expect.objectContaining({
+      repetitions: "11",
+      load: "42.5",
+      setType: "normal",
+      sequence: 1,
+      completedAt: "2026-10-04T10:20:00.000Z",
+    }),
+  );
+});
+it("keeps saved watch completion visible without navigation or automatic sharing", async () => {
+  mocks.workspace.workout = persistedWorkout([exercise]);
+  mocks.communityEnrolled = true;
+  const outcome = await watchControls().props.execute({
+    ...watchCommandBase,
+    kind: "finish",
+  });
+  expect(outcome).toBe("saved");
+  expect(mocks.complete).toHaveBeenCalledWith(
+    workout.id,
+    workout.startedAt,
+    "2026-10-04T10:20:00.000Z",
+  );
+  expect(mocks.back).not.toHaveBeenCalled();
+  expect(mocks.clearDraft).toHaveBeenCalled();
+  expect(watchControls().props.view.status).toBe("completed");
+});
+it("reports unknown watch save results and prevents shared concurrent mutations", async () => {
+  mocks.workspace.workout = persistedWorkout([exercise]);
+  const pending = deferred<any>();
+  mocks.addSet.mockReturnValue(pending.promise);
+  const controls = watchControls();
+  const command = {
+    ...watchCommandBase,
+    kind: "log-set",
+    exerciseId: exercise.id,
+    repetitions: 8,
+    loadKg: 50,
+    setType: "working",
+  };
+  const first = controls.props.execute(command);
+  expect(await controls.props.execute(command)).toBe("rejected");
+  pending.resolve({ ok: false, message: "Response lost" });
+  expect(await first).toBe("uncertain");
+  expect(mocks.addSet).toHaveBeenCalledTimes(1);
+});

@@ -16,6 +16,10 @@
  */
 import { z } from "zod";
 import {
+  exportedMealIllustrationSchema,
+  exportedMealIllustrationUsageSchema,
+} from "./meal-illustration";
+import {
   analyticsConsentResponseSchema,
   analyticsEventV2Schema,
   ANALYTICS_DASHBOARD_CATALOG,
@@ -98,7 +102,7 @@ export const privateMediaStubSchema = exportedMediaAssetSchema;
  */
 export const communityAccountExportSchema = z
   .object({
-    schemaVersion: z.enum(["2026-09-30", "2026-10-01"]),
+    schemaVersion: z.enum(["2026-09-30", "2026-10-01", "2026-10-11"]),
     consistency: z.literal("live_keyset"),
     completeness: z.literal("complete"),
     counts: z.record(z.number().int().nonnegative()),
@@ -107,6 +111,21 @@ export const communityAccountExportSchema = z
   .strict();
 
 export const accountExportSchema = z.object({
+  mealIllustrations: z.array(exportedMealIllustrationSchema).optional(),
+  mealImagePaths: z
+    .array(
+      z
+        .object({
+          userId: z.string().uuid(),
+          pathKey: z.string().regex(/^[a-f0-9]{64}$/),
+          createdAt: z.string().datetime(),
+        })
+        .strict(),
+    )
+    .optional(),
+  mealIllustrationUsage: z
+    .array(exportedMealIllustrationUsageSchema)
+    .optional(),
   manifest: exportManifestSchema.optional(),
   userId: z.string().uuid(),
   generatedAt: z.string().datetime(),

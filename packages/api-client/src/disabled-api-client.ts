@@ -2,6 +2,8 @@ import { err, type Result } from "@mizyun/core";
 import type {
   CoachMessageResponse,
   FoodDraftResponse,
+  MealIllustrationResponse,
+  MealIllustrationCapability,
 } from "@mizyun/contracts";
 
 import type { ApiClient } from "./api-client";
@@ -26,6 +28,17 @@ export class DisabledApiClient implements ApiClient {
   // The method is `async` to keep the interface uniform with the real
   // `HttpApiClient`, even though no I/O actually happens here.
   async request<T>(_options: RequestOptions): Promise<Result<T, ApiError>> {
+    return err({ kind: "not_configured", reason: REASON });
+  }
+
+  async ensureMealIllustration(): Promise<
+    Result<MealIllustrationResponse, ApiError>
+  > {
+    return err({ kind: "not_configured", reason: REASON });
+  }
+  async getMealIllustrationCapability(): Promise<
+    Result<MealIllustrationCapability, ApiError>
+  > {
     return err({ kind: "not_configured", reason: REASON });
   }
 

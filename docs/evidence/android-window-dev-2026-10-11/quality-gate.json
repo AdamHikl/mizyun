@@ -1,0 +1,31 @@
+{
+  "command": "pnpm check",
+  "result": "PASS",
+  "candidate": "/private/tmp/mizyun-window-verified-candidate-20261011",
+  "head": "0d9da8a46197f20b12f00d643851a84866368998",
+  "inputSha256": "3328fe41412f059231e8c16f2c4a28978bba7aa728b457b6be6dd53327fbc04d",
+  "buildInventorySha256": "5b28bc6618c50302269f8e7bacb60c42f804768f2c351f783b16d4dec636c17e",
+  "mobileTests": 2128,
+  "apiTestsPassed": 979,
+  "apiE2eSkipped": 15,
+  "supabaseServerTests": 196,
+  "excludedConcurrentDocumentation": [
+    "docs/COMMUNITY_REMAINING_ISSUES_2026-10-08.md",
+    "docs/evidence/community-simulators-2026-10-10/README.md",
+    "docs/evidence/community-simulators-2026-10-10/native-continuation-summary.json",
+    "docs/evidence/community-simulators-2026-10-10/relationships-closure-2026-10-11.md",
+    "docs/evidence/community-simulators-2026-10-10/relationships-live-2026-10-11.json",
+    "docs/evidence/community-simulators-2026-10-10/relationships-native-2026-10-11.md",
+    "docs/evidence/community-simulators-2026-10-10/relationships-source-2026-10-11.json",
+    "docs/evidence/community-simulators-2026-10-10/simulator-results-approved-2026-10-11.md",
+    "status.md"
+  ],
+  "buildSourceDriftForAppsPackagesScriptsRootManifests": [],
+  "freshHermesPuritySupplement": {
+    "command": "pnpm --filter @mizyun/config exec vitest run src/mobile-public.test.ts",
+    "passed": 6,
+    "skipped": 0,
+    "freshIosHermesSha256": "bb9ac161df3690d7d6490a907064bcd0f472cf873c5082a1fa5cb0f7dce8767e"
+  },
+  "postGateChanges": "Outcome documentation only; separately formatted and navigation checked."
+}

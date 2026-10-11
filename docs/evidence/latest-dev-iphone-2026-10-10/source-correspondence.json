@@ -1,0 +1,7 @@
+{
+  "build_root": "/var/folders/54/xppg48y95cj6g1p49c30k8zw0000gn/T/mizyun-latest-dev-xwcjgnzp",
+  "gate_root": "/var/folders/54/xppg48y95cj6g1p49c30k8zw0000gn/T/mizyun-latest-dev-b58tz2bc",
+  "compared_source_files": 1441,
+  "mismatches": [],
+  "exclude": "documentation/continuity only; native outputs covered by actual Release build/signature/artifact receipt"
+}

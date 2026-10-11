@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CachedDashboardSnapshot } from "../offline-cache/offline-cache-storage";
+import { publishSessionReadUpdate } from "@/composition/personal-read-events";
 
 const mocks = vi.hoisted(() => ({
   daily: vi.fn(),
@@ -10,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   mealDateHistory: vi.fn(),
   mealCopy: vi.fn(),
   reminders: vi.fn(),
+  eveningReminders: vi.fn(),
+  apiRequest: vi.fn(),
   secureRead: vi.fn(),
   secureWrite: vi.fn(),
   secureDelete: vi.fn(),
@@ -146,7 +149,10 @@ vi.mock("@/composition/analytics-client", () => ({
   analyticsClient: { track: vi.fn().mockResolvedValue({ recorded: true }) },
 }));
 vi.mock("@/composition/api-client", () => ({
-  apiClient: {},
+  apiClient: {
+    request: mocks.apiRequest,
+    status: () => ({ configured: true, baseUrl: "https://api.synthetic.test" }),
+  },
   invalidateSessionReads: mocks.invalidate,
 }));
 vi.mock("@/composition/app-variant", () => ({
@@ -188,7 +194,7 @@ vi.mock("@/features/log-meal/first-meal-reminders", () => ({
   reconcileFirstMealReminders: mocks.reminders,
 }));
 vi.mock("@/features/log-meal/evening-catch-up-reminders", () => ({
-  reconcileEveningReminders: vi.fn(),
+  reconcileEveningReminders: mocks.eveningReminders,
 }));
 vi.mock("@/features/offline-cache/offline-cache-storage", () => ({
   loadCachedDashboard: mocks.cache,
@@ -325,6 +331,8 @@ beforeEach(() => {
     .mockResolvedValue({ entries: [], message: null });
   mocks.mealCopy.mockReset().mockResolvedValue({ ok: true });
   mocks.reminders.mockReset().mockResolvedValue(undefined);
+  mocks.eveningReminders.mockReset().mockResolvedValue(undefined);
+  mocks.apiRequest.mockReset().mockResolvedValue({ ok: true, value: summary });
   mocks.secureRead.mockReset().mockResolvedValue(null);
   mocks.secureWrite.mockReset().mockResolvedValue(undefined);
   mocks.secureDelete.mockReset().mockResolvedValue(undefined);
@@ -1166,4 +1174,115 @@ describe("first-meal copy recovery", () => {
       expect(mocks.secureDelete).not.toHaveBeenCalled();
     },
   );
+});
+
+describe("Home persistent personal-read provenance", () => {
+  const savedAt = Date.parse("2026-10-04T09:54:00.000Z");
+  beforeEach(() => {
+    // Exercise the screen's client wrapper with the real transport result
+    // metadata, rather than returning a pre-mapped dashboard result directly.
+    mocks.daily.mockImplementation(async (client) => {
+      const result = await client.request({
+        method: "GET",
+        path: "/v1/food-entries/summary?date=2026-10-04",
+      });
+      return result.ok ? success(result.value) : serverFailure;
+    });
+  });
+
+  it("displays a saved read without re-saving the snapshot or reconciling reminders", async () => {
+    mocks.apiRequest.mockResolvedValue({ ok: true, value: summary, savedAt });
+    render();
+    focus();
+    await settle();
+    expect(mocks.apiRequest).toHaveBeenCalledTimes(1);
+    expect(nutrition(render()).props.caloriesToday).toBe(750);
+    expect(mocks.save).not.toHaveBeenCalled();
+    expect(mocks.reminders).not.toHaveBeenCalled();
+    expect(mocks.eveningReminders).not.toHaveBeenCalled();
+  });
+
+  it("preserves the original saved time when a later refresh cannot update nutrition", async () => {
+    mocks.apiRequest.mockResolvedValueOnce({
+      ok: true,
+      value: summary,
+      savedAt,
+    });
+    render();
+    focus();
+    await settle();
+    mocks.apiRequest.mockResolvedValueOnce({
+      ok: false,
+      error: serverFailure.error,
+    });
+    publishSessionReadUpdate("/v1/food-entries/summary?date=2026-10-04");
+    await vi.advanceTimersByTimeAsync(50);
+    await settle();
+    const notice = find(
+      render(),
+      (node) =>
+        node.type?.name === "RefreshNotice" &&
+        node.props?.label === "Today’s nutrition",
+    );
+    expect(notice.props.status.savedAt).toBe("2026-10-04T09:54:00.000Z");
+    expect(nutrition(render()).props.caloriesToday).toBe(750);
+    expect(mocks.save).not.toHaveBeenCalled();
+  });
+
+  it("saves a fresh server read and reconciles the current nutrition reminders", async () => {
+    mocks.apiRequest.mockResolvedValue({
+      ok: true,
+      value: { ...summary, caloriesKcal: 1400 },
+    });
+    render();
+    focus();
+    await settle();
+    expect(nutrition(render()).props.caloriesToday).toBe(1400);
+    expect(mocks.save).toHaveBeenCalledWith(
+      "synthetic-owner",
+      expect.objectContaining({
+        localDate: "2026-10-04",
+        reviewPeriod: "week",
+        data: expect.objectContaining({ caloriesToday: 1400 }),
+      }),
+    );
+    expect(mocks.reminders).toHaveBeenCalledWith("synthetic-owner", {
+      todayLogged: true,
+    });
+    expect(mocks.eveningReminders).toHaveBeenCalledTimes(1);
+  });
+
+  it("retains saved numbers while a background notification reloads and installs fresh data", async () => {
+    mocks.apiRequest.mockResolvedValueOnce({
+      ok: true,
+      value: summary,
+      savedAt,
+    });
+    render();
+    focus();
+    await settle();
+    expect(nutrition(render()).props.caloriesToday).toBe(750);
+    expect(mocks.save).not.toHaveBeenCalled();
+    const pending = deferred<any>();
+    mocks.apiRequest.mockReturnValueOnce(pending.promise);
+    publishSessionReadUpdate("/v1/food-entries/summary?date=2026-10-04");
+    await vi.advanceTimersByTimeAsync(50);
+    await settle();
+    expect(mocks.apiRequest).toHaveBeenCalledTimes(2);
+    expect(nutrition(render()).props.caloriesToday).toBe(750);
+    const retained = nutrition(render());
+    expect(retained.props.summary).toEqual(summary);
+    expect(text(retained.type(retained.props))).toContain("750");
+    expect(mocks.invalidate).not.toHaveBeenCalled();
+    expect(mocks.save).not.toHaveBeenCalled();
+    pending.resolve({ ok: true, value: { ...summary, caloriesKcal: 1400 } });
+    await settle();
+    expect(nutrition(render()).props.caloriesToday).toBe(1400);
+    expect(mocks.save).toHaveBeenCalledWith(
+      "synthetic-owner",
+      expect.objectContaining({
+        data: expect.objectContaining({ caloriesToday: 1400 }),
+      }),
+    );
+  });
 });

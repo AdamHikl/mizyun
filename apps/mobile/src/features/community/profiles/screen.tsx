@@ -133,7 +133,21 @@ function PersonProfile({
     if (!profile) return;
     const current = controller.captureIntent();
     const perform = () => {
-      if (current()) void controller.act(action, profile);
+      if (current()) {
+        void controller.act(action, profile);
+      } else if (
+        alive.current &&
+        focused.current &&
+        foreground.current &&
+        isLifetimeCurrent()
+      ) {
+        Alert.alert(
+          "Profile needs refreshing",
+          action === "follow"
+            ? "No request was sent. Refresh the profile, then request to follow again."
+            : "No action was sent. Refresh the profile and review your choice again.",
+        );
+      }
     };
     const explanation: Partial<Record<ProfileAction, string>> = {
       follow:

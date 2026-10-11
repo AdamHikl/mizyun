@@ -53,3 +53,29 @@ essential local privacy reductions remain available when the exporter is down.
 - [Node filesystem API](https://nodejs.org/api/fs.html): explicit fsync, exclusive creation and descriptor-based checks support the local sink protocol.
 - [age design](https://age-encryption.org/): separate public-recipient encryption from recovery identity custody; encryption is not proof of storage durability.
 - [Docker none driver](https://docs.docker.com/engine/network/drivers/none/): the existing disposable restore uses no external network and exposes no ports.
+
+## 2026-10-11 local implementation extension
+
+The forward `20261011120000` migration additionally captures mutes, mention opt-out,
+per-card comment disabling, delivery preference narrowing, edited-away comment/message
+text and reduced workout projections. Export declares participant memberships and
+per-card comment settings at subtree version `2026-10-11`, with earlier versions
+remaining readable. Missing/malformed successful pages fail complete export.
+
+Content-free events cannot reconstruct the revised text or exact quiet interval.
+Replay therefore revokes the old artifact for edited disclosure, and conservatively
+mutes all notification delivery for a captured narrowing. Later opt-ins within the
+same enrollment may be discarded; a later enrollment/artifact generation is fenced.
+This favors preventing older disclosure from returning over reconstructing preferences.
+No current live edit/share/notification behavior is changed by replay capture.
+
+Mute replay scopes the choice to the owner's enrollment and checks the peer still
+exists; it does not encode the peer's enrollment generation. The restore remains
+closed until independent reconciliation accepts account-bound choices and any
+required deliberate re-consent. Messaging `muted` metadata was not given new
+visibility/delivery semantics. No expiry/pruning, archive horizon, hold custody or
+coverage certificate is invented here. Existing original recovery exits remain.
+
+Primary sources rechecked: [PostgreSQL17 triggers](https://www.postgresql.org/docs/17/sql-createtrigger.html),
+[Supabase RLS](https://supabase.com/docs/guides/database/postgres/row-level-security),
+[PostgREST12 RPC](https://docs.postgrest.org/en/v12/references/api/functions.html).

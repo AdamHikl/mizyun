@@ -1,0 +1,14 @@
+
+> mizyun@0.1.0 deploy:dev:preflight /Users/adam/.codex/worktrees/meal-illustrations-dev/mizyun
+> node scripts/preflight-dev-deploy.mjs 4fa20a882d6d8c8fd446d07e55208b18240d8b22
+
+=== Mizyun Dev Deployment Preflight ===
+
+[✓] Working Tree         Clean
+[✓] Target Commit        4fa20a88 - feat(nutrition): gate meal visuals with Pro and reuse food icons (#233)
+[ℹ] Origin Push Status   Not yet pushed (deploy-dev will automatically push before promoting)
+[✓] Hetzner Dev Host     mizyun-hetzner-dev reachable & Hetzner primary marker verified
+[✓] Public Dev API       https://mizyun-api-dev.phiskel.com/v1/health is HTTP 200 (healthy)
+
+SUCCESS: Ready to deploy to Hetzner Dev!
+Execute: pnpm deploy:dev 4fa20a882d6d8c8fd446d07e55208b18240d8b22

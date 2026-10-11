@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-11",
+  "package": "com.mizyun.dev",
+  "emulator": "Mizyun_Pixel_9_API_36",
+  "serial": "emulator-5554",
+  "api": 36,
+  "abi": "arm64-v8a",
+  "apkSha256": "abd17a6a24a4c469b2e22a1d8080dfd08779d871aed422a56303b30a0a047715",
+  "install": "Success",
+  "debuggable": false,
+  "pids": [4863, 5295],
+  "coldLaunchTotalMs": 602,
+  "syntheticDevSignIn": "PASS",
+  "screens": {
+    "Home": "PASS",
+    "Workouts": "PASS",
+    "Meals": "PASS",
+    "Community": "PASS",
+    "Settings": "PASS",
+    "Coach": "first read error; Check again recovers without reauthentication; repeats after restart; existing issue200"
+  },
+  "persistedSignInAfterForceStop": "PASS",
+  "errorMarkersInBothProcessLogs": 0,
+  "sourceDriftForNativeInputs": [],
+  "providerRequests": false,
+  "productionActions": false,
+  "physicalDeviceAcceptance": false,
+  "metroRequired": false
+}

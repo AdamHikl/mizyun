@@ -9,6 +9,7 @@ the shared local database is never reset. Docker is required.
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -19,7 +20,14 @@ CONTAINER = "supabase_db_mizyun"
 
 
 def command(args, stdin=None):
-    result = subprocess.run(args, input=stdin, text=True, capture_output=True, cwd=ROOT)
+    if args[0] == "docker":
+        # Never inherit a remote Docker context for disposable Mac verification.
+        args = ["docker", "--host", "unix://" + str(Path.home() / ".docker/run/docker.sock"), *args[1:]]
+    environment = dict(os.environ)
+    for option in ("DOCKER_CONTEXT", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH"):
+        environment.pop(option, None)
+    environment["DOCKER_HOST"] = "unix://" + str(Path.home() / ".docker/run/docker.sock")
+    result = subprocess.run(args, input=stdin, text=True, capture_output=True, cwd=ROOT, env=environment)
     if result.returncode:
         # Database output can contain synthetic identifiers, never credentials.
         raise RuntimeError(result.stderr[-2000:])
@@ -29,6 +37,10 @@ def command(args, stdin=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--logs", type=Path, required=True)
+    parser.add_argument("--test", action="append", default=[],
+                        help="Run only this database or scratch test filename; repeat to select more")
+    parser.add_argument("--skip-concurrency", action="store_true",
+                        help="Skip unchanged concurrency suites for focused verification")
     parser.add_argument("--keep-scratch", action="store_true",
                         help="Keep isolated scratch for subsequent local transport verification")
     args = parser.parse_args()
@@ -75,6 +87,14 @@ def main():
         sql("insert into public.community_feature_controls(feature) values('comments'),('groups'),('challenges'),('messaging'),('media'),('routines'),('discovery') on conflict do nothing;")
         total = 0
         tests = sorted((ROOT / "supabase/tests/database").glob("*.sql"))
+        if args.test:
+            # Multi-transaction fixtures belong only to this isolated harness,
+            # never the default db:test inventory in the shared local postgres.
+            available = [*tests, *sorted((ROOT / "supabase/tests/scratch").glob("*.sql"))]
+            selected = set(args.test)
+            if not selected <= {test.name for test in available}:
+                raise RuntimeError("Unknown database or scratch test filename")
+            tests = [test for test in available if test.name in selected]
         for test in tests:
             source = test.read_text()
             source_hashes[str(test.relative_to(ROOT))] = hashlib.sha256(source.encode()).hexdigest()
@@ -87,7 +107,7 @@ def main():
             print(test.name, plans[-1], "PASS", flush=True)
         sql("update public.community_operations set enabled=true,enrollment=true,discovery=true,publish=true,engagement=true,cohort_required=false;")
         concurrency = sorted((ROOT / "scripts").glob("test-community-*-concurrency.py"))
-        for script in [ROOT / "scripts/test-community-capacity.py", *concurrency]:
+        for script in ([] if args.skip_concurrency else [ROOT / "scripts/test-community-capacity.py", *concurrency]):
             source = script.read_text()
             source_hashes[str(script.relative_to(ROOT))] = hashlib.sha256(source.encode()).hexdigest()
             source, replaced = re.subn(r"DATABASE\s*=\s*['\"][^'\"]+['\"]", "DATABASE='" + db + "'", source)
@@ -98,7 +118,8 @@ def main():
             print(output.strip(), flush=True)
         summary = {"scratch_database": db, "base_migrations": sorted(versions),
                    "applied_migrations": applied, "assertions": total, "sql_files": len(tests),
-                   "shared_user_data_copied": False, "kept_for_transport": args.keep_scratch, "source_sha256": source_hashes}
+                   "shared_user_data_copied": False, "kept_for_transport": args.keep_scratch,
+                   "concurrency_skipped": args.skip_concurrency, "source_sha256": source_hashes}
         (args.logs / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
         print(json.dumps(summary), flush=True)
         accepted = True

@@ -1,0 +1,14 @@
+
+> mizyun@0.1.0 deploy:dev:preflight /Users/adam/.codex/worktrees/meal-illustrations-dev/mizyun
+> node scripts/preflight-dev-deploy.mjs 537f4ae0ac6e2e253715685574b34a3ac1dc8dd6
+
+=== Mizyun Dev Deployment Preflight ===
+
+[✓] Working Tree         Clean
+[✓] Target Commit        537f4ae0 - build(dev): snapshot automatic meal illustrations and latest Coach fixes
+[ℹ] Origin Push Status   Not yet pushed (deploy-dev will automatically push before promoting)
+[✓] Hetzner Dev Host     mizyun-hetzner-dev reachable & Hetzner primary marker verified
+[✓] Public Dev API       https://mizyun-api-dev.phiskel.com/v1/health is HTTP 200 (healthy)
+
+SUCCESS: Ready to deploy to Hetzner Dev!
+Execute: pnpm deploy:dev 537f4ae0ac6e2e253715685574b34a3ac1dc8dd6

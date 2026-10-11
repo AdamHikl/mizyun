@@ -96,6 +96,19 @@ class LedgerReplayTest(unittest.TestCase):
             with self.subTest(patch=patch), self.assertRaises(ValueError):
                 ledger.validate_event({**EVENT, **patch})
 
+    def test_privacy_reductions_require_generation_and_exact_owner_scope(self):
+        peer = '33333333-3333-4333-8333-333333333333'
+        for kind in ('mute', 'mention_optout', 'comment_setting_optout', 'notification_optout'):
+            event = {**EVENT, 'kind': kind, 'generation': 1, 'target_id': peer if kind == 'mute' else EVENT['user_id'], 'related_user_id': peer if kind == 'mute' else None}
+            self.assertEqual(ledger.validate_event(event), event)
+            for patch in ({'generation': None}, {'target_id': None}, {'notes': 'private'}):
+                with self.subTest(kind=kind, patch=patch), self.assertRaises(ValueError):
+                    ledger.validate_event({**event, **patch})
+        with self.assertRaises(ValueError):
+            ledger.validate_event({**EVENT, 'kind': 'mute', 'generation': 1, 'target_id': peer})
+        with self.assertRaises(ValueError):
+            ledger.validate_event({**EVENT, 'kind': 'mention_optout', 'generation': 1, 'target_id': peer})
+
 
 if __name__ == '__main__':
     unittest.main()

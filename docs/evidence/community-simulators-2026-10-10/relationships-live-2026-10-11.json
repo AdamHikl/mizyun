@@ -1,0 +1,207 @@
+{
+  "date": "2026-10-11",
+  "scope": "Own-auth synthetic relationship fixture, not native follow/approve acceptance",
+  "stage": "restored",
+  "setupHTTP": {
+    "invite": 201,
+    "request": 201,
+    "approve": 200,
+    "revoke": 200
+  },
+  "cleanupHTTP": 200,
+  "native": "NOT RUN; Mac locked",
+  "checkpoints": {
+    "before": {
+      "aActive": true,
+      "bActive": true,
+      "bSearchable": false,
+      "aFollowingCount": 0,
+      "bFollowingCount": 0,
+      "aFollowsB": false,
+      "aMuteCount": 0,
+      "aMutesB": false,
+      "bMuteCount": 0,
+      "aBlockCount": 0,
+      "bBlockCount": 0,
+      "bActiveInvitations": 0,
+      "aProfileBHTTP": 404,
+      "privateWorkoutCount": 2,
+      "privateWorkoutIdsEqualBaseline": true
+    },
+    "ready": {
+      "aActive": true,
+      "bActive": true,
+      "bSearchable": false,
+      "aFollowingCount": 1,
+      "bFollowingCount": 0,
+      "aFollowsB": true,
+      "aMuteCount": 0,
+      "aMutesB": false,
+      "bMuteCount": 0,
+      "aBlockCount": 0,
+      "bBlockCount": 0,
+      "bActiveInvitations": 0,
+      "aProfileBHTTP": 200,
+      "privateWorkoutCount": 2,
+      "privateWorkoutIdsEqualBaseline": true
+    },
+    "final": {
+      "aActive": true,
+      "bActive": true,
+      "bSearchable": false,
+      "aFollowingCount": 0,
+      "bFollowingCount": 0,
+      "aFollowsB": false,
+      "aMuteCount": 0,
+      "aMutesB": false,
+      "bMuteCount": 0,
+      "aBlockCount": 0,
+      "bBlockCount": 0,
+      "bActiveInvitations": 0,
+      "aProfileBHTTP": 404,
+      "privateWorkoutCount": 2,
+      "privateWorkoutIdsEqualBaseline": true
+    }
+  },
+  "logicalInbox": [
+    {
+      "phase": "ready",
+      "HTTP": 200,
+      "count": 1,
+      "kinds": ["approval"]
+    },
+    {
+      "phase": "restored",
+      "HTTP": 200,
+      "count": 0,
+      "kinds": []
+    }
+  ],
+  "resume": {
+    "stage": "restored",
+    "setupHTTP": {
+      "invitation": 201,
+      "request": 201,
+      "approve": 200,
+      "invitationRevoke": 200
+    },
+    "cleanupHTTP": 200,
+    "native": "Mute/list/profile/Unmute/empty-list/retained A Following PASS; final B native counterpart read not run",
+    "checkpoints": {
+      "before": {
+        "aActive": true,
+        "bActive": true,
+        "bSearchable": false,
+        "aFollowingCount": 0,
+        "bFollowingCount": 0,
+        "aFollowsB": false,
+        "aMuteCount": 0,
+        "aMutesB": false,
+        "bMuteCount": 0,
+        "aBlockCount": 0,
+        "bBlockCount": 0,
+        "bActiveInvitations": 0,
+        "aProfileBHTTP": 404,
+        "privateWorkoutCount": 2,
+        "privateWorkoutIdsEqualBaseline": true
+      },
+      "ready": {
+        "aActive": true,
+        "bActive": true,
+        "bSearchable": false,
+        "aFollowingCount": 1,
+        "bFollowingCount": 0,
+        "aFollowsB": true,
+        "aMuteCount": 0,
+        "aMutesB": false,
+        "bMuteCount": 0,
+        "aBlockCount": 0,
+        "bBlockCount": 0,
+        "bActiveInvitations": 0,
+        "aProfileBHTTP": 200,
+        "privateWorkoutCount": 2,
+        "privateWorkoutIdsEqualBaseline": true
+      },
+      "muted": {
+        "at": "2026-10-11T12:38:14.056Z",
+        "aActive": true,
+        "bActive": true,
+        "bSearchable": false,
+        "aFollowingCount": 1,
+        "bFollowingCount": 0,
+        "aFollowsB": true,
+        "aMuteCount": 1,
+        "aMutesB": true,
+        "bMuteCount": 0,
+        "aBlockCount": 0,
+        "bBlockCount": 0,
+        "bActiveInvitations": 0,
+        "aProfileBHTTP": 200,
+        "privateWorkoutCount": 2,
+        "privateWorkoutIdsEqualBaseline": true
+      },
+      "unmuted": {
+        "at": "2026-10-11T12:39:58.733Z",
+        "aActive": true,
+        "bActive": true,
+        "bSearchable": false,
+        "aFollowingCount": 1,
+        "bFollowingCount": 0,
+        "aFollowsB": true,
+        "aMuteCount": 0,
+        "aMutesB": false,
+        "bMuteCount": 0,
+        "aBlockCount": 0,
+        "bBlockCount": 0,
+        "bActiveInvitations": 0,
+        "aProfileBHTTP": 200,
+        "privateWorkoutCount": 2,
+        "privateWorkoutIdsEqualBaseline": true
+      },
+      "final": {
+        "aActive": true,
+        "bActive": true,
+        "bSearchable": false,
+        "aFollowingCount": 0,
+        "bFollowingCount": 0,
+        "aFollowsB": false,
+        "aMuteCount": 0,
+        "aMutesB": false,
+        "bMuteCount": 0,
+        "aBlockCount": 0,
+        "bBlockCount": 0,
+        "bActiveInvitations": 0,
+        "aProfileBHTTP": 404,
+        "privateWorkoutCount": 2,
+        "privateWorkoutIdsEqualBaseline": true
+      }
+    },
+    "logicalInbox": [
+      {
+        "phase": "ready",
+        "HTTP": 200,
+        "count": 1,
+        "kinds": ["approval"]
+      },
+      {
+        "phase": "muted",
+        "HTTP": 200,
+        "count": 0,
+        "kinds": []
+      },
+      {
+        "phase": "unmuted",
+        "HTTP": 200,
+        "count": 1,
+        "kinds": ["approval"]
+      },
+      {
+        "phase": "restored",
+        "HTTP": 200,
+        "count": 0,
+        "kinds": []
+      }
+    ],
+    "approvalIncarnationProof": "relationships-approval-incarnation-2026-10-11.json"
+  }
+}

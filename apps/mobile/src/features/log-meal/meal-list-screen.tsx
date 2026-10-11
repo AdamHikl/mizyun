@@ -2,7 +2,8 @@ import {
   removeMealPhotoRetry,
   mealPhotoRetentionEnabled,
 } from "./meal-photo-retention";
-import { PrivateMealPhoto } from "./private-meal-photo";
+import { MealVisual } from "./meal-visual";
+import { useMealVisualCapability } from "./meal-visual-capability";
 import {
   ActivityIndicator,
   AppState,
@@ -34,6 +35,7 @@ import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { analyticsClient } from "@/composition/analytics-client";
 import { isAutomaticallyLogged } from "@/features/recurring-meals/public-data";
 import { getSessionReadVersion } from "@/composition/api-client";
+import { subscribeSessionReadUpdates } from "@/composition/personal-read-events";
 import { useAuth } from "@/features/auth/auth-context";
 import { useTheme } from "@/hooks/use-theme";
 import { getIsoLocalDate } from "./food-day-completion";
@@ -158,6 +160,10 @@ export function MealListScreen() {
   const { headerHeight, onHeaderLayout } = useTabHeaderLayout();
   const theme = useTheme();
   const { session } = useAuth();
+  const mealVisualCapability = useMealVisualCapability(
+    session?.user.id ?? null,
+    session?.accessToken,
+  );
   const advancedCapability = useAdvancedNutritionCapability(
     session?.user.id ?? null,
   );
@@ -272,7 +278,7 @@ export function MealListScreen() {
         addMealDate.current = null;
       loaded.current = true;
       lastLoad.current = { version: readVersion, completedAt: Date.now() };
-      if (userId && result.entries) {
+      if (userId && result.entries && result.savedAt === undefined) {
         const today = getIsoLocalDate();
         const todayEntries = result.entries.filter((e) =>
           e.consumedAt.startsWith(today),
@@ -556,8 +562,18 @@ export function MealListScreen() {
           void advancedCapability.refresh();
         }
       });
+      let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+      const unsubscribe = subscribeSessionReadUpdates((path) => {
+        if (!path.startsWith("/v1/food-entries")) return;
+        clearTimeout(refreshTimer);
+        refreshTimer = setTimeout(() => {
+          if (!paginationPending.current) void load(true);
+        }, 50);
+      });
       return () => {
         clearInterval(timer);
+        clearTimeout(refreshTimer);
+        unsubscribe();
         subscription.remove();
       };
     }, [load, advancedCapability.refresh]),
@@ -1475,6 +1491,9 @@ export function MealListScreen() {
                                   <MealEntryRow
                                     key={child.id}
                                     entry={child}
+                                    mealVisualsEnabled={
+                                      mealVisualCapability.enabled
+                                    }
                                     showAdvanced={
                                       advancedCapability.enabled && showAdvanced
                                     }
@@ -1515,6 +1534,7 @@ export function MealListScreen() {
                           <MealEntryRow
                             key={clusterItem.entry.id}
                             entry={clusterItem.entry}
+                            mealVisualsEnabled={mealVisualCapability.enabled}
                             showAdvanced={
                               advancedCapability.enabled && showAdvanced
                             }
@@ -1778,6 +1798,7 @@ export function MealListScreen() {
 
 function MealEntryRow(props: {
   readonly entry: FoodEntry;
+  readonly mealVisualsEnabled: boolean;
   readonly showAdvanced: boolean;
   readonly visibleAdvancedFields: ReadonlyArray<string>;
   readonly isGrouping: boolean;
@@ -1794,6 +1815,7 @@ function MealEntryRow(props: {
 }) {
   const {
     entry,
+    mealVisualsEnabled,
     showAdvanced,
     visibleAdvancedFields,
     isGrouping,
@@ -1865,8 +1887,10 @@ function MealEntryRow(props: {
           Automatically logged · review if your meal changed
         </ThemedText>
       ) : null}
-      <PrivateMealPhoto
+      <MealVisual
         entryId={entry.id}
+        name={entry.name}
+        enabled={mealVisualsEnabled}
         hasPhoto={Boolean(entry.photoAssetId)}
         editable
       />

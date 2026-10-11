@@ -203,7 +203,9 @@ export class SupabaseMealPhotoService implements MealPhotoService {
         // Revoked/dropped meals cannot regain bytes after an in-flight upload.
         if (
           error instanceof MealPhotoError &&
-          (error.kind === "not_found" || error.kind === "conflict")
+          (error.kind === "not_found" ||
+            error.kind === "conflict" ||
+            error.kind === "unavailable")
         )
           await this.options.storage.remove(row.objectPath);
         throw error;

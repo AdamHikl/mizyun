@@ -27,6 +27,12 @@ import { ThemedView } from "@/components/themed-view";
 import { TabHeader, useTabHeaderLayout } from "@/components/tab-header";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { apiClient, invalidateSessionReads } from "@/composition/api-client";
+import type { RequestOptions } from "@mizyun/api-client";
+import {
+  subscribeSessionReadUpdates,
+  isSavedDisplayResult,
+  savedDisplayTime,
+} from "@/composition/personal-read-events";
 import { analyticsClient } from "@/composition/analytics-client";
 import { trackDashboardControl } from "@/features/analytics/ui-analytics";
 import { isProgressPhotosEnabled } from "@/composition/app-variant";
@@ -349,6 +355,19 @@ export function DashboardScreen() {
     const yesterdayDate = localYesterday(now);
     const hasHistoricalDays = periodStartDate <= yesterdayDate;
     const scope = `${ownerKey}:${todayDate}:${utcOffsetMinutes}`;
+    let usedSavedRead = false;
+    let oldestSavedRead: number | undefined;
+    const displayClient: typeof apiClient = {
+      status: () => apiClient.status(),
+      request: async <T,>(options: RequestOptions) => {
+        const result = await apiClient.request<T>(options);
+        if (isSavedDisplayResult(result)) usedSavedRead = true;
+        const savedAt = savedDisplayTime(result);
+        if (savedAt !== undefined)
+          oldestSavedRead = Math.min(oldestSavedRead ?? savedAt, savedAt);
+        return result;
+      },
+    };
     if (displayScope.current !== scope) {
       loadedMetrics.current = false;
       displayScope.current = scope;
@@ -442,24 +461,28 @@ export function DashboardScreen() {
     }
 
     // Launch Tier 1: Immediate Daily Signals in parallel
-    const todaySummaryPromise = fetchDailySummary(apiClient, principal, {
+    const todaySummaryPromise = fetchDailySummary(displayClient, principal, {
       date: todayDate,
       utcOffsetMinutes,
     });
-    const weightPromise = fetchLatestWeight(apiClient, principal);
+    const weightPromise = fetchLatestWeight(displayClient, principal);
     const energyPromise = fetchEnergySummary(
-      apiClient,
+      displayClient,
       principal,
       utcOffsetMinutes,
     );
 
     // Launch Tier 2: Period Review Signals in parallel (without duplicate today fetch)
-    const workoutsPromise = fetchWorkoutCountForPeriod(apiClient, principal, {
-      fromIsoDate: periodStartDate,
-      toIsoDate: todayDate,
-    });
+    const workoutsPromise = fetchWorkoutCountForPeriod(
+      displayClient,
+      principal,
+      {
+        fromIsoDate: periodStartDate,
+        toIsoDate: todayDate,
+      },
+    );
     const historicalReviewPromise = hasHistoricalDays
-      ? fetchNutritionReviewSummaries(apiClient, principal, {
+      ? fetchNutritionReviewSummaries(displayClient, principal, {
           fromIsoDate: periodStartDate,
           toIsoDate: yesterdayDate,
           utcOffsetMinutes,
@@ -496,7 +519,7 @@ export function DashboardScreen() {
           ? (energy.value ?? null)
           : current.energy;
 
-        if (userId && !hasNutritionError && summary.value) {
+        if (userId && !usedSavedRead && !hasNutritionError && summary.value) {
           const entryCount = summary.value.entryCount ?? 0;
           void Promise.resolve(
             reconcileFirstMealReminders(userId, {
@@ -531,21 +554,21 @@ export function DashboardScreen() {
               hasError: hasNutritionError,
               savedAt: hasNutritionError
                 ? current.sectionStatus.nutritionToday.savedAt
-                : new Date().toISOString(),
+                : new Date(oldestSavedRead ?? Date.now()).toISOString(),
             },
             weight: {
               loading: false,
               hasError: hasWeightError,
               savedAt: hasWeightError
                 ? current.sectionStatus.weight.savedAt
-                : new Date().toISOString(),
+                : new Date(oldestSavedRead ?? Date.now()).toISOString(),
             },
             energy: {
               loading: false,
               hasError: hasEnergyError,
               savedAt: hasEnergyError
                 ? current.sectionStatus.energy.savedAt
-                : new Date().toISOString(),
+                : new Date(oldestSavedRead ?? Date.now()).toISOString(),
             },
           },
         };
@@ -595,7 +618,7 @@ export function DashboardScreen() {
               hasError: hasReviewError,
               savedAt: hasReviewError
                 ? current.sectionStatus.review.savedAt
-                : new Date().toISOString(),
+                : new Date(oldestSavedRead ?? Date.now()).toISOString(),
             },
           },
         };
@@ -621,7 +644,7 @@ export function DashboardScreen() {
         current.sectionStatus.review.loading;
 
       // Save fresh merged snapshot if we have valid non-empty daily data
-      if (userId && !overallHasError) {
+      if (userId && !overallHasError && !usedSavedRead) {
         void saveCachedDashboard(userId, {
           localDate: todayDate,
           reviewPeriod,
@@ -746,9 +769,24 @@ export function DashboardScreen() {
           void loadSteps();
         }
       });
+      let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+      const unsubscribe = subscribeSessionReadUpdates((path) => {
+        if (
+          !/^\/v1\/(food-entries|energy|body-measurements|workouts|profile|goals)([/?]|$)/.test(
+            path,
+          )
+        )
+          return;
+        clearTimeout(refreshTimer);
+        refreshTimer = setTimeout(() => {
+          if (foreground) void refreshMetrics();
+        }, 50);
+      });
       return () => {
         active = false;
         clearInterval(timer);
+        clearTimeout(refreshTimer);
+        unsubscribe();
         subscription.remove();
         networkSubscription.remove();
         activeRequestId.current += 1;

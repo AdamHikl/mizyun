@@ -1,0 +1,16 @@
+
+> @mizyun/api@0.1.0 test /Users/adam/Documents/mizyun/apps/api
+> vitest run src/modules/meal-illustrations/routes.test.ts src/modules/meal-illustrations/repository.test.ts src/modules/account/routes.test.ts src/app.test.ts
+
+
+ RUN  v3.2.7 /Users/adam/Documents/mizyun
+
+ ✓ apps/api/src/modules/meal-illustrations/repository.test.ts (4 tests) 3ms
+ ✓ apps/api/src/app.test.ts (5 tests) 153ms
+ ✓ apps/api/src/modules/account/routes.test.ts (28 tests) 453ms
+ ✓ apps/api/src/modules/meal-illustrations/routes.test.ts (20 tests) 1284ms
+
+ Test Files  4 passed (4)
+      Tests  57 passed (57)
+   Start at  08:44:51
+   Duration  3.40s (transform 1.68s, setup 0ms, collect 4.90s, tests 1.89s, environment 0ms, prepare 297ms)

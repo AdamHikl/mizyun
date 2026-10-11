@@ -1,0 +1,27 @@
+{
+  "date": "2026-10-09",
+  "baselineHead": "0d9da8a46197f20b12f00d643851a84866368998",
+  "inputSha256": "0c1bc3915b782820523fe66fc0889f6bbacf3cb4f278c81962090ba2b7f1d02a",
+  "candidate": "/var/folders/54/xppg48y95cj6g1p49c30k8zw0000gn/T/mizyun-startup-check-qx8tgwdd",
+  "scope": "HEAD plus startup/cache overlays; retained existing Coach text-selection source/tests; concurrent illustration/photo/watch/backend changes excluded",
+  "focused": {
+    "testsPassed": 360,
+    "typecheck": "PASS",
+    "lateBridgeEnvironmentTestsPassed": 34
+  },
+  "fullCheck": {
+    "result": "PASS",
+    "mobileTestsPassed": 2015,
+    "apiTestsPassed": 946,
+    "credentialGatedApiTestsSkipped": 15,
+    "configurationBundlePathTestsSkipped": 3,
+    "iosExport": "PASS",
+    "androidExport": "PASS",
+    "providerIntegration": "not run, BEFORE_TESTING gate retained"
+  },
+  "independentReview": "High non-author review clear after fixes",
+  "devDeployment": "not performed",
+  "nativeAcceptance": "not performed",
+  "productionRelease": "not performed",
+  "logSha256": "06ed93989562b27b7cc5528a284d89d604762d461ebc647d1820070388b131c0"
+}

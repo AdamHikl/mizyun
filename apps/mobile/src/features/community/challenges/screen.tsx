@@ -1,6 +1,9 @@
-import { invalidateCommunityReads } from "../state/read-cache";
+import {
+  getCommunityReadEpoch,
+  invalidateCommunityReads,
+} from "../state/read-cache";
 import { useAuth } from "@/features/auth/auth-context";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
   AppState,
   KeyboardAvoidingView,
@@ -42,6 +45,20 @@ function CommunityChallengesScreenContent() {
   const [workouts, setWorkouts] = useState<{ id: string; name: string }[]>([]);
   const [workoutsBusy, setWorkoutsBusy] = useState(false);
   const [workoutsNotice, setWorkoutsNotice] = useState<string | null>(null);
+  const workoutRead = useRef<AbortController | null>(null);
+  const workoutChoicesAccess = useRef<(() => boolean) | null>(null);
+  const cancelWorkoutRead = useCallback(() => {
+    workoutRead.current?.abort();
+    workoutRead.current = null;
+    workoutChoicesAccess.current = null;
+  }, []);
+  const clearWorkoutChoices = () => {
+    cancelWorkoutRead();
+    workoutChoicesAccess.current = null;
+    setWorkouts([]);
+    setWorkoutsBusy(false);
+    setWorkoutsNotice(null);
+  };
   const [id, setId] = useState<string | null>(null);
   const [createId, setCreateId] = useState(() => Crypto.randomUUID());
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -52,6 +69,7 @@ function CommunityChallengesScreenContent() {
   );
   useFocusEffect(
     useCallback(() => {
+      cancelWorkoutRead();
       setReport(false);
       setManage(false);
       setCreating(false);
@@ -70,6 +88,7 @@ function CommunityChallengesScreenContent() {
       const sub = AppState.addEventListener("change", (next) => {
         if (foreground === (next === "active")) return;
         foreground = next === "active";
+        cancelWorkoutRead();
         setReport(false);
         setId(null);
         setTitle("");
@@ -79,6 +98,7 @@ function CommunityChallengesScreenContent() {
       });
       return () => {
         sub.remove();
+        cancelWorkoutRead();
         setReport(false);
         setId(null);
         setTitle("");
@@ -86,14 +106,20 @@ function CommunityChallengesScreenContent() {
         setWorkoutsBusy(false);
         setWorkoutsNotice(null);
       };
-    }, [state.run, groupId]),
+    }, [state.run, groupId, cancelWorkoutRead]),
   );
   const current =
     state.data?.challenge?.id === id ? state.data.challenge : null;
   const loadWorkouts = async () => {
     const principal = state.principal;
-    if (!principal || state.busy || workoutsBusy) return;
-    const currentAccess = state.capture();
+    if (!principal || !current || state.busy || workoutsBusy) return;
+    const capturedAccess = state.capture();
+    const readEpoch = getCommunityReadEpoch();
+    const currentAccess = () =>
+      capturedAccess() && readEpoch === getCommunityReadEpoch();
+    cancelWorkoutRead();
+    const read = new AbortController();
+    workoutRead.current = read;
     setWorkoutsBusy(true);
     setWorkoutsNotice(null);
     const response = await scopeCommunityClient(
@@ -106,9 +132,14 @@ function CommunityChallengesScreenContent() {
       method: "GET",
       path: "/v1/workouts?limit=50",
       schema: workoutListResponseSchema,
+      // A deliberate source selection needs a live owner read, not saved display data.
+      signal: read.signal,
     });
+    if (workoutRead.current !== read || read.signal.aborted) return;
+    workoutRead.current = null;
     setWorkoutsBusy(false);
     if (!currentAccess()) return;
+    workoutChoicesAccess.current = currentAccess;
     if (!response.ok) {
       setWorkouts([]);
       setWorkoutsNotice("Unable to load your completed workouts. Try again.");
@@ -128,6 +159,7 @@ function CommunityChallengesScreenContent() {
         "No completed workouts from today. You can choose a rest or recovery day instead.",
       );
   };
+  const choicesAccess = workoutChoicesAccess.current;
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: t.background }}
@@ -148,6 +180,7 @@ function CommunityChallengesScreenContent() {
           disabled={state.busy || workoutsBusy}
           label="Manage my challenges"
           onPress={() => {
+            clearWorkoutChoices();
             setManage(true);
             setCreating(false);
             setId(null);
@@ -184,6 +217,7 @@ function CommunityChallengesScreenContent() {
                   disabled={state.busy || workoutsBusy}
                   label={`${c.title}${c.canceled ? " · canceled" : ""}`}
                   onPress={() => {
+                    clearWorkoutChoices();
                     setCreating(false);
                     setId(c.id);
                     void state.run({
@@ -251,7 +285,6 @@ function CommunityChallengesScreenContent() {
                 <ExpansionButton
                   label="Confirm and create this seven-day challenge"
                   disabled={state.busy || workoutsBusy || !title.trim()}
-
                   onPress={() => {
                     const end = new Date();
                     end.setDate(end.getDate() + 6);
@@ -286,6 +319,7 @@ function CommunityChallengesScreenContent() {
                 manage ? "Back to my challenges" : "Back to group challenges"
               }
               onPress={() => {
+                clearWorkoutChoices();
                 setReport(false);
                 setId(null);
                 setWorkouts([]);
@@ -301,6 +335,7 @@ function CommunityChallengesScreenContent() {
               disabled={state.busy || workoutsBusy}
               label="Refresh progress"
               onPress={() => {
+                clearWorkoutChoices();
                 invalidateCommunityReads();
                 void state.run({ operation: manage ? "getMine" : "get", id });
               }}
@@ -315,10 +350,20 @@ function CommunityChallengesScreenContent() {
                 </Text>
                 <Text style={{ color: t.text }}>
                   Your declared days: {current.myProgress ?? "not declared"}.
-                  Shared declared days: {current.teamProgress ?? "not declared"}
-                  . {current.participants} participants.{" "}
-                  {current.canceled ? "Canceled." : ""}
+                  {current.canceled ? " Canceled." : ""}
                 </Text>
+                {manage ? (
+                  <Text style={{ color: t.textSecondary }}>
+                    This view shows your declarations. Open the challenge from
+                    its private group to check shared progress and participants.
+                  </Text>
+                ) : (
+                  <Text style={{ color: t.text }}>
+                    Shared declared days:{" "}
+                    {current.teamProgress ?? "not declared"}.{" "}
+                    {current.participants} participants.
+                  </Text>
+                )}
                 <Text style={{ color: t.textSecondary }}>
                   {current.startDay}–{current.endDay} · {current.goalDays} days
                   per person · {current.timezone}
@@ -345,7 +390,7 @@ function CommunityChallengesScreenContent() {
                       void state.run({ operation: "join", id, confirmed: true })
                     }
                   />
-                )}{" "}
+                )}
                 {!manage &&
                   current.joined &&
                   !current.canceled &&
@@ -370,7 +415,7 @@ function CommunityChallengesScreenContent() {
                         label="Choose a completed workout from today"
                         onPress={() => void loadWorkouts()}
                       />
-                      {workoutsNotice && (
+                      {choicesAccess?.() && workoutsNotice && (
                         <Text
                           accessibilityLiveRegion="polite"
                           style={{ color: t.textSecondary }}
@@ -378,12 +423,17 @@ function CommunityChallengesScreenContent() {
                           {workoutsNotice}
                         </Text>
                       )}
-                      {workouts.map((w) => (
+                      {(choicesAccess?.() ? workouts : []).map((w) => (
                         <ExpansionButton
                           disabled={state.busy || workoutsBusy}
                           key={w.id}
                           label={`Confirm workout: ${w.name}`}
-                          onPress={() =>
+                          onPress={() => {
+                            if (
+                              workoutChoicesAccess.current !== choicesAccess ||
+                              !choicesAccess?.()
+                            )
+                              return;
                             void state.run({
                               operation: "contribute",
                               id,
@@ -391,8 +441,8 @@ function CommunityChallengesScreenContent() {
                               kind: "workout",
                               sourceWorkoutId: w.id,
                               confirmed: true,
-                            })
-                          }
+                            });
+                          }}
                         />
                       ))}
                     </>

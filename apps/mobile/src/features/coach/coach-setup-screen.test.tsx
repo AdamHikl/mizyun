@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   photo: vi.fn(),
   capability: vi.fn(),
   remove: vi.fn(),
+  adapt: vi.fn(),
   saveDraft: vi.fn(),
   clearDraft: vi.fn(),
   alert: vi.fn(),
@@ -22,8 +23,10 @@ const mocks = vi.hoisted(() => ({
   token: "synthetic-token",
   appState: "active",
   fontScale: 1,
+  platform: "ios",
   headerHeight: 128,
   appListeners: new Set<(state: string) => void>(),
+  readListeners: new Set<(path: string) => void>(),
 }));
 const hooks = vi.hoisted(() => ({
   slots: [] as any[],
@@ -80,7 +83,12 @@ vi.mock("react-native", () => ({
   ScrollView: "ScrollView",
   TextInput: "TextInput",
   View: "View",
-  Platform: { OS: "ios", select: (values: any) => values.ios },
+  Platform: {
+    get OS() {
+      return mocks.platform;
+    },
+    select: (values: any) => values[mocks.platform],
+  },
   StyleSheet: { create: (s: unknown) => s },
   Keyboard: { addListener: () => ({ remove: vi.fn() }) },
   AppState: {
@@ -129,6 +137,12 @@ vi.mock("@/features/auth/auth-context", () => ({
   }),
 }));
 vi.mock("@/composition/api-client", () => ({ apiClient: {} }));
+vi.mock("@/composition/personal-read-events", () => ({
+  subscribeSessionReadUpdates: (listener: (path: string) => void) => {
+    mocks.readListeners.add(listener);
+    return () => mocks.readListeners.delete(listener);
+  },
+}));
 vi.mock("@/features/logging-draft-storage", () => ({
   loadLoggingDraft: async () => null,
   saveLoggingDraft: mocks.saveDraft,
@@ -179,6 +193,7 @@ vi.mock("./coach-data", async (original) => ({
   sendCoachMessage: mocks.send,
   sendCoachMealPhoto: mocks.photo,
   deleteCoachConversation: mocks.remove,
+  acceptWeeklyAdaptation: mocks.adapt,
 }));
 
 import { CoachSetupScreen } from "./coach-setup-screen";
@@ -239,8 +254,10 @@ beforeEach(() => {
   mocks.token = "synthetic-token";
   mocks.appState = "active";
   mocks.fontScale = 1;
+  mocks.platform = "ios";
   mocks.headerHeight = 128;
   mocks.appListeners.clear();
+  mocks.readListeners.clear();
   mocks.load.mockResolvedValue({ ok: true, status: ready, conversations: [] });
   mocks.create.mockResolvedValue({ ok: true, conversation, messages: [] });
   mocks.thread.mockResolvedValue({ ok: true, conversation, messages: [] });
@@ -354,9 +371,15 @@ describe("Coach conversation hierarchy", () => {
 });
 
 describe("Coach reply text selection", () => {
-  it.each(["history", "new reply"])(
-    "enables native copying of formatted text in %s",
-    async (source) => {
+  it.each([
+    ["ios", "history"],
+    ["ios", "new reply"],
+    ["android", "history"],
+    ["android", "new reply"],
+  ])(
+    "supports selection on %s for formatted text in %s",
+    async (platform, source) => {
+      mocks.platform = platform;
       const reply = {
         id: "selectable-reply",
         role: "assistant",
@@ -398,7 +421,7 @@ describe("Coach reply text selection", () => {
       const roots = (node: any): any[] => {
         if (!node || typeof node !== "object") return [];
         if (Array.isArray(node)) return node.flatMap(roots);
-        if (node.type === "ThemedText") return [node];
+        if (node.type?.name === "SelectableCoachText") return [node];
         return roots(node.props?.children);
       };
       const content = (node: any): string => {
@@ -417,7 +440,23 @@ describe("Coach reply text selection", () => {
         "Numbered advice",
         "`Example text`",
       ]);
-      for (const root of textRoots) expect(root.props.selectable).toBe(true);
+      for (const root of textRoots) {
+        const surface = root.type(root.props);
+        if (platform !== "ios") {
+          expect(surface.type).toBe("ThemedText");
+          expect(surface.props.selectable).toBe(true);
+          expect(content(surface)).toBe(content(root));
+          continue;
+        }
+        expect(surface.type).toBe("TextInput");
+        expect(surface.props.editable).toBe(false);
+        expect(surface.props.multiline).toBe(true);
+        expect(surface.props.scrollEnabled).toBe(false);
+        expect(surface.props.showSoftInputOnFocus).toBe(false);
+        expect(surface.props.value).toBeUndefined();
+        expect(surface.props.selection).toBeUndefined();
+        expect(content(surface)).toBe(content(root));
+      }
       const bold = nodes(textRoots[2]).find(
         (node) => node.props?.type === "smallBold",
       );
@@ -881,4 +920,126 @@ it("restricts a free Coach picker to one photo and rejects bypassed multi select
   );
   expect(mocks.photo).not.toHaveBeenCalled();
   expect(mocks.create).not.toHaveBeenCalled();
+});
+
+describe("Coach cached history and live generation authority", () => {
+  const savedMessage = {
+    id: "cached-coach-message",
+    conversationId: conversation.id,
+    role: "assistant",
+    text: "Previously saved Coach guidance.",
+    status: "complete",
+    provider: "gemini",
+    evidenceKinds: [],
+    actionProposal: null,
+    createdAt: conversation.updatedAt,
+  };
+  const bubbles = (tree: any) =>
+    nodes(tree).filter((node) => node.props?.message?.id === savedMessage.id);
+  beforeEach(() => {
+    mocks.thread.mockResolvedValue({
+      ok: true,
+      conversation,
+      messages: [savedMessage],
+    });
+  });
+
+  it.each([
+    [null, "Coach is offline. Your existing conversation is still safe."],
+    [{ ready: false, reason: "Provider disabled." }, undefined],
+  ])(
+    "shows history with unavailable readiness %j and blocks generation actions",
+    async (status, readinessMessage) => {
+      mocks.load.mockResolvedValue({
+        ok: true,
+        status,
+        readinessMessage,
+        conversations: [conversation],
+      });
+      let tree = await open();
+      expect(bubbles(tree)).toHaveLength(1);
+      expect(text(tree, "Loading Coach…")).toBe(false);
+      expect(labelled(tree, "Open thread list")).toBeDefined();
+      expect(labelled(tree, "New conversation").props.disabled).toBe(true);
+      expect(labelled(tree, "Attach photos").props.disabled).toBe(true);
+      const send = typeMessage();
+      expect(send.props.disabled).toBe(true);
+      await send.props.onPress();
+      await labelled(tree, "Attach photos").props.onPress();
+      await labelled(tree, "New conversation").props.onPress();
+      await bubbles(tree)[0].props.onAcceptWeeklyAdaptation({
+        id: "saved-adaptation",
+      });
+      expect(mocks.create).not.toHaveBeenCalled();
+      expect(mocks.send).not.toHaveBeenCalled();
+      expect(mocks.photo).not.toHaveBeenCalled();
+      expect(mocks.permission).not.toHaveBeenCalled();
+      expect(mocks.adapt).not.toHaveBeenCalled();
+      expect(bubbles(render())[0].props.actionsEnabled).toBe(false);
+    },
+  );
+
+  it("shows cached history while the live readiness check is pending", async () => {
+    let finish!: (value: any) => void;
+    const pending = new Promise((resolve) => {
+      finish = resolve;
+    });
+    mocks.load.mockImplementation(async (_client, publish) => {
+      await publish([conversation]);
+      return pending;
+    });
+    let tree = await open();
+    expect(bubbles(tree)).toHaveLength(1);
+    expect(text(tree, "Loading Coach…")).toBe(false);
+    expect(typeMessage().props.disabled).toBe(true);
+    finish({ ok: true, status: ready, conversations: [conversation] });
+    await settle();
+    tree = render();
+    expect(labelled(tree, "Send message").props.disabled).toBe(false);
+    expect(mocks.thread).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the visible thread during background cache refresh and installs fresh messages", async () => {
+    mocks.load.mockResolvedValue({
+      ok: true,
+      status: ready,
+      conversations: [conversation],
+    });
+    await open();
+    let finish!: (value: any) => void;
+    mocks.load.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    for (const listener of mocks.readListeners)
+      listener("/v1/coach/conversations");
+    let tree = render();
+    expect(bubbles(tree)).toHaveLength(1);
+    expect(text(tree, "Loading Coach…")).toBe(false);
+    mocks.thread.mockResolvedValue({
+      ok: true,
+      conversation,
+      messages: [{ ...savedMessage, text: "Fresh server guidance." }],
+    });
+    finish({ ok: true, status: ready, conversations: [conversation] });
+    await settle();
+    tree = render();
+    expect(bubbles(tree)[0].props.message.text).toBe("Fresh server guidance.");
+  });
+
+  it("hides the previous account's transcript in the first render after switching", async () => {
+    mocks.load.mockResolvedValue({
+      ok: true,
+      status: ready,
+      conversations: [conversation],
+    });
+    await open();
+    mocks.owner = "other-user";
+    mocks.token = "other-token";
+    mocks.load.mockReturnValue(new Promise(() => {}));
+    const tree = render();
+    expect(bubbles(tree)).toHaveLength(0);
+    expect(labelled(tree, "Open thread list")).toBeUndefined();
+  });
 });

@@ -842,3 +842,6 @@ export * from "./health-connection";
 export * from "./health-export";
 
 export * from "./run";
+
+export * from "./meal-illustration";
+export * from "./workout-companion";

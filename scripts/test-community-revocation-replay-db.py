@@ -118,6 +118,14 @@ insert into public.community_challenge_members(user_id,challenge_id,generation) 
 insert into public.community_challenge_contributions(user_id,challenge_id,day,kind,created_at) values
  ('c3900000-0000-4000-8000-000000000003','b3900000-0000-4000-8000-000000000013','2026-10-08','rest','2026-10-07T08:00:00Z'),
  ('c3900000-0000-4000-8000-000000000003','b3900000-0000-4000-8000-000000000013','2026-10-09','rest','2026-10-09T08:00:00Z');
+insert into public.community_comment_preferences(user_id,allow_mentions) values
+ ('c3900000-0000-4000-8000-000000000003',true),('c3900000-0000-4000-8000-000000000002',true);
+insert into public.community_comment_settings(activity_id,user_id,enabled) values('a3900000-0000-4000-8000-000000000001','c3900000-0000-4000-8000-000000000003',true);
+insert into public.community_notification_preferences(user_id) values('c3900000-0000-4000-8000-000000000002');
+insert into public.workouts(id,user_id,name,started_at,completed_at,details) values('d3900000-0000-4000-8000-000000000002','c3900000-0000-4000-8000-000000000002','Synthetic later private',now(),now(),'{}');
+insert into public.shared_activities(id,user_id,source_workout_id,shared_day,enrollment_generation,workout_details) values('a3900000-0000-4000-8000-000000000014','c3900000-0000-4000-8000-000000000002','d3900000-0000-4000-8000-000000000002','2026-10-11',2,'{"exercises":[]}');
+insert into public.community_comment_settings(activity_id,user_id,enabled) values('a3900000-0000-4000-8000-000000000014','c3900000-0000-4000-8000-000000000002',true);
+insert into public.community_comment_mentions(user_id,comment_id,generation) values('c3900000-0000-4000-8000-000000000002','a3900000-0000-4000-8000-000000000009',2);
 """)
         users = ['c3900000-0000-4000-8000-' + str(n).zfill(12) for n in range(1, 6)]
 
@@ -140,6 +148,18 @@ insert into public.community_challenge_contributions(user_id,challenge_id,day,ki
                        event(16, 'challenge_membership', users[1], 'b3900000-0000-4000-8000-000000000013', generation=2),
                        event(18, 'challenge_contribution', users[2], 'b3900000-0000-4000-8000-000000000013'),
                        event(19, 'group_membership', users[1], 'b3900000-0000-4000-8000-000000000011', generation=2)])
+        events.extend([
+            event(20, 'mute', users[2], users[1], generation=1, peer=users[1]),
+            event(21, 'mention_optout', users[2], users[2], generation=1),
+            event(22, 'comment_setting_optout', users[2], 'a3900000-0000-4000-8000-000000000001', generation=1),
+            event(23, 'notification_optout', users[2], users[2], generation=1),
+            event(24, 'mute', users[1], users[2], generation=1, peer=users[2]),
+            event(25, 'mention_optout', users[1], users[1], generation=1),
+            event(26, 'comment_setting_optout', users[1], 'a3900000-0000-4000-8000-000000000014', generation=1),
+            event(27, 'notification_optout', users[1], users[1], generation=1),
+            event(28, 'activity', users[1], 'a3900000-0000-4000-8000-000000000014', generation=1),
+            event(29, 'comment_setting_optout', users[1], 'a3900000-0000-4000-8000-000000000001', generation=2),
+        ])
         events.insert(0, event(17, 'reaction', users[1], 'b3900000-0000-4000-8000-000000000010'))
         # Every call uses the same controlled container; event bytes are encoded,
         # never interpolated as executable SQL.
@@ -191,7 +211,17 @@ insert into public.community_challenge_contributions(user_id,challenge_id,day,ki
  'routineRevoked',(select revoked_at is not null from public.community_routine_shares where id='a3900000-0000-4000-8000-000000000006'),
  'commentErased',(select body is null and removed_at is not null from public.community_comments where id='a3900000-0000-4000-8000-000000000002'),
  'forgedAndOlderCommentPreserved',(select body='Later generation comment' and removed_at is null from public.community_comments where id='a3900000-0000-4000-8000-000000000009'),
- 'forgedAndOlderMentionsPreserved',(select not revoked from public.community_comment_mentions where comment_id='a3900000-0000-4000-8000-000000000009'),
+ 'recipientMentionRevoked',(select revoked from public.community_comment_mentions where comment_id='a3900000-0000-4000-8000-000000000009' and user_id='c3900000-0000-4000-8000-000000000003'),
+ 'laterMentionPreserved',(select not revoked from public.community_comment_mentions where comment_id='a3900000-0000-4000-8000-000000000009' and user_id='c3900000-0000-4000-8000-000000000002'),
+ 'mentionConsentReduced',(select not allow_mentions from public.community_comment_preferences where user_id='c3900000-0000-4000-8000-000000000003'),
+ 'laterMentionConsentPreserved',(select allow_mentions from public.community_comment_preferences where user_id='c3900000-0000-4000-8000-000000000002'),
+ 'commentSettingReduced',(select not enabled from public.community_comment_settings where activity_id='a3900000-0000-4000-8000-000000000001'),
+ 'laterCommentSettingPreserved',(select enabled from public.community_comment_settings where activity_id='a3900000-0000-4000-8000-000000000014'),
+ 'notificationReductionCreated',(select muted and not requests and not reactions and not moderation from public.community_notification_preferences where user_id='c3900000-0000-4000-8000-000000000003'),
+ 'laterNotificationPreferencePreserved',(select not muted and requests and reactions and moderation from public.community_notification_preferences where user_id='c3900000-0000-4000-8000-000000000002'),
+ 'muteRestored',exists(select 1 from public.community_mutes where user_id='c3900000-0000-4000-8000-000000000003' and target_user_id='c3900000-0000-4000-8000-000000000002'),
+ 'laterMutePreferencePreserved',not exists(select 1 from public.community_mutes where user_id='c3900000-0000-4000-8000-000000000002'),
+ 'laterHealthProjectionPreserved',(select revoked_at is null and workout_details is not null from public.shared_activities where id='a3900000-0000-4000-8000-000000000014'),
  'messageErased',not exists(select 1 from public.community_messages where id='a3900000-0000-4000-8000-000000000003' and (body is not null or deleted_at is null)),
  'mediaRevoked',(select state='revoked' from public.community_media_assets where id='a3900000-0000-4000-8000-000000000004'),
  'storageTicketRetained',exists(select 1 from public.community_media_cleanup_jobs where id='a3900000-0000-4000-8000-000000000004'),

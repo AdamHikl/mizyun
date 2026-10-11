@@ -1,0 +1,38 @@
+{
+  "date": "2026-10-11",
+  "environment": "Dev",
+  "backendSha": "2596a69b3fe4d20920a173de91fb4dc533b9bd4a",
+  "fixturePreparation": {
+    "scope": "Normal own-auth preparation only; not native acceptance",
+    "oneWayApprovedFollow": "B follows A",
+    "activity": "Existing synthetic strength summary only; duration/details excluded",
+    "privateSourceDeleted": false,
+    "recipientDetailHttp": 200
+  },
+  "shareRevocation": {
+    "scope": "Normal own-auth exact synthetic fixture revocation/cleanup, NOT native input",
+    "mode": "revoke",
+    "beforeHttp": 200,
+    "revokedHttp": 200,
+    "afterHttp": 404,
+    "afterError": "NOT_FOUND",
+    "mutationAndDenialMs": 490,
+    "revokedAtIso": "2026-10-11T09:39:49.969Z",
+    "privateWorkoutDeleted": false
+  },
+  "timingQualification": "Native read packet took12.56s; immediate denial within original native ten-second lease is not established. API200-to404 transition and later native authoritative denial are separate evidence.",
+  "fixtureEdgeCleanup": {
+    "scope": "Normal own-auth exact synthetic fixture revocation/cleanup, NOT native input",
+    "mode": "edge",
+    "edgeRemoved": true,
+    "finalCounts": [0, 0, 0]
+  },
+  "credentialsOrPrivatePayloadIncluded": false,
+  "nativeFollowup": {
+    "originalLeaseRetirement": "PASS actual protected content/actions retired after10s; normal Check restored fresh content",
+    "freshPostRevokeDenial": "PASS User or request not found/no protected content",
+    "screenshot": "remaining-revoked-detail-denial.png inspected by controller and coordinator",
+    "goBackAndFreshFeed": "PASS returned selectedFeed/no shared workouts/no revokedcard",
+    "immediateWithinOriginalLease": "NOT ESTABLISHED/control latency"
+  }
+}

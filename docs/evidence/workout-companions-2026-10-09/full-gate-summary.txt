@@ -1,0 +1,40 @@
+Date: 2026-10-09
+Command: pnpm check
+Exit: 0
+Log SHA-256: c50000d213ef11fcec771b452623798a31d905eb9012258383028411a109f19a
+Scope: combined stable local working tree, including preserved unrelated meal/Coach work. No commit/deployment.
+
+[check] Running all check:steps gates; input SHA-256 c722cef39b30832f9a10336c307e64854830a96fe03c059ca03030a9d6e49d7b.
+Exported: dist/bundle-check-ios
+Exported: dist/bundle-check-android
+packages/observability test:  Test Files  1 passed (1)
+packages/observability test:       Tests  10 passed (10)
+packages/contracts test:  Test Files  24 passed (24)
+packages/contracts test:       Tests  301 passed (301)
+packages/core test:  Test Files  33 passed (33)
+packages/core test:       Tests  448 passed (448)
+packages/memory test:  Test Files  1 passed (1)
+packages/memory test:       Tests  3 passed (3)
+packages/identity test:  Test Files  1 passed (1)
+packages/identity test:       Tests  19 passed (19)
+packages/adapters/apple-auth test:  Test Files  4 passed (4)
+packages/adapters/apple-auth test:       Tests  53 passed (53)
+packages/adapters/ses test:  Test Files  1 passed (1)
+packages/adapters/ses test:       Tests  5 passed (5)
+packages/adapters/supabase-mobile test:  Test Files  2 passed (2)
+packages/adapters/supabase-mobile test:       Tests  32 passed (32)
+packages/agent-runtime test:  Test Files  3 passed (3)
+packages/agent-runtime test:       Tests  91 passed (91)
+packages/api-client test:  Test Files  3 passed (3)
+packages/api-client test:       Tests  42 passed (42)
+packages/adapters/supabase-server test:  Test Files  26 passed (26)
+packages/adapters/supabase-server test:       Tests  193 passed (193)
+packages/config test:  Test Files  7 passed (7)
+packages/config test:       Tests  86 passed (86)
+packages/providers/gemini test:  Test Files  4 passed (4)
+packages/providers/gemini test:       Tests  73 passed (73)
+apps/mobile test:  Test Files  172 passed (172)
+apps/mobile test:       Tests  1973 passed (1973)
+apps/api test:  Test Files  68 passed | 3 skipped (71)
+apps/api test:       Tests  970 passed | 15 skipped (985)
+[check] PASS: all gates completed for input SHA-256 c722cef39b30832f9a10336c307e64854830a96fe03c059ca03030a9d6e49d7b.

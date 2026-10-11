@@ -1,0 +1,47 @@
+// !$*UTF8*$!
+{
+ archiveVersion = 1;
+ classes = {};
+ objectVersion = 56;
+ objects = {
+/* Begin PBXProject section */
+  A00000000000000000000001 = {isa = PBXProject; attributes = {LastUpgradeCheck = 2700;}; buildConfigurationList = A00000000000000000000002; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base,); mainGroup = A00000000000000000000003; productRefGroup = A00000000000000000000004; projectDirPath = ""; projectRoot = ""; targets = (A00000000000000000000005 /* reference */,);};
+/* End PBXProject section */
+/* Begin XCConfigurationList section */
+  A00000000000000000000002 = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000006 /* reference */, A00000000000000000000007 /* reference */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
+  A00000000000000000000011 = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000015 /* reference */, A00000000000000000000016 /* reference */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
+/* End XCConfigurationList section */
+/* Begin PBXGroup section */
+  A00000000000000000000003 = {isa = PBXGroup; children = (A00000000000000000000008 /* reference */, A00000000000000000000009 /* reference */, A00000000000000000000004 /* reference */,); sourceTree = "<group>";};
+  A00000000000000000000004 = {isa = PBXGroup; children = (A00000000000000000000010 /* reference */,); name = Products; sourceTree = "<group>";};
+/* End PBXGroup section */
+/* Begin PBXNativeTarget section */
+  A00000000000000000000005 = {isa = PBXNativeTarget; buildConfigurationList = A00000000000000000000011; buildPhases = (A00000000000000000000012 /* reference */, A00000000000000000000013 /* reference */, A00000000000000000000014 /* reference */,); buildRules = (); dependencies = (); name = MizyunWorkoutWatchDev; productName = MizyunWorkoutWatchDev; productReference = A00000000000000000000010; productType = "com.apple.product-type.application";};
+/* End PBXNativeTarget section */
+/* Begin XCBuildConfiguration section */
+  A00000000000000000000006 = {isa = XCBuildConfiguration; buildSettings = {}; name = Debug;};
+  A00000000000000000000007 = {isa = XCBuildConfiguration; buildSettings = {}; name = Release;};
+  A00000000000000000000015 = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; INFOPLIST_FILE = Info.plist; PRODUCT_BUNDLE_IDENTIFIER = com.mizyun.development.watchkitapp; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = watchos; SUPPORTED_PLATFORMS = "watchos watchsimulator"; WATCHOS_DEPLOYMENT_TARGET = 10.0; TARGETED_DEVICE_FAMILY = 4; SWIFT_VERSION = 5.9; MARKETING_VERSION = 0.1.0; CURRENT_PROJECT_VERSION = 1; GENERATE_INFOPLIST_FILE = NO; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks"; SWIFT_OPTIMIZATION_LEVEL = "-Onone";}; name = Debug;};
+  A00000000000000000000016 = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; INFOPLIST_FILE = Info.plist; PRODUCT_BUNDLE_IDENTIFIER = com.mizyun.development.watchkitapp; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = watchos; SUPPORTED_PLATFORMS = "watchos watchsimulator"; WATCHOS_DEPLOYMENT_TARGET = 10.0; TARGETED_DEVICE_FAMILY = 4; SWIFT_VERSION = 5.9; MARKETING_VERSION = 0.1.0; CURRENT_PROJECT_VERSION = 1; GENERATE_INFOPLIST_FILE = NO; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";}; name = Release;};
+/* End XCBuildConfiguration section */
+/* Begin PBXFileReference section */
+  A00000000000000000000008 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/CompanionState.swift; sourceTree = SOURCE_ROOT;};
+  A00000000000000000000009 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/MizyunWatchApp.swift; sourceTree = SOURCE_ROOT;};
+  A00000000000000000000010 = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MizyunWorkoutWatchDev.app; sourceTree = BUILT_PRODUCTS_DIR;};
+/* End PBXFileReference section */
+/* Begin PBXSourcesBuildPhase section */
+  A00000000000000000000012 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000017 /* reference */, A00000000000000000000018 /* reference */,); runOnlyForDeploymentPostprocessing = 0;};
+/* End PBXSourcesBuildPhase section */
+/* Begin PBXFrameworksBuildPhase section */
+  A00000000000000000000013 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;};
+/* End PBXFrameworksBuildPhase section */
+/* Begin PBXResourcesBuildPhase section */
+  A00000000000000000000014 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;};
+/* End PBXResourcesBuildPhase section */
+/* Begin PBXBuildFile section */
+  A00000000000000000000017 = {isa = PBXBuildFile; fileRef = A00000000000000000000008;};
+  A00000000000000000000018 = {isa = PBXBuildFile; fileRef = A00000000000000000000009;};
+/* End PBXBuildFile section */
+ };
+ rootObject = A00000000000000000000001;
+}

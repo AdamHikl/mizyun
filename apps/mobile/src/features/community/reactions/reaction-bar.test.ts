@@ -495,6 +495,51 @@ describe("COMM-08 Reversible encouragement reactions", () => {
       },
     );
 
+    it("retries the same desired reaction after a committed response is lost and remounts from the fresh result", async () => {
+      let saved: string | null = null;
+      const request = vi.fn().mockImplementation(async (options) => {
+        saved = options.body.reaction;
+        if (request.mock.calls.length === 1)
+          throw new Error("Response lost after commit");
+        return {
+          ok: true,
+          value: {
+            activityId: "act-1",
+            viewerReaction: saved,
+            reactionCounts: {
+              ...defaultCounts,
+              clap: saved === "clap" ? 1 : 0,
+            },
+          },
+        };
+      });
+      const options = {
+        activityId: "act-1",
+        authorUserId: "author-1",
+        viewerUserId: "viewer-2",
+        initialReactionCounts: defaultCounts,
+        initialViewerReaction: null,
+        scopedClient: { request } as unknown as ApiClient,
+      };
+      const controller = new ReactionBarController(options);
+      expect(await controller.toggleReaction("clap")).toBe(false);
+      expect(saved).toBe("clap");
+      expect(controller.state.viewerReaction).toBeNull();
+      expect(await controller.toggleReaction("clap")).toBe(true);
+      expect(request.mock.calls.map((call) => call[0].body.reaction)).toEqual([
+        "clap",
+        "clap",
+      ]);
+      controller.retire();
+      const restarted = new ReactionBarController({
+        ...options,
+        initialViewerReaction: "clap",
+        initialReactionCounts: { ...defaultCounts, clap: 1 },
+      });
+      expect(restarted.state.viewerReaction).toBe("clap");
+      expect(restarted.totalReactions).toBe(1);
+    });
+
     it("defends against rapid taps by dropping requests while in-flight", async () => {
       let resolveRequest!: (val: unknown) => void;
       const request = vi.fn().mockImplementation(

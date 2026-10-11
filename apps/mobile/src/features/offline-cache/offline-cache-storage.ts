@@ -10,6 +10,7 @@ import type {
   LatestWeight,
   NutritionReview,
 } from "../dashboard/dashboard-data";
+import { purgePersonalReads } from "./personal-read-storage";
 
 export interface DashboardMetricsData {
   readonly caloriesToday: number | null;
@@ -435,6 +436,11 @@ export const purgeOfflineCache = async (
   store: StringStorage = createDefaultOfflineCacheStorage(),
 ): Promise<void> => {
   if (!userId) return;
+  // Fence personal writes at cleanup invocation, before waiting for dashboard work.
+  const personalCleanup = purgePersonalReads(userId, store).then(
+    () => true,
+    () => false,
+  );
   await withIndexLock(userId, async () => {
     const indexKey = dashboardIndexKey(userId);
     const prefix = dashboardCacheKey(userId) + ".";
@@ -468,7 +474,11 @@ export const purgeOfflineCache = async (
       ].map((key) => Promise.resolve().then(() => store.removeItem(key))),
     );
     // Keep the index until all referenced removals succeed so retry can find them.
-    if (indexFailed || results.some((result) => result.status === "rejected"))
+    if (
+      !(await personalCleanup) ||
+      indexFailed ||
+      results.some((result) => result.status === "rejected")
+    )
       throw new Error("Offline account cache cleanup is incomplete.");
     await store.removeItem(indexKey);
   });

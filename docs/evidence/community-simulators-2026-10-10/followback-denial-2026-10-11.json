@@ -1,0 +1,23 @@
+{
+  "date": "2026-10-11",
+  "environment": "Dev",
+  "backendSha": "2596a69b3fe4d20920a173de91fb4dc533b9bd4a",
+  "scope": "Normal own-auth API corroboration after native directional removal; this request was not native input",
+  "actors": ["Synthetic A", "Synthetic B"],
+  "baseline": {
+    "aFollowersWithoutB": true,
+    "aFollowingWithoutB": true,
+    "bFollowingWithoutA": true,
+    "bExactHandleSearchEnabled": false
+  },
+  "action": "One own-A request to follow B, without invitation, after incoming approval was removed",
+  "result": {
+    "httpStatus": 404,
+    "errorCode": "NOT_FOUND",
+    "relationshipCreated": false
+  },
+  "nativeGraphMutationsHeld": true,
+  "credentialsOrIdentifiersIncluded": false,
+  "sourceChanges": false,
+  "setupQualification": "The initial B-to-A approved edge was prepared through normal own-auth routes; it was fixture setup, not native acceptance. Follow back, recipient approval, Unfollow and Remove follower were native interactions."
+}

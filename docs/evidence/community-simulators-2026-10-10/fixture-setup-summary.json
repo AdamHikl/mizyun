@@ -1,0 +1,36 @@
+{
+  "provenance": "own synthetic Dev API fixture preparation; Community UI actions unperformed by setup",
+  "accounts": [
+    {
+      "alias": "A",
+      "completedAt": "2026-10-10T07:04:19.638Z",
+      "exerciseName": "Barbell Back Squat",
+      "catalogueId": "barbell-squat",
+      "expectedSet": {
+        "reps": 8,
+        "loadKg": 10
+      },
+      "privateCanary": "PRIVATE_COMM_CANARY_20261010_DO_NOT_SHARE",
+      "routinePrepared": true
+    }
+  ],
+  "issuer": "https://mizyun-supabase-dev.phiskel.com",
+  "initialGuardCorrection": "Expected canonical Dev issuer without /auth/v1; inspected claims, no network writes before correcting assertion",
+  "bWorkout": {
+    "status": "Prepared after native group acceptance and challenge opt-in",
+    "accounts": [
+      {
+        "alias": "B",
+        "completedAt": "2026-10-10T07:30:02.732Z",
+        "exerciseName": "Barbell Back Squat",
+        "catalogueId": "barbell-squat",
+        "expectedSet": {
+          "reps": 8,
+          "loadKg": 10
+        },
+        "privateCanary": "PRIVATE_COMM_CANARY_20261010_DO_NOT_SHARE"
+      }
+    ],
+    "sessionRecovery": "Initial private fixture session denied401 following native global sign-out; own Dev password sign-in renewed B fixture session before list-before-write. No native session sign-out or duplicate workout."
+  }
+}

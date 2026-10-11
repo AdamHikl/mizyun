@@ -390,6 +390,18 @@ describe("groupFoodEntriesByDay", () => {
 });
 
 describe("fetchFoodHistoryWith", () => {
+  it("preserves original offline read time for display-only reminder decisions", async () => {
+    const time = new Date("2026-10-09T12:00:00Z").getTime();
+    const client: ApiClient = {
+      status: () => ({ configured: false, reason: "synthetic" }),
+      request: async <T>() => ({
+        ok: true as const,
+        value: { foodEntries: [] } as T,
+        savedAt: time,
+      }),
+    };
+    expect((await fetchFoodHistoryWith(client)).savedAt).toBe(time);
+  });
   it("fetches all entries and groups them by day", async () => {
     const requests: RequestOptions[] = [];
     const result = await fetchFoodHistoryWith(

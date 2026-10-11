@@ -1,15 +1,46 @@
 import type { FastifyPluginAsync } from "fastify";
-import { MealPhotoError, type MealPhotoService } from "@mizyun/core";
+import {
+  MealPhotoError,
+  type MealPhotoService,
+  type ProfileRepository,
+  type UserId,
+} from "@mizyun/core";
 import {
   mealPhotoUploadSchema,
   mealPhotoResponseSchema,
   mealPhotoReadResponseSchema,
 } from "@mizyun/contracts";
 import { sendApiError } from "../../errors.js";
+import type { BetaProRepository } from "../../beta-pro-repository.js";
+import { hasMealVisuals } from "../../meal-visual-access.js";
 export const mealPhotoRoutes: FastifyPluginAsync<{
   enabled: boolean;
   service: MealPhotoService | null;
+  profileRepository: ProfileRepository;
+  betaProRepository: BetaProRepository;
 }> = async (app, options) => {
+  const requirePro = async (
+    request: Parameters<typeof sendApiError>[1],
+    reply: Parameters<typeof sendApiError>[0],
+  ) => {
+    const principal = request.principal!;
+    if (
+      await hasMealVisuals(
+        options,
+        principal.userId as UserId,
+        principal.accessToken,
+      )
+    )
+      return true;
+    await sendApiError(
+      reply,
+      request,
+      403,
+      "FORBIDDEN",
+      "Meal images require Pro Pass.",
+    );
+    return false;
+  };
   const reject = async (
     error: unknown,
     request: Parameters<typeof sendApiError>[1],
@@ -39,7 +70,7 @@ export const mealPhotoRoutes: FastifyPluginAsync<{
     );
   };
   app.addHook("preHandler", async (request, reply) => {
-    if (!options.enabled || !options.service)
+    if ((!options.enabled && request.method !== "DELETE") || !options.service)
       await sendApiError(
         reply,
         request,
@@ -53,6 +84,7 @@ export const mealPhotoRoutes: FastifyPluginAsync<{
     { preHandler: app.authenticate, bodyLimit: 360_000 },
     async (request, reply) => {
       const principal = request.principal!;
+      if (!(await requirePro(request, reply))) return;
       const { id } = request.params as { id: string };
       const parsed = mealPhotoUploadSchema.safeParse(request.body);
       if (
@@ -94,6 +126,8 @@ export const mealPhotoRoutes: FastifyPluginAsync<{
           width: parsed.data.width,
           height: parsed.data.height,
         });
+        if (!(await requirePro(request, reply))) return;
+        reply.header("cache-control", "no-store");
         return mealPhotoResponseSchema.parse({ photo });
       } catch (error) {
         await reject(error, request, reply);
@@ -105,6 +139,7 @@ export const mealPhotoRoutes: FastifyPluginAsync<{
     { preHandler: app.authenticate },
     async (request, reply) => {
       const principal = request.principal!;
+      if (!(await requirePro(request, reply))) return;
       const { id } = request.params as { id: string };
       if (
         !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(
@@ -119,6 +154,8 @@ export const mealPhotoRoutes: FastifyPluginAsync<{
           userId: principal.userId,
           accessToken: principal.accessToken,
         });
+        if (!(await requirePro(request, reply))) return;
+        reply.header("cache-control", "no-store");
         return mealPhotoReadResponseSchema.parse({ photo });
       } catch (error) {
         await reject(error, request, reply);

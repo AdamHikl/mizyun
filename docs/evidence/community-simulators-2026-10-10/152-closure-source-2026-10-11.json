@@ -1,0 +1,17 @@
+{
+  "date": "2026-10-11",
+  "sourceHead": "0d9da8a46197f20b12f00d643851a84866368998",
+  "scope": "Current focused retry/principal/foreground/cache proof, existing checked UI overlay; concurrent unrelated edits excluded from claims",
+  "sha256": {
+    "apps/mobile/src/features/community/scoped-client.ts": "1ea6708191fe2ed333a71094e2ee14a37565faae1e9d00c6af495c1ca4e2b5a6",
+    "apps/mobile/src/features/community/scoped-client.test.ts": "35ca286fade1aef4dff71f36be0928b7fc3d712fd4a0818a20dd4593688ed811",
+    "apps/mobile/src/features/community/state/read-cache.ts": "53578b5f943a9d369f79002bf34f5c625acd2f789f1e06bb2f618c6b61d140a5",
+    "apps/mobile/src/features/community/state/read-cache.test.ts": "3219a29c1d319c6620aaa77e7049c34b13eee10092e3f717230ccbf779473f31",
+    "apps/mobile/src/features/community/state/visibility-epoch.ts": "cb96a4aa64fb1fc6fd444589f460170be86f2653f4dbf29f76244ae095015cb4",
+    "apps/mobile/src/features/community/state/visibility-epoch.test.ts": "9a2fe12c26ccdf8b3b54086da9638d41f6ee24c723aa1531cdd69865c039dac3",
+    "apps/mobile/src/features/community/feed/controller.ts": "8a81feee77437f94016d5144d388ab14da08c4b5d7d7cea005379df7092d4f6a",
+    "apps/mobile/src/features/community/feed/controller.test.ts": "a5e7840f99242f51ac74470ccd022e2b233dfdc23807a05db3e794e17e117c4d",
+    "apps/mobile/src/features/community/feed/feed-screen.tsx": "47ef4ab5e9aa6738790e6e1401a9581a16b2867e2b345c5b8ae80b7954f8a765",
+    "apps/mobile/src/features/community/feed/feed-screen.test.tsx": "f143217fda0a155027cc8fd08fddc891647e3cd0ca009159c4f8f421dfc9e9d6"
+  }
+}

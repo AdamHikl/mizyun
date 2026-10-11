@@ -1,6 +1,8 @@
 import type { ApiClient, ApiError, RequestOptions } from "@mizyun/api-client";
 import type { AuthSession } from "@mizyun/identity";
 import type { Result } from "@mizyun/core";
+import type { PersonalReadStorage } from "@/features/offline-cache/personal-read-storage";
+import { publishSessionReadUpdate } from "./personal-read-events";
 
 const LIFETIME_MS = 5 * 60_000;
 const MAX_ENTRIES = 512;
@@ -45,6 +47,7 @@ type Entry = {
   expiresAt: number;
   schema: RequestOptions["schema"];
   bytes: number;
+  savedAt: number;
 };
 type Pending = {
   promise: Promise<Result<unknown, ApiError>>;
@@ -54,6 +57,9 @@ type Pending = {
 
 /** Session-only memory; invalidation retires both stored and in-flight reads. */
 export class SessionReadCache implements ApiClient {
+  // Decoration has its own live authority and never invalidates nutrition reads.
+  readonly getMealIllustrationCapability?: ApiClient["getMealIllustrationCapability"];
+  readonly ensureMealIllustration?: ApiClient["ensureMealIllustration"];
   readonly draftFoodEntry?: ApiClient["draftFoodEntry"];
   readonly draftCoachMealPhoto?: ApiClient["draftCoachMealPhoto"];
   private entries = new Map<string, Entry>();
@@ -64,12 +70,20 @@ export class SessionReadCache implements ApiClient {
   private bytes = 0;
   private day = "";
   private foreground = true;
+  private hydration: Promise<void> | null = null;
+  private listeners = new Set<(path: string) => void>();
+  private persistTimer: ReturnType<typeof setTimeout> | undefined;
+  private deniedOwners = new Set<string>();
 
   constructor(
     private raw: ApiClient,
     private session: () => Promise<AuthSession | null>,
     private now = () => Date.now(),
+    private storage?: PersonalReadStorage,
   ) {
+    this.getMealIllustrationCapability =
+      raw.getMealIllustrationCapability?.bind(raw);
+    this.ensureMealIllustration = raw.ensureMealIllustration?.bind(raw);
     this.draftFoodEntry = raw.draftFoodEntry?.bind(raw);
     const draftCoachMealPhoto = raw.draftCoachMealPhoto?.bind(raw);
     if (draftCoachMealPhoto)
@@ -77,7 +91,16 @@ export class SessionReadCache implements ApiClient {
         this.writes++;
         this.clear();
         try {
+          const owner = await this.session().catch(() => null);
+          if (!owner) return retired();
+          await this.purgeSaved(owner.user.id);
+          if (
+            this.key(owner) !== this.key(await this.session().catch(() => null))
+          )
+            return retired();
           return await draftCoachMealPhoto(input);
+        } catch (cause) {
+          return { ok: false, error: { kind: "network_error", cause } };
         } finally {
           this.writes--;
           this.clear();
@@ -87,12 +110,66 @@ export class SessionReadCache implements ApiClient {
   status() {
     return this.raw.status();
   }
+  subscribe(listener: (path: string) => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+  private publish(path: string): void {
+    for (const listener of this.listeners) listener(path);
+    publishSessionReadUpdate(path);
+  }
+  private async hydrate(userId: string, revision: number): Promise<void> {
+    if (!this.storage || this.deniedOwners.has(userId)) return;
+    if (!this.hydration) {
+      this.hydration = this.storage
+        .load(userId)
+        .then((records) => {
+          if (revision !== this.revision) return;
+          for (const record of records) {
+            const bytes = JSON.stringify(record.value).length * 2;
+            if (
+              this.entries.size >= MAX_ENTRIES ||
+              this.bytes + bytes > MAX_BYTES
+            )
+              break;
+            this.entries.set(record.path, {
+              ...record,
+              schema: undefined,
+              bytes,
+              expiresAt: 0,
+            });
+            this.bytes += bytes;
+          }
+        })
+        .catch(() => {});
+    }
+    await this.hydration;
+  }
+  private persist(
+    userId: string,
+    generation = this.storage?.generation?.(userId),
+  ): void {
+    if (!this.storage || this.deniedOwners.has(userId)) return;
+    clearTimeout(this.persistTimer);
+    this.persistTimer = setTimeout(() => {
+      if (generation !== this.storage!.generation?.(userId)) return;
+      const records = [...this.entries].map(([path, entry]) => ({
+        path,
+        value: entry.value,
+        savedAt: entry.savedAt,
+      }));
+      void this.storage!.save(userId, records).catch(() => {});
+    }, 100);
+  }
+  private async purgeSaved(owner?: string): Promise<void> {
+    clearTimeout(this.persistTimer);
+    const userId = owner ?? (await this.session().catch(() => null))?.user.id;
+    if (userId && this.storage) await this.storage.purge(userId);
+  }
   version(): string {
     const now = new Date(this.now());
-    if (
-      [...this.entries.values()].some((entry) => entry.expiresAt <= this.now())
-    )
-      this.clear();
     return `${this.revision}:${now.toDateString()}:${now.getTimezoneOffset()}`;
   }
   setForeground(active: boolean): void {
@@ -103,10 +180,12 @@ export class SessionReadCache implements ApiClient {
     if (!active) this.clear();
   }
   clear(): void {
+    clearTimeout(this.persistTimer);
     this.revision++;
     this.identity = null;
     this.day = "";
     this.entries.clear();
+    this.hydration = null;
     for (const pending of this.pending.values()) pending.controller.abort();
     this.pending.clear();
     this.bytes = 0;
@@ -138,7 +217,28 @@ export class SessionReadCache implements ApiClient {
       this.writes++;
       this.clear();
       try {
-        return await this.raw.request<T>(options);
+        const owner = await this.session().catch(() => null);
+        if (
+          !owner ||
+          (options.expectedUserId &&
+            options.expectedUserId !== owner.user.id) ||
+          options.isCurrent?.() === false
+        )
+          return retired();
+        await this.purgeSaved(owner.user.id);
+        if (
+          this.key(owner) !==
+            this.key(await this.session().catch(() => null)) ||
+          options.isCurrent?.() === false
+        )
+          return retired();
+        return await this.raw.request<T>({
+          ...options,
+          expectedUserId: owner.user.id,
+          isCurrent: options.isCurrent,
+        });
+      } catch (cause) {
+        return { ok: false, error: { kind: "network_error", cause } };
       } finally {
         this.writes--;
         this.clear();
@@ -162,8 +262,32 @@ export class SessionReadCache implements ApiClient {
     )
       return retired();
     const revision = this.revision;
+    const storageGeneration = this.storage?.generation?.(session.user.id);
+    if (!this.writes) await this.hydrate(session.user.id, revision);
+    if (revision !== this.revision || options.isCurrent?.() === false)
+      return retired();
     const key = options.path;
-    const entry = this.entries.get(key);
+    let entry = this.entries.get(key);
+    // Disk is untrusted and may have been written by an older app schema.
+    if (entry && entry.schema === undefined) {
+      const parsed = options.schema!.safeParse(entry.value);
+      if (parsed.success) {
+        entry.value = parsed.data;
+        entry.schema = options.schema;
+      } else {
+        this.bytes -= entry.bytes;
+        this.entries.delete(key);
+        entry = undefined;
+      }
+    }
+    const saved =
+      this.storage &&
+      !this.writes &&
+      entry &&
+      entry.schema === options.schema &&
+      this.now() - entry.savedAt <= 48 * 60 * 60_000
+        ? entry
+        : undefined;
     let promise: Promise<Result<unknown, ApiError>>;
     if (
       !this.writes &&
@@ -206,7 +330,12 @@ export class SessionReadCache implements ApiClient {
         promise = Promise.race([transport, timeout])
           .finally(() => clearTimeout(timer))
           .then((result) => {
-            if (result.ok && revision === this.revision && !this.writes) {
+            if (
+              result.ok &&
+              revision === this.revision &&
+              !this.writes &&
+              storageGeneration === this.storage?.generation?.(session.user.id)
+            ) {
               const bytes = (JSON.stringify(result.value)?.length ?? 0) * 2;
               if (bytes <= MAX_BYTES) {
                 const previous = this.entries.get(key);
@@ -232,9 +361,25 @@ export class SessionReadCache implements ApiClient {
                       : LIFETIME_MS),
                   schema: options.schema,
                   bytes,
+                  savedAt: this.now(),
                 });
                 this.bytes += bytes;
+                this.persist(session.user.id, storageGeneration);
+                if (saved) this.publish(key);
               }
+            }
+            if (
+              revision === this.revision &&
+              !result.ok &&
+              (result.error.kind === "session_expired" ||
+                result.error.kind === "no_session" ||
+                (result.error.kind === "http_error" &&
+                  [401, 403].includes(result.error.status)))
+            ) {
+              void this.purgeSaved(session.user.id).catch(() => {});
+              this.deniedOwners.add(session.user.id);
+              this.clear();
+              if (saved) this.publish(key);
             }
             return result;
           });
@@ -244,11 +389,20 @@ export class SessionReadCache implements ApiClient {
           if (this.pending.get(key) === record) this.pending.delete(key);
         });
       }
+      // Saved display data never waits for the network. Each mounted tab is
+      // notified when its shared background read replaces this snapshot.
+      if (saved)
+        promise = Promise.resolve({
+          ok: true,
+          value: saved.value,
+          savedAt: saved.savedAt,
+        });
     }
     const result = await promise;
     const current = await this.session().catch(() => null);
     if (
       revision !== this.revision ||
+      storageGeneration !== this.storage?.generation?.(session.user.id) ||
       identity !== this.key(current) ||
       options.isCurrent?.() === false
     )

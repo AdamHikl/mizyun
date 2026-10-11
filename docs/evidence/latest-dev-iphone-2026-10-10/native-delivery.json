@@ -1,0 +1,25 @@
+{
+  "bundle_id": "com.mizyun.development",
+  "version": "1.0.9",
+  "build": "9",
+  "team": "LQJNDVBL43",
+  "apple_signin": ["Default"],
+  "executable_sha256": "fca3d4c59f7fca25033b2d2a1d334105fdfcb08a3ed57544fd26d3ac8589a4bf",
+  "bundle_sha256": "56bf5d186607178cd4fcef5d2e07da3838a17e2c817cff374f69eb3cda5f4989",
+  "bundle_bytes": 8480406,
+  "dev_endpoints_in_bundle": {
+    "https://mizyun-api-dev.phiskel.com": true,
+    "https://mizyun-supabase-dev.phiskel.com": true,
+    "mizyun-dev://auth/callback": true
+  },
+  "embedded_watch": {
+    "bundle_id": "com.mizyun.development.watchkitapp",
+    "version": "1.0.9",
+    "build": "9"
+  },
+  "artifact": "/Users/adam/Documents/mizyun/apps/mobile/dist/releases/ios/device/2026-10-10-latest-dev-1.0.9-9/MizyunDev.app",
+  "installation_succeeded": true,
+  "launch_succeeded": false,
+  "launch_blocker": "Locked",
+  "production_changed": false
+}

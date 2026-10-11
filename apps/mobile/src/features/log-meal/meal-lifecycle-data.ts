@@ -19,6 +19,7 @@ import {
 import type { ApiClient, ApiError } from "@mizyun/api-client";
 
 import { apiClient } from "@/composition/api-client";
+import { savedDisplayTime } from "@/composition/personal-read-events";
 
 import type { LogMealForm, LogMealResult } from "./log-meal-data";
 import { createOperationId, parseMealDate } from "./meal-form";
@@ -62,6 +63,7 @@ export interface FoodDayGroup {
 }
 
 export interface FoodHistoryResult {
+  readonly savedAt?: number;
   readonly groups: ReadonlyArray<FoodDayGroup>;
   readonly entries: ReadonlyArray<FoodEntry>;
   readonly message: string | null;
@@ -352,6 +354,9 @@ export const fetchFoodHistoryWith = async (
     nextCursor,
     cutoffDateIsPartial,
     message: null,
+    ...(savedDisplayTime(result) !== undefined
+      ? { savedAt: savedDisplayTime(result) }
+      : {}),
   };
 };
 

@@ -1,0 +1,18 @@
+{
+  "baseSHA": "b60bf9b27fd6af2b4e3e4de906975cb86d51617e",
+  "sourceCandidate": "isolated owned overlay; not deployed",
+  "files": {
+    "packages/adapters/supabase-server/src/community-account-export.ts": "b0f8f094f9d9f280bf5c2a3d84152d37dfa789b3aeb000fd87b741c7003e0fb9",
+    "packages/adapters/supabase-server/src/community-account-export.test.ts": "65b8492d18bce9c5e2b44d37184212a30a0707017b76f0ecab46fd5a5ff95cb0",
+    "packages/contracts/src/account.ts": "732f8cd235258c6c7f9f482ea8fba44f2f86d1bb7ec9bdca27a39a6a00a85972",
+    "packages/core/src/account.ts": "cc7a9872c719facb8f76fb48d3f48c0d472efdfa79e781cdba7c11b210d2b665",
+    "scripts/community-revocation-ledger.mjs": "51d6bd1abe01a89c216cb81bbf935f11de7bdc3b8b8925d685a76d9372e3b277",
+    "scripts/community-revocation-ledger.test.mjs": "ad9bf70812c25e3a100391075d61361d5ab8d504dfcee3b30d632116688d0f14",
+    "scripts/community-revocation-replay.py": "23ea0d2b5adf5023b0556afd9271d577502deacb25ba26b6519409b62c0bc5c6",
+    "scripts/test-community-revocation-replay.py": "774018be3aa538fa459e998c47c0cb13e6408070e39490edc5128117dc46401a",
+    "scripts/test-community-revocation-replay-db.py": "ab91ae56727c8ec2f98d10eeabca947a1f198a460f7cdc9dd765636d4f27b345",
+    "supabase/migrations/20261011120000_community_lifecycle_privacy_reductions.sql": "7058254e7cd0e9e907cd5816f3a7e8dbfa2f880673cac069024def9fbd46441c",
+    "supabase/tests/database/0041_community_lifecycle_privacy_reductions.test.sql": "bda52a83c5311b2efc509b0e08a31604297fc90cb005e1c6a4ea8b396f190eb8",
+    "supabase/tests/scratch/0043_community_account_cleanup_restart.test.sql": "d33951422a9b4fdfccb5c464cfd2b2edc553d7291cbcf8d8616fcf99b2480495"
+  }
+}

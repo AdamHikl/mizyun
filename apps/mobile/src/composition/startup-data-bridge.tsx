@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { AppState } from "react-native";
+import * as Network from "expo-network";
 import { useAuth } from "@/features/auth/auth-context";
 import { apiClient, apiConfiguration, sessionReadCache } from "./api-client";
 import { authClient } from "./auth-client";
@@ -49,12 +50,26 @@ export function StartupDataBridge() {
       sessionReadCache.setForeground(foreground);
       if (foreground) warm();
     });
+    let unavailable = false;
+    const network = Network.addNetworkStateListener((state) => {
+      const wasUnavailable = unavailable;
+      unavailable =
+        state.isConnected === false || state.isInternetReachable === false;
+      if (
+        wasUnavailable &&
+        !unavailable &&
+        state.isConnected === true &&
+        foreground
+      )
+        warm();
+    });
     return () => {
       active = false;
       generation++;
       warmCurrent.current = null;
       unsubscribe();
       subscription.remove();
+      network.remove();
       sessionReadCache.clear();
     };
   }, [session?.user.id, session?.accessToken]);

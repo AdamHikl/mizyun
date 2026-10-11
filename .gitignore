@@ -52,3 +52,11 @@ supabase/.temp/
 
 # Generated batch worker report pointer (timestamped reports stay trackable)
 .agents/tasks/batch-report-latest.json
+
+# Local native module/watch intermediates and Python bytecode
+apps/mobile/modules/*/android/build/
+apps/watch-android/.gradle/
+apps/watch-android/build/
+apps/watch-android/app/build/
+apps/watch-ios/build/
+__pycache__/

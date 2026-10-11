@@ -1,0 +1,24 @@
+{
+  "base": "2596a69b3fe4d20920a173de91fb4dc533b9bd4a",
+  "priorOverlay": "invitations-candidate-overlay-2026-10-11.json",
+  "owned": {
+    "apps/api/src/modules/community/activity-cursor.ts": "9030e4501f9c934a45e6b37a9a6c9f8eb78cacad86d6834c3fc352f23b3d04b7",
+    "apps/api/src/modules/community/feed-routes.ts": "5dc96cbe506becde73b82c35f0d0b31927727862002c8c86c7f7c946bf1bfb34",
+    "apps/api/src/modules/community/profile-activity-routes.ts": "ac7eb43bc692b1fa229e72624a6361a4e2dfdb09ca2e75c9d0cac899c1321ce1",
+    "apps/api/src/modules/community/profile-activity-routes.test.ts": "3af7846d69cd0581d2ebbfd6d174df90a22941bdbf210da3c8e779aac9bd17e7",
+    "packages/adapters/supabase-server/src/community-repository.ts": "cfe3ee2263ac6807c082224938e5e0c0d56548ca18866918b5def860e1dde0ee",
+    "packages/adapters/supabase-server/src/community-repository.test.ts": "c7d2249ea764830d138574c325bbd153e9042cee920ca9717bec99312b898fca",
+    "packages/contracts/src/community.ts": "f8a785d9c75aafb35077efdec84088a0ee56042a1b24f7eac891b506b99e7361",
+    "apps/mobile/src/features/community/reactions/reaction-bar.test.ts": "6bdc3d8fbee52f17bae077d9cde78ecd430da95f5836ad0607a622cc1a454948",
+    "scripts/verify-community-local-db.py": "f9f5c4c44c56b04cf40852bef88a7379746e4039c2e9d08dee27d43975f7178c",
+    "supabase/tests/scratch/0041_community_feed_reaction_delivery_boundaries.test.sql": "ca01c127bbb24c1fe63ad64f8564e65337cab361e5e534e08d8cfba2822a3008"
+  },
+  "commit": "b60bf9b27fd6af2b4e3e4de906975cb86d51617e",
+  "branch": "codex/community-feed-reactions-inbox",
+  "changedFiles": 24,
+  "pinnedOverlayPaths": 25,
+  "gateInput": "e7b3bf9e928844d516e38821bab712b0bb905a8b180251d5f84ddaa9202409f4",
+  "gate": "PASS final scratch-only placement",
+  "preflight": "PASS clean isolated checkout/canonical Hetzner Dev marker/public health200, exact b60bf9b27fd6af2b4e3e4de906975cb86d51617e",
+  "deployment": "Explicit final-SHA push/Dev deployment approval pending; shared Dev remains2596a69b3fe4d20920a173de91fb4dc533b9bd4a"
+}

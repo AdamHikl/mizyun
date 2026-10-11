@@ -3,6 +3,10 @@ apps/mobile/dist/
 apps/mobile/ios/
 apps/mobile/android/
 apps/mobile/modules/*/android/build/
+apps/watch-android/.gradle/
+apps/watch-android/build/
+apps/watch-android/app/build/
+apps/watch-ios/build/
 pnpm-lock.yaml
 .cache/mizyun-navigation/
 .agents/tasks/batch-report-*.json

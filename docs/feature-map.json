@@ -6,13 +6,14 @@
     {
       "id": "meal-logging",
       "title": "Meal & Nutrition Logging",
-      "summary": "Manual food CRUD, keyset-paginated history/search, macro/calorie calculations, local-day offsets, offline drafts, and photo/text/refine generation with Pro nutrient estimates. Explicit opt-in recurring saved meals with server-side schedules and durable occurrence ledger. Dev-only optional compressed private meal thumbnails with explicit source choice and durable cleanup/retry.",
+      "summary": "Manual food CRUD, keyset-paginated history/search, macro/calorie calculations, local-day offsets, offline drafts, and photo/text/refine generation with Pro nutrient estimates. Explicit opt-in recurring saved meals with server-side schedules and durable occurrence ledger. Dev-only optional compressed private meal thumbnails with explicit source choice and durable cleanup/retry. Automatic decorative catalog thumbnails and default-off private background illustrations, independent of meal saving. Pro-only meal visual display and photo retention with server/RPC/Storage downgrade fencing; common food catalog reuse avoids per-meal generation.",
       "aliases": ["food", "nutrition", "calories", "macros", "diet", "meal"],
       "entryPoints": [
         "apps/api/src/modules/food-entries/routes.ts",
         "apps/mobile/src/features/log-meal/index.ts",
         "apps/api/src/modules/recurring-meals/routes.ts",
-        "apps/mobile/src/features/recurring-meals/index.ts"
+        "apps/mobile/src/features/recurring-meals/index.ts",
+        "apps/api/src/modules/meal-illustrations/routes.ts"
       ],
       "ownedPaths": [
         "apps/api/src/modules/food-entries",
@@ -36,23 +37,43 @@
         "packages/adapters/supabase-server/src/meal-photos.test.ts",
         "packages/config/src/meal-photos.ts",
         "packages/config/src/meal-photos.test.ts",
-        "scripts/verify-meal-photos.mjs"
+        "scripts/verify-meal-photos.mjs",
+        "apps/api/src/modules/meal-illustrations",
+        "packages/core/src/meal-illustration.ts",
+        "packages/core/src/meal-illustration.test.ts",
+        "packages/agent-runtime/src/meal-illustration.ts",
+        "packages/providers/gemini/src/meal-illustration.ts",
+        "packages/providers/gemini/src/meal-illustration.test.ts",
+        "packages/adapters/supabase-server/src/meal-illustrations.ts",
+        "packages/adapters/supabase-server/src/meal-illustrations.test.ts",
+        "scripts/test-meal-illustrations-db.py",
+        "apps/mobile/assets/images/meal-illustrations",
+        "packages/config/src/meal-illustration.test.ts",
+        "packages/api-client/src/meal-illustration.test.ts",
+        "apps/api/src/meal-visual-access.ts",
+        "packages/core/src/meal-image-path.ts",
+        "packages/core/src/meal-image-path.test.ts",
+        "packages/contracts/src/meal-image-path.test.ts"
       ],
       "contracts": [
         "packages/contracts/src/food-entry.ts",
-        "packages/contracts/src/recurring-meal.ts"
+        "packages/contracts/src/recurring-meal.ts",
+        "packages/contracts/src/meal-illustration.ts"
       ],
       "domainPort": [
         "packages/core/src/food-entry.ts",
         "packages/core/src/nutrition-per100g.ts",
         "packages/core/src/energy.ts",
-        "packages/core/src/recurring-meal.ts"
+        "packages/core/src/recurring-meal.ts",
+        "packages/core/src/meal-illustration.ts"
       ],
       "api": [
         "apps/api/src/modules/food-entries/routes.ts",
         "apps/api/src/modules/food-entries/draft-route.ts",
         "apps/api/src/modules/recurring-meals/routes.ts",
-        "apps/api/src/modules/food-entries/photo-routes.ts"
+        "apps/api/src/modules/food-entries/photo-routes.ts",
+        "apps/api/src/modules/meal-illustrations/routes.ts",
+        "apps/api/src/modules/food-entries/visual-routes.ts"
       ],
       "ui": [
         "apps/mobile/src/app/(tabs)/meals.tsx",
@@ -61,26 +82,34 @@
         "apps/mobile/src/features/log-meal/meal-form.ts",
         "apps/mobile/src/features/log-meal/log-meal-data.ts",
         "apps/mobile/src/app/recurring-meals.tsx",
-        "apps/mobile/src/features/log-meal/private-meal-photo.tsx"
+        "apps/mobile/src/features/log-meal/private-meal-photo.tsx",
+        "apps/mobile/src/features/log-meal/meal-visual.tsx"
       ],
       "adapters": [
         "packages/adapters/supabase-server/src/food-entry-repository.ts",
         "packages/adapters/supabase-server/src/recurring-meal-repository.ts",
-        "packages/adapters/supabase-server/src/meal-photos.ts"
+        "packages/adapters/supabase-server/src/meal-photos.ts",
+        "packages/adapters/supabase-server/src/meal-illustrations.ts"
       ],
       "dataTables": [
         "food_entries",
         "recurring_meal_schedules",
         "recurring_meal_occurrences",
         "meal_photos",
-        "meal_photo_cleanup_jobs"
+        "meal_photo_cleanup_jobs",
+        "meal_illustrations",
+        "meal_illustration_environment_usage",
+        "meal_illustration_user_usage",
+        "food_media_paths"
       ],
       "migrationPaths": [
         "supabase/migrations/20260714101000_user_data.sql",
         "supabase/migrations/20260718100000_persist_001_columns.sql",
         "supabase/migrations/20260908120000_security_and_retry_integrity.sql",
         "supabase/migrations/20261003100000_recurring_meals.sql",
-        "supabase/migrations/20261006200000_retained_meal_photos.sql"
+        "supabase/migrations/20261006200000_retained_meal_photos.sql",
+        "supabase/migrations/20261009120000_meal_illustrations.sql",
+        "supabase/migrations/20261009150000_pro_meal_visuals.sql"
       ],
       "tests": [
         "apps/api/src/modules/food-entries/routes.test.ts",
@@ -97,7 +126,20 @@
         "apps/mobile/src/features/log-meal/private-meal-photo.test.tsx",
         "packages/adapters/supabase-server/src/meal-photos.test.ts",
         "packages/config/src/meal-photos.test.ts",
-        "supabase/tests/database/0034_retained_meal_photos.test.sql"
+        "supabase/tests/database/0034_retained_meal_photos.test.sql",
+        "apps/api/src/modules/meal-illustrations/routes.test.ts",
+        "apps/api/src/modules/meal-illustrations/repository.test.ts",
+        "apps/mobile/src/features/log-meal/automatic-meal-illustration.test.tsx",
+        "apps/mobile/src/features/log-meal/meal-visual.test.tsx",
+        "apps/mobile/src/features/log-meal/meal-illustration-catalog.test.ts",
+        "apps/mobile/src/features/log-meal/meal-illustration-loader.test.ts",
+        "supabase/tests/database/0039_meal_illustrations.test.sql",
+        "packages/core/src/meal-illustration.test.ts",
+        "packages/contracts/src/meal-illustration.test.ts",
+        "packages/adapters/supabase-server/src/meal-illustrations.test.ts",
+        "packages/providers/gemini/src/meal-illustration.test.ts",
+        "packages/config/src/meal-illustration.test.ts",
+        "packages/api-client/src/meal-illustration.test.ts"
       ],
       "relations": [
         {
@@ -145,7 +187,8 @@
         "NUT-08",
         "NUT-09",
         "REL-AUD-007",
-        "NUTR-REC-001"
+        "NUTR-REC-001",
+        "NUT-10"
       ],
       "openAcceptance": [
         "REL-AUD-007/Q2: Durable unknown-outcome persistence for ambiguous retries across network drops",
@@ -839,6 +882,8 @@
         "scripts/promote-production.sh",
         "scripts/test-deployment-safeguards.mjs",
         "scripts/test-build-matrix.mjs",
+        "scripts/test-android-release-optimization.mjs",
+        "scripts/test-android-window-support.mjs",
         "packages/config",
         ".agents/skills",
         ".agents/guides",
@@ -848,6 +893,8 @@
         "apps/api/src/release-compatibility.test.ts",
         "apps/api/src/test-fixtures/build6-contracts",
         "apps/mobile/metro.config.js",
+        "apps/mobile/plugins/with-android-release-optimization.js",
+        "apps/mobile/plugins/with-android-window-support.js",
         "apps/mobile/tooling",
         "apps/mobile/vitest/expo-application-stub.ts",
         "scripts/ios-simulator-dev.mjs",
@@ -871,6 +918,8 @@
       "tests": [
         "scripts/test-deployment-safeguards.mjs",
         "scripts/test-build-matrix.mjs",
+        "scripts/test-android-release-optimization.mjs",
+        "scripts/test-android-window-support.mjs",
         "packages/config/src/build-matrix.test.ts",
         "packages/config/src/server.test.ts",
         "packages/config/src/mobile.test.ts",
@@ -897,7 +946,9 @@
         ".agents/skills/deploy-production/SKILL.md",
         ".agents/skills/test-ios-simulator/SKILL.md",
         "docs/adr/0051-running-release-readiness.md",
-        "docs/HETZNER_SHARED_TUNNEL_ISOLATION_2026-10-08.md"
+        "docs/HETZNER_SHARED_TUNNEL_ISOLATION_2026-10-08.md",
+        "docs/ANDROID_R8_DEV_EVIDENCE_2026-10-11.md",
+        "docs/ANDROID_WINDOW_DEV_EVIDENCE_2026-10-11.md"
       ],
       "verificationCommands": [
         "pnpm test:deployment-safeguards",
@@ -1745,6 +1796,10 @@
         "scripts/test-community-revocation-replay.py",
         "scripts/test-community-revocation-replay-db.py",
         "supabase/tests/database/0038_community_revocation_ledger.test.sql",
+        "supabase/tests/database/0041_community_lifecycle_privacy_reductions.test.sql",
+        "supabase/tests/scratch/0043_community_account_cleanup_restart.test.sql",
+        "supabase/tests/scratch/0044_community_challenge_time_source.test.sql",
+        "supabase/tests/scratch/0045_community_routine_projection_refusal.test.sql",
         "apps/mobile/src/features/community/invitation-fallback.test.ts"
       ],
       "relations": [
@@ -2034,6 +2089,90 @@
         "Full native iOS/Android builds and physical grant/partial/deny/revoke/write/read-back/replay/edit/delete tests",
         "Restore/reinstall/locked-device and below-Health-Connect Android launch acceptance",
         "Public privacy/Apple/Google health declarations before Production enablement"
+      ]
+    },
+    {
+      "id": "workout-companions",
+      "title": "Dev manual workout companions",
+      "summary": "Phone-owned foreground manual Apple Watch and Wear OS commands with ephemeral snapshots and fail-closed operation receipts.",
+      "aliases": [
+        "wearables",
+        "watch companion",
+        "Apple Watch",
+        "Wear OS",
+        "INT-07",
+        "WEAR-01",
+        "WEAR-02"
+      ],
+      "entryPoints": [
+        "apps/mobile/src/features/workout-companion/index.ts",
+        "apps/mobile/modules/mizyun-workout-companion/index.ts"
+      ],
+      "ownedPaths": [
+        "apps/mobile/src/features/workout-companion",
+        "apps/mobile/modules/mizyun-workout-companion",
+        "apps/mobile/plugins/with-workout-companion.js",
+        "apps/watch-ios",
+        "apps/watch-android",
+        "scripts/build-workout-companions.sh",
+        "packages/contracts/src/workout-companion.ts",
+        "packages/contracts/src/workout-companion.test.ts",
+        "packages/core/src/workout-companion.ts",
+        "packages/core/src/workout-companion.test.ts"
+      ],
+      "contracts": ["packages/contracts/src/workout-companion.ts"],
+      "domainPort": ["packages/core/src/workout-companion.ts"],
+      "api": [],
+      "ui": [
+        "apps/mobile/src/features/workout-companion/watch-workout-controls.tsx"
+      ],
+      "adapters": ["apps/mobile/modules/mizyun-workout-companion"],
+      "dataTables": [],
+      "migrationPaths": [],
+      "tests": [
+        "packages/contracts/src/workout-companion.test.ts",
+        "packages/core/src/workout-companion.test.ts",
+        "apps/mobile/src/features/workout-companion/controller.test.ts",
+        "apps/mobile/modules/mizyun-workout-companion/tests/plugin.test.cjs",
+        "apps/watch-ios/Tests/main.swift",
+        "apps/watch-android/app/src/test/java/com/mizyun/companion/CompanionStateTest.kt"
+      ],
+      "relations": [
+        {
+          "type": "dependsOn",
+          "target": "workouts-sets",
+          "reason": "Phone logger owns set/finish authority and existing workflow effects"
+        },
+        {
+          "type": "dependsOn",
+          "target": "auth",
+          "reason": "Account or foreground retirement invalidates ephemeral binding"
+        },
+        {
+          "type": "relatedTo",
+          "target": "health-exports",
+          "reason": "Saved manual completion retains separate explicit export consent"
+        }
+      ],
+      "docs": [
+        "docs/adr/0054-dev-workout-companions.md",
+        "docs/WORKOUT_COMPANIONS_EVIDENCE_2026-10-09.md",
+        "docs/INTEGRATIONS_IMPLEMENTATION_PLAN_2026-10-04.md"
+      ],
+      "verificationCommands": [
+        "pnpm --filter @mizyun/contracts test src/workout-companion.test.ts",
+        "pnpm --filter @mizyun/core test src/workout-companion.test.ts",
+        "pnpm --filter @mizyun/mobile test src/features/workout-companion src/features/log-workout",
+        "node --test apps/mobile/modules/mizyun-workout-companion/tests/plugin.test.cjs"
+      ],
+      "lastReviewedSha": "0d9da8a46197f20b12f00d643851a84866368998",
+      "lastReviewedDate": "2026-10-09",
+      "limitations": "Dev foreground logger slice; uncertain saves never automatically repeated; physical paired-device and privacy/Production acceptance deferred/open.",
+      "requirements": ["WEAR-01", "WEAR-02", "TRAIN-01", "TRAIN-02", "PRIV-01"],
+      "openAcceptance": [
+        "Paired Apple Watch/iPhone and Wear OS/Android logging/rest/finish/accessibility",
+        "Suspension/restart/offline/account/unpair/restore matrix on native Dev candidate",
+        "Privacy/platform declaration and explicit release before Production"
       ]
     }
   ]

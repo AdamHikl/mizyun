@@ -284,11 +284,14 @@ const plugins = [
     },
   ],
   "./plugins/with-android-workout-live-update",
+  ...(variantName === "dev" ? ["./plugins/with-workout-companion"] : []),
   ...(enableIosAppleAuth
     ? ["expo-apple-authentication"]
     : ["./plugins/without-ios-apple-auth"]),
   "./plugins/with-ios-scene-lifecycle",
   "./plugins/with-android-release-signing",
+  "./plugins/with-android-release-optimization",
+  "./plugins/with-android-window-support",
 ];
 
 module.exports = {

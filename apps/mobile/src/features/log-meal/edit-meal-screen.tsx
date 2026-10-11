@@ -1,4 +1,5 @@
-import { PrivateMealPhoto } from "./private-meal-photo";
+import { MealVisual } from "./meal-visual";
+import { useMealVisualCapability } from "./meal-visual-capability";
 import {
   Pressable,
   ScrollView,
@@ -145,6 +146,10 @@ export function EditMealScreen() {
   const entryId = typeof params.id === "string" ? params.id : null;
   const { session, profile, refreshProfile } = useAuth();
   const userId = session?.user.id ?? null;
+  const mealVisualCapability = useMealVisualCapability(
+    userId,
+    session?.accessToken,
+  );
   const advancedCapability = useAdvancedNutritionCapability(userId);
   const theme = useTheme();
   const [entry, setEntry] = useState<FoodEntry | null>(null);
@@ -648,8 +653,10 @@ export function EditMealScreen() {
 
           {entry !== null ? (
             <>
-              <PrivateMealPhoto
+              <MealVisual
                 entryId={entry.id}
+                name={entry.name}
+                enabled={mealVisualCapability.enabled}
                 hasPhoto={Boolean(entry.photoAssetId)}
                 editable
               />

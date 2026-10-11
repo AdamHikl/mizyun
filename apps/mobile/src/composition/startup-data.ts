@@ -66,15 +66,17 @@ export async function preloadAppData(
     }
   };
   const warmCoach = async () => {
-    const result = await loadCoachWith(scoped);
-    if (!result.ok || !result.status.ready || !isCurrent()) return;
-    const latest = result.conversations[0];
-    if (latest)
-      await scoped.request({
-        method: "GET",
-        path: `/v1/coach/conversations/${encodeURIComponent(latest.id)}`,
-        schema: coachThreadResponseSchema,
-      });
+    let thread: Promise<unknown> | undefined;
+    await loadCoachWith(scoped, async (conversations) => {
+      const latest = conversations[0];
+      if (latest && isCurrent())
+        thread = scoped.request({
+          method: "GET",
+          path: `/v1/coach/conversations/${encodeURIComponent(latest.id)}`,
+          schema: coachThreadResponseSchema,
+        });
+    });
+    await thread;
   };
   await Promise.allSettled([
     warmCommunity(),

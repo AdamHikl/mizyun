@@ -1169,6 +1169,9 @@ export class SupabaseCommunityRepository implements CommunityRepository {
         parts.length !== 2 ||
         !parts[0] ||
         !parts[1] ||
+        !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/i.test(
+          parts[0],
+        ) ||
         !Number.isFinite(Date.parse(parts[0])) ||
         !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
           parts[1],
@@ -1194,11 +1197,12 @@ export class SupabaseCommunityRepository implements CommunityRepository {
     const items = (options.authorUserId ? rows.slice(0, limit) : rows).map(
       sharedActivityFromRow,
     );
-    const last = items[items.length - 1];
+    // Date DTOs have millisecond precision; PostgreSQL boundaries do not.
+    const last = rows[Math.min(rows.length, limit) - 1];
     const nextCursor =
       (options.authorUserId ? rows.length > limit : items.length === limit) &&
       last
-        ? `${last.publishedAt.toISOString()}|${last.id}`
+        ? `${last.published_at}|${last.id}`
         : undefined;
     return { items, ...(nextCursor ? { nextCursor } : {}) };
   }

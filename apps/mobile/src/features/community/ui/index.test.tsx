@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   fontScale: 1,
+  width: 402,
+  horizontalInset: 0,
   canGoBack: false,
   back: vi.fn(),
   replace: vi.fn(),
@@ -12,7 +14,10 @@ vi.mock("react-native", () => ({
   Pressable: "Pressable",
   ScrollView: "ScrollView",
   ActivityIndicator: "ActivityIndicator",
-  useWindowDimensions: () => ({ fontScale: mocks.fontScale }),
+  useWindowDimensions: () => ({
+    fontScale: mocks.fontScale,
+    width: mocks.width,
+  }),
   StyleSheet: {
     create: (s: any) => s,
     hairlineWidth: 1,
@@ -30,6 +35,12 @@ vi.mock("expo-router", () => ({
 }));
 vi.mock("react-native-safe-area-context", () => ({
   SafeAreaView: "SafeAreaView",
+  useSafeAreaInsets: () => ({
+    top: 0,
+    right: mocks.horizontalInset,
+    bottom: 0,
+    left: mocks.horizontalInset,
+  }),
 }));
 vi.mock("expo-symbols", () => ({ SymbolView: "SymbolView" }));
 vi.mock("@/hooks/use-theme", () => ({
@@ -59,6 +70,8 @@ function nodes(tree: any, type: string): any[] {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.fontScale = 1;
+  mocks.width = 402;
+  mocks.horizontalInset = 0;
   mocks.canGoBack = false;
 });
 describe("Community route shell", () => {
@@ -80,15 +93,34 @@ describe("Community route shell", () => {
       expect(Array.isArray(link.props.children.props.style)).toBe(false);
     }
   });
-  it("wraps navigation at large text sizes without truncating the destination labels", () => {
-    mocks.fontScale = 2;
-    const links = nodes(CommunityNavigation({ selected: "people" }), "Link");
-    for (const link of links) {
-      expect(link.props.children.props.style.flexBasis).toBe("50%");
-      expect(
-        link.props.children.props.children.props.numberOfLines,
-      ).toBeUndefined();
-    }
+  it.each([
+    [402, 1, "25%"],
+    [402, 1.23, "50%"],
+    [402, 2, "50%"],
+    [320, 2, "100%"],
+  ] as const)(
+    "keeps complete scaled tab labels at width %s and scale %s",
+    (width, fontScale, flexBasis) => {
+      mocks.width = width;
+      mocks.fontScale = fontScale;
+      const links = nodes(CommunityNavigation({ selected: "people" }), "Link");
+      for (const link of links) {
+        expect(link.props.children.props.style.flexBasis).toBe(flexBasis);
+        expect(
+          link.props.children.props.children.props.numberOfLines,
+        ).toBeUndefined();
+        expect(
+          link.props.children.props.children.props.allowFontScaling,
+        ).not.toBe(false);
+      }
+    },
+  );
+  it("allows for landscape safe-area gutters before choosing tab columns", () => {
+    mocks.width = 420;
+    mocks.horizontalInset = 32;
+    const links = nodes(CommunityNavigation({ selected: "messages" }), "Link");
+    expect(links[2].props.children.props.style.flexBasis).toBe("50%");
+    expect(links[2].props.children.props.accessibilityLabel).toBe("Messages");
   });
   it("provides a parent destination for cold-opened tasks and normal Back for pushed tasks", () => {
     const page = () =>

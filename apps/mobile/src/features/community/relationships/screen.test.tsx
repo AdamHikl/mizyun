@@ -12,12 +12,14 @@ const mocks = vi.hoisted(() => ({
   pending: false,
   load: vi.fn(),
   act: vi.fn(),
+  intentCurrent: true,
   alert: vi.fn(),
   appState: null as null | ((s: string) => void),
   token: "token-one",
   focus: null as null | (() => void),
   pause: vi.fn(),
   receipt: vi.fn(),
+  insets: { top: 62, bottom: 34, left: 0, right: 0 },
 }));
 const hooks = vi.hoisted(() => ({
   slots: [] as any[],
@@ -100,6 +102,9 @@ vi.mock("expo-router", () => ({
   },
   useLocalSearchParams: () => ({}),
 }));
+vi.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => mocks.insets,
+}));
 vi.mock("@/hooks/use-theme", () => ({
   useTheme: () => ({ primary: "#10B981", text: "#fff" }),
 }));
@@ -142,7 +147,7 @@ vi.mock("./controller", () => ({
     pause = mocks.pause;
     load = mocks.load;
     act = mocks.act;
-    captureIntent = () => () => true;
+    captureIntent = () => () => mocks.intentCurrent;
     captureReceiptIntent = () => () => true;
   },
 }));
@@ -183,6 +188,7 @@ beforeEach(() => {
   hooks.slots = [];
   hooks.effects = [];
   mocks.token = "token-one";
+  mocks.insets = { top: 62, bottom: 34, left: 0, right: 0 };
   mocks.focus = null;
   mocks.receipt.mockResolvedValue({ ok: true, value: { id: "receipt" } });
   mocks.enrolled = true;
@@ -195,9 +201,35 @@ beforeEach(() => {
   mocks.error = null;
   mocks.loading = false;
   mocks.pending = false;
+  mocks.intentCurrent = true;
   vi.clearAllMocks();
 });
 describe("friends navigation and actions", () => {
+  it("keeps the header and refresh area below device chrome, including after rotation", () => {
+    let tree = render();
+    expect(tree.type).toBe("View");
+    expect(tree.props.style).toMatchObject({
+      paddingTop: 62,
+      paddingLeft: 0,
+      paddingRight: 0,
+    });
+    let scroll = nodes(tree).find((node) => node.type === "ScrollView");
+    expect(scroll.props.contentContainerStyle[1].paddingBottom).toBe(124);
+    expect(
+      scroll.props.children.some(
+        (node: any) => node?.type === "CommunityRootHeader",
+      ),
+    ).toBe(true);
+    mocks.insets = { top: 0, bottom: 21, left: 62, right: 62 };
+    tree = render();
+    expect(tree.props.style).toMatchObject({
+      paddingTop: 0,
+      paddingLeft: 62,
+      paddingRight: 62,
+    });
+    scroll = nodes(tree).find((node) => node.type === "ScrollView");
+    expect(scroll.props.contentContainerStyle[1].paddingBottom).toBe(111);
+  });
   it("selects Requests and Received, with a useful empty state and no giant Refresh button", () => {
     const tree = render();
     expect(control(tree, "Requests").props.accessibilityState.selected).toBe(
@@ -294,7 +326,9 @@ describe("friends navigation and actions", () => {
     expect(mocks.load).not.toHaveBeenCalled();
     await settleMembership();
     expect(mocks.load).toHaveBeenCalledOnce();
-    render().props.refreshControl.props.onRefresh();
+    nodes(render())
+      .find((node) => node.type === "ScrollView")
+      .props.refreshControl.props.onRefresh();
     expect(mocks.membershipLoad).toHaveBeenCalledTimes(2);
     await settleMembership();
     expect(mocks.load).toHaveBeenCalledTimes(2);
@@ -323,7 +357,10 @@ describe("friends navigation and actions", () => {
       expect(mocks.load).not.toHaveBeenCalled();
       expect(control(tree, "Requests").props.disabled).toBe(true);
       expect(text(tree)).not.toContain("No follow requests");
-      expect(tree.props.refreshControl.props.enabled).toBe(true);
+      expect(
+        nodes(tree).find((node) => node.type === "ScrollView").props
+          .refreshControl.props.enabled,
+      ).toBe(true);
       if (recovery === "retry") control(tree, "Try again").props.onPress();
       else {
         leave();
@@ -457,6 +494,58 @@ describe("friends navigation and actions", () => {
     expect(mocks.alert.mock.calls[0][1]).toContain("does not follow them back");
     expect(mocks.act).not.toHaveBeenCalled();
   });
+  it("explains an expired approval confirmation without acting or reloading", async () => {
+    mocks.rows = [
+      {
+        user: { userId: "b", displayName: "Partner", handle: "partner" },
+        relationshipId: "r",
+      },
+    ];
+    render();
+    flushEffects();
+    mocks.focus!();
+    await settleMembership();
+    control(render(), "Approve").props.onPress();
+    const confirm = mocks.alert.mock.calls[0][2][1].onPress;
+    mocks.intentCurrent = false;
+    vi.clearAllMocks();
+    confirm();
+    expect(mocks.act).not.toHaveBeenCalled();
+    expect(mocks.load).not.toHaveBeenCalled();
+    expect(mocks.membershipLoad).not.toHaveBeenCalled();
+    expect(mocks.alert).toHaveBeenCalledWith(
+      "Relationship needs refreshing",
+      "No action was sent. Refresh the list, then review and confirm your choice again.",
+    );
+  });
+  it.each(["background", "token", "blur"])(
+    "keeps an old approval confirmation silent after %s",
+    async (boundary) => {
+      mocks.rows = [
+        {
+          user: { userId: "b", displayName: "Partner", handle: "partner" },
+          relationshipId: "r",
+        },
+      ];
+      render();
+      flushEffects();
+      const blur = mocks.focus!() as unknown as () => void;
+      await settleMembership();
+      control(render(), "Approve").props.onPress();
+      const confirm = mocks.alert.mock.calls[0][2][1].onPress;
+      if (boundary === "background") mocks.appState!("background");
+      else if (boundary === "blur") blur();
+      else {
+        mocks.token = "replacement-token";
+        render();
+      }
+      mocks.intentCurrent = false;
+      vi.clearAllMocks();
+      confirm();
+      expect(mocks.act).not.toHaveBeenCalled();
+      expect(mocks.alert).not.toHaveBeenCalled();
+    },
+  );
   it("offers follow back directly on a follower card without opening options", () => {
     mocks.list = "followers";
     mocks.rows = [

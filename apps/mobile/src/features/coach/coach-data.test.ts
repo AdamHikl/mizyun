@@ -43,15 +43,17 @@ const assistantMessage = {
 };
 
 describe("coach data boundary", () => {
-  it("does not request private conversations when AI access is disabled", async () => {
-    const request = vi.fn(async () =>
-      ok({
-        ready: false as const,
-        provider: "gemini",
-        model: "gemini-3.8-flash",
-        externalAccess: false as const,
-        reason: "External access is disabled.",
-      }),
+  it("loads owned conversation history when the provider is disabled without granting generation", async () => {
+    const request = vi.fn(async (options: { path: string }) =>
+      options.path === "/v1/coach/status"
+        ? ok({
+            ready: false as const,
+            provider: "gemini",
+            model: "gemini-3.8-flash",
+            externalAccess: false as const,
+            reason: "External access is disabled.",
+          })
+        : ok({ conversations: [conversation] }),
     );
     const client: ApiClient = {
       request: request as unknown as ApiClient["request"],
@@ -60,10 +62,71 @@ describe("coach data boundary", () => {
     const result = await loadCoachWith(client);
     expect(result).toMatchObject({
       ok: true,
-      conversations: [],
+      conversations: [conversation],
       status: { ready: false },
     });
-    expect(request).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns cached history when live provider status is offline", async () => {
+    const request = vi.fn(async (options: { path: string }) =>
+      options.path === "/v1/coach/status"
+        ? err({ kind: "network_error" as const, message: "offline" })
+        : ok({ conversations: [conversation] }),
+    );
+    const client: ApiClient = {
+      request: request as unknown as ApiClient["request"],
+      status: () => ({ configured: true, baseUrl: "http://api.test" }),
+    };
+    expect(await loadCoachWith(client)).toMatchObject({
+      ok: true,
+      status: null,
+      conversations: [conversation],
+      readinessMessage: expect.stringContaining("offline"),
+    });
+  });
+
+  it("publishes owned history before the live readiness response settles", async () => {
+    let finishStatus!: (value: unknown) => void;
+    const pendingStatus = new Promise((resolve) => {
+      finishStatus = resolve;
+    });
+    const request = vi.fn(async (options: { path: string }) =>
+      options.path === "/v1/coach/status"
+        ? pendingStatus
+        : ok({ conversations: [conversation] }),
+    );
+    const client: ApiClient = {
+      request: request as unknown as ApiClient["request"],
+      status: () => ({ configured: true, baseUrl: "http://api.test" }),
+    };
+    const publish = vi.fn(async () => undefined);
+    const result = loadCoachWith(client, publish);
+    await vi.waitFor(() =>
+      expect(publish).toHaveBeenCalledWith([conversation]),
+    );
+    finishStatus(ok({ ready: false, reason: "Provider disabled" }));
+    expect(await result).toMatchObject({ ok: true, status: { ready: false } });
+  });
+
+  it("does not turn denied history into an empty successful chat", async () => {
+    const request = vi.fn(async (options: { path: string }) =>
+      options.path === "/v1/coach/status"
+        ? ok({ ready: true })
+        : err({
+            kind: "http_error" as const,
+            status: 403,
+            code: "FORBIDDEN",
+            message: "denied",
+          }),
+    );
+    const client: ApiClient = {
+      request: request as unknown as ApiClient["request"],
+      status: () => ({ configured: true, baseUrl: "http://api.test" }),
+    };
+    const publish = vi.fn(async () => undefined);
+    expect(await loadCoachWith(client, publish)).toMatchObject({ ok: false });
+    expect(publish).not.toHaveBeenCalled();
   });
 
   it("sends a retry-stable idempotency key and validates the response", async () => {

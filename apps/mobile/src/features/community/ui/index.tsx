@@ -9,7 +9,10 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { Link, useRouter, type Href } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { SymbolView } from "expo-symbols";
 import { TabHeader } from "@/components/tab-header";
 import { BottomTabInset, MaxContentWidth } from "@/constants/theme";
@@ -38,7 +41,18 @@ export function CommunityNavigation({
   selected: CommunityDestination;
 }) {
   const colors = useTheme();
-  const { fontScale } = useWindowDimensions();
+  const { fontScale, width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const navigationWidth =
+    Math.min(width - insets.left - insets.right, MaxContentWidth) - 40;
+  // Leave room for the longest label at the user's chosen text size.
+  const labelWidth = 88 * fontScale;
+  const destinationWidth =
+    navigationWidth >= labelWidth * 4
+      ? "25%"
+      : navigationWidth >= labelWidth * 2
+        ? "50%"
+        : "100%";
   return (
     <View
       accessibilityRole="tablist"
@@ -52,7 +66,7 @@ export function CommunityNavigation({
             accessibilityState={{ selected: key === selected }}
             style={StyleSheet.flatten([
               styles.destination,
-              fontScale > 1.4 && styles.largeDestination,
+              { flexBasis: destinationWidth },
               {
                 borderBottomColor:
                   key === selected ? colors.primary : "transparent",
@@ -483,7 +497,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: 2,
   },
-  largeDestination: { flexBasis: "50%" },
   destinationText: { fontSize: 15, fontWeight: "600", textAlign: "center" },
   pageHeader: { gap: 4 },
   back: {

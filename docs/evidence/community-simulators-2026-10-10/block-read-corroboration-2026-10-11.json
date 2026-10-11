@@ -1,0 +1,28 @@
+{
+  "date": "2026-10-11",
+  "environment": "Dev",
+  "backendSha": "2596a69b3fe4d20920a173de91fb4dc533b9bd4a",
+  "blocked": {
+    "phase": "blocked",
+    "scope": "Normal own-auth read corroboration only; no graph mutation",
+    "bBlocksA": true,
+    "bReadsAHttp": 404,
+    "aReadsBHttp": 404,
+    "aFollowingCount": 0,
+    "bFollowingCount": 0,
+    "bBlockCount": 1,
+    "qualifier": "A could view B only with approval because B search is OFF; baseline denied A-to-B access is not newly attributed to blocking. B-to-A previously visible exact-search/profile became denied after native Block."
+  },
+  "unblocked": {
+    "phase": "unblocked",
+    "scope": "Normal own-auth read corroboration only; no graph mutation",
+    "bBlocksA": false,
+    "bReadsAHttp": 200,
+    "aReadsBHttp": 404,
+    "aFollowingCount": 0,
+    "bFollowingCount": 0,
+    "bBlockCount": 0,
+    "qualifier": "B-to-A profile visibility restored; A-to-B remains denied because B exact-handle search is OFF. Both following counts remain zero, so no removed edge revived."
+  },
+  "credentialsOrUserIdentifiersIncluded": false
+}

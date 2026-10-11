@@ -191,6 +191,11 @@ function RoutinesContent({ principal }: { principal: string | null }) {
         );
         return;
       }
+      setNotice((previous) =>
+        previous === "Refresh shared routines to check current access."
+          ? null
+          : previous,
+      );
       setShares(page.value.items);
       setCursor(page.value.nextCursor);
     },

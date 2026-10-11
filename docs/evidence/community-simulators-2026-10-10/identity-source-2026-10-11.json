@@ -1,0 +1,101 @@
+{
+  "date": "2026-10-11",
+  "head": "0d9da8a46197f20b12f00d643851a84866368998",
+  "backendCandidate": "2596a69b3fe4d20920a173de91fb4dc533b9bd4a",
+  "scope": "Identity verification only; no runtime edits. Source hashes are fresh, old test outcomes remain dated.",
+  "sourceSHA256": {
+    "packages/core/src/community.ts": "5af3d10446c50e6ccd6b2f93242f094e1521eb3baa397124b6e7436642292754",
+    "packages/contracts/src/community.ts": "59bae24ce37ed9bed063e8349059aeade20121ef4e0f524f1ec60712e6573af8",
+    "apps/api/src/modules/community/profile-routes.ts": "33b27ab0e199feca39cf3e4ee62f9a1ddf41f4fb7530c0c90eb508315d0b07a7",
+    "packages/adapters/supabase-server/src/community-repository.ts": "a0bd0dc5bbf3d8bc755ffadebb0681dbab07166df87288a50b3217e37d1d6858",
+    "apps/mobile/src/features/community/community-settings-screen.tsx": "9c73ba14dbde2df55392936bc1a2139601f393ef20a2545b697932ceb7a28bbd",
+    "apps/mobile/src/features/community/profile-form.ts": "de058581fe46795fc3a7f54c6e333fd8a967466981ff573abab97ca14c423630",
+    "apps/mobile/src/features/community/use-community-profile.ts": "d96103968a3c65513559c6e849a0f7be880847755e22005a4fa60c4582c5a0d9",
+    "packages/core/src/community.test.ts": "b8522d13be570feb6a9a2212cd3ff5af8687fbd334aadd77e3f9203579206f27",
+    "apps/mobile/src/features/community/profile-form.test.ts": "6f5e86fee99ad8e88188ea1c1ca30581b2c5c16641f1858c124d9a668d66a0ed",
+    "apps/mobile/src/features/community/use-community-profile.test.ts": "a410ed6edca742fbba5994dd7d0fd60796289a0794a3e8a9d59fecb3456392fd",
+    "apps/api/src/modules/community/profile-routes.test.ts": "31079c147c17c41983a28337cc6e2a3b9d7576ec3cbd00bb72d9982406a9cbed",
+    "supabase/tests/database/0009_community_boundary_regressions.test.sql": "4688da0e5387f3d1bc3cb09dd99714c245216bad96fab2fb62bdd863cc510af2",
+    "supabase/tests/database/0012_community_enrollment_controls.test.sql": "541da36369a8a729b408d9e957b75685232105c17a038c28e76b11992ba57ca5",
+    "scripts/test-community-enrollment-concurrency.py": "80981b72be9c98b196051a7d1ac21e9c912aea3a8e46cf80259b231b1e2e82f0",
+    "apps/mobile/src/features/community/community-settings-screen.test.tsx": "1730b2d1d11040d9e6c34d80151ced701ff0f0c52a59e8f389e8dabf9e84928c"
+  },
+  "iosArtifact": "/private/tmp/mizyun-comm-ios-20261010/Build/Products/Debug-iphonesimulator/MizyunDev.app",
+  "nativeIdentity": "com.mizyun.development Debug simulator1.0.9(9)",
+  "nativeInputVariance": "58/59saved inputs match; sole app.config.js change is new Android-only release-optimization Gradle plugin. Removing exactly that line reproduces saved app.config hash; plugin has only Android Gradle mods. Other58input checksums unchanged. Reuse qualified by inspected iOS compatibility, not claimed all59hash match.",
+  "metroSession": 23440,
+  "metroPort": 8085,
+  "metroPID": 59967,
+  "initialDevices": {
+    "BPro": "Booted",
+    "AMax": "Shutdown"
+  },
+  "launch": {
+    "B": 60345,
+    "A": 62027,
+    "aFirstBootLaunch": "90s helper failure before warm boot succeeded; no data reset"
+  },
+  "controller": {
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "medium"
+  },
+  "freshNativeResults": "PASS: identity edit/cancel; blank unchecked withdrawal/refusal form; private Home preserved; explicit one-submit native rejoin; fresh persisted identity/no shared workouts/Following empty; A stable block visible before and after B gen2\u2192gen3. See identity-native-2026-10-11.md and identity-live-2026-10-11.json.",
+  "runtimeFilesMatchDeployedCandidate": [
+    "packages/core/src/community.ts",
+    "packages/contracts/src/community.ts",
+    "apps/api/src/modules/community/profile-routes.ts",
+    "packages/adapters/supabase-server/src/community-repository.ts",
+    "apps/mobile/src/features/community/community-settings-screen.tsx",
+    "apps/mobile/src/features/community/profile-form.ts",
+    "apps/mobile/src/features/community/use-community-profile.ts"
+  ],
+  "postFocusedHashVerification": "PASS; all pre-pinned inputs unchanged; settings-screen test checksum additionally recorded at final inspection.",
+  "freshFocusedTests": {
+    "mobile": {
+      "files": 3,
+      "passed": 37,
+      "command": "pnpm --filter @mizyun/mobile test src/features/community/profile-form.test.ts src/features/community/use-community-profile.test.ts src/features/community/community-settings-screen.test.tsx --maxWorkers=1 --minWorkers=1",
+      "log": "/private/tmp/mizyun-identity-mobile-final-20261011.log"
+    },
+    "core": {
+      "files": 1,
+      "passed": 37,
+      "command": "pnpm --filter @mizyun/core test src/community.test.ts",
+      "log": "/private/tmp/mizyun-identity-core-final-20261011.log"
+    },
+    "api": {
+      "files": 1,
+      "passed": 24,
+      "command": "pnpm --filter @mizyun/api test src/modules/community/profile-routes.test.ts --maxWorkers=1 --minWorkers=1",
+      "log": "/private/tmp/mizyun-identity-api-final-20261011.log"
+    },
+    "total": 98,
+    "skipped": 0,
+    "fullGateRerun": false,
+    "fullGateReason": "No runtime changes for Identity; exact deployed candidate and checked UI candidate prior full gates remain dated, not reported as fresh."
+  },
+  "cleanup": {
+    "controller": "STOP; draft-free",
+    "block": "Exact temporary A\u2192B fixture restored; own-auth verification PASS",
+    "metro": "Owned session23440 stopped; no8085 listener",
+    "A": "Task-booted Max shut down; Auth/data retained",
+    "B": "Initially booted Pro remains booted; active/searchOFF/private data retained"
+  },
+  "issue": {
+    "number": 142,
+    "state": "CLOSED",
+    "status": "status:done",
+    "closure": "https://github.com/AdamHikl/mizyun/issues/142#issuecomment-6108711100"
+  },
+  "parentIssueComment": "https://github.com/AdamHikl/mizyun/issues/137#issuecomment-6108736956",
+  "finalDocumentationChecks": {
+    "ownedPrettier": "PASS",
+    "gitDiffCheck": "PASS",
+    "newProofRelativeLinks": "PASS",
+    "credentialFieldScan": "PASS",
+    "finalPinnedSourceHashes": "PASS",
+    "statusLines": 77,
+    "statusBytes": 12257,
+    "runtimeTestsRepeatedAfterDocumentation": false
+  }
+}

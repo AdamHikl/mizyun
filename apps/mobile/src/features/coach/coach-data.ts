@@ -17,8 +17,9 @@ import { apiClient } from "@/composition/api-client";
 export type CoachLoadResult =
   | {
       readonly ok: true;
-      readonly status: CoachProviderStatus;
+      readonly status: CoachProviderStatus | null;
       readonly conversations: readonly CoachConversation[];
+      readonly readinessMessage?: string;
     }
   | { readonly ok: false; readonly message: string };
 
@@ -129,16 +130,15 @@ export const loadCoach = async (): Promise<CoachLoadResult> =>
 
 export const loadCoachWith = async (
   client: ApiClient,
+  onHistory?: (conversations: readonly CoachConversation[]) => Promise<void>,
 ): Promise<CoachLoadResult> => {
-  const status = await client.request<CoachProviderStatus>({
+  // Existing owned history is independent of live provider admission. Start
+  // both reads together so cached text can render while readiness is checked.
+  const statusRead = client.request<CoachProviderStatus>({
     method: "GET",
     path: "/v1/coach/status",
     schema: coachProviderStatusSchema,
   });
-  if (!status.ok) return { ok: false, message: humanize(status.error) };
-  if (!status.value.ready) {
-    return { ok: true, status: status.value, conversations: [] };
-  }
   const conversations = await client.request<{
     conversations: CoachConversation[];
   }>({
@@ -146,11 +146,14 @@ export const loadCoachWith = async (
     path: "/v1/coach/conversations",
     schema: coachConversationListResponseSchema,
   });
+  if (conversations.ok) await onHistory?.(conversations.value.conversations);
+  const status = await statusRead;
   return conversations.ok
     ? {
         ok: true,
-        status: status.value,
+        status: status.ok ? status.value : null,
         conversations: conversations.value.conversations,
+        ...(!status.ok ? { readinessMessage: humanize(status.error) } : {}),
       }
     : { ok: false, message: humanize(conversations.error) };
 };

@@ -1,0 +1,292 @@
+APK: /Users/adam/Documents/mizyun/apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+SHA256: 5135b768c7f671a1173a57be7fe60a93ec38d1ad87a233851e77dbb70fe1057a
+Mapping SHA256: 6e7daa7ded5f0eea90b4ed131b7437b3387af3743c5c81693e98c52b8579232e
+
+
+Material BottomSheetDialog.onCreate inlined into wa.k.j(Bundle): mapping656683-656690
+.method public final j(Landroid/os/Bundle;)V
+    .registers 4
+    invoke-super {p0, p1}, Lj/x;->onCreate(Landroid/os/Bundle;)V
+    invoke-virtual {p0}, Landroid/app/Dialog;->getWindow()Landroid/view/Window;
+    move-result-object p1
+    if-eqz p1, :cond_1c
+    sget v0, Landroid/os/Build$VERSION;->SDK_INT:I
+    const/16 v1, 0x23
+    if-ge v0, v1, :cond_13
+    const/4 v0, 0x0
+    invoke-virtual {p1, v0}, Landroid/view/Window;->setStatusBarColor(I)V
+    :cond_13
+    const/high16 v0, -0x80000000
+    invoke-virtual {p1, v0}, Landroid/view/Window;->addFlags(I)V
+    const/4 v0, -0x1
+    invoke-virtual {p1, v0, v0}, Landroid/view/Window;->setLayout(II)V
+    :cond_1c
+    return-void
+.end method
+
+Material EdgeToEdgeUtils setters inlined into MaterialDatePicker -> com.google.android.material.datepicker.o.K()V: mapping605606-605610
+    sget v9, Landroid/os/Build$VERSION;->SDK_INT:I
+    const/16 v10, 0x1b
+    if-ge v9, v10, :cond_8d
+    const v10, 0x1010452
+    invoke-static {v3, v10}, Ln5/a;->G(Landroid/content/Context;I)Ljava/lang/Integer;
+    move-result-object v3
+    if-eqz v3, :cond_86
+    invoke-virtual {v3}, Ljava/lang/Integer;->intValue()I
+    move-result v8
+    :cond_86
+    const/16 v3, 0x80
+    invoke-static {v8, v3}, LW1/a;->e(II)I
+    move-result v3
+    goto :goto_8e
+    :cond_8d
+    move v3, v2
+    :goto_8e
+    const/16 v8, 0x23
+    if-ge v9, v8, :cond_95
+    invoke-virtual {v0, v2}, Landroid/view/Window;->setStatusBarColor(I)V
+    :cond_95
+    if-ge v9, v8, :cond_9a
+    invoke-virtual {v0, v3}, Landroid/view/Window;->setNavigationBarColor(I)V
+    :cond_9a
+
+Material navigation getter inlined into wa.k.i()V: mapping656660-656663
+    sget v2, Landroid/os/Build$VERSION;->SDK_INT:I
+    const/16 v4, 0x23
+    if-ge v2, v4, :cond_1a
+    invoke-virtual {v0}, Landroid/view/Window;->getNavigationBarColor()I
+    move-result v2
+    goto :goto_1b
+    :cond_1a
+
+RN statusBarHide:
+.method private static final statusBarHide(Landroid/view/Window;)V
+    .registers 5
+    sget-boolean v0, Lcom/facebook/react/views/view/WindowUtilKt;->isEdgeToEdgeFeatureFlagOn:Z
+    const/16 v1, 0x1e
+    if-eqz v0, :cond_3a
+    invoke-virtual {p0}, Landroid/view/Window;->getDecorView()Landroid/view/View;
+    move-result-object v0
+    new-instance v2, LX8/d;
+    invoke-direct {v2, v0}, LX8/d;-><init>(Landroid/view/View;)V
+    sget v0, Landroid/os/Build$VERSION;->SDK_INT:I
+    const/16 v3, 0x23
+    if-lt v0, v3, :cond_1b
+    new-instance v0, Landroidx/core/view/H0;
+    invoke-direct {v0, p0, v2}, Landroidx/core/view/G0;-><init>(Landroid/view/Window;LX8/d;)V
+    goto :goto_32
+    :cond_1b
+    if-lt v0, v1, :cond_23
+    new-instance v0, Landroidx/core/view/G0;
+    invoke-direct {v0, p0, v2}, Landroidx/core/view/G0;-><init>(Landroid/view/Window;LX8/d;)V
+    goto :goto_32
+    :cond_23
+    const/16 v1, 0x1a
+    if-lt v0, v1, :cond_2d
+    new-instance v0, Landroidx/core/view/F0;
+    invoke-direct {v0, p0, v2}, Landroidx/core/view/E0;-><init>(Landroid/view/Window;LX8/d;)V
+    goto :goto_32
+    :cond_2d
+    new-instance v0, Landroidx/core/view/E0;
+    invoke-direct {v0, p0, v2}, Landroidx/core/view/E0;-><init>(Landroid/view/Window;LX8/d;)V
+    :goto_32
+    invoke-virtual {v0}, LI7/a;->R()V
+    const/4 p0, 0x1
+    invoke-virtual {v0, p0}, LI7/a;->u(I)V
+    return-void
+    :cond_3a
+    sget v0, Landroid/os/Build$VERSION;->SDK_INT:I
+    if-lt v0, v1, :cond_48
+    invoke-virtual {p0}, Landroid/view/Window;->getAttributes()Landroid/view/WindowManager$LayoutParams;
+    move-result-object v0
+    invoke-static {v0}, LB4/a;->A(Landroid/view/WindowManager$LayoutParams;)V
+    invoke-static {p0}, LF7/k;->z(Landroid/view/Window;)V
+    :cond_48
+    const/16 v0, 0x400
+    invoke-virtual {p0, v0}, Landroid/view/Window;->addFlags(I)V
+    const/16 v0, 0x800
+    invoke-virtual {p0, v0}, Landroid/view/Window;->clearFlags(I)V
+    return-void
+.end method
+
+RN statusBarShow:
+.method private static final statusBarShow(Landroid/view/Window;)V
+    .registers 5
+    sget-boolean v0, Lcom/facebook/react/views/view/WindowUtilKt;->isEdgeToEdgeFeatureFlagOn:Z
+    const/16 v1, 0x1e
+    if-eqz v0, :cond_3a
+    invoke-virtual {p0}, Landroid/view/Window;->getDecorView()Landroid/view/View;
+    move-result-object v0
+    new-instance v2, LX8/d;
+    invoke-direct {v2, v0}, LX8/d;-><init>(Landroid/view/View;)V
+    sget v0, Landroid/os/Build$VERSION;->SDK_INT:I
+    const/16 v3, 0x23
+    if-lt v0, v3, :cond_1b
+    new-instance v0, Landroidx/core/view/H0;
+    invoke-direct {v0, p0, v2}, Landroidx/core/view/G0;-><init>(Landroid/view/Window;LX8/d;)V
+    goto :goto_32
+    :cond_1b
+    if-lt v0, v1, :cond_23
+    new-instance v0, Landroidx/core/view/G0;
+    invoke-direct {v0, p0, v2}, Landroidx/core/view/G0;-><init>(Landroid/view/Window;LX8/d;)V
+    goto :goto_32
+    :cond_23
+    const/16 v1, 0x1a
+    if-lt v0, v1, :cond_2d
+    new-instance v0, Landroidx/core/view/F0;
+    invoke-direct {v0, p0, v2}, Landroidx/core/view/E0;-><init>(Landroid/view/Window;LX8/d;)V
+    goto :goto_32
+    :cond_2d
+    new-instance v0, Landroidx/core/view/E0;
+    invoke-direct {v0, p0, v2}, Landroidx/core/view/E0;-><init>(Landroid/view/Window;LX8/d;)V
+    :goto_32
+    invoke-virtual {v0}, LI7/a;->R()V
+    const/4 p0, 0x1
+    invoke-virtual {v0, p0}, LI7/a;->S(I)V
+    return-void
+    :cond_3a
+    sget v0, Landroid/os/Build$VERSION;->SDK_INT:I
+    if-lt v0, v1, :cond_48
+    invoke-virtual {p0}, Landroid/view/Window;->getAttributes()Landroid/view/WindowManager$LayoutParams;
+    move-result-object v0
+    invoke-static {v0}, LB4/a;->q(Landroid/view/WindowManager$LayoutParams;)V
+    invoke-static {p0}, LF7/k;->p(Landroid/view/Window;)V
+    :cond_48
+    const/16 v0, 0x800
+    invoke-virtual {p0, v0}, Landroid/view/Window;->addFlags(I)V
+    const/16 v0, 0x400
+    invoke-virtual {p0, v0}, Landroid/view/Window;->clearFlags(I)V
+    return-void
+.end method
+
+RN setEdgeToEdgeFeatureFlagOn:
+.method public static final setEdgeToEdgeFeatureFlagOn()V
+    .registers 1
+    const/4 v0, 0x1
+    sput-boolean v0, Lcom/facebook/react/views/view/WindowUtilKt;->isEdgeToEdgeFeatureFlagOn:Z
+    return-void
+.end method
+
+RN enableEdgeToEdge:
+.method public static final enableEdgeToEdge(Landroid/view/Window;)V
+    .registers 9
+    const-string v0, "<this>"
+    invoke-static {v0, p0}, Lld/j;->g(Ljava/lang/String;Ljava/lang/Object;)V
+    const/4 v0, 0x0
+    invoke-static {p0, v0}, LB9/b;->T(Landroid/view/Window;Z)V
+    invoke-virtual {p0}, Landroid/view/Window;->getDecorView()Landroid/view/View;
+    move-result-object v1
+    new-instance v2, LX8/d;
+    invoke-direct {v2, v1}, LX8/d;-><init>(Landroid/view/View;)V
+    sget v1, Landroid/os/Build$VERSION;->SDK_INT:I
+    const/16 v3, 0x23
+    const/16 v4, 0x1a
+    const/16 v5, 0x1e
+    if-lt v1, v3, :cond_22
+    new-instance v1, Landroidx/core/view/H0;
+    invoke-direct {v1, p0, v2}, Landroidx/core/view/G0;-><init>(Landroid/view/Window;LX8/d;)V
+    goto :goto_37
+    :cond_22
+    if-lt v1, v5, :cond_2a
+    new-instance v1, Landroidx/core/view/G0;
+    invoke-direct {v1, p0, v2}, Landroidx/core/view/G0;-><init>(Landroid/view/Window;LX8/d;)V
+    goto :goto_37
+    :cond_2a
+    if-lt v1, v4, :cond_32
+    new-instance v1, Landroidx/core/view/F0;
+    invoke-direct {v1, p0, v2}, Landroidx/core/view/E0;-><init>(Landroid/view/Window;LX8/d;)V
+    goto :goto_37
+    :cond_32
+    new-instance v1, Landroidx/core/view/E0;
+    invoke-direct {v1, p0, v2}, Landroidx/core/view/E0;-><init>(Landroid/view/Window;LX8/d;)V
+    :goto_37
+    invoke-virtual {p0}, Landroid/view/Window;->getContext()Landroid/content/Context;
+    move-result-object v2
+    const-string v3, "getContext(...)"
+    invoke-static {v3, v2}, Lld/j;->f(Ljava/lang/String;Ljava/lang/Object;)V
+    invoke-static {v2}, Ln5/a;->L(Landroid/content/Context;)Z
+    move-result v2
+    invoke-virtual {p0, v0}, Landroid/view/Window;->setStatusBarColor(I)V
+    sget v3, Landroid/os/Build$VERSION;->SDK_INT:I
+    const/16 v6, 0x1d
+    const/4 v7, 0x1
+    if-lt v3, v6, :cond_83
+    invoke-virtual {p0, v0}, Landroid/view/Window;->setNavigationBarColor(I)V
+    const v4, 0x1010605
+    filled-new-array {v4}, [I
+    move-result-object v4
+    invoke-virtual {p0}, Landroid/view/Window;->getContext()Landroid/content/Context;
+    move-result-object v6
+    invoke-virtual {v6}, Landroid/content/Context;->getTheme()Landroid/content/res/Resources$Theme;
+    move-result-object v6
+    invoke-virtual {v6, v4}, Landroid/content/res/Resources$Theme;->obtainStyledAttributes([I)Landroid/content/res/TypedArray;
+    move-result-object v4
+    const-string v6, "obtainStyledAttributes(...)"
+    invoke-static {v6, v4}, Lld/j;->f(Ljava/lang/String;Ljava/lang/Object;)V
+    :try_start_69
+    invoke-virtual {v4, v0, v7}, Landroid/content/res/TypedArray;->getBoolean(IZ)Z
+    move-result v0
+    :try_end_6d
+    .catchall {:try_start_69 .. :try_end_6d} :catchall_7e
+    invoke-virtual {v4}, Landroid/content/res/TypedArray;->recycle()V
+    invoke-static {p0}, La1/j;->n(Landroid/view/Window;)V
+    invoke-static {p0, v0}, LD6/a;->d(Landroid/view/Window;Z)V
+    if-eqz v0, :cond_95
+    xor-int/lit8 v0, v2, 0x1
+    invoke-virtual {v1, v0}, LI7/a;->P(Z)V
+    goto :goto_95
+    :catchall_7e
+    move-exception p0
+    invoke-virtual {v4}, Landroid/content/res/TypedArray;->recycle()V
+    throw p0
+    :cond_83
+    if-lt v3, v4, :cond_88
+    if-nez v2, :cond_88
+    move v0, v7
+    :cond_88
+    if-eqz v0, :cond_8d
+    sget v2, Lcom/facebook/react/views/view/WindowUtilKt;->LightNavigationBarColor:I
+    goto :goto_8f
+    :cond_8d
+    sget v2, Lcom/facebook/react/views/view/WindowUtilKt;->DarkNavigationBarColor:I
+    :goto_8f
+    invoke-virtual {p0, v2}, Landroid/view/Window;->setNavigationBarColor(I)V
+    invoke-virtual {v1, v0}, LI7/a;->P(Z)V
+    :cond_95
+    :goto_95
+    const/16 v0, 0x1c
+    if-lt v3, v0, :cond_a3
+    invoke-virtual {p0}, Landroid/view/Window;->getAttributes()Landroid/view/WindowManager$LayoutParams;
+    move-result-object p0
+    if-lt v3, v5, :cond_a0
+    const/4 v7, 0x3
+    :cond_a0
+    invoke-static {p0, v7}, Landroidx/core/view/Y;->w(Landroid/view/WindowManager$LayoutParams;I)V
+    :cond_a3
+    return-void
+.end method
+
+Application startup flag setter: mapping637048-637049; APK MainApplication.onCreate()V invokes WindowUtilKt.setEdgeToEdgeFeatureFlagOn()V. Full DEX in mizyun-window-dex-application.txt.
+
+cutout-short:
+.method public static bridge synthetic A(Landroid/view/WindowManager$LayoutParams;)V
+    .registers 2
+    const/4 v0, 0x1
+    iput v0, p0, Landroid/view/WindowManager$LayoutParams;->layoutInDisplayCutoutMode:I
+    return-void
+.end method
+
+cutout-default:
+.method public static bridge synthetic q(Landroid/view/WindowManager$LayoutParams;)V
+    .registers 2
+    const/4 v0, 0x0
+    iput v0, p0, Landroid/view/WindowManager$LayoutParams;->layoutInDisplayCutoutMode:I
+    return-void
+.end method
+
+cutout-write:
+.method public static bridge synthetic w(Landroid/view/WindowManager$LayoutParams;I)V
+    .registers 2
+    iput p1, p0, Landroid/view/WindowManager$LayoutParams;->layoutInDisplayCutoutMode:I
+    return-void
+.end method

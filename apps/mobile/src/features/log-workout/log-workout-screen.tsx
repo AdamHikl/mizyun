@@ -23,6 +23,7 @@ import {
   type Workout,
   type WorkoutSet,
   type WorkoutSetType,
+  type CompanionCommand,
 } from "@mizyun/contracts";
 import {
   computeWorkoutProgressions,
@@ -95,6 +96,11 @@ import {
   type PlannedExercise,
   type WorkoutWorkspace,
 } from "./log-workout-data";
+import {
+  WatchWorkoutControls,
+  type CompanionOutcome,
+  type CompanionWorkoutView,
+} from "@/features/workout-companion";
 import { CompletedWorkoutFeed } from "./completed-workout-feed";
 import { plannedSetTypeForSequence } from "@/features/workouts/planned-set-types";
 
@@ -249,6 +255,14 @@ export function LogWorkoutScreen() {
     !isCompletedWorkout &&
     !isRoutineDetails(workspace.workout.details);
   const restNotificationGeneration = useRef(0);
+
+  useEffect(
+    () => () => {
+      currentWorkoutOwner.current = "";
+      restNotificationGeneration.current++;
+    },
+    [],
+  );
 
   const plannedExercises = useMemo(
     () => extractPlannedExercises(workspace.workout, draft.workoutProposal),
@@ -970,7 +984,10 @@ export function LogWorkoutScreen() {
 
   // Complete / log an inline set for an exercise
   const handleLogSet = useCallback(
-    async (entry: ExerciseEntry) => {
+    async (
+      entry: ExerciseEntry,
+      watchInput?: Extract<CompanionCommand, { kind: "log-set" }>,
+    ): Promise<CompanionOutcome> => {
       const attempt = measurement.current;
       if (
         workspace.workout === null ||
@@ -979,7 +996,8 @@ export function LogWorkoutScreen() {
         exerciseMutationInFlight.current ||
         setSaveInFlight.current
       )
-        return;
+        return "rejected";
+      const mutationOwner = currentWorkoutOwner.current;
       setSaveInFlight.current = true;
       attempt?.tap();
 
@@ -1007,20 +1025,35 @@ export function LogWorkoutScreen() {
               resolvedExerciseId = created.exercise.id;
             } else {
               setMessage(created.message);
-              return;
+              return "rejected";
             }
           }
         }
 
         // Read current input values or fallback to smart defaults
-        const currentInput = pendingInputs[entry.id] ??
-          pendingInputs[entry.name] ?? {
-            load: "",
-            reps: "",
-            durationSeconds: "",
-            distanceMeters: "",
-            rpe: "",
-          };
+        if (currentWorkoutOwner.current !== mutationOwner) return "rejected";
+        const currentInput = watchInput
+          ? {
+              load: String(
+                kilogramsToDisplayWeight(watchInput.loadKg, unitSystem),
+              ),
+              reps: String(watchInput.repetitions),
+              durationSeconds: "",
+              distanceMeters: "",
+              rpe: "",
+              setType:
+                watchInput.setType === "working"
+                  ? ("normal" as const)
+                  : watchInput.setType,
+            }
+          : (pendingInputs[entry.id] ??
+            pendingInputs[entry.name] ?? {
+              load: "",
+              reps: "",
+              durationSeconds: "",
+              distanceMeters: "",
+              rpe: "",
+            });
 
         const completedSets = workspace.sets.filter(
           (s) => s.exerciseId === resolvedExerciseId,
@@ -1091,8 +1124,25 @@ export function LogWorkoutScreen() {
           perceivedExertion: currentInput.rpe,
           setType: setTypeVal,
           unitSystem,
+          ...(watchInput
+            ? {
+                sequence:
+                  Math.max(0, ...workspace.sets.map((set) => set.sequence)) + 1,
+                completedAt: new Date(watchInput.createdAtMs).toISOString(),
+                canonicalLoadKg: Math.round(watchInput.loadKg * 1000) / 1000,
+              }
+            : {}),
         });
         setBusy(false);
+        if (currentWorkoutOwner.current !== mutationOwner) {
+          if (!result.ok)
+            attempt?.fail(
+              "submit",
+              classifyAnalyticsFailure(result.message),
+              true,
+            );
+          return "uncertain";
+        }
 
         if (!result.ok) {
           hadFailure.current = true;
@@ -1102,7 +1152,7 @@ export function LogWorkoutScreen() {
             true,
           );
           setMessage(result.message);
-          return;
+          return "uncertain";
         }
 
         // Start rest timer with wall-clock endsAt and background notification
@@ -1160,6 +1210,7 @@ export function LogWorkoutScreen() {
           exerciseEntries.length > 0 &&
           nextExerciseIndex === null;
         const notificationGeneration = ++restNotificationGeneration.current;
+        const restEndsAt = Date.now() + restDuration * 1000;
         void (async () => {
           if (restTimer?.notificationId) {
             await cancelRestNotification(restTimer.notificationId);
@@ -1172,12 +1223,15 @@ export function LogWorkoutScreen() {
             },
             restDuration,
           );
-          if (notificationGeneration !== restNotificationGeneration.current) {
+          if (
+            notificationGeneration !== restNotificationGeneration.current ||
+            currentWorkoutOwner.current !== mutationOwner
+          ) {
             await cancelRestNotification(notificationId);
             return;
           }
           setRestTimer({
-            endsAt: Date.now() + restDuration * 1000,
+            endsAt: restEndsAt,
             total: restDuration,
             exerciseName: entry.name,
             nextExerciseName: nextExercise?.name,
@@ -1216,8 +1270,10 @@ export function LogWorkoutScreen() {
 
         // Silently reconcile with backend in the background without unmounting or resetting scroll
         void refresh();
+        return "saved";
       } catch {
         setMessage("We couldn't save this set. Please try again.");
+        return "uncertain";
       } finally {
         setBusy(false);
         setSaveInFlight.current = false;
@@ -1270,137 +1326,300 @@ export function LogWorkoutScreen() {
   );
 
   // Complete workout
-  const handleFinish = useCallback(async () => {
-    if (busy || exerciseMutationInFlight.current || setSaveInFlight.current)
-      return;
-    const attempt = measurement.current;
-    if (workspace.workout === null || workspace.workout.completedAt !== null)
-      return;
-    if (isRoutineDetails(workspace.workout.details)) {
-      setMessage("Wait for the workout session to start before finishing it.");
-      return;
-    }
-    attempt?.tap();
+  const handleFinish = useCallback(
+    async (
+      watchCommand?: Extract<CompanionCommand, { kind: "finish" }>,
+    ): Promise<CompanionOutcome> => {
+      if (busy || exerciseMutationInFlight.current || setSaveInFlight.current)
+        return "rejected";
+      const attempt = measurement.current;
+      if (workspace.workout === null || workspace.workout.completedAt !== null)
+        return "rejected";
+      if (isRoutineDetails(workspace.workout.details)) {
+        setMessage(
+          "Wait for the workout session to start before finishing it.",
+        );
+        return "rejected";
+      }
+      attempt?.tap();
 
-    const totalSets = workspace.sets.length;
-    const formattedDuration = formatStopwatch(elapsedSeconds);
+      const totalSets = workspace.sets.length;
+      const formattedDuration = formatStopwatch(elapsedSeconds);
 
-    const progressions = isOneTimeWorkout
-      ? []
-      : computeWorkoutProgressions({
-          plannedExercises,
-          completedSets: workspace.sets,
-          exercises: workspace.exercises.map((e) => ({
-            id: e.id,
-            name: e.name,
-            metadata: e.metadata,
-          })),
-        });
-    const progressedItems = progressions.filter(
-      (p) => p.progressed && p.nextTargetKg !== null && p.nextTargetKg > 0,
-    );
+      const progressions = isOneTimeWorkout
+        ? []
+        : computeWorkoutProgressions({
+            plannedExercises,
+            completedSets: workspace.sets,
+            exercises: workspace.exercises.map((e) => ({
+              id: e.id,
+              name: e.name,
+              metadata: e.metadata,
+            })),
+          });
+      const progressedItems = progressions.filter(
+        (p) => p.progressed && p.nextTargetKg !== null && p.nextTargetKg > 0,
+      );
 
-    const unit = weightUnitLabel(unitSystem);
-    const progressionSummary =
-      progressedItems.length > 0 && autoAdvanceTargetWeights
-        ? `\n\n🎯 Next session targets updated:\n` +
-          progressedItems
-            .map((p) => {
-              const prev = p.previousTargetKg
-                ? `${kilogramsToDisplayWeight(p.previousTargetKg, unitSystem)} ${unit}`
-                : "None";
-              const next = `${kilogramsToDisplayWeight(p.nextTargetKg!, unitSystem)} ${unit}`;
-              return `• ${p.exerciseName}: ${prev} → ${next}`;
-            })
-            .join("\n")
-        : "";
+      const unit = weightUnitLabel(unitSystem);
+      const progressionSummary =
+        progressedItems.length > 0 && autoAdvanceTargetWeights
+          ? `\n\n🎯 Next session targets updated:\n` +
+            progressedItems
+              .map((p) => {
+                const prev = p.previousTargetKg
+                  ? `${kilogramsToDisplayWeight(p.previousTargetKg, unitSystem)} ${unit}`
+                  : "None";
+                const next = `${kilogramsToDisplayWeight(p.nextTargetKg!, unitSystem)} ${unit}`;
+                return `• ${p.exerciseName}: ${prev} → ${next}`;
+              })
+              .join("\n")
+          : "";
 
-    Alert.alert(
-      "Finish Workout?",
-      `Completed in ${formattedDuration} with ${totalSets} saved sets.${progressionSummary}`,
-      [
-        { text: "Keep Logging", style: "cancel" },
-        {
-          text: "Finish & Save",
-          onPress: () => {
-            void (async () => {
-              restNotificationGeneration.current += 1;
-              if (restTimer?.notificationId) {
-                await cancelRestNotification(restTimer.notificationId);
-              }
-              setRestTimer(null);
-              clearContextRestTimer?.();
-              setContextActiveWorkout?.(null);
-              setBusy(true);
+      const expectedOwner = `${userId}:${workspace.workout.id}`;
+      const commitFinish = async (): Promise<CompanionOutcome> => {
+        if (
+          currentWorkoutOwner.current !== expectedOwner ||
+          setSaveInFlight.current ||
+          exerciseMutationInFlight.current
+        )
+          return "rejected";
+        const mutationOwner = currentWorkoutOwner.current;
+        setSaveInFlight.current = true;
+        try {
+          restNotificationGeneration.current += 1;
+          if (restTimer?.notificationId) {
+            await cancelRestNotification(restTimer.notificationId);
+          }
+          setRestTimer(null);
+          clearContextRestTimer?.();
+          setContextActiveWorkout?.(null);
+          setBusy(true);
 
-              if (autoAdvanceTargetWeights && progressedItems.length > 0) {
-                await applyCompletedWorkoutProgressions(
-                  workspace.workout!,
-                  workspace.sets,
-                  workspace.exercises,
-                );
-              }
+          if (autoAdvanceTargetWeights && progressedItems.length > 0) {
+            await applyCompletedWorkoutProgressions(
+              workspace.workout!,
+              workspace.sets,
+              workspace.exercises,
+            );
+          }
 
-              const result = await completeWorkout(
+          if (currentWorkoutOwner.current !== mutationOwner) return "rejected";
+          const result = watchCommand
+            ? await completeWorkout(
+                workspace.workout!.id,
+                workspace.workout!.startedAt,
+                new Date(watchCommand.createdAtMs).toISOString(),
+              )
+            : await completeWorkout(
                 workspace.workout!.id,
                 workspace.workout!.startedAt,
               );
-              setBusy(false);
-              if (!result.ok) {
-                hadFailure.current = true;
-                attempt?.fail(
-                  "submit",
-                  classifyAnalyticsFailure(result.message),
-                  true,
-                );
-                return setMessage(result.message);
-              }
-              refreshCounter.current++;
-              setWorkspace((current) => ({
-                ...current,
-                workout: result.workout,
-              }));
-              void dismissActiveWorkoutNotification();
-              attempt?.complete();
-              if (userId !== null) await clearLoggingDraft(userId, "workout");
-              if (community.isEnrolled) {
-                Alert.alert(
-                  "Workout saved privately",
-                  "Sharing is optional. Review a separate card before publishing.",
-                  [
-                    {
-                      text: "Keep private",
-                      style: "cancel",
-                      onPress: () => router.back(),
-                    },
-                    {
-                      text: "Review sharing",
-                      onPress: () => setCompletedShareId(workspace.workout!.id),
-                    },
-                  ],
-                );
-              } else router.back();
-            })();
+          setBusy(false);
+          if (!result.ok) {
+            hadFailure.current = true;
+            attempt?.fail(
+              "submit",
+              classifyAnalyticsFailure(result.message),
+              true,
+            );
+            setMessage(result.message);
+            return "uncertain";
+          }
+          if (currentWorkoutOwner.current !== mutationOwner) return "uncertain";
+          refreshCounter.current++;
+          setWorkspace((current) => ({
+            ...current,
+            workout: result.workout,
+          }));
+          void dismissActiveWorkoutNotification();
+          attempt?.complete();
+          if (userId !== null) await clearLoggingDraft(userId, "workout");
+          if (community.isEnrolled && !watchCommand) {
+            Alert.alert(
+              "Workout saved privately",
+              "Sharing is optional. Review a separate card before publishing.",
+              [
+                {
+                  text: "Keep private",
+                  style: "cancel",
+                  onPress: () => router.back(),
+                },
+                {
+                  text: "Review sharing",
+                  onPress: () => setCompletedShareId(workspace.workout!.id),
+                },
+              ],
+            );
+          } else if (!watchCommand) router.back();
+
+          return "saved";
+        } catch {
+          setMessage("Check your saved workout before trying again.");
+          return "uncertain";
+        } finally {
+          setBusy(false);
+          setSaveInFlight.current = false;
+        }
+      };
+      if (watchCommand) return commitFinish();
+
+      Alert.alert(
+        "Finish Workout?",
+        `Completed in ${formattedDuration} with ${totalSets} saved sets.${progressionSummary}`,
+        [
+          { text: "Keep Logging", style: "cancel" },
+          {
+            text: "Finish & Save",
+            onPress: () => {
+              void commitFinish();
+            },
           },
-        },
-      ],
+        ],
+      );
+      return "rejected";
+    },
+    [
+      community.isEnrolled,
+      busy,
+      isOneTimeWorkout,
+      autoAdvanceTargetWeights,
+      clearContextRestTimer,
+      elapsedSeconds,
+      plannedExercises,
+      restTimer?.notificationId,
+      setContextActiveWorkout,
+      unitSystem,
+      userId,
+      workspace.exercises,
+      workspace.sets,
+      workspace.workout,
+    ],
+  );
+
+  const skipCompanionRest = useCallback(async (): Promise<CompanionOutcome> => {
+    if (
+      !restTimer ||
+      busy ||
+      setSaveInFlight.current ||
+      exerciseMutationInFlight.current
+    )
+      return "rejected";
+    restNotificationGeneration.current++;
+    setRestTimer(null);
+    clearContextRestTimer?.();
+    if (restTimer.notificationId)
+      await cancelRestNotification(restTimer.notificationId);
+    return "saved";
+  }, [restTimer, busy, clearContextRestTimer]);
+
+  const companionView = useMemo<CompanionWorkoutView | null>(() => {
+    const workout = workspace.workout;
+    if (!workout || isRoutineDetails(workout.details)) return null;
+    const entry = exerciseEntries.find(
+      (item) => item.name === activeSessionSummary?.currentExerciseName,
     );
+    const sets = entry
+      ? completedSetsForNotificationEntry(
+          entry,
+          workspace.exercises,
+          workspace.sets,
+        )
+      : [];
+    const last = sets.at(-1);
+    const input = entry
+      ? (pendingInputs[entry.id] ?? pendingInputs[entry.name])
+      : undefined;
+    const inputLoad = input?.load.trim() ? Number(input.load) : null;
+    const targetDisplay = entry?.targetLoad
+      ? parseTargetLoadToDisplay(entry.targetLoad, unitSystem)
+      : null;
+    const loadKg =
+      inputLoad !== null && Number.isFinite(inputLoad)
+        ? displayWeightToKilograms(inputLoad, unitSystem)
+        : (last?.loadKg ??
+          (targetDisplay !== null
+            ? displayWeightToKilograms(Number(targetDisplay), unitSystem)
+            : null));
+    const inputReps = input?.reps.trim() ? Number(input.reps) : null;
+    const reps =
+      inputReps !== null && Number.isFinite(inputReps)
+        ? inputReps
+        : (last?.repetitions ?? entry?.repsMax ?? entry?.repsMin ?? null);
+    const setType = entry ? pendingSetType(input, entry, sets) : "normal";
+    return {
+      workoutId: workout.id,
+      status: workout.completedAt ? "completed" : "active",
+      exercise:
+        entry && !workout.completedAt
+          ? {
+              exerciseId: entry.id,
+              name: entry.name.slice(0, 120),
+              completedSets: sets.length,
+              targetSets: entry.targetSets || 3,
+              repetitions:
+                reps !== null &&
+                Number.isInteger(reps) &&
+                reps >= 0 &&
+                reps <= 1000
+                  ? reps
+                  : null,
+              loadKg:
+                loadKg !== null && loadKg >= 0 && loadKg <= 2000
+                  ? Math.round(loadKg * 1000) / 1000
+                  : null,
+              setType: setType === "normal" ? "working" : setType,
+              loadUnit: unitSystem === "imperial" ? "lb" : "kg",
+            }
+          : null,
+      restEndsAtMs: workout.completedAt ? null : (restTimer?.endsAt ?? null),
+      restDurationSeconds: workout.completedAt
+        ? null
+        : (restTimer?.total ?? null),
+      canLogSet:
+        !workout.completedAt &&
+        !busy &&
+        Boolean(entry && entry.durationMinutes === null),
+      canFinish: !workout.completedAt && !busy,
+    };
   }, [
-    community.isEnrolled,
-    busy,
-    isOneTimeWorkout,
-    autoAdvanceTargetWeights,
-    clearContextRestTimer,
-    elapsedSeconds,
-    plannedExercises,
-    restTimer?.notificationId,
-    setContextActiveWorkout,
+    workspace,
+    exerciseEntries,
+    activeSessionSummary?.currentExerciseName,
+    pendingInputs,
     unitSystem,
-    userId,
-    workspace.exercises,
-    workspace.sets,
-    workspace.workout,
+    restTimer,
+    busy,
   ]);
+
+  const executeCompanionCommand = useCallback(
+    async (command: CompanionCommand): Promise<CompanionOutcome> => {
+      if (
+        !workspace.workout ||
+        command.workoutId !== workspace.workout.id ||
+        workspace.workout.completedAt ||
+        busy ||
+        currentWorkoutOwner.current !== `${userId}:${command.workoutId}`
+      )
+        return "rejected";
+      if (command.kind === "finish") return handleFinish(command);
+      if (command.kind === "skip-rest") return skipCompanionRest();
+      const entry = exerciseEntries.find(
+        (item) => item.id === command.exerciseId,
+      );
+      if (!entry || entry.durationMinutes !== null) return "rejected";
+      return handleLogSet(entry, command);
+    },
+    [
+      workspace.workout,
+      busy,
+      userId,
+      exerciseEntries,
+      handleFinish,
+      skipCompanionRest,
+      handleLogSet,
+    ],
+  );
 
   // Confirm abandon
   const confirmAbandon = useCallback(() => {
@@ -1472,7 +1691,9 @@ export function LogWorkoutScreen() {
         }
         accessibilityState={{ disabled: busy, busy }}
         disabled={busy}
-        onPress={isCompletedWorkout ? () => router.back() : handleFinish}
+        onPress={
+          isCompletedWorkout ? () => router.back() : () => void handleFinish()
+        }
         style={({ pressed }) => [
           styles.headerFinishButton,
           pressed && styles.headerFinishButtonPressed,
@@ -1605,6 +1826,15 @@ export function LogWorkoutScreen() {
                 onInteraction={() => measurement.current?.tap()}
               />
             )}
+
+            {userId && companionView ? (
+              <WatchWorkoutControls
+                key={`${userId}:${companionView.workoutId}`}
+                ownerId={userId}
+                view={companionView}
+                execute={executeCompanionCommand}
+              />
+            ) : null}
 
             {message !== null ? (
               <View style={styles.message} accessibilityRole="alert">

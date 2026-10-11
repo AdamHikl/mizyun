@@ -1,0 +1,83 @@
+{
+  "schemaValid": true,
+  "communityIdentityOwn": true,
+  "profileOwnerAgrees": true,
+  "ownUser": true,
+  "manifestVersion": "2026-09-08",
+  "manifestCompleteness": "complete",
+  "manifestCountsAgree": true,
+  "personalOwnership": {
+    "goals": { "rows": 0, "explicitOwnerRows": 0, "ownerMismatchRows": 0 },
+    "foodEntries": {
+      "rows": 0,
+      "explicitOwnerRows": 0,
+      "ownerMismatchRows": 0
+    },
+    "exercises": { "rows": 1, "explicitOwnerRows": 1, "ownerMismatchRows": 0 },
+    "workouts": { "rows": 2, "explicitOwnerRows": 2, "ownerMismatchRows": 0 },
+    "workoutSets": {
+      "rows": 1,
+      "explicitOwnerRows": 1,
+      "ownerMismatchRows": 0
+    },
+    "bodyMeasurements": {
+      "rows": 0,
+      "explicitOwnerRows": 0,
+      "ownerMismatchRows": 0
+    },
+    "conversations": {
+      "rows": 0,
+      "explicitOwnerRows": 0,
+      "ownerMismatchRows": 0
+    },
+    "memories": { "rows": 0, "explicitOwnerRows": 0, "ownerMismatchRows": 0 },
+    "feedback": { "rows": 0, "explicitOwnerRows": 0, "ownerMismatchRows": 0 },
+    "mealImagePaths": {
+      "rows": 0,
+      "explicitOwnerRows": 0,
+      "ownerMismatchRows": 0
+    }
+  },
+  "fixtureSecretsAbsent": true,
+  "communityPresent": true,
+  "communityVersion": "2026-10-01",
+  "communityConsistency": "live_keyset",
+  "communityCompleteness": "complete",
+  "communityCategoryCount": 31,
+  "allExpectedCommunityCategories": true,
+  "communityCountsAgree": true,
+  "communityCounts": {
+    "identity": 1,
+    "relationships": 0,
+    "blocks": 0,
+    "mutes": 0,
+    "activities": 0,
+    "reactions": 0,
+    "invitations": 0,
+    "reports": 0,
+    "appeals": 0,
+    "notificationPreferences": 1,
+    "inbox": 0,
+    "pushRegistrations": 0,
+    "delivery": 0,
+    "comments": 0,
+    "commentPreferences": 0,
+    "commentMentions": 0,
+    "groupMemberships": 0,
+    "groupPosts": 0,
+    "groupAppeals": 0,
+    "groupEvents": 0,
+    "groupOperations": 1,
+    "routineShares": 0,
+    "routineImports": 0,
+    "messages": 0,
+    "messageOperations": 0,
+    "messagingPreferences": 0,
+    "broaderDiscoveryPreferences": 0,
+    "challenges": 1,
+    "challengeContributions": 0,
+    "media": 0,
+    "mediaReviews": 0
+  },
+  "fileBytes": 5322
+}

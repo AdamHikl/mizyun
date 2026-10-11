@@ -1,0 +1,52 @@
+{
+  "date": "2026-10-11",
+  "head": "0d9da8a46197f20b12f00d643851a84866368998",
+  "nativeSavedInputs": 59,
+  "nativeHashesMatch": true,
+  "generatedAndroidExtras": 538,
+  "initialDevices": {
+    "B": "Booted",
+    "A": "Shutdown"
+  },
+  "runtimeHashes": {
+    "apps/mobile/src/features/community/profiles/screen.tsx": "0cfe318299dd8db195a37115f357d8a32847d12abf295f76be7c08d72f73d2ff",
+    "apps/mobile/src/features/community/relationships/screen.tsx": "99bb6d866b4eaf0eea2e1f1800bd2b8f3c49244bef59861e6114992859cb9634",
+    "apps/mobile/src/features/community/feed/feed-screen.tsx": "47ef4ab5e9aa6738790e6e1401a9581a16b2867e2b345c5b8ae80b7954f8a765",
+    "apps/mobile/src/features/community/challenges/screen.tsx": "dc87f110568168d1f4a17372781e4b03772ae7c26ff8860b30533e6444481904",
+    "apps/mobile/src/features/community/state/read-cache.ts": "53578b5f943a9d369f79002bf34f5c625acd2f789f1e06bb2f618c6b61d140a5",
+    "apps/mobile/src/features/community/ui/index.tsx": "832bbb0898b213318e9ce6d7905bc07a80b3cac5f911ad6dbdfbe4ee062c3c0f"
+  },
+  "currentCheckedUiHashesMatch": true,
+  "metroSession": 61047,
+  "port": 8085,
+  "controller": {
+    "agent": "remaining23_scope",
+    "model": "gpt-6.1-sol",
+    "effort": "medium"
+  },
+  "nativeControlBlocker": "AX empty18s; one screenshot245s; unchanged retries stopped",
+  "fixtureSetup": "Own-auth mutual-follow setup timed out; no edge receipt; do not assume durable mutation until read-only verification",
+  "fixtureReadback": {
+    "bothProfilesActive": true,
+    "aFollowing": 0,
+    "bFollowing": 0,
+    "mutationRetry": false,
+    "aPendingOutgoing": 0,
+    "bPendingOutgoing": 0
+  },
+  "documentedDevHealth": 200,
+  "cleanup": {
+    "metro61047": "STOPPED Ctrl-C; no8085listener",
+    "maxA": "shutdown completed exit0, dataAuth retained",
+    "proB": "initiallybooted retained, neutralPeople noDraft lastobserved",
+    "awake": "none started"
+  },
+  "finalFocused": {
+    "command": "Fresh final focused command: pnpm --filter @mizyun/mobile test src/features/community/scoped-client.test.ts src/features/community/state/read-cache.test.ts src/features/community/state/visibility-epoch.test.ts src/features/community/feed/controller.test.ts src/features/community/feed/feed-screen.test.tsx --maxWorkers=1 --minWorkers=1",
+    "exit": 0,
+    "tests": 86,
+    "files": 5,
+    "skips": 0,
+    "selectedHashesUnchanged": 10
+  }
+}

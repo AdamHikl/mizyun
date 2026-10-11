@@ -10,8 +10,10 @@ import {
 import { sendApiError } from "../../errors.js";
 import { registerCommunityErrorHandler } from "./error-handler.js";
 
-const CURSOR_REGEX =
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z\|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import {
+  decodeActivityCursor,
+  encodeActivityCursor,
+} from "./activity-cursor.js";
 
 const defaultReactionCounts = {
   clap: 0,
@@ -68,19 +70,17 @@ export const communityFeedRoutes: FastifyPluginAsync<
 
       const { limit, cursor } = queryParse.data;
 
-      if (cursor) {
-        if (
-          !CURSOR_REGEX.test(cursor) ||
-          !Number.isFinite(Date.parse(cursor.split("|")[0]!))
-        ) {
-          return sendApiError(
-            reply,
-            request,
-            422,
-            "VALIDATION_ERROR",
-            "Invalid community feed cursor.",
-          );
-        }
+      const boundary = cursor
+        ? decodeActivityCursor(cursor, principal.userId)
+        : null;
+      if (cursor && !boundary) {
+        return sendApiError(
+          reply,
+          request,
+          422,
+          "VALIDATION_ERROR",
+          "Invalid community feed cursor.",
+        );
       }
 
       const feedResult = await options.communityRepository.getFeed(
@@ -88,7 +88,7 @@ export const communityFeedRoutes: FastifyPluginAsync<
         {
           accessToken: principal.accessToken,
           limit,
-          ...(cursor ? { beforeCursor: cursor } : {}),
+          ...(boundary ? { beforeCursor: boundary } : {}),
         },
       );
 
@@ -183,7 +183,10 @@ export const communityFeedRoutes: FastifyPluginAsync<
 
       return communityFeedResponseSchema.parse({
         items: itemsWithReactions,
-        nextCursor: feedResult.nextCursor ?? null,
+        nextCursor: encodeActivityCursor(
+          feedResult.nextCursor,
+          principal.userId,
+        ),
       });
     },
   );

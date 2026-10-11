@@ -1,0 +1,86 @@
+{
+  "environment": "dev",
+  "accounts": [
+    {
+      "alias": "A",
+      "handle": "sim_a_c9d7e6eb7d",
+      "synthetic": true,
+      "adultFixtureBirthYear": 1990,
+      "communityGeneration": 1,
+      "searchableFixture": true,
+      "features": [
+        {
+          "feature": "comments",
+          "enabled": true
+        },
+        {
+          "feature": "groups",
+          "enabled": true
+        },
+        {
+          "feature": "challenges",
+          "enabled": true
+        },
+        {
+          "feature": "messaging",
+          "enabled": true
+        },
+        {
+          "feature": "media",
+          "enabled": true
+        },
+        {
+          "feature": "routines",
+          "enabled": true
+        },
+        {
+          "feature": "discovery",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "alias": "B",
+      "handle": "sim_b_f9732c7f83",
+      "synthetic": true,
+      "adultFixtureBirthYear": 1990,
+      "communityGeneration": 1,
+      "searchableFixture": true,
+      "features": [
+        {
+          "feature": "comments",
+          "enabled": true
+        },
+        {
+          "feature": "groups",
+          "enabled": true
+        },
+        {
+          "feature": "challenges",
+          "enabled": true
+        },
+        {
+          "feature": "messaging",
+          "enabled": true
+        },
+        {
+          "feature": "media",
+          "enabled": true
+        },
+        {
+          "feature": "routines",
+          "enabled": true
+        },
+        {
+          "feature": "discovery",
+          "enabled": true
+        }
+      ]
+    }
+  ],
+  "identitySetup": "Exactly two new public Dev Auth signups; own profile API update; cohort insert guarded by exact synthetic UUID/email, host marker and Dev DB port; Community fixture enrollment through each bearer principal. Fictional declarations do not prove legal/adult consent.",
+  "globalFlagsChanged": false,
+  "deliveryEnabled": false,
+  "cohortRequired": true,
+  "realUserDataTouched": false
+}
