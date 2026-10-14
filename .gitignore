@@ -44,7 +44,8 @@ apps/mobile/ios/
 .DS_Store
 .idea/
 .vscode/
-.claude/
+.claude/*
+!.claude/skills
 
 # Supabase local state
 supabase/.branches/

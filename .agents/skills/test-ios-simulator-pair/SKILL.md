@@ -29,10 +29,10 @@ Use [pair-session.md](references/pair-session.md) for a small reusable results r
   tests; after fixes/review settle, run appropriate focused checks and the final
   required gate once. Retest only affected native flows.
 - One native controller owns **both** devices. Helpers may inspect source,
-  evidence or captured pixels concurrently. Adam selected GPT-6.1 Sol Medium
-  for this workflow's controller/helpers; preserve that selection unless changed,
-  and follow project escalation rules for sensitive work. Set supported runtime
-  fields explicitly; prose instructions do not verify a worker's effort.
+  evidence or captured pixels concurrently. Use Sonnet subagents
+  for this workflow's helpers (Claude Code, adopted 2026-10-14) unless Adam
+  changes it, and follow project escalation rules (Opus) for sensitive work. Set
+  the Agent tool's `model` field explicitly; prose does not select a model.
 
 ## Prepare once, reuse twice
 
