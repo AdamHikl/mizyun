@@ -1,0 +1,62 @@
+{
+  "baseline": "d7e2055b260552c785325414756c6beeea1b7d8c",
+  "candidate": "/private/tmp/mizyun-meals-ui-20261014-01a139bf-v2",
+  "ownedOverlays": [
+    "apps/mobile/src/features/log-meal/meal-list-screen.tsx",
+    "apps/mobile/src/features/log-meal/meal-list-screen.test.tsx",
+    "docs/MEALS_UI_IA_EVIDENCE_2026-10-14.md"
+  ],
+  "documentationDependencies": [
+    "AGENTS.md",
+    "docs/BEFORE_TESTING.md",
+    "docs/RESEARCH_LOG.md",
+    "status.md",
+    "docs/DEV_LOCAL_DELIVERY_2026-10-14.md",
+    "docs/DEV_RECIPES_ENABLED_2026-10-14.md",
+    "docs/evidence/dev-local-delivery-2026-10-14/backend-preflight.json",
+    "docs/evidence/dev-local-delivery-2026-10-14/native-delivery.json",
+    "docs/evidence/dev-local-delivery-2026-10-14/readiness-after.json",
+    "docs/evidence/dev-local-delivery-2026-10-14/backend-postflight.json",
+    "docs/evidence/dev-local-delivery-2026-10-14/deployment-summary.txt",
+    "docs/evidence/dev-local-delivery-2026-10-14/candidate-manifest.json",
+    "docs/evidence/dev-local-delivery-2026-10-14/readiness-before.json",
+    "docs/evidence/dev-recipes-enabled-2026-10-14/public-unauthenticated-capabilities.json",
+    "docs/evidence/dev-recipes-enabled-2026-10-14/public-readiness.json",
+    "docs/evidence/dev-recipes-enabled-2026-10-14/postflight.json",
+    "docs/evidence/dev-recipes-enabled-2026-10-14/enablement-script.py",
+    "docs/evidence/dev-recipes-enabled-2026-10-14/independent-review.txt",
+    "docs/evidence/dev-recipes-enabled-2026-10-14/preflight.json",
+    "docs/evidence/dev-recipes-enabled-2026-10-14/provider-configuration.json"
+  ],
+  "hashes": {
+    "apps/mobile/src/features/log-meal/meal-list-screen.tsx": "6a0f3bcdc8a8611b165e633e55665a22a3897ee463b6fb29f813ef07465e181f",
+    "apps/mobile/src/features/log-meal/meal-list-screen.test.tsx": "966545af9aec11da949846f3b0c2e73141746e7f3fe3cb0fb27b4508f26eaf8d",
+    "docs/MEALS_UI_IA_EVIDENCE_2026-10-14.md": "b260eb8153d0d28207593c3373d186bf5a786400c6007973de871567d260354f",
+    "AGENTS.md": "de64c54b3797f7d46417cbfdb40f46a74d32c8f75648f1f3b08caa45a1064f86",
+    "docs/BEFORE_TESTING.md": "5b08e65e2360593cede57b31fbf2803162b3950dcbd795a80696a892961fbebc",
+    "docs/RESEARCH_LOG.md": "b6f2fe4b2b7d031cfe7e569228220f65d10ac3d47d9219de0e36923cfe6ef83f",
+    "status.md": "df36147e7fe92e9b8f4634a170ec28b6b221e22e7bfde49315e50d91f2ea4deb",
+    "docs/DEV_LOCAL_DELIVERY_2026-10-14.md": "a8aaebbfcc2bea74d39070b8d8e20be9d08b08ff459e590ad6916ccb579f2e54",
+    "docs/DEV_RECIPES_ENABLED_2026-10-14.md": "2ec2b18cddb056cf869b91469acbdbebfde28657cdd51bb02975e335aff9d963",
+    "docs/evidence/dev-local-delivery-2026-10-14/backend-preflight.json": "cebf43c9458aaacb83342b1bd50af6b2a9f7c928fcd9192a7299d72167ee42c8",
+    "docs/evidence/dev-local-delivery-2026-10-14/native-delivery.json": "00008f7ca969cb00e41cdb7505490a6949973deceef1e91161d249e59a2ef6ca",
+    "docs/evidence/dev-local-delivery-2026-10-14/readiness-after.json": "60fad5c020d6e391f74f01882228d71c289c8689c2f63b54e112d0e7b76cd77b",
+    "docs/evidence/dev-local-delivery-2026-10-14/backend-postflight.json": "f8cf64b47199e0a36130e1b7daaee85e55daf47aff4738e046d7e1dba64b8300",
+    "docs/evidence/dev-local-delivery-2026-10-14/deployment-summary.txt": "c5c79b7050233b10aa044e0cca46dd0fcac9c8e6091024da28854010f5ae049d",
+    "docs/evidence/dev-local-delivery-2026-10-14/candidate-manifest.json": "76245ee7a49e609fb755ab5517b29278e5a7f79281aa57dbd0253d7791eedf2a",
+    "docs/evidence/dev-local-delivery-2026-10-14/readiness-before.json": "ca0221ef3e388bb47dde6a753f88d55e6c952875c2189d4e3616c21e38c3c0bd",
+    "docs/evidence/dev-recipes-enabled-2026-10-14/public-unauthenticated-capabilities.json": "4bae0d43fd20ddb777d71de76472a4c504c737633bc47f54fdf6e832c1642a1c",
+    "docs/evidence/dev-recipes-enabled-2026-10-14/public-readiness.json": "d3f52e8a992c3450fc060f865b79910158310b4c1613f7525ee5b9b72b0c73ea",
+    "docs/evidence/dev-recipes-enabled-2026-10-14/postflight.json": "86ba809dce5378642c466378df44a425aad55390ad495878c1c81d88ed9282cc",
+    "docs/evidence/dev-recipes-enabled-2026-10-14/enablement-script.py": "babef2945dbb43382005f4af52a3d4cdc4a513caf80082d5d64f76bb84f0e7fe",
+    "docs/evidence/dev-recipes-enabled-2026-10-14/independent-review.txt": "f1e1d98d8290ee2b51217f6811b4661966b8002b4a1320c96d10e674da19ab2d",
+    "docs/evidence/dev-recipes-enabled-2026-10-14/preflight.json": "faf314b5965777a7a64996bc2df9579aac6f25650d5d4347512d7bf0d8da13fd",
+    "docs/evidence/dev-recipes-enabled-2026-10-14/provider-configuration.json": "405cf517ab472ca24077ea5ed8643c464c9ded924a099dbbd1266aca3d09bef2"
+  },
+  "workspaceLinksRebound": 36,
+  "excluded": [
+    "unrelated recipe-detail.test.tsx",
+    "unrelated docs/feature-map.json metadata edit"
+  ],
+  "dependencyReuse": "Third-party installed packages; workspace links rebound into frozen candidate. Tracked native module scaffolding from exact baseline."
+}

@@ -1,0 +1,39 @@
+
+> @mizyun/mobile@1.0.0 test /private/tmp/mizyun-meals-ui-20261014-01a139bf-v2/apps/mobile
+> vitest run --passWithNoTests src/features/log-meal
+
+
+ RUN  v3.2.7 /private/tmp/mizyun-meals-ui-20261014-01a139bf-v2/apps/mobile
+
+ ✓ src/features/log-meal/first-meal-reminders.test.ts (31 tests) 27ms
+ ✓ src/features/log-meal/meal-visual-capability.test.ts (13 tests) 9ms
+ ✓ src/features/log-meal/meal-photo-retention.test.ts (30 tests) 11ms
+ ✓ src/features/log-meal/private-meal-photo.test.tsx (18 tests) 9ms
+ ✓ src/features/log-meal/log-meal-analytics.test.tsx (2 tests) 16ms
+ ✓ src/features/log-meal/edit-meal-screen.test.tsx (9 tests) 82ms
+ ✓ src/features/log-meal/automatic-meal-illustration.test.tsx (6 tests) 13ms
+ ✓ src/features/log-meal/meal-photo.test.ts (3 tests) 4ms
+ ✓ src/features/log-meal/meal-retry-durability.test.ts (7 tests) 9ms
+ ✓ src/features/log-meal/log-meal-data.test.ts (27 tests) 12ms
+ ✓ src/features/log-meal/meal-lifecycle-data.test.ts (38 tests) 29ms
+ ✓ src/features/log-meal/meal-illustration-catalog.test.ts (27 tests) 7ms
+ ✓ src/features/log-meal/log-meal-screen.test.tsx (60 tests) 542ms
+ ✓ src/features/log-meal/meal-form.test.ts (35 tests) 10ms
+ ✓ src/features/log-meal/food-day-completion.test.ts (10 tests) 3ms
+ ✓ src/features/log-meal/meal-illustration-loader.test.ts (5 tests) 5ms
+ ✓ src/features/log-meal/meal-scale.test.ts (15 tests) 4ms
+ ✓ src/features/log-meal/evening-catch-up-reminders.test.ts (12 tests) 5ms
+ ✓ src/features/log-meal/meal-draft-handoff.test.ts (8 tests) 7ms
+ ✓ src/features/log-meal/meal-notification-router.test.ts (6 tests) 3ms
+ ✓ src/features/log-meal/meal-illustration-tile.test.tsx (3 tests) 9ms
+ ✓ src/features/log-meal/meal-history-filter.test.ts (6 tests) 4ms
+ ✓ src/features/log-meal/meal-history-search-state.test.ts (4 tests) 5ms
+ ✓ src/features/log-meal/advanced-nutrition-data.test.ts (2 tests) 2ms
+ ✓ src/features/log-meal/meal-visual.test.tsx (3 tests) 2ms
+ ✓ src/features/log-meal/meal-list-screen.test.tsx (32 tests) 504ms
+
+ Test Files  26 passed (26)
+      Tests  412 passed (412)
+   Start at  11:39:29
+   Duration  2.41s (transform 2.64s, setup 0ms, collect 10.70s, tests 1.33s, environment 3ms, prepare 2.03s)
+

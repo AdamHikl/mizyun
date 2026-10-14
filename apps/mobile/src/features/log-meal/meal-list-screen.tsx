@@ -946,37 +946,91 @@ export function MealListScreen() {
           style={{ marginTop: -headerHeight }}
           contentContainerStyle={[
             styles.content,
-            { paddingTop: headerHeight + Spacing.four },
+            { paddingTop: headerHeight + Spacing.three },
           ]}
           showsVerticalScrollIndicator={false}
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
         >
-          {/* Top Header */}
           <View style={styles.header}>
-            <ThemedText type="subtitle">Meals</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              Manage daily nutrition, logged foods, and history.
+            <ThemedText
+              type="subtitle"
+              accessibilityRole="header"
+              style={styles.pageTitle}
+            >
+              Meals
             </ThemedText>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Log a meal"
+              accessibilityHint="Add a photo or enter food manually"
+              onPress={() => router.push("/log-meal" as Href)}
+              style={({ pressed }) => [
+                styles.logMealButton,
+                { backgroundColor: theme.primary },
+                pressed && styles.pressed,
+              ]}
+            >
+              <ThemedText type="smallBold" style={styles.logMealButtonText}>
+                ＋ Log meal
+              </ThemedText>
+            </Pressable>
           </View>
 
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Recurring meals"
-            onPress={() => router.push("/recurring-meals" as Href)}
-            style={styles.inlineButton}
-          >
-            <ThemedText type="smallBold">Recurring meals</ThemedText>
-          </Pressable>
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="What can I cook?"
-            onPress={() => router.push("/meal-recipes" as Href)}
-            style={styles.inlineButton}
-          >
-            <ThemedText type="smallBold">What can I cook?</ThemedText>
-          </Pressable>
+          <View style={styles.mealShortcuts}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="What can I cook?"
+              accessibilityHint="Find recipe ideas from your ingredients"
+              onPress={() => router.push("/meal-recipes" as Href)}
+              style={({ pressed }) => [
+                styles.mealShortcut,
+                {
+                  backgroundColor: theme.backgroundElement,
+                  borderColor: theme.border,
+                },
+                pressed && styles.pressed,
+              ]}
+            >
+              <View style={styles.shortcutTitleRow}>
+                <ThemedText type="smallBold" style={styles.shortcutTitle}>
+                  What can I cook?
+                </ThemedText>
+                <ThemedText accessible={false} themeColor="textSecondary">
+                  ›
+                </ThemedText>
+              </View>
+              <ThemedText type="small" themeColor="textSecondary">
+                Ideas from ingredients
+              </ThemedText>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Recurring meals"
+              accessibilityHint="Manage meals that log on a schedule"
+              onPress={() => router.push("/recurring-meals" as Href)}
+              style={({ pressed }) => [
+                styles.mealShortcut,
+                {
+                  backgroundColor: theme.backgroundElement,
+                  borderColor: theme.border,
+                },
+                pressed && styles.pressed,
+              ]}
+            >
+              <View style={styles.shortcutTitleRow}>
+                <ThemedText type="smallBold" style={styles.shortcutTitle}>
+                  Recurring meals
+                </ThemedText>
+                <ThemedText accessible={false} themeColor="textSecondary">
+                  ›
+                </ThemedText>
+              </View>
+              <ThemedText type="small" themeColor="textSecondary">
+                Manage your schedule
+              </ThemedText>
+            </Pressable>
+          </View>
 
           <RecurringMealSuggestionCard
             userId={userId}
@@ -984,112 +1038,6 @@ export function MealListScreen() {
               showGroupModal || renameTarget !== null || portionTarget !== null
             }
           />
-
-          {/* Primary Action Card: Log a Meal */}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Log a meal"
-            onPress={() => router.push("/log-meal" as Href)}
-            style={({ pressed }) => [
-              styles.logMealHeroCard,
-              pressed && styles.pressed,
-            ]}
-          >
-            <View style={styles.logMealIconContainer}>
-              <ThemedText style={styles.logMealIcon}>🥗</ThemedText>
-            </View>
-            <View style={styles.logMealBody}>
-              <ThemedText type="smallBold">Log a Meal</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                Scan photo with AI or manual ingredient entry
-              </ThemedText>
-            </View>
-            <View style={styles.logMealBadge}>
-              <ThemedText type="smallBold" style={styles.logMealBadgeText}>
-                ＋ Log
-              </ThemedText>
-            </View>
-          </Pressable>
-
-          {advancedCapability.enabled ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Show or hide more nutrient totals"
-              onPress={() => setShowAdvanced((value) => !value)}
-              style={styles.inlineButton}
-            >
-              <ThemedText type="smallBold">
-                {showAdvanced ? "Hide" : "Show"} more nutrients
-              </ThemedText>
-            </Pressable>
-          ) : null}
-
-          {advancedCapability.enabled && showAdvanced ? (
-            <ThemedView type="backgroundElement" style={styles.section}>
-              <ThemedText type="smallBold">
-                This week · more nutrients
-              </ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                Completeness covers nutrient values in logged meals. It does not
-                mean every food eaten was logged.
-              </ThemedText>
-              <View
-                style={{
-                  flexDirection: "row",
-                  flexWrap: "wrap",
-                  gap: 8,
-                  marginVertical: 8,
-                }}
-              >
-                {ADVANCED_DISPLAY_FIELDS.map(({ key, label }) => (
-                  <Pressable
-                    key={key}
-                    accessibilityRole="checkbox"
-                    accessibilityState={{
-                      checked: visibleAdvancedFields.includes(key),
-                    }}
-                    accessibilityLabel={`Show ${label}`}
-                    onPress={() =>
-                      setVisibleAdvancedFields((current) =>
-                        current.includes(key)
-                          ? current.filter((item) => item !== key)
-                          : [...current, key],
-                      )
-                    }
-                    style={{
-                      borderWidth: 1,
-                      borderColor: theme.border,
-                      borderRadius: 8,
-                      padding: 8,
-                    }}
-                  >
-                    <ThemedText type="small">
-                      {visibleAdvancedFields.includes(key) ? "✓ " : ""}
-                      {label}
-                    </ThemedText>
-                  </Pressable>
-                ))}
-              </View>
-              {weeklySummaries === null ? (
-                <ThemedText type="small" themeColor="textSecondary">
-                  Weekly nutrient summary unavailable.
-                </ThemedText>
-              ) : (
-                weeklyAdvancedNutrientLines(
-                  weeklySummaries,
-                  visibleAdvancedFields,
-                ).map((line) => (
-                  <ThemedText
-                    key={line}
-                    type="small"
-                    themeColor="textSecondary"
-                  >
-                    {line}
-                  </ThemedText>
-                ))
-              )}
-            </ThemedView>
-          ) : null}
 
           {state.message !== null ? (
             <ThemedView type="backgroundElement" style={styles.messageCard}>
@@ -1110,8 +1058,8 @@ export function MealListScreen() {
           {/* History Section */}
           <View style={styles.section}>
             <View style={styles.sectionHeaderRow}>
-              <ThemedText type="smallBold" style={styles.sectionTitle}>
-                HISTORY BY DAY
+              <ThemedText type="smallBold" accessibilityRole="header">
+                Meal history
               </ThemedText>
               <ThemedText
                 type="small"
@@ -1121,6 +1069,104 @@ export function MealListScreen() {
                 {historySummary}
               </ThemedText>
             </View>
+
+            {advancedCapability.enabled ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={
+                  showAdvanced
+                    ? "Hide more nutrient totals"
+                    : "Show more nutrient totals"
+                }
+                accessibilityHint="Shows nutrient details for this week and logged meals"
+                accessibilityState={{ expanded: showAdvanced }}
+                onPress={() => setShowAdvanced((value) => !value)}
+                style={({ pressed }) => [
+                  styles.nutrientDisclosure,
+                  {
+                    borderColor: theme.border,
+                    backgroundColor: theme.backgroundElement,
+                  },
+                  pressed && styles.pressed,
+                ]}
+              >
+                <View style={styles.disclosureBody}>
+                  <ThemedText type="smallBold">More nutrients</ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    Weekly and meal details
+                  </ThemedText>
+                </View>
+                <ThemedText accessible={false} themeColor="textSecondary">
+                  {showAdvanced ? "−" : "+"}
+                </ThemedText>
+              </Pressable>
+            ) : null}
+            {advancedCapability.enabled && showAdvanced ? (
+              <ThemedView type="backgroundElement" style={styles.section}>
+                <ThemedText type="smallBold">
+                  This week · more nutrients
+                </ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Completeness covers nutrient values in logged meals. It does
+                  not mean every food eaten was logged.
+                </ThemedText>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    flexWrap: "wrap",
+                    gap: 8,
+                    marginVertical: 8,
+                  }}
+                >
+                  {ADVANCED_DISPLAY_FIELDS.map(({ key, label }) => (
+                    <Pressable
+                      key={key}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{
+                        checked: visibleAdvancedFields.includes(key),
+                      }}
+                      accessibilityLabel={`Show ${label}`}
+                      onPress={() =>
+                        setVisibleAdvancedFields((current) =>
+                          current.includes(key)
+                            ? current.filter((item) => item !== key)
+                            : [...current, key],
+                        )
+                      }
+                      style={{
+                        borderWidth: 1,
+                        borderColor: theme.border,
+                        borderRadius: 8,
+                        padding: 8,
+                      }}
+                    >
+                      <ThemedText type="small">
+                        {visibleAdvancedFields.includes(key) ? "✓ " : ""}
+                        {label}
+                      </ThemedText>
+                    </Pressable>
+                  ))}
+                </View>
+                {weeklySummaries === null ? (
+                  <ThemedText type="small" themeColor="textSecondary">
+                    Weekly nutrient summary unavailable.
+                  </ThemedText>
+                ) : (
+                  weeklyAdvancedNutrientLines(
+                    weeklySummaries,
+                    visibleAdvancedFields,
+                  ).map((line) => (
+                    <ThemedText
+                      key={line}
+                      type="small"
+                      themeColor="textSecondary"
+                    >
+                      {line}
+                    </ThemedText>
+                  ))
+                )}
+              </ThemedView>
+            ) : null}
 
             <View
               style={[
@@ -2294,55 +2340,65 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     padding: Spacing.four,
     paddingBottom: BottomTabInset + Spacing.six,
-    gap: Spacing.four,
+    gap: Spacing.three,
   },
-  header: { gap: Spacing.one },
-  logMealHeroCard: {
-    width: "100%",
+  header: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.two,
+  },
+  pageTitle: { fontSize: 28, lineHeight: 36, flexGrow: 1 },
+  logMealButton: {
+    minHeight: 48,
+    maxWidth: "100%",
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  logMealButtonText: { color: "#0B0F12" },
+  mealShortcuts: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.two,
+  },
+  mealShortcut: {
+    flexGrow: 1,
+    flexBasis: 150,
+    minWidth: 0,
+    minHeight: 72,
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: Spacing.three,
+    gap: Spacing.one,
+  },
+  shortcutTitleRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.three,
-    padding: Spacing.three,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.2)",
-    backgroundColor: "rgba(16, 185, 129, 0.05)",
+    gap: Spacing.two,
   },
-  logMealIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
+  shortcutTitle: { flex: 1 },
+  nutrientDisclosure: {
+    minHeight: 48,
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-  },
-  logMealIcon: {
-    fontSize: 20,
-  },
-  logMealBody: {
-    flex: 1,
-    gap: 2,
-  },
-  logMealBadge: {
-    backgroundColor: "#10B981",
+    gap: Spacing.two,
+    borderWidth: 1,
+    borderRadius: 12,
     paddingHorizontal: Spacing.three,
-    paddingVertical: 7,
-    borderRadius: 10,
+    paddingVertical: Spacing.two,
   },
-  logMealBadgeText: {
-    color: "#ffffff",
-    fontSize: 12,
-  },
+  disclosureBody: { flex: 1 },
   section: {
     gap: Spacing.two,
   },
-  sectionTitle: {
-    fontSize: 11,
-    letterSpacing: 0.8,
-    color: "#64748B",
-  },
   sectionHeaderRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.two,
     justifyContent: "space-between",
     alignItems: "center",
   },
@@ -2406,7 +2462,7 @@ const styles = StyleSheet.create({
   groupList: { gap: Spacing.four },
   dayGroupCard: {
     borderRadius: 18,
-    padding: Spacing.four,
+    padding: Spacing.three,
     gap: Spacing.three,
     borderWidth: 1,
     borderColor: "rgba(148, 163, 184, 0.15)",

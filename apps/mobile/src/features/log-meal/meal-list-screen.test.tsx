@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   eveningReminders: vi.fn(),
   owner: "user-a",
   visuals: true,
+  advanced: false,
   version: "0:today:0",
   appState: null as ((state: string) => void) | null,
 }));
@@ -119,10 +120,10 @@ vi.mock("@/features/auth/auth-context", () => ({
 }));
 vi.mock("./advanced-nutrition", () => ({
   useAdvancedNutritionCapability: () => ({
-    enabled: false,
+    enabled: mocks.advanced,
     refresh: mocks.refresh,
   }),
-  fetchCurrentWeekSummaries: vi.fn(),
+  fetchCurrentWeekSummaries: vi.fn().mockResolvedValue(null),
 }));
 vi.mock("./meal-visual-capability", () => ({
   useMealVisualCapability: () => ({ enabled: mocks.visuals, refresh: vi.fn() }),
@@ -199,6 +200,7 @@ async function settle() {
 
 beforeEach(() => {
   mocks.visuals = true;
+  mocks.advanced = false;
   hooks.cleanups.forEach((cleanup) => cleanup());
   hooks.cleanups.clear();
   hooks.slots = [];
@@ -967,4 +969,42 @@ it("opens the shared recipe flow from Meals without ingredient route payloads", 
   expect(action).toBeTruthy();
   action.props.onPress();
   expect(router.push).toHaveBeenLastCalledWith("/meal-recipes");
+});
+
+it("opens meal logging and recurring schedules from the compact actions", () => {
+  const tree = render();
+  for (const [label, route] of [
+    ["Log a meal", "/log-meal"],
+    ["Recurring meals", "/recurring-meals"],
+  ]) {
+    const action = find(
+      tree,
+      (node) => node.props?.accessibilityLabel === label,
+    );
+    expect(action.props.accessibilityRole).toBe("button");
+    action.props.onPress();
+    expect(router.push).toHaveBeenLastCalledWith(route);
+  }
+});
+
+it("announces nutrient expansion and retains its weekly and meal scope", () => {
+  mocks.advanced = true;
+  let tree = render();
+  const disclosure = find(
+    tree,
+    (node) => node.props?.accessibilityLabel === "Show more nutrient totals",
+  );
+  expect(disclosure.props.accessibilityState.expanded).toBe(false);
+  expect(textContent(tree)).not.toContain("This week · more nutrients");
+  disclosure.props.onPress();
+  tree = render();
+  const expanded = find(
+    tree,
+    (node) => node.props?.accessibilityLabel === "Hide more nutrient totals",
+  );
+  expect(expanded.props.accessibilityState.expanded).toBe(true);
+  expect(textContent(tree)).toContain("This week · more nutrients");
+  expect(expanded.props.accessibilityHint).toContain("logged meals");
+  expanded.props.onPress();
+  expect(textContent(render())).not.toContain("This week · more nutrients");
 });
