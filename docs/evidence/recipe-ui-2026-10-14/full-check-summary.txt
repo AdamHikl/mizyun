@@ -1,0 +1,44 @@
+Command: serialized pnpm check with one worker on frozen recipe UI candidate; exit0.
+Candidate: /private/tmp/mizyun-recipe-ui-20261014
+Exact baseline: d7e2055b260552c785325414756c6beeea1b7d8c
+Concurrent Meals runtime overlays excluded; current policy/operational documentation dependencies included.
+
+[check] Running all check:steps gates; input SHA-256 e50d9ea09d3fdf45388adc9b34a07a250be9aec2809ef5b366161e2c65494ce0.
+  PASS: Feature map structure and path references are valid.
+  PASS: All internal markdown links resolve.
+  PASS: Pure core, provider neutrality, and mobile boundaries strictly respected.
+  PASS: Current snapshot c80a1a8ff749cca6fc8b4b304068a9fed388269821ffc108244af21a922748d1; 1721 files / 3673 source edges / 16 workspace packages.
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+ Test Files  30 passed (30)
+      Tests  351 passed (351)
+ Test Files  39 passed (39)
+      Tests  557 passed (557)
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+ Test Files  4 passed (4)
+      Tests  53 passed (53)
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+ Test Files  1 passed (1)
+      Tests  19 passed (19)
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+ Test Files  2 passed (2)
+      Tests  32 passed (32)
+ Test Files  28 passed (28)
+      Tests  248 passed (248)
+ Test Files  4 passed (4)
+      Tests  95 passed (95)
+ Test Files  6 passed (6)
+      Tests  76 passed (76)
+ Test Files  7 passed (7)
+      Tests  94 passed (94)
+ Test Files  209 passed (209)
+      Tests  2607 passed (2607)
+ Test Files  5 passed (5)
+      Tests  109 passed (109)
+ Test Files  78 passed | 3 skipped (81)
+      Tests  1109 passed | 15 skipped (1124)
+All build matrix, native identity, and environment isolation checks PASSED!
+[check] PASS: all gates completed for input SHA-256 e50d9ea09d3fdf45388adc9b34a07a250be9aec2809ef5b366161e2c65494ce0.

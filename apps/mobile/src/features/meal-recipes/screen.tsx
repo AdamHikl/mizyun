@@ -19,7 +19,7 @@ import {
 import { router, useFocusEffect, type Href } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { isMealRecipeSnapshotFresh } from "@mizyun/core";
-import type { MealRecipeInput } from "@mizyun/contracts";
+import { mealRecipeInputSchema, type MealRecipeInput } from "@mizyun/contracts";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useTheme } from "@/hooks/use-theme";
@@ -125,7 +125,13 @@ export function RecipeFlow({
     controller.getSnapshot,
   );
   const theme = useTheme();
+  const inputRevision = useRef(0);
+  const invalidateInputs = () => {
+    inputRevision.current += 1;
+    controller.invalidateInputs();
+  };
   const [eraseError, setEraseError] = useState(false);
+  const [optionsExpanded, setOptionsExpanded] = useState(false);
   const [erasing, setErasing] = useState(false);
   const [reviewing, setReviewing] = useState(false),
     [rows, setRows] = useState<readonly ReviewedIngredient[]>([]),
@@ -143,22 +149,37 @@ export function RecipeFlow({
     context &&
     isMealRecipeSnapshotFresh(context.snapshot, new Date(), context.snapshot) &&
     context.state === "ready";
-  const button = (label: string, onPress: () => void, disabled = false) => (
+  const button = (
+    label: string,
+    onPress: () => void,
+    disabled = false,
+    primary = false,
+    accessibilityLabel = label,
+  ) => (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={accessibilityLabel}
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
       style={[
         styles.button,
-        { borderColor: theme.border, opacity: disabled ? 0.5 : 1 },
+        {
+          borderColor: primary ? "transparent" : theme.border,
+          backgroundColor: primary ? "#047857" : theme.backgroundElement,
+          opacity: disabled ? 0.5 : 1,
+        },
       ]}
     >
-      <ThemedText type="smallBold">{label}</ThemedText>
+      <ThemedText
+        type="smallBold"
+        style={primary ? styles.primaryText : undefined}
+      >
+        {label}
+      </ThemedText>
     </Pressable>
   );
-  const saveInputs = () => {
+  const saveInputs = async () => {
     const catalog = snapshot.metadata?.catalog ?? [];
     const ingredients = rows.map((row) =>
       catalog.find((item) => item.id === choices[row.id]),
@@ -189,7 +210,24 @@ export function RecipeFlow({
       },
       preferences: { maximumPrepMinutes, mealSize: size, cuisines: [] },
     };
-    void controller.setInput(input);
+    const revision = inputRevision.current;
+    const parsed = mealRecipeInputSchema.safeParse(input);
+    await controller.setInput(input);
+    const latest = controller.getSnapshot();
+    const saved = mealRecipeInputSchema.safeParse(latest.session?.input);
+    if (
+      isCurrent() &&
+      inputRevision.current === revision &&
+      parsed.success &&
+      saved.success &&
+      latest.phase === "idle" &&
+      latest.persistenceReady &&
+      JSON.stringify(saved.data) === JSON.stringify(parsed.data)
+    ) {
+      setRows([]);
+      setChoices({});
+      setSearch("");
+    }
   };
   const handoff = async (replace = false) => {
     if ((await controller.handoff(replace)) && isCurrent())
@@ -206,35 +244,87 @@ export function RecipeFlow({
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.content}
           >
-            <ThemedText type="title">What can I cook?</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              Use confirmed fridge and cabinet ingredients. Suggestions and
-              macros are estimates; only Save in the meal form records food.
-            </ThemedText>
-            <View style={[styles.card, { borderColor: theme.border }]}>
-              <ThemedText type="smallBold">
+            <View style={styles.intro}>
+              <ThemedText style={styles.heading}>
+                A meal that fits your day
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                Turn what you have into something good.
+              </ThemedText>
+            </View>
+            <View
+              style={[
+                styles.balanceCard,
+                { backgroundColor: theme.backgroundElement },
+              ]}
+            >
+              <View style={styles.sectionHeader}>
+                <ThemedText type="smallBold">
+                  {freshContext ? "Left for today" : "Your daily balance"}
+                </ThemedText>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Refresh daily targets"
+                  accessibilityState={{ disabled: busy }}
+                  disabled={busy}
+                  onPress={() =>
+                    void (snapshot.persistenceReady
+                      ? controller.refresh()
+                      : controller.init())
+                  }
+                  style={styles.textButton}
+                >
+                  <ThemedText type="small" themeColor="primary">
+                    Refresh
+                  </ThemedText>
+                </Pressable>
+              </View>
+              <View style={styles.macros}>
+                {(
+                  [
+                    [
+                      "Protein",
+                      freshContext ? context.remaining.proteinG : null,
+                    ],
+                    [
+                      "Carbs",
+                      freshContext ? context.remaining.carbohydrateG : null,
+                    ],
+                    ["Fat", freshContext ? context.remaining.fatG : null],
+                  ] as const
+                ).map(([label, value]) => (
+                  <View key={label} style={styles.macro}>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      {label}
+                    </ThemedText>
+                    <ThemedText style={styles.macroValue}>
+                      {macroText(value === null ? null : Math.abs(value))}
+                    </ThemedText>
+                    {value !== null && value < 0 ? (
+                      <ThemedText type="small" themeColor="textSecondary">
+                        over target
+                      </ThemedText>
+                    ) : null}
+                  </View>
+                ))}
+              </View>
+              <ThemedText type="small" themeColor="textSecondary">
                 {freshContext
-                  ? "Remaining, based on what you’ve logged"
-                  : "Macro fit unavailable"}
+                  ? "Based on what you’ve logged so far."
+                  : "Log meals and set targets to see your balance. You can still find recipes."}
               </ThemedText>
-              <ThemedText>
-                P {macroText(freshContext ? context.remaining.proteinG : null)}{" "}
-                · C{" "}
-                {macroText(
-                  freshContext ? context.remaining.carbohydrateG : null,
-                )}{" "}
-                · F {macroText(freshContext ? context.remaining.fatG : null)}
-              </ThemedText>
-              {freshContext ? (
-                <ThemedText type="small">
-                  Focus: {context.focus.join(", ") || "No remaining gaps"}
-                </ThemedText>
-              ) : (
-                <ThemedText type="small">
-                  Ordinary recipe discovery remains available when your logged
-                  intake or targets are incomplete.
-                </ThemedText>
-              )}
+              {freshContext && context.focus.length > 0 ? (
+                <View
+                  style={[
+                    styles.focusBadge,
+                    { backgroundColor: theme.primaryLight },
+                  ]}
+                >
+                  <ThemedText type="small" themeColor="primary">
+                    {`Let’s focus on ${context.focus.map((value) => (value === "carbohydrate" ? "carbs" : value)).join(" and ")}`}
+                  </ThemedText>
+                </View>
+              ) : null}
             </View>
             {snapshot.message ? (
               <ThemedText accessibilityRole="alert" type="small">
@@ -246,41 +336,100 @@ export function RecipeFlow({
                 Loading saved ingredients and current context…
               </ThemedText>
             ) : null}
-            {button(
-              "Check current macros and recipe constraints",
-              () =>
-                void (snapshot.persistenceReady
-                  ? controller.refresh()
-                  : controller.init()),
-              busy,
-            )}
-            {!snapshot.capabilities?.suggest ? (
-              <View style={styles.card}>
+            {!snapshot.capabilities?.suggest && snapshot.phase !== "loading" ? (
+              <View
+                style={[
+                  styles.card,
+                  {
+                    backgroundColor: theme.backgroundElement,
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
                 <ThemedText type="small">
                   {snapshot.capabilities?.reason === "access_required"
-                    ? "Current adult eligibility and AI sharing consent are required for suggestions."
-                    : "AI recipe suggestions are currently unavailable in this environment."}
+                    ? "Review your AI sharing consent and age eligibility to get meal ideas."
+                    : "Meal suggestions couldn’t connect. Refresh to try again."}
                 </ThemedText>
-                {button("Review AI sharing consent", () =>
-                  router.push("/account-settings/ai-data-consent" as Href),
-                )}
+                {snapshot.capabilities?.reason === "access_required"
+                  ? button("Review AI sharing consent", () =>
+                      router.push("/account-settings/ai-data-consent" as Href),
+                    )
+                  : null}
               </View>
             ) : null}
-            {button(
-              "Review fridge and cabinet ingredients",
-              () => {
-                controller.invalidateInputs();
-                setRows([]);
-                setReviewing(true);
-              },
-              busy,
-            )}
+            <View
+              style={[
+                styles.kitchenCard,
+                { backgroundColor: theme.backgroundElement },
+              ]}
+            >
+              <View style={styles.sectionHeader}>
+                <ThemedText style={styles.sectionTitle}>
+                  What’s in your kitchen?
+                </ThemedText>
+                {(snapshot.session?.input || rows.length > 0) && !reviewing ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Edit ingredients"
+                    accessibilityState={{ disabled: busy }}
+                    disabled={busy}
+                    onPress={() => {
+                      setRows([]);
+                      setReviewing(true);
+                    }}
+                    style={styles.textButton}
+                  >
+                    <ThemedText type="small" themeColor="primary">
+                      Edit
+                    </ThemedText>
+                  </Pressable>
+                ) : null}
+              </View>
+              {snapshot.session?.input ? (
+                <View style={styles.row}>
+                  {snapshot.session.input.ingredients.map((row) => (
+                    <View
+                      key={row.ingredientId}
+                      style={[
+                        styles.ingredientChip,
+                        { backgroundColor: theme.backgroundSelected },
+                      ]}
+                    >
+                      <ThemedText type="small">{row.name}</ThemedText>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <ThemedText type="small" themeColor="textSecondary">
+                  Add a few ingredients, or take a photo of your fridge and
+                  cupboard.
+                </ThemedText>
+              )}
+              {!snapshot.session?.input && !reviewing && rows.length === 0
+                ? button(
+                    "Add ingredients",
+                    () => {
+                      setRows([]);
+                      setReviewing(true);
+                    },
+                    busy,
+                    true,
+                  )
+                : null}
+              {snapshot.session?.input ? (
+                <ThemedText type="small" themeColor="textSecondary">
+                  Check you have enough of each ingredient before cooking.
+                </ThemedText>
+              ) : null}
+            </View>
             {reviewing ? (
               <RecipeIngredientReview
                 userId={owner}
                 isCurrent={isCurrent}
                 onCancel={() => setReviewing(false)}
                 onConfirmed={(value) => {
+                  invalidateInputs();
                   setRows(value.ingredients);
                   setChoices({});
                   setReviewing(false);
@@ -289,19 +438,17 @@ export function RecipeFlow({
             ) : null}
             {rows.length ? (
               <View style={styles.card}>
-                <ThemedText type="smallBold">
-                  Choose the exact food and preparation reference for each
-                  ingredient
-                </ThemedText>
+                <ThemedText type="smallBold">Match your ingredients</ThemedText>
                 <ThemedText type="small">
-                  Unsupported foods cannot be guessed. Edit your inventory or
-                  choose a supported reference you can confirm.
+                  Choose each food as you’ll use it, such as raw or cooked. This
+                  helps estimate the meal’s macros.
                 </ThemedText>
                 <TextInput
+                  editable={!busy}
                   accessibilityLabel="Search supported ingredients"
                   value={search}
                   onChangeText={setSearch}
-                  placeholder="Search supported foods"
+                  placeholder="Find a food"
                   placeholderTextColor={theme.textSecondary}
                   style={[
                     styles.input,
@@ -311,12 +458,12 @@ export function RecipeFlow({
                 {rows.map((row) => (
                   <View key={row.id} style={styles.card}>
                     <ThemedText>
-                      {row.name} · {row.preparationState}
+                      {row.name} · {row.preparationState.replaceAll("_", " ")}
                     </ThemedText>
                     <ThemedText type="small">
                       {snapshot.metadata?.catalog.find(
                         (item) => item.id === choices[row.id],
-                      )?.name ?? "Choose a reference"}
+                      )?.name ?? "Choose a food"}
                     </ThemedText>
                     {(snapshot.metadata?.catalog ?? [])
                       .filter((item) =>
@@ -332,7 +479,7 @@ export function RecipeFlow({
                             selected: choices[row.id] === item.id,
                           }}
                           onPress={() => {
-                            controller.invalidateInputs();
+                            invalidateInputs();
                             setChoices((value) => ({
                               ...value,
                               [row.id]: item.id,
@@ -349,14 +496,15 @@ export function RecipeFlow({
                   </View>
                 ))}
                 <TextInput
+                  editable={!busy}
                   accessibilityLabel="Maximum prep minutes"
                   keyboardType="number-pad"
                   value={prep}
                   onChangeText={(value) => {
-                    controller.invalidateInputs();
+                    invalidateInputs();
                     setPrep(value);
                   }}
-                  placeholder="Optional maximum prep minutes"
+                  placeholder="Ready in… minutes (optional)"
                   placeholderTextColor={theme.textSecondary}
                   style={[
                     styles.input,
@@ -369,25 +517,40 @@ export function RecipeFlow({
                       key={value}
                       accessibilityRole="button"
                       accessibilityLabel={`${value} meal`}
-                      accessibilityState={{ selected: size === value }}
+                      disabled={busy}
+                      accessibilityState={{
+                        selected: size === value,
+                        disabled: busy,
+                      }}
                       onPress={() => {
-                        controller.invalidateInputs();
+                        invalidateInputs();
                         setSize(value);
                       }}
-                      style={[styles.button, { borderColor: theme.border }]}
+                      style={[
+                        styles.button,
+                        {
+                          borderColor:
+                            size === value ? theme.primary : theme.border,
+                          backgroundColor:
+                            size === value
+                              ? theme.primaryLight
+                              : theme.backgroundElement,
+                        },
+                      ]}
                     >
                       <ThemedText>{value}</ThemedText>
                     </Pressable>
                   ))}
                 </View>
                 <TextInput
+                  editable={!busy}
                   accessibilityLabel="Excluded allergens"
                   value={allergens}
                   onChangeText={(value) => {
-                    controller.invalidateInputs();
+                    invalidateInputs();
                     setAllergens(value);
                   }}
-                  placeholder="Excluded allergens, comma separated"
+                  placeholder="Avoid, e.g. milk, nuts"
                   placeholderTextColor={theme.textSecondary}
                   style={[
                     styles.input,
@@ -395,13 +558,14 @@ export function RecipeFlow({
                   ]}
                 />
                 <TextInput
+                  editable={!busy}
                   accessibilityLabel="Dietary restrictions"
                   value={diet}
                   onChangeText={(value) => {
-                    controller.invalidateInputs();
+                    invalidateInputs();
                     setDiet(value);
                   }}
-                  placeholder="Dietary restrictions, e.g. vegan"
+                  placeholder="Diet, e.g. vegan (optional)"
                   placeholderTextColor={theme.textSecondary}
                   style={[
                     styles.input,
@@ -409,39 +573,52 @@ export function RecipeFlow({
                   ]}
                 />
                 {button(
-                  "Save confirmed recipe inputs",
+                  "Use these ingredients",
                   saveInputs,
                   busy || rows.some((row) => !choices[row.id]),
+                  true,
                 )}
               </View>
             ) : null}
-            {snapshot.session?.input ? (
-              <ThemedText type="small">
-                Confirmed:{" "}
-                {snapshot.session.input.ingredients
-                  .map((row) => `${row.name} (${row.preparationState})`)
-                  .join(", ")}
-                . Quantities still need checking.
+            {snapshot.session?.input && !reviewing && rows.length === 0
+              ? button(
+                  "Find meals",
+                  () => void controller.generate(),
+                  busy ||
+                    !snapshot.persistenceReady ||
+                    !snapshot.capabilities?.suggest,
+                  true,
+                  "Suggest meals",
+                )
+              : null}
+            <ThemedText type="small" themeColor="textSecondary">
+              Estimated macros. Nothing is logged until you save a meal.
+            </ThemedText>
+            {snapshot.session?.result?.recipes.length ? (
+              <ThemedText style={styles.sectionTitle}>
+                Meal ideas for you
               </ThemedText>
             ) : null}
-            {button(
-              "Suggest meals",
-              () => void controller.generate(),
-              busy ||
-                !snapshot.persistenceReady ||
-                !snapshot.session?.input ||
-                !snapshot.capabilities?.suggest,
-            )}
             {snapshot.session?.result?.recipes.map((recipe) => (
               <View
                 key={recipe.recipeId}
-                style={[styles.card, { borderColor: theme.border }]}
+                style={[
+                  styles.card,
+                  {
+                    borderColor: theme.border,
+                    backgroundColor: theme.backgroundElement,
+                  },
+                ]}
               >
-                <ThemedText type="subtitle">{recipe.name}</ThemedText>
+                <ThemedText style={styles.sectionTitle}>
+                  {recipe.name}
+                </ThemedText>
                 <ThemedText type="small">
                   {recipe.prepMinutes} min · Estimated{" "}
-                  {recipe.caloriesKcal ?? "unknown"} kcal · P{" "}
-                  {macroText(recipe.nutritionPerServing.proteinG)} · C{" "}
+                  {recipe.caloriesKcal === null
+                    ? "unknown"
+                    : Math.round(recipe.caloriesKcal)}{" "}
+                  kcal · P {macroText(recipe.nutritionPerServing.proteinG)} · C{" "}
                   {macroText(recipe.nutritionPerServing.carbohydrateG)} · F{" "}
                   {macroText(recipe.nutritionPerServing.fatG)}
                 </ThemedText>
@@ -451,13 +628,15 @@ export function RecipeFlow({
                     (row) => row.recipeId === recipe.recipeId,
                   )?.fitLoss !== null &&
                   context?.state === "ready"
-                    ? `Focuses on ${context.focus.join(" and ")}`
-                    : "Macro fit unavailable"}
+                    ? `Focuses on ${context.focus.map((value) => (value === "carbohydrate" ? "carbs" : value)).join(" and ")}`
+                    : "Choose a meal that sounds good to you"}
                 </ThemedText>
                 {button(
-                  `View ${recipe.name}`,
+                  "View recipe",
                   () => void controller.select(recipe.recipeId),
                   busy,
+                  false,
+                  `View ${recipe.name}`,
                 )}
               </View>
             ))}
@@ -465,16 +644,16 @@ export function RecipeFlow({
               <RecipeDetail
                 recipe={selected.recipe}
                 portion={snapshot.session?.portion ?? 1}
-                busy={busy}
+                busy={busy || reviewing || rows.length > 0}
                 portionLocked={!!snapshot.session?.operationId}
-                canAct={controller.fresh()}
+                canAct={controller.fresh() && !reviewing && rows.length === 0}
                 onPortion={(value) => void controller.portion(value)}
                 onLog={() => void handoff()}
               />
             ) : null}
             {snapshot.session?.operationId
               ? button(
-                  "Prepare a separate consumption",
+                  "Log this meal again",
                   () => void controller.anotherConsumption(),
                   busy,
                 )
@@ -493,34 +672,55 @@ export function RecipeFlow({
             ) : null}
             {eraseError ? (
               <ThemedText accessibilityRole="alert">
-                Local recipe erasure is incomplete. Retry to remove the
-                remaining data.
+                Some recipe data couldn’t be cleared. Please try again.
               </ThemedText>
             ) : null}
-            {button(
-              eraseError
-                ? "Retry recipe erasure"
-                : "Erase saved recipe inventory and suggestions",
-              () => {
-                if (erasing) return;
-                setErasing(true);
-                setReviewing(false);
-                void clearRecipeIngredientData(owner)
-                  .then(() => {
-                    if (isCurrent()) router.back();
-                  })
-                  .catch(() => {
-                    if (isCurrent()) setEraseError(true);
-                  })
-                  .finally(() => {
-                    if (isCurrent()) setErasing(false);
-                  });
-              },
-              erasing || (busy && !eraseError),
-            )}
-            {button("Log a meal manually", () =>
-              router.push("/log-meal" as Href),
-            )}
+            <View style={styles.footer}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Log a meal manually"
+                onPress={() => router.push("/log-meal" as Href)}
+                style={styles.textButton}
+              >
+                <ThemedText type="small" themeColor="primary">
+                  Log a meal yourself
+                </ThemedText>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Recipe options"
+                accessibilityState={{ expanded: optionsExpanded || eraseError }}
+                onPress={() => setOptionsExpanded((value) => !value)}
+                style={styles.textButton}
+              >
+                <ThemedText type="small" themeColor="textSecondary">
+                  Recipe options
+                </ThemedText>
+              </Pressable>
+            </View>
+            {optionsExpanded || eraseError
+              ? button(
+                  eraseError
+                    ? "Retry clearing recipe data"
+                    : "Clear recipe data",
+                  () => {
+                    if (erasing) return;
+                    setErasing(true);
+                    setReviewing(false);
+                    void clearRecipeIngredientData(owner)
+                      .then(() => {
+                        if (isCurrent()) router.back();
+                      })
+                      .catch(() => {
+                        if (isCurrent()) setEraseError(true);
+                      })
+                      .finally(() => {
+                        if (isCurrent()) setErasing(false);
+                      });
+                  },
+                  erasing || (busy && !eraseError),
+                )
+              : null}
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -537,12 +737,60 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     paddingBottom: 40,
   },
-  card: { gap: 10, padding: 12, borderWidth: 1, borderRadius: 12 },
-  button: {
-    minHeight: 44,
-    padding: 12,
-    borderWidth: 1,
+  intro: { gap: 8, paddingTop: 4 },
+  heading: { fontSize: 28, lineHeight: 34, fontWeight: "700" },
+  sectionTitle: {
+    fontSize: 20,
+    lineHeight: 28,
+    fontWeight: "600",
+    flexShrink: 1,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  balanceCard: { gap: 12, padding: 18, borderRadius: 20 },
+  kitchenCard: { gap: 14, padding: 18, borderRadius: 20 },
+  macros: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  macro: { flexGrow: 1, flexBasis: 85, gap: 4 },
+  macroValue: {
+    fontSize: 24,
+    lineHeight: 32,
+    fontWeight: "600",
+    fontVariant: ["tabular-nums"],
+  },
+  focusBadge: {
+    alignSelf: "flex-start",
     borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  ingredientChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+  card: { gap: 12, padding: 16, borderWidth: 1, borderRadius: 18 },
+  primaryText: { color: "#FFFFFF" },
+  textButton: {
+    minHeight: 44,
+    minWidth: 44,
+    justifyContent: "center",
+    paddingVertical: 8,
+  },
+  footer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    gap: 16,
+  },
+  button: {
+    minHeight: 48,
+    padding: 14,
+    borderWidth: 1,
+    borderRadius: 14,
     justifyContent: "center",
   },
   input: {

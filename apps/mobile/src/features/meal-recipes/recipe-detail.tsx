@@ -2,8 +2,14 @@ import { Pressable, StyleSheet, View } from "react-native";
 import type { MealRecipeDraft } from "@mizyun/contracts";
 import { ThemedText } from "@/components/themed-text";
 import { useTheme } from "@/hooks/use-theme";
-export const macroText = (value: number | null) =>
-  value === null ? "Unknown" : `${value} g`;
+const numberText = (value: number | null): string =>
+  value === null || !Number.isFinite(value)
+    ? "Unknown"
+    : String(Number(value.toFixed(1)));
+export const macroText = (value: number | null) => {
+  const text = numberText(value);
+  return text === "Unknown" ? text : `${text} g`;
+};
 export function RecipeDetail({
   recipe,
   portion,
@@ -24,12 +30,12 @@ export function RecipeDetail({
   const theme = useTheme();
   return (
     <View style={styles.detail}>
-      <ThemedText type="subtitle">{recipe.name}</ThemedText>
+      <ThemedText style={styles.title}>{recipe.name}</ThemedText>
       <ThemedText>
         Estimated for your selected serving:{" "}
-        {recipe.caloriesKcal === null
+        {recipe.caloriesKcal === null || !Number.isFinite(recipe.caloriesKcal)
           ? "calories unknown"
-          : `${recipe.caloriesKcal} kcal`}
+          : `${numberText(recipe.caloriesKcal)} kcal`}
       </ThemedText>
       <ThemedText type="small">
         P {macroText(recipe.nutritionPerServing.proteinG)} · C{" "}
@@ -38,8 +44,8 @@ export function RecipeDetail({
       </ThemedText>
       {recipe.calorieRangeKcal ? (
         <ThemedText type="small">
-          Estimated range: {recipe.calorieRangeKcal.minimum}–
-          {recipe.calorieRangeKcal.maximum} kcal
+          Estimated range: {numberText(recipe.calorieRangeKcal.minimum)}–
+          {numberText(recipe.calorieRangeKcal.maximum)} kcal
         </ThemedText>
       ) : null}
       <ThemedText type="small" themeColor="textSecondary">
@@ -47,14 +53,14 @@ export function RecipeDetail({
           .filter((key) => recipe.rangesPerServing[key] !== null)
           .map(
             (key) =>
-              `${key === "proteinG" ? "P" : key === "carbohydrateG" ? "C" : "F"} ${recipe.rangesPerServing[key]!.minimum}–${recipe.rangesPerServing[key]!.maximum} g`,
+              `${key === "proteinG" ? "P" : key === "carbohydrateG" ? "C" : "F"} ${numberText(recipe.rangesPerServing[key]!.minimum)}–${numberText(recipe.rangesPerServing[key]!.maximum)} g`,
           )
           .join(" · ")}
       </ThemedText>
       {portionLocked ? (
         <ThemedText type="small">
-          This serving has a saved meal draft. Reopen it to edit, or prepare a
-          separate consumption.
+          A meal draft is ready. Reopen it to make changes, or log this meal
+          again.
         </ThemedText>
       ) : null}
       <View style={styles.portions}>
@@ -69,19 +75,26 @@ export function RecipeDetail({
             }}
             disabled={busy || portionLocked}
             onPress={() => onPortion(value)}
-            style={[styles.button, { borderColor: theme.border }]}
+            style={[
+              styles.button,
+              {
+                borderColor: value === portion ? theme.primary : theme.border,
+                backgroundColor:
+                  value === portion
+                    ? theme.primaryLight
+                    : theme.backgroundElement,
+              },
+            ]}
           >
             <ThemedText>{value}×</ThemedText>
           </Pressable>
         ))}
       </View>
-      <ThemedText type="smallBold">
-        Ingredients for {portion}× the recipe ({recipe.servings} base serving)
-      </ThemedText>
+      <ThemedText type="smallBold">Ingredients · {portion}× serving</ThemedText>
       {recipe.ingredients.map((row) => (
         <ThemedText key={row.ingredientId} type="small">
-          {row.ingredientId.replaceAll("_", " ")} · {row.weightGrams} g ·{" "}
-          {row.preparationState.replaceAll("_", " ")}
+          {row.ingredientId.replaceAll("_", " ")} · {macroText(row.weightGrams)}{" "}
+          · {row.preparationState.replaceAll("_", " ")}
         </ThemedText>
       ))}
       <ThemedText type="smallBold">
@@ -98,14 +111,13 @@ export function RecipeDetail({
         </ThemedText>
       ))}
       <ThemedText type="small" themeColor="textSecondary">
-        Estimate: {recipe.provenance.source}. Check ingredient quantities,
-        preparation and food safety. Confirm what you actually ate in the
-        editable meal form.
+        Estimated nutrition. Check ingredient quantities, preparation and food
+        safety. Confirm what you actually ate in the editable meal form.
       </ThemedText>
       {!canAct ? (
         <ThemedText type="smallBold">
-          Saved details only. Check current constraints before cooking or
-          creating a recipe meal draft.
+          These meal details may be out of date. Refresh your daily targets
+          before using this recipe.
         </ThemedText>
       ) : null}
       <Pressable
@@ -126,6 +138,7 @@ export function RecipeDetail({
 }
 const styles = StyleSheet.create({
   detail: { gap: 12 },
+  title: { fontSize: 24, lineHeight: 32, fontWeight: "600" },
   portions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   button: {
     minHeight: 44,

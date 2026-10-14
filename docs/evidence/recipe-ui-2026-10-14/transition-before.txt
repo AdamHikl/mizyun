@@ -1,0 +1,100 @@
+
+ RUN  v3.2.7 /Users/adam/Documents/mizyun/apps/mobile
+
+ ❯ src/features/meal-recipes/screen.test.tsx (14 tests | 2 failed) 166ms
+   ✓ labels unknown context and estimates; recipe browsing never navigates to logging 16ms
+   ✓ stale details disable cooking-derived handoff and expose ordinary manual logging 1ms
+   ✓ only a durable ready handoff opens editable Save, with no sensitive route parameters 1ms
+   ✓ a late account change cannot navigate after the staged handoff 1ms
+   ✓ failed local erasure remains visible and can be retried 106ms
+   ✓ detail portion and logging actions have accessible touch controls and uncertainty 1ms
+   ✓ changing an exact catalog reference after validation immediately disables old recipe actions 8ms
+   ✓ starts with ingredients and one main action instead of disabled dashboard controls 2ms
+   ✓ formats screenshot macro values without floating-point noise and describes the focus plainly 2ms
+   ✓ labels amounts beyond a target instead of presenting them as remaining food needs 2ms
+   ✓ refreshes current targets and retries initialization when local persistence is unavailable 3ms
+   × keeps first-time reviewed ingredients editable before a food match is saved 6ms
+     → Cannot read properties of undefined (reading 'props')
+   × closes food matching after a successful save so only Find meals remains primary 9ms
+     → expected { …(10) } to be undefined
+   ✓ keeps pending food matches available when saving ingredients fails 7ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/features/meal-recipes/screen.test.tsx > keeps first-time reviewed ingredients editable before a food match is saved
+TypeError: Cannot read properties of undefined (reading 'props')
+ ❯ src/features/meal-recipes/screen.test.tsx:300:40
+    298| it("keeps first-time reviewed ingredients editable before a food match…
+    299|   confirmPendingIngredient();
+    300|   labelled(render(), "Edit ingredients").props.onPress();
+       |                                        ^
+    301|   expect(nodes(render()).some((node) => node.type === "IngredientRevie…
+    302|     true,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/features/meal-recipes/screen.test.tsx > closes food matching after a successful save so only Find meals remains primary
+AssertionError: expected { …(10) } to be undefined
+
+- Expected: 
+undefined
+
++ Received: 
+<Pressable
+  accessibilityLabel="Use these ingredients"
+  accessibilityRole="button"
+  accessibilityState={
+    {
+      "disabled": false,
+    }
+  }
+  disabled={false}
+  onPress={[Function saveInputs]}
+  style={
+    [
+      {
+        "borderRadius": 14,
+        "borderWidth": 1,
+        "justifyContent": "center",
+        "minHeight": 48,
+        "padding": 14,
+      },
+      {
+        "backgroundColor": "#047857",
+        "borderColor": "transparent",
+        "opacity": 1,
+      },
+    ]
+  }
+>
+  <Text
+    style={
+      {
+        "color": "#FFFFFF",
+      }
+    }
+    type="smallBold"
+  >
+    Use these ingredients
+  </Text>
+</Pressable>
+
+ ❯ src/features/meal-recipes/screen.test.tsx:316:55
+    314|   });
+    315|   await labelled(render(), "Use these ingredients").props.onPress();
+    316|   expect(labelled(render(), "Use these ingredients")).toBeUndefined();
+       |                                                       ^
+    317|   expect(labelled(render(), "Suggest meals")).toBeTruthy();
+    318| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 12 passed (14)
+   Start at  11:48:03
+   Duration  1.87s (transform 520ms, setup 0ms, collect 663ms, tests 166ms, environment 0ms, prepare 42ms)
+
+undefined
+/Users/adam/Documents/mizyun/apps/mobile:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: vitest run src/features/meal-recipes/screen.test.tsx --maxWorkers=1

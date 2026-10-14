@@ -1,0 +1,21 @@
+# Recipe flow UI and macro display — 2026-10-14
+
+Adam’s physical Dev screenshot showed a technical action list, duplicated large heading and protein `48.900000000000006 g`. This package replaces the first screen with a compact meal discovery layout: three named macro values, logged-so-far context, a kitchen ingredient card and a single primary Add ingredients/Find meals action. Refresh remains a small touch control; clearing stays available through Recipe options with visible retry on failure. Matching foods, portion edits, current-source validation and durable meal confirmation remain intact.
+
+Display-only formatting removes floating-point noise and unnecessary decimal zeros. The screenshot protein now reads 48.9 g; unknown values remain unknown, and amounts beyond a target are labelled over target. Domain calculations and provider/ranking inputs are unchanged. No model request, intake write, backend code change or recipe disablement occurs in this package. Dev recipes stay enabled under Adam’s policy.
+
+Prior [REC-06 engineering and acceptance evidence](AI_MEAL_RECIPES_REC06_EVIDENCE_2026-10-13.md) and [live Dev availability](DEV_RECIPES_ENABLED_2026-10-14.md) remain distinct from this presentation change.
+
+## Verification and exact scope
+
+Owned source: screen.tsx, screen.test.tsx, recipe-detail.tsx and new recipe-detail.test.tsx in apps/mobile/src/features/meal-recipes. Baseline main `d7e2055b260552c785325414756c6beeea1b7d8c`. The number-format regression reproduced before repair (9fail/5pass), then14detail tests passed. Final focused recipe/meal-handoff checks passed 182 tests / 17 files; mobile typecheckPASS. Independent review found two pending-ingredient transitions; regressions reproduced both failures, then fixes keep Edit available before saving, collapse matching only after confirmed persistence and preserve pending inputs on failure. Cancel leaves the prior recipe/meal draft intact; current-owner checks prevent late UI completion. A late-save exclusion edit race was demonstrated and repaired with a local revision fence and disabled pending controls. Final independent High review accepted the repairs with unchanged hashes and no further findings. Full `pnpm check` PASS on the stable isolated candidate, fingerprint `e50d9ea09d3fdf45388adc9b34a07a250be9aec2809ef5b366161e2c65494ce0`. Both mobile bundle exports, full typechecks and workspace/tooling gates passed. Fifteen credential-gated API tests/three suites were skipped, not passed. [Summary](evidence/recipe-ui-2026-10-14/full-check-summary.txt), [manifest](evidence/recipe-ui-2026-10-14/candidate-manifest.json) and [review](evidence/recipe-ui-2026-10-14/independent-review.txt).
+
+An actual React Native Web render uses these components and synthetic fresh context; dark/light, empty/saved ingredients,320px and1.5× typography stress showed no horizontal clipping. Browser console captured no errors/warnings. A small Edit touch width was repaired to44px minimum; [Screenshots](evidence/recipe-ui-2026-10-14/dark-empty.jpg) predate that touch-width and transition repair; browser surfaces later became unavailable, so refreshed screenshots remain open. These are web layout checks, not native VoiceOver/Dynamic Type or signed-in device acceptance. [Visual scope](evidence/recipe-ui-2026-10-14/visual-summary.txt).
+
+Concurrent Meals-screen source is excluded from the stable UI candidate; operational/policy documentation dependencies are included for valid instruction/link/navigation context without accepting unrelated native work. No concurrent files are reset or staged. Exact source hashes, candidate manifest, check result and any native delivery are recorded after actual execution.
+
+## Next action
+
+Include the accepted recipe UI in the next standalone Dev rebuild with the separately active Meals UI session; perform combined-source verification before native delivery. Preserve current backendd7e2055b/live-recipesON and separate Production, provider-quality and qualified-review evidence. #241 remains active for real Dev testing and further acceptance.
+
+Adjacent existing all-targets-met balance display case is tracked separately as [#243](https://github.com/AdamHikl/mizyun/issues/243), with no runtime expansion of this candidate. This turn did not install or deploy a new source build.

@@ -1,0 +1,4 @@
+
+> @mizyun/mobile@1.0.0 typecheck /Users/adam/Documents/mizyun/apps/mobile
+> tsc --noEmit
+

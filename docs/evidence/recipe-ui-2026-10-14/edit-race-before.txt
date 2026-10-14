@@ -1,0 +1,52 @@
+
+ RUN  v3.2.7 /Users/adam/Documents/mizyun/apps/mobile
+
+ ❯ src/features/meal-recipes/screen.test.tsx (16 tests | 1 failed) 177ms
+   ✓ labels unknown context and estimates; recipe browsing never navigates to logging 16ms
+   ✓ stale details disable cooking-derived handoff and expose ordinary manual logging 1ms
+   ✓ only a durable ready handoff opens editable Save, with no sensitive route parameters 1ms
+   ✓ a late account change cannot navigate after the staged handoff 1ms
+   ✓ failed local erasure remains visible and can be retried 108ms
+   ✓ detail portion and logging actions have accessible touch controls and uncertainty 1ms
+   ✓ changing an exact catalog reference after validation immediately disables old recipe actions 8ms
+   ✓ starts with ingredients and one main action instead of disabled dashboard controls 2ms
+   ✓ formats screenshot macro values without floating-point noise and describes the focus plainly 2ms
+   ✓ labels amounts beyond a target instead of presenting them as remaining food needs 2ms
+   ✓ refreshes current targets and retries initialization when local persistence is unavailable 3ms
+   ✓ keeps first-time reviewed ingredients editable before a food match is saved 4ms
+   ✓ closes food matching after a successful save so only Find meals remains primary 8ms
+   ✓ keeps pending food matches available when saving ingredients fails 7ms
+   ✓ canceling ingredient editing preserves the saved meal draft and restores recipe actions 4ms
+   × retains a newer dietary exclusion when an older ingredient save finishes late 10ms
+     → expected undefined to be truthy
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/features/meal-recipes/screen.test.tsx > retains a newer dietary exclusion when an older ingredient save finishes late
+AssertionError: expected undefined to be truthy
+
+- Expected: 
+true
+
++ Received: 
+undefined
+
+ ❯ src/features/meal-recipes/screen.test.tsx:383:55
+    381|   finish();
+    382|   await pending;
+    383|   expect(labelled(render(), "Use these ingredients")).toBeTruthy();
+       |                                                       ^
+    384|   expect(labelled(render(), "Excluded allergens").props.value).toBe("n…
+    385|   expect(labelled(render(), "Suggest meals")).toBeUndefined();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 15 passed (16)
+   Start at  11:54:53
+   Duration  2.05s (transform 615ms, setup 0ms, collect 833ms, tests 177ms, environment 0ms, prepare 54ms)
+
+undefined
+/Users/adam/Documents/mizyun/apps/mobile:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: vitest run src/features/meal-recipes/screen.test.tsx --maxWorkers=1
