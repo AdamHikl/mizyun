@@ -214,7 +214,7 @@ describe("COMM-08 Reversible encouragement reactions", () => {
         totalReactions: 0,
       });
       expect(label).toBe(
-        "Thumbs up, 0 reactions. Cannot react to your own workout.",
+        "Thumbs up, 0 reactions. Cannot react to your own activity.",
       );
     });
   });
@@ -761,7 +761,7 @@ describe("COMM-08 Reversible encouragement reactions", () => {
       expect(clapBtn.props.disabled).toBe(true);
       expect(clapBtn.props.accessibilityState.disabled).toBe(true);
       expect(clapBtn.props.accessibilityLabel).toBe(
-        "Clap, 0 reactions. Cannot react to your own workout.",
+        "Clap, 0 reactions. Cannot react to your own activity.",
       );
     });
   });

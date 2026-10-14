@@ -242,7 +242,9 @@ describe("profile navigation and directional approval", () => {
       nodes(tree).some((node) => node.props?.title === "Profile unavailable"),
     ).toBe(false);
     expect(
-      nodes(tree).some((node) => node.props?.title === "No shared workouts"),
+      nodes(tree).some(
+        (node) => node.props?.title === "No shared meals and workouts",
+      ),
     ).toBe(false);
     expect(button(tree, "Edit profile")).toBeUndefined();
     expect(
@@ -290,8 +292,38 @@ describe("profile navigation and directional approval", () => {
       true,
     );
     expect(
-      nodes(tree).some((node) => node.props?.title === "No shared workouts"),
+      nodes(tree).some(
+        (node) => node.props?.title === "No shared meals and workouts",
+      ),
     ).toBe(false);
+  });
+  it("lists shared meals and opens their common activity detail destination", () => {
+    mocks.activities = [
+      {
+        id: "meal-card",
+        activityKind: "meal",
+        category: "other",
+        mealDetails: { name: "Lentil soup" },
+        sharedDay: "2026-10-12",
+        durationSeconds: null,
+      },
+    ];
+    const row = nodes(render()).find(
+      (node) => node.props?.href === "/community/activity/meal-card",
+    );
+    expect(row.props.title).toBe("Meal · Lentil soup");
+    expect(row.props.description).toBe("2026-10-12");
+    mocks.profile = {
+      ...mocks.profile,
+      userId: "owner",
+      relationshipWithViewer: "self",
+      relationshipContext: { outgoing: null, incoming: null },
+    };
+    expect(
+      nodes(render()).some(
+        (node) => node.props?.href === "/community/share-meal",
+      ),
+    ).toBe(true);
   });
   it("preserves the authorized shared workout destination", () => {
     mocks.activities = [

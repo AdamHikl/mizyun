@@ -36,14 +36,14 @@ export default function CommunityRulesScreen() {
         The check does not verify identity or birthday.
       </ThemedText>
       <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
-        Who can see shared workouts
+        Who can see shared meals and workouts
       </ThemedText>
       <ThemedText>
         Your currently approved followers can see still-shared earlier cards and
         future cards you deliberately share. Following is directional. Saving a
-        private workout never shares it. Search is off by default; a valid
-        invite can let someone request to follow you even with search off. Your
-        handle cannot change during the pilot.
+        private meal or workout never shares it. Search is off by default; a
+        valid invite can let someone request to follow you even with search off.
+        Your handle cannot change during the pilot.
       </ThemedText>
       <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
         Respect each other
@@ -59,13 +59,16 @@ export default function CommunityRulesScreen() {
         What stays private
       </ThemedText>
       <ThemedText>
-        A handle, workout day or optional duration can identify you or reveal
-        habits. Community has no access to private health integrations or Coach
-        context. A separate, optional sharing choice can include completed
+        A handle, meal or workout day or optional duration can identify you or
+        reveal habits. Community has no access to private health integrations or
+        Coach context. A separate, optional sharing choice can include completed
         exercises, set types, reps, weights and set durations. Preview every
         field before confirming; custom exercise names can reveal personal
         information. Workout titles and notes stay private. Existing summary
-        cards are never automatically expanded.
+        cards are never automatically expanded. A separate meal preview shares
+        its name and day; nutrition is optional and starts off. Meal notes,
+        tracking photos and Coach metadata stay private. Editing or deleting a
+        shared source meal removes the post until you choose to share again.
       </ThemedText>
       <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
         Optional Dev features

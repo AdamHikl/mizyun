@@ -12,7 +12,10 @@ import {
   type WorkoutListResponse,
 } from "@mizyun/contracts";
 
-import type { ApiClient, ApiError } from "@mizyun/api-client";
+import type { ApiClient, ApiError, RequestOptions } from "@mizyun/api-client";
+
+import type { Result } from "@mizyun/core";
+import { savedDisplayTime } from "@/composition/personal-read-events";
 
 /**
  * Pure reducers that turn `(apiClient, principal)` into a typed
@@ -78,17 +81,114 @@ const parseSafe = <T>(
   return parsed.success && parsed.data !== undefined ? parsed.data : null;
 };
 
+const dailySummaryRequest = (options: {
+  readonly date: string;
+  readonly utcOffsetMinutes?: number;
+}) => ({
+  method: "GET" as const,
+  path: `/v1/food-entries/summary?date=${encodeURIComponent(options.date)}&utcOffsetMinutes=${encodeURIComponent(options.utcOffsetMinutes ?? 0)}`,
+  schema: dailyFoodSummaryResponseSchema,
+});
+const weightRequest = {
+  method: "GET" as const,
+  path: "/v1/body-measurements?limit=1",
+  schema: bodyMeasurementListResponseSchema,
+};
+const energyRequest = (offset: number) => ({
+  method: "GET" as const,
+  path: `/v1/energy/summary?utcOffsetMinutes=${encodeURIComponent(offset)}`,
+  schema: energySummaryResponseSchema,
+});
+const reviewRequest = (query: NutritionReviewRangeQuery) => ({
+  method: "GET" as const,
+  path: `/v1/food-entries/summary?from=${encodeURIComponent(query.fromIsoDate)}&to=${encodeURIComponent(query.toIsoDate)}${query.utcOffsetMinutes !== undefined ? `&utcOffsetMinutes=${encodeURIComponent(query.utcOffsetMinutes)}` : ""}`,
+  schema: dailyFoodSummaryListResponseSchema,
+});
+const workoutCountRequest = (options: {
+  readonly fromIsoDate: string;
+  readonly toIsoDate: string;
+}) => ({
+  method: "GET" as const,
+  path: `/v1/workouts?from=${encodeURIComponent(options.fromIsoDate)}&to=${encodeURIComponent(options.toIsoDate)}&limit=200`,
+  schema: workoutListResponseSchema,
+});
+
+export interface DashboardSnapshotRead<T> {
+  readonly value: T;
+  readonly savedAt?: number;
+}
+export interface DashboardReadSnapshot {
+  readonly daily: DashboardSnapshotRead<DailySummary> | null;
+  readonly weight: DashboardSnapshotRead<LatestWeight> | null;
+  readonly energy: DashboardSnapshotRead<EnergySummary> | null;
+  readonly workouts: DashboardSnapshotRead<WorkoutCount> | null;
+  readonly history: DashboardSnapshotRead<ReadonlyArray<DailySummary>> | null;
+}
+export const readDashboardSnapshot = (
+  peek: <T>(options: RequestOptions) => Result<T, ApiError> | null,
+  query: {
+    readonly date: string;
+    readonly fromIsoDate: string;
+    readonly toIsoDate: string;
+    readonly utcOffsetMinutes: number;
+  },
+): DashboardReadSnapshot => {
+  const daily = peek<DailyFoodSummaryResponse>(dailySummaryRequest(query));
+  const weight = peek<BodyMeasurementListResponse>(weightRequest);
+  const energy = peek<EnergySummaryResponse>(
+    energyRequest(query.utcOffsetMinutes),
+  );
+  const workouts = peek<WorkoutListResponse>(
+    workoutCountRequest({
+      fromIsoDate: query.fromIsoDate,
+      toIsoDate: query.date,
+    }),
+  );
+  const history =
+    query.fromIsoDate <= query.toIsoDate
+      ? peek<{ readonly summaries: ReadonlyArray<DailySummary> }>(
+          reviewRequest(query),
+        )
+      : null;
+  return {
+    daily: daily?.ok
+      ? { value: daily.value.summary, savedAt: savedDisplayTime(daily) }
+      : null,
+    weight: weight?.ok
+      ? {
+          value: weight.value.bodyMeasurements[0] ?? null,
+          savedAt: savedDisplayTime(weight),
+        }
+      : null,
+    energy: energy?.ok
+      ? { value: energy.value.summary, savedAt: savedDisplayTime(energy) }
+      : null,
+    workouts: workouts?.ok
+      ? {
+          value: workouts.value.workouts.filter((w) => w.completedAt !== null)
+            .length,
+          savedAt: savedDisplayTime(workouts),
+        }
+      : null,
+    history:
+      query.fromIsoDate > query.toIsoDate
+        ? { value: [] }
+        : history?.ok
+          ? {
+              value: history.value.summaries,
+              savedAt: savedDisplayTime(history),
+            }
+          : null,
+  };
+};
+
 export const fetchDailySummary = async (
   client: ApiClient,
   principal: DashboardPrincipal,
   options: { readonly date: string; readonly utcOffsetMinutes?: number },
 ): Promise<DailyDataResult<DailySummary>> => {
   if (principal === null) return unauthenticatedResult();
-  const result = await client.request({
-    method: "GET",
-    path: `/v1/food-entries/summary?date=${encodeURIComponent(options.date)}&utcOffsetMinutes=${encodeURIComponent(options.utcOffsetMinutes ?? 0)}`,
-    schema: dailyFoodSummaryResponseSchema,
-  });
+  const result = await client.request(dailySummaryRequest(options));
   if (!result.ok) return { value: null, error: result.error };
   const summary = parseSafe(result.value, dailyFoodSummaryResponseSchema);
   return {
@@ -104,11 +204,7 @@ export const fetchLatestWeight = async (
   if (principal === null) return unauthenticatedResult();
   // Pull the most-recent measurement. The route list API caps at
   // one row when limit=1.
-  const result = await client.request({
-    method: "GET",
-    path: "/v1/body-measurements?limit=1",
-    schema: bodyMeasurementListResponseSchema,
-  });
+  const result = await client.request(weightRequest);
   if (!result.ok) return { value: null, error: result.error };
   const parsed = parseSafe(result.value, bodyMeasurementListResponseSchema);
   const list = parsed?.bodyMeasurements ?? [];
@@ -125,11 +221,7 @@ export const fetchEnergySummary = async (
   utcOffsetMinutes: number,
 ): Promise<DailyDataResult<EnergySummary>> => {
   if (principal === null) return unauthenticatedResult();
-  const result = await client.request({
-    method: "GET",
-    path: `/v1/energy/summary?utcOffsetMinutes=${encodeURIComponent(utcOffsetMinutes)}`,
-    schema: energySummaryResponseSchema,
-  });
+  const result = await client.request(energyRequest(utcOffsetMinutes));
   if (!result.ok) return { value: null, error: result.error };
   const parsed = parseSafe(result.value, energySummaryResponseSchema);
   return { value: parsed?.summary ?? null, error: null };
@@ -179,15 +271,7 @@ export const fetchNutritionReviewSummaries = async (
   query: NutritionReviewRangeQuery,
 ): Promise<DailyDataResult<ReadonlyArray<DailyFoodSummary>>> => {
   if (principal === null) return unauthenticatedResult();
-  const offsetQuery =
-    query.utcOffsetMinutes !== undefined
-      ? `&utcOffsetMinutes=${encodeURIComponent(query.utcOffsetMinutes)}`
-      : "";
-  const result = await client.request({
-    method: "GET",
-    path: `/v1/food-entries/summary?from=${encodeURIComponent(query.fromIsoDate)}&to=${encodeURIComponent(query.toIsoDate)}${offsetQuery}`,
-    schema: dailyFoodSummaryListResponseSchema,
-  });
+  const result = await client.request(reviewRequest(query));
   if (!result.ok) return { value: null, error: result.error };
   const parsed = parseSafe(result.value, dailyFoodSummaryListResponseSchema);
   return {
@@ -287,12 +371,7 @@ export const fetchWorkoutCountForPeriod = async (
   },
 ): Promise<DailyDataResult<WorkoutCount>> => {
   if (principal === null) return unauthenticatedResult();
-  const query = `from=${encodeURIComponent(options.fromIsoDate)}&to=${encodeURIComponent(options.toIsoDate)}&limit=200`;
-  const result = await client.request({
-    method: "GET",
-    path: `/v1/workouts?${query}`,
-    schema: workoutListResponseSchema,
-  });
+  const result = await client.request(workoutCountRequest(options));
   if (!result.ok) return { value: null, error: result.error };
   const parsed = parseSafe(result.value, workoutListResponseSchema);
   return {

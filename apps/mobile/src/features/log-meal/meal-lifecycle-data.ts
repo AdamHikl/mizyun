@@ -16,9 +16,10 @@ import {
   type FoodEntryPatch,
   type FoodEntryResponse,
 } from "@mizyun/contracts";
-import type { ApiClient, ApiError } from "@mizyun/api-client";
+import type { ApiClient, ApiError, RequestOptions } from "@mizyun/api-client";
+import type { AuthSession } from "@mizyun/identity";
 
-import { apiClient } from "@/composition/api-client";
+import { apiClient, peekSessionRead } from "@/composition/api-client";
 import { savedDisplayTime } from "@/composition/personal-read-events";
 
 import type { LogMealForm, LogMealResult } from "./log-meal-data";
@@ -76,7 +77,8 @@ export type FoodEntryLoadResult =
   | { readonly ok: false; readonly message: string };
 
 export type FoodMutationResult =
-  { readonly ok: true } | { readonly ok: false; readonly message: string };
+  | { readonly ok: true; readonly message?: string }
+  | { readonly ok: false; readonly message: string };
 
 export const isoLocalDate = (now: Date): string => {
   const year = now.getFullYear();
@@ -311,6 +313,25 @@ export const fetchFoodHistoryWith = async (
   now: Date = new Date(),
   options: FetchFoodHistoryOptions = {},
 ): Promise<FoodHistoryResult> => {
+  const result = await client.request<FoodEntryListResponse>(
+    foodHistoryRequest(utcOffsetMinutes, options),
+  );
+  if (!result.ok) {
+    return {
+      groups: [],
+      entries: [],
+      nextCursor: null,
+      cutoffDateIsPartial: false,
+      message: humanizeApiError(result.error, "Refresh your meals"),
+    };
+  }
+  return foodHistoryFromResponse(result, now);
+};
+
+const foodHistoryRequest = (
+  utcOffsetMinutes: number,
+  options: FetchFoodHistoryOptions,
+): RequestOptions => {
   const queryParts: string[] = [
     `limit=${encodeURIComponent(options.limit ?? 200)}`,
   ];
@@ -326,22 +347,17 @@ export const fetchFoodHistoryWith = async (
     queryParts.push(`search=${encodeURIComponent(options.search.trim())}`);
   }
 
-  const result = await client.request<FoodEntryListResponse>({
+  return {
     method: "GET",
     path: `/v1/food-entries?${queryParts.join("&")}`,
     schema: foodEntryListResponseSchema,
-  });
+  };
+};
 
-  if (!result.ok) {
-    return {
-      groups: [],
-      entries: [],
-      nextCursor: null,
-      cutoffDateIsPartial: false,
-      message: humanizeApiError(result.error, "Refresh your meals"),
-    };
-  }
-
+const foodHistoryFromResponse = (
+  result: { readonly value: FoodEntryListResponse },
+  now: Date,
+): FoodHistoryResult => {
   const entries = result.value.foodEntries;
   const nextCursor = result.value.nextCursor ?? null;
   const cutoffDateIsPartial = result.value.cutoffDateIsPartial ?? false;
@@ -358,6 +374,19 @@ export const fetchFoodHistoryWith = async (
       ? { savedAt: savedDisplayTime(result) }
       : {}),
   };
+};
+
+/** Startup's completed display read is available before the first screen effect. */
+export const readFoodHistorySnapshot = (
+  session: AuthSession | null,
+  now = new Date(),
+  options: FetchFoodHistoryOptions = {},
+): FoodHistoryResult | null => {
+  const result = peekSessionRead<FoodEntryListResponse>(
+    foodHistoryRequest(-now.getTimezoneOffset(), options),
+    session,
+  );
+  return result?.ok ? foodHistoryFromResponse(result, now) : null;
 };
 
 /** Refresh one selected historical day, including pages beyond 200 rows. */
@@ -689,6 +718,7 @@ export const deleteFoodEntryWith = async (
 };
 
 export interface FoodCopyOperationOptions {
+  readonly isCurrent?: () => boolean;
   readonly expectedUserId?: string;
   readonly clientOperationId?: string;
   readonly consumedAt?: string;
@@ -756,17 +786,133 @@ export const copyFoodEntryWith = async (
   if (!parsed.success) {
     return { ok: false, message: "That meal could not be copied." };
   }
-  const result = await client.request<FoodEntryResponse>({
-    method: "POST",
-    path: "/v1/food-entries",
-    expectedUserId: options.expectedUserId,
-    body: parsed.data,
-    schema: foodEntryResponseSchema,
-  });
-  return result.ok
-    ? { ok: true }
-    : {
+  const isCurrent = options.isCurrent ?? (() => true);
+  const owner = options.expectedUserId ?? entry.userId;
+  let retention: typeof import("./meal-photo-retention") | undefined;
+  let photo: import("./meal-photo-retention").RetainedMealPhoto | undefined;
+  // Home persists the nutrition operation before dispatch. Keep photo bytes under
+  // that same immutable identity until the returned target ID can own its retry.
+  const stagingId = options.payload?.clientOperationId
+    ? `copy-${options.payload.clientOperationId}`
+    : null;
+  let staged = false;
+  if (entry.photoAssetId) {
+    try {
+      retention = await import("./meal-photo-retention");
+      if (retention.mealPhotoRetentionEnabled()) {
+        photo = stagingId
+          ? ((await retention.loadMealPhotoRetry(owner, stagingId)) ??
+            undefined)
+          : undefined;
+        staged = Boolean(photo);
+        if (!photo) {
+          photo = await retention.prepareCopiedMealPhoto(
+            owner,
+            entry.id,
+            isCurrent,
+            client,
+          );
+          if (stagingId) {
+            staged = await retention.persistMealPhotoRetry(
+              owner,
+              stagingId,
+              photo,
+            );
+            if (!staged)
+              throw new Error("Cannot preserve photo copy recovery.");
+          }
+        }
+      }
+    } catch {
+      if (photo && !staged) retention?.discardOwnedMealPhoto(owner, photo.uri);
+      return {
+        ok: false,
+        message: "That meal’s photo could not be copied. Try again.",
+      };
+    }
+  }
+  let persisted = false;
+  try {
+    if (!isCurrent())
+      return { ok: false, message: "That meal could not be copied." };
+    const result = await client.request<FoodEntryResponse>({
+      method: "POST",
+      path: "/v1/food-entries",
+      expectedUserId: owner,
+      isCurrent,
+      body: parsed.data,
+      schema: foodEntryResponseSchema,
+    });
+    if (!result.ok)
+      return {
         ok: false,
         message: humanizeApiError(result.error, "Copy that meal"),
       };
+    if (photo && retention) {
+      // Nutrition is already authoritative: attachment failure must never invite another meal POST.
+      try {
+        // An idempotent nutrition replay can return an already completed attachment.
+        if (result.value.foodEntry.photoAssetId) {
+          // Keep the operation record until Home acknowledges nutrition durably.
+          // Ready server photos need no local bytes, including on another replay.
+          retention.discardOwnedMealPhoto(owner, photo.uri);
+          return { ok: true };
+        }
+        const pending = await retention.loadMealPhotoRetry(
+          owner,
+          result.value.foodEntry.id,
+        );
+        if (pending) {
+          if (pending.uri !== photo.uri)
+            retention.discardOwnedMealPhoto(owner, photo.uri);
+          photo = pending;
+          persisted = true;
+        } else {
+          persisted = await retention.persistMealPhotoRetry(
+            owner,
+            result.value.foodEntry.id,
+            photo,
+          );
+        }
+        if (!persisted)
+          return {
+            ok: true,
+            message: "Meal copied, but its photo could not be saved.",
+          };
+        if (
+          !(await retention.uploadMealPhotoRetry(
+            owner,
+            result.value.foodEntry.id,
+            isCurrent,
+            client,
+          ))
+        )
+          return {
+            ok: true,
+            message:
+              "Meal copied. Photo upload pending; use Retry photo on the copied meal.",
+          };
+      } catch {
+        return {
+          ok: true,
+          message: persisted
+            ? "Meal copied. Photo upload pending; use Retry photo on the copied meal."
+            : "Meal copied, but its photo could not be saved.",
+        };
+      }
+    }
+    return { ok: true };
+  } finally {
+    if (photo && !persisted && !staged)
+      retention?.discardOwnedMealPhoto(owner, photo.uri);
+  }
+};
+
+/** Clear recovery metadata only after Home's durable completion marker owns the outcome. */
+export const clearFoodCopyPhotoStage = async (
+  owner: string,
+  operationId: string,
+): Promise<void> => {
+  const { removeMealPhotoRetry } = await import("./meal-photo-retention");
+  await removeMealPhotoRetry(owner, `copy-${operationId}`, false);
 };

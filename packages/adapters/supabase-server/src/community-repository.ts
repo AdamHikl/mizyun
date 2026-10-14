@@ -17,6 +17,8 @@ import {
   type StoredModerationAppeal,
   type StoredSharedActivity,
   type SharedWorkoutDetails,
+  type SharedMealDetails,
+  type MealActivityPublication,
   type UserId,
   type WorkoutCategory,
 } from "@mizyun/core";
@@ -82,7 +84,10 @@ export interface CommunityBlockRow extends Record<string, unknown> {
 export interface SharedActivityRow extends Record<string, unknown> {
   readonly id: string;
   readonly user_id: string;
-  readonly source_workout_id: string;
+  readonly source_workout_id: string | null;
+  readonly source_meal_id?: string | null;
+  readonly activity_kind?: "meal" | "workout";
+  readonly meal_details?: SharedMealDetails | null;
   readonly category: string;
   readonly shared_day: string;
   readonly duration_seconds: number | null;
@@ -175,6 +180,9 @@ export const sharedActivityFromRow = (
   id: row.id,
   userId: row.user_id as UserId,
   sourceWorkoutId: row.source_workout_id,
+  sourceMealId: row.source_meal_id ?? null,
+  activityKind: row.activity_kind ?? "workout",
+  mealDetails: row.meal_details ?? null,
   category: row.category as WorkoutCategory,
   sharedDay: row.shared_day,
   durationSeconds: row.duration_seconds,
@@ -1031,6 +1039,55 @@ export class SupabaseCommunityRepository implements CommunityRepository {
       this.#throwDatabaseError(error);
     }
     return data ? sharedActivityFromRow(data) : null;
+  }
+
+  async getActivityByMealId(
+    mealId: string,
+    authorUserId: UserId,
+    options: { readonly accessToken: string },
+  ): Promise<StoredSharedActivity | null> {
+    const result = await this.#clientFor(options.accessToken)
+      .from<SharedActivityRow>("shared_activities")
+      .select("*")
+      .eq("source_meal_id", mealId)
+      .eq("user_id", authorUserId)
+      .maybeSingle();
+    if (result.error) this.#throwDatabaseError(result.error);
+    return result.data ? sharedActivityFromRow(result.data) : null;
+  }
+
+  async publishMealActivity(
+    _userId: UserId,
+    activity: MealActivityPublication,
+    options: { readonly accessToken: string },
+  ): Promise<StoredSharedActivity> {
+    const rows = await this.#rpcRows<SharedActivityRow>(
+      "community_publish_meal_activity",
+      {
+        p_source_meal_id: activity.sourceMealId,
+        p_enrollment_generation: activity.enrollmentGeneration,
+        p_operation_id: activity.operationId,
+        p_expected_version: activity.expectedVersion,
+        p_expected_revoked: activity.expectedRevoked,
+        p_shared_day: activity.sharedDay,
+        p_meal_details: activity.mealDetails,
+      },
+      options,
+    );
+    if (!rows[0]) throw new CommunityMutationError("unavailable");
+    return sharedActivityFromRow(rows[0]);
+  }
+
+  async revokeActivitiesForMeal(
+    mealId: string,
+    _authorUserId: UserId,
+    options: { readonly accessToken: string },
+  ): Promise<void> {
+    await this.#rpcRows(
+      "community_revoke_meal_activities",
+      { p_source_meal_id: mealId },
+      options,
+    );
   }
 
   async publishActivity(

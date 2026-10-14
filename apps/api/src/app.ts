@@ -1,3 +1,16 @@
+import { mealRecipeRoutes } from "./modules/meal-recipes/routes.js";
+import {
+  DisabledRecipeGenerationProvider,
+  DisabledIngredientRecognitionProvider,
+  type RecipeGenerationProvider,
+  type IngredientRecognitionProvider,
+} from "@mizyun/agent-runtime";
+import {
+  GeminiRecipeGenerationProvider,
+  GeminiIngredientRecognitionProvider,
+} from "@mizyun/provider-gemini";
+import { SupabaseRecipeRequestLedger } from "@mizyun/adapter-supabase-server";
+import type { RecipeRequestLedger } from "@mizyun/core";
 import type { MealIllustrationRepository } from "@mizyun/core";
 import type { MealIllustrationProvider } from "@mizyun/agent-runtime";
 import {
@@ -20,6 +33,10 @@ import type { MealPhotoService } from "@mizyun/core";
 import { mealPhotoRoutes } from "./modules/food-entries/photo-routes.js";
 import { mealVisualRoutes } from "./modules/food-entries/visual-routes.js";
 import { SupabaseRecurringMealRepository } from "@mizyun/adapter-supabase-server";
+import { SupabaseRecurringMealSuggestionRepository } from "@mizyun/adapter-supabase-server";
+import type { RecurringMealSuggestionRepository } from "@mizyun/core";
+import { InMemoryRecurringMealSuggestionRepository } from "./recurring-meal-suggestion-repository.js";
+import { recurringMealSuggestionsRoutes } from "./modules/recurring-meal-suggestions/routes.js";
 import type { RecurringMealRepository } from "@mizyun/core";
 import { InMemoryRecurringMealRepository } from "./recurring-meal-repository.js";
 import { recurringMealsRoutes } from "./modules/recurring-meals/routes.js";
@@ -186,6 +203,7 @@ import {
   CommunityDiscoveryRateLimiter,
 } from "./modules/community/discovery-routes.js";
 import { communityInvitationRoutes } from "./modules/community/invitation-routes.js";
+import { communityMealPublicationRoutes } from "./modules/community/meal-publication-routes.js";
 import { communityPublicationRoutes } from "./modules/community/publication-routes.js";
 import { communityFeedRoutes } from "./modules/community/feed-routes.js";
 import { communityReactionRoutes } from "./modules/community/reaction-routes.js";
@@ -283,6 +301,14 @@ export interface CoachControlOptions {
 }
 
 export interface AppDependencies {
+  readonly mealRecipeControls?: {
+    readonly enabled: () => boolean;
+    readonly ledger?: RecipeRequestLedger | null;
+    readonly generationProvider?: RecipeGenerationProvider;
+    readonly recognitionProvider?: IngredientRecognitionProvider;
+    readonly now?: () => Date;
+    readonly timeoutMs?: number;
+  };
   readonly mealIllustrationRepository?: MealIllustrationRepository;
   readonly mealIllustrationProvider?: MealIllustrationProvider;
   readonly mealIllustrationsEnabled?: () => boolean;
@@ -329,6 +355,7 @@ export interface AppDependencies {
   readonly mealPhotosEnabled?: boolean;
   readonly foodEntryRepository?: FoodEntryRepository;
   readonly recurringMealRepository?: RecurringMealRepository;
+  readonly recurringMealSuggestionRepository?: RecurringMealSuggestionRepository;
   readonly exerciseRepository?: ExerciseRepository;
   readonly workoutRepository?: WorkoutRepository;
   readonly runRepository?: RunRepository;
@@ -649,6 +676,25 @@ export const buildApp = (
     (sp
       ? new SupabaseRecurringMealRepository(sp.clientFor)
       : new InMemoryRecurringMealRepository(foodEntryRepository));
+  const recurringMealSuggestionRepository =
+    dependencies.recurringMealSuggestionRepository ??
+    (sp
+      ? new SupabaseRecurringMealSuggestionRepository(sp.clientFor)
+      : recurringMealRepository instanceof InMemoryRecurringMealRepository
+        ? new InMemoryRecurringMealSuggestionRepository(
+            foodEntryRepository,
+            recurringMealRepository,
+            {
+              isDeleting: async (userId) => {
+                const job = await accountRepository.getDeletionJob?.(userId);
+                return (
+                  !!job &&
+                  ["in_progress", "failed", "completed"].includes(job.status)
+                );
+              },
+            },
+          )
+        : null);
   if (sp?.serviceRoleClient) {
     const serviceClient = sp.serviceRoleClient;
     const worker = createRecurringMealWorker(
@@ -837,13 +883,18 @@ export const buildApp = (
           })
         : null
       : new InMemoryMealIllustrationRepository());
-  if (
-    foodEntryRepository instanceof InMemoryFoodEntryRepository &&
-    mealIllustrationRepository
-  )
+  if (foodEntryRepository instanceof InMemoryFoodEntryRepository)
     foodEntryRepository.setSourceChangeObserverForTest((userId, id) => {
-      void mealIllustrationRepository.invalidateForEntry(userId, id);
+      void mealIllustrationRepository?.invalidateForEntry(userId, id);
     });
+  if (foodEntryRepository instanceof InMemoryFoodEntryRepository)
+    foodEntryRepository.setCommunitySourceChangeObserverForTest(
+      (userId, id) => {
+        void communityRepository.revokeActivitiesForMeal(id, userId, {
+          accessToken: "in-memory",
+        });
+      },
+    );
   const imageConfig = configResult.ok
     ? configResult.value.mealIllustrationConfig
     : null;
@@ -868,10 +919,18 @@ export const buildApp = (
           ...(sp.publicUrl ? { publicUrl: sp.publicUrl } : {}),
         })
       : undefined;
+  const recipeControls = dependencies.mealRecipeControls;
+  const recipeRequestLedger =
+    recipeControls?.ledger !== undefined
+      ? recipeControls.ledger
+      : sp?.serviceRoleClient
+        ? new SupabaseRecipeRequestLedger(sp.serviceRoleClient)
+        : null;
   const accountRepository: AccountRepository =
     dependencies.accountRepository ??
     (sp
       ? new SupabaseAccountRepository({
+          ...(recipeRequestLedger ? { recipeRequestLedger } : {}),
           communityLifecycleEnabled: true,
           profileRepository,
           goalRepository,
@@ -895,7 +954,11 @@ export const buildApp = (
           clientFor: sp.clientFor,
         })
       : new InMemoryAccountRepository({
+          ...(recipeRequestLedger ? { recipeRequestLedger } : {}),
           recurringMealRepository,
+          ...(recurringMealSuggestionRepository
+            ? { recurringMealSuggestionRepository }
+            : {}),
           runRepository,
           profileRepository,
           goalRepository,
@@ -1158,6 +1221,15 @@ export const buildApp = (
       !!sp?.serviceRoleClient ||
       (!!dependencies.recurringMealRepository && !sp),
   });
+  if (recurringMealSuggestionRepository)
+    void app.register(recurringMealSuggestionsRoutes, {
+      prefix: "/v1/recurring-meal-suggestions",
+      recurringMealSuggestionRepository,
+      available:
+        !!sp?.serviceRoleClient ||
+        !!dependencies.recurringMealSuggestionRepository ||
+        (!!dependencies.recurringMealRepository && !sp),
+    });
   void app.register(mealIllustrationRoutes, {
     prefix: "/v1/food-entries",
     foodEntryRepository,
@@ -1170,6 +1242,54 @@ export const buildApp = (
     processImage: processMealIllustration,
     ...(dependencies.mealIllustrationTimeoutMs
       ? { timeoutMs: dependencies.mealIllustrationTimeoutMs }
+      : {}),
+  });
+  // A separate explicit switch keeps the new provider surface disabled until accepted.
+  const recipeConfig = configResult.ok ? configResult.value.geminiConfig : null;
+  const recipeProviderOptions = recipeConfig
+    ? {
+        apiKey: recipeConfig.apiKey,
+        model: recipeConfig.model,
+        externalAccess: configResult.ok && configResult.value.aiExternalAccess,
+      }
+    : null;
+  void app.register(mealRecipeRoutes, {
+    prefix: "/v1/meal-recipes",
+    repositories: {
+      profileRepository,
+      goalRepository,
+      foodEntryRepository,
+      bodyMeasurementRepository,
+      workoutRepository,
+      workoutSetRepository,
+    },
+    consentRepository: aiConsentRepository,
+    accountRepository,
+    betaProRepository,
+    enabled:
+      recipeControls?.enabled ??
+      (() => {
+        const latest = loadServerConfig();
+        return (
+          process.env.MIZYUN_MEAL_RECIPES_ENABLED === "true" &&
+          latest.ok &&
+          latest.value.aiExternalAccess
+        );
+      }),
+    ledger: recipeRequestLedger,
+    generationProvider:
+      recipeControls?.generationProvider ??
+      (recipeProviderOptions
+        ? new GeminiRecipeGenerationProvider(recipeProviderOptions)
+        : new DisabledRecipeGenerationProvider()),
+    recognitionProvider:
+      recipeControls?.recognitionProvider ??
+      (recipeProviderOptions
+        ? new GeminiIngredientRecognitionProvider(recipeProviderOptions)
+        : new DisabledIngredientRecognitionProvider()),
+    ...(recipeControls?.now ? { now: recipeControls.now } : {}),
+    ...(recipeControls?.timeoutMs !== undefined
+      ? { timeoutMs: recipeControls.timeoutMs }
       : {}),
   });
   void app.register(foodDraftRoutes, {
@@ -1421,7 +1541,14 @@ export const buildApp = (
         ? "mizyun-dev"
         : "mizyun",
   });
+  void app.register(communityMealPublicationRoutes, {
+    prefix: "/v1/community",
+    communityRepository,
+    foodEntryRepository,
+    profileRepository,
+  });
   void app.register(communityPublicationRoutes, {
+    foodEntryRepository,
     workoutSetRepository,
     exerciseRepository,
     prefix: "/v1/community",

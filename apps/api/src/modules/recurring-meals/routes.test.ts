@@ -178,6 +178,9 @@ describe("recurring meal routes", () => {
     expect(other.json().export.recurringMeals).toEqual({
       schedules: [],
       occurrences: [],
+      suggestionStates: [],
+      suggestionPreferences: [],
+      suggestionReceipts: [],
     });
     expect(other.body).not.toContain(id);
     expect(other.body).not.toContain("Breakfast");

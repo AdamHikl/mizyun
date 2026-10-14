@@ -22,6 +22,8 @@ import {
   moderationQueueItemSchema,
   publicCommunityProfileDtoSchema,
   publishWorkoutActivitySchema,
+  publishMealActivitySchema,
+  sharedMealDetailsSchema,
   reactorSummarySchema,
   relationshipListResponseSchema,
   resolveInvitationResponseSchema,
@@ -667,10 +669,62 @@ describe("publicCommunityProfile and search/list schemas", () => {
     };
     expect(communityFeedResponseSchema.parse(feed)).toEqual({
       ...feed,
-      items: feed.items.map((item) => ({ ...item, workoutDetails: null })),
+      items: feed.items.map((item) => ({
+        ...item,
+        workoutDetails: null,
+        activityKind: "workout",
+        mealDetails: null,
+      })),
     });
 
     const emptyFeed = { items: [], nextCursor: null };
     expect(communityFeedResponseSchema.parse(emptyFeed)).toEqual(emptyFeed);
+  });
+});
+
+describe("Meal sharing allowlist", () => {
+  const mealDetails = {
+    name: "Rice bowl",
+    caloriesKcal: null,
+    proteinG: null,
+    carbsG: null,
+    fatG: null,
+  };
+  it("rejects hidden source fields and invalid nutrition", () => {
+    expect(
+      sharedMealDetailsSchema.safeParse({
+        ...mealDetails,
+        details: { notes: "private" },
+      }).success,
+    ).toBe(false);
+    for (const number of [-1, 20001, Infinity, NaN])
+      expect(
+        sharedMealDetailsSchema.safeParse({
+          ...mealDetails,
+          caloriesKcal: number,
+        }).success,
+      ).toBe(false);
+    expect(
+      sharedMealDetailsSchema.parse({ ...mealDetails, caloriesKcal: 0 })
+        .caloriesKcal,
+    ).toBe(0);
+  });
+  it("requires the exact preview but defaults nutrition to private", () => {
+    const input = {
+      mealId: "d2380000-0000-4000-8000-000000000001",
+      operationId: "a2380000-0000-4000-8000-000000000001",
+      enrollmentGeneration: 1,
+      sharedDay: "2026-10-10",
+      expectedMealDetails: mealDetails,
+    };
+    expect(publishMealActivitySchema.parse(input).includeNutrition).toBe(false);
+    expect(
+      publishMealActivitySchema.safeParse({ ...input, sharedDay: "2026-02-30" })
+        .success,
+    ).toBe(false);
+    expect(
+      publishMealActivitySchema.safeParse({ ...input, photoAssetId: "private" })
+        .success,
+    ).toBe(false);
   });
 });

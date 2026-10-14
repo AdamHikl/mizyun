@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   files: new Map<string, number>(),
   values: new Map<string, unknown>(),
   request: vi.fn(),
+  download: vi.fn(),
   resize: vi.fn(),
   save: vi.fn(),
   normalize: vi.fn(),
@@ -46,6 +47,8 @@ vi.mock("expo-file-system", () => {
       })
       .join("/");
   class File {
+    static downloadFileAsync = (url: string, destination: File) =>
+      mocks.download(url, destination);
     uri: string;
     constructor(...parts: any[]) {
       this.uri = uri(parts);
@@ -133,6 +136,7 @@ import {
   persistMealPhotoRetry,
   persistMealPhotoSource,
   prepareRetainedMealPhoto,
+  prepareCopiedMealPhoto,
   removeMealPhotoRetry,
   uploadMealPhotoRetry,
 } from "./meal-photo-retention";
@@ -156,6 +160,10 @@ beforeEach(() => {
   mocks.variant = "dev";
   mocks.enabled = true;
   vi.clearAllMocks();
+  mocks.download.mockReset().mockImplementation(async (_url, file) => {
+    mocks.files.set(file.uri, 100);
+    return file;
+  });
   mocks.request.mockResolvedValue({ ok: false });
   mocks.normalize.mockImplementation(async () => {
     const file = new File("file:///cache/normalized.jpg");
@@ -456,4 +464,119 @@ it("clears an in-flight retry write that completes after account purge", async (
   expect(await write).toBe(false);
   expect(await loadMealPhotoRetry(owner, "meal-a")).toBeNull();
   expect([...mocks.files.keys()]).toHaveLength(0);
+});
+
+const copiedSource = {
+  ok: true,
+  value: {
+    photo: {
+      assetId: "source",
+      width: 200,
+      height: 100,
+      signedUrl: "https://storage.example.test/private-signed",
+      expiresAt: "2026-10-12T12:00:00Z",
+    },
+  },
+};
+it("downloads an independent private photo with owner and request fences", async () => {
+  mocks.request.mockResolvedValue(copiedSource);
+  const valid = () => true;
+  const copied = await prepareCopiedMealPhoto("owner-a", "source-entry", valid);
+  expect(mocks.request).toHaveBeenCalledWith(
+    expect.objectContaining({
+      path: "/v1/food-entries/source-entry/photo",
+      expectedUserId: "owner-a",
+      isCurrent: valid,
+    }),
+  );
+  expect(copied).toMatchObject({ width: 200, height: 100 });
+  expect(copied.uri).toMatch(
+    /^file:\/\/\/documents\/meal-photo-drafts\/owner-a\//,
+  );
+  expect(mocks.files.get(copied.uri)).toBe(100);
+  expect(JSON.stringify(copied)).not.toContain("private-signed");
+});
+it("cleans a partial native download after rejection", async () => {
+  mocks.request.mockResolvedValue(copiedSource);
+  mocks.download.mockImplementation(async (_url, file) => {
+    mocks.files.set(file.uri, 20);
+    throw new Error("Download failed");
+  });
+  await expect(
+    prepareCopiedMealPhoto("owner-a", "source-entry", () => true),
+  ).rejects.toThrow();
+  expect(mocks.files.size).toBe(0);
+});
+it.each([0, 256 * 1024 + 1])(
+  "cleans invalid copied photo byte size %s",
+  async (size) => {
+    mocks.request.mockResolvedValue(copiedSource);
+    mocks.download.mockImplementation(async (_url, file) => {
+      mocks.files.set(file.uri, size);
+      return file;
+    });
+    await expect(
+      prepareCopiedMealPhoto("owner-a", "source-entry", () => true),
+    ).rejects.toThrow();
+    expect(mocks.files.size).toBe(0);
+  },
+);
+it("cleans downloaded bytes when the session changes during download", async () => {
+  let current = true;
+  mocks.request.mockResolvedValue(copiedSource);
+  mocks.download.mockImplementation(async (_url, file) => {
+    mocks.files.set(file.uri, 100);
+    current = false;
+    return file;
+  });
+  await expect(
+    prepareCopiedMealPhoto("owner-a", "source-entry", () => current),
+  ).rejects.toThrow();
+  expect(mocks.files.size).toBe(0);
+});
+it("cleans late downloads after account data was erased", async () => {
+  const owner = "erased-during-download";
+  mocks.request.mockResolvedValue(copiedSource);
+  mocks.download.mockImplementation(async (_url, file) => {
+    await clearAllMealPhotoRetries(owner);
+    mocks.files.set(file.uri, 100);
+    return file;
+  });
+  await expect(
+    prepareCopiedMealPhoto(owner, "source-entry", () => true),
+  ).rejects.toThrow();
+  expect(mocks.files.size).toBe(0);
+});
+it("does not download denied source photos", async () => {
+  await expect(
+    prepareCopiedMealPhoto("owner-a", "source-entry", () => true),
+  ).rejects.toThrow();
+  expect(mocks.download).not.toHaveBeenCalled();
+});
+it("passes the same owner/current fence through retry upload dispatch", async () => {
+  const photo = { ...descriptor(), width: 200, height: 100 };
+  mocks.files.set(photo.uri, 100);
+  await persistMealPhotoRetry("owner-a", "target", photo);
+  const valid = () => true;
+  await uploadMealPhotoRetry("owner-a", "target", valid);
+  expect(mocks.request).toHaveBeenCalledWith(
+    expect.objectContaining({
+      expectedUserId: "owner-a",
+      isCurrent: valid,
+      path: "/v1/food-entries/target/photo",
+    }),
+  );
+});
+
+it("moves staging metadata to the destination retry without deleting its shared local bytes", async () => {
+  const photo = { ...descriptor(), width: 200, height: 100 };
+  mocks.files.set(photo.uri, 100);
+  await persistMealPhotoRetry("owner-a", "copy-operation", photo);
+  await persistMealPhotoRetry("owner-a", "target", photo);
+  await removeMealPhotoRetry("owner-a", "copy-operation", false);
+  expect(await loadMealPhotoRetry("owner-a", "copy-operation")).toBeNull();
+  expect(await loadMealPhotoRetry("owner-a", "target")).toEqual(photo);
+  expect(mocks.files.get(photo.uri)).toBe(100);
+  await removeMealPhotoRetry("owner-a", "target");
+  expect(mocks.files.has(photo.uri)).toBe(false);
 });

@@ -20,9 +20,11 @@ import {
   fetchSafetyContact,
   fetchSharedActivity,
   fetchWorkoutSharePreview,
+  fetchMealSharePreview,
   getActivityReactions,
   humanizeCommunityError,
   publishWorkoutActivity,
+  publishMealActivity,
   removeFollower,
   requestFollow,
   resolveCommunityInvitation,
@@ -1008,5 +1010,47 @@ describe("community-client", () => {
         }),
       ).toContain("older than 30 days");
     });
+  });
+});
+
+describe("meal publication client routes", () => {
+  it("encodes the principal-selected meal ID and timezone without adding private fields", async () => {
+    const request = vi.fn().mockResolvedValue({ ok: true, value: {} });
+    await fetchMealSharePreview(
+      { request } as unknown as ApiClient,
+      "meal/id",
+      "Europe/Bratislava",
+    );
+    expect(request.mock.calls[0]![0]).toMatchObject({
+      method: "GET",
+      path: "/v1/community/meals/meal%2Fid/preview?timezone=Europe%2FBratislava",
+    });
+    expect(request.mock.calls[0]![0].schema).toBeDefined();
+  });
+  it("publishes meals through the explicit meal route and author response contract", async () => {
+    const request = vi.fn().mockResolvedValue({ ok: true, value: {} });
+    const input = {
+      mealId: "meal",
+      operationId: "operation",
+      enrollmentGeneration: 1,
+      expectedVersion: 0,
+      expectedRevoked: false,
+      sharedDay: "2026-10-12",
+      includeNutrition: false,
+      expectedMealDetails: {
+        name: "Oatmeal",
+        caloriesKcal: null,
+        proteinG: null,
+        carbsG: null,
+        fatG: null,
+      },
+    };
+    await publishMealActivity({ request } as unknown as ApiClient, input);
+    expect(request.mock.calls[0]![0]).toMatchObject({
+      method: "POST",
+      path: "/v1/community/meal-activities",
+      body: input,
+    });
+    expect(request.mock.calls[0]![0].schema).toBeDefined();
   });
 });

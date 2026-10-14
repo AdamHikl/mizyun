@@ -362,3 +362,30 @@ export {
   type MealImagePathRecord,
 } from "./meal-image-path";
 export * from "./workout-companion";
+export {
+  MEAL_RECIPE_VERSION,
+  MEAL_RECIPE_RANKING_VERSION,
+  MEAL_RECIPE_MIN_PORTION_GRAMS,
+  MEAL_RECIPE_MAX_PORTION_GRAMS,
+  MEAL_RECIPE_MAX_RANK_RESULT_BYTES,
+  buildMealRecipeMacroContext,
+  rankMealRecipeCandidates,
+  isMealRecipeSnapshotFresh,
+  type MealRecipeMacroGrams,
+  type MealRecipeSourceSnapshot,
+  type MealRecipeCoverage,
+  type MealRecipeContextReason,
+  type MealRecipeMacroContext,
+  type MealRecipeContextInput,
+  type MealRecipePreparationState,
+  type MealRecipeCandidate,
+  type MealRecipeRejectionReason,
+  type MealRecipeRankResult,
+} from "./meal-recipe";
+
+export * from "./recipe-nutrition";
+
+export * from "./recipe-request";
+export { scaleRecipeServing } from "./recipe-serving";
+
+export * from "./recurring-meal-suggestion";

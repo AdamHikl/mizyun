@@ -335,8 +335,8 @@ export class CommentsController {
           schema: communityCommentSettingsSchema,
         }),
       enabled
-        ? "Comments opened for this workout."
-        : "Comments closed for this workout.",
+        ? "Comments opened for this activity."
+        : "Comments closed for this activity.",
     );
   }
 }

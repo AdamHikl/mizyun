@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -67,6 +75,7 @@ import {
   isCoachPendingDraft,
   loadCoachWith,
   loadCoachThread,
+  peekCoachHistory,
   mergeCoachSendResult,
   newCoachMessageIdempotencyKey,
   optimisticCoachMessageId,
@@ -115,7 +124,41 @@ const alertCategoryFromMessage = (message: string | null): AlertCategory => {
   return "generic";
 };
 
+/** Composer text belongs to a user; rotating that user's token preserves it. */
+function useUserOwnedCoachState<T>(
+  userId: string | null,
+  initial: T,
+  currentUser: { current: string | null },
+): [T, Dispatch<SetStateAction<T>>] {
+  const [record, setRecord] = useState({ userId, value: initial });
+  const setValue = useCallback(
+    (next: SetStateAction<T>) => {
+      if (currentUser.current !== userId) return;
+      setRecord((previous) => ({
+        userId,
+        value:
+          typeof next === "function"
+            ? (next as (value: T) => T)(
+                previous.userId === userId ? previous.value : initial,
+              )
+            : next,
+      }));
+    },
+    [userId, initial],
+  );
+  return [record.userId === userId ? record.value : initial, setValue];
+}
+
 export function CoachSetupScreen() {
+  const [, redrawPrefetch] = useState(0);
+  useEffect(
+    () =>
+      subscribeSessionReadUpdates((path) => {
+        if (path === "*" || path.startsWith("/v1/coach/conversations"))
+          redrawPrefetch((revision) => revision + 1);
+      }),
+    [],
+  );
   const params = useLocalSearchParams<{
     prompt?: string;
     autoSend?: string;
@@ -126,37 +169,98 @@ export function CoachSetupScreen() {
   const { width, fontScale } = useWindowDimensions();
   const stackHeader = width < 360 || fontScale > 1.3;
   const userId = session?.user.id ?? null;
+  const currentUser = useRef(userId);
+  currentUser.current = userId;
+  const operationUser = useRef(userId);
   const ownerKey = `${userId ?? ""}:${session?.accessToken ?? ""}`;
   const currentOwner = useRef(ownerKey);
   currentOwner.current = ownerKey;
+  const activeConversationId = useRef<string | null>(null);
+  const completedHistoryOwner = useRef<string | null>(null);
+  const warmHistory =
+    completedHistoryOwner.current === ownerKey
+      ? null
+      : peekCoachHistory(session, undefined, activeConversationId.current);
+  const historyStateOwner = useRef(ownerKey);
+  const historyUser = useRef(userId);
+  const useWarmHistory =
+    historyStateOwner.current !== ownerKey ||
+    (completedHistoryOwner.current !== ownerKey && warmHistory !== null);
   const readGeneration = useRef(0);
   const [status, setStatus] = useState<CoachProviderStatus | null>(null);
-  const [conversations, setConversations] = useState<
+  const [storedConversations, setConversations] = useState<
     readonly CoachConversation[]
-  >([]);
-  const [active, setActive] = useState<CoachConversation | null>(null);
-  const activeConversationId = useRef<string | null>(null);
-  if (active) activeConversationId.current = active.id;
-  const [messages, setMessages] = useState<readonly CoachMessage[]>([]);
-  const [draft, setDraft] = useState("");
-  const [message, setMessage] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
-  const historyOwner = useRef<string | null>(null);
-  const readyOwner = useRef<string | null>(null);
-  const [sending, setSending] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [pendingDraft, setPendingDraft] = useState<CoachPendingDraft | null>(
-    null,
+  >(() => warmHistory?.conversations ?? []);
+  const conversations = useWarmHistory
+    ? (warmHistory?.conversations ?? [])
+    : storedConversations;
+  const [storedActive, setActive] = useState<CoachConversation | null>(
+    () => warmHistory?.conversation ?? null,
   );
-  const [threadListVisible, setThreadListVisible] = useState(false);
-  const [planExpanded, setPlanExpanded] = useState(false);
+  const active = useWarmHistory
+    ? (warmHistory?.conversation ?? null)
+    : storedActive;
+  if (active) activeConversationId.current = active.id;
+  const [storedMessages, setMessages] = useState<readonly CoachMessage[]>(
+    () => warmHistory?.messages ?? [],
+  );
+  const messages = useWarmHistory
+    ? (warmHistory?.messages ?? [])
+    : storedMessages;
+  const [draft, setDraft] = useUserOwnedCoachState(userId, "", currentUser);
+  const [message, setMessage] = useUserOwnedCoachState<string | null>(
+    userId,
+    null,
+    currentUser,
+  );
+  const [loadingState, setLoading] = useState(warmHistory === null);
+  const loading = useWarmHistory ? warmHistory === null : loadingState;
+  const [loadFailedState, setLoadFailed] = useState(false);
+  const loadFailed = useWarmHistory ? false : loadFailedState;
+  const historyOwner = useRef<string | null>(warmHistory ? ownerKey : null);
+  const readyOwner = useRef<string | null>(null);
+  const [sending, setSending] = useUserOwnedCoachState(
+    userId,
+    false,
+    currentUser,
+  );
+  const [deleting, setDeleting] = useUserOwnedCoachState(
+    userId,
+    false,
+    currentUser,
+  );
+  const [pendingDraft, setPendingDraft] =
+    useUserOwnedCoachState<CoachPendingDraft | null>(userId, null, currentUser);
+  const [threadListVisible, setThreadListVisible] = useUserOwnedCoachState(
+    userId,
+    false,
+    currentUser,
+  );
+  const [planExpanded, setPlanExpanded] = useUserOwnedCoachState(
+    userId,
+    false,
+    currentUser,
+  );
   // Per-conversation message cache. The thread-list sheet previews
   // the latest assistant text per conversation. Caching here
   // avoids re-fetching on every list open.
-  const [messagesByConversation, setMessagesByConversation] = useState<
+  const [storedMessagesByConversation, setMessagesByConversation] = useState<
     ReadonlyMap<string, readonly CoachMessage[]>
-  >(new Map());
+  >(
+    () =>
+      new Map(
+        warmHistory?.conversation
+          ? [[warmHistory.conversation.id, warmHistory.messages]]
+          : [],
+      ),
+  );
+  const messagesByConversation = useWarmHistory
+    ? new Map(
+        warmHistory?.conversation
+          ? [[warmHistory.conversation.id, warmHistory.messages]]
+          : [],
+      )
+    : storedMessagesByConversation;
   const scrollRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
   const sendLock = useRef(false);
@@ -245,10 +349,12 @@ export function CoachSetupScreen() {
         setMessages([]);
       }
       setLoading(false);
+      completedHistoryOwner.current = ownerKey;
     };
     const result = await loadCoachWith(scoped, showHistory);
     if (!isCurrent()) return;
     if (!result.ok) {
+      completedHistoryOwner.current = ownerKey;
       historyOwner.current = null;
       setActive(null);
       setMessages([]);
@@ -310,17 +416,51 @@ export function CoachSetupScreen() {
   }, [sending, deleting, loading, refresh]);
 
   useEffect(() => {
-    activeConversationId.current = null;
-    historyOwner.current = null;
+    const sameUser = historyUser.current === userId;
+    historyUser.current = userId;
+    historyStateOwner.current = ownerKey;
+    completedHistoryOwner.current = warmHistory ? ownerKey : null;
+    activeConversationId.current =
+      warmHistory?.conversation?.id ??
+      (sameUser ? activeConversationId.current : null);
+    historyOwner.current = warmHistory ? ownerKey : null;
     readyOwner.current = null;
     setStatus(null);
-    setConversations([]);
-    setActive(null);
-    setMessages([]);
-    setMessagesByConversation(new Map());
+    setConversations(warmHistory?.conversations ?? []);
+    setActive(warmHistory?.conversation ?? null);
+    setMessages(warmHistory?.messages ?? []);
+    setMessagesByConversation(
+      new Map(
+        warmHistory?.conversation
+          ? [[warmHistory.conversation.id, warmHistory.messages]]
+          : [],
+      ),
+    );
+    setLoading(warmHistory === null);
+    setLoadFailed(false);
+  }, [ownerKey]);
+
+  useEffect(() => {
+    if (operationUser.current !== userId) {
+      operationUser.current = userId;
+      const restart =
+        sendLock.current ||
+        deleteLock.current ||
+        switchLock.current ||
+        refreshPending.current;
+      sendLock.current = false;
+      deleteLock.current = false;
+      switchLock.current = false;
+      refreshPending.current = false;
+      setSending(false);
+      setDeleting(false);
+      if (restart) void refresh();
+    }
     setDraft("");
     setMessage(null);
-    setLoadFailed(false);
+    setPendingDraft(null);
+    setThreadListVisible(false);
+    setPlanExpanded(false);
   }, [userId]);
 
   useEffect(() => {
@@ -355,7 +495,10 @@ export function CoachSetupScreen() {
     }
   }, [messages]);
 
-  const historyVisible = historyOwner.current === ownerKey && active !== null;
+  const historyAvailable =
+    historyOwner.current === ownerKey ||
+    (useWarmHistory && warmHistory !== null);
+  const historyVisible = historyAvailable && active !== null;
   const canUseCoach =
     status?.ready === true &&
     readyOwner.current === ownerKey &&
@@ -365,7 +508,9 @@ export function CoachSetupScreen() {
   // Opening an empty Coach page is read-only. Persist a thread only for an
   // explicit new-conversation action or the first consent-approved send.
   const beginConversation = useCallback(async () => {
+    if (currentUser.current !== userId) return null;
     const result = await createCoachConversation();
+    if (currentUser.current !== userId) return null;
     if (result.ok) {
       historyOwner.current = ownerKey;
       setActive(result.conversation);
@@ -376,7 +521,7 @@ export function CoachSetupScreen() {
       setMessage(result.message);
     }
     return result.ok ? result.conversation : null;
-  }, [ownerKey]);
+  }, [ownerKey, userId]);
 
   const create = useCallback(async () => {
     if (
@@ -394,14 +539,17 @@ export function CoachSetupScreen() {
     try {
       await beginConversation();
     } finally {
-      sendLock.current = false;
-      setLoading(false);
+      if (currentUser.current === userId) {
+        sendLock.current = false;
+        setLoading(false);
+      }
     }
   }, [beginConversation, canUseCoach, loadFailed, loading, ownerKey]);
 
   const switchToConversation = useCallback(
     async (conversationId: string) => {
       if (
+        currentUser.current !== userId ||
         active?.id === conversationId ||
         sendLock.current ||
         deleteLock.current ||
@@ -446,8 +594,10 @@ export function CoachSetupScreen() {
           setLoadFailed(true);
         }
       } finally {
-        switchLock.current = false;
-        setLoading(false);
+        if (currentUser.current === userId) {
+          switchLock.current = false;
+          setLoading(false);
+        }
       }
     },
     [active?.id, ownerKey, userId],
@@ -475,6 +625,7 @@ export function CoachSetupScreen() {
       const sentAt = Date.now();
       try {
         const conversation = active ?? (await beginConversation());
+        if (currentUser.current !== userId) return;
         if (conversation === null) {
           setDraft(text);
           return;
@@ -494,6 +645,7 @@ export function CoachSetupScreen() {
         if (userId !== null) {
           await saveLoggingDraft(userId, "coach", nextPending);
         }
+        if (currentUser.current !== userId) return;
         // AI-MOB-002 — clear the input but keep the user bubble on
         // screen until the assistant response lands. The optimistic
         // bubble is added to `messages` immediately so the screen
@@ -524,6 +676,7 @@ export function CoachSetupScreen() {
           text,
           idempotencyKey,
         );
+        if (currentUser.current !== userId) return;
         if (result.ok) {
           setActive(result.conversation);
           // Replace the optimistic bubble and de-duplicate the canonical user
@@ -552,12 +705,14 @@ export function CoachSetupScreen() {
         if (remaining > 0) {
           await new Promise<void>((resolve) => setTimeout(resolve, remaining));
         }
-        sendLock.current = false;
-        setSending(false);
+        if (currentUser.current === userId) {
+          sendLock.current = false;
+          setSending(false);
+        }
         // AI-MOB-002 — focus returns to the composer after every
         // send (success or failure) so the user can immediately
         // type the next message.
-        inputRef.current?.focus();
+        if (currentUser.current === userId) inputRef.current?.focus();
       }
     },
     [
@@ -650,8 +805,10 @@ export function CoachSetupScreen() {
           : "Couldn't read the photo.",
       );
     } finally {
-      sendLock.current = false;
-      setSending(false);
+      if (currentUser.current === userId) {
+        sendLock.current = false;
+        setSending(false);
+      }
     }
   }, [
     active,
@@ -769,7 +926,13 @@ export function CoachSetupScreen() {
     messages.some((item) => item.id === activeRetryBubbleId);
 
   const remove = useCallback(() => {
-    if (!active || sendLock.current || deleteLock.current) return;
+    if (
+      !active ||
+      currentUser.current !== userId ||
+      sendLock.current ||
+      deleteLock.current
+    )
+      return;
     Alert.alert(
       "Delete conversation?",
       "This permanently deletes the conversation and its messages.",
@@ -779,11 +942,13 @@ export function CoachSetupScreen() {
           text: "Delete",
           style: "destructive",
           onPress: () => {
+            if (currentUser.current !== userId) return;
             deleteLock.current = true;
             setDeleting(true);
             void (async () => {
               try {
                 const result = await deleteCoachConversation(active.id);
+                if (currentUser.current !== userId) return;
                 if (!result.ok) {
                   setMessage(result.message);
                   return;
@@ -794,6 +959,7 @@ export function CoachSetupScreen() {
                     await clearLoggingDraft(userId, "coach");
                   }
                 }
+                if (currentUser.current !== userId) return;
                 setActive(null);
                 activeConversationId.current = null;
                 setMessages([]);
@@ -801,8 +967,10 @@ export function CoachSetupScreen() {
                   current.filter((item) => item.id !== active.id),
                 );
               } finally {
-                deleteLock.current = false;
-                setDeleting(false);
+                if (currentUser.current === userId) {
+                  deleteLock.current = false;
+                  setDeleting(false);
+                }
               }
             })();
           },
@@ -813,6 +981,7 @@ export function CoachSetupScreen() {
 
   const reviewNutritionProposal = useCallback(
     async (proposal: CoachNutritionProposal) => {
+      if (currentUser.current !== userId) return;
       if (userId === null) {
         setMessage("Your session expired. Sign in again.");
         return;
@@ -822,6 +991,7 @@ export function CoachSetupScreen() {
         aiDraft: proposal.candidate,
         sourceProposalId: proposal.id,
       });
+      if (currentUser.current !== userId) return;
       if (!stored) {
         setMessage("Could not prepare the meal draft. Try again.");
         return;
@@ -833,6 +1003,7 @@ export function CoachSetupScreen() {
 
   const reviewWorkoutProposal = useCallback(
     async (proposal: CoachWorkoutProposal) => {
+      if (currentUser.current !== userId) return;
       if (userId === null) {
         setMessage("Your session expired. Sign in again.");
         return;
@@ -848,6 +1019,7 @@ export function CoachSetupScreen() {
         perceivedExertion: "",
         workoutProposal: proposal,
       });
+      if (currentUser.current !== userId) return;
       if (!stored) {
         setMessage("Could not prepare the workout proposal. Try again.");
         return;
@@ -872,6 +1044,7 @@ export function CoachSetupScreen() {
       setMessage(null);
       try {
         const result = await acceptWeeklyAdaptation(active.id, proposal.id);
+        if (currentUser.current !== userId) return;
         if (!result.ok) {
           setMessage(result.message);
           return;
@@ -879,10 +1052,10 @@ export function CoachSetupScreen() {
         setMessages((current) => [...current, result.value.assistantMessage]);
         setLiveRegionTick((tick) => tick + 1);
       } finally {
-        setSending(false);
+        if (currentUser.current === userId) setSending(false);
       }
     },
-    [active, canUseCoach, deleting, ownerKey, sending],
+    [active, canUseCoach, deleting, ownerKey, sending, userId],
   );
   const sendPrompt = useCallback((promptText: string) => {
     setDraft(promptText);
@@ -1006,6 +1179,15 @@ export function CoachSetupScreen() {
             </View>
           </View>
 
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="What can I cook?"
+            onPress={() => router.push("/meal-recipes" as Href)}
+            style={styles.navIconButton}
+          >
+            <ThemedText type="smallBold">What can I cook?</ThemedText>
+          </Pressable>
+
           {/* Expandable Plan & Advisory Info Drawer */}
           {planExpanded ? (
             <View style={styles.advisoryCardWrapper}>
@@ -1060,7 +1242,8 @@ export function CoachSetupScreen() {
 
           {(loading && !historyVisible) ||
           (historyOwner.current !== null &&
-            historyOwner.current !== ownerKey) ? (
+            historyOwner.current !== ownerKey &&
+            !historyAvailable) ? (
             <View style={[styles.center, { paddingTop: headerHeight }]}>
               <ActivityIndicator color="#10B981" />
               <ThemedText type="small" themeColor="textSecondary">

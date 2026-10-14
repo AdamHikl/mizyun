@@ -1,4 +1,7 @@
-import type { MealIllustrationRepository } from "@mizyun/core";
+import type {
+  MealIllustrationRepository,
+  RecipeRequestLedger,
+} from "@mizyun/core";
 import crypto from "node:crypto";
 import { exportCommunityAccount } from "./community-account-export.js";
 
@@ -104,6 +107,7 @@ const hashToken = (token: string): string =>
 export interface SupabaseAccountRepositoryOptions {
   readonly communityLifecycleEnabled?: boolean;
   readonly mealIllustrationRepository?: MealIllustrationRepository;
+  readonly recipeRequestLedger?: RecipeRequestLedger;
   readonly profileRepository: ProfileRepository;
   readonly goalRepository: GoalRepository;
   readonly foodEntryRepository: FoodEntryRepository;
@@ -152,6 +156,7 @@ export interface SupabaseAccountRepositoryOptions {
 export class SupabaseAccountRepository implements AccountRepository {
   readonly #communityLifecycleEnabled: boolean;
   readonly #mealIllustrationRepository: MealIllustrationRepository | null;
+  readonly #recipeRequestLedger: RecipeRequestLedger | null;
   readonly #profileRepository: ProfileRepository;
   readonly #goalRepository: GoalRepository;
   readonly #foodEntryRepository: FoodEntryRepository;
@@ -175,6 +180,7 @@ export class SupabaseAccountRepository implements AccountRepository {
   constructor(options: SupabaseAccountRepositoryOptions) {
     this.#communityLifecycleEnabled =
       options.communityLifecycleEnabled ?? false;
+    this.#recipeRequestLedger = options.recipeRequestLedger ?? null;
     this.#mealIllustrationRepository =
       options.mealIllustrationRepository ?? null;
     this.#profileRepository = options.profileRepository;
@@ -274,6 +280,33 @@ export class SupabaseAccountRepository implements AccountRepository {
           "user_id",
           userId,
           "id",
+        ),
+        suggestionStates: await fetchAllPaged(
+          client,
+          "recurring_meal_suggestion_states",
+          "user_id",
+          userId,
+          "family_key",
+          true,
+          "family_key",
+        ),
+        suggestionPreferences: await fetchAllPaged(
+          client,
+          "recurring_meal_suggestion_preferences",
+          "user_id",
+          userId,
+          "user_id",
+          true,
+          "user_id",
+        ),
+        suggestionReceipts: await fetchAllPaged(
+          client,
+          "recurring_meal_suggestion_receipts",
+          "user_id",
+          userId,
+          "operation_id",
+          true,
+          "operation_id",
         ),
       };
       if (this.#communityLifecycleEnabled)
@@ -652,6 +685,12 @@ export class SupabaseAccountRepository implements AccountRepository {
     return {
       manifest,
       ...(mealImagePaths ? { mealImagePaths } : {}),
+      ...(this.#recipeRequestLedger
+        ? {
+            recipeRequests:
+              await this.#recipeRequestLedger.exportUsageForUser(userId),
+          }
+        : {}),
       ...(this.#mealIllustrationRepository
         ? {
             mealIllustrationUsage:
@@ -1172,6 +1211,31 @@ export class SupabaseAccountRepository implements AccountRepository {
       }
 
       try {
+        if (this.#recipeRequestLedger) {
+          const assertRecipeCleanupLease = async () => {
+            const now = this.#clock.now();
+            const { data, error } =
+              await this.#serviceRoleClient!.from<AccountDeletionJobRow>(
+                "account_deletion_jobs",
+              )
+                .update({
+                  lease_expires_at: new Date(
+                    now.getTime() + DELETION_WORKER_LEASE_MS,
+                  ).toISOString(),
+                })
+                .eq("id", job.id)
+                .eq("user_id", userId)
+                .eq("worker_id", workerId)
+                .eq("status", "in_progress")
+                .gt("lease_expires_at", now.toISOString())
+                .select();
+            if (error || !data?.[0])
+              throw new RepositoryError("Deletion worker lease is unavailable");
+          };
+          await assertRecipeCleanupLease();
+          await this.#recipeRequestLedger.deleteForUser(userId);
+          await assertRecipeCleanupLease();
+        }
         await this.#mealIllustrationRepository?.deleteForUser(userId);
         await sweepUserMedia(token);
       } catch (err) {

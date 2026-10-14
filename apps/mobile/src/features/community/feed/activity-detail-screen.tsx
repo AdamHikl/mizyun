@@ -35,6 +35,8 @@ import {
   getCommunityReadDeadline,
 } from "../state/read-cache";
 import { VisibilityEpoch } from "../state/visibility-epoch";
+import { SharedMealDetails } from "../shared-meal-details";
+import { ShareMealModal } from "../share-meal-modal";
 import { SharedWorkoutDetails } from "../shared-workout-details";
 import { CommunityIdentityLink, CommunityPage, CommunityButton } from "../ui";
 import { ShareWorkoutModal } from "../share-workout-modal";
@@ -234,7 +236,7 @@ export function ActivityDetailScreen({
     const intentEpoch = epoch.current.capture();
     Alert.alert(
       `Mute @${activity.authorHandle}?`,
-      "Their future shared workouts will not appear in your feed. They will not be notified.",
+      "Their future shared meals and workouts will not appear in your feed. They will not be notified.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -314,7 +316,7 @@ export function ActivityDetailScreen({
       setManaged(result.value);
     } else
       setManageError(
-        "The shared workout cannot be managed here right now. Check access again or open your private workout history.",
+        "This shared activity cannot be managed here right now. Check access again.",
       );
   };
 
@@ -340,7 +342,7 @@ export function ActivityDetailScreen({
           {error ?? "This activity is unavailable."}
         </Text>
         <Text style={[styles.unavailableSub, { color: colors.textSecondary }]}>
-          The workout may have been unpublished, or access may have changed.
+          The activity may have been unpublished, or access may have changed.
         </Text>
         <Pressable
           accessibilityRole="button"
@@ -368,14 +370,15 @@ export function ActivityDetailScreen({
     );
   }
 
-  const duration = formatDuration(activity.durationSeconds);
+  const isMeal = activity.activityKind === "meal";
+  const duration = isMeal ? null : formatDuration(activity.durationSeconds);
   const sharedDayLabel = formatSharedDay(activity.sharedDay);
   const publishedAtLabel = formatPublishedAt(activity.publishedAt);
-  const categoryLabel = formatCategory(activity.category);
+  const categoryLabel = isMeal ? "Meal" : formatCategory(activity.category);
   const isSelf = activity.authorUserId === principalKey;
 
   return (
-    <CommunityPage title="Shared workout">
+    <CommunityPage title={isMeal ? "Shared meal" : "Shared workout"}>
       {/* Author Card */}
       <View
         style={[
@@ -433,7 +436,10 @@ export function ActivityDetailScreen({
           ) : null}
         </View>
 
-        {activity.workoutDetails ? (
+        {isMeal && activity.mealDetails ? (
+          <SharedMealDetails details={activity.mealDetails} />
+        ) : null}
+        {!isMeal && activity.workoutDetails ? (
           <SharedWorkoutDetails details={activity.workoutDetails} />
         ) : null}
 
@@ -490,7 +496,11 @@ export function ActivityDetailScreen({
       {isSelf ? (
         <>
           <CommunityButton
-            label="Edit or unpublish shared workout"
+            label={
+              isMeal
+                ? "Edit or unpublish shared meal"
+                : "Edit or unpublish shared workout"
+            }
             onPress={() => void manageShare()}
           />
           {manageError ? (
@@ -498,7 +508,22 @@ export function ActivityDetailScreen({
               {manageError}
             </Text>
           ) : null}
-          {managed ? (
+          {managed?.activityKind === "meal" && managed.sourceMealId ? (
+            <ShareMealModal
+              visible
+              mealId={managed.sourceMealId}
+              existingActivityId={managed.id}
+              onDismiss={() => setManaged(null)}
+              onPublished={() => {
+                setManaged(null);
+                void loadActivity();
+              }}
+              onRevoked={() => {
+                setManaged(null);
+                clear();
+              }}
+            />
+          ) : managed?.sourceWorkoutId ? (
             <ShareWorkoutModal
               visible
               workoutId={managed.sourceWorkoutId}

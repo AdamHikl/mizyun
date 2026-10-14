@@ -2,7 +2,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import { ALLOWED_MOBILE_PUBLIC_KEYS } from "./mobile.js";
 
@@ -252,6 +252,12 @@ for (const platform of ["ios", "android"]) {
         );
         return strings;
       };
+
+      // Disassembly is bundle preparation, bounded by the compiler's existing
+      // 30-second limit; purity assertions retain the default test timeout.
+      beforeAll(() => {
+        readBundles();
+      }, 30_000);
 
       it("contains no server secret literals or secret key prefixes", () => {
         for (const text of readBundles()) {

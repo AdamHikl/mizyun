@@ -1,6 +1,5 @@
 import { File } from "expo-file-system";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
-import type * as ImagePicker from "expo-image-picker";
 
 const MAX_MEAL_IMAGE_EDGE = 2048;
 
@@ -10,8 +9,14 @@ export interface MealPhotoAssetInput {
   readonly height?: number;
 }
 
+export interface MealPhotoNormalizationOptions {
+  /** Track a generated cache file before validation so failures remain cleanable. */
+  readonly onTemporaryFile?: (file: File) => void | Promise<void>;
+}
+
 export const normalizeMealPhoto = async (
   asset: MealPhotoAssetInput,
+  options: MealPhotoNormalizationOptions = {},
 ): Promise<File> => {
   const context = ImageManipulator.manipulate(asset.uri);
   const width = asset.width ?? 0;
@@ -24,14 +29,21 @@ export const normalizeMealPhoto = async (
       context.resize({ width: null, height: MAX_MEAL_IMAGE_EDGE });
     }
   }
-  const rendered = await context.renderAsync();
-  const saved = await rendered.saveAsync({
-    compress: 0.82,
-    format: SaveFormat.JPEG,
-  });
-  const file = new File(saved.uri);
-  if (!file.exists || file.size <= 0) {
-    throw new Error("The selected photo could not be read.");
+  let rendered: Awaited<ReturnType<typeof context.renderAsync>> | undefined;
+  try {
+    rendered = await context.renderAsync();
+    const saved = await rendered.saveAsync({
+      compress: 0.82,
+      format: SaveFormat.JPEG,
+    });
+    const file = new File(saved.uri);
+    await options.onTemporaryFile?.(file);
+    if (!file.exists || file.size <= 0) {
+      throw new Error("The selected photo could not be read.");
+    }
+    return file;
+  } finally {
+    rendered?.release();
+    context.release();
   }
-  return file;
 };

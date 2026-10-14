@@ -34,7 +34,8 @@ function fixture() {
       baseUrl: "https://dev.example.invalid",
     }),
   } as ApiClient;
-  const cache = new CommunityReadCache(raw, async () => session);
+  const sessionRead = vi.fn(async () => session);
+  const cache = new CommunityReadCache(raw, sessionRead);
   stores.push(cache);
   cache.setPrincipal("alice");
   cache.setForeground(true);
@@ -42,6 +43,7 @@ function fixture() {
     raw,
     cache,
     request,
+    sessionRead,
     setSession: (next: AuthSession | null) => {
       session = next;
     },
@@ -64,6 +66,175 @@ afterEach(() => {
 });
 
 describe("Community navigation reads", () => {
+  it("notifies mounted fill observers only after insertion, without changing authorization epoch or deadline", async () => {
+    const { cache, request } = fixture();
+    const epoch = getCommunityReadEpoch();
+    const principal = { user: { id: "alice" }, accessToken: "alice-token" };
+    const observed = vi.fn(() => {
+      const value = cache.peek(
+        { ...options, expectedUserId: "alice" },
+        principal,
+      );
+      expect(value).toEqual({ revoked: false });
+      expect(getCommunityReadDeadline(value)).toBe(10_000);
+    });
+    const unsubscribe = cache.subscribeFills(observed);
+    await cache.request({ ...options, expectedUserId: "alice" });
+    expect(observed).toHaveBeenCalledTimes(1);
+    expect(getCommunityReadEpoch()).toBe(epoch);
+    expect(request).toHaveBeenCalledTimes(1);
+    unsubscribe();
+    cache.clear();
+    await cache.request({ ...options, expectedUserId: "alice" });
+    expect(observed).toHaveBeenCalledTimes(1);
+  });
+
+  it("peeks synchronously without auth/network calls or extending the original deadline", async () => {
+    const { cache, request, sessionRead } = fixture();
+    await cache.request({ ...options, expectedUserId: "alice" });
+    const principal = { user: { id: "alice" }, accessToken: "alice-token" };
+    request.mockClear();
+    sessionRead.mockClear();
+    vi.advanceTimersByTime(9_000);
+    const first = cache.peek(
+      { ...options, expectedUserId: "alice" },
+      principal,
+    );
+    expect(first).toEqual({ revoked: false });
+    expect(getCommunityReadDeadline(first)).toBe(10_000);
+    expect(
+      cache.peek({ ...options, expectedUserId: "alice" }, principal),
+    ).toEqual(first);
+    expect(request).not.toHaveBeenCalled();
+    expect(sessionRead).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1_000);
+    expect(
+      cache.peek({ ...options, expectedUserId: "alice" }, principal),
+    ).toBeUndefined();
+  });
+
+  it("fails closed for missing/wrong owner or token, changed context and mismatched schema", async () => {
+    const { cache } = fixture();
+    await cache.request({ ...options, expectedUserId: "alice" });
+    const principal = { user: { id: "alice" }, accessToken: "alice-token" };
+    expect(cache.peek(options, principal)).toBeUndefined();
+    expect(
+      cache.peek({ ...options, expectedUserId: "alice" }, null),
+    ).toBeUndefined();
+    expect(
+      cache.peek({ ...options, expectedUserId: "bob" }, principal),
+    ).toBeUndefined();
+    expect(
+      cache.peek(
+        { ...options, expectedUserId: "alice" },
+        { ...principal, user: { id: "bob" } },
+      ),
+    ).toBeUndefined();
+    expect(
+      cache.peek(
+        { ...options, expectedUserId: "alice" },
+        { ...principal, accessToken: "rotated-token" },
+      ),
+    ).toBeUndefined();
+    expect(
+      cache.peek(
+        { ...options, expectedUserId: "alice", isCurrent: () => false },
+        principal,
+      ),
+    ).toBeUndefined();
+    expect(
+      cache.peek(
+        { ...options, expectedUserId: "alice", headers: {} },
+        principal,
+      ),
+    ).toBeUndefined();
+    expect(
+      cache.peek(
+        {
+          ...options,
+          expectedUserId: "alice",
+          path: "/v1/community/media/a/content",
+        },
+        principal,
+      ),
+    ).toBeUndefined();
+    expect(
+      cache.peek(
+        { ...options, expectedUserId: "alice", schema: schema.optional() },
+        principal,
+      ),
+    ).toBeUndefined();
+  });
+
+  it.each(["clear", "background", "principal", "token", "date"])(
+    "retires synchronous snapshots after %s changes",
+    async (change) => {
+      const { cache } = fixture();
+      await cache.request({ ...options, expectedUserId: "alice" });
+      if (change === "clear") invalidateCommunityReads();
+      if (change === "background") cache.setForeground(false);
+      if (change === "principal") cache.setPrincipal("bob", "bob-token");
+      if (change === "token") cache.setPrincipal("alice", "rotated-token");
+      if (change === "date")
+        vi.setSystemTime(new Date(0).getTime() + 86_400_000);
+      expect(
+        cache.peek(
+          { ...options, expectedUserId: "alice" },
+          { user: { id: "alice" }, accessToken: "alice-token" },
+        ),
+      ).toBeUndefined();
+    },
+  );
+
+  it("retains no synchronous authority during unresolved writes or after denied reads", async () => {
+    const { cache, request } = fixture();
+    const principal = { user: { id: "alice" }, accessToken: "alice-token" };
+    await cache.request({ ...options, expectedUserId: "alice" });
+    const mutation = deferred();
+    request.mockReturnValueOnce(mutation.promise);
+    const pending = cache.request({
+      method: "PATCH",
+      path: "/v1/community/profile",
+      body: {},
+    });
+    expect(
+      cache.peek({ ...options, expectedUserId: "alice" }, principal),
+    ).toBeUndefined();
+    mutation.resolve({ ok: true, value: {} });
+    await pending;
+    await cache.request({ ...options, expectedUserId: "alice" });
+    request.mockResolvedValueOnce({
+      ok: false,
+      error: { kind: "network_error", message: "offline" },
+    });
+    await cache.request({
+      ...options,
+      path: "/v1/community/features",
+      expectedUserId: "alice",
+    });
+    expect(
+      cache.peek({ ...options, expectedUserId: "alice" }, principal),
+    ).toBeUndefined();
+  });
+
+  it("rejects a prior local day's snapshot even while its original ten-second lease is still live", async () => {
+    const beforeMidnight = new Date(2026, 9, 12, 23, 59, 59).getTime();
+    vi.setSystemTime(beforeMidnight);
+    const { cache } = fixture();
+    await cache.request({ ...options, expectedUserId: "alice" });
+    const principal = { user: { id: "alice" }, accessToken: "alice-token" };
+    const value = cache.peek(
+      { ...options, expectedUserId: "alice" },
+      principal,
+    );
+    expect(getCommunityReadDeadline(value)).toBe(beforeMidnight + 10_000);
+    vi.advanceTimersByTime(1_000);
+    expect(Date.now()).toBeLessThan(getCommunityReadDeadline(value)!);
+    expect(
+      cache.peek({ ...options, expectedUserId: "alice" }, principal),
+    ).toBeUndefined();
+  });
+
   it("preserves a failed endpoint's error while retiring overlapping reads without claiming sign-out", async () => {
     const { cache, request } = fixture();
     const legacy = deferred();

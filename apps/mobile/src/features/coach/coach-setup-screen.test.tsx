@@ -2,6 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   load: vi.fn(),
+  realLoad: null as null | typeof import("./coach-data").loadCoachWith,
+  apiRequest: vi.fn(),
+  peek: vi.fn(),
   create: vi.fn(),
   thread: vi.fn(),
   send: vi.fn(),
@@ -184,17 +187,22 @@ vi.mock("@/features/workouts/workouts-hub-data", () => ({
   createCustomWorkout: vi.fn(),
   startRoutineSession: vi.fn(),
 }));
-vi.mock("./coach-data", async (original) => ({
-  ...(await original<typeof import("./coach-data")>()),
-  loadCoach: mocks.load,
-  loadCoachWith: mocks.load,
-  createCoachConversation: mocks.create,
-  loadCoachThread: mocks.thread,
-  sendCoachMessage: mocks.send,
-  sendCoachMealPhoto: mocks.photo,
-  deleteCoachConversation: mocks.remove,
-  acceptWeeklyAdaptation: mocks.adapt,
-}));
+vi.mock("./coach-data", async (original) => {
+  const actual = await original<typeof import("./coach-data")>();
+  mocks.realLoad = actual.loadCoachWith;
+  return {
+    ...actual,
+    loadCoach: mocks.load,
+    loadCoachWith: mocks.load,
+    peekCoachHistory: mocks.peek,
+    createCoachConversation: mocks.create,
+    loadCoachThread: mocks.thread,
+    sendCoachMessage: mocks.send,
+    sendCoachMealPhoto: mocks.photo,
+    deleteCoachConversation: mocks.remove,
+    acceptWeeklyAdaptation: mocks.adapt,
+  };
+});
 
 import { CoachSetupScreen } from "./coach-setup-screen";
 
@@ -259,6 +267,7 @@ beforeEach(() => {
   mocks.appListeners.clear();
   mocks.readListeners.clear();
   mocks.load.mockResolvedValue({ ok: true, status: ready, conversations: [] });
+  mocks.peek.mockReturnValue(null);
   mocks.create.mockResolvedValue({ ok: true, conversation, messages: [] });
   mocks.thread.mockResolvedValue({ ok: true, conversation, messages: [] });
   mocks.send.mockResolvedValue({ ok: true, conversation, messages: [] });
@@ -943,6 +952,329 @@ describe("Coach cached history and live generation authority", () => {
       messages: [savedMessage],
     });
   });
+  it("retires a warmed transcript after a denied list even while provider status never settles", async () => {
+    mocks.peek.mockReturnValue({
+      conversations: [conversation],
+      conversation,
+      messages: [savedMessage],
+    });
+    mocks.load.mockResolvedValue({
+      ok: true,
+      status: ready,
+      conversations: [conversation],
+    });
+    await open();
+    mocks.load.mockReset().mockImplementation((client, publish) => {
+      return mocks.realLoad!({ ...client, request: mocks.apiRequest }, publish);
+    });
+    mocks.apiRequest.mockImplementation((options) =>
+      options.path === "/v1/coach/status"
+        ? new Promise(() => {})
+        : Promise.resolve({
+            ok: false,
+            error: {
+              kind: "http_error",
+              status: 403,
+              code: "FORBIDDEN",
+              message: "denied",
+            },
+          }),
+    );
+    for (const listener of mocks.readListeners)
+      listener("/v1/coach/conversations");
+    expect(mocks.load).toHaveBeenCalledTimes(1);
+    await settle();
+    expect(
+      mocks.apiRequest.mock.calls.map(([options]) => options.path),
+    ).toEqual(["/v1/coach/status", "/v1/coach/conversations"]);
+    const tree = render();
+    expect(bubbles(tree)).toHaveLength(0);
+    expect(text(tree, "Couldn't load Coach")).toBe(true);
+    expect(labelled(tree, "New conversation").props.disabled).toBe(true);
+    expect(
+      nodes(tree).find((node) => node.type === "ThreadListSheet").props
+        .conversations,
+    ).toEqual([]);
+  });
+
+  it("renders a warmed transcript synchronously while live readiness remains unresolved", () => {
+    mocks.peek.mockReturnValue({
+      conversations: [conversation],
+      conversation,
+      messages: [savedMessage],
+    });
+    mocks.load.mockReturnValue(new Promise(() => {}));
+    const first = render();
+    expect(bubbles(first)).toHaveLength(1);
+    expect(text(first, "Loading Coach…")).toBe(false);
+    expect(labelled(first, "Attach photos").props.disabled).toBe(true);
+    expect(bubbles(render())).toHaveLength(1);
+    expect(text(render(), "Loading Coach…")).toBe(false);
+  });
+  it("uses startup history filled after an early cold mount before the first focused frame settles", () => {
+    mocks.load.mockReturnValue(new Promise(() => {}));
+    expect(text(render(), "Loading Coach…")).toBe(true);
+    mocks.peek.mockReturnValue({
+      conversations: [conversation],
+      conversation,
+      messages: [savedMessage],
+    });
+    for (const listener of mocks.readListeners)
+      listener("/v1/coach/conversations");
+    const firstFocusedFrame = render();
+    expect(bubbles(firstFocusedFrame)).toHaveLength(1);
+    expect(text(firstFocusedFrame, "Loading Coach…")).toBe(false);
+    expect(labelled(firstFocusedFrame, "Attach photos").props.disabled).toBe(
+      true,
+    );
+  });
+  it("treats a cached empty history as loaded without granting generation", () => {
+    mocks.peek.mockReturnValue({
+      conversations: [],
+      conversation: null,
+      messages: [],
+    });
+    mocks.load.mockReturnValue(new Promise(() => {}));
+    const first = render();
+    expect(text(first, "Loading Coach…")).toBe(false);
+    expect(labelled(first, "New conversation").props.disabled).toBe(true);
+  });
+  it.each(["empty", "thread"])(
+    "hides A's unsent draft and thread picker in B's first warm %s render",
+    (kind) => {
+      mocks.peek.mockImplementation((session) =>
+        session?.user.id === "synthetic-user"
+          ? {
+              conversations: [conversation],
+              conversation,
+              messages: [savedMessage],
+            }
+          : kind === "empty"
+            ? { conversations: [], conversation: null, messages: [] }
+            : {
+                conversations: [
+                  { ...conversation, id: "b-thread", title: "B thread" },
+                ],
+                conversation: {
+                  ...conversation,
+                  id: "b-thread",
+                  title: "B thread",
+                },
+                messages: [],
+              },
+      );
+      mocks.load.mockReturnValue(new Promise(() => {}));
+      render();
+      typeMessage("Private health details for A");
+      const oldInput = labelled(render(), "Message Coach");
+      labelled(render(), "Open thread list").props.onPress();
+      labelled(
+        render(),
+        "Toggle training plan & advisory info",
+      ).props.onPress();
+      expect(
+        nodes(render()).find((node) => node.type === "ThreadListSheet").props
+          .visible,
+      ).toBe(true);
+      mocks.owner = "other-user";
+      mocks.token = "other-token";
+      const first = render();
+      expect(labelled(first, "Message Coach").props.value).toBe("");
+      expect(
+        nodes(first).find((node) => node.type === "ThreadListSheet").props
+          .visible,
+      ).toBe(false);
+      expect(
+        nodes(first).find((node) => node.type === "TrainingPlanCard"),
+      ).toBeUndefined();
+      expect(text(first, "Loading Coach…")).toBe(false);
+      oldInput.props.onChangeText("Late private text for A");
+      expect(labelled(render(), "Message Coach").props.value).toBe("");
+    },
+  );
+  it.each(["send", "draft-storage", "create"])(
+    "retires A's deferred %s result after B's warm history is visible",
+    async (boundary) => {
+      const bConversation = {
+        ...conversation,
+        id: "b-thread",
+        title: "B thread",
+      };
+      const bMessage = {
+        ...savedMessage,
+        id: "b-message",
+        conversationId: "b-thread",
+        text: "B guidance",
+      };
+      mocks.peek.mockImplementation((session) =>
+        session?.user.id === "synthetic-user"
+          ? boundary === "create"
+            ? { conversations: [], conversation: null, messages: [] }
+            : {
+                conversations: [conversation],
+                conversation,
+                messages: [savedMessage],
+              }
+          : {
+              conversations: [bConversation],
+              conversation: bConversation,
+              messages: [bMessage],
+            },
+      );
+      mocks.load.mockResolvedValue({
+        ok: true,
+        status: ready,
+        conversations: boundary === "create" ? [] : [conversation],
+      });
+      let finish!: (value: any) => void;
+      const paused = new Promise((resolve) => {
+        finish = resolve;
+      });
+      if (boundary === "send") mocks.send.mockReturnValueOnce(paused);
+      else if (boundary === "draft-storage")
+        mocks.saveDraft.mockReturnValueOnce(paused);
+      else mocks.create.mockReturnValueOnce(paused);
+      await open();
+      const pending = typeMessage("A private request").props.onPress();
+      await settle();
+      mocks.owner = "other-user";
+      mocks.token = "other-token";
+      mocks.load.mockReturnValue(new Promise(() => {}));
+      let tree = render();
+      expect(
+        nodes(tree).find((node) => node.props?.message?.id === "b-message"),
+      ).toBeDefined();
+      finish(
+        boundary === "draft-storage"
+          ? true
+          : { ok: true, conversation, messages: [savedMessage] },
+      );
+      await settle();
+      tree = render();
+      expect(
+        nodes(tree).find((node) => node.props?.message?.id === "b-message"),
+      ).toBeDefined();
+      expect(bubbles(tree)).toHaveLength(0);
+      if (boundary !== "send") expect(mocks.send).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(500);
+      await pending;
+    },
+  );
+
+  it("does not let A's late send release B's newer send lock", async () => {
+    const bConversation = {
+      ...conversation,
+      id: "b-thread",
+      title: "B thread",
+    };
+    const bMessage = {
+      ...savedMessage,
+      id: "b-message",
+      conversationId: "b-thread",
+    };
+    mocks.peek.mockImplementation((session) =>
+      session?.user.id === "synthetic-user"
+        ? {
+            conversations: [conversation],
+            conversation,
+            messages: [savedMessage],
+          }
+        : {
+            conversations: [bConversation],
+            conversation: bConversation,
+            messages: [bMessage],
+          },
+    );
+    mocks.load.mockResolvedValue({
+      ok: true,
+      status: ready,
+      conversations: [conversation],
+    });
+    let finishA!: (value: any) => void;
+    let finishB!: (value: any) => void;
+    mocks.send.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishA = resolve;
+      }),
+    );
+    mocks.send.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishB = resolve;
+      }),
+    );
+    await open();
+    const pendingA = typeMessage("A private request").props.onPress();
+    await settle();
+    mocks.owner = "other-user";
+    mocks.token = "other-token";
+    mocks.load.mockResolvedValue({
+      ok: true,
+      status: ready,
+      conversations: [bConversation],
+    });
+    mocks.thread.mockResolvedValue({
+      ok: true,
+      conversation: bConversation,
+      messages: [bMessage],
+    });
+    render();
+    await settle();
+    const pendingB = typeMessage("B request").props.onPress();
+    await settle();
+    expect(mocks.send).toHaveBeenCalledTimes(2);
+    finishA({ ok: true, conversation, messages: [savedMessage] });
+    await settle();
+    await vi.advanceTimersByTimeAsync(500);
+    await pendingA;
+    let tree = render();
+    expect(labelled(tree, "Send message").props.accessibilityState.busy).toBe(
+      true,
+    );
+    await labelled(tree, "New conversation").props.onPress();
+    expect(mocks.create).not.toHaveBeenCalled();
+    finishB({ ok: true, conversation: bConversation, messages: [bMessage] });
+    await settle();
+    await pendingB;
+    tree = render();
+    expect(bubbles(tree)).toHaveLength(0);
+  });
+
+  it("preserves typed draft text through a same-user token rotation", () => {
+    mocks.peek.mockReturnValue({
+      conversations: [conversation],
+      conversation,
+      messages: [savedMessage],
+    });
+    mocks.load.mockReturnValue(new Promise(() => {}));
+    render();
+    typeMessage("Keep my typed draft");
+    mocks.token = "rotated-token";
+    expect(labelled(render(), "Message Coach").props.value).toBe(
+      "Keep my typed draft",
+    );
+  });
+  it.each(["account", "token"])(
+    "does not show a stale warm transcript after %s changes",
+    (change) => {
+      mocks.peek.mockImplementation((session) =>
+        session?.user.id === "synthetic-user" &&
+        session?.accessToken === "synthetic-token"
+          ? {
+              conversations: [conversation],
+              conversation,
+              messages: [savedMessage],
+            }
+          : null,
+      );
+      mocks.load.mockReturnValue(new Promise(() => {}));
+      expect(bubbles(render())).toHaveLength(1);
+      if (change === "account") mocks.owner = "other-user";
+      else mocks.token = "other-token";
+      const next = render();
+      expect(bubbles(next)).toHaveLength(0);
+      expect(text(next, "Loading Coach…")).toBe(true);
+    },
+  );
 
   it.each([
     [null, "Coach is offline. Your existing conversation is still safe."],
@@ -1042,4 +1374,11 @@ describe("Coach cached history and live generation authority", () => {
     expect(bubbles(tree)).toHaveLength(0);
     expect(labelled(tree, "Open thread list")).toBeUndefined();
   });
+});
+
+it("opens the same recipe screen from Coach even when suggestions are unavailable", async () => {
+  const { router } = await import("expo-router");
+  mocks.consent = false;
+  labelled(render(), "What can I cook?").props.onPress();
+  expect(router.push).toHaveBeenLastCalledWith("/meal-recipes");
 });

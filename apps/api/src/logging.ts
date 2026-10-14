@@ -19,6 +19,30 @@
  * original request payload into the log line.
  */
 const REDACT_PATHS = [
+  "proposal",
+  "body.proposal",
+  "req.body.proposal",
+  "familyKey",
+  "body.familyKey",
+  "req.body.familyKey",
+  "candidateId",
+  "body.candidateId",
+  "req.body.candidateId",
+  "evidenceDigest",
+  "body.evidenceDigest",
+  "req.body.evidenceDigest",
+  "req.body.input",
+  "body.input",
+  "input",
+  "req.body.images",
+  "body.images",
+  "images",
+  "fingerprint",
+  "body.fingerprint",
+  "req.body.fingerprint",
+  "healthContext",
+  "req.body.healthContext",
+  "body.healthContext",
   "req.body.imageBase64",
   "body.imageBase64",
   "imageBase64",
@@ -44,6 +68,12 @@ const REDACT_PATHS = [
   "req.body.text",
   "req.body.body",
   "req.body.name",
+  "req.body.mealId",
+  "body.mealId",
+  "mealId",
+  "req.body.expectedMealDetails",
+  "body.expectedMealDetails",
+  "expectedMealDetails",
   "req.body.rules",
   "req.body.title",
   "req.body.prefix",
@@ -122,7 +152,12 @@ const requestSerializer = (request: {
     typeof request.url === "string" &&
     request.url.split("?")[0]?.startsWith("/v1/community/")
       ? "/v1/community/[redacted]"
-      : request.url,
+      : typeof request.url === "string" &&
+          request.url
+            .split("?")[0]
+            ?.startsWith("/v1/recurring-meal-suggestions")
+        ? "/v1/recurring-meal-suggestions/[redacted]"
+        : request.url,
   host: request.host,
   remoteAddress: request.ip,
   remotePort:
@@ -131,6 +166,15 @@ const requestSerializer = (request: {
       : undefined,
   headers: request.headers,
 });
+
+/** Fastify's unmatched-route message also embeds the raw URL outside req.url. */
+const messageSerializer = (message: unknown): unknown =>
+  typeof message === "string"
+    ? message.replace(
+        /\/v1\/recurring-meal-suggestions(?:\/[^\s]*)?(?:\?[^\s]*)?/g,
+        "/v1/recurring-meal-suggestions/[redacted]",
+      )
+    : message;
 
 /**
  * Response serializer that includes `set-cookie` so the
@@ -160,6 +204,7 @@ export interface LoggerConfig {
           readonly res: typeof responseSerializer;
           readonly err: typeof safeErrorSerializer;
           readonly error: typeof safeErrorSerializer;
+          readonly msg: typeof messageSerializer;
         };
       };
 }
@@ -177,6 +222,7 @@ export const loggerConfig = (env: string): LoggerConfig => {
       level,
       redact: [...REDACT_PATHS],
       serializers: {
+        msg: messageSerializer,
         req: requestSerializer,
         res: responseSerializer,
         err: safeErrorSerializer,

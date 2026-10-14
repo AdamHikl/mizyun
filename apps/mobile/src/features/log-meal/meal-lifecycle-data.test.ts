@@ -1,4 +1,33 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+const photos = vi.hoisted(() => ({
+  prepare: vi.fn(),
+  persist: vi.fn(),
+  upload: vi.fn(),
+  discard: vi.fn(),
+  remove: vi.fn(),
+  load: vi.fn(),
+}));
+vi.mock("./meal-photo-retention", () => ({
+  mealPhotoRetentionEnabled: () => true,
+  prepareCopiedMealPhoto: photos.prepare,
+  persistMealPhotoRetry: photos.persist,
+  uploadMealPhotoRetry: photos.upload,
+  discardOwnedMealPhoto: photos.discard,
+  loadMealPhotoRetry: photos.load,
+  removeMealPhotoRetry: photos.remove,
+}));
+beforeEach(() => {
+  vi.clearAllMocks();
+  photos.prepare.mockResolvedValue({
+    uri: "file:///private/copy.jpg",
+    width: 200,
+    height: 100,
+    clientOperationId: "photo-operation",
+  });
+  photos.load.mockResolvedValue(null);
+  photos.persist.mockResolvedValue(true);
+  photos.upload.mockResolvedValue(true);
+});
 
 import type { ApiClient, ApiError, RequestOptions } from "@mizyun/api-client";
 import type { FoodEntry } from "@mizyun/contracts";
@@ -805,3 +834,248 @@ describe("refreshing a selected historical day", () => {
     expect(result.message).toBeTruthy();
   });
 });
+
+describe("copy retained meal photo", () => {
+  const source = { ...ENTRY, photoAssetId: "source-photo" };
+  const target = { ...ENTRY, id: "00000000-0000-4000-8000-000000000099" };
+  it("prepares source bytes and attaches them independently to the newly created meal", async () => {
+    const requests: RequestOptions[] = [];
+    const client = queuedClient(
+      [{ ok: true, value: { foodEntry: target } }],
+      requests,
+    );
+    const isCurrent = () => true;
+    expect(
+      await copyFoodEntryWith(client, source, () => NOW, false, {
+        expectedUserId: ENTRY.userId,
+        isCurrent,
+      }),
+    ).toEqual({ ok: true });
+    expect(photos.prepare).toHaveBeenCalledWith(
+      ENTRY.userId,
+      source.id,
+      isCurrent,
+      client,
+    );
+    expect(photos.persist).toHaveBeenCalledWith(
+      ENTRY.userId,
+      target.id,
+      expect.objectContaining({ uri: "file:///private/copy.jpg" }),
+    );
+    expect(photos.upload).toHaveBeenCalledWith(
+      ENTRY.userId,
+      target.id,
+      isCurrent,
+      client,
+    );
+    expect(requests[0].body).not.toHaveProperty("photoAssetId");
+    expect(requests[0].isCurrent).toBe(isCurrent);
+  });
+  it("keeps nutrition success and a target retry when attachment upload fails", async () => {
+    photos.upload.mockResolvedValue(false);
+    const requests: RequestOptions[] = [];
+    const result = await copyFoodEntryWith(
+      queuedClient([{ ok: true, value: { foodEntry: target } }], requests),
+      source,
+    );
+    expect(result).toEqual({
+      ok: true,
+      message:
+        "Meal copied. Photo upload pending; use Retry photo on the copied meal.",
+    });
+    expect(requests).toHaveLength(1);
+    expect(photos.discard).not.toHaveBeenCalled();
+  });
+  it("does not create a photo-less meal if the source download fails", async () => {
+    photos.prepare.mockRejectedValue(new Error("private download detail"));
+    const requests: RequestOptions[] = [];
+    expect(await copyFoodEntryWith(queuedClient([], requests), source)).toEqual(
+      {
+        ok: false,
+        message: "That meal’s photo could not be copied. Try again.",
+      },
+    );
+    expect(requests).toHaveLength(0);
+  });
+  it("cleans staged bytes on failed meal creation", async () => {
+    await copyFoodEntryWith(
+      queuedClient([
+        {
+          ok: false,
+          error: { kind: "network_error", cause: new Error("Offline") },
+        },
+      ]),
+      source,
+    );
+    expect(photos.discard).toHaveBeenCalledWith(
+      ENTRY.userId,
+      "file:///private/copy.jpg",
+    );
+    expect(photos.persist).not.toHaveBeenCalled();
+  });
+  it("does not create a meal after the copy scope changes during preparation", async () => {
+    let current = true;
+    photos.prepare.mockImplementation(async () => {
+      current = false;
+      return { uri: "file:///private/copy.jpg" };
+    });
+    const requests: RequestOptions[] = [];
+    const result = await copyFoodEntryWith(
+      queuedClient([], requests),
+      source,
+      () => NOW,
+      false,
+      { isCurrent: () => current },
+    );
+    expect(result.ok).toBe(false);
+    expect(requests).toHaveLength(0);
+    expect(photos.discard).toHaveBeenCalled();
+  });
+  it("skips all photo work for meals without a photo", async () => {
+    await copyFoodEntryWith(
+      queuedClient([{ ok: true, value: { foodEntry: target } }]),
+      ENTRY,
+    );
+    expect(photos.prepare).not.toHaveBeenCalled();
+  });
+});
+
+it("replays an existing photo retry without changing its upload operation", async () => {
+  const pending = {
+    uri: "file:///private/previous.jpg",
+    width: 200,
+    height: 100,
+    clientOperationId: "original-operation",
+  };
+  photos.load.mockResolvedValue(pending);
+  await copyFoodEntryWith(
+    queuedClient([{ ok: true, value: { foodEntry: ENTRY } }]),
+    { ...ENTRY, photoAssetId: "original-photo" },
+  );
+  expect(photos.persist).not.toHaveBeenCalled();
+  expect(photos.discard).toHaveBeenCalledWith(
+    ENTRY.userId,
+    "file:///private/copy.jpg",
+  );
+});
+it("does not replace an already copied photo during idempotent meal replay", async () => {
+  await copyFoodEntryWith(
+    queuedClient([
+      {
+        ok: true,
+        value: { foodEntry: { ...ENTRY, photoAssetId: "target-photo" } },
+      },
+    ]),
+    { ...ENTRY, photoAssetId: "original-photo" },
+  );
+  expect(photos.persist).not.toHaveBeenCalled();
+  expect(photos.upload).not.toHaveBeenCalled();
+  expect(photos.discard).toHaveBeenCalled();
+});
+it("reports attachment persistence failure as nutrition success and cleans the unretained file", async () => {
+  photos.persist.mockResolvedValue(false);
+  const result = await copyFoodEntryWith(
+    queuedClient([{ ok: true, value: { foodEntry: ENTRY } }]),
+    { ...ENTRY, photoAssetId: "original-photo" },
+  );
+  expect(result).toEqual({
+    ok: true,
+    message: "Meal copied, but its photo could not be saved.",
+  });
+  expect(photos.upload).not.toHaveBeenCalled();
+  expect(photos.discard).toHaveBeenCalled();
+});
+
+it("retains staged photo bytes on a lost nutrition response and replays without the source", async () => {
+  const snapshot = {
+    clientOperationId: "00000000-0000-4000-8000-000000000123",
+    name: "Breakfast",
+    consumedAt: NOW.toISOString(),
+  };
+  const source = { ...ENTRY, photoAssetId: "source-photo" };
+  const client = queuedClient([
+    { ok: false, error: { kind: "network_error", cause: "lost" } },
+    { ok: true, value: { foodEntry: ENTRY } },
+  ]);
+  await copyFoodEntryWith(client, source, () => NOW, false, {
+    payload: snapshot,
+  });
+  expect(photos.persist).toHaveBeenCalledWith(
+    ENTRY.userId,
+    "copy-00000000-0000-4000-8000-000000000123",
+    expect.any(Object),
+  );
+  expect(photos.discard).not.toHaveBeenCalled();
+  const staged = {
+    uri: "file:///private/copy.jpg",
+    width: 200,
+    height: 100,
+    clientOperationId: "photo-operation",
+  };
+  photos.load.mockImplementation(async (_owner, key) =>
+    key.startsWith("copy-") ? staged : null,
+  );
+  photos.prepare.mockRejectedValue(new Error("Source removed"));
+  expect(
+    await copyFoodEntryWith(client, source, () => NOW, false, {
+      payload: snapshot,
+    }),
+  ).toEqual({ ok: true });
+  expect(photos.prepare).toHaveBeenCalledTimes(1);
+  expect(photos.remove).not.toHaveBeenCalled();
+});
+it("blocks nutrition dispatch if its recoverable photo stage cannot be persisted", async () => {
+  photos.persist.mockResolvedValue(false);
+  const requests: RequestOptions[] = [];
+  const result = await copyFoodEntryWith(
+    queuedClient([], requests),
+    { ...ENTRY, photoAssetId: "source" },
+    () => NOW,
+    false,
+    {
+      payload: {
+        clientOperationId: "00000000-0000-4000-8000-000000000123",
+        name: "Breakfast",
+      },
+    },
+  );
+  expect(result.ok).toBe(false);
+  expect(requests).toHaveLength(0);
+  expect(photos.discard).toHaveBeenCalled();
+});
+
+it.each([null, "ready-target"])(
+  "replays after target handoff and failed Home acknowledgement without source download (photo %s)",
+  async (assetId) => {
+    const stage = {
+      uri: "file:///private/staged.jpg",
+      width: 200,
+      height: 100,
+      clientOperationId: "preserved-operation",
+    };
+    const target = { ...ENTRY, photoAssetId: assetId };
+    photos.load.mockImplementation(async (_owner, key) =>
+      key.startsWith("copy-") ? stage : assetId ? null : stage,
+    );
+    photos.prepare.mockRejectedValue(new Error("Original source unavailable"));
+    const requests: RequestOptions[] = [];
+    const result = await copyFoodEntryWith(
+      queuedClient([{ ok: true, value: { foodEntry: target } }], requests),
+      { ...ENTRY, photoAssetId: "source" },
+      () => NOW,
+      false,
+      {
+        payload: {
+          clientOperationId: "00000000-0000-4000-8000-000000000123",
+          name: "Breakfast",
+        },
+      },
+    );
+    expect(result).toEqual({ ok: true });
+    expect(photos.prepare).not.toHaveBeenCalled();
+    expect(photos.remove).not.toHaveBeenCalled();
+    expect(requests).toHaveLength(1);
+    if (assetId) expect(photos.upload).not.toHaveBeenCalled();
+    else expect(photos.upload).toHaveBeenCalled();
+  },
+);

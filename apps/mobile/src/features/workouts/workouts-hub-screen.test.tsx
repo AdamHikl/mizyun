@@ -3,6 +3,7 @@ import type { ProcessedWorkout, WorkoutsHubResult } from "./workouts-hub-data";
 
 const mocks = vi.hoisted(() => ({
   fetch: vi.fn(),
+  peek: vi.fn(),
   apiRequest: vi.fn(),
   createBlank: vi.fn(),
   push: vi.fn(),
@@ -12,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   activeWorkout: null as { id: string } | null,
   version: "0:today:0",
   appState: null as ((state: string) => void) | null,
+  readListeners: new Set<(path: string) => void>(),
 }));
 const hooks = vi.hoisted(() => ({
   slots: [] as any[],
@@ -24,7 +26,8 @@ vi.mock("react", async (original) => ({
   useRef: (current: unknown) => (hooks.slots[hooks.index++] ??= { current }),
   useState: (initial: unknown) => {
     const index = hooks.index++;
-    if (!(index in hooks.slots)) hooks.slots[index] = initial;
+    if (!(index in hooks.slots))
+      hooks.slots[index] = typeof initial === "function" ? initial() : initial;
     return [
       hooks.slots[index],
       (next: any) => {
@@ -109,6 +112,12 @@ vi.mock("@/composition/api-client", () => ({
     request: mocks.apiRequest,
   },
 }));
+vi.mock("@/composition/personal-read-events", () => ({
+  subscribeSessionReadUpdates: (listener: (path: string) => void) => {
+    mocks.readListeners.add(listener);
+    return () => mocks.readListeners.delete(listener);
+  },
+}));
 vi.mock("@/features/auth/auth-context", () => ({
   useAuth: () => ({
     session: {
@@ -135,6 +144,7 @@ vi.mock("./active-workout-context", () => ({
 }));
 vi.mock("./workouts-hub-data", () => ({
   fetchWorkoutsHubData: mocks.fetch,
+  peekWorkoutsHubData: mocks.peek,
   createBlankWorkout: mocks.createBlank,
   deleteWorkout: vi.fn(),
   startRoutineSession: vi.fn(),
@@ -198,6 +208,7 @@ beforeEach(() => {
   hooks.index = 0;
   hooks.focus = null;
   mocks.fetch.mockReset();
+  mocks.peek.mockReset().mockReturnValue(null);
   mocks.apiRequest.mockReset();
   mocks.apiRequest.mockResolvedValue({
     ok: true,
@@ -210,9 +221,64 @@ beforeEach(() => {
   mocks.tokenVersion = 0;
   mocks.version = "0:today:0";
   mocks.appState = null;
+  mocks.readListeners.clear();
 });
 
 describe("workouts tab read lifecycle", () => {
+  it("renders warmed workouts before effects or promises settle and keeps them during live refresh", () => {
+    mocks.peek.mockReturnValue(response("warm-first"));
+    mocks.fetch.mockReturnValue(new Promise(() => {}));
+    const first = render();
+    expect(hasWorkout(first, "warm-first")).toBe(true);
+    expect(hasLoader(first)).toBe(false);
+    hooks.focus!();
+    expect(hasWorkout(render(), "warm-first")).toBe(true);
+    expect(hasLoader(render())).toBe(false);
+  });
+
+  it("treats a conclusively empty warm snapshot as loaded on the first render", () => {
+    mocks.peek.mockReturnValue({
+      activeAndPlanned: [],
+      completed: [],
+      exercises: [],
+      message: null,
+    });
+    mocks.fetch.mockReturnValue(new Promise(() => {}));
+    expect(hasLoader(render())).toBe(false);
+  });
+  it("uses startup data that arrives after an unfocused cold mount without waiting for live reads", () => {
+    mocks.fetch.mockReturnValue(new Promise(() => {}));
+    expect(hasLoader(render())).toBe(true);
+    mocks.peek.mockReturnValue(response("later-warm"));
+    for (const listener of mocks.readListeners)
+      listener("/v1/workouts?limit=200");
+    // Initial cache fills do not change the invalidation version.
+    const firstFocusedFrame = render();
+    expect(hasWorkout(firstFocusedFrame, "later-warm")).toBe(true);
+    expect(hasLoader(firstFocusedFrame)).toBe(false);
+    expect(mocks.fetch).not.toHaveBeenCalled();
+    hooks.focus!();
+    expect(hasWorkout(render(), "later-warm")).toBe(true);
+    expect(hasLoader(render())).toBe(false);
+  });
+  it.each(["account", "token"])(
+    "never reuses the warm snapshot after %s changes",
+    (change) => {
+      mocks.peek.mockImplementation((session) =>
+        session?.user.id === "user-a" &&
+        session?.accessToken === "token-user-a-0"
+          ? response("private-warm")
+          : null,
+      );
+      mocks.fetch.mockReturnValue(new Promise(() => {}));
+      expect(hasWorkout(render(), "private-warm")).toBe(true);
+      if (change === "account") mocks.owner = "user-b";
+      else mocks.tokenVersion++;
+      const next = render();
+      expect(hasWorkout(next, "private-warm")).toBe(false);
+      expect(hasLoader(next)).toBe(true);
+    },
+  );
   it("reuses a loaded fresh tab without another fetch or loading message", async () => {
     mocks.fetch.mockResolvedValueOnce(response("first"));
     render();
@@ -452,6 +518,35 @@ describe("running inside Workouts", () => {
 });
 
 describe("running history ownership before effects settle", () => {
+  it("hides an open personal editor and progression in the first next-account render", () => {
+    mocks.peek.mockImplementation((session) =>
+      session?.user.id === "user-a" ? response("private-editor") : null,
+    );
+    mocks.fetch.mockReturnValue(new Promise(() => {}));
+    render();
+    const card = find(
+      render(),
+      (node) => node.props?.item?.workout.id === "private-editor",
+    );
+    card.props.onEdit();
+    card.props.onPressExercise("Private exercise");
+    expect(
+      find(render(), (node) => node.type === "WorkoutEditorModal").props
+        .visible,
+    ).toBe(true);
+    expect(
+      find(render(), (node) => node.type === "ExerciseProgressionModal").props
+        .exerciseName,
+    ).toBe("Private exercise");
+    mocks.owner = "user-b";
+    const first = render();
+    const editor = find(first, (node) => node.type === "WorkoutEditorModal");
+    expect(editor.props.visible).toBe(false);
+    expect(editor.props.workoutToEdit).toBeNull();
+    expect(
+      find(first, (node) => node.type === "ExerciseProgressionModal"),
+    ).toBeUndefined();
+  });
   it("hides account A run and strength cards on the first B render", async () => {
     const run = {
       id: "private-run-a",

@@ -1,3 +1,4 @@
+import type { MealRecipeSessionApi } from "./meal-recipe-session-api";
 import type { Result } from "@mizyun/core";
 import type {
   CoachMessageResponse,
@@ -5,6 +6,8 @@ import type {
   MealIllustrationResponse,
   MealIllustrationCapability,
 } from "@mizyun/contracts";
+
+import type { MealRecipeApi } from "./meal-recipe-api";
 
 import type { ApiConfigurationStatus, ApiError, RequestOptions } from "./types";
 
@@ -26,6 +29,12 @@ export interface ApiClient {
    * Never throws. `fetch` rejections surface as `kind: "network_error"`.
    */
   request<T>(options: RequestOptions): Promise<Result<T, ApiError>>;
+
+  getMealRecipeSessionContext?: MealRecipeSessionApi["context"];
+  revalidateMealRecipes?: MealRecipeSessionApi["revalidate"];
+  getMealRecipeCapabilities?: MealRecipeApi["capabilities"];
+  suggestMealRecipes?: MealRecipeApi["suggest"];
+  recognizeMealRecipeIngredients?: MealRecipeApi["recognizeIngredients"];
 
   ensureMealIllustration?(
     entryId: string,

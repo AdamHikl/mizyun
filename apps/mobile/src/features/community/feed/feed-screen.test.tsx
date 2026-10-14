@@ -7,6 +7,10 @@ const mocks = vi.hoisted(() => ({
   profileRead: vi.fn(),
   controllerCreated: vi.fn(),
   realController: false,
+  realCache: null as any,
+  cacheWakeups: 0,
+  focusImmediately: true,
+  userId: "account-a",
   navigationValid: false,
   deadline: undefined as number | undefined,
   epoch: 0,
@@ -72,8 +76,23 @@ vi.mock("react", async (original) => {
         });
       }
     },
-    useSyncExternalStore: (_subscribe: unknown, snapshot: () => unknown) =>
-      snapshot(),
+    useSyncExternalStore: (
+      subscribe: (listener: () => void) => (() => void) | undefined,
+      snapshot: () => unknown,
+    ) => {
+      const index = hooks.index++;
+      const previous = hooks.slots[index];
+      if (!previous || previous.subscribe !== subscribe) {
+        hooks.slots[index] = { subscribe };
+        hooks.effects.push(() => {
+          previous?.cleanup?.();
+          hooks.slots[index].cleanup = subscribe(() => {
+            mocks.cacheWakeups++;
+          });
+        });
+      }
+      return snapshot();
+    },
   };
 });
 vi.mock("react-native", () => ({
@@ -123,7 +142,7 @@ vi.mock("expo-router", async () => {
     useFocusEffect: (callback: () => () => void) => {
       mocks.focus = callback;
       React.useEffect(() => {
-        mocks.cleanup = callback();
+        if (mocks.focusImmediately) mocks.cleanup = callback();
         return () => mocks.cleanup?.();
       }, [callback]);
     },
@@ -141,25 +160,31 @@ vi.mock("@/features/auth/auth-context", () => ({
     return {
       session: mocks.signedOut
         ? null
-        : { user: { id: "account-a" }, accessToken: mocks.token },
-      profile: {},
+        : { user: { id: mocks.userId }, accessToken: mocks.token },
+      profile: mocks.realCache ? { birthYear: 1990 } : {},
     };
   },
 }));
 vi.mock("@/composition/api-client", () => ({
-  apiClient: { request: mocks.request },
-}));
-vi.mock("../use-community-profile", () => ({
-  useCommunityProfile: () => {
-    mocks.profileRead();
-    return {
-      profile: { generation: mocks.generation },
-      status: mocks.status,
-      isEnrolled: mocks.enrolled,
-      actions: { load: mocks.load },
-    };
+  get apiClient() {
+    return mocks.realCache ?? { request: mocks.request };
   },
 }));
+vi.mock("../use-community-profile", async (original) => {
+  const actual = await original<typeof import("../use-community-profile")>();
+  return {
+    useCommunityProfile: (options: any) => {
+      if (mocks.realCache) return actual.useCommunityProfile(options);
+      mocks.profileRead();
+      return {
+        profile: { generation: mocks.generation },
+        status: mocks.status,
+        isEnrolled: mocks.enrolled,
+        actions: { load: mocks.load },
+      };
+    },
+  };
+});
 vi.mock("./activity-card", () => ({ ActivityCard: "ActivityCard" }));
 vi.mock("./controller", async (original) => {
   const actual = await original<typeof import("./controller")>();
@@ -189,14 +214,27 @@ vi.mock("./controller", async (original) => {
 vi.mock("../community-settings-screen", () => ({
   CommunitySettingsScreen: "CommunitySettingsScreen",
 }));
-vi.mock("../state/read-cache", () => ({
-  getCommunityReadDeadline: () => mocks.deadline,
-  getCommunityReadEpoch: () => mocks.epoch,
-  getCommunityResponseEpoch: () => mocks.responseEpoch,
-  invalidateCommunityReads: () => {
-    mocks.epoch++;
-  },
-}));
+vi.mock("../state/read-cache", async (original) => {
+  const actual = await original<typeof import("../state/read-cache")>();
+  return {
+    ...actual,
+    getCommunityReadDeadline: (value: unknown) =>
+      mocks.realCache ? actual.getCommunityReadDeadline(value) : mocks.deadline,
+    getCommunityReadEpoch: () =>
+      mocks.realCache ? actual.getCommunityReadEpoch() : mocks.epoch,
+    getCommunityResponseEpoch: (value: unknown) =>
+      mocks.realCache
+        ? actual.getCommunityResponseEpoch(value)
+        : mocks.responseEpoch,
+    invalidateCommunityReads: () => {
+      if (mocks.realCache) {
+        actual.invalidateCommunityReads();
+        return;
+      }
+      mocks.epoch++;
+    },
+  };
+});
 import { FeedScreen } from "./feed-screen";
 
 // Inspect the actual render output; native layout/device acceptance is separate.
@@ -226,12 +264,20 @@ function linkFor(node: any, label: string): any {
   return linkFor(node.props?.children, label);
 }
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  mocks.realCache?.dispose();
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
 
 beforeEach(() => {
   mocks.enrollmentOpen = true;
   mocks.signedOut = false;
   mocks.realController = false;
+  mocks.realCache = null;
+  mocks.cacheWakeups = 0;
+  mocks.focusImmediately = true;
+  mocks.userId = "account-a";
   mocks.navigationValid = false;
   mocks.deadline = undefined;
   mocks.epoch = 0;
@@ -263,6 +309,178 @@ async function settledRender() {
   return render();
 }
 describe("Community home participation and navigation", () => {
+  async function warmRealRoot(status = "active", beforeWarm?: () => void) {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-12T08:00:00Z"));
+    mocks.realController = true;
+    mocks.userId = "00000000-0000-4000-8000-000000000001";
+    const { CommunityReadCache } = await import("../state/read-cache");
+    const { fetchCommunityProfile, fetchCommunityFeed } =
+      await import("../community-client");
+    const profile = {
+      userId: mocks.userId,
+      handle: "synthetic_viewer",
+      displayName: "Synthetic Viewer",
+      avatarSymbol: "SV",
+      bio: null,
+      isSearchable: false,
+      status,
+      generation: 1,
+      createdAt: "2026-10-01T08:00:00Z",
+      updatedAt: "2026-10-01T08:00:00Z",
+    };
+    const item = {
+      id: "00000000-0000-4000-8000-000000000002",
+      authorUserId: "00000000-0000-4000-8000-000000000003",
+      authorHandle: "synthetic_friend",
+      authorDisplayName: "Synthetic Friend",
+      authorAvatarSymbol: "SF",
+      category: "running",
+      sharedDay: "2026-10-12",
+      durationSeconds: 1800,
+      workoutDetails: null,
+      activityKind: "workout",
+      mealDetails: null,
+      publishedAt: "2026-10-12T07:00:00Z",
+      reactionCounts: {},
+      viewerReaction: null,
+    };
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, value: profile })
+      .mockResolvedValueOnce({
+        ok: true,
+        value: { items: [item], nextCursor: null },
+      });
+    const sessionRead = vi.fn(
+      async () =>
+        ({ user: { id: mocks.userId }, accessToken: mocks.token }) as any,
+    );
+    const cache = new CommunityReadCache(
+      { request, status: () => ({ configured: true }) } as any,
+      sessionRead,
+    );
+    cache.setPrincipal(mocks.userId, mocks.token);
+    cache.setForeground(true);
+    mocks.realCache = cache;
+    const { scopeCommunityClient } = await import("../scoped-client");
+    const client = scopeCommunityClient(cache, mocks.userId, () => true);
+    beforeWarm?.();
+    await fetchCommunityProfile(client);
+    await fetchCommunityFeed(client, { limit: 20 });
+    request.mockClear();
+    sessionRead.mockClear();
+    request.mockReturnValue(new Promise(() => {}));
+    return { cache, request, sessionRead, item };
+  }
+
+  function nodeOfType(node: any, type: string): any {
+    if (!node) return null;
+    if (Array.isArray(node))
+      return node.map((child) => nodeOfType(child, type)).find(Boolean);
+    if (node.type === type) return node;
+    return nodeOfType(node.props?.children, type);
+  }
+
+  it("shows warmed authorized membership and feed on the first frame without running effects or waiting for refresh", async () => {
+    const { item, request, sessionRead } = await warmRealRoot();
+    hooks.index = 0;
+    let tree = FeedScreen();
+    while (typeof tree.type === "function")
+      tree = (tree.type as any)(tree.props);
+    expect(nodeOfType(tree, "FlatList")?.props.data).toEqual([item]);
+    expect(nodeOfType(tree, "ActivityIndicator")).toBeFalsy();
+    expect(find(tree, "Checking shared activity")).toBeFalsy();
+    expect(request).not.toHaveBeenCalled();
+    expect(sessionRead).not.toHaveBeenCalled();
+    hooks.effects.splice(0).forEach((effect) => effect());
+    await flushAsync();
+    expect(nodeOfType(render(), "FlatList")?.props.data).toEqual([item]);
+    expect(request).not.toHaveBeenCalled();
+    expect(sessionRead).not.toHaveBeenCalled();
+  });
+
+  it("hydrates an eagerly mounted cold tab from later startup fills before its first focus", async () => {
+    mocks.focusImmediately = false;
+    const { item, request, sessionRead } = await warmRealRoot("active", () => {
+      const cold = render();
+      expect(nodeOfType(cold, "ActivityIndicator")).toBeTruthy();
+      expect(mocks.controllerCreated).toHaveBeenCalledTimes(1);
+    });
+    expect(mocks.cacheWakeups).toBeGreaterThanOrEqual(2);
+    vi.advanceTimersByTime(9_000);
+    // Cache notifications schedule this render while the eager tab is unfocused.
+    const beforeFocus = render();
+    expect(nodeOfType(beforeFocus, "FlatList")?.props.data).toEqual([item]);
+    expect(mocks.controllerCreated).toHaveBeenCalledTimes(1);
+    mocks.cleanup = mocks.focus!();
+    const firstFocus = render();
+    expect(nodeOfType(firstFocus, "FlatList")?.props.data).toEqual([item]);
+    expect(nodeOfType(firstFocus, "ActivityIndicator")).toBeFalsy();
+    expect(request).not.toHaveBeenCalled();
+    expect(sessionRead).not.toHaveBeenCalled();
+    const { getCommunityReadDeadline, peekCommunityRead } =
+      await import("../state/read-cache");
+    const { communityFeedResponseSchema } = await import("@mizyun/contracts");
+    const response = peekCommunityRead(
+      mocks.realCache,
+      {
+        method: "GET",
+        path: "/v1/community/feed?limit=20",
+        schema: communityFeedResponseSchema,
+        expectedUserId: mocks.userId,
+      },
+      { user: { id: mocks.userId }, accessToken: mocks.token },
+    );
+    expect(getCommunityReadDeadline(response)).toBe(
+      new Date("2026-10-12T08:00:10Z").getTime(),
+    );
+  });
+
+  it("does not adopt late startup snapshots after their original authority expires before first focus", async () => {
+    mocks.focusImmediately = false;
+    const { item } = await warmRealRoot("active", () => {
+      render();
+    });
+    vi.advanceTimersByTime(10_000);
+    const firstFocusFrame = render();
+    expect(
+      nodeOfType(firstFocusFrame, "FlatList")?.props.data ?? [],
+    ).not.toContainEqual(item);
+    expect(nodeOfType(firstFocusFrame, "ActivityIndicator")).toBeTruthy();
+  });
+
+  it.each([
+    "expired",
+    "other-owner",
+    "rotated-token",
+    "background",
+    "withdrawn",
+    "invalidated",
+  ])(
+    "keeps %s warmed Community data out of the first frame while live refresh is unresolved",
+    async (reason) => {
+      const { cache, item } = await warmRealRoot(
+        reason === "withdrawn" ? "withdrawn" : "active",
+      );
+      if (reason === "expired") vi.advanceTimersByTime(10_000);
+      if (reason === "other-owner")
+        mocks.userId = "00000000-0000-4000-8000-000000000004";
+      if (reason === "rotated-token") mocks.token = "rotated-token";
+      if (reason === "background") cache.setForeground(false);
+      if (reason === "invalidated") cache.clear();
+      const tree = render();
+      expect(nodeOfType(tree, "FlatList")?.props.data ?? []).not.toContainEqual(
+        item,
+      );
+      expect(nodeOfType(tree, "ActivityIndicator")).not.toBeNull();
+      await flushAsync();
+      expect(
+        nodeOfType(render(), "FlatList")?.props.data ?? [],
+      ).not.toContainEqual(item);
+    },
+  );
+
   it.each([
     {
       scenario: "signed out",
@@ -373,6 +591,9 @@ describe("Community home participation and navigation", () => {
     expect(linkFor(header, "Share workout").props.href).toBe(
       "/community/share",
     );
+    expect(linkFor(header, "Share meal").props.href).toBe(
+      "/community/share-meal",
+    );
     expect(linkFor(header, "Spaces").props.href).toBe("/community/more");
     expect(find(header, "Feed").props.accessibilityState.selected).toBe(true);
   });
@@ -386,6 +607,7 @@ describe("Community home participation and navigation", () => {
       "Me",
       "Community updates",
       "Share workout",
+      "Share meal",
       "Spaces",
     ]) {
       const action = find(list.props.ListHeaderComponent, label);
@@ -406,10 +628,10 @@ describe("Community home participation and navigation", () => {
       JSON.stringify(before),
     );
     expect(JSON.stringify(list.props.ListEmptyComponent)).toContain(
-      "Checking shared workouts",
+      "Checking shared activity",
     );
     expect(JSON.stringify(list.props.ListEmptyComponent)).not.toContain(
-      "No shared workouts yet",
+      "No shared activity yet",
     );
     expect(list.props.refreshControl.props.refreshing).toBe(false);
     expect(list.props.data).toEqual([]);
@@ -420,7 +642,7 @@ describe("Community home participation and navigation", () => {
     const tree = await settledRender();
     const empty = tree.props.children[1].props.ListEmptyComponent;
     expect(JSON.stringify(empty)).toContain("Activity is unavailable");
-    expect(JSON.stringify(empty)).not.toContain("No shared workouts yet");
+    expect(JSON.stringify(empty)).not.toContain("No shared activity yet");
     expect(linkFor(empty, "Find people")).toBeFalsy();
   });
 });
@@ -441,10 +663,10 @@ describe("Community retained tab membership freshness", () => {
     const reset = render().props.children[1];
     expect(reset.props.data).toEqual([]);
     expect(JSON.stringify(reset.props.ListEmptyComponent)).not.toContain(
-      "No shared workouts yet",
+      "No shared activity yet",
     );
     expect(JSON.stringify(reset.props.ListEmptyComponent)).toContain(
-      "Checking shared workouts",
+      "Checking shared activity",
     );
     let finishMembership!: () => void;
     let finishFeed!: () => void;
@@ -468,7 +690,7 @@ describe("Community retained tab membership freshness", () => {
     const pending = render().props.children[1];
     expect(pending.props.data).toEqual([]);
     expect(JSON.stringify(pending.props.ListEmptyComponent)).not.toContain(
-      "No shared workouts yet",
+      "No shared activity yet",
     );
     finishMembership();
     finishFeed();
@@ -484,10 +706,10 @@ describe("Community retained tab membership freshness", () => {
     const list = (await settledRender()).props.children[1];
     expect(list.props.data).toEqual([]);
     expect(JSON.stringify(list.props.ListEmptyComponent)).not.toContain(
-      "No shared workouts yet",
+      "No shared activity yet",
     );
     expect(JSON.stringify(list.props.ListEmptyComponent)).toContain(
-      "Checking shared workouts",
+      "Checking shared activity",
     );
   });
   it("shows encouragement after a successful conclusively empty feed read", async () => {
@@ -496,7 +718,7 @@ describe("Community retained tab membership freshness", () => {
     const list = (await settledRender()).props.children[1];
     expect(list.props.data).toEqual([]);
     expect(JSON.stringify(list.props.ListEmptyComponent)).toContain(
-      "No shared workouts yet",
+      "No shared activity yet",
     );
   });
   it("rebinds visible card intents after a fast refocus without an intermediate render", async () => {
@@ -559,10 +781,10 @@ describe("Community retained tab membership freshness", () => {
     const list = render().props.children[1];
     expect(list.props.data).toEqual([]);
     expect(JSON.stringify(list.props.ListEmptyComponent)).toContain(
-      "Checking shared workouts",
+      "Checking shared activity",
     );
     expect(JSON.stringify(list.props.ListEmptyComponent)).not.toContain(
-      "No shared workouts yet",
+      "No shared activity yet",
     );
     finish();
     await flushAsync();
@@ -606,14 +828,14 @@ describe("Community retained tab membership freshness", () => {
       JSON.stringify(previousHeader),
     );
     expect(JSON.stringify(list.props.ListEmptyComponent)).toContain(
-      "Checking shared workouts",
+      "Checking shared activity",
     );
     expect(JSON.stringify(list.props.ListEmptyComponent)).not.toContain(
-      "No shared workouts yet",
+      "No shared activity yet",
     );
     expect(list.props.refreshControl.props.refreshing).toBe(false);
     expect(JSON.stringify(list.props.ListEmptyComponent)).not.toContain(
-      "No shared workouts yet",
+      "No shared activity yet",
     );
     expect(JSON.stringify(tree)).not.toContain("ActivityIndicator");
     finish();
@@ -630,7 +852,7 @@ describe("Community retained tab membership freshness", () => {
     );
     expect(
       JSON.stringify(tree.props.children[1].props.ListEmptyComponent),
-    ).not.toContain("No shared workouts yet");
+    ).not.toContain("No shared activity yet");
     let finish!: () => void;
     mocks.refresh.mockImplementationOnce(
       () =>

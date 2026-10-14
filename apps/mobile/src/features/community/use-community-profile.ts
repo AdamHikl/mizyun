@@ -7,6 +7,7 @@ import {
 } from "react";
 import type { ApiClient, ApiError } from "@mizyun/api-client";
 import {
+  communityProfileDtoSchema,
   type CommunityProfileDto,
   type CreateCommunityProfileInput,
   type HandleAvailabilityResponse,
@@ -25,6 +26,10 @@ import {
 } from "./community-client";
 import { apiClient } from "@/composition/api-client";
 import { scopeCommunityClient } from "./scoped-client";
+import {
+  peekCommunityRead,
+  subscribeCommunityReadFills,
+} from "./state/read-cache";
 
 export type CommunityProfileStatus = "idle" | "loading" | "ready" | "error";
 
@@ -44,6 +49,7 @@ export interface CommunityProfileControllerOptions {
   readonly autoLoad?: boolean;
   readonly now?: () => Date;
   readonly principalKey?: string | null;
+  readonly accessToken?: string | null;
   readonly isCurrentPrincipal?: () => boolean;
 }
 
@@ -54,6 +60,8 @@ export class CommunityProfileController {
   private isDestroyed = false;
   private revision = 0;
   private mutationPending = false;
+  private pristine = true;
+  private stopFillSubscription: (() => void) | undefined;
 
   constructor(private readonly options: CommunityProfileControllerOptions) {
     this.client = scopeCommunityClient(
@@ -79,31 +87,98 @@ export class CommunityProfileController {
       isSaving: false,
     };
 
+    this.hydrateInitialSnapshot();
+
     if (options.autoLoad !== false) {
       void this.load();
     }
   }
 
+  private hydrateInitialSnapshot(): boolean {
+    const options = this.options;
+    const retained =
+      this.pristine &&
+      this.state.status === "idle" &&
+      this.state.isAdultEligible &&
+      !this.mutationPending &&
+      options.principalKey &&
+      options.accessToken &&
+      this.isCurrent()
+        ? peekCommunityRead<CommunityProfileDto>(
+            options.client,
+            {
+              method: "GET",
+              path: "/v1/community/profile",
+              schema: communityProfileDtoSchema,
+              expectedUserId: options.principalKey,
+            },
+            {
+              user: { id: options.principalKey },
+              accessToken: options.accessToken,
+            },
+          )
+        : undefined;
+    if (
+      retained?.status === "active" &&
+      retained.userId === options.principalKey
+    ) {
+      this.state = {
+        ...this.state,
+        status: "ready",
+        profile: retained,
+        isEnrolled: true,
+      };
+      this.pristine = false;
+      return true;
+    }
+    return false;
+  }
+
   public getState(): CommunityProfileState {
+    this.hydrateInitialSnapshot();
     return this.state;
   }
 
   public subscribe(listener: () => void): () => void {
     this.listeners.add(listener);
+    this.observeCacheFills();
     return () => {
       this.listeners.delete(listener);
+      if (this.listeners.size === 0) {
+        this.stopFillSubscription?.();
+        this.stopFillSubscription = undefined;
+      }
     };
+  }
+
+  private observeCacheFills(): void {
+    if (
+      this.stopFillSubscription ||
+      this.isDestroyed ||
+      this.listeners.size === 0
+    )
+      return;
+    this.stopFillSubscription = subscribeCommunityReadFills(
+      this.options.client,
+      () => {
+        if (this.hydrateInitialSnapshot())
+          for (const listener of this.listeners) listener();
+      },
+    );
   }
 
   public destroy(): void {
     this.isDestroyed = true;
     this.revision += 1;
+    this.stopFillSubscription?.();
+    this.stopFillSubscription = undefined;
     this.listeners.clear();
   }
 
   // Effects may clean up and start again in React StrictMode.
   public activate(): void {
     this.isDestroyed = false;
+    this.observeCacheFills();
   }
 
   private isCurrent(): boolean {
@@ -157,6 +232,7 @@ export class CommunityProfileController {
 
   public async load(): Promise<void> {
     if (!this.isCurrent() || this.mutationPending) return;
+    this.pristine = false;
     const revision = ++this.revision;
     this.updateState({
       status: "loading",
@@ -242,6 +318,7 @@ export class CommunityProfileController {
 
     const revision = ++this.revision;
     this.mutationPending = true;
+    this.pristine = false;
     this.updateState({ error: null, isSaving: true });
     const result = await enrollCommunityProfile(this.client, input);
     this.mutationPending = false;
@@ -275,6 +352,7 @@ export class CommunityProfileController {
       return this.unavailable();
     const revision = ++this.revision;
     this.mutationPending = true;
+    this.pristine = false;
     this.updateState({ error: null, isSaving: true });
     const result = await updateCommunityProfile(this.client, input);
     this.mutationPending = false;
@@ -304,6 +382,7 @@ export class CommunityProfileController {
     if (!this.isCurrent() || this.mutationPending) return this.unavailable();
     const revision = ++this.revision;
     this.mutationPending = true;
+    this.pristine = false;
     this.updateState({ error: null, isSaving: true });
     const result = await withdrawCommunityProfile(this.client);
     this.mutationPending = false;
@@ -369,17 +448,24 @@ export function useCommunityProfile(
   const birthYear = options?.birthYear;
   const now = options?.now;
   const autoLoad = options?.autoLoad !== false;
+  const accessToken = options?.accessToken;
   const controller = useMemo(() => {
+    // During construction these synchronous props identify the new controller;
+    // once initialized, requests must also match the active controller instance.
+    let initializing = true;
     const next: CommunityProfileController = new CommunityProfileController({
       client,
       birthYear,
       now,
       autoLoad: false,
       principalKey,
-      isCurrentPrincipal: (): boolean => currentController.current === next,
+      accessToken,
+      isCurrentPrincipal: (): boolean =>
+        initializing || currentController.current === next,
     });
+    initializing = false;
     return next;
-  }, [client, birthYear, now, principalKey]);
+  }, [client, birthYear, now, principalKey, accessToken]);
   currentController.current = controller;
 
   useEffect(() => {

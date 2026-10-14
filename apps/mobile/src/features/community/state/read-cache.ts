@@ -123,6 +123,7 @@ function isRead(options: RequestOptions): boolean {
 type Entry = {
   value: unknown;
   expiresAt: number;
+  epoch: number;
   schema: RequestOptions["schema"];
   timer: ReturnType<typeof setTimeout>;
 };
@@ -134,10 +135,41 @@ type Pending = {
   schema: RequestOptions["schema"];
 };
 
+export type CommunityReadPrincipal = {
+  readonly user: { readonly id: string };
+  readonly accessToken: string;
+};
+
+/** Only the Community cache can supply a synchronously authorized response. */
+export function peekCommunityRead<T>(
+  client: ApiClient,
+  options: RequestOptions,
+  session: CommunityReadPrincipal | null,
+): T | undefined {
+  return client instanceof CommunityReadCache
+    ? client.peek<T>(options, session)
+    : undefined;
+}
+
+/** Cache fills wake mounted, untouched controllers without renewing authority. */
+export function subscribeCommunityReadFills(
+  client: ApiClient,
+  listener: () => void,
+): () => void {
+  return client instanceof CommunityReadCache
+    ? client.subscribeFills(listener)
+    : () => undefined;
+}
+
 /** Bounded foreground memory, owned by the mobile composition, never disk. */
 export class CommunityReadCache implements ApiClient {
   readonly getMealIllustrationCapability?: ApiClient["getMealIllustrationCapability"];
   readonly ensureMealIllustration?: ApiClient["ensureMealIllustration"];
+  readonly getMealRecipeSessionContext?: ApiClient["getMealRecipeSessionContext"];
+  readonly revalidateMealRecipes?: ApiClient["revalidateMealRecipes"];
+  readonly getMealRecipeCapabilities?: ApiClient["getMealRecipeCapabilities"];
+  readonly suggestMealRecipes?: ApiClient["suggestMealRecipes"];
+  readonly recognizeMealRecipeIngredients?: ApiClient["recognizeMealRecipeIngredients"];
   readonly draftFoodEntry?: ApiClient["draftFoodEntry"];
   readonly draftCoachMealPhoto?: ApiClient["draftCoachMealPhoto"];
   private entries = new Map<string, Entry>();
@@ -147,6 +179,13 @@ export class CommunityReadCache implements ApiClient {
   private token: string | null = null;
   private revision = 0;
   private writes = 0;
+  private day = new Date().toDateString();
+  private fillListeners = new Set<() => void>();
+
+  subscribeFills(listener: () => void): () => void {
+    this.fillListeners.add(listener);
+    return () => this.fillListeners.delete(listener);
+  }
 
   constructor(
     private raw: ApiClient,
@@ -156,6 +195,13 @@ export class CommunityReadCache implements ApiClient {
       raw.getMealIllustrationCapability?.bind(raw);
     this.ensureMealIllustration = raw.ensureMealIllustration?.bind(raw);
     stores.add(this);
+    this.getMealRecipeSessionContext =
+      raw.getMealRecipeSessionContext?.bind(raw);
+    this.revalidateMealRecipes = raw.revalidateMealRecipes?.bind(raw);
+    this.getMealRecipeCapabilities = raw.getMealRecipeCapabilities?.bind(raw);
+    this.suggestMealRecipes = raw.suggestMealRecipes?.bind(raw);
+    this.recognizeMealRecipeIngredients =
+      raw.recognizeMealRecipeIngredients?.bind(raw);
     this.draftFoodEntry = raw.draftFoodEntry?.bind(raw);
     this.draftCoachMealPhoto = raw.draftCoachMealPhoto?.bind(raw);
   }
@@ -186,13 +232,55 @@ export class CommunityReadCache implements ApiClient {
   }
   dispose(): void {
     this.clear();
+    this.fillListeners.clear();
     stores.delete(this);
+  }
+
+  /** A render-time read preserves the server's original authorization deadline. */
+  peek<T>(
+    options: RequestOptions,
+    session: CommunityReadPrincipal | null,
+  ): T | undefined {
+    const key = readKey(options);
+    if (
+      !key ||
+      !session ||
+      !this.foreground ||
+      this.writes > 0 ||
+      this.day !== new Date().toDateString() ||
+      !options.expectedUserId ||
+      options.expectedUserId !== this.principal ||
+      session.user.id !== this.principal ||
+      session.accessToken !== this.token ||
+      options.isCurrent?.() === false
+    )
+      return undefined;
+    const entry = this.entries.get(key);
+    if (
+      !entry ||
+      entry.schema !== options.schema ||
+      entry.epoch !== navigationEpoch ||
+      entry.expiresAt <= Date.now()
+    )
+      return undefined;
+    const parsed = options.schema!.safeParse(entry.value);
+    if (!parsed.success) return undefined;
+    if (typeof parsed.data === "object" && parsed.data !== null) {
+      deadlines.set(parsed.data, entry.expiresAt);
+      responseEpochs.set(parsed.data, navigationEpoch);
+    }
+    return parsed.data as T;
   }
 
   async request<T>(options: RequestOptions): Promise<Result<T, ApiError>> {
     const current = () =>
       options.isCurrent?.() !== false && !options.signal?.aborted;
     if (!current()) return { ok: false, error: { kind: "context_changed" } };
+    const day = new Date().toDateString();
+    if (day !== this.day) {
+      this.clear();
+      this.day = day;
+    }
     const key = readKey(options);
     if (!isRead(options)) {
       this.clear();
@@ -250,6 +338,7 @@ export class CommunityReadCache implements ApiClient {
     const cached = this.entries.get(key);
     if (
       cached &&
+      cached.epoch === navigationEpoch &&
       cached.expiresAt > Date.now() &&
       cached.schema === options.schema
     ) {
@@ -334,8 +423,10 @@ export class CommunityReadCache implements ApiClient {
               value: parsed.data,
               schema: options.schema,
               expiresAt,
+              epoch: navigationEpoch,
               timer,
             });
+            for (const listener of this.fillListeners) listener();
           }
           return result;
         })

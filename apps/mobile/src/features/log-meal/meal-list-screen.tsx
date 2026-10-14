@@ -25,7 +25,14 @@ import {
   type Href,
 } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type SetStateAction,
+} from "react";
 import type { DailyFoodSummary, FoodEntry } from "@mizyun/contracts";
 
 import { ThemedText } from "@/components/themed-text";
@@ -34,6 +41,7 @@ import { TabHeader, useTabHeaderLayout } from "@/components/tab-header";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { analyticsClient } from "@/composition/analytics-client";
 import { isAutomaticallyLogged } from "@/features/recurring-meals/public-data";
+import { RecurringMealSuggestionCard } from "@/features/recurring-meals";
 import { getSessionReadVersion } from "@/composition/api-client";
 import { subscribeSessionReadUpdates } from "@/composition/personal-read-events";
 import { useAuth } from "@/features/auth/auth-context";
@@ -58,6 +66,7 @@ import {
   deleteFoodEntry,
   fetchFoodHistory,
   fetchFoodDateHistory,
+  readFoodHistorySnapshot,
   formFromEntry,
   groupFoodEntries,
   groupFoodEntriesByDay,
@@ -69,6 +78,7 @@ import {
   type DayGroupSummary,
   type DayMealCluster,
   type FoodDayGroup,
+  type FoodHistoryResult,
 } from "./meal-lifecycle-data";
 import {
   extractGramsFromName,
@@ -156,6 +166,17 @@ interface PortionModalState {
   readonly baseGrams: number | null;
 }
 
+const stateFromHistory = (result: FoodHistoryResult | null): MealListState =>
+  result
+    ? {
+        ...INITIAL_STATE,
+        ...result,
+        loading: false,
+        nextCursor: result.nextCursor ?? null,
+        cutoffDateIsPartial: result.cutoffDateIsPartial ?? false,
+      }
+    : INITIAL_STATE;
+
 export function MealListScreen() {
   const { headerHeight, onHeaderLayout } = useTabHeaderLayout();
   const theme = useTheme();
@@ -171,14 +192,27 @@ export function MealListScreen() {
   const [visibleAdvancedFields, setVisibleAdvancedFields] = useState<string[]>(
     ADVANCED_DISPLAY_FIELDS.map(({ key }) => key),
   );
-  const [weeklySummaries, setWeeklySummaries] =
+  const [storedWeeklySummaries, setWeeklySummaries] =
     useState<ReadonlyArray<DailyFoodSummary> | null>(null);
   const userId = session?.user?.id ?? null;
   const ownerKey = `${userId ?? ""}:${session?.accessToken ?? ""}`;
+  const [prefetchRevision, setPrefetchRevision] = useState(0);
+  useEffect(
+    () =>
+      subscribeSessionReadUpdates(() =>
+        setPrefetchRevision((value) => value + 1),
+      ),
+    [],
+  );
+  const readVersion = getSessionReadVersion();
+  const initialHistory = useMemo(
+    () => readFoodHistorySnapshot(session),
+    [ownerKey, prefetchRevision, readVersion],
+  );
   const currentOwner = useRef(ownerKey);
   currentOwner.current = ownerKey;
   const requestVersion = useRef(0);
-  const loaded = useRef(false);
+  const loaded = useRef(initialHistory !== null);
   const paginationPending = useRef(false);
   const historyReadPending = useRef(false);
   const addMealDate = useRef<string | null>(null);
@@ -187,43 +221,77 @@ export function MealListScreen() {
   );
   useEffect(() => setWeeklySummaries(null), [userId]);
   const params = useLocalSearchParams<{ source?: string }>();
-  const [state, setState] = useState<MealListState>(INITIAL_STATE);
+  const [storedState, setStoredState] = useState(() => ({
+    ...stateFromHistory(initialHistory),
+    ownerKey,
+  }));
+  const ownsDisplay = storedState.ownerKey === ownerKey;
+  const weeklySummaries = ownsDisplay ? storedWeeklySummaries : null;
+  const state =
+    storedState.ownerKey === ownerKey &&
+    (loaded.current || initialHistory === null)
+      ? storedState
+      : stateFromHistory(initialHistory);
+  const setState = useCallback(
+    (next: SetStateAction<MealListState>) => {
+      setStoredState((current) => ({
+        ...(typeof next === "function"
+          ? next(
+              current.ownerKey === ownerKey
+                ? current
+                : stateFromHistory(initialHistory),
+            )
+          : next),
+        ownerKey,
+      }));
+    },
+    [ownerKey, initialHistory],
+  );
   const [dismissEveningBanner, setDismissEveningBanner] = useState(false);
   const [busyEntryId, setBusyEntryId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [storedSearchQuery, setSearchQuery] = useState("");
   const [searchAttempt, setSearchAttempt] = useState(0);
   const searchSessionIdRef = useRef(0);
   const searchPaginationPending = useRef<number | null>(null);
 
   // Grouping selection state
-  const [groupingDate, setGroupingDate] = useState<string | null>(null);
-  const [selectedEntryIds, setSelectedEntryIds] = useState<Set<string>>(
+  const [storedGroupingDate, setGroupingDate] = useState<string | null>(null);
+  const [storedSelectedEntryIds, setSelectedEntryIds] = useState<Set<string>>(
     new Set(),
   );
-  const [showGroupModal, setShowGroupModal] = useState(false);
+  const [storedShowGroupModal, setShowGroupModal] = useState(false);
   const [groupModalName, setGroupModalName] = useState("Breakfast");
 
   // Rename group state
-  const [renameTarget, setRenameTarget] = useState<DayMealCluster | null>(null);
+  const [storedRenameTarget, setRenameTarget] = useState<DayMealCluster | null>(
+    null,
+  );
   const [renameNewName, setRenameNewName] = useState("");
 
   // Portion adjusting modal state
-  const [portionTarget, setPortionTarget] = useState<PortionModalState | null>(
-    null,
-  );
+  const [storedPortionTarget, setPortionTarget] =
+    useState<PortionModalState | null>(null);
 
-  const [serverSearch, setServerSearch] = useState<MealSearchState | null>(
-    null,
-  );
+  const [storedServerSearch, setServerSearch] =
+    useState<MealSearchState | null>(null);
 
+  const searchQuery = ownsDisplay ? storedSearchQuery : "";
+  const groupingDate = ownsDisplay ? storedGroupingDate : null;
+  const selectedEntryIds = ownsDisplay
+    ? storedSelectedEntryIds
+    : new Set<string>();
+  const showGroupModal = ownsDisplay ? storedShowGroupModal : false;
+  const renameTarget = ownsDisplay ? storedRenameTarget : null;
+  const portionTarget = ownsDisplay ? storedPortionTarget : null;
+  const serverSearch = ownsDisplay ? storedServerSearch : null;
   useEffect(() => {
     requestVersion.current += 1;
-    loaded.current = false;
+    loaded.current = initialHistory !== null;
     paginationPending.current = false;
     historyReadPending.current = false;
     lastLoad.current = null;
     addMealDate.current = null;
-    setState(INITIAL_STATE);
+    setState(stateFromHistory(initialHistory));
     setServerSearch(null);
     setSearchQuery("");
     setBusyEntryId(null);
@@ -609,6 +677,7 @@ export function MealListScreen() {
       const includeAdvanced = await advancedCapability.refresh();
       if (requestOwner !== currentOwner.current) return;
       const result = await copyFoodEntry(entry, includeAdvanced, {
+        isCurrent: () => requestOwner === currentOwner.current,
         expectedUserId: userId,
       });
       if (requestOwner !== currentOwner.current) return;
@@ -622,6 +691,8 @@ export function MealListScreen() {
       );
       if (requestOwner !== currentOwner.current) return;
       await refreshAfterMutation();
+      if (requestOwner === currentOwner.current && result.message)
+        setState((current) => ({ ...current, message: result.message! }));
     },
     [refreshAfterMutation, advancedCapability, ownerKey, userId],
   );
@@ -897,6 +968,22 @@ export function MealListScreen() {
           >
             <ThemedText type="smallBold">Recurring meals</ThemedText>
           </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="What can I cook?"
+            onPress={() => router.push("/meal-recipes" as Href)}
+            style={styles.inlineButton}
+          >
+            <ThemedText type="smallBold">What can I cook?</ThemedText>
+          </Pressable>
+
+          <RecurringMealSuggestionCard
+            userId={userId}
+            hidden={
+              showGroupModal || renameTarget !== null || portionTarget !== null
+            }
+          />
 
           {/* Primary Action Card: Log a Meal */}
           <Pressable

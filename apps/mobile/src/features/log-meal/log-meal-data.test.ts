@@ -1,6 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { ApiClient, ApiError, RequestOptions } from "@mizyun/api-client";
+import {
+  HttpApiClient,
+  type ApiClient,
+  type ApiError,
+  type RequestOptions,
+} from "@mizyun/api-client";
+import {
+  DisabledAuthClient,
+  type AuthClient,
+  type AuthSession,
+} from "@mizyun/identity";
 import type { Result } from "@mizyun/core";
 
 import { refineMealDraftWith, submitLogMealWith } from "./log-meal-data";
@@ -49,6 +59,133 @@ const fakeClient = (
 });
 
 describe("submitLogMealWith", () => {
+  const scopedForm = {
+    clientOperationId: "00000000-0000-4000-8000-000000000005",
+    name: "Reviewed serving",
+    caloriesKcal: 200,
+    proteinG: 5,
+    carbohydrateG: 30,
+    fatG: 4,
+    consumedAt: NOW.toISOString(),
+    details: { grams: 170, mealDescription: "Reviewed assumption" },
+  };
+  const scopedResponse = {
+    foodEntry: {
+      ...scopedForm,
+      id: "00000000-0000-4000-8000-000000000001",
+      userId: "owner-a",
+      source: "manual",
+      confidence: null,
+      confirmedByUser: true,
+      createdAt: NOW.toISOString(),
+      updatedAt: NOW.toISOString(),
+    },
+  };
+
+  it("binds a frozen Save to its originating owner across real HTTP token acquisition", async () => {
+    let acquired!: (session: AuthSession) => void;
+    const auth: AuthClient = new DisabledAuthClient();
+    vi.spyOn(auth, "getSession").mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          acquired = resolve;
+        }),
+    );
+    const rowsForNextOwner: unknown[] = [];
+    const fetcher = vi.fn(async (_url: unknown, init?: RequestInit) => {
+      rowsForNextOwner.push(init?.body);
+      return new Response(JSON.stringify(scopedResponse), { status: 200 });
+    });
+    const client = new HttpApiClient({
+      baseUrl: "https://example.test",
+      authClient: auth,
+      fetch: fetcher,
+    });
+    const afterSave = vi.fn();
+    const result = submitLogMealWith(scopedForm, client, () => NOW, afterSave, {
+      expectedUserId: "owner-a",
+      isCurrent: () => true,
+    });
+    acquired({
+      user: { id: "owner-b" as never },
+      accessToken: "owner-b-token",
+    });
+    const completed = await result;
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(rowsForNextOwner).toEqual([]);
+    expect(completed).toEqual({
+      ok: false,
+      message:
+        "This save is no longer current. Reopen the meal before continuing.",
+    });
+    expect(afterSave).not.toHaveBeenCalled();
+  });
+
+  it("retires same-owner Save before HTTP dispatch when the screen token scope changes", async () => {
+    let acquired!: (session: AuthSession) => void;
+    let currentToken = "old-token";
+    const auth: AuthClient = new DisabledAuthClient();
+    vi.spyOn(auth, "getSession").mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          acquired = resolve;
+        }),
+    );
+    const fetcher = vi.fn();
+    const client = new HttpApiClient({
+      baseUrl: "https://example.test",
+      authClient: auth,
+      fetch: fetcher,
+    });
+    const afterSave = vi.fn();
+    const result = submitLogMealWith(scopedForm, client, () => NOW, afterSave, {
+      expectedUserId: "owner-a",
+      isCurrent: () => currentToken === "old-token",
+    });
+    currentToken = "new-token";
+    acquired({ user: { id: "owner-a" as never }, accessToken: currentToken });
+    expect((await result).ok).toBe(false);
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(afterSave).not.toHaveBeenCalled();
+  });
+
+  it("does not dispatch an already retired scope", async () => {
+    const requests: RequestOptions[] = [];
+    const afterSave = vi.fn();
+    expect(
+      (
+        await submitLogMealWith(
+          scopedForm,
+          fakeClient({ ok: true, value: scopedResponse }, requests),
+          () => NOW,
+          afterSave,
+          { expectedUserId: "owner-a", isCurrent: () => false },
+        )
+      ).ok,
+    ).toBe(false);
+    expect(requests).toEqual([]);
+    expect(afterSave).not.toHaveBeenCalled();
+  });
+
+  it("suppresses health export and success after a dispatched Save scope retires", async () => {
+    let resolve!: (value: Result<unknown, ApiError>) => void;
+    let current = true;
+    const client = fakeClient({ ok: true, value: scopedResponse });
+    client.request = () =>
+      new Promise((done) => {
+        resolve = done;
+      }) as never;
+    const afterSave = vi.fn();
+    const result = submitLogMealWith(scopedForm, client, () => NOW, afterSave, {
+      expectedUserId: "owner-a",
+      isCurrent: () => current,
+    });
+    current = false;
+    resolve({ ok: true, value: scopedResponse });
+    expect((await result).ok).toBe(false);
+    expect(afterSave).not.toHaveBeenCalled();
+  });
+
   it("rejects an empty name without calling the API", async () => {
     const requests: RequestOptions[] = [];
     const result = await submitLogMealWith(

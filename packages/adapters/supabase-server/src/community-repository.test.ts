@@ -468,7 +468,7 @@ describe("Community database operation boundaries", () => {
       community_publish_activity: { data: [activityRow], error: null },
     });
     const publication = {
-      sourceWorkoutId: activityRow.source_workout_id,
+      sourceWorkoutId: activityRow.source_workout_id!,
       category: "strength" as const,
       sharedDay: activityRow.shared_day,
       durationSeconds: activityRow.duration_seconds,
@@ -509,7 +509,7 @@ describe("Community database operation boundaries", () => {
       repository.publishActivity(
         callerId,
         {
-          sourceWorkoutId: activityRow.source_workout_id,
+          sourceWorkoutId: activityRow.source_workout_id!,
           category: "strength",
           sharedDay: activityRow.shared_day,
           durationSeconds: null,
@@ -840,5 +840,67 @@ describe("Bounded feed reaction reads", () => {
         accessToken: callerToken,
       }),
     ).rejects.toThrow("unavailable");
+  });
+});
+
+describe("Meal activity adapter", () => {
+  it("passes only the exact confirmed allowlist to the atomic publication RPC", async () => {
+    const mealDetails = {
+      name: "Rice bowl",
+      caloriesKcal: null,
+      proteinG: null,
+      carbsG: null,
+      fatG: null,
+    };
+    const row: SharedActivityRow = {
+      id: "a2380000-0000-4000-8000-000000000001",
+      user_id: "c2380000-0000-4000-8000-000000000001",
+      activity_kind: "meal",
+      source_workout_id: null,
+      source_meal_id: "d2380000-0000-4000-8000-000000000001",
+      meal_details: mealDetails,
+      category: "other",
+      shared_day: "2026-10-10",
+      duration_seconds: null,
+      version: 1,
+      published_at: "2026-10-10T12:00:00Z",
+      revoked_at: null,
+    };
+    const rpc = vi.fn().mockResolvedValue({ data: [row], error: null });
+    const clientFor = vi.fn(
+      () => ({ rpc }) as unknown as RepositorySupabaseClient,
+    );
+    const repo = new SupabaseCommunityRepository({ clientFor });
+    const result = await repo.publishMealActivity(
+      row.user_id as UserId,
+      {
+        sourceMealId: row.source_meal_id!,
+        enrollmentGeneration: 1,
+        operationId: row.id,
+        expectedVersion: 0,
+        expectedRevoked: false,
+        sharedDay: row.shared_day,
+        mealDetails,
+        currentSourceMealDetails: mealDetails,
+        currentSourceDay: row.shared_day,
+      },
+      { accessToken: "owner-token" },
+    );
+    expect(clientFor).toHaveBeenCalledWith("owner-token");
+    expect(rpc).toHaveBeenCalledExactlyOnceWith(
+      "community_publish_meal_activity",
+      {
+        p_source_meal_id: row.source_meal_id,
+        p_enrollment_generation: 1,
+        p_operation_id: row.id,
+        p_expected_version: 0,
+        p_expected_revoked: false,
+        p_shared_day: row.shared_day,
+        p_meal_details: mealDetails,
+      },
+    );
+    expect(result.activityKind).toBe("meal");
+    expect(result.sourceWorkoutId).toBeNull();
+    expect(result.mealDetails).toEqual(mealDetails);
   });
 });

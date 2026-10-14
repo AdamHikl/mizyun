@@ -791,3 +791,81 @@ describe("complete running week", () => {
     expect(result.week.incomplete).toBe(true);
   });
 });
+
+describe("synchronous warmed workout projection", () => {
+  const session = {
+    user: { id: "owner" },
+    accessToken: "token",
+  } as import("@mizyun/identity").AuthSession;
+  const fixture = (options: { path: string }) => {
+    if (options.path.startsWith("/v1/runs"))
+      return { ok: true, value: { runs: [], nextCursor: null } };
+    if (options.path.startsWith("/v1/exercises"))
+      return { ok: true, value: { exercises: [] } };
+    if (options.path.endsWith("/sets"))
+      return { ok: true, value: { workoutSets: [] } };
+    return { ok: true, value: { workouts: [] } };
+  };
+  it("uses the same complete empty projection and request identities as async startup", async () => {
+    const { peekWorkoutsHubData } = await import("./workouts-hub-data");
+    const request = vi.fn(async (options) => fixture(options));
+    const read = vi.fn((options, owner) => {
+      expect(owner).toBe(session);
+      return fixture(options);
+    });
+    const live = await fetchWorkoutsHubData({
+      request,
+    } as unknown as ApiClient);
+    const warm = peekWorkoutsHubData(session, read as any);
+    expect(warm).toEqual(live);
+    expect(warm?.message).toBeNull();
+    expect(read.mock.calls.map(([options]) => options.path).sort()).toEqual(
+      request.mock.calls.map(([options]) => options.path).sort(),
+    );
+  });
+  it.each(["workouts", "routine", "exercises", "running-week"])(
+    "requires the cached %s read before declaring the hub loaded",
+    async (missing) => {
+      const { peekWorkoutsHubData } = await import("./workouts-hub-data");
+      const read = vi.fn((options) => {
+        if (
+          (missing === "workouts" &&
+            options.path === "/v1/workouts?limit=200") ||
+          (missing === "routine" && options.path.includes("kind=routine")) ||
+          (missing === "exercises" &&
+            options.path.startsWith("/v1/exercises")) ||
+          (missing === "running-week" && options.path.includes("&from="))
+        )
+          return null;
+        return fixture(options);
+      });
+      expect(peekWorkoutsHubData(session, read as any)).toBeNull();
+    },
+  );
+  it("requires every session's set read rather than displaying unconfirmed empty sets", async () => {
+    const { peekWorkoutsHubData } = await import("./workouts-hub-data");
+    const workout = {
+      id: "warm-session",
+      userId: "owner",
+      name: "Workout",
+      startedAt: "2026-10-12T10:00:00Z",
+      completedAt: "2026-10-12T11:00:00Z",
+      details: {},
+      notes: null,
+      source: "manual",
+      createdAt: "2026-10-12T10:00:00Z",
+      updatedAt: "2026-10-12T11:00:00Z",
+    };
+    const read = vi.fn((options) => {
+      if (options.path.endsWith("/sets")) return null;
+      if (options.path === "/v1/workouts?limit=200")
+        return { ok: true, value: { workouts: [workout] } };
+      return fixture(options);
+    });
+    expect(peekWorkoutsHubData(session, read as any)).toBeNull();
+    expect(read).toHaveBeenCalledWith(
+      expect.objectContaining({ path: "/v1/workouts/warm-session/sets" }),
+      session,
+    );
+  });
+});

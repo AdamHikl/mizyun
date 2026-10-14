@@ -23,8 +23,10 @@ import {
   parseCommunityInvitationLink,
 } from "@/features/community";
 import { analyticsClient } from "@/composition/analytics-client";
+import { AnalyticsConsentReminderBridge } from "@/composition/analytics-consent-reminder-bridge";
 import { apiClient, apiConfiguration } from "@/composition/api-client";
 import { HealthExportSessionBridge } from "@/composition/health-export-session-bridge";
+import { RecipeSessionPruneBridge } from "@/features/meal-recipes";
 import { StartupDataBridge } from "@/composition/startup-data-bridge";
 import { MealNotificationRouter } from "@/features/log-meal/meal-notification-router";
 import { FirstMealReminderSessionBridge } from "@/composition/first-meal-reminder-session-bridge";
@@ -293,6 +295,7 @@ function TabLayoutContent() {
         <FirstMealReminderSessionBridge />
         <SessionGate>
           <StartupDataBridge />
+          <RecipeSessionPruneBridge />
           <HealthExportSessionBridge />
           <PushRegistrationBridge />
           <CommunityNotificationBridge />
@@ -300,8 +303,13 @@ function TabLayoutContent() {
           <WorkoutNotificationBridge />
           <MealNotificationBridge />
           <ActiveWorkoutProvider>
+            <AnalyticsConsentReminderBridge />
             <Stack screenOptions={{ headerBackTitle: "Back" }}>
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen
+                name="meal-recipes"
+                options={{ title: "What can I cook?" }}
+              />
               <Stack.Screen
                 name="log-meal"
                 options={{ title: "Log a meal", presentation: "modal" }}

@@ -1,3 +1,5 @@
+import { retireIngredientReviews } from "@/features/meal-recipes/public-data";
+import { setRecurringSuggestionOwner } from "@/features/recurring-meals/public-data";
 import { deregisterCommunityPush } from "@/features/community/push";
 import type { Profile } from "@mizyun/contracts";
 import type { UserId } from "@mizyun/core";
@@ -153,6 +155,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         nextSession?.accessToken ?? null,
       );
       const previousPushSession = pushSession.current;
+      setRecurringSuggestionOwner(
+        nextSession && nextSession.accessToken !== "preview-token"
+          ? nextSession.user.id
+          : null,
+      );
       pushSession.current = nextSession;
       if (
         previousPushSession?.user.id !== nextSession?.user.id ||
@@ -179,6 +186,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         previousPushSession.user.id !== nextSession?.user.id
       )
         void deregisterCommunityPush(previousPushSession);
+      if (
+        previousPushSession &&
+        previousPushSession.user.id !== nextSession?.user.id
+      )
+        void retireIngredientReviews(previousPushSession.user.id, "account");
       const requestVersion = ++profileRequestVersion.current;
       // Queue the identity boundary before any new consent sync or UI capture.
       // Analytics serializes these operations; authentication never waits on it.
@@ -320,6 +332,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [applySession]);
 
   const signOut = useCallback(async () => {
+    const captured = session;
+    if (
+      captured &&
+      pushSession.current?.user.id === captured.user.id &&
+      pushSession.current.accessToken === captured.accessToken
+    ) {
+      // Retire authority before asynchronous logout cleanup. A rerender must
+      // not activate another controller for the departing session.
+      setRecurringSuggestionOwner(null);
+      void retireIngredientReviews(captured.user.id, "account");
+    }
     invalidateCommunityReads();
     await signOutCapturedSession(session, {
       current: () => pushSession.current,

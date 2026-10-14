@@ -291,7 +291,7 @@ export function ReportModal({
                   style={[styles.infoText, { color: colors.textSecondary }]}
                 >
                   • You have blocked {targetLabel}. They cannot view your
-                  profile or workouts.
+                  profile or shared activities.
                 </Text>
               ) : null}
               {alsoBlock && !blocked && (
@@ -527,7 +527,8 @@ export function ReportModal({
                     style={[styles.blockDesc, { color: colors.textSecondary }]}
                   >
                     You will lose mutual follow connections. Neither of you will
-                    be able to see each other&apos;s profile or workouts.
+                    be able to see each other&apos;s profile or shared
+                    activities.
                   </Text>
                 </View>
               </Pressable>

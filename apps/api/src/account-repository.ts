@@ -1,4 +1,7 @@
-import type { MealIllustrationRepository } from "@mizyun/core";
+import type {
+  MealIllustrationRepository,
+  RecipeRequestLedger,
+} from "@mizyun/core";
 import crypto from "node:crypto";
 
 import {
@@ -17,6 +20,7 @@ import {
   type FeedbackRepository,
   type FoodEntryRepository,
   type RecurringMealRepository,
+  type RecurringMealSuggestionRepository,
   type RunRepository,
   type GoalRepository,
   type MediaAssetRepository,
@@ -45,10 +49,12 @@ const hashToken = (token: string): string =>
 
 export interface InMemoryAccountRepositoryOptions {
   readonly mealIllustrationRepository?: MealIllustrationRepository;
+  readonly recipeRequestLedger?: RecipeRequestLedger;
   readonly profileRepository: ProfileRepository;
   readonly goalRepository: GoalRepository;
   readonly foodEntryRepository: FoodEntryRepository;
   readonly recurringMealRepository?: RecurringMealRepository;
+  readonly recurringMealSuggestionRepository?: RecurringMealSuggestionRepository;
   readonly exerciseRepository: ExerciseRepository;
   readonly workoutRepository: WorkoutRepository;
   readonly runRepository?: RunRepository;
@@ -71,10 +77,12 @@ export interface InMemoryAccountRepositoryOptions {
 
 export class InMemoryAccountRepository implements AccountRepository {
   readonly #mealIllustrationRepository: MealIllustrationRepository | null;
+  readonly #recipeRequestLedger: RecipeRequestLedger | null;
   readonly #profileRepository: ProfileRepository;
   readonly #goalRepository: GoalRepository;
   readonly #foodEntryRepository: FoodEntryRepository;
   readonly #recurringMealRepository: RecurringMealRepository | null;
+  readonly #recurringMealSuggestionRepository: RecurringMealSuggestionRepository | null;
   readonly #exerciseRepository: ExerciseRepository;
   readonly #workoutRepository: WorkoutRepository;
   readonly #runRepository: RunRepository | null;
@@ -91,12 +99,15 @@ export class InMemoryAccountRepository implements AccountRepository {
   readonly #jobs: StoredDeletionJob[] = [];
 
   constructor(options: InMemoryAccountRepositoryOptions) {
+    this.#recipeRequestLedger = options.recipeRequestLedger ?? null;
     this.#mealIllustrationRepository =
       options.mealIllustrationRepository ?? null;
     this.#profileRepository = options.profileRepository;
     this.#goalRepository = options.goalRepository;
     this.#foodEntryRepository = options.foodEntryRepository;
     this.#recurringMealRepository = options.recurringMealRepository ?? null;
+    this.#recurringMealSuggestionRepository =
+      options.recurringMealSuggestionRepository ?? null;
     this.#exerciseRepository = options.exerciseRepository;
     this.#workoutRepository = options.workoutRepository;
     this.#runRepository = options.runRepository ?? null;
@@ -273,6 +284,12 @@ export class InMemoryAccountRepository implements AccountRepository {
 
     return {
       manifest,
+      ...(this.#recipeRequestLedger
+        ? {
+            recipeRequests:
+              await this.#recipeRequestLedger.exportUsageForUser(userId),
+          }
+        : {}),
       ...(this.#mealIllustrationRepository
         ? {
             mealIllustrationUsage:
@@ -295,10 +312,25 @@ export class InMemoryAccountRepository implements AccountRepository {
         : {}),
       ...(this.#recurringMealRepository?.exportForUser
         ? {
-            recurringMeals: await this.#recurringMealRepository.exportForUser(
-              userId,
-              { accessToken: token },
-            ),
+            recurringMeals: await this.#recurringMealRepository
+              .exportForUser(userId, { accessToken: token })
+              .then(async (recurring) => {
+                const suggestions =
+                  await this.#recurringMealSuggestionRepository?.exportForUser(
+                    userId,
+                    { accessToken: token },
+                  );
+                return {
+                  ...recurring,
+                  ...(suggestions
+                    ? {
+                        suggestionStates: suggestions.states,
+                        suggestionPreferences: suggestions.preferences,
+                        suggestionReceipts: suggestions.receipts,
+                      }
+                    : {}),
+                };
+              }),
           }
         : {}),
       userId,
@@ -544,8 +576,44 @@ export class InMemoryAccountRepository implements AccountRepository {
         leaseExpiresAt: new Date(options.now.getTime() + 120_000),
         updatedAt: options.now,
       };
-      await this.#mealIllustrationRepository?.deleteForUser(userId);
-      await sweepUserMedia();
+      try {
+        if (this.#recipeRequestLedger) {
+          const assertRecipeCleanupLease = () => {
+            const current = this.#jobs[jobIndex]!;
+            const now = this.#clock.now();
+            if (
+              current.workerId !== workerId ||
+              current.status !== "in_progress" ||
+              !current.leaseExpiresAt ||
+              current.leaseExpiresAt <= now
+            ) {
+              throw new Error("Deletion worker lease is unavailable");
+            }
+            this.#jobs[jobIndex] = {
+              ...current,
+              leaseExpiresAt: new Date(now.getTime() + 120_000),
+            };
+          };
+          assertRecipeCleanupLease();
+          await this.#recipeRequestLedger.deleteForUser(userId);
+          assertRecipeCleanupLease();
+        }
+        await this.#mealIllustrationRepository?.deleteForUser(userId);
+        await sweepUserMedia();
+      } catch {
+        const current = this.#jobs[jobIndex]!;
+        if (current.workerId === workerId && current.status === "in_progress") {
+          this.#jobs[jobIndex] = {
+            ...current,
+            status: "failed",
+            stage: "storage",
+            errorMessage: "Account deletion failed during storage cleanup",
+            leaseExpiresAt: null,
+            updatedAt: this.#clock.now(),
+          };
+        }
+        throw new Error("Account deletion failed during storage cleanup");
+      }
     }
 
     if (shouldRunMemory) {
@@ -616,6 +684,9 @@ export class InMemoryAccountRepository implements AccountRepository {
       from: null,
       to: null,
       limit: 10_000,
+      accessToken: token,
+    });
+    await this.#recurringMealSuggestionRepository?.clearForUser(userId, {
       accessToken: token,
     });
     await this.#recurringMealRepository?.clearForUser?.(userId, {

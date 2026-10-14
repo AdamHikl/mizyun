@@ -100,6 +100,14 @@ const accountExportToWire = (
           }
         : undefined,
       community: exportDoc.community,
+      recipeRequests: exportDoc.recipeRequests?.map((record) => ({
+        requestId: record.requestId,
+        operation: record.operation,
+        status: record.status,
+        createdAt: record.createdAt,
+        budgetDay: record.budgetDay,
+        tokensCharged: record.tokensCharged,
+      })),
       mealIllustrations: exportDoc.mealIllustrations,
       mealIllustrationUsage: exportDoc.mealIllustrationUsage,
       mealImagePaths: exportDoc.mealImagePaths,

@@ -325,6 +325,17 @@ export const sharedWorkoutDetailsSchema = z
   );
 export type SharedWorkoutDetails = z.infer<typeof sharedWorkoutDetailsSchema>;
 
+export const sharedMealDetailsSchema = z
+  .object({
+    name: z.string().trim().min(1).max(200),
+    caloriesKcal: z.number().min(0).max(20000).nullable(),
+    proteinG: z.number().min(0).max(10000).nullable(),
+    carbsG: z.number().min(0).max(10000).nullable(),
+    fatG: z.number().min(0).max(10000).nullable(),
+  })
+  .strict();
+export type SharedMealDetails = z.infer<typeof sharedMealDetailsSchema>;
+
 export const publishWorkoutActivitySchema = z
   .object({
     workoutId: z.string().uuid(),
@@ -353,12 +364,30 @@ export type PublishWorkoutActivityInput = z.infer<
   typeof publishWorkoutActivitySchema
 >;
 
+export const publishMealActivitySchema = z
+  .object({
+    mealId: z.string().uuid(),
+    enrollmentGeneration: z.number().int().positive(),
+    operationId: z.string().uuid(),
+    expectedVersion: z.number().int().nonnegative().default(0),
+    expectedRevoked: z.boolean().default(false),
+    sharedDay: publishWorkoutActivitySchema.shape.sharedDay,
+    includeNutrition: z.boolean().default(false),
+    expectedMealDetails: sharedMealDetailsSchema,
+  })
+  .strict();
+export type PublishMealActivityInput = z.infer<
+  typeof publishMealActivitySchema
+>;
+
 export const sharedActivityFeedItemDtoSchema = z.object({
   id: z.string().uuid(),
   authorUserId: z.string().uuid(),
   authorHandle: z.string(),
   authorDisplayName: z.string(),
   authorAvatarSymbol: z.string(),
+  activityKind: z.enum(["workout", "meal"]).default("workout"),
+  mealDetails: sharedMealDetailsSchema.nullable().default(null),
   category: workoutCategorySchema,
   sharedDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   durationSeconds: z.number().int().nonnegative().nullable(),
@@ -370,19 +399,29 @@ export const sharedActivityFeedItemDtoSchema = z.object({
   ),
   viewerReaction: communityReactionKindSchema.nullable(),
 });
-export type SharedActivityFeedItemDto = z.infer<
-  typeof sharedActivityFeedItemDtoSchema
->;
+export type SharedActivityFeedItemDto = Omit<
+  z.infer<typeof sharedActivityFeedItemDtoSchema>,
+  "activityKind" | "mealDetails"
+> & {
+  activityKind?: "workout" | "meal";
+  mealDetails?: SharedMealDetails | null;
+};
 
 export const authorSharedActivityDtoSchema =
   sharedActivityFeedItemDtoSchema.extend({
-    sourceWorkoutId: z.string().uuid(),
+    sourceWorkoutId: z.string().uuid().nullable().default(null),
+    sourceMealId: z.string().uuid().nullable().default(null),
     version: z.number().int().positive(),
     revokedAt: z.string().datetime().nullable(),
   });
-export type AuthorSharedActivityDto = z.infer<
-  typeof authorSharedActivityDtoSchema
->;
+export type AuthorSharedActivityDto = Omit<
+  z.infer<typeof authorSharedActivityDtoSchema>,
+  "activityKind" | "mealDetails" | "sourceMealId"
+> & {
+  activityKind?: "workout" | "meal";
+  mealDetails?: SharedMealDetails | null;
+  sourceMealId?: string | null;
+};
 
 export const setCommunityReactionSchema = z
   .object({
@@ -643,6 +682,16 @@ export const workoutSharePreviewDtoSchema = z.object({
 export type WorkoutSharePreviewDto = z.infer<
   typeof workoutSharePreviewDtoSchema
 >;
+
+export const mealSharePreviewDtoSchema = z.object({
+  mealId: z.string().uuid(),
+  enrollmentGeneration: z.number().int().positive(),
+  existingActivity: authorSharedActivityDtoSchema.nullable(),
+  sharedDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  mealDetails: sharedMealDetailsSchema,
+  followerCount: z.number().int().nonnegative(),
+});
+export type MealSharePreviewDto = z.infer<typeof mealSharePreviewDtoSchema>;
 
 export const withdrawCommunityResponseSchema = z.object({
   withdrawn: z.boolean(),

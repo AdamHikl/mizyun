@@ -1,3 +1,4 @@
+import type { MealRecipeSessionApi } from "./meal-recipe-session-api";
 import { err, type Result } from "@mizyun/core";
 import type {
   CoachMessageResponse,
@@ -6,6 +7,7 @@ import type {
   MealIllustrationCapability,
 } from "@mizyun/contracts";
 
+import type { MealRecipeApi } from "./meal-recipe-api";
 import type { ApiClient } from "./api-client";
 import type { ApiConfigurationStatus, ApiError, RequestOptions } from "./types";
 
@@ -21,6 +23,17 @@ const REASON = "Mizyun API base URL has not been provided.";
  * never touches `fetch` or `authClient`.
  */
 export class DisabledApiClient implements ApiClient {
+  readonly getMealRecipeSessionContext: MealRecipeSessionApi["context"] =
+    async () => err({ kind: "not_configured", reason: REASON });
+  readonly revalidateMealRecipes: MealRecipeSessionApi["revalidate"] =
+    async () => err({ kind: "not_configured", reason: REASON });
+  readonly getMealRecipeCapabilities: MealRecipeApi["capabilities"] =
+    async () => err({ kind: "not_configured", reason: REASON });
+  readonly suggestMealRecipes: MealRecipeApi["suggest"] = async () =>
+    err({ kind: "not_configured", reason: REASON });
+  readonly recognizeMealRecipeIngredients: MealRecipeApi["recognizeIngredients"] =
+    async () => err({ kind: "not_configured", reason: REASON });
+
   status(): ApiConfigurationStatus {
     return { configured: false, reason: REASON };
   }

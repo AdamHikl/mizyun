@@ -17,6 +17,7 @@ import {
   type StoredModerationAppeal,
   type StoredSharedActivity,
   type SharedWorkoutDetails,
+  type MealActivityPublication,
   type UserId,
   type WorkoutCategory,
 } from "@mizyun/core";
@@ -1076,6 +1077,107 @@ export class InMemoryCommunityRepository implements CommunityRepository {
     return null;
   }
 
+  async getActivityByMealId(
+    mealId: string,
+    authorUserId: UserId,
+    _options?: { readonly accessToken?: string },
+  ): Promise<StoredSharedActivity | null> {
+    return (
+      [...this.#activities.values()].find(
+        (a) => a.sourceMealId === mealId && a.userId === authorUserId,
+      ) ?? null
+    );
+  }
+
+  async publishMealActivity(
+    userId: UserId,
+    activity: MealActivityPublication,
+    _options?: { readonly accessToken?: string },
+  ): Promise<StoredSharedActivity> {
+    const profile = this.#requireActive(userId);
+    if (profile.generation !== activity.enrollmentGeneration)
+      throw new CommunityMutationError("conflict");
+    const operationKey = `${userId}:${activity.operationId}`;
+    const { currentSourceMealDetails, currentSourceDay, ...confirmation } =
+      activity;
+    const fingerprint = JSON.stringify({
+      activityKind: "meal",
+      ...confirmation,
+    });
+    const operation = this.#publicationOperations.get(operationKey);
+    if (operation) {
+      const previous = this.#activities.get(operation.activityId);
+      if (
+        operation.fingerprint !== fingerprint ||
+        !previous ||
+        previous.revokedAt ||
+        previous.version !== operation.version
+      )
+        throw new CommunityMutationError("conflict");
+      return previous;
+    }
+    if (
+      JSON.stringify(activity.mealDetails) !==
+        JSON.stringify(currentSourceMealDetails) ||
+      Math.abs(
+        Date.parse(`${activity.sharedDay}T00:00:00Z`) -
+          Date.parse(`${currentSourceDay}T00:00:00Z`),
+      ) > 86400000 ||
+      activity.sharedDay >
+        new Date(Date.now() + 86400000).toISOString().slice(0, 10)
+    )
+      throw new CommunityMutationError("conflict");
+    const existing = await this.getActivityByMealId(
+      activity.sourceMealId,
+      userId,
+    );
+    if (
+      (existing?.version ?? 0) !== activity.expectedVersion ||
+      (existing?.revokedAt != null) !== activity.expectedRevoked
+    )
+      throw new CommunityMutationError("conflict");
+    this.#consumePublication(userId);
+    if (existing) this.#purgeReactions(existing.id);
+    const shared: StoredSharedActivity = {
+      id: existing?.id ?? crypto.randomUUID(),
+      userId,
+      activityKind: "meal",
+      sourceWorkoutId: null,
+      sourceMealId: activity.sourceMealId,
+      category: "other",
+      sharedDay: activity.sharedDay,
+      durationSeconds: null,
+      workoutDetails: null,
+      mealDetails: activity.mealDetails,
+      version: (existing?.version ?? 0) + 1,
+      revokedAt: null,
+      publishedAt:
+        existing && !existing.revokedAt ? existing.publishedAt : new Date(),
+    };
+    this.#activities.set(shared.id, shared);
+    this.#publicationOperations.set(operationKey, {
+      fingerprint,
+      activityId: shared.id,
+      version: shared.version,
+    });
+    return shared;
+  }
+
+  async revokeActivitiesForMeal(
+    mealId: string,
+    authorUserId: UserId,
+    _options?: { readonly accessToken?: string },
+  ): Promise<void> {
+    for (const [id, act] of this.#activities)
+      if (act.sourceMealId === mealId && act.userId === authorUserId) {
+        this.#purgeReactions(id);
+        this.#activities.set(id, {
+          ...act,
+          revokedAt: act.revokedAt ?? new Date(),
+        });
+      }
+  }
+
   async publishActivity(
     userId: UserId,
     activity: {
@@ -1221,6 +1323,8 @@ export class InMemoryCommunityRepository implements CommunityRepository {
     if (!act || act.userId !== authorUserId || act.revokedAt) {
       throw new CommunityMutationError("unavailable");
     }
+    if (act.activityKind === "meal")
+      throw new CommunityMutationError("conflict");
     if (act.version !== (updates.expectedVersion ?? 1))
       throw new CommunityMutationError("conflict");
     if (
@@ -1336,6 +1440,7 @@ export class InMemoryCommunityRepository implements CommunityRepository {
           candidateActivities.push({
             ...act,
             sourceWorkoutId: "00000000-0000-0000-0000-000000000000",
+            sourceMealId: null,
           });
         }
       }

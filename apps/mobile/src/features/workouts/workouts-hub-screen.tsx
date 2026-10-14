@@ -38,6 +38,7 @@ import {
   createBlankWorkout,
   deleteWorkout,
   fetchWorkoutsHubData,
+  peekWorkoutsHubData,
   startRoutineSession,
   type ProcessedWorkout,
   type WorkoutsHubResult,
@@ -58,6 +59,18 @@ const INITIAL_DATA: WorkoutsHubResult = {
 };
 
 export function WorkoutsHubScreen() {
+  const [, redrawPrefetch] = useState(0);
+  useEffect(
+    () =>
+      subscribeSessionReadUpdates((path) => {
+        if (
+          path === "*" ||
+          /^\/v1\/(workouts|exercises|runs)([/?]|$)/.test(path)
+        )
+          redrawPrefetch((revision) => revision + 1);
+      }),
+    [],
+  );
   const params = useLocalSearchParams<{ runSaved?: string }>();
   const [historyFilter, setHistoryFilter] = useState<
     "all" | "strength" | "running"
@@ -74,34 +87,61 @@ export function WorkoutsHubScreen() {
   const unitSystem = profile?.unitSystem ?? "metric";
   const principal = session?.user.id ?? "";
   const owner = `${principal}:${session?.accessToken ?? ""}`;
+  const warmData = peekWorkoutsHubData(session);
   const [ownedData, setOwnedData] = useState<{
     owner: string;
     value: WorkoutsHubResult;
-  }>({ owner, value: INITIAL_DATA });
-  const data = ownedData.owner === owner ? ownedData.value : INITIAL_DATA;
+    ready: boolean;
+  }>(() => ({
+    owner,
+    value: warmData ?? INITIAL_DATA,
+    ready: warmData !== null,
+  }));
+  const data =
+    ownedData.owner === owner && ownedData.ready
+      ? ownedData.value
+      : (warmData ??
+        (ownedData.owner === owner ? ownedData.value : INITIAL_DATA));
+  const ownsScreenState = ownedData.owner === owner;
   const setData = (
     next:
       WorkoutsHubResult | ((current: WorkoutsHubResult) => WorkoutsHubResult),
   ) =>
     setOwnedData((state) => ({
       owner,
+      ready: true,
       value:
         typeof next === "function"
           ? next(state.owner === owner ? state.value : INITIAL_DATA)
           : next,
     }));
-  const [loading, setLoading] = useState(true);
+  const [loadingState, setLoading] = useState(warmData === null);
+  const loading =
+    ownedData.owner === owner && ownedData.ready
+      ? loadingState
+      : warmData === null;
   const [refreshing, setRefreshing] = useState(false);
   const currentOwner = useRef(owner);
   currentOwner.current = owner;
   const requestId = useRef(0);
   const loaded = useRef<{ version: string; at: number } | null>(null);
+  const displayReady = useRef(warmData !== null);
   useEffect(() => {
     requestId.current++;
     loaded.current = null;
-    setData(INITIAL_DATA);
-    setLoading(true);
+    displayReady.current = warmData !== null;
+    setOwnedData({
+      owner,
+      value: warmData ?? INITIAL_DATA,
+      ready: warmData !== null,
+    });
+    setLoading(warmData === null);
     setLoadingMoreRuns(false);
+    setEditingWorkout(null);
+    setEditorVisible(false);
+    setLibraryVisible(false);
+    setProgressionExerciseName(null);
+    setSharingWorkoutId(null);
   }, [owner]);
   const [activeTab, setActiveTab] = useState<WorkoutsTab>("all");
   useEffect(() => {
@@ -128,7 +168,7 @@ export function WorkoutsHubScreen() {
   const loadData = useCallback(async (): Promise<void> => {
     const id = ++requestId.current;
     const version = getSessionReadVersion();
-    if (!loaded.current) setLoading(true);
+    if (!loaded.current && !displayReady.current) setLoading(true);
     const result = await fetchWorkoutsHubData({
       status: () => apiClient.status(),
       request: (options) =>
@@ -149,6 +189,7 @@ export function WorkoutsHubScreen() {
         : result,
     );
     setLoading(false);
+    displayReady.current = true;
     loaded.current =
       result.message === null ? { version, at: Date.now() } : null;
   }, [owner]);
@@ -796,7 +837,7 @@ export function WorkoutsHubScreen() {
         </ScrollView>
       </SafeAreaView>
 
-      {sharingWorkoutId && (
+      {ownsScreenState && sharingWorkoutId && (
         <ShareWorkoutModal
           key={`${session?.user.id}:${sharingWorkoutId}`}
           visible
@@ -805,19 +846,22 @@ export function WorkoutsHubScreen() {
         />
       )}
       <ExerciseLibraryModal
-        visible={libraryVisible}
+        key={owner}
+        visible={ownsScreenState && libraryVisible}
         onClose={() => setLibraryVisible(false)}
       />
 
       <WorkoutEditorModal
-        visible={editorVisible}
+        key={owner}
+        visible={ownsScreenState && editorVisible}
         onClose={() => setEditorVisible(false)}
-        workoutToEdit={editingWorkout}
+        workoutToEdit={ownsScreenState ? editingWorkout : null}
         onSaved={handleSavedWorkout}
       />
 
-      {progressionExerciseName !== null ? (
+      {ownsScreenState && progressionExerciseName !== null ? (
         <ExerciseProgressionModal
+          key={owner}
           visible={progressionExerciseName !== null}
           onClose={() => setProgressionExerciseName(null)}
           exerciseName={progressionExerciseName}

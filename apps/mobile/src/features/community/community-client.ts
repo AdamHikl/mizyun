@@ -19,6 +19,7 @@ import {
   communityProfileViewDtoSchema,
   type CommunityProfileViewDto,
   publishWorkoutActivitySchema,
+  mealSharePreviewDtoSchema,
   relationshipListResponseSchema,
   removeFollowerResponseSchema,
   resolveInvitationResponseSchema,
@@ -52,6 +53,8 @@ import {
   type ModerationAppealDto,
   type PublicCommunityProfileDto,
   type PublishWorkoutActivityInput,
+  type PublishMealActivityInput,
+  type MealSharePreviewDto,
   type ReactorSummary,
   type RelationshipListResponse,
   type RemoveFollowerResponse,
@@ -428,6 +431,31 @@ export async function publishWorkoutActivity(
   return client.request<AuthorSharedActivityDto>({
     method: "POST",
     path: "/v1/community/activities",
+    body: input,
+    schema: authorSharedActivityDtoSchema,
+  });
+}
+
+export async function fetchMealSharePreview(
+  client: ApiClient,
+  mealId: string,
+  timezone?: string,
+): Promise<Result<MealSharePreviewDto, ApiError>> {
+  const query = timezone ? `?${new URLSearchParams({ timezone })}` : "";
+  return client.request<MealSharePreviewDto>({
+    method: "GET",
+    path: `/v1/community/meals/${encodeURIComponent(mealId)}/preview${query}`,
+    schema: mealSharePreviewDtoSchema,
+  });
+}
+
+export async function publishMealActivity(
+  client: ApiClient,
+  input: PublishMealActivityInput,
+): Promise<Result<AuthorSharedActivityDto, ApiError>> {
+  return client.request<AuthorSharedActivityDto>({
+    method: "POST",
+    path: "/v1/community/meal-activities",
     body: input,
     schema: authorSharedActivityDtoSchema,
   });

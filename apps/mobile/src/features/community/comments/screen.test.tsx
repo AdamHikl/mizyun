@@ -103,7 +103,7 @@ vi.mock("@/components/themed-text", () => ({ ThemedText: "Text" }));
 vi.mock("../community-presentation", () => ({ CommunityIntro: "Intro" }));
 import { CommunityCommentsScreen } from "./screen";
 const audience =
-  "I choose to share this text with everyone who can see this workout, including followers added later";
+  "I choose to share this text with everyone who can see this activity, including followers added later";
 const author = {
   userId: "other",
   handle: "friend",

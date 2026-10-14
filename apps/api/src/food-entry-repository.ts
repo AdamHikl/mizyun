@@ -34,6 +34,12 @@ export class InMemoryFoodEntryRepository implements FoodEntryRepository {
   ): void {
     this.#sourceChanged = observer;
   }
+  #communitySourceChanged: ((userId: UserId, id: string) => void) | null = null;
+  setCommunitySourceChangeObserverForTest(
+    observer: (userId: UserId, id: string) => void,
+  ): void {
+    this.#communitySourceChanged = observer;
+  }
   readonly #byUser = new Map<UserId, StoredFoodEntry[]>();
   readonly #byId = new Map<string, StoredFoodEntry>();
 
@@ -160,6 +166,16 @@ export class InMemoryFoodEntryRepository implements FoodEntryRepository {
       existing.photoAssetId !== entry.photoAssetId
     )
       this.#sourceChanged?.(owner, entry.id);
+    if (
+      existing.name !== entry.name ||
+      existing.consumedAt.getTime() !== entry.consumedAt.getTime() ||
+      existing.confirmedByUser !== entry.confirmedByUser ||
+      existing.caloriesKcal !== entry.caloriesKcal ||
+      existing.proteinG !== entry.proteinG ||
+      existing.carbohydrateG !== entry.carbohydrateG ||
+      existing.fatG !== entry.fatG
+    )
+      this.#communitySourceChanged?.(owner, entry.id);
     return entry;
   }
 
@@ -178,6 +194,7 @@ export class InMemoryFoodEntryRepository implements FoodEntryRepository {
     );
     this.#byId.delete(id);
     this.#sourceChanged?.(owner, id);
+    this.#communitySourceChanged?.(owner, id);
     return true;
   }
 

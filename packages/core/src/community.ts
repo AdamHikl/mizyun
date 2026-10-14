@@ -85,10 +85,32 @@ export interface SharedWorkoutDetails {
   }[];
 }
 
+export interface SharedMealDetails {
+  readonly name: string;
+  readonly caloriesKcal: number | null;
+  readonly proteinG: number | null;
+  readonly carbsG: number | null;
+  readonly fatG: number | null;
+}
+export interface MealActivityPublication {
+  readonly sourceMealId: string;
+  readonly enrollmentGeneration: number;
+  readonly operationId: string;
+  readonly expectedVersion: number;
+  readonly expectedRevoked: boolean;
+  readonly sharedDay: string;
+  readonly mealDetails: SharedMealDetails;
+  readonly currentSourceMealDetails: SharedMealDetails;
+  readonly currentSourceDay: string;
+}
+
 export interface StoredSharedActivity {
   readonly id: string;
   readonly userId: UserId;
-  readonly sourceWorkoutId: string;
+  readonly sourceWorkoutId: string | null;
+  readonly sourceMealId?: string | null;
+  readonly activityKind?: "workout" | "meal";
+  readonly mealDetails?: SharedMealDetails | null;
   readonly category: WorkoutCategory;
   readonly sharedDay: string;
   readonly durationSeconds: number | null;
@@ -564,6 +586,22 @@ export interface CommunityRepository {
     authorUserId: UserId,
     options: { readonly accessToken: string },
   ): Promise<StoredSharedActivity | null>;
+
+  getActivityByMealId(
+    mealId: string,
+    authorUserId: UserId,
+    options: { readonly accessToken: string },
+  ): Promise<StoredSharedActivity | null>;
+  publishMealActivity(
+    userId: UserId,
+    activity: MealActivityPublication,
+    options: { readonly accessToken: string },
+  ): Promise<StoredSharedActivity>;
+  revokeActivitiesForMeal(
+    mealId: string,
+    authorUserId: UserId,
+    options: { readonly accessToken: string },
+  ): Promise<void>;
 
   publishActivity(
     userId: UserId,

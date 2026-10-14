@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FoodEntry } from "@mizyun/contracts";
+import { publishSessionReadUpdate } from "@/composition/personal-read-events";
 
 const mocks = vi.hoisted(() => ({
   fetch: vi.fn(),
+  snapshot: vi.fn(),
   refresh: vi.fn(),
   day: vi.fn(),
   copy: vi.fn().mockResolvedValue({ ok: true }),
@@ -25,7 +27,8 @@ vi.mock("react", async (original) => ({
   useRef: (current: unknown) => (hooks.slots[hooks.index++] ??= { current }),
   useState: (initial: unknown) => {
     const index = hooks.index++;
-    if (!(index in hooks.slots)) hooks.slots[index] = initial;
+    if (!(index in hooks.slots))
+      hooks.slots[index] = typeof initial === "function" ? initial() : initial;
     return [
       hooks.slots[index],
       (next: any) => {
@@ -133,6 +136,7 @@ vi.mock("./first-meal-reminders", () => ({
 vi.mock("./meal-lifecycle-data", async (original) => ({
   ...(await original<typeof import("./meal-lifecycle-data")>()),
   fetchFoodHistory: mocks.fetch,
+  readFoodHistorySnapshot: mocks.snapshot,
   fetchFoodDateHistory: mocks.day,
   copyFoodEntry: mocks.copy,
 }));
@@ -202,6 +206,7 @@ beforeEach(() => {
   hooks.index = 0;
   hooks.focus = null;
   mocks.fetch.mockReset();
+  mocks.snapshot.mockReset().mockReturnValue(null);
   mocks.refresh.mockReset();
   mocks.day.mockReset();
   mocks.copy.mockReset().mockResolvedValue({ ok: true });
@@ -212,6 +217,30 @@ beforeEach(() => {
 });
 
 describe("meal tab read lifecycle", () => {
+  it("shows startup meals and day counts on the first render before any effects or network", async () => {
+    mocks.snapshot.mockReturnValue(response([entry("prefetched")]));
+    mocks.fetch.mockReturnValue(new Promise(() => {}));
+    hooks.index = 0;
+    const first = MealListScreen();
+    expect(history().entries[0].id).toBe("prefetched");
+    expect(history().loading).toBe(false);
+    expect(textContent(first)).not.toContain("Loading logged meals");
+    expect(textContent(first)).toContain("1 day");
+    expect(mocks.fetch).not.toHaveBeenCalled();
+    hooks.effects.splice(0).forEach((effect) => effect());
+    hooks.focus!();
+    await settle();
+    expect(textContent(render())).not.toContain("Loading logged meals");
+    expect(history().entries[0].id).toBe("prefetched");
+  });
+  it("treats a prefetched empty history as loaded, but preserves genuine cold loading", () => {
+    mocks.snapshot.mockReturnValue(response([]));
+    expect(textContent(render())).not.toContain("Loading logged meals");
+    mocks.owner = "user-b";
+    mocks.snapshot.mockReturnValue(null);
+    hooks.index = 0;
+    expect(textContent(MealListScreen())).toContain("Loading logged meals");
+  });
   it("displays saved evening meals without cancelling reminders from stale history", async () => {
     const now = new Date();
     const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
@@ -251,6 +280,7 @@ describe("meal tab read lifecycle", () => {
     await settle();
     expect(mocks.copy).toHaveBeenCalledWith(entry("copy-source"), false, {
       expectedUserId: "user-a",
+      isCurrent: expect.any(Function),
     });
     expect(mocks.reminders).toHaveBeenCalledWith("user-a", {
       todayLogged: true,
@@ -846,3 +876,95 @@ vi.mock("./meal-photo-retention", () => ({
   removeMealPhotoRetry: vi.fn(),
   mealPhotoRetentionEnabled: () => false,
 }));
+
+it("hides another owner's cached search and open portion editor on the first next-account frame", async () => {
+  vi.useFakeTimers();
+  const privateMeal = { ...entry("private-a"), name: "PrivateOnlyA" };
+  mocks.snapshot.mockReturnValue(response([privateMeal]));
+  mocks.fetch.mockResolvedValue(response([privateMeal]));
+  let tree = render();
+  find(tree, (node) => node.props?.entry?.id === "private-a").props.onResize();
+  tree = render();
+  expect(
+    find(tree, (node) => node.props?.portionTarget?.entry?.id === "private-a"),
+  ).toBeTruthy();
+  find(
+    tree,
+    (node) => node.props?.placeholder === "Search meals…",
+  ).props.onChangeText("PrivateOnlyA");
+  render();
+  await vi.advanceTimersByTimeAsync(250);
+  await settle();
+  tree = render();
+  expect(
+    find(tree, (node) => node.props?.entry?.id === "private-a"),
+  ).toBeTruthy();
+  mocks.owner = "user-b";
+  mocks.snapshot.mockReturnValue(
+    response([
+      { ...entry("new-b"), userId: "user-b", name: "New account meal" },
+    ]),
+  );
+  hooks.index = 0;
+  const firstB = MealListScreen();
+  expect(
+    find(firstB, (node) => node.props?.entry?.id === "private-a"),
+  ).toBeFalsy();
+  expect(
+    find(firstB, (node) => node.props?.entry?.id === "new-b"),
+  ).toBeTruthy();
+  expect(
+    find(
+      firstB,
+      (node) => node.props?.portionTarget?.entry?.id === "private-a",
+    ),
+  ).toBeFalsy();
+  expect(
+    find(firstB, (node) => node.props?.placeholder === "Search meals…").props
+      .value,
+  ).toBe("");
+});
+
+it("hydrates a tab mounted before startup finished without waiting for its first focus read", () => {
+  mocks.fetch.mockReturnValue(new Promise(() => {}));
+  expect(textContent(render())).toContain("Loading logged meals");
+  mocks.snapshot.mockReturnValue(response([entry("late-prefetch")]));
+  publishSessionReadUpdate("/v1/food-entries?limit=200");
+  hooks.index = 0;
+  const firstFocus = MealListScreen();
+  expect(textContent(firstFocus)).not.toContain("Loading logged meals");
+  expect(
+    find(firstFocus, (node) => node.props?.entry?.id === "late-prefetch"),
+  ).toBeTruthy();
+  expect(mocks.fetch).not.toHaveBeenCalled();
+});
+
+it("keeps a saved meal visible and explains a pending copied photo after refreshing", async () => {
+  mocks.fetch.mockResolvedValue(response([entry("copy-source")]));
+  mocks.copy.mockResolvedValue({
+    ok: true,
+    message:
+      "Meal copied. Photo upload pending; use Retry photo on the copied meal.",
+  });
+  let tree = render();
+  hooks.focus!();
+  await settle();
+  tree = render();
+  await find(
+    tree,
+    (node) => node.props?.entry?.id === "copy-source",
+  ).props.onCopy();
+  await settle();
+  expect(textContent(render())).toContain("Photo upload pending");
+  expect(mocks.copy).toHaveBeenCalledTimes(1);
+});
+
+it("opens the shared recipe flow from Meals without ingredient route payloads", () => {
+  const action = find(
+    render(),
+    (node: any) => node.props?.accessibilityLabel === "What can I cook?",
+  );
+  expect(action).toBeTruthy();
+  action.props.onPress();
+  expect(router.push).toHaveBeenLastCalledWith("/meal-recipes");
+});

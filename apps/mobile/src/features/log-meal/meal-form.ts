@@ -1,9 +1,12 @@
 import {
   foodDraftCandidateSchema,
+  foodEntryCreateSchema,
   type FoodDraftCandidate,
   type FoodEntry,
 } from "@mizyun/contracts";
 import { nutritionForWeightFromPer100g } from "@mizyun/core";
+
+import type { LogMealForm } from "./log-meal-data";
 
 export type NutritionEntryBasis = "total" | "per100g";
 
@@ -191,6 +194,9 @@ export const mealTimestampMatchesDate = (
 };
 
 export interface RecoverableMealDraft extends MealFormStrings {
+  readonly preparedMeal?: LogMealForm;
+  readonly submittedMeal?: LogMealForm;
+  readonly submissionStatus?: "outcome_unknown";
   readonly mealDate?: string;
   readonly nutritionBasis?: NutritionEntryBasis;
   readonly portionGrams?: string;
@@ -207,6 +213,89 @@ export interface RecoverableMealDraft extends MealFormStrings {
   readonly attachedPhotoUris?: readonly string[];
   readonly pendingPhotoDrafts?: readonly FoodDraftCandidate[];
 }
+
+export const sameMealDetails = (left: unknown, right: unknown): boolean => {
+  const canonical = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(canonical);
+    if (value && typeof value === "object")
+      return Object.fromEntries(
+        Object.entries(value)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([key, item]) => [key, canonical(item)]),
+      );
+    return value;
+  };
+  return JSON.stringify(canonical(left)) === JSON.stringify(canonical(right));
+};
+
+/** Reject corrupt frozen bodies rather than silently changing retry semantics. */
+export const isFrozenMealForm = (value: unknown): value is LogMealForm => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  const allowed = new Set([
+    "clientOperationId",
+    "name",
+    "consumedAt",
+    "caloriesKcal",
+    "proteinG",
+    "carbohydrateG",
+    "fatG",
+    "fibreG",
+    "saturatedFatG",
+    "totalSugarsG",
+    "sodiumMg",
+    "cholesterolMg",
+    "details",
+    "healthExportFirstParty",
+    "healthExportTimeBasis",
+  ]);
+  if (Object.keys(record).some((key) => !allowed.has(key))) return false;
+  if (
+    !isValidOperationId(record.clientOperationId) ||
+    typeof record.consumedAt !== "string"
+  )
+    return false;
+  if (
+    !["caloriesKcal", "proteinG", "carbohydrateG", "fatG"].every(
+      (key) => record[key] === null || typeof record[key] === "number",
+    )
+  )
+    return false;
+  if (
+    record.healthExportFirstParty !== undefined &&
+    typeof record.healthExportFirstParty !== "boolean"
+  )
+    return false;
+  if (
+    record.healthExportTimeBasis !== undefined &&
+    record.healthExportTimeBasis !== "observed" &&
+    record.healthExportTimeBasis !== "date_only"
+  )
+    return false;
+  const validJson = (item: unknown, depth = 0): boolean => {
+    if (depth > 12) return false;
+    if (item === null || typeof item === "string" || typeof item === "boolean")
+      return true;
+    if (typeof item === "number") return Number.isFinite(item);
+    if (Array.isArray(item))
+      return item.every((child) => validJson(child, depth + 1));
+    if (
+      item &&
+      typeof item === "object" &&
+      Object.getPrototypeOf(item) === Object.prototype
+    )
+      return Object.values(item).every((child) => validJson(child, depth + 1));
+    return false;
+  };
+  if (record.details !== undefined && !validJson(record.details)) return false;
+  const { healthExportFirstParty, healthExportTimeBasis, ...payload } = record;
+  try {
+    if (JSON.stringify(value).length > 64_000) return false;
+    return foodEntryCreateSchema.safeParse(payload).success;
+  } catch {
+    return false;
+  }
+};
 
 export const isRecoverableMealDraft = (
   value: unknown,
@@ -266,6 +355,17 @@ export const isRecoverableMealDraft = (
   );
   return (
     stringsValid &&
+    (record.preparedMeal === undefined ||
+      (isFrozenMealForm(record.preparedMeal) &&
+        record.preparedMeal.clientOperationId === record.clientOperationId)) &&
+    (record.submissionStatus === undefined ||
+      record.submissionStatus === "outcome_unknown") &&
+    (record.submittedMeal === undefined
+      ? record.submissionStatus === undefined
+      : record.submissionStatus === "outcome_unknown" &&
+        isFrozenMealForm(record.submittedMeal) &&
+        record.submittedMeal.clientOperationId === record.clientOperationId &&
+        record.submittedMeal.consumedAt === record.consumedAt) &&
     portionGramsValid &&
     basisValid &&
     clientOpIdValid &&
@@ -285,6 +385,42 @@ export const isRecoverableMealDraft = (
       record.selectedPhotoUri === null ||
       typeof record.selectedPhotoUri === "string")
   );
+};
+
+/** Recovery reviews the immutable submitted values, even if autosaved edits differ. */
+export const mealDraftForReconciliation = (
+  draft: RecoverableMealDraft,
+): RecoverableMealDraft => {
+  const frozen = draft.submittedMeal;
+  if (!frozen) return draft;
+  const ai = foodDraftCandidateSchema.safeParse(frozen.details?.aiDraft);
+  return {
+    ...draft,
+    fibre: "",
+    saturatedFat: "",
+    totalSugars: "",
+    sodium: "",
+    cholesterol: "",
+    ...mealFormStringsFromDraft(frozen),
+    nutritionBasis: "total",
+    portionGrams:
+      typeof frozen.details?.grams === "number"
+        ? String(frozen.details.grams)
+        : "",
+    description:
+      typeof frozen.details?.mealDescription === "string"
+        ? frozen.details.mealDescription
+        : "",
+    aiDraft: ai.success ? ai.data : undefined,
+    sourceProposalId:
+      ai.success &&
+      typeof (frozen.details?.aiDraft as Record<string, unknown>)
+        .sourceProposalId === "string"
+        ? ((frozen.details?.aiDraft as Record<string, unknown>)
+            .sourceProposalId as string)
+        : undefined,
+    refineInstruction: "",
+  };
 };
 
 export const isStaleMealTimestamp = (
@@ -312,9 +448,12 @@ export const upgradeLegacyMealDraft = (
 ): UpgradedMealDraft => {
   const currentDate = now();
   const isStale =
-    draft.mealDate && mealTimestampMatchesDate(draft.consumedAt, draft.mealDate)
+    draft.submittedMeal || draft.preparedMeal
       ? false
-      : isStaleMealTimestamp(draft.consumedAt, currentDate);
+      : draft.mealDate &&
+          mealTimestampMatchesDate(draft.consumedAt, draft.mealDate)
+        ? false
+        : isStaleMealTimestamp(draft.consumedAt, currentDate);
   const clientOperationId =
     !isStale && isValidOperationId(draft.clientOperationId)
       ? draft.clientOperationId

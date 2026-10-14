@@ -30,7 +30,7 @@ import {
 } from "@/features/analytics/classify-failure";
 import {
   clearLoggingDraft,
-  loadLoggingDraft,
+  loadRequiredLoggingDraft,
   saveLoggingDraft,
 } from "@/features/logging-draft-storage";
 
@@ -47,6 +47,8 @@ import {
   mealTimestampForDate,
   mealTimestampMatchesDate,
   isRecoverableMealDraft,
+  isFrozenMealForm,
+  mealDraftForReconciliation,
   isStaleMealTimestamp,
   mealFormStringsFromDraft,
   mealFormStringsFromEntry,
@@ -57,6 +59,7 @@ import {
   portionGramsStringFromDraft,
   upgradeLegacyMealDraft,
   sameAdvancedNutrients,
+  sameMealDetails,
   needsFreshAdvancedGrant,
   type MealFormStrings,
   type NutritionEntryBasis,
@@ -214,6 +217,8 @@ export function LogMealScreen() {
   useEffect(
     () => () => {
       photoSelectionGeneration.current++;
+      mealOwner.current = null;
+      photoOwner.current = "";
     },
     [],
   );
@@ -306,20 +311,55 @@ export function LogMealScreen() {
   const isSubmittingRef = useRef<boolean>(false);
   const isCompletedRef = useRef<boolean>(false);
   const submittedOperationRef = useRef<LogMealForm | null>(null);
+  const preparedMealRef = useRef<LogMealForm | undefined>(undefined);
+  const loadedMealScopeRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (userId === null) return;
     let active = true;
+    const recoveryScope = photoOwner.current;
+    loadedMealScopeRef.current = null;
+    setDraftLoaded(false);
+    isSubmittingRef.current = false;
+    isCompletedRef.current = false;
+    submittedOperationRef.current = null;
+    preparedMealRef.current = undefined;
+    hadFailure.current = false;
+    setName("");
+    setCalories("");
+    setProtein("");
+    setCarbs("");
+    setFat("");
+    setAdvanced({ name: "", calories: "", protein: "", carbs: "", fat: "" });
+    setMealDescription("");
+    setAiDraft(null);
+    setSourceProposalId(null);
+    setRefineInstruction("");
+    setPortionGrams("");
+    setNutritionBasis("total");
+    setError(null);
+    setSubmitting(false);
+    setMealDate(requestedDate);
+    setRecoveredDifferentDay(false);
     setAttachedPhotos([]);
     setPendingPhotoDrafts([]);
     photoSelectionGeneration.current++;
     setKeepPhoto(true);
     setSelectedPhotoUri(null);
-    void loadLoggingDraft(userId, "meal", isRecoverableMealDraft).then(
-      (draft) => {
+    if (userId === null) {
+      setClientOperationId(null);
+      setConsumedAt(null);
+      return;
+    }
+    void loadRequiredLoggingDraft(userId, "meal", isRecoverableMealDraft)
+      .then((draft) => {
         if (!active) return;
         if (draft !== null) {
-          const upgraded = upgradeLegacyMealDraft(draft);
+          const upgraded = upgradeLegacyMealDraft(
+            mealDraftForReconciliation(draft),
+          );
+          preparedMealRef.current = upgraded.preparedMeal;
+          submittedOperationRef.current = upgraded.submittedMeal ?? null;
+          hadFailure.current = upgraded.submittedMeal !== undefined;
           setClientOperationId(upgraded.clientOperationId);
           setConsumedAt(upgraded.consumedAt);
           // Recovery keeps its original operation/day; Clear explicitly starts
@@ -369,49 +409,75 @@ export function LogMealScreen() {
               : new Date().toISOString(),
           );
         }
+        loadedMealScopeRef.current = recoveryScope;
         setDraftLoaded(true);
-      },
-    );
+      })
+      .catch(() => {
+        if (active)
+          setError(
+            "Your saved meal operation could not be recovered. Retry opening this screen when device storage is available.",
+          );
+      });
     return () => {
       active = false;
     };
-  }, [userId, requestedDate]);
+  }, [userId, session?.accessToken, requestedDate]);
 
   useEffect(() => {
     if (
       !draftLoaded ||
+      loadedMealScopeRef.current !== photoOwner.current ||
       invalidMealDate ||
       userId === null ||
       isCompletedRef.current ||
       isSubmittingRef.current
     )
       return;
-    void saveLoggingDraft(userId, "meal", {
-      name,
-      portionGrams,
-      nutritionBasis,
-      calories,
-      protein,
-      carbs,
-      fat,
-      fibre: advanced.fibre,
-      saturatedFat: advanced.saturatedFat,
-      totalSugars: advanced.totalSugars,
-      sodium: advanced.sodium,
-      cholesterol: advanced.cholesterol,
-      clientOperationId: clientOperationId ?? undefined,
-      consumedAt: consumedAt ?? undefined,
-      mealDate: mealDate ?? undefined,
-      submissionVersion: 1,
-      description: mealDescription,
-      ...(aiDraft === null ? {} : { aiDraft }),
-      ...(sourceProposalId === null ? {} : { sourceProposalId }),
-      ...(refineInstruction.trim().length > 0 ? { refineInstruction } : {}),
-      attachedPhotoUris: attachedPhotos.map((photo) => photo.uri),
-      pendingPhotoDrafts,
-      keepPhoto,
-      selectedPhotoUri,
-    });
+    const scope = photoOwner.current;
+    void saveLoggingDraft(
+      userId,
+      "meal",
+      {
+        name,
+        portionGrams,
+        nutritionBasis,
+        calories,
+        protein,
+        carbs,
+        fat,
+        fibre: advanced.fibre,
+        saturatedFat: advanced.saturatedFat,
+        totalSugars: advanced.totalSugars,
+        sodium: advanced.sodium,
+        cholesterol: advanced.cholesterol,
+        clientOperationId: clientOperationId ?? undefined,
+        consumedAt: consumedAt ?? undefined,
+        mealDate: mealDate ?? undefined,
+        submissionVersion: 1,
+        ...(preparedMealRef.current === undefined
+          ? {}
+          : { preparedMeal: preparedMealRef.current }),
+        description: mealDescription,
+        ...(aiDraft === null ? {} : { aiDraft }),
+        ...(sourceProposalId === null ? {} : { sourceProposalId }),
+        ...(refineInstruction.trim().length > 0 ? { refineInstruction } : {}),
+        attachedPhotoUris: attachedPhotos.map((photo) => photo.uri),
+        pendingPhotoDrafts,
+        keepPhoto,
+        selectedPhotoUri,
+        ...(submittedOperationRef.current === null
+          ? {}
+          : {
+              submittedMeal: submittedOperationRef.current,
+              submissionStatus: "outcome_unknown" as const,
+            }),
+      },
+      undefined,
+      {
+        isCurrent: () =>
+          mealOwner.current === userId && photoOwner.current === scope,
+      },
+    );
   }, [
     keepPhoto,
     selectedPhotoUri,
@@ -445,13 +511,19 @@ export function LogMealScreen() {
       photoScope === photoOwner.current &&
       currentPhotoRetention.current;
     const abandonIfOwnerChanged = () => {
-      if (owner === mealOwner.current) return false;
+      if (owner === mealOwner.current && photoScope === photoOwner.current)
+        return false;
       isSubmittingRef.current = false;
       setSubmitting(false);
       return true;
     };
     const attempt = measurement.current;
-    if (!draftLoaded || isSubmittingRef.current || isCompletedRef.current)
+    if (
+      !draftLoaded ||
+      loadedMealScopeRef.current !== photoScope ||
+      isSubmittingRef.current ||
+      isCompletedRef.current
+    )
       return;
     isSubmittingRef.current = true;
     setSubmitting(true);
@@ -461,7 +533,7 @@ export function LogMealScreen() {
     attempt?.tap();
     if (hadFailure.current) attempt?.retry();
     setError(null);
-    if (recoveredDifferentDay) {
+    if (recoveredDifferentDay && submittedOperationRef.current === null) {
       isSubmittingRef.current = false;
       setSubmitting(false);
       setError(
@@ -520,6 +592,28 @@ export function LogMealScreen() {
       sodiumMg: nutrition.sodiumMg,
       cholesterolMg: nutrition.cholesterolMg,
     };
+    const calculation =
+      aiDraft?.calculation ??
+      (aiDraft !== null && draftEvidenceLines(aiDraft).length > 0
+        ? draftEvidenceLines(aiDraft).join("\n")
+        : null);
+    const details: Record<string, unknown> = {
+      ...(resolved.grams === null ? {} : { grams: resolved.grams }),
+      ...(aiDraft === null
+        ? {}
+        : {
+            aiDraft: {
+              ...aiDraft,
+              ...(calculation ? { calculation } : {}),
+              userConfirmed: true,
+              ...(sourceProposalId === null ? {} : { sourceProposalId }),
+            },
+            ...(calculation ? { calculationText: calculation } : {}),
+          }),
+      ...(mealDescription.trim().length > 0
+        ? { mealDescription: mealDescription.trim() }
+        : {}),
+    };
     const prev = submittedOperationRef.current;
     const isRetryCandidate = prev !== null && hadFailure.current;
 
@@ -546,7 +640,8 @@ export function LogMealScreen() {
       prev.fatG === nutrition.fatG &&
       parsedAdvanced !== null &&
       sameAdvancedNutrients(prev, parsedAdvanced) &&
-      prev.consumedAt === fixedConsumedAt;
+      prev.consumedAt === fixedConsumedAt &&
+      sameMealDetails(prev.details ?? {}, details);
 
     // A retryable failure may represent a committed request whose response was
     // lost. Do not turn an edited form into a second authoritative meal until
@@ -561,16 +656,17 @@ export function LogMealScreen() {
       return;
     }
 
-    if (
-      needsFreshAdvancedGrant(hasAdvancedInput, isRetryOfPrev) &&
-      !(await advancedCapability.refresh())
-    ) {
-      isSubmittingRef.current = false;
-      setSubmitting(false);
-      setError(
-        "More nutrient values require an active Pro grant. Your draft is saved; restore access or clear those values before submitting.",
-      );
-      return;
+    if (needsFreshAdvancedGrant(hasAdvancedInput, isRetryOfPrev)) {
+      const allowed = await advancedCapability.refresh();
+      if (abandonIfOwnerChanged()) return;
+      if (!allowed) {
+        isSubmittingRef.current = false;
+        setSubmitting(false);
+        setError(
+          "More nutrient values require an active Pro grant. Your draft is saved; restore access or clear those values before submitting.",
+        );
+        return;
+      }
     }
 
     let opId: string;
@@ -588,77 +684,12 @@ export function LogMealScreen() {
       }
     }
 
-    // Await durable draft persistence before submitting (Requirement 2)
-    if (userId !== null) {
-      const persisted = await saveLoggingDraft(userId, "meal", {
-        name,
-        portionGrams,
-        nutritionBasis,
-        calories,
-        protein,
-        carbs,
-        fat,
-        fibre: advanced.fibre,
-        saturatedFat: advanced.saturatedFat,
-        totalSugars: advanced.totalSugars,
-        sodium: advanced.sodium,
-        cholesterol: advanced.cholesterol,
-        clientOperationId: opId,
-        consumedAt: fixedConsumedAt,
-        mealDate: mealDate ?? undefined,
-        submissionVersion: 1,
-        description: mealDescription,
-        ...(aiDraft === null ? {} : { aiDraft }),
-        ...(sourceProposalId === null ? {} : { sourceProposalId }),
-        ...(refineInstruction.trim().length > 0 ? { refineInstruction } : {}),
-        attachedPhotoUris: attachedPhotos.map((photo) => photo.uri),
-        pendingPhotoDrafts,
-        keepPhoto,
-        selectedPhotoUri,
-      });
-      if (abandonIfOwnerChanged()) return;
-      if (!persisted) {
-        isSubmittingRef.current = false;
-        setSubmitting(false);
-        hadFailure.current = true;
-        attempt?.fail("submit", "unexpected", true);
-        setError(
-          "Could not save meal draft to device storage before sending. Please check device storage and try again.",
-        );
-        return;
-      }
-    }
-
-    const calculation =
-      aiDraft?.calculation ??
-      (aiDraft !== null && draftEvidenceLines(aiDraft).length > 0
-        ? draftEvidenceLines(aiDraft).join("\n")
-        : null);
-
-    const details: Record<string, unknown> = {
-      ...(resolved.grams === null ? {} : { grams: resolved.grams }),
-      ...(aiDraft === null
-        ? {}
-        : {
-            aiDraft: {
-              ...aiDraft,
-              ...(calculation ? { calculation } : {}),
-              userConfirmed: true,
-              ...(sourceProposalId === null ? {} : { sourceProposalId }),
-            },
-            ...(calculation ? { calculationText: calculation } : {}),
-          }),
-      ...(mealDescription.trim().length > 0
-        ? { mealDescription: mealDescription.trim() }
-        : {}),
-    };
-
     const form: LogMealForm =
       isRetryOfPrev && prev !== null
         ? prev
         : {
             clientOperationId: opId,
-            name,
+            name: name.trim(),
             caloriesKcal: nutrition.caloriesKcal,
             proteinG: nutrition.proteinG,
             carbohydrateG: nutrition.carbohydrateG,
@@ -674,10 +705,81 @@ export function LogMealScreen() {
             consumedAt: fixedConsumedAt,
             ...(Object.keys(details).length === 0 ? {} : { details }),
           };
+    if (!isFrozenMealForm(form) || userId === null || owner === null) {
+      isSubmittingRef.current = false;
+      setSubmitting(false);
+      setError(
+        "Please double-check the meal values and sign in before saving.",
+      );
+      return;
+    }
+    // Await durable draft persistence before submitting (Requirement 2)
+    if (userId !== null) {
+      const persisted = await saveLoggingDraft(
+        userId,
+        "meal",
+        {
+          name,
+          portionGrams,
+          nutritionBasis,
+          calories,
+          protein,
+          carbs,
+          fat,
+          fibre: advanced.fibre,
+          saturatedFat: advanced.saturatedFat,
+          totalSugars: advanced.totalSugars,
+          sodium: advanced.sodium,
+          cholesterol: advanced.cholesterol,
+          clientOperationId: opId,
+          consumedAt: fixedConsumedAt,
+          mealDate: mealDate ?? undefined,
+          submissionVersion: 1,
+          ...(preparedMealRef.current === undefined
+            ? {}
+            : { preparedMeal: preparedMealRef.current }),
+          description: mealDescription,
+          ...(aiDraft === null ? {} : { aiDraft }),
+          ...(sourceProposalId === null ? {} : { sourceProposalId }),
+          ...(refineInstruction.trim().length > 0 ? { refineInstruction } : {}),
+          attachedPhotoUris: attachedPhotos.map((photo) => photo.uri),
+          pendingPhotoDrafts,
+          keepPhoto,
+          selectedPhotoUri,
+          submittedMeal: form,
+          submissionStatus: "outcome_unknown",
+        },
+        undefined,
+        {
+          isCurrent: () =>
+            owner === mealOwner.current && photoScope === photoOwner.current,
+        },
+      );
+      if (abandonIfOwnerChanged()) return;
+      if (!persisted) {
+        isSubmittingRef.current = false;
+        setSubmitting(false);
+        hadFailure.current = true;
+        attempt?.fail("submit", "unexpected", true);
+        setError(
+          "Could not save meal draft to device storage before sending. Please check device storage and try again.",
+        );
+        return;
+      }
+    }
+
     if (abandonIfOwnerChanged()) return;
     submittedOperationRef.current = form;
 
-    const result = await submitLogMeal(form);
+    const result = await submitLogMeal(form, {
+      expectedUserId: owner,
+      isCurrent: () =>
+        owner === mealOwner.current && photoScope === photoOwner.current,
+    }).catch(() => ({
+      ok: false as const,
+      message:
+        "The result is unknown. Retry Save with these same values to recover this meal.",
+    }));
     if (abandonIfOwnerChanged()) return;
     if (result.ok) {
       const chosen =
@@ -760,7 +862,11 @@ export function LogMealScreen() {
         };
         const persisted =
           userId !== null &&
-          (await saveLoggingDraft(userId, "meal", nextDraft));
+          (await saveLoggingDraft(userId, "meal", nextDraft, undefined, {
+            resolvedOperationId: opId,
+            isCurrent: () =>
+              owner === mealOwner.current && photoScope === photoOwner.current,
+          }));
         if (abandonIfOwnerChanged()) return;
         if (!persisted) {
           isSubmittingRef.current = false;
@@ -772,6 +878,7 @@ export function LogMealScreen() {
           return;
         }
         submittedOperationRef.current = null;
+        preparedMealRef.current = undefined;
         hadFailure.current = false;
         setClientOperationId(nextId);
         setName(strings.name);
@@ -796,12 +903,26 @@ export function LogMealScreen() {
         formScrollRef.current?.scrollTo({ y: 0, animated: true });
         return;
       }
-      isCompletedRef.current = true;
-      submittedOperationRef.current = null;
-      attempt?.complete();
       if (userId !== null) {
-        const cleared = await clearLoggingDraft(userId, "meal");
-        if (cleared && retainPhotos)
+        const cleared = await clearLoggingDraft(userId, "meal", undefined, {
+          resolvedOperationId: opId,
+          isCurrent: () =>
+            owner === mealOwner.current && photoScope === photoOwner.current,
+        });
+        if (abandonIfOwnerChanged()) return;
+        if (!cleared) {
+          isSubmittingRef.current = false;
+          setSubmitting(false);
+          hadFailure.current = true;
+          setError(
+            "Meal saved, but completion recovery could not be saved on this device. Retry Save with these values to finish recovery.",
+          );
+          return;
+        }
+        isCompletedRef.current = true;
+        submittedOperationRef.current = null;
+        attempt?.complete();
+        if (retainPhotos)
           for (const photo of attachedPhotos)
             discardOwnedMealPhoto(userId, photo.uri);
         const mealDate = fixedConsumedAt
@@ -1312,6 +1433,46 @@ export function LogMealScreen() {
     refineInstruction.trim().length > 0;
 
   const onClear = useCallback(async () => {
+    if (submittedOperationRef.current !== null) {
+      const restored = mealDraftForReconciliation({
+        name,
+        calories,
+        protein,
+        carbs,
+        fat,
+        submittedMeal: submittedOperationRef.current,
+      });
+      setName(restored.name);
+      setCalories(restored.calories);
+      setProtein(restored.protein);
+      setCarbs(restored.carbs);
+      setFat(restored.fat);
+      setAdvanced(restored);
+      setPortionGrams(restored.portionGrams ?? "");
+      setNutritionBasis("total");
+      setMealDescription(restored.description ?? "");
+      setAiDraft(restored.aiDraft ?? null);
+      setSourceProposalId(restored.sourceProposalId ?? null);
+      setRefineInstruction("");
+      setError(
+        "Restored the submitted values. This meal may already be saved. Retry Save to resolve its outcome before clearing or replacing it.",
+      );
+      return;
+    }
+    const scope = photoOwner.current;
+    const isCurrent = () =>
+      mealOwner.current === userId && photoOwner.current === scope;
+    if (
+      userId !== null &&
+      !(await clearLoggingDraft(userId, "meal", undefined, { isCurrent }))
+    ) {
+      setError(
+        "Could not clear the saved meal draft. Reopen it to recover or retry device storage.",
+      );
+      return;
+    }
+    if (!isCurrent()) return;
+    preparedMealRef.current = undefined;
     healthExportFirstParty.current = true;
 
     photoSelectionGeneration.current++;
@@ -1346,10 +1507,17 @@ export function LogMealScreen() {
         ? mealTimestampForDate(requestedDate)
         : new Date().toISOString(),
     );
-    if (userId !== null) {
-      await clearLoggingDraft(userId, "meal");
-    }
-  }, [userId, requestedDate, retainPhotos, attachedPhotos]);
+  }, [
+    userId,
+    requestedDate,
+    retainPhotos,
+    attachedPhotos,
+    name,
+    calories,
+    protein,
+    carbs,
+    fat,
+  ]);
 
   const per100g = nutritionBasis === "per100g";
   const servingPreview = per100g

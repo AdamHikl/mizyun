@@ -266,3 +266,75 @@ vi.mock("../ui", () => ({
 vi.mock("../share-workout-modal", () => ({
   ShareWorkoutModal: "ShareWorkoutModal",
 }));
+
+vi.mock("../share-meal-modal", () => ({ ShareMealModal: "ShareMealModal" }));
+vi.mock("../shared-meal-details", () => ({
+  SharedMealDetails: "SharedMealDetails",
+}));
+
+function button(node: any, label: string): any {
+  if (!node || typeof node !== "object") return null;
+  if (Array.isArray(node))
+    return node.map((child) => button(child, label)).find(Boolean);
+  if (node.props?.label === label) return node;
+  return button(node.props?.children, label);
+}
+
+describe("shared meal detail management", () => {
+  const meal = {
+    ...activity,
+    activityKind: "meal",
+    mealDetails: {
+      name: "Lentil soup",
+      caloriesKcal: null,
+      proteinG: null,
+      carbsG: null,
+      fatG: null,
+    },
+  };
+  it("uses the meal detail view with existing reactions and owner meal controls", async () => {
+    mocks.fetch.mockResolvedValue({ ok: true, value: meal });
+    render("author");
+    await Promise.resolve();
+    await Promise.resolve();
+    const tree = render("author");
+    expect(tree.props.title).toBe("Shared meal");
+    expect(find(tree, "SharedMealDetails").props.details).toEqual(
+      meal.mealDetails,
+    );
+    expect(find(tree, "SharedWorkoutDetails")).toBeFalsy();
+    expect(find(tree, "ReactionBar")).toBeTruthy();
+    const sourceMealId = "00000000-0000-4000-8000-000000000001";
+    mocks.request.mockResolvedValue({
+      ok: true,
+      value: {
+        ...meal,
+        sourceMealId,
+        sourceWorkoutId: null,
+        version: 1,
+        revokedAt: null,
+      },
+    });
+    await button(tree, "Edit or unpublish shared meal").props.onPress();
+    await Promise.resolve();
+    await Promise.resolve();
+    const modal = find(render("author"), "ShareMealModal");
+    expect(modal.props.mealId).toBe(sourceMealId);
+    expect(modal.props.existingActivityId).toBe(activity.id);
+    expect(find(render("author"), "ShareWorkoutModal")).toBeFalsy();
+  });
+  it("hides meal projections and rejects reactions after authority expires", async () => {
+    mocks.fetch.mockResolvedValue({ ok: true, value: meal });
+    render();
+    await Promise.resolve();
+    await Promise.resolve();
+    const client = find(render(), "ReactionBar").props.scopedClient;
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(find(render(), "SharedMealDetails")).toBeFalsy();
+    expect(await client.request({ method: "POST", path: "/unused" })).toEqual({
+      ok: false,
+      error: { kind: "context_changed" },
+    });
+    expect(mocks.request).not.toHaveBeenCalled();
+  });
+});

@@ -249,6 +249,24 @@ export function SettingsScreen() {
           <>
             {!profile?.displayName ? <SetupWizardCard /> : null}
 
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Help improve Mizyun, optional usage analytics consent"
+              onPress={() => router.push("/account-settings/analytics" as Href)}
+              style={({ pressed }) => [
+                styles.categoryCard,
+                pressed && styles.pressed,
+              ]}
+            >
+              <View style={styles.categoryTextBlock}>
+                <ThemedText type="smallBold">Help improve Mizyun</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Optional usage analytics · Separate from AI consent
+                </ThemedText>
+              </View>
+              <ThemedText style={styles.categoryArrow}>›</ThemedText>
+            </Pressable>
+
             {/* Category Rows */}
             <View style={styles.categoriesSection}>
               <ThemedText type="smallBold" style={styles.sectionHeader}>

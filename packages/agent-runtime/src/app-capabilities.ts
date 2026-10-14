@@ -1,5 +1,5 @@
 /** Trusted product facts, owned by this release. Never infer account access from this catalog. */
-export const COACH_APP_KNOWLEDGE_VERSION = "mizyun-app-v4";
+export const COACH_APP_KNOWLEDGE_VERSION = "mizyun-app-v5";
 
 export interface CoachAppCapability {
   readonly id: string;
@@ -25,11 +25,18 @@ export const COACH_APP_CAPABILITIES: readonly CoachAppCapability[] = [
       "The 'Meals' tab supports manual meal logging, recent meal reuse, meal history/search and editing/deleting saved meals. The plus beside a day heading logs for that local day. Manual nutrition supports serving totals or Per 100 g with food weight. Photo/text AI estimates and Refine with AI create editable drafts requiring explicit Save and current AI consent/access. Advanced nutrient estimates require current server-authorized Pro access; unknown nutrients stay unknown.",
   },
   {
+    id: "meal-recipes",
+    featureIds: ["meal-recipes"],
+    routes: ["meal-recipes.tsx"],
+    guidance:
+      "In builds containing What can I cook?, Meals owns the recipe flow and Coach opens the same screen. Confirm fridge/cabinet ingredients and exact preparation references before suggestions. Remaining P/C/F is based on what has been logged; unknown context shows Macro fit unavailable. Recipe estimates and serving changes never log food. I ate this opens an editable meal form; only Save records intake. Current server validation is required before cooking or creating a recipe draft. AI suggestions depend on consent, eligibility, provider availability and the environment switch; do not promise availability from this catalog.",
+  },
+  {
     id: "recurring-meals",
     featureIds: ["meal-logging"],
     routes: ["recurring-meals.tsx"],
     guidance:
-      "Mizyun 1.0.7 (build 7) has **Recurring meals** for automatic daily or selected-weekday meal logging. In **Meals**, choose **Repeat** on a saved meal, select **Every day** or weekdays, set **Morning · 08:00**, **Evening · 19:00** or a custom time, check the displayed time zone, then tap **Save schedule**. The server adds the saved foods and portions at the scheduled time even while the app is closed. Today's entry is added only if its time is still ahead; missed past days are not backfilled. Open **Meals → Recurring meals** to edit days/time, pause/resume, **Skip today** or stop. To change future foods/portions, stop the schedule, edit a logged meal and choose Repeat again. Automatic entries do not prove what you ate—review, edit or skip them when your day changes. If Repeat is missing, log meals manually and update the app before setting up a schedule. Coach can explain setup; it cannot create or change a schedule for you.",
+      "Mizyun 1.0.7 (build 7) has **Recurring meals** for automatic daily or selected-weekday meal logging. In **Meals**, choose **Repeat** on a saved meal, select **Every day** or weekdays, set **Morning · 08:00**, **Evening · 19:00** or a custom time, check the displayed time zone, then tap **Save schedule**. The server adds the saved foods and portions at the scheduled time even while the app is closed. Today's entry is added only if its time is still ahead; missed past days are not backfilled. Open **Meals → Recurring meals** to edit days/time, pause/resume, **Skip today** or stop. To change future foods/portions, stop the schedule, edit a logged meal and choose Repeat again. Automatic entries do not prove what you ate—review, edit or skip them when your day changes. If Repeat is missing, log meals manually and update the app before setting up a schedule. Coach can explain setup; it cannot create or change a schedule for you. In builds containing routine suggestions, three consecutive days of matching confirmed logs, including deliberate copies, can show Make this meal automatic? on Home or Meals. Auto-log daily explicitly enables the saved serving from tomorrow; Change adjusts time/weekdays and Manage opens recurring meals. Automatic entries do not count as new deliberate logs. Not now, permanent dismissal and Suggestions controls are available. Do not claim that every account has a suggestion or that detection proves a lasting habit.",
   },
   {
     id: "workouts",
@@ -126,9 +133,10 @@ export const COACH_APP_CAPABILITIES: readonly CoachAppCapability[] = [
       "community/safety.tsx",
       "community/settings.tsx",
       "community/share.tsx",
+      "community/share-meal.tsx",
     ],
     guidance:
-      "The 'Community' tab is optional and requires eligible enrollment/current server access. Where the current UI offers them, Feed shows shared workouts, People manages requests/following/followers, Messages opens eligible conversations, Me shows the separate social profile, the bell opens updates, and Spaces contains gated groups/challenges/routines/photos. Tap a visible author to open their allowed profile; Share workout opens a private completed-session chooser and deliberate preview. Follow requests require approval; explicit workout sharing previews control the audience and detail. Joining/following does not expose private meals, weights, photos or Coach records. Community settings, invitations, safety/block/report and notification controls remain within Community. Discovery, comments, private groups, consistency challenges, mutual opt-in messages, separately selected photos and copied shared routines are individually gated pilot features: presence of a route does not establish access in this account/build. Check the visible access explanation; do not claim they are available to everyone or enroll/share/send for the user.",
+      "The 'Community' tab is optional and requires eligible enrollment/current server access. Where the current UI offers them, Feed shows deliberately shared meals and workouts, People manages requests/following/followers, Messages opens eligible conversations, Me shows the separate social profile, the bell opens updates, and Spaces contains gated groups/challenges/routines/photos. Tap a visible author to open their allowed profile; Share workout opens a private completed-session chooser and deliberate preview. Share meal opens confirmed saved meals and a deliberate preview of name/day, with nutrition starting off and optional. Follow requests require approval; explicit meal/workout sharing previews control the audience and detail. Meal notes, tracking photos and Coach metadata are excluded from meal posts. Joining/following does not expose private meals, weights, photos or Coach records. Community settings, invitations, safety/block/report and notification controls remain within Community. Discovery, comments, private groups, consistency challenges, mutual opt-in messages, separately selected photos and copied shared routines are individually gated pilot features: presence of a route does not establish access in this account/build. Check the visible access explanation; do not claim they are available to everyone or enroll/share/send for the user.",
   },
   {
     id: "feedback",

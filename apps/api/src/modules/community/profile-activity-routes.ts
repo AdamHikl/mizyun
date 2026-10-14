@@ -103,6 +103,8 @@ export const communityProfileActivityRoutes: FastifyPluginAsync<{
           category: item.category,
           sharedDay: item.sharedDay,
           durationSeconds: item.durationSeconds,
+          activityKind: item.activityKind ?? "workout",
+          mealDetails: item.mealDetails ?? null,
           workoutDetails: sharedWorkoutDetailsSchema
             .nullable()
             .parse(item.workoutDetails ?? null),

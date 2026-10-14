@@ -9,6 +9,7 @@ import {
   type NetworkAnalyticsApiTransport,
 } from "../analytics/network-analytics-client";
 const mocks = vi.hoisted(() => ({
+  recipeRetirement: vi.fn().mockResolvedValue(true),
   reminderOwner: vi.fn().mockResolvedValue(undefined),
   subscribe: null as ((value: AuthSession | null) => void) | null,
   analytics: null as NetworkAnalyticsClient | null,
@@ -17,6 +18,11 @@ const mocks = vi.hoisted(() => ({
   effects: [] as (() => void)[],
   variant: "production" as "dev" | "production",
   configured: false,
+  purge: vi.fn().mockResolvedValue(undefined),
+  signOut: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock("@/features/meal-recipes/public-data", () => ({
+  retireIngredientReviews: mocks.recipeRetirement,
 }));
 vi.mock("@/composition/first-meal-reminder-runtime", () => ({
   firstMealReminderLifecycle: { setOwner: mocks.reminderOwner },
@@ -58,6 +64,7 @@ vi.mock("@/composition/auth-client", () => ({
       mocks.subscribe = callback;
       return vi.fn();
     },
+    signOut: mocks.signOut,
   },
 }));
 vi.mock("@/composition/api-client", () => ({
@@ -66,7 +73,12 @@ vi.mock("@/composition/api-client", () => ({
       return mocks.configured;
     },
   },
-  apiClient: {},
+  apiClient: {
+    request: vi.fn().mockResolvedValue({
+      ok: false,
+      error: { kind: "network_error", message: "Synthetic offline profile" },
+    }),
+  },
 }));
 vi.mock("@/features/community/push", () => ({
   deregisterCommunityPush: vi.fn().mockResolvedValue(undefined),
@@ -78,7 +90,7 @@ vi.mock("@/features/community/state/read-cache", () => ({
 vi.mock("@/features/offline-cache/offline-cache-storage", () => ({
   loadCachedProfile: vi.fn().mockResolvedValue(null),
   saveCachedProfile: vi.fn(),
-  purgeOfflineCache: vi.fn(),
+  purgeOfflineCache: mocks.purge,
 }));
 vi.mock("./auth-screen", () => ({ AuthScreen: "AuthScreen" }));
 vi.mock("./auth-setup-screen", () => ({ AuthSetupScreen: "AuthSetupScreen" }));
@@ -90,6 +102,10 @@ vi.mock("@/features/onboarding/onboarding-screen", () => ({
   OnboardingScreen: "OnboardingScreen",
 }));
 import { AuthProvider } from "./auth-context";
+import {
+  isRecurringSuggestionOwnerActive,
+  setRecurringSuggestionOwner,
+} from "../recurring-meals/recurring-meal-suggestion-lifetime";
 
 function file(): AnalyticsStorageFile {
   let value: string | null = null;
@@ -131,6 +147,45 @@ beforeEach(() => {
   mocks.configured = false;
   mocks.analytics = null;
   mocks.reminderOwner.mockClear();
+  mocks.recipeRetirement.mockClear();
+  mocks.purge.mockReset().mockResolvedValue(undefined);
+  mocks.signOut.mockReset().mockResolvedValue(undefined);
+  setRecurringSuggestionOwner(null);
+});
+
+it("deactivates suggestion authority synchronously while logout cleanup is pending", async () => {
+  renderReadyProvider();
+  mocks.effects.splice(0).forEach((effect) => effect());
+  mocks.subscribe!(session("a"));
+  mocks.index = 0;
+  const tree = AuthProvider({ children: null });
+  expect(isRecurringSuggestionOwnerActive("a")).toBe(true);
+  let release!: () => void;
+  mocks.purge.mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+  );
+  const pending = tree.props.value.signOut();
+  expect(isRecurringSuggestionOwnerActive("a")).toBe(false);
+  mocks.index = 0;
+  AuthProvider({ children: null });
+  expect(isRecurringSuggestionOwnerActive("a")).toBe(false);
+  release();
+  await pending;
+  expect(mocks.signOut).toHaveBeenCalledOnce();
+});
+it("a stale logout callback does not deactivate the replacement account", async () => {
+  renderReadyProvider();
+  mocks.effects.splice(0).forEach((effect) => effect());
+  mocks.subscribe!(session("a"));
+  mocks.index = 0;
+  const departing = AuthProvider({ children: null }).props.value;
+  mocks.subscribe!(session("b"));
+  await departing.signOut();
+  expect(isRecurringSuggestionOwnerActive("b")).toBe(true);
+  expect(mocks.purge).not.toHaveBeenCalled();
 });
 it("retires reminders across account replacement and normal logout", () => {
   AuthProvider({ children: null });
@@ -138,6 +193,10 @@ it("retires reminders across account replacement and normal logout", () => {
   mocks.subscribe!(session("a"));
   mocks.subscribe!(session("b"));
   mocks.subscribe!(null);
+  expect(mocks.recipeRetirement.mock.calls.map(([owner]) => owner)).toEqual([
+    "a",
+    "b",
+  ]);
   expect(mocks.reminderOwner.mock.calls).toEqual([["a"], ["b"], [null]]);
 });
 

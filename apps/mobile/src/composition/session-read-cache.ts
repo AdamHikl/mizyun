@@ -48,6 +48,7 @@ type Entry = {
   schema: RequestOptions["schema"];
   bytes: number;
   savedAt: number;
+  storageGeneration?: number;
 };
 type Pending = {
   promise: Promise<Result<unknown, ApiError>>;
@@ -60,6 +61,11 @@ export class SessionReadCache implements ApiClient {
   // Decoration has its own live authority and never invalidates nutrition reads.
   readonly getMealIllustrationCapability?: ApiClient["getMealIllustrationCapability"];
   readonly ensureMealIllustration?: ApiClient["ensureMealIllustration"];
+  readonly getMealRecipeSessionContext?: ApiClient["getMealRecipeSessionContext"];
+  readonly revalidateMealRecipes?: ApiClient["revalidateMealRecipes"];
+  readonly getMealRecipeCapabilities?: ApiClient["getMealRecipeCapabilities"];
+  readonly suggestMealRecipes?: ApiClient["suggestMealRecipes"];
+  readonly recognizeMealRecipeIngredients?: ApiClient["recognizeMealRecipeIngredients"];
   readonly draftFoodEntry?: ApiClient["draftFoodEntry"];
   readonly draftCoachMealPhoto?: ApiClient["draftCoachMealPhoto"];
   private entries = new Map<string, Entry>();
@@ -69,6 +75,7 @@ export class SessionReadCache implements ApiClient {
   private writes = 0;
   private bytes = 0;
   private day = "";
+  private utcOffset: number | null = null;
   private foreground = true;
   private hydration: Promise<void> | null = null;
   private listeners = new Set<(path: string) => void>();
@@ -84,6 +91,13 @@ export class SessionReadCache implements ApiClient {
     this.getMealIllustrationCapability =
       raw.getMealIllustrationCapability?.bind(raw);
     this.ensureMealIllustration = raw.ensureMealIllustration?.bind(raw);
+    this.getMealRecipeSessionContext =
+      raw.getMealRecipeSessionContext?.bind(raw);
+    this.revalidateMealRecipes = raw.revalidateMealRecipes?.bind(raw);
+    this.getMealRecipeCapabilities = raw.getMealRecipeCapabilities?.bind(raw);
+    this.suggestMealRecipes = raw.suggestMealRecipes?.bind(raw);
+    this.recognizeMealRecipeIngredients =
+      raw.recognizeMealRecipeIngredients?.bind(raw);
     this.draftFoodEntry = raw.draftFoodEntry?.bind(raw);
     const draftCoachMealPhoto = raw.draftCoachMealPhoto?.bind(raw);
     if (draftCoachMealPhoto)
@@ -123,10 +137,15 @@ export class SessionReadCache implements ApiClient {
   private async hydrate(userId: string, revision: number): Promise<void> {
     if (!this.storage || this.deniedOwners.has(userId)) return;
     if (!this.hydration) {
+      const storageGeneration = this.storage.generation?.(userId);
       this.hydration = this.storage
         .load(userId)
         .then((records) => {
-          if (revision !== this.revision) return;
+          if (
+            revision !== this.revision ||
+            storageGeneration !== this.storage?.generation?.(userId)
+          )
+            return;
           for (const record of records) {
             const bytes = JSON.stringify(record.value).length * 2;
             if (
@@ -139,9 +158,11 @@ export class SessionReadCache implements ApiClient {
               schema: undefined,
               bytes,
               expiresAt: 0,
+              storageGeneration,
             });
             this.bytes += bytes;
           }
+          if (records.length > 0) this.publish("*");
         })
         .catch(() => {});
     }
@@ -155,11 +176,13 @@ export class SessionReadCache implements ApiClient {
     clearTimeout(this.persistTimer);
     this.persistTimer = setTimeout(() => {
       if (generation !== this.storage!.generation?.(userId)) return;
-      const records = [...this.entries].map(([path, entry]) => ({
-        path,
-        value: entry.value,
-        savedAt: entry.savedAt,
-      }));
+      const records = [...this.entries]
+        .filter(([, entry]) => entry.storageGeneration === generation)
+        .map(([path, entry]) => ({
+          path,
+          value: entry.value,
+          savedAt: entry.savedAt,
+        }));
       void this.storage!.save(userId, records).catch(() => {});
     }, 100);
   }
@@ -184,6 +207,7 @@ export class SessionReadCache implements ApiClient {
     this.revision++;
     this.identity = null;
     this.day = "";
+    this.utcOffset = null;
     this.entries.clear();
     this.hydration = null;
     for (const pending of this.pending.values()) pending.controller.abort();
@@ -192,6 +216,47 @@ export class SessionReadCache implements ApiClient {
   }
   private key(session: AuthSession | null): string | null {
     return session ? `${session.user.id}:${session.accessToken}` : null;
+  }
+  /** Read already hydrated display data during render, without IO or a new lease. */
+  peek<T>(
+    options: RequestOptions,
+    session: AuthSession | null,
+  ): Result<T, ApiError> | null {
+    const now = this.now();
+    const date = new Date(now);
+    if (
+      !cacheable(options) ||
+      !session ||
+      !this.foreground ||
+      this.writes ||
+      this.identity !== this.key(session) ||
+      this.day !== date.toDateString() ||
+      this.utcOffset !== date.getTimezoneOffset() ||
+      (options.expectedUserId && options.expectedUserId !== session.user.id) ||
+      options.isCurrent?.() === false ||
+      this.deniedOwners.has(session.user.id)
+    )
+      return null;
+    const entry = this.entries.get(options.path);
+    if (
+      !entry ||
+      entry.storageGeneration !== this.storage?.generation?.(session.user.id) ||
+      (entry.schema !== undefined && entry.schema !== options.schema)
+    )
+      return null;
+    const fresh = entry.expiresAt > now;
+    const saved =
+      this.storage &&
+      now >= entry.savedAt &&
+      now - entry.savedAt <= 48 * 60 * 60_000;
+    if (!fresh && !saved) return null;
+    const parsed = options.schema!.safeParse(entry.value);
+    if (!parsed.success) return null;
+    return {
+      ok: true,
+      value: parsed.data as T,
+      ...(!fresh ? { savedAt: entry.savedAt } : {}),
+    };
   }
   async request<T>(options: RequestOptions): Promise<Result<T, ApiError>> {
     // These writes only update push delivery or the separate analytics store;
@@ -250,10 +315,16 @@ export class SessionReadCache implements ApiClient {
     if (!this.foreground || beforeLookup !== this.revision) return retired();
     const identity = this.key(session);
     const day = new Date(this.now()).toDateString();
-    if (identity !== this.identity || day !== this.day) {
+    const utcOffset = new Date(this.now()).getTimezoneOffset();
+    if (
+      identity !== this.identity ||
+      day !== this.day ||
+      utcOffset !== this.utcOffset
+    ) {
       if (this.day !== "") this.clear();
       this.identity = identity;
       this.day = day;
+      this.utcOffset = utcOffset;
     }
     if (
       !session ||
@@ -268,6 +339,11 @@ export class SessionReadCache implements ApiClient {
       return retired();
     const key = options.path;
     let entry = this.entries.get(key);
+    if (entry && entry.storageGeneration !== storageGeneration) {
+      this.bytes -= entry.bytes;
+      this.entries.delete(key);
+      entry = undefined;
+    }
     // Disk is untrusted and may have been written by an older app schema.
     if (entry && entry.schema === undefined) {
       const parsed = options.schema!.safeParse(entry.value);
@@ -362,10 +438,11 @@ export class SessionReadCache implements ApiClient {
                   schema: options.schema,
                   bytes,
                   savedAt: this.now(),
+                  storageGeneration,
                 });
                 this.bytes += bytes;
                 this.persist(session.user.id, storageGeneration);
-                if (saved) this.publish(key);
+                this.publish(key);
               }
             }
             if (

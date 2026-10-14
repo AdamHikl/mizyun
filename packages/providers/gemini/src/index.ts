@@ -841,3 +841,5 @@ export {
 } from "./vision.js";
 
 export { GeminiMealIllustrationProvider } from "./meal-illustration.js";
+
+export * from "./meal-recipe";

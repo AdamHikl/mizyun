@@ -8,6 +8,7 @@ vi.mock("@/composition/api-client", () => ({ apiClient: {} }));
 vi.mock("@/features/health-exports", () => ({}));
 vi.mock("../log-meal/meal-photo-retention", () => ({
   clearAllMealPhotoRetries: vi.fn(),
+  removeMealPhotoRetry: vi.fn(),
 }));
 import {
   prepareQuickMealRepeat,
@@ -233,4 +234,59 @@ describe("secure quick meal repeat operation", () => {
     });
     expect(JSON.stringify(recovered)).not.toContain("breakfast");
   });
+});
+
+it("preserves immutable photo intent across remount and strips it after completion", async () => {
+  const { store, records } = memoryStore();
+  const original = await prepareQuickMealRepeat(
+    "photo-owner",
+    "2026-10-04",
+    { ...source, photoAssetId: "original-photo" },
+    false,
+    store,
+    now,
+  );
+  const restored = await loadQuickMealRepeat(
+    "photo-owner",
+    "2026-10-04",
+    store,
+  );
+  expect(restored).toMatchObject({
+    sourcePhotoAssetId: "original-photo",
+    sourceEntryId: source.id,
+  });
+  if (original.completed) throw new Error("Unexpected completion");
+  await completeQuickMealRepeat(original, store);
+  expect([...records.values()][0]).not.toContain("original-photo");
+});
+
+it("keeps photo staging when completion marker persistence fails", async () => {
+  const { store } = memoryStore();
+  const pending = await prepareQuickMealRepeat(
+    "marker-failure-owner",
+    "2026-10-04",
+    { ...source, photoAssetId: "original-photo" },
+    false,
+    store,
+    now,
+  );
+  if (pending.completed) throw new Error("Unexpected completion");
+  const retention = await import("../log-meal/meal-photo-retention");
+  vi.mocked(retention.removeMealPhotoRetry).mockClear();
+  vi.mocked(store.setItemAsync).mockRejectedValueOnce(
+    new Error("Write failed"),
+  );
+  await expect(completeQuickMealRepeat(pending, store)).rejects.toThrow(
+    "Write failed",
+  );
+  expect(retention.removeMealPhotoRetry).not.toHaveBeenCalled();
+  expect(
+    await loadQuickMealRepeat(pending.owner, pending.localDate, store),
+  ).toMatchObject({ completed: false, sourcePhotoAssetId: "original-photo" });
+  await completeQuickMealRepeat(pending, store);
+  expect(retention.removeMealPhotoRetry).toHaveBeenCalledWith(
+    pending.owner,
+    `copy-${pending.payload.clientOperationId}`,
+    false,
+  );
 });

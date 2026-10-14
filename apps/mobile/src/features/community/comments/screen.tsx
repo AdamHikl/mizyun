@@ -254,7 +254,7 @@ function CommentsContent({
       style={{ flex: 1, backgroundColor: theme.background }}
     >
       <CommunityPage
-        title={activityId ? "Workout discussion" : "Mention updates"}
+        title={activityId ? "Activity discussion" : "Mention updates"}
         backHref={
           activityId
             ? (`/community/activity/${activityId}` as Href)
@@ -305,7 +305,7 @@ function CommentsContent({
             {!activityId &&
               state.mentions.map((mention) => (
                 <View key={mention.id}>
-                  {button("Open mentioned workout", () =>
+                  {button("Open mentioned activity", () =>
                     router.push(
                       `/community/comments?activityId=${encodeURIComponent(mention.activityId)}` as Href,
                     ),
@@ -317,13 +317,13 @@ function CommentsContent({
                 {state.canManage &&
                   button(
                     state.enabled
-                      ? "Close comments on this workout"
-                      : "Open comments on this workout",
+                      ? "Close comments on this activity"
+                      : "Open comments on this activity",
                     () => void controller.settings(!state.enabled),
                   )}
                 {!state.busy && !state.error && !state.enabled && (
                   <ThemedText>
-                    Comments are closed on this workout. The author can choose
+                    Comments are closed on this activity. The author can choose
                     to open them.
                   </ThemedText>
                 )}
@@ -443,7 +443,7 @@ function CommentsContent({
                     {state.candidates.length > 0 && (
                       <ThemedText>
                         Optional mentions: only approved friends who opted in
-                        and can see this workout.
+                        and can see this activity.
                       </ThemedText>
                     )}
                     {state.candidates.map((candidate) =>
@@ -467,7 +467,7 @@ function CommentsContent({
                       Your preview: {body || "Write your comment above."}
                     </ThemedText>
                     {toggle(
-                      "I choose to share this text with everyone who can see this workout, including followers added later",
+                      "I choose to share this text with everyone who can see this activity, including followers added later",
                       accepted,
                       () => setAccepted(!accepted),
                     )}

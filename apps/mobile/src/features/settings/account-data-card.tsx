@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import * as AppleAuthentication from "expo-apple-authentication";
 import {
   ActivityIndicator,
@@ -73,6 +73,15 @@ export function AccountDataCard({
   readonly disabled?: boolean;
 }) {
   const { session, signOut } = useAuth();
+  const exportSession = useRef(session);
+  exportSession.current = session;
+  const exportMounted = useRef(true);
+  useEffect(() => {
+    exportMounted.current = true;
+    return () => {
+      exportMounted.current = false;
+    };
+  }, []);
   const [isExporting, setIsExporting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deletionStage, setDeletionStage] = useState<DeletionStage>("idle");
@@ -82,6 +91,11 @@ export function AccountDataCard({
   } | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [isRevokingConsent, setIsRevokingConsent] = useState(false);
+
+  useEffect(() => {
+    // A retired export must not keep a replacement owner/token's controls busy.
+    setIsExporting(false);
+  }, [session?.user.id, session?.accessToken]);
 
   useEffect(() => {
     let active = true;
@@ -176,15 +190,26 @@ export function AccountDataCard({
   };
 
   const handleExport = async () => {
+    const captured = session;
+    if (!captured) return;
+    const isCurrent = () =>
+      exportMounted.current &&
+      exportSession.current?.user.id === captured.user.id &&
+      exportSession.current?.accessToken === captured.accessToken;
     setIsExporting(true);
     setFeedbackMessage(null);
     try {
-      const result = await fetchAccountExport(apiClient);
+      const result = await fetchAccountExport(apiClient, {
+        expectedUserId: captured.user.id,
+        isCurrent,
+      });
+      if (!isCurrent()) return;
       if (!result.ok) {
         setFeedbackMessage(result.message);
         return;
       }
       const saved = await saveExportToFile(result.data);
+      if (!isCurrent()) return;
       if (!saved.ok) {
         setFeedbackMessage(saved.message);
         return;
@@ -200,15 +225,17 @@ export function AccountDataCard({
         url: saved.fileUri,
         message: Platform.OS === "android" ? saved.fileUri : undefined,
       });
+      if (!isCurrent()) return;
       if (shareResult.action === Share.sharedAction) {
         setFeedbackMessage("Account data export saved successfully.");
       } else if (shareResult.action === Share.dismissedAction) {
         setFeedbackMessage("Account data export share dismissed.");
       }
     } catch {
-      setFeedbackMessage("Could not open share sheet for account export.");
+      if (isCurrent())
+        setFeedbackMessage("Could not open share sheet for account export.");
     } finally {
-      setIsExporting(false);
+      if (isCurrent()) setIsExporting(false);
     }
   };
 

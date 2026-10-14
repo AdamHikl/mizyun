@@ -1,3 +1,7 @@
+import {
+  createMealRecipeSessionTransport,
+  type MealRecipeSessionApi,
+} from "./meal-recipe-session-api";
 import { err, ok, type Result } from "@mizyun/core";
 import {
   coachMessageResponseSchema,
@@ -11,6 +15,10 @@ import {
 } from "@mizyun/contracts";
 import type { AuthClient } from "@mizyun/identity";
 
+import {
+  createMealRecipeTransport,
+  type MealRecipeApi,
+} from "./meal-recipe-api";
 import type { ApiClient } from "./api-client";
 import { mapFetchError, parseApiErrorBody } from "./errors";
 import type { ApiConfigurationStatus, ApiError, RequestOptions } from "./types";
@@ -63,11 +71,29 @@ export class HttpApiClient implements ApiClient {
   readonly #baseUrl: string;
   readonly #authClient: AuthClient;
   readonly #fetch: typeof globalThis.fetch;
+  readonly getMealRecipeSessionContext: MealRecipeSessionApi["context"];
+  readonly revalidateMealRecipes: MealRecipeSessionApi["revalidate"];
+  readonly getMealRecipeCapabilities: MealRecipeApi["capabilities"];
+  readonly suggestMealRecipes: MealRecipeApi["suggest"];
+  readonly recognizeMealRecipeIngredients: MealRecipeApi["recognizeIngredients"];
 
   constructor(dependencies: HttpApiClientDependencies) {
     this.#baseUrl = trimTrailingSlash(dependencies.baseUrl);
     this.#authClient = dependencies.authClient;
     this.#fetch = dependencies.fetch ?? globalThis.fetch.bind(globalThis);
+    const recipes = createMealRecipeTransport({
+      ...dependencies,
+      fetch: this.#fetch,
+    });
+    const recipeSession = createMealRecipeSessionTransport({
+      ...dependencies,
+      fetch: this.#fetch,
+    });
+    this.getMealRecipeSessionContext = recipeSession.context;
+    this.revalidateMealRecipes = recipeSession.revalidate;
+    this.getMealRecipeCapabilities = recipes.capabilities;
+    this.suggestMealRecipes = recipes.suggest;
+    this.recognizeMealRecipeIngredients = recipes.recognizeIngredients;
   }
 
   status(): ApiConfigurationStatus {

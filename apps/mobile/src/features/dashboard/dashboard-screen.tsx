@@ -1,3 +1,4 @@
+import { RecurringMealSuggestionCard } from "@/features/recurring-meals";
 import {
   ActivityIndicator,
   Alert,
@@ -26,7 +27,13 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { TabHeader, useTabHeaderLayout } from "@/components/tab-header";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
-import { apiClient, invalidateSessionReads } from "@/composition/api-client";
+import {
+  apiClient,
+  invalidateSessionReads,
+  peekSessionRead,
+  getSessionReadVersion,
+} from "@/composition/api-client";
+import type { AuthSession } from "@mizyun/identity";
 import type { RequestOptions } from "@mizyun/api-client";
 import {
   subscribeSessionReadUpdates,
@@ -71,6 +78,7 @@ import {
   fetchLatestWeight,
   fetchNutritionReviewSummaries,
   fetchWorkoutCountForPeriod,
+  readDashboardSnapshot,
   type DailyDataResult,
   type DailySummary,
   type EnergySummary,
@@ -285,17 +293,88 @@ const actions = [
   },
 ] as const;
 
+function initialMetricsFor(session: AuthSession | null): MetricsState {
+  if (!session) return EMPTY_METRICS;
+  const now = new Date();
+  const today = isoLocalDate(now);
+  const offset = -now.getTimezoneOffset();
+  const snapshot = readDashboardSnapshot(
+    <T,>(options: RequestOptions) => peekSessionRead<T>(options, session),
+    {
+      date: today,
+      fromIsoDate: startOfLocalWeek(now),
+      toIsoDate: localYesterday(now),
+      utcOffsetMinutes: offset,
+    },
+  );
+  const status = (
+    read: { readonly savedAt?: number } | null,
+  ): SectionStatus => ({
+    loading: read === null,
+    hasError: false,
+    savedAt: read
+      ? new Date(read.savedAt ?? now.getTime()).toISOString()
+      : null,
+  });
+  const reviewReady =
+    snapshot.daily !== null &&
+    snapshot.history !== null &&
+    snapshot.workouts !== null;
+  return {
+    ...EMPTY_METRICS,
+    scope: `${session.user.id}:${session.accessToken}:${today}:${offset}`,
+    caloriesToday: snapshot.daily?.value?.caloriesKcal ?? null,
+    macros: snapshot.daily?.value ?? null,
+    latestWeightKg: snapshot.weight?.value?.weightKg ?? null,
+    energy: snapshot.energy?.value ?? null,
+    workoutsInReview: snapshot.workouts?.value ?? null,
+    nutritionReview:
+      snapshot.daily && snapshot.history
+        ? combineNutritionReview(snapshot.history.value, snapshot.daily.value)
+        : null,
+    loading:
+      !snapshot.daily || !snapshot.weight || !snapshot.energy || !reviewReady,
+    sectionStatus: {
+      nutritionToday: status(snapshot.daily),
+      weight: status(snapshot.weight),
+      energy: status(snapshot.energy),
+      review: reviewReady
+        ? status({
+            savedAt: Math.min(
+              ...[snapshot.daily, snapshot.history, snapshot.workouts].map(
+                (read) => read?.savedAt ?? now.getTime(),
+              ),
+            ),
+          })
+        : DEFAULT_SECTION_STATUS,
+    },
+  };
+}
+
 export function DashboardScreen() {
   const { headerHeight, onHeaderLayout } = useTabHeaderLayout();
   const { profile, session, openOnboarding } = useAuth();
-  const [storedMetrics, setMetrics] = useState<MetricsState>(EMPTY_METRICS);
-  const [steps, setSteps] = useState<DailyStepsResult>({ kind: "off" });
+  const [prefetchRevision, setPrefetchRevision] = useState(0);
+  useEffect(
+    () =>
+      subscribeSessionReadUpdates(() =>
+        setPrefetchRevision((value) => value + 1),
+      ),
+    [],
+  );
+  const readVersion = getSessionReadVersion();
+  const initialMetrics = useMemo(
+    () => initialMetricsFor(session),
+    [session?.user.id, session?.accessToken, prefetchRevision, readVersion],
+  );
+  const [storedMetrics, setMetrics] = useState<MetricsState>(initialMetrics);
+  const [storedSteps, setSteps] = useState<DailyStepsResult>({ kind: "off" });
   const stepsRequestId = useRef(0);
   const [storedYesterdayFirstMeal, setYesterdayFirstMeal] = useState<{
     readonly scope: string;
     readonly entry: FoodEntry | null;
   } | null>(null);
-  const [firstMealReminders, setFirstMealReminders] =
+  const [storedFirstMealReminders, setFirstMealReminders] =
     useState<FirstMealReminderSettings | null>(null);
   const [mealCopiedScope, setMealCopiedScope] = useState<string | null>(null);
   const [reviewPeriod, setReviewPeriod] = useState<ReviewPeriod>("week");
@@ -306,8 +385,8 @@ export function DashboardScreen() {
   const ownerKey = `${userId ?? ""}:${accessToken ?? ""}`;
   const currentOwner = useRef(ownerKey);
   currentOwner.current = ownerKey;
-  const loadedMetrics = useRef(false);
-  const displayScope = useRef("");
+  const loadedMetrics = useRef(!initialMetrics.loading);
+  const displayScope = useRef(initialMetrics.scope);
   const [offline, setOffline] = useState(false);
   const refreshPending = useRef<{
     owner: string;
@@ -317,9 +396,9 @@ export function DashboardScreen() {
   useEffect(() => {
     activeRequestId.current += 1;
     stepsRequestId.current += 1;
-    loadedMetrics.current = false;
-    displayScope.current = "";
-    setMetrics(EMPTY_METRICS);
+    loadedMetrics.current = !initialMetrics.loading;
+    displayScope.current = initialMetrics.scope;
+    setMetrics(initialMetrics);
     setSteps({ kind: "off" });
     setYesterdayFirstMeal(null);
     setFirstMealReminders(null);
@@ -871,12 +950,22 @@ export function DashboardScreen() {
   // Hide an old account/day immediately, including the frame before focus
   // effects execute. Review-period changes retain today's independent values.
   const renderScope = `${ownerKey}:${isoLocalDate(new Date())}:${-new Date().getTimezoneOffset()}`;
+  const ownsDisplay = storedMetrics.scope === renderScope;
+  const steps: DailyStepsResult = ownsDisplay ? storedSteps : { kind: "off" };
+  const firstMealReminders = ownsDisplay ? storedFirstMealReminders : null;
   const yesterdayFirstMeal =
     storedYesterdayFirstMeal?.scope === renderScope
       ? storedYesterdayFirstMeal.entry
       : null;
   const scopedMetrics =
-    storedMetrics.scope === renderScope ? storedMetrics : EMPTY_METRICS;
+    storedMetrics.scope === renderScope &&
+    Object.values(storedMetrics.sectionStatus).some(
+      (status) => status.savedAt !== null,
+    )
+      ? storedMetrics
+      : initialMetrics.scope === renderScope
+        ? initialMetrics
+        : EMPTY_METRICS;
   const metrics =
     scopedMetrics.reviewPeriod === reviewPeriod
       ? scopedMetrics
@@ -1023,6 +1112,11 @@ export function DashboardScreen() {
               First meal saved! ✨
             </ThemedText>
           ) : null}
+
+          <RecurringMealSuggestionCard
+            userId={userId}
+            hidden={(metrics.macros?.entryCount ?? 0) === 0}
+          />
 
           {/* 1. Daily Nutrition & Macro Visual Card */}
           <DailyNutritionCard
@@ -1233,7 +1327,12 @@ function FirstMealDashboardCard(props: {
     recovered.owner === userId &&
     recovered.localDate === isoLocalDate(new Date()) &&
     props.isCurrent()
-      ? ({ ...recovered.payload, id: recovered.sourceEntryId } as FoodEntry)
+      ? ({
+          ...recovered.payload,
+          id: recovered.sourceEntryId,
+          userId: recovered.owner,
+          photoAssetId: recovered.sourcePhotoAssetId ?? null,
+        } as FoodEntry)
       : suggestedMeal;
   const theme = useTheme();
   const [busy, setBusy] = useState(false);
@@ -1352,10 +1451,20 @@ function FirstMealDashboardCard(props: {
         await onMealCopied();
         return;
       }
-      const result = await copyFoodEntry(yesterdayFirstMeal, false, {
-        expectedUserId: userId,
-        payload: pending.payload,
-      });
+      const result = await copyFoodEntry(
+        {
+          ...yesterdayFirstMeal,
+          id: pending.sourceEntryId,
+          userId: pending.owner,
+          photoAssetId: pending.sourcePhotoAssetId ?? null,
+        },
+        false,
+        {
+          isCurrent,
+          expectedUserId: userId,
+          payload: pending.payload,
+        },
+      );
       if (!isCurrent()) return;
       if (!result.ok) {
         setError(result.message);

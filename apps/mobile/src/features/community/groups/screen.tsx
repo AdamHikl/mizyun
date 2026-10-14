@@ -374,9 +374,9 @@ function Content({ principal }: { principal: string | null }) {
     >
       <CommunityPage title="Private groups" backHref="/community/more">
         <Text style={{ color: theme.textSecondary }}>
-          A separate space for small friend groups. Your workout diary stays
-          private. New members see posts made after they join. Blocking hides
-          shared-group content from that person.
+          A separate space for small friend groups. Your meal and workout
+          diaries stay private. New members see posts made after they join.
+          Blocking hides shared-group content from that person.
         </Text>
         {!principal && (
           <Text style={{ color: theme.text }}>
@@ -549,8 +549,9 @@ function Content({ principal }: { principal: string | null }) {
             {group.state === "member" && (
               <>
                 <Text style={{ color: theme.text }}>
-                  Posts go only to this group. There is no automatic workout
-                  sharing. Removing a post cannot retract copies already seen.
+                  Posts go only to this group. There is no automatic meal or
+                  workout sharing. Removing a post cannot retract copies already
+                  seen.
                 </Text>
                 {button("Cooperative goals · add progress yourself", () =>
                   router.push(

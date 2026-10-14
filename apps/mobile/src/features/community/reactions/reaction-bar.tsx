@@ -44,7 +44,7 @@ export function buildReactionAccessibilityLabel(options: {
     if (totalReactions > 0) {
       return `${label}, ${countLabel}. Tap to view who reacted.`;
     }
-    return `${label}, 0 reactions. Cannot react to your own workout.`;
+    return `${label}, 0 reactions. Cannot react to your own activity.`;
   }
 
   if (isSelected) {

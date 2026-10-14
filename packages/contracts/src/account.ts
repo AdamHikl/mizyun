@@ -110,7 +110,26 @@ export const communityAccountExportSchema = z
   })
   .strict();
 
+/** Content-free operational accounting; never prompts, images or generated recipes. */
+const exportedRecipeRequestSchema = z
+  .object({
+    requestId: z.string().uuid(),
+    operation: z.enum(["suggest", "recognize"]),
+    status: z.enum(["attempting", "succeeded", "failed", "expired"]),
+    createdAt: z.string().datetime(),
+    budgetDay: isoDateSchema.refine((value) => {
+      const timestamp = Date.parse(`${value}T00:00:00.000Z`);
+      return (
+        Number.isFinite(timestamp) &&
+        new Date(timestamp).toISOString().slice(0, 10) === value
+      );
+    }, "budget day must be a valid date"),
+    tokensCharged: z.number().int().min(0).max(2_000_000),
+  })
+  .strict();
+
 export const accountExportSchema = z.object({
+  recipeRequests: z.array(exportedRecipeRequestSchema).optional(),
   mealIllustrations: z.array(exportedMealIllustrationSchema).optional(),
   mealImagePaths: z
     .array(
@@ -147,6 +166,9 @@ export const accountExportSchema = z.object({
     .object({
       schedules: z.array(z.record(z.unknown())),
       occurrences: z.array(z.record(z.unknown())),
+      suggestionStates: z.array(z.record(z.unknown())).optional(),
+      suggestionPreferences: z.array(z.record(z.unknown())).optional(),
+      suggestionReceipts: z.array(z.record(z.unknown())).optional(),
     })
     .strict()
     .optional(),

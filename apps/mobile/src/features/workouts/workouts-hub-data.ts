@@ -4,9 +4,10 @@ import {
   deleteHealthExport,
   markFirstPartyWorkout,
 } from "@/features/health-exports";
-import type { ApiClient, ApiError } from "@mizyun/api-client";
+import type { ApiClient, ApiError, RequestOptions } from "@mizyun/api-client";
 import * as Crypto from "expo-crypto";
 import {
+  type Result,
   isRoutineDetails,
   isSessionDetails,
   readWorkoutLifecycle,
@@ -14,6 +15,8 @@ import {
   type WorkoutLifecycle,
 } from "@mizyun/core";
 import {
+  runListResponseSchema,
+  type RunListResponse,
   exerciseListResponseSchema,
   workoutCreateSchema,
   workoutListResponseSchema,
@@ -31,10 +34,10 @@ import {
   type WorkoutResponse,
 } from "@mizyun/contracts";
 
-import { listRuns } from "@/features/running/client";
 import { runningDate, hasRunningActivity } from "@mizyun/core";
 
-import { apiClient } from "@/composition/api-client";
+import { apiClient, peekSessionRead } from "@/composition/api-client";
+import type { AuthSession } from "@mizyun/identity";
 import { readPlannedSetTypes } from "./planned-set-types";
 
 export interface PlannedExerciseItem {
@@ -377,30 +380,154 @@ export const processWorkout = (
   };
 };
 
+const workoutListRead = (routine = false): RequestOptions => ({
+  method: "GET",
+  path: routine
+    ? "/v1/workouts?kind=routine&limit=200"
+    : "/v1/workouts?limit=200",
+  schema: workoutListResponseSchema,
+});
+const exerciseListRead = (): RequestOptions => ({
+  method: "GET",
+  path: "/v1/exercises?limit=200",
+  schema: exerciseListResponseSchema,
+});
+const workoutSetsRead = (id: string): RequestOptions => ({
+  method: "GET",
+  path: `/v1/workouts/${encodeURIComponent(id)}/sets`,
+  schema: workoutSetListResponseSchema,
+});
+const runListRead = (
+  options: { cursor?: string; from?: string; to?: string } = {},
+): RequestOptions => {
+  const query = new URLSearchParams({ limit: "50" });
+  if (options.cursor) query.set("cursor", options.cursor);
+  if (options.from) query.set("from", options.from);
+  if (options.to) query.set("to", options.to);
+  return {
+    method: "GET",
+    path: `/v1/runs?${query}`,
+    schema: runListResponseSchema,
+  };
+};
+const hubWorkouts = (
+  base: readonly Workout[],
+  routines: readonly Workout[],
+): Workout[] => [
+  ...new Map(
+    [...routines, ...base].map((workout) => [workout.id, workout]),
+  ).values(),
+];
+const sessionWorkouts = (workouts: readonly Workout[]) =>
+  workouts.filter(
+    (workout) =>
+      !isRoutineDetails(workout.details) &&
+      !hasRunningActivity(workout.details),
+  );
+
+type RunningWeekData = {
+  runs: RunRecord[];
+  week: { from: string; to: string; incomplete: boolean };
+};
+
+/** Same request identities and projection as async startup/focus reads. */
+export function peekWorkoutsHubData(
+  session: AuthSession | null,
+  read: <T>(
+    options: RequestOptions,
+    session: AuthSession | null,
+  ) => Result<T, ApiError> | null = peekSessionRead,
+  now = new Date(),
+  zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+): WorkoutsHubResult | null {
+  const workoutResult = read<WorkoutListResponse>(workoutListRead(), session);
+  const routineResult = read<WorkoutListResponse>(
+    workoutListRead(true),
+    session,
+  );
+  const exerciseResult = read<ExerciseListResponse>(
+    exerciseListRead(),
+    session,
+  );
+  const runResult = read<RunListResponse>(runListRead(), session);
+  if (
+    !workoutResult?.ok ||
+    !routineResult?.ok ||
+    !exerciseResult?.ok ||
+    !runResult?.ok
+  )
+    return null;
+  const weekReads = runningWeekReads(now, zone);
+  let step = weekReads.next();
+  while (!step.done) {
+    const result = read<RunListResponse>(step.value, session);
+    if (!result?.ok) return null;
+    step = weekReads.next(result);
+  }
+  if (step.value.week.incomplete) return null;
+  const setsResults: Result<WorkoutSetListResponse, ApiError>[] = [];
+  for (const workout of sessionWorkouts(
+    hubWorkouts(workoutResult.value.workouts, routineResult.value.workouts),
+  )) {
+    const result = read<WorkoutSetListResponse>(
+      workoutSetsRead(workout.id),
+      session,
+    );
+    if (!result?.ok) return null;
+    setsResults.push(result);
+  }
+  return projectWorkoutsHub(
+    workoutResult,
+    routineResult,
+    exerciseResult,
+    runResult,
+    step.value,
+    setsResults,
+    now,
+  );
+}
+
 export const fetchWorkoutsHubData = async (
   client: ApiClient = apiClient,
 ): Promise<WorkoutsHubResult> => {
   const [workoutResult, routineResult, exerciseResult, runResult, weekResult] =
     await Promise.all([
-      client.request<WorkoutListResponse>({
-        method: "GET",
-        path: "/v1/workouts?limit=200",
-        schema: workoutListResponseSchema,
-      }),
-      client.request<WorkoutListResponse>({
-        method: "GET",
-        path: "/v1/workouts?kind=routine&limit=200",
-        schema: workoutListResponseSchema,
-      }),
-      client.request<ExerciseListResponse>({
-        method: "GET",
-        path: "/v1/exercises?limit=200",
-        schema: exerciseListResponseSchema,
-      }),
-      listRuns(client),
+      client.request<WorkoutListResponse>(workoutListRead()),
+      client.request<WorkoutListResponse>(workoutListRead(true)),
+      client.request<ExerciseListResponse>(exerciseListRead()),
+      client.request<RunListResponse>(runListRead()),
       fetchRunningWeek(client),
     ]);
+  const workouts = hubWorkouts(
+    workoutResult.ok ? workoutResult.value.workouts : [],
+    routineResult.ok ? routineResult.value.workouts : [],
+  );
+  const setsResults = workoutResult.ok
+    ? await Promise.all(
+        sessionWorkouts(workouts).map((workout) =>
+          client.request<WorkoutSetListResponse>(workoutSetsRead(workout.id)),
+        ),
+      )
+    : [];
+  return projectWorkoutsHub(
+    workoutResult,
+    routineResult,
+    exerciseResult,
+    runResult,
+    weekResult,
+    setsResults,
+  );
+};
 
+function projectWorkoutsHub(
+  workoutResult: Result<WorkoutListResponse, ApiError>,
+  routineResult: Result<WorkoutListResponse, ApiError>,
+  exerciseResult: Result<ExerciseListResponse, ApiError>,
+  runResult: Result<RunListResponse, ApiError>,
+  weekResult: RunningWeekData,
+  setsResults: readonly Result<WorkoutSetListResponse, ApiError>[],
+  today = new Date(),
+): WorkoutsHubResult {
   if (!workoutResult.ok) {
     return {
       activeAndPlanned: [],
@@ -412,29 +539,7 @@ export const fetchWorkoutsHubData = async (
 
   const exercises = exerciseResult.ok ? exerciseResult.value.exercises : [];
   const routineWorkouts = routineResult.ok ? routineResult.value.workouts : [];
-  const baseWorkouts = workoutResult.value.workouts;
-  const workoutMap = new Map<string, Workout>();
-  for (const w of routineWorkouts) {
-    workoutMap.set(w.id, w);
-  }
-  for (const w of baseWorkouts) {
-    workoutMap.set(w.id, w);
-  }
-  const workouts = Array.from(workoutMap.values());
-
-  // Fetch sets only for non-routine workouts in parallel
-  const sessionWorkouts = workouts.filter(
-    (w) => !isRoutineDetails(w.details) && !hasRunningActivity(w.details),
-  );
-  const setsResults = await Promise.all(
-    sessionWorkouts.map((w) =>
-      client.request<WorkoutSetListResponse>({
-        method: "GET",
-        path: `/v1/workouts/${encodeURIComponent(w.id)}/sets`,
-        schema: workoutSetListResponseSchema,
-      }),
-    ),
-  );
+  const workouts = hubWorkouts(workoutResult.value.workouts, routineWorkouts);
 
   const allSets: WorkoutSet[] = [];
   for (const res of setsResults) {
@@ -443,7 +548,6 @@ export const fetchWorkoutsHubData = async (
     }
   }
 
-  const today = new Date();
   const processed = workouts
     .filter((w) => !hasRunningActivity(w.details))
     .map((w) => processWorkout(w, allSets, exercises, today));
@@ -481,7 +585,7 @@ export const fetchWorkoutsHubData = async (
         ? "Some workout details could not be loaded. Pull to refresh to try again."
         : null,
   };
-};
+}
 
 export const deleteWorkout = async (
   workoutId: string,
@@ -814,11 +918,14 @@ export const isReusableRoutine = (workout: Workout): boolean =>
     workout.completedAt === null &&
     extractPlannedExercisesFromWorkout(workout).length > 0);
 
-export async function fetchRunningWeek(
-  client: ApiClient,
-  now = new Date(),
-  zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-) {
+function* runningWeekReads(
+  now: Date,
+  zone: string,
+): Generator<
+  RequestOptions,
+  RunningWeekData,
+  Result<RunListResponse, ApiError>
+> {
   const today = runningDate(now, zone);
   const day = new Date(`${today}T12:00:00Z`);
   day.setUTCDate(day.getUTCDate() - ((day.getUTCDay() + 6) % 7));
@@ -830,7 +937,7 @@ export async function fetchRunningWeek(
   let cursor: string | undefined;
   let incomplete = false;
   for (let page = 0; page < 10; page++) {
-    const result = await listRuns(client, { from, to, cursor });
+    const result = yield runListRead({ from, to, cursor });
     if (!result.ok) {
       incomplete = true;
       break;
@@ -848,4 +955,16 @@ export async function fetchRunningWeek(
     cursor = result.value.nextCursor;
   }
   return { runs, week: { from, to, incomplete } };
+}
+
+export async function fetchRunningWeek(
+  client: ApiClient,
+  now = new Date(),
+  zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+): Promise<RunningWeekData> {
+  const reads = runningWeekReads(now, zone);
+  let step = reads.next();
+  while (!step.done)
+    step = reads.next(await client.request<RunListResponse>(step.value));
+  return step.value;
 }

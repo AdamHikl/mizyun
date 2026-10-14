@@ -18,6 +18,10 @@ vi.mock("react-native", () => ({ Platform: { OS: "ios" } }));
 vi.mock("../log-meal/public-data", () => ({
   clearAllMealPhotoRetries: vi.fn().mockResolvedValue(true),
 }));
+vi.mock("../meal-recipes/public-data", async (original) => ({
+  ...(await original<typeof import("../meal-recipes/public-data")>()),
+  clearRecipeIngredientData: vi.fn().mockResolvedValue(undefined),
+}));
 import { clearAllMealPhotoRetries } from "../log-meal/public-data";
 vi.mock("../dashboard/public-data", () => ({
   clearQuickMealRepeat: vi.fn().mockResolvedValue(undefined),
@@ -39,6 +43,27 @@ import {
 } from "./account-data-management.js";
 
 describe("account-data-management", () => {
+  it("erases only the account's analytics reminder and reports failed cleanup", async () => {
+    const deleteItemAsync = vi.fn().mockResolvedValue(undefined);
+    const analyticsReminderStore = {
+      getItemAsync: vi.fn(),
+      setItemAsync: vi.fn(),
+      deleteItemAsync,
+    };
+    const options = {
+      analyticsReminderStore,
+      listExportFiles: () => [],
+      clearHealthExports: async () => undefined,
+    };
+    await clearLocalUserData("synthetic-analytics-owner", options);
+    expect(deleteItemAsync).toHaveBeenCalledExactlyOnceWith(
+      "mizyun.analytics-reminder.v1.synthetic-analytics-owner",
+    );
+    deleteItemAsync.mockRejectedValueOnce(new Error("locked"));
+    await expect(
+      clearLocalUserData("synthetic-analytics-owner", options),
+    ).rejects.toThrow("Local account data cleanup is incomplete.");
+  });
   it("erases the meal-copy snapshot and reports failed local deletion", async () => {
     const clear = vi.mocked(clearQuickMealRepeat);
     clear.mockClear();

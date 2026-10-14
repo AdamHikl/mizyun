@@ -1,0 +1,103 @@
+{
+  "catalogRevision": "usda-sr-legacy-2018-rec02-v1",
+  "dataset": "USDA FoodData Central SR Legacy",
+  "datasetRelease": "2018-04",
+  "sourceUrl": "https://fdc.nal.usda.gov/fdc-datasets/FoodData_Central_sr_legacy_food_csv_2018-04.zip",
+  "downloadPage": "https://fdc.nal.usda.gov/download-datasets/",
+  "checkedOn": "2026-10-12",
+  "attribution": "U.S. Department of Agriculture, Agricultural Research Service. FoodData Central. SR Legacy, April 2018.",
+  "license": "CC0 1.0",
+  "licenseSourceUrl": "https://fdc.nal.usda.gov/api-guide/",
+  "archiveSha256": "b80817294b8850530aaedf2e515c02593b1824f763a0ff356e5c2081643e6fd0",
+  "archiveBytes": 6074592,
+  "members": [
+    {
+      "path": "FoodData_Central_sr_legacy_food_csv_2018-04/food.csv",
+      "sha256": "de8b0390058db4f102368c9fbdfde144790b480ff4cb0507c0e060ef99805dee",
+      "bytes": 793104
+    },
+    {
+      "path": "FoodData_Central_sr_legacy_food_csv_2018-04/food_nutrient.csv",
+      "sha256": "6d07e6fc062b09750c4d95112be5a5cdb56a2346efcfd0c96b7a7d705812d4bd",
+      "bytes": 36366059
+    },
+    {
+      "path": "FoodData_Central_sr_legacy_food_csv_2018-04/nutrient.csv",
+      "sha256": "466ab9d011094cc1ad8d939b246693988b56817c42d0e40a98820723695c6084",
+      "bytes": 21464
+    },
+    {
+      "path": "FoodData_Central_sr_legacy_food_csv_2018-04/sr_legacy_food.csv",
+      "sha256": "ff0fe85a469aa6d6702d68348850fc79dee35e9515324026964f1209a0e3544d",
+      "bytes": 130404
+    }
+  ],
+  "basis": {
+    "quantity": 100,
+    "unit": "g",
+    "part": "edible portion",
+    "documentationUrl": "https://www.ars.usda.gov/ARSUserFiles/80400525/Data/SR-Legacy/SR-Legacy_Doc.pdf"
+  },
+  "nutrients": [
+    {
+      "field": "caloriesKcal",
+      "nutrientId": 1008,
+      "unit": "KCAL",
+      "dictionaryRecord": {
+        "id": "1008",
+        "name": "Energy",
+        "unit_name": "KCAL",
+        "nutrient_nbr": "208",
+        "rank": "300.0"
+      }
+    },
+    {
+      "field": "proteinG",
+      "nutrientId": 1003,
+      "unit": "G",
+      "dictionaryRecord": {
+        "id": "1003",
+        "name": "Protein",
+        "unit_name": "G",
+        "nutrient_nbr": "203",
+        "rank": "600.0"
+      }
+    },
+    {
+      "field": "carbohydrateG",
+      "nutrientId": 1005,
+      "unit": "G",
+      "dictionaryRecord": {
+        "id": "1005",
+        "name": "Carbohydrate, by difference",
+        "unit_name": "G",
+        "nutrient_nbr": "205",
+        "rank": "1110.0"
+      }
+    },
+    {
+      "field": "fatG",
+      "nutrientId": 1004,
+      "unit": "G",
+      "dictionaryRecord": {
+        "id": "1004",
+        "name": "Total lipid (fat)",
+        "unit_name": "G",
+        "nutrient_nbr": "204",
+        "rank": "800.0"
+      }
+    }
+  ],
+  "ingredientCount": 29,
+  "reviewNotes": [
+    "Dataset release is April 2018; FDC food.csv publication_date for these records is 2019-04-01. These are distinct dates.",
+    "Preparation state describes the selected nutrient reference, not an automatic raw-to-cooked yield conversion. Weights are edible amounts in that state.",
+    "Allergen and diet tags are application review metadata for the described generic foods, not USDA certification or an allergy-safety guarantee. Actual product labels, additives and cross-contact remain unverified.",
+    "Oats conservatively use the gluten cereal exclusion group; this does not establish that a specific oat product contains gluten or is certified gluten-free.",
+    "Tomato puree means the pinned canned puree without added salt; other sauces, passata formulations, tomato paste and branded products require explicit matching or clarification.",
+    "Tofu uses the selected firm calcium-sulfate reference; other tofu types and formulations require explicit matching.",
+    "Missing nutrient source rows are imported as null; a recorded numeric zero remains zero. Energy is USDA nutrient 1008, not reconstructed from 4/4/9.",
+    "No drained canned food is selected. Boiled chickpeas, lentils and beans use cooked edible solids, not a can weight including liquid.",
+    "Qualified nutrition and food-safety review remains required before broader use."
+  ]
+}

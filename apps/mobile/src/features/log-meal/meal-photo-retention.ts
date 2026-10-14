@@ -5,6 +5,7 @@ import {
   type MealPhotoReadResponse,
 } from "@mizyun/contracts";
 import Constants from "expo-constants";
+import type { ApiClient } from "@mizyun/api-client";
 import { apiClient } from "@/composition/api-client";
 import { getAppVariant } from "@/composition/app-variant";
 import {
@@ -250,12 +251,64 @@ export const persistMealPhotoRetry = async (
     discardOwnedMealPhoto(owner, retry.uri);
   return saved;
 };
+/** Stage an independent copy before creating nutrition, using an expiring owner-authorized URL. */
+export const prepareCopiedMealPhoto = async (
+  owner: string,
+  sourceEntryId: string,
+  isCurrent: () => boolean,
+  client: ApiClient = apiClient,
+): Promise<RetainedMealPhoto> => {
+  if (retiredOwners.has(owner) || !mealPhotoRetentionEnabled() || !isCurrent())
+    throw new Error("Meal photo copy unavailable.");
+  const result = await client.request<MealPhotoReadResponse>({
+    method: "GET",
+    path: `/v1/food-entries/${encodeURIComponent(sourceEntryId)}/photo`,
+    expectedUserId: owner,
+    isCurrent,
+    schema: mealPhotoReadResponseSchema,
+  });
+  if (
+    !result.ok ||
+    !result.value.photo ||
+    !isCurrent() ||
+    retiredOwners.has(owner)
+  )
+    throw new Error("Meal photo copy unavailable.");
+  const directory = photoDirectory(owner);
+  directory.create({ intermediates: true, idempotent: true });
+  const destination = new File(directory, `${createOperationId()}-copy.jpg`);
+  try {
+    await File.downloadFileAsync(result.value.photo.signedUrl, destination);
+    if (
+      !isCurrent() ||
+      retiredOwners.has(owner) ||
+      !destination.exists ||
+      destination.size <= 0 ||
+      destination.size > MAX_RETAINED_MEAL_PHOTO_BYTES
+    )
+      throw new Error("Meal photo copy unavailable.");
+    return {
+      uri: destination.uri,
+      width: result.value.photo.width,
+      height: result.value.photo.height,
+      clientOperationId: createOperationId(),
+    };
+  } catch (cause) {
+    discardOwnedMealPhoto(owner, destination.uri);
+    throw cause;
+  }
+};
 export const loadMealPhotoRetry = (owner: string, entryId: string) =>
   loadLoggingDraft(owner, retryKind(entryId), isPendingPhoto);
-export const removeMealPhotoRetry = async (owner: string, entryId: string) => {
+export const removeMealPhotoRetry = async (
+  owner: string,
+  entryId: string,
+  discardBytes = true,
+) => {
   const pending = await loadMealPhotoRetry(owner, entryId);
   const cleared = await clearLoggingDraft(owner, retryKind(entryId));
-  if (cleared && pending) discardOwnedMealPhoto(owner, pending.uri);
+  if (cleared && pending && discardBytes)
+    discardOwnedMealPhoto(owner, pending.uri);
   if (cleared) await updateRetryIndex(owner, entryId, false);
   return cleared;
 };
@@ -263,6 +316,7 @@ export const uploadMealPhotoRetry = async (
   owner: string,
   entryId: string,
   isCurrent: () => boolean,
+  client: ApiClient = apiClient,
 ): Promise<boolean> => {
   if (retiredOwners.has(owner) || !mealPhotoRetentionEnabled() || !isCurrent())
     return false;
@@ -292,7 +346,9 @@ export const uploadMealPhotoRetry = async (
       return false;
     const imageBase64 = await file.base64();
     if (!isCurrent()) return false;
-    const result = await apiClient.request({
+    const result = await client.request({
+      expectedUserId: owner,
+      isCurrent,
       method: "POST",
       path: `/v1/food-entries/${encodeURIComponent(entryId)}/photo`,
       body: {

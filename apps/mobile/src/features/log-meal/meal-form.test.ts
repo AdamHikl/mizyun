@@ -591,3 +591,47 @@ describe("intentional meal calendar dates", () => {
     );
   });
 });
+
+it("rejects corrupt or mismatched frozen mutation bodies instead of recovering them as editable drafts", async () => {
+  const { isRecoverableMealDraft, isFrozenMealForm } =
+    await import("./meal-form");
+  const id = "11111111-1111-4111-8111-111111111111";
+  const form = {
+    name: "Meal",
+    clientOperationId: id,
+    consumedAt: "2026-09-08T12:00:00.000Z",
+    caloriesKcal: null,
+    proteinG: 0,
+    carbohydrateG: null,
+    fatG: null,
+  };
+  const draft = {
+    name: "Meal",
+    calories: "",
+    protein: "0",
+    carbs: "",
+    fat: "",
+    clientOperationId: id,
+    consumedAt: form.consumedAt,
+    submittedMeal: form,
+    submissionStatus: "outcome_unknown",
+  };
+  expect(isRecoverableMealDraft(draft)).toBe(true);
+  expect(
+    isRecoverableMealDraft({
+      ...draft,
+      submittedMeal: {
+        ...form,
+        clientOperationId: "22222222-2222-4222-8222-222222222222",
+      },
+    }),
+  ).toBe(false);
+  expect(isRecoverableMealDraft({ ...draft, submittedMeal: undefined })).toBe(
+    false,
+  );
+  expect(isFrozenMealForm({ ...form, unexpected: "data" })).toBe(false);
+  expect(isFrozenMealForm({ ...form, details: { lossy: NaN } })).toBe(false);
+  expect(isFrozenMealForm({ ...form, details: { lossy: undefined } })).toBe(
+    false,
+  );
+});

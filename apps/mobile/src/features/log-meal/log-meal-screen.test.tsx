@@ -123,6 +123,7 @@ vi.mock("@/composition/api-client", () => ({
 }));
 vi.mock("@/features/logging-draft-storage", () => ({
   loadLoggingDraft: mocks.load,
+  loadRequiredLoggingDraft: mocks.load,
   saveLoggingDraft: mocks.persist,
   clearLoggingDraft: mocks.clear,
 }));
@@ -231,6 +232,7 @@ beforeEach(async () => {
   mocks.normalize.mockResolvedValue(new Blob());
   mocks.load.mockResolvedValue({ ...draft });
   mocks.persist.mockResolvedValue(true);
+  mocks.clear.mockResolvedValue(true);
   mocks.history.mockResolvedValue({ entries: [] });
   mocks.refresh.mockResolvedValue(true);
   mocks.submit.mockResolvedValue({ ok: true });
@@ -263,6 +265,8 @@ it("closes meal entry without submitting or clearing its retained draft", async 
     "synthetic-user",
     "meal",
     expect.objectContaining({ name: "Retained manual meal" }),
+    undefined,
+    expect.objectContaining({ isCurrent: expect.any(Function) }),
   );
   close.props.onPress();
   expect(router.back).toHaveBeenCalledOnce();
@@ -353,6 +357,10 @@ describe("manual per-100-g meal entry", () => {
         sodiumMg: 45,
         details: { grams: 150 },
       }),
+      expect.objectContaining({
+        expectedUserId: "synthetic-user",
+        isCurrent: expect.any(Function),
+      }),
     );
     expect(mocks.persist).toHaveBeenLastCalledWith(
       "synthetic-user",
@@ -362,6 +370,8 @@ describe("manual per-100-g meal entry", () => {
         calories: "200",
         portionGrams: "150",
       }),
+      undefined,
+      expect.objectContaining({ isCurrent: expect.any(Function) }),
     );
   });
   it("uses the selected basis and recalculates from raw label values after weight changes", async () => {
@@ -547,6 +557,8 @@ describe("previous-day meal logging", () => {
       "synthetic-user",
       "meal",
       expect.objectContaining({ mealDate: "2026-09-12" }),
+      undefined,
+      expect.objectContaining({ isCurrent: expect.any(Function) }),
     );
   });
   it("keeps the selected date after clearing the form", async () => {
@@ -834,6 +846,8 @@ it("saves each separate photo meal only after its own confirmation and persists 
       name: "Second meal",
       pendingPhotoDrafts: [expect.objectContaining({ name: "Third meal" })],
     }),
+    undefined,
+    expect.objectContaining({ isCurrent: expect.any(Function) }),
   );
   await submit();
   expect(byId("meal-name-input").props.value).toBe("Third meal");
@@ -952,8 +966,12 @@ it("allows a token refresh during Save without locking the meal form", async () 
   );
   byId("submit-meal-button").props.onPress();
   await flush();
+  const scope = mocks.submit.mock.calls[0][1];
+  expect(scope.expectedUserId).toBe("synthetic-user");
+  expect(scope.isCurrent()).toBe(true);
   mocks.token = "refreshed-synthetic-token";
   render();
+  expect(scope.isCurrent()).toBe(false);
   resolveSave({ ok: false, message: "Network unavailable" });
   await flush();
   render();
@@ -1209,7 +1227,7 @@ it("invalidates retained-photo upload on a token change and removes its local re
     "synthetic-user",
     "saved-during-token-change",
   );
-  expect(router.back).toHaveBeenCalled();
+  expect(router.back).not.toHaveBeenCalled();
 });
 
 it("drops a failed upload's retry when Pro can no longer be freshly confirmed", async () => {
@@ -1223,5 +1241,132 @@ it("drops a failed upload's retry when Pro can no longer be freshly confirmed", 
     "saved-failed-upload",
   );
   expect(mocks.visualRefresh).toHaveBeenCalledTimes(2);
+  expect(router.back).toHaveBeenCalled();
+});
+
+it("recovers the exact frozen request after a lost response, edits and a restart over 24 hours later", async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  try {
+    vi.setSystemTime(new Date("2026-09-08T12:00:00.000Z"));
+    hooks.slots = [];
+    hooks.effects = [];
+    mocks.load.mockResolvedValue({
+      ...draft,
+      consumedAt: new Date().toISOString(),
+    });
+    render();
+    await flush();
+    render();
+    mocks.submit.mockResolvedValueOnce({
+      ok: false,
+      message: "Network unavailable",
+    });
+    await submit();
+    const original = mocks.submit.mock.calls[0][0];
+    const persisted = mocks.persist.mock.calls.find(
+      (call) => call[2].submittedMeal,
+    )?.[2];
+    expect(persisted).toMatchObject({
+      submittedMeal: original,
+      submissionStatus: "outcome_unknown",
+    });
+    byId("meal-name-input").props.onChangeText("Edited while unresolved");
+    render();
+    const edited = mocks.persist.mock.calls.at(-1)![2];
+    expect(edited.submittedMeal).toEqual(original);
+    vi.setSystemTime(new Date("2026-09-09T13:00:00.000Z"));
+    hooks.slots = [];
+    hooks.effects = [];
+    mocks.load.mockResolvedValue(edited);
+    render();
+    await flush();
+    render();
+    expect(byId("meal-name-input").props.value).toBe(original.name);
+    mocks.pro = false;
+    mocks.refresh.mockResolvedValue(false);
+    await submit();
+    expect(mocks.submit.mock.calls[1][0]).toEqual(original);
+    expect(mocks.clear).toHaveBeenCalledWith(
+      "synthetic-user",
+      "meal",
+      undefined,
+      expect.objectContaining({
+        resolvedOperationId: original.clientOperationId,
+      }),
+    );
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("keeps the frozen operation when Clear is pressed after a lost response", async () => {
+  mocks.submit.mockResolvedValueOnce({
+    ok: false,
+    message: "Network unavailable",
+  });
+  await submit();
+  const original = mocks.submit.mock.calls[0][0];
+  mocks.clear.mockClear();
+  byId("meal-name-input").props.onChangeText("Changed while outcome unknown");
+  byId("clear-meal-button").props.onPress();
+  await flush();
+  render();
+  expect(mocks.clear).not.toHaveBeenCalled();
+  expect(byId("meal-name-input").props.value).toBe(original.name);
+  await submit();
+  expect(mocks.submit.mock.calls[1][0]).toEqual(original);
+});
+
+it("blocks Save when required storage recovery is unavailable", async () => {
+  hooks.slots = [];
+  hooks.effects = [];
+  mocks.load.mockRejectedValueOnce(Error("locked"));
+  render();
+  await flush();
+  render();
+  expect(byId("submit-meal-button").props.disabled).toBe(true);
+  expect(mocks.submit).not.toHaveBeenCalled();
+});
+
+it("does not replay changed description details under the frozen identity", async () => {
+  mocks.submit.mockResolvedValueOnce({
+    ok: false,
+    message: "Network unavailable",
+  });
+  await submit();
+  const description = find(
+    render(),
+    (node) => node.props?.testID === "meal-description-input",
+  );
+  expect(description).toBeTruthy();
+  description.props.onChangeText("Changed description");
+  await submit();
+  expect(mocks.submit).toHaveBeenCalledTimes(1);
+});
+
+it("does not autosave the previous account's rendered values into a newly selected account", async () => {
+  mocks.persist.mockClear();
+  mocks.owner = "new-owner";
+  mocks.token = "new-token";
+  mocks.load.mockResolvedValue(null);
+  render();
+  expect(mocks.persist).not.toHaveBeenCalled();
+  await flush();
+  render();
+  expect(
+    mocks.persist.mock.calls.every(
+      (call) => call[0] !== "new-owner" || call[2].name === "",
+    ),
+  ).toBe(true);
+});
+
+it("keeps Save retryable when a confirmed meal completion receipt cannot be persisted", async () => {
+  mocks.clear.mockResolvedValueOnce(false);
+  await submit();
+  const original = mocks.submit.mock.calls[0][0];
+  expect(router.back).not.toHaveBeenCalled();
+  expect(byId("submit-meal-button").props.disabled).toBe(false);
+  await submit();
+  expect(mocks.submit.mock.calls[1][0]).toEqual(original);
   expect(router.back).toHaveBeenCalled();
 });

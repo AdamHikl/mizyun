@@ -151,12 +151,12 @@ function PersonProfile({
     };
     const explanation: Partial<Record<ProfileAction, string>> = {
       follow:
-        "They must approve before you can see their shared workouts. This does not give them access to yours.",
+        "They must approve before you can see their shared meals and workouts. This does not give them access to yours.",
       approve:
-        "They can see your still-published workout cards, including past cards. This does not follow them back.",
+        "They can see your still-published meal and workout cards, including past cards. This does not follow them back.",
       remove:
-        "Removes their access to your shared workouts and prior interactions.",
-      unfollow: "Ends your access to their shared workouts.",
+        "Removes their access to your shared meals and workouts and prior interactions.",
+      unfollow: "Ends your access to their shared meals and workouts.",
       block:
         "Blocks interaction in both directions and removes both follows and requests. Unblocking restores nothing.",
     };
@@ -262,6 +262,10 @@ function PersonProfile({
                 href="/community/share"
               />
               <CommunityRow
+                title="Share a saved meal"
+                href={"/community/share-meal" as Href}
+              />
+              <CommunityRow
                 title="Shared routines and photos"
                 href="/community/more"
               />
@@ -277,7 +281,7 @@ function PersonProfile({
                     ? "Request sent · waiting for approval"
                     : incoming?.status === "approved"
                       ? "Follows you"
-                      : "Approval is required to see shared workouts"}
+                      : "Approval is required to see shared meals and workouts"}
               </Text>
               <View style={styles.actions}>
                 {!outgoing && (
@@ -312,7 +316,7 @@ function PersonProfile({
               {incoming?.status === "pending" && (
                 <CommunitySection
                   title="They requested to follow you"
-                  description="Approving lets them see your shared workouts. Following back is separate."
+                  description="Approving lets them see your shared meals and workouts. Following back is separate."
                 >
                   <View style={styles.actions}>
                     <CommunityButton
@@ -366,7 +370,7 @@ function PersonProfile({
               )}
             </>
           )}
-          <CommunitySection title="Shared workouts">
+          <CommunitySection title="Shared meals and workouts">
             {state.activityError ? (
               <CommunityState
                 title="Shared activities unavailable"
@@ -379,32 +383,36 @@ function PersonProfile({
               <>
                 {state.activities.length === 0 && (
                   <CommunityState
-                    title="No shared workouts"
+                    title="No shared meals and workouts"
                     description={
                       isSelf
-                        ? "Share a completed workout deliberately from Workouts."
-                        : "There are no currently available shared workouts."
+                        ? "Choose Share meal or Share a completed workout to preview and publish."
+                        : "There are no currently available shared meals and workouts."
                     }
                   />
                 )}
                 {state.activities.map((item) => (
                   <CommunityRow
                     key={item.id}
-                    title={item.category.replaceAll("_", " ")}
-                    description={`${item.sharedDay}${item.durationSeconds !== null ? ` · ${Math.round(item.durationSeconds / 60)} min` : ""}`}
+                    title={
+                      item.activityKind === "meal"
+                        ? `Meal · ${item.mealDetails?.name ?? "Shared meal"}`
+                        : item.category.replaceAll("_", " ")
+                    }
+                    description={`${item.sharedDay}${item.activityKind !== "meal" && item.durationSeconds !== null ? ` · ${Math.round(item.durationSeconds / 60)} min` : ""}`}
                     href={`/community/activity/${item.id}` as Href}
                   />
                 ))}
                 {state.nextCursor && (
                   <CommunityButton
-                    label="Load more shared workouts"
+                    label="Load more shared meals and workouts"
                     onPress={() => void controller.load(true)}
                   />
                 )}
               </>
             ) : (
               <CommunityState
-                title="Shared workouts need their approval"
+                title="Shared meals and workouts need their approval"
                 description="A follow request gives no access until approved."
               />
             )}

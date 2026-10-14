@@ -65,6 +65,91 @@ function fixture(value: unknown = saved) {
 afterEach(() => vi.useRealTimers());
 
 describe("saved personal startup reads", () => {
+  it("projects hydrated offline data without IO or changing its original save time", async () => {
+    const f = fixture();
+    expect(f.cache.peek(options, alice)).toBeNull();
+    expect(f.storage.load).not.toHaveBeenCalled();
+    await f.cache.request(options);
+    vi.mocked(f.storage.load).mockClear();
+    f.request.mockClear();
+    for (let i = 0; i < 3; i++)
+      expect(f.cache.peek(options, alice)).toEqual({
+        ok: true,
+        value: saved,
+        savedAt: now - 30_000,
+      });
+    expect(f.storage.load).not.toHaveBeenCalled();
+    expect(f.storage.save).not.toHaveBeenCalled();
+    expect(f.request).not.toHaveBeenCalled();
+    f.cache.clear();
+  });
+  it("never relabels pre-purge hydrated data with a new cleanup generation", async () => {
+    const f = fixture();
+    let generation = 0;
+    f.storage.generation = () => generation;
+    vi.mocked(f.storage.purge).mockImplementation(async () => {
+      generation++;
+      f.records.length = 0;
+    });
+    const hydration = deferred<readonly any[]>();
+    vi.mocked(f.storage.load).mockReturnValue(hydration.promise);
+    const read = f.cache.request(options);
+    await vi.waitFor(() => expect(f.storage.load).toHaveBeenCalled());
+    hydration.resolve([...f.records]);
+    const purge = f.storage.purge("alice");
+    await purge;
+    expect((await read).ok).toBe(false);
+    expect(f.cache.peek(options, alice)).toBeNull();
+    f.cache.clear();
+  });
+  it("does not asynchronously revive or re-persist sibling records after external cleanup", async () => {
+    const f = fixture();
+    const sibling = { ...options, path: "/v1/workouts?limit=5" };
+    f.records.push({ path: sibling.path, value: saved, savedAt: now - 30_000 });
+    let generation = 0;
+    f.storage.generation = () => generation;
+    await f.cache.request(options);
+    await f.cache.request(sibling);
+    generation++;
+    f.records.length = 0;
+    f.request.mockClear().mockResolvedValue({ ok: true, value: fresh });
+    expect(f.cache.peek(options, alice)).toBeNull();
+    expect(await f.cache.request(options)).toEqual({ ok: true, value: fresh });
+    expect(f.request).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(f.storage.save).toHaveBeenCalled());
+    expect(
+      vi
+        .mocked(f.storage.save)
+        .mock.calls.at(-1)![1]
+        .map((record) => record.path),
+    ).toEqual([options.path]);
+    expect(f.cache.peek(sibling, alice)).toBeNull();
+    f.cache.clear();
+  });
+  it("retires already hydrated snapshots after external cleanup, denial or maximum age", async () => {
+    const f = fixture();
+    let generation = 0;
+    f.storage.generation = () => generation;
+    await f.cache.request(options);
+    generation++;
+    expect(f.cache.peek(options, alice)).toBeNull();
+    f.cache.clear();
+    const old = fixture();
+    old.records[0]!.savedAt = now - 48 * 60 * 60_000 - 1;
+    await old.cache.request(options);
+    expect(old.cache.peek(options, alice)).toBeNull();
+    old.cache.clear();
+    const denied = fixture();
+    denied.request.mockResolvedValue({
+      ok: false,
+      error: { kind: "http_error", status: 403 },
+    });
+    await denied.cache.request(options);
+    await vi.waitFor(() =>
+      expect(denied.cache.peek(options, alice)).toBeNull(),
+    );
+    denied.cache.clear();
+  });
   it("displays restart snapshots while network is stalled and publishes fresh replacement", async () => {
     const f = fixture();
     const transport = deferred<any>();
@@ -103,7 +188,7 @@ describe("saved personal startup reads", () => {
     });
     const unsubscribe = f.cache.subscribe(updates);
     await f.cache.request(options);
-    await vi.waitFor(() => expect(updates).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(updates).toHaveBeenCalledTimes(2));
     expect(f.request).toHaveBeenCalledTimes(1);
     unsubscribe();
     f.cache.clear();
@@ -236,7 +321,9 @@ describe("saved personal startup reads", () => {
     const updates = vi.fn(() => {
       void f.cache.request(options);
     });
-    const unsubscribe = f.cache.subscribe(updates);
+    const unsubscribe = f.cache.subscribe((path) => {
+      if (path !== "*") updates();
+    });
     await f.cache.request(options);
     await vi.waitFor(() => expect(updates).toHaveBeenCalledTimes(1));
     expect((await f.cache.request(options)).ok).toBe(false);

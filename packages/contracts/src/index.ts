@@ -845,3 +845,31 @@ export * from "./run";
 
 export * from "./meal-illustration";
 export * from "./workout-companion";
+
+export {
+  MEAL_RECIPE_MAX_RESPONSE_BYTES,
+  mealRecipePreparationStateSchema,
+  mealRecipeMacroGramsSchema,
+  mealRecipeSourceSnapshotSchema,
+  mealRecipeContextReasonSchema,
+  mealRecipeMacroContextSchema,
+  mealRecipeCandidateSchema,
+  mealRecipeRankResultSchema,
+  mealRecipeIngredientInputSchema,
+  mealRecipeExclusionsSchema,
+  mealRecipePreferencesSchema,
+  mealRecipeInputSchema,
+  mealRecipeDraftSchema,
+  type MealRecipeMacroGrams,
+  type MealRecipeMacroContext,
+  type MealRecipeSourceSnapshot,
+  type MealRecipeCandidate,
+  type MealRecipeRankResult,
+  type MealRecipeInput,
+  type MealRecipeDraft,
+} from "./meal-recipe";
+
+export * from "./meal-recipe-generation";
+export * from "./meal-recipe-session";
+
+export * from "./recurring-meal-suggestion";

@@ -13,7 +13,8 @@ vi.mock("react", async (original) => ({
     (state.slots[state.index++] ??= { current: initial }),
   useState: (initial: unknown) => {
     const index = state.index++;
-    if (!(index in state.slots)) state.slots[index] = initial;
+    if (!(index in state.slots))
+      state.slots[index] = typeof initial === "function" ? initial() : initial;
     return [
       state.slots[index],
       (next: any) => {
@@ -80,6 +81,8 @@ vi.mock("@/composition/analytics-client", () => ({
 vi.mock("@/composition/api-client", () => ({
   apiClient: {},
   invalidateSessionReads: vi.fn(),
+  getSessionReadVersion: () => "synthetic-read-version",
+  peekSessionRead: () => null,
 }));
 vi.mock("@/composition/app-variant", () => ({
   getAppVariant: () => "dev",

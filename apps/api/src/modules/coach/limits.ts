@@ -224,11 +224,6 @@ export class SupabaseCoachLimitService implements CoachLimitService {
       },
     );
     if (inflight.allowed !== true) {
-      await runQuiet(() =>
-        this.#client.rpc("ai_release_in_flight", {
-          p_user_id: request.userId,
-        }),
-      );
       return { kind: "limited", reason: "inflight", retryAfter: 1 };
     }
 
@@ -395,9 +390,6 @@ export class SupabaseCoachLimitService implements CoachLimitService {
       },
     );
     if (inflight.allowed !== true) {
-      await runQuiet(() =>
-        this.#client.rpc("ai_release_in_flight", { p_user_id: userId }),
-      );
       return { allowed: false, reason: "inflight", retryAfter: 1 };
     }
 

@@ -20,6 +20,7 @@ import { MaxContentWidth, Spacing } from "@/constants/theme";
 import { useAuth } from "@/features/auth/auth-context";
 import { fetchFoodEntry } from "@/features/log-meal/public-data";
 import { useTheme } from "@/hooks/use-theme";
+import { RecurringMealSuggestionControls } from "./recurring-meal-suggestion-controls";
 import {
   createSchedule,
   EVERY_DAY,
@@ -322,6 +323,7 @@ export function RecurringMealsScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <ThemedText type="subtitle">Recurring meals</ThemedText>
+          <RecurringMealSuggestionControls userId={userId} />
           <ThemedText>
             Choose a logged food's Repeat action to save its foods and portions
             as a recurring meal.

@@ -128,6 +128,52 @@ describe("coach data boundary", () => {
     expect(await loadCoachWith(client, publish)).toMatchObject({ ok: false });
     expect(publish).not.toHaveBeenCalled();
   });
+  it.each([
+    { kind: "no_session" },
+    { kind: "session_expired" },
+    {
+      kind: "http_error",
+      status: 401,
+      code: "UNAUTHORIZED",
+      message: "denied",
+    },
+    { kind: "http_error", status: 403, code: "FORBIDDEN", message: "denied" },
+  ])(
+    "returns rejected history %j without waiting for provider status",
+    async (error) => {
+      const request = vi.fn((options: { path: string }) =>
+        options.path === "/v1/coach/status"
+          ? new Promise(() => {})
+          : Promise.resolve(err(error)),
+      );
+      const publish = vi.fn(async () => undefined);
+      let finished: any;
+      void loadCoachWith({ request } as unknown as ApiClient, publish).then(
+        (result) => {
+          finished = result;
+        },
+      );
+      for (let tick = 0; tick < 12; tick++) await Promise.resolve();
+      expect(finished).toMatchObject({ ok: false });
+      expect(publish).not.toHaveBeenCalled();
+    },
+  );
+  it("consumes a late provider rejection after returning denied history", async () => {
+    let rejectStatus!: (error: Error) => void;
+    const status = new Promise((_, reject) => {
+      rejectStatus = reject;
+    });
+    const request = vi.fn((options: { path: string }) =>
+      options.path === "/v1/coach/status"
+        ? status
+        : Promise.resolve(err({ kind: "no_session" as const })),
+    );
+    expect(
+      await loadCoachWith({ request } as unknown as ApiClient),
+    ).toMatchObject({ ok: false });
+    rejectStatus(new Error("late provider failure"));
+    for (let tick = 0; tick < 4; tick++) await Promise.resolve();
+  });
 
   it("sends a retry-stable idempotency key and validates the response", async () => {
     const request = vi.fn(async () =>
@@ -373,5 +419,49 @@ describe("Coach meal photo data boundary", () => {
       additionalPhotos: [{ photo: expect.any(Blob), mimeType: "image/png" }],
       textHint: "dinner",
     });
+  });
+});
+
+describe("synchronous owned Coach history", () => {
+  const session = {
+    user: { id: "owner" },
+    accessToken: "token",
+  } as import("@mizyun/identity").AuthSession;
+  it("requires the cached selected thread and never peeks provider authority", async () => {
+    const { peekCoachHistory } = await import("./coach-data");
+    const read = vi.fn((options, owner) => {
+      expect(owner).toBe(session);
+      return options.path === "/v1/coach/conversations"
+        ? { ok: true, value: { conversations: [conversation] } }
+        : { ok: true, value: { conversation, messages: [assistantMessage] } };
+    });
+    expect(peekCoachHistory(session, read as any)).toEqual({
+      conversations: [conversation],
+      conversation,
+      messages: [assistantMessage],
+    });
+    expect(read.mock.calls.map(([options]) => options.path)).toEqual([
+      "/v1/coach/conversations",
+      `/v1/coach/conversations/${conversation.id}`,
+    ]);
+  });
+  it("accepts a complete cached empty list without requesting a thread", async () => {
+    const { peekCoachHistory } = await import("./coach-data");
+    const read = vi.fn(() => ({ ok: true, value: { conversations: [] } }));
+    expect(peekCoachHistory(session, read as any)).toEqual({
+      conversations: [],
+      conversation: null,
+      messages: [],
+    });
+    expect(read).toHaveBeenCalledTimes(1);
+  });
+  it("keeps loading when the list exists but the selected thread is missing", async () => {
+    const { peekCoachHistory } = await import("./coach-data");
+    const read = vi.fn((options) =>
+      options.path === "/v1/coach/conversations"
+        ? { ok: true, value: { conversations: [conversation] } }
+        : null,
+    );
+    expect(peekCoachHistory(session, read as any)).toBeNull();
   });
 });

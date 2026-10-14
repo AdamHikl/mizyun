@@ -1,8 +1,16 @@
 import type { ApiClient } from "@mizyun/api-client";
-import type { SharedActivityFeedItemDto } from "@mizyun/contracts";
+import {
+  communityFeedResponseSchema,
+  communityProfileDtoSchema,
+  type CommunityFeedResponse,
+  type CommunityProfileDto,
+  type SharedActivityFeedItemDto,
+} from "@mizyun/contracts";
 import {
   getCommunityReadDeadline,
   getCommunityReadEpoch,
+  peekCommunityRead,
+  subscribeCommunityReadFills,
 } from "../state/read-cache";
 import { scopeCommunityClient } from "../scoped-client";
 import {
@@ -36,13 +44,18 @@ export class FeedController {
   #revision = 0;
   #readDeadline: number | undefined;
   #readEpoch = -1;
+  #readDay = "";
+  #accessToken: string | null;
+  #startedRead = false;
+  #stopFillSubscription: (() => void) | undefined;
 
   canRetainForNavigation(): boolean {
     return (
       this.#state.status === "idle" &&
       this.#readDeadline !== undefined &&
       this.#readDeadline > Date.now() &&
-      this.#readEpoch === getCommunityReadEpoch()
+      this.#readEpoch === getCommunityReadEpoch() &&
+      this.#readDay === new Date().toDateString()
     );
   }
 
@@ -57,19 +70,95 @@ export class FeedController {
     client: ApiClient,
     principalKey: string | null,
     isAlive: () => boolean = () => true,
+    accessToken?: string | null,
   ) {
     this.#rawClient = client;
     this.#principalKey = principalKey;
     this.#isAlive = isAlive;
+    this.#accessToken = accessToken ?? null;
+    this.#hydrateInitialSnapshot();
   }
 
-  getSnapshot = (): FeedState => this.#state;
-  getState = (): FeedState => this.#state;
+  #hydrateInitialSnapshot(): boolean {
+    const principalKey = this.#principalKey;
+    const accessToken = this.#accessToken;
+    const client = this.#rawClient;
+    if (
+      !this.#startedRead &&
+      this.#state.status === "unloaded" &&
+      this.#active &&
+      principalKey &&
+      accessToken &&
+      this.#isAlive()
+    ) {
+      const principal = { user: { id: principalKey }, accessToken };
+      const membership = peekCommunityRead<CommunityProfileDto>(
+        client,
+        {
+          method: "GET",
+          path: "/v1/community/profile",
+          schema: communityProfileDtoSchema,
+          expectedUserId: principalKey,
+        },
+        principal,
+      );
+      const retained =
+        membership?.status === "active" && membership.userId === principalKey
+          ? peekCommunityRead<CommunityFeedResponse>(
+              client,
+              {
+                method: "GET",
+                path: "/v1/community/feed?limit=20",
+                schema: communityFeedResponseSchema,
+                expectedUserId: principalKey,
+              },
+              principal,
+            )
+          : undefined;
+      if (retained) {
+        this.#startedRead = true;
+        this.#readDeadline = Math.min(
+          getCommunityReadDeadline(membership)!,
+          getCommunityReadDeadline(retained)!,
+        );
+        this.#readEpoch = getCommunityReadEpoch();
+        this.#readDay = new Date().toDateString();
+        this.#pages = 1;
+        this.#state = {
+          items: retained.items,
+          status: "idle",
+          error: null,
+          nextCursor: retained.nextCursor ?? null,
+          hasMore: !!retained.nextCursor,
+        };
+        return true;
+      }
+    }
+    return false;
+  }
+
+  getSnapshot = (): FeedState => {
+    this.#hydrateInitialSnapshot();
+    return this.#state;
+  };
+  getState = (): FeedState => this.getSnapshot();
 
   subscribe = (listener: () => void): (() => void) => {
     this.#listeners.add(listener);
+    if (!this.#stopFillSubscription) {
+      this.#stopFillSubscription = subscribeCommunityReadFills(
+        this.#rawClient,
+        () => {
+          if (this.#hydrateInitialSnapshot()) this.#notify();
+        },
+      );
+    }
     return () => {
       this.#listeners.delete(listener);
+      if (this.#listeners.size === 0) {
+        this.#stopFillSubscription?.();
+        this.#stopFillSubscription = undefined;
+      }
     };
   };
 
@@ -126,6 +215,7 @@ export class FeedController {
 
   async #readPages(pages: number, status: FeedState["status"]): Promise<void> {
     if (!this.#active || !this.#isAlive()) return;
+    this.#startedRead = true;
     const revision = ++this.#revision;
     const readEpoch = getCommunityReadEpoch();
     let readDeadline: number | undefined;
@@ -177,6 +267,7 @@ export class FeedController {
     }
     this.#readDeadline = readDeadline;
     this.#readEpoch = readEpoch;
+    this.#readDay = new Date().toDateString();
     this.#pages = loadedPages;
     this.#state = {
       items,

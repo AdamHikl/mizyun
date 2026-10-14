@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   reminders: vi.fn(),
   eveningReminders: vi.fn(),
   apiRequest: vi.fn(),
+  peek: vi.fn(),
+  steps: vi.fn(),
   secureRead: vi.fn(),
   secureWrite: vi.fn(),
   secureDelete: vi.fn(),
@@ -154,6 +156,8 @@ vi.mock("@/composition/api-client", () => ({
     status: () => ({ configured: true, baseUrl: "https://api.synthetic.test" }),
   },
   invalidateSessionReads: mocks.invalidate,
+  peekSessionRead: mocks.peek,
+  getSessionReadVersion: () => "synthetic-read-version",
 }));
 vi.mock("@/composition/app-variant", () => ({
   isProgressPhotosEnabled: () => true,
@@ -177,7 +181,7 @@ vi.mock("@/features/workouts", () => ({
   createBlankWorkout: mocks.createBlank,
 }));
 vi.mock("@/features/health-steps/health-steps", () => ({
-  readTodaySteps: vi.fn().mockResolvedValue({ kind: "off" }),
+  readTodaySteps: mocks.steps,
 }));
 vi.mock("@/features/log-meal/meal-photo-retention", () => ({
   clearAllMealPhotoRetries: vi.fn(),
@@ -333,6 +337,8 @@ beforeEach(() => {
   mocks.reminders.mockReset().mockResolvedValue(undefined);
   mocks.eveningReminders.mockReset().mockResolvedValue(undefined);
   mocks.apiRequest.mockReset().mockResolvedValue({ ok: true, value: summary });
+  mocks.peek.mockReset().mockReturnValue(null);
+  mocks.steps.mockReset().mockResolvedValue({ kind: "off" });
   mocks.secureRead.mockReset().mockResolvedValue(null);
   mocks.secureWrite.mockReset().mockResolvedValue(undefined);
   mocks.secureDelete.mockReset().mockResolvedValue(undefined);
@@ -528,13 +534,18 @@ describe("dashboard cached display and refresh status", () => {
     expect(copyButton).not.toBeNull();
     copyButton.props.onPress();
     await settle();
-    expect(mocks.mealCopy).toHaveBeenCalledWith(entries[8], false, {
-      expectedUserId: mocks.owner,
-      payload: expect.objectContaining({
-        name: entries[8].name,
-        clientOperationId: expect.any(String),
-      }),
-    });
+    expect(mocks.mealCopy).toHaveBeenCalledWith(
+      expect.objectContaining(entries[8]),
+      false,
+      {
+        expectedUserId: mocks.owner,
+        isCurrent: expect.any(Function),
+        payload: expect.objectContaining({
+          name: entries[8].name,
+          clientOperationId: expect.any(String),
+        }),
+      },
+    );
   });
 
   it("clears the prior day's first-meal suggestion during a local-day rollover and failed read", async () => {
@@ -1048,6 +1059,16 @@ describe("first-meal copy recovery", () => {
       stored.set(key, value);
     });
     const repeat = await setupRepeat();
+    repeat.node = {
+      ...repeat.node,
+      props: {
+        ...repeat.node.props,
+        yesterdayFirstMeal: {
+          ...repeat.node.props.yesterdayFirstMeal,
+          photoAssetId: "original-photo",
+        },
+      },
+    };
     mocks.mealCopy.mockResolvedValueOnce({
       ok: false,
       message: "Connection lost. Try again.",
@@ -1069,7 +1090,19 @@ describe("first-meal copy recovery", () => {
     expect(text(remounted)).toContain("Synthetic breakfast");
     copyAction(remounted).props.onPress();
     await settle();
-    expect(mocks.mealCopy.mock.calls[1][2]).toEqual(firstPayload);
+    expect(mocks.mealCopy.mock.calls[1][0]).toMatchObject({
+      photoAssetId: "original-photo",
+      userId: mocks.owner,
+    });
+    expect(mocks.mealCopy.mock.calls[1][2].payload).toEqual(
+      firstPayload.payload,
+    );
+    expect(mocks.mealCopy.mock.calls[1][2].expectedUserId).toEqual(
+      firstPayload.expectedUserId,
+    );
+    expect(mocks.mealCopy.mock.calls[1][2].isCurrent).toEqual(
+      expect.any(Function),
+    );
     expect(mocks.secureWrite).toHaveBeenCalledTimes(2);
   });
 
@@ -1285,4 +1318,71 @@ describe("Home persistent personal-read provenance", () => {
       }),
     );
   });
+});
+
+it("renders prefetched Home sections before effects and retains them while refresh is stalled", async () => {
+  mocks.peek.mockImplementation(({ path }: { path: string }) => {
+    if (path.startsWith("/v1/food-entries/summary?date="))
+      return { ok: true, value: { summary } };
+    if (path.startsWith("/v1/body-measurements"))
+      return { ok: true, value: { bodyMeasurements: [{ weightKg: 81.5 }] } };
+    if (path.startsWith("/v1/energy/summary"))
+      return { ok: true, value: { summary: energy } };
+    if (path.startsWith("/v1/workouts"))
+      return {
+        ok: true,
+        value: {
+          workouts: [
+            { completedAt: "2026-10-04" },
+            { completedAt: "2026-10-04" },
+          ],
+        },
+      };
+    return { ok: true, value: { summaries: [] } };
+  });
+  mocks.cache.mockReturnValue(new Promise(() => {}));
+  mocks.daily.mockReturnValue(new Promise(() => {}));
+  hooks.index = 0;
+  const first = DashboardScreen();
+  expect(nutrition(first).props.caloriesToday).toBe(750);
+  expect(weight(first).props.value).toContain("81.5");
+  expect(text(first)).not.toContain("Loading your summary");
+  expect(mocks.daily).not.toHaveBeenCalled();
+  hooks.effects.splice(0).forEach((effect) => effect());
+  focus();
+  await settle();
+  expect(nutrition(render()).props.caloriesToday).toBe(750);
+  expect(weight(render()).props.value).toContain("81.5");
+});
+
+it("hides the prior account's Health count before the next owner's effects run", async () => {
+  mocks.steps.mockResolvedValue({ kind: "ready", count: 9876 });
+  render();
+  focus();
+  await settle();
+  expect(
+    find(render(), (node) => node.props?.label === "Steps today").props.value,
+  ).toBe("9,876");
+  mocks.owner = "synthetic-other";
+  mocks.peek.mockReturnValue(null);
+  hooks.index = 0;
+  expect(
+    find(DashboardScreen(), (node) => node.props?.label === "Steps today").props
+      .value,
+  ).toBe("—");
+});
+
+it("hydrates Home's initial placeholder when startup completes after the tab already mounted", () => {
+  render();
+  mocks.peek.mockImplementation(({ path }: { path: string }) =>
+    path.startsWith("/v1/food-entries/summary?date=")
+      ? { ok: true, value: { summary } }
+      : null,
+  );
+  publishSessionReadUpdate("/v1/food-entries/summary");
+  hooks.index = 0;
+  const warmed = DashboardScreen();
+  expect(nutrition(warmed).props.caloriesToday).toBe(750);
+  expect(nutrition(warmed).props.summary).toEqual(summary);
+  expect(mocks.daily).not.toHaveBeenCalled();
 });

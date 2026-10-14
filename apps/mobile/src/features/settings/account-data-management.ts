@@ -1,4 +1,12 @@
 import { clearLocalHealthExports } from "@/features/health-exports";
+import {
+  clearRecurringSuggestionRecovery,
+  getRecurringSuggestionRetryStore,
+  recurringSuggestionLifetime,
+  type RecurringSuggestionAttempt,
+  retireRecurringMealSuggestions,
+  type RecurringSuggestionRetryStore,
+} from "@/features/recurring-meals/public-data";
 import type { ApiClient } from "@mizyun/api-client";
 import { Directory, File, Paths } from "expo-file-system";
 import * as SecureStore from "expo-secure-store";
@@ -13,6 +21,7 @@ import {
 } from "@mizyun/contracts";
 import {
   clearLoggingDraft,
+  eraseLoggingDraftForDeletedAccount,
   type LoggingDraftKind,
 } from "../logging-draft-storage";
 import { revokeAiConsent } from "../coach/ai-consent";
@@ -36,8 +45,22 @@ import {
 import { purgeOfflineCache } from "../offline-cache/offline-cache-storage";
 import { keyFor as workoutPreferencesKeyFor } from "../workouts/workout-preferences";
 import { healthStepsPreferenceKey } from "../health-steps/health-steps-key";
-import { clearAllMealPhotoRetries } from "../log-meal/public-data";
+import {
+  loadMealCompletionReceipt,
+  clearAllMealPhotoRetries,
+} from "../log-meal/public-data";
 import { clearQuickMealRepeat } from "../dashboard/public-data";
+import { clearAnalyticsReminder } from "../analytics/public-data";
+import {
+  clearRecipeIngredientData,
+  exportIngredientReview,
+  getIngredientReviewGeneration,
+  type IngredientReviewStore,
+  type IngredientReviewRecovery,
+  recipeSessionStore,
+  type RecipeSessionStore,
+  type RecipeSession,
+} from "../meal-recipes/public-data";
 
 export interface SecureKeyValueStore {
   getItemAsync(key: string): Promise<string | null>;
@@ -106,8 +129,26 @@ export const clearDeletionChallenge = async (
   ).catch(() => {});
 };
 
+export type MobileAccountExportResponse = AccountExportResponse & {
+  readonly export: AccountExportResponse["export"] & {
+    readonly localRecipeIngredientReview?: IngredientReviewRecovery | null;
+    readonly localRecipeSession?: RecipeSession | null;
+    readonly localMealCompletionReceipt?: Awaited<
+      ReturnType<typeof loadMealCompletionReceipt>
+    >;
+    readonly localRecurringMealSetup?: RecurringSuggestionAttempt | null;
+  };
+};
+export interface RecipeAccountExportOptions {
+  readonly recurringSuggestionRetryStore?: RecurringSuggestionRetryStore;
+  readonly draftStore?: Parameters<typeof clearLoggingDraft>[2];
+  readonly expectedUserId: string;
+  readonly isCurrent: () => boolean;
+  readonly recipeReviewStore?: IngredientReviewStore;
+  readonly recipeSessionStore?: RecipeSessionStore;
+}
 export type ExportAccountDataResult =
-  | { readonly ok: true; readonly data: AccountExportResponse }
+  | { readonly ok: true; readonly data: MobileAccountExportResponse }
   | { readonly ok: false; readonly message: string };
 
 export type RequestAccountDeletionResult =
@@ -193,9 +234,16 @@ export const checkAccountDeletionStatus = async (
 };
 
 export interface ClearLocalUserDataOptions {
+  readonly recurringSuggestionRetryStore?: RecurringSuggestionRetryStore;
+  readonly recipeReviewStore?: IngredientReviewStore;
+  readonly recipeSessionStore?: RecipeSessionStore;
+  readonly cleanupRecipePhotos?: (userId: string) => Promise<boolean>;
   readonly draftStore?: Parameters<typeof clearLoggingDraft>[2];
   readonly quickMealRepeatStore?: Parameters<typeof clearQuickMealRepeat>[1];
   readonly consentStore?: Parameters<typeof revokeAiConsent>[1];
+  readonly analyticsReminderStore?: Parameters<
+    typeof clearAnalyticsReminder
+  >[1];
   readonly reminderScheduler?: ReminderScheduler;
   readonly reminderStore?: ReminderStore;
   readonly firstMealReminderScheduler?: FirstMealReminderScheduler;
@@ -226,8 +274,10 @@ export const clearLocalUserData = async (
   userId: string,
   options: ClearLocalUserDataOptions = {},
 ): Promise<void> => {
+  retireRecurringMealSuggestions(userId);
   const standardDraftKinds: readonly LoggingDraftKind[] = [
     "meal",
+    "meal-completed",
     "workout",
     "run",
     "weight",
@@ -262,7 +312,17 @@ export const clearLocalUserData = async (
   let healthCleanupFailed = false;
   let photoCleanupFailed = false;
   const cleanupResults = await Promise.allSettled([
+    clearRecurringSuggestionRecovery(
+      userId,
+      options.recurringSuggestionRetryStore,
+    ),
+    clearRecipeIngredientData(userId, {
+      store: options.recipeReviewStore,
+      sessionStore: options.recipeSessionStore,
+      cleanupPhotos: options.cleanupRecipePhotos,
+    }),
     clearQuickMealRepeat(userId, options.quickMealRepeatStore),
+    clearAnalyticsReminder(userId, options.analyticsReminderStore),
     Promise.resolve()
       .then(() => clearAllMealPhotoRetries(userId, options.draftStore))
       .then((cleaned) => {
@@ -272,7 +332,7 @@ export const clearLocalUserData = async (
         photoCleanupFailed = true;
       }),
     ...draftKinds.map((kind) =>
-      clearLoggingDraft(userId, kind, options.draftStore),
+      eraseLoggingDraftForDeletedAccount(userId, kind, options.draftStore),
     ),
     revokeAiConsent(userId, options.consentStore),
     clearCoachReminders(
@@ -330,11 +390,32 @@ export const clearLocalUserData = async (
 
 export const fetchAccountExport = async (
   client: ApiClient,
+  options?: RecipeAccountExportOptions,
 ): Promise<ExportAccountDataResult> => {
+  const failure = {
+    ok: false as const,
+    message: "Could not export account data. Please try again later.",
+  };
+  const generation = options
+    ? getIngredientReviewGeneration(options.expectedUserId)
+    : 0;
+  const suggestionGeneration = options
+    ? recurringSuggestionLifetime(options.expectedUserId)
+    : 0;
+  const current = () =>
+    !options ||
+    (options.isCurrent() &&
+      suggestionGeneration ===
+        recurringSuggestionLifetime(options.expectedUserId) &&
+      generation === getIngredientReviewGeneration(options.expectedUserId));
+  if (!current()) return failure;
   const result = await client.request<AccountExportResponse>({
     method: "GET",
     path: `/v1/account/export?catalog=${ANALYTICS_DASHBOARD_CATALOG}`,
     schema: accountExportResponseSchema,
+    ...(options
+      ? { expectedUserId: options.expectedUserId, isCurrent: current }
+      : {}),
   });
 
   if (!result.ok) {
@@ -347,7 +428,45 @@ export const fetchAccountExport = async (
     };
   }
 
-  return { ok: true, data: result.value };
+  if (!current()) return failure;
+  if (!options) return { ok: true, data: result.value };
+  if (result.value.export.userId !== options.expectedUserId) return failure;
+  try {
+    const localRecipeIngredientReview = await exportIngredientReview(
+      options.expectedUserId,
+      options.recipeReviewStore,
+    );
+    if (!current()) return failure;
+    const localRecipeSession = await (
+      options.recipeSessionStore ?? recipeSessionStore
+    ).export(options.expectedUserId);
+    if (!current()) return failure;
+    const localMealCompletionReceipt = await loadMealCompletionReceipt(
+      options.expectedUserId,
+      options.draftStore,
+    );
+    if (!current()) return failure;
+    const localRecurringMealSetup = await (
+      options.recurringSuggestionRetryStore ??
+      (await getRecurringSuggestionRetryStore())
+    ).load(options.expectedUserId);
+    if (!current()) return failure;
+    return {
+      ok: true,
+      data: {
+        ...result.value,
+        export: {
+          ...result.value.export,
+          localRecurringMealSetup,
+          localRecipeIngredientReview,
+          localRecipeSession,
+          localMealCompletionReceipt,
+        },
+      },
+    };
+  } catch {
+    return failure;
+  }
 };
 
 export const requestAccountDeletion = async (

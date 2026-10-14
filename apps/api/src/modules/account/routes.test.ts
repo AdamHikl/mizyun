@@ -11,6 +11,7 @@ import type {
   AccountProviderRevocation,
   AccountProviderRevocationRepository,
   MemoryId,
+  RecipeRequestLedger,
   UserId,
 } from "@mizyun/core";
 import type { AccessTokenVerifier } from "@mizyun/identity";
@@ -57,6 +58,7 @@ const tokenVerifierFor = (
 const build = (
   verifier: AccessTokenVerifier,
   options?: {
+    recipeRequestLedger?: RecipeRequestLedger;
     appleAuthConfig?: ServerAppleAuthConfiguration;
     appleAuthClient?: AppleAuthClient;
     linkedAuthIdentities?: readonly {
@@ -90,6 +92,9 @@ const build = (
     bodyMeasurementRepository,
     memoryStore,
     productAnalyticsRepository,
+    ...(options?.recipeRequestLedger
+      ? { recipeRequestLedger: options.recipeRequestLedger }
+      : {}),
   });
   Object.assign(accountRepository, {
     getLinkedAuthIdentities: async () =>
@@ -144,6 +149,84 @@ const build = (
 };
 
 describe("GET /v1/account/export", () => {
+  it("exports only content-free recipe accounting and fails closed on ledger outages", async () => {
+    const record = {
+      requestId: "83000000-0000-4000-8000-000000000002",
+      operation: "suggest" as const,
+      status: "failed" as const,
+      createdAt: "2026-10-13T12:00:00.000Z",
+      budgetDay: "2026-10-13",
+      tokensCharged: 1500,
+    };
+    const exportUsageForUser = vi.fn().mockResolvedValue([
+      {
+        ...record,
+        fingerprint: "private",
+        prompt: "private",
+        attemptId: "private",
+      },
+    ]);
+    const recipeRequestLedger = {
+      exportUsageForUser,
+      deleteForUser: vi.fn(),
+    } as unknown as RecipeRequestLedger;
+    const { app } = build(tokenVerifierFor({ userId: userA }), {
+      recipeRequestLedger,
+    });
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/account/export",
+      headers: { authorization: "Bearer valid" },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().export.recipeRequests).toEqual([record]);
+    expect(exportUsageForUser).toHaveBeenCalledWith(userA);
+    exportUsageForUser.mockRejectedValueOnce(new Error("ledger unavailable"));
+    expect(
+      (
+        await app.inject({
+          method: "GET",
+          url: "/v1/account/export",
+          headers: { authorization: "Bearer valid" },
+        })
+      ).statusCode,
+    ).toBe(500);
+  });
+
+  it("keeps in-memory deletion resumable after recipe cleanup fails", async () => {
+    const deleteForUser = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("ledger unavailable"))
+      .mockResolvedValue(undefined);
+    const recipeRequestLedger = {
+      deleteForUser,
+      exportUsageForUser: vi.fn().mockResolvedValue([]),
+    } as unknown as RecipeRequestLedger;
+    const { accountRepository } = build(tokenVerifierFor({ userId: userA }), {
+      recipeRequestLedger,
+    });
+    const now = new Date();
+    const confirmationToken = await accountRepository.issueDeletionChallenge(
+      userA,
+      { now, ttlSeconds: 300 },
+    );
+    await expect(
+      accountRepository.deleteUser(userA, { now, confirmationToken }),
+    ).rejects.toThrow("storage cleanup");
+    expect(await accountRepository.getDeletionJob(userA)).toMatchObject({
+      status: "failed",
+      stage: "storage",
+      completedAt: null,
+    });
+    expect(
+      await accountRepository.deleteUser(userA, {
+        now: new Date(),
+        confirmationToken,
+      }),
+    ).toEqual({ deleted: true });
+    expect(deleteForUser).toHaveBeenCalledTimes(2);
+  });
+
   it("exports the durable meal-to-private-photo association", async () => {
     const { app, foodEntryRepository } = build(
       tokenVerifierFor({ userId: userA }),

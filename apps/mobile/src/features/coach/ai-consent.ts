@@ -1,3 +1,8 @@
+import {
+  getIngredientReviewGeneration,
+  notifyRecipeConsentGrant,
+  retireIngredientReviews,
+} from "@/features/meal-recipes/public-data";
 import * as SecureStore from "expo-secure-store";
 import type { ApiClient } from "@mizyun/api-client";
 import {
@@ -16,6 +21,40 @@ export interface SecureStoreClient {
 }
 
 const consentKey = (userId: string): string => `mizyun.ai-consent.${userId}`;
+const localConsentWrites = new Map<string, Promise<unknown>>();
+const serializeLocalConsent = <T>(
+  userId: string,
+  operation: () => Promise<T>,
+): Promise<T> => {
+  const pending = (localConsentWrites.get(userId) ?? Promise.resolve())
+    .catch(() => undefined)
+    .then(operation);
+  localConsentWrites.set(userId, pending);
+  void pending
+    .finally(() => {
+      if (localConsentWrites.get(userId) === pending)
+        localConsentWrites.delete(userId);
+    })
+    .catch(() => undefined);
+  return pending;
+};
+const writeCurrentConsent = (
+  userId: string,
+  status: AiConsentStatus,
+  store: SecureStoreClient,
+  generation: number,
+): Promise<boolean> =>
+  serializeLocalConsent(userId, async () => {
+    if (generation !== getIngredientReviewGeneration(userId)) return false;
+    await store.setItemAsync(consentKey(userId), JSON.stringify(status));
+    if (generation !== getIngredientReviewGeneration(userId)) {
+      // The native write cannot be cancelled. Remove its retired result before a
+      // queued revocation/deletion or a newer explicit grant can touch this key.
+      await store.deleteItemAsync(consentKey(userId));
+      return false;
+    }
+    return true;
+  });
 
 export interface AiConsentStatus {
   readonly granted: boolean;
@@ -34,6 +73,7 @@ export const loadAiConsent = async (
   store: SecureStoreClient = SecureStore,
   apiClient?: ApiClient,
 ): Promise<AiConsentStatus> => {
+  const generation = getIngredientReviewGeneration(userId);
   let localStatus: AiConsentStatus = {
     granted: false,
     confirmedAdult: false,
@@ -86,10 +126,7 @@ export const loadAiConsent = async (
           };
         }
         try {
-          await store.setItemAsync(
-            consentKey(userId),
-            JSON.stringify(remoteStatus),
-          );
+          await writeCurrentConsent(userId, remoteStatus, store, generation);
         } catch {
           // ignore cache write error
         }
@@ -120,6 +157,13 @@ export const saveAiConsent = async (
   apiClient?: ApiClient,
   birthYear?: number,
 ): Promise<SaveAiConsentResult> => {
+  const generation = getIngredientReviewGeneration(userId);
+  const isCurrent = () => generation === getIngredientReviewGeneration(userId);
+  const changedResult: SaveAiConsentResult = {
+    ok: false,
+    error: "Your session or AI consent changed. Please try again.",
+  };
+  let remoteGrantSaved = false;
   let consentedAt = granted ? new Date().toISOString() : null;
   if (apiClient) {
     try {
@@ -133,6 +177,8 @@ export const saveAiConsent = async (
           ...(birthYear !== undefined ? { birthYear } : {}),
         },
         schema: aiConsentResponseSchema,
+        expectedUserId: userId,
+        isCurrent,
       });
       if (!res.ok) {
         let errorMessage = "Failed to save AI consent.";
@@ -154,7 +200,15 @@ export const saveAiConsent = async (
           error: errorMessage,
         };
       }
+      if (!isCurrent()) return changedResult;
       consentedAt = res.value.consent.consentedAt;
+      remoteGrantSaved =
+        granted &&
+        confirmedAdult &&
+        res.value.consent.granted &&
+        res.value.consent.confirmedAdult &&
+        res.value.consent.consentVersion === CURRENT_AI_CONSENT_VERSION &&
+        res.value.consent.revokedAt === null;
     } catch (err) {
       return {
         ok: false,
@@ -167,13 +221,17 @@ export const saveAiConsent = async (
   }
 
   try {
+    if (!isCurrent()) return changedResult;
     const status: AiConsentStatus = {
       granted,
       confirmedAdult,
       consentedAt,
       consentVersion: CURRENT_AI_CONSENT_VERSION,
     };
-    await store.setItemAsync(consentKey(userId), JSON.stringify(status));
+    if (!(await writeCurrentConsent(userId, status, store, generation)))
+      return changedResult;
+    if (!isCurrent()) return changedResult;
+    if (remoteGrantSaved) notifyRecipeConsentGrant(userId);
     return { ok: true };
   } catch (err) {
     return {
@@ -194,6 +252,8 @@ export const revokeAiConsent = async (
   store: SecureStoreClient = SecureStore,
   apiClient?: ApiClient,
 ): Promise<boolean> => {
+  // Abort local photo work immediately, including when remote revocation fails.
+  const recipeCleanup = retireIngredientReviews(userId);
   if (apiClient) {
     try {
       const res = await apiClient.request<AiConsentResponse>({
@@ -215,8 +275,10 @@ export const revokeAiConsent = async (
   }
 
   try {
-    await store.deleteItemAsync(consentKey(userId));
-    return true;
+    await serializeLocalConsent(userId, () =>
+      store.deleteItemAsync(consentKey(userId)),
+    );
+    return await recipeCleanup;
   } catch {
     return false;
   }

@@ -5,7 +5,10 @@ import {
   type FoodEntry,
   type FoodEntryCreate,
 } from "@mizyun/contracts";
-import { createFoodCopyPayload } from "../log-meal/public-data";
+import {
+  createFoodCopyPayload,
+  clearFoodCopyPhotoStage,
+} from "../log-meal/public-data";
 
 export interface QuickMealRepeatStore {
   getItemAsync(key: string): Promise<string | null>;
@@ -16,6 +19,7 @@ export interface PendingQuickMealRepeat {
   readonly owner: string;
   readonly localDate: string;
   readonly sourceEntryId: string;
+  readonly sourcePhotoAssetId?: string;
   readonly payload: FoodEntryCreate;
   readonly completed: false;
 }
@@ -76,7 +80,10 @@ function parsePending(raw: string, owner: string): QuickMealRepeatOperation {
     pending.owner !== owner ||
     !/^\d{4}-\d{2}-\d{2}$/.test(pending.localDate) ||
     typeof pending.sourceEntryId !== "string" ||
-    !pending.sourceEntryId
+    !pending.sourceEntryId ||
+    (pending.sourcePhotoAssetId !== undefined &&
+      (typeof pending.sourcePhotoAssetId !== "string" ||
+        !pending.sourcePhotoAssetId))
   ) {
     throw new Error("Cannot recover the meal copy safely");
   }
@@ -112,6 +119,9 @@ export function prepareQuickMealRepeat(
       owner,
       localDate,
       sourceEntryId: source.id,
+      ...(source.photoAssetId
+        ? { sourcePhotoAssetId: source.photoAssetId }
+        : {}),
       payload,
       completed: false,
     };
@@ -151,6 +161,13 @@ export function completeQuickMealRepeat(
         completed: true,
       }),
     );
+    // Nutrition acknowledgement must win before staging cleanup. A failed marker
+    // write leaves the operation/photo record intact for source-independent replay.
+    try {
+      await clearFoodCopyPhotoStage(pending.owner, id!);
+    } catch {
+      /* account cleanup retains authority */
+    }
   });
 }
 

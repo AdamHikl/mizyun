@@ -6,6 +6,7 @@ import type {
 } from "@mizyun/contracts";
 import { useTheme } from "@/hooks/use-theme";
 import type { ScopedCommunityClient } from "../community-client";
+import { SharedMealDetails } from "../shared-meal-details";
 import { SharedWorkoutDetails } from "../shared-workout-details";
 import { CommunityIdentityLink } from "../ui";
 import { ReactionBar } from "../reactions";
@@ -47,10 +48,13 @@ export function ActivityCard({
   onUnavailable,
 }: ActivityCardProps) {
   const colors = useTheme();
-  const duration = formatDuration(item.durationSeconds);
+  const isMeal = item.activityKind === "meal";
+  const duration = isMeal ? null : formatDuration(item.durationSeconds);
   const sharedDayLabel = formatSharedDay(item.sharedDay);
   const publishedAtLabel = formatPublishedAt(item.publishedAt);
-  const categoryLabel = formatCategory(item.category);
+  const categoryLabel = isMeal
+    ? `Meal · ${item.mealDetails?.name ?? "Shared meal"}`
+    : formatCategory(item.category);
 
   return (
     <View
@@ -109,8 +113,10 @@ export function ActivityCard({
         style={styles.content}
         onPress={onPress}
         accessibilityRole="button"
-        accessibilityLabel={`${item.authorDisplayName} (@${item.authorHandle}) shared ${categoryLabel} on ${sharedDayLabel}${duration ? `, duration ${duration.accessible}` : ""}${item.workoutDetails ? `, ${item.workoutDetails.exercises.length} exercises, workout details shared` : ""}`}
-        accessibilityHint="Open shared workout details"
+        accessibilityLabel={`${item.authorDisplayName} (@${item.authorHandle}) shared ${categoryLabel} on ${sharedDayLabel}${duration ? `, duration ${duration.accessible}` : ""}${!isMeal && item.workoutDetails ? `, ${item.workoutDetails.exercises.length} exercises, workout details shared` : ""}`}
+        accessibilityHint={
+          isMeal ? "Open shared meal details" : "Open shared workout details"
+        }
       >
         <Text style={[styles.categoryTitle, { color: colors.text }]}>
           {categoryLabel}
@@ -133,7 +139,10 @@ export function ActivityCard({
             </View>
           ) : null}
         </View>
-        {item.workoutDetails ? (
+        {isMeal && item.mealDetails ? (
+          <SharedMealDetails details={item.mealDetails} compact />
+        ) : null}
+        {!isMeal && item.workoutDetails ? (
           <SharedWorkoutDetails details={item.workoutDetails} compact />
         ) : null}
       </Pressable>

@@ -1,4 +1,6 @@
-import type { ApiClient, ApiError } from "@mizyun/api-client";
+import type { ApiClient, ApiError, RequestOptions } from "@mizyun/api-client";
+import type { AuthSession } from "@mizyun/identity";
+import type { Result } from "@mizyun/core";
 import {
   coachConversationListResponseSchema,
   coachConversationResponseSchema,
@@ -12,7 +14,7 @@ import {
   type CoachWeeklyAdaptationAcceptResponse,
 } from "@mizyun/contracts";
 
-import { apiClient } from "@/composition/api-client";
+import { apiClient, peekSessionRead } from "@/composition/api-client";
 
 export type CoachLoadResult =
   | {
@@ -128,34 +130,84 @@ const humanize = (error: ApiError): string => {
 export const loadCoach = async (): Promise<CoachLoadResult> =>
   loadCoachWith(apiClient);
 
+const conversationListRead = (): RequestOptions => ({
+  method: "GET",
+  path: "/v1/coach/conversations",
+  schema: coachConversationListResponseSchema,
+});
+const conversationThreadRead = (id: string): RequestOptions => ({
+  method: "GET",
+  path: `/v1/coach/conversations/${encodeURIComponent(id)}`,
+  schema: coachThreadResponseSchema,
+});
+
+/** Personal text only; no cached provider, consent or write authority. */
+export function peekCoachHistory(
+  session: AuthSession | null,
+  read: <T>(
+    options: RequestOptions,
+    session: AuthSession | null,
+  ) => Result<T, ApiError> | null = peekSessionRead,
+  selectedId?: string | null,
+): {
+  conversations: readonly CoachConversation[];
+  conversation: CoachConversation | null;
+  messages: readonly CoachMessage[];
+} | null {
+  const list = read<{ conversations: CoachConversation[] }>(
+    conversationListRead(),
+    session,
+  );
+  if (!list?.ok) return null;
+  const selected =
+    list.value.conversations.find(
+      (conversation) => conversation.id === selectedId,
+    ) ?? list.value.conversations[0];
+  if (!selected) return { conversations: [], conversation: null, messages: [] };
+  const thread = read<{
+    conversation: CoachConversation;
+    messages: CoachMessage[];
+  }>(conversationThreadRead(selected.id), session);
+  return thread?.ok
+    ? {
+        conversations: list.value.conversations,
+        conversation: thread.value.conversation,
+        messages: thread.value.messages,
+      }
+    : null;
+}
+
 export const loadCoachWith = async (
   client: ApiClient,
   onHistory?: (conversations: readonly CoachConversation[]) => Promise<void>,
 ): Promise<CoachLoadResult> => {
   // Existing owned history is independent of live provider admission. Start
   // both reads together so cached text can render while readiness is checked.
-  const statusRead = client.request<CoachProviderStatus>({
-    method: "GET",
-    path: "/v1/coach/status",
-    schema: coachProviderStatusSchema,
-  });
+  const statusRead = client
+    .request<CoachProviderStatus>({
+      method: "GET",
+      path: "/v1/coach/status",
+      schema: coachProviderStatusSchema,
+    })
+    .catch((cause): Result<CoachProviderStatus, ApiError> => ({
+      ok: false,
+      error: { kind: "network_error", cause },
+    }));
   const conversations = await client.request<{
     conversations: CoachConversation[];
-  }>({
-    method: "GET",
-    path: "/v1/coach/conversations",
-    schema: coachConversationListResponseSchema,
-  });
-  if (conversations.ok) await onHistory?.(conversations.value.conversations);
+  }>(conversationListRead());
+  // Denied or unavailable owned history must retire immediately; provider
+  // readiness is unrelated and may never settle. Its rejection is consumed above.
+  if (!conversations.ok)
+    return { ok: false, message: humanize(conversations.error) };
+  await onHistory?.(conversations.value.conversations);
   const status = await statusRead;
-  return conversations.ok
-    ? {
-        ok: true,
-        status: status.ok ? status.value : null,
-        conversations: conversations.value.conversations,
-        ...(!status.ok ? { readinessMessage: humanize(status.error) } : {}),
-      }
-    : { ok: false, message: humanize(conversations.error) };
+  return {
+    ok: true,
+    status: status.ok ? status.value : null,
+    conversations: conversations.value.conversations,
+    ...(!status.ok ? { readinessMessage: humanize(status.error) } : {}),
+  };
 };
 
 export const createCoachConversation = async (
@@ -179,11 +231,7 @@ export const loadCoachThread = async (
   const result = await client.request<{
     conversation: CoachConversation;
     messages: CoachMessage[];
-  }>({
-    method: "GET",
-    path: `/v1/coach/conversations/${encodeURIComponent(conversationId)}`,
-    schema: coachThreadResponseSchema,
-  });
+  }>(conversationThreadRead(conversationId));
   return result.ok
     ? {
         ok: true,

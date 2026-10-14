@@ -2,6 +2,7 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import { isSessionDetails, validateContentSafety } from "@mizyun/core";
 import type {
   CommunityRepository,
+  FoodEntryRepository,
   ProfileRepository,
   WorkoutRepository,
   WorkoutSetRepository,
@@ -29,6 +30,7 @@ const GENERIC_UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface CommunityPublicationRoutesOptions {
+  readonly foodEntryRepository?: FoodEntryRepository;
   readonly workoutSetRepository?: WorkoutSetRepository;
   readonly exerciseRepository?: ExerciseRepository;
   readonly communityRepository: CommunityRepository;
@@ -219,9 +221,12 @@ export const communityPublicationRoutes: FastifyPluginAsync<
             category: existing.category,
             sharedDay: existing.sharedDay,
             durationSeconds: existing.durationSeconds,
+            activityKind: existing.activityKind ?? "workout",
+            mealDetails: existing.mealDetails ?? null,
             workoutDetails: existing.workoutDetails ?? null,
             publishedAt: existing.publishedAt.toISOString(),
             sourceWorkoutId: existing.sourceWorkoutId,
+            sourceMealId: existing.sourceMealId ?? null,
             version: existing.version,
             revokedAt: existing.revokedAt?.toISOString() ?? null,
             reactionCounts: defaultReactionCounts,
@@ -421,6 +426,8 @@ export const communityPublicationRoutes: FastifyPluginAsync<
         category: published.category,
         sharedDay: published.sharedDay,
         durationSeconds: published.durationSeconds,
+        activityKind: published.activityKind ?? "workout",
+        mealDetails: published.mealDetails ?? null,
         workoutDetails: published.workoutDetails ?? null,
         publishedAt: published.publishedAt.toISOString(),
         sourceWorkoutId: published.sourceWorkoutId,
@@ -486,6 +493,15 @@ export const communityPublicationRoutes: FastifyPluginAsync<
           "Activity not found or unavailable.",
         );
       }
+
+      if (!activity.sourceWorkoutId || activity.activityKind === "meal")
+        return sendApiError(
+          reply,
+          request,
+          422,
+          "VALIDATION_ERROR",
+          "Preview the meal again to update its share.",
+        );
 
       const parsed = updateSharedActivitySchema.safeParse(request.body);
       if (!parsed.success) {
@@ -565,6 +581,8 @@ export const communityPublicationRoutes: FastifyPluginAsync<
         category: updated.category,
         sharedDay: updated.sharedDay,
         durationSeconds: updated.durationSeconds,
+        activityKind: updated.activityKind ?? "workout",
+        mealDetails: updated.mealDetails ?? null,
         workoutDetails: updated.workoutDetails ?? null,
         publishedAt: updated.publishedAt.toISOString(),
         sourceWorkoutId: updated.sourceWorkoutId,
@@ -676,17 +694,34 @@ export const communityPublicationRoutes: FastifyPluginAsync<
         activity.revokedAt !== null
       )
         return unavailable();
-      const source = await options.workoutRepository.getById(
-        activity.sourceWorkoutId,
-        access,
-      );
-      if (
-        !source ||
-        source.userId !== principal.userId ||
-        !source.completedAt ||
-        !isSessionDetails(source.details)
-      )
-        return unavailable();
+      if (activity.activityKind === "meal") {
+        const source = activity.sourceMealId
+          ? await options.foodEntryRepository?.getById(
+              activity.sourceMealId,
+              access,
+            )
+          : null;
+        if (
+          !source ||
+          source.userId !== principal.userId ||
+          !source.confirmedByUser
+        )
+          return unavailable();
+      } else {
+        const source = activity.sourceWorkoutId
+          ? await options.workoutRepository.getById(
+              activity.sourceWorkoutId,
+              access,
+            )
+          : null;
+        if (
+          !source ||
+          source.userId !== principal.userId ||
+          !source.completedAt ||
+          !isSessionDetails(source.details)
+        )
+          return unavailable();
+      }
       return authorSharedActivityDtoSchema.parse({
         id: activity.id,
         authorUserId: principal.userId,
@@ -696,9 +731,12 @@ export const communityPublicationRoutes: FastifyPluginAsync<
         category: activity.category,
         sharedDay: activity.sharedDay,
         durationSeconds: activity.durationSeconds,
+        activityKind: activity.activityKind ?? "workout",
+        mealDetails: activity.mealDetails ?? null,
         workoutDetails: activity.workoutDetails ?? null,
         publishedAt: activity.publishedAt.toISOString(),
         sourceWorkoutId: activity.sourceWorkoutId,
+        sourceMealId: activity.sourceMealId ?? null,
         version: activity.version,
         revokedAt: null,
         reactionCounts: defaultReactionCounts,
@@ -820,6 +858,8 @@ export const communityPublicationRoutes: FastifyPluginAsync<
         category: activity.category,
         sharedDay: activity.sharedDay,
         durationSeconds: activity.durationSeconds,
+        activityKind: activity.activityKind ?? "workout",
+        mealDetails: activity.mealDetails ?? null,
         workoutDetails: activity.workoutDetails ?? null,
         publishedAt: activity.publishedAt.toISOString(),
         reactionCounts: reactions.reactionCounts,

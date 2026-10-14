@@ -72,7 +72,11 @@ export function AnalyticsCard() {
 
   return (
     <ThemedView type="backgroundElement" style={styles.card}>
-      <ThemedText type="smallBold">Optional product analytics</ThemedText>
+      <ThemedText type="smallBold">Help improve Mizyun</ThemedText>
+      <ThemedText type="small" themeColor="textSecondary">
+        Optional usage analytics · Separate from AI consent. Mizyun works the
+        same either way.
+      </ThemedText>
       <ThemedText type="small" themeColor="textSecondary">
         Help improve Mizyun’s UI and features by sharing coarse screen use, flow
         completions, and failure stages. Events are sent to Mizyun’s servers and
@@ -91,7 +95,7 @@ export function AnalyticsCard() {
       </ThemedText>
       <View style={styles.analyticsActions}>
         <AnalyticsButton
-          label={enabled ? "Enabled" : "Enable"}
+          label={enabled ? "Enabled" : "Allow usage analytics"}
           disabled={consent === "loading" || enabled}
           onPress={() => void chooseConsent("granted")}
         />

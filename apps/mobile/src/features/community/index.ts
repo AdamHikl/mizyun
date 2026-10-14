@@ -4,6 +4,8 @@ export * from "./ui";
 export * from "./initials-avatar";
 export * from "./use-community-profile";
 export * from "./share-workout-modal";
+export * from "./share-meal-modal";
+export { CommunityShareMealScreen } from "./share-meal-screen";
 export { CommunityShareWorkoutScreen } from "./share-workout-screen";
 export * from "./invitation-actions";
 export * from "./invitation-links";
@@ -21,4 +23,9 @@ export * from "./notifications";
 
 export { CommunityIntro } from "./community-presentation";
 export { CommunityReadLifecycle } from "./state/read-lifecycle";
-export { invalidateCommunityReads } from "./state/read-cache";
+export {
+  invalidateCommunityReads,
+  peekCommunityRead,
+  subscribeCommunityReadFills,
+  type CommunityReadPrincipal,
+} from "./state/read-cache";

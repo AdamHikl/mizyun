@@ -96,6 +96,7 @@ vi.mock("@/composition/api-client", () => ({
 }));
 vi.mock("@/features/logging-draft-storage", () => ({
   loadLoggingDraft: mocks.load,
+  loadRequiredLoggingDraft: mocks.load,
   saveLoggingDraft: mocks.persist,
   clearLoggingDraft: mocks.clear,
 }));
@@ -188,6 +189,7 @@ beforeEach(async () => {
   vi.clearAllMocks();
   mocks.load.mockResolvedValue({ ...draft });
   mocks.persist.mockResolvedValue(true);
+  mocks.clear.mockResolvedValue(true);
   mocks.history.mockResolvedValue({ entries: [] });
   mocks.refresh.mockResolvedValue(true);
   mocks.submit.mockResolvedValue({ ok: true });

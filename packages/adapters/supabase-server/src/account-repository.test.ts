@@ -10,6 +10,7 @@ import type {
   GoalRepository,
   MediaAssetRepository,
   ProfileRepository,
+  RecipeRequestLedger,
   UserId,
   WorkoutRepository,
   WorkoutSetRepository,
@@ -286,6 +287,112 @@ describe("SupabaseAccountRepository", () => {
       ...overrides,
     };
   };
+
+  it("exports recipe metadata for the verified owner and rejects ledger outages", async () => {
+    const recipeRequests = [
+      {
+        requestId: "83000000-0000-4000-8000-000000000002",
+        operation: "recognize",
+        status: "expired",
+        createdAt: "2026-10-13T12:00:00.000Z",
+        budgetDay: "2026-10-13",
+        tokensCharged: 1500,
+      },
+    ];
+    const exportUsageForUser = vi.fn().mockResolvedValue(recipeRequests);
+    const recipeRequestLedger = {
+      exportUsageForUser,
+    } as unknown as RecipeRequestLedger;
+    const repo = new SupabaseAccountRepository(
+      createMockOptions({ recipeRequestLedger }),
+    );
+    expect(
+      (await repo.exportForUser(testUserId, { accessToken: "valid-jwt" }))
+        .recipeRequests,
+    ).toEqual(recipeRequests);
+    expect(exportUsageForUser).toHaveBeenCalledExactlyOnceWith(testUserId);
+    exportUsageForUser.mockRejectedValueOnce(new Error("outage"));
+    await expect(
+      repo.exportForUser(testUserId, { accessToken: "valid-jwt" }),
+    ).rejects.toThrow("outage");
+  });
+
+  it("recipe cleanup failure blocks Auth deletion and resumes storage on restart", async () => {
+    const deleteForUser = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("ledger unavailable"))
+      .mockResolvedValue(undefined);
+    const recipeRequestLedger = {
+      deleteForUser,
+    } as unknown as RecipeRequestLedger;
+    const opts = createMockOptions({ recipeRequestLedger });
+    const repo = new SupabaseAccountRepository(opts);
+    const now = new Date();
+    const confirmationToken = await repo.issueDeletionChallenge(testUserId, {
+      now,
+      ttlSeconds: 300,
+    });
+    await expect(
+      repo.deleteUser(testUserId, {
+        now,
+        confirmationToken,
+        accessToken: "valid-jwt",
+      }),
+    ).rejects.toThrow("storage cleanup");
+    expect(opts.deleteUserMock).not.toHaveBeenCalled();
+    expect(await repo.getDeletionJob(testUserId)).toMatchObject({
+      status: "failed",
+      stage: "storage",
+      completedAt: null,
+    });
+    const restarted = new SupabaseAccountRepository(opts);
+    expect(
+      await restarted.deleteUser(testUserId, {
+        now: new Date(),
+        confirmationToken,
+        accessToken: "valid-jwt",
+      }),
+    ).toEqual({ deleted: true });
+    expect(deleteForUser).toHaveBeenCalledTimes(2);
+    expect(deleteForUser).toHaveBeenCalledWith(testUserId);
+    expect(deleteForUser.mock.invocationCallOrder[1]).toBeLessThan(
+      opts.deleteUserMock.mock.invocationCallOrder[0]!,
+    );
+    expect(
+      await restarted.deleteUser(testUserId, {
+        now: new Date(),
+        confirmationToken,
+      }),
+    ).toEqual({ deleted: true });
+    expect(deleteForUser).toHaveBeenCalledTimes(2);
+  });
+
+  it("recipe cleanup observes the storage worker lease and cannot finish after takeover", async () => {
+    const deleteForUser = vi.fn();
+    const opts = createMockOptions({
+      recipeRequestLedger: { deleteForUser } as unknown as RecipeRequestLedger,
+    });
+    deleteForUser.mockImplementation(async () => {
+      expect(opts.jobsTable.rows[0]).toMatchObject({
+        status: "in_progress",
+        stage: "storage",
+        worker_id: expect.any(String),
+      });
+      opts.jobsTable.rows[0]!.worker_id = "replacement-worker";
+    });
+    const repo = new SupabaseAccountRepository(opts);
+    const now = new Date();
+    const confirmationToken = await repo.issueDeletionChallenge(testUserId, {
+      now,
+      ttlSeconds: 300,
+    });
+    await expect(
+      repo.deleteUser(testUserId, { now, confirmationToken }),
+    ).rejects.toThrow("lease is unavailable");
+    expect(opts.deleteUserMock).not.toHaveBeenCalled();
+    expect(opts.jobsTable.rows[0]?.status).toBe("in_progress");
+    expect(opts.jobsTable.rows[0]?.completed_at).toBeNull();
+  });
 
   it("rejects a challenge before invoking external cleanup", async () => {
     const options = createMockOptions();
@@ -1074,6 +1181,17 @@ describe("SupabaseAccountRepository", () => {
       path_key: index.toString(16).padStart(64, "0"),
       created_at: "2026-10-09T10:00:00+00:00",
     }));
+    const suggestionStates = Array.from({ length: 502 }, (_, index) => ({
+      user_id: testUserId,
+      family_key: `synthetic-${index}`,
+      never: true,
+    }));
+    const suggestionPreferences = [{ user_id: testUserId, enabled: false }];
+    const suggestionReceipts = Array.from({ length: 503 }, (_, index) => ({
+      user_id: testUserId,
+      operation_id: `operation-${index}`,
+      created: true,
+    }));
     const queries: {
       table: string;
       column: string;
@@ -1125,13 +1243,19 @@ describe("SupabaseAccountRepository", () => {
               };
             }
             const rows =
-              table === "recurring_meal_schedules"
-                ? schedules
-                : table === "recurring_meal_occurrences"
-                  ? occurrences
-                  : table === "food_media_paths"
-                    ? mealPaths
-                    : [];
+              table === "recurring_meal_suggestion_states"
+                ? suggestionStates
+                : table === "recurring_meal_suggestion_preferences"
+                  ? suggestionPreferences
+                  : table === "recurring_meal_suggestion_receipts"
+                    ? suggestionReceipts
+                    : table === "recurring_meal_schedules"
+                      ? schedules
+                      : table === "recurring_meal_occurrences"
+                        ? occurrences
+                        : table === "food_media_paths"
+                          ? mealPaths
+                          : [];
             return { data: rows.slice(from, to + 1), error: null };
           }),
           maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
@@ -1149,6 +1273,29 @@ describe("SupabaseAccountRepository", () => {
     expect(clientFor).toHaveBeenCalledWith("verified-owner-token");
     expect(result.recurringMeals?.schedules).toEqual(schedules);
     expect(result.recurringMeals?.occurrences).toEqual(occurrences);
+    expect(result.recurringMeals?.suggestionStates).toEqual(suggestionStates);
+    expect(result.recurringMeals?.suggestionPreferences).toEqual(
+      suggestionPreferences,
+    );
+    expect(result.recurringMeals?.suggestionReceipts).toEqual(
+      suggestionReceipts,
+    );
+    for (const table of [
+      "recurring_meal_suggestion_states",
+      "recurring_meal_suggestion_preferences",
+      "recurring_meal_suggestion_receipts",
+    ]) {
+      expect(
+        queries
+          .filter((q) => q.table === table)
+          .every(
+            (q) =>
+              q.column === "user_id" &&
+              q.owner === testUserId &&
+              !q.orders.includes("id"),
+          ),
+      ).toBe(true);
+    }
     expect(result.mealImagePaths).toEqual(
       mealPaths.map((row) => ({
         userId: testUserId,
@@ -1170,7 +1317,9 @@ describe("SupabaseAccountRepository", () => {
       ),
     ).toBe(true);
     const recurrenceQueries = queries.filter((q) =>
-      q.table.startsWith("recurring_meal_"),
+      ["recurring_meal_schedules", "recurring_meal_occurrences"].includes(
+        q.table,
+      ),
     );
     expect(recurrenceQueries).toHaveLength(6);
     expect(

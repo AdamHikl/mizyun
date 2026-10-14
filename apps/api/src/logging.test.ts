@@ -102,6 +102,67 @@ describe("loggerConfig", () => {
 });
 
 describe("redaction against a live Fastify instance", () => {
+  it("redacts private meal source and confirmed nutrition in diagnostic payloads", () => {
+    const { app, lines } = buildAppWithCapturedLogger();
+    apps.push(app);
+    const mealId = "d2380000-0000-4000-8000-000000000009";
+    const expectedMealDetails = {
+      name: "SYNTHETIC_PRIVATE_MEAL_NAME",
+      caloriesKcal: 9876.543,
+      proteinG: 321.123,
+      carbsG: null,
+      fatG: null,
+    };
+    app.log.info(
+      { mealId, expectedMealDetails, body: { mealId, expectedMealDetails } },
+      "meal publication diagnostic",
+    );
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).not.toContain(mealId);
+    expect(lines[0]).not.toContain(expectedMealDetails.name);
+    expect(lines[0]).not.toContain("9876.543");
+    const entry = JSON.parse(lines[0]!);
+    expect(entry.mealId).toBe("[Redacted]");
+    expect(entry.expectedMealDetails).toBe("[Redacted]");
+    expect(entry.body.mealId).toBe("[Redacted]");
+    expect(entry.body.expectedMealDetails).toBe("[Redacted]");
+    expect(redactPaths).toContain("req.body.mealId");
+    expect(redactPaths).toContain("req.body.expectedMealDetails");
+  });
+
+  it("redacts suggestion evidence, family identifiers and action paths", async () => {
+    const { app, lines } = buildAppWithCapturedLogger();
+    apps.push(app);
+    const proposal = {
+      name: "SYNTHETIC_PRIVATE_ROUTINE",
+      caloriesKcal: 9876.543,
+      evidence: [{ id: "SYNTHETIC_PRIVATE_SOURCE" }],
+    };
+    app.log.info(
+      {
+        proposal,
+        familyKey: "SYNTHETIC_PRIVATE_FAMILY",
+        body: { proposal, evidenceDigest: "SYNTHETIC_DIGEST" },
+      },
+      "suggestion diagnostic",
+    );
+    await app.inject({
+      method: "GET",
+      url: "/v1/recurring-meal-suggestions/mrs1-deadbeef/accept?timeZone=UTC",
+    });
+    const joined = lines.join("\n");
+    for (const sensitive of [
+      proposal.name,
+      "9876.543",
+      "SYNTHETIC_PRIVATE_SOURCE",
+      "SYNTHETIC_PRIVATE_FAMILY",
+      "SYNTHETIC_DIGEST",
+      "mrs1-deadbeef",
+    ])
+      expect(joined).not.toContain(sensitive);
+    expect(joined).toContain("/v1/recurring-meal-suggestions/[redacted]");
+  });
+
   it("replaces the Authorization header value with [Redacted] in the request log line", async () => {
     const { app, lines } = buildAppWithCapturedLogger();
     apps.push(app);

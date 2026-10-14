@@ -3,8 +3,9 @@ import {
   HttpApiClient,
   type ApiClient,
   type ApiConfigurationStatus,
+  type RequestOptions,
 } from "@mizyun/api-client";
-import type { AuthClient } from "@mizyun/identity";
+import type { AuthClient, AuthSession } from "@mizyun/identity";
 
 import { authClient } from "./auth-client";
 import { mobileConfigResult } from "./mobile-config";
@@ -68,6 +69,10 @@ export const sessionReadCache = new SessionReadCache(
 );
 export const invalidateSessionReads = (): void => sessionReadCache.clear();
 export const getSessionReadVersion = (): string => sessionReadCache.version();
+export const peekSessionRead = <T>(
+  options: RequestOptions,
+  session: AuthSession | null,
+) => sessionReadCache.peek<T>(options, session);
 export const communityReadCache = new CommunityReadCache(sessionReadCache, () =>
   authClient.getSession(),
 );

@@ -194,7 +194,7 @@ function SettingsContent({
       if (!enrollment.success) return;
       const result = await actions.enroll(enrollment.data);
       if (result.ok) {
-        setMessage("You joined Community. No workouts were shared.");
+        setMessage("You joined Community. No meals or workouts were shared.");
       }
     }
   };
@@ -262,16 +262,17 @@ function SettingsContent({
         {!editing && (
           <Section title="Always your choice">
             <ThemedText>
-              Joining shares no saved workouts and requests no notification
-              permission. Your private tracking works without Community.
+              Joining shares no saved meals or workouts and requests no
+              notification permission. Your private tracking works without
+              Community.
             </ThemedText>
             <ThemedText type="small">
               Community changes no analytics, AI or health permissions.
             </ThemedText>
             <ThemedText type="small">
               Create a separate social identity. Nothing is copied from your
-              private profile. Your social name, handle and shared workout day
-              can identify you.
+              private profile. Your social name, handle and shared meal or
+              workout day can identify you.
             </ThemedText>
           </Section>
         )}

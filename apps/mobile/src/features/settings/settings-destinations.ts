@@ -98,7 +98,7 @@ export const SETTINGS_DETAIL_CONFIGS: Record<
     validAnchors: [],
   },
   analytics: {
-    title: "Product Analytics & Export",
+    title: "Help improve Mizyun",
     categoryId: "privacy-data",
     validAnchors: [],
   },

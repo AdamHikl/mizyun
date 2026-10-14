@@ -48,9 +48,16 @@ export interface LogMealForm {
   readonly details?: Readonly<Record<string, unknown>>;
 }
 
+export interface LogMealSubmitOptions {
+  readonly expectedUserId: string;
+  readonly isCurrent: () => boolean;
+}
+
 const humanizeError = (result: Result<unknown, ApiError>): string => {
   if (!result.ok) {
     switch (result.error.kind) {
+      case "context_changed":
+        return "This save is no longer current. Reopen the meal before continuing.";
       case "session_expired":
         return "Your session expired. Sign in again.";
       case "network_error":
@@ -78,6 +85,7 @@ const humanizeError = (result: Result<unknown, ApiError>): string => {
 
 export const submitLogMeal = async (
   form: LogMealForm,
+  options?: LogMealSubmitOptions,
 ): Promise<LogMealResult> => {
   const binding = captureHealthExportOwner();
   return submitLogMealWith(
@@ -89,6 +97,7 @@ export const submitLogMeal = async (
         firstParty: form.healthExportFirstParty === true,
         timeBasis: form.healthExportTimeBasis ?? "date_only",
       }),
+    options,
   );
 };
 
@@ -97,7 +106,13 @@ export const submitLogMealWith = async (
   client: ApiClient,
   now: () => Date = () => new Date(),
   afterSave?: (entry: FoodEntryResponse["foodEntry"]) => void,
+  options?: LogMealSubmitOptions,
 ): Promise<LogMealResult> => {
+  const contextChanged = (): LogMealResult => ({
+    ok: false,
+    message: humanizeError({ ok: false, error: { kind: "context_changed" } }),
+  });
+  if (options?.isCurrent() === false) return contextChanged();
   const trimmedName = form.name.trim();
   if (trimmedName.length === 0) {
     return { ok: false, message: "Name a meal first." };
@@ -146,9 +161,21 @@ export const submitLogMealWith = async (
       "Idempotency-Key": clientOperationId,
     },
     schema: foodEntryResponseSchema,
+    ...(options === undefined ? {} : options),
   });
+  if (options?.isCurrent() === false) return contextChanged();
   if (!result.ok) {
+    // The scoped transport rejects a different principal before dispatch.
+    if (options !== undefined && result.error.kind === "no_session") {
+      return contextChanged();
+    }
     return { ok: false, message: humanizeError(result) };
+  }
+  if (
+    options !== undefined &&
+    result.value.foodEntry.userId !== options.expectedUserId
+  ) {
+    return contextChanged();
   }
   try {
     afterSave?.(result.value.foodEntry);

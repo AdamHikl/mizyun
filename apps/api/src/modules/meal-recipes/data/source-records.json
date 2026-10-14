@@ -1,0 +1,1978 @@
+{
+  "catalogRevision": "usda-sr-legacy-2018-rec02-v1",
+  "archiveSha256": "b80817294b8850530aaedf2e515c02593b1824f763a0ff356e5c2081643e6fd0",
+  "records": [
+    {
+      "ingredientId": "rice-white-cooked",
+      "food": {
+        "fdc_id": "169757",
+        "data_type": "sr_legacy_food",
+        "description": "Rice, white, long-grain, regular, unenriched, cooked without salt",
+        "food_category_id": "20",
+        "publication_date": "2019-04-01"
+      },
+      "srLegacyFood": {
+        "fdc_id": "169757",
+        "NDB_number": "20445"
+      },
+      "foodNutrients": [
+        {
+          "id": "1467323",
+          "fdc_id": "169757",
+          "nutrient_id": "1008",
+          "amount": "130",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1467347",
+          "fdc_id": "169757",
+          "nutrient_id": "1003",
+          "amount": "2.69",
+          "data_points": "20",
+          "derivation_id": "",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1467322",
+          "fdc_id": "169757",
+          "nutrient_id": "1005",
+          "amount": "28.17",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1467321",
+          "fdc_id": "169757",
+          "nutrient_id": "1004",
+          "amount": "0.28",
+          "data_points": "6",
+          "derivation_id": "",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        }
+      ]
+    },
+    {
+      "ingredientId": "rice-white-raw",
+      "food": {
+        "fdc_id": "169756",
+        "data_type": "sr_legacy_food",
+        "description": "Rice, white, long-grain, regular, raw, unenriched",
+        "food_category_id": "20",
+        "publication_date": "2019-04-01"
+      },
+      "srLegacyFood": {
+        "fdc_id": "169756",
+        "NDB_number": "20444"
+      },
+      "foodNutrients": [
+        {
+          "id": "1467262",
+          "fdc_id": "169756",
+          "nutrient_id": "1008",
+          "amount": "365",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1467237",
+          "fdc_id": "169756",
+          "nutrient_id": "1003",
+          "amount": "7.13",
+          "data_points": "70",
+          "derivation_id": "",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1467261",
+          "fdc_id": "169756",
+          "nutrient_id": "1005",
+          "amount": "79.95",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1467260",
+          "fdc_id": "169756",
+          "nutrient_id": "1004",
+          "amount": "0.66",
+          "data_points": "23",
+          "derivation_id": "",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        }
+      ]
+    },
+    {
+      "ingredientId": "chicken-breast-cooked",
+      "food": {
+        "fdc_id": "171477",
+        "data_type": "sr_legacy_food",
+        "description": "Chicken, broilers or fryers, breast, meat only, cooked, roasted",
+        "food_category_id": "5",
+        "publication_date": "2019-04-01"
+      },
+      "srLegacyFood": {
+        "fdc_id": "171477",
+        "NDB_number": "5064"
+      },
+      "foodNutrients": [
+        {
+          "id": "1613020",
+          "fdc_id": "171477",
+          "nutrient_id": "1008",
+          "amount": "165",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1613048",
+          "fdc_id": "171477",
+          "nutrient_id": "1003",
+          "amount": "31.02",
+          "data_points": "16",
+          "derivation_id": "",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1613019",
+          "fdc_id": "171477",
+          "nutrient_id": "1005",
+          "amount": "0",
+          "data_points": "0",
+          "derivation_id": "68",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1613018",
+          "fdc_id": "171477",
+          "nutrient_id": "1004",
+          "amount": "3.57",
+          "data_points": "16",
+          "derivation_id": "",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        }
+      ]
+    },
+    {
+      "ingredientId": "chicken-breast-raw",
+      "food": {
+        "fdc_id": "171077",
+        "data_type": "sr_legacy_food",
+        "description": "Chicken, broiler or fryers, breast, skinless, boneless, meat only, raw",
+        "food_category_id": "5",
+        "publication_date": "2019-04-01"
+      },
+      "srLegacyFood": {
+        "fdc_id": "171077",
+        "NDB_number": "5062"
+      },
+      "foodNutrients": [
+        {
+          "id": "1578066",
+          "fdc_id": "171077",
+          "nutrient_id": "1008",
+          "amount": "120",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1578105",
+          "fdc_id": "171077",
+          "nutrient_id": "1003",
+          "amount": "22.5",
+          "data_points": "6",
+          "derivation_id": "1",
+          "min": "21.88",
+          "max": "23.44",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1578117",
+          "fdc_id": "171077",
+          "nutrient_id": "1005",
+          "amount": "0",
+          "data_points": "0",
+          "derivation_id": "68",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1578065",
+          "fdc_id": "171077",
+          "nutrient_id": "1004",
+          "amount": "2.62",
+          "data_points": "6",
+          "derivation_id": "1",
+          "min": "1.86",
+          "max": "3.45",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        }
+      ]
+    },
+    {
+      "ingredientId": "chickpeas-cooked",
+      "food": {
+        "fdc_id": "173757",
+        "data_type": "sr_legacy_food",
+        "description": "Chickpeas (garbanzo beans, bengal gram), mature seeds, cooked, boiled, without salt",
+        "food_category_id": "16",
+        "publication_date": "2019-04-01"
+      },
+      "srLegacyFood": {
+        "fdc_id": "173757",
+        "NDB_number": "16057"
+      },
+      "foodNutrients": [
+        {
+          "id": "1804150",
+          "fdc_id": "173757",
+          "nutrient_id": "1008",
+          "amount": "164",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1804186",
+          "fdc_id": "173757",
+          "nutrient_id": "1003",
+          "amount": "8.86",
+          "data_points": "23",
+          "derivation_id": "",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1804149",
+          "fdc_id": "173757",
+          "nutrient_id": "1005",
+          "amount": "27.42",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1804172",
+          "fdc_id": "173757",
+          "nutrient_id": "1004",
+          "amount": "2.59",
+          "data_points": "24",
+          "derivation_id": "",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        }
+      ]
+    },
+    {
+      "ingredientId": "lentils-cooked",
+      "food": {
+        "fdc_id": "172421",
+        "data_type": "sr_legacy_food",
+        "description": "Lentils, mature seeds, cooked, boiled, without salt",
+        "food_category_id": "16",
+        "publication_date": "2019-04-01"
+      },
+      "srLegacyFood": {
+        "fdc_id": "172421",
+        "NDB_number": "16070"
+      },
+      "foodNutrients": [
+        {
+          "id": "1693800",
+          "fdc_id": "172421",
+          "nutrient_id": "1008",
+          "amount": "116",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1693807",
+          "fdc_id": "172421",
+          "nutrient_id": "1003",
+          "amount": "9.02",
+          "data_points": "23",
+          "derivation_id": "",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1693799",
+          "fdc_id": "172421",
+          "nutrient_id": "1005",
+          "amount": "20.13",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1693834",
+          "fdc_id": "172421",
+          "nutrient_id": "1004",
+          "amount": "0.38",
+          "data_points": "22",
+          "derivation_id": "",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        }
+      ]
+    },
+    {
+      "ingredientId": "black-beans-cooked",
+      "food": {
+        "fdc_id": "173735",
+        "data_type": "sr_legacy_food",
+        "description": "Beans, black, mature seeds, cooked, boiled, without salt",
+        "food_category_id": "16",
+        "publication_date": "2019-04-01"
+      },
+      "srLegacyFood": {
+        "fdc_id": "173735",
+        "NDB_number": "16015"
+      },
+      "foodNutrients": [
+        {
+          "id": "1802378",
+          "fdc_id": "173735",
+          "nutrient_id": "1008",
+          "amount": "132",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1802380",
+          "fdc_id": "173735",
+          "nutrient_id": "1003",
+          "amount": "8.86",
+          "data_points": "8",
+          "derivation_id": "",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1802377",
+          "fdc_id": "173735",
+          "nutrient_id": "1005",
+          "amount": "23.71",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1802376",
+          "fdc_id": "173735",
+          "nutrient_id": "1004",
+          "amount": "0.54",
+          "data_points": "8",
+          "derivation_id": "",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        }
+      ]
+    },
+    {
+      "ingredientId": "tofu-firm",
+      "food": {
+        "fdc_id": "172475",
+        "data_type": "sr_legacy_food",
+        "description": "Tofu, raw, firm, prepared with calcium sulfate",
+        "food_category_id": "16",
+        "publication_date": "2019-04-01"
+      },
+      "srLegacyFood": {
+        "fdc_id": "172475",
+        "NDB_number": "16426"
+      },
+      "foodNutrients": [
+        {
+          "id": "1698051",
+          "fdc_id": "172475",
+          "nutrient_id": "1008",
+          "amount": "144",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1698062",
+          "fdc_id": "172475",
+          "nutrient_id": "1003",
+          "amount": "17.27",
+          "data_points": "6",
+          "derivation_id": "",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1698050",
+          "fdc_id": "172475",
+          "nutrient_id": "1005",
+          "amount": "2.78",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1698091",
+          "fdc_id": "172475",
+          "nutrient_id": "1004",
+          "amount": "8.72",
+          "data_points": "6",
+          "derivation_id": "",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        }
+      ]
+    },
+    {
+      "ingredientId": "oats-dry",
+      "food": {
+        "fdc_id": "173904",
+        "data_type": "sr_legacy_food",
+        "description": "Cereals, oats, regular and quick, not fortified, dry",
+        "food_category_id": "8",
+        "publication_date": "2019-04-01"
+      },
+      "srLegacyFood": {
+        "fdc_id": "173904",
+        "NDB_number": "8120"
+      },
+      "foodNutrients": [
+        {
+          "id": "1815029",
+          "fdc_id": "173904",
+          "nutrient_id": "1008",
+          "amount": "379",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1815039",
+          "fdc_id": "173904",
+          "nutrient_id": "1003",
+          "amount": "13.15",
+          "data_points": "4",
+          "derivation_id": "1",
+          "min": "13",
+          "max": "13.24",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1815028",
+          "fdc_id": "173904",
+          "nutrient_id": "1005",
+          "amount": "67.7",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1815027",
+          "fdc_id": "173904",
+          "nutrient_id": "1004",
+          "amount": "6.52",
+          "data_points": "4",
+          "derivation_id": "1",
+          "min": "6.2",
+          "max": "6.92",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        }
+      ]
+    },
+    {
+      "ingredientId": "oats-cooked",
+      "food": {
+        "fdc_id": "173905",
+        "data_type": "sr_legacy_food",
+        "description": "Cereals, oats, regular and quick, unenriched, cooked with water (includes boiling and microwaving), without salt",
+        "food_category_id": "8",
+        "publication_date": "2019-04-01"
+      },
+      "srLegacyFood": {
+        "fdc_id": "173905",
+        "NDB_number": "8121"
+      },
+      "foodNutrients": [
+        {
+          "id": "1815107",
+          "fdc_id": "173905",
+          "nutrient_id": "1008",
+          "amount": "71",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1815072",
+          "fdc_id": "173905",
+          "nutrient_id": "1003",
+          "amount": "2.54",
+          "data_points": "8",
+          "derivation_id": "1",
+          "min": "2.29",
+          "max": "2.98",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1815106",
+          "fdc_id": "173905",
+          "nutrient_id": "1005",
+          "amount": "12",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1815105",
+          "fdc_id": "173905",
+          "nutrient_id": "1004",
+          "amount": "1.52",
+          "data_points": "8",
+          "derivation_id": "1",
+          "min": "1.28",
+          "max": "1.65",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        }
+      ]
+    },
+    {
+      "ingredientId": "olive-oil",
+      "food": {
+        "fdc_id": "171413",
+        "data_type": "sr_legacy_food",
+        "description": "Oil, olive, salad or cooking",
+        "food_category_id": "4",
+        "publication_date": "2019-04-01"
+      },
+      "srLegacyFood": {
+        "fdc_id": "171413",
+        "NDB_number": "4053"
+      },
+      "foodNutrients": [
+        {
+          "id": "1607768",
+          "fdc_id": "171413",
+          "nutrient_id": "1008",
+          "amount": "884",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1607794",
+          "fdc_id": "171413",
+          "nutrient_id": "1003",
+          "amount": "0",
+          "data_points": "4",
+          "derivation_id": "1",
+          "min": "0",
+          "max": "0",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1607767",
+          "fdc_id": "171413",
+          "nutrient_id": "1005",
+          "amount": "0",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1607766",
+          "fdc_id": "171413",
+          "nutrient_id": "1004",
+          "amount": "100",
+          "data_points": "0",
+          "derivation_id": "52",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        }
+      ]
+    },
+    {
+      "ingredientId": "tomato-puree",
+      "food": {
+        "fdc_id": "170460",
+        "data_type": "sr_legacy_food",
+        "description": "Tomato products, canned, puree, without salt added",
+        "food_category_id": "11",
+        "publication_date": "2019-04-01"
+      },
+      "srLegacyFood": {
+        "fdc_id": "170460",
+        "NDB_number": "11547"
+      },
+      "foodNutrients": [
+        {
+          "id": "1525610",
+          "fdc_id": "170460",
+          "nutrient_id": "1008",
+          "amount": "38",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1525652",
+          "fdc_id": "170460",
+          "nutrient_id": "1003",
+          "amount": "1.65",
+          "data_points": "36",
+          "derivation_id": "43",
+          "min": "0.63",
+          "max": "2.47",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1525609",
+          "fdc_id": "170460",
+          "nutrient_id": "1005",
+          "amount": "8.98",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1525678",
+          "fdc_id": "170460",
+          "nutrient_id": "1004",
+          "amount": "0.21",
+          "data_points": "36",
+          "derivation_id": "42",
+          "min": "0.07",
+          "max": "1.05",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        }
+      ]
+    },
+    {
+      "ingredientId": "greek-yogurt-nonfat",
+      "food": {
+        "fdc_id": "170894",
+        "data_type": "sr_legacy_food",
+        "description": "Yogurt, Greek, plain, nonfat (Includes foods for USDA's Food Distribution Program)",
+        "food_category_id": "1",
+        "publication_date": "2019-04-01"
+      },
+      "srLegacyFood": {
+        "fdc_id": "170894",
+        "NDB_number": "1256"
+      },
+      "foodNutrients": [
+        {
+          "id": "1563371",
+          "fdc_id": "170894",
+          "nutrient_id": "1008",
+          "amount": "59",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1563290",
+          "fdc_id": "170894",
+          "nutrient_id": "1003",
+          "amount": "10.19",
+          "data_points": "16",
+          "derivation_id": "1",
+          "min": "8.87",
+          "max": "11.74",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1563370",
+          "fdc_id": "170894",
+          "nutrient_id": "1005",
+          "amount": "3.6",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1563369",
+          "fdc_id": "170894",
+          "nutrient_id": "1004",
+          "amount": "0.39",
+          "data_points": "18",
+          "derivation_id": "1",
+          "min": "0.23",
+          "max": "0.61",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        }
+      ]
+    },
+    {
+      "ingredientId": "egg-raw",
+      "food": {
+        "fdc_id": "171287",
+        "data_type": "sr_legacy_food",
+        "description": "Egg, whole, raw, fresh",
+        "food_category_id": "1",
+        "publication_date": "2019-04-01"
+      },
+      "srLegacyFood": {
+        "fdc_id": "171287",
+        "NDB_number": "1123"
+      },
+      "foodNutrients": [
+        {
+          "id": "1597626",
+          "fdc_id": "171287",
+          "nutrient_id": "1008",
+          "amount": "143",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1597683",
+          "fdc_id": "171287",
+          "nutrient_id": "1003",
+          "amount": "12.56",
+          "data_points": "12",
+          "derivation_id": "1",
+          "min": "11.81",
+          "max": "13.06",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1597748",
+          "fdc_id": "171287",
+          "nutrient_id": "1005",
+          "amount": "0.72",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1597714",
+          "fdc_id": "171287",
+          "nutrient_id": "1004",
+          "amount": "9.51",
+          "data_points": "12",
+          "derivation_id": "1",
+          "min": "8.78",
+          "max": "10.3",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        }
+      ]
+    },
+    {
+      "ingredientId": "egg-boiled",
+      "food": {
+        "fdc_id": "173424",
+        "data_type": "sr_legacy_food",
+        "description": "Egg, whole, cooked, hard-boiled",
+        "food_category_id": "1",
+        "publication_date": "2019-04-01"
+      },
+      "srLegacyFood": {
+        "fdc_id": "173424",
+        "NDB_number": "1129"
+      },
+      "foodNutrients": [
+        {
+          "id": "1777847",
+          "fdc_id": "173424",
+          "nutrient_id": "1008",
+          "amount": "155",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1777860",
+          "fdc_id": "173424",
+          "nutrient_id": "1003",
+          "amount": "12.58",
+          "data_points": "14",
+          "derivation_id": "",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1777905",
+          "fdc_id": "173424",
+          "nutrient_id": "1005",
+          "amount": "1.12",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1777904",
+          "fdc_id": "173424",
+          "nutrient_id": "1004",
+          "amount": "10.61",
+          "data_points": "7",
+          "derivation_id": "",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        }
+      ]
+    },
+    {
+      "ingredientId": "broccoli-raw",
+      "food": {
+        "fdc_id": "170379",
+        "data_type": "sr_legacy_food",
+        "description": "Broccoli, raw",
+        "food_category_id": "11",
+        "publication_date": "2019-04-01"
+      },
+      "srLegacyFood": {
+        "fdc_id": "170379",
+        "NDB_number": "11090"
+      },
+      "foodNutrients": [
+        {
+          "id": "1518809",
+          "fdc_id": "170379",
+          "nutrient_id": "1008",
+          "amount": "34",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1518850",
+          "fdc_id": "170379",
+          "nutrient_id": "1003",
+          "amount": "2.82",
+          "data_points": "23",
+          "derivation_id": "43",
+          "min": "1.99",
+          "max": "3.15",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1518808",
+          "fdc_id": "170379",
+          "nutrient_id": "1005",
+          "amount": "6.64",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1518830",
+          "fdc_id": "170379",
+          "nutrient_id": "1004",
+          "amount": "0.37",
+          "data_points": "29",
+          "derivation_id": "43",
+          "min": "0.33",
+          "max": "0.41",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        }
+      ]
+    },
+    {
+      "ingredientId": "spinach-raw",
+      "food": {
+        "fdc_id": "168462",
+        "data_type": "sr_legacy_food",
+        "description": "Spinach, raw",
+        "food_category_id": "11",
+        "publication_date": "2019-04-01"
+      },
+      "srLegacyFood": {
+        "fdc_id": "168462",
+        "NDB_number": "11457"
+      },
+      "foodNutrients": [
+        {
+          "id": "1362529",
+          "fdc_id": "168462",
+          "nutrient_id": "1008",
+          "amount": "23",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1362463",
+          "fdc_id": "168462",
+          "nutrient_id": "1003",
+          "amount": "2.86",
+          "data_points": "9",
+          "derivation_id": "",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1362528",
+          "fdc_id": "168462",
+          "nutrient_id": "1005",
+          "amount": "3.63",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1362527",
+          "fdc_id": "168462",
+          "nutrient_id": "1004",
+          "amount": "0.39",
+          "data_points": "7",
+          "derivation_id": "",
+          "min": "0.25",
+          "max": "0.5",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        }
+      ]
+    },
+    {
+      "ingredientId": "tomato-raw",
+      "food": {
+        "fdc_id": "170457",
+        "data_type": "sr_legacy_food",
+        "description": "Tomatoes, red, ripe, raw, year round average",
+        "food_category_id": "11",
+        "publication_date": "2019-04-01"
+      },
+      "srLegacyFood": {
+        "fdc_id": "170457",
+        "NDB_number": "11529"
+      },
+      "foodNutrients": [
+        {
+          "id": "1525334",
+          "fdc_id": "170457",
+          "nutrient_id": "1008",
+          "amount": "18",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1525376",
+          "fdc_id": "170457",
+          "nutrient_id": "1003",
+          "amount": "0.88",
+          "data_points": "19",
+          "derivation_id": "43",
+          "min": "0.59",
+          "max": "1.06",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1525333",
+          "fdc_id": "170457",
+          "nutrient_id": "1005",
+          "amount": "3.89",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1525365",
+          "fdc_id": "170457",
+          "nutrient_id": "1004",
+          "amount": "0.2",
+          "data_points": "26",
+          "derivation_id": "43",
+          "min": "0.07",
+          "max": "0.8",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        }
+      ]
+    },
+    {
+      "ingredientId": "carrot-raw",
+      "food": {
+        "fdc_id": "170393",
+        "data_type": "sr_legacy_food",
+        "description": "Carrots, raw",
+        "food_category_id": "11",
+        "publication_date": "2019-04-01"
+      },
+      "srLegacyFood": {
+        "fdc_id": "170393",
+        "NDB_number": "11124"
+      },
+      "foodNutrients": [
+        {
+          "id": "1519996",
+          "fdc_id": "170393",
+          "nutrient_id": "1008",
+          "amount": "41",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1519940",
+          "fdc_id": "170393",
+          "nutrient_id": "1003",
+          "amount": "0.93",
+          "data_points": "19",
+          "derivation_id": "43",
+          "min": "0.68",
+          "max": "1.19",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1519995",
+          "fdc_id": "170393",
+          "nutrient_id": "1005",
+          "amount": "9.58",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1519947",
+          "fdc_id": "170393",
+          "nutrient_id": "1004",
+          "amount": "0.24",
+          "data_points": "26",
+          "derivation_id": "43",
+          "min": "0.1",
+          "max": "0.4",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        }
+      ]
+    },
+    {
+      "ingredientId": "onion-raw",
+      "food": {
+        "fdc_id": "170000",
+        "data_type": "sr_legacy_food",
+        "description": "Onions, raw",
+        "food_category_id": "11",
+        "publication_date": "2019-04-01"
+      },
+      "srLegacyFood": {
+        "fdc_id": "170000",
+        "NDB_number": "11282"
+      },
+      "foodNutrients": [
+        {
+          "id": "1486615",
+          "fdc_id": "170000",
+          "nutrient_id": "1008",
+          "amount": "40",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1486656",
+          "fdc_id": "170000",
+          "nutrient_id": "1003",
+          "amount": "1.1",
+          "data_points": "25",
+          "derivation_id": "43",
+          "min": "0.79",
+          "max": "1.19",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1486614",
+          "fdc_id": "170000",
+          "nutrient_id": "1005",
+          "amount": "9.34",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1486613",
+          "fdc_id": "170000",
+          "nutrient_id": "1004",
+          "amount": "0.1",
+          "data_points": "22",
+          "derivation_id": "43",
+          "min": "0.02",
+          "max": "0.12",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        }
+      ]
+    },
+    {
+      "ingredientId": "pepper-red-raw",
+      "food": {
+        "fdc_id": "170108",
+        "data_type": "sr_legacy_food",
+        "description": "Peppers, sweet, red, raw",
+        "food_category_id": "11",
+        "publication_date": "2019-04-01"
+      },
+      "srLegacyFood": {
+        "fdc_id": "170108",
+        "NDB_number": "11821"
+      },
+      "foodNutrients": [
+        {
+          "id": "1495485",
+          "fdc_id": "170108",
+          "nutrient_id": "1008",
+          "amount": "26",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1495577",
+          "fdc_id": "170108",
+          "nutrient_id": "1003",
+          "amount": "0.99",
+          "data_points": "4",
+          "derivation_id": "1",
+          "min": "0.89",
+          "max": "1.04",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1495551",
+          "fdc_id": "170108",
+          "nutrient_id": "1005",
+          "amount": "6.03",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1495591",
+          "fdc_id": "170108",
+          "nutrient_id": "1004",
+          "amount": "0.3",
+          "data_points": "4",
+          "derivation_id": "1",
+          "min": "0.27",
+          "max": "0.31",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        }
+      ]
+    },
+    {
+      "ingredientId": "banana-raw",
+      "food": {
+        "fdc_id": "173944",
+        "data_type": "sr_legacy_food",
+        "description": "Bananas, raw",
+        "food_category_id": "9",
+        "publication_date": "2019-04-01"
+      },
+      "srLegacyFood": {
+        "fdc_id": "173944",
+        "NDB_number": "9040"
+      },
+      "foodNutrients": [
+        {
+          "id": "1817900",
+          "fdc_id": "173944",
+          "nutrient_id": "1008",
+          "amount": "89",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1817943",
+          "fdc_id": "173944",
+          "nutrient_id": "1003",
+          "amount": "1.09",
+          "data_points": "12",
+          "derivation_id": "1",
+          "min": "0.75",
+          "max": "1.31",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1817899",
+          "fdc_id": "173944",
+          "nutrient_id": "1005",
+          "amount": "22.84",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1817956",
+          "fdc_id": "173944",
+          "nutrient_id": "1004",
+          "amount": "0.33",
+          "data_points": "19",
+          "derivation_id": "1",
+          "min": "0.07",
+          "max": "0.7",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        }
+      ]
+    },
+    {
+      "ingredientId": "apple-raw",
+      "food": {
+        "fdc_id": "171688",
+        "data_type": "sr_legacy_food",
+        "description": "Apples, raw, with skin (Includes foods for USDA's Food Distribution Program)",
+        "food_category_id": "9",
+        "publication_date": "2019-04-01"
+      },
+      "srLegacyFood": {
+        "fdc_id": "171688",
+        "NDB_number": "9003"
+      },
+      "foodNutrients": [
+        {
+          "id": "1631310",
+          "fdc_id": "171688",
+          "nutrient_id": "1008",
+          "amount": "52",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1631368",
+          "fdc_id": "171688",
+          "nutrient_id": "1003",
+          "amount": "0.26",
+          "data_points": "29",
+          "derivation_id": "1",
+          "min": "0.17",
+          "max": "0.57",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1631309",
+          "fdc_id": "171688",
+          "nutrient_id": "1005",
+          "amount": "13.81",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1631338",
+          "fdc_id": "171688",
+          "nutrient_id": "1004",
+          "amount": "0.17",
+          "data_points": "35",
+          "derivation_id": "1",
+          "min": "0.05",
+          "max": "0.31",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        }
+      ]
+    },
+    {
+      "ingredientId": "potato-boiled",
+      "food": {
+        "fdc_id": "170440",
+        "data_type": "sr_legacy_food",
+        "description": "Potatoes, boiled, cooked without skin, flesh, without salt",
+        "food_category_id": "11",
+        "publication_date": "2019-04-01"
+      },
+      "srLegacyFood": {
+        "fdc_id": "170440",
+        "NDB_number": "11367"
+      },
+      "foodNutrients": [
+        {
+          "id": "1524014",
+          "fdc_id": "170440",
+          "nutrient_id": "1008",
+          "amount": "86",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1524037",
+          "fdc_id": "170440",
+          "nutrient_id": "1003",
+          "amount": "1.71",
+          "data_points": "6",
+          "derivation_id": "",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1523972",
+          "fdc_id": "170440",
+          "nutrient_id": "1005",
+          "amount": "20.01",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1524020",
+          "fdc_id": "170440",
+          "nutrient_id": "1004",
+          "amount": "0.1",
+          "data_points": "0",
+          "derivation_id": "",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        }
+      ]
+    },
+    {
+      "ingredientId": "quinoa-cooked",
+      "food": {
+        "fdc_id": "168917",
+        "data_type": "sr_legacy_food",
+        "description": "Quinoa, cooked",
+        "food_category_id": "20",
+        "publication_date": "2019-04-01"
+      },
+      "srLegacyFood": {
+        "fdc_id": "168917",
+        "NDB_number": "20137"
+      },
+      "foodNutrients": [
+        {
+          "id": "1398958",
+          "fdc_id": "168917",
+          "nutrient_id": "1008",
+          "amount": "120",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1398900",
+          "fdc_id": "168917",
+          "nutrient_id": "1003",
+          "amount": "4.4",
+          "data_points": "3",
+          "derivation_id": "1",
+          "min": "3.13",
+          "max": "5.94",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1398957",
+          "fdc_id": "168917",
+          "nutrient_id": "1005",
+          "amount": "21.3",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1398924",
+          "fdc_id": "168917",
+          "nutrient_id": "1004",
+          "amount": "1.92",
+          "data_points": "3",
+          "derivation_id": "1",
+          "min": "1.5",
+          "max": "2.43",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        }
+      ]
+    },
+    {
+      "ingredientId": "avocado-raw",
+      "food": {
+        "fdc_id": "171705",
+        "data_type": "sr_legacy_food",
+        "description": "Avocados, raw, all commercial varieties",
+        "food_category_id": "9",
+        "publication_date": "2019-04-01"
+      },
+      "srLegacyFood": {
+        "fdc_id": "171705",
+        "NDB_number": "9037"
+      },
+      "foodNutrients": [
+        {
+          "id": "1632814",
+          "fdc_id": "171705",
+          "nutrient_id": "1008",
+          "amount": "160",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1632735",
+          "fdc_id": "171705",
+          "nutrient_id": "1003",
+          "amount": "2",
+          "data_points": "34",
+          "derivation_id": "1",
+          "min": "1.53",
+          "max": "3",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1632813",
+          "fdc_id": "171705",
+          "nutrient_id": "1005",
+          "amount": "8.53",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1632765",
+          "fdc_id": "171705",
+          "nutrient_id": "1004",
+          "amount": "14.66",
+          "data_points": "35",
+          "derivation_id": "1",
+          "min": "8.4",
+          "max": "23.2",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        }
+      ]
+    },
+    {
+      "ingredientId": "almonds",
+      "food": {
+        "fdc_id": "170567",
+        "data_type": "sr_legacy_food",
+        "description": "Nuts, almonds",
+        "food_category_id": "12",
+        "publication_date": "2019-04-01"
+      },
+      "srLegacyFood": {
+        "fdc_id": "170567",
+        "NDB_number": "12061"
+      },
+      "foodNutrients": [
+        {
+          "id": "1533885",
+          "fdc_id": "170567",
+          "nutrient_id": "1008",
+          "amount": "579",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1533832",
+          "fdc_id": "170567",
+          "nutrient_id": "1003",
+          "amount": "21.15",
+          "data_points": "91",
+          "derivation_id": "1",
+          "min": "16.82",
+          "max": "25.43",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1533884",
+          "fdc_id": "170567",
+          "nutrient_id": "1005",
+          "amount": "21.55",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1533883",
+          "fdc_id": "170567",
+          "nutrient_id": "1004",
+          "amount": "49.93",
+          "data_points": "90",
+          "derivation_id": "1",
+          "min": "43.7",
+          "max": "54.1",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        }
+      ]
+    },
+    {
+      "ingredientId": "salmon-cooked",
+      "food": {
+        "fdc_id": "175168",
+        "data_type": "sr_legacy_food",
+        "description": "Fish, salmon, Atlantic, farmed, cooked, dry heat",
+        "food_category_id": "15",
+        "publication_date": "2019-04-01"
+      },
+      "srLegacyFood": {
+        "fdc_id": "175168",
+        "NDB_number": "15237"
+      },
+      "foodNutrients": [
+        {
+          "id": "1918253",
+          "fdc_id": "175168",
+          "nutrient_id": "1008",
+          "amount": "206",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1918224",
+          "fdc_id": "175168",
+          "nutrient_id": "1003",
+          "amount": "22.1",
+          "data_points": "2",
+          "derivation_id": "",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1918223",
+          "fdc_id": "175168",
+          "nutrient_id": "1005",
+          "amount": "0",
+          "data_points": "0",
+          "derivation_id": "68",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1918222",
+          "fdc_id": "175168",
+          "nutrient_id": "1004",
+          "amount": "12.35",
+          "data_points": "2",
+          "derivation_id": "",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        }
+      ]
+    },
+    {
+      "ingredientId": "cucumber-raw",
+      "food": {
+        "fdc_id": "168409",
+        "data_type": "sr_legacy_food",
+        "description": "Cucumber, with peel, raw",
+        "food_category_id": "11",
+        "publication_date": "2019-04-01"
+      },
+      "srLegacyFood": {
+        "fdc_id": "168409",
+        "NDB_number": "11205"
+      },
+      "foodNutrients": [
+        {
+          "id": "1358224",
+          "fdc_id": "168409",
+          "nutrient_id": "1008",
+          "amount": "15",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1358332",
+          "fdc_id": "168409",
+          "nutrient_id": "1003",
+          "amount": "0.65",
+          "data_points": "4",
+          "derivation_id": "1",
+          "min": "0.65",
+          "max": "0.65",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1358223",
+          "fdc_id": "168409",
+          "nutrient_id": "1005",
+          "amount": "3.63",
+          "data_points": "0",
+          "derivation_id": "49",
+          "min": "",
+          "max": "",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        },
+        {
+          "id": "1358295",
+          "fdc_id": "168409",
+          "nutrient_id": "1004",
+          "amount": "0.11",
+          "data_points": "9",
+          "derivation_id": "43",
+          "min": "0.1",
+          "max": "0.11",
+          "median": "",
+          "footnote": "",
+          "min_year_acquired": ""
+        }
+      ]
+    }
+  ]
+}

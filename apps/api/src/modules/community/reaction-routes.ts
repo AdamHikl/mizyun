@@ -223,7 +223,7 @@ export const communityReactionRoutes: FastifyPluginAsync<
         request,
         403,
         "FORBIDDEN",
-        "Authors cannot react to their own shared workouts.",
+        "Authors cannot react to their own shared activities.",
       );
     }
 

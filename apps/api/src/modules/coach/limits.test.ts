@@ -1,9 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { capsForTier } from "@mizyun/config";
+import {
+  SupabaseRecipeRequestLedger,
+  type RepositorySupabaseClient,
+} from "@mizyun/adapter-supabase-server";
 import type { PlanTier, UserId, ConversationId } from "@mizyun/core";
 
 import {
   InMemoryCoachLimitService,
+  SupabaseCoachLimitService,
   type ReserveSlotRequest,
 } from "./limits.js";
 
@@ -56,6 +61,151 @@ const acquireAndRelease = async (
   }
   return { first: result };
 };
+
+const sharedCounterFixture = (
+  maxConcurrentRequests = 1,
+  deniedRpc?: string,
+) => {
+  const counters = new Map<string, number>();
+  const attempts = new Map<string, string>();
+  const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {
+    const owner = String(args.p_user_id);
+    const active = counters.get(owner) ?? 0;
+    let row: Record<string, unknown>;
+    switch (name) {
+      case "ai_acquire_in_flight": {
+        const allowed = active < Number(args.p_max);
+        if (allowed) counters.set(owner, active + 1);
+        row = { allowed };
+        break;
+      }
+      case "ai_release_in_flight":
+        counters.set(owner, Math.max(0, active - 1));
+        row = {};
+        break;
+      case "ai_reserve_recipe_request":
+        if (active >= Number(args.p_max_concurrent)) {
+          row = { outcome: "denied", reason: "inflight", retry_after: 1 };
+        } else {
+          const attemptId = crypto.randomUUID();
+          counters.set(owner, active + 1);
+          attempts.set(attemptId, owner);
+          row = {
+            outcome: "reserved",
+            attempt_id: attemptId,
+            budget_day: "2026-10-13",
+            lease_expires_at: "2026-10-13T10:01:00.000Z",
+          };
+        }
+        break;
+      case "ai_finalize_recipe_request":
+        if (attempts.get(String(args.p_attempt_id)) !== owner) {
+          throw new Error("unknown recipe reservation");
+        }
+        attempts.delete(String(args.p_attempt_id));
+        counters.set(owner, Math.max(0, active - 1));
+        row = { publish_allowed: false };
+        break;
+      case "ai_register_request":
+      case "ai_reserve_tokens":
+      case "ai_reserve_draft":
+        row = { allowed: name !== deniedRpc, retry_after: 60 };
+        break;
+      case "ai_reserve_provider_call":
+        row = { outcome: "reserved", call_id: crypto.randomUUID() };
+        break;
+      default:
+        throw new Error(`unexpected RPC ${name}`);
+    }
+    return { data: [row], error: null };
+  });
+  const serviceClient = { rpc } as unknown as RepositorySupabaseClient;
+  const recipes = new SupabaseRecipeRequestLedger(serviceClient);
+  return {
+    rpc,
+    active: () => counters.get(userId) ?? 0,
+    coach: new SupabaseCoachLimitService({
+      serviceClient,
+      clock: fixedClock("2026-10-13T10:00:00.000Z"),
+      resolveCap: (tier) => ({ ...capsForTier(tier), maxConcurrentRequests }),
+    }),
+    recipes,
+    reserveRecipe: () =>
+      recipes.reserve({
+        userId,
+        requestId: crypto.randomUUID(),
+        operation: "suggest",
+        fingerprint: "a".repeat(64),
+        consentVersion: "v1",
+        tokensEstimated: 1500,
+        limits: {
+          dailyTokenBudget: 10_000,
+          dailyDraftLimit: 5,
+          requestsPerMinute: 3,
+          maxConcurrentRequests,
+        },
+        leaseMs: 60_000,
+      }),
+  };
+};
+
+describe("SupabaseCoachLimitService — shared recipe concurrency", () => {
+  it.each(["chat", "draft"] as const)(
+    "a denied %s acquisition preserves an active recipe's slot",
+    async (kind) => {
+      const f = sharedCounterFixture();
+      const first = await f.reserveRecipe();
+      expect(first.kind).toBe("reserved");
+      if (first.kind !== "reserved") throw new Error("expected reservation");
+
+      const denied =
+        kind === "chat"
+          ? await f.coach.acquireSlot(buildRequest())
+          : await f.coach.acquireDraftSlot(userId, "free", "photo");
+      expect(denied).toMatchObject({ reason: "inflight" });
+      expect(await f.reserveRecipe()).toEqual({
+        kind: "denied",
+        reason: "inflight",
+        retryAfter: 1,
+      });
+      expect(f.active()).toBe(1);
+      expect(f.rpc.mock.calls.map(([name]) => name)).not.toContain(
+        "ai_release_in_flight",
+      );
+
+      await f.recipes.finalize({
+        userId,
+        attemptId: first.attemptId,
+        status: "failed",
+      });
+      expect(f.active()).toBe(0);
+      expect((await f.reserveRecipe()).kind).toBe("reserved");
+    },
+  );
+
+  it.each([
+    { kind: "chat", deniedRpc: "ai_reserve_tokens", reason: "tokens" },
+    { kind: "draft", deniedRpc: "ai_register_request", reason: "minute" },
+    { kind: "draft", deniedRpc: "ai_reserve_draft", reason: "drafts" },
+  ] as const)(
+    "$kind $reason denial releases only its successfully acquired slot",
+    async ({ kind, deniedRpc, reason }) => {
+      const f = sharedCounterFixture(2, deniedRpc);
+      expect((await f.reserveRecipe()).kind).toBe("reserved");
+      const denied =
+        kind === "chat"
+          ? await f.coach.acquireSlot(buildRequest())
+          : await f.coach.acquireDraftSlot(userId, "free", "photo");
+      expect(denied).toMatchObject({ reason });
+      expect(f.active()).toBe(1);
+      expect((await f.reserveRecipe()).kind).toBe("reserved");
+      expect(await f.reserveRecipe()).toMatchObject({
+        kind: "denied",
+        reason: "inflight",
+      });
+    },
+  );
+});
 
 describe("InMemoryCoachLimitService — per-tier caps", () => {
   it("honours the free-tier daily budget (10k tokens)", async () => {

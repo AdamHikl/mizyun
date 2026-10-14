@@ -34,6 +34,8 @@ const mockItem: SharedActivityFeedItemDto = {
   sharedDay: "2026-09-29",
   durationSeconds: 2700,
   workoutDetails: null,
+  activityKind: "workout",
+  mealDetails: null,
   publishedAt: "2026-09-30T10:00:00.000Z",
   reactionCounts: {
     clap: 3,
@@ -91,6 +93,27 @@ describe("ActivityCard", () => {
     expect(minimal.props.children[1].props.accessibilityLabel).not.toContain(
       "workout details shared",
     );
+  });
+  it("renders meals with a meal destination and excludes workout fields", () => {
+    const meal = {
+      name: "Lentil soup",
+      caloriesKcal: 320,
+      proteinG: 18,
+      carbsG: 42,
+      fatG: null,
+    };
+    const element = ActivityCard({
+      item: { ...mockItem, activityKind: "meal", mealDetails: meal },
+    });
+    const content = element.props.children[1];
+    expect(content.props.accessibilityLabel).toContain("Meal · Lentil soup");
+    expect(content.props.accessibilityLabel).not.toContain("duration");
+    expect(content.props.accessibilityLabel).not.toContain("Strength workout");
+    expect(content.props.accessibilityHint).toBe("Open shared meal details");
+    const projection = content.props.children.find(
+      (child: any) => child?.props?.details === meal,
+    );
+    expect(projection.props.compact).toBe(true);
   });
   it("handles null duration gracefully", () => {
     const itemWithoutDuration = { ...mockItem, durationSeconds: null };

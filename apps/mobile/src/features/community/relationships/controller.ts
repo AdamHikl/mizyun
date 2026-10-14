@@ -447,7 +447,7 @@ export class RelationshipsController {
           ? (result.value as { status: string }).status === "approved"
             ? "You already follow this friend."
             : (result.value as { status: string }).status === "pending"
-              ? "Request sent. Your friend must approve before you can see their shared workouts."
+              ? "Request sent. Your friend must approve before you can see their shared meals and workouts."
               : "This request ended. Refresh before trying again."
           : action === "approve"
             ? "Follower approved. Following them back requires a separate request."

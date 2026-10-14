@@ -83,6 +83,7 @@ export interface ExportedMediaAsset {
  * can render the full record set without a second round-trip.
  */
 export interface AccountExport {
+  readonly recipeRequests?: readonly import("./recipe-request.js").RecipeRequestUsage[];
   readonly mealImagePaths?: readonly import("./meal-image-path.js").MealImagePathRecord[];
   readonly mealIllustrations?: readonly import("./meal-illustration.js").StoredMealIllustration[];
   readonly mealIllustrationUsage?: readonly import("./meal-illustration.js").MealIllustrationUsage[];
@@ -108,6 +109,9 @@ export interface AccountExport {
   readonly recurringMeals?: {
     readonly schedules: readonly Record<string, unknown>[];
     readonly occurrences: readonly Record<string, unknown>[];
+    readonly suggestionStates?: readonly Record<string, unknown>[];
+    readonly suggestionPreferences?: readonly Record<string, unknown>[];
+    readonly suggestionReceipts?: readonly Record<string, unknown>[];
   };
   readonly community?: {
     readonly schemaVersion: "2026-09-30" | "2026-10-01" | "2026-10-11";

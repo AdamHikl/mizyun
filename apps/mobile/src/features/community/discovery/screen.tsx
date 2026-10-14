@@ -254,7 +254,7 @@ export function DiscoveryScreen({
           () =>
             Alert.alert(
               `Follow @${user.handle}?`,
-              `Request as @${community.profile?.handle}. They must approve before you can see their shared workouts. This does not give them access to yours.`,
+              `Request as @${community.profile?.handle}. They must approve before you can see their shared meals and workouts. This does not give them access to yours.`,
               [
                 { text: "Cancel", style: "cancel" },
                 {

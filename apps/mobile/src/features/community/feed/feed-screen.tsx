@@ -140,11 +140,53 @@ function FeedScreenContent({
   const router = useRouter();
   const community = useCommunityProfile({
     principalKey,
+    accessToken,
     birthYear,
     autoLoad: false,
   });
-  const [membershipVerified, setMembershipVerified] = useState(false);
+  const initialDeadline = getCommunityReadDeadline(community.profile);
+  const initialMembership =
+    principalKey !== null &&
+    accessToken !== null &&
+    AppState.currentState === "active" &&
+    community.isAdultEligible &&
+    community.status === "ready" &&
+    community.isEnrolled &&
+    !community.isSaving &&
+    initialDeadline !== undefined &&
+    initialDeadline > Date.now() &&
+    getCommunityResponseEpoch(community.profile) === getCommunityReadEpoch();
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+  const controller = useMemo(
+    () =>
+      new FeedController(
+        apiClient,
+        principalKey,
+        () => alive.current,
+        community.isAdultEligible ? accessToken : null,
+      ),
+    [principalKey, accessToken, community.isAdultEligible],
+  );
+  const state = useSyncExternalStore(
+    controller.subscribe,
+    controller.getSnapshot,
+  );
+
+  const [storedMembershipVerified, setMembershipVerified] =
+    useState(initialMembership);
   const membershipRevision = useRef(0);
+  const lateInitialSnapshot =
+    !storedMembershipVerified &&
+    membershipRevision.current === 0 &&
+    initialMembership &&
+    controller.canRetainForNavigation();
+  const membershipVerified = storedMembershipVerified || lateInitialSnapshot;
   const membershipIdentity = useRef({ accessToken, birthYear });
   const [, setNavigationRevision] = useState(0);
   const retainedMembership = useRef<{
@@ -153,14 +195,41 @@ function FeedScreenContent({
     token: string | null;
     birthYear: number | null | undefined;
     generation: number | undefined;
-  } | null>(null);
-  // Remembers presentation only, never permission or protected feed content.
-  const hasShownHub = useRef(false);
-  const prefetchedFeed = useRef<{ generation: number | undefined } | null>(
-    null,
+  } | null>(
+    initialMembership
+      ? {
+          deadline: initialDeadline!,
+          epoch: getCommunityReadEpoch(),
+          token: accessToken,
+          birthYear,
+          generation: community.profile?.generation,
+        }
+      : null,
   );
-  const verifiedGeneration = useRef<number | undefined>(undefined);
+  // Remembers presentation only, never permission or protected feed content.
+  const hasShownHub = useRef(initialMembership);
+  const prefetchedFeed = useRef<{ generation: number | undefined } | null>(
+    initialMembership ? { generation: community.profile?.generation } : null,
+  );
+  const verifiedGeneration = useRef<number | undefined>(
+    initialMembership ? community.profile?.generation : undefined,
+  );
   const [manualRefreshing, setManualRefreshing] = useState(false);
+  if (lateInitialSnapshot) {
+    retainedMembership.current = {
+      deadline: initialDeadline!,
+      epoch: getCommunityReadEpoch(),
+      token: accessToken,
+      birthYear,
+      generation: community.profile?.generation,
+    };
+    hasShownHub.current = true;
+    prefetchedFeed.current = { generation: community.profile?.generation };
+    verifiedGeneration.current = community.profile?.generation;
+  }
+  useEffect(() => {
+    if (lateInitialSnapshot) setMembershipVerified(true);
+  }, [lateInitialSnapshot]);
   useEffect(() => {
     if (membershipVerified)
       hasShownHub.current =
@@ -173,24 +242,6 @@ function FeedScreenContent({
     community.isEnrolled,
     community.profile?.generation,
   ]);
-
-  const alive = useRef(true);
-  useEffect(() => {
-    alive.current = true;
-    return () => {
-      alive.current = false;
-    };
-  }, []);
-
-  const controller = useMemo(
-    () => new FeedController(apiClient, principalKey, () => alive.current),
-    [principalKey],
-  );
-
-  const state = useSyncExternalStore(
-    controller.subscribe,
-    controller.getSnapshot,
-  );
 
   const canRetain = useCallback(() => {
     const retained = retainedMembership.current;
@@ -488,6 +539,10 @@ function FeedScreenContent({
           href={"/community/share" as Href}
           tone="primary"
         />
+        <CommunityButton
+          label="Share meal"
+          href={"/community/share-meal" as Href}
+        />
         <CommunityButton label="Spaces" href="/community/more" />
       </View>
       {state.error ? (
@@ -518,7 +573,7 @@ function FeedScreenContent({
   const emptyComponent =
     checkingActivity && !state.error ? (
       <View
-        accessibilityLabel="Checking shared workouts"
+        accessibilityLabel="Checking shared activity"
         accessibilityState={{ busy: true }}
         style={[
           styles.activityPlaceholder,
@@ -556,12 +611,12 @@ function FeedScreenContent({
           accessibilityRole="header"
           style={[styles.emptyTitle, { color: colors.text }]}
         >
-          {state.error ? "Activity is unavailable" : "No shared workouts yet"}
+          {state.error ? "Activity is unavailable" : "No shared activity yet"}
         </Text>
         <Text style={[styles.emptyBody, { color: colors.textSecondary }]}>
           {state.error
             ? "Retry to check again. Your private tracking stays available."
-            : "Workouts people choose to share appear here after they approve your follow request."}
+            : "Meals and workouts people choose to share appear here after they approve your follow request."}
         </Text>
         {!state.error ? (
           <CommunityButton

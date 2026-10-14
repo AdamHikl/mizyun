@@ -331,3 +331,6 @@ export {
   SupabaseMealIllustrationRepository,
   processMealIllustration,
 } from "./meal-illustrations.js";
+
+export * from "./recipe-request-ledger";
+export { SupabaseRecurringMealSuggestionRepository } from "./recurring-meal-suggestion-repository.js";

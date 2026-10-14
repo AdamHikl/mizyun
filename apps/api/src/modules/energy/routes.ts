@@ -22,7 +22,7 @@ import {
 
 import { sendApiError } from "../../errors.js";
 
-interface EnergyRoutesOptions {
+export interface EnergyRoutesOptions {
   readonly profileRepository: ProfileRepository;
   readonly goalRepository: GoalRepository;
   readonly bodyMeasurementRepository: BodyMeasurementRepository;
@@ -161,7 +161,7 @@ const distinctDayCount = (
  * itself does not have access to per-workout set counts); the
  * route fills that in, then computes the day's balance.
  */
-const computeRouteSummary = async (
+export const computeRouteSummary = async (
   options: EnergyRoutesOptions,
   userId: UserId,
   accessToken: string,

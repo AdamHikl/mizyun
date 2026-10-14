@@ -55,27 +55,27 @@ const listInfo: Record<
   incoming: {
     title: "Received requests",
     description:
-      "Approve someone to let them see your shared workouts. Following back is separate.",
+      "Approve someone to let them see your shared meals and workouts. Following back is separate.",
     empty: "No follow requests",
     hint: "New requests will appear here for you to approve or decline.",
   },
   outgoing: {
     title: "Sent requests",
     description:
-      "Waiting for their approval before you can see their shared workouts.",
+      "Waiting for their approval before you can see their shared meals and workouts.",
     empty: "No requests waiting",
     hint: "Find a friend by their exact handle or share an invitation.",
   },
   following: {
     title: "Following",
-    description: "People whose shared workouts you can see.",
+    description: "People whose shared meals and workouts you can see.",
     empty: "You're not following anyone yet",
     hint: "Find a friend and request to follow. They choose whether to approve.",
   },
   followers: {
     title: "Followers",
     description:
-      "People you've approved to see your shared workouts, including past cards still shared.",
+      "People you've approved to see your shared meals and workouts, including past cards still shared.",
     empty: "No followers yet",
     hint: "When someone requests to follow you, approve them from Requests.",
   },
@@ -339,13 +339,13 @@ function OwnerRelationships({
   const confirm = (action: RelationshipAction, row: RelationshipRow) => {
     const explanations: Partial<Record<RelationshipAction, string>> = {
       approve:
-        "They can see your still-published workout cards, including past cards. This does not follow them back.",
+        "They can see your still-published meal and workout cards, including past cards. This does not follow them back.",
       block:
         "Blocks interaction in both directions and removes both follows and pending requests. Unblocking restores nothing.",
       remove:
-        "Removes their access to your shared workouts and prior interactions.",
+        "Removes their access to your shared meals and workouts and prior interactions.",
       unfollow:
-        "Stops following this person and ends your access to their shared workouts.",
+        "Stops following this person and ends your access to their shared meals and workouts.",
       unblock: "Previous follows and requests will not be restored.",
     };
     const intentCurrent = controller.captureIntent();
@@ -730,7 +730,7 @@ function OwnerRelationships({
                       busy,
                       true,
                       `Follow back @${row.user.handle}`,
-                      "Sends a follow request. They must approve before you can see their shared workouts.",
+                      "Sends a follow request. They must approve before you can see their shared meals and workouts.",
                     )}
                   {row.outgoingFollowStatus === "pending" && (
                     <Text

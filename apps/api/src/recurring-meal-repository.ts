@@ -1,5 +1,8 @@
 import {
   RecurringMealRepositoryError,
+  recurringMealSuggestionIdentityKey,
+  type StoredFoodEntry,
+  type RecurringMealSuggestionExistingSchedule,
   isRecurringMealLocalDate,
   recurringMealLocalDateAt,
   validateRecurringMealSchedule,
@@ -16,6 +19,8 @@ type RecordState = {
   readonly original: string;
   stopped: boolean;
   readonly skips: Set<string>;
+  identityKey: string;
+  suggestionLinked: boolean;
 };
 
 const fingerprint = (input: RecurringMealCreate): string =>
@@ -36,6 +41,88 @@ const clone = (meal: StoredRecurringMeal): StoredRecurringMeal => ({
 export class InMemoryRecurringMealRepository implements RecurringMealRepository {
   readonly #rows = new Map<string, RecordState>();
   constructor(readonly foodEntryRepository: FoodEntryRepository) {}
+
+  suggestionProjection(
+    userId: UserId,
+  ): readonly RecurringMealSuggestionExistingSchedule[] {
+    return [...this.#rows.values()]
+      .filter((row) => row.meal.userId === userId && !row.stopped)
+      .map((row) => ({
+        identityKey: row.identityKey,
+        localTime: row.meal.localTime,
+        timeZone: row.meal.timeZone,
+        weekdays: [...row.meal.weekdays],
+        stopped: row.stopped,
+      }));
+  }
+  suggestionFindEquivalent(
+    userId: UserId,
+    source: StoredFoodEntry,
+    input: Pick<RecurringMealCreate, "localTime" | "timeZone" | "weekdays">,
+  ): StoredRecurringMeal | null {
+    const key = recurringMealSuggestionIdentityKey(source);
+    const row = [...this.#rows.values()].find(
+      (row) =>
+        row.meal.userId === userId &&
+        !row.stopped &&
+        row.identityKey === key &&
+        row.meal.localTime === input.localTime &&
+        row.meal.timeZone === input.timeZone &&
+        JSON.stringify(row.meal.weekdays) ===
+          JSON.stringify([...input.weekdays].sort((a, b) => a - b)),
+    );
+    return row ? clone(row.meal) : null;
+  }
+  suggestionLink(userId: UserId, id: string): void {
+    const row = this.#rows.get(id);
+    if (row?.meal.userId === userId) row.suggestionLinked = true;
+  }
+  suggestionIsStopped(userId: UserId, id: string): boolean {
+    const row = this.#rows.get(id);
+    return row?.meal.userId === userId && row.stopped;
+  }
+  suggestionRead(userId: UserId, id: string): StoredRecurringMeal | null {
+    const row = this.#rows.get(id);
+    return row?.meal.userId === userId ? clone(row.meal) : null;
+  }
+  /** Atomic fallback after the caller has revalidated the source. No awaits or food writes. */
+  suggestionCreate(
+    userId: UserId,
+    source: StoredFoodEntry,
+    input: RecurringMealCreate,
+  ): { meal: StoredRecurringMeal; created: boolean } {
+    if (!validateRecurringMealSchedule(input))
+      throw new RecurringMealRepositoryError("invalid");
+    const equivalent = this.suggestionFindEquivalent(userId, source, input);
+    if (equivalent) return { meal: equivalent, created: false };
+    if (
+      [...this.#rows.values()].filter(
+        (row) => row.meal.userId === userId && !row.stopped,
+      ).length >= 20
+    )
+      throw new RecurringMealRepositoryError("invalid");
+    const now = new Date();
+    const meal: StoredRecurringMeal = {
+      id: input.id,
+      userId,
+      name: source.name,
+      localTime: input.localTime,
+      timeZone: input.timeZone,
+      weekdays: [...input.weekdays].sort((a, b) => a - b),
+      enabled: true,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.#rows.set(input.id, {
+      meal,
+      original: fingerprint(input),
+      stopped: false,
+      skips: new Set([recurringMealLocalDateAt(now, input.timeZone)]),
+      identityKey: recurringMealSuggestionIdentityKey(source),
+      suggestionLinked: true,
+    });
+    return { meal: clone(meal), created: true };
+  }
 
   async clearForUser(
     userId: UserId,
@@ -129,6 +216,21 @@ export class InMemoryRecurringMealRepository implements RecurringMealRepository 
       ).length >= 20
     )
       throw new RecurringMealRepositoryError("invalid");
+    const identityKey = recurringMealSuggestionIdentityKey(source);
+    if (
+      [...this.#rows.values()].some(
+        (row) =>
+          row.meal.userId === userId &&
+          !row.stopped &&
+          row.suggestionLinked &&
+          row.identityKey === identityKey &&
+          row.meal.localTime === input.localTime &&
+          row.meal.timeZone === input.timeZone &&
+          JSON.stringify(row.meal.weekdays) ===
+            JSON.stringify([...input.weekdays].sort((a, b) => a - b)),
+      )
+    )
+      throw new RecurringMealRepositoryError("conflict");
     const now = new Date();
     const meal: StoredRecurringMeal = {
       id: input.id,
@@ -146,6 +248,8 @@ export class InMemoryRecurringMealRepository implements RecurringMealRepository 
       original,
       stopped: false,
       skips: new Set(),
+      identityKey,
+      suggestionLinked: false,
     });
     return clone(meal);
   }
@@ -180,6 +284,7 @@ export class InMemoryRecurringMealRepository implements RecurringMealRepository 
     if (!validateRecurringMealSchedule(next))
       throw new RecurringMealRepositoryError("invalid");
     row.meal = next;
+    if (source) row.identityKey = recurringMealSuggestionIdentityKey(source);
     return clone(next);
   }
 

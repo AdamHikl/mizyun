@@ -22,14 +22,12 @@ function fixture() {
     request,
     status: () => ({ configured: false, reason: "fixture" }),
   } as ApiClient;
-  const cache = new SessionReadCache(
-    raw,
-    async () => session,
-    () => time,
-  );
+  const sessionLookup = vi.fn(async () => session);
+  const cache = new SessionReadCache(raw, sessionLookup, () => time);
   return {
     cache,
     request,
+    sessionLookup,
     setSession: (next: AuthSession | null) => {
       session = next;
     },
@@ -49,6 +47,93 @@ function deferred() {
 afterEach(() => vi.useRealTimers());
 
 describe("personal screen navigation reads", () => {
+  it("projects a completed startup read synchronously without auth or transport IO", async () => {
+    const f = fixture();
+    expect(f.cache.peek(options, alice)).toBeNull();
+    expect(f.sessionLookup).not.toHaveBeenCalled();
+    await f.cache.request(options);
+    f.request.mockClear();
+    f.sessionLookup.mockClear();
+    expect(f.cache.peek(options, alice)).toEqual(success);
+    expect(f.cache.peek(options, alice)).toEqual(success);
+    expect(f.request).not.toHaveBeenCalled();
+    expect(f.sessionLookup).not.toHaveBeenCalled();
+  });
+  it("never projects another owner/token, unscoped query, authority or retired caller", async () => {
+    const f = fixture();
+    await f.cache.request(options);
+    for (const owner of [
+      null,
+      { ...alice, user: { ...alice.user, id: "bob" } } as AuthSession,
+      { ...alice, accessToken: "rotated" },
+    ]) {
+      expect(f.cache.peek(options, owner)).toBeNull();
+    }
+    expect(
+      f.cache.peek({ ...options, expectedUserId: "bob" }, alice),
+    ).toBeNull();
+    expect(
+      f.cache.peek({ ...options, isCurrent: () => false }, alice),
+    ).toBeNull();
+    expect(
+      f.cache.peek({ ...options, path: "/v1/workouts?limit=5" }, alice),
+    ).toBeNull();
+    expect(
+      f.cache.peek({ ...options, path: "/v1/coach/status" }, alice),
+    ).toBeNull();
+    expect(
+      f.cache.peek({ ...options, schema: schema.extend({}) }, alice),
+    ).toBeNull();
+    expect(
+      f.cache.peek({ ...options, signal: new AbortController().signal }, alice),
+    ).toBeNull();
+  });
+  it("retires synchronous display on expiry, clear, background and mutation dispatch", async () => {
+    const f = fixture();
+    await f.cache.request(options);
+    f.advance(5 * 60_000);
+    expect(f.cache.peek(options, alice)).toBeNull();
+    await f.cache.request(options);
+    f.cache.setForeground(false);
+    expect(f.cache.peek(options, alice)).toBeNull();
+    f.cache.setForeground(true);
+    expect(f.cache.peek(options, alice)).toBeNull();
+    await f.cache.request(options);
+    const pending = deferred();
+    f.request.mockReturnValueOnce(pending.promise);
+    const write = f.cache.request({
+      method: "DELETE",
+      path: "/v1/workouts/synthetic",
+    });
+    expect(f.cache.peek(options, alice)).toBeNull();
+    pending.resolve(success);
+    await write;
+    await f.cache.request(options);
+    f.cache.clear();
+    expect(f.cache.peek(options, alice)).toBeNull();
+  });
+  it("rejects yesterday or another UTC offset even before the read TTL expires", async () => {
+    const f = fixture();
+    f.advance(12 * 60 * 60_000 - 1000);
+    await f.cache.request(options);
+    f.advance(1000);
+    expect(f.cache.peek(options, alice)).toBeNull();
+    await f.cache.request(options);
+    const offset = Date.prototype.getTimezoneOffset;
+    const spy = vi
+      .spyOn(Date.prototype, "getTimezoneOffset")
+      .mockImplementation(function (this: Date) {
+        return offset.call(this) + 60;
+      });
+    expect(f.cache.peek(options, alice)).toBeNull();
+    spy.mockRestore();
+  });
+  it("validates cached data again before returning it to a first render", async () => {
+    const f = fixture();
+    f.request.mockResolvedValue({ ok: true, value: { malformed: true } });
+    await f.cache.request(options);
+    expect(f.cache.peek(options, alice)).toBeNull();
+  });
   it.each([
     ["PUT", "/v1/beta-pro/push-token"],
     ["POST", "/v1/analytics/events"],
